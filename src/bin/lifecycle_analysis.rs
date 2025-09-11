@@ -268,22 +268,22 @@ mod tests {
     fn test_short_lifetime_allocation_logic() {
         // Test the actual logic used in test_short_lifetime_allocations function
         let mut allocation_count = 0;
-        
+
         for i in 0..100 {
             let temp_vec = vec![i; 100];
             let temp_string = format!("Temporary string {i}");
             let mut temp_map = HashMap::new();
             temp_map.insert(format!("key_{i}"), i);
-            
+
             // Verify the allocations are created correctly
             assert_eq!(temp_vec.len(), 100);
             assert_eq!(temp_vec[0], i);
             assert!(temp_string.contains(&i.to_string()));
             assert_eq!(temp_map.get(&format!("key_{i}")), Some(&i));
-            
+
             allocation_count += 1;
         }
-        
+
         assert_eq!(allocation_count, 100);
     }
 
@@ -295,12 +295,12 @@ mod tests {
         for i in 0..100 {
             let long_vec = vec![i; 100];
             let long_string = format!("Long-lived string {i}");
-            
+
             // Verify allocations before boxing
             assert_eq!(long_vec.len(), 100);
             assert_eq!(long_vec[0], i);
             assert!(long_string.contains(&i.to_string()));
-            
+
             keep_alive.push(Box::new(long_vec) as Box<dyn std::any::Any>);
             keep_alive.push(Box::new(long_string) as Box<dyn std::any::Any>);
         }
@@ -342,7 +342,7 @@ mod tests {
     #[test]
     fn test_release_rate_calculation_edge_cases() {
         // Test edge cases for release rate calculation
-        
+
         // Case 1: All allocations released
         let total = 100u64;
         let active = 0u64;
@@ -370,20 +370,20 @@ mod tests {
         let medium_term = 300u64;
         let long_term = 300u64;
         let total = instant + short_term + medium_term + long_term;
-        
+
         assert_eq!(total, 1000);
-        
+
         // Test proportions
         let instant_pct = instant as f64 / total as f64 * 100.0;
         let short_pct = short_term as f64 / total as f64 * 100.0;
         let medium_pct = medium_term as f64 / total as f64 * 100.0;
         let long_pct = long_term as f64 / total as f64 * 100.0;
-        
+
         assert_eq!(instant_pct, 15.0);
         assert_eq!(short_pct, 25.0);
         assert_eq!(medium_pct, 30.0);
         assert_eq!(long_pct, 30.0);
-        
+
         // Total should be 100%
         let total_pct = instant_pct + short_pct + medium_pct + long_pct;
         assert_eq!(total_pct, 100.0);
@@ -392,16 +392,16 @@ mod tests {
     #[test]
     fn test_allocation_pattern_boundary_conditions() {
         // Test boundary conditions for allocation pattern analysis
-        
+
         // Exactly half active (should be considered mostly active)
         let total = 1000u64;
         let active_half = 500u64;
         assert!(active_half >= total / 2);
-        
+
         // Just under half active (should be considered mostly released)
         let active_under_half = 499u64;
         assert!(active_under_half < total / 2);
-        
+
         // Just over half active (should be considered mostly active)
         let active_over_half = 501u64;
         assert!(active_over_half >= total / 2);
@@ -414,11 +414,11 @@ mod tests {
             let temp_string = format!("Temporary string {i}");
             assert!(temp_string.starts_with("Temporary string "));
             assert!(temp_string.ends_with(&i.to_string()));
-            
+
             let long_string = format!("Long-lived string {i}");
             assert!(long_string.starts_with("Long-lived string "));
             assert!(long_string.ends_with(&i.to_string()));
-            
+
             let key_string = format!("key_{i}");
             assert!(key_string.starts_with("key_"));
             assert!(key_string.ends_with(&i.to_string()));
@@ -429,39 +429,39 @@ mod tests {
     fn test_hashmap_operations() {
         // Test HashMap operations used in the allocation functions
         let mut test_map = HashMap::new();
-        
+
         for i in 0..10 {
             let key = format!("key_{i}");
             test_map.insert(key.clone(), i);
-            
+
             // Verify insertion
             assert_eq!(test_map.get(&key), Some(&i));
             assert_eq!(test_map.len(), (i + 1) as usize);
         }
-        
+
         // Test all keys exist
         for i in 0..10 {
             let key = format!("key_{i}");
             assert!(test_map.contains_key(&key));
         }
-        
+
         assert_eq!(test_map.len(), 10);
     }
 
     #[test]
     fn test_vector_allocation_patterns() {
         // Test vector allocation patterns used in the functions
-        
+
         // Test small vectors (50 elements)
         let small_vec = vec![42; 50];
         assert_eq!(small_vec.len(), 50);
         assert!(small_vec.iter().all(|&x| x == 42));
-        
+
         // Test medium vectors (100 elements)
         let medium_vec = vec![123; 100];
         assert_eq!(medium_vec.len(), 100);
         assert!(medium_vec.iter().all(|&x| x == 123));
-        
+
         // Test large vectors (1000 elements)
         let large_vec = vec![999; 1000];
         assert_eq!(large_vec.len(), 1000);
@@ -473,10 +473,10 @@ mod tests {
         // Test the Box<dyn Any> conversion used in long-lived allocations
         let test_vec = vec![1, 2, 3, 4, 5];
         let test_string = "test string".to_string();
-        
+
         let boxed_vec = Box::new(test_vec) as Box<dyn std::any::Any>;
         let boxed_string = Box::new(test_string) as Box<dyn std::any::Any>;
-        
+
         // Verify the boxes can be created
         assert!(boxed_vec.type_id() == std::any::TypeId::of::<Vec<i32>>());
         assert!(boxed_string.type_id() == std::any::TypeId::of::<String>());

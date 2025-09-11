@@ -479,8 +479,10 @@ impl LocalizedExportData {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::analysis::unsafe_ffi_tracker::{
+        AllocationSource, EnhancedAllocationInfo, UnsafeFFIStats,
+    };
     use crate::core::types::{AllocationInfo, MemoryStats, ScopeInfo};
-    use crate::analysis::unsafe_ffi_tracker::{EnhancedAllocationInfo, UnsafeFFIStats, AllocationSource};
     use crate::core::CallStackRef;
     use std::time::{Duration, Instant};
 
@@ -488,7 +490,7 @@ mod tests {
     fn create_test_enhanced_allocation_info(ptr: usize, size: usize) -> EnhancedAllocationInfo {
         let base = AllocationInfo::new(ptr, size);
         let call_stack = CallStackRef::new(0, Some(1));
-        
+
         EnhancedAllocationInfo {
             base,
             source: AllocationSource::UnsafeRust {
@@ -550,7 +552,7 @@ mod tests {
     fn test_data_localizer_with_custom_ttl() {
         let custom_ttl = Duration::from_millis(500);
         let localizer = DataLocalizer::with_cache_ttl(custom_ttl);
-        
+
         let cache_stats = localizer.get_cache_stats();
         assert_eq!(cache_stats.cache_ttl_ms, 500);
         assert!(!cache_stats.is_cached);
@@ -579,20 +581,20 @@ mod tests {
     #[test]
     fn test_cache_validity_partial_data() {
         let mut localizer = DataLocalizer::new();
-        
+
         // Test with only some cached data - should be invalid
         localizer.cached_allocations = Some(vec![]);
         localizer.cached_ffi_data = Some(vec![]);
         // Missing other cached data
         localizer.last_update = Instant::now();
-        
+
         assert!(!localizer.is_cache_valid());
     }
 
     #[test]
     fn test_invalidate_cache() {
         let mut localizer = DataLocalizer::new();
-        
+
         // Set up cached data
         localizer.cached_allocations = Some(vec![]);
         localizer.cached_ffi_data = Some(vec![]);
@@ -600,11 +602,11 @@ mod tests {
         localizer.cached_ffi_stats = Some(UnsafeFFIStats::default());
         localizer.cached_scope_info = Some(vec![]);
         localizer.last_update = Instant::now();
-        
+
         assert!(localizer.is_cache_valid());
-        
+
         localizer.invalidate_cache();
-        
+
         assert!(!localizer.is_cache_valid());
         assert!(localizer.cached_allocations.is_none());
         assert!(localizer.cached_ffi_data.is_none());
@@ -616,7 +618,7 @@ mod tests {
     #[test]
     fn test_estimate_avoided_global_accesses() {
         let localizer = DataLocalizer::new();
-        
+
         let stats = DataGatheringStats {
             total_time_ms: 100,
             basic_data_time_ms: 50,
@@ -626,7 +628,7 @@ mod tests {
             ffi_allocation_count: 5,
             scope_count: 3,
         };
-        
+
         let avoided = localizer.estimate_avoided_global_accesses(&stats);
         // Expected: 10*2 + 5*3 + 3 = 20 + 15 + 3 = 38
         assert_eq!(avoided, 38);
@@ -635,7 +637,7 @@ mod tests {
     #[test]
     fn test_estimate_avoided_global_accesses_zero() {
         let localizer = DataLocalizer::new();
-        
+
         let stats = DataGatheringStats {
             total_time_ms: 0,
             basic_data_time_ms: 0,
@@ -645,7 +647,7 @@ mod tests {
             ffi_allocation_count: 0,
             scope_count: 0,
         };
-        
+
         let avoided = localizer.estimate_avoided_global_accesses(&stats);
         assert_eq!(avoided, 0);
     }
@@ -654,7 +656,7 @@ mod tests {
     fn test_get_cache_stats_empty() {
         let localizer = DataLocalizer::new();
         let stats = localizer.get_cache_stats();
-        
+
         assert!(!stats.is_cached);
         assert_eq!(stats.cached_allocation_count, 0);
         assert_eq!(stats.cached_ffi_count, 0);
@@ -666,7 +668,7 @@ mod tests {
     #[test]
     fn test_get_cache_stats_with_data() {
         let mut localizer = DataLocalizer::new();
-        
+
         // Set up cached data with different sizes
         localizer.cached_allocations = Some(vec![
             AllocationInfo::new(0x1000, 256),
@@ -677,13 +679,11 @@ mod tests {
             create_test_enhanced_allocation_info(0x4000, 128),
             create_test_enhanced_allocation_info(0x5000, 256),
         ]);
-        localizer.cached_scope_info = Some(vec![
-            create_test_scope_info("test_scope"),
-        ]);
+        localizer.cached_scope_info = Some(vec![create_test_scope_info("test_scope")]);
         localizer.cached_stats = Some(MemoryStats::default());
         localizer.cached_ffi_stats = Some(UnsafeFFIStats::default());
         localizer.last_update = Instant::now();
-        
+
         let stats = localizer.get_cache_stats();
         assert!(stats.is_cached);
         assert_eq!(stats.cached_allocation_count, 3);
@@ -714,7 +714,10 @@ mod tests {
     #[test]
     fn test_localized_export_data_with_data() {
         let data = LocalizedExportData {
-            allocations: vec![AllocationInfo::new(0x1000, 256), AllocationInfo::new(0x2000, 512)],
+            allocations: vec![
+                AllocationInfo::new(0x1000, 256),
+                AllocationInfo::new(0x2000, 512),
+            ],
             enhanced_allocations: vec![create_test_enhanced_allocation_info(0x3000, 128)],
             stats: MemoryStats::default(),
             ffi_stats: UnsafeFFIStats::default(),
@@ -793,7 +796,7 @@ mod tests {
     fn test_default_implementation() {
         let localizer1 = DataLocalizer::default();
         let localizer2 = DataLocalizer::new();
-        
+
         // Both should have the same initial state
         assert_eq!(localizer1.cache_ttl, localizer2.cache_ttl);
         assert_eq!(localizer1.is_cache_valid(), localizer2.is_cache_valid());
@@ -812,7 +815,10 @@ mod tests {
 
         let cloned = original.clone();
         assert_eq!(cloned.allocations.len(), original.allocations.len());
-        assert_eq!(cloned.enhanced_allocations.len(), original.enhanced_allocations.len());
+        assert_eq!(
+            cloned.enhanced_allocations.len(),
+            original.enhanced_allocations.len()
+        );
         assert_eq!(cloned.scope_info.len(), original.scope_info.len());
     }
 
@@ -849,6 +855,9 @@ mod tests {
         let cloned = original.clone();
         assert_eq!(cloned.is_cached, original.is_cached);
         assert_eq!(cloned.cache_age_ms, original.cache_age_ms);
-        assert_eq!(cloned.cached_allocation_count, original.cached_allocation_count);
+        assert_eq!(
+            cloned.cached_allocation_count,
+            original.cached_allocation_count
+        );
     }
 }

@@ -139,29 +139,17 @@ fn analyze_type_with_detailed_subcategory(type_name: &str) -> (String, String, S
     // Smart Pointers - Check these FIRST before basic types
     if clean_type.contains("Box<") {
         let inner = extract_generic_inner_type(clean_type, "Box");
-        return (
-            inner,
-            "Smart Pointers".to_string(),
-            "Box<T>".to_string(),
-        );
+        return (inner, "Smart Pointers".to_string(), "Box<T>".to_string());
     }
 
     if clean_type.contains("Rc<") {
         let inner = extract_generic_inner_type(clean_type, "Rc");
-        return (
-            inner,
-            "Smart Pointers".to_string(),
-            "Rc<T>".to_string(),
-        );
+        return (inner, "Smart Pointers".to_string(), "Rc<T>".to_string());
     }
 
     if clean_type.contains("Arc<") {
         let inner = extract_generic_inner_type(clean_type, "Arc");
-        return (
-            inner,
-            "Smart Pointers".to_string(),
-            "Arc<T>".to_string(),
-        );
+        return (inner, "Smart Pointers".to_string(), "Arc<T>".to_string());
     }
 
     // Collections analysis with precise subcategorization
@@ -342,7 +330,6 @@ fn analyze_type_with_detailed_subcategory(type_name: &str) -> (String, String, S
             "Characters".to_string(),
         );
     }
-
 
     // Fall back to original logic for other types
     let (simplified_name, category) = simplify_type_name(clean_type);
@@ -3389,7 +3376,11 @@ mod tests {
     use crate::core::types::{AllocationInfo, TypeMemoryUsage};
 
     // Helper function to create test allocation info
-    fn create_test_allocation(size: usize, type_name: Option<String>, var_name: Option<String>) -> AllocationInfo {
+    fn create_test_allocation(
+        size: usize,
+        type_name: Option<String>,
+        var_name: Option<String>,
+    ) -> AllocationInfo {
         let mut alloc = AllocationInfo::new(0, size);
         alloc.type_name = type_name;
         alloc.var_name = var_name;
@@ -3397,12 +3388,20 @@ mod tests {
     }
 
     // Helper function to create test type memory usage
-    fn create_test_type_usage(type_name: String, total_size: usize, allocation_count: usize) -> TypeMemoryUsage {
+    fn create_test_type_usage(
+        type_name: String,
+        total_size: usize,
+        allocation_count: usize,
+    ) -> TypeMemoryUsage {
         TypeMemoryUsage {
             type_name,
             total_size,
             allocation_count,
-            average_size: if allocation_count > 0 { total_size as f64 / allocation_count as f64 } else { 0.0 },
+            average_size: if allocation_count > 0 {
+                total_size as f64 / allocation_count as f64
+            } else {
+                0.0
+            },
             peak_size: total_size,
             current_size: total_size,
             efficiency_score: 1.0,
@@ -3453,11 +3452,23 @@ mod tests {
     #[test]
     fn test_extract_generic_inner_type() {
         assert_eq!(extract_generic_inner_type("Vec<i32>", "Vec"), "i32");
-        assert_eq!(extract_generic_inner_type("HashMap<String, i32>", "HashMap"), "String, i32");
-        assert_eq!(extract_generic_inner_type("Option<String>", "Option"), "String");
-        assert_eq!(extract_generic_inner_type("std::vec::Vec<u64>", "Vec"), "u64");
+        assert_eq!(
+            extract_generic_inner_type("HashMap<String, i32>", "HashMap"),
+            "String, i32"
+        );
+        assert_eq!(
+            extract_generic_inner_type("Option<String>", "Option"),
+            "String"
+        );
+        assert_eq!(
+            extract_generic_inner_type("std::vec::Vec<u64>", "Vec"),
+            "u64"
+        );
         assert_eq!(extract_generic_inner_type("NoGeneric", "Vec"), "?");
-        assert_eq!(extract_generic_inner_type("Vec<std::string::String>", "Vec"), "String");
+        assert_eq!(
+            extract_generic_inner_type("Vec<std::string::String>", "Vec"),
+            "String"
+        );
     }
 
     #[test]
@@ -3501,7 +3512,7 @@ mod tests {
             create_test_allocation(150, Some("Vec<u64>".to_string()), Some("vec2".to_string())),
         ];
         let categories = categorize_allocations(&allocations);
-        
+
         assert!(!categories.is_empty());
         // Should be sorted by total size (largest first)
         assert!(categories[0].total_size >= categories.get(1).map_or(0, |c| c.total_size));
@@ -3522,18 +3533,28 @@ mod tests {
             create_test_type_usage("String".to_string(), 500, 3),
         ];
         let allocations = vec![
-            create_test_allocation(200, Some("Vec<i32>".to_string()), Some("my_vec".to_string())),
-            create_test_allocation(100, Some("String".to_string()), Some("my_string".to_string())),
+            create_test_allocation(
+                200,
+                Some("Vec<i32>".to_string()),
+                Some("my_vec".to_string()),
+            ),
+            create_test_allocation(
+                100,
+                Some("String".to_string()),
+                Some("my_string".to_string()),
+            ),
         ];
-        
+
         let enhanced = enhance_type_information(&memory_by_type, &allocations);
         assert!(!enhanced.is_empty());
-        
+
         // Check that we have enhanced type info
         let vec_info = enhanced.iter().find(|e| e.simplified_name.contains("Vec"));
         assert!(vec_info.is_some());
-        
-        let string_info = enhanced.iter().find(|e| e.simplified_name.contains("String"));
+
+        let string_info = enhanced
+            .iter()
+            .find(|e| e.simplified_name.contains("String"));
         assert!(string_info.is_some());
     }
 
@@ -3546,16 +3567,14 @@ mod tests {
 
     #[test]
     fn test_categorize_enhanced_allocations_with_unknown() {
-        let enhanced_types = vec![
-            EnhancedTypeInfo {
-                simplified_name: "Unknown".to_string(),
-                category: "Unknown".to_string(),
-                subcategory: "Unknown".to_string(),
-                total_size: 100,
-                allocation_count: 1,
-                variable_names: vec!["var1".to_string()],
-            }
-        ];
+        let enhanced_types = vec![EnhancedTypeInfo {
+            simplified_name: "Unknown".to_string(),
+            category: "Unknown".to_string(),
+            subcategory: "Unknown".to_string(),
+            total_size: 100,
+            allocation_count: 1,
+            variable_names: vec!["var1".to_string()],
+        }];
         let categories = categorize_enhanced_allocations(&enhanced_types);
         assert!(categories.is_empty()); // Should skip unknown types
     }
@@ -3580,13 +3599,13 @@ mod tests {
                 variable_names: vec!["str1".to_string()],
             },
         ];
-        
+
         let categories = categorize_enhanced_allocations(&enhanced_types);
         assert_eq!(categories.len(), 2);
-        
+
         // Should be sorted by total size (largest first)
         assert!(categories[0].total_size >= categories[1].total_size);
-        
+
         // Check category names
         let category_names: Vec<&String> = categories.iter().map(|c| &c.name).collect();
         assert!(category_names.contains(&&"Collections".to_string()));
@@ -3610,12 +3629,14 @@ mod tests {
 
     #[test]
     fn test_analyze_type_with_detailed_subcategory() {
-        let (simplified, category, subcategory) = analyze_type_with_detailed_subcategory("Vec<i32>");
-        assert_eq!(simplified, "Vec<i32>");  // Function returns full type name for Vec
+        let (simplified, category, subcategory) =
+            analyze_type_with_detailed_subcategory("Vec<i32>");
+        assert_eq!(simplified, "Vec<i32>"); // Function returns full type name for Vec
         assert_eq!(category, "Collections");
         assert_eq!(subcategory, "Vec<T>");
 
-        let (simplified, category, subcategory) = analyze_type_with_detailed_subcategory("HashMap<String, u64>");
+        let (simplified, category, subcategory) =
+            analyze_type_with_detailed_subcategory("HashMap<String, u64>");
         assert_eq!(simplified, "HashMap<K,V>");
         assert_eq!(category, "Collections");
         assert_eq!(subcategory, "HashMap<K,V>");
@@ -3630,8 +3651,9 @@ mod tests {
         assert_eq!(category, "Basic Types");
         assert_eq!(subcategory, "Integers");
 
-        let (simplified, category, subcategory) = analyze_type_with_detailed_subcategory("Box<String>");
-        assert_eq!(simplified, "String");  // Based on actual function implementation
+        let (simplified, category, subcategory) =
+            analyze_type_with_detailed_subcategory("Box<String>");
+        assert_eq!(simplified, "String"); // Based on actual function implementation
         assert_eq!(category, "Smart Pointers");
         assert_eq!(subcategory, "Box<T>");
     }
@@ -3653,8 +3675,8 @@ mod tests {
 
     #[test]
     fn test_calculate_font_size() {
-        assert_eq!(calculate_font_size(50.0), 9);   // Based on actual implementation
-        assert_eq!(calculate_font_size(100.0), 11); // Based on actual implementation  
+        assert_eq!(calculate_font_size(50.0), 9); // Based on actual implementation
+        assert_eq!(calculate_font_size(100.0), 11); // Based on actual implementation
         assert_eq!(calculate_font_size(200.0), 13); // Based on actual implementation
         assert_eq!(calculate_font_size(400.0), 15); // Based on actual implementation
         assert_eq!(calculate_font_size(1000.0), 15); // Based on actual implementation
@@ -3665,7 +3687,7 @@ mod tests {
         let collections_types = vec![];
         let total_memory = 1000;
         let node = build_collections_node(&collections_types, total_memory);
-        
+
         assert_eq!(node.name, "Collections");
         assert_eq!(node.size, 1);
         assert_eq!(node.percentage, 0.0);
@@ -3685,7 +3707,7 @@ mod tests {
         let collections_types = vec![&enhanced_type];
         let total_memory = 1000;
         let node = build_collections_node(&collections_types, total_memory);
-        
+
         assert!(node.name.contains("Collections"));
         assert_eq!(node.size, 500);
         assert_eq!(node.percentage, 50.0);
@@ -3697,7 +3719,7 @@ mod tests {
         let basic_types = vec![];
         let total_memory = 1000;
         let node = build_basic_types_node(&basic_types, total_memory);
-        
+
         assert_eq!(node.name, "Basic Types");
         assert_eq!(node.size, 1);
         assert_eq!(node.percentage, 0.0);
@@ -3717,7 +3739,7 @@ mod tests {
         let basic_types = vec![&enhanced_type];
         let total_memory = 1000;
         let node = build_basic_types_node(&basic_types, total_memory);
-        
+
         assert!(node.name.contains("Basic Types"));
         assert_eq!(node.size, 300);
         assert_eq!(node.percentage, 30.0);
@@ -3731,7 +3753,7 @@ mod tests {
         let smart_pointers_types = vec![];
         let other_types = vec![];
         let total_memory = 1000;
-        
+
         let strategy = analyze_data_distribution(
             &collections_types,
             &basic_types,
@@ -3739,7 +3761,7 @@ mod tests {
             &other_types,
             total_memory,
         );
-        
+
         matches!(strategy, TreemapLayoutStrategy::MinimalLayout);
     }
 
@@ -3758,7 +3780,7 @@ mod tests {
         let smart_pointers_types = vec![];
         let other_types = vec![];
         let total_memory = 1000;
-        
+
         let strategy = analyze_data_distribution(
             &collections_types,
             &basic_types,
@@ -3766,7 +3788,7 @@ mod tests {
             &other_types,
             total_memory,
         );
-        
+
         matches!(strategy, TreemapLayoutStrategy::CollectionsOnlyLayout);
     }
 
@@ -3779,7 +3801,7 @@ mod tests {
             color: "#ff0000".to_string(),
             children: vec![],
         };
-        
+
         assert_eq!(node.name, "Test Node");
         assert_eq!(node.size, 100);
         assert_eq!(node.percentage, 50.0);
@@ -3795,7 +3817,7 @@ mod tests {
             total_size: 500,
             color: "#00ff00".to_string(),
         };
-        
+
         assert_eq!(category.name, "Test Category");
         assert_eq!(category.total_size, 500);
         assert_eq!(category.color, "#00ff00");
@@ -3812,7 +3834,7 @@ mod tests {
             allocation_count: 10,
             variable_names: vec!["var1".to_string(), "var2".to_string()],
         };
-        
+
         assert_eq!(enhanced_type.simplified_name, "TestType");
         assert_eq!(enhanced_type.category, "TestCategory");
         assert_eq!(enhanced_type.subcategory, "TestSubcategory");
@@ -3826,7 +3848,7 @@ mod tests {
     fn test_add_memory_heatmap() {
         let document = svg::Document::new();
         let allocations = vec![];
-        
+
         let result = add_memory_heatmap(document, &allocations);
         assert!(result.is_ok());
     }

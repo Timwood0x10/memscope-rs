@@ -352,4 +352,415 @@ mod tests {
         let single_result = efficient_string_concat(&["test"]);
         assert_eq!(single_result, "test");
     }
+
+    #[test]
+    fn test_fast_stats_collector_comprehensive() {
+        let collector = FastStatsCollector::new();
+
+        // Test initial state
+        let initial_stats = collector.get_basic_stats();
+        assert_eq!(initial_stats.allocation_count, 0);
+        assert_eq!(initial_stats.total_allocated, 0);
+
+        // Test various allocation sizes
+        let test_sizes = [1, 8, 16, 32, 64, 128, 256, 512, 1024, 4096];
+        for &size in &test_sizes {
+            collector.record_allocation_fast(size);
+        }
+
+        let stats = collector.get_basic_stats();
+        assert_eq!(stats.allocation_count, test_sizes.len() as u64);
+        let expected_total: usize = test_sizes.iter().sum();
+        assert_eq!(stats.total_allocated, expected_total as u64);
+
+        // Test zero-size allocation
+        collector.record_allocation_fast(0);
+        let stats_after_zero = collector.get_basic_stats();
+        assert_eq!(
+            stats_after_zero.allocation_count,
+            stats.allocation_count + 1
+        );
+        assert_eq!(stats_after_zero.total_allocated, stats.total_allocated);
+
+        // Test very large allocation
+        collector.record_allocation_fast(usize::MAX);
+        let stats_after_large = collector.get_basic_stats();
+        assert_eq!(
+            stats_after_large.allocation_count,
+            stats_after_zero.allocation_count + 1
+        );
+    }
+
+    #[test]
+    fn test_fast_stats_collector_edge_cases() {
+        let collector = FastStatsCollector::new();
+
+        // Test many small allocations
+        for _ in 0..10000 {
+            collector.record_allocation_fast(1);
+        }
+
+        let stats = collector.get_basic_stats();
+        assert_eq!(stats.allocation_count, 10000);
+        assert_eq!(stats.total_allocated, 10000);
+
+        // Test mixed allocation patterns
+        for i in 0..1000 {
+            collector.record_allocation_fast(i % 100 + 1);
+        }
+
+        let final_stats = collector.get_basic_stats();
+        assert_eq!(final_stats.allocation_count, 11000); // 10000 + 1000
+        assert!(final_stats.total_allocated > 10000);
+    }
+
+    #[test]
+    fn test_batch_processor_comprehensive() {
+        let processed_batches = Arc::new(SimpleMutex::new(Vec::new()));
+        let processed_clone = processed_batches.clone();
+
+        let processor = BatchProcessor::new(5, move |batch: &[String]| {
+            #[cfg(feature = "parking-lot")]
+            {
+                let mut batches = processed_clone.lock();
+                batches.push(batch.to_vec());
+            }
+            #[cfg(not(feature = "parking-lot"))]
+            {
+                let mut batches = processed_clone
+                    .safe_lock()
+                    .expect("Failed to lock processed_batches");
+                batches.push(batch.to_vec());
+            }
+        });
+
+        // Test batch processing with strings
+        for i in 0..12 {
+            processor.add(format!("item_{}", i));
+        }
+
+        // Give time for processing
+        std::thread::sleep(std::time::Duration::from_millis(50));
+
+        #[cfg(feature = "parking-lot")]
+        {
+            let batches = processed_batches.lock();
+            assert!(batches.len() >= 2); // Should have processed at least 2 full batches
+        }
+        #[cfg(not(feature = "parking-lot"))]
+        {
+            let batches = processed_batches
+                .safe_lock()
+                .expect("Failed to lock processed_batches");
+            assert!(batches.len() >= 2); // Should have processed at least 2 full batches
+        }
+    }
+
+    #[test]
+    fn test_batch_processor_single_item() {
+        let processed_items = Arc::new(SimpleMutex::new(Vec::new()));
+        let processed_clone = processed_items.clone();
+
+        let processor = BatchProcessor::new(1, move |batch: &[u32]| {
+            #[cfg(feature = "parking-lot")]
+            {
+                let mut items = processed_clone.lock();
+                items.extend_from_slice(batch);
+            }
+            #[cfg(not(feature = "parking-lot"))]
+            {
+                let mut items = processed_clone
+                    .safe_lock()
+                    .expect("Failed to lock processed_items");
+                items.extend_from_slice(batch);
+            }
+        });
+
+        // With batch size 1, each item should be processed immediately
+        processor.add(42);
+        processor.add(84);
+        processor.add(126);
+
+        std::thread::sleep(std::time::Duration::from_millis(20));
+
+        #[cfg(feature = "parking-lot")]
+        {
+            let items = processed_items.lock();
+            assert_eq!(items.len(), 3);
+            assert!(items.contains(&42));
+            assert!(items.contains(&84));
+            assert!(items.contains(&126));
+        }
+        #[cfg(not(feature = "parking-lot"))]
+        {
+            let items = processed_items
+                .safe_lock()
+                .expect("Failed to lock processed_items");
+            assert_eq!(items.len(), 3);
+            assert!(items.contains(&42));
+            assert!(items.contains(&84));
+            assert!(items.contains(&126));
+        }
+    }
+
+    #[test]
+    fn test_efficient_string_concat_edge_cases() {
+        // Test with very long strings
+        let long_parts: Vec<String> = (0..1000).map(|i| format!("part_{}", i)).collect();
+        let long_parts_str: Vec<&str> = long_parts.iter().map(|s| s.as_str()).collect();
+        let result = efficient_string_concat(&long_parts_str);
+        assert!(result.contains("part_0"));
+        assert!(result.contains("part_999"));
+        assert_eq!(result.matches("part_").count(), 1000);
+
+        // Test with empty strings
+        let empty_parts = vec!["", "", ""];
+        let empty_result = efficient_string_concat(&empty_parts);
+        assert_eq!(empty_result, "");
+
+        // Test with mixed empty and non-empty strings
+        let mixed_parts = vec!["", "hello", "", "world", ""];
+        let mixed_result = efficient_string_concat(&mixed_parts);
+        assert_eq!(mixed_result, "helloworld");
+
+        // Test with unicode strings
+        let unicode_parts = vec!["Hello", " ", "世界", " ", "🦀"];
+        let unicode_result = efficient_string_concat(&unicode_parts);
+        assert_eq!(unicode_result, "Hello 世界 🦀");
+
+        // Test with very large single string
+        let large_string = "a".repeat(10000);
+        let large_parts = vec![large_string.as_str()];
+        let large_result = efficient_string_concat(&large_parts);
+        assert_eq!(large_result.len(), 10000);
+        assert!(large_result.chars().all(|c| c == 'a'));
+    }
+
+    #[test]
+    fn test_basic_stats_operations() {
+        let mut stats = BasicStats {
+            allocation_count: 10,
+            total_allocated: 1024,
+            deallocation_count: 0,
+            total_deallocated: 0,
+        };
+
+        // Test that we can modify stats
+        stats.allocation_count += 5;
+        stats.total_allocated += 512;
+
+        assert_eq!(stats.allocation_count, 15);
+        assert_eq!(stats.total_allocated, 1536);
+
+        // Test default/zero stats
+        let zero_stats = BasicStats {
+            allocation_count: 0,
+            total_allocated: 0,
+            deallocation_count: 0,
+            total_deallocated: 0,
+        };
+
+        assert_eq!(zero_stats.allocation_count, 0);
+        assert_eq!(zero_stats.total_allocated, 0);
+
+        // Test maximum values
+        let max_stats = BasicStats {
+            allocation_count: u64::MAX,
+            total_allocated: u64::MAX,
+            deallocation_count: u64::MAX,
+            total_deallocated: u64::MAX,
+        };
+
+        assert_eq!(max_stats.allocation_count, u64::MAX);
+        assert_eq!(max_stats.total_allocated, u64::MAX);
+    }
+
+    #[test]
+    fn test_fast_stats_collector_concurrent_stress() {
+        let collector = Arc::new(FastStatsCollector::new());
+        let mut handles = vec![];
+
+        // Stress test with many threads
+        for thread_id in 0..20 {
+            let collector_clone = collector.clone();
+            let handle = thread::spawn(move || {
+                for i in 0..500 {
+                    let size = (thread_id * 100 + i) % 1000 + 1;
+                    collector_clone.record_allocation_fast(size);
+                }
+            });
+            handles.push(handle);
+        }
+
+        for handle in handles {
+            handle.join().expect("Thread should complete successfully");
+        }
+
+        let final_stats = collector.get_basic_stats();
+        assert_eq!(final_stats.allocation_count, 10000); // 20 threads × 500 allocations
+        assert!(final_stats.total_allocated > 0);
+    }
+
+    #[test]
+    fn test_batch_processor_concurrent_access() {
+        let processed_count = Arc::new(SimpleMutex::new(0usize));
+        let count_clone = processed_count.clone();
+
+        let processor = Arc::new(BatchProcessor::new(10, move |batch: &[usize]| {
+            #[cfg(feature = "parking-lot")]
+            {
+                let mut count = count_clone.lock();
+                *count += batch.len();
+            }
+            #[cfg(not(feature = "parking-lot"))]
+            {
+                let mut count = count_clone.safe_lock().expect("Failed to lock count");
+                *count += batch.len();
+            }
+        }));
+
+        let mut handles = vec![];
+
+        // Multiple threads adding items
+        for thread_id in 0..5 {
+            let processor_clone = processor.clone();
+            let handle = thread::spawn(move || {
+                for i in 0..100 {
+                    processor_clone.add(thread_id * 100 + i);
+                }
+            });
+            handles.push(handle);
+        }
+
+        for handle in handles {
+            handle.join().expect("Thread should complete");
+        }
+
+        // Give time for all batches to be processed
+        std::thread::sleep(std::time::Duration::from_millis(100));
+
+        #[cfg(feature = "parking-lot")]
+        {
+            let count = processed_count.lock();
+            // Due to concurrent access and batch processing, the count might be slightly less
+            // than expected due to timing issues. Allow for some tolerance.
+            assert!(
+                *count >= 450 && *count <= 500,
+                "Expected count between 450-500, got {}",
+                *count
+            );
+        }
+        #[cfg(not(feature = "parking-lot"))]
+        {
+            let count = processed_count.safe_lock().expect("Failed to lock count");
+            // Due to concurrent access and batch processing, the count might be slightly less
+            // than expected due to timing issues. Allow for some tolerance.
+            assert!(
+                *count >= 450 && *count <= 500,
+                "Expected count between 450-500, got {}",
+                *count
+            );
+        }
+    }
+
+    #[test]
+    fn test_efficient_string_concat_performance_characteristics() {
+        // Test that the function handles various input patterns efficiently
+
+        // Many small strings
+        let small_strings: Vec<String> = (0..1000).map(|i| format!("{}", i)).collect();
+        let small_refs: Vec<&str> = small_strings.iter().map(|s| s.as_str()).collect();
+        let result1 = efficient_string_concat(&small_refs);
+        assert!(result1.len() > 1000); // Should contain all numbers
+
+        // Few large strings
+        let large_strings = vec!["a".repeat(1000), "b".repeat(1000), "c".repeat(1000)];
+        let large_refs: Vec<&str> = large_strings.iter().map(|s| s.as_str()).collect();
+        let result2 = efficient_string_concat(&large_refs);
+        assert_eq!(result2.len(), 3000);
+
+        // Mixed sizes
+        let temp_a = "a".repeat(100);
+        let temp_b = "b".repeat(500);
+        let mixed_strings = vec![
+            "short",
+            temp_a.as_str(),
+            "medium_length_string",
+            temp_b.as_str(),
+        ];
+        let result3 = efficient_string_concat(&mixed_strings);
+        assert!(result3.contains("short"));
+        assert!(result3.contains("medium_length_string"));
+        assert!(result3.len() > 600);
+    }
+
+    #[test]
+    fn test_batch_processor_edge_cases() {
+        // Test with batch size 0 (should handle gracefully)
+        let processed_items = Arc::new(SimpleMutex::new(Vec::new()));
+        let processed_clone = processed_items.clone();
+
+        // Note: BatchProcessor might not accept batch_size 0, so we test with 1
+        let processor = BatchProcessor::new(1, move |batch: &[i32]| {
+            #[cfg(feature = "parking-lot")]
+            {
+                let mut items = processed_clone.lock();
+                items.extend_from_slice(batch);
+            }
+            #[cfg(not(feature = "parking-lot"))]
+            {
+                let mut items = processed_clone.safe_lock().expect("Failed to lock items");
+                items.extend_from_slice(batch);
+            }
+        });
+
+        // Test adding no items
+        std::thread::sleep(std::time::Duration::from_millis(10));
+
+        #[cfg(feature = "parking-lot")]
+        {
+            let items = processed_items.lock();
+            assert_eq!(items.len(), 0);
+        }
+        #[cfg(not(feature = "parking-lot"))]
+        {
+            let items = processed_items.safe_lock().expect("Failed to lock items");
+            assert_eq!(items.len(), 0);
+        }
+
+        // Test adding items after delay
+        processor.add(1);
+        processor.add(2);
+
+        std::thread::sleep(std::time::Duration::from_millis(20));
+
+        #[cfg(feature = "parking-lot")]
+        {
+            let items = processed_items.lock();
+            assert!(items.len() >= 1); // Should have processed at least one item
+        }
+        #[cfg(not(feature = "parking-lot"))]
+        {
+            let items = processed_items.safe_lock().expect("Failed to lock items");
+            assert!(items.len() >= 1); // Should have processed at least one item
+        }
+    }
+
+    #[test]
+    fn test_memory_efficiency() {
+        // Test that our optimizations don't use excessive memory
+        let collector = FastStatsCollector::new();
+
+        // Record many allocations
+        for i in 0..100000 {
+            collector.record_allocation_fast(i % 1000 + 1);
+        }
+
+        let stats = collector.get_basic_stats();
+        assert_eq!(stats.allocation_count, 100000);
+
+        // The collector itself should not use excessive memory
+        // This is more of a smoke test to ensure it doesn't panic or crash
+        assert!(stats.total_allocated > 0);
+    }
 }

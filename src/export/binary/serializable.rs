@@ -292,7 +292,10 @@ mod tests {
         buffer.clear();
         primitives::write_u64(&mut buffer, 0x123456789ABCDEF0).unwrap();
         let mut cursor = Cursor::new(&buffer);
-        assert_eq!(primitives::read_u64(&mut cursor).unwrap(), 0x123456789ABCDEF0);
+        assert_eq!(
+            primitives::read_u64(&mut cursor).unwrap(),
+            0x123456789ABCDEF0
+        );
 
         // Test usize
         buffer.clear();
@@ -347,14 +350,20 @@ mod tests {
         let some_str = Some("test string".to_string());
         primitives::write_string_option(&mut buffer, &some_str).unwrap();
         let mut cursor = Cursor::new(&buffer);
-        assert_eq!(primitives::read_string_option(&mut cursor).unwrap(), some_str);
+        assert_eq!(
+            primitives::read_string_option(&mut cursor).unwrap(),
+            some_str
+        );
 
         // Test None string
         buffer.clear();
         let none_str: Option<String> = None;
         primitives::write_string_option(&mut buffer, &none_str).unwrap();
         let mut cursor = Cursor::new(&buffer);
-        assert_eq!(primitives::read_string_option(&mut cursor).unwrap(), none_str);
+        assert_eq!(
+            primitives::read_string_option(&mut cursor).unwrap(),
+            none_str
+        );
     }
 
     #[test]
@@ -424,7 +433,10 @@ mod tests {
         assert!((read_report.risk_score - report.risk_score).abs() < 0.001);
         assert!((read_report.confidence_score - report.confidence_score).abs() < 0.001);
         assert_eq!(read_report.generated_at, report.generated_at);
-        assert_eq!(read_report.dynamic_violations_count, report.dynamic_violations_count);
+        assert_eq!(
+            read_report.dynamic_violations_count,
+            report.dynamic_violations_count
+        );
         assert_eq!(read_report.risk_factors_count, report.risk_factors_count);
     }
 
@@ -450,10 +462,16 @@ mod tests {
         assert_eq!(read_passport.passport_id, passport.passport_id);
         assert_eq!(read_passport.memory_address, passport.memory_address);
         assert_eq!(read_passport.size_bytes, passport.size_bytes);
-        assert_eq!(read_passport.status_at_shutdown, passport.status_at_shutdown);
+        assert_eq!(
+            read_passport.status_at_shutdown,
+            passport.status_at_shutdown
+        );
         assert_eq!(read_passport.created_at, passport.created_at);
         assert_eq!(read_passport.updated_at, passport.updated_at);
-        assert_eq!(read_passport.lifecycle_events_count, passport.lifecycle_events_count);
+        assert_eq!(
+            read_passport.lifecycle_events_count,
+            passport.lifecycle_events_count
+        );
     }
 
     #[test]
@@ -487,16 +505,30 @@ mod tests {
         };
 
         let mut buffer = Vec::new();
-        let written_size = borrow_info_with_timestamp.write_binary(&mut buffer).unwrap();
+        let written_size = borrow_info_with_timestamp
+            .write_binary(&mut buffer)
+            .unwrap();
         assert_eq!(written_size, borrow_info_with_timestamp.binary_size());
 
         let mut cursor = Cursor::new(&buffer);
         let read_borrow_info = BinaryBorrowInfo::read_binary(&mut cursor).unwrap();
 
-        assert_eq!(read_borrow_info.immutable_borrows, borrow_info_with_timestamp.immutable_borrows);
-        assert_eq!(read_borrow_info.mutable_borrows, borrow_info_with_timestamp.mutable_borrows);
-        assert_eq!(read_borrow_info.max_concurrent_borrows, borrow_info_with_timestamp.max_concurrent_borrows);
-        assert_eq!(read_borrow_info.last_borrow_timestamp, borrow_info_with_timestamp.last_borrow_timestamp);
+        assert_eq!(
+            read_borrow_info.immutable_borrows,
+            borrow_info_with_timestamp.immutable_borrows
+        );
+        assert_eq!(
+            read_borrow_info.mutable_borrows,
+            borrow_info_with_timestamp.mutable_borrows
+        );
+        assert_eq!(
+            read_borrow_info.max_concurrent_borrows,
+            borrow_info_with_timestamp.max_concurrent_borrows
+        );
+        assert_eq!(
+            read_borrow_info.last_borrow_timestamp,
+            borrow_info_with_timestamp.last_borrow_timestamp
+        );
 
         // Test without timestamp
         buffer.clear();
@@ -513,10 +545,22 @@ mod tests {
         let mut cursor = Cursor::new(&buffer);
         let read_borrow_info = BinaryBorrowInfo::read_binary(&mut cursor).unwrap();
 
-        assert_eq!(read_borrow_info.immutable_borrows, borrow_info_no_timestamp.immutable_borrows);
-        assert_eq!(read_borrow_info.mutable_borrows, borrow_info_no_timestamp.mutable_borrows);
-        assert_eq!(read_borrow_info.max_concurrent_borrows, borrow_info_no_timestamp.max_concurrent_borrows);
-        assert_eq!(read_borrow_info.last_borrow_timestamp, borrow_info_no_timestamp.last_borrow_timestamp);
+        assert_eq!(
+            read_borrow_info.immutable_borrows,
+            borrow_info_no_timestamp.immutable_borrows
+        );
+        assert_eq!(
+            read_borrow_info.mutable_borrows,
+            borrow_info_no_timestamp.mutable_borrows
+        );
+        assert_eq!(
+            read_borrow_info.max_concurrent_borrows,
+            borrow_info_no_timestamp.max_concurrent_borrows
+        );
+        assert_eq!(
+            read_borrow_info.last_borrow_timestamp,
+            borrow_info_no_timestamp.last_borrow_timestamp
+        );
     }
 
     #[test]
@@ -537,7 +581,10 @@ mod tests {
 
         assert_eq!(read_clone_info.clone_count, clone_info_with_ptr.clone_count);
         assert_eq!(read_clone_info.is_clone, clone_info_with_ptr.is_clone);
-        assert_eq!(read_clone_info.original_ptr, clone_info_with_ptr.original_ptr);
+        assert_eq!(
+            read_clone_info.original_ptr,
+            clone_info_with_ptr.original_ptr
+        );
 
         // Test without original pointer
         buffer.clear();
@@ -581,7 +628,10 @@ mod tests {
         assert_eq!(read_event.event_type, event_full.event_type);
         assert_eq!(read_event.source_stack_id, event_full.source_stack_id);
         assert_eq!(read_event.clone_source_ptr, event_full.clone_source_ptr);
-        assert_eq!(read_event.transfer_target_var, event_full.transfer_target_var);
+        assert_eq!(
+            read_event.transfer_target_var,
+            event_full.transfer_target_var
+        );
         assert_eq!(read_event.borrower_scope, event_full.borrower_scope);
 
         // Test with no optional fields
@@ -605,7 +655,10 @@ mod tests {
         assert_eq!(read_event.event_type, event_minimal.event_type);
         assert_eq!(read_event.source_stack_id, event_minimal.source_stack_id);
         assert_eq!(read_event.clone_source_ptr, event_minimal.clone_source_ptr);
-        assert_eq!(read_event.transfer_target_var, event_minimal.transfer_target_var);
+        assert_eq!(
+            read_event.transfer_target_var,
+            event_minimal.transfer_target_var
+        );
         assert_eq!(read_event.borrower_scope, event_minimal.borrower_scope);
     }
 

@@ -141,17 +141,17 @@ pub fn export_to_binary<P: AsRef<Path>>(
 }
 
 /// Export allocation information to binary format with enhanced header
-/// 
+///
 /// This function properly filters allocations based on the export mode:
 /// - UserOnly: Only exports allocations with var_name (user allocations)
 /// - Full: Exports all allocations (user + system)
-/// 
+///
 /// # Arguments
 /// * `allocations` - Vector of allocation information to export
 /// * `path` - Path where the binary file will be written
 /// * `export_mode` - Binary export mode that controls which allocations are written
 /// * `config` - Export configuration settings
-/// 
+///
 /// # Returns
 /// * `Result<(), BinaryExportError>` - Success or detailed export error
 pub fn export_to_binary_with_mode<P: AsRef<Path>>(
@@ -160,14 +160,16 @@ pub fn export_to_binary_with_mode<P: AsRef<Path>>(
     export_mode: BinaryExportMode,
     config: &BinaryExportConfig,
 ) -> Result<(), BinaryExportError> {
-    
     let mut writer = BinaryWriter::new_with_config(path, config)?;
 
     // Filter allocations based on export mode
     let filtered_allocations: Vec<&AllocationInfo> = match export_mode {
         BinaryExportMode::UserOnly => {
             // Only include allocations with var_name (user allocations)
-            allocations.iter().filter(|a| a.var_name.is_some()).collect()
+            allocations
+                .iter()
+                .filter(|a| a.var_name.is_some())
+                .collect()
         }
         BinaryExportMode::Full => {
             // Include all allocations
@@ -181,20 +183,30 @@ pub fn export_to_binary_with_mode<P: AsRef<Path>>(
     writer.build_string_table(allocations)?;
 
     // Calculate accurate allocation counts based on filtered data
-    let user_count = filtered_allocations.iter().filter(|a| a.var_name.is_some()).count() as u16;
+    let user_count = filtered_allocations
+        .iter()
+        .filter(|a| a.var_name.is_some())
+        .count() as u16;
     let system_count = (filtered_allocations.len() - user_count as usize) as u16;
     let total_count = filtered_allocations.len() as u32;
 
     // Validate count consistency
     debug_assert_eq!(
-        user_count as usize + system_count as usize, 
+        user_count as usize + system_count as usize,
         total_count as usize,
-        "Count validation failed: user({}) + system({}) != total({})", 
-        user_count, system_count, total_count
+        "Count validation failed: user({}) + system({}) != total({})",
+        user_count,
+        system_count,
+        total_count
     );
 
-    tracing::info!("Binary export starting: {} allocations ({} user, {} system) in {:?} mode",
-                   total_count, user_count, system_count, export_mode);
+    tracing::info!(
+        "Binary export starting: {} allocations ({} user, {} system) in {:?} mode",
+        total_count,
+        user_count,
+        system_count,
+        export_mode
+    );
     tracing::info!("Filtered from {} original allocations", allocations.len());
 
     // Write enhanced header with mode and accurate counts
@@ -207,7 +219,10 @@ pub fn export_to_binary_with_mode<P: AsRef<Path>>(
 
     writer.finish()?;
 
-    tracing::info!("Binary export completed: {} allocations written", total_count);
+    tracing::info!(
+        "Binary export completed: {} allocations written",
+        total_count
+    );
 
     Ok(())
 }
@@ -566,39 +581,41 @@ mod tests {
         // Verify the file was created with user-only mode by reading it back
         let info = detect_binary_type(&binary_path).unwrap();
         assert!(info.is_user_only());
-        
+
         // Count actual user allocations in our test data
         let expected_user_count = allocations.iter().filter(|a| a.var_name.is_some()).count();
-        
+
         // The binary should reflect the user-only mode
         assert_eq!(info.export_mode, BinaryExportMode::UserOnly);
-        
+
         // In UserOnly mode, only user allocations should be written
         assert_eq!(info.user_count, expected_user_count as u16);
         assert_eq!(info.system_count, 0); // No system allocations in UserOnly mode
         assert_eq!(info.total_count, expected_user_count as u32);
-        
+
         // Verify we can parse it back to JSON to check the data integrity
         let json_path = temp_dir.path().join("test_user_only.json");
         let parse_result = parse_binary_to_json(&binary_path, &json_path);
         assert!(parse_result.is_ok());
         assert!(json_path.exists());
-        
+
         // Verify JSON content contains only user allocations
         let json_content = fs::read_to_string(&json_path).unwrap();
         let json_data: serde_json::Value = serde_json::from_str(&json_content).unwrap();
-        
+
         // Check that the JSON contains only user allocations
         if json_data.is_array() {
             // JSON is directly an array of allocations
             let json_allocations = json_data.as_array().unwrap();
             assert_eq!(json_allocations.len(), expected_user_count); // Only user allocations
-            
+
             // All allocations in the JSON should have var_name
             for alloc in json_allocations {
                 let var_name = alloc.get("var_name");
-                assert!(var_name.is_some() && !var_name.unwrap().is_null(), 
-                       "All allocations in UserOnly mode should have var_name");
+                assert!(
+                    var_name.is_some() && !var_name.unwrap().is_null(),
+                    "All allocations in UserOnly mode should have var_name"
+                );
             }
         } else if json_data.is_object() {
             // JSON is an object containing allocations array
@@ -606,12 +623,14 @@ mod tests {
                 assert!(allocations_array.is_array());
                 let json_allocations = allocations_array.as_array().unwrap();
                 assert_eq!(json_allocations.len(), expected_user_count); // Only user allocations
-                
+
                 // All allocations should have var_name
                 for alloc in json_allocations {
                     let var_name = alloc.get("var_name");
-                    assert!(var_name.is_some() && !var_name.unwrap().is_null(), 
-                           "All allocations in UserOnly mode should have var_name");
+                    assert!(
+                        var_name.is_some() && !var_name.unwrap().is_null(),
+                        "All allocations in UserOnly mode should have var_name"
+                    );
                 }
             }
         }
@@ -625,12 +644,8 @@ mod tests {
 
         let config = BinaryExportConfig::debug_comprehensive();
 
-        let result = export_to_binary_with_mode(
-            &allocations,
-            &binary_path,
-            BinaryExportMode::Full,
-            &config,
-        );
+        let result =
+            export_to_binary_with_mode(&allocations, &binary_path, BinaryExportMode::Full, &config);
         assert!(result.is_ok());
         assert!(binary_path.exists());
 
@@ -655,7 +670,8 @@ mod tests {
             &binary_path,
             BinaryExportMode::UserOnly,
             &config,
-        ).unwrap();
+        )
+        .unwrap();
 
         let info = detect_binary_type(&binary_path).unwrap();
         assert!(info.is_user_only());
@@ -669,52 +685,66 @@ mod tests {
 
         let strategy = info.recommended_strategy();
         assert!(strategy.contains("Simple processing"));
-        
+
         // Verify we can actually read the binary back and get meaningful data
         let json_path = temp_dir.path().join("verify_user_only.json");
         let parse_result = parse_binary_to_json(&binary_path, &json_path);
         assert!(parse_result.is_ok());
-        
+
         // Read and verify the JSON content
         let json_content = fs::read_to_string(&json_path).unwrap();
-        
-        tracing::info!("JSON content preview: {}", &json_content[..json_content.len().min(500)]);
-        
+
+        tracing::info!(
+            "JSON content preview: {}",
+            &json_content[..json_content.len().min(500)]
+        );
+
         let json_data: serde_json::Value = serde_json::from_str(&json_content).unwrap();
-        
+
         // Verify the JSON structure is valid and matches our expectations
         match json_data {
             serde_json::Value::Array(ref json_allocations) => {
                 tracing::info!("JSON is an array with {} elements", json_allocations.len());
-                
+
                 // Count user vs system allocations in JSON
-                let json_user_count = json_allocations.iter()
+                let json_user_count = json_allocations
+                    .iter()
                     .filter(|alloc| alloc.get("var_name").map_or(false, |v| !v.is_null()))
                     .count();
                 let json_system_count = json_allocations.len() - json_user_count;
-                
-                tracing::info!("JSON contains: {} user, {} system allocations", 
-                                json_user_count, json_system_count);
-                
+
+                tracing::info!(
+                    "JSON contains: {} user, {} system allocations",
+                    json_user_count,
+                    json_system_count
+                );
+
                 // Verify the JSON data matches the binary header
                 assert_eq!(json_user_count, info.user_count as usize);
                 assert_eq!(json_system_count, info.system_count as usize);
                 assert_eq!(json_allocations.len(), info.total_count as usize);
             }
             serde_json::Value::Object(ref obj) => {
-                tracing::info!("JSON is an object with keys: {:?}", obj.keys().collect::<Vec<_>>());
+                tracing::info!(
+                    "JSON is an object with keys: {:?}",
+                    obj.keys().collect::<Vec<_>>()
+                );
             }
             _ => {
                 tracing::info!("JSON is neither array nor object: {:?}", json_data);
             }
         }
-        
+
         // Count user allocations in original data
         let original_user_count = allocations.iter().filter(|a| a.var_name.is_some()).count();
         tracing::info!("Original user allocations: {}", original_user_count);
-        
+
         // The binary detection should reflect actual data
-        tracing::info!("Detected user count: {}, system count: {}", info.user_count, info.system_count);
+        tracing::info!(
+            "Detected user count: {}, system count: {}",
+            info.user_count,
+            info.system_count
+        );
     }
 
     #[test]
@@ -725,12 +755,8 @@ mod tests {
 
         let config = BinaryExportConfig::debug_comprehensive();
 
-        export_to_binary_with_mode(
-            &allocations,
-            &binary_path,
-            BinaryExportMode::Full,
-            &config,
-        ).unwrap();
+        export_to_binary_with_mode(&allocations, &binary_path, BinaryExportMode::Full, &config)
+            .unwrap();
 
         let info = detect_binary_type(&binary_path).unwrap();
         assert!(!info.is_user_only());
@@ -775,7 +801,7 @@ mod tests {
 
         let result = detect_binary_type(&invalid_path);
         assert!(result.is_err());
-        
+
         // Verify error classification is appropriate for invalid binary format
         match result {
             Err(BinaryExportError::InvalidFormat) => {
@@ -856,7 +882,8 @@ mod tests {
             &binary_path,
             BinaryExportMode::UserOnly,
             &config,
-        ).unwrap();
+        )
+        .unwrap();
 
         // Test auto parsing
         let result = parse_binary_auto(&binary_path, "test_auto_user");
@@ -872,12 +899,8 @@ mod tests {
         let config = BinaryExportConfig::debug_comprehensive();
 
         // Create full binary
-        export_to_binary_with_mode(
-            &allocations,
-            &binary_path,
-            BinaryExportMode::Full,
-            &config,
-        ).unwrap();
+        export_to_binary_with_mode(&allocations, &binary_path, BinaryExportMode::Full, &config)
+            .unwrap();
 
         // Test auto parsing
         let result = parse_binary_auto(&binary_path, "test_auto_full");
@@ -989,12 +1012,12 @@ mod tests {
     fn test_large_allocation_count() {
         let temp_dir = TempDir::new().unwrap();
         let binary_path = temp_dir.path().join("test_large.memscope");
-        
+
         // Create a larger number of allocations with known user/system split
         let mut allocations = Vec::new();
         let mut _expected_user_count = 0;
         let mut _expected_system_count = 0;
-        
+
         for i in 0..100 {
             let mut alloc = AllocationInfo::new(0x1000 + (i * 0x100), 64 + i);
             if i % 2 == 0 {
@@ -1011,8 +1034,12 @@ mod tests {
             allocations.push(alloc);
         }
 
-        tracing::info!("Expected: {} user, {} system, {} total", 
-                _expected_user_count, _expected_system_count, allocations.len());
+        tracing::info!(
+            "Expected: {} user, {} system, {} total",
+            _expected_user_count,
+            _expected_system_count,
+            allocations.len()
+        );
 
         let result = export_to_binary(&allocations, &binary_path);
         assert!(result.is_ok());
@@ -1020,30 +1047,39 @@ mod tests {
 
         // Verify the counts are correct by reading the binary
         let info = detect_binary_type(&binary_path).unwrap();
-        tracing::info!("Detected: {} user, {} system, {} total", 
-                info.user_count, info.system_count, info.total_count);
-        
+        tracing::info!(
+            "Detected: {} user, {} system, {} total",
+            info.user_count,
+            info.system_count,
+            info.total_count
+        );
+
         assert_eq!(info.total_count, 100);
         assert!(info.is_count_consistent);
-        
+
         // Verify by parsing back to JSON and counting
         let json_path = temp_dir.path().join("test_large.json");
         let parse_result = parse_binary_to_json(&binary_path, &json_path);
         assert!(parse_result.is_ok());
-        
+
         let json_content = fs::read_to_string(&json_path).unwrap();
         let json_data: serde_json::Value = serde_json::from_str(&json_content).unwrap();
-        
+
         if let Some(allocations_array) = json_data.get("allocations") {
             let json_allocations = allocations_array.as_array().unwrap();
-            let json_user_count = json_allocations.iter()
+            let json_user_count = json_allocations
+                .iter()
                 .filter(|alloc| alloc.get("var_name").map_or(false, |v| !v.is_null()))
                 .count();
             let json_system_count = json_allocations.len() - json_user_count;
-            
-            tracing::info!("JSON parsed: {} user, {} system, {} total", 
-                    json_user_count, json_system_count, json_allocations.len());
-            
+
+            tracing::info!(
+                "JSON parsed: {} user, {} system, {} total",
+                json_user_count,
+                json_system_count,
+                json_allocations.len()
+            );
+
             // Verify the JSON data matches our expectations
             assert_eq!(json_allocations.len(), 100);
             assert_eq!(json_user_count, _expected_user_count);

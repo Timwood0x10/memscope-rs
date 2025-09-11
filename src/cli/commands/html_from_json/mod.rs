@@ -883,15 +883,15 @@ fn print_load_statistics_with_logging(stats: &JsonLoadStats, logger: &DebugLogge
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
-    use tempfile::TempDir;
     use clap::{Arg, Command};
     use serde_json::json;
+    use std::fs;
+    use tempfile::TempDir;
 
     /// Create a temporary directory with test JSON files
     fn create_test_json_files(temp_dir: &TempDir, base_name: &str) -> Result<(), Box<dyn Error>> {
         let dir_path = temp_dir.path();
-        
+
         // Create memory analysis JSON
         let memory_analysis = json!({
             "allocations": [
@@ -910,7 +910,7 @@ mod tests {
         });
         fs::write(
             dir_path.join(format!("{base_name}_memory_analysis.json")),
-            serde_json::to_string_pretty(&memory_analysis)?
+            serde_json::to_string_pretty(&memory_analysis)?,
         )?;
 
         // Create performance JSON
@@ -924,7 +924,7 @@ mod tests {
         });
         fs::write(
             dir_path.join(format!("{base_name}_performance.json")),
-            serde_json::to_string_pretty(&performance)?
+            serde_json::to_string_pretty(&performance)?,
         )?;
 
         // Create lifecycle JSON
@@ -939,22 +939,48 @@ mod tests {
         });
         fs::write(
             dir_path.join(format!("{base_name}_lifecycle.json")),
-            serde_json::to_string_pretty(&lifecycle)?
+            serde_json::to_string_pretty(&lifecycle)?,
         )?;
 
         Ok(())
     }
 
     /// Create test command line arguments
-    fn create_test_args(input_dir: &str, output_file: &str, base_name: &str, validate_only: bool) -> ArgMatches {
+    fn create_test_args(
+        input_dir: &str,
+        output_file: &str,
+        base_name: &str,
+        validate_only: bool,
+    ) -> ArgMatches {
         let cmd = Command::new("test")
-            .arg(Arg::new("input-dir").long("input-dir").value_name("DIR").required(true))
+            .arg(
+                Arg::new("input-dir")
+                    .long("input-dir")
+                    .value_name("DIR")
+                    .required(true),
+            )
             .arg(Arg::new("output").long("output").value_name("FILE"))
             .arg(Arg::new("base-name").long("base-name").value_name("NAME"))
-            .arg(Arg::new("validate-only").long("validate-only").action(clap::ArgAction::SetTrue))
-            .arg(Arg::new("verbose").long("verbose").action(clap::ArgAction::SetTrue))
-            .arg(Arg::new("debug").long("debug").action(clap::ArgAction::SetTrue))
-            .arg(Arg::new("performance").long("performance").action(clap::ArgAction::SetTrue));
+            .arg(
+                Arg::new("validate-only")
+                    .long("validate-only")
+                    .action(clap::ArgAction::SetTrue),
+            )
+            .arg(
+                Arg::new("verbose")
+                    .long("verbose")
+                    .action(clap::ArgAction::SetTrue),
+            )
+            .arg(
+                Arg::new("debug")
+                    .long("debug")
+                    .action(clap::ArgAction::SetTrue),
+            )
+            .arg(
+                Arg::new("performance")
+                    .long("performance")
+                    .action(clap::ArgAction::SetTrue),
+            );
 
         let mut args = vec!["test", "--input-dir", input_dir];
         if !validate_only {
@@ -1047,25 +1073,24 @@ mod tests {
     fn test_load_json_files_with_valid_data() -> Result<(), Box<dyn Error>> {
         let temp_dir = TempDir::new()?;
         let base_name = "test_snapshot";
-        
+
         // Create test JSON files
         create_test_json_files(&temp_dir, base_name)?;
-        
+
         let logger = DebugLogger::new();
-        let result = load_json_files_with_logging(
-            temp_dir.path().to_str().unwrap(),
-            base_name,
-            &logger
-        );
+        let result =
+            load_json_files_with_logging(temp_dir.path().to_str().unwrap(), base_name, &logger);
 
         assert!(result.is_ok());
         let data = result.unwrap();
-        
+
         // Should have loaded at least the memory analysis file
         assert!(!data.is_empty());
-        assert!(data.contains_key("memory_analysis") || 
-                data.contains_key("performance") || 
-                data.contains_key("lifecycle"));
+        assert!(
+            data.contains_key("memory_analysis")
+                || data.contains_key("performance")
+                || data.contains_key("lifecycle")
+        );
 
         Ok(())
     }
@@ -1074,35 +1099,34 @@ mod tests {
     fn test_load_json_files_empty_directory() {
         let temp_dir = TempDir::new().unwrap();
         let logger = DebugLogger::new();
-        
-        let result = load_json_files_with_logging(
-            temp_dir.path().to_str().unwrap(),
-            "nonexistent",
-            &logger
-        );
+
+        let result =
+            load_json_files_with_logging(temp_dir.path().to_str().unwrap(), "nonexistent", &logger);
 
         assert!(result.is_err());
         let error_msg = result.unwrap_err().to_string();
         // The error could be about missing required files or directory issues
-        assert!(error_msg.contains("No valid JSON files found") || 
-                error_msg.contains("discovery failed") ||
-                error_msg.contains("Missing required") ||
-                error_msg.contains("Directory not found"));
+        assert!(
+            error_msg.contains("No valid JSON files found")
+                || error_msg.contains("discovery failed")
+                || error_msg.contains("Missing required")
+                || error_msg.contains("Directory not found")
+        );
     }
 
     #[test]
     fn test_run_html_from_json_validate_only() -> Result<(), Box<dyn Error>> {
         let temp_dir = TempDir::new()?;
         let base_name = "test_snapshot";
-        
+
         // Create test JSON files
         create_test_json_files(&temp_dir, base_name)?;
-        
+
         let matches = create_test_args(
             temp_dir.path().to_str().unwrap(),
             "output.html",
             base_name,
-            true // validate_only
+            true, // validate_only
         );
 
         let result = run_html_from_json(&matches);
@@ -1115,16 +1139,16 @@ mod tests {
     fn test_run_html_from_json_full_generation() -> Result<(), Box<dyn Error>> {
         let temp_dir = TempDir::new()?;
         let base_name = "test_snapshot";
-        
+
         // Create test JSON files
         create_test_json_files(&temp_dir, base_name)?;
-        
+
         let output_file = "test_output.html";
         let matches = create_test_args(
             temp_dir.path().to_str().unwrap(),
             output_file,
             base_name,
-            false // full generation
+            false, // full generation
         );
 
         let result = run_html_from_json(&matches);
@@ -1148,7 +1172,11 @@ mod tests {
             .arg(Arg::new("input-dir").long("input-dir").value_name("DIR"))
             .arg(Arg::new("output").long("output").value_name("FILE"))
             .arg(Arg::new("base-name").long("base-name").value_name("NAME"))
-            .arg(Arg::new("validate-only").long("validate-only").action(clap::ArgAction::SetTrue))
+            .arg(
+                Arg::new("validate-only")
+                    .long("validate-only")
+                    .action(clap::ArgAction::SetTrue),
+            )
             .try_get_matches_from(vec!["test", "--output", "test.html"])
             .unwrap();
 
@@ -1161,13 +1189,21 @@ mod tests {
     #[test]
     fn test_run_html_from_json_missing_output_file() {
         let temp_dir = TempDir::new().unwrap();
-        
+
         let matches = Command::new("test")
             .arg(Arg::new("input-dir").long("input-dir").value_name("DIR"))
             .arg(Arg::new("output").long("output").value_name("FILE"))
             .arg(Arg::new("base-name").long("base-name").value_name("NAME"))
-            .arg(Arg::new("validate-only").long("validate-only").action(clap::ArgAction::SetTrue))
-            .try_get_matches_from(vec!["test", "--input-dir", temp_dir.path().to_str().unwrap()])
+            .arg(
+                Arg::new("validate-only")
+                    .long("validate-only")
+                    .action(clap::ArgAction::SetTrue),
+            )
+            .try_get_matches_from(vec![
+                "test",
+                "--input-dir",
+                temp_dir.path().to_str().unwrap(),
+            ])
             .unwrap();
 
         let result = run_html_from_json(&matches);
@@ -1180,25 +1216,21 @@ mod tests {
     fn test_load_single_file_with_recovery_valid_file() -> Result<(), Box<dyn Error>> {
         let temp_dir = TempDir::new()?;
         let file_path = temp_dir.path().join("test.json");
-        
+
         let test_data = json!({
             "test": "data",
             "number": 42
         });
         fs::write(&file_path, serde_json::to_string_pretty(&test_data)?)?;
-        
+
         let config = JsonFileConfig {
             suffix: "test",
             description: "Test file",
             required: false,
             max_size_mb: Some(10),
         };
-        
-        let result = load_single_file_with_recovery(
-            &config,
-            file_path.to_str().unwrap(),
-            100
-        );
+
+        let result = load_single_file_with_recovery(&config, file_path.to_str().unwrap(), 100);
 
         assert!(result.success);
         assert!(result.data.is_some());
@@ -1212,32 +1244,30 @@ mod tests {
     fn test_load_single_file_with_recovery_invalid_json() -> Result<(), Box<dyn Error>> {
         let temp_dir = TempDir::new()?;
         let file_path = temp_dir.path().join("invalid.json");
-        
+
         // Write invalid JSON
         fs::write(&file_path, "{ invalid json content")?;
-        
+
         let config = JsonFileConfig {
             suffix: "test",
             description: "Test file",
             required: false,
             max_size_mb: Some(10),
         };
-        
-        let result = load_single_file_with_recovery(
-            &config,
-            file_path.to_str().unwrap(),
-            100
-        );
+
+        let result = load_single_file_with_recovery(&config, file_path.to_str().unwrap(), 100);
 
         assert!(!result.success);
         assert!(result.data.is_none());
         assert!(result.error.is_some());
         let error_msg = result.error.unwrap();
         // The error could be about JSON parsing or other file handling issues
-        assert!(error_msg.contains("JSON parsing") || 
-                error_msg.contains("parsing") ||
-                error_msg.contains("error") ||
-                error_msg.contains("invalid"));
+        assert!(
+            error_msg.contains("JSON parsing")
+                || error_msg.contains("parsing")
+                || error_msg.contains("error")
+                || error_msg.contains("invalid")
+        );
 
         Ok(())
     }
@@ -1250,12 +1280,8 @@ mod tests {
             required: false,
             max_size_mb: Some(10),
         };
-        
-        let result = load_single_file_with_recovery(
-            &config,
-            "/nonexistent/path/file.json",
-            100
-        );
+
+        let result = load_single_file_with_recovery(&config, "/nonexistent/path/file.json", 100);
 
         assert!(!result.success);
         assert!(result.data.is_none());
@@ -1275,10 +1301,10 @@ mod tests {
         };
 
         let logger = DebugLogger::new();
-        
+
         // This should not panic and should complete successfully
         print_load_statistics_with_logging(&stats, &logger);
-        
+
         // Test with zero files loaded
         let empty_stats = JsonLoadStats {
             total_files_attempted: 1,
@@ -1289,32 +1315,32 @@ mod tests {
             total_load_time_ms: 50,
             parallel_loading_used: false,
         };
-        
+
         print_load_statistics_with_logging(&empty_stats, &logger);
     }
 
     #[test]
     fn test_load_files_sequential_with_logging() -> Result<(), Box<dyn Error>> {
         let temp_dir = TempDir::new()?;
-        
+
         // Create a test file
         let file_path = temp_dir.path().join("test.json");
         let test_data = json!({"test": "data"});
         fs::write(&file_path, serde_json::to_string_pretty(&test_data)?)?;
-        
+
         let config = JsonFileConfig {
             suffix: "test",
             description: "Test file",
             required: false,
             max_size_mb: Some(10),
         };
-        
+
         let files = vec![(config, file_path.to_string_lossy().to_string(), 100)];
         let logger = DebugLogger::new();
-        
+
         let result = load_files_sequential_with_logging(&files, &logger);
         assert!(result.is_ok());
-        
+
         let results = result.unwrap();
         assert_eq!(results.len(), 1);
         assert!(results[0].success);
@@ -1325,33 +1351,33 @@ mod tests {
     #[test]
     fn test_load_files_parallel_with_logging() -> Result<(), Box<dyn Error>> {
         let temp_dir = TempDir::new()?;
-        
+
         // Create multiple test files
         let mut files = Vec::new();
         let suffixes = ["test_0", "test_1", "test_2"];
-        
+
         for (i, suffix) in suffixes.iter().enumerate() {
             let file_path = temp_dir.path().join(format!("test_{i}.json"));
             let test_data = json!({"test": format!("data_{i}")});
             fs::write(&file_path, serde_json::to_string_pretty(&test_data)?)?;
-            
+
             let config = JsonFileConfig {
                 suffix,
                 description: "Test file",
                 required: false,
                 max_size_mb: Some(10),
             };
-            
+
             files.push((config, file_path.to_string_lossy().to_string(), 100));
         }
-        
+
         let logger = DebugLogger::new();
         let result = load_files_parallel_with_logging(&files, &logger);
         assert!(result.is_ok());
-        
+
         let results = result.unwrap();
         assert_eq!(results.len(), 3);
-        
+
         // All files should load successfully
         for result in &results {
             assert!(result.success);

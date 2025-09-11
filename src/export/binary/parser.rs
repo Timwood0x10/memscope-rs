@@ -2566,13 +2566,13 @@ mod tests {
         // Verify JSON file was created and contains expected content
         assert!(json_path.exists());
         let json_content = fs::read_to_string(&json_path).expect("Failed to read JSON file");
-        
+
         // Check for some specific allocations
         assert!(json_content.contains("var_0"));
         assert!(json_content.contains("var_999"));
         assert!(json_content.contains("Type0"));
         assert!(json_content.contains("Type9"));
-        
+
         // Verify JSON structure is valid
         assert!(!json_content.is_empty());
         assert!(json_content.len() > 1000); // Should be substantial for 1000 allocations
@@ -2639,14 +2639,12 @@ mod tests {
     #[test]
     fn test_json_structure_validation() {
         let temp_dir = TempDir::new().expect("Failed to create temp directory");
-        let allocations = vec![
-            create_test_allocation(
-                0x1000,
-                64,
-                Some("String".to_string()),
-                Some("test_string".to_string()),
-            ),
-        ];
+        let allocations = vec![create_test_allocation(
+            0x1000,
+            64,
+            Some("String".to_string()),
+            Some("test_string".to_string()),
+        )];
 
         let binary_path = create_test_binary_file(&temp_dir, &allocations);
         let json_path = temp_dir.path().join("structure_test.json");
@@ -2655,7 +2653,7 @@ mod tests {
         assert!(result.is_ok());
 
         let json_content = fs::read_to_string(&json_path).expect("Failed to read JSON file");
-        
+
         // Verify JSON structure contains expected content
         assert!(!json_content.is_empty());
         assert!(json_content.contains("\"test_string\""));
@@ -2666,14 +2664,12 @@ mod tests {
     #[test]
     fn test_html_structure_validation() {
         let temp_dir = TempDir::new().expect("Failed to create temp directory");
-        let allocations = vec![
-            create_test_allocation(
-                0x1000,
-                64,
-                Some("Vec<u8>".to_string()),
-                Some("byte_vector".to_string()),
-            ),
-        ];
+        let allocations = vec![create_test_allocation(
+            0x1000,
+            64,
+            Some("Vec<u8>".to_string()),
+            Some("byte_vector".to_string()),
+        )];
 
         let binary_path = create_test_binary_file(&temp_dir, &allocations);
         let html_path = temp_dir.path().join("structure_test.html");
@@ -2682,7 +2678,7 @@ mod tests {
         assert!(result.is_ok());
 
         let html_content = fs::read_to_string(&html_path).expect("Failed to read HTML file");
-        
+
         // Verify HTML structure
         assert!(html_content.contains("<!DOCTYPE html>"));
         assert!(html_content.contains("<html>"));
@@ -2691,7 +2687,7 @@ mod tests {
         assert!(html_content.contains("<body>"));
         assert!(html_content.contains("</body>"));
         assert!(html_content.contains("</html>"));
-        
+
         // Verify content sections
         assert!(html_content.contains("Memory Analysis"));
         assert!(html_content.contains("1")); // Should contain the count somewhere
@@ -2704,7 +2700,7 @@ mod tests {
     #[test]
     fn test_error_handling_invalid_binary_file() {
         let temp_dir = TempDir::new().expect("Failed to create temp directory");
-        
+
         // Create an invalid binary file
         let invalid_path = temp_dir.path().join("invalid.bin");
         fs::write(&invalid_path, b"invalid binary data").expect("Failed to write invalid file");
@@ -2732,7 +2728,7 @@ mod tests {
         )];
 
         let binary_path = create_test_binary_file(&temp_dir, &allocations);
-        
+
         // Try to write to a directory that doesn't exist
         let invalid_output_path = temp_dir.path().join("nonexistent_dir").join("output.json");
         let result = BinaryParser::to_json(&binary_path, &invalid_output_path);
@@ -2816,12 +2812,8 @@ mod tests {
 
     #[test]
     fn test_complex_record_with_minimal_data() {
-        let allocation = create_test_allocation(
-            0x1000,
-            1,
-            Some("u8".to_string()),
-            Some("byte".to_string()),
-        );
+        let allocation =
+            create_test_allocation(0x1000, 1, Some("u8".to_string()), Some("byte".to_string()));
 
         let mut buffer = String::new();
         BinaryParser::append_complex_record_compatible(&mut buffer, &allocation);
@@ -2861,7 +2853,7 @@ mod tests {
         );
 
         let mut buffer = String::new();
-        
+
         // Use the same buffer for multiple operations
         BinaryParser::append_memory_record_compatible(&mut buffer, &allocation);
         let first_length = buffer.len();
@@ -2880,12 +2872,8 @@ mod tests {
 
     #[test]
     fn test_allocation_with_empty_strings() {
-        let allocation = create_test_allocation(
-            0x1000,
-            64,
-            Some(String::new()),
-            Some(String::new()),
-        );
+        let allocation =
+            create_test_allocation(0x1000, 64, Some(String::new()), Some(String::new()));
 
         let mut buffer = String::new();
         BinaryParser::append_memory_record_compatible(&mut buffer, &allocation);
@@ -2899,13 +2887,9 @@ mod tests {
     fn test_allocation_with_long_strings() {
         let long_type = "a".repeat(10000);
         let long_var = "b".repeat(10000);
-        
-        let allocation = create_test_allocation(
-            0x1000,
-            64,
-            Some(long_type.clone()),
-            Some(long_var.clone()),
-        );
+
+        let allocation =
+            create_test_allocation(0x1000, 64, Some(long_type.clone()), Some(long_var.clone()));
 
         let mut buffer = String::new();
         BinaryParser::append_memory_record_compatible(&mut buffer, &allocation);
@@ -2917,18 +2901,16 @@ mod tests {
 
     #[test]
     fn test_concurrent_file_operations() {
-        use std::thread;
         use std::sync::Arc;
+        use std::thread;
 
         let temp_dir = Arc::new(TempDir::new().expect("Failed to create temp directory"));
-        let allocations = vec![
-            create_test_allocation(
-                0x1000,
-                64,
-                Some("String".to_string()),
-                Some("concurrent_test".to_string()),
-            ),
-        ];
+        let allocations = vec![create_test_allocation(
+            0x1000,
+            64,
+            Some("String".to_string()),
+            Some("concurrent_test".to_string()),
+        )];
 
         let binary_path = create_test_binary_file(&temp_dir, &allocations);
         let binary_path = Arc::new(binary_path);
@@ -2939,7 +2921,7 @@ mod tests {
         for i in 0..5 {
             let temp_dir = Arc::clone(&temp_dir);
             let binary_path = Arc::clone(&binary_path);
-            
+
             let handle = thread::spawn(move || {
                 let json_path = temp_dir.path().join(format!("concurrent_{}.json", i));
                 BinaryParser::to_json(binary_path.as_ref(), &json_path)
@@ -2951,7 +2933,7 @@ mod tests {
         for i in 0..5 {
             let temp_dir = Arc::clone(&temp_dir);
             let binary_path = Arc::clone(&binary_path);
-            
+
             let handle = thread::spawn(move || {
                 let html_path = temp_dir.path().join(format!("concurrent_{}.html", i));
                 BinaryParser::to_html(binary_path.as_ref(), &html_path)
@@ -2969,7 +2951,7 @@ mod tests {
     #[test]
     fn test_memory_efficiency() {
         let temp_dir = TempDir::new().expect("Failed to create temp directory");
-        
+
         // Create a moderately large dataset
         let mut allocations = Vec::new();
         for i in 0..10000 {

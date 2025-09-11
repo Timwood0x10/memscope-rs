@@ -3,7 +3,7 @@
 //! This module provides system resource detection, configuration optimization recommendations, and performance analysis tools.
 
 use crate::core::types::TrackingResult;
-use crate::export::fast_export_coordinator::{FastExportConfigBuilder, FastExportConfig};
+use crate::export::fast_export_coordinator::{FastExportConfig, FastExportConfigBuilder};
 // use crate::export::performance_testing::{OptimizationTarget, PerformanceTestResult}; // Removed - using local definitions
 use crate::export::config_optimizer::OptimizationTarget;
 
@@ -898,12 +898,12 @@ impl SystemOptimizer {
     pub fn run_performance_test(&self, _config: &FastExportConfig) -> PerformanceTestResult {
         // Simulate a performance test
         let start = std::time::Instant::now();
-        
+
         // Simulate some work
         std::thread::sleep(std::time::Duration::from_millis(10));
-        
+
         let duration = start.elapsed();
-        
+
         PerformanceTestResult {
             duration_ms: duration.as_millis() as u64,
             memory_usage_mb: 50.0, // Simulated memory usage
@@ -1028,28 +1028,24 @@ mod tests {
                 disk_usage_percent: 30.0,
                 load_status: LoadStatus::Medium,
             },
-            bottlenecks: vec![
-                PerformanceBottleneck {
-                    bottleneck_type: BottleneckType::Memory,
-                    severity: 6,
-                    description: "High memory usage detected".to_string(),
-                    impact: "May cause performance degradation".to_string(),
-                    suggested_solutions: vec![
-                        "Increase buffer sizes".to_string(),
-                        "Optimize memory allocation patterns".to_string(),
-                    ],
-                },
-            ],
-            optimization_suggestions: vec![
-                OptimizationSuggestion {
-                    suggestion_type: SuggestionType::ConfigurationTuning,
-                    priority: 5,
-                    title: "Consider increasing thread count".to_string(),
-                    description: "Consider increasing thread count".to_string(),
-                    implementation_difficulty: 2,
-                    expected_impact: "Increase performance by 15%".to_string(),
-                },
-            ],
+            bottlenecks: vec![PerformanceBottleneck {
+                bottleneck_type: BottleneckType::Memory,
+                severity: 6,
+                description: "High memory usage detected".to_string(),
+                impact: "May cause performance degradation".to_string(),
+                suggested_solutions: vec![
+                    "Increase buffer sizes".to_string(),
+                    "Optimize memory allocation patterns".to_string(),
+                ],
+            }],
+            optimization_suggestions: vec![OptimizationSuggestion {
+                suggestion_type: SuggestionType::ConfigurationTuning,
+                priority: 5,
+                title: "Consider increasing thread count".to_string(),
+                description: "Consider increasing thread count".to_string(),
+                implementation_difficulty: 2,
+                expected_impact: "Increase performance by 15%".to_string(),
+            }],
             health_score: 75,
         };
 
@@ -1154,7 +1150,7 @@ mod tests {
     #[test]
     fn test_system_optimizer_creation() {
         let optimizer = SystemOptimizer::new();
-        
+
         // Test that it can be created successfully
         assert!(!format!("{optimizer:?}").is_empty());
     }
@@ -1162,8 +1158,9 @@ mod tests {
     #[test]
     fn test_system_optimizer_detect_resources() {
         let _optimizer = SystemOptimizer::new().expect("Failed to create optimizer");
-        let resources = SystemOptimizer::detect_system_resources().expect("Failed to detect resources");
-        
+        let resources =
+            SystemOptimizer::detect_system_resources().expect("Failed to detect resources");
+
         // Should return some reasonable values
         assert!(resources.cpu_cores > 0);
         assert!(resources.available_memory_mb > 0);
@@ -1181,9 +1178,10 @@ mod tests {
             disk_space_mb: 1024000,
             system_type: SystemType::DevelopmentWorkstation,
         };
-        
-        let recommendation = optimizer.generate_configuration_recommendation(OptimizationTarget::Speed, Some(10000));
-        
+
+        let recommendation =
+            optimizer.generate_configuration_recommendation(OptimizationTarget::Speed, Some(10000));
+
         assert!(recommendation.recommended_shard_size > 0);
         assert!(recommendation.recommended_thread_count > 0);
         assert!(recommendation.recommended_buffer_size > 0);
@@ -1196,7 +1194,7 @@ mod tests {
     fn test_system_optimizer_diagnose_performance() {
         let optimizer = SystemOptimizer::new().expect("Failed to create optimizer");
         let diagnosis = optimizer.diagnose_performance();
-        
+
         assert!(diagnosis.diagnosis_time > 0);
         assert!(diagnosis.system_status.cpu_usage_percent >= 0.0);
         assert!(diagnosis.system_status.memory_usage_percent >= 0.0);
@@ -1212,9 +1210,9 @@ mod tests {
             .max_threads(Some(2))
             .buffer_size(4096)
             .build();
-        
+
         let result = optimizer.run_performance_test(&config);
-        
+
         // Should complete successfully
         assert!(result.success);
         assert!(result.memory_usage_mb >= 0.0);
@@ -1232,7 +1230,8 @@ mod tests {
 
         // Test that it can be serialized and deserialized
         let serialized = serde_json::to_string(&resources).expect("Failed to serialize");
-        let deserialized: SystemResources = serde_json::from_str(&serialized).expect("Failed to deserialize");
+        let deserialized: SystemResources =
+            serde_json::from_str(&serialized).expect("Failed to deserialize");
 
         assert_eq!(deserialized.cpu_cores, 4);
         assert_eq!(deserialized.available_memory_mb, 8192);
@@ -1254,7 +1253,8 @@ mod tests {
         };
 
         let serialized = serde_json::to_string(&recommendation).expect("Failed to serialize");
-        let deserialized: ConfigurationRecommendation = serde_json::from_str(&serialized).expect("Failed to deserialize");
+        let deserialized: ConfigurationRecommendation =
+            serde_json::from_str(&serialized).expect("Failed to deserialize");
 
         assert_eq!(deserialized.recommended_shard_size, 2048);
         assert_eq!(deserialized.recommended_thread_count, 6);
@@ -1278,7 +1278,8 @@ mod tests {
         };
 
         let serialized = serde_json::to_string(&diagnosis).expect("Failed to serialize");
-        let deserialized: PerformanceDiagnosis = serde_json::from_str(&serialized).expect("Failed to deserialize");
+        let deserialized: PerformanceDiagnosis =
+            serde_json::from_str(&serialized).expect("Failed to deserialize");
 
         assert_eq!(deserialized.diagnosis_time, 9876543210);
         assert_eq!(deserialized.system_status.cpu_usage_percent, 55.5);
@@ -1310,7 +1311,8 @@ mod tests {
         };
 
         let optimizer = SystemOptimizer::new().expect("Failed to create optimizer");
-        let recommendation = optimizer.generate_configuration_recommendation(OptimizationTarget::Balanced, Some(10000));
+        let recommendation = optimizer
+            .generate_configuration_recommendation(OptimizationTarget::Balanced, Some(10000));
 
         // Should handle edge case gracefully
         assert!(recommendation.recommended_shard_size > 0); // Should have fallback values
@@ -1329,7 +1331,8 @@ mod tests {
         };
 
         let optimizer = SystemOptimizer::new().expect("Failed to create optimizer");
-        let recommendation = optimizer.generate_configuration_recommendation(OptimizationTarget::Speed, Some(10000));
+        let recommendation =
+            optimizer.generate_configuration_recommendation(OptimizationTarget::Speed, Some(10000));
 
         // Should adapt to high-performance scenario
         assert!(recommendation.recommended_thread_count <= resources.cpu_cores);

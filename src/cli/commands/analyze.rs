@@ -808,15 +808,16 @@ mod tests {
         let matches = ClapCommand::new("test")
             .arg(Arg::new("command").num_args(1..))
             .arg(Arg::new("export").long("export").default_value("html"))
-            .arg(Arg::new("output").long("output").default_value("memory_analysis"))
+            .arg(
+                Arg::new("output")
+                    .long("output")
+                    .default_value("memory_analysis"),
+            )
             .try_get_matches_from(vec!["test", "echo", "hello"])
             .unwrap();
 
         // This should not panic and should extract arguments correctly
-        let command_args: Vec<&String> = matches
-            .get_many::<String>("command")
-            .unwrap()
-            .collect();
+        let command_args: Vec<&String> = matches.get_many::<String>("command").unwrap().collect();
         let export_format = matches
             .get_one::<String>("export")
             .map(|s| s.as_str())
@@ -852,11 +853,26 @@ mod tests {
             .arg(Arg::new("command").num_args(1..))
             .arg(Arg::new("export").long("export"))
             .arg(Arg::new("output").long("output"))
-            .arg(Arg::new("auto-track").long("auto-track").action(clap::ArgAction::SetTrue))
-            .arg(Arg::new("wait-completion").long("wait-completion").action(clap::ArgAction::SetTrue))
+            .arg(
+                Arg::new("auto-track")
+                    .long("auto-track")
+                    .action(clap::ArgAction::SetTrue),
+            )
+            .arg(
+                Arg::new("wait-completion")
+                    .long("wait-completion")
+                    .action(clap::ArgAction::SetTrue),
+            )
             .try_get_matches_from(vec![
-                "test", "echo", "test", "--export", "json", "--output", "test_output",
-                "--auto-track", "--wait-completion"
+                "test",
+                "echo",
+                "test",
+                "--export",
+                "json",
+                "--output",
+                "test_output",
+                "--auto-track",
+                "--wait-completion",
             ])
             .unwrap();
 
@@ -898,19 +914,34 @@ mod tests {
         // Test handle_legacy_mode logic without executing
         let matches = ClapCommand::new("test")
             .arg(Arg::new("export").long("export"))
-            .arg(Arg::new("output").long("output").default_value("default_output"))
-            .arg(Arg::new("auto-track").long("auto-track").action(clap::ArgAction::SetTrue))
+            .arg(
+                Arg::new("output")
+                    .long("output")
+                    .default_value("default_output"),
+            )
+            .arg(
+                Arg::new("auto-track")
+                    .long("auto-track")
+                    .action(clap::ArgAction::SetTrue),
+            )
             .arg(Arg::new("command").num_args(1..))
             .try_get_matches_from(vec![
-                "test", "--export", "html", "--output", "legacy_output", 
-                "--auto-track", "cargo", "run"
+                "test",
+                "--export",
+                "html",
+                "--output",
+                "legacy_output",
+                "--auto-track",
+                "cargo",
+                "run",
             ])
             .unwrap();
 
         let export_format = matches.get_one::<String>("export");
         let output_path = matches.get_one::<String>("output").unwrap();
         let auto_track = matches.get_flag("auto-track");
-        let command_args: Option<clap::parser::ValuesRef<String>> = matches.get_many::<String>("command");
+        let command_args: Option<clap::parser::ValuesRef<String>> =
+            matches.get_many::<String>("command");
 
         assert!(export_format.is_some());
         assert_eq!(export_format.unwrap(), "html");
@@ -970,7 +1001,7 @@ mod tests {
         assert!(!valid_refs.is_empty());
         let program = valid_refs[0];
         let args = &valid_refs[1..];
-        
+
         assert_eq!(program, "echo");
         assert_eq!(args.len(), 1);
         assert_eq!(args[0], "hello");
@@ -1052,7 +1083,10 @@ mod tests {
             (vec!["echo", "hello"], "echo hello"),
             (vec!["cargo", "run", "--release"], "cargo run --release"),
             (vec!["ls", "-la", "/tmp"], "ls -la /tmp"),
-            (vec!["git", "commit", "-m", "test message"], "git commit -m test message"),
+            (
+                vec!["git", "commit", "-m", "test message"],
+                "git commit -m test message",
+            ),
         ];
 
         for (args, expected) in test_cases {
@@ -1065,9 +1099,21 @@ mod tests {
     fn test_flag_combinations() {
         // Test various flag combinations
         let matches = ClapCommand::new("test")
-            .arg(Arg::new("auto-track").long("auto-track").action(clap::ArgAction::SetTrue))
-            .arg(Arg::new("wait-completion").long("wait-completion").action(clap::ArgAction::SetTrue))
-            .arg(Arg::new("verbose").long("verbose").action(clap::ArgAction::SetTrue))
+            .arg(
+                Arg::new("auto-track")
+                    .long("auto-track")
+                    .action(clap::ArgAction::SetTrue),
+            )
+            .arg(
+                Arg::new("wait-completion")
+                    .long("wait-completion")
+                    .action(clap::ArgAction::SetTrue),
+            )
+            .arg(
+                Arg::new("verbose")
+                    .long("verbose")
+                    .action(clap::ArgAction::SetTrue),
+            )
             .try_get_matches_from(vec!["test", "--auto-track", "--verbose"])
             .unwrap();
 
@@ -1101,7 +1147,10 @@ mod tests {
             ("Missing command arguments", "Missing command arguments"),
             ("Missing export format", "Missing export format"),
             ("Missing output path", "Missing output path"),
-            ("Command failed with exit code: Some(1)", "Command failed with exit code: Some(1)"),
+            (
+                "Command failed with exit code: Some(1)",
+                "Command failed with exit code: Some(1)",
+            ),
         ];
 
         for (error_msg, expected) in test_errors {
@@ -1140,7 +1189,7 @@ mod tests {
         // Test timeout duration logic
         let timeout_ms = 200;
         let duration = std::time::Duration::from_millis(timeout_ms);
-        
+
         assert_eq!(duration.as_millis(), 200);
         assert!(duration.as_millis() > 0);
         assert!(duration.as_millis() < 1000); // Less than 1 second

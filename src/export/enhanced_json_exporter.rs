@@ -513,7 +513,7 @@ mod tests {
     #[test]
     fn test_export_config_default() {
         let config = ExportConfig::default();
-        
+
         assert!(config.pretty_print);
         assert!(config.include_stack_traces);
         assert!(config.generate_lifetime_file);
@@ -530,20 +530,32 @@ mod tests {
             generate_unsafe_ffi_file: false,
             max_ownership_events: 500,
         };
-        
+
         // Test Debug trait
         let debug_str = format!("{:?}", config);
         assert!(debug_str.contains("ExportConfig"));
         assert!(debug_str.contains("pretty_print"));
         assert!(debug_str.contains("false"));
-        
+
         // Test Clone trait
         let cloned_config = config.clone();
         assert_eq!(cloned_config.pretty_print, config.pretty_print);
-        assert_eq!(cloned_config.include_stack_traces, config.include_stack_traces);
-        assert_eq!(cloned_config.generate_lifetime_file, config.generate_lifetime_file);
-        assert_eq!(cloned_config.generate_unsafe_ffi_file, config.generate_unsafe_ffi_file);
-        assert_eq!(cloned_config.max_ownership_events, config.max_ownership_events);
+        assert_eq!(
+            cloned_config.include_stack_traces,
+            config.include_stack_traces
+        );
+        assert_eq!(
+            cloned_config.generate_lifetime_file,
+            config.generate_lifetime_file
+        );
+        assert_eq!(
+            cloned_config.generate_unsafe_ffi_file,
+            config.generate_unsafe_ffi_file
+        );
+        assert_eq!(
+            cloned_config.max_ownership_events,
+            config.max_ownership_events
+        );
     }
 
     #[test]
@@ -555,25 +567,49 @@ mod tests {
             generate_unsafe_ffi_file: true,
             max_ownership_events: 2000,
         };
-        
+
         let exporter = EnhancedJsonExporter::new(config.clone());
         assert_eq!(exporter.config.pretty_print, config.pretty_print);
-        assert_eq!(exporter.config.include_stack_traces, config.include_stack_traces);
-        assert_eq!(exporter.config.generate_lifetime_file, config.generate_lifetime_file);
-        assert_eq!(exporter.config.generate_unsafe_ffi_file, config.generate_unsafe_ffi_file);
-        assert_eq!(exporter.config.max_ownership_events, config.max_ownership_events);
+        assert_eq!(
+            exporter.config.include_stack_traces,
+            config.include_stack_traces
+        );
+        assert_eq!(
+            exporter.config.generate_lifetime_file,
+            config.generate_lifetime_file
+        );
+        assert_eq!(
+            exporter.config.generate_unsafe_ffi_file,
+            config.generate_unsafe_ffi_file
+        );
+        assert_eq!(
+            exporter.config.max_ownership_events,
+            config.max_ownership_events
+        );
     }
 
     #[test]
     fn test_enhanced_json_exporter_default() {
         let exporter1 = EnhancedJsonExporter::default();
         let exporter2 = EnhancedJsonExporter::new(ExportConfig::default());
-        
+
         assert_eq!(exporter1.config.pretty_print, exporter2.config.pretty_print);
-        assert_eq!(exporter1.config.include_stack_traces, exporter2.config.include_stack_traces);
-        assert_eq!(exporter1.config.generate_lifetime_file, exporter2.config.generate_lifetime_file);
-        assert_eq!(exporter1.config.generate_unsafe_ffi_file, exporter2.config.generate_unsafe_ffi_file);
-        assert_eq!(exporter1.config.max_ownership_events, exporter2.config.max_ownership_events);
+        assert_eq!(
+            exporter1.config.include_stack_traces,
+            exporter2.config.include_stack_traces
+        );
+        assert_eq!(
+            exporter1.config.generate_lifetime_file,
+            exporter2.config.generate_lifetime_file
+        );
+        assert_eq!(
+            exporter1.config.generate_unsafe_ffi_file,
+            exporter2.config.generate_unsafe_ffi_file
+        );
+        assert_eq!(
+            exporter1.config.max_ownership_events,
+            exporter2.config.max_ownership_events
+        );
     }
 
     #[test]
@@ -639,11 +675,15 @@ mod tests {
         assert!(!lifetime_data.ownership_history.is_empty());
 
         // Should have Allocated and Cloned events
-        let allocated_event = lifetime_data.ownership_history.iter()
+        let allocated_event = lifetime_data
+            .ownership_history
+            .iter()
             .find(|e| e.event_type == "Allocated");
         assert!(allocated_event.is_some());
 
-        let cloned_event = lifetime_data.ownership_history.iter()
+        let cloned_event = lifetime_data
+            .ownership_history
+            .iter()
             .find(|e| e.event_type == "Cloned");
         assert!(cloned_event.is_some());
 
@@ -668,7 +708,9 @@ mod tests {
         let lifetime_data = exporter.generate_lifetime_data(&alloc);
 
         // Should have Allocated and Borrowed events
-        let borrowed_events: Vec<_> = lifetime_data.ownership_history.iter()
+        let borrowed_events: Vec<_> = lifetime_data
+            .ownership_history
+            .iter()
             .filter(|e| e.event_type == "Borrowed")
             .collect();
         assert_eq!(borrowed_events.len(), 3); // Should match immutable_borrows
@@ -690,7 +732,9 @@ mod tests {
         let lifetime_data = exporter.generate_lifetime_data(&alloc);
 
         // Should have Allocated and Dropped events
-        let dropped_event = lifetime_data.ownership_history.iter()
+        let dropped_event = lifetime_data
+            .ownership_history
+            .iter()
             .find(|e| e.event_type == "Dropped");
         assert!(dropped_event.is_some());
 
@@ -726,7 +770,10 @@ mod tests {
     #[test]
     fn test_ownership_event_debug_clone_serialize() {
         let mut details = HashMap::new();
-        details.insert("test_key".to_string(), serde_json::Value::String("test_value".to_string()));
+        details.insert(
+            "test_key".to_string(),
+            serde_json::Value::String("test_value".to_string()),
+        );
 
         let event = OwnershipEvent {
             timestamp: 1234567890,
@@ -794,7 +841,10 @@ mod tests {
         // Test Clone trait
         let cloned_data = lifetime_data.clone();
         assert_eq!(cloned_data.allocation_ptr, lifetime_data.allocation_ptr);
-        assert_eq!(cloned_data.ownership_history.len(), lifetime_data.ownership_history.len());
+        assert_eq!(
+            cloned_data.ownership_history.len(),
+            lifetime_data.ownership_history.len()
+        );
 
         // Test Serialize trait
         let serialized = serde_json::to_string(&lifetime_data);
@@ -807,8 +857,14 @@ mod tests {
         let deserialized: Result<LifetimeData, _> = serde_json::from_str(&json_str);
         assert!(deserialized.is_ok());
         let deserialized_data = deserialized.unwrap();
-        assert_eq!(deserialized_data.allocation_ptr, lifetime_data.allocation_ptr);
-        assert_eq!(deserialized_data.ownership_history.len(), lifetime_data.ownership_history.len());
+        assert_eq!(
+            deserialized_data.allocation_ptr,
+            lifetime_data.allocation_ptr
+        );
+        assert_eq!(
+            deserialized_data.ownership_history.len(),
+            lifetime_data.ownership_history.len()
+        );
     }
 
     #[test]
@@ -846,7 +902,10 @@ mod tests {
         assert_eq!(cloned_alloc.ptr, enhanced_alloc.ptr);
         assert_eq!(cloned_alloc.size, enhanced_alloc.size);
         assert_eq!(cloned_alloc.var_name, enhanced_alloc.var_name);
-        assert_eq!(cloned_alloc.ownership_history_available, enhanced_alloc.ownership_history_available);
+        assert_eq!(
+            cloned_alloc.ownership_history_available,
+            enhanced_alloc.ownership_history_available
+        );
 
         // Test Serialize trait
         let serialized = serde_json::to_string(&enhanced_alloc);
@@ -862,132 +921,149 @@ mod tests {
         let deserialized_alloc = deserialized.unwrap();
         assert_eq!(deserialized_alloc.ptr, enhanced_alloc.ptr);
         assert_eq!(deserialized_alloc.var_name, enhanced_alloc.var_name);
-        assert_eq!(deserialized_alloc.ownership_history_available, enhanced_alloc.ownership_history_available);
+        assert_eq!(
+            deserialized_alloc.ownership_history_available,
+            enhanced_alloc.ownership_history_available
+        );
     }
 
     #[test]
     fn test_export_memory_analysis() -> TrackingResult<()> {
         use tempfile::TempDir;
-        
+
         let temp_dir = TempDir::new().map_err(|e| ExportError(e.to_string()))?;
         let exporter = EnhancedJsonExporter::default();
         let memory_stats = create_test_memory_stats();
-        
+
         exporter.export_memory_analysis(&temp_dir, &memory_stats)?;
-        
+
         let output_path = temp_dir.path().join("memory_analysis.json");
         assert!(output_path.exists());
-        
+
         // Verify file content
-        let content = std::fs::read_to_string(&output_path)
-            .map_err(|e| ExportError(e.to_string()))?;
-        let json_data: serde_json::Value = serde_json::from_str(&content)
-            .map_err(|e| SerializationError(e.to_string()))?;
-        
+        let content =
+            std::fs::read_to_string(&output_path).map_err(|e| ExportError(e.to_string()))?;
+        let json_data: serde_json::Value =
+            serde_json::from_str(&content).map_err(|e| SerializationError(e.to_string()))?;
+
         assert!(json_data.get("metadata").is_some());
         assert!(json_data.get("summary").is_some());
         assert!(json_data.get("allocations").is_some());
-        
+
         let metadata = &json_data["metadata"];
         assert_eq!(metadata["export_version"].as_str().unwrap(), "2.0");
-        assert_eq!(metadata["specification"].as_str().unwrap(), "improve.md compliant");
+        assert_eq!(
+            metadata["specification"].as_str().unwrap(),
+            "improve.md compliant"
+        );
         assert_eq!(metadata["total_allocations"].as_u64().unwrap(), 2);
-        
+
         Ok(())
     }
 
     #[test]
     fn test_export_lifetime_data() -> TrackingResult<()> {
         use tempfile::TempDir;
-        
+
         let temp_dir = TempDir::new().map_err(|e| ExportError(e.to_string()))?;
         let exporter = EnhancedJsonExporter::default();
-        
+
         let mut memory_stats = create_test_memory_stats();
         // Mark some allocations as having ownership history
         memory_stats.allocations[0].ownership_history_available = true;
         memory_stats.allocations[1].ownership_history_available = true;
-        
+
         exporter.export_lifetime_data(&temp_dir, &memory_stats)?;
-        
+
         let output_path = temp_dir.path().join("lifetime.json");
         assert!(output_path.exists());
-        
+
         // Verify file content
-        let content = std::fs::read_to_string(&output_path)
-            .map_err(|e| ExportError(e.to_string()))?;
-        let json_data: serde_json::Value = serde_json::from_str(&content)
-            .map_err(|e| SerializationError(e.to_string()))?;
-        
+        let content =
+            std::fs::read_to_string(&output_path).map_err(|e| ExportError(e.to_string()))?;
+        let json_data: serde_json::Value =
+            serde_json::from_str(&content).map_err(|e| SerializationError(e.to_string()))?;
+
         assert!(json_data.get("metadata").is_some());
         assert!(json_data.get("ownership_histories").is_some());
-        
+
         let metadata = &json_data["metadata"];
         assert_eq!(metadata["export_version"].as_str().unwrap(), "2.0");
-        assert_eq!(metadata["specification"].as_str().unwrap(), "improve.md lifetime tracking");
+        assert_eq!(
+            metadata["specification"].as_str().unwrap(),
+            "improve.md lifetime tracking"
+        );
         assert_eq!(metadata["total_tracked_allocations"].as_u64().unwrap(), 2);
-        
+
         Ok(())
     }
 
     #[test]
     fn test_export_unsafe_ffi_analysis() -> TrackingResult<()> {
         use tempfile::TempDir;
-        
+
         let temp_dir = TempDir::new().map_err(|e| ExportError(e.to_string()))?;
         let exporter = EnhancedJsonExporter::default();
-        
+
         let unsafe_reports = vec![];
         let memory_passports = vec![];
-        
+
         exporter.export_unsafe_ffi_analysis(&temp_dir, &unsafe_reports, &memory_passports)?;
-        
+
         let output_path = temp_dir.path().join("unsafe_ffi.json");
         assert!(output_path.exists());
-        
+
         // Verify file content
-        let content = std::fs::read_to_string(&output_path)
-            .map_err(|e| ExportError(e.to_string()))?;
-        let json_data: serde_json::Value = serde_json::from_str(&content)
-            .map_err(|e| SerializationError(e.to_string()))?;
-        
+        let content =
+            std::fs::read_to_string(&output_path).map_err(|e| ExportError(e.to_string()))?;
+        let json_data: serde_json::Value =
+            serde_json::from_str(&content).map_err(|e| SerializationError(e.to_string()))?;
+
         assert!(json_data.get("metadata").is_some());
         assert!(json_data.get("unsafe_reports").is_some());
         assert!(json_data.get("memory_passports").is_some());
-        
+
         let metadata = &json_data["metadata"];
         assert_eq!(metadata["export_version"].as_str().unwrap(), "2.0");
-        assert_eq!(metadata["specification"].as_str().unwrap(), "improve.md unsafe FFI tracking");
+        assert_eq!(
+            metadata["specification"].as_str().unwrap(),
+            "improve.md unsafe FFI tracking"
+        );
         assert_eq!(metadata["total_unsafe_reports"].as_u64().unwrap(), 0);
         assert_eq!(metadata["total_memory_passports"].as_u64().unwrap(), 0);
-        
+
         Ok(())
     }
 
     #[test]
     fn test_export_enhanced_analysis_all_files() -> TrackingResult<()> {
         use tempfile::TempDir;
-        
+
         let temp_dir = TempDir::new().map_err(|e| ExportError(e.to_string()))?;
         let exporter = EnhancedJsonExporter::default();
         let memory_stats = create_test_memory_stats();
         let unsafe_reports = vec![];
         let memory_passports = vec![];
-        
-        exporter.export_enhanced_analysis(&temp_dir, &memory_stats, &unsafe_reports, &memory_passports)?;
-        
+
+        exporter.export_enhanced_analysis(
+            &temp_dir,
+            &memory_stats,
+            &unsafe_reports,
+            &memory_passports,
+        )?;
+
         // Verify all files were created
         assert!(temp_dir.path().join("memory_analysis.json").exists());
         assert!(temp_dir.path().join("lifetime.json").exists());
         assert!(temp_dir.path().join("unsafe_ffi.json").exists());
-        
+
         Ok(())
     }
 
     #[test]
     fn test_export_enhanced_analysis_selective_files() -> TrackingResult<()> {
         use tempfile::TempDir;
-        
+
         let temp_dir = TempDir::new().map_err(|e| ExportError(e.to_string()))?;
         let config = ExportConfig {
             generate_lifetime_file: false,
@@ -998,105 +1074,110 @@ mod tests {
         let memory_stats = create_test_memory_stats();
         let unsafe_reports = vec![];
         let memory_passports = vec![];
-        
-        exporter.export_enhanced_analysis(&temp_dir, &memory_stats, &unsafe_reports, &memory_passports)?;
-        
+
+        exporter.export_enhanced_analysis(
+            &temp_dir,
+            &memory_stats,
+            &unsafe_reports,
+            &memory_passports,
+        )?;
+
         // Verify selective file creation
         assert!(temp_dir.path().join("memory_analysis.json").exists());
         assert!(!temp_dir.path().join("lifetime.json").exists()); // Should not exist
         assert!(temp_dir.path().join("unsafe_ffi.json").exists());
-        
+
         Ok(())
     }
 
     #[test]
     fn test_write_json_file_pretty_print() -> TrackingResult<()> {
         use tempfile::TempDir;
-        
+
         let temp_dir = TempDir::new().map_err(|e| ExportError(e.to_string()))?;
         let config = ExportConfig {
             pretty_print: true,
             ..Default::default()
         };
         let exporter = EnhancedJsonExporter::new(config);
-        
+
         let test_data = serde_json::json!({
             "test": "value",
             "number": 42
         });
-        
+
         let output_path = temp_dir.path().join("pretty_test.json");
         exporter.write_json_file(&output_path, &test_data)?;
-        
+
         assert!(output_path.exists());
-        
-        let content = std::fs::read_to_string(&output_path)
-            .map_err(|e| ExportError(e.to_string()))?;
-        
+
+        let content =
+            std::fs::read_to_string(&output_path).map_err(|e| ExportError(e.to_string()))?;
+
         // Pretty printed JSON should contain newlines and indentation
         assert!(content.contains('\n'));
         assert!(content.contains("  ")); // Indentation
-        
+
         Ok(())
     }
 
     #[test]
     fn test_write_json_file_compact() -> TrackingResult<()> {
         use tempfile::TempDir;
-        
+
         let temp_dir = TempDir::new().map_err(|e| ExportError(e.to_string()))?;
         let config = ExportConfig {
             pretty_print: false,
             ..Default::default()
         };
         let exporter = EnhancedJsonExporter::new(config);
-        
+
         let test_data = serde_json::json!({
             "test": "value",
             "number": 42
         });
-        
+
         let output_path = temp_dir.path().join("compact_test.json");
         exporter.write_json_file(&output_path, &test_data)?;
-        
+
         assert!(output_path.exists());
-        
-        let content = std::fs::read_to_string(&output_path)
-            .map_err(|e| ExportError(e.to_string()))?;
-        
+
+        let content =
+            std::fs::read_to_string(&output_path).map_err(|e| ExportError(e.to_string()))?;
+
         // Compact JSON should not contain extra whitespace
         assert!(!content.contains('\n'));
         assert!(!content.contains("  ")); // No indentation
-        
+
         Ok(())
     }
 
     #[test]
     fn test_export_enhanced_json_convenience_function() -> TrackingResult<()> {
         use tempfile::TempDir;
-        
+
         let temp_dir = TempDir::new().map_err(|e| ExportError(e.to_string()))?;
         let memory_stats = create_test_memory_stats();
         let unsafe_reports = vec![];
         let memory_passports = vec![];
-        
+
         export_enhanced_json(&temp_dir, &memory_stats, &unsafe_reports, &memory_passports)?;
-        
+
         // Verify all files were created using default settings
         assert!(temp_dir.path().join("memory_analysis.json").exists());
         assert!(temp_dir.path().join("lifetime.json").exists());
         assert!(temp_dir.path().join("unsafe_ffi.json").exists());
-        
+
         Ok(())
     }
 
     #[test]
     fn test_export_with_empty_allocations() -> TrackingResult<()> {
         use tempfile::TempDir;
-        
+
         let temp_dir = TempDir::new().map_err(|e| ExportError(e.to_string()))?;
         let exporter = EnhancedJsonExporter::default();
-        
+
         let empty_memory_stats = MemoryStats {
             total_allocations: 0,
             total_allocated: 0,
@@ -1114,34 +1195,34 @@ mod tests {
             system_library_stats: crate::core::types::SystemLibraryStats::default(),
             concurrency_analysis: crate::core::types::ConcurrencyAnalysis::default(),
         };
-        
+
         exporter.export_memory_analysis(&temp_dir, &empty_memory_stats)?;
-        
+
         let output_path = temp_dir.path().join("memory_analysis.json");
         assert!(output_path.exists());
-        
+
         // Verify file content with empty allocations
-        let content = std::fs::read_to_string(&output_path)
-            .map_err(|e| ExportError(e.to_string()))?;
-        let json_data: serde_json::Value = serde_json::from_str(&content)
-            .map_err(|e| SerializationError(e.to_string()))?;
-        
+        let content =
+            std::fs::read_to_string(&output_path).map_err(|e| ExportError(e.to_string()))?;
+        let json_data: serde_json::Value =
+            serde_json::from_str(&content).map_err(|e| SerializationError(e.to_string()))?;
+
         let metadata = &json_data["metadata"];
         assert_eq!(metadata["total_allocations"].as_u64().unwrap(), 0);
-        
+
         let allocations = json_data["allocations"].as_array().unwrap();
         assert_eq!(allocations.len(), 0);
-        
+
         Ok(())
     }
 
     #[test]
     fn test_export_with_large_dataset() -> TrackingResult<()> {
         use tempfile::TempDir;
-        
+
         let temp_dir = TempDir::new().map_err(|e| ExportError(e.to_string()))?;
         let exporter = EnhancedJsonExporter::default();
-        
+
         // Create a large dataset
         let mut large_allocations = Vec::new();
         for i in 0..1000 {
@@ -1149,7 +1230,7 @@ mod tests {
             alloc.ownership_history_available = i % 2 == 0; // Half have ownership history
             large_allocations.push(alloc);
         }
-        
+
         let large_memory_stats = MemoryStats {
             total_allocations: 1000,
             total_allocated: 114000, // Approximate
@@ -1167,33 +1248,48 @@ mod tests {
             system_library_stats: crate::core::types::SystemLibraryStats::default(),
             concurrency_analysis: crate::core::types::ConcurrencyAnalysis::default(),
         };
-        
+
         let unsafe_reports = vec![];
         let memory_passports = vec![];
-        
-        exporter.export_enhanced_analysis(&temp_dir, &large_memory_stats, &unsafe_reports, &memory_passports)?;
-        
+
+        exporter.export_enhanced_analysis(
+            &temp_dir,
+            &large_memory_stats,
+            &unsafe_reports,
+            &memory_passports,
+        )?;
+
         // Verify all files were created
         assert!(temp_dir.path().join("memory_analysis.json").exists());
         assert!(temp_dir.path().join("lifetime.json").exists());
         assert!(temp_dir.path().join("unsafe_ffi.json").exists());
-        
+
         // Verify memory analysis content
         let memory_content = std::fs::read_to_string(temp_dir.path().join("memory_analysis.json"))
             .map_err(|e| ExportError(e.to_string()))?;
-        let memory_json: serde_json::Value = serde_json::from_str(&memory_content)
-            .map_err(|e| SerializationError(e.to_string()))?;
-        
-        assert_eq!(memory_json["metadata"]["total_allocations"].as_u64().unwrap(), 1000);
-        
+        let memory_json: serde_json::Value =
+            serde_json::from_str(&memory_content).map_err(|e| SerializationError(e.to_string()))?;
+
+        assert_eq!(
+            memory_json["metadata"]["total_allocations"]
+                .as_u64()
+                .unwrap(),
+            1000
+        );
+
         // Verify lifetime data content
         let lifetime_content = std::fs::read_to_string(temp_dir.path().join("lifetime.json"))
             .map_err(|e| ExportError(e.to_string()))?;
         let lifetime_json: serde_json::Value = serde_json::from_str(&lifetime_content)
             .map_err(|e| SerializationError(e.to_string()))?;
-        
-        assert_eq!(lifetime_json["metadata"]["total_tracked_allocations"].as_u64().unwrap(), 500); // Half have ownership history
-        
+
+        assert_eq!(
+            lifetime_json["metadata"]["total_tracked_allocations"]
+                .as_u64()
+                .unwrap(),
+            500
+        ); // Half have ownership history
+
         Ok(())
     }
 }

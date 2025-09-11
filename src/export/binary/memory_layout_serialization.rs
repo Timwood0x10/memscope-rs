@@ -488,13 +488,11 @@ mod tests {
             ],
             padding_info: PaddingAnalysis {
                 total_padding_bytes: 4,
-                padding_locations: vec![
-                    PaddingLocation {
-                        start_offset: 4,
-                        size: 4,
-                        reason: PaddingReason::FieldAlignment,
-                    },
-                ],
+                padding_locations: vec![PaddingLocation {
+                    start_offset: 4,
+                    size: 4,
+                    reason: PaddingReason::FieldAlignment,
+                }],
                 padding_ratio: 0.25,
                 optimization_suggestions: vec!["Reorder fields".to_string()],
             },
@@ -518,7 +516,8 @@ mod tests {
         assert_eq!(written_size, layout.binary_size());
 
         let mut cursor = Cursor::new(&buffer);
-        let read_layout = MemoryLayoutInfo::read_binary(&mut cursor).expect("Failed to read memory layout");
+        let read_layout =
+            MemoryLayoutInfo::read_binary(&mut cursor).expect("Failed to read memory layout");
 
         assert_eq!(layout, read_layout);
     }
@@ -558,7 +557,8 @@ mod tests {
             assert_eq!(written_size, original_location.binary_size());
 
             let mut cursor = Cursor::new(&buffer);
-            let read_location = PaddingLocation::read_binary(&mut cursor).expect("Failed to read padding location");
+            let read_location =
+                PaddingLocation::read_binary(&mut cursor).expect("Failed to read padding location");
 
             assert_eq!(original_location, read_location);
         }
@@ -593,7 +593,8 @@ mod tests {
         assert_eq!(written_size, layout.binary_size());
 
         let mut cursor = Cursor::new(&buffer);
-        let read_layout = MemoryLayoutInfo::read_binary(&mut cursor).expect("Failed to read empty memory layout");
+        let read_layout =
+            MemoryLayoutInfo::read_binary(&mut cursor).expect("Failed to read empty memory layout");
 
         assert_eq!(layout, read_layout);
     }
@@ -660,7 +661,8 @@ mod tests {
         assert_eq!(written_size, layout.binary_size());
 
         let mut cursor = Cursor::new(&buffer);
-        let read_layout = MemoryLayoutInfo::read_binary(&mut cursor).expect("Failed to read large memory layout");
+        let read_layout =
+            MemoryLayoutInfo::read_binary(&mut cursor).expect("Failed to read large memory layout");
 
         assert_eq!(layout, read_layout);
     }
@@ -671,7 +673,7 @@ mod tests {
         assert_eq!(PaddingReason::FieldAlignment.binary_size(), 1);
         assert_eq!(PaddingReason::StructAlignment.binary_size(), 1);
         assert_eq!(PaddingReason::EnumDiscriminant.binary_size(), 1);
-        
+
         let custom_reason = PaddingReason::Other("test".to_string());
         assert_eq!(custom_reason.binary_size(), 1 + 4 + 4); // tag + length + content
 
@@ -698,8 +700,10 @@ mod tests {
 
         // Test OptimizationPotential binary size
         assert_eq!(OptimizationPotential::None.binary_size(), 1);
-        
-        let minor = OptimizationPotential::Minor { potential_savings: 100 };
+
+        let minor = OptimizationPotential::Minor {
+            potential_savings: 100,
+        };
         assert_eq!(minor.binary_size(), 1 + 8); // tag + savings
 
         let moderate = OptimizationPotential::Moderate {
@@ -788,15 +792,15 @@ mod tests {
         assert_eq!(written_size, empty_other.binary_size());
 
         let mut cursor = Cursor::new(&buffer);
-        let read_reason = PaddingReason::read_binary(&mut cursor)
-            .expect("Failed to read empty other reason");
+        let read_reason =
+            PaddingReason::read_binary(&mut cursor).expect("Failed to read empty other reason");
 
         assert_eq!(empty_other, read_reason);
 
         // Test with very long string
         let long_string = "a".repeat(10000);
         let long_other = PaddingReason::Other(long_string.clone());
-        
+
         let mut buffer = Vec::new();
         let written_size = long_other
             .write_binary(&mut buffer)
@@ -805,8 +809,8 @@ mod tests {
         assert_eq!(written_size, long_other.binary_size());
 
         let mut cursor = Cursor::new(&buffer);
-        let read_reason = PaddingReason::read_binary(&mut cursor)
-            .expect("Failed to read long other reason");
+        let read_reason =
+            PaddingReason::read_binary(&mut cursor).expect("Failed to read long other reason");
 
         assert_eq!(long_other, read_reason);
     }
@@ -909,8 +913,8 @@ mod tests {
         assert_eq!(written_size, layout.binary_size());
 
         let mut cursor = Cursor::new(&buffer);
-        let read_layout = MemoryLayoutInfo::read_binary(&mut cursor)
-            .expect("Failed to read mixed field layout");
+        let read_layout =
+            MemoryLayoutInfo::read_binary(&mut cursor).expect("Failed to read mixed field layout");
 
         assert_eq!(layout, read_layout);
     }
@@ -921,25 +925,21 @@ mod tests {
         let original_layout = MemoryLayoutInfo {
             total_size: 256,
             alignment: 32,
-            field_layout: vec![
-                FieldLayoutInfo {
-                    field_name: "complex_field".to_string(),
-                    field_type: "Option<Box<dyn Trait>>".to_string(),
-                    offset: 0,
-                    size: 16,
-                    alignment: 8,
-                    is_padding: false,
-                },
-            ],
+            field_layout: vec![FieldLayoutInfo {
+                field_name: "complex_field".to_string(),
+                field_type: "Option<Box<dyn Trait>>".to_string(),
+                offset: 0,
+                size: 16,
+                alignment: 8,
+                is_padding: false,
+            }],
             padding_info: PaddingAnalysis {
                 total_padding_bytes: 16,
-                padding_locations: vec![
-                    PaddingLocation {
-                        start_offset: 16,
-                        size: 16,
-                        reason: PaddingReason::Other("custom alignment requirement".to_string()),
-                    },
-                ],
+                padding_locations: vec![PaddingLocation {
+                    start_offset: 16,
+                    size: 16,
+                    reason: PaddingReason::Other("custom alignment requirement".to_string()),
+                }],
                 padding_ratio: 16.0 / 256.0,
                 optimization_suggestions: vec![
                     "Consider using a different data structure".to_string(),
@@ -963,20 +963,24 @@ mod tests {
 
         // First roundtrip
         let mut buffer1 = Vec::new();
-        original_layout.write_binary(&mut buffer1).expect("First write failed");
-        
+        original_layout
+            .write_binary(&mut buffer1)
+            .expect("First write failed");
+
         let mut cursor1 = Cursor::new(&buffer1);
         let layout1 = MemoryLayoutInfo::read_binary(&mut cursor1).expect("First read failed");
-        
+
         assert_eq!(original_layout, layout1);
 
         // Second roundtrip
         let mut buffer2 = Vec::new();
-        layout1.write_binary(&mut buffer2).expect("Second write failed");
-        
+        layout1
+            .write_binary(&mut buffer2)
+            .expect("Second write failed");
+
         let mut cursor2 = Cursor::new(&buffer2);
         let layout2 = MemoryLayoutInfo::read_binary(&mut cursor2).expect("Second read failed");
-        
+
         assert_eq!(layout1, layout2);
         assert_eq!(original_layout, layout2);
 
