@@ -169,6 +169,7 @@ impl ErrorRecoveryManager {
         attempts += 1;
         match operation() {
             Ok(result) => {
+                self.error_stats.successful_recoveries += 1;
                 return RecoveryResult {
                     result: Some(result),
                     success: true,
@@ -329,7 +330,7 @@ impl ErrorRecoveryManager {
         let success_rate = if total_operations > 0 {
             self.error_stats.successful_recoveries as f64 / total_operations as f64
         } else {
-            1.0
+            0.0
         };
 
         ErrorReport {
@@ -408,6 +409,11 @@ impl ErrorRecoveryManager {
             }
         }
 
+        // Always provide at least one general recommendation if no specific ones were generated
+        if recommendations.is_empty() {
+            recommendations.push("Monitor error rates and enable detailed logging for better diagnostics.".to_string());
+        }
+
         recommendations
     }
 }
@@ -441,7 +447,7 @@ impl ErrorStatistics {
         if total > 0 {
             self.successful_recoveries as f64 / total as f64
         } else {
-            1.0
+            0.0
         }
     }
 
@@ -450,6 +456,8 @@ impl ErrorStatistics {
         // Simplified trend analysis based on recent error rate
         if self.error_rate > 10.0 {
             ErrorTrend::Increasing
+        } else if self.error_rate == 0.0 {
+            ErrorTrend::Stable  // No errors means stable, not decreasing
         } else if self.error_rate < 1.0 {
             ErrorTrend::Decreasing
         } else {
@@ -579,5 +587,372 @@ mod tests {
     fn test_recovery_strategies() {
         assert_eq!(RecoveryStrategy::Retry, RecoveryStrategy::Retry);
         assert_ne!(RecoveryStrategy::Retry, RecoveryStrategy::RebuildIndex);
+    }
+
+    #[test]
+    fn test_all_recovery_strategies() {
+        // Test all recovery strategy variants
+        let strategies = vec![
+            RecoveryStrategy::Retry,
+            RecoveryStrategy::RebuildIndex,
+            RecoveryStrategy::FallbackToLegacy,
+            RecoveryStrategy::PartialResults,
+            RecoveryStrategy::SkipCorrupted,
+        ];
+
+        for strategy in strategies {
+            // Each strategy should be equal to itself
+            assert_eq!(strategy, strategy);
+            
+            // Test that we can format the strategy
+            let formatted = format!("{:?}", strategy);
+            assert!(!formatted.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_binary_export_error_variants() {
+        // Test all BinaryExportError variants
+        let errors = vec![
+            BinaryExportError::InvalidFormat,
+            BinaryExportError::CorruptedData("test".to_string()),
+            BinaryExportError::Io(std::io::Error::new(std::io::ErrorKind::NotFound, "test")),
+            BinaryExportError::UnsupportedVersion(1),
+            BinaryExportError::SerializationError("test".to_string()),
+        ];
+
+        for error in errors {
+            // Each error should be formattable
+            let formatted = format!("{:?}", error);
+            assert!(!formatted.is_empty());
+            
+            // Test error display
+            let display = format!("{}", error);
+            assert!(!display.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_error_statistics_comprehensive() {
+        let mut stats = ErrorStatistics::default();
+        
+        // Test initial state
+        assert_eq!(stats.total_errors, 0);
+        assert_eq!(stats.successful_recoveries, 0);
+        assert_eq!(stats.failed_recoveries, 0);
+        assert_eq!(stats.recovery_success_rate(), 0.0);
+        assert_eq!(stats.error_trend(), ErrorTrend::Stable);
+
+        // Test with various scenarios
+        stats.total_errors = 100;
+        stats.successful_recoveries = 80;
+        stats.failed_recoveries = 20;
+        assert_eq!(stats.recovery_success_rate(), 0.8);
+
+        // Test perfect success rate
+        stats.successful_recoveries = 100;
+        stats.failed_recoveries = 0;
+        assert_eq!(stats.recovery_success_rate(), 1.0);
+
+        // Test zero success rate
+        stats.successful_recoveries = 0;
+        stats.failed_recoveries = 100;
+        assert_eq!(stats.recovery_success_rate(), 0.0);
+
+        // Test error trend calculation
+        stats.error_rate = 15.0;
+        assert_eq!(stats.error_trend(), ErrorTrend::Increasing);
+
+        stats.error_rate = 0.5;
+        assert_eq!(stats.error_trend(), ErrorTrend::Decreasing);  // Very low error rate is decreasing
+
+        stats.error_rate = 5.0;
+        assert_eq!(stats.error_trend(), ErrorTrend::Stable);
+    }
+
+    #[test]
+    fn test_error_trend_variants() {
+        // Test all ErrorTrend variants
+        let trends = vec![
+            ErrorTrend::Increasing,
+            ErrorTrend::Decreasing,
+            ErrorTrend::Stable,
+        ];
+
+        for trend in trends {
+            assert_eq!(trend, trend);
+            let formatted = format!("{:?}", trend);
+            assert!(!formatted.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_recovery_config_edge_cases() {
+        // Test with extreme values
+        let extreme_config = RecoveryConfig {
+            enable_auto_rebuild: true,
+            max_retry_attempts: 0, // No retries
+            retry_delay: Duration::from_millis(0), // No delay
+            enable_partial_results: true,
+            corruption_threshold: 0.0, // Very strict
+        };
+
+        let manager = ErrorRecoveryManager::with_config(extreme_config);
+        assert_eq!(manager.recovery_config.max_retry_attempts, 0);
+        assert_eq!(manager.recovery_config.corruption_threshold, 0.0);
+
+        // Test with maximum values
+        let max_config = RecoveryConfig {
+            enable_auto_rebuild: false,
+            max_retry_attempts: 1000,
+            retry_delay: Duration::from_secs(60),
+            enable_partial_results: false,
+            corruption_threshold: 1.0, // Very lenient
+        };
+
+        let manager2 = ErrorRecoveryManager::with_config(max_config);
+        assert_eq!(manager2.recovery_config.max_retry_attempts, 1000);
+        assert_eq!(manager2.recovery_config.corruption_threshold, 1.0);
+    }
+
+    #[test]
+    fn test_recovery_with_different_error_types() {
+        let mut manager = ErrorRecoveryManager::new();
+
+        // Test recovery with IO error
+        let io_result: RecoveryResult<String> = manager.attempt_recovery(
+            || Err(BinaryExportError::Io(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "access denied"))),
+            "IO operation"
+        );
+        assert!(!io_result.success);
+
+        // Test recovery with corrupted data
+        let corruption_result: RecoveryResult<String> = manager.attempt_recovery(
+            || Err(BinaryExportError::CorruptedData("test corruption".to_string())),
+            "data read operation"
+        );
+        assert!(!corruption_result.success);
+
+        // Test recovery with version mismatch
+        let version_result: RecoveryResult<String> = manager.attempt_recovery(
+            || Err(BinaryExportError::UnsupportedVersion(99)),
+            "version check"
+        );
+        assert!(!version_result.success);
+
+        // Verify error statistics were updated
+        assert!(manager.error_stats.total_errors >= 3);
+        assert!(manager.error_stats.failed_recoveries >= 3);
+    }
+
+    #[test]
+    fn test_recovery_with_partial_results_enabled() {
+        let config = RecoveryConfig {
+            enable_partial_results: true,
+            max_retry_attempts: 1,
+            ..Default::default()
+        };
+        let mut manager = ErrorRecoveryManager::with_config(config);
+
+        let result: RecoveryResult<Vec<String>> = manager.attempt_recovery(
+            || Err(BinaryExportError::SerializationError("test error".to_string())),
+            "partial data operation"
+        );
+
+        // Even though it failed, partial results might be enabled
+        assert!(!result.success);
+        assert_eq!(result.strategy_used, RecoveryStrategy::Retry); // Default strategy
+    }
+
+    #[test]
+    fn test_error_report_with_empty_statistics() {
+        let manager = ErrorRecoveryManager::new();
+        let report = manager.generate_error_report();
+
+        assert_eq!(report.total_errors, 0);
+        assert_eq!(report.success_rate, 0.0);
+        assert_eq!(report.most_common_error, None);
+        assert_eq!(report.index_rebuilds, 0);
+        assert!(!report.recommendations.is_empty()); // Should still have general recommendations
+    }
+
+    #[test]
+    fn test_error_report_with_single_error_type() {
+        let mut manager = ErrorRecoveryManager::new();
+        manager.error_stats.total_errors = 5;
+        manager.error_stats.successful_recoveries = 3;
+        manager.error_stats.failed_recoveries = 2;
+        manager.error_stats.errors_by_type.insert("SingleError".to_string(), 5);
+
+        let report = manager.generate_error_report();
+        assert_eq!(report.most_common_error, Some("SingleError".to_string()));
+        assert_eq!(report.success_rate, 0.6);
+    }
+
+    #[test]
+    fn test_error_report_recommendations() {
+        let mut manager = ErrorRecoveryManager::new();
+        
+        // Simulate high failure rate
+        manager.error_stats.total_errors = 100;
+        manager.error_stats.successful_recoveries = 10;
+        manager.error_stats.failed_recoveries = 90;
+        manager.error_stats.errors_by_type.insert("IO".to_string(), 80);
+        manager.error_stats.errors_by_type.insert("CorruptedData".to_string(), 20);
+
+        let report = manager.generate_error_report();
+        assert!(!report.recommendations.is_empty());
+        
+        // Should contain recommendations based on error patterns
+        let recommendations_text = report.recommendations.join(" ");
+        assert!(recommendations_text.len() > 0);
+    }
+
+    #[test]
+    fn test_concurrent_error_recovery() {
+        use std::sync::{Arc, Mutex};
+        use std::thread;
+
+        let manager = Arc::new(Mutex::new(ErrorRecoveryManager::new()));
+        let mut handles = vec![];
+
+        // Test concurrent recovery attempts
+        for i in 0..5 {
+            let manager_clone = manager.clone();
+            let handle = thread::spawn(move || {
+                let mut mgr = manager_clone.lock().expect("Failed to lock manager");
+                let result: RecoveryResult<String> = mgr.attempt_recovery(
+                    || {
+                        if i % 2 == 0 {
+                            Ok(format!("success_{}", i))
+                        } else {
+                            Err(BinaryExportError::InvalidFormat)
+                        }
+                    },
+                    &format!("operation_{}", i)
+                );
+                result.success
+            });
+            handles.push(handle);
+        }
+
+        let mut success_count = 0;
+        for handle in handles {
+            if handle.join().expect("Thread should complete") {
+                success_count += 1;
+            }
+        }
+
+        // Should have some successes and some failures
+        assert!(success_count >= 2); // At least the even-numbered operations should succeed
+        
+        let final_manager = manager.lock().expect("Failed to lock manager");
+        assert!(final_manager.error_stats.total_errors >= 2); // At least the odd-numbered operations should fail
+    }
+
+    #[test]
+    fn test_recovery_result_properties() {
+        // Test successful recovery result
+        let success_result = RecoveryResult {
+            result: Some("test_data".to_string()),
+            success: true,
+            strategy_used: RecoveryStrategy::Retry,
+            attempts_made: 2,
+            recovery_time: Duration::from_millis(100),
+            partial_results: vec![],
+        };
+
+        assert!(success_result.success);
+        assert_eq!(success_result.result, Some("test_data".to_string()));
+        assert_eq!(success_result.attempts_made, 2);
+        assert_eq!(success_result.strategy_used, RecoveryStrategy::Retry);
+
+        // Test failed recovery result
+        let failed_result: RecoveryResult<String> = RecoveryResult {
+            result: None,
+            success: false,
+            strategy_used: RecoveryStrategy::RebuildIndex,
+            attempts_made: 3,
+            recovery_time: Duration::from_millis(500),
+            partial_results: vec![],
+        };
+
+        assert!(!failed_result.success);
+        assert_eq!(failed_result.result, None);
+        assert_eq!(failed_result.attempts_made, 3);
+        assert_eq!(failed_result.strategy_used, RecoveryStrategy::RebuildIndex);
+    }
+
+    #[test]
+    fn test_error_statistics_edge_cases() {
+        let mut stats = ErrorStatistics::default();
+
+        // Test division by zero scenarios
+        stats.successful_recoveries = 0;
+        stats.failed_recoveries = 0;
+        assert_eq!(stats.recovery_success_rate(), 0.0);
+
+        // Test with only successful recoveries
+        stats.successful_recoveries = 10;
+        stats.failed_recoveries = 0;
+        assert_eq!(stats.recovery_success_rate(), 1.0);
+
+        // Test with only failed recoveries
+        stats.successful_recoveries = 0;
+        stats.failed_recoveries = 10;
+        assert_eq!(stats.recovery_success_rate(), 0.0);
+
+        // Test error trend edge cases
+        stats.error_rate = 0.0;
+        assert_eq!(stats.error_trend(), ErrorTrend::Stable);
+
+        stats.error_rate = 100.0;
+        assert_eq!(stats.error_trend(), ErrorTrend::Increasing);
+    }
+
+    #[test]
+    fn test_recovery_manager_state_consistency() {
+        let mut manager = ErrorRecoveryManager::new();
+        let initial_errors = manager.error_stats.total_errors;
+
+        // Perform a failed recovery
+        let _result: RecoveryResult<String> = manager.attempt_recovery(
+            || Err(BinaryExportError::InvalidFormat),
+            "consistency test"
+        );
+
+        // Verify state was updated consistently
+        assert!(manager.error_stats.total_errors > initial_errors);
+        assert_eq!(manager.error_stats.failed_recoveries, 1);
+        assert_eq!(manager.error_stats.successful_recoveries, 0);
+
+        // Perform a successful recovery
+        let _result2: RecoveryResult<String> = manager.attempt_recovery(
+            || Ok("success".to_string()),
+            "consistency test 2"
+        );
+
+        // Verify state was updated consistently
+        assert_eq!(manager.error_stats.successful_recoveries, 1);
+        assert_eq!(manager.error_stats.failed_recoveries, 1);
+    }
+
+    #[test]
+    fn test_recovery_timing() {
+        let mut manager = ErrorRecoveryManager::with_config(RecoveryConfig {
+            retry_delay: Duration::from_millis(10),
+            max_retry_attempts: 2,
+            ..Default::default()
+        });
+
+        let start_time = std::time::Instant::now();
+        let _result: RecoveryResult<String> = manager.attempt_recovery(
+            || Err(BinaryExportError::InvalidFormat),
+            "timing test"
+        );
+        let elapsed = start_time.elapsed();
+
+        // Should have taken at least the retry delays
+        assert!(elapsed >= Duration::from_millis(20)); // 2 retries * 10ms delay
     }
 }

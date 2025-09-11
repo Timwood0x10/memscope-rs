@@ -1349,8 +1349,8 @@ mod tests {
         if let Some(cache_stats) = adaptive_opt.get("cache_statistics") {
             if cache_stats.is_object() {
                 // Only check if the fields exist and are valid
-                if let Some(size) = cache_stats.get("size") {
-                    assert!(size.as_u64().unwrap_or(0) >= 0);
+                if let Some(_size) = cache_stats.get("size") {
+                    // Size is always non-negative for u64 type
                 }
                 if let Some(capacity) = cache_stats.get("capacity") {
                     assert!(capacity.as_u64().unwrap_or(1) > 0);
@@ -1362,11 +1362,11 @@ mod tests {
         if let Some(memory_stats) = adaptive_opt.get("memory_monitoring") {
             if memory_stats.is_object() {
                 // Only check if the fields exist and are valid
-                if let Some(current) = memory_stats.get("current_usage") {
-                    assert!(current.as_u64().unwrap_or(0) >= 0);
+                if let Some(_current) = memory_stats.get("current_usage") {
+                    // Current usage is always non-negative for u64 type
                 }
-                if let Some(peak) = memory_stats.get("peak_usage") {
-                    assert!(peak.as_u64().unwrap_or(0) >= 0);
+                if let Some(_peak) = memory_stats.get("peak_usage") {
+                    // Peak usage is always non-negative for u64 type
                 }
             }
         }

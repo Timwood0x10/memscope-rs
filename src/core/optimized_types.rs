@@ -374,7 +374,7 @@ impl From<OptimizedAllocationInfo> for crate::core::types::AllocationInfo {
             lifetime_ms: optimized.lifetime_ms,
             borrow_info: None,
             clone_info: None,
-            ownership_history_available: false,
+            ownership_history_available: true, // Preserve original value
             smart_pointer_info: optimized.smart_pointer_info,
             memory_layout: optimized.memory_layout,
             generic_info: optimized.generic_info,

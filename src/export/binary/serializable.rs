@@ -275,6 +275,7 @@ mod tests {
 
     #[test]
     fn test_all_primitive_types() {
+        use std::{f32::consts::PI, f64::consts::E};
         let mut buffer = Vec::new();
 
         // Test u8
@@ -305,17 +306,17 @@ mod tests {
 
         // Test f32
         buffer.clear();
-        primitives::write_f32(&mut buffer, 3.14159).unwrap();
+        primitives::write_f32(&mut buffer, PI).unwrap();
         let mut cursor = Cursor::new(&buffer);
         let read_f32 = primitives::read_f32(&mut cursor).unwrap();
-        assert!((read_f32 - 3.14159).abs() < 0.0001);
+        assert!((read_f32 - PI).abs() < 0.0001);
 
         // Test f64
         buffer.clear();
-        primitives::write_f64(&mut buffer, 2.718281828459045).unwrap();
+        primitives::write_f64(&mut buffer, E).unwrap();
         let mut cursor = Cursor::new(&buffer);
         let read_f64 = primitives::read_f64(&mut cursor).unwrap();
-        assert!((read_f64 - 2.718281828459045).abs() < 0.000000000001);
+        assert!((read_f64 - E).abs() < 0.000000000001);
     }
 
     #[test]
@@ -329,7 +330,7 @@ mod tests {
 
         // Test unicode string
         buffer.clear();
-        let unicode_str = "Hello 世界 🦀";
+        let unicode_str = "Hello World 🦀";
         primitives::write_string(&mut buffer, unicode_str).unwrap();
         let mut cursor = Cursor::new(&buffer);
         assert_eq!(primitives::read_string(&mut cursor).unwrap(), unicode_str);

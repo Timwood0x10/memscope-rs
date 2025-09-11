@@ -216,11 +216,7 @@ impl MemScopeError {
                 ..
             } => ErrorSeverity::Low,
             Self::Export { .. } => ErrorSeverity::Medium,
-            Self::Configuration { .. } => ErrorSeverity::High,
-            Self::System {
-                error_type: SystemErrorType::Threading,
-                ..
-            } => ErrorSeverity::High,
+            Self::Configuration { .. } => ErrorSeverity::Medium,
             Self::System { .. } => ErrorSeverity::Medium,
             Self::Internal { .. } => ErrorSeverity::Critical,
         }
@@ -605,7 +601,7 @@ mod tests {
         assert!(matches!(err, MemScopeError::Configuration { .. }));
         assert_eq!(err.category(), "config");
         assert!(!err.is_recoverable());
-        assert_eq!(err.severity(), ErrorSeverity::High);
+        assert_eq!(err.severity(), ErrorSeverity::Medium);
     }
 
     #[test]

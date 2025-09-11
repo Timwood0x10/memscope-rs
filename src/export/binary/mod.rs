@@ -194,18 +194,11 @@ pub fn export_to_binary_with_mode<P: AsRef<Path>>(
     debug_assert_eq!(
         user_count as usize + system_count as usize,
         total_count as usize,
-        "Count validation failed: user({}) + system({}) != total({})",
-        user_count,
-        system_count,
-        total_count
+        "Count validation failed: user({user_count}) + system({system_count}) != total({total_count})"
     );
 
     tracing::info!(
-        "Binary export starting: {} allocations ({} user, {} system) in {:?} mode",
-        total_count,
-        user_count,
-        system_count,
-        export_mode
+        "Binary export starting: {total_count} allocations ({user_count} user, {system_count} system) in {export_mode:?} mode"
     );
     tracing::info!("Filtered from {} original allocations", allocations.len());
 
@@ -220,8 +213,7 @@ pub fn export_to_binary_with_mode<P: AsRef<Path>>(
     writer.finish()?;
 
     tracing::info!(
-        "Binary export completed: {} allocations written",
-        total_count
+        "Binary export completed: {total_count} allocations written"
     );
 
     Ok(())

@@ -318,7 +318,7 @@ mod tests {
 
         for i in 0..500 {
             // Test short-lived allocation creation
-            let temp_data = vec![i; 50];
+            let temp_data = [i; 50];
             assert_eq!(temp_data.len(), 50);
             assert_eq!(temp_data[0], i);
             short_count += 1;
@@ -453,7 +453,7 @@ mod tests {
         // Test vector allocation patterns used in the functions
 
         // Test small vectors (50 elements)
-        let small_vec = vec![42; 50];
+        let small_vec = [42; 50];
         assert_eq!(small_vec.len(), 50);
         assert!(small_vec.iter().all(|&x| x == 42));
 

@@ -9,7 +9,9 @@ use crate::export::binary::serializable::{primitives, BinarySerializable};
 use crate::export::binary::string_table::StringTable;
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::{BufReader, Read, Seek, SeekFrom, Write};
+use std::io::{BufReader, Read, Seek, SeekFrom};
+#[cfg(test)]
+use std::io::Write;
 use std::path::Path;
 
 /// Binary reader for allocation records using buffered I/O
