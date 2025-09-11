@@ -116,11 +116,15 @@ impl Exporter {
     /// Filter allocations based on configuration
     fn get_filtered_allocations(&self) -> Vec<AllocationInfo> {
         if self.config.include_system_allocations {
+            // Include all allocations (user + system)
             (*self.allocations).clone()
         } else {
-            // TEMPORARY: Include all allocations to test binary export with improve.md fields
-            // This will be reverted once we fix the var_name/type_name issue
-            (*self.allocations).clone()
+            // Only include user-defined variables (allocations with var_name)
+            (*self.allocations)
+                .iter()
+                .filter(|allocation| allocation.var_name.is_some())
+                .cloned()
+                .collect()
         }
     }
 
@@ -542,22 +546,31 @@ mod tests {
     #[test]
     fn test_exporter_get_filtered_allocations() {
         let allocations = vec![
-            create_test_allocation(0x1000, 64, Some("user_var".to_string()), Some("String".to_string())),
-            create_test_allocation(0x2000, 128, Some("system_var".to_string()), Some("Vec<i32>".to_string())),
+            // User allocations (have var_name)
+            create_test_allocation(0x1000, 64, Some("user_var1".to_string()), Some("String".to_string())),
+            create_test_allocation(0x2000, 128, Some("user_var2".to_string()), Some("Vec<i32>".to_string())),
+            // System allocations (no var_name)
+            create_test_allocation(0x3000, 32, None, Some("SystemType".to_string())),
+            create_test_allocation(0x4000, 16, None, None),
         ];
         let stats = create_test_memory_stats();
         
-        // Test with include_system_allocations = false
+        // Test with include_system_allocations = false (user_variables_only)
         let config_user_only = ExportConfig::user_variables_only();
         let exporter_user_only = Exporter::new(allocations.clone(), stats.clone(), config_user_only);
         let filtered_user_only = exporter_user_only.get_filtered_allocations();
-        assert_eq!(filtered_user_only.len(), 2); // Currently returns all due to temporary implementation
+        assert_eq!(filtered_user_only.len(), 2); // Only user allocations with var_name
         
-        // Test with include_system_allocations = true
+        // Verify all filtered allocations have var_name
+        for allocation in &filtered_user_only {
+            assert!(allocation.var_name.is_some(), "User-only filter should only include allocations with var_name");
+        }
+        
+        // Test with include_system_allocations = true (all_allocations)
         let config_all = ExportConfig::all_allocations();
         let exporter_all = Exporter::new(allocations.clone(), stats, config_all);
         let filtered_all = exporter_all.get_filtered_allocations();
-        assert_eq!(filtered_all.len(), 2);
+        assert_eq!(filtered_all.len(), 4); // All allocations (user + system)
     }
 
     #[test]
@@ -815,6 +828,134 @@ mod tests {
         assert!(nested_path.exists());
         assert!(nested_path.parent().unwrap().exists());
         assert_eq!(export_stats.allocations_processed, 1);
+        
+        Ok(())
+    }
+
+    #[test]
+    fn test_user_only_filtering_with_mixed_allocations() {
+        let allocations = vec![
+            // User allocations (have var_name)
+            create_test_allocation(0x1000, 64, Some("user_var1".to_string()), Some("String".to_string())),
+            create_test_allocation(0x2000, 128, Some("user_var2".to_string()), Some("Vec<i32>".to_string())),
+            create_test_allocation(0x3000, 256, Some("user_var3".to_string()), Some("HashMap<String, i32>".to_string())),
+            // System allocations (no var_name)
+            create_test_allocation(0x4000, 32, None, Some("SystemType1".to_string())),
+            create_test_allocation(0x5000, 16, None, Some("SystemType2".to_string())),
+            create_test_allocation(0x6000, 8, None, None),
+        ];
+        let stats = create_test_memory_stats();
+        
+        // Test user_variables_only filtering
+        let config_user_only = ExportConfig::user_variables_only();
+        let exporter_user_only = Exporter::new(allocations.clone(), stats.clone(), config_user_only);
+        let filtered_user_only = exporter_user_only.get_filtered_allocations();
+        
+        assert_eq!(filtered_user_only.len(), 3); // Only user allocations
+        for allocation in &filtered_user_only {
+            assert!(allocation.var_name.is_some(), "User-only filter should only include allocations with var_name");
+            assert!(allocation.var_name.as_ref().unwrap().starts_with("user_var"));
+        }
+        
+        // Test all_allocations filtering
+        let config_all = ExportConfig::all_allocations();
+        let exporter_all = Exporter::new(allocations.clone(), stats, config_all);
+        let filtered_all = exporter_all.get_filtered_allocations();
+        
+        assert_eq!(filtered_all.len(), 6); // All allocations
+        
+        let user_count = filtered_all.iter().filter(|a| a.var_name.is_some()).count();
+        let system_count = filtered_all.iter().filter(|a| a.var_name.is_none()).count();
+        assert_eq!(user_count, 3);
+        assert_eq!(system_count, 3);
+    }
+
+    #[test]
+    fn test_user_only_export_stats_accuracy() -> TrackingResult<()> {
+        let temp_dir = tempdir()?;
+        let output_path = temp_dir.path().join("user_only_stats.json");
+        
+        let allocations = vec![
+            // User allocations
+            create_test_allocation(0x1000, 64, Some("user_var1".to_string()), Some("String".to_string())),
+            create_test_allocation(0x2000, 128, Some("user_var2".to_string()), Some("Vec<i32>".to_string())),
+            // System allocations
+            create_test_allocation(0x3000, 32, None, Some("SystemType".to_string())),
+            create_test_allocation(0x4000, 16, None, None),
+        ];
+        let stats = create_test_memory_stats();
+        
+        let config = ExportConfig::user_variables_only();
+        let exporter = Exporter::new(allocations, stats, config);
+        let export_stats = exporter.export_json(&output_path)?;
+        
+        // Verify export stats reflect correct filtering
+        assert_eq!(export_stats.user_variables, 2); // Only user allocations exported
+        assert_eq!(export_stats.system_allocations, 2); // System allocations not exported but counted
+        assert!(export_stats.processing_time_ms > 0);
+        assert!(export_stats.output_size_bytes > 0);
+        assert!(export_stats.processing_rate > 0.0);
+        
+        Ok(())
+    }
+
+    #[test]
+    fn test_user_only_edge_cases() {
+        let stats = create_test_memory_stats();
+        
+        // Test with empty allocations
+        let empty_allocations: Vec<AllocationInfo> = vec![];
+        let config = ExportConfig::user_variables_only();
+        let exporter_empty = Exporter::new(empty_allocations, stats.clone(), config.clone());
+        let filtered_empty = exporter_empty.get_filtered_allocations();
+        assert_eq!(filtered_empty.len(), 0);
+        
+        // Test with only system allocations
+        let system_only = vec![
+            create_test_allocation(0x1000, 32, None, Some("SystemType1".to_string())),
+            create_test_allocation(0x2000, 16, None, None),
+        ];
+        let exporter_system = Exporter::new(system_only, stats.clone(), config.clone());
+        let filtered_system = exporter_system.get_filtered_allocations();
+        assert_eq!(filtered_system.len(), 0); // No user allocations
+        
+        // Test with only user allocations
+        let user_only = vec![
+            create_test_allocation(0x1000, 64, Some("user_var1".to_string()), Some("String".to_string())),
+            create_test_allocation(0x2000, 128, Some("user_var2".to_string()), Some("Vec<i32>".to_string())),
+        ];
+        let exporter_user = Exporter::new(user_only.clone(), stats, config);
+        let filtered_user = exporter_user.get_filtered_allocations();
+        assert_eq!(filtered_user.len(), 2); // All are user allocations
+        
+        // Verify all filtered allocations have var_name
+        for allocation in &filtered_user {
+            assert!(allocation.var_name.is_some());
+        }
+    }
+
+    #[test]
+    fn test_user_only_binary_export_integration() -> TrackingResult<()> {
+        let temp_dir = tempdir()?;
+        let binary_path = temp_dir.path().join("user_only_integration.memscope");
+        
+        let allocations = vec![
+            // User allocations
+            create_test_allocation(0x1000, 64, Some("user_var1".to_string()), Some("String".to_string())),
+            create_test_allocation(0x2000, 128, Some("user_var2".to_string()), Some("Vec<i32>".to_string())),
+            // System allocations
+            create_test_allocation(0x3000, 32, None, Some("SystemType".to_string())),
+        ];
+        let stats = create_test_memory_stats();
+        
+        let config = ExportConfig::user_variables_only();
+        let exporter = Exporter::new(allocations, stats, config);
+        let export_stats = exporter.export_binary(&binary_path)?;
+        
+        assert!(binary_path.exists());
+        assert_eq!(export_stats.user_variables, 2); // Only user allocations
+        assert_eq!(export_stats.system_allocations, 0); // No system allocations in binary export
+        assert!(export_stats.output_size_bytes > 0);
         
         Ok(())
     }

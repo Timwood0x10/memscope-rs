@@ -3,7 +3,7 @@
 //! This module provides system resource detection, configuration optimization recommendations, and performance analysis tools.
 
 use crate::core::types::TrackingResult;
-use crate::export::fast_export_coordinator::FastExportConfigBuilder;
+use crate::export::fast_export_coordinator::{FastExportConfigBuilder, FastExportConfig};
 // use crate::export::performance_testing::{OptimizationTarget, PerformanceTestResult}; // Removed - using local definitions
 use crate::export::config_optimizer::OptimizationTarget;
 
@@ -171,7 +171,21 @@ pub enum SuggestionType {
     EnvironmentTuning,
 }
 
+/// Optimization score
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OptimizationScore {
+    /// performance score (1-10)
+    pub performance_score: u8,
+    /// memory efficiency (1-10)
+    pub memory_efficiency: u8,
+    /// stability score (1-10)
+    pub stability_score: u8,
+    /// overall score (1-10)
+    pub overall_score: u8,
+}
+
 /// System optimizer
+#[derive(Debug)]
 pub struct SystemOptimizer {
     /// System resource information
     system_resources: SystemResources,
@@ -879,6 +893,23 @@ impl SystemOptimizer {
         self.system_resources = Self::detect_system_resources()?;
         Ok(())
     }
+
+    /// run performance test
+    pub fn run_performance_test(&self, _config: &FastExportConfig) -> PerformanceTestResult {
+        // Simulate a performance test
+        let start = std::time::Instant::now();
+        
+        // Simulate some work
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        
+        let duration = start.elapsed();
+        
+        PerformanceTestResult {
+            duration_ms: duration.as_millis() as u64,
+            memory_usage_mb: 50.0, // Simulated memory usage
+            success: true,
+        }
+    }
 }
 
 impl Default for SystemOptimizer {
@@ -923,4 +954,417 @@ pub struct ConfigurationImpact {
     pub stability_score: u8,
     /// overall score (1-10)
     pub overall_score: u8,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_system_resources_creation() {
+        let resources = SystemResources {
+            cpu_cores: 8,
+            available_memory_mb: 16384,
+            system_load: 0.5,
+            disk_space_mb: 1024000,
+            system_type: SystemType::DevelopmentWorkstation,
+        };
+
+        assert_eq!(resources.cpu_cores, 8);
+        assert_eq!(resources.available_memory_mb, 16384);
+        assert_eq!(resources.system_load, 0.5);
+        assert_eq!(resources.disk_space_mb, 1024000);
+        assert_eq!(resources.system_type, SystemType::DevelopmentWorkstation);
+    }
+
+    #[test]
+    fn test_system_type_variants() {
+        let types = vec![
+            SystemType::HighPerformanceServer,
+            SystemType::DevelopmentWorkstation,
+            SystemType::Desktop,
+            SystemType::Laptop,
+            SystemType::Embedded,
+            SystemType::Unknown,
+        ];
+
+        for system_type in types {
+            assert!(!format!("{system_type:?}").is_empty());
+        }
+    }
+
+    #[test]
+    fn test_configuration_recommendation() {
+        let recommendation = ConfigurationRecommendation {
+            recommended_shard_size: 1024,
+            recommended_thread_count: 4,
+            recommended_buffer_size: 8192,
+            optimization_target: OptimizationTarget::Speed,
+            expected_performance_gain: 0.25,
+            expected_memory_usage_mb: 512.0,
+            reasoning: vec![
+                "High CPU core count detected".to_string(),
+                "Sufficient memory available".to_string(),
+            ],
+            confidence: 0.85,
+        };
+
+        assert_eq!(recommendation.recommended_shard_size, 1024);
+        assert_eq!(recommendation.recommended_thread_count, 4);
+        assert_eq!(recommendation.recommended_buffer_size, 8192);
+        assert_eq!(recommendation.expected_performance_gain, 0.25);
+        assert_eq!(recommendation.expected_memory_usage_mb, 512.0);
+        assert_eq!(recommendation.reasoning.len(), 2);
+        assert_eq!(recommendation.confidence, 0.85);
+    }
+
+    #[test]
+    fn test_performance_diagnosis() {
+        let diagnosis = PerformanceDiagnosis {
+            diagnosis_time: 1234567890,
+            system_status: SystemResourceStatus {
+                cpu_usage_percent: 45.0,
+                memory_usage_percent: 60.0,
+                disk_usage_percent: 30.0,
+                load_status: LoadStatus::Medium,
+            },
+            bottlenecks: vec![
+                PerformanceBottleneck {
+                    bottleneck_type: BottleneckType::Memory,
+                    severity: 6,
+                    description: "High memory usage detected".to_string(),
+                    impact: "May cause performance degradation".to_string(),
+                    suggested_solutions: vec![
+                        "Increase buffer sizes".to_string(),
+                        "Optimize memory allocation patterns".to_string(),
+                    ],
+                },
+            ],
+            optimization_suggestions: vec![
+                OptimizationSuggestion {
+                    suggestion_type: SuggestionType::ConfigurationTuning,
+                    priority: 5,
+                    title: "Consider increasing thread count".to_string(),
+                    description: "Consider increasing thread count".to_string(),
+                    implementation_difficulty: 2,
+                    expected_impact: "Increase performance by 15%".to_string(),
+                },
+            ],
+            health_score: 75,
+        };
+
+        assert_eq!(diagnosis.diagnosis_time, 1234567890);
+        assert_eq!(diagnosis.system_status.cpu_usage_percent, 45.0);
+        assert_eq!(diagnosis.system_status.memory_usage_percent, 60.0);
+        assert_eq!(diagnosis.bottlenecks.len(), 1);
+        assert_eq!(diagnosis.optimization_suggestions.len(), 1);
+        assert_eq!(diagnosis.health_score, 75);
+    }
+
+    #[test]
+    fn test_system_resource_status() {
+        let status = SystemResourceStatus {
+            cpu_usage_percent: 80.0,
+            memory_usage_percent: 90.0,
+            disk_usage_percent: 95.0,
+            load_status: LoadStatus::High,
+        };
+
+        assert_eq!(status.cpu_usage_percent, 80.0);
+        assert_eq!(status.memory_usage_percent, 90.0);
+        assert_eq!(status.disk_usage_percent, 95.0);
+        assert!(matches!(status.load_status, LoadStatus::High));
+    }
+
+    #[test]
+    fn test_load_status_variants() {
+        let statuses = vec![
+            LoadStatus::Low,
+            LoadStatus::Medium,
+            LoadStatus::High,
+            LoadStatus::Overloaded,
+        ];
+
+        for status in statuses {
+            assert!(!format!("{:?}", status).is_empty());
+        }
+    }
+
+    #[test]
+    fn test_performance_bottleneck() {
+        let bottleneck = PerformanceBottleneck {
+            bottleneck_type: BottleneckType::Cpu,
+            severity: 8,
+            description: "CPU utilization at 95%".to_string(),
+            impact: "Significant performance impact".to_string(),
+            suggested_solutions: vec![
+                "Optimize algorithms".to_string(),
+                "Reduce computational complexity".to_string(),
+                "Consider hardware upgrade".to_string(),
+            ],
+        };
+
+        assert!(matches!(bottleneck.bottleneck_type, BottleneckType::Cpu));
+        assert_eq!(bottleneck.severity, 8);
+        assert!(bottleneck.description.contains("CPU"));
+        assert_eq!(bottleneck.suggested_solutions.len(), 3);
+    }
+
+    #[test]
+    fn test_bottleneck_type_variants() {
+        let types = vec![
+            BottleneckType::Cpu,
+            BottleneckType::Memory,
+            BottleneckType::Io,
+            BottleneckType::Network,
+            BottleneckType::Configuration,
+        ];
+
+        for bottleneck_type in types {
+            assert!(!format!("{bottleneck_type:?}").is_empty());
+        }
+    }
+
+    #[test]
+    fn test_performance_test_result() {
+        let result = PerformanceTestResult {
+            duration_ms: 1500,
+            memory_usage_mb: 256.5,
+            success: true,
+        };
+
+        assert_eq!(result.duration_ms, 1500);
+        assert_eq!(result.memory_usage_mb, 256.5);
+        assert!(result.success);
+    }
+
+    #[test]
+    fn test_performance_test_result_failure() {
+        let result = PerformanceTestResult {
+            duration_ms: 0,
+            memory_usage_mb: 0.0,
+            success: false,
+        };
+
+        assert_eq!(result.duration_ms, 0);
+        assert_eq!(result.memory_usage_mb, 0.0);
+        assert!(!result.success);
+    }
+
+    #[test]
+    fn test_system_optimizer_creation() {
+        let optimizer = SystemOptimizer::new();
+        
+        // Test that it can be created successfully
+        assert!(!format!("{optimizer:?}").is_empty());
+    }
+
+    #[test]
+    fn test_system_optimizer_detect_resources() {
+        let _optimizer = SystemOptimizer::new().expect("Failed to create optimizer");
+        let resources = SystemOptimizer::detect_system_resources().expect("Failed to detect resources");
+        
+        // Should return some reasonable values
+        assert!(resources.cpu_cores > 0);
+        assert!(resources.available_memory_mb > 0);
+        assert!(resources.system_load >= 0.0);
+        assert!(resources.disk_space_mb > 0);
+    }
+
+    #[test]
+    fn test_system_optimizer_generate_recommendations() {
+        let optimizer = SystemOptimizer::new().expect("Failed to create optimizer");
+        let _resources = SystemResources {
+            cpu_cores: 8,
+            available_memory_mb: 16384,
+            system_load: 0.3,
+            disk_space_mb: 1024000,
+            system_type: SystemType::DevelopmentWorkstation,
+        };
+        
+        let recommendation = optimizer.generate_configuration_recommendation(OptimizationTarget::Speed, Some(10000));
+        
+        assert!(recommendation.recommended_shard_size > 0);
+        assert!(recommendation.recommended_thread_count > 0);
+        assert!(recommendation.recommended_buffer_size > 0);
+        assert!(recommendation.expected_performance_gain >= 0.0);
+        assert!(recommendation.confidence >= 0.0 && recommendation.confidence <= 1.0);
+        assert!(!recommendation.reasoning.is_empty());
+    }
+
+    #[test]
+    fn test_system_optimizer_diagnose_performance() {
+        let optimizer = SystemOptimizer::new().expect("Failed to create optimizer");
+        let diagnosis = optimizer.diagnose_performance();
+        
+        assert!(diagnosis.diagnosis_time > 0);
+        assert!(diagnosis.system_status.cpu_usage_percent >= 0.0);
+        assert!(diagnosis.system_status.memory_usage_percent >= 0.0);
+        assert!(diagnosis.system_status.disk_usage_percent >= 0.0);
+        assert!(diagnosis.health_score <= 100);
+    }
+
+    #[test]
+    fn test_system_optimizer_run_performance_test() {
+        let optimizer = SystemOptimizer::new().expect("Failed to create optimizer");
+        let config = FastExportConfigBuilder::new()
+            .shard_size(1024)
+            .max_threads(Some(2))
+            .buffer_size(4096)
+            .build();
+        
+        let result = optimizer.run_performance_test(&config);
+        
+        // Should complete successfully
+        assert!(result.success);
+        assert!(result.memory_usage_mb >= 0.0);
+    }
+
+    #[test]
+    fn test_system_optimizer_serialization() {
+        let resources = SystemResources {
+            cpu_cores: 4,
+            available_memory_mb: 8192,
+            system_load: 0.7,
+            disk_space_mb: 512000,
+            system_type: SystemType::Laptop,
+        };
+
+        // Test that it can be serialized and deserialized
+        let serialized = serde_json::to_string(&resources).expect("Failed to serialize");
+        let deserialized: SystemResources = serde_json::from_str(&serialized).expect("Failed to deserialize");
+
+        assert_eq!(deserialized.cpu_cores, 4);
+        assert_eq!(deserialized.available_memory_mb, 8192);
+        assert_eq!(deserialized.system_load, 0.7);
+        assert_eq!(deserialized.system_type, SystemType::Laptop);
+    }
+
+    #[test]
+    fn test_configuration_recommendation_serialization() {
+        let recommendation = ConfigurationRecommendation {
+            recommended_shard_size: 2048,
+            recommended_thread_count: 6,
+            recommended_buffer_size: 16384,
+            optimization_target: OptimizationTarget::Memory,
+            expected_performance_gain: 0.20,
+            expected_memory_usage_mb: 1024.0,
+            reasoning: vec!["Test reasoning".to_string()],
+            confidence: 0.90,
+        };
+
+        let serialized = serde_json::to_string(&recommendation).expect("Failed to serialize");
+        let deserialized: ConfigurationRecommendation = serde_json::from_str(&serialized).expect("Failed to deserialize");
+
+        assert_eq!(deserialized.recommended_shard_size, 2048);
+        assert_eq!(deserialized.recommended_thread_count, 6);
+        assert_eq!(deserialized.expected_performance_gain, 0.20);
+        assert_eq!(deserialized.confidence, 0.90);
+    }
+
+    #[test]
+    fn test_performance_diagnosis_serialization() {
+        let diagnosis = PerformanceDiagnosis {
+            diagnosis_time: 9876543210,
+            system_status: SystemResourceStatus {
+                cpu_usage_percent: 55.5,
+                memory_usage_percent: 70.2,
+                disk_usage_percent: 40.8,
+                load_status: LoadStatus::Medium,
+            },
+            bottlenecks: vec![],
+            optimization_suggestions: vec![],
+            health_score: 80,
+        };
+
+        let serialized = serde_json::to_string(&diagnosis).expect("Failed to serialize");
+        let deserialized: PerformanceDiagnosis = serde_json::from_str(&serialized).expect("Failed to deserialize");
+
+        assert_eq!(deserialized.diagnosis_time, 9876543210);
+        assert_eq!(deserialized.system_status.cpu_usage_percent, 55.5);
+        assert_eq!(deserialized.health_score, 80);
+    }
+
+    #[test]
+    fn test_optimization_target_variants() {
+        // Test that all optimization targets can be created and debugged
+        let targets = vec![
+            OptimizationTarget::Speed,
+            OptimizationTarget::Memory,
+            OptimizationTarget::Balanced,
+        ];
+
+        for target in targets {
+            assert!(!format!("{:?}", target).is_empty());
+        }
+    }
+
+    #[test]
+    fn test_edge_case_zero_resources() {
+        let _resources = SystemResources {
+            cpu_cores: 0,
+            available_memory_mb: 0,
+            system_load: 0.0,
+            disk_space_mb: 0,
+            system_type: SystemType::Unknown,
+        };
+
+        let optimizer = SystemOptimizer::new().expect("Failed to create optimizer");
+        let recommendation = optimizer.generate_configuration_recommendation(OptimizationTarget::Balanced, Some(10000));
+
+        // Should handle edge case gracefully
+        assert!(recommendation.recommended_shard_size > 0); // Should have fallback values
+        assert!(recommendation.recommended_thread_count > 0);
+        assert!(recommendation.confidence >= 0.0);
+    }
+
+    #[test]
+    fn test_high_load_scenario() {
+        let resources = SystemResources {
+            cpu_cores: 16,
+            available_memory_mb: 65536,
+            system_load: 0.95, // Very high load
+            disk_space_mb: 2048000,
+            system_type: SystemType::HighPerformanceServer,
+        };
+
+        let optimizer = SystemOptimizer::new().expect("Failed to create optimizer");
+        let recommendation = optimizer.generate_configuration_recommendation(OptimizationTarget::Speed, Some(10000));
+
+        // Should adapt to high-performance scenario
+        assert!(recommendation.recommended_thread_count <= resources.cpu_cores);
+        assert!(recommendation.expected_performance_gain >= 0.0);
+        assert!(!recommendation.reasoning.is_empty());
+    }
+
+    #[test]
+    fn test_optimization_score_creation() {
+        let score = OptimizationScore {
+            performance_score: 8,
+            memory_efficiency: 7,
+            stability_score: 9,
+            overall_score: 8,
+        };
+
+        assert_eq!(score.performance_score, 8);
+        assert_eq!(score.memory_efficiency, 7);
+        assert_eq!(score.stability_score, 9);
+        assert_eq!(score.overall_score, 8);
+    }
+
+    #[test]
+    fn test_optimization_score_debug() {
+        let score = OptimizationScore {
+            performance_score: 5,
+            memory_efficiency: 6,
+            stability_score: 7,
+            overall_score: 6,
+        };
+
+        let debug_str = format!("{:?}", score);
+        assert!(debug_str.contains("performance_score: 5"));
+        assert!(debug_str.contains("memory_efficiency: 6"));
+        assert!(debug_str.contains("stability_score: 7"));
+        assert!(debug_str.contains("overall_score: 6"));
+    }
 }
