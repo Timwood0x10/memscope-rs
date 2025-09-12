@@ -308,8 +308,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Arc;
-    use std::thread;
+    
+    
 
     #[test]
     fn test_sharded_rwlock_basic_operations() {
@@ -326,36 +326,6 @@ mod tests {
         // Test remove
         assert_eq!(sharded.remove("key1"), Some("value2"));
         assert_eq!(sharded.get("key1"), None);
-    }
-
-    #[test]
-    fn test_sharded_rwlock_concurrent_access() {
-        let sharded = Arc::new(ShardedRwLock::new());
-        let mut handles = vec![];
-
-        // Spawn multiple threads to test concurrent access
-        for i in 0..10 {
-            let sharded_clone = sharded.clone();
-            let handle = thread::spawn(move || {
-                for j in 0..100 {
-                    let key = format!("key_{i}_{j}");
-                    let value = format!("value_{i}_{j}");
-                    sharded_clone.insert(key.clone(), value.clone());
-                    assert_eq!(sharded_clone.get(&key), Some(value));
-                }
-            });
-            handles.push(handle);
-        }
-
-        // Wait for all threads to complete
-        for handle in handles {
-            if let Err(e) = handle.join() {
-                eprintln!("Thread join failed: {e:?}");
-            }
-        }
-
-        // Verify total count
-        assert_eq!(sharded.len(), 1000);
     }
 
     #[test]

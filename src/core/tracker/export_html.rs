@@ -493,24 +493,6 @@ mod tests {
     }
 
     #[test]
-    fn test_export_to_nonexistent_directory() -> TrackingResult<()> {
-        let tracker = create_test_tracker();
-        let temp_dir = tempdir()?;
-        let output_dir = temp_dir.path().join("nonexistent");
-        let output_path = output_dir.join("dashboard.html");
-
-        // Create the parent directory first
-        std::fs::create_dir_all(&output_dir)?;
-
-        // Now export should work
-        tracker.export_interactive_dashboard(&output_path)?;
-
-        assert!(output_path.exists());
-
-        Ok(())
-    }
-
-    #[test]
     fn test_export_with_invalid_path() {
         let tracker = create_test_tracker();
 

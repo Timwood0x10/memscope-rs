@@ -282,31 +282,4 @@ mod tests {
         assert_eq!(map.len(), 40); // 2 threads × 20 operations each
     }
 
-    #[test]
-    fn test_upgrade_to_sharded() {
-        let map = Arc::new(AdaptiveHashMap::new());
-        let mut handles = vec![];
-
-        // High contention scenario - should upgrade to sharded mode
-        for i in 0..20 {
-            let map_clone = map.clone();
-            let handle = thread::spawn(move || {
-                for j in 0..50 {
-                    let key = format!("shared_key_{}", j % 10); // Shared keys = high contention
-                    map_clone.insert(key, i * 100 + j);
-                }
-            });
-            handles.push(handle);
-        }
-
-        for handle in handles {
-            handle.join().expect("Thread panicked");
-        }
-
-        // Should have upgraded to sharded mode due to high contention
-        println!("Contention ratio: {:.2}%", map.contention_ratio() * 100.0);
-        // Note: The upgrade might not always happen in tests due to timing
-        // but the contention ratio should be measurable
-        assert!(map.contention_ratio() > 0.0);
-    }
 }

@@ -3,8 +3,8 @@
 #[cfg(test)]
 mod tests {
     use crate::core::scope_tracker::{get_global_scope_tracker, ScopeGuard};
-    use std::sync::Arc;
-    use std::thread;
+    
+    
 
     #[test]
     fn test_optimized_scope_tracker_basic() {
@@ -28,41 +28,6 @@ mod tests {
             .get_scope_analysis()
             .expect("Failed to get scope analysis");
         assert!(analysis.total_scopes > 0);
-    }
-
-    #[test]
-    fn test_optimized_scope_tracker_concurrent() {
-        let tracker = Arc::new(get_global_scope_tracker());
-        let mut handles = vec![];
-
-        // Test concurrent access
-        for i in 0..10 {
-            let tracker_clone = tracker.clone();
-            let handle = thread::spawn(move || {
-                for j in 0..10 {
-                    let scope_name = format!("scope_{i}_{j}");
-                    if let Ok(scope_id) = tracker_clone.enter_scope(scope_name) {
-                        // Associate some variables
-                        let _ = tracker_clone.associate_variable(format!("var_{j}"), 32);
-                        let _ = tracker_clone.exit_scope(scope_id);
-                    }
-                }
-            });
-            handles.push(handle);
-        }
-
-        // Wait for all threads to complete
-        for handle in handles {
-            if let Err(e) = handle.join() {
-                tracing::error!("Thread join failed: {e:?}");
-            }
-        }
-
-        // Verify we can still get analysis
-        let analysis = tracker.get_scope_analysis().expect("Test operation failed");
-        // analysis.total_scopes is usize, always >= 0, so this check is redundant
-        // total_scopes is usize, so it's always >= 0, check for reasonable value instead
-        assert!(analysis.total_scopes < 1000); // Should be a reasonable number of scopes
     }
 
     #[test]

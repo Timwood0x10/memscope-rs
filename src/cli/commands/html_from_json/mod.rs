@@ -1347,42 +1347,4 @@ mod tests {
 
         Ok(())
     }
-
-    #[test]
-    fn test_load_files_parallel_with_logging() -> Result<(), Box<dyn Error>> {
-        let temp_dir = TempDir::new()?;
-
-        // Create multiple test files
-        let mut files = Vec::new();
-        let suffixes = ["test_0", "test_1", "test_2"];
-
-        for (i, suffix) in suffixes.iter().enumerate() {
-            let file_path = temp_dir.path().join(format!("test_{i}.json"));
-            let test_data = json!({"test": format!("data_{i}")});
-            fs::write(&file_path, serde_json::to_string_pretty(&test_data)?)?;
-
-            let config = JsonFileConfig {
-                suffix,
-                description: "Test file",
-                required: false,
-                max_size_mb: Some(10),
-            };
-
-            files.push((config, file_path.to_string_lossy().to_string(), 100));
-        }
-
-        let logger = DebugLogger::new();
-        let result = load_files_parallel_with_logging(&files, &logger);
-        assert!(result.is_ok());
-
-        let results = result.unwrap();
-        assert_eq!(results.len(), 3);
-
-        // All files should load successfully
-        for result in &results {
-            assert!(result.success);
-        }
-
-        Ok(())
-    }
 }

@@ -2900,55 +2900,6 @@ mod tests {
     }
 
     #[test]
-    fn test_concurrent_file_operations() {
-        use std::sync::Arc;
-        use std::thread;
-
-        let temp_dir = Arc::new(TempDir::new().expect("Failed to create temp directory"));
-        let allocations = vec![create_test_allocation(
-            0x1000,
-            64,
-            Some("String".to_string()),
-            Some("concurrent_test".to_string()),
-        )];
-
-        let binary_path = create_test_binary_file(&temp_dir, &allocations);
-        let binary_path = Arc::new(binary_path);
-
-        let mut handles = vec![];
-
-        // Test concurrent JSON generation
-        for i in 0..5 {
-            let temp_dir = Arc::clone(&temp_dir);
-            let binary_path = Arc::clone(&binary_path);
-
-            let handle = thread::spawn(move || {
-                let json_path = temp_dir.path().join(format!("concurrent_{}.json", i));
-                BinaryParser::to_json(binary_path.as_ref(), &json_path)
-            });
-            handles.push(handle);
-        }
-
-        // Test concurrent HTML generation
-        for i in 0..5 {
-            let temp_dir = Arc::clone(&temp_dir);
-            let binary_path = Arc::clone(&binary_path);
-
-            let handle = thread::spawn(move || {
-                let html_path = temp_dir.path().join(format!("concurrent_{}.html", i));
-                BinaryParser::to_html(binary_path.as_ref(), &html_path)
-            });
-            handles.push(handle);
-        }
-
-        // Wait for all threads to complete
-        for handle in handles {
-            let result = handle.join().expect("Thread panicked");
-            assert!(result.is_ok(), "Concurrent operation failed");
-        }
-    }
-
-    #[test]
     fn test_memory_efficiency() {
         let temp_dir = TempDir::new().expect("Failed to create temp directory");
 

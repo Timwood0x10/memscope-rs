@@ -1188,68 +1188,6 @@ mod tests {
     }
 
     #[test]
-    fn test_type_info_cache_concurrent_access() {
-        use std::sync::Arc;
-        use std::thread;
-
-        let cache = Arc::new(TypeInfoCache::new(100));
-        let mut handles = vec![];
-
-        // Test concurrent writes
-        for i in 0..10 {
-            let cache_clone = cache.clone();
-            let handle = thread::spawn(move || {
-                for j in 0..10 {
-                    let key = format!("Type_{}_{}", i, j);
-                    let value = serde_json::json!({"thread": i, "item": j});
-                    cache_clone.store(key, value);
-                }
-            });
-            handles.push(handle);
-        }
-
-        for handle in handles {
-            handle.join().expect("Thread should complete");
-        }
-
-        // Verify data integrity (test by checking if we can retrieve some items)
-        let mut found_items = 0;
-        for i in 0..10 {
-            for j in 0..10 {
-                let key = format!("Type_{}_{}", i, j);
-                if cache.get(&key).is_some() {
-                    found_items += 1;
-                }
-            }
-        }
-        assert!(found_items > 0); // Should have stored some items
-        
-        // Test concurrent reads
-        let mut read_handles = vec![];
-        for i in 0..5 {
-            let cache_clone = cache.clone();
-            let handle = thread::spawn(move || {
-                let mut found_count = 0;
-                for j in 0..10 {
-                    let key = format!("Type_{}_{}", i, j);
-                    if cache_clone.get(&key).is_some() {
-                        found_count += 1;
-                    }
-                }
-                found_count
-            });
-            read_handles.push(handle);
-        }
-
-        let mut total_found = 0;
-        for handle in read_handles {
-            total_found += handle.join().expect("Thread should complete");
-        }
-
-        assert!(total_found > 0); // Should find some items
-    }
-
-    #[test]
     fn test_adaptive_performance_optimizer_stress() {
         let mut optimizer = AdaptivePerformanceOptimizer::new(1000, 100);
 

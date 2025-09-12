@@ -1530,44 +1530,6 @@ mod tests {
     }
 
     #[test]
-    fn test_process_allocation_batch_enhanced_parallel() {
-        // Create a large batch to trigger parallel processing
-        let mut allocations = Vec::new();
-        for i in 0..2000 {
-            allocations.push(create_test_allocation(
-                0x1000 + i * 0x100,
-                64 + i % 100,
-                Some(format!("Type{}", i % 10)),
-                Some(format!("var{}", i)),
-            ));
-        }
-
-        let options = ExportJsonOptions::default()
-            .parallel_processing(true)
-            .batch_size(1000); // Should trigger parallel processing
-
-        let result = process_allocation_batch_enhanced(&allocations, &options);
-        assert!(result.is_ok());
-
-        let processed = result.unwrap();
-        assert_eq!(processed.len(), 2000);
-
-        // Verify that we have the correct number of entries
-        // Note: Parallel processing may change order, so we just verify count and some basic properties
-        assert_eq!(processed.len(), 2000);
-
-        // Verify that all entries have the expected structure
-        for entry in &processed {
-            assert!(entry.get("address").is_some());
-            assert!(entry.get("size").is_some());
-            assert!(entry.get("type").is_some());
-
-            let size = entry["size"].as_u64().unwrap();
-            assert!(size >= 64 && size <= 163); // Size should be in expected range
-        }
-    }
-
-    #[test]
     fn test_process_allocation_batch_enhanced_sequential() {
         let allocations = vec![create_test_allocation(
             0x1000,

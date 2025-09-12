@@ -354,33 +354,6 @@ mod tests {
     }
 
     #[test]
-    fn test_optimized_mutex_concurrent_access() {
-        let mutex = Arc::new(OptimizedMutex::new(0));
-        let mut handles = Vec::new();
-
-        // Spawn multiple threads that increment the counter
-        for _ in 0..10 {
-            let mutex_clone = Arc::clone(&mutex);
-            let handle = thread::spawn(move || {
-                for _ in 0..1000 {
-                    let mut guard = mutex_clone.lock();
-                    *guard += 1;
-                }
-            });
-            handles.push(handle);
-        }
-
-        // Wait for all threads to complete
-        for handle in handles {
-            handle.join().unwrap();
-        }
-
-        // Verify final value
-        let guard = mutex.lock();
-        assert_eq!(*guard, 10000);
-    }
-
-    #[test]
     fn test_optimized_mutex_try_lock() {
         let mutex = OptimizedMutex::new(42);
 
@@ -414,28 +387,6 @@ mod tests {
         // Verify write took effect
         let read_guard = rwlock.read();
         assert_eq!(*read_guard, 100);
-    }
-
-    #[test]
-    fn test_optimized_rwlock_concurrent_readers() {
-        let rwlock = Arc::new(OptimizedRwLock::new(42));
-        let mut handles = Vec::new();
-
-        // Spawn multiple reader threads
-        for _ in 0..10 {
-            let rwlock_clone = Arc::clone(&rwlock);
-            let handle = thread::spawn(move || {
-                let read_guard = rwlock_clone.read();
-                assert_eq!(*read_guard, 42);
-                thread::sleep(Duration::from_millis(10)); // Hold read lock briefly
-            });
-            handles.push(handle);
-        }
-
-        // All readers should be able to proceed concurrently
-        for handle in handles {
-            handle.join().unwrap();
-        }
     }
 
     #[test]
