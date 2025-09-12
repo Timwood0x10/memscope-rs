@@ -1805,4 +1805,544 @@ mod tests {
         assert_eq!(stats.avg_batch_size, 10.0);
         assert_eq!(stats.intelligent_flushes, 2);
     }
+
+    // Additional tests to improve coverage
+
+    #[test]
+    fn test_config_builder_comprehensive() {
+        let config = StreamingJsonWriterConfigBuilder::new()
+            .buffer_size(128 * 1024)
+            .pretty_print(false)
+            .max_memory_before_flush(16 * 1024 * 1024)
+            .array_chunk_size(500)
+            .field_optimization(true)
+            .buffer_reuse(false)
+            .indent_size(4)
+            .build();
+
+        assert_eq!(config.buffer_size, 128 * 1024);
+        assert!(!config.pretty_print);
+        assert_eq!(config.max_memory_before_flush, 16 * 1024 * 1024);
+        assert_eq!(config.array_chunk_size, 500);
+        assert!(config.enable_field_optimization);
+        assert!(!config.enable_buffer_reuse);
+        assert_eq!(config.indent_size, 4);
+    }
+
+    #[test]
+    fn test_config_builder_default() {
+        let config = StreamingJsonWriterConfigBuilder::default().build();
+        assert_eq!(config.buffer_size, 256 * 1024);
+        assert!(!config.pretty_print);
+        assert!(config.enable_field_optimization);
+        assert!(config.enable_buffer_reuse);
+    }
+
+    #[test]
+    fn test_selective_serialization_options_default() {
+        let options = SelectiveSerializationOptions::default();
+        assert!(!options.include_null_fields);
+        assert!(options.compact_arrays);
+        assert!(options.optimize_nested_objects);
+        assert_eq!(options.max_nesting_depth, 10);
+        assert!(!options.compress_large_strings);
+        assert_eq!(options.string_compression_threshold, 1024);
+    }
+
+    #[test]
+    fn test_write_header_with_custom_array_name() {
+        let buffer = Vec::new();
+        let cursor = Cursor::new(buffer);
+        let mut writer = StreamingJsonWriter::new(cursor).expect("Failed to create writer");
+
+        let result = writer.write_header_with_array_name(10, "custom_allocations");
+        assert!(result.is_ok());
+
+        let stats = writer.finalize().expect("Failed to finalize");
+        assert_eq!(stats.allocations_written, 0);
+    }
+
+    #[test]
+    fn test_write_allocation_full() {
+        let buffer = Vec::new();
+        let cursor = Cursor::new(buffer);
+        let mut writer = StreamingJsonWriter::new(cursor).expect("Failed to create writer");
+
+        writer.write_header(1).expect("Failed to write header");
+
+        let allocation = AllocationInfo {
+            ptr: 0x1000,
+            size: 1024,
+            var_name: Some("test_var".to_string()),
+            type_name: Some("Vec<u8>".to_string()),
+            scope_name: Some("test_scope".to_string()),
+            timestamp_alloc: 1234567890,
+            timestamp_dealloc: None,
+            thread_id: "main".to_string(),
+            borrow_count: 0,
+            stack_trace: Some(vec!["frame1".to_string(), "frame2".to_string()]),
+            is_leaked: false,
+            lifetime_ms: Some(100),
+            borrow_info: None,
+            clone_info: None,
+            ownership_history_available: false,
+            smart_pointer_info: None,
+            memory_layout: None,
+            generic_info: None,
+            dynamic_type_info: None,
+            runtime_state: None,
+            stack_allocation: None,
+            temporary_object: None,
+            fragmentation_analysis: None,
+            generic_instantiation: None,
+            type_relationships: None,
+            type_usage: None,
+            function_call_tracking: None,
+            lifecycle_tracking: None,
+            access_tracking: None,
+            drop_chain_analysis: None,
+        };
+
+        let result = writer.write_allocation_full(&allocation);
+        assert!(result.is_ok());
+
+        let stats = writer.finalize().expect("Failed to finalize");
+        assert_eq!(stats.allocations_written, 1);
+    }
+
+    #[test]
+    fn test_specialized_allocation_formats() {
+        let buffer = Vec::new();
+        let cursor = Cursor::new(buffer);
+        let mut writer = StreamingJsonWriter::new(cursor).expect("Failed to create writer");
+
+        writer.write_header(4).expect("Failed to write header");
+
+        let allocation = PartialAllocationInfo {
+            ptr: Some(0x1000),
+            size: Some(1024),
+            var_name: Some(Some("test_var".to_string())),
+            type_name: Some(Some("TestType".to_string())),
+            scope_name: Some(Some("test_scope".to_string())),
+            timestamp_alloc: Some(1234567890),
+            timestamp_dealloc: Some(None),
+            thread_id: Some("main".to_string()),
+            borrow_count: Some(0),
+            stack_trace: Some(Some(vec!["frame1".to_string()])),
+            is_leaked: Some(false),
+            lifetime_ms: Some(None),
+            borrow_info: None,
+            clone_info: None,
+            ownership_history_available: Some(false),
+        };
+
+        // Test memory analysis format
+        let result = writer.write_memory_analysis_allocation(&allocation);
+        assert!(result.is_ok());
+
+        // Test performance format
+        let result = writer.write_performance_allocation(&allocation);
+        assert!(result.is_ok());
+
+        // Test unsafe FFI format
+        let result = writer.write_unsafe_ffi_allocation(&allocation);
+        assert!(result.is_ok());
+
+        // Test complex types format
+        let result = writer.write_complex_types_allocation(&allocation);
+        assert!(result.is_ok());
+
+        let stats = writer.finalize().expect("Failed to finalize");
+        assert_eq!(stats.allocations_written, 4);
+    }
+
+    #[test]
+    fn test_lifecycle_event_writing() {
+        let buffer = Vec::new();
+        let cursor = Cursor::new(buffer);
+        let mut writer = StreamingJsonWriter::new(cursor).expect("Failed to create writer");
+
+        writer.write_header(3).expect("Failed to write header");
+
+        let allocation = PartialAllocationInfo {
+            ptr: Some(0x1000),
+            size: Some(1024),
+            var_name: Some(Some("test_var".to_string())),
+            type_name: Some(Some("TestType".to_string())),
+            scope_name: Some(Some("test_scope".to_string())),
+            timestamp_alloc: Some(1234567890),
+            timestamp_dealloc: Some(None),
+            thread_id: Some("main".to_string()),
+            borrow_count: Some(0),
+            stack_trace: Some(None),
+            is_leaked: Some(false),
+            lifetime_ms: Some(None),
+            borrow_info: None,
+            clone_info: None,
+            ownership_history_available: Some(false),
+        };
+
+        // Test different lifecycle events
+        let result = writer.write_lifecycle_event(&allocation, "allocation");
+        assert!(result.is_ok());
+
+        let result = writer.write_lifecycle_event(&allocation, "deallocation");
+        assert!(result.is_ok());
+
+        let result = writer.write_lifecycle_event(&allocation, "borrow");
+        assert!(result.is_ok());
+
+        let stats = writer.finalize().expect("Failed to finalize");
+        assert_eq!(stats.allocations_written, 3);
+    }
+
+    #[test]
+    fn test_lifecycle_event_with_null_fields() {
+        let buffer = Vec::new();
+        let cursor = Cursor::new(buffer);
+        let mut writer = StreamingJsonWriter::new(cursor).expect("Failed to create writer");
+
+        writer.write_header(1).expect("Failed to write header");
+
+        // Test with None fields to trigger type inference
+        let allocation = PartialAllocationInfo {
+            ptr: Some(0x1000),
+            size: Some(64),
+            var_name: Some(None), // This will trigger variable name inference
+            type_name: Some(None), // This will trigger type inference
+            scope_name: Some(None),
+            timestamp_alloc: Some(1234567890),
+            timestamp_dealloc: Some(None),
+            thread_id: Some("main".to_string()),
+            borrow_count: Some(0),
+            stack_trace: Some(None),
+            is_leaked: Some(false),
+            lifetime_ms: Some(None),
+            borrow_info: None,
+            clone_info: None,
+            ownership_history_available: Some(false),
+        };
+
+        let result = writer.write_lifecycle_event(&allocation, "allocation");
+        assert!(result.is_ok());
+
+        let stats = writer.finalize().expect("Failed to finalize");
+        assert_eq!(stats.allocations_written, 1);
+    }
+
+    #[test]
+    fn test_borrow_and_clone_info_serialization() {
+        let buffer = Vec::new();
+        let cursor = Cursor::new(buffer);
+        let mut writer = StreamingJsonWriter::new(cursor).expect("Failed to create writer");
+
+        writer.write_header(1).expect("Failed to write header");
+
+        use crate::core::types::{BorrowInfo, CloneInfo};
+
+        let allocation = PartialAllocationInfo {
+            ptr: Some(0x1000),
+            size: Some(1024),
+            var_name: Some(Some("test_var".to_string())),
+            type_name: Some(Some("TestType".to_string())),
+            scope_name: Some(None),
+            timestamp_alloc: Some(1234567890),
+            timestamp_dealloc: Some(None),
+            thread_id: Some("main".to_string()),
+            borrow_count: Some(0),
+            stack_trace: Some(None),
+            is_leaked: Some(false),
+            lifetime_ms: Some(None),
+            borrow_info: Some(BorrowInfo {
+                immutable_borrows: 2,
+                mutable_borrows: 1,
+                max_concurrent_borrows: 3,
+                last_borrow_timestamp: Some(1234567900),
+            }),
+            clone_info: Some(CloneInfo {
+                clone_count: 5,
+                is_clone: true,
+                original_ptr: Some(0x2000),
+            }),
+            ownership_history_available: Some(true),
+        };
+
+        let requested_fields = [
+            AllocationField::BorrowInfo,
+            AllocationField::CloneInfo,
+            AllocationField::OwnershipHistoryAvailable,
+        ]
+        .into_iter()
+        .collect();
+
+        let result = writer.write_allocation_selective(&allocation, &requested_fields);
+        assert!(result.is_ok());
+
+        let stats = writer.finalize().expect("Failed to finalize");
+        assert_eq!(stats.allocations_written, 1);
+    }
+
+    #[test]
+    fn test_null_field_handling() {
+        let buffer = Vec::new();
+        let cursor = Cursor::new(buffer);
+        let mut writer = StreamingJsonWriter::new(cursor).expect("Failed to create writer");
+
+        writer.write_header(2).expect("Failed to write header");
+
+        let allocation = PartialAllocationInfo {
+            ptr: Some(0x1000),
+            size: Some(1024),
+            var_name: Some(None), // Null field
+            type_name: Some(None), // Null field
+            scope_name: Some(None), // Null field
+            timestamp_alloc: Some(1234567890),
+            timestamp_dealloc: Some(None), // Null field
+            thread_id: Some("main".to_string()),
+            borrow_count: Some(0),
+            stack_trace: Some(None), // Null field
+            is_leaked: Some(false),
+            lifetime_ms: Some(None), // Null field
+            borrow_info: None,
+            clone_info: None,
+            ownership_history_available: Some(false),
+        };
+
+        let all_fields = [
+            AllocationField::VarName,
+            AllocationField::TypeName,
+            AllocationField::ScopeName,
+            AllocationField::TimestampDealloc,
+            AllocationField::StackTrace,
+            AllocationField::LifetimeMs,
+        ]
+        .into_iter()
+        .collect();
+
+        // Test with include_null_fields = false (default)
+        let options_exclude_null = SelectiveSerializationOptions {
+            include_null_fields: false,
+            ..Default::default()
+        };
+
+        let result = writer.write_allocation_selective_with_options(
+            &allocation,
+            &all_fields,
+            &options_exclude_null,
+        );
+        assert!(result.is_ok());
+
+        // Test with include_null_fields = true
+        let options_include_null = SelectiveSerializationOptions {
+            include_null_fields: true,
+            ..Default::default()
+        };
+
+        let result = writer.write_allocation_selective_with_options(
+            &allocation,
+            &all_fields,
+            &options_include_null,
+        );
+        assert!(result.is_ok());
+
+        let stats = writer.finalize().expect("Failed to finalize");
+        assert_eq!(stats.allocations_written, 2);
+    }
+
+    #[test]
+    fn test_pretty_printing() {
+        let buffer = Vec::new();
+        let cursor = Cursor::new(buffer);
+        let config = StreamingJsonWriterConfigBuilder::new()
+            .pretty_print(true)
+            .indent_size(2)
+            .build();
+        let mut writer = StreamingJsonWriter::with_config(cursor, config).expect("Failed to create writer");
+
+        writer.write_header(1).expect("Failed to write header");
+
+        let allocation = PartialAllocationInfo {
+            ptr: Some(0x1000),
+            size: Some(1024),
+            var_name: Some(Some("test_var".to_string())),
+            type_name: Some(Some("TestType".to_string())),
+            scope_name: Some(None),
+            timestamp_alloc: Some(1234567890),
+            timestamp_dealloc: Some(None),
+            thread_id: Some("main".to_string()),
+            borrow_count: Some(0),
+            stack_trace: Some(None),
+            is_leaked: Some(false),
+            lifetime_ms: Some(None),
+            borrow_info: None,
+            clone_info: None,
+            ownership_history_available: Some(false),
+        };
+
+        let requested_fields = [
+            AllocationField::Ptr,
+            AllocationField::Size,
+            AllocationField::VarName,
+            AllocationField::TypeName,
+        ]
+        .into_iter()
+        .collect();
+
+        let result = writer.write_allocation_selective(&allocation, &requested_fields);
+        assert!(result.is_ok());
+
+        let stats = writer.finalize().expect("Failed to finalize");
+        assert_eq!(stats.allocations_written, 1);
+        assert!(stats.bytes_written > 0);
+    }
+
+    #[test]
+    fn test_manual_flush() {
+        let buffer = Vec::new();
+        let cursor = Cursor::new(buffer);
+        let mut writer = StreamingJsonWriter::new(cursor).expect("Failed to create writer");
+
+        writer.write_header(1).expect("Failed to write header");
+
+        // Test manual flush
+        let result = writer.flush();
+        assert!(result.is_ok());
+
+        let stats = writer.get_stats();
+        assert_eq!(stats.flush_count, 1);
+
+        let final_stats = writer.finalize().expect("Failed to finalize");
+        assert!(final_stats.flush_count >= 1);
+    }
+
+    #[test]
+    fn test_intelligent_buffer_logic() {
+        let mut buffer = IntelligentBuffer::new(1024);
+
+        // Test initial state
+        assert!(!buffer.should_flush(100));
+
+        // Test size-based flushing
+        assert!(buffer.should_flush(2000)); // Would exceed target size
+
+        // Test write tracking
+        buffer.add_write(100);
+        assert_eq!(buffer.current_usage, 100);
+        assert_eq!(buffer.writes_since_flush, 1);
+
+        // Test reset after flush
+        buffer.reset_after_flush();
+        assert_eq!(buffer.current_usage, 0);
+        assert_eq!(buffer.writes_since_flush, 0);
+    }
+
+    #[test]
+    fn test_writer_state_management() {
+        let buffer = Vec::new();
+        let cursor = Cursor::new(buffer);
+        let mut writer = StreamingJsonWriter::new(cursor).expect("Failed to create writer");
+
+        // Test initial state
+        assert_eq!(writer.state, WriterState::Initial);
+
+        // Test header writing changes state
+        writer.write_header(1).expect("Failed to write header");
+        assert_eq!(writer.state, WriterState::InAllocationsArray);
+
+        // Test finalization changes state
+        let _stats = writer.finalize().expect("Failed to finalize");
+        assert_eq!(writer.state, WriterState::Finalized);
+    }
+
+    #[test]
+    fn test_zero_time_stats_edge_case() {
+        let stats = StreamingJsonStats {
+            bytes_written: 1000,
+            allocations_written: 10,
+            total_write_time_us: 0, // Zero time edge case
+            ..Default::default()
+        };
+
+        assert_eq!(stats.write_throughput(), 0.0);
+        assert_eq!(stats.batch_processing_efficiency(), 0.0);
+    }
+
+    #[test]
+    fn test_string_escaping_comprehensive() {
+        let buffer = Vec::new();
+        let cursor = Cursor::new(buffer);
+        let config = StreamingJsonWriterConfigBuilder::new()
+            .buffer_reuse(true)
+            .build();
+        let mut writer = StreamingJsonWriter::with_config(cursor, config).expect("Failed to create writer");
+
+        writer.write_header(1).expect("Failed to write header");
+
+        // Test string with special characters that need escaping
+        let allocation = PartialAllocationInfo {
+            ptr: Some(0x1000),
+            size: Some(1024),
+            var_name: Some(Some("test\"with\\quotes\nand\rnewlines\tand\x01control".to_string())),
+            type_name: Some(Some("String".to_string())),
+            scope_name: Some(None),
+            timestamp_alloc: Some(1234567890),
+            timestamp_dealloc: Some(None),
+            thread_id: Some("main".to_string()),
+            borrow_count: Some(0),
+            stack_trace: Some(None),
+            is_leaked: Some(false),
+            lifetime_ms: Some(None),
+            borrow_info: None,
+            clone_info: None,
+            ownership_history_available: Some(false),
+        };
+
+        let requested_fields = [AllocationField::VarName].into_iter().collect();
+
+        let result = writer.write_allocation_selective(&allocation, &requested_fields);
+        assert!(result.is_ok());
+
+        let stats = writer.finalize().expect("Failed to finalize");
+        assert_eq!(stats.allocations_written, 1);
+        assert!(stats.buffer_reuses > 0);
+    }
+
+    #[test]
+    fn test_string_escaping_without_buffer_reuse() {
+        let buffer = Vec::new();
+        let cursor = Cursor::new(buffer);
+        let config = StreamingJsonWriterConfigBuilder::new()
+            .buffer_reuse(false)
+            .build();
+        let mut writer = StreamingJsonWriter::with_config(cursor, config).expect("Failed to create writer");
+
+        writer.write_header(1).expect("Failed to write header");
+
+        let allocation = PartialAllocationInfo {
+            ptr: Some(0x1000),
+            size: Some(1024),
+            var_name: Some(Some("test\"string".to_string())),
+            type_name: Some(Some("String".to_string())),
+            scope_name: Some(None),
+            timestamp_alloc: Some(1234567890),
+            timestamp_dealloc: Some(None),
+            thread_id: Some("main".to_string()),
+            borrow_count: Some(0),
+            stack_trace: Some(None),
+            is_leaked: Some(false),
+            lifetime_ms: Some(None),
+            borrow_info: None,
+            clone_info: None,
+            ownership_history_available: Some(false),
+        };
+
+        let requested_fields = [AllocationField::VarName].into_iter().collect();
+
+        let result = writer.write_allocation_selective(&allocation, &requested_fields);
+        assert!(result.is_ok());
+
+        let stats = writer.finalize().expect("Failed to finalize");
+        assert_eq!(stats.allocations_written, 1);
+        assert_eq!(stats.buffer_reuses, 0); // No buffer reuse
+    }
 }

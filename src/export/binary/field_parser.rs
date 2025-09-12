@@ -1036,7 +1036,7 @@ mod tests {
 
     #[test]
     fn test_field_parser_with_duplicate_fields() {
-        let _fields = vec![
+        let _fields = [
             AllocationField::Ptr,
             AllocationField::Size,
             AllocationField::Ptr,  // Duplicate
