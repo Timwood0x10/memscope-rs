@@ -93,7 +93,9 @@ help:
 	@echo "$(GREEN)CI/CD:$(NC)"
 	@echo "  ci             - Run full CI pipeline locally"
 	@echo "  pre-commit     - Run pre-commit checks"
-	@echo "  coverage       - Generate test coverage report"
+	@echo "  coverage       - Generate test coverage report (tarpaulin)"
+	@echo "  coverage-llvm  - Generate LLVM coverage report (HTML)"
+	@echo "  coverage-summary - Generate LLVM coverage summary (console)"
 	@echo ""
 	@echo "$(GREEN)Maintenance:$(NC)"
 	@echo "  update         - Update dependencies"
@@ -151,47 +153,47 @@ test-unit:
 .PHONY: test-integration
 test-integration:
 	@echo "$(BLUE)Running integration tests...$(NC)"
-	MEMSCOPE_TEST_MODE=1 RUST_LOG=error $(CARGO) test --test comprehensive_integration_test --features test
+	MEMSCOPE_TEST_MODE=1 RUST_LOG=error $(CARGO) test --test comprehensive_integration_test --features test -- --test-threads=1
 
 .PHONY: test-stress
 test-stress:
 	@echo "$(BLUE)Running stress tests...$(NC)"
-	MEMSCOPE_TEST_MODE=1 RUST_LOG=error $(CARGO) test --test stress_test --features test
+	MEMSCOPE_TEST_MODE=1 RUST_LOG=error $(CARGO) test --test stress_test --features test -- --test-threads=1
 
 .PHONY: test-safety
 test-safety:
 	@echo "$(BLUE)Running safety tests...$(NC)"
-	MEMSCOPE_TEST_MODE=1 RUST_LOG=error $(CARGO) test --test safety_test --features test
+	MEMSCOPE_TEST_MODE=1 RUST_LOG=error $(CARGO) test --test safety_test --features test -- --test-threads=1
 
 .PHONY: test-performance
 test-performance:
 	@echo "$(BLUE)Running performance tests...$(NC)"
-	MEMSCOPE_TEST_MODE=1 RUST_LOG=error $(CARGO) test --test performance_test --release --features test
+	MEMSCOPE_TEST_MODE=1 RUST_LOG=error $(CARGO) test --test performance_test --release --features test -- --test-threads=1
 
 .PHONY: test-edge
 test-edge:
 	@echo "$(BLUE)Running edge case tests...$(NC)"
-	MEMSCOPE_TEST_MODE=1 RUST_LOG=error $(CARGO) test --test edge_cases_test --features test
+	MEMSCOPE_TEST_MODE=1 RUST_LOG=error $(CARGO) test --test edge_cases_test --features test -- --test-threads=1
 
 .PHONY: test-comprehensive
 test-comprehensive:
 	@echo "$(BLUE)Running comprehensive integration tests...$(NC)"
-	MEMSCOPE_TEST_MODE=1 RUST_LOG=error $(CARGO) test --test comprehensive_integration_test --features test
+	MEMSCOPE_TEST_MODE=1 RUST_LOG=error $(CARGO) test --test comprehensive_integration_test --features test -- --test-threads=1
 
 .PHONY: test-verbose
 test-verbose:
 	@echo "$(BLUE)Running all tests with verbose output...$(NC)"
-	MEMSCOPE_TEST_MODE=1 RUST_LOG=debug $(CARGO) test --all --verbose --features test
+	MEMSCOPE_TEST_MODE=1 RUST_LOG=debug $(CARGO) test --all --verbose --features test -- --test-threads=1
 
 .PHONY: test-fast
 test-fast:
 	@echo "$(BLUE)Running fast tests (unit tests only)...$(NC)"
-	MEMSCOPE_TEST_MODE=1 RUST_LOG=off $(CARGO) test --lib --release --features test
+	MEMSCOPE_TEST_MODE=1 RUST_LOG=off $(CARGO) test --lib --release --features test -- --test-threads=1
 
 .PHONY: test-quiet
 test-quiet:
 	@echo "$(BLUE)Running all tests quietly...$(NC)"
-	MEMSCOPE_TEST_MODE=1 RUST_LOG=off $(CARGO) test --all --quiet --features test
+	MEMSCOPE_TEST_MODE=1 RUST_LOG=off $(CARGO) test --all --quiet --features test -- --test-threads=1
 
 # Quality assurance targets
 .PHONY: fmt
@@ -331,7 +333,7 @@ ci: clean check fmt-check clippy test doc
 pre-commit: fmt clippy test-unit
 	@echo "$(GREEN)✅ Pre-commit checks completed!$(NC)"
 
-.PHONY: coverage
+.PHONY: coverage coverage-llvm coverage-summary
 coverage:
 	@echo "$(BLUE)Generating test coverage report...$(NC)"
 	@if command -v cargo-tarpaulin >/dev/null 2>&1; then \
@@ -340,6 +342,24 @@ coverage:
 		echo "$(GREEN)Coverage report generated in $(COVERAGE_DIR)/tarpaulin-report.html$(NC)"; \
 	else \
 		echo "$(YELLOW)cargo-tarpaulin not installed. Install with: cargo install cargo-tarpaulin$(NC)"; \
+	fi
+
+coverage-llvm:
+	@echo "$(BLUE)Generating LLVM coverage report...$(NC)"
+	@if command -v cargo-llvm-cov >/dev/null 2>&1; then \
+		mkdir -p $(COVERAGE_DIR); \
+		$(CARGO) llvm-cov --html --output-dir $(COVERAGE_DIR) --lib --tests -- --test-thread=1; \
+		echo "$(GREEN)LLVM coverage report generated in $(COVERAGE_DIR)/index.html$(NC)"; \
+	else \
+		echo "$(YELLOW)cargo-llvm-cov not installed. Install with: cargo install cargo-llvm-cov$(NC)"; \
+	fi
+
+coverage-summary:
+	@echo "$(BLUE)Generating LLVM coverage summary...$(NC)"
+	@if command -v cargo-llvm-cov >/dev/null 2>&1; then \
+		$(CARGO) llvm-cov  --summary-only  --lib --tests -- --test-threads=1; \
+	else \
+		echo "$(YELLOW)cargo-llvm-cov not installed. Install with: cargo install cargo-llvm-cov$(NC)"; \
 	fi
 
 # Maintenance targets
@@ -648,7 +668,7 @@ validate: ci run-basic run-lifecycle html
 test-all:
 	@echo "$(BLUE)🧪 Running all tests with coverage...$(NC)"
 	@mkdir -p coverage-report
-	@cargo tarpaulin --out Html --output-dir coverage-report --all-targets --lib --bins --tests --examples
+	@cargo tarpaulin --out Html --output-dir coverage-report --lib --tests --examples -- --test-threads=1
 	@echo "$(GREEN)✅ All tests with coverage completed$(NC)"
 	@echo "$(BLUE)📊 Coverage report: coverage-report/tarpaulin-report.html$(NC)"
 
