@@ -247,6 +247,8 @@ impl Default for SmartStats {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Arc;
+    use std::thread;
 
     #[test]
     fn test_smart_mutex_basic() {
@@ -268,27 +270,296 @@ mod tests {
     }
 
     #[test]
-    fn test_safe_unwrap() {
-        let some_value = Some(42);
-        assert_eq!(some_value.safe_unwrap(0), 42);
+    fn test_smart_mutex_try_lock() {
+        let mutex = SmartMutex::new("test_value");
+        
+        // Test successful try_lock
+        if let Some(guard) = mutex.try_lock() {
+            assert_eq!(*guard, "test_value");
+        } else {
+            panic!("try_lock should succeed when mutex is not held");
+        }
 
-        let none_value: Option<i32> = None;
-        // safe_unwrap now returns fallback in both debug and release builds
-        assert_eq!(none_value.safe_unwrap(99), 99);
+        // Test try_lock when already locked (in a controlled way)
+        let mutex2 = Arc::new(SmartMutex::new(0));
+        let mutex2_clone = mutex2.clone();
+        
+        let _guard = mutex2.lock();
+        // Now try_lock should fail
+        assert!(mutex2_clone.try_lock().is_none());
     }
 
     #[test]
-    fn test_smart_stats() {
+    fn test_smart_mutex_parking_lot() {
+        // Test with ParkingLot variant
+        let mutex = SmartMutex::ParkingLot(parking_lot::Mutex::new("parking_lot_test"));
+        
+        {
+            let guard = mutex.lock();
+            assert_eq!(*guard, "parking_lot_test");
+        }
+        
+        // Test try_lock with ParkingLot
+        {
+            if let Some(guard) = mutex.try_lock() {
+                assert_eq!(*guard, "parking_lot_test");
+            } else {
+                panic!("ParkingLot try_lock should succeed");
+            };
+        }
+    }
+
+    #[test]
+    fn test_smart_mutex_guard_deref() {
+        let mutex = SmartMutex::new(vec![1, 2, 3]);
+        let guard = mutex.lock();
+        
+        // Test Deref
+        assert_eq!(guard.len(), 3);
+        assert_eq!(guard[0], 1);
+    }
+
+    #[test]
+    fn test_smart_mutex_guard_deref_mut() {
+        let mutex = SmartMutex::new(vec![1, 2, 3]);
+        let mut guard = mutex.lock();
+        
+        // Test DerefMut
+        guard.push(4);
+        assert_eq!(guard.len(), 4);
+        guard[0] = 10;
+        assert_eq!(guard[0], 10);
+    }
+
+    #[test]
+    fn test_contention_recording() {
+        // Reset counters (though they're global, we can at least test they increment)
+        let initial_count = CONTENTION_COUNTER.load(Ordering::Relaxed);
+        let initial_wait = TOTAL_WAIT_TIME_NS.load(Ordering::Relaxed);
+        
+        // Record some contention
+        record_contention("test_mutex", Duration::from_micros(50));
+        
+        assert_eq!(CONTENTION_COUNTER.load(Ordering::Relaxed), initial_count + 1);
+        assert!(TOTAL_WAIT_TIME_NS.load(Ordering::Relaxed) > initial_wait);
+        
+        // Test multiple contentions
+        for _ in 0..10 {
+            record_contention("test_mutex", Duration::from_micros(100));
+        }
+        
+        assert_eq!(CONTENTION_COUNTER.load(Ordering::Relaxed), initial_count + 11);
+    }
+
+    #[test]
+    fn test_safe_unwrap_option() {
+        // Test Some variant
+        let some_value = Some(42);
+        assert_eq!(some_value.safe_unwrap(0), 42);
+
+        // Test None variant
+        let none_value: Option<i32> = None;
+        assert_eq!(none_value.safe_unwrap(99), 99);
+        
+        // Test with string
+        let some_string = Some("hello".to_string());
+        assert_eq!(some_string.safe_unwrap("default".to_string()), "hello");
+        
+        let none_string: Option<String> = None;
+        assert_eq!(none_string.safe_unwrap("fallback".to_string()), "fallback");
+    }
+
+    #[test]
+    fn test_safe_unwrap_or_log_option() {
+        // Test Some variant
+        let some_value = Some(100);
+        assert_eq!(some_value.safe_unwrap_or_log("test_context", 0), 100);
+        
+        // Test None variant
+        let none_value: Option<i32> = None;
+        assert_eq!(none_value.safe_unwrap_or_log("none_context", 50), 50);
+        
+        // Test with different types
+        let some_vec = Some(vec![1, 2, 3]);
+        assert_eq!(some_vec.safe_unwrap_or_log("vec_context", vec![]), vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn test_safe_unwrap_result() {
+        // Test Ok variant
+        let ok_result: Result<i32, String> = Ok(42);
+        assert_eq!(ok_result.safe_unwrap(0), 42);
+        
+        // Test Err variant (should use fallback in release mode)
+        #[cfg(not(debug_assertions))]
+        {
+            let err_result: Result<i32, String> = Err("error message".to_string());
+            assert_eq!(err_result.safe_unwrap(99), 99);
+        }
+        
+        // In debug mode, this would panic, so we skip it
+        #[cfg(debug_assertions)]
+        {
+            // Just test Ok case in debug mode
+            let ok_result2: Result<String, &str> = Ok("success".to_string());
+            assert_eq!(ok_result2.safe_unwrap("fallback".to_string()), "success");
+        }
+    }
+
+    #[test]
+    fn test_safe_unwrap_or_log_result() {
+        // Test Ok variant
+        let ok_result: Result<i32, String> = Ok(100);
+        assert_eq!(ok_result.safe_unwrap_or_log("ok_context", 0), 100);
+        
+        // Test Err variant
+        let err_result: Result<i32, String> = Err("test error".to_string());
+        assert_eq!(err_result.safe_unwrap_or_log("err_context", 50), 50);
+        
+        // Test with complex error type
+        let err_result2: Result<Vec<u8>, std::io::Error> = 
+            Err(std::io::Error::new(std::io::ErrorKind::NotFound, "not found"));
+        assert_eq!(err_result2.safe_unwrap_or_log("io_err", vec![1, 2]), vec![1, 2]);
+    }
+
+    #[test]
+    fn test_smart_clone_string() {
+        let string = String::from("hello world");
+        let cloned = string.smart_clone();
+        
+        // Should return a borrowed Cow
+        assert!(matches!(cloned, std::borrow::Cow::Borrowed(_)));
+        assert_eq!(&*cloned, "hello world");
+    }
+
+    #[test]
+    fn test_smart_clone_vec() {
+        let vec = vec![1, 2, 3, 4, 5];
+        let cloned = vec.smart_clone();
+        
+        // Should return a borrowed Cow
+        assert!(matches!(cloned, std::borrow::Cow::Borrowed(_)));
+        assert_eq!(&*cloned, &[1, 2, 3, 4, 5]);
+        
+        // Test with different types
+        let string_vec = vec!["a".to_string(), "b".to_string()];
+        let cloned2 = string_vec.smart_clone();
+        assert!(matches!(cloned2, std::borrow::Cow::Borrowed(_)));
+        assert_eq!(cloned2.len(), 2);
+    }
+
+    #[test]
+    fn test_smart_stats_basic() {
         let stats = SmartStats::new();
 
-        // Fast operations
+        // Test initial state
+        let (allocs, deallocs) = stats.get_simple_stats();
+        assert_eq!(allocs, 0);
+        assert_eq!(deallocs, 0);
+
+        // Test allocation recording
         for _ in 0..100 {
-            // Reduced from 1000 to 100
             stats.record_allocation();
         }
 
         let (allocs, deallocs) = stats.get_simple_stats();
-        assert_eq!(allocs, 100); // Updated expectation
+        assert_eq!(allocs, 100);
         assert_eq!(deallocs, 0);
+        
+        // Test deallocation counting
+        for _ in 0..50 {
+            stats.deallocation_count.fetch_add(1, Ordering::Relaxed);
+        }
+        
+        let (allocs, deallocs) = stats.get_simple_stats();
+        assert_eq!(allocs, 100);
+        assert_eq!(deallocs, 50);
+    }
+
+    #[test]
+    fn test_smart_stats_detailed() {
+        let stats = SmartStats::new();
+        
+        // Record detailed allocations
+        stats.record_detailed_allocation(1024, Duration::from_micros(10));
+        stats.record_detailed_allocation(2048, Duration::from_micros(20));
+        stats.record_detailed_allocation(512, Duration::from_micros(5));
+        
+        // Check counters
+        let (allocs, _) = stats.get_simple_stats();
+        assert_eq!(allocs, 3);
+        
+        // Check detailed stats
+        let detailed = stats.detailed_stats.lock();
+        assert_eq!(detailed.allocation_sizes.len(), 3);
+        assert_eq!(detailed.allocation_sizes[0], 1024);
+        assert_eq!(detailed.allocation_sizes[1], 2048);
+        assert_eq!(detailed.allocation_sizes[2], 512);
+        
+        assert_eq!(detailed.allocation_times.len(), 3);
+        assert_eq!(detailed.allocation_times[0], Duration::from_micros(10));
+    }
+
+    #[test]
+    fn test_smart_stats_peak_memory() {
+        let stats = SmartStats::new();
+        
+        // Update peak memory
+        {
+            let mut detailed = stats.detailed_stats.lock();
+            detailed.peak_memory = 1000;
+            detailed.allocation_sizes.push(500);
+        }
+        
+        // Verify
+        let detailed = stats.detailed_stats.lock();
+        assert_eq!(detailed.peak_memory, 1000);
+        assert_eq!(detailed.allocation_sizes[0], 500);
+    }
+
+    #[test]
+    fn test_smart_stats_concurrent() {
+        let stats = Arc::new(SmartStats::new());
+        let mut handles = vec![];
+        
+        // Test concurrent allocation recording
+        for _ in 0..10 {
+            let stats_clone = stats.clone();
+            let handle = thread::spawn(move || {
+                for _ in 0..100 {
+                    stats_clone.record_allocation();
+                }
+            });
+            handles.push(handle);
+        }
+        
+        for handle in handles {
+            handle.join().unwrap();
+        }
+        
+        let (allocs, _) = stats.get_simple_stats();
+        assert_eq!(allocs, 1000);
+    }
+
+    #[test]
+    fn test_smart_stats_default() {
+        let stats = SmartStats::default();
+        let (allocs, deallocs) = stats.get_simple_stats();
+        assert_eq!(allocs, 0);
+        assert_eq!(deallocs, 0);
+        
+        // Verify detailed stats are also default
+        let detailed = stats.detailed_stats.lock();
+        assert!(detailed.allocation_sizes.is_empty());
+        assert!(detailed.allocation_times.is_empty());
+        assert_eq!(detailed.peak_memory, 0);
+    }
+
+    #[test]
+    fn test_detailed_stats_default() {
+        let detailed = DetailedStats::default();
+        assert!(detailed.allocation_sizes.is_empty());
+        assert!(detailed.allocation_times.is_empty());
+        assert_eq!(detailed.peak_memory, 0);
     }
 }

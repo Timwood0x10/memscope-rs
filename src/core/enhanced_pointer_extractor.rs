@@ -97,6 +97,8 @@ impl EnhancedPointerExtractor {
             0x5000_0000..=0x5FFF_FFFF => true,
             // Range used by fast tracking synthetic pointers
             0x8000_0000..=0x8FFF_FFFF => true,
+            // Range used by generate_synthetic_pointer
+            0x9000_0000..=0x9FFF_FFFF => true,
             // Ranges used by advanced trackable macro
             0xA000_0000..=0xFFFF_FFFF => true,
             _ => false,
@@ -108,6 +110,7 @@ impl EnhancedPointerExtractor {
         match ptr {
             0x5000_0000..=0x5FFF_FFFF => SyntheticReason::SmartPointerIndirection,
             0x8000_0000..=0x8FFF_FFFF => SyntheticReason::NoHeapAllocation,
+            0x9000_0000..=0x9FFF_FFFF => SyntheticReason::NoHeapAllocation,
             0xA000_0000..=0xFFFF_FFFF => SyntheticReason::ComplexType,
             _ => SyntheticReason::InvalidPointer,
         }
@@ -331,6 +334,7 @@ impl<T> EnhancedTrackable for Box<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::thread;
 
     #[test]
     fn test_valid_heap_pointer_detection() {
@@ -435,5 +439,463 @@ mod tests {
         assert_eq!(stats.synthetic_pointers, 2);
         assert_eq!(stats.real_pointer_ratio, 0.5);
         assert_eq!(stats.synthetic_reasons.len(), 2);
+    }
+
+    #[test]
+    fn test_boundary_pointer_values() {
+        // Test zero pointer
+        assert!(!EnhancedPointerExtractor::is_valid_heap_pointer(0));
+        
+        // Test minimum valid pointer
+        assert!(EnhancedPointerExtractor::is_valid_heap_pointer(0x1000));
+        assert!(!EnhancedPointerExtractor::is_valid_heap_pointer(0xFFF));
+        
+        // Test maximum values based on architecture
+        #[cfg(target_pointer_width = "64")]
+        {
+            assert!(!EnhancedPointerExtractor::is_valid_heap_pointer(0x8000_0000_0000_0000));
+            assert!(EnhancedPointerExtractor::is_valid_heap_pointer(0x7FFF_FFFF_FFFF_FFFF));
+        }
+        
+        #[cfg(target_pointer_width = "32")]
+        {
+            assert!(!EnhancedPointerExtractor::is_valid_heap_pointer(0x8000_0000));
+            assert!(EnhancedPointerExtractor::is_valid_heap_pointer(0x7FFF_FFFF));
+        }
+        
+        // Test usize::MAX
+        assert!(!EnhancedPointerExtractor::is_valid_heap_pointer(usize::MAX));
+    }
+
+    #[test]
+    fn test_synthetic_pointer_ranges() {
+        // Test all synthetic pointer ranges
+        assert!(EnhancedPointerExtractor::is_synthetic_pointer(0x5000_0000));
+        assert!(EnhancedPointerExtractor::is_synthetic_pointer(0x5FFF_FFFF));
+        assert!(!EnhancedPointerExtractor::is_synthetic_pointer(0x4FFF_FFFF));
+        assert!(!EnhancedPointerExtractor::is_synthetic_pointer(0x6000_0000));
+        
+        assert!(EnhancedPointerExtractor::is_synthetic_pointer(0x8000_0000));
+        assert!(EnhancedPointerExtractor::is_synthetic_pointer(0x8FFF_FFFF));
+        assert!(!EnhancedPointerExtractor::is_synthetic_pointer(0x7FFF_FFFF));
+        assert!(EnhancedPointerExtractor::is_synthetic_pointer(0x9000_0000));
+        
+        assert!(EnhancedPointerExtractor::is_synthetic_pointer(0xA000_0000));
+        assert!(EnhancedPointerExtractor::is_synthetic_pointer(0xFFFF_FFFF));
+        assert!(EnhancedPointerExtractor::is_synthetic_pointer(0x9FFF_FFFF));
+    }
+
+    #[test]
+    fn test_synthetic_reason_determination() {
+        // Test different synthetic pointer ranges and their reasons
+        assert_eq!(
+            EnhancedPointerExtractor::determine_synthetic_reason(0x5000_0000),
+            SyntheticReason::SmartPointerIndirection
+        );
+        assert_eq!(
+            EnhancedPointerExtractor::determine_synthetic_reason(0x5FFF_FFFF),
+            SyntheticReason::SmartPointerIndirection
+        );
+        
+        assert_eq!(
+            EnhancedPointerExtractor::determine_synthetic_reason(0x8000_0000),
+            SyntheticReason::NoHeapAllocation
+        );
+        assert_eq!(
+            EnhancedPointerExtractor::determine_synthetic_reason(0x8FFF_FFFF),
+            SyntheticReason::NoHeapAllocation
+        );
+        
+        assert_eq!(
+            EnhancedPointerExtractor::determine_synthetic_reason(0xA000_0000),
+            SyntheticReason::ComplexType
+        );
+        assert_eq!(
+            EnhancedPointerExtractor::determine_synthetic_reason(0xFFFF_FFFF),
+            SyntheticReason::ComplexType
+        );
+        
+        // Test invalid pointer reason
+        assert_eq!(
+            EnhancedPointerExtractor::determine_synthetic_reason(0x1000),
+            SyntheticReason::InvalidPointer
+        );
+    }
+
+    #[test]
+    fn test_synthetic_pointer_generation() {
+        // Generate multiple synthetic pointers and verify they're unique
+        let ptr1 = EnhancedPointerExtractor::generate_synthetic_pointer();
+        let ptr2 = EnhancedPointerExtractor::generate_synthetic_pointer();
+        let ptr3 = EnhancedPointerExtractor::generate_synthetic_pointer();
+        
+        assert_ne!(ptr1, ptr2);
+        assert_ne!(ptr2, ptr3);
+        assert_ne!(ptr1, ptr3);
+        
+        // Verify they're in the expected range
+        assert!(ptr1 >= 0x9000_0000);
+        assert!(ptr2 >= 0x9000_0000);
+        assert!(ptr3 >= 0x9000_0000);
+        
+        // Verify they're synthetic
+        assert!(EnhancedPointerExtractor::is_synthetic_pointer(ptr1));
+        assert!(EnhancedPointerExtractor::is_synthetic_pointer(ptr2));
+        assert!(EnhancedPointerExtractor::is_synthetic_pointer(ptr3));
+    }
+
+    #[test]
+    fn test_string_pointer_extraction() {
+        // Test non-empty string
+        let string = String::from("Hello, World!");
+        let pointer_info = EnhancedPointerExtractor::extract_string_pointer(&string);
+        
+        match pointer_info {
+            PointerInfo::Real(_) => {
+                // Expected for String with capacity
+            }
+            PointerInfo::Synthetic { reason, .. } => {
+                panic!("Expected real pointer for non-empty string, got synthetic: {reason:?}");
+            }
+        }
+        
+        // Test empty string
+        let empty_string = String::new();
+        let pointer_info = EnhancedPointerExtractor::extract_string_pointer(&empty_string);
+        
+        match pointer_info {
+            PointerInfo::Synthetic {
+                reason: SyntheticReason::EmptyContainer,
+                ..
+            } => {
+                // Expected for empty string
+            }
+            _ => {
+                panic!("Expected synthetic pointer with EmptyContainer reason for empty string");
+            }
+        }
+        
+        // Test string with capacity but no content
+        let mut string_with_capacity = String::new();
+        string_with_capacity.reserve(100);
+        let pointer_info = EnhancedPointerExtractor::extract_string_pointer(&string_with_capacity);
+        
+        match pointer_info {
+            PointerInfo::Real(_) => {
+                // Expected for string with capacity
+            }
+            _ => {
+                panic!("Expected real pointer for string with capacity");
+            }
+        }
+    }
+
+    #[test]
+    fn test_box_pointer_extraction() {
+        let boxed_value = Box::new(42);
+        let pointer_info = EnhancedPointerExtractor::extract_box_pointer(&boxed_value);
+        
+        match pointer_info {
+            PointerInfo::Real(_) => {
+                // Expected for Box
+            }
+            PointerInfo::Synthetic { reason, .. } => {
+                panic!("Expected real pointer for Box, got synthetic: {reason:?}");
+            }
+        }
+        
+        // Test with large boxed value
+        let large_boxed = Box::new([0u8; 1024]);
+        let pointer_info = EnhancedPointerExtractor::extract_box_pointer(&large_boxed);
+        
+        match pointer_info {
+            PointerInfo::Real(_) => {
+                // Expected for Box
+            }
+            _ => {
+                panic!("Expected real pointer for large Box");
+            }
+        }
+    }
+
+    #[test]
+    fn test_hashmap_pointer_extraction() {
+        use std::collections::HashMap;
+        
+        // Test empty HashMap
+        let empty_map: HashMap<String, i32> = HashMap::new();
+        let pointer_info = EnhancedPointerExtractor::extract_hashmap_pointer(&empty_map);
+        
+        match pointer_info {
+            PointerInfo::Synthetic {
+                reason: SyntheticReason::EmptyContainer,
+                ..
+            } => {
+                // Expected for empty HashMap
+            }
+            _ => {
+                panic!("Expected synthetic pointer with EmptyContainer reason for empty HashMap");
+            }
+        }
+        
+        // Test non-empty HashMap
+        let mut map = HashMap::new();
+        map.insert("key1".to_string(), 1);
+        map.insert("key2".to_string(), 2);
+        let pointer_info = EnhancedPointerExtractor::extract_hashmap_pointer(&map);
+        
+        match pointer_info {
+            PointerInfo::Synthetic {
+                reason: SyntheticReason::ComplexType,
+                ..
+            } => {
+                // Expected for non-empty HashMap (complex internal structure)
+            }
+            _ => {
+                panic!("Expected synthetic pointer with ComplexType reason for non-empty HashMap");
+            }
+        }
+    }
+
+    #[test]
+    fn test_enhanced_trackable_string() {
+        let string = String::from("Test string");
+        let pointer_info = string.get_pointer_info();
+        let size_estimate = EnhancedTrackable::get_size_estimate(&string);
+        let type_info = string.get_type_info();
+        
+        match pointer_info {
+            PointerInfo::Real(_) => {
+                // Expected for non-empty string
+            }
+            _ => panic!("Expected real pointer for non-empty string"),
+        }
+        
+        assert!(size_estimate > 0);
+        assert_eq!(type_info.type_name, "String");
+        assert_eq!(type_info.category, TypeCategory::Collection);
+        assert_eq!(type_info.complexity_score, 1);
+        assert!(type_info.is_heap_allocated);
+        
+        // Test empty string
+        let empty_string = String::new();
+        let type_info = empty_string.get_type_info();
+        assert!(!type_info.is_heap_allocated);
+    }
+
+    #[test]
+    fn test_enhanced_trackable_box() {
+        let boxed_value = Box::new(42);
+        let pointer_info = boxed_value.get_pointer_info();
+        let size_estimate = EnhancedTrackable::get_size_estimate(&boxed_value);
+        let type_info = boxed_value.get_type_info();
+        
+        match pointer_info {
+            PointerInfo::Real(_) => {
+                // Expected for Box
+            }
+            _ => panic!("Expected real pointer for Box"),
+        }
+        
+        assert!(size_estimate > 0);
+        assert!(type_info.type_name.starts_with("Box<"));
+        assert_eq!(type_info.category, TypeCategory::SmartPointer);
+        assert_eq!(type_info.complexity_score, 2);
+        assert!(type_info.is_heap_allocated);
+    }
+
+    #[test]
+    fn test_pointer_statistics_edge_cases() {
+        // Test empty pointer list
+        let empty_pointers: Vec<PointerInfo> = vec![];
+        let stats = EnhancedPointerExtractor::get_pointer_statistics(&empty_pointers);
+        
+        assert_eq!(stats.total_pointers, 0);
+        assert_eq!(stats.real_pointers, 0);
+        assert_eq!(stats.synthetic_pointers, 0);
+        assert_eq!(stats.real_pointer_ratio, 0.0);
+        assert!(stats.synthetic_reasons.is_empty());
+        
+        // Test all real pointers
+        let all_real = vec![
+            PointerInfo::Real(0x1000),
+            PointerInfo::Real(0x2000),
+            PointerInfo::Real(0x3000),
+        ];
+        let stats = EnhancedPointerExtractor::get_pointer_statistics(&all_real);
+        
+        assert_eq!(stats.total_pointers, 3);
+        assert_eq!(stats.real_pointers, 3);
+        assert_eq!(stats.synthetic_pointers, 0);
+        assert_eq!(stats.real_pointer_ratio, 1.0);
+        assert!(stats.synthetic_reasons.is_empty());
+        
+        // Test all synthetic pointers
+        let all_synthetic = vec![
+            PointerInfo::Synthetic {
+                ptr: 0x8000_0000,
+                reason: SyntheticReason::EmptyContainer,
+            },
+            PointerInfo::Synthetic {
+                ptr: 0x9000_0000,
+                reason: SyntheticReason::EmptyContainer,
+            },
+            PointerInfo::Synthetic {
+                ptr: 0xA000_0000,
+                reason: SyntheticReason::ComplexType,
+            },
+        ];
+        let stats = EnhancedPointerExtractor::get_pointer_statistics(&all_synthetic);
+        
+        assert_eq!(stats.total_pointers, 3);
+        assert_eq!(stats.real_pointers, 0);
+        assert_eq!(stats.synthetic_pointers, 3);
+        assert_eq!(stats.real_pointer_ratio, 0.0);
+        assert_eq!(stats.synthetic_reasons.len(), 2);
+        assert_eq!(stats.synthetic_reasons[&SyntheticReason::EmptyContainer], 2);
+        assert_eq!(stats.synthetic_reasons[&SyntheticReason::ComplexType], 1);
+    }
+
+    #[test]
+    fn test_synthetic_reason_variants() {
+        // Test all SyntheticReason variants
+        let reasons = vec![
+            SyntheticReason::NoHeapAllocation,
+            SyntheticReason::EmptyContainer,
+            SyntheticReason::SmartPointerIndirection,
+            SyntheticReason::ComplexType,
+            SyntheticReason::InvalidPointer,
+        ];
+        
+        // Test that they can be cloned, compared, and hashed
+        for reason in &reasons {
+            let cloned = reason.clone();
+            assert_eq!(reason, &cloned);
+            
+            // Test that they can be used as HashMap keys
+            let mut map = std::collections::HashMap::new();
+            map.insert(reason.clone(), 1);
+            assert_eq!(map.get(reason), Some(&1));
+        }
+    }
+
+    #[test]
+    fn test_type_category_variants() {
+        // Test all TypeCategory variants
+        let categories = vec![
+            TypeCategory::Primitive,
+            TypeCategory::Collection,
+            TypeCategory::SmartPointer,
+            TypeCategory::Complex,
+            TypeCategory::Atomic,
+            TypeCategory::Synchronization,
+            TypeCategory::Custom,
+        ];
+        
+        for category in &categories {
+            let cloned = category.clone();
+            assert_eq!(category, &cloned);
+        }
+    }
+
+    #[test]
+    fn test_pointer_info_serialization() {
+        // Test serialization of PointerInfo variants
+        let real_pointer = PointerInfo::Real(0x1000);
+        let synthetic_pointer = PointerInfo::Synthetic {
+            ptr: 0x8000_0000,
+            reason: SyntheticReason::EmptyContainer,
+        };
+        
+        // Test that they can be serialized (basic check)
+        let _real_json = serde_json::to_string(&real_pointer).expect("Failed to serialize real pointer");
+        let _synthetic_json = serde_json::to_string(&synthetic_pointer).expect("Failed to serialize synthetic pointer");
+    }
+
+    #[test]
+    fn test_concurrent_pointer_operations() {
+        // Test that pointer operations are thread-safe
+        let handles: Vec<_> = (0..10)
+            .map(|_| {
+                thread::spawn(|| {
+                    // Generate synthetic pointers concurrently
+                    let ptr1 = EnhancedPointerExtractor::generate_synthetic_pointer();
+                    let ptr2 = EnhancedPointerExtractor::generate_synthetic_pointer();
+                    
+                    // Test pointer validation concurrently
+                    assert!(EnhancedPointerExtractor::is_synthetic_pointer(ptr1));
+                    assert!(EnhancedPointerExtractor::is_synthetic_pointer(ptr2));
+                    assert_ne!(ptr1, ptr2);
+                    
+                    // Test with various pointer values
+                    assert!(EnhancedPointerExtractor::is_valid_heap_pointer(0x1000));
+                    assert!(!EnhancedPointerExtractor::is_valid_heap_pointer(0));
+                    assert!(EnhancedPointerExtractor::is_synthetic_pointer(0x8000_0000));
+                    
+                    (ptr1, ptr2)
+                })
+            })
+            .collect();
+        
+        let mut all_pointers = Vec::new();
+        for handle in handles {
+            let (ptr1, ptr2) = handle.join().expect("Thread panicked");
+            all_pointers.push(ptr1);
+            all_pointers.push(ptr2);
+        }
+        
+        // Verify all generated pointers are unique
+        all_pointers.sort();
+        all_pointers.dedup();
+        assert_eq!(all_pointers.len(), 20); // 10 threads * 2 pointers each
+    }
+
+    #[test]
+    fn test_vec_with_reserved_capacity() {
+        // Test Vec with reserved capacity but no elements
+        let mut vec: Vec<i32> = Vec::new();
+        vec.reserve(100);
+        
+        let pointer_info = EnhancedPointerExtractor::extract_vec_pointer(&vec);
+        match pointer_info {
+            PointerInfo::Real(_) => {
+                // Expected for Vec with capacity
+            }
+            _ => panic!("Expected real pointer for Vec with reserved capacity"),
+        }
+        
+        let type_info = vec.get_type_info();
+        assert!(type_info.is_heap_allocated);
+    }
+
+    #[test]
+    fn test_large_data_structures() {
+        // Test with large Vec
+        let large_vec: Vec<u8> = vec![0; 10000];
+        let pointer_info = large_vec.get_pointer_info();
+        let size_estimate = EnhancedTrackable::get_size_estimate(&large_vec);
+        
+        match pointer_info {
+            PointerInfo::Real(_) => {
+                // Expected for large Vec
+            }
+            _ => panic!("Expected real pointer for large Vec"),
+        }
+        
+        assert!(size_estimate >= 10000);
+        
+        // Test with large String
+        let large_string = "x".repeat(10000);
+        let pointer_info = large_string.get_pointer_info();
+        let size_estimate = EnhancedTrackable::get_size_estimate(&large_string);
+        
+        match pointer_info {
+            PointerInfo::Real(_) => {
+                // Expected for large String
+            }
+            _ => panic!("Expected real pointer for large String"),
+        }
+        
+        assert!(size_estimate >= 10000);
     }
 }

@@ -499,6 +499,7 @@ impl PerformanceLogger {
                     stage: ExportStage::ParallelProcessing, // default stage
                 };
                 self.log_warning(&format!("performance threshold exceeded: {error}"));
+                self.update_error_statistics(&error);
             }
         }
     }
@@ -1042,5 +1043,578 @@ mod tests {
         assert_eq!(usage.memory_usage_percentage(), 50.0);
         assert_eq!(usage.disk_usage_percentage(), 50.0);
         assert_eq!(usage.cpu_usage_percentage(), 60.0);
+    }
+
+    #[test]
+    fn test_all_export_error_variants_display() {
+        // Test ResourceLimitExceeded
+        let resource_error = ExportError::ResourceLimitExceeded {
+            resource_type: ResourceType::Memory,
+            limit: 1024,
+            actual: 2048,
+            suggested_action: "reduce memory usage".to_string(),
+        };
+        let display = format!("{resource_error}");
+        assert!(display.contains("resource limit exceeded"));
+        assert!(display.contains("Memory"));
+        assert!(display.contains("reduce memory usage"));
+
+        // Test DataQualityError
+        let quality_error = ExportError::DataQualityError {
+            validation_type: ValidationType::JsonStructure,
+            expected: "valid JSON".to_string(),
+            actual: "malformed JSON".to_string(),
+            affected_records: 100,
+        };
+        let display = format!("{quality_error}");
+        assert!(display.contains("data quality error"));
+        assert!(display.contains("JsonStructure"));
+        assert!(display.contains("affected records 100"));
+
+        // Test PerformanceThresholdExceeded
+        let perf_error = ExportError::PerformanceThresholdExceeded {
+            metric: PerformanceMetric::ExportTime,
+            threshold: 10.0,
+            actual: 15.5,
+            stage: ExportStage::Writing,
+        };
+        let display = format!("{perf_error}");
+        assert!(display.contains("performance threshold exceeded"));
+        assert!(display.contains("ExportTime"));
+        assert!(display.contains("Writing"));
+
+        // Test ConcurrencyConflict
+        let concurrency_error = ExportError::ConcurrencyConflict {
+            operation: "write_data".to_string(),
+            conflict_type: ConflictType::LockContention,
+            retry_count: 3,
+        };
+        let display = format!("{concurrency_error}");
+        assert!(display.contains("concurrency conflict"));
+        assert!(display.contains("write_data"));
+        assert!(display.contains("LockContention"));
+
+        // Test DataCorruption
+        let corruption_error = ExportError::DataCorruption {
+            corruption_type: CorruptionType::ChecksumMismatch,
+            affected_data: "allocation_data.json".to_string(),
+            recovery_possible: true,
+        };
+        let display = format!("{corruption_error}");
+        assert!(display.contains("data corruption"));
+        assert!(display.contains("ChecksumMismatch"));
+        assert!(display.contains("recovery possible: true"));
+
+        // Test InsufficientResources
+        let insufficient_error = ExportError::InsufficientResources {
+            required_memory: 2048,
+            available_memory: 1024,
+            required_disk: 4096,
+            available_disk: 2048,
+        };
+        let display = format!("{insufficient_error}");
+        assert!(display.contains("insufficient resources"));
+        assert!(display.contains("required memory 2048MB"));
+        assert!(display.contains("available 1024MB"));
+
+        // Test ExportInterrupted
+        let interrupted_error = ExportError::ExportInterrupted {
+            stage: ExportStage::ParallelProcessing,
+            progress_percentage: 75.5,
+            partial_output_path: Some("temp_output.json".to_string()),
+        };
+        let display = format!("{interrupted_error}");
+        assert!(display.contains("export interrupted"));
+        assert!(display.contains("ParallelProcessing"));
+        assert!(display.contains("progress 75.5%"));
+    }
+
+    #[test]
+    fn test_validation_error_variants_display() {
+        // Test FileAccessError
+        let file_error = ValidationError::FileAccessError {
+            file_path: "/path/to/file.json".to_string(),
+            error: "permission denied".to_string(),
+        };
+        let display = format!("{file_error}");
+        assert!(display.contains("file access error"));
+        assert!(display.contains("/path/to/file.json"));
+        assert!(display.contains("permission denied"));
+
+        // Test JsonParsingError
+        let json_error = ValidationError::JsonParsingError {
+            file_path: "data.json".to_string(),
+            error: "unexpected token".to_string(),
+        };
+        let display = format!("{json_error}");
+        assert!(display.contains("JSON parsing error"));
+        assert!(display.contains("data.json"));
+        assert!(display.contains("unexpected token"));
+
+        // Test TimeoutError
+        let timeout_error = ValidationError::TimeoutError {
+            file_path: "large_file.json".to_string(),
+            timeout_duration: Duration::from_secs(30),
+        };
+        let display = format!("{timeout_error}");
+        assert!(display.contains("validation timeout"));
+        assert!(display.contains("large_file.json"));
+        assert!(display.contains("30s"));
+
+        // Test CancelledError
+        let cancelled_error = ValidationError::CancelledError {
+            file_path: "cancelled_file.json".to_string(),
+            reason: "user requested cancellation".to_string(),
+        };
+        let display = format!("{cancelled_error}");
+        assert!(display.contains("validation cancelled"));
+        assert!(display.contains("cancelled_file.json"));
+        assert!(display.contains("user requested cancellation"));
+
+        // Test ConfigurationError
+        let config_error = ValidationError::ConfigurationError {
+            error: "invalid timeout value".to_string(),
+        };
+        let display = format!("{config_error}");
+        assert!(display.contains("validation configuration error"));
+        assert!(display.contains("invalid timeout value"));
+
+        // Test InternalError
+        let internal_error = ValidationError::InternalError {
+            error: "unexpected internal state".to_string(),
+        };
+        let display = format!("{internal_error}");
+        assert!(display.contains("internal validation error"));
+        assert!(display.contains("unexpected internal state"));
+    }
+
+    #[test]
+    fn test_error_conversion_to_tracking_error() {
+        // Test ValidationError to TrackingError conversion
+        let validation_error = ValidationError::FileAccessError {
+            file_path: "test.json".to_string(),
+            error: "file not found".to_string(),
+        };
+        let tracking_error: TrackingError = validation_error.into();
+        match tracking_error {
+            TrackingError::ExportError(msg) => {
+                assert!(msg.contains("file access error"));
+                assert!(msg.contains("test.json"));
+            }
+            _ => panic!("Expected ExportError variant"),
+        }
+
+        // Test ExportError to TrackingError conversion
+        let export_error = ExportError::DataQualityError {
+            validation_type: ValidationType::DataIntegrity,
+            expected: "valid data".to_string(),
+            actual: "corrupted data".to_string(),
+            affected_records: 50,
+        };
+        let tracking_error: TrackingError = export_error.into();
+        match tracking_error {
+            TrackingError::ExportError(msg) => {
+                assert!(msg.contains("data quality error"));
+                assert!(msg.contains("DataIntegrity"));
+            }
+            _ => panic!("Expected ExportError variant"),
+        }
+    }
+
+    #[test]
+    fn test_enum_variants_equality() {
+        // Test ResourceType equality
+        assert_eq!(ResourceType::Memory, ResourceType::Memory);
+        assert_ne!(ResourceType::Memory, ResourceType::Disk);
+
+        // Test ValidationType equality and hash
+        use std::collections::HashMap;
+        let mut validation_map = HashMap::new();
+        validation_map.insert(ValidationType::JsonStructure, 1);
+        validation_map.insert(ValidationType::DataIntegrity, 2);
+        assert_eq!(validation_map.get(&ValidationType::JsonStructure), Some(&1));
+        assert_eq!(validation_map.get(&ValidationType::DataIntegrity), Some(&2));
+
+        // Test PerformanceMetric equality
+        assert_eq!(PerformanceMetric::ExportTime, PerformanceMetric::ExportTime);
+        assert_ne!(PerformanceMetric::ExportTime, PerformanceMetric::MemoryUsage);
+
+        // Test ExportStage equality
+        assert_eq!(ExportStage::Initialization, ExportStage::Initialization);
+        assert_ne!(ExportStage::Initialization, ExportStage::Writing);
+
+        // Test ConflictType equality
+        assert_eq!(ConflictType::LockContention, ConflictType::LockContention);
+        assert_ne!(ConflictType::LockContention, ConflictType::DataRace);
+
+        // Test CorruptionType equality
+        assert_eq!(CorruptionType::IncompleteData, CorruptionType::IncompleteData);
+        assert_ne!(CorruptionType::IncompleteData, CorruptionType::InvalidFormat);
+    }
+
+    #[test]
+    fn test_performance_logger_different_log_levels() {
+        // Test Error level logging
+        let error_logger = PerformanceLogger::new(LogLevel::Error);
+        assert!(error_logger.should_log(LogLevel::Error));
+        assert!(!error_logger.should_log(LogLevel::Warn));
+        assert!(!error_logger.should_log(LogLevel::Info));
+
+        // Test Warn level logging
+        let warn_logger = PerformanceLogger::new(LogLevel::Warn);
+        assert!(warn_logger.should_log(LogLevel::Error));
+        assert!(warn_logger.should_log(LogLevel::Warn));
+        assert!(!warn_logger.should_log(LogLevel::Info));
+
+        // Test Info level logging
+        let info_logger = PerformanceLogger::new(LogLevel::Info);
+        assert!(info_logger.should_log(LogLevel::Error));
+        assert!(info_logger.should_log(LogLevel::Warn));
+        assert!(info_logger.should_log(LogLevel::Info));
+        assert!(!info_logger.should_log(LogLevel::Debug));
+
+        // Test Debug level logging
+        let debug_logger = PerformanceLogger::new(LogLevel::Debug);
+        assert!(debug_logger.should_log(LogLevel::Error));
+        assert!(debug_logger.should_log(LogLevel::Warn));
+        assert!(debug_logger.should_log(LogLevel::Info));
+        assert!(debug_logger.should_log(LogLevel::Debug));
+        assert!(!debug_logger.should_log(LogLevel::Trace));
+
+        // Test Trace level logging
+        let trace_logger = PerformanceLogger::new(LogLevel::Trace);
+        assert!(trace_logger.should_log(LogLevel::Error));
+        assert!(trace_logger.should_log(LogLevel::Warn));
+        assert!(trace_logger.should_log(LogLevel::Info));
+        assert!(trace_logger.should_log(LogLevel::Debug));
+        assert!(trace_logger.should_log(LogLevel::Trace));
+    }
+
+    #[test]
+    fn test_performance_logger_error_statistics() {
+        let logger = PerformanceLogger::new(LogLevel::Debug);
+
+        // Test different error types
+        let parallel_error = ExportError::ParallelProcessingError {
+            shard_index: 1,
+            thread_id: "thread-1".to_string(),
+            error_message: "test error".to_string(),
+            partial_results: None,
+        };
+        logger.log_operation_failure("test_op", &parallel_error, Duration::from_millis(50));
+
+        let resource_error = ExportError::ResourceLimitExceeded {
+            resource_type: ResourceType::Memory,
+            limit: 1000,
+            actual: 1500,
+            suggested_action: "reduce usage".to_string(),
+        };
+        logger.log_operation_failure("test_op2", &resource_error, Duration::from_millis(25));
+
+        let report = logger.generate_performance_report();
+        assert_eq!(report.failed_operations, 2);
+        assert_eq!(report.error_breakdown.parallel_processing_errors, 1);
+        assert_eq!(report.error_breakdown.resource_limit_errors, 1);
+        assert_eq!(report.error_breakdown.data_quality_errors, 0);
+    }
+
+    #[test]
+    fn test_performance_logger_memory_tracking() {
+        let logger = PerformanceLogger::new(LogLevel::Debug);
+
+        // Test memory usage logging
+        logger.log_memory_usage(1024 * 1024, 2048 * 1024); // 1MB current, 2MB peak
+        logger.log_memory_usage(1536 * 1024, 2048 * 1024); // 1.5MB current, 2MB peak
+        logger.log_memory_usage(512 * 1024, 3072 * 1024);  // 0.5MB current, 3MB peak (new peak)
+
+        let report = logger.generate_performance_report();
+        assert_eq!(report.current_memory_usage_mb, 0.5);
+        assert_eq!(report.peak_memory_usage_mb, 3.0);
+    }
+
+    #[test]
+    fn test_performance_logger_metric_threshold_checking() {
+        let logger = PerformanceLogger::new(LogLevel::Debug);
+
+        // Test metric without threshold
+        logger.log_performance_metric(PerformanceMetric::ExportTime, 5.0, None);
+
+        // Test metric within threshold
+        logger.log_performance_metric(PerformanceMetric::MemoryUsage, 80.0, Some(100.0));
+
+        // Test metric exceeding threshold
+        logger.log_performance_metric(PerformanceMetric::ThroughputRate, 150.0, Some(100.0));
+
+        let report = logger.generate_performance_report();
+        // Should have one performance threshold error from the last metric
+        assert_eq!(report.error_breakdown.performance_threshold_errors, 1);
+    }
+
+    #[test]
+    fn test_performance_logger_comprehensive_operations() {
+        let logger = PerformanceLogger::new(LogLevel::Info);
+
+        // Test multiple operations
+        for i in 0..5 {
+            logger.log_operation_start(&format!("operation_{}", i), "test details");
+            if i < 3 {
+                logger.log_operation_success(
+                    &format!("operation_{}", i),
+                    Duration::from_millis(100 + i as u64 * 10),
+                    "success",
+                );
+            } else {
+                let error = ExportError::DataQualityError {
+                    validation_type: ValidationType::AllocationCount,
+                    expected: "1000".to_string(),
+                    actual: "999".to_string(),
+                    affected_records: 1,
+                };
+                logger.log_operation_failure(
+                    &format!("operation_{}", i),
+                    &error,
+                    Duration::from_millis(50),
+                );
+            }
+        }
+
+        let report = logger.generate_performance_report();
+        assert_eq!(report.total_operations, 5);
+        assert_eq!(report.successful_operations, 3);
+        assert_eq!(report.failed_operations, 2);
+        assert_eq!(report.success_rate, 60.0);
+        assert!(report.average_processing_time_ms > 0.0);
+        assert_eq!(report.error_breakdown.data_quality_errors, 2);
+    }
+
+    #[test]
+    fn test_performance_logger_timestamp_formatting() {
+        let logger = PerformanceLogger::new(LogLevel::Debug);
+        
+        // Test that timestamp formatting works
+        let timestamp = logger.format_timestamp();
+        assert!(timestamp.contains("s"));
+        assert!(timestamp.len() > 0);
+    }
+
+    #[test]
+    fn test_performance_report_detailed_output() {
+        let logger = PerformanceLogger::new(LogLevel::Info);
+        
+        // Add some test data
+        logger.log_operation_start("test", "details");
+        logger.log_operation_success("test", Duration::from_millis(100), "success");
+        logger.log_memory_usage(1024 * 1024, 2048 * 1024);
+
+        let report = logger.generate_performance_report();
+        
+        // Test that the report can be printed without panicking
+        report.print_detailed_report();
+        
+        // Verify report structure
+        assert!(report.total_runtime.as_nanos() > 0);
+        assert_eq!(report.total_operations, 1);
+        assert_eq!(report.successful_operations, 1);
+        assert_eq!(report.success_rate, 100.0);
+    }
+
+    #[test]
+    fn test_resource_usage_edge_cases() {
+        // Test zero limits
+        let usage_zero_limits = ResourceUsage {
+            memory_usage: 100,
+            disk_usage: 200,
+            cpu_usage: 0.5,
+            memory_limit: 0,
+            disk_limit: 0,
+            cpu_limit: 0.0,
+        };
+        assert_eq!(usage_zero_limits.memory_usage_percentage(), 0.0);
+        assert_eq!(usage_zero_limits.disk_usage_percentage(), 0.0);
+        assert_eq!(usage_zero_limits.cpu_usage_percentage(), 50.0);
+
+        // Test maximum usage
+        let usage_max = ResourceUsage {
+            memory_usage: 1024,
+            disk_usage: 2048,
+            cpu_usage: 1.0,
+            memory_limit: 1024,
+            disk_limit: 2048,
+            cpu_limit: 1.0,
+        };
+        assert_eq!(usage_max.memory_usage_percentage(), 100.0);
+        assert_eq!(usage_max.disk_usage_percentage(), 100.0);
+        assert_eq!(usage_max.cpu_usage_percentage(), 100.0);
+
+        // Test over-usage
+        let usage_over = ResourceUsage {
+            memory_usage: 2048,
+            disk_usage: 4096,
+            cpu_usage: 1.5,
+            memory_limit: 1024,
+            disk_limit: 2048,
+            cpu_limit: 1.0,
+        };
+        assert_eq!(usage_over.memory_usage_percentage(), 200.0);
+        assert_eq!(usage_over.disk_usage_percentage(), 200.0);
+        assert_eq!(usage_over.cpu_usage_percentage(), 150.0);
+    }
+
+    #[test]
+    fn test_resource_monitor_creation() {
+        let monitor = ResourceMonitor::new(512, 1024, 75.0);
+        
+        // Test that limits are correctly converted to bytes
+        assert_eq!(monitor.memory_limit, 512 * 1024 * 1024);
+        assert_eq!(monitor.disk_limit, 1024 * 1024 * 1024);
+        assert_eq!(monitor.cpu_limit, 75.0);
+    }
+
+    #[test]
+    fn test_metrics_collector_creation() {
+        let collector = MetricsCollector::new();
+        
+        // Test initial values
+        assert_eq!(collector.total_operations.load(Ordering::Relaxed), 0);
+        assert_eq!(collector.successful_operations.load(Ordering::Relaxed), 0);
+        assert_eq!(collector.failed_operations.load(Ordering::Relaxed), 0);
+        assert_eq!(collector.total_processing_time_ms.load(Ordering::Relaxed), 0);
+        assert_eq!(collector.peak_memory_usage.load(Ordering::Relaxed), 0);
+        assert_eq!(collector.current_memory_usage.load(Ordering::Relaxed), 0);
+    }
+
+    #[test]
+    fn test_error_statistics_creation() {
+        let stats = ErrorStatistics::new();
+        
+        // Test initial values
+        assert_eq!(stats.parallel_processing_errors.load(Ordering::Relaxed), 0);
+        assert_eq!(stats.resource_limit_errors.load(Ordering::Relaxed), 0);
+        assert_eq!(stats.data_quality_errors.load(Ordering::Relaxed), 0);
+        assert_eq!(stats.performance_threshold_errors.load(Ordering::Relaxed), 0);
+        assert_eq!(stats.concurrency_conflict_errors.load(Ordering::Relaxed), 0);
+        assert_eq!(stats.data_corruption_errors.load(Ordering::Relaxed), 0);
+        assert_eq!(stats.insufficient_resources_errors.load(Ordering::Relaxed), 0);
+        assert_eq!(stats.export_interrupted_errors.load(Ordering::Relaxed), 0);
+    }
+
+    #[test]
+    fn test_all_error_types_statistics_update() {
+        let logger = PerformanceLogger::new(LogLevel::Error);
+
+        // Test all error types to ensure statistics are updated correctly
+        let errors = vec![
+            ExportError::ParallelProcessingError {
+                shard_index: 1,
+                thread_id: "thread-1".to_string(),
+                error_message: "test".to_string(),
+                partial_results: None,
+            },
+            ExportError::ResourceLimitExceeded {
+                resource_type: ResourceType::Memory,
+                limit: 1000,
+                actual: 1500,
+                suggested_action: "reduce".to_string(),
+            },
+            ExportError::DataQualityError {
+                validation_type: ValidationType::JsonStructure,
+                expected: "valid".to_string(),
+                actual: "invalid".to_string(),
+                affected_records: 1,
+            },
+            ExportError::PerformanceThresholdExceeded {
+                metric: PerformanceMetric::ExportTime,
+                threshold: 10.0,
+                actual: 15.0,
+                stage: ExportStage::Writing,
+            },
+            ExportError::ConcurrencyConflict {
+                operation: "test".to_string(),
+                conflict_type: ConflictType::LockContention,
+                retry_count: 1,
+            },
+            ExportError::DataCorruption {
+                corruption_type: CorruptionType::ChecksumMismatch,
+                affected_data: "test.json".to_string(),
+                recovery_possible: true,
+            },
+            ExportError::InsufficientResources {
+                required_memory: 2048,
+                available_memory: 1024,
+                required_disk: 4096,
+                available_disk: 2048,
+            },
+            ExportError::ExportInterrupted {
+                stage: ExportStage::Finalization,
+                progress_percentage: 90.0,
+                partial_output_path: None,
+            },
+        ];
+
+        for (i, error) in errors.iter().enumerate() {
+            logger.log_operation_failure(&format!("op_{}", i), error, Duration::from_millis(10));
+        }
+
+        let report = logger.generate_performance_report();
+        let breakdown = &report.error_breakdown;
+        
+        assert_eq!(breakdown.parallel_processing_errors, 1);
+        assert_eq!(breakdown.resource_limit_errors, 1);
+        assert_eq!(breakdown.data_quality_errors, 1);
+        assert_eq!(breakdown.performance_threshold_errors, 1);
+        assert_eq!(breakdown.concurrency_conflict_errors, 1);
+        assert_eq!(breakdown.data_corruption_errors, 1);
+        assert_eq!(breakdown.insufficient_resources_errors, 1);
+        assert_eq!(breakdown.export_interrupted_errors, 1);
+        assert_eq!(report.failed_operations, 8);
+    }
+
+    #[test]
+    fn test_log_level_equality() {
+        assert_eq!(LogLevel::Error, LogLevel::Error);
+        assert_ne!(LogLevel::Error, LogLevel::Warn);
+        assert_eq!(LogLevel::Info, LogLevel::Info);
+        assert_ne!(LogLevel::Debug, LogLevel::Trace);
+    }
+
+    #[test]
+    fn test_export_error_with_partial_results() {
+        let error = ExportError::ParallelProcessingError {
+            shard_index: 2,
+            thread_id: "thread-2".to_string(),
+            error_message: "partial failure".to_string(),
+            partial_results: Some(vec![1, 2, 3, 4, 5]),
+        };
+
+        // Test that error can be created with partial results
+        match error {
+            ExportError::ParallelProcessingError { partial_results, .. } => {
+                assert!(partial_results.is_some());
+                assert_eq!(partial_results.unwrap(), vec![1, 2, 3, 4, 5]);
+            }
+            _ => panic!("Expected ParallelProcessingError"),
+        }
+    }
+
+    #[test]
+    fn test_performance_logger_warning_and_debug_logging() {
+        let logger = PerformanceLogger::new(LogLevel::Debug);
+
+        // Test warning logging
+        logger.log_warning("This is a test warning");
+
+        // Test debug logging
+        logger.log_debug("This is a test debug message");
+
+        // Test error logging
+        let error = ExportError::DataCorruption {
+            corruption_type: CorruptionType::StructuralDamage,
+            affected_data: "critical_data.json".to_string(),
+            recovery_possible: false,
+        };
+        logger.log_error(&error);
+
+        let report = logger.generate_performance_report();
+        assert_eq!(report.error_breakdown.data_corruption_errors, 1);
     }
 }
