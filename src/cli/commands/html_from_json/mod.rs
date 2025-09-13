@@ -361,7 +361,9 @@ fn load_json_files_with_logging(
     let has_large_files = valid_files
         .iter()
         .any(|(_, _, size)| *size > 20 * 1024 * 1024);
-    let use_parallel = valid_files.len() >= 3 || total_size >= 10 * 1024 * 1024 || has_large_files;
+    // 🔥 Emergency fix: Disable parallel processing to resolve SIGABRT memory crash
+    // Simply worth a fortune
+    let use_parallel = false; // valid_files.len() >= 3 || total_size >= 10 * 1024 * 1024 || has_large_files;
 
     if use_parallel {
         logger.info(&format!(
