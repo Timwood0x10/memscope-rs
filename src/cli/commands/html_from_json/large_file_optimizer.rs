@@ -295,17 +295,11 @@ impl LargeFileOptimizer {
         self.memory_monitor
             .allocate(self.config.stream_chunk_size)?;
 
-        // For streaming, we'll read the JSON in chunks and validate structure
-        let mut buffer = String::new();
-        reader
-            .read_to_string(&mut buffer)
-            .map_err(LargeFileError::IoError)?;
+        // For streaming, use serde_json's streaming parser directly from BufReader
+        // 避免将整个文件读入内存
 
-        // Track memory for the buffer
-        self.memory_monitor.allocate(buffer.len())?;
-
-        // Parse JSON with streaming deserializer for validation
-        let json_value: Value = serde_json::from_str(&buffer)
+        // Parse JSON directly from BufReader - 流式解析，避免内存峰值
+        let json_value: Value = serde_json::from_reader(reader)
             .map_err(|e| LargeFileError::StreamingParseError(e.to_string()))?;
 
         // Validate JSON structure
@@ -314,8 +308,7 @@ impl LargeFileOptimizer {
         // Count objects processed (simplified)
         let objects_processed = self.count_json_objects(&json_value);
 
-        // Clean up memory tracking
-        self.memory_monitor.deallocate(buffer.len());
+        // Clean up memory tracking  
         self.memory_monitor
             .deallocate(self.config.stream_chunk_size);
 
@@ -328,13 +321,15 @@ impl LargeFileOptimizer {
         file_path: P,
         file_type: &str,
     ) -> Result<(Value, usize), LargeFileError> {
-        // Read file with memory tracking
-        let content = std::fs::read_to_string(file_path).map_err(LargeFileError::IoError)?;
+        // 使用流式读取避免内存峰值
+        let file = File::open(file_path).map_err(LargeFileError::IoError)?;
+        let reader = BufReader::new(file);
+        
+        // Track memory for reader buffer
+        self.memory_monitor.allocate(8192)?; // BufReader默认缓冲区大小
 
-        self.memory_monitor.allocate(content.len())?;
-
-        // Parse JSON
-        let json_value: Value = serde_json::from_str(&content)
+        // Parse JSON directly from reader
+        let json_value: Value = serde_json::from_reader(reader)
             .map_err(|e| LargeFileError::StreamingParseError(e.to_string()))?;
 
         // Validate structure
@@ -344,7 +339,7 @@ impl LargeFileOptimizer {
         let objects_processed = self.count_json_objects(&json_value);
 
         // Clean up memory tracking
-        self.memory_monitor.deallocate(content.len());
+        self.memory_monitor.deallocate(8192);
 
         Ok((json_value, objects_processed))
     }

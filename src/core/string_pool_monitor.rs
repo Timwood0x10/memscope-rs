@@ -270,7 +270,7 @@ impl StringPoolMonitor {
         // Pool overhead: HashMap structure + DashMap overhead
         let pool_overhead = total_unique_strings * 64; // Rough estimate
 
-        let efficiency_ratio = if memory_without_interning > 0 {
+        let efficiency_ratio: f64 = if memory_without_interning > 0 {
             1.0 - (memory_with_interning as f64 / memory_without_interning as f64)
         } else {
             0.0

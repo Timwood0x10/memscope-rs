@@ -8,7 +8,8 @@ use rayon::prelude::*;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::error::Error;
-use std::fs;
+use std::fs::{self, File};
+use std::io::BufReader;
 use std::path::Path;
 use std::time::Instant;
 
@@ -265,6 +266,16 @@ pub struct JsonLoadStats {
 
 /// Collection of JSON data from different analysis files
 type JsonDataCollection = HashMap<String, Value>;
+
+/// 流式加载JSON文件，避免内存峰值
+fn load_json_streaming_safe(file_path: &str) -> Result<Value, Box<dyn Error>> {
+    let file = File::open(file_path)?;
+    let reader = BufReader::new(file);
+    
+    // 使用serde_json的流式API，直接从BufReader读取，避免一次性加载到内存
+    let json_value: Value = serde_json::from_reader(reader)?;
+    Ok(json_value)
+}
 
 /// Optimized JSON file loader with parallel processing and monitoring
 fn load_json_files_with_logging(
@@ -611,14 +622,12 @@ fn load_single_file_internal(
             }
         }
     } else {
-        // Use standard processing for smaller files with error handling
-        match std::fs::read_to_string(file_path) {
-            Ok(content) => {
-                match serde_json::from_str::<Value>(&content) {
-                    Ok(json_value) => {
-                        // Validate JSON structure
-                        if let Err(validation_error) =
-                            validate_json_structure(&json_value, config.suffix)
+        // Use standard processing for smaller files with STREAMING to avoid memory spikes
+        match load_json_streaming_safe(file_path) {
+            Ok(json_value) => {
+                // Validate JSON structure
+                if let Err(validation_error) =
+                    validate_json_structure(&json_value, config.suffix)
                         {
                             let validation_err = error_handler.handle_validation_error(
                                 std::path::PathBuf::from(file_path),
@@ -650,36 +659,35 @@ fn load_single_file_internal(
                             } else {
                                 Err(validation_err.into())
                             }
-                        } else {
-                            Ok(JsonLoadResult {
-                                suffix: config.suffix.to_string(),
-                                success: true,
-                                data: Some(json_value),
-                                error: None,
-                                file_size,
-                                load_time_ms: start_time.elapsed().as_millis() as u64,
-                            })
-                        }
-                    }
-                    Err(e) => {
-                        let parsing_err = error_handler.handle_json_parsing_error(
-                            std::path::PathBuf::from(file_path),
-                            &e.to_string(),
-                        );
-
-                        tracing::error!("{}", parsing_err);
-                        Err(parsing_err.into())
-                    }
+                } else {
+                    Ok(JsonLoadResult {
+                        suffix: config.suffix.to_string(),
+                        success: true,
+                        data: Some(json_value),
+                        error: None,
+                        file_size,
+                        load_time_ms: start_time.elapsed().as_millis() as u64,
+                    })
                 }
             }
             Err(e) => {
-                // Handle file reading error with recovery
+                // Handle JSON loading/parsing error with recovery
+                let parsing_err = error_handler.handle_json_parsing_error(
+                    std::path::PathBuf::from(file_path),
+                    &e.to_string(),
+                );
+
+                tracing::error!("{}", parsing_err);
+                
+                // Try recovery
                 let file_path_buf = std::path::PathBuf::from(file_path);
+                let error_msg = e.to_string();
+                let simple_error = std::io::Error::new(std::io::ErrorKind::Other, error_msg);
                 match error_handler.handle_file_loading_error(
                     file_path_buf,
                     config.suffix,
                     file_size,
-                    Box::new(e),
+                    Box::new(simple_error),
                 ) {
                     Ok(Some(recovered_data)) => {
                         tracing::info!("✅ Recovered data for {} using fallback", config.suffix);
@@ -756,49 +764,37 @@ fn load_single_file(config: &JsonFileConfig, file_path: &str, file_size: usize) 
             },
         }
     } else {
-        // Use standard processing for smaller files
-        match fs::read_to_string(file_path) {
-            Ok(content) => {
-                match serde_json::from_str::<Value>(&content) {
-                    Ok(json_value) => {
-                        // validate JSON structure
-                        if let Err(validation_error) =
-                            validate_json_structure(&json_value, config.suffix)
-                        {
-                            JsonLoadResult {
-                                suffix: config.suffix.to_string(),
-                                success: false,
-                                data: None,
-                                error: Some(format!("Validation error: {validation_error}")),
-                                file_size,
-                                load_time_ms: start_time.elapsed().as_millis() as u64,
-                            }
-                        } else {
-                            JsonLoadResult {
-                                suffix: config.suffix.to_string(),
-                                success: true,
-                                data: Some(json_value),
-                                error: None,
-                                file_size,
-                                load_time_ms: start_time.elapsed().as_millis() as u64,
-                            }
-                        }
-                    }
-                    Err(e) => JsonLoadResult {
+        // Use standard processing for smaller files with STREAMING
+        match load_json_streaming_safe(file_path) {
+            Ok(json_value) => {
+                // validate JSON structure
+                if let Err(validation_error) =
+                    validate_json_structure(&json_value, config.suffix)
+                {
+                    JsonLoadResult {
                         suffix: config.suffix.to_string(),
                         success: false,
                         data: None,
-                        error: Some(format!("JSON parsing error: {e}")),
+                        error: Some(format!("Validation error: {validation_error}")),
                         file_size,
                         load_time_ms: start_time.elapsed().as_millis() as u64,
-                    },
+                    }
+                } else {
+                    JsonLoadResult {
+                        suffix: config.suffix.to_string(),
+                        success: true,
+                        data: Some(json_value),
+                        error: None,
+                        file_size,
+                        load_time_ms: start_time.elapsed().as_millis() as u64,
+                    }
                 }
             }
             Err(e) => JsonLoadResult {
                 suffix: config.suffix.to_string(),
                 success: false,
                 data: None,
-                error: Some(format!("File read error: {e}")),
+                error: Some(format!("JSON loading error: {e}")),
                 file_size,
                 load_time_ms: start_time.elapsed().as_millis() as u64,
             },

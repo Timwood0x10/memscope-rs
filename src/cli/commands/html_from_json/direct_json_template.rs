@@ -62,17 +62,6 @@ pub fn generate_direct_html(json_data: &HashMap<String, Value>) -> Result<String
         "./templates/clean_dashboard.html",
         "../templates/clean_dashboard.html",
         "../../templates/clean_dashboard.html",
-        // Fallbacks (kept for safety)
-        "templates/dashboard.html",
-        "./templates/dashboard.html",
-        "../templates/dashboard.html",
-        "../../templates/dashboard.html",
-        "templates/dashboard_self_contained.html",
-        "./templates/dashboard_self_contained.html",
-        "../templates/dashboard_self_contained.html",
-        "../../templates/dashboard_self_contained.html",
-        "simple_report.html",
-        "./simple_report.html",
     ];
 
     let css_paths = [
@@ -87,10 +76,6 @@ pub fn generate_direct_html(json_data: &HashMap<String, Value>) -> Result<String
         "./templates/script.js",
         "../templates/script.js",
         "../../templates/script.js",
-        "templates/dashboard.js",
-        "./templates/dashboard.js",
-        "../templates/dashboard.js",
-        "../../templates/dashboard.js",
     ];
 
     let template_content = template_paths
@@ -544,17 +529,18 @@ fn analyze_memory_growth_trends(allocations: &[Value]) -> Value {
     let time_span = if time_points.len() > 1 {
         let start_time = time_points[0]
             .get("timestamp")
-            .expect("Failed to get element from collection")
-            .as_u64()
-            .expect("Failed to convert to u64");
+            .and_then(|t| t.as_u64())
+            .unwrap_or(0);
         let end_time = time_points
             .last()
-            .expect("Operation failed")
-            .get("timestamp")
-            .expect("Operation failed")
-            .as_u64()
-            .expect("Operation failed");
-        (end_time - start_time) / 1_000_000_000 // Convert to seconds
+            .and_then(|p| p.get("timestamp"))
+            .and_then(|t| t.as_u64())
+            .unwrap_or(0);
+        if end_time > start_time {
+            (end_time - start_time) / 1_000_000_000 // Convert to seconds
+        } else {
+            1
+        }
     } else {
         1
     };

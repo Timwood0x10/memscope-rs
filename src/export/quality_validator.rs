@@ -4266,7 +4266,7 @@ mod tests {
     fn test_streaming_json_stats_calculations() {
         // Test stats calculations without importing private module
         // This test validates the calculation logic conceptually
-        let bytes_written = 1000u64;
+        let _bytes_written = 1000u64;
         let allocations_written = 10u64;
         let total_write_time_us = 1000u64;
         let fields_skipped = 50u64;

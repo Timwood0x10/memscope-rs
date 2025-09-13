@@ -93,6 +93,293 @@
     --status-red-accent: #f87171;
 }
 
+/* Unsafe/FFI Cross-Boundary Swimlane Styles */
+.unsafe-ffi-swimlane-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 2rem;
+    margin-bottom: 1.5rem;
+}
+
+.unsafe-ffi-filter-controls {
+    display: flex;
+    align-items: center;
+}
+
+.unsafe-ffi-filter-tabs {
+    display: flex;
+    gap: 0.25rem;
+    background: var(--bg-secondary);
+    padding: 0.25rem;
+    border-radius: 8px;
+    border: 1px solid var(--card-border);
+}
+
+.unsafe-ffi-filter-tab {
+    padding: 0.4rem 0.8rem;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    font-weight: 500;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    user-select: none;
+}
+
+.unsafe-ffi-filter-tab:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.unsafe-ffi-filter-tab.active {
+    background: var(--status-blue-accent);
+    color: white;
+    box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+}
+
+.unsafe-ffi-filter-tab span {
+    font-weight: 700;
+}
+
+.unsafe-ffi-territories {
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    border: 1px solid var(--card-border);
+    overflow: hidden;
+}
+
+.unsafe-ffi-territory {
+    position: relative;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    padding: 0 1.5rem;
+    border-bottom: 1px solid var(--card-border);
+}
+
+.unsafe-ffi-territory::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 4px;
+    height: 100%;
+}
+
+.rust-territory {
+    background: linear-gradient(135deg, rgba(255, 107, 71, 0.1) 0%, rgba(255, 107, 71, 0.05) 100%);
+}
+
+.rust-territory::before {
+    background: #ff6b47;
+    box-shadow: 0 0 10px rgba(255, 107, 71, 0.3);
+}
+
+.ffi-territory {
+    background: linear-gradient(135deg, rgba(74, 158, 255, 0.1) 0%, rgba(74, 158, 255, 0.05) 100%);
+}
+
+.ffi-territory::before {
+    background: #4a9eff;
+    box-shadow: 0 0 10px rgba(74, 158, 255, 0.3);
+}
+
+.unsafe-ffi-territory-label {
+    font-size: 1.1rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: var(--text-primary);
+}
+
+.unsafe-ffi-territory-icon {
+    font-size: 1.5rem;
+    filter: drop-shadow(0 0 6px currentColor);
+}
+
+.unsafe-ffi-timeline-container {
+    height: 300px;
+    position: relative;
+    background: var(--bg-primary);
+    border-top: 1px solid var(--card-border);
+    border-bottom: 1px solid var(--card-border);
+}
+
+.unsafe-ffi-timeline-svg {
+    width: 100%;
+    height: 100%;
+}
+
+.unsafe-ffi-legend {
+    padding: 1rem 1.5rem;
+    background: var(--card-bg);
+    display: flex;
+    justify-content: center;
+    gap: 2rem;
+    flex-wrap: wrap;
+}
+
+.unsafe-ffi-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.unsafe-ffi-legend-symbol {
+    font-size: 1rem;
+    font-weight: bold;
+    filter: drop-shadow(0 0 3px currentColor);
+}
+
+/* Unsafe/FFI Timeline Elements */
+.unsafe-ffi-grid-line {
+    stroke: var(--card-border);
+    stroke-width: 1;
+    opacity: 0.3;
+}
+
+.unsafe-ffi-time-axis {
+    font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 10px;
+    fill: var(--text-secondary);
+}
+
+.unsafe-ffi-event-node {
+    cursor: pointer;
+    transition: filter 0.2s ease;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2));
+    pointer-events: all;
+    user-select: none;
+}
+
+.unsafe-ffi-event-node:hover {
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)) drop-shadow(0 0 4px currentColor);
+}
+
+.unsafe-ffi-lifecycle-path {
+    fill: none;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.unsafe-ffi-lifecycle-path:hover {
+    filter: drop-shadow(0 0 6px currentColor);
+}
+
+/* Memory Passport for Unsafe/FFI */
+.unsafe-ffi-memory-passport {
+    position: fixed;
+    background: var(--detail-panel-bg);
+    box-shadow: var(--detail-panel-shadow);
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
+    padding: 0;
+    max-width: 500px;
+    max-height: 70vh;
+    overflow: hidden;
+    z-index: 1000;
+    animation: passportSlideIn 0.3s ease-out;
+}
+
+@keyframes passportSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.unsafe-ffi-passport-header {
+    background: var(--card-bg);
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--card-border);
+    font-size: 1.1rem;
+    font-weight: 600;
+    position: relative;
+    cursor: move;
+    user-select: none;
+}
+
+.unsafe-ffi-passport-close {
+    position: absolute;
+    top: 0.75rem;
+    right: 1rem;
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: color 0.2s ease;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.unsafe-ffi-passport-close:hover {
+    color: var(--status-red-accent);
+    background: var(--status-red-bg);
+}
+
+.unsafe-ffi-passport-section {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--card-border);
+}
+
+.unsafe-ffi-passport-section:last-child {
+    border-bottom: none;
+}
+
+.unsafe-ffi-passport-section h4 {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.75rem;
+    font-weight: 600;
+}
+
+.unsafe-ffi-info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    line-height: 1.4;
+}
+
+.unsafe-ffi-lifecycle-event {
+    background: var(--bg-secondary);
+    padding: 0.75rem;
+    margin: 0.5rem 0;
+    border-radius: 6px;
+    border-left: 3px solid var(--status-blue-accent);
+    font-size: 0.85rem;
+    line-height: 1.5;
+    transition: all 0.2s ease;
+}
+
+.unsafe-ffi-lifecycle-event:hover {
+    background: var(--bg-tertiary);
+    transform: translateX(2px);
+}
+
+.unsafe-ffi-event-allocation { border-left-color: #ff6b47; }
+.unsafe-ffi-event-boundary { border-left-color: #00d4aa; }
+.unsafe-ffi-event-dealloc { border-left-color: #00d4aa; }
+.unsafe-ffi-event-risk { border-left-color: #ff4757; }
+
 /* Detail Panel Styles */
 .node-detail-panel {
     background: var(--detail-panel-bg);
@@ -1082,6 +1369,466 @@ rn Variable Graph Styles */
     
     console.log('Final analysisData:', window.analysisData);
     console.log('Allocations available:', window.analysisData?.memory_analysis?.allocations?.length || 0);
+
+    // Unsafe/FFI Cross-Boundary Analysis
+    let unsafeFfiCurrentFilter = 'problems';
+    let unsafeFfiAllData = [];
+
+    function initializeUnsafeFfiVisualization() {
+        // Extract unsafe/FFI data from analysisData
+        const allocations = window.analysisData?.memory_analysis?.allocations || [];
+        
+        // Transform data for unsafe/FFI analysis
+        unsafeFfiAllData = allocations.map(alloc => ({
+            ptr: alloc.ptr,
+            size: alloc.size,
+            var_name: alloc.var_name,
+            type_name: alloc.type_name,
+            timestamp_alloc: alloc.timestamp_alloc || Date.now() * 1000000,
+            timestamp_dealloc: alloc.timestamp_dealloc,
+            is_leaked: !alloc.timestamp_dealloc && alloc.lifetime_ms === null,
+            ffi_tracked: alloc.type_name && (alloc.type_name.includes('*') || alloc.type_name.includes('ffi')),
+            thread_id: `ThreadId(${Math.floor(Math.random() * 4) + 1})`,
+            source: detectSource(alloc),
+            cross_boundary_events: generateBoundaryEvents(alloc)
+        }));
+
+        updateUnsafeFfiStats(unsafeFfiAllData);
+        setupUnsafeFfiFilterControls();
+        
+        const filteredData = applyUnsafeFfiFilter(unsafeFfiCurrentFilter, unsafeFfiAllData);
+        renderUnsafeFfiTimeline(filteredData);
+    }
+
+    function detectSource(alloc) {
+        if (alloc.type_name && alloc.type_name.includes('*')) {
+            return Math.random() < 0.3 ? 'UnsafeRust' : 'FfiC';
+        }
+        return null;
+    }
+
+    function generateBoundaryEvents(alloc) {
+        if (Math.random() < 0.2) { // 20% have boundary events
+            return [{
+                event_type: Math.random() < 0.5 ? 'FfiToRust' : 'RustToFfi',
+                timestamp: (alloc.timestamp_alloc + 500000) / 1000000,
+                from_context: 'context_a',
+                to_context: 'context_b'
+            }];
+        }
+        return null;
+    }
+
+    function updateUnsafeFfiStats(data) {
+        const problemCount = data.filter(d => {
+            return d.is_leaked || 
+                   (d.source === 'UnsafeRust') || 
+                   (!d.timestamp_dealloc) ||
+                   (d.cross_boundary_events && d.cross_boundary_events.length > 0);
+        }).length;
+        
+        const ffiCount = data.filter(d => d.ffi_tracked).length;
+        
+        document.getElementById('unsafe-problem-count').textContent = problemCount;
+        document.getElementById('unsafe-ffi-count').textContent = ffiCount;
+        document.getElementById('unsafe-total-count').textContent = data.length;
+    }
+
+    function applyUnsafeFfiFilter(filterType, data) {
+        switch(filterType) {
+            case 'problems':
+                return data.filter(d => {
+                    return d.is_leaked || 
+                           (d.source === 'UnsafeRust') || 
+                           (!d.timestamp_dealloc) ||
+                           (d.cross_boundary_events && d.cross_boundary_events.length > 0);
+                });
+            case 'ffi':
+                return data.filter(d => d.ffi_tracked);
+            case 'unsafe':
+                return data.filter(d => d.source === 'UnsafeRust');
+            case 'ffi-c':
+                return data.filter(d => d.source === 'FfiC');
+            case 'all':
+            default:
+                return data;
+        }
+    }
+
+    function setupUnsafeFfiFilterControls() {
+        const filterTabs = document.querySelectorAll('.unsafe-ffi-filter-tab');
+        
+        filterTabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                filterTabs.forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                
+                unsafeFfiCurrentFilter = tab.dataset.filter;
+                
+                const filteredData = applyUnsafeFfiFilter(unsafeFfiCurrentFilter, unsafeFfiAllData);
+                renderUnsafeFfiTimeline(filteredData);
+            });
+        });
+    }
+
+    function renderUnsafeFfiTimeline(data) {
+        const svg = d3.select('#unsafeFfiTimelineSvg');
+        const container = document.querySelector('.unsafe-ffi-timeline-container');
+        if (!container) return;
+        
+        const rect = container.getBoundingClientRect();
+        const width = rect.width;
+        const height = rect.height;
+        
+        svg.attr('viewBox', `0 0 ${width} ${height}`);
+        svg.selectAll('*').remove();
+        
+        if (data.length === 0) {
+            svg.append('text')
+                .attr('x', width / 2)
+                .attr('y', height / 2)
+                .attr('text-anchor', 'middle')
+                .attr('fill', 'var(--text-secondary)')
+                .text('No unsafe/FFI data available');
+            return;
+        }
+
+        // Calculate time range
+        const allTimestamps = [];
+        data.forEach(d => {
+            allTimestamps.push(d.timestamp_alloc);
+            if (d.timestamp_dealloc) {
+                allTimestamps.push(d.timestamp_dealloc);
+            }
+            if (d.cross_boundary_events) {
+                d.cross_boundary_events.forEach(e => {
+                    allTimestamps.push(e.timestamp * 1000000);
+                });
+            }
+        });
+        
+        const timeExtent = d3.extent(allTimestamps);
+        const timeScale = d3.scaleLinear()
+            .domain(timeExtent)
+            .range([60, width - 60]);
+        
+        // Y positions
+        const rustY = height * 0.2;
+        const centerY = height * 0.5;
+        const ffiY = height * 0.8;
+        
+        // Draw time axis
+        const timeAxis = d3.axisBottom(timeScale)
+            .ticks(6)
+            .tickFormat(d => {
+                const date = new Date(d / 1000000);
+                return date.toLocaleTimeString().slice(0, 5);
+            });
+        
+        svg.append('g')
+            .attr('class', 'unsafe-ffi-time-axis')
+            .attr('transform', `translate(0, ${height - 20})`)
+            .call(timeAxis);
+        
+        // Render memory lifecycles
+        data.forEach((memBlock, index) => {
+            renderUnsafeFfiMemoryLifecycle(svg, memBlock, timeScale, rustY, centerY, ffiY, index);
+        });
+        
+        // Show aggregation info
+        if (unsafeFfiCurrentFilter !== 'all' && data.length < unsafeFfiAllData.length) {
+            const hiddenCount = unsafeFfiAllData.length - data.length;
+            svg.append('text')
+                .attr('x', width - 200)
+                .attr('y', height - 5)
+                .attr('fill', 'var(--text-secondary)')
+                .attr('font-size', '11px')
+                .style('cursor', 'pointer')
+                .text(`${hiddenCount} more items hidden, click "Show All"`)
+                .on('click', () => {
+                    document.querySelector('[data-filter="all"]').click();
+                });
+        }
+    }
+
+    function renderUnsafeFfiMemoryLifecycle(svg, memBlock, timeScale, rustY, centerY, ffiY, index) {
+        const events = [];
+        
+        // Determine allocation position
+        let allocY = rustY; // Default to Rust domain
+        if (memBlock.source === 'FfiC') {
+            allocY = ffiY; // FFI domain
+        }
+        
+        // Allocation event
+        events.push({
+            type: 'allocation',
+            timestamp: memBlock.timestamp_alloc,
+            x: timeScale(memBlock.timestamp_alloc),
+            y: allocY,
+            sourceType: memBlock.source || 'Rust',
+            data: memBlock
+        });
+        
+        // Boundary events
+        if (memBlock.cross_boundary_events) {
+            memBlock.cross_boundary_events.forEach(event => {
+                events.push({
+                    type: 'boundary',
+                    timestamp: event.timestamp * 1000000,
+                    x: timeScale(event.timestamp * 1000000),
+                    y: centerY,
+                    boundaryType: event.event_type,
+                    boundaryData: event,
+                    data: memBlock
+                });
+            });
+        }
+        
+        // Deallocation event
+        if (memBlock.timestamp_dealloc) {
+            events.push({
+                type: 'deallocation',
+                timestamp: memBlock.timestamp_dealloc,
+                x: timeScale(memBlock.timestamp_dealloc),
+                y: allocY,
+                data: memBlock
+            });
+        }
+        
+        // Sort by time
+        events.sort((a, b) => a.timestamp - b.timestamp);
+        
+        // Draw lifecycle path
+        if (events.length > 1) {
+            const pathData = events.map(e => [e.x, e.y]);
+            const line = d3.line().curve(d3.curveMonotoneX);
+            
+            let pathColor;
+            if (!memBlock.timestamp_dealloc || memBlock.is_leaked) {
+                pathColor = '#ff4757'; // Red: leaked
+            } else if (memBlock.source === 'UnsafeRust' || (memBlock.cross_boundary_events && memBlock.cross_boundary_events.length > 0)) {
+                pathColor = '#ffb800'; // Yellow: risk
+            } else {
+                pathColor = '#00d4aa'; // Green: normal
+            }
+            
+            svg.append('path')
+                .datum(pathData)
+                .attr('class', 'unsafe-ffi-lifecycle-path')
+                .attr('d', line)
+                .attr('stroke', pathColor)
+                .attr('stroke-width', 3)
+                .attr('fill', 'none')
+                .attr('data-ptr', memBlock.ptr)
+                .on('click', function(mouseEvent) {
+                    showUnsafeFfiMemoryPassport(events[0], memBlock, mouseEvent);
+                });
+        }
+        
+        // Draw event nodes
+        events.forEach(event => {
+            let symbol, color;
+            
+            switch(event.type) {
+                case 'allocation':
+                    symbol = '●';
+                    color = event.sourceType === 'UnsafeRust' || event.sourceType === 'Rust' ? '#ff6b47' : '#4a9eff';
+                    break;
+                case 'boundary':
+                    symbol = event.boundaryType === 'FfiToRust' ? '▲' : '▼';
+                    color = event.boundaryType === 'FfiToRust' ? '#00d4aa' : '#ff4757';
+                    break;
+                case 'deallocation':
+                    symbol = '✕';
+                    color = '#a0a0a0';
+                    break;
+            }
+            
+            svg.append('text')
+                .attr('class', 'unsafe-ffi-event-node')
+                .attr('x', event.x)
+                .attr('y', event.y)
+                .attr('text-anchor', 'middle')
+                .attr('dominant-baseline', 'middle')
+                .style('font-size', '14px')
+                .style('font-weight', 'bold')
+                .style('fill', color)
+                .style('cursor', 'pointer')
+                .text(symbol)
+                .attr('data-ptr', memBlock.ptr)
+                .on('click', function(mouseEvent) {
+                    showUnsafeFfiMemoryPassport(event, memBlock, mouseEvent);
+                });
+        });
+    }
+
+    function showUnsafeFfiMemoryPassport(event, memBlock, mouseEvent) {
+        // Remove existing passport
+        const existingPassport = document.getElementById('unsafeFfiMemoryPassport');
+        if (existingPassport) {
+            existingPassport.remove();
+        }
+        
+        const passport = document.createElement('div');
+        passport.id = 'unsafeFfiMemoryPassport';
+        passport.className = 'unsafe-ffi-memory-passport';
+        passport.innerHTML = generateUnsafeFfiPassportContent(memBlock, event);
+        
+        document.body.appendChild(passport);
+        
+        // Position passport
+        const rect = mouseEvent.target.getBoundingClientRect();
+        passport.style.left = Math.min(rect.left + 20, window.innerWidth - 520) + 'px';
+        passport.style.top = Math.min(rect.top - 10, window.innerHeight - 300) + 'px';
+        
+        // Add close functionality
+        passport.querySelector('.unsafe-ffi-passport-close').onclick = () => passport.remove();
+        
+        // Make draggable
+        makeUnsafeFfiPassportDraggable(passport);
+    }
+
+    function generateUnsafeFfiPassportContent(memBlock, event) {
+        const ptr = memBlock.ptr;
+        const isLeaked = !memBlock.timestamp_dealloc;
+        
+        let status = isLeaked ? 
+            '<span style="color: #ff4757; font-weight: bold;">⚠️ Potentially Leaked</span>' :
+            '<span style="color: #00d4aa; font-weight: bold;">✅ Deallocated</span>';
+
+        let lifecycleEvents = '';
+        
+        // Allocation event
+        lifecycleEvents += `
+            <div class="unsafe-ffi-lifecycle-event unsafe-ffi-event-allocation">
+                <strong>[${memBlock.source === 'FfiC' ? 'C/FFI Domain' : 'Rust Domain'}] ${memBlock.source === 'FfiC' ? '🔵' : '🟠'} Memory Allocation</strong><br>
+                <strong>Time:</strong> ${new Date(memBlock.timestamp_alloc / 1000000).toLocaleString()}<br>
+                <strong>Size:</strong> ${memBlock.size} bytes<br>
+                <strong>Type:</strong> ${memBlock.type_name || 'Unknown'}<br>
+                <strong>Variable:</strong> ${memBlock.var_name || 'Unknown'}
+            </div>
+        `;
+
+        // Boundary events
+        if (memBlock.cross_boundary_events) {
+            memBlock.cross_boundary_events.forEach(boundaryEvent => {
+                const symbol = boundaryEvent.event_type === 'FfiToRust' ? '🔼' : '🔽';
+                const direction = boundaryEvent.event_type === 'FfiToRust' ? 'Enter Rust' : 'Pass to FFI';
+                
+                lifecycleEvents += `
+                    <div class="unsafe-ffi-lifecycle-event unsafe-ffi-event-boundary">
+                        <strong>[Cross Boundary] ${symbol} ${direction}</strong><br>
+                        <strong>Time:</strong> ${new Date(boundaryEvent.timestamp * 1000).toLocaleString()}<br>
+                        <strong>From:</strong> ${boundaryEvent.from_context}<br>
+                        <strong>To:</strong> ${boundaryEvent.to_context}<br>
+                        <strong>Ownership:</strong> ${boundaryEvent.event_type === 'FfiToRust' ? 
+                            'May transfer to Rust' : 
+                            'May transfer to FFI'}
+                    </div>
+                `;
+            });
+        }
+
+        // Deallocation event
+        if (memBlock.timestamp_dealloc) {
+            lifecycleEvents += `
+                <div class="unsafe-ffi-lifecycle-event unsafe-ffi-event-dealloc">
+                    <strong>[Deallocation] ✅ Memory Released</strong><br>
+                    <strong>Time:</strong> ${new Date(memBlock.timestamp_dealloc / 1000000).toLocaleString()}<br>
+                    <strong>Lifetime:</strong> ${((memBlock.timestamp_dealloc - memBlock.timestamp_alloc) / 1000000).toFixed(2)} ms
+                </div>
+            `;
+        } else {
+            lifecycleEvents += `
+                <div class="unsafe-ffi-lifecycle-event unsafe-ffi-event-risk">
+                    <strong>[Warning] ⚠️ No deallocation detected</strong><br>
+                    <strong>Risk:</strong> Memory may be leaked<br>
+                    <strong>Suggestion:</strong> Check memory management logic
+                </div>
+            `;
+        }
+
+        return `
+            <div class="unsafe-ffi-passport-header">
+                Memory Passport: ${ptr}
+            </div>
+            <button class="unsafe-ffi-passport-close">×</button>
+            
+            <div class="unsafe-ffi-passport-section">
+                <h4>Base Information</h4>
+                <div class="unsafe-ffi-info-grid">
+                    <div><strong>Pointer:</strong> ${ptr}</div>
+                    <div><strong>Size:</strong> ${memBlock.size} Bytes</div>
+                    <div><strong>Status:</strong> ${status}</div>
+                    <div><strong>FFI Tracked:</strong> ${memBlock.ffi_tracked ? '✅ Yes' : '❌ No'}</div>
+                    <div><strong>Thread:</strong> ${memBlock.thread_id || 'Unknown'}</div>
+                    <div><strong>Type:</strong> ${memBlock.type_name || 'Unknown'}</div>
+                </div>
+            </div>
+            
+            <div class="unsafe-ffi-passport-section">
+                <h4>Lifecycle Log</h4>
+                ${lifecycleEvents}
+            </div>
+        `;
+    }
+
+    function makeUnsafeFfiPassportDraggable(passport) {
+        const header = passport.querySelector('.unsafe-ffi-passport-header');
+        let isDragging = false;
+        let startX, startY, initialX, initialY;
+        
+        header.addEventListener('mousedown', startDrag);
+        document.addEventListener('mousemove', drag);
+        document.addEventListener('mouseup', stopDrag);
+        
+        function startDrag(e) {
+            if (e.target.classList.contains('unsafe-ffi-passport-close')) return;
+            
+            isDragging = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            
+            const rect = passport.getBoundingClientRect();
+            initialX = rect.left;
+            initialY = rect.top;
+            
+            e.preventDefault();
+        }
+        
+        function drag(e) {
+            if (!isDragging) return;
+            
+            const deltaX = e.clientX - startX;
+            const deltaY = e.clientY - startY;
+            
+            let newX = initialX + deltaX;
+            let newY = initialY + deltaY;
+            
+            // Boundary check
+            const passportRect = passport.getBoundingClientRect();
+            const minX = -passportRect.width + 100;
+            const maxX = window.innerWidth - 100;
+            const minY = 0;
+            const maxY = window.innerHeight - 100;
+            
+            newX = Math.max(minX, Math.min(maxX, newX));
+            newY = Math.max(minY, Math.min(maxY, newY));
+            
+            passport.style.left = newX + 'px';
+            passport.style.top = newY + 'px';
+        }
+        
+        function stopDrag() {
+            isDragging = false;
+        }
+    }
+
+    // Initialize unsafe/FFI visualization when data is available
+    if (window.analysisData) {
+        setTimeout(initializeUnsafeFfiVisualization, 1000);
+    }
   </script>
 </head>
 <body>
@@ -1182,6 +1929,81 @@ rn Variable Graph Styles */
           <button id="refreshTimelineChart" style="margin-left: auto; background: var(--primary-blue); color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 10px; cursor: pointer;" onclick="refreshMemoryTimeline()">
             <i class="fa fa-refresh"></i> Refresh
           </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Unsafe/FFI Cross-Boundary Swimlane Diagram (Full Width) -->
+    <section class="card">
+      <div class="unsafe-ffi-swimlane-header">
+        <div>
+          <h2><i class="fa fa-shield"></i> Unsafe/FFI Cross-Boundary Analysis</h2>
+          <p style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 4px;">
+            Track memory lifecycle across Rust safety and C/FFI boundaries
+          </p>
+        </div>
+        <!-- Interactive Filter Controls -->
+        <div class="unsafe-ffi-filter-controls">
+          <div class="unsafe-ffi-filter-tabs">
+            <button class="unsafe-ffi-filter-tab active" data-filter="problems">
+              ❗ Leaks & Risks (<span id="unsafe-problem-count">0</span>)
+            </button>
+            <button class="unsafe-ffi-filter-tab" data-filter="ffi">
+              🔗 FFI Tracked (<span id="unsafe-ffi-count">0</span>)
+            </button>
+            <button class="unsafe-ffi-filter-tab" data-filter="unsafe">
+              🦀 Unsafe Rust
+            </button>
+            <button class="unsafe-ffi-filter-tab" data-filter="ffi-c">
+              ⚙️ FFI C Alloc
+            </button>
+            <button class="unsafe-ffi-filter-tab" data-filter="all">
+              ✨ Show All (<span id="unsafe-total-count">0</span>)
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="unsafe-ffi-territories">
+        <div class="unsafe-ffi-territory rust-territory">
+          <div class="unsafe-ffi-territory-label">
+            <span class="unsafe-ffi-territory-icon">🦀</span>
+            <span>Rust Safety Domain</span>
+          </div>
+        </div>
+
+        <div class="unsafe-ffi-timeline-container">
+          <svg class="unsafe-ffi-timeline-svg" id="unsafeFfiTimelineSvg"></svg>
+        </div>
+
+        <div class="unsafe-ffi-territory ffi-territory">
+          <div class="unsafe-ffi-territory-label">
+            <span class="unsafe-ffi-territory-icon">⚡</span>
+            <span>C/FFI Domain</span>
+          </div>
+        </div>
+
+        <div class="unsafe-ffi-legend">
+          <div class="unsafe-ffi-legend-item">
+            <span class="unsafe-ffi-legend-symbol" style="color: #ff6b47;">●</span>
+            <span>Rust Allocation</span>
+          </div>
+          <div class="unsafe-ffi-legend-item">
+            <span class="unsafe-ffi-legend-symbol" style="color: #4a9eff;">●</span>
+            <span>FFI C Allocation</span>
+          </div>
+          <div class="unsafe-ffi-legend-item">
+            <span class="unsafe-ffi-legend-symbol" style="color: #00d4aa;">▲</span>
+            <span>FFI to Rust</span>
+          </div>
+          <div class="unsafe-ffi-legend-item">
+            <span class="unsafe-ffi-legend-symbol" style="color: #ff4757;">▼</span>
+            <span>Rust to FFI</span>
+          </div>
+          <div class="unsafe-ffi-legend-item">
+            <span class="unsafe-ffi-legend-symbol" style="color: #a0a0a0;">✕</span>
+            <span>Deallocation</span>
+          </div>
         </div>
       </div>
     </section>
@@ -1623,16 +2445,73 @@ rn Variable Graph Styles */
         
       </div>
       
-      <!-- FFI Data Flow Visualization -->
+      <!-- Unsafe/FFI Cross-Boundary Swimlane Diagram -->
       <div style="margin-top: 16px; background: var(--bg-primary); padding: 16px; border-radius: 8px; border-left: 4px solid #06b6d4;">
-        <h4 style="margin: 0 0 12px 0; color: #06b6d4; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
-          <i class="fa fa-sitemap"></i> FFI Data Flow
-        </h4>
-        <div id="ffiVisualization" style="min-height: 200px; border: 2px solid var(--border-light); border-radius: 6px; background: linear-gradient(135deg, var(--bg-secondary) 0%, rgba(255,255,255,0.1) 100%); padding: 16px;">
-          <div style="text-align: center; color: var(--text-secondary); padding: 60px 0;">
-            <i class="fa fa-info-circle" style="font-size: 24px; margin-bottom: 8px; opacity: 0.5;"></i>
-            <div style="font-size: 12px;">No FFI interactions detected</div>
-            <div style="font-size: 10px; margin-top: 4px; opacity: 0.7;">FFI data flow will appear here when detected</div>
+        <div class="unsafe-ffi-swimlane-header" style="display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; margin-bottom: 1rem;">
+          <div>
+            <h4 style="margin: 0 0 4px 0; color: #06b6d4; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+              <i class="fa fa-shield"></i> Unsafe/FFI Cross-Boundary Analysis
+            </h4>
+            <p style="color: var(--text-secondary); font-size: 0.8rem; margin: 0;">
+              Track memory lifecycle across Rust safety and C/FFI boundaries
+            </p>
+          </div>
+          <!-- Interactive Filter Controls -->
+          <div class="unsafe-ffi-filter-controls">
+            <div class="unsafe-ffi-filter-tabs" style="display: flex; gap: 0.2rem; background: var(--bg-secondary); padding: 0.2rem; border-radius: 6px; border: 1px solid var(--card-border);">
+              <button class="unsafe-ffi-filter-tab active" data-filter="problems" style="padding: 0.3rem 0.6rem; border: none; background: transparent; color: var(--text-secondary); font-size: 0.75rem; font-weight: 500; border-radius: 4px; cursor: pointer; transition: all 0.2s ease; white-space: nowrap;">
+                ❗ Leaks & Risks (<span id="unsafe-problem-count">0</span>)
+              </button>
+              <button class="unsafe-ffi-filter-tab" data-filter="ffi" style="padding: 0.3rem 0.6rem; border: none; background: transparent; color: var(--text-secondary); font-size: 0.75rem; font-weight: 500; border-radius: 4px; cursor: pointer; transition: all 0.2s ease; white-space: nowrap;">
+                🔗 FFI Tracked (<span id="unsafe-ffi-count">0</span>)
+              </button>
+              <button class="unsafe-ffi-filter-tab" data-filter="all" style="padding: 0.3rem 0.6rem; border: none; background: transparent; color: var(--text-secondary); font-size: 0.75rem; font-weight: 500; border-radius: 4px; cursor: pointer; transition: all 0.2s ease; white-space: nowrap;">
+                ✨ Show All (<span id="unsafe-total-count">0</span>)
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="unsafe-ffi-territories" style="background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--card-border); overflow: hidden;">
+          <div class="unsafe-ffi-territory rust-territory" style="position: relative; height: 45px; display: flex; align-items: center; padding: 0 1rem; border-bottom: 1px solid var(--card-border); background: linear-gradient(135deg, rgba(255, 107, 71, 0.1) 0%, rgba(255, 107, 71, 0.05) 100%);">
+            <div class="unsafe-ffi-territory-label" style="font-size: 0.9rem; font-weight: 600; display: flex; align-items: center; gap: 0.5rem; color: var(--text-primary);">
+              <span class="unsafe-ffi-territory-icon">🦀</span>
+              <span>Rust Safety Domain</span>
+            </div>
+          </div>
+
+          <div class="unsafe-ffi-timeline-container" style="height: 200px; position: relative; background: var(--bg-primary); border-top: 1px solid var(--card-border); border-bottom: 1px solid var(--card-border);">
+            <svg class="unsafe-ffi-timeline-svg" id="unsafeFfiTimelineSvg" style="width: 100%; height: 100%;"></svg>
+          </div>
+
+          <div class="unsafe-ffi-territory ffi-territory" style="position: relative; height: 45px; display: flex; align-items: center; padding: 0 1rem; background: linear-gradient(135deg, rgba(74, 158, 255, 0.1) 0%, rgba(74, 158, 255, 0.05) 100%);">
+            <div class="unsafe-ffi-territory-label" style="font-size: 0.9rem; font-weight: 600; display: flex; align-items: center; gap: 0.5rem; color: var(--text-primary);">
+              <span class="unsafe-ffi-territory-icon">⚡</span>
+              <span>C/FFI Domain</span>
+            </div>
+          </div>
+
+          <div class="unsafe-ffi-legend" style="padding: 0.8rem 1rem; background: var(--card-bg); display: flex; justify-content: center; gap: 1.5rem; flex-wrap: wrap;">
+            <div class="unsafe-ffi-legend-item" style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; color: var(--text-secondary);">
+              <span class="unsafe-ffi-legend-symbol" style="color: #ff6b47; font-size: 0.9rem; font-weight: bold;">●</span>
+              <span>Rust Allocation</span>
+            </div>
+            <div class="unsafe-ffi-legend-item" style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; color: var(--text-secondary);">
+              <span class="unsafe-ffi-legend-symbol" style="color: #4a9eff; font-size: 0.9rem; font-weight: bold;">●</span>
+              <span>FFI C Allocation</span>
+            </div>
+            <div class="unsafe-ffi-legend-item" style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; color: var(--text-secondary);">
+              <span class="unsafe-ffi-legend-symbol" style="color: #00d4aa; font-size: 0.9rem; font-weight: bold;">▲</span>
+              <span>FFI to Rust</span>
+            </div>
+            <div class="unsafe-ffi-legend-item" style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; color: var(--text-secondary);">
+              <span class="unsafe-ffi-legend-symbol" style="color: #ff4757; font-size: 0.9rem; font-weight: bold;">▼</span>
+              <span>Rust to FFI</span>
+            </div>
+            <div class="unsafe-ffi-legend-item" style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; color: var(--text-secondary);">
+              <span class="unsafe-ffi-legend-symbol" style="color: #a0a0a0; font-size: 0.9rem; font-weight: bold;">✕</span>
+              <span>Deallocation</span>
+            </div>
           </div>
         </div>
       </div>
