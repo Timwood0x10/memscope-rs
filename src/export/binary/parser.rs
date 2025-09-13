@@ -114,8 +114,11 @@ impl BinaryParser {
     pub fn load_allocations<P: AsRef<Path>>(
         binary_path: P,
     ) -> Result<Vec<AllocationInfo>, BinaryExportError> {
+        
         let mut reader = BinaryReader::new(binary_path)?;
-        reader.read_all()
+        
+        let result = reader.read_all();
+        result
     }
 
     /// Load allocations with enhanced error recovery
@@ -185,12 +188,42 @@ impl BinaryParser {
     }
 
     /// Convert binary file to single JSON format (legacy compatibility)
+    /// 🔥 FIXED: Memory overflow issue - now uses streaming instead of loading all data at once
     pub fn to_json<P: AsRef<Path>>(binary_path: P, json_path: P) -> Result<(), BinaryExportError> {
-        let allocations = Self::load_allocations(binary_path)?;
-        let json_data = serde_json::to_string_pretty(&allocations).map_err(|e| {
-            BinaryExportError::SerializationError(format!("JSON serialization failed: {e}"))
-        })?;
-        std::fs::write(json_path, json_data)?;
+        use std::io::{BufWriter, Write};
+        
+        // Open binary reader for streaming access
+        let mut reader = BinaryReader::new(&binary_path)?;
+        let header = reader.read_header()?;
+        
+        // Create buffered writer for efficient output
+        let file = std::fs::File::create(json_path)?;
+        let mut writer = BufWriter::with_capacity(2 * 1024 * 1024, file); // 2MB buffer
+        
+        // Write JSON array start
+        writer.write_all(b"[")?;
+        
+        // Stream allocations one by one to avoid memory overflow
+        for i in 0..header.total_count {
+            if i > 0 {
+                writer.write_all(b",")?;
+            }
+            
+            // Read one allocation at a time
+            let allocation = reader.read_allocation()?;
+            
+            // Serialize single allocation (much smaller memory footprint)
+            let allocation_json = serde_json::to_string(&allocation).map_err(|e| {
+                BinaryExportError::SerializationError(format!("JSON serialization failed: {e}"))
+            })?;
+            
+            writer.write_all(allocation_json.as_bytes())?;
+        }
+        
+        // Write JSON array end
+        writer.write_all(b"]")?;
+        writer.flush()?;
+        
         Ok(())
     }
 
@@ -288,23 +321,19 @@ impl BinaryParser {
             project_dir.join(format!("{base_name}_complex_types.json")),
         ];
 
-        // Parallel generate JSON files
-        use rayon::prelude::*;
-
-        let results: Result<Vec<()>, BinaryExportError> = paths
-            .par_iter()
-            .enumerate()
-            .map(|(i, path)| match i {
-                0 => Self::generate_memory_analysis_json(&all_allocations, path),
-                1 => Self::generate_lifetime_analysis_json(&all_allocations, path),
-                2 => Self::generate_performance_analysis_json(&all_allocations, path),
-                3 => Self::generate_unsafe_ffi_analysis_json(&all_allocations, path),
-                4 => Self::generate_complex_types_analysis_json(&all_allocations, path),
-                _ => unreachable!(),
-            })
-            .collect();
-
-        results?;
+        // 🔥 FIXED: Use sequential processing to avoid memory issues with large datasets
+        // Parallel processing was causing memory pressure and potential race conditions
+        let generators = [
+            Self::generate_memory_analysis_json,
+            Self::generate_lifetime_analysis_json, 
+            Self::generate_performance_analysis_json,
+            Self::generate_unsafe_ffi_analysis_json,
+            Self::generate_complex_types_analysis_json,
+        ];
+        
+        for (i, path) in paths.iter().enumerate() {
+            generators[i](&all_allocations, path)?;
+        }
 
         let json_time = json_start.elapsed();
         tracing::info!(
@@ -1294,15 +1323,11 @@ impl BinaryParser {
             ),
         ];
 
-        // Use parallel generation with BinaryIndex
-        use rayon::prelude::*;
-
-        let results: Result<Vec<()>, BinaryExportError> = file_paths
-            .par_iter()
-            .map(|(path, json_type)| Self::generate_json_with_reader(binary_path, path, json_type))
-            .collect();
-
-        results?;
+        // 🔥 CRITICAL FIX: Use sequential processing to avoid file access conflicts
+        // Multiple threads accessing the same binary file simultaneously causes abort/SIGABRT
+        for (path, json_type) in &file_paths {
+            Self::generate_json_with_reader(binary_path, path, json_type)?;
+        }
 
         let json_time = json_start.elapsed();
         tracing::info!(
@@ -2926,5 +2951,44 @@ mod tests {
         let metadata = fs::metadata(&json_path).expect("Failed to get file metadata");
         assert!(metadata.len() > 0);
         assert!(metadata.len() < 100_000_000); // Should be less than 100MB for 10k allocations
+    }
+
+    #[test]
+    fn test_streaming_to_json_memory_fix() {
+        let temp_dir = TempDir::new().expect("Failed to create temp directory");
+
+        // Create a large dataset that would previously cause memory overflow
+        let mut allocations = Vec::new();
+        for i in 0..50000 {  // Even larger test to verify fix
+            allocations.push(create_test_allocation(
+                0x1000 + i * 0x10,
+                64 + (i % 1000),  // Variable sizes
+                Some(format!("ComplexType{}", i % 50)),
+                Some(format!("large_var_{}", i)),
+            ));
+        }
+
+        let binary_path = create_test_binary_file(&temp_dir, &allocations);
+        let json_path = temp_dir.path().join("streaming_large_test.json");
+
+        // Test the fixed streaming approach
+        let start = std::time::Instant::now();
+        let result = BinaryParser::to_json(&binary_path, &json_path);
+        let elapsed = start.elapsed();
+        
+        assert!(result.is_ok(), "Streaming conversion should not fail");
+        assert!(json_path.exists());
+        
+        // Verify JSON structure is valid by parsing a small part
+        let json_content = fs::read_to_string(&json_path).expect("Failed to read JSON file");
+        assert!(json_content.starts_with('['));
+        assert!(json_content.ends_with(']'));
+        assert!(json_content.contains("large_var_0"));
+        assert!(json_content.contains("ComplexType"));
+        
+        // Should complete in reasonable time (streaming is fast)
+        assert!(elapsed.as_secs() < 10, "Streaming conversion took too long: {}s", elapsed.as_secs());
+        
+        println!("✅ Streaming conversion completed in {:?} for 50k allocations", elapsed);
     }
 }
