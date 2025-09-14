@@ -1015,6 +1015,7 @@ fn convert_allocation_to_binary_data(
 }
 
 #[derive(serde::Serialize)]
+#[allow(dead_code)]
 struct AllocationData {
     id: u64,
     size: u64,

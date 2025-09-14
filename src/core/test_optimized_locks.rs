@@ -3,8 +3,6 @@
 #[cfg(test)]
 mod tests {
     use crate::core::scope_tracker::{get_global_scope_tracker, ScopeGuard};
-    
-    
 
     #[test]
     fn test_optimized_scope_tracker_basic() {

@@ -266,7 +266,10 @@ mod tests {
         assert_eq!(cloned.output_dir, original.output_dir);
         assert_eq!(cloned.verbose, original.verbose);
         assert_eq!(cloned.verify_consistency, original.verify_consistency);
-        assert_eq!(cloned.generate_detailed_report, original.generate_detailed_report);
+        assert_eq!(
+            cloned.generate_detailed_report,
+            original.generate_detailed_report
+        );
     }
 
     #[test]
@@ -304,11 +307,36 @@ mod tests {
     fn test_benchmark_comparison_default() {
         let comparison = BenchmarkComparison::default();
 
-        assert_eq!(comparison.performance_improvement.avg_time_improvement_percent, 0.0);
-        assert_eq!(comparison.performance_improvement.avg_memory_improvement_percent, 0.0);
-        assert_eq!(comparison.performance_improvement.avg_throughput_improvement_percent, 0.0);
-        assert_eq!(comparison.performance_improvement.avg_write_speed_improvement_percent, 0.0);
-        assert_eq!(comparison.performance_improvement.best_time_improvement_percent, 0.0);
+        assert_eq!(
+            comparison
+                .performance_improvement
+                .avg_time_improvement_percent,
+            0.0
+        );
+        assert_eq!(
+            comparison
+                .performance_improvement
+                .avg_memory_improvement_percent,
+            0.0
+        );
+        assert_eq!(
+            comparison
+                .performance_improvement
+                .avg_throughput_improvement_percent,
+            0.0
+        );
+        assert_eq!(
+            comparison
+                .performance_improvement
+                .avg_write_speed_improvement_percent,
+            0.0
+        );
+        assert_eq!(
+            comparison
+                .performance_improvement
+                .best_time_improvement_percent,
+            0.0
+        );
         assert_eq!(comparison.performance_improvement.consistency_score, 0.0);
     }
 
@@ -327,11 +355,36 @@ mod tests {
             performance_improvement: improvement,
         };
 
-        assert_eq!(comparison.performance_improvement.avg_time_improvement_percent, 70.0);
-        assert_eq!(comparison.performance_improvement.avg_memory_improvement_percent, 50.0);
-        assert_eq!(comparison.performance_improvement.avg_throughput_improvement_percent, 80.0);
-        assert_eq!(comparison.performance_improvement.avg_write_speed_improvement_percent, 85.0);
-        assert_eq!(comparison.performance_improvement.best_time_improvement_percent, 90.0);
+        assert_eq!(
+            comparison
+                .performance_improvement
+                .avg_time_improvement_percent,
+            70.0
+        );
+        assert_eq!(
+            comparison
+                .performance_improvement
+                .avg_memory_improvement_percent,
+            50.0
+        );
+        assert_eq!(
+            comparison
+                .performance_improvement
+                .avg_throughput_improvement_percent,
+            80.0
+        );
+        assert_eq!(
+            comparison
+                .performance_improvement
+                .avg_write_speed_improvement_percent,
+            85.0
+        );
+        assert_eq!(
+            comparison
+                .performance_improvement
+                .best_time_improvement_percent,
+            90.0
+        );
         assert_eq!(comparison.performance_improvement.consistency_score, 95.0);
     }
 
@@ -411,8 +464,14 @@ mod tests {
 
         assert_eq!(negative_improvement.avg_time_improvement_percent, -10.5);
         assert_eq!(negative_improvement.avg_memory_improvement_percent, -5.2);
-        assert_eq!(negative_improvement.avg_throughput_improvement_percent, -15.8);
-        assert_eq!(negative_improvement.avg_write_speed_improvement_percent, -8.3);
+        assert_eq!(
+            negative_improvement.avg_throughput_improvement_percent,
+            -15.8
+        );
+        assert_eq!(
+            negative_improvement.avg_write_speed_improvement_percent,
+            -8.3
+        );
         assert_eq!(negative_improvement.best_time_improvement_percent, -2.1);
         assert_eq!(negative_improvement.consistency_score, 25.0);
 
@@ -522,6 +581,9 @@ mod tests {
 
         // Test absolute path
         config.output_dir = PathBuf::from("/absolute/path/to/results");
-        assert_eq!(config.output_dir, PathBuf::from("/absolute/path/to/results"));
+        assert_eq!(
+            config.output_dir,
+            PathBuf::from("/absolute/path/to/results")
+        );
     }
 }

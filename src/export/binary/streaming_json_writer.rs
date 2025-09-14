@@ -2008,7 +2008,7 @@ mod tests {
         let allocation = PartialAllocationInfo {
             ptr: Some(0x1000),
             size: Some(64),
-            var_name: Some(None), // This will trigger variable name inference
+            var_name: Some(None),  // This will trigger variable name inference
             type_name: Some(None), // This will trigger type inference
             scope_name: Some(None),
             timestamp_alloc: Some(1234567890),
@@ -2093,8 +2093,8 @@ mod tests {
         let allocation = PartialAllocationInfo {
             ptr: Some(0x1000),
             size: Some(1024),
-            var_name: Some(None), // Null field
-            type_name: Some(None), // Null field
+            var_name: Some(None),   // Null field
+            type_name: Some(None),  // Null field
             scope_name: Some(None), // Null field
             timestamp_alloc: Some(1234567890),
             timestamp_dealloc: Some(None), // Null field
@@ -2157,7 +2157,8 @@ mod tests {
             .pretty_print(true)
             .indent_size(2)
             .build();
-        let mut writer = StreamingJsonWriter::with_config(cursor, config).expect("Failed to create writer");
+        let mut writer =
+            StreamingJsonWriter::with_config(cursor, config).expect("Failed to create writer");
 
         writer.write_header(1).expect("Failed to write header");
 
@@ -2274,7 +2275,8 @@ mod tests {
         let config = StreamingJsonWriterConfigBuilder::new()
             .buffer_reuse(true)
             .build();
-        let mut writer = StreamingJsonWriter::with_config(cursor, config).expect("Failed to create writer");
+        let mut writer =
+            StreamingJsonWriter::with_config(cursor, config).expect("Failed to create writer");
 
         writer.write_header(1).expect("Failed to write header");
 
@@ -2282,7 +2284,9 @@ mod tests {
         let allocation = PartialAllocationInfo {
             ptr: Some(0x1000),
             size: Some(1024),
-            var_name: Some(Some("test\"with\\quotes\nand\rnewlines\tand\x01control".to_string())),
+            var_name: Some(Some(
+                "test\"with\\quotes\nand\rnewlines\tand\x01control".to_string(),
+            )),
             type_name: Some(Some("String".to_string())),
             scope_name: Some(None),
             timestamp_alloc: Some(1234567890),
@@ -2314,7 +2318,8 @@ mod tests {
         let config = StreamingJsonWriterConfigBuilder::new()
             .buffer_reuse(false)
             .build();
-        let mut writer = StreamingJsonWriter::with_config(cursor, config).expect("Failed to create writer");
+        let mut writer =
+            StreamingJsonWriter::with_config(cursor, config).expect("Failed to create writer");
 
         writer.write_header(1).expect("Failed to write header");
 

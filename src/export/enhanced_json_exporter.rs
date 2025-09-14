@@ -1302,7 +1302,7 @@ mod tests {
 
         // Create complex allocations with various characteristics
         let mut complex_allocations = Vec::new();
-        
+
         // Allocation with ownership history
         let mut alloc1 = create_test_allocation(0x1000, 1024);
         alloc1.ownership_history_available = true;
@@ -1364,12 +1364,16 @@ mod tests {
         assert_eq!(allocations.len(), 3);
 
         // Check for leaked allocation
-        let leaked_alloc = allocations.iter().find(|a| a["is_leaked"].as_bool().unwrap_or(false));
+        let leaked_alloc = allocations
+            .iter()
+            .find(|a| a["is_leaked"].as_bool().unwrap_or(false));
         assert!(leaked_alloc.is_some());
         assert_eq!(leaked_alloc.unwrap()["size"].as_u64().unwrap(), 512);
 
         // Check for high borrow count allocation
-        let high_borrow = allocations.iter().find(|a| a["borrow_count"].as_u64().unwrap_or(0) == 100);
+        let high_borrow = allocations
+            .iter()
+            .find(|a| a["borrow_count"].as_u64().unwrap_or(0) == 100);
         assert!(high_borrow.is_some());
 
         Ok(())
@@ -1507,13 +1511,15 @@ mod tests {
         assert_eq!(allocations.len(), 3);
 
         // Check zero-sized allocation
-        let zero_alloc = allocations.iter().find(|a| a["size"].as_u64().unwrap() == 0);
+        let zero_alloc = allocations
+            .iter()
+            .find(|a| a["size"].as_u64().unwrap() == 0);
         assert!(zero_alloc.is_some());
 
         // Check allocation with special characters
-        let unicode_alloc = allocations.iter().find(|a| {
-            a["var_name"].as_str().unwrap_or("").contains("🦀")
-        });
+        let unicode_alloc = allocations
+            .iter()
+            .find(|a| a["var_name"].as_str().unwrap_or("").contains("🦀"));
         assert!(unicode_alloc.is_some());
 
         Ok(())

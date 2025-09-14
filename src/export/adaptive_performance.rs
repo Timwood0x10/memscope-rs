@@ -1139,7 +1139,8 @@ mod tests {
 
         // Test with very high memory usage (should decrease batch size)
         let high_memory_usage = usize::MAX / 2;
-        if high_memory_usage > 1024 * 1024 * 100 { // If > 100MB
+        if high_memory_usage > 1024 * 1024 * 100 {
+            // If > 100MB
             current_batch_size = (current_batch_size as f64 * 0.5) as usize; // Halve batch size
         }
         assert!(current_batch_size <= 1000); // Should decrease due to high memory
@@ -1169,7 +1170,12 @@ mod tests {
         assert_eq!(cache.get("Number").unwrap().as_i64().unwrap(), 42);
         assert_eq!(cache.get("Boolean").unwrap().as_bool().unwrap(), true);
         assert_eq!(cache.get("Array").unwrap().as_array().unwrap().len(), 3);
-        assert!(cache.get("Object").unwrap().as_object().unwrap().contains_key("key"));
+        assert!(cache
+            .get("Object")
+            .unwrap()
+            .as_object()
+            .unwrap()
+            .contains_key("key"));
         assert!(cache.get("Null").unwrap().is_null());
 
         // Test cache operations (size method doesn't exist, so test differently)
@@ -1198,7 +1204,12 @@ mod tests {
             let memory_before = i * 1024;
             let processed = batch_size - (i % 50);
 
-            optimizer.record_batch_performance(batch_size as usize, duration, memory_before, processed as usize);
+            optimizer.record_batch_performance(
+                batch_size as usize,
+                duration,
+                memory_before,
+                processed as usize,
+            );
 
             // Cache some type info
             if i % 10 == 0 {
@@ -1210,8 +1221,16 @@ mod tests {
 
         // Verify optimizer is still functional (very flexible due to stress testing)
         let optimal_size = optimizer.get_optimal_batch_size();
-        assert!(optimal_size > 0, "Optimal size should be positive, got {}", optimal_size);
-        assert!(optimal_size <= 20000, "Optimal size should be reasonable, got {}", optimal_size);
+        assert!(
+            optimal_size > 0,
+            "Optimal size should be positive, got {}",
+            optimal_size
+        );
+        assert!(
+            optimal_size <= 20000,
+            "Optimal size should be reasonable, got {}",
+            optimal_size
+        );
 
         // Verify cache is working
         assert!(optimizer.get_cached_type_info("Type_0").is_some());
@@ -1228,7 +1247,7 @@ mod tests {
 
         // Simulate memory pressure scenarios
         let scenarios = vec![
-            (1000, Duration::from_millis(50), 1024 * 1024, 950),      // Normal
+            (1000, Duration::from_millis(50), 1024 * 1024, 950), // Normal
             (1000, Duration::from_millis(100), 10 * 1024 * 1024, 900), // High memory
             (1000, Duration::from_millis(200), 100 * 1024 * 1024, 800), // Very high memory
             (1000, Duration::from_millis(500), 1024 * 1024 * 1024, 700), // Extreme memory
@@ -1239,18 +1258,23 @@ mod tests {
         for (batch_size, duration, memory, processed) in scenarios {
             optimizer.record_batch_performance(batch_size, duration, memory, processed);
             let current_size = optimizer.get_optimal_batch_size();
-            
+
             // Under memory pressure, batch size should generally decrease or stay stable
-            if memory > 50 * 1024 * 1024 { // If memory usage is very high
+            if memory > 50 * 1024 * 1024 {
+                // If memory usage is very high
                 assert!(current_size <= previous_size * 2); // Allow some flexibility
             }
-            
+
             previous_size = current_size;
         }
 
         // Final batch size should be reasonable (allow flexibility due to memory pressure)
         let final_size = optimizer.get_optimal_batch_size();
-        assert!(final_size > 0, "Batch size should be positive, got {}", final_size);
+        assert!(
+            final_size > 0,
+            "Batch size should be positive, got {}",
+            final_size
+        );
     }
 
     #[test]
@@ -1259,10 +1283,10 @@ mod tests {
 
         // Record various performance scenarios
         let test_cases = vec![
-            (500, 10, 1024, 500),    // Perfect efficiency
-            (500, 20, 2048, 450),    // Good efficiency
-            (500, 50, 4096, 400),    // Moderate efficiency
-            (500, 100, 8192, 300),   // Poor efficiency
+            (500, 10, 1024, 500),  // Perfect efficiency
+            (500, 20, 2048, 450),  // Good efficiency
+            (500, 50, 4096, 400),  // Moderate efficiency
+            (500, 100, 8192, 300), // Poor efficiency
         ];
 
         for (batch_size, duration_ms, memory, processed) in test_cases {
@@ -1276,7 +1300,7 @@ mod tests {
 
         let report = optimizer.get_performance_report();
         let adaptive_opt = &report["adaptive_optimization"];
-        
+
         // Verify report structure
         assert!(adaptive_opt["enabled"].as_bool().unwrap());
         assert!(adaptive_opt["current_batch_size"].as_u64().unwrap() > 0);
@@ -1320,11 +1344,11 @@ mod tests {
         assert_eq!(disabled_size, 1000); // Should return default
 
         optimizer.set_optimization_enabled(true);
-        
+
         // Record some performance to change optimal size
         optimizer.record_batch_performance(750, Duration::from_millis(5), 1024, 750);
         let enabled_size = optimizer.get_optimal_batch_size();
-        
+
         // Should be able to adapt when enabled
         assert!(enabled_size > 0);
 

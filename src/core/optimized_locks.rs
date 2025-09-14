@@ -24,7 +24,7 @@ impl<T> OptimizedMutex<T> {
     }
 
     /// Lock the mutex with performance monitoring
-    pub fn lock(&self) -> OptimizedMutexGuard<T> {
+    pub fn lock(&self) -> OptimizedMutexGuard<'_, T> {
         let start = Instant::now();
 
         // Try to acquire the lock without blocking first
@@ -52,7 +52,7 @@ impl<T> OptimizedMutex<T> {
     }
 
     /// Try to lock the mutex without blocking
-    pub fn try_lock(&self) -> Option<OptimizedMutexGuard<T>> {
+    pub fn try_lock(&self) -> Option<OptimizedMutexGuard<'_, T>> {
         let start = Instant::now();
 
         if let Some(guard) = self.inner.try_lock() {
@@ -69,7 +69,7 @@ impl<T> OptimizedMutex<T> {
     }
 
     /// Try to lock with a timeout
-    pub fn try_lock_for(&self, timeout: Duration) -> Option<OptimizedMutexGuard<T>> {
+    pub fn try_lock_for(&self, timeout: Duration) -> Option<OptimizedMutexGuard<'_, T>> {
         let start = Instant::now();
 
         if let Some(guard) = self.inner.try_lock_for(timeout) {
@@ -128,7 +128,7 @@ impl<T> OptimizedRwLock<T> {
     }
 
     /// Acquire a read lock with performance monitoring
-    pub fn read(&self) -> OptimizedRwLockReadGuard<T> {
+    pub fn read(&self) -> OptimizedRwLockReadGuard<'_, T> {
         let start = Instant::now();
 
         // Try to acquire the read lock without blocking first
@@ -156,7 +156,7 @@ impl<T> OptimizedRwLock<T> {
     }
 
     /// Acquire a write lock with performance monitoring
-    pub fn write(&self) -> OptimizedRwLockWriteGuard<T> {
+    pub fn write(&self) -> OptimizedRwLockWriteGuard<'_, T> {
         let start = Instant::now();
 
         // Try to acquire the write lock without blocking first
@@ -184,7 +184,7 @@ impl<T> OptimizedRwLock<T> {
     }
 
     /// Try to acquire a read lock without blocking
-    pub fn try_read(&self) -> Option<OptimizedRwLockReadGuard<T>> {
+    pub fn try_read(&self) -> Option<OptimizedRwLockReadGuard<'_, T>> {
         let start = Instant::now();
 
         if let Some(guard) = self.inner.try_read() {
@@ -201,7 +201,7 @@ impl<T> OptimizedRwLock<T> {
     }
 
     /// Try to acquire a write lock without blocking
-    pub fn try_write(&self) -> Option<OptimizedRwLockWriteGuard<T>> {
+    pub fn try_write(&self) -> Option<OptimizedRwLockWriteGuard<'_, T>> {
         let start = Instant::now();
 
         if let Some(guard) = self.inner.try_write() {

@@ -241,7 +241,7 @@ pub fn efficient_string_concat(parts: &[&str]) -> String {
 }
 
 /// Optimized clone avoidance for common patterns
-pub fn clone_if_needed<T: Clone>(value: &T, need_owned: bool) -> std::borrow::Cow<T> {
+pub fn clone_if_needed<T: Clone>(value: &T, need_owned: bool) -> std::borrow::Cow<'_, T> {
     if need_owned {
         std::borrow::Cow::Owned(value.clone())
     } else {

@@ -271,7 +271,7 @@ type JsonDataCollection = HashMap<String, Value>;
 fn load_json_streaming_safe(file_path: &str) -> Result<Value, Box<dyn Error>> {
     let file = File::open(file_path)?;
     let reader = BufReader::new(file);
-    
+
     // 使用serde_json的流式API，直接从BufReader读取，避免一次性加载到内存
     let json_value: Value = serde_json::from_reader(reader)?;
     Ok(json_value)
@@ -628,39 +628,37 @@ fn load_single_file_internal(
         match load_json_streaming_safe(file_path) {
             Ok(json_value) => {
                 // Validate JSON structure
-                if let Err(validation_error) =
-                    validate_json_structure(&json_value, config.suffix)
-                        {
-                            let validation_err = error_handler.handle_validation_error(
-                                std::path::PathBuf::from(file_path),
-                                config.suffix,
-                                &validation_error,
-                                &json_value,
-                            );
+                if let Err(validation_error) = validate_json_structure(&json_value, config.suffix) {
+                    let validation_err = error_handler.handle_validation_error(
+                        std::path::PathBuf::from(file_path),
+                        config.suffix,
+                        &validation_error,
+                        &json_value,
+                    );
 
-                            tracing::error!("{}", validation_err);
+                    tracing::error!("{}", validation_err);
 
-                            // Try to continue with partial data if allowed
-                            let allow_partial = {
-                                let stats = error_handler.get_stats();
-                                stats.total_errors < 5 // Allow partial data if not too many errors
-                            };
-                            if allow_partial {
-                                tracing::info!(
-                                    "⚠️  Continuing with potentially invalid data for {}",
-                                    config.suffix
-                                );
-                                Ok(JsonLoadResult {
-                                    suffix: config.suffix.to_string(),
-                                    success: true,
-                                    data: Some(json_value),
-                                    error: Some(format!("Validation warning: {validation_error}")),
-                                    file_size,
-                                    load_time_ms: start_time.elapsed().as_millis() as u64,
-                                })
-                            } else {
-                                Err(validation_err.into())
-                            }
+                    // Try to continue with partial data if allowed
+                    let allow_partial = {
+                        let stats = error_handler.get_stats();
+                        stats.total_errors < 5 // Allow partial data if not too many errors
+                    };
+                    if allow_partial {
+                        tracing::info!(
+                            "⚠️  Continuing with potentially invalid data for {}",
+                            config.suffix
+                        );
+                        Ok(JsonLoadResult {
+                            suffix: config.suffix.to_string(),
+                            success: true,
+                            data: Some(json_value),
+                            error: Some(format!("Validation warning: {validation_error}")),
+                            file_size,
+                            load_time_ms: start_time.elapsed().as_millis() as u64,
+                        })
+                    } else {
+                        Err(validation_err.into())
+                    }
                 } else {
                     Ok(JsonLoadResult {
                         suffix: config.suffix.to_string(),
@@ -674,13 +672,11 @@ fn load_single_file_internal(
             }
             Err(e) => {
                 // Handle JSON loading/parsing error with recovery
-                let parsing_err = error_handler.handle_json_parsing_error(
-                    std::path::PathBuf::from(file_path),
-                    &e.to_string(),
-                );
+                let parsing_err = error_handler
+                    .handle_json_parsing_error(std::path::PathBuf::from(file_path), &e.to_string());
 
                 tracing::error!("{}", parsing_err);
-                
+
                 // Try recovery
                 let file_path_buf = std::path::PathBuf::from(file_path);
                 let error_msg = e.to_string();
@@ -770,9 +766,7 @@ fn load_single_file(config: &JsonFileConfig, file_path: &str, file_size: usize) 
         match load_json_streaming_safe(file_path) {
             Ok(json_value) => {
                 // validate JSON structure
-                if let Err(validation_error) =
-                    validate_json_structure(&json_value, config.suffix)
-                {
+                if let Err(validation_error) = validate_json_structure(&json_value, config.suffix) {
                     JsonLoadResult {
                         suffix: config.suffix.to_string(),
                         success: false,

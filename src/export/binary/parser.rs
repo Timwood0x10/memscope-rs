@@ -114,9 +114,8 @@ impl BinaryParser {
     pub fn load_allocations<P: AsRef<Path>>(
         binary_path: P,
     ) -> Result<Vec<AllocationInfo>, BinaryExportError> {
-        
         let mut reader = BinaryReader::new(binary_path)?;
-        
+
         let result = reader.read_all();
         result
     }
@@ -191,39 +190,39 @@ impl BinaryParser {
     /// 🔥 FIXED: Memory overflow issue - now uses streaming instead of loading all data at once
     pub fn to_json<P: AsRef<Path>>(binary_path: P, json_path: P) -> Result<(), BinaryExportError> {
         use std::io::{BufWriter, Write};
-        
+
         // Open binary reader for streaming access
         let mut reader = BinaryReader::new(&binary_path)?;
         let header = reader.read_header()?;
-        
+
         // Create buffered writer for efficient output
         let file = std::fs::File::create(json_path)?;
         let mut writer = BufWriter::with_capacity(2 * 1024 * 1024, file); // 2MB buffer
-        
+
         // Write JSON array start
         writer.write_all(b"[")?;
-        
+
         // Stream allocations one by one to avoid memory overflow
         for i in 0..header.total_count {
             if i > 0 {
                 writer.write_all(b",")?;
             }
-            
+
             // Read one allocation at a time
             let allocation = reader.read_allocation()?;
-            
+
             // Serialize single allocation (much smaller memory footprint)
             let allocation_json = serde_json::to_string(&allocation).map_err(|e| {
                 BinaryExportError::SerializationError(format!("JSON serialization failed: {e}"))
             })?;
-            
+
             writer.write_all(allocation_json.as_bytes())?;
         }
-        
+
         // Write JSON array end
         writer.write_all(b"]")?;
         writer.flush()?;
-        
+
         Ok(())
     }
 
@@ -325,12 +324,12 @@ impl BinaryParser {
         // Parallel processing was causing memory pressure and potential race conditions
         let generators = [
             Self::generate_memory_analysis_json,
-            Self::generate_lifetime_analysis_json, 
+            Self::generate_lifetime_analysis_json,
             Self::generate_performance_analysis_json,
             Self::generate_unsafe_ffi_analysis_json,
             Self::generate_complex_types_analysis_json,
         ];
-        
+
         for (i, path) in paths.iter().enumerate() {
             generators[i](&all_allocations, path)?;
         }
@@ -2354,8 +2353,8 @@ mod tests {
         // Verify JSON file was created and contains expected content
         assert!(json_path.exists());
         let json_content = fs::read_to_string(&json_path).expect("Failed to read JSON file");
-        assert!(json_content.contains("\"ptr\": 4096")); // 0x1000
-        assert!(json_content.contains("\"ptr\": 8192")); // 0x2000
+        assert!(json_content.contains("\"ptr\":4096")); // 0x1000
+        assert!(json_content.contains("\"ptr\":8192")); // 0x2000
         assert!(json_content.contains("\"var1\""));
         assert!(json_content.contains("\"var2\""));
     }
@@ -2959,10 +2958,11 @@ mod tests {
 
         // Create a large dataset that would previously cause memory overflow
         let mut allocations = Vec::new();
-        for i in 0..50000 {  // Even larger test to verify fix
+        for i in 0..50000 {
+            // Even larger test to verify fix
             allocations.push(create_test_allocation(
                 0x1000 + i * 0x10,
-                64 + (i % 1000),  // Variable sizes
+                64 + (i % 1000), // Variable sizes
                 Some(format!("ComplexType{}", i % 50)),
                 Some(format!("large_var_{}", i)),
             ));
@@ -2975,20 +2975,27 @@ mod tests {
         let start = std::time::Instant::now();
         let result = BinaryParser::to_json(&binary_path, &json_path);
         let elapsed = start.elapsed();
-        
+
         assert!(result.is_ok(), "Streaming conversion should not fail");
         assert!(json_path.exists());
-        
+
         // Verify JSON structure is valid by parsing a small part
         let json_content = fs::read_to_string(&json_path).expect("Failed to read JSON file");
         assert!(json_content.starts_with('['));
         assert!(json_content.ends_with(']'));
         assert!(json_content.contains("large_var_0"));
         assert!(json_content.contains("ComplexType"));
-        
+
         // Should complete in reasonable time (streaming is fast)
-        assert!(elapsed.as_secs() < 10, "Streaming conversion took too long: {}s", elapsed.as_secs());
-        
-        println!("✅ Streaming conversion completed in {:?} for 50k allocations", elapsed);
+        assert!(
+            elapsed.as_secs() < 10,
+            "Streaming conversion took too long: {}s",
+            elapsed.as_secs()
+        );
+
+        println!(
+            "✅ Streaming conversion completed in {:?} for 50k allocations",
+            elapsed
+        );
     }
 }

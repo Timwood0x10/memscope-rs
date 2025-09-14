@@ -308,8 +308,6 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    
-    
 
     #[test]
     fn test_sharded_rwlock_basic_operations() {

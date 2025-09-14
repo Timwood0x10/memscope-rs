@@ -531,7 +531,7 @@ mod tests {
     #[test]
     fn test_round_trip_conversion_with_all_fields() {
         use crate::core::types::AllocationInfo;
-        
+
         clear_string_pool();
 
         // Create original with all possible fields set
@@ -607,18 +607,17 @@ mod tests {
 
         // Test with mixed Some/None fields
         let info_mixed = OptimizedAllocationInfo::new(0x4000, 512)
-            .with_var_info("some_var", "")  // Empty type name
+            .with_var_info("some_var", "") // Empty type name
             .with_scope("some_scope");
-        
+
         assert_eq!(info_mixed.var_name_str(), Some("some_var"));
-        assert_eq!(info_mixed.type_name_str(), Some(""));  // Empty string should be preserved
+        assert_eq!(info_mixed.type_name_str(), Some("")); // Empty string should be preserved
         assert_eq!(info_mixed.scope_name_str(), Some("some_scope"));
         assert_eq!(info_mixed.stack_trace_strs(), None);
 
         // Test with empty stack trace
-        let info_empty_trace = OptimizedAllocationInfo::new(0x5000, 1024)
-            .with_stack_trace(vec![]);
-        
+        let info_empty_trace = OptimizedAllocationInfo::new(0x5000, 1024).with_stack_trace(vec![]);
+
         let empty_trace = info_empty_trace.stack_trace_strs().unwrap();
         assert!(empty_trace.is_empty());
     }
@@ -643,12 +642,11 @@ mod tests {
         assert_eq!(info.scope_name_str(), Some(long_scope_name.as_str()));
 
         // Test with large stack trace
-        let large_stack_trace: Vec<String> = (0..1000)
-            .map(|i| format!("function_frame_{}", i))
-            .collect();
+        let large_stack_trace: Vec<String> =
+            (0..1000).map(|i| format!("function_frame_{}", i)).collect();
 
-        let info_large_trace = OptimizedAllocationInfo::new(0x6000, 2048)
-            .with_stack_trace(large_stack_trace.clone());
+        let info_large_trace =
+            OptimizedAllocationInfo::new(0x6000, 2048).with_stack_trace(large_stack_trace.clone());
 
         let trace_strs = info_large_trace.stack_trace_strs().unwrap();
         assert_eq!(trace_strs.len(), 1000);
@@ -676,7 +674,7 @@ mod tests {
         assert!(serialized.contains("serialize_main"));
 
         // Test deserialization
-        let deserialized: OptimizedAllocationInfo = 
+        let deserialized: OptimizedAllocationInfo =
             serde_json::from_str(&serialized).expect("Failed to deserialize");
 
         assert_eq!(deserialized.ptr, original.ptr);
@@ -692,10 +690,10 @@ mod tests {
         clear_string_pool();
 
         let info_minimal = OptimizedAllocationInfo::new(0x8000, 8192);
-        
+
         // Test serialization of minimal info (most fields None)
         let serialized = serde_json::to_string(&info_minimal).expect("Failed to serialize minimal");
-        let deserialized: OptimizedAllocationInfo = 
+        let deserialized: OptimizedAllocationInfo =
             serde_json::from_str(&serialized).expect("Failed to deserialize minimal");
 
         assert_eq!(deserialized.ptr, info_minimal.ptr);
@@ -709,7 +707,7 @@ mod tests {
     #[test]
     fn test_lifetime_calculations() {
         let mut info = OptimizedAllocationInfo::new(0x9000, 16384);
-        
+
         // Before deallocation
         assert!(info.is_active());
         assert_eq!(info.lifetime_duration_nanos(), None);
@@ -725,15 +723,15 @@ mod tests {
         assert!(info.lifetime_duration_nanos().is_some());
         assert!(info.lifetime_duration_ms().is_some());
         assert!(info.lifetime_ms.is_some());
-        
+
         let duration_nanos = info.lifetime_duration_nanos().unwrap();
         let duration_ms = info.lifetime_duration_ms().unwrap();
         let stored_lifetime_ms = info.lifetime_ms.unwrap();
-        
+
         // Verify consistency between different lifetime calculations
         assert_eq!(duration_ms, duration_nanos / 1_000_000);
         assert_eq!(stored_lifetime_ms, duration_ms);
-        
+
         // Verify deallocation timestamp is after allocation timestamp
         assert!(info.timestamp_dealloc.unwrap() >= start_time);
     }
@@ -743,11 +741,11 @@ mod tests {
         clear_string_pool();
 
         let info = OptimizedAllocationInfo::new(0xA000, 32768);
-        
+
         // Thread ID should be set automatically and be non-empty
         assert!(!info.thread_id_str().is_empty());
         assert!(info.thread_id_str().contains("ThreadId"));
-        
+
         // Thread ID should be interned as Arc<str>
         assert!(!info.thread_id.is_empty());
     }
@@ -755,18 +753,18 @@ mod tests {
     #[test]
     fn test_borrow_count_tracking() {
         let mut info = OptimizedAllocationInfo::new(0xB000, 65536);
-        
+
         // Initial borrow count should be 0
         assert_eq!(info.borrow_count, 0);
-        
+
         // Manually modify borrow count (simulating borrow tracking)
         info.borrow_count = 5;
         assert_eq!(info.borrow_count, 5);
-        
+
         // Test conversion preserves borrow count
         let original_alloc = crate::core::types::AllocationInfo::from(info.clone());
         assert_eq!(original_alloc.borrow_count, 5);
-        
+
         let back_to_optimized = OptimizedAllocationInfo::from(original_alloc);
         assert_eq!(back_to_optimized.borrow_count, 5);
     }
@@ -779,18 +777,18 @@ mod tests {
         let info_zero = OptimizedAllocationInfo::new(0, 0);
         assert_eq!(info_zero.ptr, 0);
         assert_eq!(info_zero.size, 0);
-        
+
         // Test with maximum values
         let info_max = OptimizedAllocationInfo::new(usize::MAX, usize::MAX);
         assert_eq!(info_max.ptr, usize::MAX);
         assert_eq!(info_max.size, usize::MAX);
-        
+
         // Test with special characters in strings
         let special_chars = "测试中文字符!@#$%^&*()[]{}|\\:;\"'<>,.?/~`";
         let info_special = OptimizedAllocationInfo::new(0xC000, 1024)
             .with_var_info(special_chars, special_chars)
             .with_scope(special_chars);
-        
+
         assert_eq!(info_special.var_name_str(), Some(special_chars));
         assert_eq!(info_special.type_name_str(), Some(special_chars));
         assert_eq!(info_special.scope_name_str(), Some(special_chars));

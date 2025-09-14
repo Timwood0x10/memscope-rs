@@ -9,9 +9,9 @@ use crate::export::binary::serializable::{primitives, BinarySerializable};
 use crate::export::binary::string_table::StringTable;
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::{BufReader, Read, Seek, SeekFrom};
 #[cfg(test)]
 use std::io::Write;
+use std::io::{BufReader, Read, Seek, SeekFrom};
 use std::path::Path;
 
 /// Binary reader for allocation records using buffered I/O
@@ -905,14 +905,18 @@ mod tests {
         // Test with invalid header
         {
             let mut file = File::create(temp_file.path()).expect("Failed to create file");
-            file.write_all(b"INVALID_HEADER").expect("Failed to write invalid header");
+            file.write_all(b"INVALID_HEADER")
+                .expect("Failed to write invalid header");
         }
         let result = BinaryReader::new(temp_file.path());
         // Invalid header might not always fail immediately, so we check if reading fails
         if result.is_ok() {
             let mut reader = result.unwrap();
             let read_result = reader.read_all();
-            assert!(read_result.is_err(), "Reading with invalid header should fail");
+            assert!(
+                read_result.is_err(),
+                "Reading with invalid header should fail"
+            );
         } else {
             assert!(result.is_err(), "Creation with invalid header should fail");
         }
@@ -939,10 +943,14 @@ mod tests {
             let config = BinaryExportConfig::default();
             let mut writer = BinaryWriter::new_with_config(temp_file.path(), &config)
                 .expect("Failed to create writer");
-            writer.write_header(allocations.len() as u32).expect("Failed to write header");
-            
+            writer
+                .write_header(allocations.len() as u32)
+                .expect("Failed to write header");
+
             for alloc in &allocations {
-                writer.write_allocation(alloc).expect("Failed to write allocation");
+                writer
+                    .write_allocation(alloc)
+                    .expect("Failed to write allocation");
             }
             writer.finish().expect("Failed to finish writing");
         }
@@ -952,7 +960,7 @@ mod tests {
         let read_allocations = reader.read_all().expect("Failed to read allocations");
 
         assert_eq!(read_allocations.len(), 1000);
-        
+
         // Verify first and last allocations
         assert_eq!(read_allocations[0].ptr, 0x1000);
         assert_eq!(read_allocations[999].ptr, 0x1000 + 999 * 0x100);
@@ -980,17 +988,21 @@ mod tests {
             let config = BinaryExportConfig::default();
             let mut writer = BinaryWriter::new_with_config(temp_file.path(), &config)
                 .expect("Failed to create writer");
-            writer.write_header(allocations.len() as u32).expect("Failed to write header");
-            
+            writer
+                .write_header(allocations.len() as u32)
+                .expect("Failed to write header");
+
             for alloc in &allocations {
-                writer.write_allocation(alloc).expect("Failed to write allocation");
+                writer
+                    .write_allocation(alloc)
+                    .expect("Failed to write allocation");
             }
             writer.finish().expect("Failed to finish writing");
         }
 
         // Test chunked reading
         let mut reader = BinaryReader::new(temp_file.path()).expect("Failed to create reader");
-        
+
         // Read all allocations at once (since read_chunk doesn't exist)
         let all_read = reader.read_all().expect("Failed to read allocations");
 
@@ -1012,13 +1024,15 @@ mod tests {
             let mut writer = BinaryWriter::new_with_config(temp_file.path(), &config)
                 .expect("Failed to create writer");
             writer.write_header(1).expect("Failed to write header");
-            writer.write_allocation(&alloc).expect("Failed to write allocation");
+            writer
+                .write_allocation(&alloc)
+                .expect("Failed to write allocation");
             writer.finish().expect("Failed to finish writing");
         }
 
         // Read and check metadata
         let mut reader = BinaryReader::new(temp_file.path()).expect("Failed to create reader");
-        
+
         // Test that we can read the allocation
         let allocations = reader.read_all().expect("Failed to read allocations");
         assert_eq!(allocations.len(), 1);
@@ -1033,19 +1047,22 @@ mod tests {
         // Write valid header but corrupted data
         {
             let mut file = File::create(temp_file.path()).expect("Failed to create file");
-            
+
             // Write valid magic bytes and version
             file.write_all(b"MEMSCOPE").expect("Failed to write magic");
-            file.write_all(&1u32.to_le_bytes()).expect("Failed to write version");
-            file.write_all(&1u32.to_le_bytes()).expect("Failed to write count");
-            
+            file.write_all(&1u32.to_le_bytes())
+                .expect("Failed to write version");
+            file.write_all(&1u32.to_le_bytes())
+                .expect("Failed to write count");
+
             // Write corrupted allocation data
-            file.write_all(&[0xFF; 100]).expect("Failed to write corrupted data");
+            file.write_all(&[0xFF; 100])
+                .expect("Failed to write corrupted data");
         }
 
         let mut reader = BinaryReader::new(temp_file.path()).expect("Failed to create reader");
         let result = reader.read_all();
-        
+
         // Should handle corrupted data gracefully
         assert!(result.is_err() || result.unwrap().is_empty());
     }
@@ -1094,17 +1111,21 @@ mod tests {
             let config = BinaryExportConfig::default();
             let mut writer = BinaryWriter::new_with_config(temp_file.path(), &config)
                 .expect("Failed to create writer");
-            writer.write_header(allocations.len() as u32).expect("Failed to write header");
-            
+            writer
+                .write_header(allocations.len() as u32)
+                .expect("Failed to write header");
+
             for alloc in &allocations {
-                writer.write_allocation(alloc).expect("Failed to write allocation");
+                writer
+                    .write_allocation(alloc)
+                    .expect("Failed to write allocation");
             }
             writer.finish().expect("Failed to finish writing");
         }
 
         // Test reading all allocations
         let mut reader = BinaryReader::new(temp_file.path()).expect("Failed to create reader");
-        
+
         let all_allocations = reader.read_all().expect("Failed to read allocations");
         assert_eq!(all_allocations.len(), 50);
         assert_eq!(all_allocations[0].ptr, 0x3000);
@@ -1133,10 +1154,14 @@ mod tests {
             let config = BinaryExportConfig::debug_comprehensive();
             let mut writer = BinaryWriter::new_with_config(temp_file.path(), &config)
                 .expect("Failed to create writer");
-            writer.write_header(allocations.len() as u32).expect("Failed to write header");
-            
+            writer
+                .write_header(allocations.len() as u32)
+                .expect("Failed to write header");
+
             for alloc in &allocations {
-                writer.write_allocation(alloc).expect("Failed to write allocation");
+                writer
+                    .write_allocation(alloc)
+                    .expect("Failed to write allocation");
             }
             writer.finish().expect("Failed to finish writing");
         }
@@ -1152,18 +1177,26 @@ mod tests {
         let expected_total: usize = (0..20).map(|i| if i % 2 == 0 { 64 } else { 128 }).sum();
         assert_eq!(total_size, expected_total);
 
-        let max_borrow_count = read_allocations.iter().map(|a| a.borrow_count).max().unwrap();
+        let max_borrow_count = read_allocations
+            .iter()
+            .map(|a| a.borrow_count)
+            .max()
+            .unwrap();
         assert_eq!(max_borrow_count, 4); // (19 % 5) = 4
 
-        let min_timestamp = read_allocations.iter().map(|a| a.timestamp_alloc).min().unwrap();
+        let min_timestamp = read_allocations
+            .iter()
+            .map(|a| a.timestamp_alloc)
+            .min()
+            .unwrap();
         assert_eq!(min_timestamp, 3000000);
     }
 
     #[test]
     fn test_binary_reader_concurrent_access() {
+        use crate::export::binary::config::BinaryExportConfig;
         use std::sync::Arc;
         use std::thread;
-        use crate::export::binary::config::BinaryExportConfig;
 
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         let mut allocations = Vec::new();
@@ -1181,10 +1214,14 @@ mod tests {
             let config = BinaryExportConfig::default();
             let mut writer = BinaryWriter::new_with_config(temp_file.path(), &config)
                 .expect("Failed to create writer");
-            writer.write_header(allocations.len() as u32).expect("Failed to write header");
-            
+            writer
+                .write_header(allocations.len() as u32)
+                .expect("Failed to write header");
+
             for alloc in &allocations {
-                writer.write_allocation(alloc).expect("Failed to write allocation");
+                writer
+                    .write_allocation(alloc)
+                    .expect("Failed to write allocation");
             }
             writer.finish().expect("Failed to finish writing");
         }
@@ -1196,10 +1233,11 @@ mod tests {
         for thread_id in 0..5 {
             let path_clone = file_path.clone();
             let handle = thread::spawn(move || {
-                let mut reader = BinaryReader::new(path_clone.as_ref()).expect("Failed to create reader");
+                let mut reader =
+                    BinaryReader::new(path_clone.as_ref()).expect("Failed to create reader");
                 let chunk_size = 20;
                 let _start_index = thread_id * chunk_size;
-                
+
                 // Read all allocations (concurrent reading test)
                 let all_allocations = reader.read_all().expect("Failed to read allocations");
                 (thread_id, all_allocations.len())
@@ -1210,7 +1248,11 @@ mod tests {
         // Collect results
         for handle in handles {
             let (thread_id, allocation_count) = handle.join().expect("Thread should complete");
-            assert_eq!(allocation_count, 100, "Thread {} should read all allocations", thread_id);
+            assert_eq!(
+                allocation_count, 100,
+                "Thread {} should read all allocations",
+                thread_id
+            );
         }
     }
 }

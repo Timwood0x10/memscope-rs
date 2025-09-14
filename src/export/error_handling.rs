@@ -1237,7 +1237,10 @@ mod tests {
 
         // Test PerformanceMetric equality
         assert_eq!(PerformanceMetric::ExportTime, PerformanceMetric::ExportTime);
-        assert_ne!(PerformanceMetric::ExportTime, PerformanceMetric::MemoryUsage);
+        assert_ne!(
+            PerformanceMetric::ExportTime,
+            PerformanceMetric::MemoryUsage
+        );
 
         // Test ExportStage equality
         assert_eq!(ExportStage::Initialization, ExportStage::Initialization);
@@ -1248,8 +1251,14 @@ mod tests {
         assert_ne!(ConflictType::LockContention, ConflictType::DataRace);
 
         // Test CorruptionType equality
-        assert_eq!(CorruptionType::IncompleteData, CorruptionType::IncompleteData);
-        assert_ne!(CorruptionType::IncompleteData, CorruptionType::InvalidFormat);
+        assert_eq!(
+            CorruptionType::IncompleteData,
+            CorruptionType::IncompleteData
+        );
+        assert_ne!(
+            CorruptionType::IncompleteData,
+            CorruptionType::InvalidFormat
+        );
     }
 
     #[test]
@@ -1325,7 +1334,7 @@ mod tests {
         // Test memory usage logging
         logger.log_memory_usage(1024 * 1024, 2048 * 1024); // 1MB current, 2MB peak
         logger.log_memory_usage(1536 * 1024, 2048 * 1024); // 1.5MB current, 2MB peak
-        logger.log_memory_usage(512 * 1024, 3072 * 1024);  // 0.5MB current, 3MB peak (new peak)
+        logger.log_memory_usage(512 * 1024, 3072 * 1024); // 0.5MB current, 3MB peak (new peak)
 
         let report = logger.generate_performance_report();
         assert_eq!(report.current_memory_usage_mb, 0.5);
@@ -1390,7 +1399,7 @@ mod tests {
     #[test]
     fn test_performance_logger_timestamp_formatting() {
         let logger = PerformanceLogger::new(LogLevel::Debug);
-        
+
         // Test that timestamp formatting works
         let timestamp = logger.format_timestamp();
         assert!(timestamp.contains("s"));
@@ -1400,17 +1409,17 @@ mod tests {
     #[test]
     fn test_performance_report_detailed_output() {
         let logger = PerformanceLogger::new(LogLevel::Info);
-        
+
         // Add some test data
         logger.log_operation_start("test", "details");
         logger.log_operation_success("test", Duration::from_millis(100), "success");
         logger.log_memory_usage(1024 * 1024, 2048 * 1024);
 
         let report = logger.generate_performance_report();
-        
+
         // Test that the report can be printed without panicking
         report.print_detailed_report();
-        
+
         // Verify report structure
         assert!(report.total_runtime.as_nanos() > 0);
         assert_eq!(report.total_operations, 1);
@@ -1463,7 +1472,7 @@ mod tests {
     #[test]
     fn test_resource_monitor_creation() {
         let monitor = ResourceMonitor::new(512, 1024, 75.0);
-        
+
         // Test that limits are correctly converted to bytes
         assert_eq!(monitor.memory_limit, 512 * 1024 * 1024);
         assert_eq!(monitor.disk_limit, 1024 * 1024 * 1024);
@@ -1473,12 +1482,15 @@ mod tests {
     #[test]
     fn test_metrics_collector_creation() {
         let collector = MetricsCollector::new();
-        
+
         // Test initial values
         assert_eq!(collector.total_operations.load(Ordering::Relaxed), 0);
         assert_eq!(collector.successful_operations.load(Ordering::Relaxed), 0);
         assert_eq!(collector.failed_operations.load(Ordering::Relaxed), 0);
-        assert_eq!(collector.total_processing_time_ms.load(Ordering::Relaxed), 0);
+        assert_eq!(
+            collector.total_processing_time_ms.load(Ordering::Relaxed),
+            0
+        );
         assert_eq!(collector.peak_memory_usage.load(Ordering::Relaxed), 0);
         assert_eq!(collector.current_memory_usage.load(Ordering::Relaxed), 0);
     }
@@ -1486,15 +1498,21 @@ mod tests {
     #[test]
     fn test_error_statistics_creation() {
         let stats = ErrorStatistics::new();
-        
+
         // Test initial values
         assert_eq!(stats.parallel_processing_errors.load(Ordering::Relaxed), 0);
         assert_eq!(stats.resource_limit_errors.load(Ordering::Relaxed), 0);
         assert_eq!(stats.data_quality_errors.load(Ordering::Relaxed), 0);
-        assert_eq!(stats.performance_threshold_errors.load(Ordering::Relaxed), 0);
+        assert_eq!(
+            stats.performance_threshold_errors.load(Ordering::Relaxed),
+            0
+        );
         assert_eq!(stats.concurrency_conflict_errors.load(Ordering::Relaxed), 0);
         assert_eq!(stats.data_corruption_errors.load(Ordering::Relaxed), 0);
-        assert_eq!(stats.insufficient_resources_errors.load(Ordering::Relaxed), 0);
+        assert_eq!(
+            stats.insufficient_resources_errors.load(Ordering::Relaxed),
+            0
+        );
         assert_eq!(stats.export_interrupted_errors.load(Ordering::Relaxed), 0);
     }
 
@@ -1557,7 +1575,7 @@ mod tests {
 
         let report = logger.generate_performance_report();
         let breakdown = &report.error_breakdown;
-        
+
         assert_eq!(breakdown.parallel_processing_errors, 1);
         assert_eq!(breakdown.resource_limit_errors, 1);
         assert_eq!(breakdown.data_quality_errors, 1);
@@ -1588,7 +1606,9 @@ mod tests {
 
         // Test that error can be created with partial results
         match error {
-            ExportError::ParallelProcessingError { partial_results, .. } => {
+            ExportError::ParallelProcessingError {
+                partial_results, ..
+            } => {
                 assert!(partial_results.is_some());
                 assert_eq!(partial_results.unwrap(), vec![1, 2, 3, 4, 5]);
             }

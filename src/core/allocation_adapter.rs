@@ -239,12 +239,12 @@ impl AllocationCollection {
     }
 
     /// Get an iterator over the allocations
-    pub fn iter(&self) -> std::slice::Iter<AllocationInfoAdapter> {
+    pub fn iter(&self) -> std::slice::Iter<'_, AllocationInfoAdapter> {
         self.allocations.iter()
     }
 
     /// Get a mutable iterator over the allocations
-    pub fn iter_mut(&mut self) -> std::slice::IterMut<AllocationInfoAdapter> {
+    pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, AllocationInfoAdapter> {
         self.allocations.iter_mut()
     }
 
@@ -701,7 +701,10 @@ mod tests {
         assert_eq!(converted.borrow_count, original.borrow_count);
         assert_eq!(converted.is_leaked, original.is_leaked);
         assert_eq!(converted.lifetime_ms, original.lifetime_ms);
-        assert_eq!(converted.ownership_history_available, original.ownership_history_available);
+        assert_eq!(
+            converted.ownership_history_available,
+            original.ownership_history_available
+        );
     }
 
     #[test]

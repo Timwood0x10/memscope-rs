@@ -212,9 +212,7 @@ pub fn export_to_binary_with_mode<P: AsRef<Path>>(
 
     writer.finish()?;
 
-    tracing::info!(
-        "Binary export completed: {total_count} allocations written"
-    );
+    tracing::info!("Binary export completed: {total_count} allocations written");
 
     Ok(())
 }

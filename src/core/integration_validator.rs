@@ -1071,7 +1071,7 @@ mod tests {
     fn test_validation_results_serialization() {
         let results = ValidationResults {
             call_stack_normalizer_ok: true,
-            edge_case_handler_ok: true,  // Changed to true to match the assertion
+            edge_case_handler_ok: true, // Changed to true to match the assertion
             data_deduplicator_ok: true,
             ffi_resolver_ok: false,
             integration_ok: true,

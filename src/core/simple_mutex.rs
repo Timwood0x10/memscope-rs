@@ -29,7 +29,7 @@ impl<T> SimpleMutex<T> {
 
     /// Lock the mutex
     #[cfg(feature = "parking-lot")]
-    pub fn lock(&self) -> parking_lot::MutexGuard<T> {
+    pub fn lock(&self) -> parking_lot::MutexGuard<'_, T> {
         #[cfg(debug_assertions)]
         self.access_count
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -49,7 +49,7 @@ impl<T> SimpleMutex<T> {
 
     /// Try to lock the mutex
     #[cfg(feature = "parking-lot")]
-    pub fn try_lock(&self) -> Option<parking_lot::MutexGuard<T>> {
+    pub fn try_lock(&self) -> Option<parking_lot::MutexGuard<'_, T>> {
         #[cfg(debug_assertions)]
         self.access_count
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);

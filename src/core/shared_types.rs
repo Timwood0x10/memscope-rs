@@ -103,7 +103,7 @@ impl SharedAllocationCollection {
     }
 
     /// Get an iterator over the allocations
-    pub fn iter(&self) -> std::slice::Iter<SharedAllocationInfo> {
+    pub fn iter(&self) -> std::slice::Iter<'_, SharedAllocationInfo> {
         self.allocations.iter()
     }
 

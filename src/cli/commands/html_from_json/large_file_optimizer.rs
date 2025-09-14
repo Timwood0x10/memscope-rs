@@ -7,7 +7,7 @@ use serde_json::Value;
 use std::error::Error;
 use std::fmt;
 use std::fs::File;
-use std::io::{BufReader, Read};
+use std::io::BufReader;
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -289,7 +289,7 @@ impl LargeFileOptimizer {
         file_type: &str,
     ) -> Result<(Value, usize), LargeFileError> {
         let file = File::open(file_path).map_err(LargeFileError::IoError)?;
-        let mut reader = BufReader::with_capacity(self.config.stream_chunk_size, file);
+        let reader = BufReader::with_capacity(self.config.stream_chunk_size, file);
 
         // Track memory allocation for the reader buffer
         self.memory_monitor
@@ -308,7 +308,7 @@ impl LargeFileOptimizer {
         // Count objects processed (simplified)
         let objects_processed = self.count_json_objects(&json_value);
 
-        // Clean up memory tracking  
+        // Clean up memory tracking
         self.memory_monitor
             .deallocate(self.config.stream_chunk_size);
 
@@ -324,7 +324,7 @@ impl LargeFileOptimizer {
         // 使用流式读取避免内存峰值
         let file = File::open(file_path).map_err(LargeFileError::IoError)?;
         let reader = BufReader::new(file);
-        
+
         // Track memory for reader buffer
         self.memory_monitor.allocate(8192)?; // BufReader默认缓冲区大小
 

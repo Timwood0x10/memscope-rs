@@ -189,7 +189,7 @@ pub fn to_tracking_result<T>(result: AdaptedResult<T>) -> crate::core::types::Tr
 mod tests {
     use super::*;
     use crate::core::ErrorSeverity;
-    
+
     #[test]
     fn test_allocation_error_conversion() {
         let old_error = TrackingError::AllocationFailed("test allocation failed".to_string());
@@ -258,28 +258,31 @@ mod tests {
         for original_error in test_errors {
             // Convert to new error format
             let adapted_error = DefaultErrorAdapter::from_tracking_error(original_error.clone());
-            
+
             // Verify the adapted error has appropriate properties
             assert!(!adapted_error.category().is_empty());
             assert!(!adapted_error.user_message().is_empty());
             // Skip technical_details check as method doesn't exist
-            
+
             // Convert back to tracking error
             let converted_back = DefaultErrorAdapter::to_tracking_error(&adapted_error);
-            
+
             // Verify the conversion preserves the error type
             match (&original_error, &converted_back) {
-                (TrackingError::AllocationFailed(_), TrackingError::AllocationFailed(_)) => {},
-                (TrackingError::DeallocationFailed(_), TrackingError::DeallocationFailed(_)) => {},
-                (TrackingError::BorrowCheckError(_), TrackingError::BorrowCheckError(_)) => {},
-                (TrackingError::LifetimeError(_), TrackingError::LifetimeError(_)) => {},
-                (TrackingError::ThreadSafetyError(_), TrackingError::ThreadSafetyError(_)) => {},
-                (TrackingError::InvalidPointer(_), TrackingError::InvalidPointer(_)) => {},
-                (TrackingError::IoError(_), TrackingError::IoError(_)) => {},
-                (TrackingError::SerializationError(_), TrackingError::SerializationError(_)) => {},
-                (TrackingError::ConfigurationError(_), TrackingError::ConfigurationError(_)) => {},
-                (TrackingError::InternalError(_), TrackingError::InternalError(_)) => {},
-                _ => panic!("Error type mismatch: {:?} -> {:?}", original_error, converted_back),
+                (TrackingError::AllocationFailed(_), TrackingError::AllocationFailed(_)) => {}
+                (TrackingError::DeallocationFailed(_), TrackingError::DeallocationFailed(_)) => {}
+                (TrackingError::BorrowCheckError(_), TrackingError::BorrowCheckError(_)) => {}
+                (TrackingError::LifetimeError(_), TrackingError::LifetimeError(_)) => {}
+                (TrackingError::ThreadSafetyError(_), TrackingError::ThreadSafetyError(_)) => {}
+                (TrackingError::InvalidPointer(_), TrackingError::InvalidPointer(_)) => {}
+                (TrackingError::IoError(_), TrackingError::IoError(_)) => {}
+                (TrackingError::SerializationError(_), TrackingError::SerializationError(_)) => {}
+                (TrackingError::ConfigurationError(_), TrackingError::ConfigurationError(_)) => {}
+                (TrackingError::InternalError(_), TrackingError::InternalError(_)) => {}
+                _ => panic!(
+                    "Error type mismatch: {:?} -> {:?}",
+                    original_error, converted_back
+                ),
             }
         }
     }
@@ -313,25 +316,21 @@ mod tests {
             TrackingError::IoError("test".to_string()),
             TrackingError::SerializationError("test".to_string()),
         ];
-        
-        let config_errors = vec![
-            TrackingError::ConfigurationError("test".to_string()),
-        ];
-        
-        let internal_errors = vec![
-            TrackingError::InternalError("test".to_string()),
-        ];
+
+        let config_errors = vec![TrackingError::ConfigurationError("test".to_string())];
+
+        let internal_errors = vec![TrackingError::InternalError("test".to_string())];
 
         for error in system_errors {
             let adapted = DefaultErrorAdapter::from_tracking_error(error);
             assert_eq!(adapted.category(), "system");
         }
-        
+
         for error in config_errors {
             let adapted = DefaultErrorAdapter::from_tracking_error(error);
             assert_eq!(adapted.category(), "config");
         }
-        
+
         for error in internal_errors {
             let adapted = DefaultErrorAdapter::from_tracking_error(error);
             assert_eq!(adapted.category(), "internal");
@@ -374,17 +373,17 @@ mod tests {
     #[test]
     fn test_error_adapter_trait_methods() {
         let _adapter = DefaultErrorAdapter;
-        
+
         // Test with various error types
         let allocation_error = TrackingError::AllocationFailed("allocation failed".to_string());
         let adapted = DefaultErrorAdapter::from_tracking_error(allocation_error.clone());
-        
+
         // Test trait methods
         assert!(!adapted.category().is_empty());
         assert!(!adapted.user_message().is_empty());
         assert!(!adapted.user_message().is_empty());
         assert!(adapted.severity() <= ErrorSeverity::Critical); // Check severity is valid
-        
+
         // Test conversion back
         let converted = DefaultErrorAdapter::to_tracking_error(&adapted);
         assert!(matches!(converted, TrackingError::AllocationFailed(_)));
@@ -403,26 +402,35 @@ mod tests {
             TrackingError::LifetimeError("test".to_string()),
         ];
 
-        let info_errors = vec![
-            TrackingError::ConfigurationError("test".to_string()),
-        ];
+        let info_errors = vec![TrackingError::ConfigurationError("test".to_string())];
 
         // Memory errors should have medium severity
         for error in critical_errors {
             let adapted = DefaultErrorAdapter::from_tracking_error(error);
-            assert_eq!(adapted.severity(), ErrorSeverity::Medium, "Memory error should have medium severity");
+            assert_eq!(
+                adapted.severity(),
+                ErrorSeverity::Medium,
+                "Memory error should have medium severity"
+            );
         }
 
         // Analysis errors should have low severity (unless non-recoverable)
         for error in warning_errors {
             let adapted = DefaultErrorAdapter::from_tracking_error(error);
-            assert_eq!(adapted.severity(), ErrorSeverity::Low, "Analysis error should have low severity");
+            assert_eq!(
+                adapted.severity(),
+                ErrorSeverity::Low,
+                "Analysis error should have low severity"
+            );
         }
 
         // Info errors should have lower severity
         for error in info_errors {
             let adapted = DefaultErrorAdapter::from_tracking_error(error);
-            assert!(adapted.severity() <= ErrorSeverity::High, "Info error should have reasonable severity");
+            assert!(
+                adapted.severity() <= ErrorSeverity::High,
+                "Info error should have reasonable severity"
+            );
         }
     }
 
@@ -431,7 +439,7 @@ mod tests {
         // Test that error chains are preserved through adaptation
         let original_error = TrackingError::AllocationFailed("root cause".to_string());
         let adapted = DefaultErrorAdapter::from_tracking_error(original_error);
-        
+
         // The user message should contain the original error information
         assert!(adapted.user_message().contains("root cause"));
     }
@@ -450,9 +458,11 @@ mod tests {
                 let error = TrackingError::AllocationFailed(format!("error_{}", i));
                 let adapted = DefaultErrorAdapter::from_tracking_error(error);
                 let converted_back = DefaultErrorAdapter::to_tracking_error(&adapted);
-                
+
                 match converted_back {
-                    TrackingError::AllocationFailed(msg) => assert!(msg.contains(&format!("error_{}", i))),
+                    TrackingError::AllocationFailed(msg) => {
+                        assert!(msg.contains(&format!("error_{}", i)))
+                    }
                     _ => panic!("Unexpected error type"),
                 }
             });
@@ -468,14 +478,14 @@ mod tests {
     fn test_error_formatting() {
         let error = TrackingError::AllocationFailed("test allocation".to_string());
         let adapted = DefaultErrorAdapter::from_tracking_error(error);
-        
+
         // Test that the adapted error can be formatted
         let user_msg = adapted.user_message();
         let category = adapted.category();
-        
+
         assert!(!user_msg.is_empty());
         assert!(!category.is_empty());
-        
+
         // Test that formatting doesn't panic
         let _formatted = format!("Error: {} ({})", user_msg, category);
     }
@@ -485,21 +495,24 @@ mod tests {
         // Test chaining operations on adapted results
         let success: crate::core::types::TrackingResult<i32> = Ok(10);
         let adapted_success = adapt_result(success);
-        
+
         // Test mapping operations
         let mapped = adapted_success.map(|x| x * 2);
         assert_eq!(mapped.unwrap(), 20);
-        
+
         // Test error case
-        let error_result: crate::core::types::TrackingResult<i32> = 
+        let error_result: crate::core::types::TrackingResult<i32> =
             Err(TrackingError::AllocationFailed("test".to_string()));
         let adapted_error = adapt_result(error_result);
-        
+
         let mapped_error = adapted_error.map(|x| x * 2);
         assert!(mapped_error.is_err());
-        
+
         // Convert back and verify
         let converted_back = to_tracking_result(mapped_error);
-        assert!(matches!(converted_back, Err(TrackingError::AllocationFailed(_))));
+        assert!(matches!(
+            converted_back,
+            Err(TrackingError::AllocationFailed(_))
+        ));
     }
 }

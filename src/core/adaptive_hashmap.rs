@@ -281,5 +281,4 @@ mod tests {
         assert!(!map.is_sharded());
         assert_eq!(map.len(), 40); // 2 threads × 20 operations each
     }
-
 }
