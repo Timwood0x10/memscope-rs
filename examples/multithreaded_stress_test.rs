@@ -1,7 +1,7 @@
 //! Multi-threaded stress test with large number of variables
 //! Tests memscope-rs stability under heavy concurrent workload
 
-use memscope_rs::{track_var, init_for_testing};
+use memscope_rs::track_var;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::thread;

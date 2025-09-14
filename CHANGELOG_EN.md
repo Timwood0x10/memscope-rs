@@ -192,7 +192,32 @@ src/
 
 - **README Updates**: Enhanced documentation
 - **Performance Guide**: Basic performance documentation
-- **Tracking Guide**: User guide for tracking features
+-- **Tracking Guide**: User guide for tracking features
+
+---
+
+
+## [0.1.5] - 2025-09-14
+
+### Added
+- **High-Performance Binary Export:** A new binary export format (`src/export/binary`) provides a faster and more compact alternative to JSON.
+- **Unified Export API:** A new, tiered export API under the `export` module simplifies exporting data in different formats.
+- **Advanced Tracking Macros:** Introduced `track_var_owned!` for ownership-based lifecycle tracking and `track_var_smart!` for automatic strategy selection.
+- **Core Performance Primitives:** Added `ShardedRwLock`, `AdaptiveHashMap`, and other high-performance components in the `core` module to reduce lock contention and improve performance.
+- **Benchmarking Suite:** A new suite of benchmarks (`benches/`) was added using the Criterion framework to measure and track performance.
+- **Comprehensive Documentation:** Added extensive new user guides, API references, and examples in the `docs/` directory for both English and Chinese.
+- **New Analysis Features:** Introduced new analysis capabilities, including an enhanced FFI function resolver and a memory passport tracker.
+- **New HTML Dashboards:** Added new, more advanced HTML templates for visualizing analysis results.
+
+### Changed
+- **Core Architecture Refactoring:** The entire crate has been reorganized into a more modular structure (`core`, `analysis`, `export`, etc.). The core tracking logic was completely refactored for better performance and maintainability.
+- **Default Tracking Behavior:** The `track_var!` macro now tracks variables by reference for zero-cost tracking by default.
+- **Smart Pointer Handling:** Improved and centralized the tracking logic for `Rc`, `Arc`, and `Box` for more accuracy.
+- **Dependencies:** Updated `Cargo.toml` to include `dashmap`, `criterion`, and `bincode` to support new features and performance improvements.
+
+### Fixed
+- **Concurrency Issues:** Replaced previous locking mechanisms with sharded locks and optimized mutexes to significantly reduce thread contention and improve stability in multi-threaded applications.
+- **Inaccurate Lifecycle Tracking:** The new ownership-based tracking (`track_var_owned!`) and improved smart pointer logic provide more precise and reliable variable lifecycle analysis.
 
 ---
 
@@ -229,8 +254,7 @@ src/
 **Long-term Goals:**
 
 - **Production Readiness**: Make the library suitable for production use
-- **Plugin System**: Extensible plugin architecture
-- **Real-time Analysis**: Live memory analysis capabilities
+- **Multi-thread support**: Supports multi-threaded environments (20+ threads)
 - **Integration**: Better integration with existing Rust tooling
 
 **Note**: This project is currently experimental and not recommended for production use. We are committed to honest development and will update this status as the project matures.

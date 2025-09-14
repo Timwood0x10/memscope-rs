@@ -5,6 +5,69 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.0] - 2025-09-14
+
+### Added
+- **Sharded Locks:** impl `ShardedRwLock` and `ShardedMutex`, use smart data sharding to eliminate lock competition, and improve multi-threading performance by 350%.
+- **自适应哈希表 (AdaptiveHashMap):** 根据访问模式自动优化的数据结构，能监控并自动升级以应对高竞争场景。
+- **字符串池优化:** 全局字符串池系统，对类型名和调用栈信息智能去重，在大型项目中节省30-50%内存。
+- **增强型调用栈规范化:** `CallStackNormalizer` 系统，对相同调用栈仅存储一次，实现O(1)查找。
+- **二进制模板引擎:** `BinaryTemplateEngine` 支持直接从二进制数据生成现代化HTML仪表板（含Tailwind CSS、Chart.js）。
+- **多维度数据可视化:** 新增内存热力图、生命周期时间线、FFI安全仪表板、变量关系图等共15种可视化图表。
+- **智能数据分析引擎:** `AnalysisEngine` 统一处理管道，支持自动检测内存泄漏、性能瓶颈和风险评估。
+- **精细化内存管理:** `BoundedMemoryStats` 限制内存使用，防止OOM，并智能清理过期记录。
+
+### Changed
+- **统一错误处理:** 引入 `MemScopeError` 统一所有模块错误类型，错误率降低96%。
+- **极致导出优化:** 实现多模式（快速/平衡/完整）、流式、并行导出，速度提升275%（30秒→8秒）。
+- **安全增强:** 新增 `SafeLock` 特性预防死锁，所有锁操作均带超时保护。
+- **架构重组:** 代码库重组为 `core`, `analysis`, `export`, `cli` 等专业化模块，提升可维护性。
+- **依赖更新:** 更新 `Cargo.toml` 以支持新功能，包括 `dashmap`, `criterion`, `bincode` 等。
+
+### Fixed
+- **并发稳定性:** 通过分片锁和优化的 `parking_lot` 互斥锁，彻底解决高并发下的锁竞争和稳定性问题。
+- **数据准确性:** 改进的智能指针（`Rc`/`Arc`/`Box`）跟踪和所有权分析，提供更精确的生命周期数据。
+
+## [0.1.1] - 2025-07-10
+
+### Added
+- **Enhanced Lifecycle Timeline Visualization**
+  - New `export_lifecycle_timeline()` method for generating timeline SVGs
+  - Chronological visualization of memory allocation events
+  - Variable scope and lifetime relationship analysis
+  - Timeline-based memory usage patterns and hotspot detection
+
+- **Improved SVG Visualizations**
+  - Updated legend system with clearer color coding and categorization
+  - Enhanced type recognition and simplified type name display
+  - Professional gradient backgrounds and improved visual styling
+  - Better layout and spacing for complex memory usage patterns
+
+- **Standardized Naming Conventions**
+  - Recommended naming format: `program_name_memory_analysis.svg` for memory analysis
+  - Recommended naming format: `program_name_lifecycle_timeline.svg` for timeline visualization
+  - Consistent file naming across all export functions
+  - Clear separation between memory state analysis and temporal lifecycle tracking
+
+### Changed
+- **Code Cleanup and Optimization**
+  - Removed redundant `src/export.rs` file (functionality merged into `export_enhanced.rs`)
+  - Removed example `src/main.rs` file to reduce codebase complexity
+  - Fixed all clippy warnings for better code quality
+  - Improved error handling and type safety
+
+- **Enhanced Documentation**
+  - Added comprehensive lifecycle timeline analysis guide to README
+  - Detailed interpretation guide for timeline visualizations
+  - Updated examples with lifecycle timeline generation
+  - Improved use case descriptions and optimization guidance
+
+### Fixed
+- All clippy warnings resolved (format string optimization, range checks, etc.)
+- Improved type inference and error handling
+- Better memory timestamp handling for timeline generation
+- Enhanced thread safety and performance optimizations
+
 ## [0.1.0] - 2025-07-09
 
 ### Added
@@ -57,160 +120,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Non-blocking tracking operations where possible
 - Memory overhead of ~50-100 bytes per tracked allocation
 - Export operations complete in < 10 seconds for 10,000+ allocations
-
-## [0.1.1] - 2025-07-10
-
-### Added
-- **Enhanced Lifecycle Timeline Visualization**
-  - New `export_lifecycle_timeline()` method for generating timeline SVGs
-  - Chronological visualization of memory allocation events
-  - Variable scope and lifetime relationship analysis
-  - Timeline-based memory usage patterns and hotspot detection
-
-- **Improved SVG Visualizations**
-  - Updated legend system with clearer color coding and categorization
-  - Enhanced type recognition and simplified type name display
-  - Professional gradient backgrounds and improved visual styling
-  - Better layout and spacing for complex memory usage patterns
-
-- **Standardized Naming Conventions**
-  - Recommended naming format: `program_name_memory_analysis.svg` for memory analysis
-  - Recommended naming format: `program_name_lifecycle_timeline.svg` for timeline visualization
-  - Consistent file naming across all export functions
-  - Clear separation between memory state analysis and temporal lifecycle tracking
-
-### Changed
-- **Code Cleanup and Optimization**
-  - Removed redundant `src/export.rs` file (functionality merged into `export_enhanced.rs`)
-  - Removed example `src/main.rs` file to reduce codebase complexity
-  - Fixed all clippy warnings for better code quality
-  - Improved error handling and type safety
-
-- **Enhanced Documentation**
-  - Added comprehensive lifecycle timeline analysis guide to README
-  - Detailed interpretation guide for timeline visualizations
-  - Updated examples with lifecycle timeline generation
-  - Improved use case descriptions and optimization guidance
-
-### Fixed
-- All clippy warnings resolved (format string optimization, range checks, etc.)
-- Improved type inference and error handling
-- Better memory timestamp handling for timeline generation
-- Enhanced thread safety and performance optimizations
-
-## [Unreleased] - Current Branch Improvements
-
-### Revolutionary Data Collection Strategy Improvements
-
-#### Added - Sharded Lock System
-- **ShardedRwLock and ShardedMutex**: Implemented intelligent data sharding to eliminate lock contention
-- **90% Reduction in Lock Contention**: Dramatic performance improvements in multi-threaded environments
-- **3-5x Throughput Increase**: Massive improvements in high-concurrency scenarios
-- **Smart Load Balancing**: Automatic distribution based on hash values
-
-#### Added - Adaptive HashMap System
-- **AdaptiveHashMap**: Self-upgrading data structures that optimize based on access patterns
-- **Auto-Detection**: Monitors lock contention and upgrades automatically when thresholds are exceeded
-- **Zero Downtime Upgrades**: Upgrade process is transparent to users
-- **Performance Optimization**: Chooses the best strategy based on actual usage patterns
-
-#### Added - String Pool Optimization
-- **Global String Pool**: Intelligent deduplication system for type names and call stack information
-- **30-50% Memory Savings**: Especially significant in large projects
-- **Smart Caching**: Frequently used strings automatically cached for faster access
-- **Usage Monitoring**: Real-time monitoring of string pool utilization
-
-#### Added - Enhanced Call Stack Normalization
-- **CallStackNormalizer**: Evolved from simple recording to intelligent normalization system
-- **Deduplication Optimization**: Identical call stacks stored once, referenced by ID
-- **O(1) Lookup**: Fast call stack retrieval with constant time complexity
-- **Enhanced Statistics**: Detailed call stack usage analytics
-
-### Comprehensive Display Strategy Upgrades
-
-#### Added - Binary Template Engine
-- **BinaryTemplateEngine**: Generates HTML directly from binary data with template caching and precompilation
-- **Modern UI**: Tailwind CSS with dark/light theme support
-- **Interactive Charts**: Integrated Chart.js and D3.js for rich visualizations
-- **Responsive Design**: Perfect adaptation to all screen sizes
-- **Smart Search**: Real-time filtering and search capabilities
-
-#### Added - Multi-Dimensional Data Visualization
-- **Memory Distribution Heatmap**: Intuitive display of memory usage hotspots
-- **Lifecycle Timeline**: Complete object lifecycle visualization
-- **FFI Safety Dashboard**: Dedicated unsafe code security analysis
-- **Variable Relationship Graph**: Interactive variable dependency network
-- **Borrow Activity Chart**: Real-time borrow checker activity display
-- **15 Total Visualization Types**: Expanded from 3 basic charts to comprehensive analysis suite
-
-#### Added - Intelligent Data Analysis Engine
-- **AnalysisEngine**: Unified data processing pipeline with multi-level optimization
-- **Pattern Recognition**: Automatic detection of memory leaks and performance bottlenecks
-- **Trend Analysis**: Analysis of memory usage trends and anomaly patterns
-- **Risk Assessment**: Intelligent evaluation of unsafe code security risks
-- **Optimization Suggestions**: Specific recommendations based on analysis results
-
-### Systematic Project Optimization Strategy Improvements
-
-#### Added - Multi-Layered Performance Architecture
-- **OptimizedMutex**: Using parking_lot instead of standard library locks (60-80% speed improvement)
-- **ShardedLocks**: Reducing lock contention at the sharding layer
-- **AdaptiveHashMap**: Intelligent storage strategy selection
-- **LockFreeCounter**: Lock-free implementation for critical paths
-- **350% Concurrent Performance Increase**: From 1000 to 4500 ops/s
-
-#### Added - Fine-Grained Memory Management
-- **BoundedMemoryStats**: Memory usage limits to prevent OOM conditions
-- **Smart Cleanup**: Automatic cleanup of expired allocation records
-- **History Management**: Retain important historical data for analysis
-- **Compressed Storage**: Efficient data structures reducing memory footprint by 35%
-
-#### Added - Ultimate Export Performance Optimization
-- **Multi-Mode Export System**: Fast, Balanced, and Complete modes
-- **Streaming Processing**: Process large files in chunks to avoid memory explosion
-- **Parallel Export**: Multi-threaded parallel processing of different data segments
-- **Smart Compression**: Optimal compression algorithms based on data characteristics
-- **275% Export Speed Improvement**: From 30s to 8s for large datasets
-
-### Comprehensive Project Robustness Improvements
-
-#### Added - Unified Error Handling System
-- **MemScopeError**: Unified error types across all modules
-- **Auto Recovery**: Automatic error recovery mechanisms
-- **Error Statistics**: Detailed error statistics and analysis
-- **Graceful Degradation**: System continues functioning when partial features fail
-- **96% Error Rate Reduction**: From 2.3% to 0.1%
-
-#### Added - Enhanced Safe Operations
-- **SafeLock Trait**: Smart detection and prevention of deadlock situations
-- **Timeout Mechanisms**: All lock operations have timeout protection
-- **Exception Isolation**: Individual module exceptions don't affect overall system
-- **Security Monitoring**: Real-time monitoring of system security status
-
-#### Added - Comprehensive Test Coverage
-- **85%+ Code Coverage**: Comprehensive unit and integration tests
-- **Performance Benchmarks**: Continuous performance monitoring and regression testing
-- **Stress Testing**: High-load and boundary condition validation
-- **Continuous Integration**: Automated testing and deployment pipelines
-
-### Performance Metrics Summary
-- **Lock Contention Rate**: 45% → 5% (89% improvement)
-- **Memory Usage**: 100MB → 65MB (35% reduction)
-- **Export Speed**: 30s → 8s (275% improvement)
-- **Concurrent Performance**: 1000 → 4500 ops/s (350% improvement)
-- **Error Rate**: 2.3% → 0.1% (96% reduction)
-- **Visualization Charts**: 3 → 15 types (400% increase)
-- **Export Formats**: JSON only → JSON/HTML/Binary (multi-format support)
-
-### Security & Safety Enhancements
-- **FFI Safety Analysis**: Advanced unsafe code security evaluation
-- **Memory Passport System**: Cross-boundary memory lifecycle tracking
-- **Unsafe Report Generation**: Comprehensive risk assessment for unsafe blocks
-- **Deadlock Prevention**: Intelligent deadlock detection and prevention
-- **Resource Leak Detection**: Automatic detection of memory and resource leaks
-
-## [Planned Features]
-- Configuration options for production use
-- Memory usage limits and cleanup policies
-- Integration with profiling tools
-- Real-time monitoring capabilities
