@@ -80,7 +80,6 @@ impl ExportOptions {
 
 /// Internal export mode derived from options
 #[derive(Debug, Clone, Copy)]
-#[allow(dead_code)]
 pub enum ExportMode {
     /// Fast mode: Only enrich user-tracked variables
     UserFocused,

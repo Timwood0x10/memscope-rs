@@ -7,49 +7,6 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Instant;
 
-#[derive(Debug, Clone)]
-#[allow(dead_code)]
-struct User {
-    id: u64,
-    name: String,
-    email: String,
-    preferences: HashMap<String, String>,
-}
-
-#[derive(Debug, Clone)]
-#[allow(dead_code)]
-struct DatabaseConnection {
-    host: String,
-    port: u16,
-    connection_pool: Vec<String>,
-    active_queries: VecDeque<String>,
-}
-
-#[derive(Debug)]
-#[allow(dead_code)]
-struct CacheEntry<T> {
-    key: String,
-    value: T,
-    timestamp: u64,
-    access_count: usize,
-}
-
-#[derive(Debug)]
-#[allow(dead_code)]
-struct GraphNode {
-    id: usize,
-    data: String,
-    neighbors: Vec<usize>,
-    metadata: BTreeMap<String, i32>,
-}
-
-#[derive(Debug)]
-#[allow(dead_code)]
-struct StreamProcessor {
-    buffer: Vec<u8>,
-    processed_count: usize,
-    error_log: Vec<String>,
-}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     init();

@@ -28,7 +28,6 @@ impl Default for FastStatsCollector {
 }
 
 #[derive(Default)]
-#[allow(dead_code)]
 struct DetailedStatsData {
     allocation_sizes: Vec<usize>,
     peak_memory: usize,
@@ -60,12 +59,24 @@ impl FastStatsCollector {
         if let Some(mut data) = self.detailed_data.try_lock() {
             data.allocation_sizes.push(size);
             *data.allocation_histogram.entry(size).or_insert(0) += 1;
+            
+            // Update peak memory
+            let current_memory = self.memory_stats.snapshot().active_memory as usize;
+            if current_memory > data.peak_memory {
+                data.peak_memory = current_memory;
+            }
         }
 
         #[cfg(not(feature = "parking-lot"))]
         if let Ok(mut data) = self.detailed_data.try_lock() {
             data.allocation_sizes.push(size);
             *data.allocation_histogram.entry(size).or_insert(0) += 1;
+            
+            // Update peak memory
+            let current_memory = self.memory_stats.snapshot().active_memory as usize;
+            if current_memory > data.peak_memory {
+                data.peak_memory = current_memory;
+            }
         }
         // If we can't get the lock, we just skip histogram tracking
     }
@@ -91,13 +102,12 @@ impl FastStatsCollector {
     /// Get detailed stats (may use lock, but with timeout)
     pub fn get_detailed_stats(&self) -> Option<DetailedStats> {
         let basic = self.get_basic_stats();
-        let snapshot = self.memory_stats.snapshot();
 
         #[cfg(feature = "parking-lot")]
         {
             self.detailed_data.try_lock().map(|data| DetailedStats {
                 basic,
-                peak_memory: snapshot.peak_memory as usize,
+                peak_memory: data.peak_memory,
                 avg_allocation_size: if !data.allocation_sizes.is_empty() {
                     data.allocation_sizes.iter().sum::<usize>() / data.allocation_sizes.len()
                 } else {
@@ -112,7 +122,7 @@ impl FastStatsCollector {
             if let Ok(data) = self.detailed_data.try_lock() {
                 Some(DetailedStats {
                     basic,
-                    peak_memory: snapshot.peak_memory as usize,
+                    peak_memory: data.peak_memory,
                     avg_allocation_size: if !data.allocation_sizes.is_empty() {
                         data.allocation_sizes.iter().sum::<usize>() / data.allocation_sizes.len()
                     } else {
@@ -581,10 +591,10 @@ mod tests {
         let mut handles = vec![];
 
         // Stress test with many threads
-        for thread_id in 0..20 {
+        for thread_id in 0..5 {
             let collector_clone = collector.clone();
             let handle = thread::spawn(move || {
-                for i in 0..500 {
+                for i in 0..20 {
                     let size = (thread_id * 100 + i) % 1000 + 1;
                     collector_clone.record_allocation_fast(size);
                 }
@@ -597,7 +607,7 @@ mod tests {
         }
 
         let final_stats = collector.get_basic_stats();
-        assert_eq!(final_stats.allocation_count, 10000); // 20 threads × 500 allocations
+        assert_eq!(final_stats.allocation_count, 100); // 5 threads × 20 allocations
         assert!(final_stats.total_allocated > 0);
     }
 

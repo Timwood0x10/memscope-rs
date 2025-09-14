@@ -756,17 +756,6 @@ fn calculate_overhead(type_name: &str) -> usize {
     }
 }
 
-/// Calculate alignment requirements
-#[allow(dead_code)]
-fn calculate_alignment(type_name: &str) -> usize {
-    if type_name.contains("Atomic") {
-        8 // Most atomics require 8-byte alignment
-    } else if type_name.contains("Mutex<") || type_name.contains("RwLock<") {
-        std::mem::align_of::<std::sync::Mutex<()>>()
-    } else {
-        std::mem::align_of::<usize>()
-    }
-}
 
 /// Generate statistics for the analysis
 fn generate_advanced_type_statistics(

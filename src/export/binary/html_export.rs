@@ -1014,39 +1014,6 @@ fn convert_allocation_to_binary_data(
     )
 }
 
-#[derive(serde::Serialize)]
-#[allow(dead_code)]
-struct AllocationData {
-    id: u64,
-    size: u64,
-    type_name: String,
-    location: String,
-    timestamp: u64,
-    status: String,
-}
-
-impl From<crate::core::types::AllocationInfo> for AllocationData {
-    fn from(alloc: crate::core::types::AllocationInfo) -> Self {
-        Self {
-            id: alloc.ptr as u64, // Use ptr as unique ID
-            size: alloc.size as u64,
-            type_name: alloc
-                .type_name
-                .clone()
-                .unwrap_or_else(|| "Unknown".to_string()),
-            location: alloc
-                .scope_name
-                .clone()
-                .unwrap_or_else(|| "Unknown".to_string()),
-            timestamp: alloc.timestamp_alloc,
-            status: if alloc.is_active() {
-                "Active".to_string()
-            } else {
-                "Freed".to_string()
-            },
-        }
-    }
-}
 
 // ============================================================================
 // UNIFIED API IMPLEMENTATION FUNCTIONS
@@ -1138,6 +1105,39 @@ fn export_binary_to_html_progressive_impl<P: AsRef<Path>>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[derive(serde::Serialize)]
+    struct AllocationData {
+        id: u64,
+        size: u64,
+        type_name: String,
+        location: String,
+        timestamp: u64,
+        status: String,
+    }
+
+    impl From<crate::core::types::AllocationInfo> for AllocationData {
+        fn from(alloc: crate::core::types::AllocationInfo) -> Self {
+            Self {
+                id: alloc.ptr as u64, // Use ptr as unique ID
+                size: alloc.size as u64,
+                type_name: alloc
+                    .type_name
+                    .clone()
+                    .unwrap_or_else(|| "Unknown".to_string()),
+                location: alloc
+                    .scope_name
+                    .clone()
+                    .unwrap_or_else(|| "Unknown".to_string()),
+                timestamp: alloc.timestamp_alloc,
+                status: if alloc.is_active() {
+                    "Active".to_string()
+                } else {
+                    "Freed".to_string()
+                },
+            }
+        }
+    }
 
     #[test]
     fn test_binary_output_format_debug_clone_partialeq() {

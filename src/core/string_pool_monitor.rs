@@ -35,6 +35,8 @@ pub struct PerformanceMetrics {
     pub current_ops_per_second: f64,
     /// Total time spent in intern operations (nanoseconds)
     pub total_intern_time_ns: u64,
+    /// Monitor uptime in seconds
+    pub uptime_seconds: f64,
 }
 
 impl Default for PerformanceMetrics {
@@ -44,6 +46,7 @@ impl Default for PerformanceMetrics {
             peak_ops_per_second: 0.0,
             current_ops_per_second: 0.0,
             total_intern_time_ns: 0,
+            uptime_seconds: 0.0,
         }
     }
 }
@@ -149,7 +152,6 @@ pub enum RecommendationType {
 }
 
 /// String pool monitor that tracks usage and performance
-#[allow(dead_code)]
 pub struct StringPoolMonitor {
     /// Performance tracking
     performance_tracker: Arc<Mutex<PerformanceTracker>>,
@@ -228,6 +230,8 @@ impl StringPoolMonitor {
     }
 
     fn get_performance_metrics(&self) -> PerformanceMetrics {
+        let uptime_seconds = self.start_time.elapsed().as_secs_f64();
+        
         if let Ok(tracker) = self.performance_tracker.lock() {
             let avg_intern_time_ns = if tracker.intern_count > 0 {
                 tracker.total_intern_time_ns as f64 / tracker.intern_count as f64
@@ -242,6 +246,7 @@ impl StringPoolMonitor {
                 peak_ops_per_second: tracker.peak_ops_per_second,
                 current_ops_per_second,
                 total_intern_time_ns: tracker.total_intern_time_ns,
+                uptime_seconds,
             }
         } else {
             PerformanceMetrics {
@@ -249,6 +254,7 @@ impl StringPoolMonitor {
                 peak_ops_per_second: 0.0,
                 current_ops_per_second: 0.0,
                 total_intern_time_ns: 0,
+                uptime_seconds,
             }
         }
     }
@@ -565,6 +571,7 @@ mod tests {
             peak_ops_per_second: 1000.0,
             current_ops_per_second: 100.0,
             total_intern_time_ns: 500000,
+            uptime_seconds: 60.0,
         };
 
         let memory_efficiency = MemoryEfficiencyMetrics {

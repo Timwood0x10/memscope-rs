@@ -22,6 +22,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     demonstrate_basic_tracking(&tracker)?;
     demonstrate_complex_structures(&tracker)?;
     demonstrate_lifecycle_analysis(&tracker)?;
+    demonstrate_performance_monitoring(&tracker)?;
     demonstrate_export_functionality(&tracker)?;
 
     tracing::info!("Comprehensive memory analysis example completed successfully");
@@ -278,7 +279,6 @@ fn demonstrate_export_functionality(
 }
 
 /// Performance monitoring example
-#[allow(dead_code)]
 fn demonstrate_performance_monitoring(tracker: &MemoryTracker) -> TrackingResult<()> {
     tracing::info!("Demonstrating performance monitoring");
 

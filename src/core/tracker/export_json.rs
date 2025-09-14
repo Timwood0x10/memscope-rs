@@ -236,7 +236,6 @@ fn compute_enhanced_type_info(type_name: &str, size: usize) -> String {
 
 /// Clear the type cache (useful for testing)
 #[cfg(test)]
-#[allow(dead_code)]
 fn clear_type_cache() {
     if let Some(cache) = TYPE_CACHE.get() {
         if let Ok(mut cache) = cache.lock() {
