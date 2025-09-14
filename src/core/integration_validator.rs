@@ -439,8 +439,7 @@ mod tests {
 
         // Test retrieval - this is where the original test was failing
         let retrieved_result = normalizer.get_call_stack(id1);
-        if retrieved_result.is_ok() {
-            let retrieved = retrieved_result.expect("Should retrieve frames");
+        if let Ok(retrieved) = retrieved_result {
             assert_eq!(
                 retrieved.len(),
                 1,

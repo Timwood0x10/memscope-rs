@@ -4206,7 +4206,6 @@ mod tests {
 
         // Test progress callback
         validator.set_progress_callback(|progress| {
-            assert!(progress.total_bytes >= 0);
             assert!(progress.processed_bytes <= progress.total_bytes);
         });
 

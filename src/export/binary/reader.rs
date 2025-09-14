@@ -894,8 +894,7 @@ mod tests {
         let result = BinaryReader::new(temp_file.path());
         // Empty file might not always fail immediately, so we check if it fails or succeeds
         // If it succeeds, reading should fail
-        if result.is_ok() {
-            let mut reader = result.unwrap();
+        if let Ok(mut reader) = result {
             let read_result = reader.read_all();
             assert!(read_result.is_err()); // Reading from empty file should fail
         } else {
@@ -910,8 +909,7 @@ mod tests {
         }
         let result = BinaryReader::new(temp_file.path());
         // Invalid header might not always fail immediately, so we check if reading fails
-        if result.is_ok() {
-            let mut reader = result.unwrap();
+        if let Ok(mut reader) = result {
             let read_result = reader.read_all();
             assert!(
                 read_result.is_err(),

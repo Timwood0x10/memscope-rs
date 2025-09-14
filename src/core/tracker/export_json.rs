@@ -1624,8 +1624,10 @@ mod tests {
             "format": true
         });
 
-        let mut options = ExportJsonOptions::default();
-        options.use_compact_format = Some(true);
+        let mut options = ExportJsonOptions {
+            use_compact_format: Some(true),
+            ..Default::default()
+        };
         options.schema_validation = false;
         options.streaming_writer = false;
 
@@ -1651,8 +1653,10 @@ mod tests {
             "format": true
         });
 
-        let mut options = ExportJsonOptions::default();
-        options.use_compact_format = Some(false);
+        let mut options = ExportJsonOptions {
+            use_compact_format: Some(false),
+            ..Default::default()
+        };
         options.schema_validation = false;
         options.streaming_writer = false;
 

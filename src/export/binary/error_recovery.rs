@@ -910,11 +910,13 @@ mod tests {
 
     #[test]
     fn test_error_statistics_edge_cases() {
-        let mut stats = ErrorStatistics::default();
+        let mut stats = ErrorStatistics {
+            successful_recoveries: 0,
+            failed_recoveries: 0,
+            ..Default::default()
+        };
 
         // Test division by zero scenarios
-        stats.successful_recoveries = 0;
-        stats.failed_recoveries = 0;
         assert_eq!(stats.recovery_success_rate(), 0.0);
 
         // Test with only successful recoveries

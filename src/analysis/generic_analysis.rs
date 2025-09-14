@@ -266,7 +266,7 @@ impl GenericAnalyzer {
         }
 
         // Convert to vector - this should be safe now
-        alias_map.into_iter().map(|(_, v)| v).collect()
+        alias_map.into_values().collect()
     }
 
     /// Resolve a type alias to its underlying type
@@ -370,7 +370,7 @@ pub struct GenericInstance {
     pub name: String,
     /// Base generic type (e.g., "Vec", "HashMap")
     pub base_type: String,
-    /// Underlying resolved type (e.g., "Vec<i32>" for type MyA = Vec<i32>)
+    /// Underlying resolved type (e.g., `Vec<i32>` for type MyA = `Vec<i32>`)
     pub underlying_type: String,
     /// Actual type parameters (e.g., ["i32"], ["String", "usize"])
     pub type_parameters: Vec<String>,
@@ -471,7 +471,7 @@ pub struct GenericStatistics {
 pub struct TypeAliasInfo {
     /// Alias name (e.g., "MyA")
     pub alias_name: String,
-    /// Underlying type (e.g., "Vec<i32>")
+    /// Underlying type (e.g., `Vec<i32>`)
     pub underlying_type: String,
     /// Base type (e.g., "Vec")
     pub base_type: String,

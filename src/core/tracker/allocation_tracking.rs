@@ -1454,7 +1454,7 @@ mod tests {
 
         // Verify allocations were tracked
         let allocations = tracker.get_active_allocations().unwrap();
-        assert!(allocations.len() > 0);
+        assert!(!allocations.is_empty());
         assert!(allocations.len() <= 50); // Should be up to 50 allocations
     }
 

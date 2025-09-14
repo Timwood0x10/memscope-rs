@@ -1090,7 +1090,7 @@ mod tests {
         ];
 
         for (args, expected) in test_cases {
-            let joined = args.iter().map(|s| *s).collect::<Vec<_>>().join(" ");
+            let joined = args.to_vec().join(" ");
             assert_eq!(joined, expected);
         }
     }
@@ -1175,7 +1175,7 @@ mod tests {
         ];
 
         for (path, expected_ext) in test_paths {
-            let extension = path.split('.').last().unwrap_or("");
+            let extension = path.split('.').next_back().unwrap_or("");
             if path.contains('.') {
                 assert_eq!(extension, expected_ext);
             } else {

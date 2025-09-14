@@ -861,8 +861,7 @@ mod tests {
     #[test]
     fn test_vec_with_reserved_capacity() {
         // Test Vec with reserved capacity but no elements
-        let mut vec: Vec<i32> = Vec::new();
-        vec.reserve(100);
+        let vec: Vec<i32> = Vec::with_capacity(100);
 
         let pointer_info = EnhancedPointerExtractor::extract_vec_pointer(&vec);
         match pointer_info {
