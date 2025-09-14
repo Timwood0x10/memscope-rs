@@ -371,9 +371,6 @@ pub fn clear_type_cache() {
 }
 
 /// Process a batch of allocations (legacy function for compatibility)
-
-
-
 /// Analyze boundary events for an allocation
 fn analyze_boundary_events(alloc: &AllocationInfo) -> Option<serde_json::Value> {
     // Get boundary events from the unsafe FFI tracker
@@ -2829,9 +2826,6 @@ mod tests {
         let size5 = estimate_json_size(&number);
         assert_eq!(size5, 20); // Default primitive size
     }
-
-
-
 
     #[test]
     fn test_normalize_type_name() {

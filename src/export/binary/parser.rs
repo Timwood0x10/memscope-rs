@@ -115,9 +115,7 @@ impl BinaryParser {
         binary_path: P,
     ) -> Result<Vec<AllocationInfo>, BinaryExportError> {
         let mut reader = BinaryReader::new(binary_path)?;
-
-        let result = reader.read_all();
-        result
+        reader.read_all()
     }
 
     /// Load allocations with enhanced error recovery

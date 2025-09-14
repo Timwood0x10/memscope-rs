@@ -1520,7 +1520,7 @@ mod tests {
     #[test]
     fn test_export_config_update() {
         let mut coordinator = FastExportCoordinator::default();
-        let original_mode = coordinator.get_export_config().mode.clone();
+        let original_mode = coordinator.get_export_config().mode;
 
         let new_export_config = ExportConfig::slow();
         coordinator.update_export_config(new_export_config.clone());

@@ -699,7 +699,7 @@ mod tests {
                 // Count user vs system allocations in JSON
                 let json_user_count = json_allocations
                     .iter()
-                    .filter(|alloc| alloc.get("var_name").map_or(false, |v| !v.is_null()))
+                    .filter(|alloc| alloc.get("var_name").is_some_and(|v| !v.is_null()))
                     .count();
                 let json_system_count = json_allocations.len() - json_user_count;
 
@@ -936,7 +936,7 @@ mod tests {
             let json_allocations = allocations_array.as_array().unwrap();
             let json_user_count = json_allocations
                 .iter()
-                .filter(|alloc| alloc.get("var_name").map_or(false, |v| !v.is_null()))
+                .filter(|alloc| alloc.get("var_name").is_some_and(|v| !v.is_null()))
                 .count();
             let json_system_count = json_allocations.len() - json_user_count;
 

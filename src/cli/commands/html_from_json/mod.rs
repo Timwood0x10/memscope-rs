@@ -680,7 +680,7 @@ fn load_single_file_internal(
                 // Try recovery
                 let file_path_buf = std::path::PathBuf::from(file_path);
                 let error_msg = e.to_string();
-                let simple_error = std::io::Error::new(std::io::ErrorKind::Other, error_msg);
+                let simple_error = std::io::Error::other(error_msg);
                 match error_handler.handle_file_loading_error(
                     file_path_buf,
                     config.suffix,

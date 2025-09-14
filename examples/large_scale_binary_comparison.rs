@@ -7,7 +7,6 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Instant;
 
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     init();
     println!("Large Scale Binary Comparison - User vs Full Binary Performance");

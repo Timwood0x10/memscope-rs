@@ -1194,15 +1194,4 @@ mod tests {
         assert!(duration.as_millis() > 0);
         assert!(duration.as_millis() < 1000); // Less than 1 second
     }
-
-    #[test]
-    fn test_wrapper_function_signatures() {
-        // Test that wrapper functions have correct signatures
-        let _run_wrapper: fn(&clap::ArgMatches) = handle_run_command_wrapper;
-        let _analyze_wrapper: fn(&clap::ArgMatches) = handle_analyze_command_wrapper;
-        let _legacy_wrapper: fn(&clap::ArgMatches) = handle_legacy_mode_wrapper;
-
-        // These should compile without errors, confirming correct signatures
-        assert!(true);
-    }
 }

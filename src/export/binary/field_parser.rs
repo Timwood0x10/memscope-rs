@@ -789,7 +789,7 @@ mod tests {
     #[test]
     fn test_allocation_field_enum() {
         // Test all allocation field variants
-        let fields = vec![
+        let fields = [
             AllocationField::Ptr,
             AllocationField::Size,
             AllocationField::TimestampAlloc,
@@ -1018,7 +1018,7 @@ mod tests {
 
     #[test]
     fn test_field_parser_with_all_fields() {
-        let _fields = vec![
+        let _fields = [
             AllocationField::Ptr,
             AllocationField::Size,
             AllocationField::TimestampAlloc,

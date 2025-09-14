@@ -59,7 +59,7 @@ impl FastStatsCollector {
         if let Some(mut data) = self.detailed_data.try_lock() {
             data.allocation_sizes.push(size);
             *data.allocation_histogram.entry(size).or_insert(0) += 1;
-            
+
             // Update peak memory
             let current_memory = self.memory_stats.snapshot().active_memory as usize;
             if current_memory > data.peak_memory {
@@ -71,7 +71,7 @@ impl FastStatsCollector {
         if let Ok(mut data) = self.detailed_data.try_lock() {
             data.allocation_sizes.push(size);
             *data.allocation_histogram.entry(size).or_insert(0) += 1;
-            
+
             // Update peak memory
             let current_memory = self.memory_stats.snapshot().active_memory as usize;
             if current_memory > data.peak_memory {
@@ -684,7 +684,7 @@ mod tests {
         assert!(result1.len() > 1000); // Should contain all numbers
 
         // Few large strings
-        let large_strings = vec!["a".repeat(1000), "b".repeat(1000), "c".repeat(1000)];
+        let large_strings = ["a".repeat(1000), "b".repeat(1000), "c".repeat(1000)];
         let large_refs: Vec<&str> = large_strings.iter().map(|s| s.as_str()).collect();
         let result2 = efficient_string_concat(&large_refs);
         assert_eq!(result2.len(), 3000);
@@ -747,12 +747,12 @@ mod tests {
         #[cfg(feature = "parking-lot")]
         {
             let items = processed_items.lock();
-            assert!(items.len() >= 1); // Should have processed at least one item
+            assert!(!items.is_empty()); // Should have processed at least one item
         }
         #[cfg(not(feature = "parking-lot"))]
         {
             let items = processed_items.safe_lock().expect("Failed to lock items");
-            assert!(items.len() >= 1); // Should have processed at least one item
+            assert!(!items.len().is_empty()); // Should have processed at least one item
         }
     }
 

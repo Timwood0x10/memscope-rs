@@ -830,7 +830,7 @@ mod tests {
 
         // Should contain recommendations based on error patterns
         let recommendations_text = report.recommendations.join(" ");
-        assert!(recommendations_text.len() > 0);
+        assert!(!recommendations_text.is_empty());
     }
 
     #[test]

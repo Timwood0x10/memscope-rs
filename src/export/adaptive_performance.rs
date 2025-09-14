@@ -1168,7 +1168,7 @@ mod tests {
         // Verify all types are retrievable
         assert_eq!(cache.get("String").unwrap().as_str().unwrap(), "test");
         assert_eq!(cache.get("Number").unwrap().as_i64().unwrap(), 42);
-        assert_eq!(cache.get("Boolean").unwrap().as_bool().unwrap(), true);
+        assert!(cache.get("Boolean").unwrap().as_bool().unwrap());
         assert_eq!(cache.get("Array").unwrap().as_array().unwrap().len(), 3);
         assert!(cache
             .get("Object")

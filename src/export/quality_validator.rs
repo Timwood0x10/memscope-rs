@@ -4138,7 +4138,7 @@ mod tests {
         };
 
         let result = validator
-            .validate_processed_shards(&vec![large_shard], 1)
+            .validate_processed_shards(&[large_shard], 1)
             .unwrap();
         assert!(result.is_valid); // Size anomaly is low severity
 
@@ -4170,7 +4170,7 @@ mod tests {
 
         // Test with binary data (invalid UTF-8)
         let invalid_file = temp_dir.path().join("invalid_utf8.json");
-        fs::write(&invalid_file, &[0xFF, 0xFE, 0xFD]).unwrap();
+        fs::write(&invalid_file, [0xFF, 0xFE, 0xFD]).unwrap();
 
         let result = validator
             .validate_output_file(invalid_file.to_str().unwrap(), 0)
@@ -4206,7 +4206,7 @@ mod tests {
 
         // Test progress callback
         validator.set_progress_callback(|progress| {
-            assert!(progress.total_bytes > 0 || progress.total_bytes == 0);
+            assert!(progress.total_bytes >= 0);
             assert!(progress.processed_bytes <= progress.total_bytes);
         });
 

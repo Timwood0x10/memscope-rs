@@ -231,7 +231,7 @@ impl StringPoolMonitor {
 
     fn get_performance_metrics(&self) -> PerformanceMetrics {
         let uptime_seconds = self.start_time.elapsed().as_secs_f64();
-        
+
         if let Ok(tracker) = self.performance_tracker.lock() {
             let avg_intern_time_ns = if tracker.intern_count > 0 {
                 tracker.total_intern_time_ns as f64 / tracker.intern_count as f64

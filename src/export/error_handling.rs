@@ -1403,7 +1403,7 @@ mod tests {
         // Test that timestamp formatting works
         let timestamp = logger.format_timestamp();
         assert!(timestamp.contains("s"));
-        assert!(timestamp.len() > 0);
+        assert!(!timestamp.is_empty());
     }
 
     #[test]

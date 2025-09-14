@@ -881,7 +881,7 @@ mod tests {
         assert_eq!(empty_stack.len(), 0);
 
         // Test with single frame
-        let single_frame = vec!["main".to_string()];
+        let single_frame = ["main".to_string()];
         assert_eq!(single_frame.len(), 1);
         assert_eq!(single_frame[0], "main");
 
@@ -892,7 +892,7 @@ mod tests {
         assert_eq!(long_stack[999], "function_999");
 
         // Test with special characters in function names
-        let special_stack = vec![
+        let special_stack = [
             "fn_with_unicode_🦀".to_string(),
             "fn::with::colons".to_string(),
             "fn<T>".to_string(),
@@ -981,13 +981,13 @@ mod tests {
     #[test]
     fn test_validate_integration_comprehensive() {
         // Test integration validation with comprehensive data structures
-        let call_stacks = vec![
+        let call_stacks = [
             vec!["main".to_string(), "function_a".to_string()],
             vec!["main".to_string(), "function_b".to_string()],
             vec!["thread_worker".to_string(), "process_data".to_string()],
         ];
 
-        let strings_to_deduplicate = vec![
+        let strings_to_deduplicate = [
             "common_string".to_string(),
             "common_string".to_string(), // Duplicate
             "unique_string_1".to_string(),
@@ -995,13 +995,13 @@ mod tests {
             "common_string".to_string(), // Another duplicate
         ];
 
-        let edge_cases = vec![
+        let edge_cases = [
             "".to_string(),
             "unicode_🦀".to_string(),
             "very_long_string_".repeat(100),
         ];
 
-        let ffi_functions = vec![
+        let ffi_functions = [
             "malloc".to_string(),
             "free".to_string(),
             "custom_ffi_function".to_string(),
@@ -1096,19 +1096,19 @@ mod tests {
     #[test]
     fn test_integration_test_data_creation() {
         // Test creating integration test data with various patterns
-        let call_stacks = vec![
+        let call_stacks = [
             vec!["main".to_string()],
             vec!["main".to_string(), "sub_function".to_string()],
         ];
 
-        let strings_to_deduplicate = vec![
+        let strings_to_deduplicate = [
             "test".to_string(),
             "test".to_string(), // Intentional duplicate
         ];
 
-        let edge_cases = vec!["normal_case".to_string(), "".to_string()];
+        let edge_cases = ["normal_case".to_string(), "".to_string()];
 
-        let ffi_functions = vec!["malloc".to_string(), "free".to_string()];
+        let ffi_functions = ["malloc".to_string(), "free".to_string()];
 
         // Should be able to create and use the data
         assert_eq!(call_stacks.len(), 2);

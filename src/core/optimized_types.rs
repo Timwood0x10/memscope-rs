@@ -589,7 +589,7 @@ mod tests {
         assert_eq!(converted_back.stack_trace, original.stack_trace);
         assert_eq!(converted_back.is_leaked, original.is_leaked);
         assert_eq!(converted_back.lifetime_ms, original.lifetime_ms);
-        assert_eq!(converted_back.ownership_history_available, true); // This is hardcoded in conversion
+        assert!(converted_back.ownership_history_available); // This is hardcoded in conversion
     }
 
     #[test]
