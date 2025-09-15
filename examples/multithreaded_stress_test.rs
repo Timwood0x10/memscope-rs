@@ -65,7 +65,7 @@ fn test_many_threads() -> Result<(), Box<dyn std::error::Error>> {
     
     let mut completed = 0;
     for handle in handles {
-        let thread_id = handle.join().unwrap();
+        let _thread_id = handle.join().unwrap();
         completed += 1;
         if completed % 10 == 0 {
             println!("  Completed {} threads", completed);
