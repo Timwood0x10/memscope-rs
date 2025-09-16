@@ -410,12 +410,12 @@ impl HtmlErrorHandler {
         directory: &str,
         base_name: &str,
         error: Box<dyn Error + Send + Sync>,
-    ) -> Result<Vec<String>, HtmlGenerationError> {
+    ) -> Result<Vec<String>, Box<HtmlGenerationError>> {
         self.start_recovery_timing();
         self.stats.total_errors += 1;
 
         let recovery_suggestions = vec![
-            format!("Check if directory '{}' exists and is readable", directory),
+            format!("Check if directory '{directory}' exists and is readable"),
             "Verify the base name pattern matches your JSON files".to_string(),
             "Ensure JSON files follow the naming convention: {base_name}_{type}.json".to_string(),
             "Check file permissions for the directory".to_string(),
@@ -435,12 +435,12 @@ impl HtmlErrorHandler {
         self.stats.unrecoverable_errors += 1;
         self.end_recovery_timing();
 
-        Err(HtmlGenerationError::FileDiscoveryError {
+        Err(Box::new(HtmlGenerationError::FileDiscoveryError {
             directory: directory.to_string(),
             base_name: base_name.to_string(),
             source: error,
             recovery_suggestions,
-        })
+        }))
     }
 
     /// Handle file loading errors with recovery
@@ -450,7 +450,7 @@ impl HtmlErrorHandler {
         file_type: &str,
         file_size: usize,
         error: Box<dyn Error + Send + Sync>,
-    ) -> Result<Option<Value>, HtmlGenerationError> {
+    ) -> Result<Option<Value>, Box<HtmlGenerationError>> {
         self.start_recovery_timing();
         self.stats.total_errors += 1;
 
@@ -463,7 +463,7 @@ impl HtmlErrorHandler {
                 self.stats.retry_attempts += 1;
 
                 if let Ok(recovered_data) = self.attempt_file_recovery(&file_path, file_type) {
-                    println!(
+                    tracing::info!(
                         "✅ Recovered file {} after {} attempts",
                         file_path.display(),
                         attempt
@@ -480,7 +480,7 @@ impl HtmlErrorHandler {
             // Try fallback if available
             if self.recovery_context.use_fallbacks {
                 if let Ok(fallback_data) = self.get_fallback_data(file_type) {
-                    println!("⚠️  Using fallback data for {}", file_type);
+                    tracing::info!("⚠️  Using fallback data for {}", file_type);
                     self.stats.fallback_errors += 1;
                     self.end_recovery_timing();
                     return Ok(Some(fallback_data));
@@ -491,14 +491,14 @@ impl HtmlErrorHandler {
         self.stats.unrecoverable_errors += 1;
         self.end_recovery_timing();
 
-        Err(HtmlGenerationError::FileLoadingError {
+        Err(Box::new(HtmlGenerationError::FileLoadingError {
             file_path,
             file_type: file_type.to_string(),
             file_size,
             source: error,
             recoverable,
             recovery_suggestions,
-        })
+        }))
     }
 
     /// Handle JSON parsing errors with detailed context
@@ -575,13 +575,13 @@ impl HtmlErrorHandler {
             return;
         }
 
-        println!("\n📊 Error Recovery Summary:");
-        println!("   Total errors: {}", self.stats.total_errors);
-        println!("   Recovered: {}", self.stats.recovered_errors);
-        println!("   Used fallbacks: {}", self.stats.fallback_errors);
-        println!("   Unrecoverable: {}", self.stats.unrecoverable_errors);
-        println!("   Retry attempts: {}", self.stats.retry_attempts);
-        println!("   Recovery time: {}ms", self.stats.recovery_time_ms);
+        tracing::info!("\n📊 Error Recovery Summary:");
+        tracing::info!("   Total errors: {}", self.stats.total_errors);
+        tracing::info!("   Recovered: {}", self.stats.recovered_errors);
+        tracing::info!("   Used fallbacks: {}", self.stats.fallback_errors);
+        tracing::info!("   Unrecoverable: {}", self.stats.unrecoverable_errors);
+        tracing::info!("   Retry attempts: {}", self.stats.retry_attempts);
+        tracing::info!("   Recovery time: {}ms", self.stats.recovery_time_ms);
 
         let success_rate = if self.stats.total_errors > 0 {
             ((self.stats.recovered_errors + self.stats.fallback_errors) as f64
@@ -590,7 +590,7 @@ impl HtmlErrorHandler {
         } else {
             100.0
         };
-        println!("   Success rate: {:.1}%", success_rate);
+        tracing::info!("   Success rate: {:.1}%", success_rate);
     }
 
     // Private helper methods
@@ -615,6 +615,7 @@ impl HtmlErrorHandler {
         Ok(vec![])
     }
 
+    #[allow(clippy::borrowed_box)]
     fn is_file_error_recoverable(&self, error: &Box<dyn Error + Send + Sync>) -> bool {
         let error_str = error.to_string().to_lowercase();
 
@@ -625,6 +626,7 @@ impl HtmlErrorHandler {
             || error_str.contains("interrupted")
     }
 
+    #[allow(clippy::borrowed_box)]
     fn get_file_loading_suggestions(
         &self,
         file_type: &str,
@@ -640,8 +642,7 @@ impl HtmlErrorHandler {
 
         if error_str.contains("not found") {
             suggestions.push(format!(
-                "Verify the {} file exists in the expected location",
-                file_type
+                "Verify the {file_type} file exists in the expected location"
             ));
             suggestions
                 .push("Check the file naming convention matches the expected pattern".to_string());
@@ -741,9 +742,7 @@ impl HtmlErrorHandler {
                         .map(|i| {
                             let marker = if i == line { ">>> " } else { "    " };
                             format!(
-                                "{}{:3}: {}",
-                                marker,
-                                i,
+                                "{marker}{i:3}: {}",
                                 lines.get(i.saturating_sub(1)).unwrap_or(&"")
                             )
                         })
@@ -869,7 +868,9 @@ mod tests {
     fn test_fallback_data_generation() {
         let handler = HtmlErrorHandler::new();
 
-        let fallback = handler.get_fallback_data("memory_analysis").unwrap();
+        let fallback = handler
+            .get_fallback_data("memory_analysis")
+            .expect("Failed to get fallback data");
         assert!(fallback.is_object());
         assert!(fallback.get("allocations").is_some());
         assert!(fallback.get("summary").is_some());

@@ -7,7 +7,7 @@ use serde_json::Value;
 use std::error::Error;
 use std::fmt;
 use std::fs::File;
-use std::io::{BufReader, Read};
+use std::io::BufReader;
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -89,17 +89,12 @@ impl fmt::Display for LargeFileError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             LargeFileError::FileTooLarge(size, limit) => {
-                write!(
-                    f,
-                    "File size ({} bytes) exceeds limit ({} bytes)",
-                    size, limit
-                )
+                write!(f, "File size ({size} bytes) exceeds limit ({limit} bytes)",)
             }
             LargeFileError::MemoryLimitExceeded(used, limit) => {
                 write!(
                     f,
-                    "Memory usage ({} bytes) exceeds limit ({} bytes)",
-                    used, limit
+                    "Memory usage ({used} bytes) exceeds limit ({limit} bytes)",
                 )
             }
             LargeFileError::StreamingParseError(msg) => {
@@ -219,7 +214,7 @@ impl LargeFileOptimizer {
     }
 
     /// Create optimizer with default configuration
-    pub fn default() -> Self {
+    pub fn new_default() -> Self {
         Self::new(LargeFileConfig::default())
     }
 
@@ -244,7 +239,7 @@ impl LargeFileOptimizer {
             ));
         }
 
-        println!(
+        tracing::info!(
             "🔧 Processing large file: {} ({:.1} MB)",
             path.display(),
             file_size as f64 / 1024.0 / 1024.0
@@ -254,10 +249,10 @@ impl LargeFileOptimizer {
         let use_streaming = file_size > self.config.max_memory_bytes / 2;
 
         let (json_value, objects_processed) = if use_streaming {
-            println!("📡 Using streaming mode for large file processing");
+            tracing::info!("📡 Using streaming mode for large file processing");
             self.process_streaming(path, file_type)?
         } else {
-            println!("💾 Using memory-optimized mode for file processing");
+            tracing::info!("💾 Using memory-optimized mode for file processing");
             self.process_memory_optimized(path, file_type)?
         };
 
@@ -277,9 +272,11 @@ impl LargeFileOptimizer {
             objects_processed,
         };
 
-        println!(
+        tracing::info!(
             "✅ File processed: {:.1} MB/s, {} objects, {}ms",
-            throughput, objects_processed, processing_time
+            throughput,
+            objects_processed,
+            processing_time
         );
 
         Ok((json_value, stats))
@@ -292,23 +289,17 @@ impl LargeFileOptimizer {
         file_type: &str,
     ) -> Result<(Value, usize), LargeFileError> {
         let file = File::open(file_path).map_err(LargeFileError::IoError)?;
-        let mut reader = BufReader::with_capacity(self.config.stream_chunk_size, file);
+        let reader = BufReader::with_capacity(self.config.stream_chunk_size, file);
 
         // Track memory allocation for the reader buffer
         self.memory_monitor
             .allocate(self.config.stream_chunk_size)?;
 
-        // For streaming, we'll read the JSON in chunks and validate structure
-        let mut buffer = String::new();
-        reader
-            .read_to_string(&mut buffer)
-            .map_err(LargeFileError::IoError)?;
+        // For streaming, use serde_json's streaming parser directly from BufReader
+        // 避免将整个文件读入内存
 
-        // Track memory for the buffer
-        self.memory_monitor.allocate(buffer.len())?;
-
-        // Parse JSON with streaming deserializer for validation
-        let json_value: Value = serde_json::from_str(&buffer)
+        // Parse JSON directly from BufReader - 流式解析，避免内存峰值
+        let json_value: Value = serde_json::from_reader(reader)
             .map_err(|e| LargeFileError::StreamingParseError(e.to_string()))?;
 
         // Validate JSON structure
@@ -318,7 +309,6 @@ impl LargeFileOptimizer {
         let objects_processed = self.count_json_objects(&json_value);
 
         // Clean up memory tracking
-        self.memory_monitor.deallocate(buffer.len());
         self.memory_monitor
             .deallocate(self.config.stream_chunk_size);
 
@@ -331,13 +321,15 @@ impl LargeFileOptimizer {
         file_path: P,
         file_type: &str,
     ) -> Result<(Value, usize), LargeFileError> {
-        // Read file with memory tracking
-        let content = std::fs::read_to_string(file_path).map_err(LargeFileError::IoError)?;
+        // 使用流式读取避免内存峰值
+        let file = File::open(file_path).map_err(LargeFileError::IoError)?;
+        let reader = BufReader::new(file);
 
-        self.memory_monitor.allocate(content.len())?;
+        // Track memory for reader buffer
+        self.memory_monitor.allocate(8192)?; // BufReader默认缓冲区大小
 
-        // Parse JSON
-        let json_value: Value = serde_json::from_str(&content)
+        // Parse JSON directly from reader
+        let json_value: Value = serde_json::from_reader(reader)
             .map_err(|e| LargeFileError::StreamingParseError(e.to_string()))?;
 
         // Validate structure
@@ -347,7 +339,7 @@ impl LargeFileOptimizer {
         let objects_processed = self.count_json_objects(&json_value);
 
         // Clean up memory tracking
-        self.memory_monitor.deallocate(content.len());
+        self.memory_monitor.deallocate(8192);
 
         Ok((json_value, objects_processed))
     }
@@ -363,7 +355,7 @@ impl LargeFileOptimizer {
                 }
 
                 // Check for required fields
-                let obj = json.as_object().unwrap();
+                let obj = json.as_object().expect("Test operation failed");
                 if !obj.contains_key("allocations") && !obj.contains_key("summary") {
                     return Err(LargeFileError::ValidationError(
                         "Memory analysis JSON must contain 'allocations' or 'summary' field"
@@ -378,7 +370,7 @@ impl LargeFileOptimizer {
                     ));
                 }
 
-                let obj = json.as_object().unwrap();
+                let obj = json.as_object().expect("Test operation failed");
                 if !obj.contains_key("enhanced_ffi_data") && !obj.contains_key("summary") {
                     return Err(LargeFileError::ValidationError(
                         "Unsafe FFI JSON must contain 'enhanced_ffi_data' or 'summary' field"
@@ -393,7 +385,7 @@ impl LargeFileOptimizer {
                     ));
                 }
 
-                let obj = json.as_object().unwrap();
+                let obj = json.as_object().expect("Test operation failed");
                 if !obj.contains_key("memory_performance")
                     && !obj.contains_key("allocation_distribution")
                 {
@@ -409,7 +401,7 @@ impl LargeFileOptimizer {
                     ));
                 }
 
-                let obj = json.as_object().unwrap();
+                let obj = json.as_object().expect("Test operation failed");
                 if !obj.contains_key("lifecycle_events") {
                     return Err(LargeFileError::ValidationError(
                         "Lifetime JSON must contain 'lifecycle_events' field".to_string(),
@@ -423,7 +415,7 @@ impl LargeFileOptimizer {
                     ));
                 }
 
-                let obj = json.as_object().unwrap();
+                let obj = json.as_object().expect("Test operation failed");
                 if !obj.contains_key("categorized_types") && !obj.contains_key("generic_types") {
                     return Err(LargeFileError::ValidationError(
                         "Complex types JSON must contain type-related fields".to_string(),
@@ -508,18 +500,18 @@ mod tests {
 
     #[test]
     fn test_process_small_file() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to get test value");
         let file_path = temp_dir.path().join("test.json");
 
         let test_data =
             r#"{"allocations": [{"ptr": "0x123", "size": 100}], "summary": {"total": 1}}"#;
-        fs::write(&file_path, test_data).unwrap();
+        fs::write(&file_path, test_data).expect("Failed to write test file");
 
-        let optimizer = LargeFileOptimizer::default();
+        let optimizer = LargeFileOptimizer::new_default();
         let result = optimizer.process_file(&file_path, "memory_analysis");
 
         assert!(result.is_ok());
-        let (json_value, stats) = result.unwrap();
+        let (json_value, stats) = result.expect("Test operation failed");
         assert!(json_value.is_object());
         assert!(!stats.streaming_mode_used);
         assert_eq!(stats.objects_processed, 2); // 1 object + 1 allocation
@@ -527,7 +519,7 @@ mod tests {
 
     #[test]
     fn test_json_validation() {
-        let optimizer = LargeFileOptimizer::default();
+        let optimizer = LargeFileOptimizer::new_default();
 
         // Test valid memory analysis JSON
         let valid_json = serde_json::json!({

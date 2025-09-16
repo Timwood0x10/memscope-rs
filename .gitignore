@@ -26,9 +26,12 @@ Thumbs.db
 # memscope-rs specific output files
 *.json
 
+*.memscope
 # Ignore all SVG files
 *.svg
 
+
+/backup/
 
 MemoryAnalysis/
 
@@ -47,7 +50,7 @@ performance_only_results/
 
 aim/**
 
-docs/**
+/partial_exports/
 
 memory_*.json
 memory_*.svg
@@ -59,7 +62,7 @@ memory_*.svg
 *.html
 *.json
 
-! templates/*.html
+!templates/*.html
 # Coverage reports
 /target/coverage/
 cobertura.xml
@@ -80,6 +83,9 @@ temp_*
 /target/doc/
 
 memscope-derive/target/
+
+doc-generator/target/
+
 # Local configuration
 .env
 .env.local

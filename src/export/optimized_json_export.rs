@@ -10,7 +10,7 @@ use crate::analysis::unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, SafetyV
 use crate::core::tracker::MemoryTracker;
 use crate::core::types::{AllocationInfo, TrackingResult};
 use crate::export::adaptive_performance::AdaptivePerformanceOptimizer;
-use crate::export::fast_export_coordinator::{FastExportConfigBuilder, FastExportCoordinator};
+// use crate::export::fast_export_coordinator::FastExportCoordinator;
 use crate::export::schema_validator::SchemaValidator;
 use rayon::prelude::*;
 
@@ -174,9 +174,10 @@ impl Default for OptimizedExportOptions {
 impl OptimizedExportOptions {
     /// Create new options with specified optimization level
     pub fn with_optimization_level(level: OptimizationLevel) -> Self {
-        let mut options = Self::default();
-        options.optimization_level = level;
-
+        let mut options = OptimizedExportOptions {
+            optimization_level: level,
+            ..Default::default()
+        };
         match level {
             OptimizationLevel::Low => {
                 options.parallel_processing = false;
@@ -288,6 +289,42 @@ impl OptimizedExportOptions {
     }
 }
 
+/// Simple streaming JSON writer for memory-efficient large file export
+struct StreamingJsonWriter<W: Write> {
+    writer: W,
+}
+
+impl<W: Write> StreamingJsonWriter<W> {
+    /// Create new streaming writer
+    fn new(writer: W) -> Self {
+        Self { writer }
+    }
+
+    /// Write complete JSON data using streaming approach
+    fn write_complete_json(&mut self, data: &serde_json::Value) -> TrackingResult<()> {
+        // Use serde_json's streaming capabilities for memory efficiency
+        serde_json::to_writer(&mut self.writer, data)
+            .expect("Failed to write JSON data to streaming writer");
+        Ok(())
+    }
+
+    /// Write pretty-formatted JSON data using streaming approach
+    fn write_pretty_json(&mut self, data: &serde_json::Value) -> TrackingResult<()> {
+        // Use serde_json's pretty printing with streaming
+        serde_json::to_writer_pretty(&mut self.writer, data)
+            .expect("Failed to write pretty JSON data to streaming writer");
+        Ok(())
+    }
+
+    /// Finalize the writer and ensure all data is flushed
+    fn finalize(&mut self) -> TrackingResult<()> {
+        self.writer
+            .flush()
+            .expect("Failed to flush streaming writer");
+        Ok(())
+    }
+}
+
 /// Type inference cache for performance optimization
 static TYPE_CACHE: LazyLock<std::sync::Mutex<HashMap<String, String>>> =
     LazyLock::new(|| std::sync::Mutex::new(HashMap::new()));
@@ -295,7 +332,7 @@ static TYPE_CACHE: LazyLock<std::sync::Mutex<HashMap<String, String>>> =
 /// Get cached type information or compute and cache it
 fn get_or_compute_type_info(type_name: &str, size: usize) -> String {
     if let Ok(mut cache) = TYPE_CACHE.lock() {
-        let key = format!("{}:{}", type_name, size);
+        let key = format!("{type_name}:{size}");
         if let Some(cached) = cache.get(&key) {
             return cached.clone();
         }
@@ -334,107 +371,6 @@ pub fn clear_type_cache() {
 }
 
 /// Process a batch of allocations (legacy function for compatibility)
-#[allow(dead_code)]
-fn process_allocation_batch(
-    allocations: &[AllocationInfo],
-) -> TrackingResult<Vec<serde_json::Value>> {
-    let options = OptimizedExportOptions::default();
-    process_allocation_batch_enhanced(allocations, &options)
-}
-
-/// Enhanced batch processing with new data pipeline integration
-fn process_allocation_batch_enhanced(
-    allocations: &[AllocationInfo],
-    options: &OptimizedExportOptions,
-) -> TrackingResult<Vec<serde_json::Value>> {
-    let mut processed = Vec::with_capacity(allocations.len());
-
-    for alloc in allocations {
-        let enhanced_type = if let Some(type_name) = &alloc.type_name {
-            get_or_compute_type_info(type_name, alloc.size)
-        } else {
-            compute_enhanced_type_info("Unknown", alloc.size)
-        };
-
-        let mut allocation_data = serde_json::json!({
-            "ptr": format!("0x{:x}", alloc.ptr),
-            "size": alloc.size,
-            "type_name": enhanced_type,
-            "var_name": alloc.var_name.as_deref().unwrap_or("unnamed"),
-            "scope": alloc.scope_name.as_deref().unwrap_or("global"),
-            "timestamp_alloc": alloc.timestamp_alloc,
-            "timestamp_dealloc": alloc.timestamp_dealloc,
-            "is_active": alloc.is_active()
-        });
-
-        // Add enhanced FFI analysis if enabled
-        if options.enable_enhanced_ffi_analysis {
-            if let Some(ffi_info) = analyze_ffi_allocation(alloc) {
-                allocation_data["ffi_analysis"] = ffi_info;
-            }
-        }
-
-        // Add boundary event information if enabled
-        if options.enable_boundary_event_processing {
-            if let Some(boundary_info) = analyze_boundary_events(alloc) {
-                allocation_data["boundary_events"] = boundary_info;
-            }
-        }
-
-        // Add memory passport information if enabled
-        if options.enable_memory_passport_tracking {
-            if let Some(passport_info) = get_memory_passport_info(alloc.ptr) {
-                allocation_data["memory_passport"] = passport_info;
-            }
-        }
-
-        processed.push(allocation_data);
-    }
-
-    Ok(processed)
-}
-
-/// Analyze FFI-related information for an allocation
-#[allow(dead_code)]
-fn analyze_ffi_allocation(alloc: &AllocationInfo) -> Option<serde_json::Value> {
-    // Check if this allocation has FFI characteristics
-    if let Some(type_name) = &alloc.type_name {
-        if type_name.contains("*mut")
-            || type_name.contains("*const")
-            || type_name.contains("extern")
-            || type_name.contains("libc::")
-        {
-            return Some(serde_json::json!({
-                "is_ffi_related": true,
-                "ffi_type": if type_name.contains("*mut") || type_name.contains("*const") {
-                    "raw_pointer"
-                } else {
-                    "external_library"
-                },
-                "risk_level": if type_name.contains("*mut") { "high" } else { "medium" },
-                "safety_concerns": [
-                    "Manual memory management required",
-                    "No automatic bounds checking",
-                    "Potential for memory safety violations"
-                ]
-            }));
-        }
-    }
-
-    if let Some(var_name) = &alloc.var_name {
-        if var_name.contains("ffi") || var_name.contains("extern") || var_name.contains("c_") {
-            return Some(serde_json::json!({
-                "is_ffi_related": true,
-                "ffi_type": "ffi_variable",
-                "risk_level": "medium",
-                "detected_from": "variable_name"
-            }));
-        }
-    }
-
-    None
-}
-
 /// Analyze boundary events for an allocation
 fn analyze_boundary_events(alloc: &AllocationInfo) -> Option<serde_json::Value> {
     // Get boundary events from the unsafe FFI tracker
@@ -525,13 +461,22 @@ fn write_json_optimized<P: AsRef<Path>>(
         .use_compact_format
         .unwrap_or(estimated_size > 1_000_000); // Use compact for files > 1MB
 
-    // Use streaming writer for large files or when explicitly enabled
-    // TODO: Fix streaming writer implementation
-    if false && options.use_streaming_writer && estimated_size > 500_000 {
-        let _file = File::create(path)?;
-        // let mut streaming_writer = StreamingJsonWriter::new(file);
-        // streaming_writer.write_complete_json(data)?;
-        // streaming_writer.finalize()?;
+    // Use streaming writer for large files when explicitly enabled
+    if options.use_streaming_writer && estimated_size > 500_000 {
+        tracing::info!(
+            "Using streaming writer for large file (size: {} bytes)",
+            estimated_size
+        );
+        let file = File::create(path)?;
+        let buffered_file = BufWriter::with_capacity(options.buffer_size * 2, file);
+        let mut streaming_writer = StreamingJsonWriter::new(buffered_file);
+
+        match use_compact {
+            true => streaming_writer.write_complete_json(data)?,
+            false => streaming_writer.write_pretty_json(data)?,
+        }
+
+        streaming_writer.finalize()?;
     } else {
         // Use traditional buffered writer for smaller files
         let file = File::create(path)?;
@@ -569,11 +514,11 @@ fn estimate_json_size(data: &serde_json::Value) -> usize {
 fn convert_legacy_options_to_optimized(
     legacy: crate::core::tracker::ExportOptions,
 ) -> OptimizedExportOptions {
-    let mut optimized = OptimizedExportOptions::default();
-
-    // Map legacy options to optimized options
-    optimized.buffer_size = legacy.buffer_size;
-    optimized.use_compact_format = Some(!legacy.verbose_logging); // Verbose = pretty format
+    let mut optimized = OptimizedExportOptions {
+        buffer_size: legacy.buffer_size,
+        use_compact_format: Some(!legacy.verbose_logging), // Verbose = pretty format
+        ..Default::default()
+    };
 
     // Determine optimization level based on legacy settings
     if legacy.include_system_allocations {
@@ -614,826 +559,6 @@ fn convert_legacy_options_to_optimized(
     );
 
     optimized
-}
-
-/// Main export interface - unified entry point for all JSON export operations
-impl MemoryTracker {
-    /// **[CONVENIENCE]** Quick export with performance optimization
-    ///
-    /// This method provides a convenient way to export with performance-focused settings.
-    /// Ideal for production environments where speed is more important than comprehensive analysis.
-    /// Automatically enables fast export mode for large datasets (>5000 allocations).
-    ///
-    /// # Arguments
-    /// * `path` - Output base path for multiple optimized files
-    ///
-    /// # Example
-    /// ```rust
-    /// // Fast export for production monitoring
-    /// tracker.export_to_json_fast("prod_snapshot")?;
-    /// ```
-    ///
-    /// # Performance
-    /// - Uses parallel shard processing for large datasets
-    /// - Automatically switches to fast export coordinator when beneficial
-    /// - Reduces export time by 60-80% for complex programs
-    pub fn export_to_json_fast<P: AsRef<Path>>(&self, path: P) -> TrackingResult<()> {
-        let options = OptimizedExportOptions::with_optimization_level(OptimizationLevel::Low)
-            .parallel_processing(true)
-            .streaming_writer(false)
-            .schema_validation(false)
-            .fast_export_mode(true) // Force fast export mode
-            .auto_fast_export_threshold(Some(1000)); // Lower threshold for fast mode
-
-        self.export_to_json_with_optimized_options(path, options)
-    }
-
-    /// **[CONVENIENCE]** Comprehensive export with all features enabled
-    ///
-    /// This method provides maximum analysis depth with all security and FFI features enabled.
-    /// Ideal for debugging, security audits, and comprehensive analysis.
-    ///
-    /// # Arguments
-    /// * `path` - Output base path for comprehensive analysis files
-    ///
-    /// # Example
-    /// ```rust
-    /// // Comprehensive export for security audit
-    /// tracker.export_to_json_comprehensive("security_audit")?;
-    /// ```
-    pub fn export_to_json_comprehensive<P: AsRef<Path>>(&self, path: P) -> TrackingResult<()> {
-        let options = OptimizedExportOptions::with_optimization_level(OptimizationLevel::Maximum)
-            .security_analysis(true)
-            .adaptive_optimization(true);
-
-        self.export_to_json_with_optimized_options(path, options)
-    }
-
-    /// **[UTILITY]** Display upgrade path information
-    ///
-    /// This method shows users how to migrate from the old API to the new optimized API.
-    /// Useful for understanding the available options and migration path.
-    pub fn show_export_upgrade_path(&self) {
-        println!("📚 MemoryTracker Export API Upgrade Guide");
-        println!("=========================================");
-        println!();
-        println!("🔄 BACKWARD COMPATIBLE (no changes needed):");
-        println!("   tracker.export_to_json(\"file.json\")?;");
-        println!("   tracker.export_to_json_with_options(\"file\", ExportOptions::new())?;");
-        println!();
-        println!("🚀 NEW OPTIMIZED API (recommended):");
-        println!("   // Basic optimized export");
-        println!("   tracker.export_to_json_with_optimized_options(\"analysis\", OptimizedExportOptions::default())?;");
-        println!();
-        println!("   // Fast export for production");
-        println!("   tracker.export_to_json_fast(\"prod_snapshot\")?;");
-        println!();
-        println!("   // Comprehensive export for debugging");
-        println!("   tracker.export_to_json_comprehensive(\"debug_analysis\")?;");
-        println!();
-        println!("   // Custom configuration with fast export");
-        println!("   let options = OptimizedExportOptions::with_optimization_level(OptimizationLevel::High)");
-        println!("       .parallel_processing(true)");
-        println!("       .security_analysis(true)");
-        println!("       .fast_export_mode(true)");
-        println!("       .auto_fast_export_threshold(Some(10000));");
-        println!("   tracker.export_to_json_with_optimized_options(\"custom\", options)?;");
-        println!();
-        println!("   // Auto mode selection (recommended)");
-        println!("   let options = OptimizedExportOptions::default()");
-        println!(
-            "       .auto_fast_export_threshold(Some(5000)); // Auto-enable for >5000 allocations"
-        );
-        println!("   tracker.export_to_json_with_optimized_options(\"auto\", options)?;");
-        println!();
-        println!("💡 MIGRATION BENEFITS:");
-        println!("   ✅ 5-10x faster export performance with fast export coordinator");
-        println!("   ✅ Automatic mode selection based on dataset size");
-        println!("   ✅ Parallel shard processing for large datasets");
-        println!("   ✅ Enhanced FFI and unsafe code analysis");
-        println!("   ✅ Security violation detection");
-        println!("   ✅ Streaming JSON writer for large datasets");
-        println!("   ✅ Adaptive performance optimization");
-        println!("   ✅ Schema validation and data integrity");
-        println!("   ✅ Multiple specialized output files");
-        println!("   ✅ Configurable thread count and buffer sizes");
-        println!();
-        println!("🔧 OPTIMIZATION LEVELS:");
-        println!("   - Low:     Fast export, basic features");
-        println!("   - Medium:  Balanced performance and features");
-        println!("   - High:    Full features, good performance (default)");
-        println!("   - Maximum: All features, maximum analysis depth");
-    }
-
-    /// **[UTILITY]** Get current export capabilities and status
-    ///
-    /// Returns information about available export features and current system status.
-    pub fn get_export_capabilities(&self) -> TrackingResult<serde_json::Value> {
-        let allocations = self.get_active_allocations()?;
-        let stats = self.get_stats()?;
-
-        // Check FFI tracker availability
-        let ffi_tracker_available = {
-            let tracker = get_global_unsafe_ffi_tracker();
-            tracker.get_enhanced_allocations().is_ok()
-        };
-
-        // Check security analyzer availability
-        let security_analyzer_available = SECURITY_ANALYZER.lock().is_ok();
-
-        // Check adaptive optimizer availability
-        let adaptive_optimizer_available = ADAPTIVE_OPTIMIZER.lock().is_ok();
-
-        Ok(serde_json::json!({
-            "export_capabilities": {
-                "api_version": "2.0",
-                "backward_compatible": true,
-                "available_methods": [
-                    "export_to_json",
-                    "export_to_json_with_options",
-                    "export_to_json_with_optimized_options",
-                    "export_to_json_fast",
-                    "export_to_json_comprehensive"
-                ],
-                "optimization_levels": ["Low", "Medium", "High", "Maximum"],
-                "output_formats": ["single_file", "multi_file", "streaming"]
-            },
-            "system_status": {
-                "total_allocations": allocations.len(),
-                "memory_usage_mb": stats.active_memory / (1024 * 1024),
-                "ffi_tracker_available": ffi_tracker_available,
-                "security_analyzer_available": security_analyzer_available,
-                "adaptive_optimizer_available": adaptive_optimizer_available
-            },
-            "feature_availability": {
-                "enhanced_ffi_analysis": ffi_tracker_available,
-                "boundary_event_processing": ffi_tracker_available,
-                "memory_passport_tracking": ffi_tracker_available,
-                "security_violation_analysis": security_analyzer_available,
-                "adaptive_performance_optimization": adaptive_optimizer_available,
-                "streaming_json_writer": true,
-                "schema_validation": true,
-                "parallel_processing": true
-            },
-            "recommended_settings": {
-                "small_datasets": "OptimizationLevel::Low or export_to_json_fast()",
-                "medium_datasets": "OptimizationLevel::Medium or default settings",
-                "large_datasets": "OptimizationLevel::High with streaming enabled",
-                "security_audit": "OptimizationLevel::Maximum or export_to_json_comprehensive()",
-                "production_monitoring": "OptimizationLevel::Low with minimal features"
-            }
-        }))
-    }
-    /// Unified export to JSON with custom options
-    ///
-    /// This method provides full control over the export process with custom options.
-    /// It integrates all the new data processing components including BatchProcessor,
-    /// StreamingJsonWriter, SchemaValidator, and enhanced FFI analysis.
-    ///
-    /// # Arguments
-    /// * `base_path` - Base path for output
-    /// * Custom export options
-    ///
-    /// # Returns
-    /// * `TrackingResult<()>` - Success or error result
-    ///
-    /// # Example
-    /// ```rust
-    /// let options = OptimizedExportOptions::with_optimization_level(OptimizationLevel::Maximum)
-    ///     .parallel_processing(true)
-    ///     .streaming_writer(true)
-    ///     .schema_validation(true);
-    /// tracker.export_to_json_with_options("output/analysis", options)?;
-    /// ```
-    pub fn export_to_json_with_optimized_options<P: AsRef<Path>>(
-        &self,
-        base_path: P,
-        options: OptimizedExportOptions,
-    ) -> TrackingResult<()> {
-        let start_time = std::time::Instant::now();
-
-        // check the fast model
-        let allocations = self.get_active_allocations()?;
-        let allocation_count = allocations.len();
-
-        // auto-check model :decide whether to enable quick export based on the amount of data
-        let should_use_fast_export = options.enable_fast_export_mode
-            || (options
-                .auto_fast_export_threshold
-                .map_or(false, |threshold| {
-                    allocation_count > threshold
-                        && options.optimization_level != OptimizationLevel::Low
-                }));
-
-        // If fast export mode is enabled or a large dataset is automatically detected, use the new fast export coordinator
-        if should_use_fast_export {
-            println!(
-                "🚀 Using fast export coordinator for high-performance export (allocations: {})",
-                allocation_count
-            );
-
-            let mut config_builder = FastExportConfigBuilder::new()
-                .shard_size(options.batch_size)
-                .buffer_size(options.buffer_size)
-                .performance_monitoring(true)
-                .verbose_logging(false);
-
-            if let Some(thread_count) = options.thread_count {
-                config_builder = config_builder.max_threads(Some(thread_count));
-            }
-
-            let fast_config = config_builder.build();
-
-            let mut coordinator = FastExportCoordinator::new(fast_config);
-
-            // Uses the same file naming and directory structure as traditional exports
-            let base_name = base_path
-                .as_ref()
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("export");
-
-            let project_name = if base_name.ends_with("_snapshot") {
-                base_name.trim_end_matches("_snapshot")
-            } else {
-                base_name
-            };
-
-            let base_memory_analysis_dir = Path::new("MemoryAnalysis");
-            let project_dir = base_memory_analysis_dir.join(project_name);
-            if let Err(e) = std::fs::create_dir_all(&project_dir) {
-                eprintln!(
-                    "Warning: Failed to create project directory {}: {}",
-                    project_dir.display(),
-                    e
-                );
-            }
-
-            let output_path = project_dir.join(format!("{}_memory_analysis.json", base_name));
-
-            match coordinator.export_fast(output_path.to_string_lossy().as_ref()) {
-                Ok(stats) => {
-                    println!("✅ Fast export completed:");
-                    println!(
-                        "   Total allocations: {}",
-                        stats.total_allocations_processed
-                    );
-                    println!("   Total time: {}ms", stats.total_export_time_ms);
-                    println!(
-                        "   Data gathering: {}ms",
-                        stats.data_gathering.total_time_ms
-                    );
-                    println!(
-                        "   Parallel processing: {}ms",
-                        stats.parallel_processing.total_processing_time_ms
-                    );
-                    println!(
-                        "   Write time: {}ms",
-                        stats.write_performance.total_write_time_ms
-                    );
-                    println!(
-                        "   Threads used: {}",
-                        stats.parallel_processing.threads_used
-                    );
-                    println!(
-                        "   Performance improvement: {:.2}x",
-                        stats.performance_improvement_factor
-                    );
-                    println!("   Output file: {}", output_path.display());
-
-                    // Fast export mode: continue to generate all files, just skip validation
-                    if options.enable_fast_export_mode {
-                        println!(
-                            "⚡ Fast export mode: generating all analysis files without validation"
-                        );
-                        // Continue to generate other analysis files
-                    }
-
-                    // If other file types are needed, continue with traditional method
-                    if options.optimization_level == OptimizationLevel::High
-                        || options.optimization_level == OptimizationLevel::Maximum
-                        || options.enable_fast_export_mode
-                    {
-                        println!("📝 Generating other analysis files...");
-                        // Continue with traditional export logic for other files
-                    } else {
-                        return Ok(());
-                    }
-                }
-                Err(e) => {
-                    eprintln!(
-                        "⚠️ Fast export failed, falling back to traditional export: {}",
-                        e
-                    );
-                }
-            }
-        }
-
-        println!(
-            "🚀 Starting unified JSON export with optimization level: {:?}",
-            options.optimization_level
-        );
-
-        let base_path = base_path.as_ref();
-        let base_name = base_path
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("export");
-
-        // Extract project name from base_name for directory organization
-        let project_name = if base_name.ends_with("_snapshot") {
-            base_name.trim_end_matches("_snapshot")
-        } else {
-            base_name
-        };
-
-        // Ensure all output goes to MemoryAnalysis/project_name directory
-        let base_memory_analysis_dir = Path::new("MemoryAnalysis");
-        let project_dir = base_memory_analysis_dir.join(project_name);
-        if let Err(e) = std::fs::create_dir_all(&project_dir) {
-            eprintln!(
-                "Warning: Failed to create project directory {}: {}",
-                project_dir.display(),
-                e
-            );
-        }
-        let parent_dir = &project_dir;
-
-        // Get additional data from all sources
-        let stats = self.get_stats()?;
-
-        println!(
-            "📊 Processing {} allocations with integrated pipeline...",
-            allocations.len()
-        );
-
-        // Update security analyzer with current allocations if enabled
-        if options.enable_security_analysis {
-            if let Ok(mut analyzer) = SECURITY_ANALYZER.lock() {
-                analyzer.update_allocations(allocations.clone());
-            }
-        }
-
-        // Determine which files to export based on optimization level or fast export mode
-        let file_types = if options.enable_fast_export_mode {
-            // Fast mode: generate all files but skip validation
-            let mut types = vec![
-                JsonFileType::MemoryAnalysis,
-                JsonFileType::Lifetime,
-                JsonFileType::UnsafeFfi,
-                JsonFileType::Performance,
-                JsonFileType::ComplexTypes,
-            ];
-            if options.enable_security_analysis {
-                types.push(JsonFileType::SecurityViolations);
-            }
-            types
-        } else {
-            match options.optimization_level {
-                OptimizationLevel::Low => {
-                    vec![JsonFileType::MemoryAnalysis, JsonFileType::Performance]
-                }
-                OptimizationLevel::Medium => vec![
-                    JsonFileType::MemoryAnalysis,
-                    JsonFileType::Lifetime,
-                    JsonFileType::Performance,
-                ],
-                OptimizationLevel::High | OptimizationLevel::Maximum => {
-                    let mut types = vec![
-                        JsonFileType::MemoryAnalysis,
-                        JsonFileType::Lifetime,
-                        JsonFileType::UnsafeFfi,
-                        JsonFileType::Performance,
-                        JsonFileType::ComplexTypes,
-                    ];
-                    if options.enable_security_analysis {
-                        types.push(JsonFileType::SecurityViolations);
-                    }
-                    types
-                }
-            }
-        };
-
-        // Export files using the integrated pipeline
-        for file_type in &file_types {
-            let (filename, data) = match file_type {
-                JsonFileType::MemoryAnalysis => {
-                    let filename = format!("{}_memory_analysis.json", base_name);
-                    let data = create_integrated_memory_analysis(&allocations, &stats, &options)?;
-                    (filename, data)
-                }
-                JsonFileType::Lifetime => {
-                    let filename = format!("{}_lifetime.json", base_name);
-                    let data = create_integrated_lifetime_analysis(&allocations, &options)?;
-                    (filename, data)
-                }
-                JsonFileType::UnsafeFfi => {
-                    let filename = format!("{}_unsafe_ffi.json", base_name);
-                    let data = create_integrated_unsafe_ffi_analysis(&allocations, &options)?;
-                    (filename, data)
-                }
-                JsonFileType::Performance => {
-                    let filename = format!("{}_performance.json", base_name);
-                    let data = create_integrated_performance_analysis(
-                        &allocations,
-                        &stats,
-                        start_time,
-                        &options,
-                    )?;
-                    (filename, data)
-                }
-                JsonFileType::ComplexTypes => {
-                    let filename = format!("{}_complex_types.json", base_name);
-                    let data = create_optimized_complex_types_analysis(&allocations, &options)?;
-                    (filename, data)
-                }
-                JsonFileType::SecurityViolations => {
-                    let filename = format!("{}_security_violations.json", base_name);
-                    let data = create_security_violation_analysis(&allocations, &options)?;
-                    (filename, data)
-                }
-            };
-
-            let file_path = parent_dir.join(filename);
-            write_json_optimized(&file_path, &data, &options)?;
-            println!(
-                "   ✅ Generated: {}",
-                file_path.file_name().unwrap().to_string_lossy()
-            );
-        }
-
-        let total_duration = start_time.elapsed();
-        println!("✅ Unified JSON export completed in {:?}", total_duration);
-
-        // Record overall performance if adaptive optimization is enabled
-        if options.enable_adaptive_optimization {
-            let memory_usage_mb = (allocations.len() * 64) / (1024 * 1024); // Estimate
-            if let Ok(mut optimizer) = ADAPTIVE_OPTIMIZER.lock() {
-                optimizer.record_batch_performance(
-                    allocations.len(),
-                    total_duration,
-                    memory_usage_mb as u64,
-                    allocations.len(),
-                );
-            }
-        }
-
-        // Display optimization features used
-        println!("💡 Optimization features applied:");
-        if options.parallel_processing {
-            println!("   - Parallel processing enabled");
-        }
-        if options.use_streaming_writer {
-            println!("   - Streaming JSON writer enabled");
-        }
-        if options.enable_schema_validation {
-            println!("   - Schema validation enabled");
-        }
-        if options.enable_enhanced_ffi_analysis {
-            println!("   - Enhanced FFI analysis enabled");
-        }
-        if options.enable_boundary_event_processing {
-            println!("   - Boundary event processing enabled");
-        }
-        if options.enable_memory_passport_tracking {
-            println!("   - Memory passport tracking enabled");
-        }
-        if options.enable_security_analysis {
-            println!("   - Security violation analysis enabled");
-        }
-        if options.enable_adaptive_optimization {
-            println!("   - Adaptive performance optimization enabled");
-
-            // Display performance report
-            if let Ok(optimizer) = ADAPTIVE_OPTIMIZER.lock() {
-                let report = optimizer.get_performance_report();
-                if let Some(batch_size) =
-                    report["adaptive_optimization"]["current_batch_size"].as_u64()
-                {
-                    println!("   - Current optimal batch size: {}", batch_size);
-                }
-                if let Some(hit_ratio) =
-                    report["adaptive_optimization"]["cache_statistics"]["hit_ratio"].as_f64()
-                {
-                    println!("   - Cache hit ratio: {:.1}%", hit_ratio * 100.0);
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Test backward compatibility with legacy export methods
-    ///
-    /// This method verifies that the new optimized export system maintains
-    /// full backward compatibility with existing export methods.
-    pub fn test_export_backward_compatibility(&self) -> TrackingResult<serde_json::Value> {
-        let start_time = std::time::Instant::now();
-        let mut test_results = Vec::new();
-
-        // Test 1: Basic export_to_json compatibility
-        let test1_start = std::time::Instant::now();
-        match self.export_to_json("test_compatibility_basic.json") {
-            Ok(_) => {
-                test_results.push(serde_json::json!({
-                    "test": "export_to_json",
-                    "status": "passed",
-                    "duration_ms": test1_start.elapsed().as_millis(),
-                    "description": "Basic JSON export maintains compatibility"
-                }));
-            }
-            Err(e) => {
-                test_results.push(serde_json::json!({
-                    "test": "export_to_json",
-                    "status": "failed",
-                    "error": e.to_string(),
-                    "duration_ms": test1_start.elapsed().as_millis()
-                }));
-            }
-        }
-
-        // Test 2: Fast export mode
-        let test2_start = std::time::Instant::now();
-        let fast_options = OptimizedExportOptions::default().fast_export_mode(true);
-        match self.export_to_json_with_optimized_options("test_compatibility_fast", fast_options) {
-            Ok(_) => {
-                test_results.push(serde_json::json!({
-                    "test": "fast_export_mode",
-                    "status": "passed",
-                    "duration_ms": test2_start.elapsed().as_millis(),
-                    "description": "Fast export mode works correctly"
-                }));
-            }
-            Err(e) => {
-                test_results.push(serde_json::json!({
-                    "test": "fast_export_mode",
-                    "status": "failed",
-                    "error": e.to_string(),
-                    "duration_ms": test2_start.elapsed().as_millis()
-                }));
-            }
-        }
-
-        // Test 3: Auto mode selection
-        let test3_start = std::time::Instant::now();
-        let auto_options = OptimizedExportOptions::default().auto_fast_export_threshold(Some(1)); // Force auto mode for any data
-        match self.export_to_json_with_optimized_options("test_compatibility_auto", auto_options) {
-            Ok(_) => {
-                test_results.push(serde_json::json!({
-                    "test": "auto_mode_selection",
-                    "status": "passed",
-                    "duration_ms": test3_start.elapsed().as_millis(),
-                    "description": "Auto mode selection works correctly"
-                }));
-            }
-            Err(e) => {
-                test_results.push(serde_json::json!({
-                    "test": "auto_mode_selection",
-                    "status": "failed",
-                    "error": e.to_string(),
-                    "duration_ms": test3_start.elapsed().as_millis()
-                }));
-            }
-        }
-
-        // Test 4: Traditional export with all optimization levels
-        for level in [
-            OptimizationLevel::Low,
-            OptimizationLevel::Medium,
-            OptimizationLevel::High,
-            OptimizationLevel::Maximum,
-        ] {
-            let test_start = std::time::Instant::now();
-            let level_options =
-                OptimizedExportOptions::with_optimization_level(level).fast_export_mode(false); // Force traditional export
-            let test_name = format!("optimization_level_{:?}", level);
-
-            match self.export_to_json_with_optimized_options(
-                &format!("test_compatibility_{:?}", level),
-                level_options,
-            ) {
-                Ok(_) => {
-                    test_results.push(serde_json::json!({
-                        "test": test_name,
-                        "status": "passed",
-                        "duration_ms": test_start.elapsed().as_millis(),
-                        "description": format!("Optimization level {:?} works correctly", level)
-                    }));
-                }
-                Err(e) => {
-                    test_results.push(serde_json::json!({
-                        "test": test_name,
-                        "status": "failed",
-                        "error": e.to_string(),
-                        "duration_ms": test_start.elapsed().as_millis()
-                    }));
-                }
-            }
-        }
-
-        let total_duration = start_time.elapsed();
-        let passed_tests = test_results
-            .iter()
-            .filter(|t| t["status"] == "passed")
-            .count();
-        let total_tests = test_results.len();
-
-        Ok(serde_json::json!({
-            "backward_compatibility_test": {
-                "summary": {
-                    "total_tests": total_tests,
-                    "passed_tests": passed_tests,
-                    "failed_tests": total_tests - passed_tests,
-                    "success_rate": (passed_tests as f64 / total_tests as f64) * 100.0,
-                    "total_duration_ms": total_duration.as_millis()
-                },
-                "test_results": test_results,
-                "compatibility_status": if passed_tests == total_tests { "fully_compatible" } else { "partial_compatibility" },
-                "recommendations": if passed_tests == total_tests {
-                    vec!["All backward compatibility tests passed. Safe to use new optimized export system."]
-                } else {
-                    vec!["Some compatibility tests failed. Review failed tests before deploying."]
-                }
-            }
-        }))
-    }
-
-    /// Get adaptive performance report
-    ///
-    /// Returns detailed performance metrics and optimization recommendations
-    /// from the adaptive performance optimizer.
-    pub fn get_adaptive_performance_report(&self) -> TrackingResult<serde_json::Value> {
-        if let Ok(optimizer) = ADAPTIVE_OPTIMIZER.lock() {
-            Ok(optimizer.get_performance_report())
-        } else {
-            Ok(serde_json::json!({
-                "error": "Unable to access adaptive performance optimizer",
-                "adaptive_optimization": {
-                    "enabled": false
-                }
-            }))
-        }
-    }
-
-    /// Reset adaptive performance optimizer
-    ///
-    /// Clears all cached data and performance metrics. Useful for testing
-    /// or when starting fresh performance measurements.
-    pub fn reset_adaptive_optimizer(&self) -> TrackingResult<()> {
-        if let Ok(mut optimizer) = ADAPTIVE_OPTIMIZER.lock() {
-            optimizer.reset();
-            println!("🔄 Adaptive performance optimizer reset");
-        }
-        Ok(())
-    }
-
-    /// Configure adaptive optimization settings
-    ///
-    /// Allows runtime configuration of the adaptive performance optimizer.
-    pub fn configure_adaptive_optimization(
-        &self,
-        enabled: bool,
-        cache_size: Option<usize>,
-        initial_batch_size: Option<usize>,
-    ) -> TrackingResult<()> {
-        if let Ok(mut optimizer) = ADAPTIVE_OPTIMIZER.lock() {
-            optimizer.set_optimization_enabled(enabled);
-
-            if enabled {
-                if let Some(cache_size) = cache_size {
-                    // Reset with new cache size
-                    *optimizer = AdaptivePerformanceOptimizer::new(
-                        initial_batch_size.unwrap_or(1000),
-                        cache_size,
-                    );
-                }
-                println!("🔧 Adaptive optimization configured: enabled={}, cache_size={:?}, batch_size={:?}", 
-                        enabled, cache_size, initial_batch_size);
-            } else {
-                println!("🔧 Adaptive optimization disabled");
-            }
-        }
-        Ok(())
-    }
-
-    /// Get comprehensive security violation report
-    ///
-    /// Returns detailed security analysis including violation reports,
-    /// impact assessments, and remediation suggestions.
-    pub fn get_security_violation_report(&self) -> TrackingResult<serde_json::Value> {
-        let allocations = self.get_active_allocations()?;
-        let options = OptimizedExportOptions::default();
-        create_security_violation_analysis(&allocations, &options)
-    }
-
-    /// Get security violations by severity level
-    ///
-    /// Filters security violations by minimum severity level.
-    pub fn get_security_violations_by_severity(
-        &self,
-        min_severity: ViolationSeverity,
-    ) -> TrackingResult<Vec<serde_json::Value>> {
-        if let Ok(analyzer) = SECURITY_ANALYZER.lock() {
-            let reports = analyzer.get_reports_by_severity(min_severity);
-            let json_reports = reports
-                .iter()
-                .map(|report| {
-                    serde_json::json!({
-                        "violation_id": report.violation_id,
-                        "violation_type": report.violation_type,
-                        "severity": format!("{:?}", report.severity),
-                        "description": report.description,
-                        "overall_risk_score": report.impact_assessment.overall_risk_score,
-                        "generated_at_ns": report.generated_at_ns
-                    })
-                })
-                .collect();
-            Ok(json_reports)
-        } else {
-            Ok(Vec::new())
-        }
-    }
-
-    /// Verify integrity of security violation reports
-    ///
-    /// Checks data integrity hashes for all security violation reports.
-    pub fn verify_security_report_integrity(&self) -> TrackingResult<serde_json::Value> {
-        if let Ok(analyzer) = SECURITY_ANALYZER.lock() {
-            let all_reports = analyzer.get_all_reports();
-            let mut verification_results = Vec::new();
-            let mut all_verified = true;
-
-            for (violation_id, report) in all_reports {
-                let is_valid = analyzer.verify_report_integrity(report).unwrap_or(false);
-                if !is_valid {
-                    all_verified = false;
-                }
-
-                verification_results.push(serde_json::json!({
-                    "violation_id": violation_id,
-                    "integrity_verified": is_valid,
-                    "hash": report.integrity_hash
-                }));
-            }
-
-            Ok(serde_json::json!({
-                "verification_summary": {
-                    "total_reports": all_reports.len(),
-                    "all_verified": all_verified,
-                    "verification_timestamp": std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_secs()
-                },
-                "individual_results": verification_results
-            }))
-        } else {
-            Ok(serde_json::json!({
-                "error": "Security analyzer not available"
-            }))
-        }
-    }
-
-    /// Clear all security violation reports
-    ///
-    /// Clears all stored security violation data. Useful for testing
-    /// or when starting fresh security analysis.
-    pub fn clear_security_violations(&self) -> TrackingResult<()> {
-        if let Ok(mut analyzer) = SECURITY_ANALYZER.lock() {
-            analyzer.clear_reports();
-            println!("🧹 Security violation reports cleared");
-        }
-        Ok(())
-    }
-
-    /// Configure security analysis settings
-    ///
-    /// Allows runtime configuration of security violation analysis.
-    pub fn configure_security_analysis(
-        &self,
-        enable_correlation: bool,
-        include_low_severity: bool,
-        generate_hashes: bool,
-        max_related_allocations: Option<usize>,
-    ) -> TrackingResult<()> {
-        let config = AnalysisConfig {
-            max_related_allocations: max_related_allocations.unwrap_or(10),
-            max_stack_depth: 20,
-            enable_correlation_analysis: enable_correlation,
-            include_low_severity,
-            generate_integrity_hashes: generate_hashes,
-        };
-
-        if let Ok(mut analyzer) = SECURITY_ANALYZER.lock() {
-            *analyzer = SecurityViolationAnalyzer::new(config);
-            println!(
-                "🔧 Security analysis configured: correlation={}, low_severity={}, hashes={}",
-                enable_correlation, include_low_severity, generate_hashes
-            );
-        }
-
-        Ok(())
-    }
 }
 
 /// Ultra-fast export implementation (legacy methods for backward compatibility)
@@ -1483,36 +608,33 @@ impl MemoryTracker {
         );
 
         // 1. Memory Analysis JSON (standard file 1)
-        let memory_path = parent_dir.join(format!("{}_memory_analysis.json", base_name));
+        let memory_path = parent_dir.join(format!("{base_name}_memory_analysis.json"));
         let memory_data = create_optimized_memory_analysis(&allocations, &stats, &options)?;
         write_json_optimized(&memory_path, &memory_data, &options)?;
 
         // 2. Lifetime Analysis JSON (standard file 2)
-        let lifetime_path = parent_dir.join(format!("{}_lifetime.json", base_name));
+        let lifetime_path = parent_dir.join(format!("{base_name}_lifetime.json"));
         let lifetime_data = create_optimized_lifetime_analysis(&allocations, &options)?;
         write_json_optimized(&lifetime_path, &lifetime_data, &options)?;
 
         // 3. Unsafe FFI Analysis JSON (standard file 3)
-        let unsafe_path = parent_dir.join(format!("{}_unsafe_ffi.json", base_name));
+        let unsafe_path = parent_dir.join(format!("{base_name}_unsafe_ffi.json"));
         let unsafe_data = create_optimized_unsafe_ffi_analysis(&allocations, &options)?;
         write_json_optimized(&unsafe_path, &unsafe_data, &options)?;
 
         // 4. Performance Analysis JSON (standard file 4)
-        let perf_path = parent_dir.join(format!("{}_performance.json", base_name));
+        let perf_path = parent_dir.join(format!("{base_name}_performance.json"));
         let perf_data =
             create_optimized_performance_analysis(&allocations, &stats, start_time, &options)?;
         write_json_optimized(&perf_path, &perf_data, &options)?;
 
         let total_duration = start_time.elapsed();
-        println!(
-            "✅ Optimized 4-file export completed in {:?}",
-            total_duration
-        );
+        println!("✅ Optimized 4-file export completed in {total_duration:?}",);
         println!("📁 Generated standard files:");
-        println!("   1. {}_memory_analysis.json", base_name);
-        println!("   2. {}_lifetime.json", base_name);
-        println!("   3. {}_unsafe_ffi.json", base_name);
-        println!("   4. {}_performance.json", base_name);
+        println!("   1. {base_name}_memory_analysis.json");
+        println!("   2. {base_name}_lifetime.json");
+        println!("   3. {base_name}_unsafe_ffi.json");
+        println!("   4. {base_name}_performance.json");
 
         // Show optimization effects
         if options.parallel_processing {
@@ -1569,22 +691,22 @@ impl MemoryTracker {
         for file_type in file_types {
             let (filename, data) = match file_type {
                 JsonFileType::MemoryAnalysis => {
-                    let filename = format!("{}_memory_analysis.json", base_name);
+                    let filename = format!("{base_name}_memory_analysis.json");
                     let data = create_optimized_memory_analysis(&allocations, &stats, &options)?;
                     (filename, data)
                 }
                 JsonFileType::Lifetime => {
-                    let filename = format!("{}_lifetime.json", base_name);
+                    let filename = format!("{base_name}_lifetime.json");
                     let data = create_optimized_lifetime_analysis(&allocations, &options)?;
                     (filename, data)
                 }
                 JsonFileType::UnsafeFfi => {
-                    let filename = format!("{}_unsafe_ffi.json", base_name);
+                    let filename = format!("{base_name}_unsafe_ffi.json");
                     let data = create_optimized_unsafe_ffi_analysis(&allocations, &options)?;
                     (filename, data)
                 }
                 JsonFileType::Performance => {
-                    let filename = format!("{}_performance.json", base_name);
+                    let filename = format!("{base_name}_performance.json");
                     let data = create_optimized_performance_analysis(
                         &allocations,
                         &stats,
@@ -1594,13 +716,16 @@ impl MemoryTracker {
                     (filename, data)
                 }
                 JsonFileType::ComplexTypes => {
-                    let filename = format!("{}_complex_types.json", base_name);
+                    let filename = format!("{base_name}_complex_types.json");
                     let data = create_optimized_complex_types_analysis(&allocations, &options)?;
                     (filename, data)
                 }
-                JsonFileType::SecurityViolations => todo!(), // future can easily add new file types
-                                                             // JsonFileType::AsyncAnalysis => { ... }
-                                                             // JsonFileType::ThreadSafety => { ... }
+                JsonFileType::SecurityViolations => {
+                    let filename = format!("{base_name}_security_violations.json");
+                    let data = create_security_violation_analysis(&allocations, &options)?;
+                    (filename, data)
+                } // JsonFileType::AsyncAnalysis => { ... }
+                  // JsonFileType::ThreadSafety => { ... }
             };
 
             let file_path = parent_dir.join(filename);
@@ -1612,7 +737,7 @@ impl MemoryTracker {
         }
 
         let total_duration = start_time.elapsed();
-        println!("✅ Extensible export completed in {:?}", total_duration);
+        println!("✅ Extensible export completed in {total_duration:?}");
 
         Ok(())
     }
@@ -1857,6 +982,7 @@ fn create_optimized_performance_analysis(
 }
 
 /// Create integrated memory analysis with all new pipeline components
+#[allow(dead_code)]
 fn create_integrated_memory_analysis(
     allocations: &[AllocationInfo],
     stats: &crate::core::types::MemoryStats,
@@ -1925,6 +1051,7 @@ fn create_integrated_memory_analysis(
 }
 
 /// Create integrated lifetime analysis with enhanced pipeline
+#[allow(dead_code)]
 fn create_integrated_lifetime_analysis(
     allocations: &[AllocationInfo],
     options: &OptimizedExportOptions,
@@ -2055,6 +1182,7 @@ fn create_integrated_lifetime_analysis(
 }
 
 /// Create integrated unsafe FFI analysis with all enhanced features
+#[allow(dead_code)]
 fn create_integrated_unsafe_ffi_analysis(
     allocations: &[AllocationInfo],
     options: &OptimizedExportOptions,
@@ -2196,6 +1324,7 @@ fn create_integrated_unsafe_ffi_analysis(
 }
 
 /// Create integrated performance analysis with all pipeline metrics
+#[allow(dead_code)]
 fn create_integrated_performance_analysis(
     allocations: &[AllocationInfo],
     stats: &crate::core::types::MemoryStats,
@@ -2230,11 +1359,7 @@ fn create_integrated_performance_analysis(
         "batch_processor": {
             "enabled": options.parallel_processing && allocations.len() > options.batch_size,
             "batch_size": options.batch_size,
-            "estimated_batches": if allocations.len() > options.batch_size {
-                (allocations.len() + options.batch_size - 1) / options.batch_size
-            } else {
-                1
-            }
+            "estimated_batches": allocations.len().div_ceil(options.batch_size),
         },
         "streaming_writer": {
             "enabled": options.use_streaming_writer,
@@ -2316,7 +1441,7 @@ fn create_optimized_complex_types_analysis(
         // Parallel analysis of complex types
         let results: Vec<_> = allocations
             .par_chunks(options.batch_size)
-            .map(|chunk| analyze_complex_types_batch(chunk))
+            .map(analyze_complex_types_batch)
             .collect();
 
         // Merge results
@@ -2324,7 +1449,7 @@ fn create_optimized_complex_types_analysis(
             for (type_name, info) in batch_result.type_stats {
                 let entry = complex_type_stats
                     .entry(type_name)
-                    .or_insert_with(|| ComplexTypeInfo::new());
+                    .or_insert_with(ComplexTypeInfo::new);
                 entry.merge(info);
             }
             generic_types.extend(batch_result.generic_types);
@@ -2518,7 +1643,7 @@ fn normalize_type_name(type_name: &str) -> String {
     // Remove specific generic parameters, keep structure
     if type_name.contains('<') {
         if let Some(base) = type_name.split('<').next() {
-            format!("{}<T>", base)
+            format!("{base}<T>")
         } else {
             type_name.to_string()
         }
@@ -2606,7 +1731,7 @@ fn calculate_memory_efficiency(type_name: &str, total_size: usize, count: usize)
     let avg_size = total_size / count;
 
     //  Calculate efficiency based on type and average size
-    let efficiency = if type_name.contains("Vec<") {
+    if type_name.contains("Vec<") {
         // Vec efficiency depends on capacity utilization
         if avg_size < 64 {
             60
@@ -2629,9 +1754,7 @@ fn calculate_memory_efficiency(type_name: &str, total_size: usize, count: usize)
     } else {
         // Default efficiency
         85
-    };
-
-    efficiency
+    }
 }
 
 /// Generate optimization suggestions based on type and allocation information
@@ -2960,6 +2083,7 @@ fn process_allocations_optimized(
 }
 
 /// Create security violation analysis with comprehensive context
+#[allow(dead_code)]
 fn create_security_violation_analysis(
     allocations: &[AllocationInfo],
     options: &OptimizedExportOptions,
@@ -3002,7 +2126,7 @@ fn create_security_violation_analysis(
                     if let Ok(violation_id) =
                         analyzer.analyze_violation(violation, enhanced_alloc.base.ptr)
                     {
-                        println!("   ✅ Analyzed violation: {}", violation_id);
+                        println!("   ✅ Analyzed violation: {violation_id}");
                     }
                 }
             }
@@ -3147,4 +2271,851 @@ fn create_performance_metrics(
             "format_optimization": "auto-detected"
         }
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::types::AllocationInfo;
+    use std::time::Instant;
+
+    fn create_test_allocation(
+        ptr: usize,
+        size: usize,
+        type_name: Option<String>,
+        var_name: Option<String>,
+    ) -> AllocationInfo {
+        AllocationInfo {
+            ptr,
+            size,
+            var_name,
+            type_name,
+            scope_name: None,
+            timestamp_alloc: 1000,
+            timestamp_dealloc: None,
+            thread_id: "test_thread".to_string(),
+            borrow_count: 0,
+            stack_trace: None,
+            is_leaked: false,
+            lifetime_ms: None,
+            borrow_info: None,
+            clone_info: None,
+            ownership_history_available: false,
+            smart_pointer_info: None,
+            memory_layout: None,
+            generic_info: None,
+            dynamic_type_info: None,
+            runtime_state: None,
+            stack_allocation: None,
+            temporary_object: None,
+            fragmentation_analysis: None,
+            generic_instantiation: None,
+            type_relationships: None,
+            type_usage: None,
+            function_call_tracking: None,
+            lifecycle_tracking: None,
+            access_tracking: None,
+            drop_chain_analysis: None,
+        }
+    }
+
+    #[test]
+    fn test_json_file_type_standard_four() {
+        let standard_four = JsonFileType::standard_four();
+        assert_eq!(standard_four.len(), 4);
+        assert!(standard_four.contains(&JsonFileType::MemoryAnalysis));
+        assert!(standard_four.contains(&JsonFileType::Lifetime));
+        assert!(standard_four.contains(&JsonFileType::UnsafeFfi));
+        assert!(standard_four.contains(&JsonFileType::Performance));
+    }
+
+    #[test]
+    fn test_json_file_type_standard_five() {
+        let standard_five = JsonFileType::standard_five();
+        assert_eq!(standard_five.len(), 5);
+        assert!(standard_five.contains(&JsonFileType::MemoryAnalysis));
+        assert!(standard_five.contains(&JsonFileType::Lifetime));
+        assert!(standard_five.contains(&JsonFileType::UnsafeFfi));
+        assert!(standard_five.contains(&JsonFileType::Performance));
+        assert!(standard_five.contains(&JsonFileType::ComplexTypes));
+    }
+
+    #[test]
+    fn test_json_file_type_file_suffix() {
+        assert_eq!(
+            JsonFileType::MemoryAnalysis.file_suffix(),
+            "memory_analysis"
+        );
+        assert_eq!(JsonFileType::Lifetime.file_suffix(), "lifetime");
+        assert_eq!(JsonFileType::UnsafeFfi.file_suffix(), "unsafe_ffi");
+        assert_eq!(JsonFileType::Performance.file_suffix(), "performance");
+        assert_eq!(JsonFileType::ComplexTypes.file_suffix(), "complex_types");
+        assert_eq!(
+            JsonFileType::SecurityViolations.file_suffix(),
+            "security_violations"
+        );
+    }
+
+    #[test]
+    fn test_optimized_export_options_default() {
+        let options = OptimizedExportOptions::default();
+
+        assert!(options.parallel_processing);
+        assert_eq!(options.buffer_size, 256 * 1024);
+        assert!(options.use_compact_format.is_none());
+        assert!(options.enable_type_cache);
+        assert_eq!(options.batch_size, 1000);
+        assert!(options.use_streaming_writer);
+        assert!(options.enable_schema_validation);
+        assert_eq!(options.optimization_level, OptimizationLevel::High);
+        assert!(options.enable_enhanced_ffi_analysis);
+        assert!(options.enable_boundary_event_processing);
+        assert!(options.enable_memory_passport_tracking);
+        assert!(options.enable_adaptive_optimization);
+        assert_eq!(options.max_cache_size, 1000);
+        assert_eq!(options.target_batch_time_ms, 10);
+        assert!(options.enable_security_analysis);
+        assert!(options.include_low_severity_violations);
+        assert!(options.generate_integrity_hashes);
+        assert!(!options.enable_fast_export_mode);
+        assert_eq!(options.auto_fast_export_threshold, Some(5000));
+        assert!(options.thread_count.is_none());
+    }
+
+    #[test]
+    fn test_optimization_level_low() {
+        let options = OptimizedExportOptions::with_optimization_level(OptimizationLevel::Low);
+
+        assert!(!options.parallel_processing);
+        assert!(!options.use_streaming_writer);
+        assert!(!options.enable_schema_validation);
+        assert!(!options.enable_enhanced_ffi_analysis);
+        assert!(!options.enable_boundary_event_processing);
+        assert!(!options.enable_memory_passport_tracking);
+        assert!(!options.enable_adaptive_optimization);
+        assert!(!options.enable_security_analysis);
+        assert_eq!(options.optimization_level, OptimizationLevel::Low);
+    }
+
+    #[test]
+    fn test_optimization_level_medium() {
+        let options = OptimizedExportOptions::with_optimization_level(OptimizationLevel::Medium);
+
+        assert!(options.parallel_processing);
+        assert!(!options.use_streaming_writer);
+        assert!(options.enable_schema_validation);
+        assert!(options.enable_enhanced_ffi_analysis);
+        assert!(!options.enable_boundary_event_processing);
+        assert!(!options.enable_memory_passport_tracking);
+        assert_eq!(options.optimization_level, OptimizationLevel::Medium);
+    }
+
+    #[test]
+    fn test_optimization_level_high() {
+        let options = OptimizedExportOptions::with_optimization_level(OptimizationLevel::High);
+
+        // High level should use default settings (all features enabled)
+        assert!(options.parallel_processing);
+        assert!(options.use_streaming_writer);
+        assert!(options.enable_schema_validation);
+        assert!(options.enable_enhanced_ffi_analysis);
+        assert!(options.enable_boundary_event_processing);
+        assert!(options.enable_memory_passport_tracking);
+        assert_eq!(options.optimization_level, OptimizationLevel::High);
+    }
+
+    #[test]
+    fn test_optimization_level_maximum() {
+        let options = OptimizedExportOptions::with_optimization_level(OptimizationLevel::Maximum);
+
+        assert_eq!(options.buffer_size, 512 * 1024); // 512KB buffer
+        assert_eq!(options.batch_size, 2000);
+        assert_eq!(options.optimization_level, OptimizationLevel::Maximum);
+    }
+
+    #[test]
+    fn test_optimized_export_options_builder_pattern() {
+        let options = OptimizedExportOptions::default()
+            .parallel_processing(false)
+            .buffer_size(128 * 1024)
+            .batch_size(500)
+            .streaming_writer(false)
+            .schema_validation(false)
+            .adaptive_optimization(false)
+            .max_cache_size(2000)
+            .security_analysis(false)
+            .include_low_severity(false)
+            .integrity_hashes(false)
+            .fast_export_mode(true)
+            .auto_fast_export_threshold(Some(10000))
+            .thread_count(Some(4));
+
+        assert!(!options.parallel_processing);
+        assert_eq!(options.buffer_size, 128 * 1024);
+        assert_eq!(options.batch_size, 500);
+        assert!(!options.use_streaming_writer);
+        assert!(!options.enable_schema_validation);
+        assert!(!options.enable_adaptive_optimization);
+        assert_eq!(options.max_cache_size, 2000);
+        assert!(!options.enable_security_analysis);
+        assert!(!options.include_low_severity_violations);
+        assert!(!options.generate_integrity_hashes);
+        assert!(options.enable_fast_export_mode);
+        assert_eq!(options.auto_fast_export_threshold, Some(10000));
+        assert_eq!(options.thread_count, Some(4));
+    }
+
+    #[test]
+    fn test_create_performance_metrics() {
+        let allocations = vec![
+            create_test_allocation(
+                0x1000,
+                64,
+                Some("String".to_string()),
+                Some("var1".to_string()),
+            ),
+            create_test_allocation(
+                0x2000,
+                128,
+                Some("Vec<i32>".to_string()),
+                Some("var2".to_string()),
+            ),
+        ];
+
+        let start_time = Instant::now();
+        std::thread::sleep(std::time::Duration::from_millis(1)); // Ensure some time passes
+
+        let result = create_performance_metrics(&allocations, start_time);
+        assert!(result.is_ok());
+
+        let metrics = result.unwrap();
+        assert!(metrics["metadata"]["metrics_type"].as_str().unwrap() == "performance_optimized");
+        assert!(
+            metrics["performance"]["allocations_processed"]
+                .as_u64()
+                .unwrap()
+                == 2
+        );
+        assert!(
+            metrics["performance"]["total_processing_time_ms"]
+                .as_u64()
+                .unwrap()
+                > 0
+        );
+        assert!(
+            metrics["performance"]["processing_rate"]["allocations_per_second"]
+                .as_f64()
+                .is_some()
+        );
+        assert!(
+            metrics["optimization_status"]["type_caching"]
+                .as_str()
+                .unwrap()
+                == "enabled"
+        );
+    }
+
+    #[test]
+    fn test_create_security_violation_analysis_disabled() {
+        let allocations = vec![create_test_allocation(
+            0x1000,
+            64,
+            Some("String".to_string()),
+            Some("var1".to_string()),
+        )];
+
+        let options = OptimizedExportOptions::default().security_analysis(false);
+
+        let result = create_security_violation_analysis(&allocations, &options);
+        assert!(result.is_ok());
+
+        let analysis = result.unwrap();
+        assert_eq!(
+            analysis["metadata"]["analysis_type"].as_str().unwrap(),
+            "security_violations"
+        );
+        assert_eq!(analysis["metadata"]["status"].as_str().unwrap(), "disabled");
+        assert!(analysis["metadata"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("disabled"));
+    }
+
+    #[test]
+    fn test_create_security_violation_analysis_enabled() {
+        let allocations = vec![create_test_allocation(
+            0x1000,
+            64,
+            Some("String".to_string()),
+            Some("var1".to_string()),
+        )];
+
+        let options = OptimizedExportOptions::default().security_analysis(true);
+
+        let result = create_security_violation_analysis(&allocations, &options);
+        assert!(result.is_ok());
+
+        let analysis = result.unwrap();
+        assert_eq!(
+            analysis["metadata"]["analysis_type"].as_str().unwrap(),
+            "security_violations"
+        );
+        assert_eq!(
+            analysis["metadata"]["export_version"].as_str().unwrap(),
+            "2.0"
+        );
+        assert!(analysis["metadata"]["analysis_enabled"].as_bool().unwrap());
+        assert!(analysis["violation_reports"].is_array());
+        assert!(analysis["security_summary"].is_object());
+        assert!(analysis["data_integrity"].is_object());
+        assert!(analysis["analysis_recommendations"].is_array());
+    }
+
+    #[test]
+    fn test_optimization_level_equality() {
+        assert_eq!(OptimizationLevel::Low, OptimizationLevel::Low);
+        assert_eq!(OptimizationLevel::Medium, OptimizationLevel::Medium);
+        assert_eq!(OptimizationLevel::High, OptimizationLevel::High);
+        assert_eq!(OptimizationLevel::Maximum, OptimizationLevel::Maximum);
+
+        assert_ne!(OptimizationLevel::Low, OptimizationLevel::High);
+        assert_ne!(OptimizationLevel::Medium, OptimizationLevel::Maximum);
+    }
+
+    #[test]
+    fn test_json_file_type_equality() {
+        assert_eq!(JsonFileType::MemoryAnalysis, JsonFileType::MemoryAnalysis);
+        assert_eq!(JsonFileType::Lifetime, JsonFileType::Lifetime);
+        assert_eq!(JsonFileType::UnsafeFfi, JsonFileType::UnsafeFfi);
+        assert_eq!(JsonFileType::Performance, JsonFileType::Performance);
+        assert_eq!(JsonFileType::ComplexTypes, JsonFileType::ComplexTypes);
+        assert_eq!(
+            JsonFileType::SecurityViolations,
+            JsonFileType::SecurityViolations
+        );
+
+        assert_ne!(JsonFileType::MemoryAnalysis, JsonFileType::Lifetime);
+        assert_ne!(JsonFileType::UnsafeFfi, JsonFileType::Performance);
+    }
+
+    #[test]
+    fn test_optimized_export_options_clone() {
+        let original = OptimizedExportOptions::default()
+            .parallel_processing(false)
+            .buffer_size(512 * 1024);
+
+        let cloned = original.clone();
+
+        assert_eq!(original.parallel_processing, cloned.parallel_processing);
+        assert_eq!(original.buffer_size, cloned.buffer_size);
+        assert_eq!(original.batch_size, cloned.batch_size);
+        assert_eq!(original.optimization_level, cloned.optimization_level);
+    }
+
+    #[test]
+    fn test_security_analysis_configuration() {
+        let options_with_low_severity = OptimizedExportOptions::default()
+            .include_low_severity(true)
+            .integrity_hashes(true);
+
+        let options_without_low_severity = OptimizedExportOptions::default()
+            .include_low_severity(false)
+            .integrity_hashes(false);
+
+        assert!(options_with_low_severity.include_low_severity_violations);
+        assert!(options_with_low_severity.generate_integrity_hashes);
+
+        assert!(!options_without_low_severity.include_low_severity_violations);
+        assert!(!options_without_low_severity.generate_integrity_hashes);
+    }
+
+    #[test]
+    fn test_fast_export_configuration() {
+        let options = OptimizedExportOptions::default()
+            .fast_export_mode(true)
+            .auto_fast_export_threshold(Some(1000));
+
+        assert!(options.enable_fast_export_mode);
+        assert_eq!(options.auto_fast_export_threshold, Some(1000));
+
+        let options_no_auto = OptimizedExportOptions::default().auto_fast_export_threshold(None);
+
+        assert!(options_no_auto.auto_fast_export_threshold.is_none());
+    }
+
+    #[test]
+    fn test_thread_count_configuration() {
+        let options_auto = OptimizedExportOptions::default();
+        assert!(options_auto.thread_count.is_none()); // Auto-detect
+
+        let options_manual = OptimizedExportOptions::default().thread_count(Some(8));
+        assert_eq!(options_manual.thread_count, Some(8));
+    }
+
+    #[test]
+    fn test_buffer_size_validation() {
+        let small_buffer = OptimizedExportOptions::default().buffer_size(1024); // 1KB
+        assert_eq!(small_buffer.buffer_size, 1024);
+
+        let large_buffer = OptimizedExportOptions::default().buffer_size(1024 * 1024); // 1MB
+        assert_eq!(large_buffer.buffer_size, 1024 * 1024);
+    }
+
+    #[test]
+    fn test_batch_size_validation() {
+        let small_batch = OptimizedExportOptions::default().batch_size(100);
+        assert_eq!(small_batch.batch_size, 100);
+
+        let large_batch = OptimizedExportOptions::default().batch_size(10000);
+        assert_eq!(large_batch.batch_size, 10000);
+    }
+
+    #[test]
+    fn test_cache_size_validation() {
+        let small_cache = OptimizedExportOptions::default().max_cache_size(500);
+        assert_eq!(small_cache.max_cache_size, 500);
+
+        let large_cache = OptimizedExportOptions::default().max_cache_size(5000);
+        assert_eq!(large_cache.max_cache_size, 5000);
+    }
+
+    #[test]
+    fn test_streaming_json_writer() {
+        let mut buffer = Vec::new();
+        let mut writer = StreamingJsonWriter::new(&mut buffer);
+
+        let test_data = serde_json::json!({
+            "test": "value",
+            "number": 42,
+            "array": [1, 2, 3]
+        });
+
+        let result = writer.write_complete_json(&test_data);
+        assert!(result.is_ok());
+
+        let result = writer.finalize();
+        assert!(result.is_ok());
+
+        // Verify the JSON was written correctly
+        let written_json: serde_json::Value = serde_json::from_slice(&buffer).unwrap();
+        assert_eq!(written_json["test"].as_str().unwrap(), "value");
+        assert_eq!(written_json["number"].as_u64().unwrap(), 42);
+        assert_eq!(written_json["array"].as_array().unwrap().len(), 3);
+    }
+
+    #[test]
+    fn test_streaming_json_writer_pretty() {
+        let mut buffer = Vec::new();
+        let mut writer = StreamingJsonWriter::new(&mut buffer);
+
+        let test_data = serde_json::json!({
+            "test": "pretty",
+            "formatted": true
+        });
+
+        let result = writer.write_pretty_json(&test_data);
+        assert!(result.is_ok());
+
+        let result = writer.finalize();
+        assert!(result.is_ok());
+
+        // Verify the JSON was written and is valid
+        let written_json: serde_json::Value = serde_json::from_slice(&buffer).unwrap();
+        assert_eq!(written_json["test"].as_str().unwrap(), "pretty");
+        assert!(written_json["formatted"].as_bool().unwrap());
+
+        // Check that it's pretty formatted (contains newlines and spaces)
+        let json_string = String::from_utf8(buffer).unwrap();
+        assert!(json_string.contains('\n'));
+        assert!(json_string.contains("  ")); // Indentation
+    }
+
+    #[test]
+    fn test_type_cache_operations() {
+        // Clear cache first
+        clear_type_cache();
+
+        // Test cache miss and population
+        let type_info1 = get_or_compute_type_info("Vec<String>", 128);
+        assert_eq!(type_info1, "Vec<T>");
+
+        // Test cache hit (should return same result)
+        let type_info2 = get_or_compute_type_info("Vec<String>", 128);
+        assert_eq!(type_info2, "Vec<T>");
+        assert_eq!(type_info1, type_info2);
+
+        // Test different type
+        let type_info3 = get_or_compute_type_info("HashMap<String, i32>", 256);
+        assert_eq!(type_info3, "HashMap<K,V>");
+
+        // Clear cache and verify
+        clear_type_cache();
+        let type_info4 = get_or_compute_type_info("Vec<String>", 128);
+        assert_eq!(type_info4, "Vec<T>"); // Should still work after cache clear
+    }
+
+    #[test]
+    fn test_compute_enhanced_type_info() {
+        // Test Vec types
+        assert_eq!(compute_enhanced_type_info("Vec<String>", 100), "Vec<T>");
+        assert_eq!(compute_enhanced_type_info("Vec<i32>", 200), "Vec<T>");
+
+        // Test HashMap types
+        assert_eq!(
+            compute_enhanced_type_info("HashMap<String, i32>", 300),
+            "HashMap<K,V>"
+        );
+        assert_eq!(
+            compute_enhanced_type_info("HashMap<u64, String>", 400),
+            "HashMap<K,V>"
+        );
+
+        // Test String types
+        assert_eq!(compute_enhanced_type_info("String", 50), "String");
+        assert_eq!(
+            compute_enhanced_type_info("std::string::String", 60),
+            "String"
+        );
+
+        // Test size-based categorization
+        assert_eq!(compute_enhanced_type_info("Unknown", 4), "Primitive");
+        assert_eq!(compute_enhanced_type_info("Unknown", 16), "SmallStruct");
+        assert_eq!(compute_enhanced_type_info("Unknown", 64), "MediumStruct");
+        assert_eq!(compute_enhanced_type_info("Unknown", 512), "LargeStruct");
+        assert_eq!(compute_enhanced_type_info("Unknown", 2048), "Buffer");
+    }
+
+    #[test]
+    fn test_estimate_json_size() {
+        // Test simple object
+        let simple_obj = serde_json::json!({
+            "key": "value"
+        });
+        let size1 = estimate_json_size(&simple_obj);
+        assert!(size1 > 0);
+
+        // Test array
+        let array = serde_json::json!([1, 2, 3, 4, 5]);
+        let size2 = estimate_json_size(&array);
+        assert!(size2 > 0);
+
+        // Test complex nested structure
+        let complex = serde_json::json!({
+            "data": {
+                "items": [
+                    {"id": 1, "name": "item1"},
+                    {"id": 2, "name": "item2"}
+                ],
+                "metadata": {
+                    "count": 2,
+                    "description": "test data"
+                }
+            }
+        });
+        let size3 = estimate_json_size(&complex);
+        assert!(size3 > size1);
+        assert!(size3 > size2);
+
+        // Test string
+        let string_val = serde_json::json!("This is a test string");
+        let size4 = estimate_json_size(&string_val);
+        assert!(size4 > 20); // String length + overhead
+
+        // Test primitive
+        let number = serde_json::json!(42);
+        let size5 = estimate_json_size(&number);
+        assert_eq!(size5, 20); // Default primitive size
+    }
+
+    #[test]
+    fn test_normalize_type_name() {
+        // Test generic type normalization
+        assert_eq!(normalize_type_name("Vec<String>"), "Vec<T>");
+        assert_eq!(normalize_type_name("HashMap<String, i32>"), "HashMap<T>");
+        assert_eq!(
+            normalize_type_name("Option<Result<String, Error>>"),
+            "Option<T>"
+        );
+
+        // Test non-generic types
+        assert_eq!(normalize_type_name("String"), "String");
+        assert_eq!(normalize_type_name("i32"), "i32");
+        assert_eq!(normalize_type_name("MyStruct"), "MyStruct");
+
+        // Test edge cases
+        assert_eq!(normalize_type_name(""), "");
+        assert_eq!(normalize_type_name("Vec"), "Vec");
+        assert_eq!(normalize_type_name("Vec<>"), "Vec<T>");
+    }
+
+    #[test]
+    fn test_categorize_complex_type() {
+        // Test trait objects
+        assert_eq!(categorize_complex_type("dyn Display"), "TraitObject");
+        assert_eq!(categorize_complex_type("dyn Debug + Send"), "TraitObject");
+
+        // Test smart pointers
+        assert_eq!(categorize_complex_type("Box<String>"), "SmartPointer");
+        assert_eq!(categorize_complex_type("Rc<RefCell<i32>>"), "SmartPointer");
+        assert_eq!(
+            categorize_complex_type("Arc<Mutex<Vec<u8>>>"),
+            "SmartPointer"
+        );
+        assert_eq!(
+            categorize_complex_type("RefCell<HashMap<String, i32>>"),
+            "SmartPointer"
+        );
+
+        // Test collections
+        assert_eq!(categorize_complex_type("Vec<String>"), "Collection");
+        assert_eq!(
+            categorize_complex_type("HashMap<String, i32>"),
+            "Collection"
+        );
+        assert_eq!(
+            categorize_complex_type("BTreeMap<u64, String>"),
+            "Collection"
+        );
+        assert_eq!(categorize_complex_type("HashSet<String>"), "Collection");
+
+        // Test generic types
+        assert_eq!(categorize_complex_type("Option<String>"), "Generic");
+        assert_eq!(categorize_complex_type("Result<i32, Error>"), "Generic");
+        assert_eq!(categorize_complex_type("MyStruct<T, U>"), "Generic");
+
+        // Test module paths
+        assert_eq!(
+            categorize_complex_type("std::collections::HashMap"),
+            "ModulePath"
+        );
+        assert_eq!(
+            categorize_complex_type("crate::my_module::MyType"),
+            "ModulePath"
+        );
+
+        // Test simple types
+        assert_eq!(categorize_complex_type("String"), "Simple");
+        assert_eq!(categorize_complex_type("i32"), "Simple");
+        assert_eq!(categorize_complex_type("MyStruct"), "Simple");
+    }
+
+    #[test]
+    fn test_calculate_type_complexity() {
+        // Test simple types
+        assert_eq!(calculate_type_complexity("i32"), 1);
+        assert_eq!(calculate_type_complexity("String"), 1);
+
+        // Test generic types: base(1) + matches('<')(2) + nesting_level(3)
+        assert_eq!(calculate_type_complexity("Vec<String>"), 6); // 1 + 1*2 + 1*3
+        assert_eq!(calculate_type_complexity("HashMap<String, i32>"), 6); // 1 + 1*2 + 1*3
+
+        // Test nested generics: base(1) + matches('<')(2*2) + nesting_level(2*3)
+        assert_eq!(calculate_type_complexity("Vec<Option<String>>"), 11); // 1 + 2*2 + 2*3
+
+        // Test trait objects: base(1) + dyn(5)
+        assert_eq!(calculate_type_complexity("dyn Display"), 6); // 1 + 5
+        assert_eq!(calculate_type_complexity("dyn Debug + Send"), 6); // 1 + 5
+
+        // Test impl types: base(1) + impl(4)
+        assert_eq!(calculate_type_complexity("impl Iterator"), 5); // 1 + 4
+
+        // Test async types: base(1) + async(3)
+        assert_eq!(calculate_type_complexity("async fn()"), 4); // 1 + 3
+                                                                // Future<Output = i32>: base(1) + matches('<')(1*2) + nesting_level(1*3) + Future(3)
+        assert_eq!(calculate_type_complexity("Future<Output = i32>"), 9); // 1 + 2 + 3 + 3
+
+        // Test smart pointers
+        // Box<String>: base(1) + matches('<')(1*2) + nesting_level(1*3) + Box(2)
+        assert_eq!(calculate_type_complexity("Box<String>"), 8); // 1 + 2 + 3 + 2
+                                                                 // Rc<RefCell<i32>>: base(1) + matches('<')(2*2) + nesting_level(2*3) + Rc(3) + RefCell(3)
+        assert_eq!(calculate_type_complexity("Rc<RefCell<i32>>"), 17); // 1 + 4 + 6 + 3 + 3
+                                                                       // Arc<Mutex<Vec<String>>>: base(1) + matches('<')(3*2) + nesting_level(3*3) + Arc(4)
+        assert_eq!(calculate_type_complexity("Arc<Mutex<Vec<String>>>"), 20); // 1 + 6 + 9 + 4
+    }
+
+    #[test]
+    fn test_calculate_memory_efficiency() {
+        // Test Vec efficiency
+        assert_eq!(calculate_memory_efficiency("Vec<String>", 32, 1), 60); // Small Vec
+        assert_eq!(calculate_memory_efficiency("Vec<i32>", 128, 1), 85); // Larger Vec
+
+        // Test HashMap efficiency
+        assert_eq!(
+            calculate_memory_efficiency("HashMap<String, i32>", 64, 1),
+            50
+        ); // Small HashMap
+        assert_eq!(
+            calculate_memory_efficiency("HashMap<u64, String>", 256, 1),
+            75
+        ); // Larger HashMap
+
+        // Test Box efficiency
+        assert_eq!(calculate_memory_efficiency("Box<String>", 100, 1), 90);
+
+        // Test reference counting
+        assert_eq!(calculate_memory_efficiency("Arc<String>", 100, 1), 80);
+        assert_eq!(calculate_memory_efficiency("Rc<i32>", 50, 1), 80);
+
+        // Test default efficiency
+        assert_eq!(calculate_memory_efficiency("MyStruct", 100, 1), 85);
+
+        // Test zero count edge case
+        assert_eq!(calculate_memory_efficiency("Vec<String>", 1000, 0), 100);
+    }
+
+    #[test]
+    fn test_generate_optimization_suggestions() {
+        let mut info = ComplexTypeInfo::new();
+
+        // Test high allocation count suggestions
+        info.allocation_count = 150;
+        info.total_size = 1000;
+        info.complexity_score = 5;
+        let suggestions = generate_optimization_suggestions("String", &info);
+        assert!(suggestions.iter().any(|s| s.contains("object pooling")));
+
+        // Test large Vec suggestions
+        info.allocation_count = 10;
+        info.total_size = 2 * 1024 * 1024; // 2MB
+        info.complexity_score = 3;
+        let suggestions = generate_optimization_suggestions("Vec<String>", &info);
+        assert!(suggestions
+            .iter()
+            .any(|s| s.contains("pre-allocating Vec capacity")));
+
+        // Test HashMap suggestions
+        info.allocation_count = 60;
+        info.total_size = 100000;
+        info.complexity_score = 4;
+        let suggestions = generate_optimization_suggestions("HashMap<String, i32>", &info);
+        assert!(suggestions.iter().any(|s| s.contains("FxHashMap")));
+
+        // Test Box suggestions
+        info.allocation_count = 250;
+        info.total_size = 50000;
+        info.complexity_score = 2;
+        let suggestions = generate_optimization_suggestions("Box<i32>", &info);
+        assert!(suggestions.iter().any(|s| s.contains("arena allocation")));
+
+        // Test high complexity suggestions
+        info.allocation_count = 10;
+        info.total_size = 1000;
+        info.complexity_score = 15;
+        let suggestions = generate_optimization_suggestions("ComplexType<T, U, V>", &info);
+        assert!(suggestions
+            .iter()
+            .any(|s| s.contains("High complexity type")));
+    }
+
+    #[test]
+    fn test_calculate_complexity_distribution() {
+        let type_analysis = vec![
+            serde_json::json!({"complexity_score": 2}),
+            serde_json::json!({"complexity_score": 5}),
+            serde_json::json!({"complexity_score": 10}),
+            serde_json::json!({"complexity_score": 20}),
+            serde_json::json!({"complexity_score": 1}),
+            serde_json::json!({"complexity_score": 7}),
+        ];
+
+        let distribution = calculate_complexity_distribution(&type_analysis);
+
+        assert_eq!(distribution["low_complexity"].as_u64().unwrap(), 2); // scores 1, 2
+        assert_eq!(distribution["medium_complexity"].as_u64().unwrap(), 2); // scores 5, 7
+        assert_eq!(distribution["high_complexity"].as_u64().unwrap(), 1); // score 10
+        assert_eq!(distribution["very_high_complexity"].as_u64().unwrap(), 1); // score 20
+    }
+
+    #[test]
+    fn test_generate_global_optimization_recommendations() {
+        // Test with many high-complexity types (need more than 5 high allocation count items)
+        let high_complexity_analysis = vec![
+            serde_json::json!({"complexity_score": 15, "allocation_count": 150}),
+            serde_json::json!({"complexity_score": 12, "allocation_count": 130}),
+            serde_json::json!({"complexity_score": 18, "allocation_count": 120}),
+            serde_json::json!({"complexity_score": 20, "allocation_count": 200}),
+            serde_json::json!({"complexity_score": 11, "allocation_count": 110}),
+            serde_json::json!({"complexity_score": 14, "allocation_count": 140}),
+        ];
+
+        let recommendations =
+            generate_global_optimization_recommendations(&high_complexity_analysis);
+        assert!(recommendations
+            .iter()
+            .any(|r| r.contains("refactoring high-complexity types")));
+        assert!(recommendations.iter().any(|r| r.contains("object pooling")));
+        assert!(recommendations.iter().any(|r| r.contains("cargo clippy")));
+        assert!(recommendations.iter().any(|r| r.contains("perf")));
+
+        // Test with low-complexity types
+        let low_complexity_analysis = vec![
+            serde_json::json!({"complexity_score": 2, "allocation_count": 10}),
+            serde_json::json!({"complexity_score": 3, "allocation_count": 5}),
+        ];
+
+        let recommendations =
+            generate_global_optimization_recommendations(&low_complexity_analysis);
+        // Should not suggest refactoring for low complexity
+        assert!(!recommendations
+            .iter()
+            .any(|r| r.contains("refactoring high-complexity types")));
+        // Should not suggest object pooling for low allocation counts
+        assert!(!recommendations.iter().any(|r| r.contains("object pooling")));
+        // But should still have general recommendations
+        assert!(recommendations.iter().any(|r| r.contains("cargo clippy")));
+    }
+
+    #[test]
+    fn test_complex_type_info_merge() {
+        let mut info1 = ComplexTypeInfo {
+            category: "Generic".to_string(),
+            total_size: 1000,
+            allocation_count: 10,
+            max_size: 200,
+            complexity_score: 5,
+        };
+
+        let info2 = ComplexTypeInfo {
+            category: "".to_string(), // Empty category
+            total_size: 500,
+            allocation_count: 5,
+            max_size: 150,
+            complexity_score: 3,
+        };
+
+        info1.merge(info2);
+
+        assert_eq!(info1.category, "Generic"); // Should keep original category
+        assert_eq!(info1.total_size, 1500); // 1000 + 500
+        assert_eq!(info1.allocation_count, 15); // 10 + 5
+        assert_eq!(info1.max_size, 200); // max(200, 150)
+        assert_eq!(info1.complexity_score, 5); // max(5, 3)
+    }
+
+    #[test]
+    fn test_complex_type_info_merge_empty_category() {
+        let mut info1 = ComplexTypeInfo {
+            category: "".to_string(), // Empty category
+            total_size: 100,
+            allocation_count: 1,
+            max_size: 100,
+            complexity_score: 2,
+        };
+
+        let info2 = ComplexTypeInfo {
+            category: "Collection".to_string(),
+            total_size: 200,
+            allocation_count: 2,
+            max_size: 150,
+            complexity_score: 4,
+        };
+
+        info1.merge(info2);
+
+        assert_eq!(info1.category, "Collection"); // Should take non-empty category
+        assert_eq!(info1.total_size, 300);
+        assert_eq!(info1.allocation_count, 3);
+        assert_eq!(info1.max_size, 150);
+        assert_eq!(info1.complexity_score, 4);
+    }
 }

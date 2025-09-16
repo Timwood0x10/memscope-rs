@@ -273,7 +273,7 @@ impl SchemaValidator {
             if !schema_version.is_supported {
                 errors.push(ValidationError {
                     code: "UNSUPPORTED_SCHEMA_VERSION".to_string(),
-                    message: format!("Schema version {} is not supported", version),
+                    message: format!("Schema version {version} is not supported"),
                     path: "metadata.schema_version".to_string(),
                     severity: ErrorSeverity::Critical,
                     suggested_fix: Some("Use a supported schema version".to_string()),
@@ -282,7 +282,7 @@ impl SchemaValidator {
         } else {
             errors.push(ValidationError {
                 code: "UNKNOWN_SCHEMA_VERSION".to_string(),
-                message: format!("Unknown schema version: {}", version),
+                message: format!("Unknown schema version: {version}"),
                 path: "metadata.schema_version".to_string(),
                 severity: ErrorSeverity::Critical,
                 suggested_fix: Some("Use a supported schema version".to_string()),
@@ -304,7 +304,7 @@ impl SchemaValidator {
             .map_err(|e| TrackingError::SerializationError(e.to_string()))?;
 
         let hash = self.simple_hash(&canonical_json);
-        Ok(format!("{:x}", hash))
+        Ok(format!("{hash:x}"))
     }
 
     /// Verify data integrity using provided hash
@@ -451,7 +451,7 @@ impl SchemaValidator {
         metrics.sections_validated += 1;
 
         // Check for unknown sections
-        let known_sections = vec![
+        let known_sections = [
             "metadata",
             "unsafe_analysis",
             "ffi_analysis",
@@ -464,7 +464,7 @@ impl SchemaValidator {
                 if !known_sections.contains(&key.as_str()) {
                     warnings.push(ValidationWarning {
                         warning_code: "UNKNOWN_SECTION".to_string(),
-                        message: format!("Unknown section: {}", key),
+                        message: format!("Unknown section: {key}"),
                         path: key.clone(),
                         suggestion: Some("Remove unknown sections or update schema".to_string()),
                     });
@@ -480,7 +480,7 @@ impl SchemaValidator {
         &self,
         unsafe_analysis: &Value,
         errors: &mut Vec<ValidationError>,
-        _warnings: &mut Vec<ValidationWarning>,
+        _warnings: &mut [ValidationWarning],
     ) -> TrackingResult<()> {
         if !unsafe_analysis.is_object() {
             errors.push(ValidationError {
@@ -499,10 +499,10 @@ impl SchemaValidator {
             if unsafe_analysis.get(field).is_none() {
                 errors.push(ValidationError {
                     code: "MISSING_REQUIRED_FIELD".to_string(),
-                    message: format!("Required field '{}' is missing in unsafe_analysis", field),
-                    path: format!("unsafe_analysis.{}", field),
+                    message: format!("Required field '{field}' is missing in unsafe_analysis"),
+                    path: format!("unsafe_analysis.{field}"),
                     severity: ErrorSeverity::Critical,
-                    suggested_fix: Some(format!("Add required field '{}'", field)),
+                    suggested_fix: Some(format!("Add required field '{field}'")),
                 });
             }
         }
@@ -515,7 +515,7 @@ impl SchemaValidator {
         &self,
         ffi_analysis: &Value,
         errors: &mut Vec<ValidationError>,
-        _warnings: &mut Vec<ValidationWarning>,
+        _warnings: &mut [ValidationWarning],
     ) -> TrackingResult<()> {
         if !ffi_analysis.is_object() {
             errors.push(ValidationError {
@@ -534,10 +534,10 @@ impl SchemaValidator {
             if ffi_analysis.get(field).is_none() {
                 errors.push(ValidationError {
                     code: "MISSING_REQUIRED_FIELD".to_string(),
-                    message: format!("Required field '{}' is missing in ffi_analysis", field),
-                    path: format!("ffi_analysis.{}", field),
+                    message: format!("Required field '{field}' is missing in ffi_analysis"),
+                    path: format!("ffi_analysis.{field}"),
                     severity: ErrorSeverity::Critical,
-                    suggested_fix: Some(format!("Add required field '{}'", field)),
+                    suggested_fix: Some(format!("Add required field '{field}'")),
                 });
             }
         }
@@ -550,7 +550,7 @@ impl SchemaValidator {
         &self,
         boundary_analysis: &Value,
         errors: &mut Vec<ValidationError>,
-        _warnings: &mut Vec<ValidationWarning>,
+        _warnings: &mut [ValidationWarning],
     ) -> TrackingResult<()> {
         if !boundary_analysis.is_object() {
             errors.push(ValidationError {
@@ -584,7 +584,7 @@ impl SchemaValidator {
         &self,
         safety_violations: &Value,
         errors: &mut Vec<ValidationError>,
-        _warnings: &mut Vec<ValidationWarning>,
+        _warnings: &mut [ValidationWarning],
     ) -> TrackingResult<()> {
         if !safety_violations.is_object() {
             errors.push(ValidationError {
@@ -618,7 +618,7 @@ impl SchemaValidator {
         &self,
         data: &Value,
         errors: &mut Vec<ValidationError>,
-        _warnings: &mut Vec<ValidationWarning>,
+        _warnings: &mut [ValidationWarning],
     ) -> TrackingResult<()> {
         for rule in &self.config.custom_rules {
             // Simplified path matching - in production, use proper JSONPath
@@ -647,7 +647,7 @@ impl SchemaValidator {
             if schema_version.backward_compatible_with.is_empty() {
                 warnings.push(ValidationWarning {
                     warning_code: "NO_BACKWARD_COMPATIBILITY".to_string(),
-                    message: format!("Schema version {} has no backward compatibility", version),
+                    message: format!("Schema version {version} has no backward compatibility"),
                     path: "metadata.schema_version".to_string(),
                     suggestion: Some("Consider using a more recent schema version".to_string()),
                 });
@@ -699,16 +699,18 @@ pub struct ValidationMetrics {
 impl SchemaValidator {
     /// Create a validator with strict mode enabled
     pub fn strict() -> Self {
-        let mut config = SchemaValidatorConfig::default();
-        config.strict_mode = true;
-        Self::with_config(config)
+        Self::with_config(SchemaValidatorConfig {
+            strict_mode: true,
+            ..Default::default()
+        })
     }
 
     /// Create a validator with integrity checking disabled
     pub fn without_integrity_check() -> Self {
-        let mut config = SchemaValidatorConfig::default();
-        config.enable_integrity_check = false;
-        Self::with_config(config)
+        Self::with_config(SchemaValidatorConfig {
+            enable_integrity_check: false,
+            ..Default::default()
+        })
     }
 }
 
@@ -797,7 +799,9 @@ mod tests {
             }
         });
 
-        let result = validator.validate_unsafe_ffi_analysis(&data).unwrap();
+        let result = validator
+            .validate_unsafe_ffi_analysis(&data)
+            .expect("Failed to validate FFI analysis");
         assert!(result.is_valid);
         assert!(result.errors.is_empty());
     }
@@ -827,7 +831,9 @@ mod tests {
             "ffi_analysis": {"summary": {}, "allocations": []}
         });
 
-        let result = validator.validate_unsafe_ffi_analysis(&data).unwrap();
+        let result = validator
+            .validate_unsafe_ffi_analysis(&data)
+            .expect("Test operation failed");
         assert!(!result.is_valid);
         assert!(!result.errors.is_empty());
     }
@@ -837,11 +843,17 @@ mod tests {
         let validator = SchemaValidator::new();
         let data = json!({"test": "data"});
 
-        let hash1 = validator.calculate_integrity_hash(&data).unwrap();
-        let hash2 = validator.calculate_integrity_hash(&data).unwrap();
+        let hash1 = validator
+            .calculate_integrity_hash(&data)
+            .expect("Failed to calculate hash 1");
+        let hash2 = validator
+            .calculate_integrity_hash(&data)
+            .expect("Failed to calculate hash 2");
 
         assert_eq!(hash1, hash2);
-        assert!(validator.verify_integrity(&data, &hash1).unwrap());
+        assert!(validator
+            .verify_integrity(&data, &hash1)
+            .expect("Failed to verify integrity"));
     }
 
     #[test]
@@ -870,19 +882,22 @@ mod tests {
             "ffi_analysis": {"summary": {}, "allocations": []}
         });
 
-        let result = validator.validate_unsafe_ffi_analysis(&valid_data).unwrap();
+        let result = validator
+            .validate_unsafe_ffi_analysis(&valid_data)
+            .expect("Failed to validate valid data");
         assert!(result.is_valid);
 
         let strict_validator = SchemaValidator::strict();
         let result = strict_validator
             .validate_unsafe_ffi_analysis(&valid_data)
-            .unwrap();
+            .expect("Failed to validate with strict mode");
+        // In strict mode, the minimal valid data should still be valid
         assert!(result.is_valid);
 
         let no_integrity_validator = SchemaValidator::without_integrity_check();
         let result = no_integrity_validator
             .validate_unsafe_ffi_analysis(&valid_data)
-            .unwrap();
+            .expect("Failed to validate without integrity check");
         assert_eq!(result.integrity_hash, "disabled");
     }
 }

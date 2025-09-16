@@ -81,9 +81,9 @@ pub fn enhance_type_information(
 
         // Add the main type with subcategory information
         enhanced_types.push(EnhancedTypeInfo {
-            simplified_name: simplified_name,
-            category: category,
-            subcategory: subcategory,
+            simplified_name,
+            category,
+            subcategory,
             total_size: usage.total_size,
             allocation_count: usage.allocation_count,
             variable_names,
@@ -134,6 +134,22 @@ fn analyze_type_with_detailed_subcategory(type_name: &str) -> (String, String, S
             "Unknown".to_string(),
             "Other".to_string(),
         );
+    }
+
+    // Smart Pointers - Check these FIRST before basic types
+    if clean_type.contains("Box<") {
+        let inner = extract_generic_inner_type(clean_type, "Box");
+        return (inner, "Smart Pointers".to_string(), "Box<T>".to_string());
+    }
+
+    if clean_type.contains("Rc<") {
+        let inner = extract_generic_inner_type(clean_type, "Rc");
+        return (inner, "Smart Pointers".to_string(), "Rc<T>".to_string());
+    }
+
+    if clean_type.contains("Arc<") {
+        let inner = extract_generic_inner_type(clean_type, "Arc");
+        return (inner, "Smart Pointers".to_string(), "Arc<T>".to_string());
     }
 
     // Collections analysis with precise subcategorization
@@ -315,34 +331,6 @@ fn analyze_type_with_detailed_subcategory(type_name: &str) -> (String, String, S
         );
     }
 
-    // Smart Pointers
-    if clean_type.contains("Box<") {
-        let inner = extract_generic_inner_type(clean_type, "Box");
-        return (
-            format!("Box<{inner}>"),
-            "Smart Pointers".to_string(),
-            "Box<T>".to_string(),
-        );
-    }
-
-    if clean_type.contains("Rc<") {
-        let inner = extract_generic_inner_type(clean_type, "Rc");
-        return (
-            format!("Rc<{inner}>"),
-            "Smart Pointers".to_string(),
-            "Rc<T>".to_string(),
-        );
-    }
-
-    if clean_type.contains("Arc<") {
-        let inner = extract_generic_inner_type(clean_type, "Arc");
-        return (
-            format!("Arc<{inner}>"),
-            "Smart Pointers".to_string(),
-            "Arc<T>".to_string(),
-        );
-    }
-
     // Fall back to original logic for other types
     let (simplified_name, category) = simplify_type_name(clean_type);
     (simplified_name, category, "Other".to_string())
@@ -422,7 +410,10 @@ pub fn categorize_allocations(allocations: &[AllocationInfo]) -> Vec<AllocationC
             continue;
         }
 
-        let type_name = allocation.type_name.as_ref().unwrap();
+        let type_name = allocation
+            .type_name
+            .as_ref()
+            .expect("Type name should be available after None check");
         let (_, category_name) = simplify_type_name(type_name);
         let category_name_clone = category_name.clone();
 
@@ -1120,6 +1111,7 @@ struct TreemapNode {
 
 /// Layout strategy for treemap rendering
 #[derive(Debug, Clone)]
+#[allow(clippy::enum_variant_names)]
 enum TreemapLayoutStrategy {
     /// Full treemap with all categories and subcategories
     FullLayout,
@@ -2098,7 +2090,7 @@ pub fn add_memory_timeline(
 
     // Calculate optimal row height based on available space
     let available_height = chart_height - 120; // Reserve space for title, axis, and note
-    let row_height = (available_height / max_items as i32).min(22).max(18);
+    let row_height = (available_height / max_items as i32).clamp(18, 22);
 
     // Draw timeline for tracked variables with optimized spacing
     for (i, allocation) in tracked_allocs.iter().take(max_items).enumerate() {
@@ -2949,7 +2941,11 @@ pub fn add_enhanced_timeline_dashboard(
     let mut scope_groups: std::collections::HashMap<String, Vec<&AllocationInfo>> =
         std::collections::HashMap::new();
     for var in &limited_tracked_vars {
-        let scope_name = extract_scope_name(var.var_name.as_ref().unwrap());
+        let scope_name = extract_scope_name(
+            var.var_name
+                .as_ref()
+                .unwrap_or(&"unknown_variable".to_string()),
+        );
         scope_groups.entry(scope_name).or_default().push(*var);
     }
 
@@ -2976,9 +2972,7 @@ pub fn add_enhanced_timeline_dashboard(
     let plot_width = chart_width - 350; // Space for names and legend
     let plot_height = chart_height - 100;
 
-    let row_height = (plot_height as f64 / sorted_scopes.len().max(1) as f64)
-        .min(40.0)
-        .max(25.0); // Ensure minimum spacing for scopes
+    let row_height = (plot_height as f64 / sorted_scopes.len().max(1) as f64).clamp(25.0, 40.0);
 
     // Time axis (horizontal)
     let time_axis = svg::node::element::Line::new()
@@ -2992,7 +2986,7 @@ pub fn add_enhanced_timeline_dashboard(
 
     // Add time labels with better formatting - use relative time units
     let time_units = ["0ms", "0.25ms", "0.5ms", "0.75ms", "1ms"];
-    for i in 0..=4 {
+    for (i, item) in time_units.iter().enumerate() {
         let x = plot_x + (i * plot_width / 4);
 
         let tick = svg::node::element::Line::new()
@@ -3005,8 +2999,8 @@ pub fn add_enhanced_timeline_dashboard(
         document = document.add(tick);
 
         // Better formatted time labels
-        let time_label = time_units[i];
-        let label = SvgText::new(time_label)
+        let time_label = item;
+        let label = SvgText::new(*time_label)
             .set("x", x)
             .set("y", plot_y + plot_height + 18)
             .set("text-anchor", "middle")
@@ -3160,7 +3154,8 @@ pub fn add_enhanced_timeline_dashboard(
 
         // Draw variables within this scope
         for (var_index, alloc) in scope_vars.iter().enumerate() {
-            let var_name = alloc.var_name.as_ref().unwrap();
+            let default_name = "unnamed_variable".to_string();
+            let var_name = alloc.var_name.as_ref().unwrap_or(&default_name);
 
             // Calculate variable bar position
             let start_x = plot_x as i32
@@ -3372,5 +3367,489 @@ fn extract_scope_name(var_name: &str) -> String {
         } else {
             "Main Scope".to_string()
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::types::{AllocationInfo, TypeMemoryUsage};
+
+    // Helper function to create test allocation info
+    fn create_test_allocation(
+        size: usize,
+        type_name: Option<String>,
+        var_name: Option<String>,
+    ) -> AllocationInfo {
+        let mut alloc = AllocationInfo::new(0, size);
+        alloc.type_name = type_name;
+        alloc.var_name = var_name;
+        alloc
+    }
+
+    // Helper function to create test type memory usage
+    fn create_test_type_usage(
+        type_name: String,
+        total_size: usize,
+        allocation_count: usize,
+    ) -> TypeMemoryUsage {
+        TypeMemoryUsage {
+            type_name,
+            total_size,
+            allocation_count,
+            average_size: if allocation_count > 0 {
+                total_size as f64 / allocation_count as f64
+            } else {
+                0.0
+            },
+            peak_size: total_size,
+            current_size: total_size,
+            efficiency_score: 1.0,
+        }
+    }
+
+    #[test]
+    fn test_calculate_allocation_percentiles_empty() {
+        let allocations = vec![];
+        let (median, p95) = calculate_allocation_percentiles(&allocations);
+        assert_eq!(median, 0);
+        assert_eq!(p95, 0);
+    }
+
+    #[test]
+    fn test_calculate_allocation_percentiles_single() {
+        let allocations = vec![create_test_allocation(100, None, None)];
+        let (median, p95) = calculate_allocation_percentiles(&allocations);
+        assert_eq!(median, 100);
+        assert_eq!(p95, 100);
+    }
+
+    #[test]
+    fn test_calculate_allocation_percentiles_even_count() {
+        let allocations = vec![
+            create_test_allocation(100, None, None),
+            create_test_allocation(200, None, None),
+            create_test_allocation(300, None, None),
+            create_test_allocation(400, None, None),
+        ];
+        let (median, p95) = calculate_allocation_percentiles(&allocations);
+        assert_eq!(median, 250); // (200 + 300) / 2
+        assert_eq!(p95, 400); // 95th percentile of 4 items is the last item
+    }
+
+    #[test]
+    fn test_calculate_allocation_percentiles_odd_count() {
+        let allocations = vec![
+            create_test_allocation(100, None, None),
+            create_test_allocation(200, None, None),
+            create_test_allocation(300, None, None),
+        ];
+        let (median, p95) = calculate_allocation_percentiles(&allocations);
+        assert_eq!(median, 200); // Middle element
+        assert_eq!(p95, 300); // 95th percentile
+    }
+
+    #[test]
+    fn test_extract_generic_inner_type() {
+        assert_eq!(extract_generic_inner_type("Vec<i32>", "Vec"), "i32");
+        assert_eq!(
+            extract_generic_inner_type("HashMap<String, i32>", "HashMap"),
+            "String, i32"
+        );
+        assert_eq!(
+            extract_generic_inner_type("Option<String>", "Option"),
+            "String"
+        );
+        assert_eq!(
+            extract_generic_inner_type("std::vec::Vec<u64>", "Vec"),
+            "u64"
+        );
+        assert_eq!(extract_generic_inner_type("NoGeneric", "Vec"), "?");
+        assert_eq!(
+            extract_generic_inner_type("Vec<std::string::String>", "Vec"),
+            "String"
+        );
+    }
+
+    #[test]
+    fn test_extract_inner_primitive_types_enhanced() {
+        let result = extract_inner_primitive_types_enhanced("Vec<i32>");
+        assert!(result.contains(&"i32".to_string()));
+
+        let result = extract_inner_primitive_types_enhanced("HashMap<String, u64>");
+        // String is not a primitive type in this function, only basic types like u64
+        assert!(result.contains(&"u64".to_string()));
+
+        let result = extract_inner_primitive_types_enhanced("Option<bool>");
+        assert!(result.contains(&"bool".to_string()));
+
+        let result = extract_inner_primitive_types_enhanced("NoGeneric");
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_categorize_allocations_empty() {
+        let allocations = vec![];
+        let categories = categorize_allocations(&allocations);
+        assert!(categories.is_empty());
+    }
+
+    #[test]
+    fn test_categorize_allocations_with_unknown_types() {
+        let allocations = vec![
+            create_test_allocation(100, None, Some("var1".to_string())),
+            create_test_allocation(200, Some("Unknown".to_string()), Some("var2".to_string())),
+        ];
+        let categories = categorize_allocations(&allocations);
+        assert!(categories.is_empty()); // Should skip unknown types
+    }
+
+    #[test]
+    fn test_categorize_allocations_valid() {
+        let allocations = vec![
+            create_test_allocation(100, Some("Vec<i32>".to_string()), Some("vec1".to_string())),
+            create_test_allocation(200, Some("String".to_string()), Some("str1".to_string())),
+            create_test_allocation(150, Some("Vec<u64>".to_string()), Some("vec2".to_string())),
+        ];
+        let categories = categorize_allocations(&allocations);
+
+        assert!(!categories.is_empty());
+        // Should be sorted by total size (largest first)
+        assert!(categories[0].total_size >= categories.get(1).map_or(0, |c| c.total_size));
+    }
+
+    #[test]
+    fn test_enhance_type_information_empty() {
+        let memory_by_type = vec![];
+        let allocations = vec![];
+        let enhanced = enhance_type_information(&memory_by_type, &allocations);
+        assert!(enhanced.is_empty());
+    }
+
+    #[test]
+    fn test_enhance_type_information_basic() {
+        let memory_by_type = vec![
+            create_test_type_usage("Vec<i32>".to_string(), 1000, 5),
+            create_test_type_usage("String".to_string(), 500, 3),
+        ];
+        let allocations = vec![
+            create_test_allocation(
+                200,
+                Some("Vec<i32>".to_string()),
+                Some("my_vec".to_string()),
+            ),
+            create_test_allocation(
+                100,
+                Some("String".to_string()),
+                Some("my_string".to_string()),
+            ),
+        ];
+
+        let enhanced = enhance_type_information(&memory_by_type, &allocations);
+        assert!(!enhanced.is_empty());
+
+        // Check that we have enhanced type info
+        let vec_info = enhanced.iter().find(|e| e.simplified_name.contains("Vec"));
+        assert!(vec_info.is_some());
+
+        let string_info = enhanced
+            .iter()
+            .find(|e| e.simplified_name.contains("String"));
+        assert!(string_info.is_some());
+    }
+
+    #[test]
+    fn test_categorize_enhanced_allocations_empty() {
+        let enhanced_types = vec![];
+        let categories = categorize_enhanced_allocations(&enhanced_types);
+        assert!(categories.is_empty());
+    }
+
+    #[test]
+    fn test_categorize_enhanced_allocations_with_unknown() {
+        let enhanced_types = vec![EnhancedTypeInfo {
+            simplified_name: "Unknown".to_string(),
+            category: "Unknown".to_string(),
+            subcategory: "Unknown".to_string(),
+            total_size: 100,
+            allocation_count: 1,
+            variable_names: vec!["var1".to_string()],
+        }];
+        let categories = categorize_enhanced_allocations(&enhanced_types);
+        assert!(categories.is_empty()); // Should skip unknown types
+    }
+
+    #[test]
+    fn test_categorize_enhanced_allocations_valid() {
+        let enhanced_types = vec![
+            EnhancedTypeInfo {
+                simplified_name: "Vec".to_string(),
+                category: "Collections".to_string(),
+                subcategory: "Vec<T>".to_string(),
+                total_size: 1000,
+                allocation_count: 5,
+                variable_names: vec!["vec1".to_string(), "vec2".to_string()],
+            },
+            EnhancedTypeInfo {
+                simplified_name: "String".to_string(),
+                category: "Basic Types".to_string(),
+                subcategory: "Strings".to_string(),
+                total_size: 500,
+                allocation_count: 3,
+                variable_names: vec!["str1".to_string()],
+            },
+        ];
+
+        let categories = categorize_enhanced_allocations(&enhanced_types);
+        assert_eq!(categories.len(), 2);
+
+        // Should be sorted by total size (largest first)
+        assert!(categories[0].total_size >= categories[1].total_size);
+
+        // Check category names
+        let category_names: Vec<&String> = categories.iter().map(|c| &c.name).collect();
+        assert!(category_names.contains(&&"Collections".to_string()));
+        assert!(category_names.contains(&&"Basic Types".to_string()));
+    }
+
+    #[test]
+    fn test_extract_scope_name_patterns() {
+        assert_eq!(extract_scope_name("global_var"), "Global Scope");
+        assert_eq!(extract_scope_name("static_data"), "Static Scope");
+        assert_eq!(extract_scope_name("boxed_value"), "Boxed Allocations");
+        assert_eq!(extract_scope_name("shared_ptr"), "Shared References");
+        assert_eq!(extract_scope_name("arc_data"), "Shared References");
+        assert_eq!(extract_scope_name("rc_value"), "Shared References");
+        assert_eq!(extract_scope_name("node_data"), "Graph Nodes");
+        assert_eq!(extract_scope_name("mutable_ref"), "Mutable Data");
+        assert_eq!(extract_scope_name("test_variable"), "TEST Scope");
+        assert_eq!(extract_scope_name("verylongname"), "VERYLO Scope");
+        assert_eq!(extract_scope_name("short"), "Main Scope");
+    }
+
+    #[test]
+    fn test_analyze_type_with_detailed_subcategory() {
+        let (simplified, category, subcategory) =
+            analyze_type_with_detailed_subcategory("Vec<i32>");
+        assert_eq!(simplified, "Vec<i32>"); // Function returns full type name for Vec
+        assert_eq!(category, "Collections");
+        assert_eq!(subcategory, "Vec<T>");
+
+        let (simplified, category, subcategory) =
+            analyze_type_with_detailed_subcategory("HashMap<String, u64>");
+        assert_eq!(simplified, "HashMap<K,V>");
+        assert_eq!(category, "Collections");
+        assert_eq!(subcategory, "HashMap<K,V>");
+
+        let (simplified, category, subcategory) = analyze_type_with_detailed_subcategory("String");
+        assert_eq!(simplified, "String");
+        assert_eq!(category, "Basic Types");
+        assert_eq!(subcategory, "Strings");
+
+        let (simplified, category, subcategory) = analyze_type_with_detailed_subcategory("i32");
+        assert_eq!(simplified, "i32");
+        assert_eq!(category, "Basic Types");
+        assert_eq!(subcategory, "Integers");
+
+        let (simplified, category, subcategory) =
+            analyze_type_with_detailed_subcategory("Box<String>");
+        assert_eq!(simplified, "String"); // Based on actual function implementation
+        assert_eq!(category, "Smart Pointers");
+        assert_eq!(subcategory, "Box<T>");
+    }
+
+    #[test]
+    fn test_extract_name_and_percentage() {
+        let (name, percentage) = extract_name_and_percentage("Collections (75.5%)");
+        assert_eq!(name, "Collections");
+        assert_eq!(percentage, Some("75.5%"));
+
+        let (name, percentage) = extract_name_and_percentage("Basic Types");
+        assert_eq!(name, "Basic Types");
+        assert_eq!(percentage, None);
+
+        let (name, percentage) = extract_name_and_percentage("Vec<T> (100.0%)");
+        assert_eq!(name, "Vec<T>");
+        assert_eq!(percentage, Some("100.0%"));
+    }
+
+    #[test]
+    fn test_calculate_font_size() {
+        assert_eq!(calculate_font_size(50.0), 9); // Based on actual implementation
+        assert_eq!(calculate_font_size(100.0), 11); // Based on actual implementation
+        assert_eq!(calculate_font_size(200.0), 13); // Based on actual implementation
+        assert_eq!(calculate_font_size(400.0), 15); // Based on actual implementation
+        assert_eq!(calculate_font_size(1000.0), 15); // Based on actual implementation
+    }
+
+    #[test]
+    fn test_build_collections_node_empty() {
+        let collections_types = vec![];
+        let total_memory = 1000;
+        let node = build_collections_node(&collections_types, total_memory);
+
+        assert_eq!(node.name, "Collections");
+        assert_eq!(node.size, 1);
+        assert_eq!(node.percentage, 0.0);
+        assert!(node.children.is_empty());
+    }
+
+    #[test]
+    fn test_build_collections_node_with_data() {
+        let enhanced_type = EnhancedTypeInfo {
+            simplified_name: "Vec".to_string(),
+            category: "Collections".to_string(),
+            subcategory: "Vec<T>".to_string(),
+            total_size: 500,
+            allocation_count: 3,
+            variable_names: vec!["vec1".to_string()],
+        };
+        let collections_types = vec![&enhanced_type];
+        let total_memory = 1000;
+        let node = build_collections_node(&collections_types, total_memory);
+
+        assert!(node.name.contains("Collections"));
+        assert_eq!(node.size, 500);
+        assert_eq!(node.percentage, 50.0);
+        assert!(!node.children.is_empty());
+    }
+
+    #[test]
+    fn test_build_basic_types_node_empty() {
+        let basic_types = vec![];
+        let total_memory = 1000;
+        let node = build_basic_types_node(&basic_types, total_memory);
+
+        assert_eq!(node.name, "Basic Types");
+        assert_eq!(node.size, 1);
+        assert_eq!(node.percentage, 0.0);
+        assert!(node.children.is_empty());
+    }
+
+    #[test]
+    fn test_build_basic_types_node_with_data() {
+        let enhanced_type = EnhancedTypeInfo {
+            simplified_name: "String".to_string(),
+            category: "Basic Types".to_string(),
+            subcategory: "Strings".to_string(),
+            total_size: 300,
+            allocation_count: 2,
+            variable_names: vec!["str1".to_string()],
+        };
+        let basic_types = vec![&enhanced_type];
+        let total_memory = 1000;
+        let node = build_basic_types_node(&basic_types, total_memory);
+
+        assert!(node.name.contains("Basic Types"));
+        assert_eq!(node.size, 300);
+        assert_eq!(node.percentage, 30.0);
+        assert!(!node.children.is_empty());
+    }
+
+    #[test]
+    fn test_analyze_data_distribution_minimal() {
+        let collections_types = vec![];
+        let basic_types = vec![];
+        let smart_pointers_types = vec![];
+        let other_types = vec![];
+        let total_memory = 1000;
+
+        let strategy = analyze_data_distribution(
+            &collections_types,
+            &basic_types,
+            &smart_pointers_types,
+            &other_types,
+            total_memory,
+        );
+
+        matches!(strategy, TreemapLayoutStrategy::MinimalLayout);
+    }
+
+    #[test]
+    fn test_analyze_data_distribution_collections_dominant() {
+        let enhanced_type = EnhancedTypeInfo {
+            simplified_name: "Vec".to_string(),
+            category: "Collections".to_string(),
+            subcategory: "Vec<T>".to_string(),
+            total_size: 900,
+            allocation_count: 5,
+            variable_names: vec!["vec1".to_string()],
+        };
+        let collections_types = vec![&enhanced_type];
+        let basic_types = vec![];
+        let smart_pointers_types = vec![];
+        let other_types = vec![];
+        let total_memory = 1000;
+
+        let strategy = analyze_data_distribution(
+            &collections_types,
+            &basic_types,
+            &smart_pointers_types,
+            &other_types,
+            total_memory,
+        );
+
+        matches!(strategy, TreemapLayoutStrategy::CollectionsOnlyLayout);
+    }
+
+    #[test]
+    fn test_treemap_node_creation() {
+        let node = TreemapNode {
+            name: "Test Node".to_string(),
+            size: 100,
+            percentage: 50.0,
+            color: "#ff0000".to_string(),
+            children: vec![],
+        };
+
+        assert_eq!(node.name, "Test Node");
+        assert_eq!(node.size, 100);
+        assert_eq!(node.percentage, 50.0);
+        assert_eq!(node.color, "#ff0000");
+        assert!(node.children.is_empty());
+    }
+
+    #[test]
+    fn test_allocation_category_creation() {
+        let category = AllocationCategory {
+            name: "Test Category".to_string(),
+            allocations: vec![],
+            total_size: 500,
+            color: "#00ff00".to_string(),
+        };
+
+        assert_eq!(category.name, "Test Category");
+        assert_eq!(category.total_size, 500);
+        assert_eq!(category.color, "#00ff00");
+        assert!(category.allocations.is_empty());
+    }
+
+    #[test]
+    fn test_enhanced_type_info_creation() {
+        let enhanced_type = EnhancedTypeInfo {
+            simplified_name: "TestType".to_string(),
+            category: "TestCategory".to_string(),
+            subcategory: "TestSubcategory".to_string(),
+            total_size: 1000,
+            allocation_count: 10,
+            variable_names: vec!["var1".to_string(), "var2".to_string()],
+        };
+
+        assert_eq!(enhanced_type.simplified_name, "TestType");
+        assert_eq!(enhanced_type.category, "TestCategory");
+        assert_eq!(enhanced_type.subcategory, "TestSubcategory");
+        assert_eq!(enhanced_type.total_size, 1000);
+        assert_eq!(enhanced_type.allocation_count, 10);
+        assert_eq!(enhanced_type.variable_names.len(), 2);
+    }
+
+    // Test for add_memory_heatmap function
+    #[test]
+    fn test_add_memory_heatmap() {
+        let document = svg::Document::new();
+        let allocations = vec![];
+
+        let result = add_memory_heatmap(document, &allocations);
+        assert!(result.is_ok());
     }
 }

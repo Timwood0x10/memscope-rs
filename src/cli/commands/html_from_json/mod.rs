@@ -8,7 +8,8 @@ use rayon::prelude::*;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::error::Error;
-use std::fs;
+use std::fs::{self, File};
+use std::io::BufReader;
 use std::path::Path;
 use std::time::Instant;
 
@@ -18,7 +19,6 @@ pub mod debug_logger;
 pub mod error_handler;
 pub mod json_file_discovery;
 pub mod large_file_optimizer;
-pub mod template_generator;
 
 use data_integrator::DataIntegrator;
 use data_normalizer::DataNormalizer;
@@ -58,8 +58,6 @@ pub fn run_html_from_json(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
     let debug_config = DebugConfig {
         log_level: if debug_mode {
             LogLevel::Debug
-        } else if verbose {
-            LogLevel::Info
         } else {
             LogLevel::Info
         },
@@ -75,14 +73,13 @@ pub fn run_html_from_json(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
     let logger = DebugLogger::with_config(debug_config);
 
     logger.info("🚀 Generating HTML report from JSON files...");
-    logger.info(&format!("📁 Input directory: {}", input_dir));
-    logger.info(&format!("📄 Output file: {}", output_file));
-    logger.info(&format!("🏷️  Base name: {}", base_name));
+    logger.info(&format!("📁 Input directory: {input_dir}"));
+    logger.info(&format!("📄 Output file: {output_file}"));
+    logger.info(&format!("🏷️  Base name: {base_name}"));
 
     if verbose {
         logger.info(&format!(
-            "🔧 Debug mode: {}, Verbose: {}, Performance: {}",
-            debug_mode, verbose, performance_mode
+            "🔧 Debug mode: {debug_mode}, Verbose: {verbose}, Performance: {performance_mode}",
         ));
     }
 
@@ -111,7 +108,7 @@ pub fn run_html_from_json(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
     // Check if we should only validate and exit early
     if validate_only {
         logger.info("✅ JSON validation completed successfully!");
-        logger.info(&format!("📊 Validation results:"));
+        logger.info("📊 Validation results:");
         logger.info(&format!("   - Files loaded: {}", json_data.len()));
         logger.info(&format!(
             "   - Allocations found: {}",
@@ -121,7 +118,7 @@ pub fn run_html_from_json(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
             "   - Lifecycle events: {}",
             unified_data.lifecycle.lifecycle_events.len()
         ));
-        logger.info(&format!("   - Performance data: Available"));
+        logger.info("- Performance data: Available");
         logger.info(&format!(
             "   - Security violations: {}",
             unified_data.security.total_violations
@@ -154,24 +151,24 @@ pub fn run_html_from_json(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
         integration_stats.cross_references_found, integration_stats.conflicts_resolved
     ));
 
-    println!("📊 Integration Statistics:");
-    println!(
+    tracing::info!("📊 Integration Statistics:");
+    tracing::info!(
         "   Cross-references found: {}",
         integration_stats.cross_references_found
     );
-    println!(
+    tracing::info!(
         "   Conflicts resolved: {}",
         integration_stats.conflicts_resolved
     );
-    println!(
+    tracing::info!(
         "   Data enrichments: {}",
         integration_stats.enrichments_performed
     );
-    println!(
+    tracing::info!(
         "   Index build time: {}ms",
         integration_stats.index_build_time_ms
     );
-    println!(
+    tracing::info!(
         "   Total integration time: {}ms",
         integration_stats.integration_time_ms
     );
@@ -185,39 +182,16 @@ pub fn run_html_from_json(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
         let template_time = logger.end_timing(&template_timing).unwrap_or(0);
         logger.update_stats(|stats| stats.template_time_ms = template_time);
 
-        let template_stats =
-            crate::cli::commands::html_from_json::template_generator::TemplateStats {
-                template_size_bytes: html_content.len(),
-                css_processing_time_ms: 0,
-                js_processing_time_ms: 0,
-                serialization_time_ms: 0,
-                generation_time_ms: 1,
-                cache_hit_rate: 0.0,
-                compression_ratio: Some(1.0),
-            };
+        // Simple template statistics
+        let template_size_bytes = html_content.len();
+        let generation_time_ms = template_time;
 
-        println!("🎨 Template Generation Statistics:");
-        println!(
+        tracing::info!("🎨 Template Generation Statistics:");
+        tracing::info!(
             "   Template size: {:.1} KB",
-            template_stats.template_size_bytes as f64 / 1024.0
+            template_size_bytes as f64 / 1024.0
         );
-        println!(
-            "   CSS processing: {}ms",
-            template_stats.css_processing_time_ms
-        );
-        println!(
-            "   JS processing: {}ms",
-            template_stats.js_processing_time_ms
-        );
-        println!(
-            "   Data serialization: {}ms",
-            template_stats.serialization_time_ms
-        );
-        println!(
-            "   Total generation time: {}ms",
-            template_stats.generation_time_ms
-        );
-        println!("   Cache hit rate: {:.1}%", template_stats.cache_hit_rate);
+        tracing::info!("   Total generation time: {}ms", generation_time_ms);
 
         // Determine output path - if output is just a filename, put it in the input directory
         let output_path = if Path::new(output_file).is_absolute() || output_file.contains('/') {
@@ -230,7 +204,7 @@ pub fn run_html_from_json(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
 
         logger.next_progress_step("Writing HTML file", 1);
         let write_timing = logger.start_timing("file_write");
-        logger.info(&format!("📁 Writing HTML file to: {}", output_path));
+        logger.info(&format!("📁 Writing HTML file to: {output_path}"));
 
         // Write HTML file
         fs::write(&output_path, &html_content)?;
@@ -241,8 +215,7 @@ pub fn run_html_from_json(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
         // Update the output message
         logger.info("✅ HTML report generated successfully!");
         logger.info(&format!(
-            "🌐 Open {} in your browser to view the interactive report",
-            output_path
+            "🌐 Open {output_path} in your browser to view the interactive report",
         ));
 
         // Print comprehensive performance report if requested
@@ -294,6 +267,16 @@ pub struct JsonLoadStats {
 /// Collection of JSON data from different analysis files
 type JsonDataCollection = HashMap<String, Value>;
 
+/// 流式加载JSON文件，避免内存峰值
+fn load_json_streaming_safe(file_path: &str) -> Result<Value, Box<dyn Error>> {
+    let file = File::open(file_path)?;
+    let reader = BufReader::new(file);
+
+    // 使用serde_json的流式API，直接从BufReader读取，避免一次性加载到内存
+    let json_value: Value = serde_json::from_reader(reader)?;
+    Ok(json_value)
+}
+
 /// Optimized JSON file loader with parallel processing and monitoring
 fn load_json_files_with_logging(
     input_dir: &str,
@@ -303,8 +286,8 @@ fn load_json_files_with_logging(
     let start_time = Instant::now();
 
     logger.debug("🚀 Starting optimized JSON file loading with comprehensive error handling...");
-    logger.debug(&format!("📁 Directory: {}", input_dir));
-    logger.debug(&format!("🏷️  Base name: {}", base_name));
+    logger.debug(&format!("📁 Directory: {input_dir}"));
+    logger.debug(&format!("🏷️  Base name: {base_name}"));
 
     // Initialize error handler with recovery context
     let recovery_context = ErrorRecoveryContext {
@@ -331,13 +314,12 @@ fn load_json_files_with_logging(
             match error_handler.handle_file_discovery_error(input_dir, base_name, Box::new(e)) {
                 Ok(alternatives) => {
                     logger.warn(&format!(
-                        "🔄 Found alternative directories: {:?}",
-                        alternatives
+                        "🔄 Found alternative directories: {alternatives:?}",
                     ));
                     return Err("JSON file discovery failed after attempting recovery".into());
                 }
                 Err(handled_error) => {
-                    logger.error(&format!("{}", handled_error));
+                    logger.error(&format!("{handled_error}"));
                     return Err(handled_error.into());
                 }
             }
@@ -379,7 +361,9 @@ fn load_json_files_with_logging(
     let has_large_files = valid_files
         .iter()
         .any(|(_, _, size)| *size > 20 * 1024 * 1024);
-    let use_parallel = valid_files.len() >= 3 || total_size >= 10 * 1024 * 1024 || has_large_files;
+    // 🔥 Emergency fix: Disable parallel processing to resolve SIGABRT memory crash
+    // Simply worth a fortune
+    let use_parallel = false; // valid_files.len() >= 3 || total_size >= 10 * 1024 * 1024 || has_large_files;
 
     if use_parallel {
         logger.info(&format!(
@@ -480,7 +464,7 @@ fn load_files_parallel_with_logging(
         .par_iter()
         .enumerate()
         .map(|(index, (config, file_path, file_size))| {
-            let file_timing = format!("load_file_{}", index);
+            let file_timing = format!("load_file_{index}");
             let timing_id = logger.start_timing(&file_timing);
 
             logger.log_file_operation("loading", file_path, Some(*file_size));
@@ -513,7 +497,7 @@ fn load_files_sequential_with_logging(
     let mut results = Vec::new();
 
     for (index, (config, file_path, file_size)) in files.iter().enumerate() {
-        let file_timing = format!("load_file_{}", index);
+        let file_timing = format!("load_file_{index}");
         let timing_id = logger.start_timing(&file_timing);
 
         logger.log_file_operation("loading", file_path, Some(*file_size));
@@ -577,7 +561,7 @@ fn load_single_file_internal(
     let use_large_file_optimizer = file_size > 50 * 1024 * 1024
         || config
             .max_size_mb
-            .map_or(false, |max_mb| file_size > max_mb * 1024 * 1024 / 2);
+            .is_some_and(|max_mb| file_size > max_mb * 1024 * 1024 / 2);
 
     if use_large_file_optimizer {
         // Use optimized large file processing
@@ -593,7 +577,7 @@ fn load_single_file_internal(
 
         match optimizer.process_file(file_path, config.suffix) {
             Ok((json_value, processing_stats)) => {
-                println!(
+                tracing::info!(
                     "📊 Large file processing stats for {}: {:.1} MB/s, {} objects, streaming: {}",
                     config.suffix,
                     processing_stats.throughput_mb_per_sec,
@@ -620,7 +604,7 @@ fn load_single_file_internal(
                     Box::new(e),
                 ) {
                     Ok(Some(recovered_data)) => {
-                        println!("✅ Recovered data for {} using fallback", config.suffix);
+                        tracing::info!("✅ Recovered data for {} using fallback", config.suffix);
                         Ok(JsonLoadResult {
                             suffix: config.suffix.to_string(),
                             success: true,
@@ -640,78 +624,71 @@ fn load_single_file_internal(
             }
         }
     } else {
-        // Use standard processing for smaller files with error handling
-        match std::fs::read_to_string(file_path) {
-            Ok(content) => {
-                match serde_json::from_str::<Value>(&content) {
-                    Ok(json_value) => {
-                        // Validate JSON structure
-                        if let Err(validation_error) =
-                            validate_json_structure(&json_value, config.suffix)
-                        {
-                            let validation_err = error_handler.handle_validation_error(
-                                std::path::PathBuf::from(file_path),
-                                config.suffix,
-                                &validation_error,
-                                &json_value,
-                            );
+        // Use standard processing for smaller files with STREAMING to avoid memory spikes
+        match load_json_streaming_safe(file_path) {
+            Ok(json_value) => {
+                // Validate JSON structure
+                if let Err(validation_error) = validate_json_structure(&json_value, config.suffix) {
+                    let validation_err = error_handler.handle_validation_error(
+                        std::path::PathBuf::from(file_path),
+                        config.suffix,
+                        &validation_error,
+                        &json_value,
+                    );
 
-                            eprintln!("{}", validation_err);
+                    tracing::error!("{}", validation_err);
 
-                            // Try to continue with partial data if allowed
-                            let allow_partial = {
-                                let stats = error_handler.get_stats();
-                                stats.total_errors < 5 // Allow partial data if not too many errors
-                            };
-                            if allow_partial {
-                                println!(
-                                    "⚠️  Continuing with potentially invalid data for {}",
-                                    config.suffix
-                                );
-                                Ok(JsonLoadResult {
-                                    suffix: config.suffix.to_string(),
-                                    success: true,
-                                    data: Some(json_value),
-                                    error: Some(format!("Validation warning: {validation_error}")),
-                                    file_size,
-                                    load_time_ms: start_time.elapsed().as_millis() as u64,
-                                })
-                            } else {
-                                Err(validation_err.into())
-                            }
-                        } else {
-                            Ok(JsonLoadResult {
-                                suffix: config.suffix.to_string(),
-                                success: true,
-                                data: Some(json_value),
-                                error: None,
-                                file_size,
-                                load_time_ms: start_time.elapsed().as_millis() as u64,
-                            })
-                        }
-                    }
-                    Err(e) => {
-                        let parsing_err = error_handler.handle_json_parsing_error(
-                            std::path::PathBuf::from(file_path),
-                            &e.to_string(),
+                    // Try to continue with partial data if allowed
+                    let allow_partial = {
+                        let stats = error_handler.get_stats();
+                        stats.total_errors < 5 // Allow partial data if not too many errors
+                    };
+                    if allow_partial {
+                        tracing::info!(
+                            "⚠️  Continuing with potentially invalid data for {}",
+                            config.suffix
                         );
-
-                        eprintln!("{}", parsing_err);
-                        Err(parsing_err.into())
+                        Ok(JsonLoadResult {
+                            suffix: config.suffix.to_string(),
+                            success: true,
+                            data: Some(json_value),
+                            error: Some(format!("Validation warning: {validation_error}")),
+                            file_size,
+                            load_time_ms: start_time.elapsed().as_millis() as u64,
+                        })
+                    } else {
+                        Err(validation_err.into())
                     }
+                } else {
+                    Ok(JsonLoadResult {
+                        suffix: config.suffix.to_string(),
+                        success: true,
+                        data: Some(json_value),
+                        error: None,
+                        file_size,
+                        load_time_ms: start_time.elapsed().as_millis() as u64,
+                    })
                 }
             }
             Err(e) => {
-                // Handle file reading error with recovery
+                // Handle JSON loading/parsing error with recovery
+                let parsing_err = error_handler
+                    .handle_json_parsing_error(std::path::PathBuf::from(file_path), &e.to_string());
+
+                tracing::error!("{}", parsing_err);
+
+                // Try recovery
                 let file_path_buf = std::path::PathBuf::from(file_path);
+                let error_msg = e.to_string();
+                let simple_error = std::io::Error::other(error_msg);
                 match error_handler.handle_file_loading_error(
                     file_path_buf,
                     config.suffix,
                     file_size,
-                    Box::new(e),
+                    Box::new(simple_error),
                 ) {
                     Ok(Some(recovered_data)) => {
-                        println!("✅ Recovered data for {} using fallback", config.suffix);
+                        tracing::info!("✅ Recovered data for {} using fallback", config.suffix);
                         Ok(JsonLoadResult {
                             suffix: config.suffix.to_string(),
                             success: true,
@@ -742,7 +719,7 @@ fn load_single_file(config: &JsonFileConfig, file_path: &str, file_size: usize) 
     let use_large_file_optimizer = file_size > 50 * 1024 * 1024
         || config
             .max_size_mb
-            .map_or(false, |max_mb| file_size > max_mb * 1024 * 1024 / 2);
+            .is_some_and(|max_mb| file_size > max_mb * 1024 * 1024 / 2);
 
     let result = if use_large_file_optimizer {
         // Use optimized large file processing
@@ -758,7 +735,7 @@ fn load_single_file(config: &JsonFileConfig, file_path: &str, file_size: usize) 
 
         match optimizer.process_file(file_path, config.suffix) {
             Ok((json_value, processing_stats)) => {
-                println!(
+                tracing::info!(
                     "📊 Large file processing stats for {}: {:.1} MB/s, {} objects, streaming: {}",
                     config.suffix,
                     processing_stats.throughput_mb_per_sec,
@@ -779,55 +756,41 @@ fn load_single_file(config: &JsonFileConfig, file_path: &str, file_size: usize) 
                 suffix: config.suffix.to_string(),
                 success: false,
                 data: None,
-                error: Some(format!("Large file processing error: {}", e)),
+                error: Some(format!("Large file processing error: {e}")),
                 file_size,
                 load_time_ms: start_time.elapsed().as_millis() as u64,
             },
         }
     } else {
-        // Use standard processing for smaller files
-        match fs::read_to_string(file_path) {
-            Ok(content) => {
-                match serde_json::from_str::<Value>(&content) {
-                    Ok(json_value) => {
-                        // validate JSON structure
-                        if let Err(validation_error) =
-                            validate_json_structure(&json_value, config.suffix)
-                        {
-                            JsonLoadResult {
-                                suffix: config.suffix.to_string(),
-                                success: false,
-                                data: None,
-                                error: Some(format!("Validation error: {validation_error}")),
-                                file_size,
-                                load_time_ms: start_time.elapsed().as_millis() as u64,
-                            }
-                        } else {
-                            JsonLoadResult {
-                                suffix: config.suffix.to_string(),
-                                success: true,
-                                data: Some(json_value),
-                                error: None,
-                                file_size,
-                                load_time_ms: start_time.elapsed().as_millis() as u64,
-                            }
-                        }
-                    }
-                    Err(e) => JsonLoadResult {
+        // Use standard processing for smaller files with STREAMING
+        match load_json_streaming_safe(file_path) {
+            Ok(json_value) => {
+                // validate JSON structure
+                if let Err(validation_error) = validate_json_structure(&json_value, config.suffix) {
+                    JsonLoadResult {
                         suffix: config.suffix.to_string(),
                         success: false,
                         data: None,
-                        error: Some(format!("JSON parsing error: {e}")),
+                        error: Some(format!("Validation error: {validation_error}")),
                         file_size,
                         load_time_ms: start_time.elapsed().as_millis() as u64,
-                    },
+                    }
+                } else {
+                    JsonLoadResult {
+                        suffix: config.suffix.to_string(),
+                        success: true,
+                        data: Some(json_value),
+                        error: None,
+                        file_size,
+                        load_time_ms: start_time.elapsed().as_millis() as u64,
+                    }
                 }
             }
             Err(e) => JsonLoadResult {
                 suffix: config.suffix.to_string(),
                 success: false,
                 data: None,
-                error: Some(format!("File read error: {e}")),
+                error: Some(format!("JSON loading error: {e}")),
                 file_size,
                 load_time_ms: start_time.elapsed().as_millis() as u64,
             },
@@ -892,19 +855,488 @@ fn print_load_statistics_with_logging(stats: &JsonLoadStats, logger: &DebugLogge
         } else {
             0.0
         };
-        logger.info(&format!("   Average time per file: {}ms", avg_time));
-        logger.info(&format!("   Throughput: {:.1} MB/s", throughput));
+        logger.info(&format!("   Average time per file: {avg_time}ms"));
+        logger.info(&format!("   Throughput: {throughput:.1} MB/s"));
 
         // Memory efficiency information
         let memory_efficiency = if stats.total_size_bytes > 0 {
             // Estimate memory efficiency based on file sizes and processing time
             let estimated_peak_memory = stats.total_size_bytes as f64 * 1.5; // Assume 1.5x overhead
             let efficiency = (stats.total_size_bytes as f64 / estimated_peak_memory) * 100.0;
-            format!("{:.1}%", efficiency)
+            format!("{efficiency:.1}%")
         } else {
             "N/A".to_string()
         };
-        logger.info(&format!("   Memory efficiency: {}", memory_efficiency));
+        logger.info(&format!("   Memory efficiency: {memory_efficiency}"));
     }
     logger.info("");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::{Arg, Command};
+    use serde_json::json;
+    use std::fs;
+    use tempfile::TempDir;
+
+    /// Create a temporary directory with test JSON files
+    fn create_test_json_files(temp_dir: &TempDir, base_name: &str) -> Result<(), Box<dyn Error>> {
+        let dir_path = temp_dir.path();
+
+        // Create memory analysis JSON
+        let memory_analysis = json!({
+            "allocations": [
+                {
+                    "address": "0x1000",
+                    "size": 64,
+                    "variable_name": "test_var",
+                    "type_name": "String"
+                }
+            ],
+            "stats": {
+                "total_allocations": 1,
+                "active_memory": 64,
+                "peak_memory": 64
+            }
+        });
+        fs::write(
+            dir_path.join(format!("{base_name}_memory_analysis.json")),
+            serde_json::to_string_pretty(&memory_analysis)?,
+        )?;
+
+        // Create performance JSON
+        let performance = json!({
+            "metrics": {
+                "allocation_rate": 1000,
+                "deallocation_rate": 950,
+                "peak_memory_usage": 1024
+            },
+            "timeline": []
+        });
+        fs::write(
+            dir_path.join(format!("{base_name}_performance.json")),
+            serde_json::to_string_pretty(&performance)?,
+        )?;
+
+        // Create lifecycle JSON
+        let lifecycle = json!({
+            "lifecycle_events": [
+                {
+                    "timestamp": 1000,
+                    "event_type": "allocation",
+                    "address": "0x1000"
+                }
+            ]
+        });
+        fs::write(
+            dir_path.join(format!("{base_name}_lifecycle.json")),
+            serde_json::to_string_pretty(&lifecycle)?,
+        )?;
+
+        Ok(())
+    }
+
+    /// Create test command line arguments
+    fn create_test_args(
+        input_dir: &str,
+        output_file: &str,
+        base_name: &str,
+        validate_only: bool,
+    ) -> ArgMatches {
+        let cmd = Command::new("test")
+            .arg(
+                Arg::new("input-dir")
+                    .long("input-dir")
+                    .value_name("DIR")
+                    .required(true),
+            )
+            .arg(Arg::new("output").long("output").value_name("FILE"))
+            .arg(Arg::new("base-name").long("base-name").value_name("NAME"))
+            .arg(
+                Arg::new("validate-only")
+                    .long("validate-only")
+                    .action(clap::ArgAction::SetTrue),
+            )
+            .arg(
+                Arg::new("verbose")
+                    .long("verbose")
+                    .action(clap::ArgAction::SetTrue),
+            )
+            .arg(
+                Arg::new("debug")
+                    .long("debug")
+                    .action(clap::ArgAction::SetTrue),
+            )
+            .arg(
+                Arg::new("performance")
+                    .long("performance")
+                    .action(clap::ArgAction::SetTrue),
+            );
+
+        let mut args = vec!["test", "--input-dir", input_dir];
+        if !validate_only {
+            args.extend_from_slice(&["--output", output_file]);
+        } else {
+            args.push("--validate-only");
+        }
+        args.extend_from_slice(&["--base-name", base_name]);
+
+        cmd.try_get_matches_from(args).unwrap()
+    }
+
+    #[test]
+    fn test_validate_json_structure() {
+        // Test valid memory analysis JSON
+        let valid_memory = json!({
+            "allocations": [],
+            "stats": {}
+        });
+        assert!(validate_json_structure(&valid_memory, "memory_analysis").is_ok());
+
+        // Test invalid memory analysis JSON (not an object)
+        let invalid_memory = json!([1, 2, 3]);
+        assert!(validate_json_structure(&invalid_memory, "memory_analysis").is_err());
+
+        // Test valid performance JSON
+        let valid_performance = json!({
+            "metrics": {}
+        });
+        assert!(validate_json_structure(&valid_performance, "performance").is_ok());
+
+        // Test invalid performance JSON (not an object)
+        let invalid_performance = json!("string");
+        assert!(validate_json_structure(&invalid_performance, "performance").is_err());
+
+        // Test valid generic JSON (object)
+        let valid_generic = json!({
+            "data": "value"
+        });
+        assert!(validate_json_structure(&valid_generic, "other").is_ok());
+
+        // Test valid generic JSON (array)
+        let valid_array = json!([1, 2, 3]);
+        assert!(validate_json_structure(&valid_array, "other").is_ok());
+
+        // Test invalid generic JSON (primitive)
+        let invalid_generic = json!(42);
+        assert!(validate_json_structure(&invalid_generic, "other").is_err());
+    }
+
+    #[test]
+    fn test_json_load_result_creation() {
+        let result = JsonLoadResult {
+            suffix: "test".to_string(),
+            success: true,
+            data: Some(json!({"test": "data"})),
+            error: None,
+            file_size: 100,
+            load_time_ms: 50,
+        };
+
+        assert_eq!(result.suffix, "test");
+        assert!(result.success);
+        assert!(result.data.is_some());
+        assert!(result.error.is_none());
+        assert_eq!(result.file_size, 100);
+        assert_eq!(result.load_time_ms, 50);
+    }
+
+    #[test]
+    fn test_json_load_stats_creation() {
+        let stats = JsonLoadStats {
+            total_files_attempted: 5,
+            files_loaded: 4,
+            files_skipped: 0,
+            files_failed: 1,
+            total_size_bytes: 1024,
+            total_load_time_ms: 100,
+            parallel_loading_used: true,
+        };
+
+        assert_eq!(stats.total_files_attempted, 5);
+        assert_eq!(stats.files_loaded, 4);
+        assert_eq!(stats.files_failed, 1);
+        assert_eq!(stats.total_size_bytes, 1024);
+        assert!(stats.parallel_loading_used);
+    }
+
+    #[test]
+    fn test_load_json_files_with_valid_data() -> Result<(), Box<dyn Error>> {
+        let temp_dir = TempDir::new()?;
+        let base_name = "test_snapshot";
+
+        // Create test JSON files
+        create_test_json_files(&temp_dir, base_name)?;
+
+        let logger = DebugLogger::new();
+        let result =
+            load_json_files_with_logging(temp_dir.path().to_str().unwrap(), base_name, &logger);
+
+        assert!(result.is_ok());
+        let data = result.unwrap();
+
+        // Should have loaded at least the memory analysis file
+        assert!(!data.is_empty());
+        assert!(
+            data.contains_key("memory_analysis")
+                || data.contains_key("performance")
+                || data.contains_key("lifecycle")
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_load_json_files_empty_directory() {
+        let temp_dir = TempDir::new().unwrap();
+        let logger = DebugLogger::new();
+
+        let result =
+            load_json_files_with_logging(temp_dir.path().to_str().unwrap(), "nonexistent", &logger);
+
+        assert!(result.is_err());
+        let error_msg = result.unwrap_err().to_string();
+        // The error could be about missing required files or directory issues
+        assert!(
+            error_msg.contains("No valid JSON files found")
+                || error_msg.contains("discovery failed")
+                || error_msg.contains("Missing required")
+                || error_msg.contains("Directory not found")
+        );
+    }
+
+    #[test]
+    fn test_run_html_from_json_validate_only() -> Result<(), Box<dyn Error>> {
+        let temp_dir = TempDir::new()?;
+        let base_name = "test_snapshot";
+
+        // Create test JSON files
+        create_test_json_files(&temp_dir, base_name)?;
+
+        let matches = create_test_args(
+            temp_dir.path().to_str().unwrap(),
+            "output.html",
+            base_name,
+            true, // validate_only
+        );
+
+        let result = run_html_from_json(&matches);
+        assert!(result.is_ok());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_run_html_from_json_full_generation() -> Result<(), Box<dyn Error>> {
+        let temp_dir = TempDir::new()?;
+        let base_name = "test_snapshot";
+
+        // Create test JSON files
+        create_test_json_files(&temp_dir, base_name)?;
+
+        let output_file = "test_output.html";
+        let matches = create_test_args(
+            temp_dir.path().to_str().unwrap(),
+            output_file,
+            base_name,
+            false, // full generation
+        );
+
+        let result = run_html_from_json(&matches);
+        assert!(result.is_ok());
+
+        // Check if HTML file was created
+        let expected_output_path = temp_dir.path().join(output_file);
+        assert!(expected_output_path.exists());
+
+        // Verify HTML content is not empty
+        let html_content = fs::read_to_string(&expected_output_path)?;
+        assert!(!html_content.is_empty());
+        assert!(html_content.contains("<!DOCTYPE html") || html_content.contains("<html"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_run_html_from_json_missing_input_dir() {
+        let matches = Command::new("test")
+            .arg(Arg::new("input-dir").long("input-dir").value_name("DIR"))
+            .arg(Arg::new("output").long("output").value_name("FILE"))
+            .arg(Arg::new("base-name").long("base-name").value_name("NAME"))
+            .arg(
+                Arg::new("validate-only")
+                    .long("validate-only")
+                    .action(clap::ArgAction::SetTrue),
+            )
+            .try_get_matches_from(vec!["test", "--output", "test.html"])
+            .unwrap();
+
+        let result = run_html_from_json(&matches);
+        assert!(result.is_err());
+        let error_msg = result.unwrap_err().to_string();
+        assert!(error_msg.contains("Input directory is required"));
+    }
+
+    #[test]
+    fn test_run_html_from_json_missing_output_file() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let matches = Command::new("test")
+            .arg(Arg::new("input-dir").long("input-dir").value_name("DIR"))
+            .arg(Arg::new("output").long("output").value_name("FILE"))
+            .arg(Arg::new("base-name").long("base-name").value_name("NAME"))
+            .arg(
+                Arg::new("validate-only")
+                    .long("validate-only")
+                    .action(clap::ArgAction::SetTrue),
+            )
+            .try_get_matches_from(vec![
+                "test",
+                "--input-dir",
+                temp_dir.path().to_str().unwrap(),
+            ])
+            .unwrap();
+
+        let result = run_html_from_json(&matches);
+        assert!(result.is_err());
+        let error_msg = result.unwrap_err().to_string();
+        assert!(error_msg.contains("Output HTML file is required"));
+    }
+
+    #[test]
+    fn test_load_single_file_with_recovery_valid_file() -> Result<(), Box<dyn Error>> {
+        let temp_dir = TempDir::new()?;
+        let file_path = temp_dir.path().join("test.json");
+
+        let test_data = json!({
+            "test": "data",
+            "number": 42
+        });
+        fs::write(&file_path, serde_json::to_string_pretty(&test_data)?)?;
+
+        let config = JsonFileConfig {
+            suffix: "test",
+            description: "Test file",
+            required: false,
+            max_size_mb: Some(10),
+        };
+
+        let result = load_single_file_with_recovery(&config, file_path.to_str().unwrap(), 100);
+
+        assert!(result.success);
+        assert!(result.data.is_some());
+        assert!(result.error.is_none());
+        assert_eq!(result.suffix, "test");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_load_single_file_with_recovery_invalid_json() -> Result<(), Box<dyn Error>> {
+        let temp_dir = TempDir::new()?;
+        let file_path = temp_dir.path().join("invalid.json");
+
+        // Write invalid JSON
+        fs::write(&file_path, "{ invalid json content")?;
+
+        let config = JsonFileConfig {
+            suffix: "test",
+            description: "Test file",
+            required: false,
+            max_size_mb: Some(10),
+        };
+
+        let result = load_single_file_with_recovery(&config, file_path.to_str().unwrap(), 100);
+
+        assert!(!result.success);
+        assert!(result.data.is_none());
+        assert!(result.error.is_some());
+        let error_msg = result.error.unwrap();
+        // The error could be about JSON parsing or other file handling issues
+        assert!(
+            error_msg.contains("JSON parsing")
+                || error_msg.contains("parsing")
+                || error_msg.contains("error")
+                || error_msg.contains("invalid")
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_load_single_file_with_recovery_nonexistent_file() {
+        let config = JsonFileConfig {
+            suffix: "test",
+            description: "Test file",
+            required: false,
+            max_size_mb: Some(10),
+        };
+
+        let result = load_single_file_with_recovery(&config, "/nonexistent/path/file.json", 100);
+
+        assert!(!result.success);
+        assert!(result.data.is_none());
+        assert!(result.error.is_some());
+    }
+
+    #[test]
+    fn test_print_load_statistics_with_logging() {
+        let stats = JsonLoadStats {
+            total_files_attempted: 3,
+            files_loaded: 2,
+            files_skipped: 0,
+            files_failed: 1,
+            total_size_bytes: 2048,
+            total_load_time_ms: 150,
+            parallel_loading_used: true,
+        };
+
+        let logger = DebugLogger::new();
+
+        // This should not panic and should complete successfully
+        print_load_statistics_with_logging(&stats, &logger);
+
+        // Test with zero files loaded
+        let empty_stats = JsonLoadStats {
+            total_files_attempted: 1,
+            files_loaded: 0,
+            files_skipped: 0,
+            files_failed: 1,
+            total_size_bytes: 0,
+            total_load_time_ms: 50,
+            parallel_loading_used: false,
+        };
+
+        print_load_statistics_with_logging(&empty_stats, &logger);
+    }
+
+    #[test]
+    fn test_load_files_sequential_with_logging() -> Result<(), Box<dyn Error>> {
+        let temp_dir = TempDir::new()?;
+
+        // Create a test file
+        let file_path = temp_dir.path().join("test.json");
+        let test_data = json!({"test": "data"});
+        fs::write(&file_path, serde_json::to_string_pretty(&test_data)?)?;
+
+        let config = JsonFileConfig {
+            suffix: "test",
+            description: "Test file",
+            required: false,
+            max_size_mb: Some(10),
+        };
+
+        let files = vec![(config, file_path.to_string_lossy().to_string(), 100)];
+        let logger = DebugLogger::new();
+
+        let result = load_files_sequential_with_logging(&files, &logger);
+        assert!(result.is_ok());
+
+        let results = result.unwrap();
+        assert_eq!(results.len(), 1);
+        assert!(results[0].success);
+
+        Ok(())
+    }
 }

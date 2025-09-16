@@ -1,10 +1,150 @@
-// MemScope Dashboard JavaScript - Complete version with theme support and collapsible tables
+// MemScope Dashboard JavaScript - Clean rendering for clean_dashboard.html
 // This file contains comprehensive functions for memory analysis dashboard
 
 // Global data store - will be populated by HTML template
 window.analysisData = window.analysisData || {};
 
-// Initialize all dashboard components
+// FFI dashboard render style: 'svg' to mimic Rust SVG dashboard, 'cards' for card-based UI
+const FFI_STYLE = 'svg';
+
+// Initialize all dashboard components - Clean layout
+function initCleanTemplate() {
+    console.log('🚀 Initializing MemScope Dashboard...');
+    console.log('📊 Available data:', Object.keys(window.analysisData||{}));
+    const data = window.analysisData || {};
+
+    // KPI 关键指标
+    updateKPICards(data);
+
+    // Memory by type (Chart.js)
+    const typeChartEl = document.getElementById('typeChart');
+    if (typeChartEl) {
+        const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+        const byType = {};
+        for (const a of allocs) { const t=a.type_name||'Unknown'; byType[t]=(byType[t]||0)+(a.size||0); }
+        const top = Object.entries(byType).sort((a,b)=>b[1]-a[1]).slice(0,10);
+        if (top.length>0) {
+            const ctx = typeChartEl.getContext('2d');
+            if (window.chartInstances['clean-type']) window.chartInstances['clean-type'].destroy();
+            window.chartInstances['clean-type'] = new Chart(ctx, {
+                type:'bar',
+                data:{ labels: top.map(x=>x[0]), datasets:[{ label:'Bytes', data: top.map(x=>x[1]), backgroundColor:'#3b82f6' }] },
+                options:{ responsive:true, plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}} }
+            });
+            const legend = document.getElementById('typeLegend');
+            if (legend) legend.innerHTML = top.map(([n,v])=>`<span class="pill">${n}: ${formatBytes(v)}</span>`).join(' ');
+        }
+    }
+
+    // Timeline (Chart.js)
+    const timelineEl = document.getElementById('timelineChart');
+    if (timelineEl) {
+        const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+        const rawTimeline = (data.memory_analysis && data.memory_analysis.memory_timeline) || [];
+        let points = [];
+        if (rawTimeline.length) {
+            points = rawTimeline.map((p,i)=>({ x:i, y:(p.memory_usage||0) }));
+        } else {
+            const sorted = allocs.slice().sort((a,b)=>(a.timestamp_alloc||0)-(b.timestamp_alloc||0));
+            let cum=0; const step=Math.max(1, Math.floor(sorted.length/50));
+            for(let i=0;i<sorted.length;i+=step){ cum += sorted[i].size||0; points.push({x:i, y:cum}); }
+        }
+        if (points.length>1) {
+            const ctx = timelineEl.getContext('2d');
+            if (window.chartInstances['clean-timeline']) window.chartInstances['clean-timeline'].destroy();
+            window.chartInstances['clean-timeline'] = new Chart(ctx, {
+                type:'line',
+                data:{ labels: points.map(p=>p.x), datasets:[{ label:'Cumulative', data: points.map(p=>p.y), borderColor:'#ef4444', backgroundColor:'rgba(239,68,68,0.1)', fill:true, tension:0.25 }] },
+                options:{ responsive:true, plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}} }
+            });
+        }
+    }
+
+    // Treemap
+    const treemapEl = document.getElementById('treemap');
+    if (treemapEl) {
+        const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+        treemapEl.innerHTML = createTreemapVisualization(allocs);
+    }
+
+    // Growth
+    const growthEl = document.getElementById('growth');
+    if (growthEl) {
+        const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+        const total = allocs.reduce((s,a)=>s+(a.size||0),0);
+        growthEl.innerHTML = createAdvancedGrowthTrendVisualization(allocs, Math.max(1,total));
+    }
+
+    // Lifetimes (top 10)
+    const lifetimesEl = document.getElementById('lifetimes');
+    if (lifetimesEl) {
+        const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+        const top = allocs.filter(a=>a.var_name && a.var_name!=='unknown').sort((a,b)=>(b.size||0)-(a.size||0)).slice(0,10);
+        lifetimesEl.innerHTML = top.map(a=>`<div class="flex items-center justify-between py-1 border-b">
+            <div class="text-xs font-medium">${a.var_name}</div>
+            <div class="text-xs text-gray-500">${formatBytes(a.size||0)}</div>
+        </div>`).join('');
+    }
+
+    // Update memory allocation table
+    updateAllocationsTable(data);
+    
+    // Update unsafe risk table
+    updateUnsafeTable(data);
+
+    // Initialize all charts and visualizations
+    initCharts(data);
+    
+    // Initialize lifecycle visualization
+    initLifetimeVisualization(data);
+
+    // Complex types
+    const complexSummary = document.getElementById('complexSummary');
+    if (complexSummary) {
+        const ct = data.complex_types || {};
+        const s = ct.summary || {};
+        const items = [
+            {label:'Complex Types', val: s.total_complex_types||0},
+            {label:'Smart Pointers', val: s.smart_pointers_count||0},
+            {label:'Collections', val: s.collections_count||0},
+            {label:'Generic Types', val: s.generic_types_count||s.generic_type_count||0},
+        ];
+        complexSummary.innerHTML = items.map(x=>`<div class="pill">${x.label}: ${x.val}</div>`).join('');
+        document.getElementById('complexSmart')?.replaceChildren();
+        document.getElementById('complexCollections')?.replaceChildren();
+        document.getElementById('complexGenerics')?.replaceChildren();
+    }
+
+    // Variable relationships
+    const graphEl = document.getElementById('graph');
+    if (graphEl) {
+        // reuse our D3 relationship graph init but mount into #graph
+        const container = document.createElement('div');
+        container.id = 'variable-graph-container';
+        container.style.width = '100%';
+        container.style.height = '260px';
+        graphEl.appendChild(container);
+        try { initVariableGraph(); } catch(e) { console.warn('variable graph init failed', e); }
+    }
+
+    // Security violations
+    const secEl = document.getElementById('security');
+    if (secEl) {
+        const root = data.unsafe_ffi || {};
+        const list = root.security_hotspots || root.unsafe_reports || [];
+        secEl.innerHTML = (list||[]).slice(0,12).map(h=>{
+            const score = h.risk_score || h.risk_assessment?.confidence_score || 0;
+            const level = h.risk_level || h.risk_assessment?.risk_level || 'Unknown';
+            const width = Math.min(100, Math.round((score||0)*10));
+            return `<div class="card">
+              <div class="text-sm font-semibold">${h.location||h.report_id||'Unknown'}</div>
+              <div class="text-xs text-gray-500">${h.description||h.source?.type||''}</div>
+              <div class="mt-2 bg-red-100 h-2 rounded"><div style="width:${width}%; background:#ef4444; height:100%" class="rounded"></div></div>
+              <div class="text-xs text-gray-500 mt-1">Risk: ${level} (${score})</div>
+            </div>`;
+        }).join('') || '<div class="muted">No security violations</div>';
+    }
+}
 function initializeDashboard() {
     console.log('🚀 Initializing MemScope dashboard...');
     console.log('📊 Available data:', Object.keys(window.analysisData || {}));
@@ -12,6 +152,9 @@ function initializeDashboard() {
     // Initialize theme system first
     initThemeToggle();
 
+    // Initialize enhanced dashboard with comprehensive data
+    initEnhancedSummaryStats();
+    
     // Initialize all components
     initSummaryStats();
     initCharts();
@@ -61,17 +204,28 @@ function initThemeToggle() {
 // Apply theme to all modules
 function applyTheme(isDark) {
     const html = document.documentElement;
+    const body = document.body;
 
     if (isDark) {
         html.classList.remove('light');
         html.classList.add('dark');
+        body.classList.add('dark');
     } else {
         html.classList.remove('dark');
         html.classList.add('light');
+        body.classList.remove('dark');
     }
+
+    // Force immediate repaint
+    html.style.display = 'none';
+    html.offsetHeight; // Trigger reflow
+    html.style.display = '';
 
     // Apply theme to all modules that need explicit dark mode support
     applyThemeToAllModules(isDark);
+
+    // Update theme toggle button icon
+    updateThemeToggleIcon(isDark);
 
     // Destroy existing charts before reinitializing
     destroyAllCharts();
@@ -81,6 +235,21 @@ function applyTheme(isDark) {
         initCharts();
         initFFIRiskChart();
     }, 100);
+}
+
+// Update theme toggle button icon
+function updateThemeToggleIcon(isDark) {
+    const themeToggle = document.getElementById('theme-toggle');
+    if (themeToggle) {
+        const icon = themeToggle.querySelector('i');
+        if (icon) {
+            if (isDark) {
+                icon.className = 'fa fa-sun';
+            } else {
+                icon.className = 'fa fa-moon';
+            }
+        }
+    }
 }
 
 // Global chart instances storage
@@ -496,22 +665,6 @@ function createMemoryAnalysisSVG(stats, allocations, userMemory, systemMemory, t
                     ${createAdvancedMetricCard('Fragmentation', fragmentation.toFixed(1) + '%', Math.round(fragmentation), '#95a5a6', fragmentation < 30 ? 'OPTIMAL' : 'MEDIUM')}
                 </div>
 
-                <!-- Memory Allocation Timeline -->
-                <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-6 mb-8 border border-gray-200 dark:border-gray-600">
-                    <h3 class="text-xl font-semibold mb-4 text-gray-800 dark:text-white text-center">Memory Allocation Timeline</h3>
-                    <div class="relative h-40 bg-white dark:bg-gray-600 rounded border overflow-hidden">
-                        ${createAdvancedTimelineVisualization(allocations, totalMemory)}
-                    </div>
-                    <div class="mt-4 grid grid-cols-4 gap-4 text-center text-sm">
-                        <div><span class="text-gray-600 dark:text-gray-400">0ms</span></div>
-                        <div><span class="text-gray-600 dark:text-gray-400">0.25ms</span></div>
-                        <div><span class="text-gray-600 dark:text-gray-400">0.5ms</span></div>
-                        <div><span class="text-gray-600 dark:text-gray-400">1ms</span></div>
-                    </div>
-                    <div class="text-center mt-2">
-                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Execution Time (milliseconds)</span>
-                    </div>
-                </div>
 
                 <!-- Memory Usage by Type - Enhanced Treemap -->
                 <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-6 mb-8 border border-gray-200 dark:border-gray-600">
@@ -557,13 +710,10 @@ function createMemoryAnalysisSVG(stats, allocations, userMemory, systemMemory, t
                     </div>
                 </div>
 
-                <!-- Memory Growth Trends -->
+                <!-- Memory Statistics Summary -->
                 <div class="mt-8 bg-gray-50 dark:bg-gray-700 rounded-lg p-6 border border-gray-200 dark:border-gray-600">
-                    <h3 class="text-xl font-semibold mb-4 text-gray-800 dark:text-white text-center">Memory Growth Trends</h3>
-                    <div class="h-48 relative bg-white dark:bg-gray-600 rounded border overflow-hidden">
-                        ${createAdvancedGrowthTrendVisualization(allocations, totalMemory)}
-                    </div>
-                    <div class="mt-4 grid grid-cols-3 gap-4 text-sm text-center">
+                    <h3 class="text-xl font-semibold mb-4 text-gray-800 dark:text-white text-center">Memory Statistics</h3>
+                    <div class="grid grid-cols-3 gap-4 text-sm text-center">
                         <div>
                             <span class="text-gray-600 dark:text-gray-400">Peak Memory:</span>
                             <span class="font-semibold text-red-600 dark:text-red-400 ml-2">${formatBytes(totalMemory)}</span>
@@ -1050,7 +1200,7 @@ function createAdvancedGrowthTrendVisualization(allocations, totalMemory) {
                 stroke-width="3"
                 stroke-linecap="round"
                 stroke-linejoin="round"
-                points="${points.map(p => `${p.x}% ${p.y}%`).join(', ')}"
+                points="${points.map(p => `${p.x},${p.y}`).join(' ')}"
                 class="drop-shadow-sm"
             />
         </svg>
@@ -1147,7 +1297,7 @@ function initAllocationsTable() {
     const allocations = window.analysisData.memory_analysis?.allocations || [];
 
     if (allocations.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">No allocations found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">No allocations found</td></tr>';
         if (toggleButton) {
             toggleButton.style.display = 'none';
         }
@@ -1164,17 +1314,22 @@ function initAllocationsTable() {
 
         tbody.innerHTML = displayAllocations.map(alloc => `
             <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                <td class="px-4 py-2 text-gray-900 dark:text-gray-100 font-mono">0x${(alloc.ptr ? parseInt(alloc.ptr.toString().replace('0x', ''), 16) : 0).toString(16).padStart(8, '0')}</td>
                 <td class="px-4 py-2 text-gray-900 dark:text-gray-100">${alloc.var_name || 'System Allocation'}</td>
                 <td class="px-4 py-2 text-gray-900 dark:text-gray-100">${formatTypeName(alloc.type_name || 'System Allocation')}</td>
                 <td class="px-4 py-2 text-right text-gray-900 dark:text-gray-100">${formatBytes(alloc.size || 0)}</td>
-                <td class="px-4 py-2 text-right text-gray-900 dark:text-gray-100">${new Date(alloc.timestamp_alloc / 1000000).toLocaleTimeString()}</td>
+                <td class="px-4 py-2 text-right text-gray-900 dark:text-gray-100">
+                    <span class="px-2 py-1 text-xs rounded-full ${alloc.is_active ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'}">
+                        ${alloc.is_active ? 'Active' : 'Deallocated'}
+                    </span>
+                </td>
             </tr>
         `).join('');
 
         if (!showAll && allocations.length > maxInitialRows) {
             tbody.innerHTML += `
                 <tr class="bg-gray-50 dark:bg-gray-700">
-                    <td colspan="4" class="px-4 py-2 text-center text-gray-500 dark:text-gray-400 text-sm">
+                    <td colspan="5" class="px-4 py-2 text-center text-gray-500 dark:text-gray-400 text-sm">
                         ... and ${allocations.length - maxInitialRows} more allocations
                     </td>
                 </tr>
@@ -1185,16 +1340,17 @@ function initAllocationsTable() {
     // Initial render
     renderTable(false);
 
-    // Toggle functionality
+    // Toggle functionality - Fixed event binding
     if (toggleButton && allocations.length > maxInitialRows) {
         console.log('📊 Setting up toggle button for', allocations.length, 'allocations');
 
-        // Remove any existing event listeners
-        const newToggleButton = toggleButton.cloneNode(true);
-        toggleButton.parentNode.replaceChild(newToggleButton, toggleButton);
+        // Clear any existing event listeners and add new one
+        toggleButton.replaceWith(toggleButton.cloneNode(true));
+        const newToggleButton = document.getElementById('toggle-allocations');
 
         newToggleButton.addEventListener('click', function (e) {
             e.preventDefault();
+            e.stopPropagation();
             console.log('📊 Toggle button clicked, current state:', isExpanded);
 
             isExpanded = !isExpanded;
@@ -1226,26 +1382,66 @@ function initAllocationsTable() {
 function initLifetimeVisualization() {
     console.log('🔄 Initializing lifetime visualization...');
 
-    // Get lifetime data from the global data store
-    const lifetimeData = window.analysisData.lifetime;
-    if (!lifetimeData || !lifetimeData.lifecycle_events) {
+    // Get lifetime data from various sources (support extended data structure)
+    let lifetimeData = null;
+    let lifecycleEvents = [];
+    
+    // Smart data source selection: merge memory_analysis and complex_types data
+    let memoryAllocations = window.analysisData.memory_analysis?.allocations || [];
+    let complexAllocations = window.analysisData.complex_types?.allocations || [];
+    
+    console.log('📊 Memory analysis allocations:', memoryAllocations.length);
+    console.log('📊 Complex types allocations:', complexAllocations.length);
+    
+    // 合并数据：使用memory_analysis的lifetime_ms + complex_types的扩展字段
+    if (memoryAllocations.length > 0 && complexAllocations.length > 0) {
+        // Create mapping from pointer to memory analysis data
+        const memoryMap = new Map();
+        memoryAllocations.forEach(alloc => {
+            if (alloc.ptr) {
+                memoryMap.set(alloc.ptr, alloc);
+            }
+        });
+        
+        // Merge data: complex_types + lifetime_ms from memory_analysis
+        lifecycleEvents = complexAllocations.map(complexAlloc => {
+            const memoryAlloc = memoryMap.get(complexAlloc.ptr);
+            return {
+                ...complexAlloc,
+                lifetime_ms: memoryAlloc?.lifetime_ms || null,
+                timestamp_dealloc: memoryAlloc?.timestamp_dealloc || null
+            };
+        });
+        console.log('📊 Merged allocation data:', lifecycleEvents.length);
+    } else if (memoryAllocations.length > 0) {
+        lifecycleEvents = memoryAllocations;
+        console.log('📊 Using memory analysis data:', lifecycleEvents.length);
+    } else if (complexAllocations.length > 0) {
+        lifecycleEvents = complexAllocations;
+        console.log('📊 Using complex types data:', lifecycleEvents.length);
+    } else if (window.analysisData.lifetime?.lifecycle_events) {
+        lifecycleEvents = window.analysisData.lifetime.lifecycle_events;
+        console.log('📊 Using lifetime events data:', lifecycleEvents.length);
+    }
+    
+    if (!lifecycleEvents || lifecycleEvents.length === 0) {
         console.warn('⚠️ No lifetime data found');
         console.log('Available data keys:', Object.keys(window.analysisData || {}));
         showEmptyLifetimeState();
         return;
     }
 
-    console.log(`📊 Total lifecycle events: ${lifetimeData.lifecycle_events.length}`);
+    console.log(`📊 Total lifecycle events: ${lifecycleEvents.length}`);
 
     // Check if we have Rust-preprocessed data
-    if (lifetimeData.visualization_ready && lifetimeData.variable_groups) {
+    if (lifetimeData?.visualization_ready && lifetimeData?.variable_groups) {
         console.log(`📊 Using Rust-preprocessed data with ${lifetimeData.variable_groups.length} variable groups`);
         renderLifetimeVisualizationFromRustWithCollapse(lifetimeData.variable_groups);
         return;
     }
 
     // Filter for user-defined variables (non-unknown var_name and type_name)
-    const userVariables = lifetimeData.lifecycle_events.filter(event =>
+    const userVariables = lifecycleEvents.filter(event =>
         event.var_name && event.var_name !== 'unknown' &&
         event.type_name && event.type_name !== 'unknown'
     );
@@ -1257,7 +1453,7 @@ function initLifetimeVisualization() {
         console.log('📊 Sample user variables:', userVariables.slice(0, 3));
     } else {
         // Show some examples of unknown variables for debugging
-        const unknownSamples = lifetimeData.lifecycle_events.slice(0, 3);
+        const unknownSamples = lifecycleEvents.slice(0, 3);
         console.log('📊 Sample unknown variables:', unknownSamples);
     }
 
@@ -1273,23 +1469,45 @@ function initLifetimeVisualization() {
     renderLifetimeVisualizationWithCollapse(variableGroups);
 }
 
-// Group variables by name to track their lifecycle
+// Group variables by name to track their lifecycle (enhanced for multiple instances)
 function groupVariablesByName(events) {
     const groups = {};
 
     events.forEach(event => {
         const varName = event.var_name;
-        if (!groups[varName]) {
-            groups[varName] = {
-                var_name: varName,
+        const instanceKey = `${varName}_${event.ptr || event.timestamp_alloc}`; // 为每个实例创建唯一key
+        
+        if (!groups[instanceKey]) {
+            groups[instanceKey] = {
+                var_name: `${varName}#${Object.keys(groups).filter(k => k.startsWith(varName)).length + 1}`, // 添加实例编号
+                original_var_name: varName,
                 type_name: event.type_name,
-                events: []
+                events: [],
+                instance_info: {
+                    ptr: event.ptr,
+                    timestamp: event.timestamp_alloc,
+                    thread_id: event.thread_id
+                }
             };
         }
-        groups[varName].events.push(event);
+        groups[instanceKey].events.push(event);
     });
 
-    return Object.values(groups);
+    
+    const groupValues = Object.values(groups);
+    const varCounts = {};
+    groupValues.forEach(group => {
+        const originalName = group.original_var_name;
+        varCounts[originalName] = (varCounts[originalName] || 0) + 1;
+    });
+    
+    groupValues.forEach(group => {
+        if (varCounts[group.original_var_name] === 1) {
+            group.var_name = group.original_var_name; 
+        }
+    });
+
+    return groupValues;
 }
 
 // Render lifetime visualization from Rust-preprocessed data with collapsible functionality
@@ -1352,11 +1570,24 @@ function renderLifetimeVisualizationFromRustWithCollapse(variableGroups) {
 
             // Use preprocessed timing data or fallback to events
             const startTime = group.start_time || (group.events && group.events[0] ? group.events[0].timestamp : minTime);
-            const endTime = group.end_time || (group.events && group.events[group.events.length - 1] ? group.events[group.events.length - 1].timestamp : maxTime);
-
+            const firstEvent = group.events && group.events[0];
+            
             const startPercent = timeRange > 0 ? ((startTime - minTime) / timeRange) * 100 : 0;
-            const duration = endTime - startTime;
-            const widthPercent = timeRange > 0 ? Math.max(5, (duration / timeRange) * 100) : 40;
+            
+            
+            let widthPercent;
+            if (firstEvent && firstEvent.lifetime_ms && firstEvent.lifetime_ms > 0) {
+                
+                const lifetimeNs = firstEvent.lifetime_ms * 1000000; 
+                widthPercent = timeRange > 0 ? Math.max(1, (lifetimeNs / timeRange) * 100) : 6.8;
+            } else {
+                //
+                widthPercent = 6.8;
+            }
+            
+            // 安全的变量定义，防止NaN
+            const finalStartPercent = isNaN(startPercent) ? 0 : Math.max(0, Math.min(95, startPercent));
+            const finalWidthPercent = isNaN(widthPercent) ? 40 : Math.max(2, Math.min(100 - finalStartPercent, widthPercent));
 
             // Format type name for display
             const displayTypeName = formatTypeName(group.type_name);
@@ -1371,18 +1602,18 @@ function renderLifetimeVisualizationFromRustWithCollapse(variableGroups) {
                 </div>
                 <div class="flex-grow relative bg-gray-200 dark:bg-gray-600 rounded-full h-6 overflow-hidden">
                     <div class="absolute inset-0 rounded-full" 
-                         style="${gradientStyle} width: ${widthPercent}%; margin-left: ${startPercent}%; 
+                         style="${gradientStyle} width: ${finalWidthPercent}%; margin-left: ${finalStartPercent}%; 
                                 box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
                                 transition: all 0.3s ease;"
                          title="Variable: ${group.var_name}, Type: ${displayTypeName}">
                         <div class="absolute inset-0 flex items-center justify-center">
                             <span class="text-xs font-bold text-white drop-shadow-sm">
-                                ${Math.round(widthPercent)}%
+                                ${Math.round(finalWidthPercent)}%
                             </span>
                         </div>
                     </div>
                     <div class="absolute -top-8 left-0 text-xs bg-gray-700 text-white px-2 py-1 rounded opacity-0 hover:opacity-100 transition-opacity whitespace-nowrap">
-                        Duration: ${formatTimestamp(duration, 0)}
+                        Duration: ${firstEvent && firstEvent.lifetime_ms ? firstEvent.lifetime_ms + 'ms' : 'Active'}
                     </div>
                 </div>
                 <div class="w-20 flex-shrink-0 pl-4 text-right">
@@ -1512,11 +1743,31 @@ function renderLifetimeVisualizationWithCollapse(variableGroups) {
             // Calculate position and width based on timestamps
             const firstEvent = group.events[0];
             const startTime = firstEvent.timestamp;
-            const startPercent = timeRange > 0 ? ((startTime - minTime) / timeRange) * 100 : 0;
+            const startPositionPercent = timeRange > 0 ? ((startTime - minTime) / timeRange) * 100 : 0;
 
-            // For now, assume a fixed width since we don't have deallocation events
-            // In a real implementation, you'd track deallocation events too
-            const widthPercent = 60; // Default width
+            // real time correct time axis calculation: based on actual allocation and survival time
+            const allocTime = firstEvent.timestamp;
+            const deallocTime = firstEvent.timestamp_dealloc;
+            const lifetimeMs = firstEvent.lifetime_ms || 1; // default 1ms lifetime
+            
+            // calculate survival time length (percentage)
+            let durationPercent;
+            if (deallocTime && deallocTime > allocTime) {
+                // if there is a clear release time, use actual time span
+                const actualDuration = deallocTime - allocTime;
+                durationPercent = (actualDuration / timeRange) * 100;
+            } else {
+                // if there is no release time, use lifetime_ms calculation
+                const lifetimeNs = lifetimeMs * 1000000; // convert to nanoseconds
+                durationPercent = (lifetimeNs / timeRange) * 100;
+            }
+            
+            // ensure value is within reasonable range
+            const widthPercent = Math.max(0.5, Math.min(100 - startPositionPercent, durationPercent));
+            
+            // 安全的变量定义，防止NaN
+            const finalStartPercent = isNaN(startPositionPercent) ? 0 : Math.max(0, Math.min(95, startPositionPercent));
+            const finalWidthPercent = isNaN(widthPercent) ? 30 : Math.max(2, Math.min(100 - finalStartPercent, widthPercent));
 
             // Format type name for display
             const displayTypeName = formatTypeName(group.type_name);
@@ -1527,7 +1778,7 @@ function renderLifetimeVisualizationWithCollapse(variableGroups) {
                 </div>
                 <div class="flex-grow relative">
                     <div class="lifespan-indicator ${colors.bg}" 
-                         style="width: ${widthPercent}%; margin-left: ${startPercent}%;" 
+                         style="width: ${finalWidthPercent}%; margin-left: ${finalStartPercent}%;" 
                          title="Variable: ${group.var_name}, Type: ${displayTypeName}">
                         <div class="absolute -top-6 left-0 text-xs ${colors.bg} text-white px-2 py-1 rounded whitespace-nowrap">
                             Allocated: ${formatTimestamp(startTime, minTime)}
@@ -1594,52 +1845,638 @@ function renderLifetimeVisualizationWithCollapse(variableGroups) {
     console.log(`✅ Rendered ${variableGroups.length} variables in lifetime visualization with collapse functionality`);
 }
 
-// Initialize FFI visualization with enhanced SVG-style dashboard
+// Initialize FFI visualization with enhanced support for improve.md fields
 function initFFIVisualization() {
     console.log('🔄 Initializing FFI visualization...');
 
     const container = document.getElementById('ffiVisualization');
     if (!container) return;
 
-    const ffiData = window.analysisData.unsafe_ffi;
-    if (!ffiData || !ffiData.enhanced_ffi_data || ffiData.enhanced_ffi_data.length === 0) {
+    // Get FFI data from multiple sources with comprehensive field support
+    let allocations = [];
+    let unsafeReports = [];
+    let memoryPassports = [];
+    let ffiStatistics = {};
+    
+    console.log('🔍 Checking analysisData structure:', Object.keys(window.analysisData || {}));
+    
+    // Enhanced data extraction supporting improve.md structure
+    if (window.analysisData) {
+        // Debug: Show what data structure we actually have FIRST
+        console.log('🔍 Available data keys:', Object.keys(window.analysisData));
+        if (window.analysisData.unsafe_ffi) {
+            console.log('🔍 unsafe_ffi keys:', Object.keys(window.analysisData.unsafe_ffi));
+            console.log('🔍 unsafe_ffi.allocations exists:', !!window.analysisData.unsafe_ffi.allocations);
+            
+            // Data will be handled by initializeAnalysis function
+            console.log('🔍 unsafe_ffi.allocations length:', window.analysisData.unsafe_ffi.allocations ? window.analysisData.unsafe_ffi.allocations.length : 'undefined');
+        }
+        
+        // Try unsafe_ffi data first (improve.md structure)
+        if (window.analysisData.unsafe_ffi) {
+            allocations = window.analysisData.unsafe_ffi.allocations || [];
+            unsafeReports = window.analysisData.unsafe_ffi.unsafe_reports || [];
+            memoryPassports = window.analysisData.unsafe_ffi.memory_passports || [];
+            ffiStatistics = window.analysisData.unsafe_ffi.ffi_statistics || {};
+            console.log('📊 Found unsafe_ffi data - allocations:', allocations.length, 'reports:', unsafeReports.length, 'passports:', memoryPassports.length);
+        }
+        // Try complex_types structure (for large_scale_user files)
+        else if (window.analysisData.complex_types && window.analysisData.complex_types.allocations) {
+            allocations = window.analysisData.complex_types.allocations;
+            console.log('📊 Found complex_types allocations:', allocations.length);
+        }
+        // Try direct allocations array (for files like large_scale_user_unsafe_ffi.json)
+        else if (window.analysisData.allocations) {
+            allocations = window.analysisData.allocations;
+            console.log('📊 Found direct allocations:', allocations.length);
+        }
+        // Fallback to memory_analysis
+        else if (window.analysisData.memory_analysis && window.analysisData.memory_analysis.allocations) {
+            allocations = window.analysisData.memory_analysis.allocations;
+            console.log('📊 Using memory_analysis allocations:', allocations.length);
+        }
+        
+        // Debug: Show what data structure we actually have
+        console.log('🔍 Available data keys:', Object.keys(window.analysisData));
+        if (window.analysisData.unsafe_ffi) {
+            console.log('🔍 unsafe_ffi keys:', Object.keys(window.analysisData.unsafe_ffi));
+        }
+        
+        // Extract metadata if available
+        const metadata = window.analysisData.metadata || {};
+        console.log('📊 Metadata:', metadata);
+    }
+
+    // Filter for FFI-tracked allocations with enhanced field support
+    const ffiAllocations = allocations.filter(alloc => 
+        alloc.ffi_tracked === true || 
+        (alloc.safety_violations && alloc.safety_violations.length > 0) ||
+        alloc.ownership_history_available === true ||
+        (alloc.borrow_info && (alloc.borrow_info.immutable_borrows > 0 || alloc.borrow_info.mutable_borrows > 0)) ||
+        (alloc.clone_info && alloc.clone_info.clone_count > 0)
+    );
+    console.log('📊 Found FFI-tracked allocations:', ffiAllocations.length);
+    
+    // Debug: show first few allocations with improve.md fields
+    if (allocations.length > 0) {
+        console.log('🔍 Sample allocation with improve.md fields:', allocations[0]);
+        console.log('🔍 FFI tracked allocations sample:', ffiAllocations.slice(0, 3));
+        
+        // Check for improve.md specific fields
+        const sampleAlloc = allocations[0];
+        console.log('🔍 Improve.md fields check:');
+        console.log('  - borrow_info:', sampleAlloc.borrow_info);
+        console.log('  - clone_info:', sampleAlloc.clone_info);
+        console.log('  - ownership_history_available:', sampleAlloc.ownership_history_available);
+        console.log('  - ffi_tracked:', sampleAlloc.ffi_tracked);
+        console.log('  - safety_violations:', sampleAlloc.safety_violations);
+    }
+
+    // Debug: Show what we found before filtering
+    console.log('🔍 Before filtering - Total allocations:', allocations.length);
+    console.log('🔍 Sample allocation fields:', allocations[0] ? Object.keys(allocations[0]) : 'No allocations');
+    console.log('🔍 FFI tracked count:', allocations.filter(a => a.ffi_tracked === true).length);
+    console.log('🔍 Borrow info count:', allocations.filter(a => a.borrow_info).length);
+    console.log('🔍 Clone info count:', allocations.filter(a => a.clone_info).length);
+    
+    // Enhanced rendering with improve.md support - ALWAYS show if we have any allocations
+    if (allocations.length === 0) {
         container.innerHTML = createFFIEmptyState();
         return;
     }
+    
+    // If we have allocations but no FFI-specific ones, still show the dashboard with all data
+    const displayAllocations = ffiAllocations.length > 0 ? ffiAllocations : allocations.slice(0, 20);
+    console.log('🎯 Rendering FFI dashboard with:', displayAllocations.length, 'allocations,', unsafeReports.length, 'reports,', memoryPassports.length, 'passports');
 
-    const enhancedData = ffiData.enhanced_ffi_data || [];
-    const boundaryEvents = ffiData.boundary_events || [];
+    // Generate enhanced FFI analysis with improve.md fields
+    try {
+        if (FFI_STYLE === 'svg') {
+            const boundaryEvents = window.analysisData.unsafe_ffi?.boundary_events || [];
+            const unsafeAllocs = displayAllocations.filter(a => (a.safety_violations || []).length > 0).length;
+            const ffiAllocs = displayAllocations.filter(a => a.ffi_tracked).length;
+            const safetyViolations = displayAllocations.reduce((sum, a) => sum + ((a.safety_violations || []).length || 0), 0);
+            const unsafeMemory = displayAllocations
+                .filter(a => (a.safety_violations || []).length > 0)
+                .reduce((sum, a) => sum + (a.size || 0), 0);
 
-    // Calculate statistics
-    const unsafeAllocations = enhancedData.filter(item => !item.ffi_tracked).length;
-    const ffiAllocations = enhancedData.filter(item => item.ffi_tracked).length;
-    const safetyViolations = enhancedData.reduce((sum, item) => sum + (item.safety_violations || 0), 0);
-    const unsafeMemory = enhancedData.reduce((sum, item) => sum + (item.size || 0), 0);
+            container.innerHTML = createFFIDashboardSVG(
+                unsafeAllocs,
+                ffiAllocs,
+                boundaryEvents.length,
+                safetyViolations,
+                unsafeMemory,
+                displayAllocations,
+                boundaryEvents,
+                unsafeReports
+            );
+            console.log('✅ FFI SVG-style dashboard rendered');
+            return;
+        }
+        console.log('🔄 Generating FFI analysis...');
+        const ffiAnalysis = generateEnhancedFFIAnalysisWithImproveFields(displayAllocations, unsafeReports, memoryPassports, ffiStatistics);
+        console.log('✅ FFI analysis generated:', ffiAnalysis);
+        
+        console.log('🔄 Creating FFI dashboard...');
+        const dashboardHTML = createEnhancedFFIDashboardWithImproveFields(ffiAnalysis, displayAllocations, unsafeReports, memoryPassports);
+        console.log('✅ Dashboard HTML created, length:', dashboardHTML.length);
+        
+        container.innerHTML = dashboardHTML;
+        console.log('✅ Dashboard rendered successfully!');
+    } catch (error) {
+        console.error('❌ Error in FFI rendering:', error);
+        container.innerHTML = `<div class="bg-red-100 p-4 rounded text-red-800">Error rendering FFI data: ${error.message}</div>`;
+    }
+}
 
-    container.innerHTML = createFFIDashboardSVG(
-        unsafeAllocations, ffiAllocations, boundaryEvents.length,
-        safetyViolations, unsafeMemory, enhancedData,
-        boundaryEvents, []
-    );
+// Generate enhanced FFI analysis with improve.md fields support
+function generateEnhancedFFIAnalysisWithImproveFields(ffiAllocations, unsafeReports, memoryPassports, ffiStatistics) {
+    let totalFFI = ffiAllocations.length;
+    let totalViolations = 0;
+    let totalMemory = 0;
+    let highRiskCount = 0;
+    let mediumRiskCount = 0;
+    let lowRiskCount = 0;
+    let totalBorrows = 0;
+    let totalClones = 0;
+    let leakedAllocations = 0;
+
+    const analysisData = ffiAllocations.map(alloc => {
+        const violations = alloc.safety_violations?.length || 0;
+        const size = alloc.size || 0;
+        
+        // Enhanced borrow analysis from improve.md fields
+        const borrowConflicts = alloc.borrow_info ? 
+            (alloc.borrow_info.mutable_borrows > 0 && alloc.borrow_info.immutable_borrows > 0) : false;
+        const totalBorrowsForAlloc = alloc.borrow_info ? 
+            (alloc.borrow_info.immutable_borrows || 0) + (alloc.borrow_info.mutable_borrows || 0) : 0;
+        totalBorrows += totalBorrowsForAlloc;
+        
+        // Enhanced clone analysis from improve.md fields
+        const cloneCount = alloc.clone_info?.clone_count || 0;
+        const isClone = alloc.clone_info?.is_clone || false;
+        totalClones += cloneCount;
+        
+        // Enhanced ownership and lifecycle analysis
+        const ownershipHistoryAvailable = alloc.ownership_history_available || false;
+        const isLeaked = alloc.is_leaked || false;
+        if (isLeaked) leakedAllocations++;
+        
+        // Enhanced risk calculation with improve.md fields
+        let riskScore = 0;
+        if (violations > 0) riskScore += 50;
+        if (borrowConflicts) riskScore += 30;
+        if (size > 1024) riskScore += 20;
+        if (isLeaked) riskScore += 40;
+        if (cloneCount > 3) riskScore += 15;
+        if (totalBorrowsForAlloc > 5) riskScore += 10;
+        
+        let riskLevel = 'Low';
+        if (riskScore >= 70) {
+            riskLevel = 'High';
+            highRiskCount++;
+        } else if (riskScore >= 35) {
+            riskLevel = 'Medium';
+            mediumRiskCount++;
+        } else {
+            lowRiskCount++;
+        }
+
+        totalViolations += violations;
+        totalMemory += size;
+
+        return {
+            ...alloc,
+            riskScore,
+            riskLevel,
+            violations,
+            borrowConflicts,
+            totalBorrowsForAlloc,
+            cloneCount,
+            isClone,
+            ownershipHistoryAvailable,
+            isLeaked
+        };
+    });
+
+    // Enhanced statistics from improve.md structure
+    const enhancedStats = {
+        boundary_crossings: ffiStatistics.boundary_crossings || 0,
+        memory_violations: ffiStatistics.memory_violations || 0,
+        total_ffi_calls: ffiStatistics.total_ffi_calls || 0,
+        unsafe_operations: ffiStatistics.unsafe_operations || 0
+    };
+
+    return {
+        totalFFI,
+        totalViolations,
+        totalMemory,
+        highRiskCount,
+        mediumRiskCount,
+        lowRiskCount,
+        totalBorrows,
+        totalClones,
+        leakedAllocations,
+        analysisData,
+        unsafeReports,
+        memoryPassports,
+        ffiStatistics: enhancedStats
+    };
+}
+
+// Legacy function for backward compatibility
+function generateEnhancedFFIAnalysis(ffiAllocations) {
+    return generateEnhancedFFIAnalysisWithImproveFields(ffiAllocations, [], [], {});
+}
+
+// Create enhanced FFI dashboard with improve.md fields support
+function createEnhancedFFIDashboardWithImproveFields(analysis, ffiAllocations, unsafeReports, memoryPassports) {
+    return `
+        <div class="space-y-6">
+            <!-- Enhanced FFI Overview Cards with improve.md metrics -->
+            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                <div class="bg-blue-100 dark:bg-blue-900 rounded-lg p-4 text-center">
+                    <div class="text-2xl font-bold text-blue-600 dark:text-blue-300">${analysis.totalFFI}</div>
+                    <div class="text-sm text-blue-700 dark:text-blue-400">FFI Allocations</div>
+                </div>
+                <div class="bg-red-100 dark:bg-red-900 rounded-lg p-4 text-center">
+                    <div class="text-2xl font-bold text-red-600 dark:text-red-300">${analysis.highRiskCount}</div>
+                    <div class="text-sm text-red-700 dark:text-red-400">High Risk</div>
+                </div>
+                <div class="bg-orange-100 dark:bg-orange-900 rounded-lg p-4 text-center">
+                    <div class="text-2xl font-bold text-orange-600 dark:text-orange-300">${analysis.mediumRiskCount}</div>
+                    <div class="text-sm text-orange-700 dark:text-orange-400">Medium Risk</div>
+                </div>
+                <div class="bg-green-100 dark:bg-green-900 rounded-lg p-4 text-center">
+                    <div class="text-2xl font-bold text-green-600 dark:text-green-300">${analysis.lowRiskCount}</div>
+                    <div class="text-sm text-green-700 dark:text-green-400">Low Risk</div>
+                </div>
+                <div class="bg-purple-100 dark:bg-purple-900 rounded-lg p-4 text-center">
+                    <div class="text-2xl font-bold text-purple-600 dark:text-purple-300">${analysis.totalBorrows}</div>
+                    <div class="text-sm text-purple-700 dark:text-purple-400">Total Borrows</div>
+                </div>
+                <div class="bg-indigo-100 dark:bg-indigo-900 rounded-lg p-4 text-center">
+                    <div class="text-2xl font-bold text-indigo-600 dark:text-indigo-300">${analysis.totalClones}</div>
+                    <div class="text-sm text-indigo-700 dark:text-indigo-400">Total Clones</div>
+                </div>
+            </div>
+
+            <!-- FFI Statistics from improve.md -->
+            ${analysis.ffiStatistics && Object.keys(analysis.ffiStatistics).length > 0 ? `
+                <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-6">
+                    <h3 class="text-lg font-semibold mb-4 text-gray-800 dark:text-white">FFI Statistics</h3>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div class="text-center">
+                            <div class="text-xl font-bold text-gray-900 dark:text-white">${analysis.ffiStatistics.boundary_crossings}</div>
+                            <div class="text-sm text-gray-600 dark:text-gray-400">Boundary Crossings</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-xl font-bold text-gray-900 dark:text-white">${analysis.ffiStatistics.memory_violations}</div>
+                            <div class="text-sm text-gray-600 dark:text-gray-400">Memory Violations</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-xl font-bold text-gray-900 dark:text-white">${analysis.ffiStatistics.total_ffi_calls}</div>
+                            <div class="text-sm text-gray-600 dark:text-gray-400">Total FFI Calls</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-xl font-bold text-gray-900 dark:text-white">${analysis.ffiStatistics.unsafe_operations}</div>
+                            <div class="text-sm text-gray-600 dark:text-gray-400">Unsafe Operations</div>
+                        </div>
+                    </div>
+                </div>
+            ` : ''}
+
+            <!-- Unsafe Reports from improve.md structure -->
+            ${analysis.unsafeReports && analysis.unsafeReports.length > 0 ? `
+                <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-6">
+                    <h3 class="text-lg font-semibold mb-4 text-gray-800 dark:text-white">Unsafe Reports</h3>
+                    <div class="space-y-4">
+                        ${analysis.unsafeReports.map(report => createUnsafeReportCard(report)).join('')}
+                    </div>
+                </div>
+            ` : ''}
+
+            <!-- Memory Passports from improve.md structure -->
+            ${analysis.memoryPassports && analysis.memoryPassports.length > 0 ? `
+                <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-6">
+                    <h3 class="text-lg font-semibold mb-4 text-gray-800 dark:text-white">Memory Passports</h3>
+                    <div class="space-y-3">
+                        ${analysis.memoryPassports.map(passport => createMemoryPassportCard(passport)).join('')}
+                    </div>
+                </div>
+            ` : ''}
+
+            <!-- Enhanced FFI Risk Analysis with improve.md fields -->
+            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-6">
+                <h3 class="text-lg font-semibold mb-4 text-gray-800 dark:text-white">Enhanced FFI Risk Analysis</h3>
+                <div class="space-y-4">
+                    ${analysis.analysisData.map(alloc => createEnhancedFFIAllocationCard(alloc)).join('')}
+                </div>
+            </div>
+
+            <!-- Enhanced Borrow Checker Analysis with improve.md fields -->
+            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-6">
+                <h3 class="text-lg font-semibold mb-4 text-gray-800 dark:text-white">Enhanced Borrow Checker Analysis</h3>
+                <div class="space-y-3">
+                    ${ffiAllocations.filter(alloc => alloc.borrow_info).map(alloc => createEnhancedBorrowAnalysisCard(alloc)).join('')}
+                </div>
+            </div>
+
+            <!-- Clone Analysis from improve.md fields -->
+            ${analysis.totalClones > 0 ? `
+                <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-6">
+                    <h3 class="text-lg font-semibold mb-4 text-gray-800 dark:text-white">Clone Analysis</h3>
+                    <div class="space-y-3">
+                        ${ffiAllocations.filter(alloc => alloc.clone_info && alloc.clone_info.clone_count > 0).map(alloc => createCloneAnalysisCard(alloc)).join('')}
+                    </div>
+                </div>
+            ` : ''}
+
+            <!-- Ownership History Analysis -->
+            ${ffiAllocations.some(alloc => alloc.ownership_history_available) ? `
+                <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-6">
+                    <h3 class="text-lg font-semibold mb-4 text-gray-800 dark:text-white">Ownership History Analysis</h3>
+                    <div class="space-y-3">
+                        ${ffiAllocations.filter(alloc => alloc.ownership_history_available).map(alloc => createOwnershipHistoryCard(alloc)).join('')}
+                    </div>
+                </div>
+            ` : ''}
+        </div>
+    `;
+}
+
+// Legacy function for backward compatibility
+function createEnhancedFFIDashboard(analysis, ffiAllocations) {
+    return createEnhancedFFIDashboardWithImproveFields(analysis, ffiAllocations, [], []);
+}
+
+// Create enhanced FFI allocation card with improve.md fields
+function createEnhancedFFIAllocationCard(alloc) {
+    const riskColor = alloc.riskLevel === 'High' ? 'red' : alloc.riskLevel === 'Medium' ? 'orange' : 'green';
+    const hasViolations = alloc.violations > 0;
+    const hasBorrowConflicts = alloc.borrowConflicts;
+    const hasClones = alloc.cloneCount > 0;
+    const isLeaked = alloc.isLeaked;
+    const hasOwnershipHistory = alloc.ownershipHistoryAvailable;
+    
+    return `
+        <div class="bg-white dark:bg-gray-600 rounded-lg p-4 border-l-4 border-${riskColor}-500">
+            <div class="flex justify-between items-start mb-3">
+                <div>
+                    <h4 class="font-semibold text-gray-900 dark:text-white">${alloc.var_name || 'Unknown Variable'}</h4>
+                    <p class="text-sm text-gray-600 dark:text-gray-300">${formatTypeName(alloc.type_name || 'Unknown Type')}</p>
+                    ${alloc.isClone ? '<span class="inline-block px-2 py-1 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded-full mt-1">Clone</span>' : ''}
+                </div>
+                <div class="text-right">
+                    <span class="px-2 py-1 text-xs font-bold rounded-full bg-${riskColor}-100 text-${riskColor}-800 dark:bg-${riskColor}-900 dark:text-${riskColor}-200">
+                        ${alloc.riskLevel} Risk
+                    </span>
+                    ${isLeaked ? '<div class="mt-1"><span class="px-2 py-1 text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 rounded-full">LEAKED</span></div>' : ''}
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-4 text-sm mb-3">
+                <div>
+                    <span class="text-gray-500 dark:text-gray-400">Size:</span>
+                    <span class="ml-2 font-mono">${formatBytes(alloc.size || 0)}</span>
+                </div>
+                <div>
+                    <span class="text-gray-500 dark:text-gray-400">Risk Score:</span>
+                    <span class="ml-2 font-bold text-${riskColor}-600">${alloc.riskScore}/100</span>
+                </div>
+                <div>
+                    <span class="text-gray-500 dark:text-gray-400">Pointer:</span>
+                    <span class="ml-2 font-mono text-xs">${alloc.ptr}</span>
+                </div>
+                <div>
+                    <span class="text-gray-500 dark:text-gray-400">Thread:</span>
+                    <span class="ml-2">${alloc.thread_id || 'Unknown'}</span>
+                </div>
+            </div>
+
+            <!-- Enhanced improve.md fields -->
+            <div class="grid grid-cols-3 gap-4 text-sm mb-3">
+                <div>
+                    <span class="text-gray-500 dark:text-gray-400">Total Borrows:</span>
+                    <span class="ml-2 font-bold">${alloc.totalBorrowsForAlloc || 0}</span>
+                </div>
+                <div>
+                    <span class="text-gray-500 dark:text-gray-400">Clone Count:</span>
+                    <span class="ml-2 font-bold">${alloc.cloneCount || 0}</span>
+                </div>
+                <div>
+                    <span class="text-gray-500 dark:text-gray-400">FFI Tracked:</span>
+                    <span class="ml-2">${alloc.ffi_tracked ? '✅' : '❌'}</span>
+                </div>
+            </div>
+            
+            ${hasViolations || hasBorrowConflicts || hasClones || hasOwnershipHistory ? `
+                <div class="mt-3 pt-3 border-t border-gray-200 dark:border-gray-500">
+                    <div class="text-sm space-y-1">
+                        ${hasViolations ? `<div class="text-red-600 dark:text-red-400">⚠️ ${alloc.violations} safety violations</div>` : ''}
+                        ${hasBorrowConflicts ? `<div class="text-orange-600 dark:text-orange-400">⚠️ Borrow conflicts detected</div>` : ''}
+                        ${hasClones ? `<div class="text-blue-600 dark:text-blue-400">🔄 ${alloc.cloneCount} clones created</div>` : ''}
+                        ${hasOwnershipHistory ? `<div class="text-green-600 dark:text-green-400">📋 Ownership history available</div>` : ''}
+                    </div>
+                </div>
+            ` : ''}
+        </div>
+    `;
+}
+
+// Legacy function for backward compatibility
+function createFFIAllocationCard(alloc) {
+    return createEnhancedFFIAllocationCard(alloc);
+}
+
+// Create enhanced borrow analysis card with improve.md fields
+function createEnhancedBorrowAnalysisCard(alloc) {
+    const borrowInfo = alloc.borrow_info;
+    const hasConflict = borrowInfo.mutable_borrows > 0 && borrowInfo.immutable_borrows > 0;
+    const lastBorrowTime = borrowInfo.last_borrow_timestamp ? new Date(borrowInfo.last_borrow_timestamp / 1000000).toLocaleTimeString() : 'Unknown';
+    
+    return `
+        <div class="bg-white dark:bg-gray-600 rounded-lg p-3 ${hasConflict ? 'border-l-4 border-red-500' : 'border border-gray-200 dark:border-gray-500'}">
+            <div class="flex justify-between items-start">
+                <div>
+                    <h5 class="font-medium text-gray-900 dark:text-white">${alloc.var_name}</h5>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">${formatTypeName(alloc.type_name)}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Last borrow: ${lastBorrowTime}</p>
+                </div>
+                <div class="text-right text-sm">
+                    <div class="text-blue-600 dark:text-blue-400">Immutable: ${borrowInfo.immutable_borrows}</div>
+                    <div class="text-red-600 dark:text-red-400">Mutable: ${borrowInfo.mutable_borrows}</div>
+                    <div class="text-purple-600 dark:text-purple-400">Max Concurrent: ${borrowInfo.max_concurrent_borrows}</div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400">Total: ${(borrowInfo.immutable_borrows || 0) + (borrowInfo.mutable_borrows || 0)}</div>
+                </div>
+            </div>
+            ${hasConflict ? `
+                <div class="mt-2 text-xs text-red-600 dark:text-red-400 font-bold">
+                    ⚠️ BORROW CONFLICT: Simultaneous mutable and immutable borrows detected
+                </div>
+            ` : ''}
+        </div>
+    `;
+}
+
+// Legacy function for backward compatibility
+function createBorrowAnalysisCard(alloc) {
+    return createEnhancedBorrowAnalysisCard(alloc);
+}
+
+// Create clone analysis card for improve.md clone_info fields
+function createCloneAnalysisCard(alloc) {
+    const cloneInfo = alloc.clone_info;
+    const isClone = cloneInfo.is_clone;
+    const cloneCount = cloneInfo.clone_count;
+    const originalPtr = cloneInfo.original_ptr;
+    
+    return `
+        <div class="bg-white dark:bg-gray-600 rounded-lg p-3 border-l-4 border-blue-500">
+            <div class="flex justify-between items-start">
+                <div>
+                    <h5 class="font-medium text-gray-900 dark:text-white">${alloc.var_name}</h5>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">${formatTypeName(alloc.type_name)}</p>
+                    ${isClone ? `<p class="text-xs text-blue-600 dark:text-blue-400">Clone of: ${originalPtr}</p>` : ''}
+                </div>
+                <div class="text-right">
+                    <div class="text-blue-600 dark:text-blue-400 font-bold text-lg">${cloneCount}</div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400">Clones Created</div>
+                    ${isClone ? '<div class="text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 px-2 py-1 rounded mt-1">IS CLONE</div>' : ''}
+                </div>
+            </div>
+            <div class="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                ${cloneCount > 0 ? `🔄 This allocation has been cloned ${cloneCount} times` : ''}
+                ${isClone ? `<br>📋 This is a clone of allocation at ${originalPtr}` : ''}
+            </div>
+        </div>
+    `;
+}
+
+// Create ownership history card for improve.md ownership_history_available field
+function createOwnershipHistoryCard(alloc) {
+    return `
+        <div class="bg-white dark:bg-gray-600 rounded-lg p-3 border-l-4 border-green-500">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h5 class="font-medium text-gray-900 dark:text-white">${alloc.var_name}</h5>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">${formatTypeName(alloc.type_name)}</p>
+                </div>
+                <div class="text-right">
+                    <div class="text-green-600 dark:text-green-400">📋 History Available</div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400">Detailed tracking enabled</div>
+                </div>
+            </div>
+            <div class="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                ✅ Ownership history is available for this allocation in lifetime.json
+            </div>
+        </div>
+    `;
+}
+
+// Create unsafe report card for improve.md UnsafeReport structure
+function createUnsafeReportCard(report) {
+    const riskLevel = report.risk_assessment?.risk_level || 'Unknown';
+    const riskColor = riskLevel === 'High' ? 'red' : riskLevel === 'Medium' ? 'orange' : 'green';
+    const confidenceScore = report.risk_assessment?.confidence_score || 0;
+    const riskFactors = report.risk_assessment?.risk_factors || [];
+    const dynamicViolations = report.dynamic_violations || [];
+    
+    return `
+        <div class="bg-white dark:bg-gray-600 rounded-lg p-4 border-l-4 border-${riskColor}-500">
+            <div class="flex justify-between items-start mb-3">
+                <div>
+                    <h4 class="font-semibold text-gray-900 dark:text-white">Unsafe Report: ${report.report_id || 'Unknown'}</h4>
+                    <p class="text-sm text-gray-600 dark:text-gray-300">${report.source?.type || 'Unknown'} at ${report.source?.location || 'Unknown location'}</p>
+                </div>
+                <div class="text-right">
+                    <span class="px-2 py-1 text-xs font-bold rounded-full bg-${riskColor}-100 text-${riskColor}-800 dark:bg-${riskColor}-900 dark:text-${riskColor}-200">
+                        ${riskLevel} Risk
+                    </span>
+                    <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">Confidence: ${(confidenceScore * 100).toFixed(1)}%</div>
+                </div>
+            </div>
+            
+            ${riskFactors.length > 0 ? `
+                <div class="mb-3">
+                    <h5 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Risk Factors:</h5>
+                    <div class="space-y-1">
+                        ${riskFactors.map(factor => `
+                            <div class="text-sm">
+                                <span class="font-medium text-${riskColor}-600 dark:text-${riskColor}-400">${factor.factor_type}</span>
+                                <span class="text-gray-600 dark:text-gray-400"> (Severity: ${factor.severity}/10)</span>
+                                <div class="text-xs text-gray-500 dark:text-gray-400">${factor.description}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            ` : ''}
+            
+            ${dynamicViolations.length > 0 ? `
+                <div class="mt-3 pt-3 border-t border-gray-200 dark:border-gray-500">
+                    <h5 class="text-sm font-medium text-red-700 dark:text-red-300 mb-2">Dynamic Violations:</h5>
+                    <div class="space-y-1">
+                        ${dynamicViolations.map(violation => `
+                            <div class="text-sm text-red-600 dark:text-red-400">
+                                ⚠️ ${violation.violation_type}: ${violation.description}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            ` : ''}
+        </div>
+    `;
+}
+
+// Create memory passport card for improve.md MemoryPassport structure
+function createMemoryPassportCard(passport) {
+    const status = passport.status_at_shutdown || 'Unknown';
+    const statusColor = status === 'Reclaimed' ? 'green' : status === 'InForeignCustody' ? 'red' : 'orange';
+    const lifecycleEvents = passport.lifecycle_events || [];
+    
+    return `
+        <div class="bg-white dark:bg-gray-600 rounded-lg p-3 border-l-4 border-${statusColor}-500">
+            <div class="flex justify-between items-start">
+                <div>
+                    <h5 class="font-medium text-gray-900 dark:text-white">Passport: ${passport.passport_id || 'Unknown'}</h5>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Allocation: ${passport.allocation_ptr} (${formatBytes(passport.size_bytes || 0)})</p>
+                </div>
+                <div class="text-right">
+                    <span class="px-2 py-1 text-xs font-bold rounded-full bg-${statusColor}-100 text-${statusColor}-800 dark:bg-${statusColor}-900 dark:text-${statusColor}-200">
+                        ${status}
+                    </span>
+                </div>
+            </div>
+            
+            ${lifecycleEvents.length > 0 ? `
+                <div class="mt-2">
+                    <h6 class="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Lifecycle Events:</h6>
+                    <div class="space-y-1">
+                        ${lifecycleEvents.slice(0, 3).map(event => `
+                            <div class="text-xs text-gray-600 dark:text-gray-400">
+                                📅 ${event.event_type} ${event.how ? `(${event.how})` : ''}
+                            </div>
+                        `).join('')}
+                        ${lifecycleEvents.length > 3 ? `<div class="text-xs text-gray-500 dark:text-gray-400">... and ${lifecycleEvents.length - 3} more events</div>` : ''}
+                    </div>
+                </div>
+            ` : ''}
+        </div>
+    `;
 }
 
 // Create FFI empty state
 function createFFIEmptyState() {
     return `
-        <div class="bg-white dark:bg-gray-800 rounded-xl p-6 card-shadow">
-            <h2 class="text-xl font-semibold mb-4 flex items-center text-heading">
-                <i class="fa fa-shield text-primary mr-2"></i>Unsafe FFI Analysis
-            </h2>
-            <div class="text-center py-8">
-                <div class="mb-4">
-                    <svg class="w-16 h-16 mx-auto text-green-400 dark:text-green-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
-                    </svg>
-                </div>
-                <h4 class="text-lg font-semibold mb-2 text-gray-800 dark:text-gray-200">Memory Safety Verified</h4>
-                <p class="text-sm text-gray-600 dark:text-gray-400">No unsafe FFI operations detected in this analysis</p>
-                <p class="text-xs mt-2 text-gray-500 dark:text-gray-500">Your code appears to be using safe Rust patterns</p>
+        <div class="text-center py-8">
+            <div class="mb-4">
+                <svg class="w-16 h-16 mx-auto text-green-400 dark:text-green-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                </svg>
             </div>
+            <h4 class="text-lg font-semibold mb-2 text-gray-800 dark:text-gray-200">Memory Safety Verified</h4>
+            <p class="text-sm text-gray-600 dark:text-gray-400">No unsafe FFI operations detected in this analysis</p>
+            <p class="text-xs mt-2 text-gray-500 dark:text-gray-500">Your code appears to be using safe Rust patterns</p>
         </div>
     `;
 }
@@ -1812,8 +2649,15 @@ function createMemoryHotspot(item) {
     const bgColor = isUnsafe ? 'bg-red-900/20' : 'bg-blue-900/20';
     const borderColor = isUnsafe ? 'border-red-500/50' : 'border-blue-500/50';
 
+    // Interactive hotspot with data attributes for detail panel
     return `
-        <div class="flex flex-col items-center p-3 ${bgColor} border ${borderColor} rounded-lg backdrop-blur-sm hover:scale-105 transition-transform">
+        <div class="flex flex-col items-center p-3 ${bgColor} border ${borderColor} rounded-lg backdrop-blur-sm hover:scale-105 transition-transform cursor-pointer"
+             data-ptr="${item.ptr || ''}"
+             data-var="${(item.var_name || 'Unknown').toString().replace(/\"/g, '&quot;')}"
+             data-type="${(item.type_name || 'Unknown').toString().replace(/\"/g, '&quot;')}"
+             data-size="${size}"
+             data-violations="${(item.safety_violations || 0)}"
+             onclick="window.showFFIDetailFromDataset && window.showFFIDetailFromDataset(this)">
             <div class="relative mb-2">
                 <div class="rounded-full border-2 flex items-center justify-center text-white text-xs font-bold shadow-lg"
                      style="width: ${radius * 2}px; height: ${radius * 2}px; background-color: ${color}; border-color: ${color};">
@@ -1837,6 +2681,57 @@ function createMemoryHotspot(item) {
     `;
 }
 
+// Simple detail panel for FFI hotspot items
+window.showFFIDetailFromDataset = function(el) {
+    try {
+        const container = document.getElementById('ffiVisualization');
+        if (!container) return;
+
+        // Remove existing panel
+        const existing = container.querySelector('#ffi-detail-panel');
+        if (existing) existing.remove();
+
+        // Build panel
+        const panel = document.createElement('div');
+        panel.id = 'ffi-detail-panel';
+        panel.style.position = 'absolute';
+        panel.style.right = '16px';
+        panel.style.top = '16px';
+        panel.style.zIndex = '1000';
+        panel.style.minWidth = '280px';
+        panel.style.maxWidth = '360px';
+        panel.style.background = 'var(--bg-primary)';
+        panel.style.border = '1px solid var(--border-light)';
+        panel.style.borderRadius = '10px';
+        panel.style.boxShadow = '0 10px 25px rgba(0,0,0,0.2)';
+        panel.style.padding = '12px';
+
+        const name = el.getAttribute('data-var');
+        const type = el.getAttribute('data-type');
+        const size = parseInt(el.getAttribute('data-size') || '0', 10);
+        const ptr = el.getAttribute('data-ptr');
+        const violations = parseInt(el.getAttribute('data-violations') || '0', 10);
+
+        panel.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <div style="font-weight:700; font-size:14px; color: var(--text-primary);">FFI Allocation Detail</div>
+                <button onclick="this.parentNode.parentNode.remove()" style="border:none; background:transparent; color: var(--text-secondary); font-size:18px; cursor:pointer">×</button>
+            </div>
+            <div style="font-size:12px; color: var(--text-primary);">
+                <div style="margin-bottom:6px;"><strong>Name:</strong> ${name}</div>
+                <div style="margin-bottom:6px;"><strong>Type:</strong> ${type}</div>
+                <div style="margin-bottom:6px;"><strong>Size:</strong> ${formatBytes(size)}</div>
+                ${ptr ? `<div style=\"margin-bottom:6px;\"><strong>Pointer:</strong> <code>${ptr}</code></div>` : ''}
+                <div style="margin-bottom:6px;"><strong>Safety Violations:</strong> ${violations}</div>
+            </div>
+        `;
+
+        container.appendChild(panel);
+    } catch(e) {
+        console.warn('Failed to show FFI detail panel', e);
+    }
+};
+
 // Initialize memory fragmentation analysis with enhanced SVG-style visualization
 function initMemoryFragmentation() {
     const container = document.getElementById('memoryFragmentation');
@@ -1849,35 +2744,29 @@ function initMemoryFragmentation() {
         return;
     }
 
-    // Analyze memory fragmentation
+    // Fixed memory fragmentation analysis: based on allocation size distribution rather than address gaps
     const sortedAllocs = allocations
-        .filter(alloc => alloc.ptr && alloc.size)
+        .filter(alloc => alloc.size && alloc.size > 0)
         .map(alloc => ({
-            address: parseInt(alloc.ptr.replace('0x', ''), 16),
             size: alloc.size,
-            type: alloc.type_name || 'System Allocation'
+            type: alloc.type_name || 'System Allocation',
+            var_name: alloc.var_name || 'unknown'
         }))
-        .sort((a, b) => a.address - b.address);
-
-    // Calculate fragmentation metrics
-    let gaps = 0;
-    let totalGapSize = 0;
-    let maxGap = 0;
-
-    for (let i = 1; i < sortedAllocs.length; i++) {
-        const prevEnd = sortedAllocs[i - 1].address + sortedAllocs[i - 1].size;
-        const currentStart = sortedAllocs[i].address;
-
-        if (currentStart > prevEnd) {
-            const gapSize = currentStart - prevEnd;
-            gaps++;
-            totalGapSize += gapSize;
-            maxGap = Math.max(maxGap, gapSize);
-        }
-    }
+        .sort((a, b) => a.size - b.size);
 
     const totalMemory = sortedAllocs.reduce((sum, alloc) => sum + alloc.size, 0);
-    const fragmentationRatio = totalMemory > 0 ? (totalGapSize / (totalMemory + totalGapSize) * 100) : 0;
+    
+    // Calculate fragmentation based on allocation size distribution
+    const sizeVariance = calculateSizeVariance(sortedAllocs);
+    const smallAllocRatio = sortedAllocs.filter(a => a.size < 1024).length / sortedAllocs.length;
+    
+    // Fragmentation score: based on size distribution unevenness
+    const fragmentationRatio = Math.min(100, (sizeVariance / 1000 + smallAllocRatio * 50));
+    
+    // Simplified gap analysis: only count quantity, not fake address gaps
+    const gaps = Math.max(0, sortedAllocs.length - 1);
+    const maxGap = 0; // No longer calculate address gaps
+    let totalGapSize = 0; // Reset to 0 to avoid huge fake values
 
     // Size distribution analysis (inspired by SVG)
     const sizeDistribution = {
@@ -2056,10 +2945,21 @@ function createMemoryLayoutVisualization(sortedAllocs, totalMemory) {
         return `
             <div class="absolute h-full transition-all hover:brightness-110 cursor-pointer" 
                  style="left: ${left}%; width: ${width}%; background-color: ${color}; opacity: 0.8;"
-                 title="${alloc.type}: ${formatBytes(alloc.size)} at ${alloc.address.toString(16)}">
+                 title="${alloc.type}: ${formatBytes(alloc.size)} at ${(alloc.address || 0).toString(16)}">
             </div>
         `;
     }).join('');
+}
+
+// Calculate variance of allocation sizes to assess fragmentation level
+function calculateSizeVariance(allocations) {
+    if (allocations.length === 0) return 0;
+    
+    const sizes = allocations.map(a => a.size);
+    const mean = sizes.reduce((sum, size) => sum + size, 0) / sizes.length;
+    const variance = sizes.reduce((sum, size) => sum + Math.pow(size - mean, 2), 0) / sizes.length;
+    
+    return Math.sqrt(variance); // 返回标准差
 }
 
 // Helper functions for fragmentation analysis
@@ -2211,7 +3111,7 @@ function createMemoryGrowthTrendsSVG(peakMemory, averageMemory, growthRate, time
 
                 <!-- Memory Allocation Timeline -->
                 <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                    <h4 class="font-semibold mb-4 text-gray-800 dark:text-white">Allocation Timeline</h4>
+                    <h4 class="font-semibold mb-4 text-gray-800 dark:text-white">Recent Allocations</h4>
                     <div class="space-y-2 max-h-32 overflow-y-auto">
                         ${timePoints.slice(-6).map((point, index) => `
                             <div class="flex justify-between items-center text-sm">
@@ -2258,7 +3158,7 @@ function createMemoryGrowthChart(timePoints, peakMemory) {
     const pathPoints = timePoints.map((point, index) => {
         const x = (index / (timePoints.length - 1)) * chartWidth;
         const y = chartHeight - ((point.memory / peakMemory) * (chartHeight - 20));
-        return `${x}% ${y}px`;
+        return `${x},${y}`;
     });
 
     return `
@@ -2281,8 +3181,8 @@ function createMemoryGrowthChart(timePoints, peakMemory) {
                 points="${timePoints.map((point, index) => {
         const x = (index / (timePoints.length - 1)) * 100;
         const y = 100 - ((point.memory / peakMemory) * 90);
-        return `${x}% ${y}%`;
-    }).join(', ')}"
+        return `${x},${y}`;
+    }).join(' ')}"
                 class="drop-shadow-sm"
             />
         </svg>
@@ -2376,7 +3276,7 @@ class NodeDetailPanel {
 
         // Calculate relationships
         const sameTypeCount = allocations.filter(alloc =>
-            alloc.type_name === nodeData.type && alloc.var_name !== nodeData.id
+            alloc.type_name === nodeData.type_name && alloc.var_name !== nodeData.id
         ).length;
 
         const sameCategoryCount = allocations.filter(alloc =>
@@ -2397,9 +3297,9 @@ class NodeDetailPanel {
                 
                 <div>
                     <label>Type</label>
-                    <p class="font-mono">${nodeData.type}</p>
+                    <p class="font-mono">${nodeData.type_name || 'Unknown'}</p>
                     <div class="flex items-center mt-1">
-                        <div class="w-3 h-3 rounded-full mr-2" style="background-color: ${getEnhancedTypeColor(nodeData.type, nodeData.category || 'primitive')}"></div>
+                        <div class="w-3 h-3 rounded-full mr-2" style="background-color: ${getEnhancedTypeColor(nodeData.type_name || 'unknown', nodeData.category || 'primitive')}"></div>
                         <span class="text-xs capitalize">${(nodeData.category || 'primitive').replace('_', ' ')}</span>
                     </div>
                 </div>
@@ -2449,7 +3349,7 @@ class NodeDetailPanel {
                 <div>
                     <label>Type Analysis</label>
                     <div class="text-xs space-y-1">
-                        ${getTypeAnalysis(nodeData.type, nodeData.size)}
+                        ${getTypeAnalysis(nodeData.type_name || 'unknown', nodeData.size)}
                     </div>
                 </div>
             </div>
@@ -3177,9 +4077,13 @@ function initComplexTypeAnalysis() {
                     ${analysis.memory_efficiency}%
                 </span>
             </td>
-            <td class="px-6 py-4 text-center text-gray-900 dark:text-gray-100">${analysis.allocation_count}</td>
-            <td class="px-6 py-4 text-center text-gray-900 dark:text-gray-100">${formatBytes(analysis.total_size)}</td>
-            <td class="px-6 py-4 text-gray-900 dark:text-gray-100">${analysis.optimization_suggestions?.join(', ') || 'None'}</td>
+            <td class="px-6 py-4 text-center text-gray-900 dark:text-gray-100">${analysis.allocation_count || 0}</td>
+            <td class="px-6 py-4 text-center text-gray-900 dark:text-gray-100">${formatBytes(analysis.total_size || 0)}</td>
+            <td class="px-6 py-4 text-gray-700 dark:text-gray-300">
+                ${Array.isArray(analysis.optimization_suggestions) && analysis.optimization_suggestions.length > 0 
+                    ? analysis.optimization_suggestions.join(', ') 
+                    : '<span class="text-gray-400 italic">No optimization suggestions available</span>'}
+            </td>
         </tr>
     `).join('');
 }
@@ -3206,6 +4110,14 @@ function initMemoryOptimizationRecommendations() {
 
 // Initialize FFI risk chart
 function initFFIRiskChart() {
+    // Guard: ensure canvas isn't holding an existing chart instance
+    try {
+        if (window.chartInstances && window.chartInstances['ffi-risk-chart']) {
+            window.chartInstances['ffi-risk-chart'].destroy();
+            delete window.chartInstances['ffi-risk-chart'];
+        }
+    } catch (_) {}
+
     const ctx = document.getElementById('ffi-risk-chart');
     if (!ctx) return;
 
@@ -3385,6 +4297,126 @@ function formatTimestamp(timestamp, minTime) {
     return `${relativeMs}ms`;
 }
 
+// Enhanced summary statistics with comprehensive data analysis
+function initEnhancedSummaryStats() {
+    console.log('📊 Initializing enhanced summary statistics...');
+    
+    try {
+        // Get merged data from all sources
+        const memoryAllocations = window.analysisData.memory_analysis?.allocations || [];
+        const complexAllocations = window.analysisData.complex_types?.allocations || [];
+        const unsafeAllocations = window.analysisData.unsafe_ffi?.allocations || [];
+        
+        // Merge all data sources for comprehensive analysis
+        const allData = mergeAllDataSources(memoryAllocations, complexAllocations, unsafeAllocations);
+        
+        // Calculate comprehensive statistics
+        const stats = calculateComprehensiveStats(allData);
+        
+        // Update enhanced dashboard
+        updateElement('total-allocations', stats.totalAllocations);
+        updateElement('allocation-rate', `${stats.allocationRate.toFixed(1)}/ms`);
+        updateElement('active-variables', stats.activeVariables);
+        updateElement('variable-types', `${stats.uniqueTypes} types`);
+        updateElement('borrow-operations', stats.totalBorrows);
+        updateElement('max-concurrent', `Max: ${stats.maxConcurrent}`);
+        updateElement('safety-score', `${stats.safetyScore}%`);
+        updateElement('ffi-tracked', `${stats.ffiTracked} FFI`);
+        
+        console.log('✅ Enhanced dashboard updated successfully');
+    } catch (error) {
+        console.error('❌ Error initializing enhanced stats:', error);
+    }
+}
+
+// Merge data from all sources with comprehensive field mapping
+function mergeAllDataSources(memory, complex, unsafe) {
+    const dataMap = new Map();
+    
+    // Add memory analysis data (has lifetime_ms)
+    memory.forEach(alloc => {
+        if (alloc.ptr) {
+            dataMap.set(alloc.ptr, { ...alloc, source: 'memory' });
+        }
+    });
+    
+    // Merge complex types data (has extended fields)
+    complex.forEach(alloc => {
+        if (alloc.ptr) {
+            const existing = dataMap.get(alloc.ptr) || {};
+            dataMap.set(alloc.ptr, { 
+                ...existing, 
+                ...alloc, 
+                source: existing.source ? `${existing.source}+complex` : 'complex'
+            });
+        }
+    });
+    
+    // Merge unsafe FFI data (has safety info)
+    unsafe.forEach(alloc => {
+        if (alloc.ptr) {
+            const existing = dataMap.get(alloc.ptr) || {};
+            dataMap.set(alloc.ptr, { 
+                ...existing, 
+                ...alloc, 
+                source: existing.source ? `${existing.source}+unsafe` : 'unsafe'
+            });
+        }
+    });
+    
+    return Array.from(dataMap.values());
+}
+
+// Calculate comprehensive statistics from merged data
+function calculateComprehensiveStats(allData) {
+    const validData = allData.filter(d => d.var_name && d.var_name !== 'unknown');
+    
+    // Basic counts
+    const totalAllocations = validData.length;
+    const uniqueVars = new Set(validData.map(d => d.var_name)).size;
+    const uniqueTypes = new Set(validData.map(d => d.type_name)).size;
+    
+    // Time-based calculations
+    const timestamps = validData.map(d => d.timestamp_alloc).filter(t => t);
+    const timeRange = timestamps.length > 0 ? (Math.max(...timestamps) - Math.min(...timestamps)) / 1000000 : 1;
+    const allocationRate = totalAllocations / Math.max(timeRange, 1);
+    
+    // Borrow analysis
+    let totalBorrows = 0;
+    let maxConcurrent = 0;
+    validData.forEach(d => {
+        if (d.borrow_info) {
+            totalBorrows += (d.borrow_info.immutable_borrows || 0) + (d.borrow_info.mutable_borrows || 0);
+            maxConcurrent = Math.max(maxConcurrent, d.borrow_info.max_concurrent_borrows || 0);
+        }
+    });
+    
+    // Safety analysis
+    const ffiTracked = validData.filter(d => d.ffi_tracked).length;
+    const leaked = validData.filter(d => d.is_leaked).length;
+    const withSafetyViolations = validData.filter(d => d.safety_violations && d.safety_violations.length > 0).length;
+    const safetyScore = Math.max(0, 100 - (leaked * 20) - (withSafetyViolations * 10));
+    
+    return {
+        totalAllocations,
+        activeVariables: uniqueVars,
+        uniqueTypes,
+        allocationRate,
+        totalBorrows,
+        maxConcurrent,
+        ffiTracked,
+        safetyScore: Math.round(safetyScore)
+    };
+}
+
+// Helper function to safely update DOM elements
+function updateElement(id, value) {
+    const element = document.getElementById(id);
+    if (element) {
+        element.textContent = value;
+    }
+}
+
 // Utility function to format bytes
 function formatBytes(bytes) {
     if (bytes === 0) return '0 B';
@@ -3430,8 +4462,4612 @@ function getEfficiencyColor(efficiency) {
     return 'bg-red-500';
 }
 
-// Initialize dashboard when DOM is loaded
+// Update KPI Cards
+function updateKPICards(data) {
+    const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+    const total = allocs.reduce((s,a)=>s+(a.size||0),0);
+    const active = allocs.filter(a=>!a.timestamp_dealloc).length;
+    const safetyScore = calculateSafetyScore(allocs);
+    
+    updateElement('total-allocations', allocs.length.toLocaleString());
+    updateElement('active-variables', active.toLocaleString());
+    updateElement('total-memory', formatBytes(total));
+    updateElement('safety-score', safetyScore + '%');
+}
+
+// Calculate Safety Score
+function calculateSafetyScore(allocs) {
+    if (!allocs.length) return 100;
+    const leaked = allocs.filter(a => a.is_leaked).length;
+    const violations = allocs.filter(a => a.safety_violations && a.safety_violations.length > 0).length;
+    return Math.max(0, 100 - (leaked * 20) - (violations * 10));
+}
+
+// Theme Toggle Functionality
+function initThemeToggle() {
+    const toggleBtn = document.getElementById('theme-toggle');
+    if (!toggleBtn) return;
+    
+    // Check local storage for theme
+    const savedTheme = localStorage.getItem('memscope-theme') || 'light';
+    applyTheme(savedTheme === 'dark');
+    
+    toggleBtn.addEventListener('click', () => {
+        const isDark = document.documentElement.classList.contains('dark');
+        const newTheme = isDark ? 'light' : 'dark';
+        
+        applyTheme(newTheme === 'dark');
+        localStorage.setItem('memscope-theme', newTheme);
+        
+        // Update button text
+        const icon = toggleBtn.querySelector('i');
+        const text = toggleBtn.querySelector('span');
+        if (newTheme === 'dark') {
+            icon.className = 'fa fa-sun';
+            text.textContent = 'Light Mode';
+        } else {
+            icon.className = 'fa fa-moon';
+            text.textContent = 'Dark Mode';
+        }
+        
+        console.log('🎨 Theme switched to:', newTheme);
+    });
+}
+
+// 应用主题
+function applyTheme(isDark) {
+    const html = document.documentElement;
+    if (isDark) {
+        html.classList.add('dark');
+    } else {
+        html.classList.remove('dark');
+    }
+}
+
+// Update Memory Allocation Table
+function updateAllocationsTable(data) {
+    const allocTable = document.getElementById('allocTable');
+    if (!allocTable) return;
+    
+    const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+    const top = allocs.slice().sort((a,b)=>(b.size||0)-(a.size||0)).slice(0,50);
+    
+    allocTable.innerHTML = top.map(a => {
+        const status = a.is_leaked ? 'Leaked' : (a.timestamp_dealloc ? 'Freed' : 'Active');
+        const statusClass = a.is_leaked ? 'status-leaked' : (a.timestamp_dealloc ? 'status-freed' : 'status-active');
+        
+        return `<tr>
+            <td>${a.var_name || 'Unknown'}</td>
+            <td>${formatTypeName(a.type_name || 'Unknown')}</td>
+            <td>${formatBytes(a.size || 0)}</td>
+            <td><span class="status-badge ${statusClass}">${status}</span></td>
+        </tr>`;
+    }).join('');
+}
+
+// Update Unsafe Risk Table
+function updateUnsafeTable(data) {
+    const unsafeTable = document.getElementById('unsafeTable');
+    if (!unsafeTable) return;
+    
+    const root = data.unsafe_ffi || {};
+    const ops = root.enhanced_ffi_data || root.unsafe_operations || root.allocations || [];
+    
+    unsafeTable.innerHTML = (ops || []).slice(0, 50).map(op => {
+        const riskLevel = op.risk_level || ((op.safety_violations||[]).length > 2 ? 'High' : 
+                         ((op.safety_violations||[]).length > 0 ? 'Medium' : 'Low'));
+        
+        const riskText = riskLevel === 'High' ? 'High Risk' : (riskLevel === 'Medium' ? 'Medium Risk' : 'Low Risk');
+        const riskClass = riskLevel === 'High' ? 'risk-high' : (riskLevel === 'Medium' ? 'risk-medium' : 'risk-low');
+        
+        return `<tr>
+            <td>${op.location || op.var_name || 'Unknown'}</td>
+            <td>${op.operation_type || op.type_name || 'Unknown'}</td>
+            <td><span class="status-badge ${riskClass}">${riskText}</span></td>
+        </tr>`;
+    }).join('');
+}
+
+// Initialize Charts
+function initCharts(data) {
+    console.log('📊 Initializing charts...');
+    
+    // Memory type distribution chart
+    initTypeChart(data);
+    
+    // Memory timeline chart
+    initTimelineChart(data);
+    
+    // Type treemap chart
+    initTreemapChart(data);
+    
+    // FFI risk chart
+    initFFIRiskChart(data);
+    
+    // Memory growth trends
+    initGrowthTrends(data);
+    
+    // Memory fragmentation
+    initMemoryFragmentation(data);
+    
+    // Variable relationship graph
+    initVariableGraph(data);
+}
+
+// Memory Type Distribution Chart
+function initTypeChart(data) {
+    const ctx = document.getElementById('typeChart');
+    if (!ctx) return;
+    
+    const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+    const byType = {};
+    
+    allocs.forEach(a => {
+        const type = a.type_name || 'Unknown';
+        byType[type] = (byType[type] || 0) + (a.size || 0);
+    });
+    
+    const top = Object.entries(byType).sort((a,b) => b[1] - a[1]).slice(0, 8);
+    
+    if (top.length > 0 && window.Chart) {
+        const chart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: top.map(x => {
+                    const formatted = formatTypeName(x[0]);
+                    return formatted.length > 15 ? formatted.substring(0, 12) + '...' : formatted;
+                }),
+                datasets: [{
+                    label: 'Memory Usage',
+                    data: top.map(x => x[1]),
+                    backgroundColor: '#2563eb',
+                    borderRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    x: {
+                        ticks: {
+                            maxRotation: 45,
+                            minRotation: 0,
+                            font: {
+                                size: 10
+                            }
+                        }
+                    },
+                    y: { 
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return formatBytes(value);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+}
+
+// Memory Timeline Chart with optional Growth Rate (dual y-axes)
+function initTimelineChart(data) {
+    const ctx = document.getElementById('timelineChart');
+    if (!ctx || !window.Chart) return;
+
+    // Comprehensive cleanup for timeline chart
+    try {
+        if (ctx.chart) {
+            ctx.chart.destroy();
+            delete ctx.chart;
+        }
+        
+        if (window.Chart.instances) {
+            Object.values(window.Chart.instances).forEach(instance => {
+                if (instance.canvas === ctx) {
+                    instance.destroy();
+                }
+            });
+        }
+        
+        if (window.chartInstances && window.chartInstances['timelineChart']) {
+            window.chartInstances['timelineChart'].destroy();
+            delete window.chartInstances['timelineChart'];
+        }
+        
+        const context = ctx.getContext('2d');
+        context.clearRect(0, 0, ctx.width, ctx.height);
+        
+    } catch(e) {
+        console.warn('Timeline chart cleanup warning:', e);
+    }
+    
+    const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+    const sorted = allocs.slice().sort((a,b) => (a.timestamp_alloc||0) - (b.timestamp_alloc||0));
+    
+    // Bucketize by timestamp to ~200 buckets; compute bytes/sec
+    if (sorted.length === 0) return;
+    const minTs = sorted[0].timestamp_alloc || 0;
+    const maxTs = sorted[sorted.length-1].timestamp_alloc || minTs;
+    const rangeNs = Math.max(1, maxTs - minTs);
+    const bucketCount = Math.min(200, Math.max(1, Math.floor(sorted.length / 2)));
+    const bucketNs = Math.max(1, Math.floor(rangeNs / bucketCount));
+
+    const cumSeries = [];
+    const rateSeries = [];
+
+    let cumulative = 0;
+    let windowQueue = [];
+    const windowBuckets = 3; // simple smoothing window
+
+    for (let b = 0; b <= bucketCount; b++) {
+        const start = minTs + b * bucketNs;
+        const end = Math.min(maxTs, start + bucketNs);
+        const slice = sorted.filter(a => (a.timestamp_alloc||0) >= start && (a.timestamp_alloc||0) < end);
+        const sum = slice.reduce((s,a)=>s+(a.size||0),0);
+        cumulative += sum;
+        cumSeries.push({ x: start, y: cumulative });
+        const dtSec = Math.max(1e-9, (end - start) / 1e9);
+        const rate = sum / dtSec; // bytes/sec in this bucket
+        windowQueue.push(rate);
+        if (windowQueue.length > windowBuckets) windowQueue.shift();
+        const smoothed = windowQueue.reduce((s,v)=>s+v,0) / windowQueue.length;
+        rateSeries.push({ x: start, y: smoothed });
+    }
+
+    if (cumSeries.length > 1 && window.Chart) {
+        // destroy previous chart if exists
+        if (window.chartInstances && window.chartInstances['timelineChart']) {
+            try { window.chartInstances['timelineChart'].destroy(); } catch(_) {}
+            delete window.chartInstances['timelineChart'];
+        }
+
+        const labels = cumSeries.map(p=> new Date(p.x/1e6).toLocaleTimeString());
+        const showGrowthCheckbox = document.getElementById('toggleGrowthRate');
+        const datasets = [
+            {
+                type: 'line',
+                label: 'Cumulative Memory',
+                data: cumSeries.map(p=>p.y),
+                borderColor: '#059669',
+                backgroundColor: 'rgba(5, 150, 105, 0.1)',
+                fill: true,
+                tension: 0.3,
+                yAxisID: 'y'
+            }
+        ];
+
+        // add growth rate dataset (hidden by default; user toggles it)
+        datasets.push({
+            type: 'line',
+            label: 'Growth Rate (bytes/sec)',
+            data: rateSeries.map(p=>p.y),
+            borderColor: '#eab308',
+            backgroundColor: 'rgba(234, 179, 8, 0.15)',
+            fill: true,
+            tension: 0.2,
+            hidden: showGrowthCheckbox ? !showGrowthCheckbox.checked : true,
+            yAxisID: 'y1'
+        });
+
+        const chart = new Chart(ctx, {
+            data: { labels, datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom' }
+                },
+                scales: {
+                    y: { 
+                        beginAtZero: true,
+                        title: { display: true, text: 'Cumulative Memory' },
+                        ticks: { callback: v => formatBytes(v) }
+                    },
+                    y1: {
+                        beginAtZero: true,
+                        position: 'right',
+                        grid: { drawOnChartArea: false },
+                        title: { display: true, text: 'Growth Rate (bytes/step)' }
+                    },
+                    x: { title: { display: false } }
+                }
+            }
+        });
+
+        window.chartInstances = window.chartInstances || {};
+        window.chartInstances['timelineChart'] = chart;
+
+        if (showGrowthCheckbox) {
+            showGrowthCheckbox.onchange = () => {
+                const ds = chart.data.datasets.find(d => d.yAxisID === 'y1');
+                if (!ds) return;
+                ds.hidden = !showGrowthCheckbox.checked;
+                chart.update();
+            };
+        }
+    }
+}
+
+// Enhanced type chart with better label handling for complex Rust types
+function initEnhancedTypeChart(data) {
+    const ctx = document.getElementById('typeChart');
+    if (!ctx || !window.Chart) return;
+
+    // Comprehensive cleanup for this specific chart
+    try {
+        // Check if there's already a chart attached to this canvas
+        if (ctx.chart) {
+            ctx.chart.destroy();
+            delete ctx.chart;
+        }
+        
+        // Clear any Chart.js instance for this canvas
+        if (window.Chart.instances) {
+            Object.values(window.Chart.instances).forEach(instance => {
+                if (instance.canvas === ctx) {
+                    instance.destroy();
+                }
+            });
+        }
+        
+        // Clear our tracked instance
+        if (window.chartInstances && window.chartInstances['typeChart']) {
+            window.chartInstances['typeChart'].destroy();
+            delete window.chartInstances['typeChart'];
+        }
+        
+        // Clear canvas context
+        const context = ctx.getContext('2d');
+        context.clearRect(0, 0, ctx.width, ctx.height);
+        
+    } catch(e) {
+        console.warn('Chart cleanup warning:', e);
+    }
+
+    const typeData = {};
+    const allocs = data.memory_analysis?.allocations || data.allocations || [];
+    
+    console.log('Type chart data extraction:', { totalAllocs: allocs.length });
+    
+    allocs.forEach(alloc => {
+        let type = alloc.type_name || 'Unknown';
+        const originalType = type;
+        
+        // Simplify complex Rust type names for better readability
+        type = type.replace(/alloc::sync::Arc/g, 'Arc');
+        type = type.replace(/alloc::rc::Rc/g, 'Rc');
+        type = type.replace(/alloc::string::String/g, 'String');
+        type = type.replace(/alloc::vec::Vec/g, 'Vec');
+        type = type.replace(/std::collections::hash::map::HashMap/g, 'HashMap');
+        type = type.replace(/std::collections::btree::map::BTreeMap/g, 'BTreeMap');
+        type = type.replace(/alloc::collections::\w+::\w+::/g, '');
+        
+        // Remove generic parameters for cleaner display
+        type = type.replace(/<[^>]+>/g, '<T>');
+        
+        // Truncate very long type names
+        if (type.length > 25) {
+            type = type.substring(0, 22) + '...';
+        }
+        
+        const size = alloc.size || 0;
+        typeData[type] = (typeData[type] || 0) + size;
+        
+        if (size > 0) {
+            console.log(`Adding ${originalType} -> ${type}: ${size} bytes`);
+        }
+    });
+    
+    console.log('Type data aggregated:', typeData);
+
+    const sortedEntries = Object.entries(typeData).sort((a, b) => b[1] - a[1]);
+    const labels = sortedEntries.map(([k, v]) => k);
+    const values = sortedEntries.map(([k, v]) => v);
+    
+    if (labels.length > 0 && window.Chart) {
+        const chart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Memory Usage',
+                    data: values,
+                    backgroundColor: labels.map((_, i) => {
+                        const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#84cc16'];
+                        return colors[i % colors.length] + '80';
+                    }),
+                    borderColor: labels.map((_, i) => {
+                        const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#84cc16'];
+                        return colors[i % colors.length];
+                    }),
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: (context) => {
+                                const originalType = allocs.find(a => {
+                                    let simplified = a.type_name || 'Unknown';
+                                    simplified = simplified.replace(/alloc::(sync::Arc|rc::Rc|collections::\w+::\w+::|string::String|vec::Vec)/g, (match, p1) => {
+                                        switch(p1) {
+                                            case 'sync::Arc': return 'Arc';
+                                            case 'rc::Rc': return 'Rc';
+                                            case 'string::String': return 'String';
+                                            case 'vec::Vec': return 'Vec';
+                                            default: return p1.split('::').pop();
+                                        }
+                                    });
+                                    simplified = simplified.replace(/std::collections::hash::map::HashMap/g, 'HashMap');
+                                    simplified = simplified.replace(/std::collections::btree::map::BTreeMap/g, 'BTreeMap');
+                                    if (simplified.length > 30) simplified = simplified.substring(0, 27) + '...';
+                                    return simplified === context.label;
+                                })?.type_name || context.label;
+                                return [`Type: ${originalType}`, `Memory: ${formatBytes(context.parsed.y)}`];
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: { 
+                        ticks: {
+                            maxRotation: 45,
+                            minRotation: 0,
+                            font: { 
+                                size: 11, 
+                                weight: '500',
+                                family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+                            },
+                            color: function(context) {
+                                return document.documentElement.classList.contains('dark-theme') ? '#e2e8f0' : '#475569';
+                            },
+                            padding: 8,
+                            callback: function(value, index) {
+                                const label = this.getLabelForValue(value);
+                                // Ensure readability by adding spacing
+                                return label.length > 15 ? label.substring(0, 13) + '...' : label;
+                            }
+                        },
+                        grid: {
+                            display: false
+                        }
+                    },
+                    y: { 
+                        beginAtZero: true,
+                        ticks: {
+                            callback: (value) => formatBytes(value),
+                            color: function(context) {
+                                return document.documentElement.classList.contains('dark-theme') ? '#cbd5e1' : '#64748b';
+                            },
+                            font: { size: 10, weight: '400' }
+                        },
+                        grid: {
+                            color: function(context) {
+                                return document.documentElement.classList.contains('dark-theme') ? '#374151' : '#e2e8f0';
+                            },
+                            lineWidth: 1
+                        }
+                    }
+                }
+            }
+        });
+        
+        window.chartInstances = window.chartInstances || {};
+        window.chartInstances['typeChart'] = chart;
+    }
+}
+
+// Type Treemap Chart
+function initTreemapChart(data) {
+    const container = document.getElementById('treemap');
+    if (!container) return;
+    
+    const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+    const byType = {};
+    
+    allocs.forEach(a => {
+        const type = a.type_name || 'Unknown';
+        byType[type] = (byType[type] || 0) + (a.size || 0);
+    });
+    
+    const top = Object.entries(byType).sort((a,b) => b[1] - a[1]).slice(0, 12);
+    const totalSize = top.reduce((sum, [, size]) => sum + size, 0);
+    
+    if (totalSize > 0) {
+        let html = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; height: 100%; padding: 16px;">';
+        
+        top.forEach(([type, size], index) => {
+            const percentage = (size / totalSize) * 100;
+            const color = `hsl(${index * 30}, 70%, 55%)`;
+            
+            html += `
+                <div style="
+                    background: ${color};
+                    color: white;
+                    padding: 12px;
+                    border-radius: 8px;
+                    font-size: 11px;
+                    font-weight: 600;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: center;
+                    text-align: center;
+                    min-height: 80px;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                    transition: transform 0.2s ease;
+                " title="${type}: ${formatBytes(size)}" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                    <div style="margin-bottom: 4px;">${formatTypeName(type)}</div>
+                    <div style="font-size: 10px; opacity: 0.9;">${formatBytes(size)}</div>
+                    <div style="font-size: 9px; opacity: 0.7;">${percentage.toFixed(1)}%</div>
+                </div>
+            `;
+        });
+        
+        html += '</div>';
+        container.innerHTML = html;
+    } else {
+        container.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary);">No data available</div>';
+    }
+}
+
+// FFI Risk Chart
+function initFFIRiskChart(data) {
+    // Guard destroy if exists
+    try {
+        if (window.chartInstances && window.chartInstances['ffi-risk-chart']) {
+            window.chartInstances['ffi-risk-chart'].destroy();
+            delete window.chartInstances['ffi-risk-chart'];
+        }
+    } catch (_) {}
+
+    const ctx = document.getElementById('ffi-risk-chart');
+    if (!ctx) return;
+    
+    const ffiData = data.unsafe_ffi?.enhanced_ffi_data || [];
+    
+    const riskLevels = {
+        'Low Risk': ffiData.filter(item => (item.safety_violations || []).length === 0).length,
+        'Medium Risk': ffiData.filter(item => (item.safety_violations || []).length > 0 && (item.safety_violations || []).length <= 2).length,
+        'High Risk': ffiData.filter(item => (item.safety_violations || []).length > 2).length
+    };
+    
+    if (window.Chart) {
+        const chart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: Object.keys(riskLevels),
+                datasets: [{
+                    data: Object.values(riskLevels),
+                    backgroundColor: ['#059669', '#ea580c', '#dc2626'],
+                    borderWidth: 2,
+                    borderColor: 'var(--bg-primary)'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            padding: 20,
+                            usePointStyle: true
+                        }
+                    }
+                }
+            }
+        });
+    }
+}
+
+// Add missing chart and graph functions
+function initGrowthTrends(data) {
+    const container = document.getElementById('growth');
+    if (!container) return;
+    
+    const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+    if (allocs.length === 0) {
+        container.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary);">No growth data available</div>';
+        return;
+    }
+    
+    // Simple growth visualization
+    const sorted = allocs.slice().sort((a,b) => (a.timestamp_alloc||0) - (b.timestamp_alloc||0));
+    let cumulative = 0;
+    const points = [];
+    
+    for (let i = 0; i < Math.min(sorted.length, 20); i++) {
+        cumulative += sorted[i].size || 0;
+        points.push(cumulative);
+    }
+    
+    const maxValue = Math.max(...points);
+    let html = '<div style="display: flex; align-items: end; height: 200px; gap: 4px; padding: 20px;">';
+    
+    points.forEach((value, i) => {
+        const height = (value / maxValue) * 160;
+        html += `
+            <div style="
+                width: 12px;
+                height: ${height}px;
+                background: linear-gradient(to top, #2563eb, #3b82f6);
+                border-radius: 2px;
+                margin: 0 1px;
+            " title="Step ${i + 1}: ${formatBytes(value)}"></div>
+        `;
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+function initMemoryFragmentation(data) {
+    const container = document.getElementById('memoryFragmentation');
+    if (!container) return;
+    
+    const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+    const totalMemory = allocs.reduce((sum, a) => sum + (a.size || 0), 0);
+    const activeMemory = allocs.filter(a => !a.timestamp_dealloc).reduce((sum, a) => sum + (a.size || 0), 0);
+    const fragmentationRate = totalMemory > 0 ? ((totalMemory - activeMemory) / totalMemory * 100) : 0;
+    
+    container.innerHTML = `
+        <div style="padding: 20px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 16px;">
+                <div>
+                    <div style="color: var(--text-secondary); font-size: 0.9rem;">Fragmentation Rate</div>
+                    <div style="font-size: 2rem; font-weight: 700; color: ${fragmentationRate > 30 ? '#dc2626' : fragmentationRate > 15 ? '#ea580c' : '#059669'};">
+                        ${fragmentationRate.toFixed(1)}%
+                    </div>
+                </div>
+                <div>
+                    <div style="color: var(--text-secondary); font-size: 0.9rem;">Active Memory</div>
+                    <div style="font-size: 1.2rem; font-weight: 600;">${formatBytes(activeMemory)}</div>
+                </div>
+            </div>
+            <div style="background: var(--bg-secondary); height: 8px; border-radius: 4px; overflow: hidden;">
+                <div style="
+                    background: linear-gradient(to right, #059669, #ea580c);
+                    width: ${Math.min(100, fragmentationRate)}%;
+                    height: 100%;
+                    border-radius: 4px;
+                    transition: width 0.8s ease;
+                "></div>
+            </div>
+            <div style="margin-top: 12px; font-size: 0.8rem; color: var(--text-secondary);">
+                ${fragmentationRate > 30 ? 'High fragmentation detected' : fragmentationRate > 15 ? 'Moderate fragmentation' : 'Low fragmentation'}
+            </div>
+        </div>
+    `;
+}
+
+function initVariableGraph(data) {
+    const container = document.getElementById('graph');
+    if (!container) return;
+    
+    const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+    if (allocs.length === 0) {
+        container.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary);">No relationship data available</div>';
+        return;
+    }
+    
+    // Create a simple node-link visualization
+    const nodes = allocs.slice(0, 20).map((a, i) => ({
+        id: i,
+        name: a.var_name || `var_${i}`,
+        type: a.type_name || 'unknown',
+        size: a.size || 0,
+        x: 50 + (i % 4) * 80,
+        y: 50 + Math.floor(i / 4) * 60
+    }));
+    
+    let svg = `
+        <svg width="100%" height="100%" style="background: transparent;">
+            <defs>
+                <filter id="glow">
+                    <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                    <feMerge>
+                        <feMergeNode in="coloredBlur"/>
+                        <feMergeNode in="SourceGraphic"/>
+                    </feMerge>
+                </filter>
+            </defs>
+    `;
+    
+    // Add links between nearby nodes
+    for (let i = 0; i < nodes.length - 1; i++) {
+        if (i % 4 !== 3) { // Connect horizontally
+            svg += `<line x1="${nodes[i].x}" y1="${nodes[i].y}" x2="${nodes[i+1].x}" y2="${nodes[i+1].y}" stroke="var(--border-light)" stroke-width="1" opacity="0.3"/>`;
+        }
+        if (i < nodes.length - 4) { // Connect vertically
+            svg += `<line x1="${nodes[i].x}" y1="${nodes[i].y}" x2="${nodes[i+4].x}" y2="${nodes[i+4].y}" stroke="var(--border-light)" stroke-width="1" opacity="0.3"/>`;
+        }
+    }
+    
+    // Add nodes
+    nodes.forEach(node => {
+        const radius = Math.max(8, Math.min(20, Math.log(node.size + 1) * 2));
+        const color = node.type.includes('String') ? '#fbbf24' : 
+                     node.type.includes('Vec') ? '#3b82f6' : 
+                     node.type.includes('Box') || node.type.includes('Rc') ? '#8b5cf6' : '#6b7280';
+        
+        svg += `
+            <circle 
+                cx="${node.x}" 
+                cy="${node.y}" 
+                r="${radius}" 
+                fill="${color}" 
+                stroke="white" 
+                stroke-width="2" 
+                filter="url(#glow)"
+                style="cursor: pointer;"
+                onmouseover="this.r.baseVal.value = ${radius + 3}"
+                onmouseout="this.r.baseVal.value = ${radius}"
+            >
+                <title>${node.name} (${node.type})</title>
+            </circle>
+            <text 
+                x="${node.x}" 
+                y="${node.y + radius + 12}" 
+                text-anchor="middle" 
+                font-size="10" 
+                fill="var(--text-primary)"
+                style="font-weight: 500;"
+            >${node.name.length > 8 ? node.name.substring(0, 8) + '...' : node.name}</text>
+        `;
+    });
+    
+    svg += '</svg>';
+    container.innerHTML = svg;
+}
+
+// Initialize lifetime visualization
+function initLifetimeVisualization(data) {
+    const container = document.getElementById('lifetimes');
+    if (!container) return;
+    
+    const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+    if (allocs.length === 0) {
+        container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-secondary);">No lifetime data available</div>';
+        return;
+    }
+    
+    // Show top allocations by lifetime
+    const withLifetime = allocs.filter(a => a.lifetime_ms || (a.timestamp_alloc && a.timestamp_dealloc));
+    const sorted = withLifetime.sort((a, b) => {
+        const aLifetime = a.lifetime_ms || (a.timestamp_dealloc - a.timestamp_alloc);
+        const bLifetime = b.lifetime_ms || (b.timestamp_dealloc - b.timestamp_alloc);
+        return bLifetime - aLifetime;
+    }).slice(0, 10);
+    
+    if (sorted.length === 0) {
+        container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-secondary);">No lifetime data available</div>';
+        return;
+    }
+    
+    let html = '<div style="padding: 16px;">';
+    
+    sorted.forEach((alloc, index) => {
+        const lifetime = alloc.lifetime_ms || (alloc.timestamp_dealloc - alloc.timestamp_alloc);
+        const isActive = !alloc.timestamp_dealloc;
+        const varName = alloc.var_name || `allocation_${index}`;
+        const size = formatBytes(alloc.size || 0);
+        
+        html += `
+            <div style="
+                margin-bottom: 12px; 
+                padding: 12px; 
+                background: var(--bg-secondary); 
+                border-radius: 8px;
+                border-left: 4px solid ${isActive ? '#059669' : '#2563eb'};
+            ">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span style="font-weight: 600; color: var(--text-primary);">${varName}</span>
+                    <span style="font-size: 0.9rem; color: var(--text-secondary);">${size}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 0.8rem; color: var(--text-secondary);">
+                        ${formatTypeName(alloc.type_name || 'Unknown')}
+                    </span>
+                    <span style="
+                        font-size: 0.8rem; 
+                        font-weight: 600; 
+                        color: ${isActive ? '#059669' : '#2563eb'};
+                    ">
+                        ${isActive ? 'Active' : `${lifetime}ms`}
+                    </span>
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+// Helper function to update elements
+function updateElement(id, value) {
+    const element = document.getElementById(id);
+    if (element) {
+        element.textContent = value;
+    }
+}
+
+// Original dashboard functions from dashboard.html
+function renderKpis() {
+    const data = window.analysisData || {};
+    const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+    const total = allocs.reduce((s,a)=>s+(a.size||0),0);
+    const active = allocs.filter(a=>!a.timestamp_dealloc).length;
+    const leaks = allocs.filter(a=>a.is_leaked).length;
+    const safety = Math.max(0, 100 - (leaks * 20));
+    
+    updateElement('total-allocations', allocs.length.toLocaleString());
+    updateElement('active-variables', active.toLocaleString());
+    updateElement('total-memory', formatBytes(total));
+    updateElement('safety-score', safety + '%');
+}
+
+function populateAllocationsTable() {
+    const data = window.analysisData || {};
+    const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+    const allocTable = document.getElementById('allocTable');
+    if (!allocTable) return;
+    
+    const top = allocs.slice().sort((a,b)=>(b.size||0)-(a.size||0)).slice(0,50);
+    allocTable.innerHTML = top.map(a => {
+        const status = a.is_leaked ? 'Leaked' : (a.timestamp_dealloc ? 'Freed' : 'Active');
+        const statusClass = a.is_leaked ? 'status-leaked' : (a.timestamp_dealloc ? 'status-freed' : 'status-active');
+        
+        return `<tr>
+            <td>${a.var_name || 'Unknown'}</td>
+            <td>${formatTypeName(a.type_name || 'Unknown')}</td>
+            <td>${formatBytes(a.size || 0)}</td>
+            <td><span class="status-badge ${statusClass}">${status}</span></td>
+        </tr>`;
+    }).join('');
+}
+
+function renderTypeChart() {
+    const ctx = document.getElementById('typeChart');
+    if (!ctx || !window.Chart) return;
+    
+    const data = window.analysisData || {};
+    const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+    const byType = {};
+    
+    allocs.forEach(a => {
+        const type = a.type_name || 'Unknown';
+        byType[type] = (byType[type] || 0) + (a.size || 0);
+    });
+    
+    const top = Object.entries(byType).sort((a,b) => b[1] - a[1]).slice(0, 8);
+    
+    if (top.length > 0) {
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: top.map(x => formatTypeName(x[0])),
+                datasets: [{
+                    label: 'Memory Usage',
+                    data: top.map(x => x[1]),
+                    backgroundColor: '#2563eb',
+                    borderRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { 
+                        beginAtZero: true,
+                        ticks: { callback: function(value) { return formatBytes(value); } }
+                    }
+                }
+            }
+        });
+    }
+}
+
+function renderTimelineChart() {
+    const ctx = document.getElementById('timelineChart');
+    if (!ctx || !window.Chart) return;
+    
+    const data = window.analysisData || {};
+    const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+    const sorted = allocs.slice().sort((a,b) => (a.timestamp_alloc||0) - (b.timestamp_alloc||0));
+    
+    let cumulative = 0;
+    const points = [];
+    const step = Math.max(1, Math.floor(sorted.length / 30));
+    
+    for (let i = 0; i < sorted.length; i += step) {
+        cumulative += sorted[i].size || 0;
+        points.push({ x: i, y: cumulative });
+    }
+    
+    if (points.length > 1) {
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: points.map(p => p.x),
+                datasets: [{
+                    label: 'Cumulative Memory',
+                    data: points.map(p => p.y),
+                    borderColor: '#059669',
+                    backgroundColor: 'rgba(5, 150, 105, 0.1)',
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { 
+                        beginAtZero: true,
+                        ticks: { callback: function(value) { return formatBytes(value); } }
+                    }
+                }
+            }
+        });
+    }
+}
+
+function renderTreemap() {
+    const container = document.getElementById('treemap');
+    if (!container) return;
+    
+    const data = window.analysisData || {};
+    const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+    const byType = {};
+    
+    allocs.forEach(a => {
+        const type = a.type_name || 'Unknown';
+        byType[type] = (byType[type] || 0) + (a.size || 0);
+    });
+    
+    const top = Object.entries(byType).sort((a,b) => b[1] - a[1]).slice(0, 12);
+    const totalSize = top.reduce((sum, [, size]) => sum + size, 0);
+    
+    if (totalSize > 0) {
+        let html = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; height: 100%; padding: 16px;">';
+        
+        top.forEach(([type, size], index) => {
+            const percentage = (size / totalSize) * 100;
+            const color = `hsl(${index * 30}, 70%, 55%)`;
+            
+            html += `
+                <div style="
+                    background: ${color};
+                    color: white;
+                    padding: 12px;
+                    border-radius: 8px;
+                    font-size: 11px;
+                    font-weight: 600;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: center;
+                    text-align: center;
+                    min-height: 80px;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                    transition: transform 0.2s ease;
+                " title="${type}: ${formatBytes(size)}" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                    <div style="margin-bottom: 4px;">${formatTypeName(type)}</div>
+                    <div style="font-size: 10px; opacity: 0.9;">${formatBytes(size)}</div>
+                    <div style="font-size: 9px; opacity: 0.7;">${percentage.toFixed(1)}%</div>
+                </div>
+            `;
+        });
+        
+        html += '</div>';
+        container.innerHTML = html;
+    } else {
+        container.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary);">No data available</div>';
+    }
+}
+
+function renderLifetimes() {
+    const container = document.getElementById('lifetimes');
+    if (!container) return;
+    
+    const data = window.analysisData || {};
+    const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+    const withLifetime = allocs.filter(a => a.lifetime_ms || (a.timestamp_alloc && a.timestamp_dealloc));
+    const sorted = withLifetime.sort((a, b) => {
+        const aLifetime = a.lifetime_ms || (a.timestamp_dealloc - a.timestamp_alloc);
+        const bLifetime = b.lifetime_ms || (b.timestamp_dealloc - b.timestamp_alloc);
+        return bLifetime - aLifetime;
+    }).slice(0, 10);
+    
+    if (sorted.length === 0) {
+        container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-secondary);">No lifetime data available</div>';
+        return;
+    }
+    
+    let html = '<div style="padding: 16px;">';
+    
+    sorted.forEach((alloc, index) => {
+        const lifetime = alloc.lifetime_ms || (alloc.timestamp_dealloc - alloc.timestamp_alloc);
+        const isActive = !alloc.timestamp_dealloc;
+        const varName = alloc.var_name || `allocation_${index}`;
+        const size = formatBytes(alloc.size || 0);
+        
+        html += `
+            <div style="
+                margin-bottom: 12px; 
+                padding: 12px; 
+                background: var(--bg-secondary); 
+                border-radius: 8px;
+                border-left: 4px solid ${isActive ? '#059669' : '#2563eb'};
+            ">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span style="font-weight: 600; color: var(--text-primary);">${varName}</span>
+                    <span style="font-size: 0.9rem; color: var(--text-secondary);">${size}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 0.8rem; color: var(--text-secondary);">
+                        ${formatTypeName(alloc.type_name || 'Unknown')}
+                    </span>
+                    <span style="
+                        font-size: 0.8rem; 
+                        font-weight: 600; 
+                        color: ${isActive ? '#059669' : '#2563eb'};
+                    ">
+                        ${isActive ? 'Active' : `${lifetime}ms`}
+                    </span>
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+function renderFFI() {
+    // First try the chart container for simple chart
+    const chartContainer = document.getElementById('ffi-risk-chart');
+    if (chartContainer && window.Chart) {
+        const data = window.analysisData || {};
+        const ffiData = data.unsafe_ffi || data.unsafeFFI || {};
+        const operations = ffiData.enhanced_ffi_data || ffiData.allocations || ffiData.unsafe_operations || [];
+        
+        if (operations.length > 0) {
+            // Guard: destroy existing chart instance if any
+            try {
+                if (window.chartInstances && window.chartInstances['ffi-risk-chart']) {
+                    window.chartInstances['ffi-risk-chart'].destroy();
+                    delete window.chartInstances['ffi-risk-chart'];
+                }
+            } catch (_) {}
+
+            const highRisk = operations.filter(op => (op.safety_violations || []).length > 2).length;
+            const mediumRisk = operations.filter(op => (op.safety_violations || []).length > 0 && (op.safety_violations || []).length <= 2).length;
+            const lowRisk = operations.filter(op => (op.safety_violations || []).length === 0).length;
+            
+            window.chartInstances = window.chartInstances || {};
+            window.chartInstances['ffi-risk-chart'] = new Chart(chartContainer, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Low Risk', 'Medium Risk', 'High Risk'],
+                    datasets: [{
+                        data: [lowRisk, mediumRisk, highRisk],
+                        backgroundColor: ['#059669', '#ea580c', '#dc2626'],
+                        borderWidth: 2,
+                        borderColor: 'var(--bg-primary)'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 20,
+                                usePointStyle: true,
+                                generateLabels: function(chart) {
+                                    const data = chart.data;
+                                    return data.labels.map((label, i) => ({
+                                        text: `${label}: ${data.datasets[0].data[i]}`,
+                                        fillStyle: data.datasets[0].backgroundColor[i],
+                                        strokeStyle: data.datasets[0].backgroundColor[i],
+                                        pointStyle: 'circle'
+                                    }));
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            return;
+        }
+    }
+    
+    // Main comprehensive FFI visualization based on project's actual SVG code
+    const container = document.getElementById('ffiVisualization');
+    if (!container) return;
+    
+    const data = window.analysisData || {};
+    const ffiData = data.unsafe_ffi || data.unsafeFFI || {};
+    const allocations = ffiData.allocations || ffiData.enhanced_ffi_data || [];
+    const violations = ffiData.violations || [];
+    
+    if (allocations.length === 0) {
+        container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-secondary);">No FFI data available</div>';
+        return;
+    }
+    
+    // Create the ACTUAL project-based unsafe/FFI dashboard SVG
+    createProjectBasedUnsafeFFIDashboard(container, allocations, violations);
+}
+
+// PROJECT-BASED Unsafe/FFI Dashboard - Direct implementation from visualization.rs
+function createProjectBasedUnsafeFFIDashboard(container, allocations, violations) {
+    const width = 1400;
+    const height = 1000;
+    
+    // Calculate key metrics exactly like the Rust code
+    const unsafeCount = allocations.filter(a => 
+        (a.source && (a.source.UnsafeRust || a.source === 'UnsafeRust')) ||
+        (a.allocation_source === 'UnsafeRust')
+    ).length;
+    
+    const ffiCount = allocations.filter(a => 
+        (a.source && (a.source.FfiC || a.source === 'FfiC')) ||
+        (a.allocation_source === 'FfiC')
+    ).length;
+    
+    const crossBoundaryEvents = allocations.reduce((sum, a) => 
+        sum + ((a.cross_boundary_events && a.cross_boundary_events.length) || 0), 0
+    );
+    
+    const totalUnsafeMemory = allocations
+        .filter(a => a.source !== 'RustSafe' && a.allocation_source !== 'RustSafe')
+        .reduce((sum, a) => sum + ((a.base && a.base.size) || a.size || 0), 0);
+    
+    // Create the full SVG dashboard exactly like the Rust implementation
+    let html = `
+        <div style="width: 100%; height: ${height}px; background: linear-gradient(135deg, #2c3e50 0%, #34495e 50%, #2c3e50 100%); border-radius: 12px; overflow: hidden; position: relative;">
+            <svg width="100%" height="100%" viewBox="0 0 ${width} ${height}" style="font-family: 'Segoe UI', Arial, sans-serif;">
+                <!-- SVG Definitions -->
+                <defs>
+                    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                        <polygon points="0 0, 10 3.5, 0 7" fill="#e74c3c"/>
+                    </marker>
+                    <filter id="glow">
+                        <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                        <feMerge>
+                            <feMergeNode in="coloredBlur"/>
+                            <feMergeNode in="SourceGraphic"/>
+                        </feMerge>
+                    </filter>
+                </defs>
+                
+                <!-- Main Title -->
+                <text x="${width/2}" y="40" text-anchor="middle" font-size="24" font-weight="bold" fill="#ecf0f1">
+                    Unsafe Rust &amp; FFI Memory Analysis Dashboard
+                </text>
+                
+                <!-- Key Metrics Cards -->
+                <g id="metrics-cards">
+                    ${createMetricsCards(unsafeCount, ffiCount, crossBoundaryEvents, violations.length, totalUnsafeMemory)}
+                </g>
+                
+                <!-- Allocation Source Breakdown -->
+                <g id="allocation-breakdown" transform="translate(50, 150)">
+                    ${createAllocationSourceBreakdown(allocations)}
+                </g>
+                
+                <!-- Memory Safety Status -->
+                <g id="safety-status" transform="translate(750, 150)">
+                    ${createMemorySafetyStatus(violations)}
+                </g>
+                
+                <!-- Cross-Language Memory Flow -->
+                <g id="boundary-flow" transform="translate(50, 500)">
+                    ${createBoundaryFlow(allocations)}
+                </g>
+                
+                <!-- Unsafe Memory Hotspots -->
+                <g id="unsafe-hotspots" transform="translate(750, 500)">
+                    ${createUnsafeHotspots(allocations)}
+                </g>
+            </svg>
+        </div>
+    `;
+    
+    container.innerHTML = html;
+    
+    // Add interactivity
+    setTimeout(() => {
+        addFFIInteractivity();
+    }, 100);
+}
+
+// Create metrics cards exactly like Rust implementation
+function createMetricsCards(unsafeCount, ffiCount, crossBoundaryEvents, violationCount, totalUnsafeMemory) {
+    const metrics = [
+        { label: 'Unsafe Allocations', value: unsafeCount, color: '#e74c3c', x: 100 },
+        { label: 'FFI Allocations', value: ffiCount, color: '#3498db', x: 350 },
+        { label: 'Boundary Crossings', value: crossBoundaryEvents, color: '#f39c12', x: 600 },
+        { label: 'Safety Violations', value: violationCount, color: '#e67e22', x: 850 },
+        { label: 'Unsafe Memory', value: formatBytes(totalUnsafeMemory), color: '#9b59b6', x: 1100 }
+    ];
+    
+    return metrics.map(metric => `
+        <!-- Card background -->
+        <rect x="${metric.x - 60}" y="55" width="120" height="50" 
+              fill="${metric.color}" fill-opacity="0.2" 
+              stroke="${metric.color}" stroke-width="2" rx="8"/>
+        
+        <!-- Value -->
+        <text x="${metric.x}" y="70" text-anchor="middle" font-size="16" font-weight="bold" fill="${metric.color}">
+            ${metric.value}
+        </text>
+        
+        <!-- Label -->
+        <text x="${metric.x}" y="95" text-anchor="middle" font-size="10" fill="#bdc3c7">
+            ${metric.label}
+        </text>
+    `).join('');
+}
+
+// Create allocation source breakdown
+function createAllocationSourceBreakdown(allocations) {
+    let safeCount = 0, unsafeCount = 0, ffiCount = 0, crossBoundaryCount = 0;
+    
+    allocations.forEach(allocation => {
+        const source = allocation.source || allocation.allocation_source || 'Unknown';
+        if (source === 'RustSafe' || source.RustSafe) safeCount++;
+        else if (source === 'UnsafeRust' || source.UnsafeRust) unsafeCount++;
+        else if (source === 'FfiC' || source.FfiC) ffiCount++;
+        else if (source === 'CrossBoundary' || source.CrossBoundary) crossBoundaryCount++;
+    });
+    
+    const total = safeCount + unsafeCount + ffiCount + crossBoundaryCount;
+    if (total === 0) {
+        return `<text x="300" y="150" text-anchor="middle" font-size="14" fill="#95a5a6">No allocation data available</text>`;
+    }
+    
+    const sources = [
+        { label: 'Safe Rust', count: safeCount, color: '#2ecc71', x: 50 },
+        { label: 'Unsafe Rust', count: unsafeCount, color: '#e74c3c', x: 170 },
+        { label: 'FFI', count: ffiCount, color: '#3498db', x: 290 },
+        { label: 'Cross-boundary', count: crossBoundaryCount, color: '#9b59b6', x: 410 }
+    ];
+    
+    let svg = `
+        <!-- Section background -->
+        <rect x="0" y="0" width="600" height="300" fill="rgba(52, 73, 94, 0.3)" 
+              stroke="#34495e" stroke-width="2" rx="10"/>
+        
+        <!-- Section title -->
+        <text x="300" y="-10" text-anchor="middle" font-size="18" font-weight="bold" fill="#ecf0f1">
+            Memory Allocation Sources
+        </text>
+    `;
+    
+    sources.forEach(source => {
+        if (source.count > 0) {
+            const barHeight = (source.count / total * 100);
+            svg += `
+                <!-- Bar -->
+                <rect x="${source.x}" y="${200 - barHeight}" width="40" height="${barHeight}" fill="${source.color}"/>
+                
+                <!-- Count label -->
+                <text x="${source.x + 20}" y="${200 - barHeight - 5}" text-anchor="middle" 
+                      font-size="12" font-weight="bold" fill="${source.color}">
+                    ${source.count}
+                </text>
+                
+                <!-- Label -->
+                <text x="${source.x + 20}" y="220" text-anchor="middle" font-size="10" fill="#ecf0f1">
+                    ${source.label}
+                </text>
+            `;
+        }
+    });
+    
+    return svg;
+}
+
+// Create memory safety status
+function createMemorySafetyStatus(violations) {
+    const bgColor = violations.length === 0 ? '#27ae60' : '#e74c3c';
+    
+    let svg = `
+        <!-- Section background -->
+        <rect x="0" y="0" width="600" height="300" fill="${bgColor}20" 
+              stroke="${bgColor}" stroke-width="2" rx="10"/>
+        
+        <!-- Section title -->
+        <text x="300" y="-10" text-anchor="middle" font-size="18" font-weight="bold" fill="#ecf0f1">
+            Memory Safety Status
+        </text>
+    `;
+    
+    if (violations.length === 0) {
+        svg += `
+            <text x="300" y="150" text-anchor="middle" font-size="16" font-weight="bold" fill="#27ae60">
+                No Safety Violations Detected
+            </text>
+            <text x="300" y="180" text-anchor="middle" font-size="12" fill="#2ecc71">
+                All unsafe operations and FFI calls appear to be memory-safe
+            </text>
+        `;
+    } else {
+        svg += `
+            <text x="300" y="120" text-anchor="middle" font-size="16" font-weight="bold" fill="#e74c3c">
+                ${violations.length} Safety Violations Detected
+            </text>
+        `;
+        
+        violations.slice(0, 5).forEach((violation, i) => {
+            const y = 160 + i * 20;
+            const description = getViolationDescription(violation);
+            svg += `
+                <text x="30" y="${y}" font-size="12" fill="#e74c3c">• ${description}</text>
+            `;
+        });
+    }
+    
+    return svg;
+}
+
+// Create boundary flow diagram
+function createBoundaryFlow(allocations) {
+    let rustToFfi = 0, ffiToRust = 0;
+    
+    allocations.forEach(allocation => {
+        if (allocation.cross_boundary_events) {
+            allocation.cross_boundary_events.forEach(event => {
+                const eventType = event.event_type || event.type;
+                if (eventType === 'RustToFfi' || eventType === 'OwnershipTransfer') rustToFfi++;
+                else if (eventType === 'FfiToRust') ffiToRust++;
+                else if (eventType === 'SharedAccess') {
+                    rustToFfi++;
+                    ffiToRust++;
+                }
+            });
+        }
+    });
+    
+    return `
+        <!-- Section background -->
+        <rect x="0" y="0" width="600" height="200" fill="rgba(52, 73, 94, 0.3)" 
+              stroke="#34495e" stroke-width="2" rx="10"/>
+        
+        <!-- Section title -->
+        <text x="300" y="-10" text-anchor="middle" font-size="18" font-weight="bold" fill="#ecf0f1">
+            Cross-Language Memory Flow
+        </text>
+        
+        <!-- Rust territory -->
+        <rect x="50" y="50" width="200" height="100" fill="#2ecc71" fill-opacity="0.2" 
+              stroke="#2ecc71" stroke-width="2" rx="8"/>
+        <text x="150" y="110" text-anchor="middle" font-size="14" font-weight="bold" fill="#2ecc71">
+            RUST
+        </text>
+        
+        <!-- FFI territory -->
+        <rect x="350" y="50" width="200" height="100" fill="#3498db" fill-opacity="0.2" 
+              stroke="#3498db" stroke-width="2" rx="8"/>
+        <text x="450" y="110" text-anchor="middle" font-size="14" font-weight="bold" fill="#3498db">
+            FFI / C
+        </text>
+        
+        ${rustToFfi > 0 ? `
+            <!-- Rust to FFI arrow -->
+            <line x1="250" y1="80" x2="350" y2="80" stroke="#e74c3c" stroke-width="3" marker-end="url(#arrowhead)"/>
+            <text x="300" y="75" text-anchor="middle" font-size="12" font-weight="bold" fill="#e74c3c">
+                ${rustToFfi}
+            </text>
+        ` : ''}
+        
+        ${ffiToRust > 0 ? `
+            <!-- FFI to Rust indicator -->
+            <text x="300" y="135" text-anchor="middle" font-size="12" font-weight="bold" fill="#f39c12">
+                ← ${ffiToRust}
+            </text>
+        ` : ''}
+    `;
+}
+
+// Create unsafe hotspots
+function createUnsafeHotspots(allocations) {
+    const unsafeAllocations = allocations.filter(a => 
+        a.source !== 'RustSafe' && a.allocation_source !== 'RustSafe'
+    );
+    
+    if (unsafeAllocations.length === 0) {
+        return `
+            <rect x="0" y="0" width="600" height="200" fill="rgba(52, 73, 94, 0.3)" 
+                  stroke="#34495e" stroke-width="2" rx="10"/>
+            <text x="300" y="-10" text-anchor="middle" font-size="18" font-weight="bold" fill="#ecf0f1">
+                Unsafe Memory Hotspots
+            </text>
+            <text x="300" y="100" text-anchor="middle" font-size="14" fill="#2ecc71">
+                No unsafe memory allocations detected
+            </text>
+        `;
+    }
+    
+    let svg = `
+        <rect x="0" y="0" width="600" height="200" fill="rgba(52, 73, 94, 0.3)" 
+              stroke="#34495e" stroke-width="2" rx="10"/>
+        <text x="300" y="-10" text-anchor="middle" font-size="18" font-weight="bold" fill="#ecf0f1">
+            Unsafe Memory Hotspots
+        </text>
+    `;
+    
+    unsafeAllocations.slice(0, 6).forEach((allocation, i) => {
+        const x = 80 + (i % 3) * 180;
+        const y = 80 + Math.floor(i / 3) * 70;
+        const size = (allocation.base && allocation.base.size) || allocation.size || 0;
+        const sizeFactor = Math.max(5, Math.min(20, Math.log(size + 1) * 2));
+        
+        const source = allocation.source || allocation.allocation_source || 'Unknown';
+        let color = '#95a5a6';
+        let label = 'OTHER';
+        
+        if (source === 'UnsafeRust' || source.UnsafeRust) {
+            color = '#e74c3c';
+            label = 'UNSAFE';
+        } else if (source === 'FfiC' || source.FfiC) {
+            color = '#3498db';
+            label = 'FFI';
+        } else if (source === 'CrossBoundary' || source.CrossBoundary) {
+            color = '#9b59b6';
+            label = 'CROSS';
+        }
+        
+        svg += `
+            <!-- Hotspot circle -->
+            <circle cx="${x}" cy="${y}" r="${sizeFactor}" fill="${color}" fill-opacity="0.7" 
+                    stroke="${color}" stroke-width="2" filter="url(#glow)"/>
+            
+            <!-- Size label -->
+            <text x="${x}" y="${y + 4}" text-anchor="middle" font-size="8" font-weight="bold" fill="#ffffff">
+                ${formatBytes(size)}
+            </text>
+            
+            <!-- Type label -->
+            <text x="${x}" y="${y + 35}" text-anchor="middle" font-size="10" fill="${color}">
+                ${label}
+            </text>
+        `;
+    });
+    
+    return svg;
+}
+
+// Helper functions
+function getViolationDescription(violation) {
+    if (violation.DoubleFree || violation.type === 'DoubleFree') return 'Double Free';
+    if (violation.InvalidFree || violation.type === 'InvalidFree') return 'Invalid Free';
+    if (violation.PotentialLeak || violation.type === 'PotentialLeak') return 'Memory Leak';
+    if (violation.CrossBoundaryRisk || violation.type === 'CrossBoundaryRisk') return 'Cross-Boundary Risk';
+    return 'Unknown Violation';
+}
+
+function addFFIInteractivity() {
+    // Add hover effects to hotspots
+    const hotspots = document.querySelectorAll('#unsafe-hotspots circle');
+    hotspots.forEach(hotspot => {
+        hotspot.addEventListener('mouseover', function() {
+            this.setAttribute('r', parseInt(this.getAttribute('r')) * 1.2);
+        });
+        hotspot.addEventListener('mouseout', function() {
+            this.setAttribute('r', parseInt(this.getAttribute('r')) / 1.2);
+        });
+    });
+}
+
+function renderAllocationSourceChart(allocations) {
+    const container = document.getElementById('allocation-source-chart');
+    if (!container) return;
+    
+    // Count allocations by source
+    let safeCount = 0, unsafeCount = 0, ffiCount = 0, crossBoundaryCount = 0;
+    
+    allocations.forEach(allocation => {
+        if (allocation.source) {
+            if (allocation.source.includes && allocation.source.includes('Safe')) safeCount++;
+            else if (allocation.source.includes && allocation.source.includes('Unsafe')) unsafeCount++;
+            else if (allocation.source.includes && allocation.source.includes('Ffi')) ffiCount++;
+            else if (allocation.source.includes && allocation.source.includes('Cross')) crossBoundaryCount++;
+        }
+    });
+    
+    const total = safeCount + unsafeCount + ffiCount + crossBoundaryCount;
+    if (total === 0) {
+        container.innerHTML = '<div style="text-align: center; color: #95a5a6;">No allocation data available</div>';
+        return;
+    }
+    
+    const sources = [
+        { label: 'Safe Rust', count: safeCount, color: '#2ecc71' },
+        { label: 'Unsafe Rust', count: unsafeCount, color: '#e74c3c' },
+        { label: 'FFI', count: ffiCount, color: '#3498db' },
+        { label: 'Cross-boundary', count: crossBoundaryCount, color: '#9b59b6' }
+    ];
+    
+    let html = '<div style="display: flex; justify-content: space-around; align-items: end; height: 100px;">';
+    
+    sources.forEach(source => {
+        if (source.count > 0) {
+            const barHeight = (source.count / total * 80);
+            html += `
+                <div style="text-align: center;">
+                    <div style="font-size: 12px; font-weight: bold; color: ${source.color}; margin-bottom: 5px;">${source.count}</div>
+                    <div style="width: 30px; height: ${barHeight}px; background: ${source.color}; margin: 0 auto 5px;"></div>
+                    <div style="font-size: 10px; color: #ecf0f1; writing-mode: vertical-rl; text-orientation: mixed;">${source.label}</div>
+                </div>
+            `;
+        }
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+function renderSafetyStatusPanel(violations) {
+    const container = document.getElementById('safety-status-panel');
+    if (!container) return;
+    
+    if (violations.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; color: #27ae60;">
+                <div style="font-size: 16px; font-weight: bold; margin-bottom: 10px;">No Safety Violations Detected</div>
+                <div style="font-size: 12px; color: #2ecc71;">All unsafe operations and FFI calls appear to be memory-safe</div>
+            </div>
+        `;
+    } else {
+        let html = `
+            <div style="text-align: center; color: #e74c3c; margin-bottom: 15px;">
+                <div style="font-size: 16px; font-weight: bold;">${violations.length} Safety Violations Detected</div>
+            </div>
+            <div style="max-height: 80px; overflow-y: auto;">
+        `;
+        
+        violations.slice(0, 5).forEach(violation => {
+            const description = violation.type || 'Unknown Violation';
+            html += `<div style="font-size: 12px; color: #e74c3c; margin-bottom: 5px;">• ${description}</div>`;
+        });
+        
+        html += '</div>';
+        container.innerHTML = html;
+    }
+}
+
+function renderBoundaryFlowDiagram(allocations) {
+    const container = document.getElementById('boundary-flow-diagram');
+    if (!container) return;
+    
+    // Count boundary events
+    let rustToFfi = 0, ffiToRust = 0;
+    
+    allocations.forEach(allocation => {
+        if (allocation.cross_boundary_events) {
+            allocation.cross_boundary_events.forEach(event => {
+                if (event.event_type === 'RustToFfi') rustToFfi++;
+                else if (event.event_type === 'FfiToRust') ffiToRust++;
+                else if (event.event_type === 'OwnershipTransfer') rustToFfi++;
+                else if (event.event_type === 'SharedAccess') {
+                    rustToFfi++;
+                    ffiToRust++;
+                }
+            });
+        }
+    });
+    
+    container.innerHTML = `
+        <div style="display: flex; justify-content: space-around; align-items: center; height: 80px;">
+            <!-- Rust territory -->
+            <div style="width: 150px; height: 60px; background: rgba(46, 204, 113, 0.2); border: 2px solid #2ecc71; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                <div style="text-align: center;">
+                    <div style="font-size: 14px; font-weight: bold; color: #2ecc71;">RUST</div>
+                </div>
+            </div>
+            
+            <!-- Flow arrows -->
+            <div style="text-align: center;">
+                ${rustToFfi > 0 ? `
+                    <div style="margin-bottom: 5px;">
+                        <span style="color: #e74c3c; font-weight: bold;">${rustToFfi}</span>
+                        <span style="color: #e74c3c;"> →</span>
+                    </div>
+                ` : ''}
+                ${ffiToRust > 0 ? `
+                    <div>
+                        <span style="color: #f39c12;"> ←</span>
+                        <span style="color: #f39c12; font-weight: bold;">${ffiToRust}</span>
+                    </div>
+                ` : ''}
+            </div>
+            
+            <!-- FFI territory -->
+            <div style="width: 150px; height: 60px; background: rgba(52, 152, 219, 0.2); border: 2px solid #3498db; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                <div style="text-align: center;">
+                    <div style="font-size: 14px; font-weight: bold; color: #3498db;">FFI / C</div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function renderMemoryUsageAnalysis() {
+    // Will be implemented if container exists
+}
+
+function renderMemoryFragmentation() {
+    const container = document.getElementById('memoryFragmentation');
+    if (!container) return;
+    
+    const data = window.analysisData || {};
+    const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+    
+    if (allocs.length === 0) {
+        container.innerHTML = '<div style="text-align: center; color: var(--text-secondary); padding: 40px;">No allocation data available</div>';
+        return;
+    }
+    
+    // Calculate fragmentation metrics
+    const sizes = allocs.map(a => a.size || 0).filter(s => s > 0);
+    const totalMemory = sizes.reduce((sum, size) => sum + size, 0);
+    const avgSize = totalMemory / sizes.length;
+    const variance = sizes.reduce((sum, size) => sum + Math.pow(size - avgSize, 2), 0) / sizes.length;
+    const stdDev = Math.sqrt(variance);
+    const fragmentation = Math.min(100, (stdDev / avgSize) * 100);
+    
+    // Sort allocations by size for visualization
+    const sortedAllocs = allocs.slice().sort((a, b) => (a.size || 0) - (b.size || 0));
+    
+    // Create memory fragmentation visualization
+    container.innerHTML = `
+        <div style="height: 100%; display: flex; flex-direction: column; gap: 12px; padding: 12px;">
+            <!-- Fragmentation Score -->
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--bg-secondary); border-radius: 8px;">
+                <div>
+                    <div style="font-size: 14px; font-weight: 600; color: var(--text-primary);">Fragmentation Level</div>
+                    <div style="font-size: 11px; color: var(--text-secondary);">Memory size variance indicator</div>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-size: 24px; font-weight: 700; color: ${fragmentation > 50 ? 'var(--primary-red)' : fragmentation > 25 ? 'var(--primary-orange)' : 'var(--primary-green)'};">
+                        ${fragmentation.toFixed(1)}%
+                    </div>
+                    <div style="font-size: 10px; color: var(--text-secondary);">
+                        ${fragmentation > 50 ? 'High' : fragmentation > 25 ? 'Medium' : 'Low'}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Memory Layout Visualization -->
+            <div style="flex: 1; background: var(--bg-secondary); border-radius: 8px; padding: 12px;">
+                <div style="font-size: 12px; font-weight: 600; color: var(--text-primary); margin-bottom: 8px;">Memory Layout (${allocs.length} allocations)</div>
+                <div style="height: 80px; background: var(--bg-primary); border-radius: 6px; padding: 4px; position: relative; overflow: hidden;">
+                    <!-- Memory blocks representing allocations -->
+                    <div style="display: flex; height: 100%; align-items: end; gap: 1px;">
+                        ${sortedAllocs.slice(0, 40).map((alloc, i) => {
+                            const size = alloc.size || 0;
+                            const maxSize = Math.max(...sizes);
+                            const height = Math.max(8, (size / maxSize) * 70);
+                            const width = Math.max(2, Math.min(8, 100 / Math.min(40, allocs.length)));
+                            
+                            let color = '#10b981'; // Green for small
+                            if (size > 10240) color = '#ef4444'; // Red for large
+                            else if (size > 1024) color = '#f59e0b'; // Orange for medium
+                            else if (size > 100) color = '#3b82f6'; // Blue for small-medium
+                            
+                            return `
+                                <div style="width: ${width}px; height: ${height}px; background: ${color}; 
+                                           border-radius: 1px; cursor: pointer; transition: all 0.2s; opacity: 0.8;"
+                                     title="${alloc.var_name}: ${formatBytes(size)}"
+                                     onmouseover="this.style.transform='scaleY(1.2)'; this.style.opacity='1'"
+                                     onmouseout="this.style.transform='scaleY(1)'; this.style.opacity='0.8'"
+                                     onclick="showAllocationDetail('${alloc.ptr}')"></div>
+                            `;
+                        }).join('')}
+                    </div>
+                    
+                    <!-- Size legend -->
+                    <div style="position: absolute; bottom: 4px; right: 4px; display: flex; gap: 4px; font-size: 8px;">
+                        <div style="display: flex; align-items: center; gap: 2px;">
+                            <div style="width: 8px; height: 4px; background: #10b981;"></div>
+                            <span style="color: var(--text-secondary);">Tiny</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 2px;">
+                            <div style="width: 8px; height: 4px; background: #3b82f6;"></div>
+                            <span style="color: var(--text-secondary);">Small</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 2px;">
+                            <div style="width: 8px; height: 4px; background: #f59e0b;"></div>
+                            <span style="color: var(--text-secondary);">Medium</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 2px;">
+                            <div style="width: 8px; height: 4px; background: #ef4444;"></div>
+                            <span style="color: var(--text-secondary);">Large</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Fragmentation Analysis -->
+                <div style="margin-top: 8px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; font-size: 11px;">
+                    <div style="text-align: center; padding: 6px; background: var(--bg-primary); border-radius: 4px;">
+                        <div style="font-weight: 600; color: var(--text-primary);">${formatBytes(avgSize)}</div>
+                        <div style="color: var(--text-secondary);">Avg Size</div>
+                    </div>
+                    <div style="text-align: center; padding: 6px; background: var(--bg-primary); border-radius: 4px;">
+                        <div style="font-weight: 600; color: var(--text-primary);">${formatBytes(Math.max(...sizes))}</div>
+                        <div style="color: var(--text-secondary);">Max Size</div>
+                    </div>
+                    <div style="text-align: center; padding: 6px; background: var(--bg-primary); border-radius: 4px;">
+                        <div style="font-weight: 600; color: var(--text-primary);">${formatBytes(Math.min(...sizes))}</div>
+                        <div style="color: var(--text-secondary);">Min Size</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function renderMemoryGrowthTrends() {
+    const container = document.getElementById('growth');
+    if (!container) return;
+    
+    const data = window.analysisData || {};
+    const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+    if (allocs.length === 0) {
+        container.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary);">No growth data available</div>';
+        return;
+    }
+    
+    // Create a proper growth chart using Chart.js
+    const canvas = document.createElement('canvas');
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
+    container.innerHTML = '';
+    container.appendChild(canvas);
+    
+    const sorted = allocs.slice().sort((a,b) => (a.timestamp_alloc||0) - (b.timestamp_alloc||0));
+    let cumulative = 0;
+    const points = [];
+    
+    for (let i = 0; i < Math.min(sorted.length, 30); i++) {
+        cumulative += sorted[i].size || 0;
+        points.push({ x: i, y: cumulative });
+    }
+    
+    if (points.length > 1 && window.Chart) {
+        new Chart(canvas, {
+            type: 'line',
+            data: {
+                labels: points.map((_, i) => `T${i}`),
+                datasets: [{
+                    label: 'Memory Growth',
+                    data: points.map(p => p.y),
+                    borderColor: '#059669',
+                    backgroundColor: 'rgba(5, 150, 105, 0.1)',
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 3,
+                    pointHoverRadius: 5
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Time Steps'
+                        }
+                    },
+                    y: { 
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Cumulative Memory'
+                        },
+                        ticks: {
+                            callback: function(value) {
+                                return formatBytes(value);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+}
+
+function setupLifecycle() {
+    // Lifecycle setup functionality
+}
+
+function populateUnsafeTable() {
+    const data = window.analysisData || {};
+    const root = data.unsafe_ffi || {};
+    const ops = root.enhanced_ffi_data || root.unsafe_operations || root.allocations || [];
+    const unsafeTable = document.getElementById('unsafeTable');
+    if (!unsafeTable) return;
+    
+    unsafeTable.innerHTML = (ops || []).slice(0, 50).map(op => {
+        const riskLevel = op.risk_level || ((op.safety_violations||[]).length > 2 ? 'High' : 
+                         ((op.safety_violations||[]).length > 0 ? 'Medium' : 'Low'));
+        
+        const riskText = riskLevel === 'High' ? 'High Risk' : (riskLevel === 'Medium' ? 'Medium Risk' : 'Low Risk');
+        const riskClass = riskLevel === 'High' ? 'risk-high' : (riskLevel === 'Medium' ? 'risk-medium' : 'risk-low');
+        
+        return `<tr>
+            <td>${op.location || op.var_name || 'Unknown'}</td>
+            <td>${op.operation_type || op.type_name || 'Unknown'}</td>
+            <td><span class="status-badge ${riskClass}">${riskText}</span></td>
+        </tr>`;
+    }).join('');
+}
+
+function renderVariableGraph() {
+    const container = document.getElementById('graph');
+    if (!container) return;
+    
+    const data = window.analysisData || {};
+    const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+    if (allocs.length === 0) {
+        container.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary);">No relationship data available</div>';
+        return;
+    }
+    
+    // Enhanced variable relationship graph with pan/zoom and drag functionality
+    const nodes = allocs.slice(0, 30).map((a, i) => ({
+        id: i,
+        name: a.var_name || `var_${i}`,
+        type: a.type_name || 'unknown',
+        size: a.size || 0,
+        status: a.is_leaked ? 'leaked' : (a.timestamp_dealloc ? 'freed' : 'active'),
+        ptr: a.ptr || 'unknown',
+        timestamp_alloc: a.timestamp_alloc || 0,
+        timestamp_dealloc: a.timestamp_dealloc || null,
+        x: 200 + (i % 6) * 120 + Math.random() * 40,
+        y: 200 + Math.floor(i / 6) * 120 + Math.random() * 40,
+        isDragging: false
+    }));
+    
+    // Create enhanced links with copy/clone/move relationships
+    const links = [];
+    for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+            const nodeA = nodes[i];
+            const nodeB = nodes[j];
+            const allocA = allocs[i];
+            const allocB = allocs[j];
+            
+            // Clone relationship (based on clone_info)
+            if (allocA.clone_info?.clone_count > 0 && allocB.clone_info?.is_clone) {
+                links.push({ 
+                    source: i, target: j, type: 'clone', 
+                    color: '#f59e0b', strokeWidth: 3, dashArray: '5,5'
+                });
+            }
+            // Copy relationship (same type, similar size)
+            else if (nodeA.type === nodeB.type && 
+                     Math.abs(nodeA.size - nodeB.size) < Math.max(nodeA.size, nodeB.size) * 0.1) {
+                links.push({ 
+                    source: i, target: j, type: 'copy', 
+                    color: '#06b6d4', strokeWidth: 2, dashArray: 'none'
+                });
+            }
+            // Move relationship (same type, different timestamps)
+            else if (nodeA.type === nodeB.type && 
+                     Math.abs(nodeA.timestamp_alloc - nodeB.timestamp_alloc) > 1000000) {
+                links.push({ 
+                    source: i, target: j, type: 'move', 
+                    color: '#8b5cf6', strokeWidth: 2, dashArray: '10,5'
+                });
+            }
+            // General relationship (same type prefix)
+            else if (nodeA.type === nodeB.type || 
+                     nodeA.name.startsWith(nodeB.name.substring(0, 3))) {
+                links.push({ 
+                    source: i, target: j, type: 'related', 
+                    color: 'var(--border-light)', strokeWidth: 1, dashArray: 'none'
+                });
+            }
+        }
+    }
+    
+    const width = 1200;  // Larger virtual canvas
+    const height = 800;
+    const viewWidth = container.offsetWidth || 500;
+    const viewHeight = 400;
+    
+    // Create SVG with pan/zoom capabilities and legend
+    let html = `
+        <div style="position: relative; width: 100%; height: ${viewHeight}px; overflow: hidden; border: 1px solid var(--border-light); border-radius: 8px;">
+            <!-- Relationship Legend -->
+            <div style="position: absolute; top: 10px; right: 10px; background: var(--bg-primary); padding: 12px; border-radius: 8px; font-size: 11px; z-index: 10; border: 1px solid var(--border-light); box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                <div style="font-weight: bold; margin-bottom: 8px; color: var(--text-primary); font-size: 12px;">Variable Relationships</div>
+                <div style="display: flex; align-items: center; margin-bottom: 4px;">
+                    <svg width="20" height="3" style="margin-right: 8px;">
+                        <line x1="0" y1="1.5" x2="20" y2="1.5" stroke="#06b6d4" stroke-width="2"/>
+                    </svg>
+                    <span style="color: var(--text-secondary);">Copy</span>
+                </div>
+                <div style="display: flex; align-items: center; margin-bottom: 4px;">
+                    <svg width="20" height="3" style="margin-right: 8px;">
+                        <line x1="0" y1="1.5" x2="20" y2="1.5" stroke="#f59e0b" stroke-width="3" stroke-dasharray="5,5"/>
+                    </svg>
+                    <span style="color: var(--text-secondary);">Clone</span>
+                </div>
+                <div style="display: flex; align-items: center; margin-bottom: 4px;">
+                    <svg width="20" height="3" style="margin-right: 8px;">
+                        <line x1="0" y1="1.5" x2="20" y2="1.5" stroke="#8b5cf6" stroke-width="2" stroke-dasharray="10,5"/>
+                    </svg>
+                    <span style="color: var(--text-secondary);">Move</span>
+                </div>
+                <div style="display: flex; align-items: center;">
+                    <svg width="20" height="3" style="margin-right: 8px;">
+                        <line x1="0" y1="1.5" x2="20" y2="1.5" stroke="#64748b" stroke-width="1"/>
+                    </svg>
+                    <span style="color: var(--text-secondary);">Related</span>
+                </div>
+            </div>
+            
+            <svg id="graph-svg" width="100%" height="100%" viewBox="0 0 ${viewWidth} ${viewHeight}" style="background: var(--bg-secondary); cursor: grab;">
+                <defs>
+                    <filter id="node-glow">
+                        <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                        <feMerge>
+                            <feMergeNode in="coloredBlur"/>
+                            <feMergeNode in="SourceGraphic"/>
+                        </feMerge>
+                    </filter>
+                    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="3"
+                            markerWidth="6" markerHeight="6" orient="auto">
+                        <path d="M0,0 L0,6 L9,3 z" fill="var(--border-light)" opacity="0.6"/>
+                    </marker>
+                </defs>
+                <g id="graph-container" transform="translate(0,0) scale(1)">
+                    <g id="links-group">`;
+    
+    // Draw enhanced links with relationship types
+    links.forEach((link, linkIndex) => {
+        const source = nodes[link.source];
+        const target = nodes[link.target];
+        const strokeDashArray = link.dashArray !== 'none' ? link.dashArray : '';
+        
+        html += `
+            <line id="link-${linkIndex}" x1="${source.x}" y1="${source.y}" x2="${target.x}" y2="${target.y}" 
+                  stroke="${link.color}" stroke-width="${link.strokeWidth}" opacity="0.8"
+                  stroke-dasharray="${strokeDashArray}">
+                <animate attributeName="opacity" values="0.8;1;0.8" dur="3s" repeatCount="indefinite"/>
+            </line>`;
+        
+        // Add relationship label for special types
+        const midX = (source.x + target.x) / 2;
+        const midY = (source.y + target.y) / 2;
+        if (link.type !== 'related') {
+            html += `
+            <text x="${midX}" y="${midY - 5}" text-anchor="middle" font-size="8" 
+                  fill="${link.color}" font-weight="bold" opacity="0.9">
+                ${link.type.toUpperCase()}
+            </text>`;
+        }
+    });
+    
+    html += '</g><g id="nodes-group">';
+    
+    // Draw nodes
+    nodes.forEach((node, nodeIndex) => {
+        const radius = Math.max(12, Math.min(30, Math.log(node.size + 1) * 4));
+        let color = '#6b7280'; // default
+        
+        if (node.type.includes('String')) color = '#fbbf24';
+        else if (node.type.includes('Vec')) color = '#3b82f6';
+        else if (node.type.includes('Box') || node.type.includes('Rc')) color = '#8b5cf6';
+        else if (node.type.includes('HashMap')) color = '#10b981';
+        else if (node.type.includes('Arc')) color = '#f59e0b';
+        
+        if (node.status === 'leaked') color = '#dc2626';
+        else if (node.status === 'freed') color = '#9ca3af';
+        
+        html += `
+            <circle 
+                id="node-${nodeIndex}"
+                cx="${node.x}" 
+                cy="${node.y}" 
+                r="${radius}" 
+                fill="${color}" 
+                stroke="white" 
+                stroke-width="3" 
+                filter="url(#node-glow)"
+                style="cursor: grab;"
+                class="graph-node"
+                data-index="${nodeIndex}"
+                data-name="${node.name}"
+                data-type="${node.type}"
+                data-size="${node.size}"
+                data-status="${node.status}"
+                data-ptr="${node.ptr}"
+                data-alloc="${node.timestamp_alloc}"
+                data-dealloc="${node.timestamp_dealloc || 'null'}"
+            />
+            <text 
+                id="text-${nodeIndex}"
+                x="${node.x}" 
+                y="${node.y + radius + 20}" 
+                text-anchor="middle" 
+                font-size="12" 
+                font-weight="600"
+                fill="var(--text-primary)"
+                style="pointer-events: none;"
+            >${node.name.length > 12 ? node.name.substring(0, 10) + '...' : node.name}</text>
+        `;
+    });
+    
+    html += `
+                </g>
+            </g>
+        </svg>
+        
+        <!-- Controls -->
+        <div style="position: absolute; top: 10px; right: 10px; display: flex; gap: 8px;">
+            <button id="zoom-in" style="background: var(--primary-blue); color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 14px;">
+                <i class="fa fa-plus"></i>
+            </button>
+            <button id="zoom-out" style="background: var(--primary-blue); color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 14px;">
+                <i class="fa fa-minus"></i>
+            </button>
+            <button id="reset-view" style="background: var(--primary-green); color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 14px;">
+                <i class="fa fa-home"></i>
+            </button>
+        </div>
+        
+        <!-- Node detail panel -->
+        <div id="node-detail-panel" style="
+            position: absolute;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-light);
+            border-radius: 8px;
+            padding: 12px;
+            width: 280px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            z-index: 1000;
+            font-size: 0.875rem;
+            display: none;
+            backdrop-filter: blur(10px);
+        ">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <h4 id="detail-title" style="margin: 0; font-size: 1rem; font-weight: 600;"></h4>
+                <button onclick="hideNodeDetails()" style="background: none; border: none; font-size: 16px; cursor: pointer; color: var(--text-secondary);">×</button>
+            </div>
+            <div id="detail-content"></div>
+        </div>
+        
+        <!-- Legend -->
+        <div style="display: flex; gap: 12px; margin-top: 12px; font-size: 0.75rem; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 4px;">
+                <div style="width: 10px; height: 10px; background: #fbbf24; border-radius: 50%;"></div>
+                <span>String</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 4px;">
+                <div style="width: 10px; height: 10px; background: #3b82f6; border-radius: 50%;"></div>
+                <span>Vec</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 4px;">
+                <div style="width: 10px; height: 10px; background: #8b5cf6; border-radius: 50%;"></div>
+                <span>Smart Ptr</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 4px;">
+                <div style="width: 10px; height: 10px; background: #dc2626; border-radius: 50%;"></div>
+                <span>Leaked</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 4px;">
+                <div style="width: 10px; height: 10px; background: #9ca3af; border-radius: 50%;"></div>
+                <span>Freed</span>
+            </div>
+        </div>
+    </div>
+    `;
+    
+    container.innerHTML = html;
+    
+    // Store nodes and links data for interaction
+    window.graphNodes = nodes;
+    window.graphLinks = links;
+    window.graphTransform = { x: 0, y: 0, scale: 1 };
+    
+    // Add pan/zoom and drag functionality
+    setTimeout(() => {
+        setupGraphInteractions();
+        setupPanZoom();
+    }, 100);
+}
+
+// Graph interaction functions
+function setupGraphInteractions() {
+    const svg = document.getElementById('graph-svg');
+    const nodeElements = document.querySelectorAll('.graph-node');
+    
+    let draggedNode = null;
+    let isDragging = false;
+    let startX, startY;
+    
+    nodeElements.forEach(node => {
+        // Mouse events for drag
+        node.addEventListener('mousedown', function(e) {
+            e.preventDefault();
+            draggedNode = this;
+            isDragging = false;
+            startX = e.clientX;
+            startY = e.clientY;
+            this.style.cursor = 'grabbing';
+            svg.style.cursor = 'grabbing';
+        });
+        
+        // Click event for details
+        node.addEventListener('click', function(e) {
+            if (!isDragging) {
+                showNodeDetails(this);
+            }
+        });
+        
+        // Hover effects
+        node.addEventListener('mouseover', function() {
+            if (!draggedNode) {
+                const currentRadius = parseInt(this.getAttribute('r'));
+                this.setAttribute('r', Math.round(currentRadius * 1.2));
+            }
+        });
+        
+        node.addEventListener('mouseout', function() {
+            if (!draggedNode) {
+                const currentRadius = parseInt(this.getAttribute('r'));
+                this.setAttribute('r', Math.round(currentRadius / 1.2));
+            }
+        });
+    });
+    
+    // Global mouse events for dragging
+    document.addEventListener('mousemove', function(e) {
+        if (draggedNode) {
+            e.preventDefault();
+            const deltaX = e.clientX - startX;
+            const deltaY = e.clientY - startY;
+            
+            if (Math.abs(deltaX) > 3 || Math.abs(deltaY) > 3) {
+                isDragging = true;
+            }
+            
+            if (isDragging) {
+                const rect = svg.getBoundingClientRect();
+                const svgX = Math.max(20, Math.min(rect.width - 20, e.clientX - rect.left));
+                const svgY = Math.max(20, Math.min(rect.height - 20, e.clientY - rect.top));
+                
+                // Update node position
+                draggedNode.setAttribute('cx', svgX);
+                draggedNode.setAttribute('cy', svgY);
+                
+                // Update text position
+                const nodeIndex = draggedNode.getAttribute('data-index');
+                const textElement = document.getElementById(`text-${nodeIndex}`);
+                if (textElement) {
+                    textElement.setAttribute('x', svgX);
+                    textElement.setAttribute('y', svgY + parseInt(draggedNode.getAttribute('r')) + 15);
+                }
+                
+                // Update connected links
+                updateConnectedLinks(parseInt(nodeIndex), svgX, svgY);
+                
+                // Update stored node position
+                if (window.graphNodes && window.graphNodes[nodeIndex]) {
+                    window.graphNodes[nodeIndex].x = svgX;
+                    window.graphNodes[nodeIndex].y = svgY;
+                }
+            }
+        }
+    });
+    
+    document.addEventListener('mouseup', function(e) {
+        if (draggedNode) {
+            draggedNode.style.cursor = 'grab';
+            svg.style.cursor = 'grab';
+            
+            // Reset hover effect
+            const originalRadius = parseInt(draggedNode.getAttribute('r'));
+            draggedNode.setAttribute('r', originalRadius);
+            
+            draggedNode = null;
+            setTimeout(() => { isDragging = false; }, 100);
+        }
+    });
+}
+
+function updateConnectedLinks(nodeIndex, newX, newY) {
+    if (!window.graphLinks) return;
+    
+    window.graphLinks.forEach((link, linkIndex) => {
+        const linkElement = document.getElementById(`link-${linkIndex}`);
+        if (!linkElement) return;
+        
+        if (link.source === nodeIndex) {
+            linkElement.setAttribute('x1', newX);
+            linkElement.setAttribute('y1', newY);
+        }
+        if (link.target === nodeIndex) {
+            linkElement.setAttribute('x2', newX);
+            linkElement.setAttribute('y2', newY);
+        }
+    });
+}
+
+function showNodeDetails(nodeElement) {
+    const panel = document.getElementById('node-detail-panel');
+    const title = document.getElementById('detail-title');
+    const content = document.getElementById('detail-content');
+    
+    if (!panel || !title || !content) return;
+    
+    const name = nodeElement.getAttribute('data-name');
+    const type = nodeElement.getAttribute('data-type');
+    const size = parseInt(nodeElement.getAttribute('data-size'));
+    const status = nodeElement.getAttribute('data-status');
+    const ptr = nodeElement.getAttribute('data-ptr');
+    const alloc = nodeElement.getAttribute('data-alloc');
+    const dealloc = nodeElement.getAttribute('data-dealloc');
+    
+    title.textContent = name;
+    
+    const lifetime = dealloc !== 'null' ? parseInt(dealloc) - parseInt(alloc) : 'Active';
+    
+    content.innerHTML = `
+        <div style="margin-bottom: 8px;">
+            <strong>Type:</strong> ${formatTypeName(type)}
+        </div>
+        <div style="margin-bottom: 8px;">
+            <strong>Size:</strong> ${formatBytes(size)}
+        </div>
+        <div style="margin-bottom: 8px;">
+            <strong>Status:</strong> <span style="color: ${status === 'leaked' ? '#dc2626' : status === 'freed' ? '#6b7280' : '#059669'};">${status.charAt(0).toUpperCase() + status.slice(1)}</span>
+        </div>
+        <div style="margin-bottom: 8px;">
+            <strong>Pointer:</strong> <code style="font-size: 0.8rem; background: var(--bg-secondary); padding: 2px 4px; border-radius: 3px;">${ptr}</code>
+        </div>
+        <div style="margin-bottom: 8px;">
+            <strong>Allocated:</strong> ${alloc}ms
+        </div>
+        <div style="margin-bottom: 8px;">
+            <strong>Lifetime:</strong> ${typeof lifetime === 'number' ? lifetime + 'ms' : lifetime}
+        </div>
+    `;
+    
+    // Position panel near the node
+    const rect = nodeElement.getBoundingClientRect();
+    const containerRect = nodeElement.closest('#graph').getBoundingClientRect();
+    
+    panel.style.left = Math.min(rect.left - containerRect.left + 30, containerRect.width - 300) + 'px';
+    panel.style.top = Math.max(rect.top - containerRect.top - 50, 10) + 'px';
+    panel.style.display = 'block';
+}
+
+function hideNodeDetails() {
+    const panel = document.getElementById('node-detail-panel');
+    if (panel) {
+        panel.style.display = 'none';
+    }
+}
+
+// Pan and zoom functionality for the graph
+function setupPanZoom() {
+    const svg = document.getElementById('graph-svg');
+    const container = document.getElementById('graph-container');
+    const zoomInBtn = document.getElementById('zoom-in');
+    const zoomOutBtn = document.getElementById('zoom-out');
+    const resetBtn = document.getElementById('reset-view');
+    
+    if (!svg || !container) return;
+    
+    let isPanning = false;
+    let startX, startY;
+    let transform = window.graphTransform;
+    
+    // Zoom functions
+    function updateTransform() {
+        container.setAttribute('transform', `translate(${transform.x},${transform.y}) scale(${transform.scale})`);
+    }
+    
+    function zoom(factor, centerX = 0, centerY = 0) {
+        const newScale = Math.max(0.1, Math.min(3, transform.scale * factor));
+        
+        // Zoom towards center point
+        const dx = centerX - transform.x;
+        const dy = centerY - transform.y;
+        
+        transform.x = centerX - dx * (newScale / transform.scale);
+        transform.y = centerY - dy * (newScale / transform.scale);
+        transform.scale = newScale;
+        
+        updateTransform();
+    }
+    
+    // Button controls
+    if (zoomInBtn) {
+        zoomInBtn.addEventListener('click', () => {
+            const rect = svg.getBoundingClientRect();
+            zoom(1.2, rect.width / 2, rect.height / 2);
+        });
+    }
+    
+    if (zoomOutBtn) {
+        zoomOutBtn.addEventListener('click', () => {
+            const rect = svg.getBoundingClientRect();
+            zoom(0.8, rect.width / 2, rect.height / 2);
+        });
+    }
+    
+    if (resetBtn) {
+        resetBtn.addEventListener('click', () => {
+            transform.x = 0;
+            transform.y = 0;
+            transform.scale = 1;
+            updateTransform();
+        });
+    }
+    
+    // Mouse wheel zoom
+    svg.addEventListener('wheel', function(e) {
+        e.preventDefault();
+        const rect = svg.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        
+        const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+        zoom(zoomFactor, mouseX, mouseY);
+    });
+    
+    // Pan functionality
+    svg.addEventListener('mousedown', function(e) {
+        if (e.target === svg || e.target === container) {
+            isPanning = true;
+            startX = e.clientX - transform.x;
+            startY = e.clientY - transform.y;
+            svg.style.cursor = 'grabbing';
+        }
+    });
+    
+    document.addEventListener('mousemove', function(e) {
+        if (isPanning) {
+            e.preventDefault();
+            transform.x = e.clientX - startX;
+            transform.y = e.clientY - startY;
+            updateTransform();
+        }
+    });
+    
+    document.addEventListener('mouseup', function() {
+        if (isPanning) {
+            isPanning = false;
+            svg.style.cursor = 'grab';
+        }
+    });
+}
+
+// Lifecycle toggle functionality
+function setupLifecycleToggle() {
+    // Hard reset any previous click bindings by cloning the button
+    const oldBtn = document.getElementById('toggle-lifecycle');
+    if (oldBtn) {
+        const cloned = oldBtn.cloneNode(true);
+        oldBtn.parentNode.replaceChild(cloned, oldBtn);
+    }
+
+    const toggleBtn = document.getElementById('toggle-lifecycle');
+    if (!toggleBtn) return;
+    
+    const lifeContainer = document.getElementById('lifetimeVisualization');
+    
+    let isExpanded = false;
+    
+    toggleBtn.addEventListener('click', function() {
+        const container = document.getElementById('lifetimeVisualization');
+        if (!container) return;
+        
+        const data = window.analysisData || {};
+        const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+        
+        if (allocs.length === 0) {
+            container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-secondary);">No lifecycle data available</div>';
+            return;
+        }
+        
+        const icon = toggleBtn.querySelector('i');
+        const text = toggleBtn.querySelector('span');
+        
+        if (!isExpanded) {
+            renderFullLifecycleTimeline(allocs);
+            icon.className = 'fa fa-chevron-up';
+            text.textContent = 'Show Less';
+            isExpanded = true;
+        } else {
+            renderLimitedLifecycleTimeline(allocs);
+            icon.className = 'fa fa-chevron-down';
+            text.textContent = 'Show All';
+            isExpanded = false;
+        }
+        // Ensure the container scrolls to top after toggle for visual confirmation
+        if (lifeContainer) { lifeContainer.scrollTop = 0; }
+    });
+}
+
+function renderLimitedLifecycleTimeline(allocs) {
+    const container = document.getElementById('lifetimeVisualization');
+    if (!container) return;
+    
+    // Create timeline visualization (limited to 20)
+    const maxTime = Math.max(...allocs.map(a => a.timestamp_dealloc || a.timestamp_alloc || 0));
+    const minTime = Math.min(...allocs.map(a => a.timestamp_alloc || 0));
+    const timeRange = maxTime - minTime || 1;
+    
+    let html = '<div style="padding: 16px; max-height: 300px; overflow-y: auto;">';
+    
+    allocs.slice(0, 20).forEach((alloc, index) => {
+        const startTime = alloc.timestamp_alloc || 0;
+        const endTime = alloc.timestamp_dealloc || maxTime;
+        const startPercent = ((startTime - minTime) / timeRange) * 100;
+        const widthPercent = ((endTime - startTime) / timeRange) * 100;
+        const isActive = !alloc.timestamp_dealloc;
+        
+        html += `
+            <div style="margin-bottom: 8px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 0.8rem;">
+                    <span style="font-weight: 600;">${alloc.var_name || `var_${index}`}</span>
+                    <span style="color: var(--text-secondary);">${formatBytes(alloc.size || 0)}</span>
+                </div>
+                <div style="position: relative; background: var(--bg-secondary); height: 8px; border-radius: 4px;">
+                    <div style="
+                        position: absolute;
+                        left: ${startPercent}%;
+                        width: ${widthPercent}%;
+                        height: 100%;
+                        background: ${isActive ? 'linear-gradient(to right, #059669, #34d399)' : 'linear-gradient(to right, #2563eb, #60a5fa)'};
+                        border-radius: 4px;
+                        ${isActive ? 'animation: pulse 2s infinite;' : ''}
+                    " title="Lifetime: ${endTime - startTime}ms"></div>
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    
+    // Add CSS for pulse animation
+    html += `
+        <style>
+            @keyframes pulse {
+                0%, 100% { opacity: 1; }
+                50% { opacity: 0.7; }
+            }
+        </style>
+    `;
+    
+    container.innerHTML = html;
+}
+
+function renderFullLifecycleTimeline(allocs) {
+    const container = document.getElementById('lifetimeVisualization');
+    if (!container) return;
+    
+    // Create full timeline visualization
+    const maxTime = Math.max(...allocs.map(a => a.timestamp_dealloc || a.timestamp_alloc || 0));
+    const minTime = Math.min(...allocs.map(a => a.timestamp_alloc || 0));
+    const timeRange = maxTime - minTime || 1;
+    
+    let html = '<div style="padding: 16px; max-height: 600px; overflow-y: auto;">';
+    
+    // Add timeline header
+    html += `
+        <div style="margin-bottom: 16px; padding: 12px; background: var(--bg-secondary); border-radius: 8px;">
+            <div style="font-weight: 600; margin-bottom: 8px;">Full Lifecycle Timeline</div>
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; font-size: 0.8rem;">
+                <div>
+                    <div style="color: var(--text-secondary);">Total Variables</div>
+                    <div style="font-weight: 600;">${allocs.length}</div>
+                </div>
+                <div>
+                    <div style="color: var(--text-secondary);">Active</div>
+                    <div style="font-weight: 600; color: #059669;">${allocs.filter(a => !a.timestamp_dealloc).length}</div>
+                </div>
+                <div>
+                    <div style="color: var(--text-secondary);">Freed</div>
+                    <div style="font-weight: 600; color: #2563eb;">${allocs.filter(a => a.timestamp_dealloc && !a.is_leaked).length}</div>
+                </div>
+                <div>
+                    <div style="color: var(--text-secondary);">Leaked</div>
+                    <div style="font-weight: 600; color: #dc2626;">${allocs.filter(a => a.is_leaked).length}</div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    allocs.forEach((alloc, index) => {
+        const startTime = alloc.timestamp_alloc || 0;
+        const endTime = alloc.timestamp_dealloc || maxTime;
+        const startPercent = ((startTime - minTime) / timeRange) * 100;
+        const widthPercent = ((endTime - startTime) / timeRange) * 100;
+        const isActive = !alloc.timestamp_dealloc;
+        const isLeaked = alloc.is_leaked;
+        
+        let barColor = 'linear-gradient(to right, #2563eb, #60a5fa)'; // freed
+        if (isActive) barColor = 'linear-gradient(to right, #059669, #34d399)'; // active
+        if (isLeaked) barColor = 'linear-gradient(to right, #dc2626, #f87171)'; // leaked
+        
+        html += `
+            <div style="margin-bottom: 6px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 3px; font-size: 0.75rem;">
+                    <span style="font-weight: 600;">${alloc.var_name || `var_${index}`}</span>
+                    <div style="display: flex; gap: 8px;">
+                        <span style="color: var(--text-secondary);">${formatTypeName(alloc.type_name || 'Unknown')}</span>
+                        <span style="color: var(--text-secondary);">${formatBytes(alloc.size || 0)}</span>
+                    </div>
+                </div>
+                <div style="position: relative; background: var(--bg-secondary); height: 6px; border-radius: 3px;">
+                    <div style="
+                        position: absolute;
+                        left: ${startPercent}%;
+                        width: ${widthPercent}%;
+                        height: 100%;
+                        background: ${barColor};
+                        border-radius: 3px;
+                        ${isActive ? 'animation: pulse 2s infinite;' : ''}
+                    " title="Lifetime: ${endTime - startTime}ms | Status: ${isLeaked ? 'Leaked' : isActive ? 'Active' : 'Freed'}"></div>
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    
+    // Add CSS for pulse animation
+    html += `
+        <style>
+            @keyframes pulse {
+                0%, 100% { opacity: 1; }
+                50% { opacity: 0.7; }
+            }
+        </style>
+    `;
+    
+    container.innerHTML = html;
+}
+
+function setupLifecycleVisualization() {
+    const container = document.getElementById('lifetimeVisualization');
+    if (!container) return;
+    
+    const data = window.analysisData || {};
+    const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
+    
+    if (allocs.length === 0) {
+        container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-secondary);">No lifecycle data available</div>';
+        return;
+    }
+    
+    // Create timeline visualization
+    const maxTime = Math.max(...allocs.map(a => a.timestamp_dealloc || a.timestamp_alloc || 0));
+    const minTime = Math.min(...allocs.map(a => a.timestamp_alloc || 0));
+    const timeRange = maxTime - minTime || 1;
+    
+    let html = '<div style="padding: 16px; max-height: 300px; overflow-y: auto;">';
+    
+    allocs.slice(0, 20).forEach((alloc, index) => {
+        const startTime = alloc.timestamp_alloc || 0;
+        const endTime = alloc.timestamp_dealloc || maxTime;
+        const startPercent = ((startTime - minTime) / timeRange) * 100;
+        const widthPercent = ((endTime - startTime) / timeRange) * 100;
+        const isActive = !alloc.timestamp_dealloc;
+        
+        html += `
+            <div style="margin-bottom: 8px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 0.8rem;">
+                    <span style="font-weight: 600;">${alloc.var_name || `var_${index}`}</span>
+                    <span style="color: var(--text-secondary);">${formatBytes(alloc.size || 0)}</span>
+                </div>
+                <div style="position: relative; background: var(--bg-secondary); height: 8px; border-radius: 4px;">
+                    <div style="
+                        position: absolute;
+                        left: ${startPercent}%;
+                        width: ${widthPercent}%;
+                        height: 100%;
+                        background: ${isActive ? 'linear-gradient(to right, #059669, #34d399)' : 'linear-gradient(to right, #2563eb, #60a5fa)'};
+                        border-radius: 4px;
+                        ${isActive ? 'animation: pulse 2s infinite;' : ''}
+                    " title="Lifetime: ${endTime - startTime}ms"></div>
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    
+    // Add CSS for pulse animation
+    html += `
+        <style>
+            @keyframes pulse {
+                0%, 100% { opacity: 1; }
+                50% { opacity: 0.7; }
+            }
+        </style>
+    `;
+    
+    container.innerHTML = html;
+}
+
+function initFFIVisualization() {
+    // Additional FFI initialization if needed
+    renderFFI();
+}
+
+// Complete JSON Data Explorer
+function initCompleteJSONExplorer() {
+    const container = document.getElementById('jsonDataExplorer');
+    const expandBtn = document.getElementById('expand-all-json');
+    const collapseBtn = document.getElementById('collapse-all-json');
+    
+    if (!container) return;
+    
+    const data = window.analysisData || {};
+    
+    if (Object.keys(data).length === 0) {
+        container.innerHTML = '<div style="text-align: center; color: var(--text-secondary); padding: 40px;">No JSON data available</div>';
+        return;
+    }
+    
+    // Generate comprehensive JSON explorer
+    let html = '<div class="json-explorer">';
+    
+    // Add data summary
+    html += `
+        <div style="background: var(--bg-primary); border: 1px solid var(--border-light); border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+            <h3 style="margin: 0 0 12px 0; color: var(--text-primary);">Data Summary</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
+                ${Object.keys(data).map(key => {
+                    const value = data[key];
+                    let itemCount = 'N/A';
+                    let dataType = typeof value;
+                    
+                    if (Array.isArray(value)) {
+                        itemCount = value.length + ' items';
+                        dataType = 'Array';
+                    } else if (value && typeof value === 'object') {
+                        itemCount = Object.keys(value).length + ' properties';
+                        dataType = 'Object';
+                    }
+                    
+                    return `
+                        <div style="background: var(--bg-secondary); padding: 12px; border-radius: 6px;">
+                            <div style="font-weight: 600; color: var(--text-primary);">${key}</div>
+                            <div style="font-size: 0.8rem; color: var(--text-secondary);">${dataType}</div>
+                            <div style="font-size: 0.8rem; color: var(--text-secondary);">${itemCount}</div>
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+        </div>
+    `;
+    
+    // Generate expandable JSON tree for each top-level key
+    Object.keys(data).forEach((key, index) => {
+        const value = data[key];
+        html += createJSONSection(key, value, index);
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
+    
+    // Setup expand/collapse functionality
+    if (expandBtn) {
+        expandBtn.addEventListener('click', () => {
+            const details = container.querySelectorAll('details');
+            details.forEach(detail => detail.open = true);
+        });
+    }
+    
+    if (collapseBtn) {
+        collapseBtn.addEventListener('click', () => {
+            const details = container.querySelectorAll('details');
+            details.forEach(detail => detail.open = false);
+        });
+    }
+}
+
+function createJSONSection(key, value, index) {
+    const isOpen = index < 3; // Open first 3 sections by default
+    
+    let html = `
+        <details class="json-section" ${isOpen ? 'open' : ''} style="
+            border: 1px solid var(--border-light); 
+            border-radius: 8px; 
+            margin-bottom: 12px; 
+            background: var(--bg-primary);
+        ">
+            <summary style="
+                cursor: pointer; 
+                padding: 12px 16px; 
+                font-weight: 600; 
+                color: var(--text-primary); 
+                background: var(--bg-secondary);
+                border-radius: 8px 8px 0 0;
+                user-select: none;
+            ">
+                <i class="fa fa-chevron-right" style="margin-right: 8px; transition: transform 0.2s;"></i>
+                ${key}
+                <span style="font-weight: normal; color: var(--text-secondary); margin-left: 8px;">
+                    ${getDataTypeInfo(value)}
+                </span>
+            </summary>
+            <div style="padding: 16px;">
+    `;
+    
+    if (Array.isArray(value)) {
+        html += createArrayView(value, key);
+    } else if (value && typeof value === 'object') {
+        html += createObjectView(value, key);
+    } else {
+        html += `<pre style="margin: 0; color: var(--text-primary); font-size: 0.9rem;">${JSON.stringify(value, null, 2)}</pre>`;
+    }
+    
+    html += '</div></details>';
+    return html;
+}
+
+function createArrayView(array, parentKey) {
+    if (array.length === 0) {
+        return '<div style="color: var(--text-secondary); font-style: italic;">Empty array</div>';
+    }
+    
+    let html = `
+        <div style="margin-bottom: 12px;">
+            <strong>Array with ${array.length} items</strong>
+            ${array.length > 10 ? `<span style="color: var(--text-secondary);"> (showing first 10)</span>` : ''}
+        </div>
+    `;
+    
+    // Show first 10 items
+    const itemsToShow = array.slice(0, 10);
+    
+    itemsToShow.forEach((item, index) => {
+        html += `
+            <details style="margin-bottom: 8px; border: 1px solid var(--border-light); border-radius: 6px;">
+                <summary style="cursor: pointer; padding: 8px 12px; background: var(--bg-secondary); font-size: 0.9rem;">
+                    [${index}] ${getDataTypeInfo(item)}
+                </summary>
+                <div style="padding: 12px;">
+                    <pre style="margin: 0; font-size: 0.8rem; color: var(--text-primary); max-height: 300px; overflow: auto;">${JSON.stringify(item, null, 2)}</pre>
+                </div>
+            </details>
+        `;
+    });
+    
+    if (array.length > 10) {
+        html += `<div style="color: var(--text-secondary); font-style: italic; margin-top: 12px;">... and ${array.length - 10} more items</div>`;
+    }
+    
+    return html;
+}
+
+function createObjectView(obj, parentKey) {
+    const keys = Object.keys(obj);
+    
+    if (keys.length === 0) {
+        return '<div style="color: var(--text-secondary); font-style: italic;">Empty object</div>';
+    }
+    
+    let html = `
+        <div style="margin-bottom: 12px;">
+            <strong>Object with ${keys.length} properties</strong>
+        </div>
+    `;
+    
+    keys.forEach(key => {
+        const value = obj[key];
+        html += `
+            <details style="margin-bottom: 8px; border: 1px solid var(--border-light); border-radius: 6px;">
+                <summary style="cursor: pointer; padding: 8px 12px; background: var(--bg-secondary); font-size: 0.9rem;">
+                    <code style="background: var(--bg-primary); padding: 2px 6px; border-radius: 3px;">${key}</code>
+                    <span style="margin-left: 8px; color: var(--text-secondary);">${getDataTypeInfo(value)}</span>
+                </summary>
+                <div style="padding: 12px;">
+                    <pre style="margin: 0; font-size: 0.8rem; color: var(--text-primary); max-height: 300px; overflow: auto;">${JSON.stringify(value, null, 2)}</pre>
+                </div>
+            </details>
+        `;
+    });
+    
+    return html;
+}
+
+function getDataTypeInfo(value) {
+    if (value === null) return 'null';
+    if (value === undefined) return 'undefined';
+    if (Array.isArray(value)) return `Array[${value.length}]`;
+    if (typeof value === 'object') return `Object{${Object.keys(value).length}}`;
+    if (typeof value === 'string') return `String(${value.length})`;
+    if (typeof value === 'number') return `Number(${value})`;
+    if (typeof value === 'boolean') return `Boolean(${value})`;
+    return typeof value;
+}
+
+// Enhanced FFI Visualization with rich lifecycle data
+function initEnhancedFFIVisualization() {
+    const container = document.getElementById('ffiVisualization');
+    if (!container) return;
+
+    const data = window.analysisData || {};
+    const allocs = data.unsafe_ffi?.allocations || data.memory_analysis?.allocations || data.allocations || [];
+    
+    if (allocs.length === 0) {
+        container.innerHTML = `<div style="background: var(--bg-secondary); border-radius:8px; padding:16px; text-align:center; color: var(--text-secondary);"><i class="fa fa-exclamation-triangle" style="font-size:24px; margin-bottom:8px; color: var(--primary-red);"></i><div>Critical: No FFI allocation data found!</div></div>`;
+        return;
+    }
+
+    // Rich data analysis
+    const ffiTracked = allocs.filter(a => a.ffi_tracked).length;
+    const withViolations = allocs.filter(a => a.safety_violations && a.safety_violations.length > 0).length;
+    const withClones = allocs.filter(a => a.clone_info?.clone_count > 0).length;
+    const leaked = allocs.filter(a => a.is_leaked).length;
+    const totalBorrows = allocs.reduce((sum, a) => sum + (a.borrow_info?.immutable_borrows || 0) + (a.borrow_info?.mutable_borrows || 0), 0);
+    const totalMemory = allocs.reduce((sum, a) => sum + (a.size || 0), 0);
+    const avgLifetime = allocs.filter(a => a.lifetime_ms).reduce((sum, a) => sum + a.lifetime_ms, 0) / allocs.filter(a => a.lifetime_ms).length || 0;
+
+    // Get time range for lifecycle visualization
+    const timestamps = allocs.map(a => a.timestamp_alloc).filter(t => t).sort((a, b) => a - b);
+    const minTime = timestamps[0] || 0;
+    const maxTime = timestamps[timestamps.length - 1] || minTime;
+    const timeRange = maxTime - minTime || 1;
+
+    // Content that will be contained within the section's background
+    container.innerHTML = `
+        <!-- KPI Cards -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px;">
+            <div style="background: var(--bg-primary); padding: 14px; border-radius: 8px; text-align: center; border-left: 4px solid var(--primary-blue);">
+                <div style="font-size: 1.6rem; font-weight: 700; color: var(--primary-blue);">${allocs.length}</div>
+                <div style="font-size: 0.75rem; color: var(--text-secondary);">FFI Allocations</div>
+            </div>
+            <div style="background: var(--bg-primary); padding: 14px; border-radius: 8px; text-align: center; border-left: 4px solid var(--primary-green);">
+                <div style="font-size: 1.6rem; font-weight: 700; color: var(--primary-green);">${totalBorrows}</div>
+                <div style="font-size: 0.75rem; color: var(--text-secondary);">Total Borrows</div>
+            </div>
+            <div style="background: var(--bg-primary); padding: 14px; border-radius: 8px; text-align: center; border-left: 4px solid var(--primary-orange);">
+                <div style="font-size: 1.6rem; font-weight: 700; color: var(--primary-orange);">${withClones}</div>
+                <div style="font-size: 0.75rem; color: var(--text-secondary);">With Clones</div>
+            </div>
+            <div style="background: var(--bg-primary); padding: 14px; border-radius: 8px; text-align: center; border-left: 4px solid ${leaked > 0 ? 'var(--primary-red)' : 'var(--primary-green)'};">
+                <div style="font-size: 1.6rem; font-weight: 700; color: ${leaked > 0 ? 'var(--primary-red)' : 'var(--primary-green)'};">${leaked}</div>
+                <div style="font-size: 0.75rem; color: var(--text-secondary);">Memory Leaks</div>
+            </div>
+            <div style="background: var(--bg-primary); padding: 14px; border-radius: 8px; text-align: center; border-left: 4px solid var(--primary-red);">
+                <div style="font-size: 1.6rem; font-weight: 700; color: ${withViolations > 0 ? 'var(--primary-red)' : 'var(--primary-green)'};">${withViolations}</div>
+                <div style="font-size: 0.75rem; color: var(--text-secondary);">Safety Violations</div>
+            </div>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+            <div style="background: var(--bg-secondary); padding: 16px; border-radius: 8px;">
+                <h3 style="margin: 0 0 12px 0; color: var(--text-primary); display: flex; align-items: center;"><i class="fa fa-clock-o" style="margin-right: 8px;"></i>Lifecycle Metrics</h3>
+                <div style="margin-bottom: 10px;">
+                    <span style="color: var(--text-secondary); font-size: 0.9rem;">Avg Lifetime:</span>
+                    <span style="color: var(--text-primary); font-weight: 600; margin-left: 8px;">${avgLifetime.toFixed(2)}ms</span>
+                </div>
+                <div style="margin-bottom: 10px;">
+                    <span style="color: var(--text-secondary); font-size: 0.9rem;">Total Memory:</span>
+                    <span style="color: var(--text-primary); font-weight: 600; margin-left: 8px;">${formatBytes(totalMemory)}</span>
+                </div>
+                <div style="margin-bottom: 10px;">
+                    <span style="color: var(--text-secondary); font-size: 0.9rem;">Time Span:</span>
+                    <span style="color: var(--text-primary); font-weight: 600; margin-left: 8px;">${(timeRange / 1e6).toFixed(2)}ms</span>
+                </div>
+            </div>
+            
+            <div style="background: var(--bg-secondary); padding: 16px; border-radius: 8px;">
+                <h3 style="margin: 0 0 12px 0; color: var(--text-primary); display: flex; align-items: center;"><i class="fa fa-share-alt" style="margin-right: 8px;"></i>Borrow & Clone Activity</h3>
+                <div style="margin-bottom: 8px;">
+                    <span style="color: var(--text-secondary); font-size: 0.9rem;">Immutable Borrows:</span>
+                    <span style="color: var(--primary-blue); font-weight: 600; margin-left: 8px;">${allocs.reduce((s, a) => s + (a.borrow_info?.immutable_borrows || 0), 0)}</span>
+                </div>
+                <div style="margin-bottom: 8px;">
+                    <span style="color: var(--text-secondary); font-size: 0.9rem;">Mutable Borrows:</span>
+                    <span style="color: var(--primary-orange); font-weight: 600; margin-left: 8px;">${allocs.reduce((s, a) => s + (a.borrow_info?.mutable_borrows || 0), 0)}</span>
+                </div>
+                <div>
+                    <span style="color: var(--text-secondary); font-size: 0.9rem;">Clone Operations:</span>
+                    <span style="color: var(--primary-green); font-weight: 600; margin-left: 8px;">${allocs.reduce((s, a) => s + (a.clone_info?.clone_count || 0), 0)}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- FFI Data Flow Visualization (data stream) -->
+        <div style="margin-top: 20px; background: var(--bg-secondary); padding: 16px; border-radius: 8px;">
+            <h3 style="margin: 0 0 12px 0; color: var(--text-primary); display: flex; align-items: center;">
+                <i class="fa fa-exchange" style="margin-right: 8px;"></i>FFI Data Flow
+                <button id="ffi-flow-toggle" style="margin-left: auto; background: var(--primary-green); color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 11px; cursor: pointer;">
+                    <i class="fa fa-play"></i> Animate
+                </button>
+            </h3>
+            <div id="ffi-flow-container" style="height: 200px; position: relative; border: 1px solid var(--border-light); border-radius: 6px; overflow: hidden; background: linear-gradient(135deg, #1e293b 0%, #0f172a 50%, #1e293b 100%);">
+                ${createFFIDataFlow(allocs)}
+            </div>
+            <div style="margin-top: 8px; font-size: 11px; color: var(--text-secondary); text-align: center;">
+                🦀 Rust ↔ C Data Flow • ${ffiTracked} FFI-tracked allocations • Click nodes for details
+            </div>
+        </div>
+
+        <!-- Interactive Allocation Analysis (Two Column Layout) -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px;">
+            <!-- Timeline Column -->
+            <div style="background: var(--bg-secondary); padding: 16px; border-radius: 8px;">
+                <h3 style="margin: 0 0 12px 0; color: var(--text-primary); display: flex; align-items: center;">
+                    <i class="fa fa-clock-o" style="margin-right: 8px;"></i>Allocation Timeline
+                    <button id="ffi-timeline-toggle" style="margin-left: auto; background: var(--primary-blue); color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 11px; cursor: pointer;">
+                        <i class="fa fa-expand"></i> Details
+                    </button>
+                </h3>
+                <div id="ffi-timeline-container" style="height: 160px; position: relative; border: 1px solid var(--border-light); border-radius: 6px; overflow: hidden; background: linear-gradient(45deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);">
+                    ${createAllocationTimeline(allocs, minTime, timeRange)}
+                </div>
+                <div style="margin-top: 8px; font-size: 11px; color: var(--text-secondary); text-align: center;">
+                    Timeline spans ${(timeRange / 1e6).toFixed(1)}ms • Click dots for details
+                </div>
+            </div>
+            
+            <!-- Details Column -->
+            <div style="background: var(--bg-secondary); padding: 16px; border-radius: 8px;">
+                <h3 style="margin: 0 0 12px 0; color: var(--text-primary); display: flex; align-items: center;">
+                    <i class="fa fa-list" style="margin-right: 8px;"></i>Allocation Details
+                    <select id="ffi-filter" style="margin-left: auto; background: var(--bg-primary); border: 1px solid var(--border-light); border-radius: 4px; padding: 4px 8px; font-size: 11px; color: var(--text-primary);">
+                        <option value="all">All (${allocs.length})</option>
+                        <option value="leaked">Leaked (${allocs.filter(a => a.is_leaked).length})</option>
+                        <option value="cloned">With Clones (${withClones})</option>
+                        <option value="borrowed">With Borrows (${allocs.filter(a => ((a.borrow_info?.immutable_borrows || 0) + (a.borrow_info?.mutable_borrows || 0)) > 0).length})</option>
+                    </select>
+                </h3>
+                <div id="ffi-allocation-table" style="max-height: 160px; overflow-y: auto; border: 1px solid var(--border-light); border-radius: 6px;">
+                    ${createAllocationTable(allocs)}
+                </div>
+                <div style="margin-top: 8px; font-size: 11px; color: var(--text-secondary); text-align: center;">
+                    Click rows for detailed view • Use filter to narrow results
+                </div>
+            </div>
+        </div>
+    `;
+
+    // Add interactivity
+    setupFFIInteractivity(allocs, minTime, timeRange);
+    setupFFIFlowInteractivity(allocs);
+}
+
+// Create super cool FFI data flow visualization
+function createFFIDataFlow(allocs) {
+    const ffiAllocs = allocs.filter(a => a.ffi_tracked);
+    const rustAllocs = allocs.filter(a => !a.ffi_tracked);
+    
+    // Create dynamic SVG-based flow visualization
+    let html = `
+        <svg width="100%" height="100%" viewBox="0 0 800 200" style="position: absolute; top: 0; left: 0;">
+            <!-- Background grid pattern -->
+            <defs>
+                <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+                    <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#334155" stroke-width="0.5" opacity="0.3"/>
+                </pattern>
+                <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+                    <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                    <feMerge>
+                        <feMergeNode in="coloredBlur"/>
+                        <feMergeNode in="SourceGraphic"/>
+                    </feMerge>
+                </filter>
+                <linearGradient id="rustGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" style="stop-color:#f97316;stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:#ea580c;stop-opacity:1" />
+                </linearGradient>
+                <linearGradient id="cGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:#1d4ed8;stop-opacity:1" />
+                </linearGradient>
+            </defs>
+            
+            <rect width="100%" height="100%" fill="url(#grid)"/>
+            
+            <!-- Rust Side (Left) -->
+            <g id="rust-side">
+                <rect x="50" y="40" width="200" height="120" rx="15" fill="url(#rustGradient)" opacity="0.2" stroke="#f97316" stroke-width="2"/>
+                <text x="150" y="30" text-anchor="middle" font-size="16" font-weight="bold" fill="#f97316" filter="url(#glow)">
+                    🦀 RUST
+                </text>
+                <text x="150" y="190" text-anchor="middle" font-size="12" fill="#f97316">
+                    ${rustAllocs.length} allocations
+                </text>
+                
+                <!-- Rust memory nodes -->
+                ${rustAllocs.slice(0, 8).map((alloc, i) => {
+                    const x = 80 + (i % 4) * 35;
+                    const y = 60 + Math.floor(i / 4) * 35;
+                    const size = Math.max(8, Math.min(16, Math.sqrt((alloc.size || 0) / 1000)));
+                    return `
+                        <circle cx="${x}" cy="${y}" r="${size}" fill="#f97316" opacity="0.8" 
+                                stroke="#fff" stroke-width="2" class="rust-node" 
+                                data-ptr="${alloc.ptr}" data-size="${alloc.size || 0}"
+                                style="cursor: pointer; transition: all 0.3s;">
+                            <animate attributeName="opacity" values="0.8;1;0.8" dur="2s" repeatCount="indefinite"/>
+                        </circle>
+                    `;
+                }).join('')}
+            </g>
+            
+            <!-- C/FFI Side (Right) -->
+            <g id="c-side">
+                <rect x="550" y="40" width="200" height="120" rx="15" fill="url(#cGradient)" opacity="0.2" stroke="#3b82f6" stroke-width="2"/>
+                <text x="650" y="30" text-anchor="middle" font-size="16" font-weight="bold" fill="#3b82f6" filter="url(#glow)">
+                    ⚙️ C/FFI
+                </text>
+                <text x="650" y="190" text-anchor="middle" font-size="12" fill="#3b82f6">
+                    ${ffiAllocs.length} FFI allocations
+                </text>
+                
+                <!-- FFI memory nodes -->
+                ${ffiAllocs.slice(0, 8).map((alloc, i) => {
+                    const x = 580 + (i % 4) * 35;
+                    const y = 60 + Math.floor(i / 4) * 35;
+                    const size = Math.max(8, Math.min(16, Math.sqrt((alloc.size || 0) / 1000)));
+                    return `
+                        <circle cx="${x}" cy="${y}" r="${size}" fill="#3b82f6" opacity="0.9" 
+                                stroke="#fff" stroke-width="2" class="ffi-node"
+                                data-ptr="${alloc.ptr}" data-size="${alloc.size || 0}"
+                                style="cursor: pointer;">
+                        </circle>
+                    `;
+                }).join('')}
+            </g>
+            
+            <!-- Data Flow Arrows -->
+            <g id="data-flows">
+                <!-- Rust to C flow -->
+                <path d="M 250 80 Q 400 60 550 80" stroke="#10b981" stroke-width="3" fill="none" opacity="0.7">
+                    <animate attributeName="stroke-dasharray" values="0,1000;1000,0" dur="3s" repeatCount="indefinite"/>
+                </path>
+                <text x="400" y="55" text-anchor="middle" font-size="10" fill="#10b981" font-weight="bold">
+                    Rust → C
+                </text>
+                
+                <!-- C to Rust flow -->
+                <path d="M 550 120 Q 400 140 250 120" stroke="#ec4899" stroke-width="3" fill="none" opacity="0.7">
+                    <animate attributeName="stroke-dasharray" values="0,1000;1000,0" dur="3.5s" repeatCount="indefinite"/>
+                </path>
+                <text x="400" y="155" text-anchor="middle" font-size="10" fill="#ec4899" font-weight="bold">
+                    C → Rust
+                </text>
+                
+                <!-- Central processing hub -->
+                <circle cx="400" cy="100" r="20" fill="#8b5cf6" opacity="0.3" stroke="#8b5cf6" stroke-width="2">
+                    <animate attributeName="r" values="20;25;20" dur="2s" repeatCount="indefinite"/>
+                </circle>
+                <text x="400" y="105" text-anchor="middle" font-size="10" fill="#8b5cf6" font-weight="bold">FFI</text>
+            </g>
+            
+            <!-- Memory flow particles -->
+            <g id="flow-particles">
+                ${Array.from({length: 6}, (_, i) => `
+                    <circle r="3" fill="#fbbf24" opacity="0.8">
+                        <animateMotion dur="${3 + i * 0.5}s" repeatCount="indefinite">
+                            <path d="M 250 80 Q 400 60 550 80"/>
+                        </animateMotion>
+                        <animate attributeName="opacity" values="0;1;0" dur="1s" repeatCount="indefinite"/>
+                    </circle>
+                `).join('')}
+                
+                ${Array.from({length: 4}, (_, i) => `
+                    <circle r="3" fill="#06d6a0" opacity="0.8">
+                        <animateMotion dur="${3.5 + i * 0.7}s" repeatCount="indefinite">
+                            <path d="M 550 120 Q 400 140 250 120"/>
+                        </animateMotion>
+                        <animate attributeName="opacity" values="0;1;0" dur="1s" repeatCount="indefinite"/>
+                    </circle>
+                `).join('')}
+            </g>
+        </svg>
+    `;
+    
+    return html;
+}
+
+// Create allocation timeline visualization
+function createAllocationTimeline(allocs, minTime, timeRange) {
+    const sorted = allocs.slice().sort((a, b) => (a.timestamp_alloc || 0) - (b.timestamp_alloc || 0));
+    let html = '<div style="position: relative; height: 100%; background: linear-gradient(90deg, rgba(59,130,246,0.1) 0%, rgba(16,185,129,0.1) 50%, rgba(239,68,68,0.1) 100%);">';
+    
+    // Add time axis with better spacing
+    html += '<div style="position: absolute; bottom: 25px; left: 0; right: 0; height: 1px; background: var(--border-light);"></div>';
+    html += '<div style="position: absolute; bottom: 18px; left: 12px; font-size: 10px; color: var(--text-secondary); background: var(--bg-primary); padding: 2px 4px; border-radius: 3px;">0ms</div>';
+    html += '<div style="position: absolute; bottom: 18px; right: 12px; font-size: 10px; color: var(--text-secondary); background: var(--bg-primary); padding: 2px 4px; border-radius: 3px;">' + (timeRange / 1e6).toFixed(1) + 'ms</div>';
+    
+    // Add middle time markers for better readability
+    const midTime = (timeRange / 1e6) / 2;
+    html += '<div style="position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%); font-size: 10px; color: var(--text-secondary); background: var(--bg-primary); padding: 2px 4px; border-radius: 3px;">' + midTime.toFixed(1) + 'ms</div>';
+    
+    // Group nearby allocations to prevent overlap
+    const groups = [];
+    const threshold = timeRange * 0.05; // 5% of time range
+    
+    sorted.forEach(alloc => {
+        const found = groups.find(g => Math.abs(g.avgTime - alloc.timestamp_alloc) < threshold);
+        if (found) {
+            found.allocs.push(alloc);
+            found.avgTime = found.allocs.reduce((sum, a) => sum + a.timestamp_alloc, 0) / found.allocs.length;
+        } else {
+            groups.push({ allocs: [alloc], avgTime: alloc.timestamp_alloc });
+        }
+    });
+    
+    groups.forEach((group, groupIndex) => {
+        const relativeTime = (group.avgTime - minTime) / timeRange;
+        const left = Math.max(2, Math.min(93, relativeTime * 90 + 5));
+        
+        if (group.allocs.length === 1) {
+            const alloc = group.allocs[0];
+            const size = Math.max(10, Math.min(20, Math.sqrt((alloc.size || 0) / 50)));
+            const isLeaked = alloc.is_leaked;
+            const hasClones = alloc.clone_info?.clone_count > 0;
+            const color = isLeaked ? '#dc2626' : hasClones ? '#ea580c' : '#2563eb';
+            
+            html += `<div style="position: absolute; left: ${left}%; top: 60%; transform: translateY(-50%); 
+                     width: ${size}px; height: ${size}px; background: ${color}; border-radius: 50%; 
+                     border: 2px solid white; cursor: pointer; z-index: 100; 
+                     box-shadow: 0 2px 4px rgba(0,0,0,0.2); transition: transform 0.2s;"
+                     onmouseover="this.style.transform='translateY(-50%) scale(1.2)'" 
+                     onmouseout="this.style.transform='translateY(-50%) scale(1)'"
+                     title="${alloc.var_name || 'unnamed'} | ${formatBytes(alloc.size || 0)} | ${new Date(alloc.timestamp_alloc / 1e6).toLocaleTimeString()}"
+                     onclick="showAllocationDetail('${alloc.ptr}')"></div>`;
+        } else {
+            // Multiple allocations - create a cluster
+            const totalSize = group.allocs.reduce((sum, a) => sum + (a.size || 0), 0);
+            const hasLeaks = group.allocs.some(a => a.is_leaked);
+            const hasClones = group.allocs.some(a => a.clone_info?.clone_count > 0);
+            const clusterSize = Math.max(16, Math.min(28, Math.sqrt(totalSize / 100)));
+            const color = hasLeaks ? '#dc2626' : hasClones ? '#ea580c' : '#2563eb';
+            
+            html += `<div style="position: absolute; left: ${left}%; top: 60%; transform: translateY(-50%); 
+                     width: ${clusterSize}px; height: ${clusterSize}px; background: ${color}; border-radius: 50%; 
+                     border: 3px solid white; cursor: pointer; z-index: 100;
+                     box-shadow: 0 2px 8px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center;
+                     color: white; font-size: 9px; font-weight: bold; transition: transform 0.2s;"
+                     onmouseover="this.style.transform='translateY(-50%) scale(1.2)'" 
+                     onmouseout="this.style.transform='translateY(-50%) scale(1)'"
+                     title="${group.allocs.length} allocations | Total: ${formatBytes(totalSize)} | Avg time: ${new Date(group.avgTime / 1e6).toLocaleTimeString()}"
+                     onclick="showClusterDetail(${JSON.stringify(group.allocs.map(a => a.ptr)).replace(/"/g, '&quot;')})">${group.allocs.length}</div>`;
+        }
+    });
+    
+    html += '</div>';
+    return html;
+}
+
+// Create allocation details table
+function createAllocationTable(allocs) {
+    const sorted = allocs.slice().sort((a, b) => (b.timestamp_alloc || 0) - (a.timestamp_alloc || 0));
+    
+    let html = `
+        <div style="border: 1px solid var(--border-light); border-radius: 6px; overflow: hidden;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+                <thead style="background: var(--bg-primary); border-bottom: 1px solid var(--border-light);">
+                    <tr>
+                        <th style="padding: 8px; text-align: left; color: var(--text-primary);">Variable</th>
+                        <th style="padding: 8px; text-align: left; color: var(--text-primary);">Type</th>
+                        <th style="padding: 8px; text-align: right; color: var(--text-primary);">Size</th>
+                        <th style="padding: 8px; text-align: center; color: var(--text-primary);">Borrows</th>
+                        <th style="padding: 8px; text-align: center; color: var(--text-primary);">Clones</th>
+                        <th style="padding: 8px; text-align: center; color: var(--text-primary);">Status</th>
+                        <th style="padding: 8px; text-align: right; color: var(--text-primary);">Lifetime</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+    
+    sorted.forEach((alloc, i) => {
+        const typeName = (alloc.type_name || 'Unknown').replace(/alloc::|std::/g, '').replace(/collections::\w+::/g, '');
+        const shortType = typeName.length > 20 ? typeName.substring(0, 17) + '...' : typeName;
+        const totalBorrows = (alloc.borrow_info?.immutable_borrows || 0) + (alloc.borrow_info?.mutable_borrows || 0);
+        const cloneCount = alloc.clone_info?.clone_count || 0;
+        const isLeaked = alloc.is_leaked;
+        const lifetime = alloc.lifetime_ms || 'Active';
+        
+        const statusColor = isLeaked ? 'var(--primary-red)' : 'var(--primary-green)';
+        const statusText = isLeaked ? 'LEAKED' : 'OK';
+        
+        html += `
+            <tr style="border-bottom: 1px solid var(--border-light); cursor: pointer;" 
+                onclick="showAllocationDetail('${alloc.ptr}')" 
+                onmouseover="this.style.background='var(--bg-secondary)'" 
+                onmouseout="this.style.background='transparent'">
+                <td style="padding: 8px; color: var(--text-primary); font-weight: 500;">${alloc.var_name || 'unnamed'}</td>
+                <td style="padding: 8px; color: var(--text-secondary);" title="${alloc.type_name}">${shortType}</td>
+                <td style="padding: 8px; text-align: right; color: var(--text-primary); font-weight: 600;">${formatBytes(alloc.size || 0)}</td>
+                <td style="padding: 8px; text-align: center; color: var(--primary-blue);">${totalBorrows}</td>
+                <td style="padding: 8px; text-align: center; color: var(--primary-orange);">${cloneCount}</td>
+                <td style="padding: 8px; text-align: center;">
+                    <span style="color: ${statusColor}; font-weight: 600; font-size: 11px;">${statusText}</span>
+                </td>
+                <td style="padding: 8px; text-align: right; color: var(--text-secondary); font-size: 11px;">
+                    ${typeof lifetime === 'number' ? lifetime.toFixed(2) + 'ms' : lifetime}
+                </td>
+            </tr>`;
+    });
+    
+    html += '</tbody></table></div>';
+    return html;
+}
+
+// Setup FFI interactivity
+function setupFFIInteractivity(allocs, minTime, timeRange) {
+    // Timeline toggle
+    const toggleBtn = document.getElementById('ffi-timeline-toggle');
+    if (toggleBtn) {
+        let expanded = false;
+        toggleBtn.onclick = () => {
+            const container = document.getElementById('ffi-timeline-container');
+            if (!container) return;
+            
+            expanded = !expanded;
+            container.style.height = expanded ? '200px' : '120px';
+            toggleBtn.textContent = expanded ? 'Hide Details' : 'Show Details';
+            
+            if (expanded) {
+                // Add detailed timeline with labels
+                container.innerHTML = createAllocationTimeline(allocs, minTime, timeRange) + 
+                    '<div style="position: absolute; bottom: 4px; left: 8px; font-size: 10px; color: var(--text-secondary);">Start</div>' +
+                    '<div style="position: absolute; bottom: 4px; right: 8px; font-size: 10px; color: var(--text-secondary);">End</div>';
+            } else {
+                container.innerHTML = createAllocationTimeline(allocs, minTime, timeRange);
+            }
+        };
+    }
+    
+    // Table filter
+    const filterSelect = document.getElementById('ffi-filter');
+    if (filterSelect) {
+        filterSelect.onchange = () => {
+            const filterValue = filterSelect.value;
+            let filteredAllocs = allocs;
+            
+            switch(filterValue) {
+                case 'leaked':
+                    filteredAllocs = allocs.filter(a => a.is_leaked);
+                    break;
+                case 'cloned':
+                    filteredAllocs = allocs.filter(a => a.clone_info?.clone_count > 0);
+                    break;
+                case 'borrowed':
+                    filteredAllocs = allocs.filter(a => {
+                        const borrows = (a.borrow_info?.immutable_borrows || 0) + (a.borrow_info?.mutable_borrows || 0);
+                        return borrows > 0;
+                    });
+                    break;
+                default:
+                    filteredAllocs = allocs;
+            }
+            
+            const tableContainer = document.getElementById('ffi-allocation-table');
+            if (tableContainer) {
+                tableContainer.innerHTML = createAllocationTable(filteredAllocs);
+            }
+        };
+    }
+}
+
+// Show allocation detail modal
+window.showAllocationDetail = function(ptr) {
+    const data = window.analysisData || {};
+    const allocs = data.unsafe_ffi?.allocations || data.memory_analysis?.allocations || data.allocations || [];
+    const alloc = allocs.find(a => a.ptr === ptr);
+    
+    if (!alloc) return;
+    
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0; 
+        background: rgba(0,0,0,0.5); z-index: 1000; 
+        display: flex; align-items: center; justify-content: center;
+    `;
+    
+    modal.innerHTML = `
+        <div style="background: var(--bg-primary); border-radius: 12px; padding: 24px; min-width: 400px; max-width: 600px; border: 1px solid var(--border-light);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h3 style="margin: 0; color: var(--text-primary);">Allocation Details</h3>
+                <button onclick="this.closest('div').parentNode.remove()" style="background: none; border: none; font-size: 20px; color: var(--text-secondary); cursor: pointer;">×</button>
+            </div>
+            <div style="color: var(--text-primary); line-height: 1.6;">
+                <div style="margin-bottom: 12px;"><strong>Variable:</strong> ${alloc.var_name || 'unnamed'}</div>
+                <div style="margin-bottom: 12px;"><strong>Type:</strong> ${alloc.type_name || 'Unknown'}</div>
+                <div style="margin-bottom: 12px;"><strong>Size:</strong> ${formatBytes(alloc.size || 0)}</div>
+                <div style="margin-bottom: 12px;"><strong>Pointer:</strong> <code>${alloc.ptr}</code></div>
+                <div style="margin-bottom: 12px;"><strong>Thread:</strong> ${alloc.thread_id}</div>
+                <div style="margin-bottom: 12px;"><strong>Allocated:</strong> ${new Date(alloc.timestamp_alloc / 1e6).toLocaleString()}</div>
+                <div style="margin-bottom: 12px;"><strong>Lifetime:</strong> ${alloc.lifetime_ms ? alloc.lifetime_ms.toFixed(2) + 'ms' : 'Active'}</div>
+                <div style="margin-bottom: 12px;"><strong>Immutable Borrows:</strong> ${alloc.borrow_info?.immutable_borrows || 0}</div>
+                <div style="margin-bottom: 12px;"><strong>Mutable Borrows:</strong> ${alloc.borrow_info?.mutable_borrows || 0}</div>
+                <div style="margin-bottom: 12px;"><strong>Clone Count:</strong> ${alloc.clone_info?.clone_count || 0}</div>
+                <div style="margin-bottom: 12px;"><strong>FFI Tracked:</strong> ${alloc.ffi_tracked ? 'Yes' : 'No'}</div>
+                <div style="margin-bottom: 12px;"><strong>Status:</strong> 
+                    <span style="color: ${alloc.is_leaked ? 'var(--primary-red)' : 'var(--primary-green)'}; font-weight: 600;">
+                        ${alloc.is_leaked ? 'LEAKED' : 'OK'}
+                    </span>
+                </div>
+                ${alloc.safety_violations && alloc.safety_violations.length > 0 ? 
+                    `<div style="margin-bottom: 12px; color: var(--primary-red);"><strong>Safety Violations:</strong> ${alloc.safety_violations.join(', ')}</div>` 
+                    : ''}
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+};
+
+// Show cluster detail for grouped allocations
+window.showClusterDetail = function(ptrs) {
+    const data = window.analysisData || {};
+    const allocs = data.unsafe_ffi?.allocations || data.memory_analysis?.allocations || data.allocations || [];
+    const clusterAllocs = allocs.filter(a => ptrs.includes(a.ptr));
+    
+    if (clusterAllocs.length === 0) return;
+    
+    const totalSize = clusterAllocs.reduce((sum, a) => sum + (a.size || 0), 0);
+    const totalBorrows = clusterAllocs.reduce((sum, a) => sum + (a.borrow_info?.immutable_borrows || 0) + (a.borrow_info?.mutable_borrows || 0), 0);
+    const totalClones = clusterAllocs.reduce((sum, a) => sum + (a.clone_info?.clone_count || 0), 0);
+    const leakCount = clusterAllocs.filter(a => a.is_leaked).length;
+    
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0; 
+        background: rgba(0,0,0,0.5); z-index: 1000; 
+        display: flex; align-items: center; justify-content: center;
+    `;
+    
+    modal.innerHTML = `
+        <div style="background: var(--bg-primary); border-radius: 12px; padding: 24px; min-width: 500px; max-width: 700px; max-height: 80vh; overflow-y: auto; border: 1px solid var(--border-light);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h3 style="margin: 0; color: var(--text-primary);">Allocation Cluster (${clusterAllocs.length} items)</h3>
+                <button onclick="this.closest('div').parentNode.remove()" style="background: none; border: none; font-size: 20px; color: var(--text-secondary); cursor: pointer;">×</button>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px;">
+                <div style="text-align: center; padding: 12px; background: var(--bg-secondary); border-radius: 6px;">
+                    <div style="font-size: 1.2rem; font-weight: 600; color: var(--primary-blue);">${formatBytes(totalSize)}</div>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary);">Total Size</div>
+                </div>
+                <div style="text-align: center; padding: 12px; background: var(--bg-secondary); border-radius: 6px;">
+                    <div style="font-size: 1.2rem; font-weight: 600; color: var(--primary-green);">${totalBorrows}</div>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary);">Total Borrows</div>
+                </div>
+                <div style="text-align: center; padding: 12px; background: var(--bg-secondary); border-radius: 6px;">
+                    <div style="font-size: 1.2rem; font-weight: 600; color: var(--primary-orange);">${totalClones}</div>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary);">Total Clones</div>
+                </div>
+                <div style="text-align: center; padding: 12px; background: var(--bg-secondary); border-radius: 6px;">
+                    <div style="font-size: 1.2rem; font-weight: 600; color: ${leakCount > 0 ? 'var(--primary-red)' : 'var(--primary-green)'};">${leakCount}</div>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary);">Leaks</div>
+                </div>
+            </div>
+            <div style="color: var(--text-primary);">
+                <h4 style="margin: 0 0 12px 0; color: var(--text-primary);">Individual Allocations:</h4>
+                <div style="max-height: 300px; overflow-y: auto; border: 1px solid var(--border-light); border-radius: 6px;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+                        <thead style="background: var(--bg-secondary); position: sticky; top: 0;">
+                            <tr>
+                                <th style="padding: 8px; text-align: left;">Variable</th>
+                                <th style="padding: 8px; text-align: right;">Size</th>
+                                <th style="padding: 8px; text-align: center;">Borrows</th>
+                                <th style="padding: 8px; text-align: center;">Clones</th>
+                                <th style="padding: 8px; text-align: center;">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${clusterAllocs.map(alloc => {
+                                const totalBorrows = (alloc.borrow_info?.immutable_borrows || 0) + (alloc.borrow_info?.mutable_borrows || 0);
+                                const cloneCount = alloc.clone_info?.clone_count || 0;
+                                const isLeaked = alloc.is_leaked;
+                                const statusColor = isLeaked ? 'var(--primary-red)' : 'var(--primary-green)';
+                                const statusText = isLeaked ? 'LEAKED' : 'OK';
+                                
+                                return `
+                                    <tr style="border-bottom: 1px solid var(--border-light); cursor: pointer;" onclick="showAllocationDetail('${alloc.ptr}')">
+                                        <td style="padding: 8px; font-weight: 500;">${alloc.var_name || 'unnamed'}</td>
+                                        <td style="padding: 8px; text-align: right; font-weight: 600;">${formatBytes(alloc.size || 0)}</td>
+                                        <td style="padding: 8px; text-align: center; color: var(--primary-blue);">${totalBorrows}</td>
+                                        <td style="padding: 8px; text-align: center; color: var(--primary-orange);">${cloneCount}</td>
+                                        <td style="padding: 8px; text-align: center;"><span style="color: ${statusColor}; font-weight: 600; font-size: 11px;">${statusText}</span></td>
+                                    </tr>
+                                `;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+};
+
+// Render enhanced data insights with beautiful visualizations
+function renderEnhancedDataInsights() {
+    const data = window.analysisData || {};
+    const allocs = data.memory_analysis?.allocations || data.allocations || [];
+    
+    if (allocs.length === 0) return;
+    
+    // Calculate timeline insights
+    const timestamps = allocs.map(a => a.timestamp_alloc).filter(t => t).sort((a, b) => a - b);
+    const timeSpanMs = timestamps.length > 1 ? (timestamps[timestamps.length - 1] - timestamps[0]) / 1e6 : 0;
+    const allocationBurst = (allocs.length / Math.max(1, timeSpanMs / 1000)).toFixed(1);
+    
+    // Calculate borrow patterns
+    const borrowPatterns = {};
+    let totalBorrows = 0;
+    let totalMutable = 0;
+    let totalImmutable = 0;
+    
+    allocs.forEach(alloc => {
+        const bi = alloc.borrow_info || {};
+        const immut = bi.immutable_borrows || 0;
+        const mut = bi.mutable_borrows || 0;
+        const pattern = `${immut}i+${mut}m`;
+        borrowPatterns[pattern] = (borrowPatterns[pattern] || 0) + 1;
+        totalBorrows += immut + mut;
+        totalImmutable += immut;
+        totalMutable += mut;
+    });
+    
+    // Calculate clone operations
+    const totalClones = allocs.reduce((sum, a) => sum + (a.clone_info?.clone_count || 0), 0);
+    
+    // Update Timeline Insights
+    document.getElementById('time-span').textContent = timeSpanMs.toFixed(2) + 'ms';
+    document.getElementById('allocation-burst').textContent = allocationBurst + '/sec';
+    document.getElementById('peak-concurrency').textContent = Math.max(...allocs.map(a => (a.borrow_info?.max_concurrent_borrows || 0)));
+    document.getElementById('thread-activity').textContent = 'Single Thread';
+    
+    // Update Memory Operations
+    document.getElementById('borrow-ops').textContent = totalBorrows;
+    document.getElementById('clone-ops').textContent = totalClones;
+    document.getElementById('mut-ratio').textContent = totalImmutable > 0 ? (totalMutable / totalImmutable).toFixed(1) : '0';
+    document.getElementById('avg-borrows').textContent = (totalBorrows / allocs.length).toFixed(1);
+    
+    // Render charts with forced data refresh
+    renderBorrowPatternChart(borrowPatterns);
+    
+    // Force Type Memory Distribution to render with debug info
+    console.log('🔍 Forcing Type Memory Distribution render with data:', allocs.length, 'allocations');
+    setTimeout(() => {
+        renderMemoryDistributionChart(allocs);
+    }, 100);
+    
+    console.log('✅ Enhanced data insights rendered:', {
+        timeSpan: timeSpanMs.toFixed(2) + 'ms',
+        totalBorrows,
+        totalClones,
+        borrowPatterns,
+        allocCount: allocs.length
+    });
+}
+
+// Render borrow activity heatmap (新奇直观的可视化)
+function renderBorrowPatternChart(patterns) {
+    const container = document.getElementById('borrowPatternChart');
+    if (!container) return;
+    
+    const data = window.analysisData || {};
+    const allocs = data.memory_analysis?.allocations || data.allocations || [];
+    
+    // Create interactive borrow activity heatmap
+    container.innerHTML = '';
+    container.style.cssText = 'height: 200px; overflow-y: auto; padding: 8px; background: var(--bg-primary); border-radius: 8px; border: 1px solid var(--border-light);';
+    
+    // Group variables by borrow intensity
+    const borrowGroups = {
+        'High Activity (4i+2m)': [],
+        'Normal Activity (2i+1m)': [],
+        'Low Activity (0-1 borrows)': []
+    };
+    
+    allocs.forEach(alloc => {
+        const bi = alloc.borrow_info || {};
+        const immut = bi.immutable_borrows || 0;
+        const mut = bi.mutable_borrows || 0;
+        const total = immut + mut;
+        
+        if (total >= 5) {
+            borrowGroups['High Activity (4i+2m)'].push(alloc);
+        } else if (total >= 2) {
+            borrowGroups['Normal Activity (2i+1m)'].push(alloc);
+        } else {
+            borrowGroups['Low Activity (0-1 borrows)'].push(alloc);
+        }
+    });
+    
+    // Create visual representation
+    Object.entries(borrowGroups).forEach(([groupName, groupAllocs], groupIndex) => {
+        if (groupAllocs.length === 0) return;
+        
+        const groupDiv = document.createElement('div');
+        groupDiv.style.cssText = 'margin-bottom: 12px;';
+        
+        const groupHeader = document.createElement('div');
+        groupHeader.style.cssText = `
+            font-size: 11px; font-weight: 600; margin-bottom: 6px; 
+            color: var(--text-primary); display: flex; align-items: center; gap: 8px;
+        `;
+        
+        const colors = ['#ef4444', '#f59e0b', '#10b981'];
+        const icons = ['🔥', '⚡', '💧'];
+        
+        groupHeader.innerHTML = `
+            <span style="font-size: 14px;">${icons[groupIndex]}</span>
+            <span>${groupName}</span>
+            <span style="background: ${colors[groupIndex]}; color: white; padding: 2px 6px; border-radius: 10px; font-size: 9px;">
+                ${groupAllocs.length}
+            </span>
+        `;
+        
+        const bubbleContainer = document.createElement('div');
+        bubbleContainer.style.cssText = `
+            display: flex; flex-wrap: wrap; gap: 4px; padding: 12px; 
+            background: var(--bg-secondary); border-radius: 6px; min-height: 60px;
+            align-items: center; justify-content: flex-start;
+        `;
+        
+        // Create borrow activity bubbles
+        groupAllocs.forEach((alloc, index) => {
+            const bi = alloc.borrow_info || {};
+            const immut = bi.immutable_borrows || 0;
+            const mut = bi.mutable_borrows || 0;
+            const maxConcurrent = bi.max_concurrent_borrows || 0;
+            
+            const bubble = document.createElement('div');
+            const size = Math.max(16, Math.min(32, 12 + (immut + mut) * 2));
+            
+            bubble.style.cssText = `
+                width: ${size}px; height: ${size}px; border-radius: 50%; 
+                background: linear-gradient(45deg, ${colors[groupIndex]}80, ${colors[groupIndex]});
+                border: 2px solid ${colors[groupIndex]}; cursor: pointer;
+                display: flex; align-items: center; justify-content: center;
+                font-size: 8px; font-weight: bold; color: white;
+                transition: transform 0.2s, box-shadow 0.2s;
+                position: relative;
+            `;
+            
+            bubble.textContent = immut + mut;
+            bubble.title = `${alloc.var_name}: ${immut}i + ${mut}m (max: ${maxConcurrent})`;
+            
+            // Add interactive effects
+            bubble.onmouseover = () => {
+                bubble.style.transform = 'scale(1.2)';
+                bubble.style.boxShadow = `0 4px 12px ${colors[groupIndex]}40`;
+            };
+            bubble.onmouseout = () => {
+                bubble.style.transform = 'scale(1)';
+                bubble.style.boxShadow = 'none';
+            };
+            
+            // Add click to show details
+            bubble.onclick = () => {
+                showBorrowDetail(alloc);
+            };
+            
+            bubbleContainer.appendChild(bubble);
+        });
+        
+        groupDiv.appendChild(groupHeader);
+        groupDiv.appendChild(bubbleContainer);
+        container.appendChild(groupDiv);
+    });
+    
+    // Add summary stats at bottom
+    const summaryDiv = document.createElement('div');
+    summaryDiv.style.cssText = `
+        margin-top: 8px; padding: 8px; background: var(--bg-secondary); 
+        border-radius: 6px; font-size: 10px; color: var(--text-secondary);
+        display: flex; justify-content: space-between;
+    `;
+    
+    const totalBorrows = allocs.reduce((sum, a) => sum + (a.borrow_info?.immutable_borrows || 0) + (a.borrow_info?.mutable_borrows || 0), 0);
+    const avgBorrows = (totalBorrows / allocs.length).toFixed(1);
+    const maxConcurrent = Math.max(...allocs.map(a => a.borrow_info?.max_concurrent_borrows || 0));
+    
+    summaryDiv.innerHTML = `
+        <span>Total Borrows: <strong>${totalBorrows}</strong></span>
+        <span>Avg/Variable: <strong>${avgBorrows}</strong></span>
+        <span>Peak Concurrent: <strong>${maxConcurrent}</strong></span>
+    `;
+    
+    container.appendChild(summaryDiv);
+}
+
+// Show borrow detail modal
+function showBorrowDetail(alloc) {
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0; 
+        background: rgba(0,0,0,0.5); z-index: 1000; 
+        display: flex; align-items: center; justify-content: center;
+    `;
+    
+    const bi = alloc.borrow_info || {};
+    
+    modal.innerHTML = `
+        <div style="background: var(--bg-primary); border-radius: 12px; padding: 20px; min-width: 350px; border: 1px solid var(--border-light);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h3 style="margin: 0; color: var(--text-primary);">🔍 Borrow Analysis</h3>
+                <button onclick="this.closest('div').parentNode.remove()" style="background: none; border: none; font-size: 18px; color: var(--text-secondary); cursor: pointer;">×</button>
+            </div>
+            <div style="color: var(--text-primary); line-height: 1.6;">
+                <div style="margin-bottom: 12px;"><strong>Variable:</strong> ${alloc.var_name}</div>
+                <div style="margin-bottom: 12px;"><strong>Type:</strong> ${alloc.type_name}</div>
+                <div style="margin-bottom: 12px;"><strong>Size:</strong> ${formatBytes(alloc.size || 0)}</div>
+                <hr style="border: none; border-top: 1px solid var(--border-light); margin: 16px 0;">
+                <div style="margin-bottom: 8px;"><strong>📖 Immutable Borrows:</strong> <span style="color: var(--primary-blue); font-weight: 600;">${bi.immutable_borrows || 0}</span></div>
+                <div style="margin-bottom: 8px;"><strong>✏️ Mutable Borrows:</strong> <span style="color: var(--primary-orange); font-weight: 600;">${bi.mutable_borrows || 0}</span></div>
+                <div style="margin-bottom: 8px;"><strong>🔥 Max Concurrent:</strong> <span style="color: var(--primary-red); font-weight: 600;">${bi.max_concurrent_borrows || 0}</span></div>
+                <div style="margin-bottom: 8px;"><strong>⚡ Total Activity:</strong> <span style="color: var(--primary-green); font-weight: 600;">${(bi.immutable_borrows || 0) + (bi.mutable_borrows || 0)}</span></div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+}
+
+// Render type memory distribution as interactive memory blocks
+function renderMemoryDistributionChart(allocs) {
+    const container = document.getElementById('memoryDistributionChart');
+    if (!container) return;
+    
+    // Create unique memory blocks visualization (not pie chart)
+    container.innerHTML = '';
+    
+    // Group by type and sum memory
+    const typeMemory = {};
+    console.log('🔍 Processing allocations for memory blocks:', allocs.length);
+    
+    allocs.forEach((alloc, index) => {
+        let typeName = alloc.type_name || 'Unknown';
+        const originalType = typeName;
+        const size = alloc.size || 0;
+        
+        // Simplify type names
+        if (typeName.includes('HashMap')) {
+            typeName = 'HashMap';
+        } else if (typeName.includes('BTreeMap')) {
+            typeName = 'BTreeMap';
+        } else if (typeName.includes('Arc')) {
+            typeName = 'Arc';
+        } else if (typeName.includes('Rc')) {
+            typeName = 'Rc';
+        } else if (typeName.includes('String')) {
+            typeName = 'String';
+        } else if (typeName.includes('Vec')) {
+            typeName = 'Vec';
+        } else {
+            typeName = originalType.split('::').pop() || 'Unknown';
+        }
+        
+        if (!typeMemory[typeName]) {
+            typeMemory[typeName] = { size: 0, count: 0, allocations: [] };
+        }
+        typeMemory[typeName].size += size;
+        typeMemory[typeName].count += 1;
+        typeMemory[typeName].allocations.push(alloc);
+        
+        console.log(`[${index}] ${originalType} -> ${typeName}: ${size} bytes`);
+    });
+    
+    // Sort by memory size
+    const sortedTypes = Object.entries(typeMemory)
+        .filter(([type, data]) => data.size > 0)
+        .sort((a, b) => b[1].size - a[1].size);
+    
+    console.log('Memory blocks data:', sortedTypes);
+    
+    if (sortedTypes.length === 0) {
+        container.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary);">No type data available</div>';
+        return;
+    }
+    
+    const totalMemory = sortedTypes.reduce((sum, [_, data]) => sum + data.size, 0);
+    const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#84cc16', '#f97316'];
+    
+    // Create memory blocks visualization
+    container.innerHTML = `
+        <div style="height: 100%; display: flex; flex-direction: column; gap: 8px; padding: 8px;">
+            ${sortedTypes.map(([typeName, data], index) => {
+                const percentage = ((data.size / totalMemory) * 100);
+                const color = colors[index % colors.length];
+                const blockHeight = Math.max(20, Math.min(60, percentage * 2));
+                
+                return `
+                    <div style="display: flex; align-items: center; gap: 12px; cursor: pointer; padding: 6px; border-radius: 6px; transition: all 0.2s;"
+                         onmouseover="this.style.background='var(--bg-primary)'; this.style.transform='scale(1.02)'"
+                         onmouseout="this.style.background='transparent'; this.style.transform='scale(1)'"
+                         onclick="showTypeDetail('${typeName}', ${JSON.stringify(data).replace(/"/g, '&quot;')})">
+                        
+                        <!-- Memory Block -->
+                        <div style="width: 40px; height: ${blockHeight}px; background: linear-gradient(135deg, ${color}, ${color}80); 
+                                    border-radius: 4px; position: relative; border: 2px solid ${color};">
+                            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+                                        color: white; font-size: 8px; font-weight: bold;">
+                                ${data.count}
+                            </div>
+                        </div>
+                        
+                        <!-- Type Info -->
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 2px;">
+                                ${typeName}
+                            </div>
+                            <div style="font-size: 11px; color: var(--text-secondary);">
+                                ${formatBytes(data.size)} • ${data.count} allocation${data.count > 1 ? 's' : ''}
+                            </div>
+                        </div>
+                        
+                        <!-- Percentage Bar -->
+                        <div style="width: 60px; text-align: right;">
+                            <div style="font-size: 12px; font-weight: 600; color: ${color}; margin-bottom: 2px;">
+                                ${percentage.toFixed(1)}%
+                            </div>
+                            <div style="width: 100%; height: 4px; background: var(--border-light); border-radius: 2px; overflow: hidden;">
+                                <div style="width: ${percentage}%; height: 100%; background: ${color}; border-radius: 2px;"></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('')}
+        </div>
+    `;
+}
+
+// Show type detail modal
+window.showTypeDetail = function(typeName, data) {
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0; 
+        background: rgba(0,0,0,0.6); z-index: 1000; 
+        display: flex; align-items: center; justify-content: center;
+    `;
+    
+    const typeColors = {
+        'HashMap': '#3b82f6', 'BTreeMap': '#10b981', 'Arc': '#f59e0b', 
+        'Rc': '#ef4444', 'String': '#8b5cf6', 'Vec': '#06b6d4'
+    };
+    const color = typeColors[typeName] || '#64748b';
+    
+    modal.innerHTML = `
+        <div style="background: var(--bg-primary); border-radius: 16px; padding: 24px; min-width: 500px; max-width: 700px; max-height: 80vh; overflow-y: auto; border: 1px solid var(--border-light);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="margin: 0; color: var(--text-primary); display: flex; align-items: center; gap: 12px;">
+                    <div style="width: 24px; height: 24px; background: ${color}; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: white; font-size: 12px; font-weight: bold;">
+                        ${data.count}
+                    </div>
+                    ${typeName} Memory Analysis
+                </h3>
+                <button onclick="this.closest('div').parentNode.remove()" style="background: none; border: none; font-size: 20px; color: var(--text-secondary); cursor: pointer;">×</button>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px;">
+                <div style="text-align: center; padding: 16px; background: var(--bg-secondary); border-radius: 8px;">
+                    <div style="font-size: 1.8rem; font-weight: 700; color: ${color};">${formatBytes(data.size)}</div>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary);">Total Memory</div>
+                </div>
+                <div style="text-align: center; padding: 16px; background: var(--bg-secondary); border-radius: 8px;">
+                    <div style="font-size: 1.8rem; font-weight: 700; color: var(--text-primary);">${data.count}</div>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary);">Allocations</div>
+                </div>
+                <div style="text-align: center; padding: 16px; background: var(--bg-secondary); border-radius: 8px;">
+                    <div style="font-size: 1.8rem; font-weight: 700; color: var(--text-primary);">${formatBytes(data.size / data.count)}</div>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary);">Avg Size</div>
+                </div>
+            </div>
+            
+            <h4 style="margin: 0 0 12px 0; color: var(--text-primary);">Individual Allocations:</h4>
+            <div style="max-height: 300px; overflow-y: auto; border: 1px solid var(--border-light); border-radius: 8px;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+                    <thead style="background: var(--bg-secondary); position: sticky; top: 0;">
+                        <tr>
+                            <th style="padding: 8px; text-align: left; color: var(--text-primary);">Variable</th>
+                            <th style="padding: 8px; text-align: right; color: var(--text-primary);">Size</th>
+                            <th style="padding: 8px; text-align: center; color: var(--text-primary);">Status</th>
+                            <th style="padding: 8px; text-align: right; color: var(--text-primary);">Lifetime</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${data.allocations.map(alloc => {
+                            const isLeaked = alloc.is_leaked;
+                            const statusColor = isLeaked ? 'var(--primary-red)' : 'var(--primary-green)';
+                            const statusText = isLeaked ? 'LEAKED' : 'OK';
+                            const lifetime = alloc.lifetime_ms || 'Active';
+                            
+                            return `
+                                <tr style="border-bottom: 1px solid var(--border-light); cursor: pointer;" onclick="showAllocationDetail('${alloc.ptr}')">
+                                    <td style="padding: 8px; color: var(--text-primary); font-weight: 500;">${alloc.var_name || 'unnamed'}</td>
+                                    <td style="padding: 8px; text-align: right; color: var(--text-primary); font-weight: 600;">${formatBytes(alloc.size || 0)}</td>
+                                    <td style="padding: 8px; text-align: center;">
+                                        <span style="color: ${statusColor}; font-weight: 600; font-size: 11px;">${statusText}</span>
+                                    </td>
+                                    <td style="padding: 8px; text-align: right; color: var(--text-secondary); font-size: 11px;">
+                                        ${typeof lifetime === 'number' ? lifetime.toFixed(2) + 'ms' : lifetime}
+                                    </td>
+                                </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+};
+
+// Render detailed allocation timeline with heap/stack and timing info
+function renderAllocationTimelineDetail() {
+    const container = document.getElementById('allocationTimelineDetail');
+    if (!container) return;
+    
+    const data = window.analysisData || {};
+    const allocs = data.memory_analysis?.allocations || data.allocations || [];
+    
+    if (allocs.length === 0) {
+        container.innerHTML = '<div style="text-align: center; color: var(--text-secondary); margin-top: 80px;">No allocation data available</div>';
+        return;
+    }
+    
+    // Sort by allocation time
+    const sortedAllocs = allocs.slice().sort((a, b) => (a.timestamp_alloc || 0) - (b.timestamp_alloc || 0));
+    const minTime = sortedAllocs[0].timestamp_alloc || 0;
+    
+    // Classify allocations as heap/stack
+    const classifyAllocation = (typeName) => {
+        const heapIndicators = ['Arc', 'Rc', 'Box', 'Vec', 'HashMap', 'BTreeMap', 'String'];
+        const stackIndicators = ['&', 'i32', 'u32', 'i64', 'u64', 'f32', 'f64', 'bool', 'char'];
+        
+        if (heapIndicators.some(indicator => typeName.includes(indicator))) {
+            return { type: 'heap', color: '#ef4444', icon: '🏗️' };
+        } else if (stackIndicators.some(indicator => typeName.includes(indicator))) {
+            return { type: 'stack', color: '#10b981', icon: '📚' };
+        } else {
+            return { type: 'unknown', color: '#64748b', icon: '❓' };
+        }
+    };
+    
+    container.innerHTML = `
+        <div style="display: flex; flex-direction: column; gap: 4px; height: 100%;">
+            ${sortedAllocs.slice(0, 15).map((alloc, index) => {
+                const allocTime = alloc.timestamp_alloc || 0;
+                const lifetime = alloc.lifetime_ms || 0;
+                const dropTime = allocTime + (lifetime * 1_000_000); // Convert ms to ns
+                const relativeTime = ((allocTime - minTime) / 1_000_000).toFixed(2); // Convert to ms
+                
+                const classification = classifyAllocation(alloc.type_name || '');
+                const typeName = (alloc.type_name || 'Unknown').split('::').pop().split('<')[0];
+                
+                return `
+                    <div style="display: flex; align-items: center; gap: 8px; padding: 6px; border-radius: 4px; cursor: pointer; transition: all 0.2s;"
+                         onmouseover="this.style.background='var(--bg-primary)'"
+                         onmouseout="this.style.background='transparent'"
+                         onclick="showAllocationTimeDetail('${alloc.ptr}', ${allocTime}, ${dropTime}, '${classification.type}')">
+                        
+                        <!-- Allocation Type Icon -->
+                        <div style="width: 24px; height: 24px; background: ${classification.color}20; border: 1px solid ${classification.color}; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 12px;">
+                            ${classification.icon}
+                        </div>
+                        
+                        <!-- Variable Info -->
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="font-size: 11px; font-weight: 600; color: var(--text-primary); margin-bottom: 1px;">
+                                ${alloc.var_name || 'unnamed'} (${typeName})
+                            </div>
+                            <div style="font-size: 9px; color: var(--text-secondary);">
+                                ${formatBytes(alloc.size || 0)} • ${classification.type.toUpperCase()}
+                            </div>
+                        </div>
+                        
+                        <!-- Timing Info -->
+                        <div style="text-align: right; font-size: 9px;">
+                            <div style="color: var(--primary-blue); font-weight: 600;">+${relativeTime}ms</div>
+                            <div style="color: var(--text-secondary);">→ ${lifetime}ms</div>
+                        </div>
+                    </div>
+                `;
+            }).join('')}
+            
+            ${sortedAllocs.length > 15 ? `
+                <div style="text-align: center; padding: 8px; color: var(--text-secondary); font-size: 10px; border-top: 1px solid var(--border-light);">
+                    ... and ${sortedAllocs.length - 15} more allocations
+                </div>
+            ` : ''}
+        </div>
+    `;
+}
+
+// Show detailed allocation timing modal
+window.showAllocationTimeDetail = function(ptr, allocTime, dropTime, allocationType) {
+    const data = window.analysisData || {};
+    const allocs = data.memory_analysis?.allocations || data.allocations || [];
+    const alloc = allocs.find(a => a.ptr === ptr);
+    
+    if (!alloc) return;
+    
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0; 
+        background: rgba(0,0,0,0.6); z-index: 1000; 
+        display: flex; align-items: center; justify-content: center;
+    `;
+    
+    const allocDate = new Date(allocTime / 1_000_000);
+    const dropDate = new Date(dropTime / 1_000_000);
+    const typeColor = allocationType === 'heap' ? '#ef4444' : allocationType === 'stack' ? '#10b981' : '#64748b';
+    const typeIcon = allocationType === 'heap' ? '🏗️' : allocationType === 'stack' ? '📚' : '❓';
+    
+    modal.innerHTML = `
+        <div style="background: var(--bg-primary); border-radius: 16px; padding: 24px; min-width: 500px; color: var(--text-primary); border: 1px solid var(--border-light);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="margin: 0; display: flex; align-items: center; gap: 12px;">
+                    <span style="font-size: 24px;">${typeIcon}</span>
+                    ${allocationType.toUpperCase()} Allocation Timeline
+                </h3>
+                <button onclick="this.closest('div').parentNode.remove()" style="background: none; border: none; font-size: 20px; color: var(--text-secondary); cursor: pointer;">×</button>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+                <div style="padding: 16px; background: var(--bg-secondary); border-radius: 8px;">
+                    <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Variable</div>
+                    <div style="font-size: 16px; font-weight: 600;">${alloc.var_name || 'unnamed'}</div>
+                </div>
+                <div style="padding: 16px; background: var(--bg-secondary); border-radius: 8px;">
+                    <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Type</div>
+                    <div style="font-size: 14px; font-weight: 600; word-break: break-all;">${alloc.type_name || 'Unknown'}</div>
+                </div>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+                <div style="text-align: center; padding: 16px; background: var(--bg-secondary); border-radius: 8px;">
+                    <div style="font-size: 18px; font-weight: 700; color: ${typeColor};">${formatBytes(alloc.size || 0)}</div>
+                    <div style="font-size: 12px; color: var(--text-secondary);">Size</div>
+                </div>
+                <div style="text-align: center; padding: 16px; background: var(--bg-secondary); border-radius: 8px;">
+                    <div style="font-size: 18px; font-weight: 700; color: var(--primary-blue);">${alloc.lifetime_ms || 0}ms</div>
+                    <div style="font-size: 12px; color: var(--text-secondary);">Lifetime</div>
+                </div>
+                <div style="text-align: center; padding: 16px; background: var(--bg-secondary); border-radius: 8px;">
+                    <div style="font-size: 18px; font-weight: 700; color: ${typeColor};">${allocationType.toUpperCase()}</div>
+                    <div style="font-size: 12px; color: var(--text-secondary);">Location</div>
+                </div>
+            </div>
+            
+            <div style="background: var(--bg-secondary); padding: 16px; border-radius: 8px;">
+                <h4 style="margin: 0 0 12px 0; color: var(--text-primary);">Timeline Details</h4>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div>
+                        <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">🟢 Allocated At</div>
+                        <div style="font-size: 14px; font-weight: 600; color: var(--primary-green);">${allocDate.toLocaleString()}</div>
+                        <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">Timestamp: ${allocTime}</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">🔴 Dropped At</div>
+                        <div style="font-size: 14px; font-weight: 600; color: var(--primary-red);">${dropDate.toLocaleString()}</div>
+                        <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">Timestamp: ${dropTime}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+};
+
+// Update lifecycle statistics and render distribution chart
+function updateLifecycleStatistics() {
+    const data = window.analysisData || {};
+    const allocs = data.memory_analysis?.allocations || data.allocations || [];
+    
+    if (allocs.length === 0) return;
+    
+    // Calculate lifecycle statistics
+    const activeVars = allocs.filter(a => !a.is_leaked && a.lifetime_ms === undefined).length;
+    const freedVars = allocs.filter(a => !a.is_leaked && a.lifetime_ms !== undefined).length;
+    const leakedVars = allocs.filter(a => a.is_leaked).length;
+    const avgLifetime = allocs.filter(a => a.lifetime_ms).reduce((sum, a) => sum + a.lifetime_ms, 0) / Math.max(1, allocs.filter(a => a.lifetime_ms).length);
+    
+    // Update statistics display
+    document.getElementById('active-vars').textContent = activeVars;
+    document.getElementById('freed-vars').textContent = freedVars;
+    document.getElementById('leaked-vars').textContent = leakedVars;
+    document.getElementById('avg-lifetime-stat').textContent = avgLifetime.toFixed(2) + 'ms';
+    
+    // Render lifecycle distribution chart
+    renderLifecycleDistributionChart(allocs);
+}
+
+// Render lifecycle distribution chart
+function renderLifecycleDistributionChart(allocs) {
+    const ctx = document.getElementById('lifecycleDistributionChart');
+    if (!ctx || !window.Chart) return;
+    
+    // Cleanup existing chart
+    if (window.chartInstances && window.chartInstances['lifecycleDistributionChart']) {
+        try { window.chartInstances['lifecycleDistributionChart'].destroy(); } catch(_) {}
+        delete window.chartInstances['lifecycleDistributionChart'];
+    }
+    
+    // Group allocations by lifetime ranges
+    const lifetimeRanges = {
+        'Instant (0ms)': 0,
+        'Quick (0-1ms)': 0,
+        'Short (1-10ms)': 0,
+        'Long (10ms+)': 0,
+        'Active': 0
+    };
+    
+    allocs.forEach(alloc => {
+        const lifetime = alloc.lifetime_ms;
+        if (lifetime === undefined) {
+            lifetimeRanges['Active']++;
+        } else if (lifetime === 0) {
+            lifetimeRanges['Instant (0ms)']++;
+        } else if (lifetime <= 1) {
+            lifetimeRanges['Quick (0-1ms)']++;
+        } else if (lifetime <= 10) {
+            lifetimeRanges['Short (1-10ms)']++;
+        } else {
+            lifetimeRanges['Long (10ms+)']++;
+        }
+    });
+    
+    const labels = Object.keys(lifetimeRanges);
+    const values = Object.values(lifetimeRanges);
+    const colors = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6'];
+    
+    if (values.some(v => v > 0)) {
+        const chart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: values,
+                    backgroundColor: colors,
+                    borderWidth: 1,
+                    borderColor: colors.map(c => c + '80')
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: (context) => {
+                                const range = context.label;
+                                const count = context.parsed.y;
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percentage = ((count / total) * 100).toFixed(1);
+                                return `${range}: ${count} vars (${percentage}%)`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: {
+                            font: { size: 9 },
+                            color: function(context) {
+                                return document.documentElement.classList.contains('dark-theme') ? '#cbd5e1' : '#64748b';
+                            },
+                            maxRotation: 45
+                        },
+                        grid: { display: false }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            font: { size: 9 },
+                            color: function(context) {
+                                return document.documentElement.classList.contains('dark-theme') ? '#cbd5e1' : '#64748b';
+                            }
+                        },
+                        grid: {
+                            color: function(context) {
+                                return document.documentElement.classList.contains('dark-theme') ? '#374151' : '#e2e8f0';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        
+        window.chartInstances = window.chartInstances || {};
+        window.chartInstances['lifecycleDistributionChart'] = chart;
+    }
+}
+
+// Render memory hotspots visualization
+function renderMemoryHotspots() {
+    const container = document.getElementById('memoryHotspots');
+    if (!container) return;
+    
+    const data = window.analysisData || {};
+    const allocs = data.memory_analysis?.allocations || data.allocations || [];
+    
+    if (allocs.length === 0) {
+        container.innerHTML = '<div style="text-align: center; color: var(--text-secondary); margin-top: 100px;">No allocation data available</div>';
+        return;
+    }
+    
+    // Sort allocations by size to identify hotspots
+    const sortedAllocs = allocs.slice().sort((a, b) => (b.size || 0) - (a.size || 0));
+    const topHotspots = sortedAllocs.slice(0, 10); // Top 10 largest allocations
+    
+    container.innerHTML = '';
+    
+    // Create hotspot visualization
+    topHotspots.forEach((alloc, index) => {
+        const size = alloc.size || 0;
+        const maxSize = sortedAllocs[0].size || 1;
+        const intensity = (size / maxSize) * 100;
+        
+        const hotspotDiv = document.createElement('div');
+        hotspotDiv.style.cssText = `
+            display: flex; align-items: center; padding: 8px; margin-bottom: 6px;
+            background: linear-gradient(90deg, var(--bg-primary) 0%, var(--primary-red)${Math.floor(intensity/4)} ${intensity}%, var(--bg-primary) 100%);
+            border-radius: 6px; border: 1px solid var(--border-light);
+            cursor: pointer; transition: transform 0.2s;
+        `;
+        
+        const heatColor = intensity > 80 ? '#ef4444' : intensity > 60 ? '#f59e0b' : intensity > 40 ? '#10b981' : '#3b82f6';
+        
+        hotspotDiv.innerHTML = `
+            <div style="width: 24px; height: 24px; border-radius: 50%; background: ${heatColor}; 
+                        display: flex; align-items: center; justify-content: center; margin-right: 12px;
+                        font-size: 10px; font-weight: bold; color: white;">
+                ${index + 1}
+            </div>
+            <div style="flex: 1;">
+                <div style="font-size: 12px; font-weight: 600; color: var(--text-primary);">
+                    ${alloc.var_name || 'unnamed'}
+                </div>
+                <div style="font-size: 10px; color: var(--text-secondary);">
+                    ${(alloc.type_name || 'Unknown').replace(/std::|alloc::/g, '').substring(0, 30)}...
+                </div>
+            </div>
+            <div style="text-align: right;">
+                <div style="font-size: 12px; font-weight: 700; color: ${heatColor};">
+                    ${formatBytes(size)}
+                </div>
+                <div style="font-size: 9px; color: var(--text-secondary);">
+                    ${intensity.toFixed(1)}% of max
+                </div>
+            </div>
+        `;
+        
+        hotspotDiv.onmouseover = () => {
+            hotspotDiv.style.transform = 'scale(1.02)';
+            hotspotDiv.style.boxShadow = `0 4px 12px ${heatColor}40`;
+        };
+        hotspotDiv.onmouseout = () => {
+            hotspotDiv.style.transform = 'scale(1)';
+            hotspotDiv.style.boxShadow = 'none';
+        };
+        
+        hotspotDiv.onclick = () => {
+            showAllocationDetail(alloc.ptr);
+        };
+        
+        container.appendChild(hotspotDiv);
+    });
+    
+    // Add summary at bottom
+    const summaryDiv = document.createElement('div');
+    summaryDiv.style.cssText = `
+        margin-top: 12px; padding: 8px; background: var(--bg-primary); 
+        border-radius: 6px; font-size: 10px; color: var(--text-secondary);
+        text-align: center; border: 1px solid var(--border-light);
+    `;
+    
+    const totalHotspotMemory = topHotspots.reduce((sum, a) => sum + (a.size || 0), 0);
+    const totalMemory = allocs.reduce((sum, a) => sum + (a.size || 0), 0);
+    const hotspotPercentage = ((totalHotspotMemory / totalMemory) * 100).toFixed(1);
+    
+    summaryDiv.innerHTML = `
+        Top ${topHotspots.length} hotspots: <strong>${formatBytes(totalHotspotMemory)}</strong> 
+        (${hotspotPercentage}% of total memory)
+    `;
+    
+    container.appendChild(summaryDiv);
+}
+
+// Render thread analysis
+function renderThreadAnalysis() {
+    const data = window.analysisData || {};
+    const allocs = data.memory_analysis?.allocations || data.allocations || [];
+    
+    // Update thread timeline
+    renderThreadTimeline(allocs);
+    
+    // Update contention analysis
+    updateContentionAnalysis(allocs);
+}
+
+// Render thread timeline
+function renderThreadTimeline(allocs) {
+    const container = document.getElementById('threadTimeline');
+    if (!container) return;
+    
+    container.innerHTML = '';
+    
+    // Get unique threads
+    const threads = [...new Set(allocs.map(a => a.thread_id).filter(t => t))];
+    
+    if (threads.length <= 1) {
+        // Single thread visualization
+        container.innerHTML = `
+            <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary);">
+                <div style="text-align: center;">
+                    <div style="font-size: 14px; margin-bottom: 4px;">🧵</div>
+                    <div style="font-size: 10px;">Single Thread</div>
+                    <div style="font-size: 9px;">ThreadId(${threads[0] || 1})</div>
+                </div>
+            </div>
+        `;
+        return;
+    }
+    
+    // Multi-thread visualization (if applicable)
+    threads.forEach((threadId, index) => {
+        const threadAllocs = allocs.filter(a => a.thread_id === threadId);
+        const threadDiv = document.createElement('div');
+        threadDiv.style.cssText = `
+            height: ${100/threads.length}%; display: flex; align-items: center; 
+            padding: 0 8px; border-bottom: 1px solid var(--border-light);
+        `;
+        
+        threadDiv.innerHTML = `
+            <div style="width: 60px; font-size: 9px; color: var(--text-secondary);">
+                Thread ${threadId}
+            </div>
+            <div style="flex: 1; height: 4px; background: var(--bg-secondary); border-radius: 2px; position: relative;">
+                <div style="height: 100%; background: var(--primary-blue); border-radius: 2px; width: ${(threadAllocs.length / allocs.length) * 100}%;"></div>
+            </div>
+            <div style="width: 40px; text-align: right; font-size: 9px; color: var(--text-primary);">
+                ${threadAllocs.length}
+            </div>
+        `;
+        
+        container.appendChild(threadDiv);
+    });
+}
+
+// Update contention analysis
+function updateContentionAnalysis(allocs) {
+    const levelEl = document.getElementById('contention-level');
+    const detailsEl = document.getElementById('contention-details');
+    
+    if (!levelEl || !detailsEl) return;
+    
+    // Calculate contention metrics
+    const maxConcurrentBorrows = Math.max(...allocs.map(a => a.borrow_info?.max_concurrent_borrows || 0));
+    const avgConcurrentBorrows = allocs.reduce((sum, a) => sum + (a.borrow_info?.max_concurrent_borrows || 0), 0) / allocs.length;
+    
+    let level = 'LOW';
+    let color = 'var(--primary-green)';
+    let details = 'Single-threaded';
+    
+    if (maxConcurrentBorrows > 5) {
+        level = 'HIGH';
+        color = 'var(--primary-red)';
+        details = `Max ${maxConcurrentBorrows} concurrent`;
+    } else if (maxConcurrentBorrows > 2) {
+        level = 'MEDIUM';
+        color = 'var(--primary-orange)';
+        details = `Avg ${avgConcurrentBorrows.toFixed(1)} concurrent`;
+    }
+    
+    levelEl.textContent = level;
+    levelEl.style.color = color;
+    detailsEl.textContent = details;
+}
+
+// Update Performance Metrics and Thread Safety Analysis
+function updateEnhancedMetrics() {
+    const data = window.analysisData || {};
+    const allocs = data.memory_analysis?.allocations || data.allocations || [];
+    
+    if (allocs.length === 0) return;
+    
+    // Calculate Performance Metrics
+    const totalMemory = allocs.reduce((sum, a) => sum + (a.size || 0), 0);
+    const peakMemory = Math.max(...allocs.map(a => a.size || 0));
+    const timestamps = allocs.map(a => a.timestamp_alloc).filter(t => t).sort((a, b) => a - b);
+    const timeRangeNs = timestamps.length > 1 ? timestamps[timestamps.length - 1] - timestamps[0] : 1e9;
+    const allocationRate = allocs.length / (timeRangeNs / 1e9); // allocations per second
+    const avgLifetime = allocs.filter(a => a.lifetime_ms).reduce((sum, a) => sum + a.lifetime_ms, 0) / Math.max(1, allocs.filter(a => a.lifetime_ms).length);
+    
+    // Simple fragmentation calculation: variance in allocation sizes
+    const avgSize = totalMemory / allocs.length;
+    const variance = allocs.reduce((sum, a) => sum + Math.pow((a.size || 0) - avgSize, 2), 0) / allocs.length;
+    const fragmentation = Math.min(100, (Math.sqrt(variance) / avgSize) * 100);
+
+    // Update Performance Metrics
+    const peakEl = document.getElementById('peak-memory');
+    const rateEl = document.getElementById('allocation-rate');
+    const lifetimeEl = document.getElementById('avg-lifetime');
+    const fragEl = document.getElementById('fragmentation');
+    
+    if (peakEl) peakEl.textContent = formatBytes(peakMemory);
+    if (rateEl) rateEl.textContent = allocationRate.toFixed(1) + '/sec';
+    if (lifetimeEl) lifetimeEl.textContent = avgLifetime.toFixed(2) + 'ms';
+    if (fragEl) fragEl.textContent = fragmentation.toFixed(1) + '%';
+
+    // Calculate Thread Safety Analysis
+    const arcCount = allocs.filter(a => (a.type_name || '').includes('Arc')).length;
+    const rcCount = allocs.filter(a => (a.type_name || '').includes('Rc')).length;
+    const collectionsCount = allocs.filter(a => {
+        const type = a.type_name || '';
+        return type.includes('HashMap') || type.includes('BTreeMap') || type.includes('Vec') || type.includes('HashSet');
+    }).length;
+
+    // Update Thread Safety Analysis
+    const arcEl = document.getElementById('arc-count');
+    const rcEl = document.getElementById('rc-count');
+    const collEl = document.getElementById('collections-count');
+    
+    if (arcEl) arcEl.textContent = arcCount;
+    if (rcEl) rcEl.textContent = rcCount;
+    if (collEl) collEl.textContent = collectionsCount;
+    
+    console.log('✅ Enhanced metrics updated:', {
+        peakMemory: formatBytes(peakMemory),
+        allocationRate: allocationRate.toFixed(1) + '/sec',
+        avgLifetime: avgLifetime.toFixed(2) + 'ms',
+        fragmentation: fragmentation.toFixed(1) + '%',
+        arcCount, rcCount, collectionsCount
+    });
+}
+
+// Enhanced chart rendering with comprehensive cleanup
+function renderEnhancedCharts() {
+    const data = window.analysisData || {};
+    
+    // Step 1: Destroy all Chart.js instances globally
+    if (window.Chart && window.Chart.instances) {
+        Object.keys(window.Chart.instances).forEach(id => {
+            try {
+                window.Chart.instances[id].destroy();
+            } catch(e) {
+                console.warn('Failed to destroy Chart.js instance:', id, e);
+            }
+        });
+    }
+    
+    // Step 2: Destroy our tracked instances
+    if (window.chartInstances) {
+        Object.keys(window.chartInstances).forEach(chartId => {
+            try {
+                window.chartInstances[chartId].destroy();
+                delete window.chartInstances[chartId];
+            } catch(e) {
+                console.warn('Failed to destroy tracked chart:', chartId, e);
+            }
+        });
+    }
+    window.chartInstances = {};
+    
+    // Step 3: Clear canvas contexts manually
+    ['typeChart', 'timelineChart', 'ffi-risk-chart'].forEach(canvasId => {
+        const canvas = document.getElementById(canvasId);
+        if (canvas && canvas.getContext) {
+            try {
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                // Remove Chart.js specific properties
+                delete canvas.chart;
+                canvas.removeAttribute('style');
+            } catch(e) {
+                console.warn('Failed to clear canvas:', canvasId, e);
+            }
+        }
+    });
+    
+    // Step 4: Force garbage collection hint
+    if (window.gc) { try { window.gc(); } catch(_) {} }
+    
+    // Step 5: Small delay to ensure cleanup, then create new charts
+    setTimeout(() => {
+        initEnhancedTypeChart(data);
+        initTimelineChart(data);
+    }, 10);
+}
+
 document.addEventListener("DOMContentLoaded", () => {
-    console.log('MemScope dashboard loaded');
-    initializeDashboard();
+    console.log('🚀 MemScope Dashboard Loaded');
+    
+    // Initialize theme toggle
+    try { 
+        initThemeToggle(); 
+        console.log('✅ Theme toggle initialized');
+    } catch(e) { 
+        console.warn('⚠️ Theme toggle initialization failed:', e?.message); 
+    }
+    
+    // Initialize main dashboard with all original functions
+    try { 
+        // Use original dashboard functions
+        renderKpis();
+        renderTypeChart();
+        renderTimelineChart();
+        renderTreemap();
+        renderLifetimes();
+        updateEnhancedMetrics();
+        renderEnhancedCharts();
+        renderMemoryFragmentation();
+        renderEnhancedDataInsights();
+        renderAllocationTimelineDetail();
+        updateLifecycleStatistics();
+        renderMemoryHotspots();
+        renderThreadAnalysis();
+        populateAllocationsTable();
+        populateUnsafeTable();
+        renderVariableGraph();
+        initEnhancedFFIVisualization();
+        setupLifecycleVisualization();
+        setupLifecycleToggle();
+        
+        // Optional hooks (no-op if undefined)
+        try { updateEmbeddedFFISVG && updateEmbeddedFFISVG(); } catch(_) {}
+        try { updatePerformanceMetrics && updatePerformanceMetrics(); } catch(_) {}
+        
+        console.log('✅ All dashboard components initialized');
+    } catch(e) { 
+        console.error('❌ Dashboard initialization failed:', e); 
+    }
 });
+
+// Setup FFI flow visualization interactivity
+function setupFFIFlowInteractivity(allocs) {
+    // Add click handlers to FFI flow nodes
+    setTimeout(() => {
+        const rustNodes = document.querySelectorAll('.rust-node');
+        const ffiNodes = document.querySelectorAll('.ffi-node');
+        
+        [...rustNodes, ...ffiNodes].forEach(node => {
+            node.addEventListener('click', (e) => {
+                const ptr = e.target.getAttribute('data-ptr');
+                const size = e.target.getAttribute('data-size');
+                showFFIFlowNodeDetail(ptr, size, allocs);
+            });
+            
+            node.addEventListener('mouseover', (e) => {
+                e.target.style.transform = 'scale(1.3)';
+                e.target.style.filter = 'drop-shadow(0 0 8px currentColor)';
+            });
+            
+            node.addEventListener('mouseout', (e) => {
+                e.target.style.transform = 'scale(1)';
+                e.target.style.filter = 'none';
+            });
+        });
+        
+        // Setup flow animation toggle
+        const flowToggle = document.getElementById('ffi-flow-toggle');
+        if (flowToggle) {
+            let isAnimating = true;
+            flowToggle.onclick = () => {
+                const particles = document.querySelectorAll('#flow-particles circle');
+                const flows = document.querySelectorAll('#data-flows path');
+                
+                if (isAnimating) {
+                    // Pause animations
+                    [...particles, ...flows].forEach(el => {
+                        el.style.animationPlayState = 'paused';
+                    });
+                    flowToggle.innerHTML = '<i class="fa fa-pause"></i> Paused';
+                    flowToggle.style.background = 'var(--primary-red)';
+                    isAnimating = false;
+                } else {
+                    // Resume animations
+                    [...particles, ...flows].forEach(el => {
+                        el.style.animationPlayState = 'running';
+                    });
+                    flowToggle.innerHTML = '<i class="fa fa-play"></i> Animate';
+                    flowToggle.style.background = 'var(--primary-green)';
+                    isAnimating = true;
+                }
+            };
+        }
+    }, 100);
+}
+
+// Show FFI flow node detail
+function showFFIFlowNodeDetail(ptr, size, allocs) {
+    const alloc = allocs.find(a => a.ptr === ptr);
+    if (!alloc) return;
+    
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0; 
+        background: rgba(0,0,0,0.6); z-index: 1000; 
+        display: flex; align-items: center; justify-content: center;
+    `;
+    
+    const isFFI = alloc.ffi_tracked;
+    const bgGradient = isFFI ? 'linear-gradient(135deg, #1e40af, #3b82f6)' : 'linear-gradient(135deg, #ea580c, #f97316)';
+    const icon = isFFI ? '⚙️' : '🦀';
+    const title = isFFI ? 'FFI Allocation' : 'Rust Allocation';
+    
+    modal.innerHTML = `
+        <div style="background: ${bgGradient}; border-radius: 16px; padding: 24px; min-width: 400px; color: white; position: relative; overflow: hidden;">
+            <div style="position: absolute; top: -50px; right: -50px; font-size: 120px; opacity: 0.1;">${icon}</div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; position: relative; z-index: 1;">
+                <h3 style="margin: 0; font-size: 18px;">${icon} ${title}</h3>
+                <button onclick="this.closest('div').parentNode.remove()" style="background: rgba(255,255,255,0.2); border: none; border-radius: 50%; width: 32px; height: 32px; color: white; cursor: pointer; font-size: 16px;">×</button>
+            </div>
+            <div style="position: relative; z-index: 1; line-height: 1.8;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+                    <div style="background: rgba(255,255,255,0.1); padding: 12px; border-radius: 8px;">
+                        <div style="font-size: 12px; opacity: 0.8;">Variable</div>
+                        <div style="font-weight: 600;">${alloc.var_name || 'unnamed'}</div>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.1); padding: 12px; border-radius: 8px;">
+                        <div style="font-size: 12px; opacity: 0.8;">Size</div>
+                        <div style="font-weight: 600; font-size: 16px;">${formatBytes(alloc.size || 0)}</div>
+                    </div>
+                </div>
+                <div style="background: rgba(255,255,255,0.1); padding: 12px; border-radius: 8px; margin-bottom: 16px;">
+                    <div style="font-size: 12px; opacity: 0.8; margin-bottom: 4px;">Type</div>
+                    <div style="font-weight: 600; font-size: 14px; word-break: break-all;">${alloc.type_name || 'Unknown'}</div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+                    <div style="text-align: center; background: rgba(255,255,255,0.1); padding: 8px; border-radius: 6px;">
+                        <div style="font-size: 16px; font-weight: 700;">${(alloc.borrow_info?.immutable_borrows || 0) + (alloc.borrow_info?.mutable_borrows || 0)}</div>
+                        <div style="font-size: 10px; opacity: 0.8;">Borrows</div>
+                    </div>
+                    <div style="text-align: center; background: rgba(255,255,255,0.1); padding: 8px; border-radius: 6px;">
+                        <div style="font-size: 16px; font-weight: 700;">${alloc.clone_info?.clone_count || 0}</div>
+                        <div style="font-size: 10px; opacity: 0.8;">Clones</div>
+                    </div>
+                    <div style="text-align: center; background: rgba(255,255,255,0.1); padding: 8px; border-radius: 6px;">
+                        <div style="font-size: 16px; font-weight: 700;">${alloc.thread_id || 1}</div>
+                        <div style="font-size: 10px; opacity: 0.8;">Thread</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+}

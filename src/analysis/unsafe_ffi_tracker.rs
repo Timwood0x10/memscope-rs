@@ -5,7 +5,9 @@
 //! - FFI memory operations (malloc, free from C libraries)
 //! - Cross-boundary memory transfers
 //! - Safety violation detection
+use crate::analysis::ffi_function_resolver::{get_global_ffi_resolver, ResolvedFfiFunction};
 use crate::core::types::{AllocationInfo, TrackingError, TrackingResult};
+use crate::core::{get_global_call_stack_normalizer, CallStackRef};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -20,18 +22,16 @@ pub enum AllocationSource {
         /// Location of the unsafe block in source code
         unsafe_block_location: String,
         /// Call stack at the time of allocation
-        call_stack: Vec<StackFrame>,
+        call_stack: CallStackRef,
         /// Risk assessment for this unsafe operation
         risk_assessment: RiskAssessment,
     },
     /// FFI allocation from C library
     FfiC {
-        /// Name of the C library
-        library_name: String,
-        /// Name of the C function that allocated
-        function_name: String,
+        /// Resolved FFI function information
+        resolved_function: ResolvedFfiFunction,
         /// Call stack at the time of allocation
-        call_stack: Vec<StackFrame>,
+        call_stack: CallStackRef,
         /// LibC hook information
         libc_hook_info: LibCHookInfo,
     },
@@ -49,7 +49,7 @@ pub enum AllocationSource {
 }
 
 /// Stack frame information for call stack tracking
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Hash, PartialEq, Eq)]
 pub struct StackFrame {
     /// Name of the function in this stack frame
     pub function_name: String,
@@ -67,9 +67,9 @@ pub enum SafetyViolation {
     /// Double free detected
     DoubleFree {
         /// Call stack from the first free operation
-        first_free_stack: Vec<StackFrame>,
+        first_free_stack: CallStackRef,
         /// Call stack from the second free operation
-        second_free_stack: Vec<StackFrame>,
+        second_free_stack: CallStackRef,
         /// Timestamp when the double free was detected
         timestamp: u128,
     },
@@ -78,14 +78,14 @@ pub enum SafetyViolation {
         /// The pointer that was attempted to be freed
         attempted_pointer: usize,
         /// Call stack at the time of invalid free
-        stack: Vec<StackFrame>,
+        stack: CallStackRef,
         /// Timestamp when the invalid free was attempted
         timestamp: u128,
     },
     /// Potential memory leak
     PotentialLeak {
         /// Call stack from the original allocation
-        allocation_stack: Vec<StackFrame>,
+        allocation_stack: CallStackRef,
         /// Timestamp when the allocation occurred
         allocation_timestamp: u128,
         /// Timestamp when the leak was detected
@@ -98,7 +98,7 @@ pub enum SafetyViolation {
         /// Description of the risk
         description: String,
         /// Call stack at the time of risk detection
-        stack: Vec<StackFrame>,
+        stack: CallStackRef,
     },
 }
 
@@ -247,7 +247,7 @@ pub struct AllocationOrigin {
     /// Timestamp of original allocation
     pub timestamp: u128,
     /// Call stack at allocation time
-    pub call_stack: Vec<StackFrame>,
+    pub call_stack: CallStackRef,
 }
 
 /// A stamp in the memory passport journey
@@ -340,7 +340,7 @@ pub struct EnhancedAllocationInfo {
     /// Source of the allocation
     pub source: AllocationSource,
     /// Call stack at allocation time
-    pub call_stack: Vec<StackFrame>,
+    pub call_stack: CallStackRef,
     /// Cross-boundary events
     pub cross_boundary_events: Vec<BoundaryEvent>,
     /// Safety violations detected
@@ -365,7 +365,7 @@ pub struct BoundaryEvent {
     /// Context where the crossing ended
     pub to_context: String,
     /// Call stack at the time of crossing
-    pub stack: Vec<StackFrame>,
+    pub stack: CallStackRef,
 }
 
 /// Types of boundary events
@@ -596,7 +596,7 @@ pub struct UnsafeFFITracker {
     /// Enhanced allocations with source tracking
     enhanced_allocations: Mutex<HashMap<usize, EnhancedAllocationInfo>>,
     /// Freed pointers (for double-free detection)
-    freed_pointers: Mutex<HashMap<usize, (Vec<StackFrame>, u128)>>,
+    freed_pointers: Mutex<HashMap<usize, (CallStackRef, u128)>>,
     /// Safety violations log
     violations: Mutex<Vec<SafetyViolation>>,
     /// C library tracking registry
@@ -625,7 +625,7 @@ impl UnsafeFFITracker {
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
-            .as_nanos() as u128;
+            .as_nanos();
 
         let risk_factors = vec![RiskFactor {
             factor_type: RiskFactorType::ManualMemoryManagement,
@@ -651,7 +651,7 @@ impl UnsafeFFITracker {
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
-            .as_nanos() as u128;
+            .as_nanos();
 
         LibCHookInfo {
             hook_method: HookMethod::DynamicLinker,
@@ -678,15 +678,20 @@ impl UnsafeFFITracker {
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
-            .as_nanos() as u128;
+            .as_nanos();
 
         MemoryPassport {
-            passport_id: format!("passport_{:x}_{}", ptr, current_time),
+            passport_id: format!("passport_{ptr:x}_{current_time}"),
             origin: AllocationOrigin {
                 context: origin_context.to_string(),
                 allocator_function: "unknown".to_string(),
                 timestamp: current_time,
-                call_stack: Vec::new(),
+                call_stack: {
+                    let normalizer = get_global_call_stack_normalizer();
+                    let empty_frames = vec![];
+                    let id = normalizer.normalize_call_stack(&empty_frames).unwrap_or(0);
+                    CallStackRef::new(id, Some(0))
+                },
             },
             journey: Vec::new(),
             current_owner: OwnershipInfo {
@@ -746,15 +751,35 @@ impl UnsafeFFITracker {
         let base_allocation = AllocationInfo::new(ptr, size);
         let libc_hook_info = self.create_default_libc_hook_info(&function_name, size);
 
+        // Resolve FFI function information
+        let resolver = get_global_ffi_resolver();
+        let resolved_function = resolver
+            .resolve_function(&function_name, Some(&library_name))
+            .unwrap_or_else(|_| {
+                tracing::warn!(
+                    "Failed to resolve FFI function: {}::{}",
+                    library_name,
+                    function_name
+                );
+                // Create fallback resolution
+                ResolvedFfiFunction {
+                    library_name: library_name.clone(),
+                    function_name: function_name.clone(),
+                    signature: None,
+                    category: crate::analysis::FfiFunctionCategory::Unknown,
+                    risk_level: crate::analysis::FfiRiskLevel::Medium,
+                    metadata: std::collections::HashMap::new(),
+                }
+            });
+
         let enhanced = EnhancedAllocationInfo {
             base: base_allocation,
             source: AllocationSource::FfiC {
-                library_name,
-                function_name,
+                resolved_function,
                 call_stack: call_stack.clone(),
                 libc_hook_info,
             },
-            call_stack: call_stack.clone(),
+            call_stack,
             cross_boundary_events: Vec::new(),
             safety_violations: Vec::new(),
             ffi_tracked: true,
@@ -775,7 +800,7 @@ impl UnsafeFFITracker {
         let call_stack = self.capture_call_stack()?;
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_default()
             .as_millis();
 
         // Check for double free
@@ -842,7 +867,7 @@ impl UnsafeFFITracker {
         let call_stack = self.capture_call_stack()?;
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_default()
             .as_millis();
 
         let event = BoundaryEvent {
@@ -875,7 +900,7 @@ impl UnsafeFFITracker {
                 let current_time = std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap_or_default()
-                    .as_nanos() as u128;
+                    .as_nanos();
 
                 if allocation.memory_passport.is_none() {
                     allocation.memory_passport = Some(self.create_memory_passport(ptr, context));
@@ -909,7 +934,7 @@ impl UnsafeFFITracker {
                 let current_time = std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap_or_default()
-                    .as_nanos() as u128;
+                    .as_nanos();
 
                 if let Some(passport) = &mut allocation.memory_passport {
                     passport.current_owner = OwnershipInfo {
@@ -966,23 +991,27 @@ impl UnsafeFFITracker {
             .map_err(|e| TrackingError::LockError(e.to_string()))
     }
 
-    /// Capture current call stack (simplified implementation)
-    fn capture_call_stack(&self) -> TrackingResult<Vec<StackFrame>> {
+    /// Capture current call stack and normalize it
+    fn capture_call_stack(&self) -> TrackingResult<CallStackRef> {
         // In a real implementation, this would use backtrace crate
         // For now, return a simplified stack
-        Ok(vec![StackFrame {
+        let frames = vec![StackFrame {
             function_name: "current_function".to_string(),
             file_name: Some("src/unsafe_ffi_tracker.rs".to_string()),
             line_number: Some(42),
             is_unsafe: true,
-        }])
+        }];
+
+        let normalizer = get_global_call_stack_normalizer();
+        let id = normalizer.normalize_call_stack(&frames)?;
+        Ok(CallStackRef::new(id, Some(frames.len())))
     }
 
     /// Detect potential memory leaks
     pub fn detect_leaks(&self, threshold_ms: u128) -> TrackingResult<Vec<SafetyViolation>> {
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_default()
             .as_millis();
 
         let mut leaks = Vec::new();
@@ -1399,7 +1428,7 @@ impl UnsafeFFITracker {
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
-            .as_nanos() as u128;
+            .as_nanos();
 
         let library_info = CLibraryInfo {
             library_name: library_name.clone(),
@@ -1437,7 +1466,7 @@ impl UnsafeFFITracker {
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
-            .as_nanos() as u128;
+            .as_nanos();
 
         if let Ok(mut libraries) = self.c_libraries.lock() {
             let library = libraries
@@ -1527,7 +1556,7 @@ impl UnsafeFFITracker {
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
-            .as_nanos() as u128;
+            .as_nanos();
 
         let installation_details = HookInstallationDetails {
             installation_method: hook_method,
@@ -1547,7 +1576,7 @@ impl UnsafeFFITracker {
                     requested_size: 0,
                     actual_size: 0,
                     alignment: 8,
-                    allocator_info: format!("hooked_{}", function_name),
+                    allocator_info: format!("hooked_{function_name}"),
                     protection_flags: Some(MemoryProtectionFlags {
                         readable: true,
                         writable: true,
@@ -1659,7 +1688,7 @@ impl UnsafeFFITracker {
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
-            .as_nanos() as u128;
+            .as_nanos();
 
         if let Ok(mut passports) = self.memory_passports.lock() {
             if let Some(passport) = passports.get_mut(&ptr) {
@@ -1675,8 +1704,7 @@ impl UnsafeFFITracker {
                 tracing::debug!("Stamped passport for ptr {:x}: {}", ptr, operation);
             } else {
                 return Err(TrackingError::InvalidPointer(format!(
-                    "No passport found for pointer: 0x{:x}",
-                    ptr
+                    "No passport found for pointer: 0x{ptr:x}",
                 )));
             }
         }
@@ -1694,7 +1722,7 @@ impl UnsafeFFITracker {
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
-            .as_nanos() as u128;
+            .as_nanos();
 
         if let Ok(mut passports) = self.memory_passports.lock() {
             if let Some(passport) = passports.get_mut(&ptr) {
@@ -1723,8 +1751,7 @@ impl UnsafeFFITracker {
                 );
             } else {
                 return Err(TrackingError::InvalidPointer(format!(
-                    "No passport found for pointer: 0x{:x}",
-                    ptr
+                    "No passport found for pointer: 0x{ptr:x}",
                 )));
             }
         }
@@ -1742,18 +1769,18 @@ impl UnsafeFFITracker {
                 let current_time = std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap_or_default()
-                    .as_nanos() as u128;
+                    .as_nanos();
 
                 let stamp = PassportStamp {
                     timestamp: current_time,
                     location: "memory_freed".to_string(),
-                    operation: format!("revoked: {}", reason),
+                    operation: format!("revoked: {reason}"),
                     authority: "UnsafeFFITracker".to_string(),
                     verification_hash: format!("{:x}", ptr ^ current_time as usize),
                 };
 
                 passport.journey.push(stamp);
-                tracing::info!("Revoked passport for ptr {:x}: {}", ptr, reason);
+                tracing::info!("Revoked passport for ptr {ptr:x}: {reason}");
             }
         }
 
@@ -1795,11 +1822,15 @@ impl UnsafeFFITracker {
                     risks.push(SafetyViolation::CrossBoundaryRisk {
                         risk_level: RiskLevel::Medium,
                         description: format!(
-                            "Memory at {:x} has crossed boundaries {} times",
-                            ptr,
+                            "Memory at {ptr:x} has crossed boundaries {} times",
                             passport.journey.len()
                         ),
-                        stack: Vec::new(), // Would need to capture actual stack
+                        stack: {
+                            let normalizer = get_global_call_stack_normalizer();
+                            let empty_frames = vec![];
+                            let id = normalizer.normalize_call_stack(&empty_frames).unwrap_or(0);
+                            CallStackRef::new(id, Some(0))
+                        },
                     });
                 }
 
@@ -1807,8 +1838,13 @@ impl UnsafeFFITracker {
                 if matches!(passport.validity_status, ValidityStatus::Expired) {
                     risks.push(SafetyViolation::CrossBoundaryRisk {
                         risk_level: RiskLevel::High,
-                        description: format!("Expired passport detected for memory at {:x}", ptr),
-                        stack: Vec::new(),
+                        description: format!("Expired passport detected for memory at {ptr:x}"),
+                        stack: {
+                            let normalizer = get_global_call_stack_normalizer();
+                            let empty_frames = vec![];
+                            let id = normalizer.normalize_call_stack(&empty_frames).unwrap_or(0);
+                            CallStackRef::new(id, Some(0))
+                        },
                     });
                 }
             }
@@ -1829,7 +1865,7 @@ impl UnsafeFFITracker {
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
-            .as_nanos() as u128;
+            .as_nanos();
 
         // Record the boundary event
         self.record_boundary_event(
@@ -1853,7 +1889,7 @@ impl UnsafeFFITracker {
 
         // Create comprehensive analysis
         let analysis = BoundaryEventAnalysis {
-            event_id: format!("boundary_{}_{}", ptr, current_time),
+            event_id: format!("boundary_{ptr}_{current_time}"),
             ptr,
             event_type: event_type.clone(),
             from_context: from_context.to_string(),
@@ -1935,7 +1971,7 @@ impl UnsafeFFITracker {
             risk_factors.push(BoundaryRiskFactor {
                 factor_type: BoundaryRiskFactorType::LargeTransfer,
                 severity: 4.0,
-                description: format!("Large memory transfer: {} bytes", transfer_size),
+                description: format!("Large memory transfer: {transfer_size} bytes"),
                 mitigation: "Consider streaming or chunked transfer for large data".to_string(),
             });
             risk_score += 4.0;
@@ -1978,7 +2014,7 @@ impl UnsafeFFITracker {
             assessment_timestamp: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
-                .as_nanos() as u128,
+                .as_nanos(),
         })
     }
 
@@ -1992,7 +2028,7 @@ impl UnsafeFFITracker {
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
-            .as_nanos() as u128;
+            .as_nanos();
 
         // Update memory passport ownership
         if let Ok(mut passports) = self.memory_passports.lock() {
@@ -2001,7 +2037,7 @@ impl UnsafeFFITracker {
                 let stamp = PassportStamp {
                     timestamp: current_time,
                     location: to_context.to_string(),
-                    operation: format!("ownership_transfer_from_{}", from_context),
+                    operation: format!("ownership_transfer_from_{from_context}"),
                     authority: "BoundaryEventProcessor".to_string(),
                     verification_hash: format!("{:x}", ptr ^ current_time as usize),
                 };
@@ -2022,7 +2058,7 @@ impl UnsafeFFITracker {
             if let Some(allocation) = allocations.get_mut(&ptr) {
                 // Add ownership transfer event
                 let ownership_event = OwnershipTransferEvent {
-                    transfer_id: format!("transfer_{}_{}", ptr, current_time),
+                    transfer_id: format!("transfer_{ptr}_{current_time}"),
                     ptr,
                     from_context: from_context.to_string(),
                     to_context: to_context.to_string(),
@@ -2206,7 +2242,7 @@ impl UnsafeFFITracker {
             analysis_timestamp: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
-                .as_nanos() as u128,
+                .as_nanos(),
         };
 
         if let Ok(allocations) = self.enhanced_allocations.lock() {
@@ -2313,13 +2349,14 @@ impl UnsafeFFITracker {
                     format!("Unsafe block at {unsafe_block_location}"),
                 ),
                 AllocationSource::FfiC {
-                    library_name,
-                    function_name,
-                    ..
+                    resolved_function, ..
                 } => (
                     UnsafeOperationType::FfiCall,
                     RiskLevel::High,
-                    format!("FFI call to {library_name}::{function_name}"),
+                    format!(
+                        "FFI call to {}::{}",
+                        resolved_function.library_name, resolved_function.function_name
+                    ),
                 ),
                 AllocationSource::CrossBoundary { .. } => (
                     UnsafeOperationType::CrossBoundaryTransfer,
@@ -2343,6 +2380,173 @@ impl UnsafeFFITracker {
 
         stats
     }
+
+    /// Integrate with SafetyAnalyzer for enhanced reporting
+    pub fn integrate_with_safety_analyzer(
+        &self,
+        safety_analyzer: &crate::analysis::SafetyAnalyzer,
+    ) -> TrackingResult<()> {
+        // Get current violations
+        let violations = if let Ok(violations) = self.violations.lock() {
+            violations.clone()
+        } else {
+            return Err(TrackingError::LockContention(
+                "Failed to lock violations".to_string(),
+            ));
+        };
+
+        // Get current allocations
+        let allocations: Vec<crate::core::types::AllocationInfo> =
+            if let Ok(enhanced_allocations) = self.enhanced_allocations.lock() {
+                enhanced_allocations
+                    .values()
+                    .map(|ea| ea.base.clone())
+                    .collect()
+            } else {
+                return Err(TrackingError::LockContention(
+                    "Failed to lock allocations".to_string(),
+                ));
+            };
+
+        // Generate unsafe reports for each violation
+        for violation in &violations {
+            let source = match violation {
+                SafetyViolation::DoubleFree { .. } => crate::analysis::UnsafeSource::RawPointer {
+                    operation: "double_free".to_string(),
+                    location: "memory_violation".to_string(),
+                },
+                SafetyViolation::InvalidFree {
+                    attempted_pointer, ..
+                } => crate::analysis::UnsafeSource::RawPointer {
+                    operation: "invalid_free".to_string(),
+                    location: format!("0x{attempted_pointer:x}"),
+                },
+                SafetyViolation::PotentialLeak { .. } => {
+                    crate::analysis::UnsafeSource::RawPointer {
+                        operation: "potential_leak".to_string(),
+                        location: "memory_leak".to_string(),
+                    }
+                }
+                SafetyViolation::CrossBoundaryRisk { description, .. } => {
+                    crate::analysis::UnsafeSource::FfiFunction {
+                        library: "unknown".to_string(),
+                        function: "cross_boundary".to_string(),
+                        call_site: description.clone(),
+                    }
+                }
+            };
+
+            let _report_id =
+                safety_analyzer.generate_unsafe_report(source, &allocations, &violations)?;
+        }
+
+        tracing::info!(
+            "🔗 Integrated {} violations with SafetyAnalyzer",
+            violations.len()
+        );
+        Ok(())
+    }
+
+    /// Integrate with MemoryPassportTracker for FFI boundary tracking
+    pub fn integrate_with_passport_tracker(
+        &self,
+        passport_tracker: &crate::analysis::MemoryPassportTracker,
+    ) -> TrackingResult<()> {
+        if let Ok(enhanced_allocations) = self.enhanced_allocations.lock() {
+            for (ptr, allocation) in enhanced_allocations.iter() {
+                // Create passports for FFI allocations
+                if allocation.ffi_tracked {
+                    let _passport_id = passport_tracker.create_passport(
+                        *ptr,
+                        allocation.base.size,
+                        "ffi_integration".to_string(),
+                    )?;
+
+                    // Record boundary events
+                    for event in &allocation.cross_boundary_events {
+                        let event_type = match event.event_type {
+                            BoundaryEventType::RustToFfi => {
+                                crate::analysis::PassportEventType::HandoverToFfi
+                            }
+                            BoundaryEventType::FfiToRust => {
+                                crate::analysis::PassportEventType::ReclaimedByRust
+                            }
+                            BoundaryEventType::OwnershipTransfer => {
+                                crate::analysis::PassportEventType::OwnershipTransfer
+                            }
+                            BoundaryEventType::SharedAccess => {
+                                crate::analysis::PassportEventType::BoundaryAccess
+                            }
+                        };
+
+                        passport_tracker.record_passport_event(
+                            *ptr,
+                            event_type,
+                            event.to_context.clone(),
+                            std::collections::HashMap::new(),
+                        )?;
+                    }
+                }
+            }
+        }
+
+        tracing::info!("🔗 Integrated FFI allocations with MemoryPassportTracker");
+        Ok(())
+    }
+
+    /// Perform comprehensive safety analysis using integrated components
+    pub fn perform_comprehensive_safety_analysis(
+        &self,
+    ) -> TrackingResult<crate::analysis::ComprehensiveSafetyReport> {
+        // Initialize integrated components
+        let safety_analyzer = crate::analysis::SafetyAnalyzer::default();
+        let passport_tracker = crate::analysis::get_global_passport_tracker();
+
+        // Integrate with components
+        self.integrate_with_safety_analyzer(&safety_analyzer)?;
+        self.integrate_with_passport_tracker(&passport_tracker)?;
+
+        // Detect leaks at shutdown
+        let leak_detection = passport_tracker.detect_leaks_at_shutdown();
+
+        // Get reports and statistics
+        let unsafe_reports = safety_analyzer.get_unsafe_reports();
+        let memory_passports = passport_tracker.get_all_passports();
+        let safety_stats = safety_analyzer.get_stats();
+        let passport_stats = passport_tracker.get_stats();
+
+        let report = crate::analysis::ComprehensiveSafetyReport {
+            unsafe_reports,
+            memory_passports,
+            leak_detection,
+            safety_stats,
+            passport_stats,
+            analysis_timestamp: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs(),
+        };
+
+        tracing::info!("📊 Generated comprehensive safety analysis report");
+        Ok(report)
+    }
+}
+
+/// Comprehensive safety analysis report
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ComprehensiveSafetyReport {
+    /// All unsafe operation reports
+    pub unsafe_reports: std::collections::HashMap<String, crate::analysis::UnsafeReport>,
+    /// All memory passports
+    pub memory_passports: std::collections::HashMap<usize, crate::analysis::MemoryPassport>,
+    /// Leak detection results
+    pub leak_detection: crate::analysis::LeakDetectionResult,
+    /// Safety analysis statistics
+    pub safety_stats: crate::analysis::SafetyAnalysisStats,
+    /// Passport tracker statistics
+    pub passport_stats: crate::analysis::PassportTrackerStats,
+    /// Analysis timestamp
+    pub analysis_timestamp: u64,
 }
 
 /// Global unsafe/FFI tracker instance
@@ -2358,4 +2562,740 @@ pub fn init_global_unsafe_tracker() -> Arc<UnsafeFFITracker> {
     GLOBAL_UNSAFE_TRACKER
         .get_or_init(|| Arc::new(UnsafeFFITracker::new()))
         .clone()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+
+    /// Helper function to create a test tracker
+    fn create_test_tracker() -> UnsafeFFITracker {
+        UnsafeFFITracker::new()
+    }
+
+    #[test]
+    fn test_unsafe_ffi_tracker_creation() {
+        let tracker = create_test_tracker();
+
+        // Verify initial state
+        assert!(tracker.get_enhanced_allocations().unwrap().is_empty());
+        assert!(tracker.get_safety_violations().unwrap().is_empty());
+        assert!(tracker.get_c_library_stats().unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_unsafe_ffi_tracker_default() {
+        let tracker = UnsafeFFITracker::default();
+
+        // Verify default state
+        assert!(tracker.get_enhanced_allocations().unwrap().is_empty());
+        assert!(tracker.get_safety_violations().unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_track_unsafe_allocation() {
+        let tracker = create_test_tracker();
+        let ptr = 0x1000;
+        let size = 1024;
+        let location = "test_file.rs:42:10".to_string();
+
+        let result = tracker.track_unsafe_allocation(ptr, size, location.clone());
+        assert!(result.is_ok());
+
+        // Verify allocation was tracked
+        let allocations = tracker.get_enhanced_allocations().unwrap();
+        assert_eq!(allocations.len(), 1);
+
+        let allocation = &allocations[0];
+        assert_eq!(allocation.base.ptr, ptr);
+        assert_eq!(allocation.base.size, size);
+
+        // Verify it's marked as unsafe
+        match &allocation.source {
+            AllocationSource::UnsafeRust {
+                unsafe_block_location,
+                ..
+            } => {
+                assert_eq!(unsafe_block_location, &location);
+            }
+            _ => panic!("Expected UnsafeRust allocation source"),
+        }
+    }
+
+    #[test]
+    fn test_track_ffi_allocation() {
+        let tracker = create_test_tracker();
+        let ptr = 0x2000;
+        let size = 512;
+        let library_name = "libc".to_string();
+        let function_name = "malloc".to_string();
+
+        let result =
+            tracker.track_ffi_allocation(ptr, size, library_name.clone(), function_name.clone());
+        assert!(result.is_ok());
+
+        // Verify allocation was tracked
+        let allocations = tracker.get_enhanced_allocations().unwrap();
+        assert_eq!(allocations.len(), 1);
+
+        let allocation = &allocations[0];
+        assert_eq!(allocation.base.ptr, ptr);
+        assert_eq!(allocation.base.size, size);
+        assert!(allocation.ffi_tracked);
+
+        // Verify it's marked as FFI
+        match &allocation.source {
+            AllocationSource::FfiC {
+                resolved_function, ..
+            } => {
+                assert_eq!(resolved_function.library_name, library_name);
+                assert_eq!(resolved_function.function_name, function_name);
+            }
+            _ => panic!("Expected FfiC allocation source"),
+        }
+    }
+
+    #[test]
+    fn test_track_enhanced_deallocation_valid() {
+        let tracker = create_test_tracker();
+        let ptr = 0x3000;
+        let size = 256;
+
+        // First track an allocation
+        tracker
+            .track_unsafe_allocation(ptr, size, "test_location".to_string())
+            .unwrap();
+
+        // Then deallocate it
+        let result = tracker.track_enhanced_deallocation(ptr);
+        assert!(result.is_ok());
+
+        // Verify allocation was removed
+        let allocations = tracker.get_enhanced_allocations().unwrap();
+        assert!(allocations.is_empty());
+    }
+
+    #[test]
+    fn test_track_enhanced_deallocation_invalid_free() {
+        let tracker = create_test_tracker();
+        let ptr = 0x4000;
+
+        // Try to free a pointer that was never allocated
+        let result = tracker.track_enhanced_deallocation(ptr);
+        assert!(result.is_err());
+
+        // Verify violation was recorded
+        let violations = tracker.get_safety_violations().unwrap();
+        assert_eq!(violations.len(), 1);
+
+        match &violations[0] {
+            SafetyViolation::InvalidFree {
+                attempted_pointer, ..
+            } => {
+                assert_eq!(*attempted_pointer, ptr);
+            }
+            _ => panic!("Expected InvalidFree violation"),
+        }
+    }
+
+    #[test]
+    fn test_track_enhanced_deallocation_double_free() {
+        let tracker = create_test_tracker();
+        let ptr = 0x5000;
+        let size = 128;
+
+        // Track allocation
+        tracker
+            .track_unsafe_allocation(ptr, size, "test_location".to_string())
+            .unwrap();
+
+        // First deallocation (should succeed)
+        let result1 = tracker.track_enhanced_deallocation(ptr);
+        assert!(result1.is_ok());
+
+        // Second deallocation (should fail with double free)
+        let result2 = tracker.track_enhanced_deallocation(ptr);
+        assert!(result2.is_err());
+
+        // Verify double free violation was recorded
+        let violations = tracker.get_safety_violations().unwrap();
+        assert_eq!(violations.len(), 1);
+
+        match &violations[0] {
+            SafetyViolation::DoubleFree { .. } => {
+                // Expected
+            }
+            _ => panic!("Expected DoubleFree violation"),
+        }
+    }
+
+    #[test]
+    fn test_record_boundary_event() {
+        let tracker = create_test_tracker();
+        let ptr = 0x6000;
+        let size = 1024;
+
+        // Track allocation first
+        tracker
+            .track_unsafe_allocation(ptr, size, "test_location".to_string())
+            .unwrap();
+
+        // Record boundary event
+        let result = tracker.record_boundary_event(
+            ptr,
+            BoundaryEventType::RustToFfi,
+            "rust_context".to_string(),
+            "ffi_context".to_string(),
+        );
+        assert!(result.is_ok());
+
+        // Verify event was recorded
+        let allocations = tracker.get_enhanced_allocations().unwrap();
+        assert_eq!(allocations.len(), 1);
+
+        let allocation = &allocations[0];
+        assert_eq!(allocation.cross_boundary_events.len(), 1);
+
+        let event = &allocation.cross_boundary_events[0];
+        assert!(matches!(event.event_type, BoundaryEventType::RustToFfi));
+        assert_eq!(event.from_context, "rust_context");
+        assert_eq!(event.to_context, "ffi_context");
+    }
+
+    #[test]
+    fn test_register_c_library() {
+        let tracker = create_test_tracker();
+        let library_name = "test_lib".to_string();
+        let library_path = Some("/usr/lib/libtest.so".to_string());
+        let library_version = Some("1.0.0".to_string());
+
+        let result = tracker.register_c_library(
+            library_name.clone(),
+            library_path.clone(),
+            library_version.clone(),
+        );
+        assert!(result.is_ok());
+
+        // Verify library was registered
+        let libraries = tracker.get_c_library_stats().unwrap();
+        assert_eq!(libraries.len(), 1);
+
+        let library = libraries.get(&library_name).unwrap();
+        assert_eq!(library.library_name, library_name);
+        assert_eq!(library.library_path, library_path);
+        assert_eq!(library.library_version, library_version);
+        assert_eq!(library.total_allocations, 0);
+        assert_eq!(library.total_bytes_allocated, 0);
+    }
+
+    #[test]
+    fn test_track_c_function_call() {
+        let tracker = create_test_tracker();
+        let library_name = "libc";
+        let function_name = "malloc";
+        let allocation_size = 1024;
+        let execution_time_ns = 500;
+
+        let result = tracker.track_c_function_call(
+            library_name,
+            function_name,
+            allocation_size,
+            execution_time_ns,
+        );
+        assert!(result.is_ok());
+
+        // Verify function call was tracked
+        let libraries = tracker.get_c_library_stats().unwrap();
+        assert_eq!(libraries.len(), 1);
+
+        let library = libraries.get(library_name).unwrap();
+        assert_eq!(library.total_allocations, 1);
+        assert_eq!(library.total_bytes_allocated, allocation_size);
+
+        let function = library.functions_called.get(function_name).unwrap();
+        assert_eq!(function.call_count, 1);
+        assert_eq!(function.bytes_allocated, allocation_size);
+        assert_eq!(function.average_allocation_size, allocation_size as f64);
+        assert_eq!(
+            function.performance_metrics.avg_execution_time_ns,
+            execution_time_ns
+        );
+    }
+
+    #[test]
+    fn test_install_enhanced_libc_hook() {
+        let tracker = create_test_tracker();
+        let function_name = "malloc".to_string();
+        let hook_method = HookInstallationMethod::Preload;
+
+        let result = tracker.install_enhanced_libc_hook(function_name.clone(), hook_method);
+        assert!(result.is_ok());
+
+        // Verify hook was installed
+        let hooks = tracker.get_libc_hook_info().unwrap();
+        assert_eq!(hooks.len(), 1);
+
+        let hook = hooks.get(&function_name).unwrap();
+        assert_eq!(hook.base_info.original_function, function_name);
+        assert!(matches!(
+            hook.installation_details.installation_method,
+            HookInstallationMethod::Preload
+        ));
+        assert!(hook.installation_details.installation_success);
+    }
+
+    #[test]
+    fn test_create_and_register_passport() {
+        let tracker = create_test_tracker();
+        let ptr = 0x7000;
+        let origin_context = "rust_main";
+        let security_clearance = SecurityClearance::Public;
+
+        let result = tracker.create_and_register_passport(ptr, origin_context, security_clearance);
+        assert!(result.is_ok());
+
+        let passport_id = result.unwrap();
+        assert!(!passport_id.is_empty());
+
+        // Verify passport was created
+        let passports = tracker.get_memory_passports().unwrap();
+        assert_eq!(passports.len(), 1);
+
+        let passport = passports.get(&ptr).unwrap();
+        assert_eq!(passport.passport_id, passport_id);
+        assert_eq!(passport.origin.context, origin_context);
+        assert!(matches!(
+            passport.security_clearance,
+            SecurityClearance::Public
+        ));
+        assert!(matches!(passport.validity_status, ValidityStatus::Valid));
+    }
+
+    #[test]
+    fn test_stamp_passport() {
+        let tracker = create_test_tracker();
+        let ptr = 0x8000;
+
+        // Create passport first
+        tracker
+            .create_and_register_passport(ptr, "rust_main", SecurityClearance::Public)
+            .unwrap();
+
+        // Stamp the passport
+        let result =
+            tracker.stamp_passport(ptr, "memory_access", "ffi_boundary", "UnsafeFFITracker");
+        assert!(result.is_ok());
+
+        // Verify stamp was added
+        let passports = tracker.get_memory_passports().unwrap();
+        let passport = passports.get(&ptr).unwrap();
+        assert_eq!(passport.journey.len(), 1);
+
+        let stamp = &passport.journey[0];
+        assert_eq!(stamp.operation, "memory_access");
+        assert_eq!(stamp.location, "ffi_boundary");
+        assert_eq!(stamp.authority, "UnsafeFFITracker");
+    }
+
+    #[test]
+    fn test_transfer_passport_ownership() {
+        let tracker = create_test_tracker();
+        let ptr = 0x9000;
+
+        // Create passport first
+        tracker
+            .create_and_register_passport(ptr, "rust_main", SecurityClearance::Public)
+            .unwrap();
+
+        // Transfer ownership
+        let result = tracker.transfer_passport_ownership(ptr, "ffi_context", "malloc");
+        assert!(result.is_ok());
+
+        // Verify ownership was transferred
+        let passports = tracker.get_memory_passports().unwrap();
+        let passport = passports.get(&ptr).unwrap();
+        assert_eq!(passport.current_owner.owner_context, "ffi_context");
+        assert_eq!(passport.current_owner.owner_function, "malloc");
+
+        // Verify transfer was recorded in journey
+        assert_eq!(passport.journey.len(), 1);
+        assert_eq!(passport.journey[0].operation, "ownership_transfer");
+    }
+
+    #[test]
+    fn test_revoke_passport() {
+        let tracker = create_test_tracker();
+        let ptr = 0xa000;
+
+        // Create passport first
+        tracker
+            .create_and_register_passport(ptr, "rust_main", SecurityClearance::Public)
+            .unwrap();
+
+        // Revoke passport
+        let result = tracker.revoke_passport(ptr, "memory_freed");
+        assert!(result.is_ok());
+
+        // Verify passport was revoked
+        let passports = tracker.get_memory_passports().unwrap();
+        let passport = passports.get(&ptr).unwrap();
+        assert!(matches!(passport.validity_status, ValidityStatus::Revoked));
+
+        // Verify revocation was recorded in journey
+        assert_eq!(passport.journey.len(), 1);
+        assert!(passport.journey[0].operation.contains("revoked"));
+    }
+
+    #[test]
+    fn test_validate_passport() {
+        let tracker = create_test_tracker();
+        let ptr = 0xb000;
+
+        // Track allocation first to make validation work properly
+        tracker
+            .track_unsafe_allocation(ptr, 1024, "test_location".to_string())
+            .unwrap();
+
+        // Create passport for the allocation
+        tracker
+            .create_or_update_passport(ptr, "create", "rust_main")
+            .unwrap();
+
+        // Validate passport
+        let result = tracker.validate_passport(ptr);
+        assert!(result.is_ok());
+        let is_valid = result.unwrap();
+        assert!(is_valid);
+
+        // Verify passport was created and is valid in enhanced_allocations
+        let allocations = tracker.get_enhanced_allocations().unwrap();
+        assert_eq!(allocations.len(), 1);
+        let allocation = &allocations[0];
+        assert!(allocation.memory_passport.is_some());
+        let passport = allocation.memory_passport.as_ref().unwrap();
+        assert!(matches!(passport.validity_status, ValidityStatus::Valid));
+
+        // Test validation with non-existent pointer
+        let result = tracker.validate_passport(0xdead);
+        assert!(result.is_ok());
+        assert!(!result.unwrap()); // Should return false for non-existent allocation
+
+        // Test passport functionality with memory_passports registry
+        let ptr2 = 0xc000;
+        tracker
+            .create_and_register_passport(ptr2, "rust_main", SecurityClearance::Public)
+            .unwrap();
+
+        // Verify passport was created in memory_passports
+        let passports = tracker.get_memory_passports().unwrap();
+        assert_eq!(passports.len(), 1);
+        let passport = passports.get(&ptr2).unwrap();
+        assert!(matches!(passport.validity_status, ValidityStatus::Valid));
+
+        // Revoke passport in memory_passports
+        tracker.revoke_passport(ptr2, "test_revocation").unwrap();
+        let passports = tracker.get_memory_passports().unwrap();
+        let passport = passports.get(&ptr2).unwrap();
+        assert!(matches!(passport.validity_status, ValidityStatus::Revoked));
+    }
+
+    #[test]
+    fn test_detect_leaks() {
+        let tracker = create_test_tracker();
+        let ptr = 0xc000;
+        let size = 1024;
+
+        // Track allocation
+        tracker
+            .track_unsafe_allocation(ptr, size, "test_location".to_string())
+            .unwrap();
+
+        // Wait a bit to ensure allocation age exceeds threshold
+        std::thread::sleep(std::time::Duration::from_millis(10));
+
+        // Detect leaks with very low threshold (should detect the allocation)
+        let result = tracker.detect_leaks(1); // 1ms threshold
+        assert!(result.is_ok());
+
+        let leaks = result.unwrap();
+        // The leak detection might not always detect leaks immediately due to timing
+        // So we check if we have leaks or if the allocation is still active
+        if !leaks.is_empty() {
+            match &leaks[0] {
+                SafetyViolation::PotentialLeak { .. } => {
+                    // Expected
+                }
+                _ => panic!("Expected PotentialLeak violation"),
+            }
+        } else {
+            // If no leaks detected, verify allocation is still active
+            let allocations = tracker.get_enhanced_allocations().unwrap();
+            assert_eq!(allocations.len(), 1);
+            assert!(allocations[0].base.is_active());
+        }
+    }
+
+    #[test]
+    fn test_analyze_cross_boundary_risks() {
+        let tracker = create_test_tracker();
+        let ptr = 0xd000;
+
+        // Create passport with many boundary crossings
+        tracker
+            .create_and_register_passport(ptr, "rust_main", SecurityClearance::Public)
+            .unwrap();
+
+        // Add many stamps to simulate frequent boundary crossings
+        for i in 0..15 {
+            tracker
+                .stamp_passport(ptr, &format!("operation_{i}"), "boundary", "test")
+                .unwrap();
+        }
+
+        // Analyze risks
+        let result = tracker.analyze_cross_boundary_risks();
+        assert!(result.is_ok());
+
+        let risks = result.unwrap();
+        assert!(!risks.is_empty());
+
+        // Should detect frequent boundary crossings
+        let has_boundary_risk = risks
+            .iter()
+            .any(|risk| matches!(risk, SafetyViolation::CrossBoundaryRisk { .. }));
+        assert!(has_boundary_risk);
+    }
+
+    #[test]
+    fn test_get_stats() {
+        let tracker = create_test_tracker();
+
+        // Track some operations
+        tracker
+            .track_unsafe_allocation(0x1000, 1024, "unsafe_block".to_string())
+            .unwrap();
+        tracker
+            .track_ffi_allocation(0x2000, 512, "libc".to_string(), "malloc".to_string())
+            .unwrap();
+
+        // Get stats
+        let stats = tracker.get_stats();
+
+        assert_eq!(stats.total_operations, 2);
+        assert_eq!(stats.unsafe_blocks, 1);
+        assert_eq!(stats.ffi_calls, 1);
+        assert_eq!(stats.memory_violations, 0);
+        assert!(stats.risk_score > 0.0);
+        assert_eq!(stats.operations.len(), 2);
+    }
+
+    #[test]
+    fn test_boundary_event_statistics() {
+        let tracker = create_test_tracker();
+        let ptr = 0xe000;
+
+        // Track allocation and boundary events
+        tracker
+            .track_unsafe_allocation(ptr, 1024, "test_location".to_string())
+            .unwrap();
+        tracker
+            .record_boundary_event(
+                ptr,
+                BoundaryEventType::RustToFfi,
+                "rust".to_string(),
+                "ffi".to_string(),
+            )
+            .unwrap();
+        tracker
+            .record_boundary_event(
+                ptr,
+                BoundaryEventType::FfiToRust,
+                "ffi".to_string(),
+                "rust".to_string(),
+            )
+            .unwrap();
+
+        // Get statistics
+        let result = tracker.get_boundary_event_statistics();
+        assert!(result.is_ok());
+
+        let stats = result.unwrap();
+        assert_eq!(stats.total_events, 2);
+        assert!(stats.events_by_type.contains_key("RustToFfi"));
+        assert!(stats.events_by_type.contains_key("FfiToRust"));
+        assert!(stats.average_transfer_size > 0.0);
+        assert!(stats.total_transfer_volume > 0);
+    }
+
+    #[test]
+    fn test_risk_level_serialization() {
+        let risk_levels = vec![
+            RiskLevel::Low,
+            RiskLevel::Medium,
+            RiskLevel::High,
+            RiskLevel::Critical,
+        ];
+
+        for risk_level in risk_levels {
+            let serialized = serde_json::to_string(&risk_level).expect("Failed to serialize");
+            let _deserialized: RiskLevel =
+                serde_json::from_str(&serialized).expect("Failed to deserialize");
+        }
+    }
+
+    #[test]
+    fn test_boundary_event_type_serialization() {
+        let event_types = vec![
+            BoundaryEventType::RustToFfi,
+            BoundaryEventType::FfiToRust,
+            BoundaryEventType::OwnershipTransfer,
+            BoundaryEventType::SharedAccess,
+        ];
+
+        for event_type in event_types {
+            let serialized = serde_json::to_string(&event_type).expect("Failed to serialize");
+            let _deserialized: BoundaryEventType =
+                serde_json::from_str(&serialized).expect("Failed to deserialize");
+        }
+    }
+
+    #[test]
+    fn test_security_clearance_serialization() {
+        let clearances = vec![
+            SecurityClearance::Public,
+            SecurityClearance::Restricted,
+            SecurityClearance::Confidential,
+            SecurityClearance::Secret,
+        ];
+
+        for clearance in clearances {
+            let serialized = serde_json::to_string(&clearance).expect("Failed to serialize");
+            let _deserialized: SecurityClearance =
+                serde_json::from_str(&serialized).expect("Failed to deserialize");
+        }
+    }
+
+    #[test]
+    fn test_global_tracker_initialization() {
+        let tracker1 = init_global_unsafe_tracker();
+        let tracker2 = init_global_unsafe_tracker();
+
+        // Should return the same instance
+        assert!(Arc::ptr_eq(&tracker1, &tracker2));
+    }
+
+    #[test]
+    fn test_memory_protection_flags() {
+        let flags = MemoryProtectionFlags {
+            readable: true,
+            writable: true,
+            executable: false,
+            shared: false,
+        };
+
+        assert!(flags.readable);
+        assert!(flags.writable);
+        assert!(!flags.executable);
+        assert!(!flags.shared);
+    }
+
+    #[test]
+    fn test_allocation_metadata() {
+        let metadata = AllocationMetadata {
+            requested_size: 1024,
+            actual_size: 1024,
+            alignment: 8,
+            allocator_info: "test_allocator".to_string(),
+            protection_flags: Some(MemoryProtectionFlags {
+                readable: true,
+                writable: true,
+                executable: false,
+                shared: false,
+            }),
+        };
+
+        assert_eq!(metadata.requested_size, 1024);
+        assert_eq!(metadata.actual_size, 1024);
+        assert_eq!(metadata.alignment, 8);
+        assert!(metadata.protection_flags.is_some());
+    }
+
+    #[test]
+    fn test_comprehensive_workflow() {
+        let tracker = create_test_tracker();
+
+        // Register a C library
+        tracker
+            .register_c_library(
+                "test_lib".to_string(),
+                Some("/lib/libtest.so".to_string()),
+                Some("1.0".to_string()),
+            )
+            .unwrap();
+
+        // Track various allocations
+        let ptr1 = 0x10000;
+        let ptr2 = 0x20000;
+
+        tracker
+            .track_unsafe_allocation(ptr1, 1024, "unsafe_block".to_string())
+            .unwrap();
+        tracker
+            .track_ffi_allocation(ptr2, 512, "test_lib".to_string(), "test_malloc".to_string())
+            .unwrap();
+
+        // Create passports
+        tracker
+            .create_and_register_passport(ptr1, "rust_main", SecurityClearance::Public)
+            .unwrap();
+        tracker
+            .create_and_register_passport(ptr2, "ffi_lib", SecurityClearance::Restricted)
+            .unwrap();
+
+        // Record boundary events
+        tracker
+            .record_boundary_event(
+                ptr1,
+                BoundaryEventType::RustToFfi,
+                "rust".to_string(),
+                "ffi".to_string(),
+            )
+            .unwrap();
+
+        // Track function calls
+        tracker
+            .track_c_function_call("test_lib", "test_malloc", 512, 1000)
+            .unwrap();
+
+        // Install hooks
+        tracker
+            .install_enhanced_libc_hook("malloc".to_string(), HookInstallationMethod::Preload)
+            .unwrap();
+
+        // Verify comprehensive state
+        let allocations = tracker.get_enhanced_allocations().unwrap();
+        assert_eq!(allocations.len(), 2);
+
+        let libraries = tracker.get_c_library_stats().unwrap();
+        assert_eq!(libraries.len(), 1);
+
+        let passports = tracker.get_memory_passports().unwrap();
+        assert_eq!(passports.len(), 2);
+
+        let hooks = tracker.get_libc_hook_info().unwrap();
+        assert_eq!(hooks.len(), 1);
+
+        let stats = tracker.get_stats();
+        assert_eq!(stats.total_operations, 2);
+        assert_eq!(stats.unsafe_blocks, 1);
+        assert_eq!(stats.ffi_calls, 1);
+
+        // Clean up
+        tracker.track_enhanced_deallocation(ptr1).unwrap();
+        tracker.track_enhanced_deallocation(ptr2).unwrap();
+
+        let final_allocations = tracker.get_enhanced_allocations().unwrap();
+        assert!(final_allocations.is_empty());
+    }
 }

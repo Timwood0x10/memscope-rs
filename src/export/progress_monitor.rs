@@ -399,23 +399,20 @@ impl ConsoleProgressDisplay {
         };
 
         let time_info = if let Some(remaining) = progress.estimated_remaining {
-            format!(" Remaining: {:?}", remaining)
+            format!(" Remaining: {remaining:?}")
         } else {
             String::new()
         };
 
         let line = format!(
-            "{} {:.1}% {} ({}/{}){}{}",
-            progress_bar,
+            "{progress_bar} {:.1}% {} ({}/{}){speed_info}{time_info}",
             progress.overall_progress * 100.0,
             progress.current_stage.description(),
             progress.processed_allocations,
             progress.total_allocations,
-            speed_info,
-            time_info
         );
 
-        print!("{}", line);
+        print!("{line}");
         std::io::Write::flush(&mut std::io::stdout()).ok();
 
         self.last_line_length = line.len();
@@ -432,7 +429,7 @@ impl ConsoleProgressDisplay {
 
     /// Finish display (newline)
     pub fn finish(&mut self) {
-        println!();
+        tracing::info!("");
         self.last_line_length = 0;
     }
 }
@@ -447,7 +444,6 @@ impl Default for ConsoleProgressDisplay {
 mod tests {
     use super::*;
     use std::sync::{Arc, Mutex};
-    use std::thread;
     use std::time::Duration;
 
     #[test]
@@ -483,22 +479,27 @@ mod tests {
 
     #[test]
     fn test_progress_callback() {
+        use crate::core::safe_operations::SafeLock;
+
         let callback_called = Arc::new(Mutex::new(false));
         let callback_called_clone = callback_called.clone();
 
         let mut monitor = ProgressMonitor::new(100);
+        // Set shorter update interval for testing
+        monitor.update_interval = Duration::from_millis(1);
+
         monitor.set_callback(Box::new(move |_progress| {
-            *callback_called_clone.lock().unwrap() = true;
+            *callback_called_clone
+                .safe_lock()
+                .expect("Failed to acquire lock on callback_called") = true;
         }));
 
-        // Wait a bit to let the update interval pass
-        thread::sleep(Duration::from_millis(150));
+        // Add small delay to ensure update interval passes
+        std::thread::sleep(std::time::Duration::from_millis(10));
         monitor.update_progress(0.5, None);
-
-        // Wait for callback execution
-        thread::sleep(Duration::from_millis(50));
-
-        assert!(*callback_called.lock().unwrap());
+        assert!(*callback_called
+            .safe_lock()
+            .expect("Failed to acquire lock on callback_called"));
     }
 
     #[test]
@@ -542,11 +543,11 @@ mod tests {
     fn test_speed_calculation() {
         let monitor = ProgressMonitor::new(1000);
 
+        // Add small delay to ensure elapsed time > 0
+        std::thread::sleep(std::time::Duration::from_millis(10));
+
         // Simulate processing some allocations
         monitor.add_processed(100);
-
-        // Wait for a while to calculate speed
-        thread::sleep(Duration::from_millis(500));
 
         let progress = monitor.get_progress_snapshot();
         // Processing speed should be >= 0

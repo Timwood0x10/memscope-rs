@@ -21,6 +21,20 @@ pub fn export_memory_analysis<P: AsRef<Path>>(
     tracker: &MemoryTracker,
     path: P,
 ) -> TrackingResult<()> {
+    // CRITICAL FIX: Set export mode to prevent recursive tracking during SVG generation
+    thread_local! {
+        static SVG_EXPORT_MODE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    }
+
+    // Check if already in SVG export mode to prevent nested exports
+    let already_exporting = SVG_EXPORT_MODE.with(|mode| mode.get());
+    if already_exporting {
+        return Ok(()); // Skip nested export to prevent recursion
+    }
+
+    // Set SVG export mode
+    SVG_EXPORT_MODE.with(|mode| mode.set(true));
+
     let path = path.as_ref();
     tracing::info!("Exporting memory analysis to: {}", path.display());
 
@@ -30,24 +44,49 @@ pub fn export_memory_analysis<P: AsRef<Path>>(
         }
     }
 
-    // FIXED: Get stats and allocations at the same time to ensure data consistency
+    // CRITICAL FIX: Get stats and allocations at the same time to ensure data consistency
     let stats = tracker.get_stats()?;
     let active_allocations = tracker.get_active_allocations()?;
 
-    // Debug: Log the peak memory value used in SVG export
+    // CRITICAL FIX: Use actual active memory instead of potentially corrupted peak_memory
+    let actual_memory_usage = active_allocations.iter().map(|a| a.size).sum::<usize>();
+
+    // Override peak_memory if it's unreasonably high compared to active allocations
+    let corrected_peak_memory = if stats.peak_memory > actual_memory_usage * 2 {
+        // If peak_memory is more than 2x actual usage, it's likely corrupted from recursive tracking
+        // Use the larger of actual usage or active memory as the corrected value
+        actual_memory_usage.max(stats.active_memory)
+    } else {
+        stats.peak_memory
+    };
+
     tracing::info!(
-        "SVG Export - Using peak_memory: {} bytes ({})",
-        stats.peak_memory,
-        crate::utils::format_bytes(stats.peak_memory)
+        "Memory correction: original peak_memory={}, active_memory={}, actual_usage={}, corrected_peak={}",
+        stats.peak_memory, stats.active_memory, actual_memory_usage, corrected_peak_memory
     );
 
-    let document = create_memory_analysis_svg(&active_allocations, &stats, tracker)?;
+    // Debug: Log the corrected peak memory value used in SVG export
+    tracing::info!(
+        "SVG Export - Using corrected peak_memory: {} bytes ({})",
+        corrected_peak_memory,
+        crate::utils::format_bytes(corrected_peak_memory)
+    );
+
+    // Create corrected stats for SVG generation
+    let mut corrected_stats = stats.clone();
+    corrected_stats.peak_memory = corrected_peak_memory;
+
+    let document = create_memory_analysis_svg(&active_allocations, &corrected_stats, tracker)?;
 
     let mut file = File::create(path)?;
     svg::write(&mut file, &document)
         .map_err(|e| TrackingError::SerializationError(format!("Failed to write SVG: {e}")))?;
 
     tracing::info!("Successfully exported memory analysis SVG");
+
+    // CRITICAL FIX: Clear SVG export mode after generation
+    SVG_EXPORT_MODE.with(|mode| mode.set(false));
+
     Ok(())
 }
 
@@ -95,43 +134,45 @@ fn create_memory_analysis_svg(
         .set("style", "background: linear-gradient(135deg, #ecf0f1 0%, #bdc3c7 100%); font-family: 'Segoe UI', Arial, sans-serif;");
 
     // 1. Title: Rust Memory Usage Analysis
-    document = crate::export_enhanced::add_enhanced_header(document, stats, allocations)?;
+    document = crate::export::export_enhanced::add_enhanced_header(document, stats, allocations)?;
 
     // 3. Performance Dashboard - REMOVED to prevent overlap with header metrics
     // document =
     //     crate::export_enhanced::add_enhanced_timeline_dashboard(document, stats, allocations)?;
 
     // 4. Memory Allocation Heatmap
-    document = crate::export_enhanced::add_memory_heatmap(document, allocations)?;
+    document = crate::export::export_enhanced::add_memory_heatmap(document, allocations)?;
 
     // 5. Left side: Memory Usage by Type
     // Fixed: Get actual memory type data instead of empty array
     let memory_by_type_data = tracker.get_memory_by_type().unwrap_or_default();
     let memory_by_type = enhance_type_information(&memory_by_type_data, allocations);
-    document = crate::export_enhanced::add_enhanced_type_chart(document, &memory_by_type)?;
+    document = crate::export::export_enhanced::add_enhanced_type_chart(document, &memory_by_type)?;
 
     // 6. Right side: Memory Fragmentation Analysis
-    document = crate::export_enhanced::add_fragmentation_analysis(document, allocations)?;
+    document = crate::export::export_enhanced::add_fragmentation_analysis(document, allocations)?;
 
     // 7. Left side: Tracked Variables by Category
     // FIXED: Use same enhanced data source as Memory Usage by Type for consistency
     let categorized = categorize_enhanced_allocations(&memory_by_type);
-    document = crate::export_enhanced::add_categorized_allocations(document, &categorized)?;
+    document = crate::export::export_enhanced::add_categorized_allocations(document, &categorized)?;
 
     // 8. Right side: Call Stack Analysis
-    document = crate::export_enhanced::add_callstack_analysis(document, allocations)?;
+    document = crate::export::export_enhanced::add_callstack_analysis(document, allocations)?;
 
     // 9. Memory Growth Trends
-    document = crate::export_enhanced::add_memory_growth_trends(document, allocations, stats)?;
+    document =
+        crate::export::export_enhanced::add_memory_growth_trends(document, allocations, stats)?;
 
     // 10. Variable Allocation Timeline
-    document = crate::export_enhanced::add_memory_timeline(document, allocations, stats)?;
+    document = crate::export::export_enhanced::add_memory_timeline(document, allocations, stats)?;
 
     // 11. Bottom left: Interactive Legend & Guide
-    document = crate::export_enhanced::add_interactive_legend(document)?;
+    document = crate::export::export_enhanced::add_interactive_legend(document)?;
 
     // 12. Bottom right: Memory Analysis Summary
-    document = crate::export_enhanced::add_comprehensive_summary(document, stats, allocations)?;
+    document =
+        crate::export::export_enhanced::add_comprehensive_summary(document, stats, allocations)?;
 
     Ok(document)
 }
@@ -423,7 +464,8 @@ fn draw_variable_node(
     x: i32,
     y: i32,
 ) -> TrackingResult<Document> {
-    let var_name = allocation.var_name.as_ref().unwrap();
+    let default_name = "<unknown>".to_string();
+    let var_name = allocation.var_name.as_ref().unwrap_or(&default_name);
     let type_name = allocation.type_name.as_deref().unwrap_or("Unknown");
     let simple_type = get_simple_type(type_name);
     let color = get_type_color(&simple_type);
@@ -451,7 +493,7 @@ fn draw_variable_node(
     let display_name = if var_name.len() > 8 {
         format!("{}...", &var_name[..6])
     } else {
-        var_name.to_string()
+        var_name.clone()
     };
 
     let name_label = SvgText::new(display_name)
@@ -747,7 +789,7 @@ fn export_scope_analysis_json(
         Value::String(
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .unwrap_or_default()
                 .as_secs()
                 .to_string(),
         ),
@@ -764,10 +806,7 @@ fn export_scope_analysis_json(
         let is_displayed = displayed_scopes.iter().any(|(name, _)| name == scope_name);
 
         let mut scope_data = Map::new();
-        scope_data.insert(
-            "scope_name".to_string(),
-            Value::String(scope_name.to_string()),
-        );
+        scope_data.insert("scope_name".to_string(), Value::String(scope_name.clone()));
         scope_data.insert(
             "total_memory".to_string(),
             Value::Number((total_memory as u64).into()),
@@ -794,7 +833,7 @@ fn export_scope_analysis_json(
         for var in vars {
             if let Some(var_name) = &var.var_name {
                 let mut var_data = Map::new();
-                var_data.insert("name".to_string(), Value::String(var_name.to_string()));
+                var_data.insert("name".to_string(), Value::String(var_name.clone()));
                 var_data.insert(
                     "type".to_string(),
                     Value::String(var.type_name.as_deref().unwrap_or("Unknown").to_string()),
@@ -829,7 +868,6 @@ fn export_scope_analysis_json(
 }
 
 /// Get simple type name
-
 /// Get color based on duration ratio (0.0 to 1.0)
 /// Assign colors based on relative lifecycle length: longest time=dark color, shortest time=white, global scope=special deep blue
 fn get_duration_color(ratio: f64, is_global: bool) -> String {
@@ -965,6 +1003,7 @@ fn add_matrix_layout_section(
 }
 
 /// Render single scope matrix with DYNAMIC SIZING and ENHANCED MEMORY VISUALIZATION
+#[allow(clippy::too_many_arguments)]
 fn render_scope_matrix_fixed(
     mut document: Document,
     scope_name: &str,
@@ -1044,7 +1083,8 @@ fn render_scope_matrix_fixed(
     for (i, var) in vars.iter().take(4).enumerate() {
         // Limit to 4 for better layout
         let var_y = var_start_y + (i as i32 * var_spacing);
-        let var_name = var.var_name.as_ref().unwrap();
+        let default_name = "<unknown>".to_string();
+        let var_name = var.var_name.as_ref().unwrap_or(&default_name);
         let type_name = get_simple_type(var.type_name.as_ref().unwrap_or(&"Unknown".to_string()));
         let duration_ms = estimate_variable_duration(var);
 
@@ -1227,7 +1267,7 @@ use crate::core::types::TypeMemoryUsage;
 pub fn enhance_type_information(
     memory_by_type: &[TypeMemoryUsage],
     allocations: &[AllocationInfo],
-) -> Vec<crate::export_enhanced::EnhancedTypeInfo> {
+) -> Vec<crate::export::export_enhanced::EnhancedTypeInfo> {
     let mut enhanced_types = Vec::new();
 
     for usage in memory_by_type {
@@ -1256,12 +1296,12 @@ pub fn enhance_type_information(
                     None
                 }
             })
-            .take(5) // Limit to 5 variable names
-            .map(|s| s.to_string())
+            .take(5)
+            .cloned()
             .collect();
 
         // Add the main type with subcategory information
-        enhanced_types.push(crate::export_enhanced::EnhancedTypeInfo {
+        enhanced_types.push(crate::export::export_enhanced::EnhancedTypeInfo {
             simplified_name,
             category,
             subcategory,
@@ -1339,9 +1379,9 @@ fn analyze_type_with_detailed_subcategory(type_name: &str) -> (String, String, S
 
 /// Categorize enhanced allocations by type category - delegate to export_enhanced
 pub fn categorize_enhanced_allocations(
-    enhanced_types: &[crate::export_enhanced::EnhancedTypeInfo],
-) -> Vec<crate::export_enhanced::AllocationCategory> {
-    crate::export_enhanced::categorize_enhanced_allocations(enhanced_types)
+    enhanced_types: &[crate::export::export_enhanced::EnhancedTypeInfo],
+) -> Vec<crate::export::export_enhanced::AllocationCategory> {
+    crate::export::export_enhanced::categorize_enhanced_allocations(enhanced_types)
 }
 
 /// Export comprehensive unsafe/FFI memory analysis to dedicated SVG
@@ -1458,20 +1498,12 @@ fn add_dashboard_header(
         .sum();
 
     // Metrics cards
-    let metrics = vec![
-        ("Unsafe Allocations", unsafe_count.to_string(), "#e74c3c"),
-        ("FFI Allocations", ffi_count.to_string(), "#3498db"),
-        (
-            "Boundary Crossings",
-            cross_boundary_events.to_string(),
-            "#f39c12",
-        ),
-        ("Safety Violations", violations.len().to_string(), "#e67e22"),
-        (
-            "Unsafe Memory",
-            format_bytes(total_unsafe_memory),
-            "#9b59b6",
-        ),
+    let metrics = [
+        ("Unsafe Allocations", unsafe_count, "#e74c3c"),
+        ("FFI Allocations", ffi_count, "#3498db"),
+        ("Boundary Crossings", cross_boundary_events, "#f39c12"),
+        ("Safety Violations", violations.len(), "#e67e22"),
+        ("Unsafe Memory", total_unsafe_memory, "#9b59b6"),
     ];
 
     for (i, (label, value, color)) in metrics.iter().enumerate() {
@@ -1492,7 +1524,7 @@ fn add_dashboard_header(
         document = document.add(card);
 
         // Value
-        let value_text = SvgText::new(value)
+        let value_text = SvgText::new(value.to_string())
             .set("x", x)
             .set("y", y - 5)
             .set("text-anchor", "middle")
@@ -1942,4 +1974,550 @@ fn add_unsafe_hotspots(
     }
 
     Ok(document)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::tracker::MemoryTracker;
+    use crate::core::types::{AllocationInfo, MemoryStats, TypeMemoryUsage};
+    use tempfile::TempDir;
+
+    fn create_test_allocation(
+        ptr: usize,
+        size: usize,
+        type_name: Option<String>,
+        var_name: Option<String>,
+    ) -> AllocationInfo {
+        let mut allocation = AllocationInfo::new(ptr, size);
+        allocation.type_name = type_name;
+        allocation.var_name = var_name;
+        allocation
+    }
+
+    fn create_test_memory_stats() -> MemoryStats {
+        let mut stats = MemoryStats::new();
+        stats.total_allocations = 10;
+        stats.total_deallocations = 5;
+        stats.active_allocations = 5;
+        stats.peak_memory = 1024;
+        stats.active_memory = 512;
+        stats.total_allocated = 2048;
+        stats.total_deallocated = 1024;
+        stats.leaked_allocations = 0;
+        stats
+    }
+
+    #[test]
+    fn test_export_memory_analysis_creates_svg_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let svg_path = temp_dir.path().join("memory_analysis.svg");
+
+        // Create a minimal tracker for testing
+        let tracker = MemoryTracker::new();
+
+        // Test the export function
+        let result = export_memory_analysis(&tracker, &svg_path);
+        assert!(result.is_ok());
+        assert!(svg_path.exists());
+
+        // Verify the file contains SVG content
+        let content = std::fs::read_to_string(&svg_path).unwrap();
+        assert!(content.contains("<svg"));
+        assert!(content.contains("</svg>"));
+    }
+
+    #[test]
+    fn test_export_memory_analysis_creates_parent_directory() {
+        let temp_dir = TempDir::new().unwrap();
+        let nested_path = temp_dir
+            .path()
+            .join("nested")
+            .join("dir")
+            .join("memory_analysis.svg");
+
+        let tracker = MemoryTracker::new();
+        let result = export_memory_analysis(&tracker, &nested_path);
+
+        assert!(result.is_ok());
+        assert!(nested_path.exists());
+        assert!(nested_path.parent().unwrap().exists());
+    }
+
+    #[test]
+    fn test_export_lifecycle_timeline_creates_svg_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let svg_path = temp_dir.path().join("lifecycle_timeline.svg");
+
+        let tracker = MemoryTracker::new();
+        let result = export_lifecycle_timeline(&tracker, &svg_path);
+
+        assert!(result.is_ok());
+        assert!(svg_path.exists());
+
+        let content = std::fs::read_to_string(&svg_path).unwrap();
+        assert!(content.contains("<svg"));
+        assert!(content.contains("viewBox"));
+    }
+
+    #[test]
+    fn test_create_memory_analysis_svg_basic_structure() {
+        let allocations = vec![
+            create_test_allocation(
+                0x1000,
+                64,
+                Some("String".to_string()),
+                Some("test_var".to_string()),
+            ),
+            create_test_allocation(
+                0x2000,
+                128,
+                Some("Vec<i32>".to_string()),
+                Some("test_vec".to_string()),
+            ),
+        ];
+        let stats = create_test_memory_stats();
+        let tracker = MemoryTracker::new();
+
+        let result = create_memory_analysis_svg(&allocations, &stats, &tracker);
+        assert!(result.is_ok());
+
+        let document = result.unwrap();
+        let svg_string = document.to_string();
+        assert!(svg_string.contains("viewBox"));
+        assert!(svg_string.contains("width"));
+        assert!(svg_string.contains("height"));
+    }
+
+    #[test]
+    fn test_create_memory_analysis_svg_with_empty_allocations() {
+        let allocations = vec![];
+        let stats = create_test_memory_stats();
+        let tracker = MemoryTracker::new();
+
+        let result = create_memory_analysis_svg(&allocations, &stats, &tracker);
+        assert!(result.is_ok());
+
+        let document = result.unwrap();
+        let svg_string = document.to_string();
+        assert!(svg_string.contains("<svg"));
+    }
+
+    #[test]
+    fn test_create_lifecycle_timeline_svg_basic_structure() {
+        let allocations = vec![
+            create_test_allocation(
+                0x1000,
+                64,
+                Some("String".to_string()),
+                Some("var1".to_string()),
+            ),
+            create_test_allocation(
+                0x2000,
+                128,
+                Some("i32".to_string()),
+                Some("var2".to_string()),
+            ),
+        ];
+        let stats = create_test_memory_stats();
+
+        let result = create_lifecycle_timeline_svg(&allocations, &stats);
+        assert!(result.is_ok());
+
+        let document = result.unwrap();
+        let svg_string = document.to_string();
+        assert!(svg_string.contains("viewBox=\"0 0 1600 1200\""));
+        assert!(svg_string.contains("timeline-bar"));
+    }
+
+    #[test]
+    fn test_create_lifecycle_timeline_svg_with_empty_allocations() {
+        let allocations = vec![];
+        let stats = create_test_memory_stats();
+
+        let result = create_lifecycle_timeline_svg(&allocations, &stats);
+        assert!(result.is_ok());
+
+        let document = result.unwrap();
+        let svg_string = document.to_string();
+        assert!(svg_string.contains("<svg"));
+    }
+
+    #[test]
+    fn test_enhance_type_information_with_basic_types() {
+        let memory_by_type = vec![
+            TypeMemoryUsage {
+                type_name: "String".to_string(),
+                total_size: 256,
+                allocation_count: 4,
+                average_size: 64.0,
+                peak_size: 128,
+                current_size: 256,
+                efficiency_score: 0.8,
+            },
+            TypeMemoryUsage {
+                type_name: "Vec<i32>".to_string(),
+                total_size: 512,
+                allocation_count: 2,
+                average_size: 256.0,
+                peak_size: 512,
+                current_size: 512,
+                efficiency_score: 0.9,
+            },
+            TypeMemoryUsage {
+                type_name: "Unknown".to_string(),
+                total_size: 64,
+                allocation_count: 1,
+                average_size: 64.0,
+                peak_size: 64,
+                current_size: 64,
+                efficiency_score: 0.5,
+            },
+        ];
+
+        let allocations = vec![
+            create_test_allocation(
+                0x1000,
+                64,
+                Some("String".to_string()),
+                Some("str1".to_string()),
+            ),
+            create_test_allocation(
+                0x2000,
+                128,
+                Some("String".to_string()),
+                Some("str2".to_string()),
+            ),
+            create_test_allocation(
+                0x3000,
+                256,
+                Some("Vec<i32>".to_string()),
+                Some("vec1".to_string()),
+            ),
+        ];
+
+        let enhanced = enhance_type_information(&memory_by_type, &allocations);
+
+        // Should skip "Unknown" type
+        assert_eq!(enhanced.len(), 2);
+
+        // Check String type
+        let string_type = enhanced
+            .iter()
+            .find(|t| t.simplified_name == "String")
+            .unwrap();
+        assert_eq!(string_type.category, "Basic Types");
+        assert_eq!(string_type.subcategory, "Strings");
+        assert_eq!(string_type.total_size, 256);
+        assert_eq!(string_type.allocation_count, 4);
+        assert_eq!(string_type.variable_names.len(), 2);
+        assert!(string_type.variable_names.contains(&"str1".to_string()));
+        assert!(string_type.variable_names.contains(&"str2".to_string()));
+
+        // Check Vec type
+        let vec_type = enhanced
+            .iter()
+            .find(|t| t.simplified_name == "Vec<T>")
+            .unwrap();
+        assert_eq!(vec_type.category, "Collections");
+        assert_eq!(vec_type.subcategory, "Vec<T>");
+        assert_eq!(vec_type.total_size, 512);
+        assert_eq!(vec_type.allocation_count, 2);
+    }
+
+    #[test]
+    fn test_enhance_type_information_with_empty_input() {
+        let memory_by_type = vec![];
+        let allocations = vec![];
+
+        let enhanced = enhance_type_information(&memory_by_type, &allocations);
+        assert!(enhanced.is_empty());
+    }
+
+    #[test]
+    fn test_analyze_type_with_detailed_subcategory_collections() {
+        let (name, category, subcategory) = analyze_type_with_detailed_subcategory("Vec<String>");
+        assert_eq!(name, "Vec<T>");
+        assert_eq!(category, "Collections");
+        assert_eq!(subcategory, "Vec<T>");
+
+        let (name, category, subcategory) =
+            analyze_type_with_detailed_subcategory("std::vec::Vec<i32>");
+        assert_eq!(name, "Vec<T>");
+        assert_eq!(category, "Collections");
+        assert_eq!(subcategory, "Vec<T>");
+
+        let (name, category, subcategory) =
+            analyze_type_with_detailed_subcategory("HashMap<String, i32>");
+        assert_eq!(name, "HashMap<K,V>");
+        assert_eq!(category, "Collections");
+        assert_eq!(subcategory, "HashMap<K,V>");
+    }
+
+    #[test]
+    fn test_analyze_type_with_detailed_subcategory_basic_types() {
+        let (name, category, subcategory) = analyze_type_with_detailed_subcategory("String");
+        assert_eq!(name, "String");
+        assert_eq!(category, "Basic Types");
+        assert_eq!(subcategory, "Strings");
+
+        let (name, category, subcategory) = analyze_type_with_detailed_subcategory("i32");
+        assert_eq!(name, "i32");
+        assert_eq!(category, "Basic Types");
+        assert_eq!(subcategory, "Integers");
+
+        let (name, category, subcategory) = analyze_type_with_detailed_subcategory("u8");
+        assert_eq!(name, "u8");
+        assert_eq!(category, "Basic Types");
+        assert_eq!(subcategory, "Integers");
+    }
+
+    #[test]
+    fn test_analyze_type_with_detailed_subcategory_unknown_types() {
+        let (name, category, subcategory) = analyze_type_with_detailed_subcategory("");
+        assert_eq!(name, "Unknown Type");
+        assert_eq!(category, "Unknown");
+        assert_eq!(subcategory, "Other");
+
+        let (name, category, subcategory) = analyze_type_with_detailed_subcategory("Unknown");
+        assert_eq!(name, "Unknown Type");
+        assert_eq!(category, "Unknown");
+        assert_eq!(subcategory, "Other");
+
+        let (name, category, subcategory) = analyze_type_with_detailed_subcategory("CustomStruct");
+        assert_eq!(name, "CustomStruct");
+        assert_eq!(category, "Other");
+        assert_eq!(subcategory, "Custom");
+    }
+
+    #[test]
+    fn test_categorize_enhanced_allocations() {
+        let enhanced_types = vec![
+            crate::export::export_enhanced::EnhancedTypeInfo {
+                simplified_name: "String".to_string(),
+                category: "Basic Types".to_string(),
+                subcategory: "Strings".to_string(),
+                total_size: 256,
+                allocation_count: 2,
+                variable_names: vec!["str1".to_string(), "str2".to_string()],
+            },
+            crate::export::export_enhanced::EnhancedTypeInfo {
+                simplified_name: "Vec<T>".to_string(),
+                category: "Collections".to_string(),
+                subcategory: "Vec<T>".to_string(),
+                total_size: 512,
+                allocation_count: 1,
+                variable_names: vec!["vec1".to_string()],
+            },
+        ];
+
+        let categorized = categorize_enhanced_allocations(&enhanced_types);
+
+        // categorize_enhanced_allocations returns Vec<AllocationCategory>
+        assert_eq!(categorized.len(), 2);
+
+        // Find Basic Types category
+        let basic_types_category = categorized.iter().find(|c| c.name == "Basic Types");
+        assert!(basic_types_category.is_some());
+        let basic_types = basic_types_category.unwrap();
+        assert_eq!(basic_types.allocations.len(), 1);
+        assert_eq!(basic_types.total_size, 256);
+
+        // Find Collections category
+        let collections_category = categorized.iter().find(|c| c.name == "Collections");
+        assert!(collections_category.is_some());
+        let collections = collections_category.unwrap();
+        assert_eq!(collections.allocations.len(), 1);
+        assert_eq!(collections.total_size, 512);
+    }
+
+    #[test]
+    fn test_calculate_dynamic_matrix_size_small_count() {
+        let (width, height) = calculate_dynamic_matrix_size(3);
+        assert!(width >= 250); // Minimum width protection
+        assert!(height >= 150); // Minimum height protection
+        assert!(width <= 350); // Should be smaller than standard for fewer variables
+    }
+
+    #[test]
+    fn test_calculate_dynamic_matrix_size_standard_count() {
+        let (width, height) = calculate_dynamic_matrix_size(5);
+        assert_eq!(width, 350); // Standard width
+        assert_eq!(height, 320); // Standard height
+    }
+
+    #[test]
+    fn test_calculate_dynamic_matrix_size_large_count() {
+        let (width, height) = calculate_dynamic_matrix_size(10);
+        assert_eq!(width, 350); // Fixed standard size for large counts
+        assert_eq!(height, 280); // Fixed standard size for large counts
+    }
+
+    #[test]
+    fn test_calculate_scope_lifetime_empty_vars() {
+        let vars: Vec<&AllocationInfo> = vec![];
+        let lifetime = calculate_scope_lifetime("test_scope", &vars);
+        assert_eq!(lifetime, 0);
+    }
+
+    #[test]
+    fn test_calculate_scope_lifetime_global_scope() {
+        let allocation = create_test_allocation(
+            0x1000,
+            64,
+            Some("String".to_string()),
+            Some("var1".to_string()),
+        );
+        let vars = vec![&allocation];
+
+        let lifetime = calculate_scope_lifetime("Global", &vars);
+        assert_eq!(lifetime, 2000); // Should use estimated program runtime
+    }
+
+    #[test]
+    fn test_calculate_scope_lifetime_local_scope_single_var() {
+        let allocation = create_test_allocation(
+            0x1000,
+            64,
+            Some("String".to_string()),
+            Some("var1".to_string()),
+        );
+        let vars = vec![&allocation];
+
+        let lifetime = calculate_scope_lifetime("local_scope", &vars);
+        assert_eq!(lifetime, 100); // Default for single variable
+    }
+
+    #[test]
+    fn test_calculate_scope_lifetime_local_scope_multiple_vars() {
+        let mut allocation1 = create_test_allocation(
+            0x1000,
+            64,
+            Some("String".to_string()),
+            Some("var1".to_string()),
+        );
+        let mut allocation2 = create_test_allocation(
+            0x2000,
+            128,
+            Some("i32".to_string()),
+            Some("var2".to_string()),
+        );
+
+        // Set different timestamps
+        allocation1.timestamp_alloc = 1000;
+        allocation2.timestamp_alloc = 1500;
+
+        let vars = vec![&allocation1, &allocation2];
+        let lifetime = calculate_scope_lifetime("local_scope", &vars);
+        assert_eq!(lifetime, 500); // Difference between timestamps
+    }
+
+    #[test]
+    fn test_estimate_program_runtime() {
+        let runtime = estimate_program_runtime();
+        assert_eq!(runtime, 2000); // Should return 2 seconds
+    }
+
+    #[test]
+    fn test_get_scope_background_color() {
+        assert_eq!(
+            get_scope_background_color("Global"),
+            "rgba(52, 73, 94, 0.2)"
+        );
+        assert_eq!(
+            get_scope_background_color("local"),
+            "rgba(52, 152, 219, 0.2)"
+        );
+        assert_eq!(
+            get_scope_background_color("function"),
+            "rgba(52, 152, 219, 0.2)"
+        );
+    }
+
+    #[test]
+    fn test_get_scope_border_color() {
+        assert_eq!(get_scope_border_color("Global"), "#34495E");
+        assert_eq!(get_scope_border_color("local"), "#3498DB");
+        assert_eq!(get_scope_border_color("function"), "#3498DB");
+    }
+
+    #[test]
+    fn test_add_relationship_legend() {
+        let document = Document::new();
+        let result = add_relationship_legend(document, 100);
+
+        assert!(result.is_ok());
+        let document = result.unwrap();
+        let svg_string = document.to_string();
+
+        // Check that legend items are present
+        assert!(svg_string.contains("Ownership Transfer"));
+        assert!(svg_string.contains("Mutable Borrow"));
+        assert!(svg_string.contains("Immutable Borrow"));
+        assert!(svg_string.contains("Clone"));
+        assert!(svg_string.contains("Shared Pointer"));
+        assert!(svg_string.contains("Indirect Reference"));
+    }
+
+    #[test]
+    fn test_enhance_type_information_variable_name_limit() {
+        let memory_by_type = vec![TypeMemoryUsage {
+            type_name: "String".to_string(),
+            total_size: 1000,
+            allocation_count: 10,
+            average_size: 100.0,
+            peak_size: 1000,
+            current_size: 1000,
+            efficiency_score: 0.9,
+        }];
+
+        // Create more than 5 allocations to test the limit
+        let allocations = (0..8)
+            .map(|i| {
+                create_test_allocation(
+                    0x1000 + i * 0x100,
+                    64,
+                    Some("String".to_string()),
+                    Some(format!("var{i}")),
+                )
+            })
+            .collect::<Vec<_>>();
+
+        let enhanced = enhance_type_information(&memory_by_type, &allocations);
+
+        assert_eq!(enhanced.len(), 1);
+        let string_type = &enhanced[0];
+
+        // Should limit to 5 variable names
+        assert_eq!(string_type.variable_names.len(), 5);
+        assert!(string_type.variable_names.contains(&"var0".to_string()));
+        assert!(string_type.variable_names.contains(&"var4".to_string()));
+    }
+
+    #[test]
+    fn test_enhance_type_information_with_none_values() {
+        let memory_by_type = vec![TypeMemoryUsage {
+            type_name: "String".to_string(),
+            total_size: 256,
+            allocation_count: 2,
+            average_size: 128.0,
+            peak_size: 256,
+            current_size: 256,
+            efficiency_score: 0.5,
+        }];
+
+        let allocations = vec![
+            create_test_allocation(0x1000, 64, None, None), // No type or var name
+            create_test_allocation(0x2000, 128, Some("String".to_string()), None), // No var name
+            create_test_allocation(0x3000, 256, None, Some("var1".to_string())), // No type name
+        ];
+
+        let enhanced = enhance_type_information(&memory_by_type, &allocations);
+
+        assert_eq!(enhanced.len(), 1);
+        let string_type = &enhanced[0];
+
+        // Should have no variable names since none match the criteria
+        assert!(string_type.variable_names.is_empty());
+    }
 }

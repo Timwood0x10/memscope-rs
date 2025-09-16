@@ -184,7 +184,7 @@ fn generate_internal_allocations_impl(fields: &Fields) -> proc_macro2::TokenStre
                 let field_name_str = field_name.as_ref().unwrap().to_string();
                 quote! {
                     if let Some(ptr) = memscope_rs::Trackable::get_heap_ptr(&self.#field_name) {
-                        allocations.push((ptr, format!("{}::{}", var_name, #field_name_str)));
+                        allocations.push((ptr, format!("{var_name}::{}", #field_name_str)));
                     }
                 }
             });
@@ -201,7 +201,7 @@ fn generate_internal_allocations_impl(fields: &Fields) -> proc_macro2::TokenStre
                 let index_str = i.to_string();
                 quote! {
                     if let Some(ptr) = memscope_rs::Trackable::get_heap_ptr(&self.#index) {
-                        allocations.push((ptr, format!("{}::{}", var_name, #index_str)));
+                        allocations.push((ptr, format!("{var_name}::{}", #index_str)));
                     }
                 }
             });
@@ -246,9 +246,7 @@ fn generate_enum_size_estimate_impl(
             }
             Fields::Unnamed(fields) => {
                 let field_patterns: Vec<_> = (0..fields.unnamed.len())
-                    .map(|i| {
-                        syn::Ident::new(&format!("field_{}", i), proc_macro2::Span::call_site())
-                    })
+                    .map(|i| syn::Ident::new(&format!("field_{i}"), proc_macro2::Span::call_site()))
                     .collect();
                 let field_sizes = field_patterns.iter().map(|field_name| {
                     quote! {
@@ -294,7 +292,7 @@ fn generate_enum_internal_allocations_impl(
                     let field_name_str = field_name.as_ref().unwrap().to_string();
                     quote! {
                         if let Some(ptr) = memscope_rs::Trackable::get_heap_ptr(#field_name) {
-                            allocations.push((ptr, format!("{}::{}::{}", var_name, #variant_name_str, #field_name_str)));
+                            allocations.push((ptr, format!("{var_name}::{}::{}", #variant_name_str, #field_name_str)));
                         }
                     }
                 });
@@ -308,12 +306,12 @@ fn generate_enum_internal_allocations_impl(
             }
             Fields::Unnamed(fields) => {
                 let field_patterns: Vec<_> = (0..fields.unnamed.len())
-                    .map(|i| syn::Ident::new(&format!("field_{}", i), proc_macro2::Span::call_site()))
+                    .map(|i| syn::Ident::new(&format!("field_{i}"), proc_macro2::Span::call_site()))
                     .collect();
                 let field_allocations = field_patterns.iter().enumerate().map(|(i, field_name)| {
                     quote! {
                         if let Some(ptr) = memscope_rs::Trackable::get_heap_ptr(#field_name) {
-                            allocations.push((ptr, format!("{}::{}::{}", var_name, #variant_name_str, #i)));
+                            allocations.push((ptr, format!("{var_name}::{}::{}", #variant_name_str, #i)));
                         }
                     }
                 });

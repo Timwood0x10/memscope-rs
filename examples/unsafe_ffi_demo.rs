@@ -5,6 +5,7 @@
 //! - FFI memory operations
 //! - Safety violation detection
 
+use memscope_rs::export::export_user_variables_json;
 use memscope_rs::unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, BoundaryEventType};
 use memscope_rs::{get_global_tracker, init, track_var};
 use std::alloc::{alloc, dealloc, Layout};
@@ -134,19 +135,33 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     std::fs::create_dir_all(analysis_dir)?;
 
     // Export main memory analysis (correct naming for html_from_json)
-    let memory_json = format!("{}/snapshot_memory_analysis.json", analysis_dir);
-    tracker.export_to_json(&memory_json)?;
-    println!("   ✅ Memory analysis: {}", memory_json);
+    let memory_json = format!("{analysis_dir}/snapshot_memory_analysis.json");
+    // Export using new unified API
+    let allocations = tracker.get_active_allocations()?;
+    let stats = tracker.get_stats()?;
+
+    println!(
+        "📊 Exporting {} allocations using new unified API...",
+        allocations.len()
+    );
+    let export_stats = export_user_variables_json(allocations, stats, &memory_json)?;
+
+    println!("✅ JSON export completed!");
+    println!(
+        "   📊 Processed {} allocations in {}ms",
+        export_stats.allocations_processed, export_stats.processing_time_ms
+    );
+    println!("   ✅ Memory analysis: {memory_json}");
 
     // Export unsafe/FFI analysis
-    let ffi_json = format!("{}/snapshot_unsafe_ffi.json", analysis_dir);
+    let ffi_json = format!("{analysis_dir}/snapshot_unsafe_ffi.json");
     let enhanced_allocations = unsafe_ffi_tracker.get_enhanced_allocations()?;
     let ffi_data = serde_json::to_string_pretty(&enhanced_allocations)?;
     std::fs::write(&ffi_json, ffi_data)?;
-    println!("   ✅ Unsafe/FFI analysis: {}", ffi_json);
+    println!("   ✅ Unsafe/FFI analysis: {ffi_json}");
 
     // Export performance metrics
-    let perf_json = format!("{}/snapshot_performance.json", analysis_dir);
+    let perf_json = format!("{analysis_dir}/snapshot_performance.json");
     let stats = tracker.get_stats()?;
     let perf_data = serde_json::json!({
         "performance_metrics": stats,
@@ -156,10 +171,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .as_secs()
     });
     std::fs::write(&perf_json, serde_json::to_string_pretty(&perf_data)?)?;
-    println!("   ✅ Performance metrics: {}", perf_json);
+    println!("   ✅ Performance metrics: {perf_json}");
 
     // Export security violations
-    let security_json = format!("{}/snapshot_security_violations.json", analysis_dir);
+    let security_json = format!("{analysis_dir}/snapshot_security_violations.json");
     let violations = unsafe_ffi_tracker
         .get_safety_violations()
         .unwrap_or_default();
@@ -174,7 +189,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         &security_json,
         serde_json::to_string_pretty(&security_data)?,
     )?;
-    println!("   ✅ Security violations: {}", security_json);
+    println!("   ✅ Security violations: {security_json}");
 
     // 7. Display summary statistics
     println!("\n📈 7. Summary Statistics");
@@ -223,7 +238,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   📊 Cross-boundary events: {cross_boundary_events}");
 
     println!("\n🎉 Unsafe Rust & FFI Memory Analysis Complete!");
-    println!("📁 All analysis files are organized in: {}/", analysis_dir);
+    println!("📁 All analysis files are organized in: {analysis_dir}/");
     println!("\n📊 Generated files:");
     println!("   • snapshot_memory_analysis.json - Memory allocation analysis");
     println!("   • snapshot_unsafe_ffi.json - Unsafe/FFI analysis");

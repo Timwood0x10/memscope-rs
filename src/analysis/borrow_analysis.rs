@@ -5,6 +5,7 @@
 //! - Runtime borrow checking integration
 //! - Borrow conflict detection
 
+use crate::core::safe_operations::SafeLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -28,6 +29,12 @@ pub struct BorrowAnalyzer {
     borrow_history: Mutex<Vec<BorrowEvent>>,
     /// Detected borrow conflicts
     conflicts: Mutex<Vec<BorrowConflict>>,
+}
+
+impl Default for BorrowAnalyzer {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl BorrowAnalyzer {
@@ -59,10 +66,7 @@ impl BorrowAnalyzer {
 
         // Add to active borrows
         if let Ok(mut active) = self.active_borrows.lock() {
-            active
-                .entry(ptr)
-                .or_insert_with(Vec::new)
-                .push(borrow_info.clone());
+            active.entry(ptr).or_default().push(borrow_info.clone());
         }
 
         // Record the borrow event
@@ -173,21 +177,41 @@ impl BorrowAnalyzer {
 
     /// Get borrow statistics
     pub fn get_borrow_statistics(&self) -> BorrowStatistics {
-        let history = self.borrow_history.lock().unwrap();
-        let conflicts = self.conflicts.lock().unwrap();
-        let active = self.active_borrows.lock().unwrap();
+        // Avoid holding multiple locks simultaneously to prevent deadlock
+        let (total_borrows, durations, by_type) = {
+            let history = match self.borrow_history.safe_lock() {
+                Ok(h) => h,
+                Err(_) => return BorrowStatistics::default(),
+            };
+            let total = history.len();
+            let mut durations = Vec::new();
+            let mut by_type = HashMap::new();
 
-        let total_borrows = history.len();
-        let active_borrows: usize = active.values().map(|v| v.len()).sum();
-        let total_conflicts = conflicts.len();
-
-        // Calculate borrow duration statistics
-        let mut durations = Vec::new();
-        for event in history.iter() {
-            if let Some(end_time) = event.borrow_info.end_time {
-                durations.push(end_time - event.borrow_info.start_time);
+            for event in history.iter() {
+                if let Some(end_time) = event.borrow_info.end_time {
+                    durations.push(end_time - event.borrow_info.start_time);
+                }
+                let type_name = format!("{:?}", event.borrow_info.borrow_type);
+                *by_type.entry(type_name).or_insert(0) += 1;
             }
-        }
+            (total, durations, by_type)
+        };
+
+        let total_conflicts = {
+            let conflicts = match self.conflicts.safe_lock() {
+                Ok(c) => c,
+                Err(_) => return BorrowStatistics::default(),
+            };
+            conflicts.len()
+        };
+
+        let active_borrows: usize = {
+            let active = match self.active_borrows.safe_lock() {
+                Ok(a) => a,
+                Err(_) => return BorrowStatistics::default(),
+            };
+            active.values().map(|v| v.len()).sum()
+        };
 
         let avg_borrow_duration = if !durations.is_empty() {
             durations.iter().sum::<u64>() / durations.len() as u64
@@ -196,13 +220,6 @@ impl BorrowAnalyzer {
         };
 
         let max_borrow_duration = durations.iter().max().copied().unwrap_or(0);
-
-        // Count by borrow type
-        let mut by_type = HashMap::new();
-        for event in history.iter() {
-            let type_name = format!("{:?}", event.borrow_info.borrow_type);
-            *by_type.entry(type_name).or_insert(0) += 1;
-        }
 
         BorrowStatistics {
             total_borrows,
@@ -216,13 +233,22 @@ impl BorrowAnalyzer {
 
     /// Get all detected conflicts
     pub fn get_conflicts(&self) -> Vec<BorrowConflict> {
-        self.conflicts.lock().unwrap().clone()
+        self.conflicts
+            .safe_lock()
+            .map(|c| c.clone())
+            .unwrap_or_default()
     }
 
     /// Analyze borrow patterns
     pub fn analyze_borrow_patterns(&self) -> BorrowPatternAnalysis {
-        let history = self.borrow_history.lock().unwrap();
-        let conflicts = self.conflicts.lock().unwrap();
+        let history = match self.borrow_history.safe_lock() {
+            Ok(h) => h,
+            Err(_) => return BorrowPatternAnalysis::default(),
+        };
+        let conflicts = match self.conflicts.safe_lock() {
+            Ok(c) => c,
+            Err(_) => return BorrowPatternAnalysis::default(),
+        };
 
         // Analyze common patterns
         let mut patterns = Vec::new();
@@ -243,7 +269,7 @@ impl BorrowAnalyzer {
         if long_lived_count > 0 {
             patterns.push(BorrowPattern {
                 pattern_type: BorrowPatternType::LongLivedBorrows,
-                description: format!("{} borrows lasted longer than 1ms", long_lived_count),
+                description: format!("{long_lived_count} borrows lasted longer than 1ms"),
                 severity: if long_lived_count > 10 {
                     PatternSeverity::Warning
                 } else {
@@ -269,7 +295,7 @@ impl BorrowAnalyzer {
         if max_concurrent > 10 {
             patterns.push(BorrowPattern {
                 pattern_type: BorrowPatternType::HighConcurrency,
-                description: format!("Up to {} concurrent borrows detected", max_concurrent),
+                description: format!("Up to {max_concurrent} concurrent borrows detected"),
                 severity: PatternSeverity::Info,
                 suggestion: "High concurrency detected - ensure this is intentional".to_string(),
             });
@@ -284,8 +310,10 @@ impl BorrowAnalyzer {
 
     /// Calculate maximum concurrent borrows
     fn calculate_max_concurrent_borrows(&self) -> usize {
-        let active = self.active_borrows.lock().unwrap();
-        active.values().map(|v| v.len()).max().unwrap_or(0)
+        self.active_borrows
+            .safe_lock()
+            .map(|active| active.values().map(|v| v.len()).max().unwrap_or(0))
+            .unwrap_or(0)
     }
 }
 
@@ -382,7 +410,7 @@ pub enum ConflictType {
 }
 
 /// Borrow statistics
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct BorrowStatistics {
     /// Total number of borrows tracked
     pub total_borrows: usize,
@@ -398,8 +426,10 @@ pub struct BorrowStatistics {
     pub by_type: HashMap<String, usize>,
 }
 
+// BorrowAnalysis struct doesn't exist in this file, removing the Default impl
+
 /// Borrow pattern analysis
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct BorrowPatternAnalysis {
     /// Detected patterns
     pub patterns: Vec<BorrowPattern>,

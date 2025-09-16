@@ -72,9 +72,9 @@ fn main() {
 
     // Global scope variables
     let global_app_config = String::from("app_config_v2.0");
-    let _tracked_global_app_config = track_var!(global_app_config);
+    track_var!(global_app_config);
     let global_session_store = Box::new(HashMap::<String, String>::new());
-    let _tracked_global_session_store = track_var!(global_session_store);
+    track_var!(global_session_store);
 
     // Keep all variables alive until the end by collecting them
     let mut _keep_alive: Vec<Box<dyn std::any::Any>> = Vec::new();
@@ -105,7 +105,7 @@ fn main() {
 
     // Global cleanup
     let global_cleanup_log = Vec::<String>::new();
-    let _tracked_global_cleanup_log = track_var!(global_cleanup_log);
+    track_var!(global_cleanup_log);
 
     // Generate comprehensive analysis with all variables still alive
     generate_final_analysis();
@@ -124,7 +124,7 @@ fn demonstrate_builtin_types() -> Vec<Box<dyn std::any::Any>> {
 
     // Vectors with different growth patterns
     let mut small_vec = Vec::with_capacity(5);
-    let _tracked_small_vec = track_var!(small_vec);
+    track_var!(small_vec);
     for i in 0..10 {
         small_vec.push(i);
     }
@@ -135,7 +135,7 @@ fn demonstrate_builtin_types() -> Vec<Box<dyn std::any::Any>> {
     keep_alive.push(Box::new(small_vec) as Box<dyn std::any::Any>);
 
     let mut large_vec = Vec::with_capacity(1000);
-    let _tracked_large_vec = track_var!(large_vec);
+    track_var!(large_vec);
     for i in 0..2000 {
         large_vec.push(format!("Item {i}"));
     }
@@ -147,7 +147,7 @@ fn demonstrate_builtin_types() -> Vec<Box<dyn std::any::Any>> {
 
     // Strings with different patterns
     let mut growing_string = String::new();
-    let _tracked_growing_string = track_var!(growing_string);
+    track_var!(growing_string);
     for i in 0..100 {
         growing_string.push_str(&format!("Data chunk {i} | "));
     }
@@ -155,7 +155,7 @@ fn demonstrate_builtin_types() -> Vec<Box<dyn std::any::Any>> {
     keep_alive.push(Box::new(growing_string) as Box<dyn std::any::Any>);
 
     let static_string = String::from("Static content that doesn't grow");
-    let _tracked_static_string = track_var!(static_string);
+    track_var!(static_string);
     println!("✓ Static String: {} bytes", static_string.len());
     keep_alive.push(Box::new(static_string) as Box<dyn std::any::Any>);
 
@@ -359,9 +359,9 @@ fn demonstrate_custom_structures() -> Vec<Box<dyn std::any::Any>> {
 
         graph_nodes.push(node);
     }
-    let tracked_graph_nodes = track_var!(graph_nodes);
+    track_var!(graph_nodes);
     println!("✓ Vec<GraphNode>: 5 interconnected nodes with metadata");
-    keep_alive.push(Box::new(tracked_graph_nodes) as Box<dyn std::any::Any>);
+    keep_alive.push(Box::new(()) as Box<dyn std::any::Any>);
 
     println!();
     keep_alive
@@ -400,9 +400,9 @@ fn demonstrate_complex_patterns() -> Vec<Box<dyn std::any::Any>> {
     for i in 0..1000 {
         computation_result.push(format!("Result {}: {}", i, i * i));
     }
-    let tracked_computation_result = track_var!(computation_result);
+    track_var!(computation_result);
     println!("✓ Large computation result: 1000 formatted strings");
-    keep_alive.push(Box::new(tracked_computation_result) as Box<dyn std::any::Any>);
+    keep_alive.push(Box::new(()) as Box<dyn std::any::Any>);
 
     // Stream processing buffer (using Box to make trackable)
     let mut stream_processor = StreamProcessor {
@@ -538,16 +538,16 @@ fn simulate_data_processing_pipeline() -> Vec<Box<dyn std::any::Any>> {
         let processed = format!("validated_data_record_{i:06}");
         stage1_results.push(processed);
     }
-    let tracked_stage1_results = track_var!(stage1_results);
-    keep_alive.push(Box::new(tracked_stage1_results) as Box<dyn std::any::Any>);
+    track_var!(stage1_results);
+    keep_alive.push(Box::new(()) as Box<dyn std::any::Any>);
 
     // Stage 2: Transform and enrich
     for record in &stage1_results {
         let enriched = format!("enriched_{record}_with_metadata");
         stage2_results.push(enriched);
     }
-    let tracked_stage2_results = track_var!(stage2_results);
-    keep_alive.push(Box::new(tracked_stage2_results) as Box<dyn std::any::Any>);
+    track_var!(stage2_results);
+    keep_alive.push(Box::new(()) as Box<dyn std::any::Any>);
 
     // Final stage: Aggregate and index
     for (i, record) in stage2_results.iter().enumerate() {
@@ -571,8 +571,8 @@ fn simulate_data_processing_pipeline() -> Vec<Box<dyn std::any::Any>> {
             i * 20
         ));
     }
-    let tracked_error_tracker = track_var!(error_tracker);
-    keep_alive.push(Box::new(tracked_error_tracker) as Box<dyn std::any::Any>);
+    track_var!(error_tracker);
+    keep_alive.push(Box::new(()) as Box<dyn std::any::Any>);
 
     println!(
         "✓ Data pipeline: {} → {} → {} groups, {} errors tracked",

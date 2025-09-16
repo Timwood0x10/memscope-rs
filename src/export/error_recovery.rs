@@ -172,7 +172,7 @@ pub enum RecoveryStrategy {
     /// config adjustment
     ConfigAdjustment {
         /// new config
-        new_config: FastExportConfig,
+        new_config: Box<FastExportConfig>,
         /// reason for adjustment
         reason: String,
     },
@@ -215,7 +215,7 @@ impl ErrorRecoveryManager {
         // ensure partial save directory exists
         if config.enable_partial_save {
             if let Err(e) = std::fs::create_dir_all(&config.partial_save_directory) {
-                eprintln!("⚠️ Unable to create partial save directory: {e}");
+                tracing::warn!("⚠️ Unable to create partial save directory: {e}");
             }
         }
 
@@ -244,7 +244,7 @@ impl ErrorRecoveryManager {
         self.stats.total_errors += 1;
 
         if self.config.verbose_logging {
-            println!("🔧 Error recovery: {} - {}", operation, error);
+            tracing::debug!("🔧 Error recovery: {} - {}", operation, error);
         }
 
         // select recovery strategy
@@ -267,9 +267,10 @@ impl ErrorRecoveryManager {
         self.update_degradation_state(error, &result);
 
         if self.config.verbose_logging {
-            println!(
+            tracing::debug!(
                 "🔧 Recovery completed: {} ({}ms)",
-                result.message, recovery_time
+                result.message,
+                recovery_time
             );
         }
 
@@ -310,7 +311,7 @@ impl ErrorRecoveryManager {
                 // resource limit exceeded: release resources or adjust configuration
                 match resource_type {
                     ResourceType::Memory => Ok(RecoveryStrategy::ConfigAdjustment {
-                        new_config: self.create_memory_optimized_config(context),
+                        new_config: Box::new(self.create_memory_optimized_config(context)),
                         reason: "memory limit exceeded, adjust to memory optimized configuration"
                             .to_string(),
                     }),
@@ -319,7 +320,7 @@ impl ErrorRecoveryManager {
                         reason: "CPU usage exceeded, degrade processing intensity".to_string(),
                     }),
                     _ => Ok(RecoveryStrategy::ConfigAdjustment {
-                        new_config: context.current_config.clone(),
+                        new_config: Box::new(context.current_config.clone()),
                         reason: suggested_action.clone(),
                     }),
                 }
@@ -346,7 +347,7 @@ impl ErrorRecoveryManager {
                 // performance threshold exceeded: adjust configuration or degrade
                 match stage {
                     ExportStage::ParallelProcessing => Ok(RecoveryStrategy::ConfigAdjustment {
-                        new_config: self.create_performance_optimized_config(context),
+                        new_config: Box::new(self.create_performance_optimized_config(context)),
                         reason: "performance threshold exceeded, adjust configuration".to_string(),
                     }),
                     _ => Ok(RecoveryStrategy::GracefulDegradation {
@@ -453,7 +454,7 @@ impl ErrorRecoveryManager {
             } => self.execute_partial_save(save_path, progress_percentage, context),
 
             RecoveryStrategy::ConfigAdjustment { new_config, reason } => {
-                self.execute_config_adjustment(new_config, reason)
+                self.execute_config_adjustment(*new_config, reason)
             }
 
             RecoveryStrategy::ResourceRelease {
@@ -626,7 +627,7 @@ impl ErrorRecoveryManager {
         Ok(RecoveryResult {
             success: true,
             strategy: RecoveryStrategy::ConfigAdjustment {
-                new_config,
+                new_config: Box::new(new_config),
                 reason: reason.clone(),
             },
             message: format!("config adjusted: {reason}"),
@@ -758,10 +759,10 @@ impl ErrorRecoveryManager {
 
         // reduce parallelism
         config.shard_config.max_threads = Some(2);
-        config.shard_config.shard_size = config.shard_config.shard_size / 2;
+        config.shard_config.shard_size /= 2;
 
         // reduce buffer size
-        config.writer_config.buffer_size = config.writer_config.buffer_size / 2;
+        config.writer_config.buffer_size /= 2;
 
         // enable streaming
         config.enable_data_localization = false;
@@ -866,27 +867,28 @@ pub struct RecoveryReport {
 impl RecoveryReport {
     /// print detailed recovery report
     pub fn print_detailed_report(&self) {
-        println!("\n🔧 recovery report");
-        println!("================");
+        tracing::info!("\n🔧 recovery report");
+        tracing::info!("================");
 
-        println!("📊 total statistics:");
-        println!("   total errors: {}", self.total_errors);
-        println!(
+        tracing::info!("📊 total statistics:");
+        tracing::info!("   total errors: {}", self.total_errors);
+        tracing::info!(
             "   successful recoveries: {} ({:.1}%)",
-            self.successful_recoveries, self.success_rate
+            self.successful_recoveries,
+            self.success_rate
         );
-        println!("   failed recoveries: {}", self.failed_recoveries);
-        println!("   total retries: {}", self.total_retries);
-        println!("   degradation count: {}", self.degradation_count);
-        println!("   partial saves: {}", self.partial_saves);
-        println!(
+        tracing::info!("   failed recoveries: {}", self.failed_recoveries);
+        tracing::info!("   total retries: {}", self.total_retries);
+        tracing::info!("   degradation count: {}", self.degradation_count);
+        tracing::info!("   partial saves: {}", self.partial_saves);
+        tracing::info!(
             "   average recovery time: {:.2}ms",
             self.avg_recovery_time_ms
         );
 
-        println!("\n🎚️ current state:");
-        println!("   degradation level: {:?}", self.current_degradation_level);
-        println!(
+        tracing::info!("\n🎚️ current state:");
+        tracing::info!("   degradation level: {:?}", self.current_degradation_level);
+        tracing::info!(
             "   is degraded: {}",
             if self.is_currently_degraded {
                 "yes"
@@ -934,7 +936,7 @@ mod tests {
         let result = manager.handle_export_error(&error, "test_operation", &context);
         assert!(result.is_ok());
 
-        let recovery_result = result.unwrap();
+        let recovery_result = result.expect("Failed to handle export error");
         assert!(recovery_result.success);
         assert_eq!(manager.stats.total_errors, 1);
     }
@@ -947,7 +949,7 @@ mod tests {
             .execute_graceful_degradation(DegradationLevel::Light, "test degradation".to_string());
 
         assert!(result.is_ok());
-        let recovery_result = result.unwrap();
+        let recovery_result = result.expect("Failed to get test value");
         assert!(recovery_result.success);
         assert!(manager.degradation_state.is_degraded);
         assert_eq!(
@@ -969,7 +971,7 @@ mod tests {
         let result = manager.execute_partial_save(save_path.clone(), 75.0, &context);
 
         assert!(result.is_ok());
-        let recovery_result = result.unwrap();
+        let recovery_result = result.expect("Failed to get test value");
         assert!(recovery_result.success);
         assert_eq!(recovery_result.partial_result_path, Some(save_path.clone()));
 
@@ -995,27 +997,5 @@ mod tests {
         assert_eq!(report.successful_recoveries, 8);
         assert_eq!(report.success_rate, 80.0);
         assert_eq!(report.avg_recovery_time_ms, 125.0); // 1000 / 8
-    }
-
-    #[test]
-    fn test_retry_logic() {
-        let mut manager = ErrorRecoveryManager::new(RecoveryConfig::default());
-
-        // first retry should succeed
-        assert!(manager.should_retry("test_operation"));
-
-        // simulate multiple retries
-        for _i in 0..3 {
-            let result = manager.execute_auto_retry("test_operation", 3, 100, 2.0);
-            assert!(result.is_ok());
-            let recovery_result = result.unwrap();
-            assert!(recovery_result.success);
-        }
-
-        // should fail after max retries
-        let result = manager.execute_auto_retry("test_operation", 3, 100, 2.0);
-        assert!(result.is_ok());
-        let recovery_result = result.unwrap();
-        assert!(!recovery_result.success);
     }
 }

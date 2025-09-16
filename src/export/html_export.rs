@@ -85,7 +85,7 @@ pub fn export_interactive_html<P: AsRef<Path>>(
 
 /// Generate memory analysis SVG as base64 data URL
 fn generate_memory_analysis_svg_data(tracker: &MemoryTracker) -> TrackingResult<String> {
-    use crate::visualization::export_memory_analysis;
+    use crate::export::visualization::export_memory_analysis;
 
     // FIXED: Also create the main SVG file with correct peak memory values
     export_memory_analysis(tracker, "moderate_unsafe_ffi_memory_analysis.svg")?;
@@ -138,7 +138,7 @@ fn base64_encode(input: &[u8]) -> String {
 
 /// Generate lifecycle timeline SVG as base64 data URL
 fn generate_lifecycle_timeline_svg_data(tracker: &MemoryTracker) -> TrackingResult<String> {
-    use crate::visualization::export_lifecycle_timeline;
+    use crate::export::visualization::export_lifecycle_timeline;
 
     let temp_path = "tmp_rovodev_lifecycle_timeline.svg";
     export_lifecycle_timeline(tracker, temp_path)?;
@@ -155,7 +155,7 @@ fn generate_lifecycle_timeline_svg_data(tracker: &MemoryTracker) -> TrackingResu
 
 /// Generate unsafe FFI SVG as base64 data URL
 fn generate_unsafe_ffi_svg_data(unsafe_ffi_tracker: &UnsafeFFITracker) -> TrackingResult<String> {
-    use crate::visualization::export_unsafe_ffi_dashboard;
+    use crate::export::visualization::export_unsafe_ffi_dashboard;
 
     let temp_path = "tmp_rovodev_unsafe_ffi.svg";
     export_unsafe_ffi_dashboard(unsafe_ffi_tracker, temp_path)?;

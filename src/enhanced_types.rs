@@ -271,6 +271,12 @@ impl RealTimeMetrics {
         // Additional metric updates would go here
     }
 }
+
+impl Default for RealTimeMetrics {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 /// Fragmentation causes
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum FragmentationCause {
@@ -403,7 +409,7 @@ pub enum ImpactLevel {
 }
 
 /// Temporary object analysis report
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct TemporaryObjectAnalysisReport {
     /// Temporary objects detected
     pub temporary_objects: Vec<EnhancedTemporaryObjectInfo>,
@@ -514,7 +520,7 @@ pub enum OptimizationCategory {
 }
 
 /// Statistics about detected temporary object patterns
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PatternStatistics {
     /// Total number of patterns detected
     pub total_patterns_detected: usize,
@@ -537,8 +543,19 @@ pub struct PerformanceImpactAssessment {
     pub overall_performance_cost: f64,
 }
 
+impl Default for PerformanceImpactAssessment {
+    fn default() -> Self {
+        Self {
+            allocation_overhead: 0.0,
+            deallocation_overhead: 0.0,
+            cache_impact: 0.0,
+            overall_performance_cost: 0.0,
+        }
+    }
+}
+
 /// Real-time Fragmentation Analysis Types
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct RealTimeFragmentationAnalysis {
     /// Current fragmentation metrics
     pub current_fragmentation: FragmentationMetrics,
@@ -565,6 +582,16 @@ pub struct FragmentationTrends {
     pub predicted_future_state: FragmentationPrediction,
 }
 
+impl Default for FragmentationTrends {
+    fn default() -> Self {
+        Self {
+            trend_direction: TrendDirection::Stable,
+            rate_of_change: 0.0,
+            predicted_future_state: FragmentationPrediction::default(),
+        }
+    }
+}
+
 /// Direction of fragmentation trend over time
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum TrendDirection {
@@ -589,6 +616,16 @@ pub struct FragmentationPrediction {
     pub confidence_level: f64,
 }
 
+impl Default for FragmentationPrediction {
+    fn default() -> Self {
+        Self {
+            predicted_fragmentation_in_1h: 0.0,
+            predicted_fragmentation_in_24h: 0.0,
+            confidence_level: 0.0,
+        }
+    }
+}
+
 /// Time point of fragmentation analysis
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FragmentationTimePoint {
@@ -601,7 +638,7 @@ pub struct FragmentationTimePoint {
 }
 
 /// Fragmentation heatmap data for visualization
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct FragmentationHeatmapData {
     /// Memory regions for fragmentation analysis
     pub memory_regions: Vec<MemoryRegion>,
@@ -646,8 +683,8 @@ pub struct AdaptiveStrategy {
     pub effectiveness_score: f64,
 }
 
-/// Fragmentation visualization data
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Fragmentation visualization
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct FragmentationVisualization {
     /// Memory map of the fragmentation visualization
     pub memory_map: Vec<MemoryBlock>,
@@ -658,7 +695,7 @@ pub struct FragmentationVisualization {
 }
 
 /// Memory block information for fragmentation visualization
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct MemoryBlock {
     /// Start address of the memory block
     pub start_address: usize,
@@ -671,12 +708,13 @@ pub struct MemoryBlock {
 }
 
 /// Types of memory blocks
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub enum MemoryBlockType {
+    /// Free memory block (default state)
+    #[default]
+    Free,
     /// Allocated memory block
     Allocated,
-    /// Free memory block
-    Free,
     /// Reserved memory block
     Reserved,
     /// Fragmented memory block
@@ -701,7 +739,7 @@ pub struct OverallOptimizationRecommendation {
 }
 
 /// Additional supporting types for comprehensive analysis
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct StackHeapInteractionAnalysis {
     /// Reference relationships between stack and heap allocations
     pub reference_relationships: Vec<ReferenceRelationship>,
@@ -853,7 +891,7 @@ pub enum StackHeapOptimizationType {
 }
 
 /// Generic type analysis report
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct GenericTypeAnalysisReport {
     /// Instantiation analysis of generic types
     pub instantiation_analysis: Vec<crate::core::types::GenericInstantiationInfo>,
@@ -868,7 +906,7 @@ pub struct GenericTypeAnalysisReport {
 }
 
 /// Object lifecycle analysis report
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ObjectLifecycleAnalysisReport {
     /// Lifecycle reports of objects
     pub lifecycle_reports: Vec<ObjectLifecycleInfo>,
@@ -885,7 +923,7 @@ pub struct ObjectLifecycleAnalysisReport {
 }
 
 /// Memory access analysis report
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct MemoryAccessAnalysisReport {
     /// Access patterns of memory
     pub access_patterns: Vec<AccessPattern>,
@@ -900,7 +938,7 @@ pub struct MemoryAccessAnalysisReport {
 }
 
 /// Cache optimization report
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct CacheOptimizationReport {
     /// Cache line analysis of memory
     pub cache_line_analysis: crate::enhanced_memory_analysis::CacheLineAnalysis,
@@ -944,7 +982,7 @@ pub struct EnhancedMemoryAnalysisReport {
 }
 
 /// Stack heap boundary analysis
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct StackHeapBoundaryAnalysis {
     /// Stack allocations of memory
     pub stack_allocations: Vec<StackAllocationDetails>,
@@ -1116,6 +1154,20 @@ pub struct FragmentationMetrics {
     pub average_free_block_size: f64,
     /// Ratio of memory actually used vs. total allocated
     pub memory_utilization_ratio: f64,
+}
+
+impl Default for FragmentationMetrics {
+    fn default() -> Self {
+        Self {
+            external_fragmentation_ratio: 0.0,
+            internal_fragmentation_ratio: 0.0,
+            total_fragmentation_ratio: 0.0,
+            largest_free_block: 0,
+            free_block_count: 0,
+            average_free_block_size: 0.0,
+            memory_utilization_ratio: 1.0,
+        }
+    }
 }
 
 /// Severity levels of memory fragmentation
@@ -1326,4 +1378,732 @@ pub struct CurrentFragmentationState {
     pub severity_level: FragmentationSeverity,
     /// Timestamp when this state was captured
     pub timestamp: u64,
+}
+
+// Additional Default implementations for missing structures
+impl Default for CodeBloatAssessment {
+    fn default() -> Self {
+        Self {
+            bloat_level: BloatLevel::Minimal,
+            estimated_code_size_increase: 0.0,
+            compilation_time_impact: 0.0,
+            binary_size_impact: 0.0,
+        }
+    }
+}
+
+impl Default for ResourceWasteAnalysis {
+    fn default() -> Self {
+        Self {
+            wasted_allocations: 0,
+            total_wasted_memory: 0,
+            waste_percentage: 0.0,
+            waste_categories: Vec::new(),
+        }
+    }
+}
+
+impl Default for MemorySpaceCoverage {
+    fn default() -> Self {
+        Self {
+            total_tracked_bytes: 0,
+            stack_coverage_percent: 0.0,
+            heap_coverage_percent: 0.0,
+            unknown_region_percent: 0.0,
+        }
+    }
+}
+
+impl Default for BoundaryDetectionAccuracy {
+    fn default() -> Self {
+        Self {
+            stack_detection_accuracy: 0.0,
+            heap_detection_accuracy: 0.0,
+            false_positive_rate: 0.0,
+            false_negative_rate: 0.0,
+        }
+    }
+}
+
+impl Default for PerformanceImplication {
+    fn default() -> Self {
+        Self {
+            implication_type: PerformanceImplicationType::Neutral,
+            severity: Severity::Low,
+            description: String::new(),
+            mitigation_suggestion: String::new(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    #[test]
+    fn test_stack_boundaries_creation() {
+        let boundaries = StackBoundaries::detect();
+
+        assert_eq!(boundaries.stack_base, 0x7fff_0000_0000);
+        assert_eq!(boundaries.stack_size, 8 * 1024 * 1024);
+        assert_eq!(
+            boundaries.stack_top,
+            boundaries.stack_base + boundaries.stack_size
+        );
+    }
+
+    #[test]
+    fn test_stack_boundaries_contains() {
+        let boundaries = StackBoundaries::detect();
+
+        // Test pointer within stack
+        let stack_ptr = boundaries.stack_base + 1024;
+        assert!(boundaries.contains(stack_ptr));
+
+        // Test pointer outside stack
+        let heap_ptr = 0x1000_0000;
+        assert!(!boundaries.contains(heap_ptr));
+
+        // Test boundary conditions
+        assert!(boundaries.contains(boundaries.stack_base));
+        assert!(!boundaries.contains(boundaries.stack_top));
+    }
+
+    #[test]
+    fn test_stack_boundaries_get_frame_base() {
+        let boundaries = StackBoundaries::detect();
+
+        let frame_base_0 = boundaries.get_frame_base(0);
+        let frame_base_1 = boundaries.get_frame_base(1);
+
+        assert_eq!(frame_base_0, boundaries.stack_base);
+        assert_eq!(frame_base_1, boundaries.stack_base + 4096);
+        assert!(frame_base_1 > frame_base_0);
+    }
+
+    #[test]
+    fn test_heap_segment_contains() {
+        let segment = HeapSegment {
+            start: 0x1000_0000,
+            end: 0x2000_0000,
+        };
+
+        // Test pointer within segment
+        assert!(segment.contains(0x1500_0000));
+
+        // Test pointer outside segment
+        assert!(!segment.contains(0x500_0000));
+        assert!(!segment.contains(0x2500_0000));
+
+        // Test boundary conditions
+        assert!(segment.contains(segment.start));
+        assert!(!segment.contains(segment.end));
+    }
+
+    #[test]
+    fn test_allocation_strategy_variants() {
+        let strategies = vec![
+            AllocationStrategy::FirstFit,
+            AllocationStrategy::BestFit,
+            AllocationStrategy::WorstFit,
+            AllocationStrategy::NextFit,
+            AllocationStrategy::SlabAllocation,
+        ];
+
+        for strategy in strategies {
+            assert!(!format!("{strategy:?}").is_empty());
+        }
+    }
+
+    #[test]
+    fn test_temporary_pattern_classification_variants() {
+        let patterns = vec![
+            TemporaryPatternClassification::StringConcatenation,
+            TemporaryPatternClassification::VectorReallocation,
+            TemporaryPatternClassification::IteratorChaining,
+            TemporaryPatternClassification::ClosureCapture,
+            TemporaryPatternClassification::AsyncAwait,
+            TemporaryPatternClassification::ErrorHandling,
+            TemporaryPatternClassification::SerializationDeserialization,
+            TemporaryPatternClassification::GenericInstantiation,
+            TemporaryPatternClassification::TraitObjectCreation,
+            TemporaryPatternClassification::Unknown,
+        ];
+
+        for pattern in patterns {
+            assert!(!format!("{pattern:?}").is_empty());
+        }
+    }
+
+    #[test]
+    fn test_elimination_feasibility_variants() {
+        let feasibilities = vec![
+            EliminationFeasibility::HighlyFeasible {
+                suggested_approach: "Use string builder".to_string(),
+            },
+            EliminationFeasibility::Feasible {
+                constraints: vec!["Memory limit".to_string()],
+            },
+            EliminationFeasibility::Difficult {
+                blockers: vec!["API constraints".to_string()],
+            },
+            EliminationFeasibility::Infeasible {
+                reasons: vec!["Required by interface".to_string()],
+            },
+        ];
+
+        for feasibility in feasibilities {
+            assert!(!format!("{feasibility:?}").is_empty());
+        }
+    }
+
+    #[test]
+    fn test_escape_analysis_variants() {
+        let analyses = vec![
+            EscapeAnalysis::DoesNotEscape,
+            EscapeAnalysis::EscapesToHeap,
+            EscapeAnalysis::EscapesToCaller,
+            EscapeAnalysis::EscapesToGlobal,
+            EscapeAnalysis::Unknown,
+        ];
+
+        for analysis in analyses {
+            assert!(!format!("{analysis:?}").is_empty());
+        }
+    }
+
+    #[test]
+    fn test_real_time_metrics_creation() {
+        let metrics = RealTimeMetrics::new();
+
+        assert_eq!(metrics.current_fragmentation, 0.0);
+        assert_eq!(metrics.allocation_rate, 0.0);
+        assert_eq!(metrics.deallocation_rate, 0.0);
+        assert_eq!(metrics.memory_pressure, 0.0);
+    }
+
+    #[test]
+    fn test_real_time_metrics_default() {
+        let metrics = RealTimeMetrics::default();
+
+        assert_eq!(metrics.current_fragmentation, 0.0);
+        assert_eq!(metrics.allocation_rate, 0.0);
+        assert_eq!(metrics.deallocation_rate, 0.0);
+        assert_eq!(metrics.memory_pressure, 0.0);
+    }
+
+    #[test]
+    fn test_real_time_metrics_update_allocation() {
+        use crate::core::types::AllocationInfo;
+
+        let mut metrics = RealTimeMetrics::new();
+        let allocation = AllocationInfo::new(0x1000, 512);
+
+        let initial_rate = metrics.allocation_rate;
+        metrics.update_allocation(&allocation);
+
+        assert!(metrics.allocation_rate > initial_rate);
+        assert_eq!(metrics.allocation_rate, initial_rate + 1.0);
+    }
+
+    #[test]
+    fn test_enhanced_allocation_event_type_variants() {
+        let events = vec![
+            EnhancedAllocationEventType::Allocate,
+            EnhancedAllocationEventType::Deallocate,
+            EnhancedAllocationEventType::Reallocate,
+        ];
+
+        for event in events {
+            assert!(!format!("{event:?}").is_empty());
+        }
+    }
+
+    #[test]
+    fn test_fragmentation_cause_variants() {
+        let causes = vec![
+            FragmentationCause::FrequentSmallAllocations,
+            FragmentationCause::MixedSizeAllocations,
+            FragmentationCause::LongLivedAllocations,
+            FragmentationCause::PoorDeallocationPatterns,
+            FragmentationCause::AllocatorLimitations,
+        ];
+
+        for cause in causes {
+            assert!(!format!("{cause:?}").is_empty());
+        }
+    }
+
+    #[test]
+    fn test_mitigation_strategy_type_variants() {
+        let strategies = vec![
+            MitigationStrategyType::PoolAllocation,
+            MitigationStrategyType::SizeClassSegregation,
+            MitigationStrategyType::GenerationalGC,
+            MitigationStrategyType::CompactionGC,
+            MitigationStrategyType::CustomAllocator,
+        ];
+
+        for strategy in strategies {
+            assert!(!format!("{strategy:?}").is_empty());
+        }
+    }
+
+    #[test]
+    fn test_implementation_complexity_variants() {
+        let complexities = vec![
+            ImplementationComplexity::Low,
+            ImplementationComplexity::Medium,
+            ImplementationComplexity::High,
+            ImplementationComplexity::VeryHigh,
+        ];
+
+        for complexity in complexities {
+            assert!(!format!("{complexity:?}").is_empty());
+        }
+    }
+
+    #[test]
+    fn test_impact_level_variants() {
+        let levels = vec![
+            ImpactLevel::Low,
+            ImpactLevel::Medium,
+            ImpactLevel::High,
+            ImpactLevel::Critical,
+        ];
+
+        for level in levels {
+            assert!(!format!("{level:?}").is_empty());
+        }
+    }
+
+    #[test]
+    fn test_optimization_type_variants() {
+        let types = vec![
+            OptimizationType::EliminateTemporary,
+            OptimizationType::ReuseAllocation,
+            OptimizationType::PoolAllocation,
+            OptimizationType::LazyInitialization,
+            OptimizationType::CopyElision,
+        ];
+
+        for opt_type in types {
+            assert!(!format!("{opt_type:?}").is_empty());
+        }
+    }
+
+    #[test]
+    fn test_priority_variants() {
+        let priorities = vec![
+            Priority::Low,
+            Priority::Medium,
+            Priority::High,
+            Priority::Critical,
+        ];
+
+        for priority in priorities {
+            assert!(!format!("{priority:?}").is_empty());
+        }
+    }
+
+    #[test]
+    fn test_optimization_category_variants() {
+        let categories = vec![
+            OptimizationCategory::MemoryLayout,
+            OptimizationCategory::TemporaryObjectReduction,
+            OptimizationCategory::CacheOptimization,
+            OptimizationCategory::AllocationStrategy,
+            OptimizationCategory::LifecycleManagement,
+        ];
+
+        for category in categories {
+            assert!(!format!("{category:?}").is_empty());
+        }
+    }
+
+    #[test]
+    fn test_pattern_statistics_default() {
+        let stats = PatternStatistics::default();
+
+        assert_eq!(stats.total_patterns_detected, 0);
+        assert!(stats.pattern_frequency_distribution.is_empty());
+        assert!(stats.memory_impact_by_pattern.is_empty());
+    }
+
+    #[test]
+    fn test_performance_impact_assessment_default() {
+        let assessment = PerformanceImpactAssessment::default();
+
+        assert_eq!(assessment.allocation_overhead, 0.0);
+        assert_eq!(assessment.deallocation_overhead, 0.0);
+        assert_eq!(assessment.cache_impact, 0.0);
+        assert_eq!(assessment.overall_performance_cost, 0.0);
+    }
+
+    #[test]
+    fn test_trend_direction_variants() {
+        let directions = vec![
+            TrendDirection::Improving,
+            TrendDirection::Stable,
+            TrendDirection::Degrading,
+            TrendDirection::Volatile,
+        ];
+
+        for direction in directions {
+            assert!(!format!("{direction:?}").is_empty());
+        }
+    }
+
+    #[test]
+    fn test_fragmentation_prediction_default() {
+        let prediction = FragmentationPrediction::default();
+
+        assert_eq!(prediction.predicted_fragmentation_in_1h, 0.0);
+        assert_eq!(prediction.predicted_fragmentation_in_24h, 0.0);
+        assert_eq!(prediction.confidence_level, 0.0);
+    }
+
+    #[test]
+    fn test_fragmentation_trends_default() {
+        let trends = FragmentationTrends::default();
+
+        assert!(matches!(trends.trend_direction, TrendDirection::Stable));
+        assert_eq!(trends.rate_of_change, 0.0);
+    }
+
+    #[test]
+    fn test_memory_block_type_variants() {
+        let types = vec![
+            MemoryBlockType::Free,
+            MemoryBlockType::Allocated,
+            MemoryBlockType::Reserved,
+            MemoryBlockType::Fragmented,
+        ];
+
+        for block_type in types {
+            assert!(!format!("{block_type:?}").is_empty());
+        }
+    }
+
+    #[test]
+    fn test_memory_block_default() {
+        let block = MemoryBlock::default();
+
+        assert_eq!(block.start_address, 0);
+        assert_eq!(block.size, 0);
+        assert!(matches!(block.block_type, MemoryBlockType::Free));
+        assert_eq!(block.fragmentation_score, 0.0);
+    }
+
+    #[test]
+    fn test_reference_type_variants() {
+        let types = vec![
+            ReferenceType::DirectReference,
+            ReferenceType::IndirectReference,
+            ReferenceType::WeakReference,
+            ReferenceType::OwnershipTransfer,
+        ];
+
+        for ref_type in types {
+            assert!(!format!("{ref_type:?}").is_empty());
+        }
+    }
+
+    #[test]
+    fn test_dependency_strength_variants() {
+        let strengths = vec![
+            DependencyStrength::Strong,
+            DependencyStrength::Weak,
+            DependencyStrength::Optional,
+        ];
+
+        for strength in strengths {
+            assert!(!format!("{strength:?}").is_empty());
+        }
+    }
+
+    #[test]
+    fn test_performance_implication_type_variants() {
+        let types = vec![
+            PerformanceImplicationType::CacheMiss,
+            PerformanceImplicationType::MemoryLatency,
+            PerformanceImplicationType::AllocationOverhead,
+            PerformanceImplicationType::MemoryOptimization,
+            PerformanceImplicationType::Positive,
+            PerformanceImplicationType::Negative,
+            PerformanceImplicationType::Neutral,
+        ];
+
+        for impl_type in types {
+            assert!(!format!("{impl_type:?}").is_empty());
+        }
+    }
+
+    #[test]
+    fn test_severity_variants() {
+        let severities = vec![
+            Severity::Low,
+            Severity::Medium,
+            Severity::High,
+            Severity::Critical,
+        ];
+
+        for severity in severities {
+            assert!(!format!("{severity:?}").is_empty());
+        }
+    }
+
+    #[test]
+    fn test_fragmentation_metrics_default() {
+        let metrics = FragmentationMetrics::default();
+
+        assert_eq!(metrics.external_fragmentation_ratio, 0.0);
+        assert_eq!(metrics.internal_fragmentation_ratio, 0.0);
+        assert_eq!(metrics.total_fragmentation_ratio, 0.0);
+        assert_eq!(metrics.largest_free_block, 0);
+        assert_eq!(metrics.free_block_count, 0);
+        assert_eq!(metrics.average_free_block_size, 0.0);
+        assert_eq!(metrics.memory_utilization_ratio, 1.0);
+    }
+
+    #[test]
+    fn test_fragmentation_severity_variants() {
+        let severities = vec![
+            FragmentationSeverity::Low,
+            FragmentationSeverity::Moderate,
+            FragmentationSeverity::High,
+            FragmentationSeverity::Critical,
+        ];
+
+        for severity in severities {
+            assert!(!format!("{severity:?}").is_empty());
+        }
+    }
+
+    #[test]
+    fn test_bloat_level_variants() {
+        let levels = vec![
+            BloatLevel::Minimal,
+            BloatLevel::Low,
+            BloatLevel::Moderate,
+            BloatLevel::High,
+            BloatLevel::Severe,
+        ];
+
+        for level in levels {
+            assert!(!format!("{level:?}").is_empty());
+        }
+    }
+
+    #[test]
+    fn test_code_bloat_assessment_default() {
+        let assessment = CodeBloatAssessment::default();
+
+        assert!(matches!(assessment.bloat_level, BloatLevel::Minimal));
+        assert_eq!(assessment.estimated_code_size_increase, 0.0);
+        assert_eq!(assessment.compilation_time_impact, 0.0);
+        assert_eq!(assessment.binary_size_impact, 0.0);
+    }
+
+    #[test]
+    fn test_waste_category_type_variants() {
+        let types = vec![
+            WasteCategoryType::UnusedAllocations,
+            WasteCategoryType::OverAllocations,
+            WasteCategoryType::LeakedMemory,
+            WasteCategoryType::FragmentationWaste,
+            WasteCategoryType::TemporaryObjectWaste,
+        ];
+
+        for waste_type in types {
+            assert!(!format!("{waste_type:?}").is_empty());
+        }
+    }
+
+    #[test]
+    fn test_resource_waste_analysis_default() {
+        let analysis = ResourceWasteAnalysis::default();
+
+        assert_eq!(analysis.wasted_allocations, 0);
+        assert_eq!(analysis.total_wasted_memory, 0);
+        assert_eq!(analysis.waste_percentage, 0.0);
+        assert!(analysis.waste_categories.is_empty());
+    }
+
+    #[test]
+    fn test_ambiguity_reason_variants() {
+        let reasons = vec![
+            AmbiguityReason::InsufficientMetadata,
+            AmbiguityReason::BorderlineAddress,
+            AmbiguityReason::CorruptedTracking,
+            AmbiguityReason::ExternalAllocation,
+        ];
+
+        for reason in reasons {
+            assert!(!format!("{reason:?}").is_empty());
+        }
+    }
+
+    #[test]
+    fn test_heap_region_type_variants() {
+        let types = vec![
+            HeapRegionType::MainHeap,
+            HeapRegionType::LargeObjectHeap,
+            HeapRegionType::SmallObjectHeap,
+            HeapRegionType::ThreadLocalHeap,
+        ];
+
+        for region_type in types {
+            assert!(!format!("{region_type:?}").is_empty());
+        }
+    }
+
+    #[test]
+    fn test_memory_space_coverage_default() {
+        let coverage = MemorySpaceCoverage::default();
+
+        assert_eq!(coverage.total_tracked_bytes, 0);
+        assert_eq!(coverage.stack_coverage_percent, 0.0);
+        assert_eq!(coverage.heap_coverage_percent, 0.0);
+        assert_eq!(coverage.unknown_region_percent, 0.0);
+    }
+
+    #[test]
+    fn test_boundary_detection_accuracy_default() {
+        let accuracy = BoundaryDetectionAccuracy::default();
+
+        assert_eq!(accuracy.stack_detection_accuracy, 0.0);
+        assert_eq!(accuracy.heap_detection_accuracy, 0.0);
+        assert_eq!(accuracy.false_positive_rate, 0.0);
+        assert_eq!(accuracy.false_negative_rate, 0.0);
+    }
+
+    #[test]
+    fn test_performance_implication_default() {
+        let implication = PerformanceImplication::default();
+
+        assert!(matches!(
+            implication.implication_type,
+            PerformanceImplicationType::Neutral
+        ));
+        assert!(matches!(implication.severity, Severity::Low));
+        assert!(implication.description.is_empty());
+        assert!(implication.mitigation_suggestion.is_empty());
+    }
+
+    #[test]
+    fn test_scalability_impact_variants() {
+        let impacts = vec![
+            ScalabilityImpact::Positive,
+            ScalabilityImpact::Neutral,
+            ScalabilityImpact::Negative,
+        ];
+
+        for impact in impacts {
+            assert!(!format!("{impact:?}").is_empty());
+        }
+    }
+
+    #[test]
+    fn test_optimization_strategy_variants() {
+        let strategies = vec![
+            OptimizationStrategy::Eliminate,
+            OptimizationStrategy::Reuse,
+            OptimizationStrategy::Pool,
+            OptimizationStrategy::Defer,
+        ];
+
+        for strategy in strategies {
+            assert!(!format!("{strategy:?}").is_empty());
+        }
+    }
+
+    #[test]
+    fn test_temporary_object_analysis_report_default() {
+        let report = TemporaryObjectAnalysisReport::default();
+
+        assert!(report.temporary_objects.is_empty());
+        assert!(report.optimization_candidates.is_empty());
+        assert!(report.hot_temporary_patterns.is_empty());
+        assert!(report.optimization_suggestions.is_empty());
+    }
+
+    #[test]
+    fn test_real_time_fragmentation_analysis_default() {
+        let analysis = RealTimeFragmentationAnalysis::default();
+
+        // Test that default values are reasonable
+        assert_eq!(
+            analysis.current_fragmentation.external_fragmentation_ratio,
+            0.0
+        );
+        assert!(matches!(
+            analysis.fragmentation_trends.trend_direction,
+            TrendDirection::Stable
+        ));
+        assert!(analysis.adaptive_strategies.is_empty());
+        assert_eq!(analysis.real_time_metrics.current_fragmentation, 0.0);
+    }
+
+    #[test]
+    fn test_complex_struct_creation() {
+        let allocation_event = AllocationEvent {
+            timestamp: 1000,
+            event_type: EnhancedAllocationEventType::Allocate,
+            ptr: 0x1000,
+            size: 512,
+            type_name: Some("Vec<i32>".to_string()),
+        };
+
+        assert_eq!(allocation_event.timestamp, 1000);
+        assert!(matches!(
+            allocation_event.event_type,
+            EnhancedAllocationEventType::Allocate
+        ));
+        assert_eq!(allocation_event.ptr, 0x1000);
+        assert_eq!(allocation_event.size, 512);
+        assert_eq!(allocation_event.type_name, Some("Vec<i32>".to_string()));
+    }
+
+    #[test]
+    fn test_temporary_lifetime_analysis_creation() {
+        let analysis = TemporaryLifetimeAnalysis {
+            creation_time: 1000,
+            destruction_time: Some(2000),
+            estimated_lifetime: Duration::from_millis(1000),
+            usage_frequency: 5,
+            scope_escape_analysis: EscapeAnalysis::DoesNotEscape,
+        };
+
+        assert_eq!(analysis.creation_time, 1000);
+        assert_eq!(analysis.destruction_time, Some(2000));
+        assert_eq!(analysis.estimated_lifetime, Duration::from_millis(1000));
+        assert_eq!(analysis.usage_frequency, 5);
+        assert!(matches!(
+            analysis.scope_escape_analysis,
+            EscapeAnalysis::DoesNotEscape
+        ));
+    }
+
+    #[test]
+    fn test_fragmentation_mitigation_strategy_creation() {
+        let strategy = FragmentationMitigationStrategy {
+            strategy_type: MitigationStrategyType::PoolAllocation,
+            description: "Use memory pools for similar-sized allocations".to_string(),
+            expected_improvement: 0.3,
+            implementation_complexity: ImplementationComplexity::Medium,
+        };
+
+        assert!(matches!(
+            strategy.strategy_type,
+            MitigationStrategyType::PoolAllocation
+        ));
+        assert!(strategy.description.contains("memory pools"));
+        assert_eq!(strategy.expected_improvement, 0.3);
+        assert!(matches!(
+            strategy.implementation_complexity,
+            ImplementationComplexity::Medium
+        ));
+    }
 }

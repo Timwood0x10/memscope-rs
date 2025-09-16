@@ -90,16 +90,16 @@ impl fmt::Display for JsonDiscoveryError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             JsonDiscoveryError::DirectoryNotFound(dir) => {
-                write!(f, "Directory not found or not accessible: {}", dir)
+                write!(f, "Directory not found or not accessible: {dir}")
             }
             JsonDiscoveryError::MissingRequiredFiles(files) => {
-                write!(f, "Missing required JSON files: {}", files.join(", "))
+                write!(f, "Missing required JSON files: {files:?}")
             }
             JsonDiscoveryError::FilesTooLarge(files) => {
-                write!(f, "Files exceed size limit: {}", files.join(", "))
+                write!(f, "Files exceed size limit: {files:?}")
             }
             JsonDiscoveryError::IoError(err) => {
-                write!(f, "IO error during file discovery: {}", err)
+                write!(f, "IO error during file discovery: {err}")
             }
         }
     }
@@ -154,8 +154,8 @@ impl JsonFileDiscovery {
         let mut unreadable_files = Vec::new();
         let mut total_size_bytes = 0u64;
 
-        println!("🔍 Discovering JSON files in directory: {}", self.input_dir);
-        println!("🏷️  Using base name pattern: {}", self.base_name);
+        tracing::info!("🔍 Discovering JSON files in directory: {}", self.input_dir);
+        tracing::info!("🏷️  Using base name pattern: {}", self.base_name);
 
         for config in file_configs {
             match self.find_file_for_config(&config) {
@@ -164,7 +164,7 @@ impl JsonFileDiscovery {
                     if let Some(max_size_mb) = config.max_size_mb {
                         let max_bytes = (max_size_mb * 1024 * 1024) as u64;
                         if file_info.size_bytes > max_bytes {
-                            println!(
+                            tracing::info!(
                                 "⚠️  File {} ({:.1} MB) exceeds size limit ({} MB)",
                                 file_info.path.display(),
                                 file_info.size_bytes as f64 / 1024.0 / 1024.0,
@@ -177,13 +177,13 @@ impl JsonFileDiscovery {
 
                     // Check readability
                     if !file_info.is_readable {
-                        println!("⚠️  File {} is not readable", file_info.path.display());
+                        tracing::info!("⚠️  File {} is not readable", file_info.path.display());
                         unreadable_files.push(file_info);
                         continue;
                     }
 
                     total_size_bytes += file_info.size_bytes;
-                    println!(
+                    tracing::info!(
                         "✅ Found {}: {} ({:.1} KB)",
                         config.description,
                         file_info.path.display(),
@@ -193,20 +193,22 @@ impl JsonFileDiscovery {
                 }
                 Ok(None) => {
                     if config.required {
-                        println!(
+                        tracing::info!(
                             "❌ Required file not found: {}_{}*.json",
-                            self.base_name, config.suffix
+                            self.base_name,
+                            config.suffix
                         );
                         missing_required.push(config);
                     } else {
-                        println!(
+                        tracing::info!(
                             "⚠️  Optional file not found: {}_{}*.json (skipping)",
-                            self.base_name, config.suffix
+                            self.base_name,
+                            config.suffix
                         );
                     }
                 }
                 Err(e) => {
-                    println!("❌ Error searching for {}: {}", config.description, e);
+                    tracing::info!("❌ Error searching for {}: {}", config.description, e);
                     if config.required {
                         missing_required.push(config);
                     }
@@ -215,15 +217,15 @@ impl JsonFileDiscovery {
         }
 
         // Print discovery summary
-        println!("📊 Discovery Summary:");
-        println!("   Files found: {}", found_files.len());
-        println!(
+        tracing::info!("📊 Discovery Summary:");
+        tracing::info!("   Files found: {}", found_files.len());
+        tracing::info!(
             "   Total size: {:.1} MB",
             total_size_bytes as f64 / 1024.0 / 1024.0
         );
-        println!("   Missing required: {}", missing_required.len());
-        println!("   Oversized files: {}", oversized_files.len());
-        println!("   Unreadable files: {}", unreadable_files.len());
+        tracing::info!("   Missing required: {}", missing_required.len());
+        tracing::info!("   Oversized files: {}", oversized_files.len());
+        tracing::info!("   Unreadable files: {}", unreadable_files.len());
 
         // Check for critical errors
         if !missing_required.is_empty() {
@@ -344,15 +346,20 @@ mod tests {
 
     #[test]
     fn test_discover_files_with_temp_dir() {
-        let temp_dir = TempDir::new().unwrap();
-        let temp_path = temp_dir.path().to_str().unwrap();
+        let temp_dir = TempDir::new().expect("Failed to get test value");
+        let temp_path = temp_dir
+            .path()
+            .to_str()
+            .expect("Failed to convert path to string");
 
         // Create a test JSON file
-        let test_file_path = format!("{}/test_memory_analysis.json", temp_path);
-        fs::write(&test_file_path, r#"{"test": "data"}"#).unwrap();
+        let test_file_path = format!("{temp_path}/test_memory_analysis.json");
+        fs::write(&test_file_path, r#"{"test": "data"}"#).expect("Failed to write test file");
 
         let discovery = JsonFileDiscovery::new(temp_path.to_string(), "test".to_string());
-        let result = discovery.discover_files().unwrap();
+        let result = discovery
+            .discover_files()
+            .expect("Failed to discover files");
 
         assert!(!result.found_files.is_empty());
         assert_eq!(result.found_files[0].config.suffix, "memory_analysis");

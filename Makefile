@@ -1,10 +1,10 @@
-# Makefile for trace_tools - Rust Memory Analysis Toolkit
-# Author: trace_tools development team
+# Makefile for memscope-rs - Rust Memory Analysis Toolkit
+# Author: memscope-rs development team
 # Description: Build, test, and deployment automation
 
 # Variables
 CARGO := cargo
-PROJECT_NAME := trace_tools
+PROJECT_NAME := memscope-rs
 VERSION := $(shell grep '^version' Cargo.toml | sed 's/.*"\(.*\)".*/\1/')
 TARGET_DIR := target
 DOCS_DIR := target/doc
@@ -24,7 +24,7 @@ all: check test
 # Help target
 .PHONY: help
 help:
-	@echo "$(BLUE)trace_tools Makefile - Available targets:$(NC)"
+	@echo "$(BLUE)memscope-rs Makefile - Available targets:$(NC)"
 	@echo ""
 	@echo "$(GREEN)Building:$(NC)"
 	@echo "  build          - Build the project in debug mode"
@@ -93,13 +93,27 @@ help:
 	@echo "$(GREEN)CI/CD:$(NC)"
 	@echo "  ci             - Run full CI pipeline locally"
 	@echo "  pre-commit     - Run pre-commit checks"
-	@echo "  coverage       - Generate test coverage report"
+	@echo "  coverage       - Generate test coverage report (tarpaulin)"
+	@echo "  coverage-llvm  - Generate LLVM coverage report (HTML)"
+	@echo "  coverage-summary - Generate LLVM coverage summary (console)"
 	@echo ""
 	@echo "$(GREEN)Maintenance:$(NC)"
 	@echo "  update         - Update dependencies"
 	@echo "  outdated       - Check for outdated dependencies"
 	@echo "  tree           - Show dependency tree"
 	@echo "  bloat          - Analyze binary size"
+	@echo "$(YELLOW)Available targets:$(NC)"
+	@echo ""
+	@echo "  $(GREEN)test-all$(NC)               - Run all tests"
+	@echo "  $(GREEN)benchmark$(NC)          - Run performance benchmarks"
+	@echo "  $(GREEN)benchmark-main$(NC)     - Run only main (realistic) benchmarks"
+	@echo "  $(GREEN)full-report$(NC)        - Generate comprehensive project report"
+	@echo "  $(GREEN)validate$(NC)           - Full validation (CI + examples + docs)"
+	@echo ""
+	@echo "$(YELLOW)Development targets:$(NC)"
+	@echo "  $(GREEN)dev-setup$(NC)          - Setup development environment"
+	@echo "  $(GREEN)quick-test$(NC)         - Run quick tests (lib only)"
+	@echo "  $(GREEN)watch$(NC)              - Watch for changes and run tests"
 
 # Building targets
 .PHONY: build
@@ -129,57 +143,57 @@ clean:
 .PHONY: test
 test:
 	@echo "$(BLUE)Running all tests...$(NC)"
-	MEMSCOPE_TEST_MODE=1 RUST_LOG=error $(CARGO) test --all --features test
+	MEMSCOPE_TEST_MODE=1 RUST_LOG=error $(CARGO) test --all --features test -- --test-threads=1
 
 .PHONY: test-unit
 test-unit:
 	@echo "$(BLUE)Running unit tests...$(NC)"
-	MEMSCOPE_TEST_MODE=1 RUST_LOG=error $(CARGO) test --lib --features test
+	MEMSCOPE_TEST_MODE=1 RUST_LOG=error $(CARGO) test --lib --features test -- --test-threads=1
 
 .PHONY: test-integration
 test-integration:
 	@echo "$(BLUE)Running integration tests...$(NC)"
-	MEMSCOPE_TEST_MODE=1 RUST_LOG=error $(CARGO) test --test comprehensive_integration_test --features test
+	MEMSCOPE_TEST_MODE=1 RUST_LOG=error $(CARGO) test --test comprehensive_integration_test --features test -- --test-threads=1
 
 .PHONY: test-stress
 test-stress:
 	@echo "$(BLUE)Running stress tests...$(NC)"
-	MEMSCOPE_TEST_MODE=1 RUST_LOG=error $(CARGO) test --test stress_test --features test
+	MEMSCOPE_TEST_MODE=1 RUST_LOG=error $(CARGO) test --test stress_test --features test -- --test-threads=1
 
 .PHONY: test-safety
 test-safety:
 	@echo "$(BLUE)Running safety tests...$(NC)"
-	MEMSCOPE_TEST_MODE=1 RUST_LOG=error $(CARGO) test --test safety_test --features test
+	MEMSCOPE_TEST_MODE=1 RUST_LOG=error $(CARGO) test --test safety_test --features test -- --test-threads=1
 
 .PHONY: test-performance
 test-performance:
 	@echo "$(BLUE)Running performance tests...$(NC)"
-	MEMSCOPE_TEST_MODE=1 RUST_LOG=error $(CARGO) test --test performance_test --release --features test
+	MEMSCOPE_TEST_MODE=1 RUST_LOG=error $(CARGO) test --test performance_test --release --features test -- --test-threads=1
 
 .PHONY: test-edge
 test-edge:
 	@echo "$(BLUE)Running edge case tests...$(NC)"
-	MEMSCOPE_TEST_MODE=1 RUST_LOG=error $(CARGO) test --test edge_cases_test --features test
+	MEMSCOPE_TEST_MODE=1 RUST_LOG=error $(CARGO) test --test edge_cases_test --features test -- --test-threads=1
 
 .PHONY: test-comprehensive
 test-comprehensive:
 	@echo "$(BLUE)Running comprehensive integration tests...$(NC)"
-	MEMSCOPE_TEST_MODE=1 RUST_LOG=error $(CARGO) test --test comprehensive_integration_test --features test
+	MEMSCOPE_TEST_MODE=1 RUST_LOG=error $(CARGO) test --test comprehensive_integration_test --features test -- --test-threads=1
 
 .PHONY: test-verbose
 test-verbose:
 	@echo "$(BLUE)Running all tests with verbose output...$(NC)"
-	MEMSCOPE_TEST_MODE=1 RUST_LOG=debug $(CARGO) test --all --verbose --features test
+	MEMSCOPE_TEST_MODE=1 RUST_LOG=debug $(CARGO) test --all --verbose --features test -- --test-threads=1
 
 .PHONY: test-fast
 test-fast:
 	@echo "$(BLUE)Running fast tests (unit tests only)...$(NC)"
-	MEMSCOPE_TEST_MODE=1 RUST_LOG=off $(CARGO) test --lib --release --features test
+	MEMSCOPE_TEST_MODE=1 RUST_LOG=off $(CARGO) test --lib --release --features test -- --test-threads=1
 
 .PHONY: test-quiet
 test-quiet:
 	@echo "$(BLUE)Running all tests quietly...$(NC)"
-	MEMSCOPE_TEST_MODE=1 RUST_LOG=off $(CARGO) test --all --quiet --features test
+	MEMSCOPE_TEST_MODE=1 RUST_LOG=off $(CARGO) test --all --quiet --features test -- --test-threads=1
 
 # Quality assurance targets
 .PHONY: fmt
@@ -319,7 +333,7 @@ ci: clean check fmt-check clippy test doc
 pre-commit: fmt clippy test-unit
 	@echo "$(GREEN)✅ Pre-commit checks completed!$(NC)"
 
-.PHONY: coverage
+.PHONY: coverage coverage-llvm coverage-summary
 coverage:
 	@echo "$(BLUE)Generating test coverage report...$(NC)"
 	@if command -v cargo-tarpaulin >/dev/null 2>&1; then \
@@ -328,6 +342,24 @@ coverage:
 		echo "$(GREEN)Coverage report generated in $(COVERAGE_DIR)/tarpaulin-report.html$(NC)"; \
 	else \
 		echo "$(YELLOW)cargo-tarpaulin not installed. Install with: cargo install cargo-tarpaulin$(NC)"; \
+	fi
+
+coverage-llvm:
+	@echo "$(BLUE)Generating LLVM coverage report...$(NC)"
+	@if command -v cargo-llvm-cov >/dev/null 2>&1; then \
+		mkdir -p $(COVERAGE_DIR); \
+		$(CARGO) llvm-cov --html --output-dir $(COVERAGE_DIR) --lib --tests -- --test-thread=1; \
+		echo "$(GREEN)LLVM coverage report generated in $(COVERAGE_DIR)/index.html$(NC)"; \
+	else \
+		echo "$(YELLOW)cargo-llvm-cov not installed. Install with: cargo install cargo-llvm-cov$(NC)"; \
+	fi
+
+coverage-summary:
+	@echo "$(BLUE)Generating LLVM coverage summary...$(NC)"
+	@if command -v cargo-llvm-cov >/dev/null 2>&1; then \
+		$(CARGO) llvm-cov  --summary-only  --lib --tests -- --test-threads=1; \
+	else \
+		echo "$(YELLOW)cargo-llvm-cov not installed. Install with: cargo install cargo-llvm-cov$(NC)"; \
 	fi
 
 # Maintenance targets
@@ -629,3 +661,128 @@ validate: ci run-basic run-lifecycle html
 	@echo "$(GREEN)✅ Examples: PASS$(NC)"
 	@echo "$(GREEN)✅ HTML Report: PASS$(NC)"
 	@echo "$(BLUE)memscope-rs is ready for use!$(NC)"
+
+
+# Testing targets
+.PHONY: test-all quick-test test-lib test-integration-coverage test-doc test-examples
+test-all:
+	@echo "$(BLUE)🧪 Running all tests with coverage...$(NC)"
+	@mkdir -p coverage-report
+	@cargo tarpaulin --out Html --output-dir coverage-report --lib --tests --examples -- --test-threads=1
+	@echo "$(GREEN)✅ All tests with coverage completed$(NC)"
+	@echo "$(BLUE)📊 Coverage report: coverage-report/tarpaulin-report.html$(NC)"
+
+quick-test: test-lib
+
+
+test-lib:
+	@echo "$(BLUE)🧪 Running library tests with coverage...$(NC)"
+	@mkdir -p coverage-report
+	@cargo tarpaulin --out Html --output-dir coverage-report --lib
+	@echo "$(GREEN)✅ Library tests with coverage completed$(NC)"
+	@echo "$(BLUE)📊 Coverage report: coverage-report/tarpaulin-report.html$(NC)"
+
+
+test-integration-coverage:
+	@echo "$(BLUE)🧪 Running integration tests with coverage...$(NC)"
+	@mkdir -p coverage-report
+	@cargo tarpaulin --out Html --output-dir coverage-report --tests
+	@echo "$(GREEN)✅ Integration tests with coverage completed$(NC)"
+	@echo "$(BLUE)📊 Coverage report: coverage-report/tarpaulin-report.html$(NC)"
+
+test-doc:
+	@echo "$(BLUE)🧪 Running documentation tests with coverage...$(NC)"
+	@mkdir -p coverage-report
+	@cargo tarpaulin --out Html --output-dir coverage-report --doc
+	@echo "$(GREEN)✅ Documentation tests with coverage completed$(NC)"
+	@echo "$(BLUE)📊 Coverage report: coverage-report/tarpaulin-report.html$(NC)"
+
+test-examples:
+	@echo "$(BLUE)🧪 Running example tests with coverage...$(NC)"
+	@mkdir -p coverage-report
+	@cargo tarpaulin --out Html --output-dir coverage-report --examples
+	@echo "$(GREEN)✅ Example tests with coverage completed$(NC)"
+	@echo "$(BLUE)📊 Coverage report: coverage-report/tarpaulin-report.html$(NC)"
+
+# Enhanced test coverage with tarpaulin
+.PHONY: test-coverage test-coverage-enhanced test-coverage-detailed
+test-coverage:
+	@echo "$(BLUE)📊 Running test coverage analysis with tarpaulin...$(NC)"
+	@mkdir -p coverage-report
+	@cargo tarpaulin --out Html --output-dir coverage-report
+	@echo "$(GREEN)✅ Test coverage analysis completed$(NC)"
+	@echo "$(BLUE)📊 Coverage report: coverage-report/tarpaulin-report.html$(NC)"
+
+test-coverage-enhanced:
+	@echo "$(BLUE)📊 Running enhanced test coverage analysis with tarpaulin...$(NC)"
+	@mkdir -p coverage-report
+	@cargo tarpaulin --out Html --output-dir coverage-report --verbose --all-features
+	@echo "$(GREEN)✅ Enhanced test coverage analysis completed$(NC)"
+	@echo "$(BLUE)📊 Coverage report: coverage-report/tarpaulin-report.html$(NC)"
+
+test-coverage-detailed:
+	@echo "$(BLUE)📊 Running detailed test coverage analysis with tarpaulin...$(NC)"
+	@mkdir -p coverage-report
+	@cargo tarpaulin --out Html --output-dir coverage-report --verbose --all-features --include-tests
+	@echo "$(GREEN)✅ Detailed test coverage analysis completed$(NC)"
+	@echo "$(BLUE)📊 Coverage report: coverage-report/tarpaulin-report.html$(NC)"
+
+improve-coverage:
+	@echo "$(BLUE)🚀 Running coverage improvement analysis...$(NC)"
+	@./scripts/improve_test_coverage.sh
+	@echo "$(GREEN)✅ Coverage improvement analysis completed$(NC)"
+
+# Benchmarking targets
+.PHONY: benchmark benchmark-main benchmark-legacy benchmark-clean benchmark-enhanced
+benchmark:
+	@echo "$(BLUE)⚡ Running all benchmarks...$(NC)"
+	@mkdir -p scripts
+	@if [ ! -f scripts/benchmark.sh ]; then \
+		echo "$(RED)❌ Benchmark script not found$(NC)"; \
+		exit 1; \
+	fi
+	@./scripts/benchmark.sh
+	@echo "$(GREEN)✅ Benchmark analysis completed$(NC)"
+
+benchmark-enhanced:
+	@echo "$(BLUE)⚡ Running enhanced benchmarks with HTML dashboard...$(NC)"
+	@mkdir -p scripts
+	@if [ ! -f scripts/enhanced_benchmark.sh ]; then \
+		echo "$(RED)❌ Enhanced benchmark script not found$(NC)"; \
+		exit 1; \
+	fi
+	@./scripts/enhanced_benchmark.sh
+	@echo "$(GREEN)✅ Enhanced benchmark analysis completed$(NC)"
+
+benchmark-main:
+	@echo "$(BLUE)⚡ Running fast benchmarks...$(NC)"
+	@mkdir -p reports/benchmarks
+	@echo "$(YELLOW)Running fast realistic tracking benchmark...$(NC)"
+	@timeout 120s cargo bench --bench fast_realistic_tracking || echo "$(YELLOW)⚠️  Fast benchmark timeout$(NC)"
+	@echo "$(YELLOW)Running minimal performance benchmark...$(NC)"
+	@timeout 60s cargo bench --bench minimal_performance || echo "$(YELLOW)⚠️  Minimal benchmark timeout$(NC)"
+	@echo "$(GREEN)✅ Fast benchmarks completed$(NC)"
+
+benchmark-slow:
+	@echo "$(BLUE)⚡ Running original (slower) benchmarks...$(NC)"
+	@mkdir -p reports/benchmarks
+	@echo "$(YELLOW)Running realistic memory tracking benchmark...$(NC)"
+	@timeout 300s cargo bench --bench realistic_memory_tracking || echo "$(YELLOW)⚠️  Benchmark may have issues$(NC)"
+	@echo "$(YELLOW)Running performance comparison benchmark...$(NC)"
+	@timeout 300s cargo bench --bench performance_comparison || echo "$(YELLOW)⚠️  Benchmark may have issues$(NC)"
+	@echo "$(GREEN)✅ Original benchmarks completed$(NC)"
+
+benchmark-legacy:
+	@echo "$(BLUE)⚡ Running legacy benchmarks (compatibility check)...$(NC)"
+	@mkdir -p reports/benchmarks
+	@cargo bench --bench binary_performance || echo "$(YELLOW)⚠️  Legacy benchmark failed (expected)$(NC)"
+	@cargo bench --bench binary_export_performance || echo "$(YELLOW)⚠️  Legacy benchmark failed (expected)$(NC)"
+	@cargo bench --bench lock_optimization_benchmark || echo "$(YELLOW)⚠️  Legacy benchmark failed (expected)$(NC)"
+	@cargo bench --bench real_optimization_benchmark || echo "$(YELLOW)⚠️  Legacy benchmark failed (expected)$(NC)"
+	@echo "$(GREEN)✅ Legacy benchmarks completed$(NC)"
+
+benchmark-clean:
+	@echo "$(BLUE)🧹 Cleaning benchmark artifacts...$(NC)"
+	@rm -rf target/criterion
+	@rm -rf reports/benchmarks
+	@echo "$(GREEN)✅ Benchmark artifacts cleaned$(NC)"

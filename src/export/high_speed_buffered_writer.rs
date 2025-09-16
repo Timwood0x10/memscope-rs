@@ -76,7 +76,7 @@ impl HighSpeedBufferedWriter {
     /// Create a new high-speed buffered writer
     pub fn new<P: AsRef<Path>>(path: P, config: HighSpeedWriterConfig) -> TrackingResult<Self> {
         let file = File::create(path.as_ref())
-            .map_err(|e| TrackingError::IoError(format!("create file failed: {}", e)))?;
+            .map_err(|e| TrackingError::IoError(format!("create file failed: {e}")))?;
 
         let writer = BufWriter::with_capacity(config.buffer_size, file);
 
@@ -112,7 +112,7 @@ impl HighSpeedBufferedWriter {
         let write_start = Instant::now();
 
         if self.config.enable_monitoring {
-            println!(
+            tracing::info!(
                 "🔄 Starting high-speed buffered write for {} shards...",
                 shards.len()
             );
@@ -136,7 +136,7 @@ impl HighSpeedBufferedWriter {
         // Write to file
         self.writer
             .write_all(&self.internal_buffer)
-            .map_err(|e| TrackingError::IoError(format!("write file failed: {}", e)))?;
+            .map_err(|e| TrackingError::IoError(format!("write file failed: {e}")))?;
 
         // flush cache
         if self.config.auto_flush {
@@ -203,7 +203,7 @@ impl HighSpeedBufferedWriter {
         let write_start = Instant::now();
 
         if self.config.enable_monitoring {
-            println!(
+            tracing::info!(
                 "🔄 Starting custom JSON data write ({} bytes)...",
                 json_data.len()
             );
@@ -221,7 +221,7 @@ impl HighSpeedBufferedWriter {
         // Write to file
         self.writer
             .write_all(&self.internal_buffer)
-            .map_err(|e| TrackingError::IoError(format!("write custom JSON failed: {}", e)))?;
+            .map_err(|e| TrackingError::IoError(format!("write custom JSON failed: {e}")))?;
 
         if self.config.auto_flush {
             self.flush()?;
@@ -250,7 +250,7 @@ impl HighSpeedBufferedWriter {
     pub fn flush(&mut self) -> TrackingResult<()> {
         self.writer
             .flush()
-            .map_err(|e| TrackingError::IoError(format!("flush buffer failed: {}", e)))?;
+            .map_err(|e| TrackingError::IoError(format!("flush buffer failed: {e}")))?;
 
         self.flush_count += 1;
         self.stats.flush_count = self.flush_count;
@@ -268,8 +268,8 @@ impl HighSpeedBufferedWriter {
         self.stats.total_write_time_ms = total_time.as_millis() as u64;
 
         if self.config.enable_monitoring {
-            println!("✅ High-speed buffered write completed:");
-            println!("   Total time: {:?}", total_time);
+            tracing::info!("✅ High-speed buffered write completed:");
+            tracing::info!("   Total time: {:?}", total_time);
             self.print_write_stats();
         }
 
@@ -288,22 +288,22 @@ impl HighSpeedBufferedWriter {
 
     /// Print write statistics
     fn print_write_stats(&self) {
-        println!(
+        tracing::info!(
             "   Bytes written: {} ({:.2} MB)",
             self.stats.total_bytes_written,
             self.stats.total_bytes_written as f64 / 1024.0 / 1024.0
         );
-        println!("   Shards written: {}", self.stats.shards_written);
-        println!(
+        tracing::info!("   Shards written: {}", self.stats.shards_written);
+        tracing::info!(
             "   Write speed: {:.2} MB/s",
             self.stats.avg_write_speed_bps / 1024.0 / 1024.0
         );
-        println!(
+        tracing::info!(
             "   Buffer utilization: {:.1}%",
             self.stats.buffer_utilization * 100.0
         );
-        println!("   Flush count: {}", self.stats.flush_count);
-        println!(
+        tracing::info!("   Flush count: {}", self.stats.flush_count);
+        tracing::info!(
             "   Preallocation effective: {}",
             self.stats.preallocation_effective
         );
@@ -344,9 +344,9 @@ mod tests {
     fn create_test_shards(count: usize, size_per_shard: usize) -> Vec<ProcessedShard> {
         let mut shards = Vec::new();
         for i in 0..count {
-            let data = format!("{{\"test_data_{}\": {}}}", i, i).repeat(size_per_shard / 20);
+            let data = format!("{{\"test_data_{i}\": {i}}}").repeat(size_per_shard / 20);
             shards.push(ProcessedShard {
-                data: format!("[{}]", data).into_bytes(),
+                data: format!("[{data}]").into_bytes(),
                 allocation_count: 1,
                 shard_index: i,
                 processing_time_ms: 1,
@@ -357,7 +357,7 @@ mod tests {
 
     #[test]
     fn test_high_speed_writer_creation() {
-        let temp_file = NamedTempFile::new().unwrap();
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         let config = HighSpeedWriterConfig::default();
         let writer = HighSpeedBufferedWriter::new(temp_file.path(), config);
         assert!(writer.is_ok());
@@ -365,46 +365,48 @@ mod tests {
 
     #[test]
     fn test_write_processed_shards() {
-        let temp_file = NamedTempFile::new().unwrap();
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         let config = HighSpeedWriterConfig::default();
-        let mut writer = HighSpeedBufferedWriter::new(temp_file.path(), config).unwrap();
+        let mut writer = HighSpeedBufferedWriter::new(temp_file.path(), config)
+            .expect("Failed to create writer");
 
         let shards = create_test_shards(3, 100);
         let result = writer.write_processed_shards(&shards);
         assert!(result.is_ok());
 
-        let stats = result.unwrap();
+        let stats = result.expect("Failed to get test value");
         assert_eq!(stats.shards_written, 3);
         assert!(stats.total_bytes_written > 0);
         assert!(stats.avg_write_speed_bps > 0.0);
 
         // Verify file content
-        let content = fs::read_to_string(temp_file.path()).unwrap();
+        let content = fs::read_to_string(temp_file.path()).expect("Failed to read temp file");
         assert!(content.starts_with("{\"allocations\":["));
         assert!(content.ends_with("]}"));
     }
 
     #[test]
     fn test_write_custom_json() {
-        let temp_file = NamedTempFile::new().unwrap();
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         let config = HighSpeedWriterConfig::default();
-        let mut writer = HighSpeedBufferedWriter::new(temp_file.path(), config).unwrap();
+        let mut writer = HighSpeedBufferedWriter::new(temp_file.path(), config)
+            .expect("Failed to create writer");
 
         let json_data = b"{\"test\": \"data\"}";
         let result = writer.write_custom_json(json_data);
         assert!(result.is_ok());
 
-        let stats = result.unwrap();
+        let stats = result.expect("Failed to get write stats");
         assert_eq!(stats.total_bytes_written, json_data.len());
 
         // Verify file content
-        let content = fs::read(temp_file.path()).unwrap();
+        let content = fs::read(temp_file.path()).expect("Failed to read temp file");
         assert_eq!(content, json_data);
     }
 
     #[test]
     fn test_preallocation_effectiveness() {
-        let temp_file = NamedTempFile::new().unwrap();
+        let temp_file = NamedTempFile::new().expect("Failed to get test value");
         let shards = create_test_shards(5, 200);
         let total_size: usize = shards.iter().map(|s| s.data.len()).sum();
 
@@ -414,25 +416,31 @@ mod tests {
             enable_monitoring: false,
             ..Default::default()
         };
-        let mut writer = HighSpeedBufferedWriter::new(temp_file.path(), config).unwrap();
-        let stats = writer.write_processed_shards(&shards).unwrap();
+        let mut writer = HighSpeedBufferedWriter::new(temp_file.path(), config)
+            .expect("Failed to create temp file");
+        let stats = writer
+            .write_processed_shards(&shards)
+            .expect("Test operation failed");
         assert!(stats.preallocation_effective);
 
         // Test ineffective preallocation
-        let temp_file2 = NamedTempFile::new().unwrap();
+        let temp_file2 = NamedTempFile::new().expect("Failed to create temp file 2");
         let config2 = HighSpeedWriterConfig {
             estimated_total_size: Some(100), // too small preallocation
             enable_monitoring: false,
             ..Default::default()
         };
-        let mut writer2 = HighSpeedBufferedWriter::new(temp_file2.path(), config2).unwrap();
-        let stats2 = writer2.write_processed_shards(&shards).unwrap();
+        let mut writer2 = HighSpeedBufferedWriter::new(temp_file2.path(), config2)
+            .expect("Failed to create writer 2");
+        let stats2 = writer2
+            .write_processed_shards(&shards)
+            .expect("Failed to write shards 2");
         assert!(!stats2.preallocation_effective);
     }
 
     #[test]
     fn test_convenience_functions() {
-        let temp_file = NamedTempFile::new().unwrap();
+        let temp_file = NamedTempFile::new().expect("Failed to get test value");
         let shards = create_test_shards(2, 150);
 
         // Test fast write function
@@ -440,7 +448,7 @@ mod tests {
         assert!(result.is_ok());
 
         // Test custom config function
-        let temp_file2 = NamedTempFile::new().unwrap();
+        let temp_file2 = NamedTempFile::new().expect("Failed to get test value");
         let config = HighSpeedWriterConfig {
             buffer_size: 1024 * 1024,
             enable_monitoring: false,
@@ -452,16 +460,19 @@ mod tests {
 
     #[test]
     fn test_flush_functionality() {
-        let temp_file = NamedTempFile::new().unwrap();
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         let config = HighSpeedWriterConfig {
             auto_flush: false,
             enable_monitoring: false,
             ..Default::default()
         };
-        let mut writer = HighSpeedBufferedWriter::new(temp_file.path(), config).unwrap();
+        let mut writer = HighSpeedBufferedWriter::new(temp_file.path(), config)
+            .expect("Failed to create writer");
 
         let shards = create_test_shards(1, 100);
-        let _stats = writer.write_processed_shards(&shards).unwrap();
+        let _stats = writer
+            .write_processed_shards(&shards)
+            .expect("Failed to write shards");
 
         // Manually flush
         let flush_result = writer.flush();
@@ -471,20 +482,23 @@ mod tests {
 
     #[test]
     fn test_finalize() {
-        let temp_file = NamedTempFile::new().unwrap();
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         let config = HighSpeedWriterConfig {
             enable_monitoring: false,
             ..Default::default()
         };
-        let mut writer = HighSpeedBufferedWriter::new(temp_file.path(), config).unwrap();
+        let mut writer = HighSpeedBufferedWriter::new(temp_file.path(), config)
+            .expect("Failed to create writer");
 
         let shards = create_test_shards(2, 100);
-        let _stats = writer.write_processed_shards(&shards).unwrap();
+        let _stats = writer
+            .write_processed_shards(&shards)
+            .expect("Failed to write shards");
 
         let final_stats = writer.finalize();
         assert!(final_stats.is_ok());
 
-        let stats = final_stats.unwrap();
+        let stats = final_stats.expect("Failed to finalize");
         // Stats should be valid after successful write
         assert!(stats.total_bytes_written > 0);
     }

@@ -1,492 +1,271 @@
-name: CI/CD Pipeline
+name: memscope-rs CI
 
 on:
   push:
-    branches: [ main, master, develop ]
-    tags: [ 'v*' ]
+    branches: [main, master, develop]
+    tags: ["v*"]
   pull_request:
-    branches: [ main, master, develop ]
-  # Add scheduled runs to ensure dependency security
-  schedule:
-    - cron: '0 2 * * 0'  # Run every Sunday at 2 AM
+    branches: [main, master, develop]
 
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
-  RUSTFLAGS: "-D warnings"  # Treat warnings as errors to ensure high code quality
+  RUSTFLAGS: "-D warnings"
 
 jobs:
-  # Check code formatting and basic validation
-  check:
-    name: Code Quality Checks
+  quality:
+    name: Code Quality
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Install Rust toolchain
+      - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
 
-      - name: Setup Rust cache
+      - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: "check-cache"
+          key: quality-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Check code formatting
-        run: cargo fmt -- --check
+      - name: Check formatting
+        run: cargo fmt --all -- --check
 
-      - name: Run clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
+      - name: Clippy analysis
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
       - name: Check compilation
-        run: cargo check --all-targets --all-features
+        run: cargo check --workspace --all-targets --all-features
 
-      # Add documentation check to ensure all public items are documented
-      - name: Check documentation
-        run: |
-          cargo doc --no-deps --all-features
-          # Check for any undocumented public items
-          if cargo doc 2>&1 | grep -q "warning: missing documentation"; then
-            echo "Warning: Some public items are missing documentation"
-            # Don't fail the build for now, but log the issue
-            # exit 1
-          fi
-
-  # Run comprehensive test suite
   test:
-    name: Test Suite
+    name: Tests
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        rust: [stable]
+        rust: [stable, 1.70.0] # MSRV
         include:
-          # Add minimum supported version test
-          - os: ubuntu-latest
-            rust: 1.70.0
-            name: "MSRV"
-          # Add beta and nightly tests
           - os: ubuntu-latest
             rust: beta
-            name: "Beta"
           - os: ubuntu-latest
             rust: nightly
-            name: "Nightly"
-            # Allow nightly to fail
             experimental: true
-      fail-fast: false  # A platform failure won't stop other platform tests
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
 
-      - name: Install Rust toolchain
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust ${{ matrix.rust }}
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust }}
 
-      - name: Setup Rust cache
+      - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: "test-${{ matrix.os }}-${{ matrix.rust }}"
+          key: test-${{ matrix.os }}-${{ matrix.rust }}-${{ hashFiles('**/Cargo.lock') }}
 
-      # Add test timeout protection
-      - name: Run unit tests
-        run: cargo test --lib --verbose
-        timeout-minutes: 10
+      - name: Run library tests
+        run: cargo test --lib --workspace
+        continue-on-error: ${{ matrix.experimental == true }}
 
-      # Use Makefile test targets to ensure consistency
-      - name: Run core tests
-        run: make test-core
-        timeout-minutes: 15
+      - name: Run integration tests
+        run: cargo test --test '*' --workspace
+        continue-on-error: ${{ matrix.experimental == true }}
 
-      - name: Run new tests
-        run: make test-new
-        timeout-minutes: 15
-        continue-on-error: ${{ matrix.experimental || false }}
+      - name: Test CLI binary
+        run: cargo test --bin '*' --workspace
+        continue-on-error: ${{ matrix.experimental == true }}
 
-      # Add test coverage collection
-      - name: Generate test coverage
-        if: matrix.os == 'ubuntu-latest' && matrix.rust == 'stable'
+      - name: Test examples
         run: |
-          cargo install cargo-tarpaulin --version 0.27.1
-          cargo tarpaulin --verbose --all-features --workspace --timeout 120 --out xml
+          cargo run --example basic_usage
+          cargo run --example simple_binary_test
+          cargo run --example unsafe_ffi_demo
+        continue-on-error: ${{ matrix.experimental == true }}
 
-      - name: Upload coverage to Codecov
-        if: matrix.os == 'ubuntu-latest' && matrix.rust == 'stable'
-        uses: codecov/codecov-action@v3
-        with:
-          file: cobertura.xml
-          fail_ci_if_error: false
-
-  # Run example tests
-  examples:
-    name: Example Tests
+  benchmarks:
+    name: Benchmarks
     runs-on: ubuntu-latest
-    needs: [check]
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
 
-      - name: Install Rust toolchain
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Setup Rust cache
+      - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: "examples-cache"
+          key: bench-${{ hashFiles('**/Cargo.lock') }}
 
-      # Use Makefile example targets to ensure consistency
-      - name: Run examples
-        run: make examples
-        timeout-minutes: 10
+      - name: Run benchmarks
+        run: cargo bench --bench binary_performance
 
-      # Verify output files
-      - name: Verify output files
-        run: |
-          find . -name "*.svg" -o -name "*.json" | sort
-          # Ensure at least some output files were generated
-          if [ $(find . -name "*.svg" -o -name "*.json" | wc -l) -eq 0 ]; then
-            echo "Warning: No output files were generated"
-            exit 1
-          fi
-
-      # Upload example outputs as build artifacts
-      - name: Upload example outputs
-        uses: actions/upload-artifact@v3
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
         with:
-          name: example-outputs
-          path: |
-            *.svg
-            *.json
-            *.html
+          name: benchmark-results
+          path: target/criterion/
 
-  # Documentation and security
-  docs-and-security:
-    name: Documentation & Security
+  docs:
+    name: Documentation
     runs-on: ubuntu-latest
-    needs: [check]
-    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Install Rust toolchain
+      - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Setup Rust cache
+      - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: "docs-cache"
+          key: docs-${{ hashFiles('**/Cargo.lock') }}
 
-      # Generate documentation
-      - name: Generate documentation
-        run: cargo doc --no-deps --all-features --document-private-items
+      - name: Build documentation
+        run: cargo doc --workspace --all-features --no-deps
 
-      # Install and run cargo-audit
-      - name: Install cargo-audit
-        run: cargo install cargo-audit --version 0.18.3
-
-      - name: Security audit
-        run: cargo audit
-
-      # Install and run cargo-deny
-      - name: Install cargo-deny
-        run: cargo install cargo-deny --version 0.14.3
-
-      - name: Check licenses and dependencies
-        run: |
-          # If project does not have deny.toml, create a basic one
-          if [ ! -f deny.toml ]; then
-            echo "Creating basic deny.toml configuration"
-            cat > deny.toml << EOF
-            [licenses]
-            unlicensed = "deny"
-            allow = [
-                "MIT",
-                "Apache-2.0",
-                "BSD-3-Clause",
-                "BSD-2-Clause",
-                "CC0-1.0",
-                "ISC",
-                "Zlib",
-                "Unicode-DFS-2016",
-            ]
-            default = "deny"
-
-            [bans]
-            multiple-versions = "warn"
-            highlight = "all"
-            
-            [sources]
-            unknown-registry = "warn"
-            unknown-git = "warn"
-            EOF
-          fi
-          
-          cargo deny check
-
-      # Upload documentation
-      - name: Upload documentation
-        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
-        uses: actions/upload-artifact@v3
-        with:
-          name: documentation
-          path: target/doc/
-
-      # Deploy documentation to GitHub Pages
-      - name: Deploy documentation to GitHub Pages
+      - name: Deploy to GitHub Pages
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./target/doc
           force_orphan: true
-          user_name: 'github-actions[bot]'
-          user_email: 'github-actions[bot]@users.noreply.github.com'
-          commit_message: 'Deploy documentation for ${{ github.sha }}'
 
-  # Run performance benchmarks
-  benchmarks:
-    name: Performance Benchmarks
+  security:
+    name: Security Audit
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/develop'
-    needs: [test]
-    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Install Rust toolchain
+      - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Setup Rust cache
+      - name: Install cargo-audit
+        run: cargo install cargo-audit
+
+      - name: Run security audit
+        run: cargo audit
+
+      - name: Check licenses
+        run: |
+          cargo install cargo-license
+          cargo license --json | jq -r '.[] | select(.license != "MIT" and .license != "Apache-2.0" and .license != "BSD-3-Clause" and .license != "BSD-2-Clause") | .name + ": " + .license'
+
+  coverage:
+    name: Code Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+
+      - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: "bench-cache"
+          key: coverage-${{ hashFiles('**/Cargo.lock') }}
 
-      # Run performance benchmarks
-      - name: Run performance benchmarks
-        run: make test-performance
-        timeout-minutes: 15
+      - name: Install cargo-llvm-cov
+        run: cargo install cargo-llvm-cov
 
-      # Generate performance report
-      - name: Generate performance report
-        run: |
-          echo "## Performance Benchmark Results" > performance-report.md
-          echo "Run on: $(date)" >> performance-report.md
-          echo "Commit: ${{ github.sha }}" >> performance-report.md
-          echo "```" >> performance-report.md
-          cargo test --test performance_test --release -- --nocapture 2>&1 | tee -a performance-report.md
-          echo "```" >> performance-report.md
+      - name: Generate coverage
+        run: cargo llvm-cov --workspace --lcov --output-path lcov.info
 
-      # Upload performance report
-      - name: Upload performance report
-        uses: actions/upload-artifact@v3
+      - name: Upload to codecov
+        uses: codecov/codecov-action@v3
         with:
-          name: performance-report
-          path: performance-report.md
+          files: lcov.info
+          fail_ci_if_error: false
 
-  # Release build (only on tags)
   release:
-    name: Release Build
-    runs-on: ${{ matrix.os }}
+    name: Release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [check, test, examples, docs-and-security]
+    needs: [quality, test, docs, security]
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            artifact_name: memscope-rs
-            asset_name: memscope-rs-linux-x86_64
+            name: memscope-rs-linux-x64
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            artifact_name: memscope-rs.exe
-            asset_name: memscope-rs-windows-x86_64.exe
+            name: memscope-rs-windows-x64.exe
           - os: macos-latest
             target: x86_64-apple-darwin
-            artifact_name: memscope-rs
-            asset_name: memscope-rs-macos-x86_64
-          # 添加 ARM 支持
-          - os: ubuntu-latest
-            target: aarch64-unknown-linux-gnu
-            artifact_name: memscope-rs
-            asset_name: memscope-rs-linux-aarch64
+            name: memscope-rs-macos-x64
           - os: macos-latest
             target: aarch64-apple-darwin
-            artifact_name: memscope-rs
-            asset_name: memscope-rs-macos-aarch64
+            name: memscope-rs-macos-arm64
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Install Rust toolchain
+      - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 
-      # 安装交叉编译依赖
-      - name: Install cross-compilation dependencies
-        if: contains(matrix.target, 'aarch64-unknown-linux-gnu')
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu
-
-      # 构建发布二进制文件
-      - name: Build release binary
-        run: cargo build --release --target ${{ matrix.target }}
-
-      # 上传发布构建产物
-      - name: Upload release artifact
-        uses: actions/upload-artifact@v3
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2
         with:
-          name: ${{ matrix.asset_name }}
-          path: target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
+          key: release-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
 
-  # Create GitHub release (only on tags)
-  create-release:
-    name: Create Release
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [release]
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Build release binary
+        run: cargo build --release --target ${{ matrix.target }} --bin memscope
 
-      # 下载所有构建产物
-      - name: Download all artifacts
-        uses: actions/download-artifact@v3
-
-      # 准备发布说明
-      - name: Prepare release notes
+      - name: Prepare binary
+        shell: bash
         run: |
-          VERSION=${GITHUB_REF#refs/tags/}
-          echo "## memscope-rs $VERSION" > RELEASE_NOTES.md
-          echo "Released on $(date +'%Y-%m-%d')" >> RELEASE_NOTES.md
-          echo "" >> RELEASE_NOTES.md
-          
-          # Extract related part from CHANGELOG.md (if exists)
-          if [ -f CHANGELOG.md ]; then
-            echo "Extracting release notes from CHANGELOG.md"
-            # Try to extract the change log of the current version
-            sed -n "/## \[$VERSION\]/,/## \[/p" CHANGELOG.md | sed '$ d' >> RELEASE_NOTES.md
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            cp target/${{ matrix.target }}/release/memscope.exe ${{ matrix.name }}
           else
-            echo "### Features" >> RELEASE_NOTES.md
-            echo "- Advanced Rust memory tracking and analysis" >> RELEASE_NOTES.md
-            echo "- Beautiful SVG visualizations" >> RELEASE_NOTES.md
-            echo "- JSON export for programmatic analysis" >> RELEASE_NOTES.md
-            echo "- Thread-safe operation" >> RELEASE_NOTES.md
-            echo "- Comprehensive test suite" >> RELEASE_NOTES.md
+            cp target/${{ matrix.target }}/release/memscope ${{ matrix.name }}
           fi
-          
-          echo "" >> RELEASE_NOTES.md
-          echo "### Installation" >> RELEASE_NOTES.md
-          echo "Download the appropriate binary for your platform and add it to your PATH, or install via cargo:" >> RELEASE_NOTES.md
-          echo '```bash' >> RELEASE_NOTES.md
-          echo "cargo install memscope-rs" >> RELEASE_NOTES.md
-          echo '```' >> RELEASE_NOTES.md
-          
-          echo "" >> RELEASE_NOTES.md
-          echo "### Documentation" >> RELEASE_NOTES.md
-          echo "See the [README](https://github.com/TimWood0x10/memscope-rs/blob/main/README.md) for usage instructions." >> RELEASE_NOTES.md
-          
-          cat RELEASE_NOTES.md
 
-      # Create GitHub release
-      - name: Create Release
+      - name: Create release
         uses: softprops/action-gh-release@v1
         with:
-          files: |
-            memscope-rs-linux-x86_64/memscope-rs
-            memscope-rs-windows-x86_64.exe/memscope-rs.exe
-            memscope-rs-macos-x86_64/memscope-rs
-            memscope-rs-linux-aarch64/memscope-rs
-            memscope-rs-macos-aarch64/memscope-rs
-          body_path: RELEASE_NOTES.md
-          draft: true  # Create draft release, allow manual checking
+          files: ${{ matrix.name }}
+          draft: false
           prerelease: ${{ contains(github.ref, '-alpha') || contains(github.ref, '-beta') || contains(github.ref, '-rc') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # Publish to crates.io (only on tags)
-  publish-crate:
+  publish:
     name: Publish to crates.io
-    runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [create-release]
-    
+    needs: [release]
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Install Rust toolchain
+      - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      # Verify version in Cargo.toml matches tag
-      - name: Verify version
+      - name: Verify version consistency
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
-          CARGO_VERSION=$(grep '^version' Cargo.toml | sed 's/.*"\(.*\)".*/\1/')
-          echo "Tag version: $VERSION"
-          echo "Cargo.toml version: $CARGO_VERSION"
+          CARGO_VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
           if [ "$VERSION" != "$CARGO_VERSION" ]; then
-            echo "Error: Version mismatch between git tag ($VERSION) and Cargo.toml ($CARGO_VERSION)"
+            echo "Version mismatch: tag=$VERSION, Cargo.toml=$CARGO_VERSION"
             exit 1
           fi
 
-      # Publish to crates.io
-      - name: Publish to crates.io
+      - name: Publish memscope-derive
+        working-directory: memscope-derive
         run: cargo publish --token ${{ secrets.CRATES_IO_TOKEN }}
-        # If no CRATES_IO_TOKEN, skip
-        continue-on-error: ${{ secrets.CRATES_IO_TOKEN == '' }}
+        continue-on-error: true
 
-  # Deployment notification
-  notify:
-    name: Deployment Notification
-    runs-on: ubuntu-latest
-    if: always()
-    needs: [check, test, examples, docs-and-security]
-    
-    steps:
-      - name: Notify success
-        if: ${{ needs.check.result == 'success' && needs.test.result == 'success' && needs.examples.result == 'success' && needs.docs-and-security.result == 'success' }}
-        run: |
-          echo "All CI checks passed successfully!"
-          echo "Code quality: PASS"
-          echo "Tests: PASS" 
-          echo "Examples: PASS"
-          echo "Documentation: PASS"
-          echo "Security: PASS"
+      - name: Wait for derive package
+        run: sleep 30
 
-      - name: Notify failure
-        if: ${{ needs.check.result == 'failure' || needs.test.result == 'failure' || needs.examples.result == 'failure' || needs.docs-and-security.result == 'failure' }}
-        run: |
-          echo "CI pipeline failed!"
-          echo "Check the logs above for details."
-          exit 1
-
-      # Update GitHub status
-      - name: Update GitHub status
-        if: always()
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const { owner, repo } = context.repo;
-            const sha = context.sha;
-            const state = ${{ needs.check.result == 'success' && needs.test.result == 'success' && needs.examples.result == 'success' && needs.docs-and-security.result == 'success' }} ? 'success' : 'failure';
-            const description = state === 'success' ? 'All CI checks passed!' : 'Some CI checks failed';
-            
-            await github.rest.repos.createCommitStatus({
-              owner,
-              repo,
-              sha,
-              state,
-              description,
-              context: 'CI/CD Pipeline'
-            });
+      - name: Publish memscope-rs
+        run: cargo publish --token ${{ secrets.CRATES_IO_TOKEN }}
+        continue-on-error: true

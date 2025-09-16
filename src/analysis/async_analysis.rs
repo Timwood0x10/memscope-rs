@@ -5,6 +5,7 @@
 //! - Async task lifecycle tracking
 //! - Await point analysis
 
+use crate::core::safe_operations::SafeLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -30,6 +31,12 @@ pub struct AsyncAnalyzer {
     await_points: Mutex<Vec<AwaitPoint>>,
     /// Task lifecycle events
     task_events: Mutex<Vec<TaskEvent>>,
+}
+
+impl Default for AsyncAnalyzer {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl AsyncAnalyzer {
@@ -67,7 +74,7 @@ impl AsyncAnalyzer {
             event_type: TaskEventType::Created,
             timestamp: current_timestamp(),
             thread_id: format!("{:?}", std::thread::current().id()),
-            details: format!("Future {} created", future_type),
+            details: format!("Future {future_type} created"),
         };
 
         if let Ok(mut events) = self.task_events.lock() {
@@ -169,7 +176,7 @@ impl AsyncAnalyzer {
             event_type: TaskEventType::Completed,
             timestamp: completion_time,
             thread_id: format!("{:?}", std::thread::current().id()),
-            details: format!("Future completed with result: {:?}", result),
+            details: format!("Future completed with result: {result:?}"),
         };
 
         if let Ok(mut events) = self.task_events.lock() {
@@ -179,10 +186,22 @@ impl AsyncAnalyzer {
 
     /// Get async statistics
     pub fn get_async_statistics(&self) -> AsyncStatistics {
-        let futures = self.active_futures.lock().unwrap();
-        let transitions = self.state_transitions.lock().unwrap();
-        let awaits = self.await_points.lock().unwrap();
-        let _events = self.task_events.lock().unwrap();
+        let futures = self
+            .active_futures
+            .safe_lock()
+            .expect("Failed to acquire lock on active_futures");
+        let transitions = self
+            .state_transitions
+            .safe_lock()
+            .expect("Failed to acquire lock on state_transitions");
+        let awaits = self
+            .await_points
+            .safe_lock()
+            .expect("Failed to acquire lock on await_points");
+        let _events = self
+            .task_events
+            .safe_lock()
+            .expect("Failed to acquire lock on task_events");
 
         let total_futures = futures.len();
         let completed_futures = futures
@@ -242,8 +261,14 @@ impl AsyncAnalyzer {
 
     /// Analyze async patterns
     pub fn analyze_async_patterns(&self) -> AsyncPatternAnalysis {
-        let futures = self.active_futures.lock().unwrap();
-        let awaits = self.await_points.lock().unwrap();
+        let futures = self
+            .active_futures
+            .safe_lock()
+            .expect("Failed to acquire lock on active_futures");
+        let awaits = self
+            .await_points
+            .safe_lock()
+            .expect("Failed to acquire lock on await_points");
 
         let mut patterns = Vec::new();
 
@@ -263,10 +288,7 @@ impl AsyncAnalyzer {
         if long_running_count > 0 {
             patterns.push(AsyncPattern {
                 pattern_type: AsyncPatternType::LongRunningFutures,
-                description: format!(
-                    "{} futures running longer than 1 second",
-                    long_running_count
-                ),
+                description: format!("{long_running_count} futures running longer than 1 second",),
                 severity: AsyncPatternSeverity::Warning,
                 suggestion: "Consider breaking down long-running operations or adding timeouts"
                     .to_string(),
@@ -284,8 +306,7 @@ impl AsyncAnalyzer {
             patterns.push(AsyncPattern {
                 pattern_type: AsyncPatternType::ExcessivePolling,
                 description: format!(
-                    "{} futures polled more than {} times",
-                    high_poll_count, high_poll_threshold
+                    "{high_poll_count} futures polled more than {high_poll_threshold} times",
                 ),
                 severity: AsyncPatternSeverity::Warning,
                 suggestion: "High poll count may indicate inefficient async design".to_string(),
@@ -309,13 +330,13 @@ impl AsyncAnalyzer {
         let slow_await_threshold = 100_000_000; // 100ms in nanoseconds
         let slow_awaits = awaits
             .iter()
-            .filter(|a| a.duration.map_or(false, |d| d > slow_await_threshold))
+            .filter(|a| a.duration.is_some_and(|d| d > slow_await_threshold))
             .count();
 
         if slow_awaits > 0 {
             patterns.push(AsyncPattern {
                 pattern_type: AsyncPatternType::SlowAwaitPoints,
-                description: format!("{} await points took longer than 100ms", slow_awaits),
+                description: format!("{slow_awaits} await points took longer than 100ms"),
                 severity: AsyncPatternSeverity::Warning,
                 suggestion: "Slow await points may indicate blocking operations in async code"
                     .to_string(),
@@ -331,7 +352,11 @@ impl AsyncAnalyzer {
 
     /// Get future information
     pub fn get_future_info(&self, ptr: usize) -> Option<FutureInfo> {
-        self.active_futures.lock().unwrap().get(&ptr).cloned()
+        self.active_futures
+            .safe_lock()
+            .expect("Failed to acquire lock on active_futures")
+            .get(&ptr)
+            .cloned()
     }
 }
 
@@ -556,14 +581,20 @@ mod tests {
         // Check it's tracked
         let info = analyzer.get_future_info(0x1000);
         assert!(info.is_some());
-        assert_eq!(info.unwrap().future_type, "async_fn");
+        assert_eq!(
+            info.expect("Failed to get async info").future_type,
+            "async_fn"
+        );
 
         // Record state transition
         analyzer.record_state_transition(0x1000, FutureState::Created, FutureState::Pending);
 
         // Check state updated
         let info = analyzer.get_future_info(0x1000);
-        assert_eq!(info.unwrap().current_state, FutureState::Pending);
+        assert_eq!(
+            info.expect("Failed to get async info").current_state,
+            FutureState::Pending
+        );
     }
 
     #[test]
