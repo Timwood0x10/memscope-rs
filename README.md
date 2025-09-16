@@ -479,7 +479,7 @@ Based on actual testing (not marketing numbers):
 - **Platform support**: Limited testing on different platforms
 - **Error handling**: Some errors are silently ignored (we're working on being more vocal)
 
-## Current Development Status | 当前开发状态
+## Current Development Status
 
 ### English Assessment
 
