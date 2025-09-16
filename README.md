@@ -2,9 +2,7 @@
 
 [![Rust](https://img.shields.io/badge/rust-1.70+-orange.svg)](https://www.rust-lang.org)
 [![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE)
-[![Crates.io](https://img.shields.io/crates/v/memscope-rs.svg)](https://crates.io/crates/memscope-rs)
-
-## What is this thing?
+[![Crates.io](https://img.shields.io/crates/v/memscope-rs.svg)](https://crates.io/crates/memscope-rs)What is this thing?
 
 memscope-rs is a Rust library for tracking memory allocations and generating analysis reports. Think of it as a friendly neighborhood memory detective 🕵️ that helps you understand what your variables are up to when you're not looking.
 
@@ -479,11 +477,9 @@ Based on actual testing (not marketing numbers):
 - **Platform support**: Limited testing on different platforms
 - **Error handling**: Some errors are silently ignored (we're working on being more vocal)
 
-## Current Development Status | 当前开发状态
+## Current Development Status 
 
-### English Assessment
-
-#### What works reliably:
+## What works reliably:
 
 - ✅ **Single-threaded variable tracking**: Core functionality works well in single-threaded environments
 - ✅ **Multi-format data export**:
