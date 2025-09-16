@@ -7,6 +7,7 @@ This changelog documents the changes between the `test_a` branch and `master` br
 ## 🛡️ **Latest Improvements (Drop Logic & Smart Pointer Handling)**
 
 ### **TrackedVariable Drop Logic Fixes**
+
 - **Fixed duplicate drop calls**: Added atomic protection to prevent multiple destruction tracking
 - **Centralized smart pointer detection**: Created `smart_pointer_utils` module for consistent Rc/Arc/Box handling
 - **Improved error handling**: Enhanced error reporting and panic-safe drop logic
@@ -14,6 +15,7 @@ This changelog documents the changes between the `test_a` branch and `master` br
 - **Added drop protection mechanisms**: Thread-safe duplicate tracking prevention
 
 ### **Key Benefits**
+
 - ✅ **Robust Drop Logic**: Prevents duplicate tracking and ensures accurate memory analysis
 - ✅ **Better Performance**: Removed unnecessary auto-export operations from drop
 - ✅ **Enhanced Smart Pointer Support**: Consistent handling of Rc, Arc, and Box types
@@ -192,14 +194,14 @@ src/
 
 - **README Updates**: Enhanced documentation
 - **Performance Guide**: Basic performance documentation
--- **Tracking Guide**: User guide for tracking features
+  -- **Tracking Guide**: User guide for tracking features
 
 ---
 
-
-## [0.1.5] - 2025-09-14
+## [0.1.5] - 2025-09-16
 
 ### Added
+
 - **High-Performance Binary Export:** A new binary export format (`src/export/binary`) provides a faster and more compact alternative to JSON.
 - **Unified Export API:** A new, tiered export API under the `export` module simplifies exporting data in different formats.
 - **Advanced Tracking Macros:** Introduced `track_var_owned!` for ownership-based lifecycle tracking and `track_var_smart!` for automatic strategy selection.
@@ -210,12 +212,14 @@ src/
 - **New HTML Dashboards:** Added new, more advanced HTML templates for visualizing analysis results.
 
 ### Changed
+
 - **Core Architecture Refactoring:** The entire crate has been reorganized into a more modular structure (`core`, `analysis`, `export`, etc.). The core tracking logic was completely refactored for better performance and maintainability.
 - **Default Tracking Behavior:** The `track_var!` macro now tracks variables by reference for zero-cost tracking by default.
 - **Smart Pointer Handling:** Improved and centralized the tracking logic for `Rc`, `Arc`, and `Box` for more accuracy.
 - **Dependencies:** Updated `Cargo.toml` to include `dashmap`, `criterion`, and `bincode` to support new features and performance improvements.
 
 ### Fixed
+
 - **Concurrency Issues:** Replaced previous locking mechanisms with sharded locks and optimized mutexes to significantly reduce thread contention and improve stability in multi-threaded applications.
 - **Inaccurate Lifecycle Tracking:** The new ownership-based tracking (`track_var_owned!`) and improved smart pointer logic provide more precise and reliable variable lifecycle analysis.
 
