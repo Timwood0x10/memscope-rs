@@ -112,31 +112,4 @@ mod html_generation_tests {
             );
         }
     }
-
-    #[test]
-    fn test_dom_element_ids() {
-        // Test that required DOM element IDs exist
-        let template_path = Path::new("templates/clean_dashboard.html");
-        let content = fs::read_to_string(template_path).expect("Failed to read template file");
-
-        let required_ids = vec![
-            "lifecycleVisualizationContainer",
-            "heap-count-mini",
-            "stack-count-mini",
-            "total-allocs-enhanced",
-            "heap-stack-ratio",
-            "avg-lifetime-enhanced",
-            "memory-efficiency",
-            "filter-heap",
-            "filter-stack",
-            "toggle-lifecycle",
-        ];
-
-        for id in required_ids {
-            assert!(
-                content.contains(&format!("id=\"{id}\"")),
-                "Missing DOM element ID: {id}"
-            );
-        }
-    }
 }

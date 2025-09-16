@@ -10,7 +10,7 @@ memscope-rs is a Rust library for tracking memory allocations and generating ana
 
 It provides simple macros for variable tracking and exports data in JSON and SVG formats. Perfect for those "wait, where did all my memory go?" moments.
 
-## ⚠️ Important: Multi-threading Support Status 
+## ⚠️ Important: Multi-threading Support Status
 
 **Current Status: Single-threaded environments work reliably. Multi-threaded scenarios require additional design and optimization.**
 
@@ -106,9 +106,12 @@ We are actively working on a lock-free multi-threaded implementation that will i
 
 ### 3. Data Export & Interactive Visualization
 
-- **JSON format**: Export detailed memory allocation data for programmatic analysis
+- **JSON export**: Export detailed memory allocation data for programmatic analysis
+- **Binary export**: Efficient binary format for large datasets with faster I/O
 - **SVG visualization**: Generate memory usage charts and timelines (pretty pictures!)
 - **🎯 HTML Interactive Dashboard**: Full-featured web-based dashboard with clickable charts, filterable data, and real-time analysis
+  - **Binary → HTML**: Convert binary snapshots directly to interactive HTML dashboards
+  - **JSON → HTML**: Transform JSON analysis data into rich web visualizations
 - **Multiple export modes**: Fast mode, detailed mode, and "let the computer decide" mode
 
 ### 4. Safety Analysis
@@ -125,20 +128,38 @@ We are actively working on a lock-free multi-threaded implementation that will i
 # Basic usage demonstration
 cargo run --example basic_usage
 
-# Ownership patterns demo (prepare to be amazed by Rust's ownership system)
-cargo run --example ownership_demo
+# Comprehensive memory analysis showcase
+cargo run --example comprehensive_memory_analysis
 
 # Complex lifecycle showcase
-cargo run --example complex_lifecycle_showcase
+cargo run --example comprehensive_binary_to_html_demo
 
 # Memory stress test (warning: may stress your computer too)
-cargo run --example memory_stress_test
+cargo run --example heavy_workload_test
+
+# Multi-threaded stress test
+cargo run --example multithreaded_stress_test
 
 # Performance test
-cargo run --example speed_test
+cargo run --example performance_benchmark_demo
+
+# Realistic usage with extensions
+cargo run --example realistic_usage_with_extensions
+
+# Large-scale binary comparison
+cargo run --example large_scale_binary_comparison
 
 # Unsafe/FFI safety demo (for the brave souls)
 cargo run --example unsafe_ffi_demo
+
+# Async basic test
+cargo run --example async_basic_test
+
+# Simple binary test
+cargo run --example simple_binary_test
+
+# JSON export test
+cargo run --example test_binary_to_json
 ```
 
 ## Usage Examples
@@ -209,6 +230,41 @@ if let Err(e) = tracker.export_to_json_with_options("detailed_analysis", options
 }
 ```
 
+## Performance Testing & Benchmarks
+
+### 🎯 Quick Start Commands
+
+```bash
+# Clone and setup
+git clone https://github.com/TimWood0x10/memscope-rs
+cd memscope-rs
+
+# Build and test basic functionality
+make build
+make run-basic
+
+# Generate HTML report
+make html DIR=MemoryAnalysis/basic_usage BASE=user OUTPUT=memory_report.html VERBOSE=1 
+open ./MemoryAnalysis/basic_usage/memory_report.html
+
+```
+
+### 📊 Available Benchmarks
+
+```bash
+# Fast benchmarks (recommended)
+make benchmark-main          # ~2 minutes
+
+# Comprehensive benchmarks
+make run-benchmark           # Full performance analysis
+make run-core-performance    # Core system evaluation
+make run-simple-benchmark    # Quick validation
+
+# Stress testing
+cargo run --example heavy_workload_test
+cargo run --example multithreaded_stress_test
+```
+
 ## Build & Installation
 
 ### System Requirements
@@ -231,7 +287,7 @@ make build
 cargo test
 
 # Try an example
-make run complex_lifecycle_showcase
+make run-basic
 ├── complex_lifecycle_snapshot_complex_types.json
 ├── complex_lifecycle_snapshot_lifetime.json
 ├── complex_lifecycle_snapshot_memory_analysis.json
@@ -240,12 +296,16 @@ make run complex_lifecycle_showcase
 ├── complex_lifecycle_snapshot_unsafe_ffi.json
 
 
-# export to html
-make html DIR=MemoryAnalysis/complex_lifecycle BASE=complex_lifecycle OUTPUT=improved_tracking_final_v3.html
+# Export to different formats
+make html DIR=MemoryAnalysis/basic_usage OUTPUT=memory_report.html  # JSON → HTML
+cargo run --example comprehensive_binary_to_html_demo              # Binary → HTML
+cargo run --example large_scale_binary_comparison              # Binary format comparison demo
 
-open improved_tracking_final_v3.html
+# View generated dashboards
+open memory_report.html                    # From JSON conversion
+open comprehensive_report.html             # From binary conversion
 
-# You can view the HTML interface I output in ./imsges/*.html
+# You can view the HTML interface examples in ./images/*.html
 ```
 
 ### From Crates.io
@@ -256,14 +316,14 @@ cargo add memscope-rs
 
 # Or manually add to Cargo.toml
 [dependencies]
-memscope-rs = "0.1.3"
+memscope-rs = "0.1.5"
 ```
 
 ### Feature Flags
 
 ```toml
 [dependencies]
-memscope-rs = { version = "0.1.3" }
+memscope-rs = { version = "0.1.5" }
 ```
 
 Available features:
@@ -277,13 +337,13 @@ Available features:
 After running programs, you'll find analysis results in the `MemoryAnalysis/` directory:
 
 ```
-├── complex_lifecycle_snapshot_complex_types.json  // complex types info
-├── complex_lifecycle_snapshot_lifetime.json // varable lifetiem infos
-├── complex_lifecycle_snapshot_memory_analysis.json  // all things 
-├── complex_lifecycle_snapshot_performance.json   // performances 
-├── complex_lifecycle_snapshot_security_violations.json  // security violations
-├── complex_lifecycle_snapshot_unsafe_ffi.json  // unsafe && ffi infos
-└── improved_tracking_final_v3.html // output html
+├── basic_usage_memory_analysis.json     // comprehensive memory data
+├── basic_usage_lifetime.json            // variable lifetime info
+├── basic_usage_performance.json         // performance metrics 
+├── basic_usage_security_violations.json // security analysis
+├── basic_usage_unsafe_ffi.json          // unsafe && ffi info
+├── basic_usage_complex_types.json       // complex types data
+└── memory_report.html                   // interactive dashboard
 ```
 
 ### 🌟 Interactive HTML Dashboard Features
@@ -426,8 +486,12 @@ Based on actual testing (not marketing numbers):
 #### What works reliably:
 
 - ✅ **Single-threaded variable tracking**: Core functionality works well in single-threaded environments
-- ✅ **JSON export with allocation data**: Complete and accurate data export
-- ✅ **Interactive HTML dashboard**: Feature-rich visualization with clickable elements
+- ✅ **Multi-format data export**:
+  - JSON export with complete allocation data
+  - Binary export for efficient large dataset handling
+  - Direct binary → HTML conversion with interactive dashboards
+  - JSON → HTML transformation with rich visualizations
+- ✅ **Interactive HTML dashboard**: Feature-rich visualization with clickable elements, variable relationship graphs, 3D memory layout
 - ✅ **Smart pointer support**: Full Rc, Arc, Box tracking with reference counting
 - ✅ **Memory analysis**: Basic leak detection and pattern analysis
 - ✅ **CLI tools and examples**: All demonstration programs run successfully
@@ -436,7 +500,10 @@ Based on actual testing (not marketing numbers):
 
 - ⚠️ **Multi-threading deadlocks**: Global tracker with multiple mutexes causes deadlocks(20 threads limit or be killed)
 - ⚠️ **Performance overhead**: 5-15% runtime overhead, degrades significantly with large datasets
-- ⚠️ **154 unsafe `unwrap()` calls**: Potential panic points that need proper error handling
+- ⚠️ **934 unsafe `unwrap()` calls**: Potential panic points that need proper error handling
+  - **Risk**: Application can panic unexpectedly during memory tracking operations
+  - **Mitigation**: Use `MEMSCOPE_TEST_MODE=1` for safer fallback behavior
+  - **Status**: Active work in progress to replace with safe alternatives
 - ⚠️ **Thread safety**: Basic support only, not thoroughly tested under concurrency
 - ⚠️ **Memory leaks in tracker itself**: Tracking system can leak memory (ironic but true)
 - ⚠️ **Inconsistent API design**: Some modules use different patterns and conventions
@@ -526,6 +593,25 @@ The project uses a modular design:
 
 ### Common Issues
 
+**Application hangs or deadlocks in multi-threaded code:**
+
+```bash
+# Use one of these environment variables:
+export MEMSCOPE_DISABLE_GLOBAL=1   # Completely disable global tracking
+export MEMSCOPE_TEST_MODE=1        # Use simplified tracking logic
+export MEMSCOPE_ASYNC_MODE=1       # Skip heavy operations
+export RUST_TEST_THREADS=1         # Force single-threaded execution
+```
+
+**Panic with "unwrap() called on None":**
+
+```bash
+# Enable safer fallback behavior
+export MEMSCOPE_TEST_MODE=1
+# Or disable specific features
+export MEMSCOPE_DISABLE_BACKTRACE=1
+```
+
 **Export fails with large datasets:**
 
 ```rust
@@ -548,6 +634,15 @@ cargo run --no-default-features --features tracking-allocator
 # Ensure write permissions
 mkdir -p MemoryAnalysis
 chmod 755 MemoryAnalysis
+```
+
+**Performance degradation:**
+
+```bash
+# Use fast mode with reduced tracking
+export MEMSCOPE_FAST_MODE=1
+# Or disable expensive operations
+export MEMSCOPE_DISABLE_ANALYSIS=1
 ```
 
 ## Contributing
@@ -577,12 +672,43 @@ Licensed under either of:
 
 at your option.
 
+## Development Roadmap
+
+### Next Major Focus: Multi-threading & Async Support
+
+**Current Status**: Single-threaded environments work reliably, but multi-threading has critical limitations.
+
+**Planned Improvements**:
+
+1. **Thread-Safe Architecture Redesign**
+
+   - Replace global mutex-based tracker with thread-local storage
+   - Implement lock-free data structures for allocation tracking
+   - Add proper synchronization for cross-thread memory analysis
+2. **Async Runtime Support**
+
+   - Tokio runtime integration with async-aware tracking
+   - Async allocation/deallocation monitoring
+   - Future-aware memory lifecycle analysis
+3. **Performance Optimization**
+
+   - Reduce tracking overhead from current 5-15% to target <3%
+   - Optimize binary export format for large concurrent workloads
+   - Implement sampling modes for production environments
+4. **Safety & Reliability**
+
+   - Replace 934 unsafe `unwrap()` calls with proper error handling
+   - Add comprehensive concurrency testing
+   - Implement graceful degradation under high load
+
+**Target Timeline**: These improvements are critical for production readiness and represent the primary development focus for upcoming releases.
+
 ## Disclaimer
 
 **This software is experimental and not production-ready.** Please read carefully:
 
 - ⚠️ **Multi-threading deadlock risk**: Known deadlock issues in concurrent environments
-- ⚠️ **Memory safety not guaranteed**: 154 unsafe `unwrap()` calls could cause panics
+- ⚠️ **Memory safety not guaranteed**: 934 unsafe `unwrap()` calls could cause panics
 - ⚠️ **Performance impact**: 5-15% runtime overhead, significant with large datasets
 - ⚠️ **Memory leaks**: The tracker itself may leak memory during operation
 - ⚠️ **Limited testing**: Not thoroughly tested across different platforms and scenarios

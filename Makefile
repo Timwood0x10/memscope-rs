@@ -1,10 +1,10 @@
-# Makefile for trace_tools - Rust Memory Analysis Toolkit
-# Author: trace_tools development team
+# Makefile for memscope-rs - Rust Memory Analysis Toolkit
+# Author: memscope-rs development team
 # Description: Build, test, and deployment automation
 
 # Variables
 CARGO := cargo
-PROJECT_NAME := trace_tools
+PROJECT_NAME := memscope-rs
 VERSION := $(shell grep '^version' Cargo.toml | sed 's/.*"\(.*\)".*/\1/')
 TARGET_DIR := target
 DOCS_DIR := target/doc
@@ -24,7 +24,7 @@ all: check test
 # Help target
 .PHONY: help
 help:
-	@echo "$(BLUE)trace_tools Makefile - Available targets:$(NC)"
+	@echo "$(BLUE)memscope-rs Makefile - Available targets:$(NC)"
 	@echo ""
 	@echo "$(GREEN)Building:$(NC)"
 	@echo "  build          - Build the project in debug mode"

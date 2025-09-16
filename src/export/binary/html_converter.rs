@@ -77,7 +77,7 @@ fn load_binary_dashboard_template() -> Result<String, BinaryExportError> {
     // Try to load from templates directory - use binary_dashboard.html for binary conversion
     let template_paths = [
         "templates/binary_dashboard.html",
-        "../templates/binary_dashboard.html", 
+        "../templates/binary_dashboard.html",
         "../../templates/binary_dashboard.html",
     ];
 
@@ -112,7 +112,10 @@ fn generate_html_content(
     let safety_risk_data = prepare_safety_risk_data(allocations)?;
 
     // Replace template placeholders for binary_dashboard.html
-    tracing::debug!("Replacing BINARY_DATA placeholder with {} bytes of allocation data", allocation_data.len());
+    tracing::debug!(
+        "Replacing BINARY_DATA placeholder with {} bytes of allocation data",
+        allocation_data.len()
+    );
     let mut html = template.to_string();
 
     // Smart project name insertion - handle templates without {{PROJECT_NAME}} placeholder
@@ -169,7 +172,9 @@ fn generate_html_content(
                     "{}window.analysisData = {};{}",
                     before, &allocation_data, after
                 );
-                tracing::debug!("Fallback: replaced hardcoded window.analysisData with binary data");
+                tracing::debug!(
+                    "Fallback: replaced hardcoded window.analysisData with binary data"
+                );
             }
         } else {
             // Last resort: try other common placeholders
@@ -354,8 +359,9 @@ fn prepare_allocation_data(allocations: &[AllocationInfo]) -> Result<String, Bin
     }
 
     // Generate comprehensive data structure for all dashboard modules
-    let (lifetime_data, complex_types, unsafe_ffi, performance_data) = generate_enhanced_data(&allocation_data);
-    
+    let (lifetime_data, complex_types, unsafe_ffi, performance_data) =
+        generate_enhanced_data(&allocation_data);
+
     // Format data in the structure expected by binary_dashboard.html
     let data_structure = json!({
         "memory_analysis": {
@@ -607,14 +613,25 @@ fn get_embedded_binary_template() -> String {
 }
 
 /// Generate enhanced data for all dashboard modules - match exact JSON structure
-fn generate_enhanced_data(allocations: &[serde_json::Value]) -> (serde_json::Value, serde_json::Value, serde_json::Value, serde_json::Value) {
+fn generate_enhanced_data(
+    allocations: &[serde_json::Value],
+) -> (
+    serde_json::Value,
+    serde_json::Value,
+    serde_json::Value,
+    serde_json::Value,
+) {
     // 1. Lifetime Analysis - Match large_scale_user_lifetime.json structure
-    let lifetime_allocations: Vec<serde_json::Value> = allocations.iter().map(|alloc| {
-        let mut lifetime_alloc = alloc.clone();
-        lifetime_alloc["ownership_transfer_points"] = json!(generate_ownership_transfer_points(alloc));
-        lifetime_alloc
-    }).collect();
-    
+    let lifetime_allocations: Vec<serde_json::Value> = allocations
+        .iter()
+        .map(|alloc| {
+            let mut lifetime_alloc = alloc.clone();
+            lifetime_alloc["ownership_transfer_points"] =
+                json!(generate_ownership_transfer_points(alloc));
+            lifetime_alloc
+        })
+        .collect();
+
     let lifetime_data = json!({
         "allocations": lifetime_allocations,
         "metadata": {
@@ -623,27 +640,36 @@ fn generate_enhanced_data(allocations: &[serde_json::Value]) -> (serde_json::Val
         }
     });
 
-    // 2. Complex Types - Match large_scale_user_complex_types.json structure  
-    let complex_allocations: Vec<serde_json::Value> = allocations.iter().filter_map(|alloc| {
-        let type_name = alloc["type_name"].as_str().unwrap_or("");
-        // Include all types with generics or smart pointers
-        if type_name.contains('<') || type_name.contains("Arc") || type_name.contains("Box") || 
-           type_name.contains("Vec") || type_name.contains("HashMap") || type_name.contains("BTreeMap") ||
-           type_name.contains("Rc") || type_name.contains("RefCell") {
-            let mut complex_alloc = alloc.clone();
-            complex_alloc["generic_params"] = json!(extract_generic_params(type_name));
-            complex_alloc["complexity_score"] = json!(calculate_complexity_score(type_name));
-            complex_alloc["memory_layout"] = json!({
-                "alignment": 8,
-                "padding": 0,
-                "size_bytes": alloc["size"]
-            });
-            Some(complex_alloc)
-        } else {
-            None
-        }
-    }).collect();
-    
+    // 2. Complex Types - Match large_scale_user_complex_types.json structure
+    let complex_allocations: Vec<serde_json::Value> = allocations
+        .iter()
+        .filter_map(|alloc| {
+            let type_name = alloc["type_name"].as_str().unwrap_or("");
+            // Include all types with generics or smart pointers
+            if type_name.contains('<')
+                || type_name.contains("Arc")
+                || type_name.contains("Box")
+                || type_name.contains("Vec")
+                || type_name.contains("HashMap")
+                || type_name.contains("BTreeMap")
+                || type_name.contains("Rc")
+                || type_name.contains("RefCell")
+            {
+                let mut complex_alloc = alloc.clone();
+                complex_alloc["generic_params"] = json!(extract_generic_params(type_name));
+                complex_alloc["complexity_score"] = json!(calculate_complexity_score(type_name));
+                complex_alloc["memory_layout"] = json!({
+                    "alignment": 8,
+                    "padding": 0,
+                    "size_bytes": alloc["size"]
+                });
+                Some(complex_alloc)
+            } else {
+                None
+            }
+        })
+        .collect();
+
     let complex_types = json!({
         "allocations": complex_allocations,
         "metadata": {
@@ -653,26 +679,32 @@ fn generate_enhanced_data(allocations: &[serde_json::Value]) -> (serde_json::Val
     });
 
     // 3. Unsafe/FFI - Match large_scale_user_unsafe_ffi.json structure EXACTLY
-    let unsafe_allocations: Vec<serde_json::Value> = allocations.iter().map(|alloc| {
-        let type_name = alloc["type_name"].as_str().unwrap_or("");
-        let is_ffi_tracked = type_name.contains("*mut") || type_name.contains("*const") || 
-                            type_name.contains("c_void") || type_name.contains("CString") ||
-                            type_name.contains("extern") || type_name.contains("CStr");
-        
-        let safety_violations: Vec<&str> = if is_ffi_tracked {
-            vec!["raw_pointer_usage", "ffi_boundary_crossing"]
-        } else if alloc["is_leaked"].as_bool().unwrap_or(false) {
-            vec!["memory_leak"]
-        } else {
-            vec![]
-        };
-        
-        let mut unsafe_alloc = alloc.clone();
-        unsafe_alloc["ffi_tracked"] = json!(is_ffi_tracked);
-        unsafe_alloc["safety_violations"] = json!(safety_violations);
-        unsafe_alloc
-    }).collect();
-    
+    let unsafe_allocations: Vec<serde_json::Value> = allocations
+        .iter()
+        .map(|alloc| {
+            let type_name = alloc["type_name"].as_str().unwrap_or("");
+            let is_ffi_tracked = type_name.contains("*mut")
+                || type_name.contains("*const")
+                || type_name.contains("c_void")
+                || type_name.contains("CString")
+                || type_name.contains("extern")
+                || type_name.contains("CStr");
+
+            let safety_violations: Vec<&str> = if is_ffi_tracked {
+                vec!["raw_pointer_usage", "ffi_boundary_crossing"]
+            } else if alloc["is_leaked"].as_bool().unwrap_or(false) {
+                vec!["memory_leak"]
+            } else {
+                vec![]
+            };
+
+            let mut unsafe_alloc = alloc.clone();
+            unsafe_alloc["ffi_tracked"] = json!(is_ffi_tracked);
+            unsafe_alloc["safety_violations"] = json!(safety_violations);
+            unsafe_alloc
+        })
+        .collect();
+
     let unsafe_ffi = json!({
         "allocations": unsafe_allocations,
         "metadata": {
@@ -682,24 +714,27 @@ fn generate_enhanced_data(allocations: &[serde_json::Value]) -> (serde_json::Val
     });
 
     // 4. Performance - Match large_scale_user_performance.json structure
-    let performance_allocations: Vec<serde_json::Value> = allocations.iter().map(|alloc| {
-        let size = alloc["size"].as_u64().unwrap_or(0);
-        let lifetime_ms = alloc["lifetime_ms"].as_u64().unwrap_or(0);
-        
-        let mut perf_alloc = alloc.clone();
-        perf_alloc["fragmentation_analysis"] = json!({
-            "fragmentation_score": if size > 1024 { 0.3 } else { 0.1 },
-            "alignment_efficiency": if size % 8 == 0 { 100.0 } else { 85.0 },
-            "memory_density": calculate_memory_density(size)
-        });
-        perf_alloc["allocation_efficiency"] = json!({
-            "reuse_potential": if lifetime_ms > 1000 { 0.2 } else { 0.8 },
-            "memory_locality": if size < 1024 { "high" } else { "medium" },
-            "cache_efficiency": calculate_cache_efficiency(size)
-        });
-        perf_alloc
-    }).collect();
-    
+    let performance_allocations: Vec<serde_json::Value> = allocations
+        .iter()
+        .map(|alloc| {
+            let size = alloc["size"].as_u64().unwrap_or(0);
+            let lifetime_ms = alloc["lifetime_ms"].as_u64().unwrap_or(0);
+
+            let mut perf_alloc = alloc.clone();
+            perf_alloc["fragmentation_analysis"] = json!({
+                "fragmentation_score": if size > 1024 { 0.3 } else { 0.1 },
+                "alignment_efficiency": if size % 8 == 0 { 100.0 } else { 85.0 },
+                "memory_density": calculate_memory_density(size)
+            });
+            perf_alloc["allocation_efficiency"] = json!({
+                "reuse_potential": if lifetime_ms > 1000 { 0.2 } else { 0.8 },
+                "memory_locality": if size < 1024 { "high" } else { "medium" },
+                "cache_efficiency": calculate_cache_efficiency(size)
+            });
+            perf_alloc
+        })
+        .collect();
+
     let performance_data = json!({
         "allocations": performance_allocations,
         "metadata": {
@@ -728,36 +763,51 @@ fn extract_generic_params(type_name: &str) -> Vec<String> {
 /// Calculate complexity score for a type
 fn calculate_complexity_score(type_name: &str) -> u32 {
     let mut score = 1;
-    
+
     // Count angle brackets for generics
     score += type_name.matches('<').count() as u32 * 2;
-    
+
     // Add score for smart pointers
-    if type_name.contains("Arc") || type_name.contains("Rc") { score += 3; }
-    if type_name.contains("Box") { score += 2; }
-    if type_name.contains("Vec") { score += 2; }
-    if type_name.contains("HashMap") || type_name.contains("BTreeMap") { score += 4; }
-    
+    if type_name.contains("Arc") || type_name.contains("Rc") {
+        score += 3;
+    }
+    if type_name.contains("Box") {
+        score += 2;
+    }
+    if type_name.contains("Vec") {
+        score += 2;
+    }
+    if type_name.contains("HashMap") || type_name.contains("BTreeMap") {
+        score += 4;
+    }
+
     // Add score for raw pointers
-    if type_name.contains("*mut") || type_name.contains("*const") { score += 5; }
-    
+    if type_name.contains("*mut") || type_name.contains("*const") {
+        score += 5;
+    }
+
     score
 }
 
 /// Calculate memory density for performance analysis
 fn calculate_memory_density(size: u64) -> f64 {
     // Simple heuristic: smaller allocations have higher density
-    if size < 64 { 1.0 }
-    else if size < 1024 { 0.8 }
-    else if size < 4096 { 0.6 }
-    else { 0.4 }
+    if size < 64 {
+        1.0
+    } else if size < 1024 {
+        0.8
+    } else if size < 4096 {
+        0.6
+    } else {
+        0.4
+    }
 }
 
 /// Calculate cache efficiency for performance analysis
 fn calculate_cache_efficiency(size: u64) -> f64 {
     // Cache line is typically 64 bytes
     let cache_line_size = 64;
-    let lines_used = (size + cache_line_size - 1) / cache_line_size;
+    let lines_used = size.div_ceil(cache_line_size);
     let efficiency = size as f64 / (lines_used * cache_line_size) as f64;
     efficiency.min(1.0)
 }
@@ -765,18 +815,25 @@ fn calculate_cache_efficiency(size: u64) -> f64 {
 /// Generate ownership transfer points for lifetime analysis
 fn generate_ownership_transfer_points(allocation: &serde_json::Value) -> Vec<serde_json::Value> {
     let mut transfer_points = Vec::new();
-    
+
     // Check if it's a clone
     if let Some(clone_info) = allocation.get("clone_info") {
-        if clone_info.get("is_clone").and_then(|v| v.as_bool()).unwrap_or(false) {
+        if clone_info
+            .get("is_clone")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false)
+        {
             transfer_points.push(json!({
                 "event": "clone_created",
                 "timestamp": allocation.get("timestamp_alloc"),
                 "original_ptr": clone_info.get("original_ptr")
             }));
         }
-        
-        let clone_count = clone_info.get("clone_count").and_then(|v| v.as_u64()).unwrap_or(0);
+
+        let clone_count = clone_info
+            .get("clone_count")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
         if clone_count > 0 {
             transfer_points.push(json!({
                 "event": "clones_created",
@@ -785,7 +842,7 @@ fn generate_ownership_transfer_points(allocation: &serde_json::Value) -> Vec<ser
             }));
         }
     }
-    
+
     // Check for borrow events
     if let Some(borrow_info) = allocation.get("borrow_info") {
         if let Some(last_borrow) = borrow_info.get("last_borrow_timestamp") {
@@ -796,7 +853,7 @@ fn generate_ownership_transfer_points(allocation: &serde_json::Value) -> Vec<ser
             }));
         }
     }
-    
+
     transfer_points
 }
 
@@ -1898,9 +1955,10 @@ function renderInteractiveVariableGraph(allocations) {
                 left: ${x}px;
                 top: ${y}px;
                 width: ${length}px;
-                height: ${Math.max(link.strength * 4, 1)}px;
-                background: ${color};
-                opacity: ${0.3 + link.strength * 0.4};
+                height: ${Math.max(link.strength * 2, 1)}px;
+                background: linear-gradient(90deg, ${color} 60%, transparent 60%);
+                background-size: 8px 100%;
+                opacity: ${0.4 + link.strength * 0.3};
                 transform-origin: 0 50%;
                 transform: rotate(${angle}deg);
                 z-index: 1;

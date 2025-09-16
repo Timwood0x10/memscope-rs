@@ -623,7 +623,7 @@
 
     .memory-block.leaked {
       background: linear-gradient(45deg, #dc2626, #ef4444);
-      animation: pulse 2s infinite;
+      box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
     }
 
     /* Tooltip Styles */
@@ -2842,7 +2842,7 @@
           if (alloc.is_leaked) {
             block.classList.add('leaked');
             block.style.background = 'linear-gradient(45deg, #dc2626, #ef4444)';
-            block.style.animation = 'pulse 2s infinite';
+            block.style.boxShadow = '0 0 8px rgba(239, 68, 68, 0.5)';
           } else if (alloc.type_name && alloc.type_name.includes('Box')) {
             block.classList.add('heap');
             block.style.background = 'linear-gradient(45deg, #ff6b35, #f7931e)';
@@ -5242,33 +5242,7 @@
       </div>
     </section>
 
-    <!-- Unified Memory Analysis -->
-    <section class="grid grid-2">
-      <div class="card">
-        <h2><i class="fa fa-fire"></i> Memory Analysis Dashboard</h2>
-        <div class="heatmap-mode-selector">
-          <button class="heatmap-mode-btn active" data-mode="heatmap">Heatmap</button>
-          <button class="heatmap-mode-btn" data-mode="type">By Type</button>
-          <button class="heatmap-mode-btn" data-mode="distribution">Distribution</button>
-        </div>
-        <div id="memoryVisualization" style="height: 250px;">
-          <div id="memoryHeatmap" class="heatmap-container">
-            <div class="heatmap-legend" id="heatmapLegend">
-              <div style="font-weight: 600; margin-bottom: 4px;">Memory Density</div>
-              <div style="display: flex; align-items: center; gap: 4px;">
-                <div style="width: 12px; height: 12px; background: #3b82f6; border-radius: 2px;"></div>
-                <span>Low</span>
-                <div style="width: 12px; height: 12px; background: #f59e0b; border-radius: 2px;"></div>
-                <span>Medium</span>
-                <div style="width: 12px; height: 12px; background: #dc2626; border-radius: 2px;"></div>
-                <span>High</span>
-              </div>
-            </div>
-          </div>
-          <canvas id="typeChart" style="display: none;"></canvas>
-          <div id="distributionChart" style="display: none;"></div>
-        </div>
-      </div>
+    <!-- Memory Analysis Dashboard module removed -->
       
       <div class="card">
         <h2>Memory Over Time</h2>
