@@ -23,6 +23,8 @@ pub mod export;
 pub mod utils;
 /// Variable registry for lightweight HashMap-based variable tracking
 pub mod variable_registry;
+/// Lock-free multi-threaded memory tracking
+pub mod lockfree;
 
 // Re-export key functions from unified modules
 /// Enhanced types for comprehensive memory analysis
