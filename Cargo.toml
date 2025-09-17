@@ -32,6 +32,7 @@ rayon = "1.8"
 clap = { version = "4.0", features = ["derive"] }
 num_cpus = "1.16"
 libc = "0.2"
+sysinfo = { version = "0.30", optional = true }
 flate2 = "1.0"
 regex = "1.10"
 rand = "0.8"
@@ -54,6 +55,10 @@ derive = ["dep:memscope-derive"]
 parking-lot = []
 default = ["parking-lot"]
 test = []
+# Enhanced data collection features
+enhanced-tracking = ["backtrace", "system-metrics", "advanced-analysis"]
+system-metrics = ["dep:sysinfo"]
+advanced-analysis = []
 
 [dev-dependencies]
 rayon = "1.8"
