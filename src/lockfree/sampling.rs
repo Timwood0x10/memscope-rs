@@ -87,6 +87,21 @@ impl SamplingConfig {
         }
     }
 
+    /// Creates configuration for demonstrations and testing
+    /// 
+    /// Maximum sampling rates to ensure all data is visible in demos and tests.
+    /// Not suitable for production due to very high performance overhead.
+    pub fn demo() -> Self {
+        Self {
+            large_allocation_rate: 1.0,    // 100% - all large allocations
+            medium_allocation_rate: 1.0,   // 100% - all medium allocations  
+            small_allocation_rate: 1.0,    // 100% - all small allocations (for demo)
+            large_threshold: 8 * 1024,     // 8KB threshold (catch more as "large")
+            medium_threshold: 256,         // 256B threshold (catch more as "medium")
+            frequency_threshold: 1,        // Immediate frequency boost
+        }
+    }
+
     /// Validates configuration parameters
     /// 
     /// Ensures all rates are between 0.0 and 1.0 and thresholds are reasonable.

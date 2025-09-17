@@ -61,6 +61,9 @@ impl LockfreeAggregator {
         analysis.memory_peaks = memory_peaks;
         analysis.performance_bottlenecks = performance_bottlenecks;
 
+        // IMPORTANT: Calculate summary statistics from thread data
+        analysis.calculate_summary(std::time::Instant::now());
+
         Ok(analysis)
     }
 

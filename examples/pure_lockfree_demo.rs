@@ -34,7 +34,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let total_operations = Arc::new(AtomicUsize::new(0));
     
     println!("🔄 Starting {} worker threads...", thread_count);
-    println!("   Expected total operations: ~37,000");
+    println!("   Expected total operations: ~180,000");
     
     let start_time = Instant::now();
     
@@ -142,10 +142,10 @@ fn create_thread_configurations() -> Vec<ThreadConfig> {
     for i in 0..8 {
         configs.push(ThreadConfig {
             name: format!("NetworkHandler-{}", i),
-            allocation_sizes: vec![64, 128, 256, 512],
-            operation_count: 1500,
-            sampling_config: SamplingConfig::performance_optimized(),
-            deallocation_frequency: 3,
+            allocation_sizes: vec![64, 128, 256, 512, 768, 1024],
+            operation_count: 3000, // 增加工作量
+            sampling_config: SamplingConfig::demo(),
+            deallocation_frequency: 4,
         });
     }
     
@@ -153,21 +153,21 @@ fn create_thread_configurations() -> Vec<ThreadConfig> {
     for i in 0..10 {
         configs.push(ThreadConfig {
             name: format!("DataProcessor-{}", i),
-            allocation_sizes: vec![1024, 2048, 4096, 8192],
-            operation_count: 800,
-            sampling_config: SamplingConfig::default(),
-            deallocation_frequency: 5,
+            allocation_sizes: vec![1024, 2048, 4096, 8192, 16384],
+            operation_count: 2000, // 增加工作量
+            sampling_config: SamplingConfig::demo(),
+            deallocation_frequency: 6,
         });
     }
     
-    // 6 Cache manager threads (large allocations with leaks)
+    // 6 Cache manager threads (large allocations with some leaks)
     for i in 0..6 {
         configs.push(ThreadConfig {
             name: format!("CacheManager-{}", i),
-            allocation_sizes: vec![16384, 32768, 65536, 131072],
-            operation_count: 300,
-            sampling_config: SamplingConfig::leak_detection(),
-            deallocation_frequency: 10, // Less frequent deallocation
+            allocation_sizes: vec![16384, 32768, 65536, 131072, 262144],
+            operation_count: 800, // 增加工作量
+            sampling_config: SamplingConfig::demo(),
+            deallocation_frequency: 8, // 减少释放频率以产生一些内存泄漏
         });
     }
     
@@ -175,10 +175,10 @@ fn create_thread_configurations() -> Vec<ThreadConfig> {
     for i in 0..6 {
         configs.push(ThreadConfig {
             name: format!("LogWriter-{}", i),
-            allocation_sizes: vec![32, 64, 128],
-            operation_count: 2000,
-            sampling_config: SamplingConfig::high_precision(),
-            deallocation_frequency: 2,
+            allocation_sizes: vec![32, 64, 128, 192, 256],
+            operation_count: 4000, // 增加工作量
+            sampling_config: SamplingConfig::demo(),
+            deallocation_frequency: 3,
         });
     }
     
@@ -204,15 +204,17 @@ fn run_worker_thread(
         let size_idx = i % config.allocation_sizes.len();
         let size = config.allocation_sizes[size_idx];
         
-        // Generate realistic memory address
-        let ptr = 0x20000000 + (thread_idx * 0x2000000) + (i * 128);
+        // Generate realistic memory address with better distribution (ensure no overflow)
+        let ptr = 0x20000000 + (thread_idx * 0x1000000) + (i * 128) + ((size % 1024) * 8);
         
-        // Create call stack representing the thread's function
+        // Create detailed call stack representing realistic program flow
         let call_stack = vec![
-            0x500000 + thread_idx,                    // Thread-specific function
-            0x600000 + (i % 20),                      // Loop iteration pattern
+            0x500000 + thread_idx,                    // Thread-specific main function
+            0x600000 + (i % 50),                      // More varied loop iteration patterns
             0x700000 + size_idx,                      // Size-specific allocation function
-            0x800000 + (thread_idx % 4),              // Thread type pattern
+            0x800000 + (thread_idx % 8),              // Thread type pattern (8 types)
+            0x900000 + ((i / 100) % 10),              // Batch processing pattern
+            0xA00000 + (size % 1024),                 // Size-based allocation strategy
         ];
         
         // Track allocation
@@ -233,14 +235,41 @@ fn run_worker_thread(
             total_operations.fetch_add(1, Ordering::Relaxed);
         }
         
-        // Add small delay every 100 operations
-        if i % 100 == 0 {
-            thread::sleep(Duration::from_millis(1));
+        // Add varied timing patterns to simulate realistic workloads
+        match thread_idx % 4 {
+            0 => { // Network threads: burst patterns
+                if i % 200 == 0 {
+                    thread::sleep(Duration::from_millis(2));
+                }
+            }
+            1 => { // Data processor threads: steady processing
+                if i % 150 == 0 {
+                    thread::sleep(Duration::from_millis(1));
+                }
+            }
+            2 => { // Cache threads: occasional heavy work
+                if i % 300 == 0 {
+                    thread::sleep(Duration::from_millis(3));
+                }
+            }
+            _ => { // Log threads: very frequent, very quick
+                if i % 50 == 0 {
+                    thread::sleep(Duration::from_nanos(500_000)); // 0.5ms
+                }
+            }
         }
     }
     
-    // Cleanup some remaining allocations (leave some for leak detection)
-    let cleanup_count = allocated_ptrs.len() / 2; // Only cleanup half
+    // Cleanup allocations with thread-specific patterns
+    let cleanup_ratio = match config.name.split('-').next().unwrap_or("") {
+        "NetworkHandler" => 0.8,   // Network handlers clean up most allocations
+        "DataProcessor" => 0.6,    // Data processors keep some data cached
+        "CacheManager" => 0.3,     // Cache managers intentionally leak some memory
+        "LogWriter" => 0.9,        // Log writers clean up aggressively
+        _ => 0.5,
+    };
+    
+    let cleanup_count = (allocated_ptrs.len() as f64 * cleanup_ratio) as usize;
     for (ptr, call_stack) in allocated_ptrs.into_iter().take(cleanup_count) {
         track_deallocation_lockfree(ptr, &call_stack)
             .map_err(|e| format!("Thread {} cleanup failed: {}", thread_idx, e))?;

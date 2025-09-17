@@ -67,10 +67,11 @@ pub use utils::{format_bytes, get_simple_type, simplify_type_name};
 #[cfg(feature = "derive")]
 pub use memscope_derive::Trackable;
 
-// Set up the global allocator when the tracking-allocator feature is enabled
+/// Global tracking allocator instance - only enabled with tracking-allocator feature
+/// for single-threaded or low-concurrency applications.
+/// For high-concurrency (30+ threads), use lockfree module instead.
 #[cfg(feature = "tracking-allocator")]
 #[global_allocator]
-/// Global tracking allocator instance used when the tracking-allocator feature is enabled.
 pub static GLOBAL: TrackingAllocator = TrackingAllocator::new();
 
 /// Trait for types that can be tracked by the memory tracker.

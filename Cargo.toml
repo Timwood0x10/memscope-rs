@@ -52,7 +52,7 @@ backtrace = ["dep:backtrace"]
 tracking-allocator = []
 derive = ["dep:memscope-derive"]
 parking-lot = []
-default = ["tracking-allocator", "parking-lot"]
+default = ["parking-lot"]
 test = []
 
 [dev-dependencies]
