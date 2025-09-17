@@ -379,72 +379,504 @@ impl LockfreeAggregator {
     fn build_html_report(&self, analysis: &LockfreeAnalysis) -> Result<String, Box<dyn std::error::Error>> {
         let mut html = String::new();
         
-        html.push_str("<!DOCTYPE html>\n<html>\n<head>\n");
-        html.push_str("<title>Multi-threaded Memory Analysis Report</title>\n");
-        html.push_str("<style>\n");
-        html.push_str("body { font-family: Arial, sans-serif; margin: 20px; }\n");
-        html.push_str(".section { margin-bottom: 30px; }\n");
-        html.push_str(".thread-stats { border: 1px solid #ccc; padding: 15px; margin: 10px; }\n");
-        html.push_str(".bottleneck { background-color: #ffe6e6; padding: 10px; margin: 5px; border-left: 4px solid red; }\n");
-        html.push_str(".interaction { background-color: #e6f3ff; padding: 10px; margin: 5px; border-left: 4px solid blue; }\n");
-        html.push_str("table { border-collapse: collapse; width: 100%; }\n");
-        html.push_str("th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }\n");
-        html.push_str("th { background-color: #f2f2f2; }\n");
-        html.push_str("</style>\n</head>\n<body>\n");
-
-        html.push_str("<h1>Multi-threaded Memory Analysis Report</h1>\n");
-
-        // Thread Statistics Section
-        html.push_str("<div class='section'>\n<h2>Thread Statistics</h2>\n");
-        for (thread_id, stats) in &analysis.thread_stats {
-            html.push_str(&format!("<div class='thread-stats'>\n"));
-            html.push_str(&format!("<h3>Thread {}</h3>\n", thread_id));
-            html.push_str(&format!("<p><strong>Total Allocations:</strong> {}</p>\n", stats.total_allocations));
-            html.push_str(&format!("<p><strong>Total Deallocations:</strong> {}</p>\n", stats.total_deallocations));
-            html.push_str(&format!("<p><strong>Peak Memory:</strong> {} bytes ({:.2} MB)</p>\n", 
-                                 stats.peak_memory, stats.peak_memory as f64 / (1024.0 * 1024.0)));
-            html.push_str(&format!("<p><strong>Total Allocated:</strong> {} bytes ({:.2} MB)</p>\n", 
-                                 stats.total_allocated, stats.total_allocated as f64 / (1024.0 * 1024.0)));
-            html.push_str(&format!("<p><strong>Average Allocation Size:</strong> {:.2} bytes</p>\n", stats.avg_allocation_size));
-            html.push_str("</div>\n");
+        // Enhanced HTML with modern styling and comprehensive data display
+        html.push_str(r#"<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Multi-threaded Memory Analysis Report</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
         }
-        html.push_str("</div>\n");
-
-        // Performance Bottlenecks Section
-        html.push_str("<div class='section'>\n<h2>Performance Bottlenecks</h2>\n");
-        for bottleneck in &analysis.performance_bottlenecks {
-            html.push_str("<div class='bottleneck'>\n");
-            html.push_str(&format!("<strong>{:?}</strong> (Severity: {:.2})<br>\n", 
-                                 bottleneck.bottleneck_type, bottleneck.severity));
-            html.push_str(&format!("{}<br>\n", bottleneck.description));
-            html.push_str(&format!("Thread: {}, Call Stack Hash: 0x{:x}\n", 
-                                 bottleneck.thread_id, bottleneck.call_stack_hash));
-            html.push_str("</div>\n");
+        .container { 
+            max-width: 1400px; 
+            margin: 0 auto; 
+            background: white; 
+            border-radius: 15px; 
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
         }
-        html.push_str("</div>\n");
-
-        // Thread Interactions Section
-        html.push_str("<div class='section'>\n<h2>Thread Interactions</h2>\n");
-        for interaction in &analysis.thread_interactions {
-            html.push_str("<div class='interaction'>\n");
-            html.push_str(&format!("Thread {} ↔ Thread {} (Strength: {})<br>\n", 
-                                 interaction.thread_a, interaction.thread_b, interaction.interaction_strength));
-            html.push_str(&format!("Shared Patterns: {}<br>\n", interaction.shared_patterns.len()));
-            html.push_str("</div>\n");
+        .header { 
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%); 
+            color: white; 
+            padding: 30px; 
+            text-align: center; 
         }
-        html.push_str("</div>\n");
-
-        // Hottest Call Stacks Section
-        html.push_str("<div class='section'>\n<h2>Hottest Call Stacks</h2>\n");
-        html.push_str("<table>\n<tr><th>Rank</th><th>Call Stack Hash</th><th>Frequency</th><th>Total Size (bytes)</th><th>Impact Score</th></tr>\n");
-        for (i, hot_stack) in analysis.hottest_call_stacks.iter().enumerate() {
-            html.push_str(&format!("<tr><td>{}</td><td>0x{:x}</td><td>{}</td><td>{}</td><td>{}</td></tr>\n", 
-                                 i + 1, hot_stack.call_stack_hash, hot_stack.total_frequency, 
-                                 hot_stack.total_size, hot_stack.impact_score));
+        .header h1 { font-size: 2.5em; margin-bottom: 10px; }
+        .header .subtitle { font-size: 1.2em; opacity: 0.9; }
+        .content { padding: 30px; }
+        .section { 
+            margin-bottom: 40px; 
+            background: #f8f9fa; 
+            border-radius: 10px; 
+            padding: 25px; 
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
         }
-        html.push_str("</table>\n</div>\n");
+        .section h2 { 
+            color: #2c3e50; 
+            border-bottom: 3px solid #3498db; 
+            padding-bottom: 10px; 
+            margin-bottom: 20px; 
+            font-size: 1.8em;
+        }
+        .stats-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); 
+            gap: 20px; 
+            margin-bottom: 30px;
+        }
+        .stat-card { 
+            background: white; 
+            border-radius: 10px; 
+            padding: 20px; 
+            border-left: 5px solid #3498db;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+        }
+        .stat-number { font-size: 2em; font-weight: bold; color: #2c3e50; }
+        .stat-label { color: #7f8c8d; font-size: 0.9em; }
+        .thread-detail { 
+            background: white; 
+            border-radius: 10px; 
+            padding: 20px; 
+            margin: 15px 0; 
+            border-left: 5px solid #e74c3c;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.05);
+        }
+        .thread-header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 15px;
+        }
+        .thread-title { color: #2c3e50; font-size: 1.4em; font-weight: bold; }
+        .thread-id { background: #3498db; color: white; padding: 5px 10px; border-radius: 15px; }
+        .metric-row { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+            gap: 15px; 
+            margin: 10px 0;
+        }
+        .metric { text-align: center; }
+        .metric-value { font-size: 1.3em; font-weight: bold; color: #27ae60; }
+        .metric-name { font-size: 0.9em; color: #7f8c8d; }
+        .enhanced-table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            background: white; 
+            border-radius: 10px; 
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        .enhanced-table th { 
+            background: linear-gradient(135deg, #3498db, #2980b9); 
+            color: white; 
+            padding: 15px; 
+            text-align: left; 
+            font-weight: 600;
+        }
+        .enhanced-table td { 
+            padding: 12px 15px; 
+            border-bottom: 1px solid #ecf0f1; 
+        }
+        .enhanced-table tr:hover { background: #ecf0f1; }
+        .bottleneck { 
+            background: linear-gradient(135deg, #fff5f5, #fed7d7); 
+            border-left: 5px solid #e53e3e; 
+            padding: 20px; 
+            margin: 15px 0; 
+            border-radius: 10px;
+        }
+        .bottleneck-header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 10px;
+        }
+        .severity-badge { 
+            background: #e53e3e; 
+            color: white; 
+            padding: 5px 10px; 
+            border-radius: 15px; 
+            font-size: 0.8em;
+        }
+        .interaction { 
+            background: linear-gradient(135deg, #ebf8ff, #bee3f8); 
+            border-left: 5px solid #3182ce; 
+            padding: 20px; 
+            margin: 15px 0; 
+            border-radius: 10px;
+        }
+        .tab-container { margin: 20px 0; }
+        .tab-buttons { 
+            display: flex; 
+            background: #ecf0f1; 
+            border-radius: 10px 10px 0 0; 
+            overflow: hidden;
+        }
+        .tab-button { 
+            background: #ecf0f1; 
+            border: none; 
+            padding: 15px 30px; 
+            cursor: pointer; 
+            transition: all 0.3s;
+        }
+        .tab-button.active { background: #3498db; color: white; }
+        .tab-content { 
+            background: white; 
+            padding: 30px; 
+            border-radius: 0 0 10px 10px; 
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        .progress-bar { 
+            background: #ecf0f1; 
+            height: 20px; 
+            border-radius: 10px; 
+            overflow: hidden; 
+            margin: 10px 0;
+        }
+        .progress-fill { 
+            background: linear-gradient(90deg, #27ae60, #2ecc71); 
+            height: 100%; 
+            transition: width 0.3s;
+        }
+        .call-stack-item { 
+            background: #f8f9fa; 
+            padding: 10px; 
+            margin: 5px 0; 
+            border-radius: 5px; 
+            border-left: 3px solid #3498db;
+        }
+        .hash-code { 
+            font-family: 'Courier New', monospace; 
+            background: #2c3e50; 
+            color: #ecf0f1; 
+            padding: 2px 6px; 
+            border-radius: 3px; 
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Enhanced Memory Analysis Report</h1>
+            <div class="subtitle">Complete Multi-threaded Memory Tracking Analysis</div>
+        </div>
+        <div class="content">
+"#);
 
-        html.push_str("</body>\n</html>");
+        // Global Summary Section
+        html.push_str(r#"<div class="section">
+                <h2>📊 Executive Summary</h2>
+                <div class="stats-grid">"#);
+        
+        html.push_str(&format!(r#"
+                <div class="stat-card">
+                    <div class="stat-number">{}</div>
+                    <div class="stat-label">Threads Analyzed</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">{}</div>
+                    <div class="stat-label">Total Allocations</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">{}</div>
+                    <div class="stat-label">Total Deallocations</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">{:.1} MB</div>
+                    <div class="stat-label">Peak Memory Usage</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">{}</div>
+                    <div class="stat-label">Unique Call Stacks</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">{}</div>
+                    <div class="stat-label">Thread Interactions</div>
+                </div>"#,
+            analysis.thread_stats.len(),
+            analysis.summary.total_allocations,
+            analysis.summary.total_deallocations,
+            analysis.summary.peak_memory_usage as f64 / (1024.0 * 1024.0),
+            analysis.summary.unique_call_stacks,
+            analysis.thread_interactions.len()
+        ));
+        
+        html.push_str("</div></div>");
+
+        // Enhanced Thread Statistics
+        html.push_str(r#"<div class="section">
+                <h2>🧵 Detailed Thread Analysis</h2>"#);
+        
+        let mut sorted_threads: Vec<_> = analysis.thread_stats.iter().collect();
+        sorted_threads.sort_by(|a, b| b.1.total_allocations.cmp(&a.1.total_allocations));
+        
+        for (thread_id, stats) in sorted_threads.iter().take(15) { // Show top 15 threads
+            let efficiency = if stats.total_allocations > 0 {
+                (stats.total_deallocations as f64 / stats.total_allocations as f64 * 100.0).min(100.0)
+            } else {
+                0.0
+            };
+            
+            html.push_str(&format!(r#"
+                <div class="thread-detail">
+                    <div class="thread-header">
+                        <div class="thread-title">Thread Analysis</div>
+                        <div class="thread-id">ID: {}</div>
+                    </div>
+                    <div class="metric-row">
+                        <div class="metric">
+                            <div class="metric-value">{}</div>
+                            <div class="metric-name">Allocations</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value">{}</div>
+                            <div class="metric-name">Deallocations</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value">{:.1}%</div>
+                            <div class="metric-name">Memory Efficiency</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value">{:.1} MB</div>
+                            <div class="metric-name">Peak Memory</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value">{:.0} B</div>
+                            <div class="metric-name">Avg Allocation</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value">{}</div>
+                            <div class="metric-name">Call Stack Patterns</div>
+                        </div>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: {:.1}%"></div>
+                    </div>
+                </div>"#,
+                thread_id,
+                stats.total_allocations,
+                stats.total_deallocations,
+                efficiency,
+                stats.peak_memory as f64 / (1024.0 * 1024.0),
+                stats.avg_allocation_size,
+                stats.allocation_frequency.len(),
+                efficiency
+            ));
+        }
+        
+        html.push_str("</div>");
+
+        // Performance Bottlenecks with Enhanced Display
+        html.push_str(r#"<div class="section">
+                <h2>⚠️ Performance Bottlenecks & Issues</h2>"#);
+        
+        if analysis.performance_bottlenecks.is_empty() {
+            html.push_str(r#"<div style="text-align: center; padding: 40px; color: #27ae60;">
+                    <h3>🎉 No Performance Bottlenecks Detected!</h3>
+                    <p>Your application shows healthy memory allocation patterns.</p>
+                </div>"#);
+        } else {
+            for bottleneck in &analysis.performance_bottlenecks {
+                let severity_color = match bottleneck.severity {
+                    s if s > 0.8 => "#e53e3e",
+                    s if s > 0.5 => "#dd6b20", 
+                    _ => "#f6ad55",
+                };
+                
+                html.push_str(&format!(r#"
+                    <div class="bottleneck">
+                        <div class="bottleneck-header">
+                            <h4>{:?}</h4>
+                            <div class="severity-badge" style="background: {}">
+                                Severity: {:.1}/1.0
+                            </div>
+                        </div>
+                        <p><strong>Description:</strong> {}</p>
+                        <p><strong>Thread:</strong> {}, <strong>Call Stack:</strong> <span class="hash-code">0x{:x}</span></p>
+                        <p><strong>Recommendation:</strong> {}</p>
+                    </div>"#,
+                    bottleneck.bottleneck_type,
+                    severity_color,
+                    bottleneck.severity,
+                    bottleneck.description,
+                    bottleneck.thread_id,
+                    bottleneck.call_stack_hash,
+                    bottleneck.suggestion
+                ));
+            }
+        }
+        
+        html.push_str("</div>");
+
+        // Thread Interactions Analysis
+        html.push_str(r#"<div class="section">
+                <h2>🔗 Thread Interaction Analysis</h2>"#);
+        
+        if analysis.thread_interactions.is_empty() {
+            html.push_str(r#"<div style="text-align: center; padding: 40px; color: #7f8c8d;">
+                    <h3>No Thread Interactions Detected</h3>
+                    <p>Threads are operating independently with minimal shared patterns.</p>
+                </div>"#);
+        } else {
+            for interaction in analysis.thread_interactions.iter().take(10) {
+                html.push_str(&format!(r#"
+                    <div class="interaction">
+                        <h4>Thread {} ↔ Thread {}</h4>
+                        <div class="metric-row">
+                            <div class="metric">
+                                <div class="metric-value">{}</div>
+                                <div class="metric-name">Interaction Strength</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-value">{}</div>
+                                <div class="metric-name">Shared Patterns</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-value">{:?}</div>
+                                <div class="metric-name">Interaction Type</div>
+                            </div>
+                        </div>
+                        <p><strong>Shared Pattern Examples:</strong></p>"#,
+                    interaction.thread_a,
+                    interaction.thread_b,
+                    interaction.interaction_strength,
+                    interaction.shared_patterns.len(),
+                    interaction.interaction_type
+                ));
+                
+                for (i, pattern) in interaction.shared_patterns.iter().take(5).enumerate() {
+                    html.push_str(&format!(
+                        r#"<div class="call-stack-item">Pattern {}: <span class="hash-code">0x{:x}</span></div>"#,
+                        i + 1, pattern
+                    ));
+                }
+                
+                html.push_str("</div>");
+            }
+        }
+        
+        html.push_str("</div>");
+
+        // Hottest Call Stacks with Enhanced Table
+        html.push_str(r#"<div class="section">
+                <h2>🔥 Hottest Call Stack Analysis</h2>
+                <p style="margin-bottom: 20px;">The most frequently used and impactful allocation patterns across all threads.</p>
+                <table class="enhanced-table">
+                    <thead>
+                        <tr>
+                            <th>Rank</th>
+                            <th>Call Stack Hash</th>
+                            <th>Frequency</th>
+                            <th>Total Size</th>
+                            <th>Impact Score</th>
+                            <th>Avg Size</th>
+                            <th>Performance Impact</th>
+                        </tr>
+                    </thead>
+                    <tbody>"#);
+        
+        for (i, hot_stack) in analysis.hottest_call_stacks.iter().take(25).enumerate() {
+            let avg_size = if hot_stack.total_frequency > 0 {
+                hot_stack.total_size as f64 / hot_stack.total_frequency as f64
+            } else {
+                0.0
+            };
+            
+            let impact_level = match hot_stack.impact_score {
+                s if s > 1_000_000 => "🔴 Critical",
+                s if s > 100_000 => "🟡 High", 
+                s if s > 10_000 => "🟢 Medium",
+                _ => "⚪ Low",
+            };
+            
+            html.push_str(&format!(r#"
+                        <tr>
+                            <td><strong>{}</strong></td>
+                            <td><span class="hash-code">0x{:x}</span></td>
+                            <td>{}</td>
+                            <td>{:.1} KB</td>
+                            <td>{}</td>
+                            <td>{:.0} B</td>
+                            <td>{}</td>
+                        </tr>"#,
+                i + 1,
+                hot_stack.call_stack_hash,
+                hot_stack.total_frequency,
+                hot_stack.total_size as f64 / 1024.0,
+                hot_stack.impact_score,
+                avg_size,
+                impact_level
+            ));
+        }
+        
+        html.push_str("</tbody></table></div>");
+
+        // Memory Peaks Analysis
+        if !analysis.memory_peaks.is_empty() {
+            html.push_str(r#"<div class="section">
+                    <h2>📈 Memory Peak Analysis</h2>
+                    <table class="enhanced-table">
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Thread ID</th>
+                                <th>Memory Usage</th>
+                                <th>Active Allocations</th>
+                                <th>Triggering Call Stack</th>
+                            </tr>
+                        </thead>
+                        <tbody>"#);
+            
+            for peak in analysis.memory_peaks.iter().take(15) {
+                html.push_str(&format!(r#"
+                            <tr>
+                                <td>{}</td>
+                                <td>{}</td>
+                                <td>{:.2} MB</td>
+                                <td>{}</td>
+                                <td><span class="hash-code">0x{:x}</span></td>
+                            </tr>"#,
+                    peak.timestamp,
+                    peak.thread_id,
+                    peak.memory_usage as f64 / (1024.0 * 1024.0),
+                    peak.active_allocations,
+                    peak.triggering_call_stack
+                ));
+            }
+            
+            html.push_str("</tbody></table></div>");
+        }
+
+        // Footer with metadata
+        html.push_str(&format!(r#"
+            <div class="section" style="text-align: center; background: #f8f9fa; color: #7f8c8d;">
+                <h3>📋 Report Metadata</h3>
+                <p>Generated on: {}</p>
+                <p>Analysis covered {} threads with {} total operations</p>
+                <p>Memory efficiency: {:.1}% overall</p>
+                <p>Data quality: {} unique call stack patterns detected</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>"#,
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs(),
+            analysis.thread_stats.len(),
+            analysis.summary.total_allocations + analysis.summary.total_deallocations,
+            if analysis.summary.total_allocations > 0 {
+                analysis.summary.total_deallocations as f64 / analysis.summary.total_allocations as f64 * 100.0
+            } else { 0.0 },
+            analysis.summary.unique_call_stacks
+        ));
+        
         Ok(html)
     }
 }
