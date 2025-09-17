@@ -5,6 +5,7 @@
 
 use crate::core::atomic_stats::SimpleMemoryStats;
 use crate::core::simple_mutex::SimpleMutex;
+use crate::core::safe_operations::SafeLock;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 

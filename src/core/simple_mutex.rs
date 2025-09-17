@@ -8,7 +8,7 @@
 pub type OptimizedMutex<T> = parking_lot::Mutex<T>;
 
 #[cfg(not(feature = "parking-lot"))]
-pub type OptimizedMutex<T> = StdMutex<T>;
+pub type OptimizedMutex<T> = std::sync::Mutex<T>;
 
 /// Simple mutex wrapper that provides consistent API
 pub struct SimpleMutex<T> {
@@ -39,7 +39,7 @@ impl<T> SimpleMutex<T> {
 
     /// Lock the mutex
     #[cfg(not(feature = "parking-lot"))]
-    pub fn lock(&self) -> Result<MutexGuard<T>, std::sync::PoisonError<MutexGuard<T>>> {
+    pub fn lock(&self) -> Result<std::sync::MutexGuard<T>, std::sync::PoisonError<std::sync::MutexGuard<T>>> {
         #[cfg(debug_assertions)]
         self.access_count
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -59,7 +59,7 @@ impl<T> SimpleMutex<T> {
 
     /// Try to lock the mutex
     #[cfg(not(feature = "parking-lot"))]
-    pub fn try_lock(&self) -> Result<MutexGuard<T>, std::sync::TryLockError<MutexGuard<T>>> {
+    pub fn try_lock(&self) -> Result<std::sync::MutexGuard<T>, std::sync::TryLockError<std::sync::MutexGuard<T>>> {
         #[cfg(debug_assertions)]
         self.access_count
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -83,6 +83,21 @@ impl<T> SimpleMutex<T> {
 impl<T: Default> Default for SimpleMutex<T> {
     fn default() -> Self {
         Self::new(T::default())
+    }
+}
+
+// SimpleMutex uses std::sync::Mutex internally, so we provide safe_lock methods
+impl<T> SimpleMutex<T> {
+    pub fn safe_lock(&self) -> crate::core::types::TrackingResult<std::sync::MutexGuard<'_, T>> {
+        self.lock().map_err(|_| crate::core::types::TrackingError::LockError("Failed to acquire mutex lock".to_string()))
+    }
+    
+    pub fn try_safe_lock(&self) -> crate::core::types::TrackingResult<Option<std::sync::MutexGuard<'_, T>>> {
+        match self.try_lock() {
+            Ok(guard) => Ok(Some(guard)),
+            Err(std::sync::TryLockError::WouldBlock) => Ok(None),
+            Err(_) => Err(crate::core::types::TrackingError::LockError("Failed to try acquire mutex lock".to_string()))
+        }
     }
 }
 

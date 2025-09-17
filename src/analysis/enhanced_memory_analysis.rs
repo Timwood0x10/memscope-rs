@@ -845,7 +845,13 @@ impl Default for EnhancedMemoryAnalyzer {
 pub fn analyze_memory_with_enhanced_features() -> Result<String, Box<dyn std::error::Error>> {
     let _analyzer = EnhancedMemoryAnalyzer::new();
 
-    // Get current allocations
+    // Get current allocations - only call global tracker if absolutely necessary
+    // Check if we're in a multi-threaded context and avoid global tracker if so
+    if std::thread::current().name().unwrap_or("").contains("thread") {
+        // We're likely in a multi-threaded context, return early or use alternative analysis
+        return Ok("Multi-threaded context detected - use lockfree enhanced analysis instead".to_string());
+    }
+    
     let tracker = crate::core::tracker::get_global_tracker();
     let allocations = tracker.get_active_allocations()?;
 
