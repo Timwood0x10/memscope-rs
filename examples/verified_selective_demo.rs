@@ -162,6 +162,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
                 
+                // Standard dashboard already generated above
+                
                 Some(analysis)
             }
             Err(e) => {

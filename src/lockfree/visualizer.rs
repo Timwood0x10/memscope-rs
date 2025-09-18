@@ -651,6 +651,16 @@ fn build_thread_ranking_tab(thread_rankings: &[super::resource_integration::Thre
             _ => "score-fair",
         };
         
+        let thread_display_name = if let Some(name) = &thread_perf.thread_name {
+            if name.trim().is_empty() {
+                format!("Thread {}", thread_perf.thread_id)
+            } else {
+                name.clone()
+            }
+        } else {
+            format!("Thread {}", thread_perf.thread_id)
+        };
+        
         html.push_str(&format!(r#"
                 <tr>
                     <td>{}</td>
@@ -662,7 +672,7 @@ fn build_thread_ranking_tab(thread_rankings: &[super::resource_integration::Thre
                 </tr>
         "#, rank + 1,
             thread_perf.thread_id,
-            thread_perf.thread_name.as_ref().unwrap_or(&"Unknown".to_string()),
+            thread_display_name,
             efficiency_class,
             thread_perf.efficiency_score,
             thread_perf.resource_usage_score,
@@ -759,6 +769,9 @@ function createCpuUsageChart() {
     js.push_str(&format!(r#"
     const cpuLabels = {:?};
     
+    // Store labels globally for other charts
+    window.chartLabels = cpuLabels;
+    
     new Chart(ctx, {{
         type: 'line',
         data: {{
@@ -831,7 +844,7 @@ function createGpuUsageChart() {{
     new Chart(ctx, {{
         type: 'line',
         data: {{
-            labels: cpuLabels,
+            labels: window.chartLabels || [],
             datasets: [{{
                 label: 'GPU Compute %',
                 data: gpuData,
@@ -901,7 +914,7 @@ function createMemoryTimelineChart() {{
     new Chart(ctx, {{
         type: 'bar',
         data: {{
-            labels: cpuLabels,
+            labels: window.chartLabels || [],
             datasets: [{{
                 label: 'Cumulative Allocations',
                 data: memoryData,

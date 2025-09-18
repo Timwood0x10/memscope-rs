@@ -456,7 +456,7 @@ impl IntegratedProfilingSession {
         // Get thread statistics from memory analysis
         for (thread_id, thread_stats) in &memory_analysis.thread_stats {
             let allocation_efficiency = if thread_stats.total_allocations > 0 {
-                thread_stats.total_deallocations as f32 / thread_stats.total_allocations as f32 * 100.0
+                (thread_stats.total_deallocations as f32 / thread_stats.total_allocations as f32 * 100.0).min(100.0)
             } else {
                 0.0
             };
@@ -466,9 +466,12 @@ impl IntegratedProfilingSession {
             // Overall efficiency score combining allocation patterns and resource usage
             let efficiency_score = (allocation_efficiency + resource_usage_score) / 2.0;
 
+            // Try to get thread name from resource timeline
+            let thread_name = self.get_thread_name(*thread_id);
+
             rankings.push(ThreadPerformanceMetric {
                 thread_id: *thread_id,
-                thread_name: None, // Would need to be tracked separately
+                thread_name,
                 efficiency_score,
                 resource_usage_score,
                 allocation_efficiency,
@@ -479,6 +482,26 @@ impl IntegratedProfilingSession {
         rankings.sort_by(|a, b| b.efficiency_score.partial_cmp(&a.efficiency_score).unwrap_or(std::cmp::Ordering::Equal));
 
         rankings
+    }
+    
+    fn get_thread_name(&self, thread_id: u64) -> Option<String> {
+        let timeline = match self.resource_timeline.lock() {
+            Ok(timeline) => timeline,
+            Err(_) => return None,
+        };
+        
+        // Look for thread name in any of the resource snapshots
+        for snapshot in timeline.iter() {
+            if let Some(thread_metrics) = snapshot.thread_metrics.get(&thread_id) {
+                if let Some(ref name) = thread_metrics.thread_name {
+                    if !name.trim().is_empty() {
+                        return Some(name.clone());
+                    }
+                }
+            }
+        }
+        
+        None
     }
 
     fn calculate_thread_resource_score(&self, thread_id: u64) -> f32 {
