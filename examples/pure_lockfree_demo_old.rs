@@ -32,9 +32,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let thread_configs = create_thread_configurations();
     let thread_count = thread_configs.len();
     let total_operations = Arc::new(AtomicUsize::new(0));
+    let tracked_threads = Arc::new(AtomicUsize::new(0));
+    let untracked_threads = Arc::new(AtomicUsize::new(0));
     
     println!("🔄 Starting {} worker threads...", thread_count);
-    println!("   Expected total operations: ~180,000");
+    println!("   📊 Tracking strategy: EVEN threads only (0,2,4,6...)");
+    println!("   📊 Expected tracked threads: {}", thread_count / 2);
+    println!("   📊 Expected total operations: ~450,000");
     
     let start_time = Instant::now();
     

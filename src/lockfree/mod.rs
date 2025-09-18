@@ -23,6 +23,7 @@ pub mod tracker;
 pub mod aggregator;
 pub mod analysis;
 pub mod sampling;
+pub mod api;
 
 pub use tracker::{
     ThreadLocalTracker, 
@@ -40,3 +41,12 @@ pub use analysis::{
     ThreadInteraction,
 };
 pub use sampling::SamplingConfig;
+pub use api::{
+    trace_all,
+    trace_thread, 
+    stop_tracing,
+    is_tracking,
+    memory_snapshot,
+    quick_trace,
+    MemorySnapshot,
+};
