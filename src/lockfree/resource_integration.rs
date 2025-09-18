@@ -1,16 +1,16 @@
 //! Integration layer that combines memory tracking with platform resource monitoring
-//! 
+//!
 //! This module provides unified API for comprehensive system analysis in multi-threaded environments
 
+use super::analysis::LockfreeAnalysis;
 use super::platform_resources::{PlatformResourceCollector, PlatformResourceMetrics};
 use super::tracker::ThreadLocalTracker;
-use super::analysis::LockfreeAnalysis;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Instant;
-use serde::{Serialize, Deserialize};
 
 /// Comprehensive analysis combining memory and system resource data
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -78,7 +78,7 @@ impl IntegratedProfilingSession {
     /// Create new integrated profiling session
     pub fn new(output_dir: &std::path::Path) -> Result<Self, Box<dyn std::error::Error>> {
         let resource_collector = PlatformResourceCollector::new()?;
-        
+
         Ok(Self {
             memory_trackers: HashMap::new(),
             resource_collector,
@@ -93,20 +93,20 @@ impl IntegratedProfilingSession {
     /// Start comprehensive profiling
     pub fn start_profiling(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         self.is_active.store(true, Ordering::SeqCst);
-        
+
         // Start resource collection thread
         let is_active = self.is_active.clone();
         let resource_timeline = self.resource_timeline.clone();
         let mut collector = PlatformResourceCollector::new()?;
-        
+
         let handle = thread::Builder::new()
             .name("resource_collector".to_string())
             .spawn(move || {
                 let collection_interval = collector.get_optimal_collection_interval();
-                
+
                 while is_active.load(Ordering::Relaxed) {
                     let start = Instant::now();
-                    
+
                     match collector.collect_metrics() {
                         Ok(metrics) => {
                             // Store metrics in shared timeline
@@ -118,22 +118,24 @@ impl IntegratedProfilingSession {
                             // Handle collection errors gracefully
                         }
                     }
-                    
+
                     let elapsed = start.elapsed();
                     if elapsed < collection_interval {
                         thread::sleep(collection_interval - elapsed);
                     }
                 }
             })?;
-        
+
         self.collection_thread = Some(handle);
         Ok(())
     }
 
     /// Stop profiling and generate comprehensive analysis
-    pub fn stop_profiling_and_analyze(&mut self) -> Result<ComprehensiveAnalysis, Box<dyn std::error::Error>> {
+    pub fn stop_profiling_and_analyze(
+        &mut self,
+    ) -> Result<ComprehensiveAnalysis, Box<dyn std::error::Error>> {
         self.is_active.store(false, Ordering::SeqCst);
-        
+
         // Wait for collection thread to finish
         if let Some(handle) = self.collection_thread.take() {
             let _ = handle.join();
@@ -148,7 +150,9 @@ impl IntegratedProfilingSession {
         self.generate_comprehensive_analysis()
     }
 
-    fn generate_comprehensive_analysis(&self) -> Result<ComprehensiveAnalysis, Box<dyn std::error::Error>> {
+    fn generate_comprehensive_analysis(
+        &self,
+    ) -> Result<ComprehensiveAnalysis, Box<dyn std::error::Error>> {
         // Aggregate memory analysis from all threads
         let aggregator = super::aggregator::LockfreeAggregator::new(self.output_directory.clone());
         let memory_analysis = aggregator.aggregate_all_threads()?;
@@ -157,10 +161,13 @@ impl IntegratedProfilingSession {
         let correlation_metrics = self.calculate_correlations(&memory_analysis)?;
 
         // Generate performance insights
-        let performance_insights = self.generate_performance_insights(&memory_analysis, &correlation_metrics)?;
+        let performance_insights =
+            self.generate_performance_insights(&memory_analysis, &correlation_metrics)?;
 
         // Get resource timeline data
-        let resource_timeline = self.resource_timeline.lock()
+        let resource_timeline = self
+            .resource_timeline
+            .lock()
             .map_err(|_| "Failed to lock resource timeline")?
             .clone();
 
@@ -172,13 +179,18 @@ impl IntegratedProfilingSession {
         })
     }
 
-    fn calculate_correlations(&self, memory_analysis: &LockfreeAnalysis) -> Result<CorrelationMetrics, Box<dyn std::error::Error>> {
+    fn calculate_correlations(
+        &self,
+        memory_analysis: &LockfreeAnalysis,
+    ) -> Result<CorrelationMetrics, Box<dyn std::error::Error>> {
         // Calculate correlation between memory operations and system resources
         let memory_cpu_correlation = self.calculate_memory_cpu_correlation(memory_analysis);
         let memory_gpu_correlation = self.calculate_memory_gpu_correlation(memory_analysis);
         let memory_io_correlation = self.calculate_memory_io_correlation(memory_analysis);
-        let allocation_rate_vs_cpu_usage = self.calculate_allocation_cpu_correlation(memory_analysis);
-        let deallocation_rate_vs_memory_pressure = self.calculate_deallocation_pressure_correlation(memory_analysis);
+        let allocation_rate_vs_cpu_usage =
+            self.calculate_allocation_cpu_correlation(memory_analysis);
+        let deallocation_rate_vs_memory_pressure =
+            self.calculate_deallocation_pressure_correlation(memory_analysis);
 
         Ok(CorrelationMetrics {
             memory_cpu_correlation,
@@ -194,7 +206,7 @@ impl IntegratedProfilingSession {
             Ok(timeline) => timeline,
             Err(_) => return 0.0,
         };
-        
+
         if timeline.is_empty() {
             return 0.0;
         }
@@ -203,7 +215,8 @@ impl IntegratedProfilingSession {
         let avg_cpu_usage: f32 = timeline
             .iter()
             .map(|r| r.cpu_metrics.overall_usage_percent)
-            .sum::<f32>() / timeline.len() as f32;
+            .sum::<f32>()
+            / timeline.len() as f32;
 
         // Simple correlation based on average CPU usage
         // In real implementation, would use proper statistical correlation
@@ -220,11 +233,8 @@ impl IntegratedProfilingSession {
             Ok(timeline) => timeline,
             Err(_) => return 0.0,
         };
-        
-        let gpu_samples = timeline
-            .iter()
-            .filter(|r| r.gpu_metrics.is_some())
-            .count();
+
+        let gpu_samples = timeline.iter().filter(|r| r.gpu_metrics.is_some()).count();
 
         if gpu_samples == 0 {
             return 0.0;
@@ -235,9 +245,14 @@ impl IntegratedProfilingSession {
             .iter()
             .filter_map(|r| r.gpu_metrics.as_ref())
             .map(|g| g.compute_usage_percent)
-            .sum::<f32>() / gpu_samples as f32;
+            .sum::<f32>()
+            / gpu_samples as f32;
 
-        if avg_gpu_usage > 50.0 { 0.5 } else { 0.1 }
+        if avg_gpu_usage > 50.0 {
+            0.5
+        } else {
+            0.1
+        }
     }
 
     fn calculate_memory_io_correlation(&self, _memory_analysis: &LockfreeAnalysis) -> f64 {
@@ -245,7 +260,7 @@ impl IntegratedProfilingSession {
             Ok(timeline) => timeline,
             Err(_) => return 0.0,
         };
-        
+
         if timeline.is_empty() {
             return 0.0;
         }
@@ -254,7 +269,8 @@ impl IntegratedProfilingSession {
         let avg_io_activity: u64 = timeline
             .iter()
             .map(|r| r.io_metrics.disk_read_bytes_per_sec + r.io_metrics.disk_write_bytes_per_sec)
-            .sum::<u64>() / timeline.len() as u64;
+            .sum::<u64>()
+            / timeline.len() as u64;
 
         match avg_io_activity {
             activity if activity > 100_000_000 => 0.7, // > 100MB/s
@@ -278,33 +294,42 @@ impl IntegratedProfilingSession {
         }
     }
 
-    fn calculate_deallocation_pressure_correlation(&self, memory_analysis: &LockfreeAnalysis) -> f64 {
+    fn calculate_deallocation_pressure_correlation(
+        &self,
+        memory_analysis: &LockfreeAnalysis,
+    ) -> f64 {
         // Correlation between deallocation rate and memory pressure
         let deallocation_count = memory_analysis.summary.total_deallocations;
         let peak_memory = memory_analysis.summary.peak_memory_usage;
 
         // Higher memory pressure typically leads to more frequent deallocations
-        if peak_memory > 1_000_000_000 && deallocation_count > 1000 { // > 1GB peak
+        if peak_memory > 1_000_000_000 && deallocation_count > 1000 {
+            // > 1GB peak
             0.7
-        } else if peak_memory > 100_000_000 && deallocation_count > 100 { // > 100MB peak
+        } else if peak_memory > 100_000_000 && deallocation_count > 100 {
+            // > 100MB peak
             0.4
         } else {
             0.1
         }
     }
 
-    fn generate_performance_insights(&self, memory_analysis: &LockfreeAnalysis, correlations: &CorrelationMetrics) -> Result<PerformanceInsights, Box<dyn std::error::Error>> {
+    fn generate_performance_insights(
+        &self,
+        memory_analysis: &LockfreeAnalysis,
+        correlations: &CorrelationMetrics,
+    ) -> Result<PerformanceInsights, Box<dyn std::error::Error>> {
         // Identify primary bottleneck
         let primary_bottleneck = self.identify_primary_bottleneck(correlations);
-        
+
         // Calculate efficiency scores
         let cpu_efficiency_score = self.calculate_cpu_efficiency_score();
         let memory_efficiency_score = self.calculate_memory_efficiency_score(memory_analysis);
         let io_efficiency_score = self.calculate_io_efficiency_score();
-        
+
         // Generate recommendations
         let recommendations = self.generate_recommendations(&primary_bottleneck, memory_analysis);
-        
+
         // Rank thread performance
         let thread_performance_ranking = self.rank_thread_performance(memory_analysis);
 
@@ -320,7 +345,8 @@ impl IntegratedProfilingSession {
 
     fn identify_primary_bottleneck(&self, correlations: &CorrelationMetrics) -> BottleneckType {
         // Determine bottleneck based on correlation strengths
-        let cpu_score = correlations.memory_cpu_correlation + correlations.allocation_rate_vs_cpu_usage;
+        let cpu_score =
+            correlations.memory_cpu_correlation + correlations.allocation_rate_vs_cpu_usage;
         let memory_score = correlations.deallocation_rate_vs_memory_pressure;
         let io_score = correlations.memory_io_correlation;
         let gpu_score = correlations.memory_gpu_correlation;
@@ -343,7 +369,7 @@ impl IntegratedProfilingSession {
             Ok(timeline) => timeline,
             Err(_) => return 0.0,
         };
-        
+
         if timeline.is_empty() {
             return 0.0;
         }
@@ -351,7 +377,8 @@ impl IntegratedProfilingSession {
         let avg_cpu_usage: f32 = timeline
             .iter()
             .map(|r| r.cpu_metrics.overall_usage_percent)
-            .sum::<f32>() / timeline.len() as f32;
+            .sum::<f32>()
+            / timeline.len() as f32;
 
         // Efficiency is good when CPU usage is moderate (not too low, not maxed out)
         match avg_cpu_usage {
@@ -365,7 +392,7 @@ impl IntegratedProfilingSession {
     fn calculate_memory_efficiency_score(&self, memory_analysis: &LockfreeAnalysis) -> f32 {
         let allocation_count = memory_analysis.summary.total_allocations;
         let deallocation_count = memory_analysis.summary.total_deallocations;
-        
+
         if allocation_count == 0 {
             return 0.0;
         }
@@ -385,7 +412,7 @@ impl IntegratedProfilingSession {
             Ok(timeline) => timeline,
             Err(_) => return 0.0,
         };
-        
+
         if timeline.is_empty() {
             return 0.0;
         }
@@ -394,7 +421,8 @@ impl IntegratedProfilingSession {
         let avg_io_throughput: u64 = timeline
             .iter()
             .map(|r| r.io_metrics.disk_read_bytes_per_sec + r.io_metrics.disk_write_bytes_per_sec)
-            .sum::<u64>() / timeline.len() as u64;
+            .sum::<u64>()
+            / timeline.len() as u64;
 
         // Efficiency based on consistent I/O patterns (not too bursty)
         match avg_io_throughput {
@@ -404,65 +432,94 @@ impl IntegratedProfilingSession {
         }
     }
 
-    fn generate_recommendations(&self, bottleneck: &BottleneckType, memory_analysis: &LockfreeAnalysis) -> Vec<String> {
+    fn generate_recommendations(
+        &self,
+        bottleneck: &BottleneckType,
+        memory_analysis: &LockfreeAnalysis,
+    ) -> Vec<String> {
         let mut recommendations = Vec::new();
 
         match bottleneck {
             BottleneckType::CpuBound => {
-                recommendations.push("Consider reducing CPU-intensive operations in memory allocation paths".to_string());
-                recommendations.push("Optimize hot allocation patterns identified in analysis".to_string());
+                recommendations.push(
+                    "Consider reducing CPU-intensive operations in memory allocation paths"
+                        .to_string(),
+                );
+                recommendations
+                    .push("Optimize hot allocation patterns identified in analysis".to_string());
             }
             BottleneckType::MemoryBound => {
-                recommendations.push("Reduce memory fragmentation by using memory pools".to_string());
-                recommendations.push("Consider implementing object recycling for frequently allocated types".to_string());
+                recommendations
+                    .push("Reduce memory fragmentation by using memory pools".to_string());
+                recommendations.push(
+                    "Consider implementing object recycling for frequently allocated types"
+                        .to_string(),
+                );
             }
             BottleneckType::IoBound => {
-                recommendations.push("Reduce I/O operations during memory-intensive phases".to_string());
-                recommendations.push("Consider async I/O patterns to avoid blocking memory operations".to_string());
+                recommendations
+                    .push("Reduce I/O operations during memory-intensive phases".to_string());
+                recommendations.push(
+                    "Consider async I/O patterns to avoid blocking memory operations".to_string(),
+                );
             }
             BottleneckType::GpuBound => {
-                recommendations.push("Optimize GPU memory transfers and synchronization".to_string());
+                recommendations
+                    .push("Optimize GPU memory transfers and synchronization".to_string());
                 recommendations.push("Consider reducing GPU-CPU memory copying".to_string());
             }
             BottleneckType::ContentionBound => {
-                recommendations.push("Reduce lock contention in memory allocation paths".to_string());
+                recommendations
+                    .push("Reduce lock contention in memory allocation paths".to_string());
                 recommendations.push("Consider using lock-free data structures".to_string());
             }
             BottleneckType::Balanced => {
                 recommendations.push("System performance appears well-balanced".to_string());
-                recommendations.push("Monitor for performance regression in future updates".to_string());
+                recommendations
+                    .push("Monitor for performance regression in future updates".to_string());
             }
         }
 
         // Add memory-specific recommendations
         let avg_allocation_size = if memory_analysis.summary.total_allocations > 0 {
-            memory_analysis.summary.peak_memory_usage / memory_analysis.summary.total_allocations as usize
+            memory_analysis.summary.peak_memory_usage
+                / memory_analysis.summary.total_allocations as usize
         } else {
             0
         };
 
-        if avg_allocation_size > 1024 * 1024 { // > 1MB average
-            recommendations.push("Large average allocation size detected - consider memory streaming".to_string());
-        } else if avg_allocation_size < 64 { // < 64 bytes average
-            recommendations.push("Many small allocations detected - consider object pooling".to_string());
+        if avg_allocation_size > 1024 * 1024 {
+            // > 1MB average
+            recommendations.push(
+                "Large average allocation size detected - consider memory streaming".to_string(),
+            );
+        } else if avg_allocation_size < 64 {
+            // < 64 bytes average
+            recommendations
+                .push("Many small allocations detected - consider object pooling".to_string());
         }
 
         recommendations
     }
 
-    fn rank_thread_performance(&self, memory_analysis: &LockfreeAnalysis) -> Vec<ThreadPerformanceMetric> {
+    fn rank_thread_performance(
+        &self,
+        memory_analysis: &LockfreeAnalysis,
+    ) -> Vec<ThreadPerformanceMetric> {
         let mut rankings = Vec::new();
 
         // Get thread statistics from memory analysis
         for (thread_id, thread_stats) in &memory_analysis.thread_stats {
             let allocation_efficiency = if thread_stats.total_allocations > 0 {
-                (thread_stats.total_deallocations as f32 / thread_stats.total_allocations as f32 * 100.0).min(100.0)
+                (thread_stats.total_deallocations as f32 / thread_stats.total_allocations as f32
+                    * 100.0)
+                    .min(100.0)
             } else {
                 0.0
             };
 
             let resource_usage_score = self.calculate_thread_resource_score(*thread_id);
-            
+
             // Overall efficiency score combining allocation patterns and resource usage
             let efficiency_score = (allocation_efficiency + resource_usage_score) / 2.0;
 
@@ -479,17 +536,21 @@ impl IntegratedProfilingSession {
         }
 
         // Sort by efficiency score (highest first)
-        rankings.sort_by(|a, b| b.efficiency_score.partial_cmp(&a.efficiency_score).unwrap_or(std::cmp::Ordering::Equal));
+        rankings.sort_by(|a, b| {
+            b.efficiency_score
+                .partial_cmp(&a.efficiency_score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         rankings
     }
-    
+
     fn get_thread_name(&self, thread_id: u64) -> Option<String> {
         let timeline = match self.resource_timeline.lock() {
             Ok(timeline) => timeline,
             Err(_) => return None,
         };
-        
+
         // Look for thread name in any of the resource snapshots
         for snapshot in timeline.iter() {
             if let Some(thread_metrics) = snapshot.thread_metrics.get(&thread_id) {
@@ -500,7 +561,7 @@ impl IntegratedProfilingSession {
                 }
             }
         }
-        
+
         None
     }
 
@@ -510,7 +571,7 @@ impl IntegratedProfilingSession {
             Ok(timeline) => timeline,
             Err(_) => return 50.0,
         };
-        
+
         let mut total_cpu_usage = 0.0f32;
         let mut sample_count = 0;
 
@@ -546,11 +607,11 @@ where
 {
     let mut session = IntegratedProfilingSession::new(output_dir)?;
     session.start_profiling()?;
-    
+
     let result = execution_fn();
-    
+
     let analysis = session.stop_profiling_and_analyze()?;
-    
+
     Ok((result, analysis))
 }
 
@@ -563,7 +624,7 @@ mod tests {
     fn test_integrated_profiling_session_creation() {
         let temp_dir = std::env::temp_dir().join("memscope_test");
         let result = IntegratedProfilingSession::new(&temp_dir);
-        
+
         match result {
             Ok(_session) => {
                 // Session created successfully
@@ -578,7 +639,7 @@ mod tests {
     #[test]
     fn test_comprehensive_profiling_function() {
         let temp_dir = std::env::temp_dir().join("memscope_comprehensive_test");
-        
+
         let result = comprehensive_profile_execution(&temp_dir, || {
             // Simulate some work
             let mut data = Vec::new();

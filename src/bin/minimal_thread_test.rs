@@ -3,23 +3,26 @@
 //! This test uses only the new lock-free components without any
 //! global tracker access to identify the root cause.
 
-use std::thread;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+use std::thread;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Starting minimal thread isolation test...");
-    
+
     let counter = Arc::new(AtomicUsize::new(0));
     let thread_count = 200; // Test with high thread count
-    
-    println!("Spawning {} threads with minimal operations...", thread_count);
-    
+
+    println!(
+        "Spawning {} threads with minimal operations...",
+        thread_count
+    );
+
     // Test pure thread spawning without any memscope operations
     let handles: Vec<_> = (0..thread_count)
         .map(|thread_idx| {
             let counter = Arc::clone(&counter);
-            
+
             thread::spawn(move || {
                 // Minimal operations - no memscope calls
                 for i in 0..100 {
@@ -30,7 +33,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             })
         })
         .collect();
-    
+
     // Wait for completion
     let mut completed = 0;
     for handle in handles {
@@ -38,17 +41,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             completed += 1;
         }
     }
-    
+
     let total_ops = counter.load(Ordering::Relaxed);
     println!("Test completed:");
     println!("  - Threads completed: {}/{}", completed, thread_count);
     println!("  - Total operations: {}", total_ops);
-    
+
     if completed == thread_count {
         println!("✅ Pure threading works - issue is in memscope components");
     } else {
         println!("❌ Basic threading failed - system issue");
     }
-    
+
     Ok(())
 }

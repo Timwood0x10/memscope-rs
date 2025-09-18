@@ -214,7 +214,7 @@ impl LockfreeAnalysis {
             total_deallocations += stats.total_deallocations;
             peak_memory = peak_memory.max(stats.peak_memory);
             total_allocated += stats.total_allocated;
-            
+
             for &call_stack_hash in stats.allocation_frequency.keys() {
                 all_call_stacks.insert(call_stack_hash);
             }
@@ -239,11 +239,12 @@ impl LockfreeAnalysis {
 
     /// Gets threads with highest allocation activity
     pub fn get_most_active_threads(&self, limit: usize) -> Vec<(u64, u64)> {
-        let mut thread_activity: Vec<_> = self.thread_stats
+        let mut thread_activity: Vec<_> = self
+            .thread_stats
             .iter()
             .map(|(&thread_id, stats)| (thread_id, stats.total_allocations))
             .collect();
-        
+
         thread_activity.sort_by(|a, b| b.1.cmp(&a.1));
         thread_activity.truncate(limit);
         thread_activity
@@ -251,11 +252,12 @@ impl LockfreeAnalysis {
 
     /// Gets threads with highest memory usage
     pub fn get_highest_memory_threads(&self, limit: usize) -> Vec<(u64, usize)> {
-        let mut thread_memory: Vec<_> = self.thread_stats
+        let mut thread_memory: Vec<_> = self
+            .thread_stats
             .iter()
             .map(|(&thread_id, stats)| (thread_id, stats.peak_memory))
             .collect();
-        
+
         thread_memory.sort_by(|a, b| b.1.cmp(&a.1));
         thread_memory.truncate(limit);
         thread_memory

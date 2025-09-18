@@ -39,7 +39,9 @@ impl<T> SimpleMutex<T> {
 
     /// Lock the mutex
     #[cfg(not(feature = "parking-lot"))]
-    pub fn lock(&self) -> Result<std::sync::MutexGuard<T>, std::sync::PoisonError<std::sync::MutexGuard<T>>> {
+    pub fn lock(
+        &self,
+    ) -> Result<std::sync::MutexGuard<T>, std::sync::PoisonError<std::sync::MutexGuard<T>>> {
         #[cfg(debug_assertions)]
         self.access_count
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -59,7 +61,9 @@ impl<T> SimpleMutex<T> {
 
     /// Try to lock the mutex
     #[cfg(not(feature = "parking-lot"))]
-    pub fn try_lock(&self) -> Result<std::sync::MutexGuard<T>, std::sync::TryLockError<std::sync::MutexGuard<T>>> {
+    pub fn try_lock(
+        &self,
+    ) -> Result<std::sync::MutexGuard<T>, std::sync::TryLockError<std::sync::MutexGuard<T>>> {
         #[cfg(debug_assertions)]
         self.access_count
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -94,27 +98,35 @@ impl<T> SimpleMutex<T> {
         // parking-lot's lock() never fails
         Ok(self.lock())
     }
-    
+
     #[cfg(not(feature = "parking-lot"))]
     pub fn safe_lock(&self) -> crate::core::types::TrackingResult<std::sync::MutexGuard<'_, T>> {
         // std::sync::Mutex's lock() returns Result<MutexGuard, PoisonError>
-        self.lock().map_err(|_| crate::core::types::TrackingError::LockError("Failed to acquire mutex lock".to_string()))
+        self.lock().map_err(|_| {
+            crate::core::types::TrackingError::LockError("Failed to acquire mutex lock".to_string())
+        })
     }
-    
+
     /// Safe try_lock that returns consistent Result for both parking-lot and std
     #[cfg(feature = "parking-lot")]
-    pub fn try_safe_lock(&self) -> crate::core::types::TrackingResult<Option<parking_lot::MutexGuard<'_, T>>> {
+    pub fn try_safe_lock(
+        &self,
+    ) -> crate::core::types::TrackingResult<Option<parking_lot::MutexGuard<'_, T>>> {
         // parking-lot's try_lock() returns Option<MutexGuard>
         Ok(self.try_lock())
     }
-    
+
     #[cfg(not(feature = "parking-lot"))]
-    pub fn try_safe_lock(&self) -> crate::core::types::TrackingResult<Option<std::sync::MutexGuard<'_, T>>> {
+    pub fn try_safe_lock(
+        &self,
+    ) -> crate::core::types::TrackingResult<Option<std::sync::MutexGuard<'_, T>>> {
         // std::sync::Mutex's try_lock() returns Result<MutexGuard, TryLockError>
         match self.try_lock() {
             Ok(guard) => Ok(Some(guard)),
             Err(std::sync::TryLockError::WouldBlock) => Ok(None),
-            Err(_) => Err(crate::core::types::TrackingError::LockError("Failed to try acquire mutex lock".to_string()))
+            Err(_) => Err(crate::core::types::TrackingError::LockError(
+                "Failed to try acquire mutex lock".to_string(),
+            )),
         }
     }
 }

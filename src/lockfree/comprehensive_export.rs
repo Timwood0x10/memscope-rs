@@ -1,12 +1,12 @@
 //! Comprehensive export functionality for CPU/GPU/Memory analysis data
-//! 
+//!
 //! Provides JSON and enhanced HTML export with detailed resource analytics
 
 use super::resource_integration::ComprehensiveAnalysis;
 use super::visualizer::generate_comprehensive_html_report;
 // Comprehensive export functionality
-use std::path::Path;
 use serde_json::{json, Value};
+use std::path::Path;
 
 /// Export comprehensive analysis to multiple formats
 pub fn export_comprehensive_analysis(
@@ -15,21 +15,30 @@ pub fn export_comprehensive_analysis(
     base_name: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     std::fs::create_dir_all(output_dir)?;
-    
+
     // Export detailed JSON with CPU/GPU rankings
-    export_comprehensive_json(analysis, &output_dir.join(format!("{}_comprehensive.json", base_name)))?;
-    
+    export_comprehensive_json(
+        analysis,
+        &output_dir.join(format!("{}_comprehensive.json", base_name)),
+    )?;
+
     // Export enhanced HTML dashboard
-    generate_comprehensive_html_report(analysis, &output_dir.join(format!("{}_dashboard.html", base_name)))?;
-    
+    generate_comprehensive_html_report(
+        analysis,
+        &output_dir.join(format!("{}_dashboard.html", base_name)),
+    )?;
+
     // Export CPU/GPU specific analysis
-    export_resource_rankings_json(analysis, &output_dir.join(format!("{}_resource_rankings.json", base_name)))?;
-    
+    export_resource_rankings_json(
+        analysis,
+        &output_dir.join(format!("{}_resource_rankings.json", base_name)),
+    )?;
+
     println!("📊 Comprehensive analysis exported to:");
     println!("   📄 JSON: {}_comprehensive.json", base_name);
     println!("   🌐 HTML: {}_dashboard.html", base_name);
     println!("   📈 Rankings: {}_resource_rankings.json", base_name);
-    
+
     Ok(())
 }
 
@@ -39,19 +48,19 @@ pub fn export_comprehensive_json(
     output_path: &Path,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut json_data = serde_json::to_value(analysis)?;
-    
+
     // Add computed analytics
     let analytics = compute_comprehensive_analytics(analysis)?;
     json_data["analytics"] = analytics;
-    
+
     // Add resource rankings
     let rankings = compute_resource_rankings(analysis)?;
     json_data["rankings"] = rankings;
-    
+
     // Write formatted JSON
     let pretty_json = serde_json::to_string_pretty(&json_data)?;
     std::fs::write(output_path, pretty_json)?;
-    
+
     Ok(())
 }
 
@@ -61,7 +70,7 @@ pub fn export_resource_rankings_json(
     output_path: &Path,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let rankings = compute_detailed_resource_rankings(analysis)?;
-    
+
     let rankings_json = json!({
         "timestamp": chrono::Utc::now().to_rfc3339(),
         "summary": {
@@ -80,34 +89,37 @@ pub fn export_resource_rankings_json(
         "thread_rankings": rankings["thread_rankings"],
         "performance_insights": rankings["performance_insights"]
     });
-    
+
     let pretty_json = serde_json::to_string_pretty(&rankings_json)?;
     std::fs::write(output_path, pretty_json)?;
-    
+
     Ok(())
 }
 
 /// Compute comprehensive analytics from the analysis data
-fn compute_comprehensive_analytics(analysis: &ComprehensiveAnalysis) -> Result<Value, Box<dyn std::error::Error>> {
+fn compute_comprehensive_analytics(
+    analysis: &ComprehensiveAnalysis,
+) -> Result<Value, Box<dyn std::error::Error>> {
     let timeline = &analysis.resource_timeline;
-    
+
     // CPU Analytics
     let cpu_analytics = if !timeline.is_empty() {
-        let cpu_usages: Vec<f32> = timeline.iter()
+        let cpu_usages: Vec<f32> = timeline
+            .iter()
             .map(|r| r.cpu_metrics.overall_usage_percent)
             .collect();
-        
+
         let avg_cpu = cpu_usages.iter().sum::<f32>() / cpu_usages.len() as f32;
         let max_cpu = cpu_usages.iter().fold(0.0f32, |a, &b| a.max(b));
         let min_cpu = cpu_usages.iter().fold(100.0f32, |a, &b| a.min(b));
-        
+
         // CPU trend analysis
         let cpu_trend = if cpu_usages.len() > 5 {
-            let first_half = &cpu_usages[..cpu_usages.len()/2];
-            let second_half = &cpu_usages[cpu_usages.len()/2..];
+            let first_half = &cpu_usages[..cpu_usages.len() / 2];
+            let second_half = &cpu_usages[cpu_usages.len() / 2..];
             let first_avg = first_half.iter().sum::<f32>() / first_half.len() as f32;
             let second_avg = second_half.iter().sum::<f32>() / second_half.len() as f32;
-            
+
             if second_avg > first_avg + 5.0 {
                 "increasing"
             } else if second_avg < first_avg - 5.0 {
@@ -118,7 +130,7 @@ fn compute_comprehensive_analytics(analysis: &ComprehensiveAnalysis) -> Result<V
         } else {
             "insufficient_data"
         };
-        
+
         json!({
             "average_usage": avg_cpu,
             "peak_usage": max_cpu,
@@ -137,22 +149,28 @@ fn compute_comprehensive_analytics(analysis: &ComprehensiveAnalysis) -> Result<V
             "load_average_final": [0.0, 0.0, 0.0]
         })
     };
-    
+
     // GPU Analytics
     let gpu_analytics = {
-        let gpu_samples: Vec<&super::platform_resources::GpuResourceMetrics> = timeline.iter()
+        let gpu_samples: Vec<&super::platform_resources::GpuResourceMetrics> = timeline
+            .iter()
             .filter_map(|r| r.gpu_metrics.as_ref())
             .collect();
-        
+
         if !gpu_samples.is_empty() {
-            let compute_usages: Vec<f32> = gpu_samples.iter().map(|g| g.compute_usage_percent).collect();
-            let memory_usages: Vec<f32> = gpu_samples.iter().map(|g| g.memory_usage_percent).collect();
-            let temperatures: Vec<f32> = gpu_samples.iter().map(|g| g.temperature_celsius).collect();
-            
+            let compute_usages: Vec<f32> = gpu_samples
+                .iter()
+                .map(|g| g.compute_usage_percent)
+                .collect();
+            let memory_usages: Vec<f32> =
+                gpu_samples.iter().map(|g| g.memory_usage_percent).collect();
+            let temperatures: Vec<f32> =
+                gpu_samples.iter().map(|g| g.temperature_celsius).collect();
+
             let avg_compute = compute_usages.iter().sum::<f32>() / compute_usages.len() as f32;
             let avg_memory = memory_usages.iter().sum::<f32>() / memory_usages.len() as f32;
             let avg_temp = temperatures.iter().sum::<f32>() / temperatures.len() as f32;
-            
+
             json!({
                 "available": true,
                 "device_name": gpu_samples.first().map(|g| &g.device_name).unwrap_or(&"Unknown".to_string()),
@@ -171,7 +189,7 @@ fn compute_comprehensive_analytics(analysis: &ComprehensiveAnalysis) -> Result<V
             })
         }
     };
-    
+
     // Memory Analytics (from existing memory analysis)
     let memory_analytics = json!({
         "total_allocations": analysis.memory_analysis.summary.total_allocations,
@@ -183,14 +201,26 @@ fn compute_comprehensive_analytics(analysis: &ComprehensiveAnalysis) -> Result<V
         } else { 0.0 },
         "tracked_threads": analysis.memory_analysis.thread_stats.len()
     });
-    
+
     // I/O Analytics
     let io_analytics = if !timeline.is_empty() {
-        let total_disk_read: u64 = timeline.iter().map(|r| r.io_metrics.disk_read_bytes_per_sec).sum();
-        let total_disk_write: u64 = timeline.iter().map(|r| r.io_metrics.disk_write_bytes_per_sec).sum();
-        let total_network_rx: u64 = timeline.iter().map(|r| r.io_metrics.network_rx_bytes_per_sec).sum();
-        let total_network_tx: u64 = timeline.iter().map(|r| r.io_metrics.network_tx_bytes_per_sec).sum();
-        
+        let total_disk_read: u64 = timeline
+            .iter()
+            .map(|r| r.io_metrics.disk_read_bytes_per_sec)
+            .sum();
+        let total_disk_write: u64 = timeline
+            .iter()
+            .map(|r| r.io_metrics.disk_write_bytes_per_sec)
+            .sum();
+        let total_network_rx: u64 = timeline
+            .iter()
+            .map(|r| r.io_metrics.network_rx_bytes_per_sec)
+            .sum();
+        let total_network_tx: u64 = timeline
+            .iter()
+            .map(|r| r.io_metrics.network_tx_bytes_per_sec)
+            .sum();
+
         json!({
             "total_disk_read_mb": total_disk_read as f64 / 1024.0 / 1024.0,
             "total_disk_write_mb": total_disk_write as f64 / 1024.0 / 1024.0,
@@ -209,7 +239,7 @@ fn compute_comprehensive_analytics(analysis: &ComprehensiveAnalysis) -> Result<V
             "avg_network_throughput_mbps": 0.0
         })
     };
-    
+
     Ok(json!({
         "cpu": cpu_analytics,
         "gpu": gpu_analytics,
@@ -220,9 +250,11 @@ fn compute_comprehensive_analytics(analysis: &ComprehensiveAnalysis) -> Result<V
 }
 
 /// Compute resource rankings for export
-fn compute_resource_rankings(analysis: &ComprehensiveAnalysis) -> Result<Value, Box<dyn std::error::Error>> {
+fn compute_resource_rankings(
+    analysis: &ComprehensiveAnalysis,
+) -> Result<Value, Box<dyn std::error::Error>> {
     let timeline = &analysis.resource_timeline;
-    
+
     // CPU usage ranking by sample
     let mut cpu_ranking = Vec::new();
     for (i, metric) in timeline.iter().enumerate() {
@@ -238,14 +270,16 @@ fn compute_resource_rankings(analysis: &ComprehensiveAnalysis) -> Result<Value, 
             }
         }));
     }
-    
+
     // Sort CPU ranking by usage
     cpu_ranking.sort_by(|a, b| {
-        b["overall_usage"].as_f64().unwrap_or(0.0)
+        b["overall_usage"]
+            .as_f64()
+            .unwrap_or(0.0)
             .partial_cmp(&a["overall_usage"].as_f64().unwrap_or(0.0))
             .unwrap_or(std::cmp::Ordering::Equal)
     });
-    
+
     // GPU usage ranking
     let mut gpu_ranking = Vec::new();
     for (i, metric) in timeline.iter().enumerate() {
@@ -266,14 +300,16 @@ fn compute_resource_rankings(analysis: &ComprehensiveAnalysis) -> Result<Value, 
             }));
         }
     }
-    
+
     // Memory usage ranking by thread
     let mut memory_ranking = Vec::new();
     for (thread_id, stats) in &analysis.memory_analysis.thread_stats {
         let efficiency = if stats.total_allocations > 0 {
             stats.total_deallocations as f64 / stats.total_allocations as f64 * 100.0
-        } else { 0.0 };
-        
+        } else {
+            0.0
+        };
+
         memory_ranking.push(json!({
             "thread_id": thread_id,
             "total_allocations": stats.total_allocations,
@@ -288,14 +324,16 @@ fn compute_resource_rankings(analysis: &ComprehensiveAnalysis) -> Result<Value, 
             }
         }));
     }
-    
+
     // Sort memory ranking by peak usage
     memory_ranking.sort_by(|a, b| {
-        b["peak_memory_usage_kb"].as_f64().unwrap_or(0.0)
+        b["peak_memory_usage_kb"]
+            .as_f64()
+            .unwrap_or(0.0)
             .partial_cmp(&a["peak_memory_usage_kb"].as_f64().unwrap_or(0.0))
             .unwrap_or(std::cmp::Ordering::Equal)
     });
-    
+
     Ok(json!({
         "cpu_usage_ranking": cpu_ranking,
         "gpu_usage_ranking": gpu_ranking,
@@ -305,9 +343,11 @@ fn compute_resource_rankings(analysis: &ComprehensiveAnalysis) -> Result<Value, 
 }
 
 /// Compute detailed resource rankings with additional analytics
-fn compute_detailed_resource_rankings(analysis: &ComprehensiveAnalysis) -> Result<Value, Box<dyn std::error::Error>> {
+fn compute_detailed_resource_rankings(
+    analysis: &ComprehensiveAnalysis,
+) -> Result<Value, Box<dyn std::error::Error>> {
     let basic_rankings = compute_resource_rankings(analysis)?;
-    
+
     // Add top performers analysis
     let cpu_top_performers = basic_rankings["cpu_usage_ranking"]
         .as_array()
@@ -316,7 +356,7 @@ fn compute_detailed_resource_rankings(analysis: &ComprehensiveAnalysis) -> Resul
         .take(5)
         .cloned()
         .collect::<Vec<Value>>();
-    
+
     let memory_top_consumers = basic_rankings["memory_usage_ranking"]
         .as_array()
         .unwrap_or(&Vec::new())
@@ -324,7 +364,7 @@ fn compute_detailed_resource_rankings(analysis: &ComprehensiveAnalysis) -> Resul
         .take(10)
         .cloned()
         .collect::<Vec<Value>>();
-    
+
     // Performance insights summary
     let insights_summary = json!({
         "primary_bottleneck": analysis.performance_insights.primary_bottleneck,
@@ -336,7 +376,7 @@ fn compute_detailed_resource_rankings(analysis: &ComprehensiveAnalysis) -> Resul
         "recommendations_count": analysis.performance_insights.recommendations.len(),
         "top_recommendations": analysis.performance_insights.recommendations.iter().take(3).collect::<Vec<_>>()
     });
-    
+
     Ok(json!({
         "cpu_rankings": {
             "all_samples": basic_rankings["cpu_usage_ranking"],
@@ -379,14 +419,14 @@ fn compute_detailed_resource_rankings(analysis: &ComprehensiveAnalysis) -> Resul
 #[cfg(test)]
 mod tests {
     // Test module for comprehensive export functionality
-    
+
     #[test]
     fn test_json_export_structure() {
         // This test would require a real ComprehensiveAnalysis instance
         // For now, just test that the export directory creation works
         let temp_dir = std::env::temp_dir().join("memscope_export_test");
         std::fs::create_dir_all(&temp_dir).expect("Failed to create test directory");
-        
+
         // Clean up
         let _ = std::fs::remove_dir_all(&temp_dir);
     }

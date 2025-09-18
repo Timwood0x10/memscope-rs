@@ -73,9 +73,9 @@ pub struct FrequencyData {
 /// Memory allocation category
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum AllocationCategory {
-    Small,   // < 2KB
-    Medium,  // 2KB - 64KB  
-    Large,   // >= 64KB
+    Small,  // < 2KB
+    Medium, // 2KB - 64KB
+    Large,  // >= 64KB
 }
 
 /// Process memory statistics snapshot
@@ -176,7 +176,7 @@ pub use crate::lockfree::sampling::SamplingConfig;
 // Thread-local tracker that operates completely independently
 // Uses RefCell for interior mutability without locks
 thread_local! {
-    static THREAD_TRACKER: std::cell::RefCell<Option<ThreadLocalTracker>> = 
+    static THREAD_TRACKER: std::cell::RefCell<Option<ThreadLocalTracker>> =
         std::cell::RefCell::new(None);
 }
 
@@ -218,17 +218,17 @@ pub struct ThreadLocalTracker {
 
 impl ThreadLocalTracker {
     /// Creates a new thread-local tracker with specified configuration
-    /// 
+    ///
     /// # Arguments
     /// * `output_dir` - Directory for storing thread-specific binary files
     /// * `config` - Sampling configuration for intelligent allocation tracking
-    /// 
+    ///
     /// # Returns
     /// Result containing the configured tracker or IO error
     pub fn new(output_dir: &std::path::Path, config: SamplingConfig) -> std::io::Result<Self> {
         let thread_id = get_thread_id();
         let file_path = output_dir.join(format!("memscope_thread_{}.bin", thread_id));
-        
+
         // Ensure output directory exists before creating tracker
         if let Some(parent) = file_path.parent() {
             std::fs::create_dir_all(parent)?;
@@ -236,10 +236,10 @@ impl ThreadLocalTracker {
 
         // Pre-allocate buffer for optimal performance
         let event_buffer = Vec::with_capacity(1000);
-        
+
         // Try to get thread name
         let thread_name = std::thread::current().name().map(|s| s.to_string());
-        
+
         Ok(Self {
             thread_id,
             event_buffer,
@@ -261,49 +261,67 @@ impl ThreadLocalTracker {
     }
 
     /// Tracks allocation with enhanced metadata collection
-    /// 
+    ///
     /// # Arguments
     /// * `ptr` - Memory pointer address
     /// * `size` - Allocation size in bytes
     /// * `call_stack` - Full call stack for detailed tracking
-    /// 
+    ///
     /// # Returns
     /// Result indicating success or error during tracking/flushing
-    pub fn track_allocation(&mut self, ptr: usize, size: usize, call_stack: &[usize]) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn track_allocation(
+        &mut self,
+        ptr: usize,
+        size: usize,
+        call_stack: &[usize],
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let call_stack_hash = calculate_call_stack_hash(call_stack);
         // Update frequency tracking for intelligent sampling
-        let frequency = self.call_stack_frequencies.entry(call_stack_hash).or_insert(0);
+        let frequency = self
+            .call_stack_frequencies
+            .entry(call_stack_hash)
+            .or_insert(0);
         *frequency += 1;
         let current_frequency = *frequency;
         self.call_stack_sizes.insert(call_stack_hash, size);
-        
+
         // Update size ranges for this call stack
-        let size_range = self.call_stack_size_ranges.entry(call_stack_hash).or_insert((size, size));
+        let size_range = self
+            .call_stack_size_ranges
+            .entry(call_stack_hash)
+            .or_insert((size, size));
         size_range.0 = size_range.0.min(size);
         size_range.1 = size_range.1.max(size);
-        
+
         // Update time ranges
         let timestamp = get_timestamp();
-        let time_range = self.call_stack_time_ranges.entry(call_stack_hash).or_insert((timestamp, timestamp));
+        let time_range = self
+            .call_stack_time_ranges
+            .entry(call_stack_hash)
+            .or_insert((timestamp, timestamp));
         time_range.0 = time_range.0.min(timestamp);
         time_range.1 = time_range.1.max(timestamp);
-        
+
         // Calculate CPU time elapsed
         let cpu_time_ns = self.start_time.elapsed().as_nanos() as u64;
-        *self.call_stack_cpu_times.entry(call_stack_hash).or_insert(0) += cpu_time_ns / 1000; // Rough estimate
+        *self
+            .call_stack_cpu_times
+            .entry(call_stack_hash)
+            .or_insert(0) += cpu_time_ns / 1000; // Rough estimate
 
         // For demo purposes, force sampling of more allocations
         if self.should_sample_allocation(size, current_frequency) || current_frequency <= 10 {
             // Update performance sampling counter
             self.performance_sample_counter += 1;
             let _should_collect_enhanced = self.performance_sample_counter % 10 == 0; // Sample every 10th allocation
-            
+
             // Update thread history for advanced analysis
             #[cfg(feature = "advanced-analysis")]
             {
-                self.thread_history.insert(call_stack_hash, (timestamp, current_frequency));
+                self.thread_history
+                    .insert(call_stack_hash, (timestamp, current_frequency));
             }
-            
+
             let event = Event {
                 timestamp,
                 ptr,
@@ -317,25 +335,30 @@ impl ThreadLocalTracker {
                 allocation_category: categorize_allocation(size),
                 thread_name: self.thread_name.clone(),
                 memory_stats: get_memory_stats(),
-                
+
                 // Enhanced data collection (performance-gated)
                 #[cfg(feature = "backtrace")]
-                real_call_stack: if _should_collect_enhanced { 
-                    capture_real_call_stack() 
-                } else { 
-                    None 
+                real_call_stack: if _should_collect_enhanced {
+                    capture_real_call_stack()
+                } else {
+                    None
                 },
-                
+
                 #[cfg(feature = "system-metrics")]
-                system_metrics: if _should_collect_enhanced { 
-                    collect_system_metrics() 
-                } else { 
-                    None 
+                system_metrics: if _should_collect_enhanced {
+                    collect_system_metrics()
+                } else {
+                    None
                 },
-                
+
                 #[cfg(feature = "advanced-analysis")]
                 analysis_data: if _should_collect_enhanced {
-                    analyze_allocation_pattern(size, current_frequency, call_stack_hash, &self.thread_history)
+                    analyze_allocation_pattern(
+                        size,
+                        current_frequency,
+                        call_stack_hash,
+                        &self.thread_history,
+                    )
                 } else {
                     None
                 },
@@ -353,27 +376,39 @@ impl ThreadLocalTracker {
     }
 
     /// Tracks deallocation events for memory balance analysis
-    /// 
+    ///
     /// # Arguments
     /// * `ptr` - Memory pointer address being deallocated
     /// * `call_stack` - Full call stack for correlation
-    /// 
+    ///
     /// # Returns
     /// Result indicating success or error during tracking/flushing
-    pub fn track_deallocation(&mut self, ptr: usize, call_stack: &[usize]) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn track_deallocation(
+        &mut self,
+        ptr: usize,
+        call_stack: &[usize],
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let call_stack_hash = calculate_call_stack_hash(call_stack);
         // Use consistent sampling logic for deallocations with forced early sampling
-        let frequency = self.call_stack_frequencies.get(&call_stack_hash).copied().unwrap_or(1);
-        let size = self.call_stack_sizes.get(&call_stack_hash).copied().unwrap_or(0);
-        
+        let frequency = self
+            .call_stack_frequencies
+            .get(&call_stack_hash)
+            .copied()
+            .unwrap_or(1);
+        let size = self
+            .call_stack_sizes
+            .get(&call_stack_hash)
+            .copied()
+            .unwrap_or(0);
+
         if self.should_sample_allocation(size, frequency) || frequency <= 10 {
             let timestamp = get_timestamp();
             let cpu_time_ns = self.start_time.elapsed().as_nanos() as u64;
-            
+
             // Performance-gated enhanced collection for deallocations too
             self.performance_sample_counter += 1;
             let _should_collect_enhanced = self.performance_sample_counter % 20 == 0; // Less frequent for deallocations
-            
+
             let event = Event {
                 timestamp,
                 ptr,
@@ -387,26 +422,34 @@ impl ThreadLocalTracker {
                 allocation_category: AllocationCategory::Small, // Default for deallocations
                 thread_name: self.thread_name.clone(),
                 memory_stats: get_memory_stats(),
-                
+
                 // Enhanced data collection (performance-gated)
                 #[cfg(feature = "backtrace")]
-                real_call_stack: if _should_collect_enhanced { 
-                    capture_real_call_stack() 
-                } else { 
-                    None 
+                real_call_stack: if _should_collect_enhanced {
+                    capture_real_call_stack()
+                } else {
+                    None
                 },
-                
+
                 #[cfg(feature = "system-metrics")]
-                system_metrics: if _should_collect_enhanced { 
-                    collect_system_metrics() 
-                } else { 
-                    None 
+                system_metrics: if _should_collect_enhanced {
+                    collect_system_metrics()
+                } else {
+                    None
                 },
-                
+
                 #[cfg(feature = "advanced-analysis")]
                 analysis_data: if _should_collect_enhanced {
-                    self.thread_history.get(&call_stack_hash)
-                        .and_then(|(_, freq)| analyze_allocation_pattern(size, *freq, call_stack_hash, &self.thread_history))
+                    self.thread_history
+                        .get(&call_stack_hash)
+                        .and_then(|(_, freq)| {
+                            analyze_allocation_pattern(
+                                size,
+                                *freq,
+                                call_stack_hash,
+                                &self.thread_history,
+                            )
+                        })
                 } else {
                     None
                 },
@@ -424,14 +467,14 @@ impl ThreadLocalTracker {
     }
 
     /// Determines sampling decision using dual-dimension analysis
-    /// 
+    ///
     /// Combines size-based and frequency-based sampling for intelligent allocation tracking.
     /// Large allocations and high-frequency patterns receive higher sampling rates.
-    /// 
+    ///
     /// # Arguments
     /// * `size` - Allocation size in bytes
     /// * `frequency` - Current frequency count for this call stack
-    /// 
+    ///
     /// # Returns
     /// Boolean indicating whether to sample this allocation
     fn should_sample_allocation(&mut self, size: usize, frequency: u64) -> bool {
@@ -462,12 +505,12 @@ impl ThreadLocalTracker {
         let random_value = (self.rng_state >> 16) as f64 / 65536.0;
 
         // For demo purposes, be much more generous with sampling
-        let adjusted_rate = if final_rate > 0.8 { 
-            1.0 
-        } else { 
+        let adjusted_rate = if final_rate > 0.8 {
+            1.0
+        } else {
             (final_rate * 2.0).min(1.0) // Double the sampling rate
         };
-        
+
         random_value < adjusted_rate
     }
 
@@ -483,7 +526,7 @@ impl ThreadLocalTracker {
         // Append to file (create if doesn't exist)
         use std::fs::OpenOptions;
         use std::io::Write;
-        
+
         let mut file = OpenOptions::new()
             .create(true)
             .append(true)
@@ -503,21 +546,42 @@ impl ThreadLocalTracker {
 
     /// Export enhanced frequency data at the end of tracking
     pub fn export_frequency_data(&self) -> Result<(), Box<dyn std::error::Error>> {
-        let frequency_data: Vec<FrequencyData> = self.call_stack_frequencies
+        let frequency_data: Vec<FrequencyData> = self
+            .call_stack_frequencies
             .iter()
             .map(|(&call_stack_hash, &frequency)| {
-                let size = self.call_stack_sizes.get(&call_stack_hash).copied().unwrap_or(0);
+                let size = self
+                    .call_stack_sizes
+                    .get(&call_stack_hash)
+                    .copied()
+                    .unwrap_or(0);
                 let total_size = size * frequency as usize;
-                let size_range = self.call_stack_size_ranges.get(&call_stack_hash).copied().unwrap_or((size, size));
-                let time_range = self.call_stack_time_ranges.get(&call_stack_hash).copied().unwrap_or((0, 0));
-                let total_cpu_time = self.call_stack_cpu_times.get(&call_stack_hash).copied().unwrap_or(0);
-                
+                let size_range = self
+                    .call_stack_size_ranges
+                    .get(&call_stack_hash)
+                    .copied()
+                    .unwrap_or((size, size));
+                let time_range = self
+                    .call_stack_time_ranges
+                    .get(&call_stack_hash)
+                    .copied()
+                    .unwrap_or((0, 0));
+                let total_cpu_time = self
+                    .call_stack_cpu_times
+                    .get(&call_stack_hash)
+                    .copied()
+                    .unwrap_or(0);
+
                 FrequencyData {
                     call_stack_hash,
                     frequency,
                     total_size,
                     thread_id: self.thread_id,
-                    avg_size: if frequency > 0 { total_size as f64 / frequency as f64 } else { 0.0 },
+                    avg_size: if frequency > 0 {
+                        total_size as f64 / frequency as f64
+                    } else {
+                        0.0
+                    },
                     size_range,
                     time_range,
                     total_cpu_time,
@@ -550,16 +614,16 @@ impl Drop for ThreadLocalTracker {
 /// Get unique thread ID
 fn get_thread_id() -> u64 {
     static THREAD_COUNTER: AtomicU64 = AtomicU64::new(1);
-    
+
     thread_local! {
         static THREAD_ID: u64 = THREAD_COUNTER.fetch_add(1, Ordering::Relaxed);
     }
-    
+
     THREAD_ID.with(|&id| id)
 }
 
 /// Gets current timestamp in nanoseconds with fallback to zero
-/// 
+///
 /// Uses system time but handles clock errors gracefully without panicking
 fn get_timestamp() -> u64 {
     SystemTime::now()
@@ -593,18 +657,18 @@ fn categorize_allocation(size: usize) -> AllocationCategory {
 fn capture_real_call_stack() -> Option<RealCallStack> {
     let mut addresses = Vec::new();
     let mut symbols = Vec::new();
-    
+
     // Capture backtrace with limited depth for performance
     backtrace::trace(|frame| {
         let addr = frame.ip() as usize;
         addresses.push(addr);
-        
+
         // Resolve symbols for this frame
         backtrace::resolve_frame(frame, |symbol| {
             let function_name = symbol.name().map(|n| format!("{}", n));
             let filename = symbol.filename().and_then(|f| f.to_str().map(String::from));
             let line_number = symbol.lineno();
-            
+
             symbols.push(StackFrame {
                 function_name,
                 filename,
@@ -612,11 +676,11 @@ fn capture_real_call_stack() -> Option<RealCallStack> {
                 address: addr,
             });
         });
-        
+
         // Limit call stack depth for performance
         addresses.len() < 16
     });
-    
+
     if addresses.is_empty() {
         None
     } else {
@@ -632,36 +696,39 @@ fn capture_real_call_stack() -> Option<RealCallStack> {
 /// Collect system performance metrics
 #[cfg(feature = "system-metrics")]
 fn collect_system_metrics() -> Option<SystemMetrics> {
-    use sysinfo::{System, Pid};
-    
+    use sysinfo::{Pid, System};
+
     // Use thread-local system info to avoid repeated initialization
     thread_local! {
         static SYSTEM: std::cell::RefCell<System> = std::cell::RefCell::new(System::new_all());
     }
-    
+
     SYSTEM.with(|sys| {
         let mut system = sys.borrow_mut();
         system.refresh_cpu();
         system.refresh_memory();
         system.refresh_processes();
-        
+
         // Get CPU usage (sysinfo 0.30+ API)
         let cpu_usage = system.global_cpu_info().cpu_usage();
         let available_memory = system.available_memory();
         let total_memory = system.total_memory();
-        
+
         // Get load average using new API
         let load_avg = System::load_average();
-        
+
         // Count processes instead of threads (more reliable)
         let current_pid = sysinfo::get_current_pid().ok()?;
-        let thread_count = if system.process(Pid::from_u32(current_pid.as_u32())).is_some() {
+        let thread_count = if system
+            .process(Pid::from_u32(current_pid.as_u32()))
+            .is_some()
+        {
             // Estimate thread count as we can't access tasks directly
             num_cpus::get()
         } else {
             1
         };
-        
+
         // Calculate fragmentation ratio estimate
         let used_memory = total_memory - available_memory;
         let fragmentation_ratio = if total_memory > 0 {
@@ -669,7 +736,7 @@ fn collect_system_metrics() -> Option<SystemMetrics> {
         } else {
             0.0
         };
-        
+
         Some(SystemMetrics {
             cpu_usage,
             available_memory,
@@ -684,18 +751,18 @@ fn collect_system_metrics() -> Option<SystemMetrics> {
 /// Perform advanced analysis on allocation pattern
 #[cfg(feature = "advanced-analysis")]
 fn analyze_allocation_pattern(
-    size: usize, 
-    frequency: u64, 
+    size: usize,
+    frequency: u64,
     _call_stack_hash: u64,
-    _thread_history: &HashMap<u64, (u64, u64)> // (last_time, count)
+    _thread_history: &HashMap<u64, (u64, u64)>, // (last_time, count)
 ) -> Option<AnalysisData> {
     // Predict allocation lifetime based on size and frequency
     let predicted_lifetime_ms = match size {
-        0..=1024 => 10 + (frequency * 2),           // Small allocations are short-lived
-        1025..=32768 => 100 + (frequency * 5),      // Medium allocations
-        _ => 1000 + (frequency * 10),               // Large allocations live longer
+        0..=1024 => 10 + (frequency * 2), // Small allocations are short-lived
+        1025..=32768 => 100 + (frequency * 5), // Medium allocations
+        _ => 1000 + (frequency * 10),     // Large allocations live longer
     };
-    
+
     // Determine frequency pattern
     let frequency_pattern = match frequency {
         1..=5 => FrequencyPattern::Sporadic,
@@ -703,7 +770,7 @@ fn analyze_allocation_pattern(
         21..=100 => FrequencyPattern::Burst,
         _ => FrequencyPattern::Constant,
     };
-    
+
     // Estimate sharing likelihood based on call stack commonality
     let sharing_likelihood = if frequency > 50 {
         0.8 // High frequency suggests shared usage
@@ -712,7 +779,7 @@ fn analyze_allocation_pattern(
     } else {
         0.1
     };
-    
+
     // Predict access pattern based on size and frequency
     let access_pattern = match (size, frequency) {
         (0..=64, f) if f > 100 => AccessPattern::Hotspot,
@@ -720,10 +787,11 @@ fn analyze_allocation_pattern(
         (_, f) if f > 20 => AccessPattern::Cached,
         _ => AccessPattern::Random,
     };
-    
+
     // Calculate performance impact score
-    let performance_impact = ((frequency.min(100) as f64 * size.min(100000) as f64) / 10000.0) as u8;
-    
+    let performance_impact =
+        ((frequency.min(100) as f64 * size.min(100000) as f64) / 10000.0) as u8;
+
     Some(AnalysisData {
         predicted_lifetime_ms,
         frequency_pattern,
@@ -741,7 +809,7 @@ fn get_memory_stats() -> MemoryStats {
         if let Ok(status) = std::fs::read_to_string("/proc/self/status") {
             let mut vm_size = 0;
             let mut vm_rss = 0;
-            
+
             for line in status.lines() {
                 if line.starts_with("VmSize:") {
                     if let Some(kb_str) = line.split_whitespace().nth(1) {
@@ -753,12 +821,12 @@ fn get_memory_stats() -> MemoryStats {
                     }
                 }
             }
-            
+
             MemoryStats {
                 virtual_memory: vm_size,
                 resident_memory: vm_rss,
                 heap_memory: vm_rss / 2, // Rough estimate
-                page_faults: 0, // Would need separate syscall
+                page_faults: 0,          // Would need separate syscall
             }
         } else {
             MemoryStats {
@@ -769,18 +837,18 @@ fn get_memory_stats() -> MemoryStats {
             }
         }
     }
-    
+
     #[cfg(target_os = "macos")]
     {
         // Basic memory estimation for macOS
         MemoryStats {
             virtual_memory: 100 * 1024 * 1024, // 100MB estimate
-            resident_memory: 50 * 1024 * 1024,  // 50MB estimate
-            heap_memory: 25 * 1024 * 1024,      // 25MB estimate
+            resident_memory: 50 * 1024 * 1024, // 50MB estimate
+            heap_memory: 25 * 1024 * 1024,     // 25MB estimate
             page_faults: 0,
         }
     }
-    
+
     #[cfg(not(any(target_os = "linux", target_os = "macos")))]
     {
         // Default fallback for other platforms
@@ -803,9 +871,12 @@ pub fn calculate_call_stack_hash(call_stack: &[usize]) -> u64 {
 /// Global API functions for thread-local tracking
 
 /// Initialize thread-local tracker for current thread
-pub fn init_thread_tracker(output_dir: &std::path::Path, config: Option<SamplingConfig>) -> Result<(), Box<dyn std::error::Error>> {
+pub fn init_thread_tracker(
+    output_dir: &std::path::Path,
+    config: Option<SamplingConfig>,
+) -> Result<(), Box<dyn std::error::Error>> {
     let config = config.unwrap_or_default();
-    
+
     THREAD_TRACKER.with(|tracker| {
         let mut tracker_ref = tracker.borrow_mut();
         if tracker_ref.is_none() {
@@ -816,7 +887,11 @@ pub fn init_thread_tracker(output_dir: &std::path::Path, config: Option<Sampling
 }
 
 /// Track allocation in current thread using lock-free approach
-pub fn track_allocation_lockfree(ptr: usize, size: usize, call_stack: &[usize]) -> Result<(), Box<dyn std::error::Error>> {
+pub fn track_allocation_lockfree(
+    ptr: usize,
+    size: usize,
+    call_stack: &[usize],
+) -> Result<(), Box<dyn std::error::Error>> {
     THREAD_TRACKER.with(|tracker| {
         let mut tracker_ref = tracker.borrow_mut();
         if let Some(ref mut t) = *tracker_ref {
@@ -828,7 +903,10 @@ pub fn track_allocation_lockfree(ptr: usize, size: usize, call_stack: &[usize]) 
 }
 
 /// Track deallocation in current thread using lock-free approach
-pub fn track_deallocation_lockfree(ptr: usize, call_stack: &[usize]) -> Result<(), Box<dyn std::error::Error>> {
+pub fn track_deallocation_lockfree(
+    ptr: usize,
+    call_stack: &[usize],
+) -> Result<(), Box<dyn std::error::Error>> {
     THREAD_TRACKER.with(|tracker| {
         let mut tracker_ref = tracker.borrow_mut();
         if let Some(ref mut t) = *tracker_ref {
@@ -854,9 +932,9 @@ pub fn finalize_thread_tracker() -> Result<(), Box<dyn std::error::Error>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::thread;
-    use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+    use std::thread;
 
     #[test]
     fn test_thread_local_tracking_basic() {
@@ -893,8 +971,16 @@ mod tests {
             }
         }
 
-        assert!(event_file.exists(), "Event file should exist: {:?}", event_file);
-        assert!(freq_file.exists(), "Frequency file should exist: {:?}", freq_file);
+        assert!(
+            event_file.exists(),
+            "Event file should exist: {:?}",
+            event_file
+        );
+        assert!(
+            freq_file.exists(),
+            "Frequency file should exist: {:?}",
+            freq_file
+        );
 
         // Cleanup
         let _ = std::fs::remove_dir_all(&temp_dir);
@@ -913,7 +999,7 @@ mod tests {
             .map(|thread_idx| {
                 let temp_dir = temp_dir.clone();
                 let counter = Arc::clone(&counter);
-                
+
                 thread::spawn(move || {
                     // Initialize tracker for this thread
                     init_thread_tracker(&temp_dir, None).unwrap();
@@ -925,7 +1011,7 @@ mod tests {
 
                         track_allocation_lockfree(ptr, size, &call_stack)
                             .expect("Allocation tracking should succeed");
-                        
+
                         // Simulate some deallocations
                         if i % 3 == 0 {
                             track_deallocation_lockfree(ptr, &call_stack)
@@ -946,15 +1032,26 @@ mod tests {
         }
 
         // Verify all operations completed
-        assert_eq!(counter.load(Ordering::Relaxed), thread_count * allocations_per_thread);
+        assert_eq!(
+            counter.load(Ordering::Relaxed),
+            thread_count * allocations_per_thread
+        );
 
         // Verify each thread created its own files
         for thread_id in 1..=thread_count {
             let event_file = temp_dir.join(format!("memscope_thread_{}.bin", thread_id));
             let freq_file = temp_dir.join(format!("memscope_thread_{}.freq", thread_id));
-            
-            assert!(event_file.exists(), "Event file missing for thread {}", thread_id);
-            assert!(freq_file.exists(), "Frequency file missing for thread {}", thread_id);
+
+            assert!(
+                event_file.exists(),
+                "Event file missing for thread {}",
+                thread_id
+            );
+            assert!(
+                freq_file.exists(),
+                "Frequency file missing for thread {}",
+                thread_id
+            );
         }
 
         // Cleanup
@@ -998,7 +1095,9 @@ mod tests {
         }
 
         // Large allocations should be sampled more frequently
-        assert!(sampled_large as f64 / total_large as f64 > sampled_small as f64 / total_small as f64);
+        assert!(
+            sampled_large as f64 / total_large as f64 > sampled_small as f64 / total_small as f64
+        );
 
         // Cleanup
         let _ = std::fs::remove_dir_all(&temp_dir);

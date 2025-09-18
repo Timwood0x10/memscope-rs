@@ -19,12 +19,12 @@ pub mod cli;
 pub mod core;
 /// Export and visualization functionality
 pub mod export;
+/// Lock-free multi-threaded memory tracking
+pub mod lockfree;
 /// Utility functions
 pub mod utils;
 /// Variable registry for lightweight HashMap-based variable tracking
 pub mod variable_registry;
-/// Lock-free multi-threaded memory tracking
-pub mod lockfree;
 
 // Re-export key functions from unified modules
 /// Enhanced types for comprehensive memory analysis

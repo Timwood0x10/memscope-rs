@@ -2,7 +2,7 @@
 //!
 //! This module provides a completely separate implementation optimized for
 //! high-concurrency scenarios (100+ threads) without any shared state or locks.
-//! 
+//!
 //! Key differences from the single-threaded version:
 //! - Thread-local tracking with zero shared state
 //! - Intelligent sampling for performance
@@ -19,63 +19,39 @@
 //! - Exact precision is required
 //! - Real-time analysis is needed
 
-pub mod tracker;
 pub mod aggregator;
 pub mod analysis;
-pub mod sampling;
 pub mod api;
-pub mod visualizer;
-pub mod system_profiler;
+pub mod comprehensive_export;
 pub mod enhanced_api;
 pub mod platform_resources;
 pub mod resource_integration;
-pub mod comprehensive_export;
+pub mod sampling;
+pub mod system_profiler;
+pub mod tracker;
+pub mod visualizer;
 
 pub use tracker::{
-    ThreadLocalTracker, 
-    init_thread_tracker,
-    track_allocation_lockfree,
-    track_deallocation_lockfree,
-    finalize_thread_tracker,
+    finalize_thread_tracker, init_thread_tracker, track_allocation_lockfree,
+    track_deallocation_lockfree, ThreadLocalTracker,
 };
 
 pub use aggregator::LockfreeAggregator;
-pub use analysis::{
-    LockfreeAnalysis,
-    ThreadStats,
-    PerformanceBottleneck,
-    ThreadInteraction,
-};
-pub use sampling::SamplingConfig;
+pub use analysis::{LockfreeAnalysis, PerformanceBottleneck, ThreadInteraction, ThreadStats};
 pub use api::{
-    trace_all,
-    trace_thread, 
-    stop_tracing,
-    is_tracking,
-    memory_snapshot,
-    quick_trace,
+    is_tracking, memory_snapshot, quick_trace, stop_tracing, trace_all, trace_thread,
     MemorySnapshot,
 };
+pub use sampling::SamplingConfig;
 // Platform-specific resource monitoring
+pub use comprehensive_export::{
+    export_comprehensive_analysis, export_comprehensive_json, export_resource_rankings_json,
+};
 pub use platform_resources::{
-    PlatformResourceCollector,
-    PlatformResourceMetrics,
-    CpuResourceMetrics,
-    GpuResourceMetrics,
-    IoResourceMetrics,
-    ThreadResourceMetrics,
+    CpuResourceMetrics, GpuResourceMetrics, IoResourceMetrics, PlatformResourceCollector,
+    PlatformResourceMetrics, ThreadResourceMetrics,
 };
 pub use resource_integration::{
-    IntegratedProfilingSession,
-    ComprehensiveAnalysis,
-    comprehensive_profile_execution,
+    comprehensive_profile_execution, ComprehensiveAnalysis, IntegratedProfilingSession,
 };
-pub use visualizer::{
-    generate_comprehensive_html_report,
-    generate_enhanced_html_report,
-};
-pub use comprehensive_export::{
-    export_comprehensive_analysis,
-    export_comprehensive_json,
-    export_resource_rankings_json,
-};
+pub use visualizer::{generate_comprehensive_html_report, generate_enhanced_html_report};

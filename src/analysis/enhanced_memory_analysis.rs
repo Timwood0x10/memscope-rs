@@ -847,11 +847,17 @@ pub fn analyze_memory_with_enhanced_features() -> Result<String, Box<dyn std::er
 
     // Get current allocations - only call global tracker if absolutely necessary
     // Check if we're in a multi-threaded context and avoid global tracker if so
-    if std::thread::current().name().unwrap_or("").contains("thread") {
+    if std::thread::current()
+        .name()
+        .unwrap_or("")
+        .contains("thread")
+    {
         // We're likely in a multi-threaded context, return early or use alternative analysis
-        return Ok("Multi-threaded context detected - use lockfree enhanced analysis instead".to_string());
+        return Ok(
+            "Multi-threaded context detected - use lockfree enhanced analysis instead".to_string(),
+        );
     }
-    
+
     let tracker = crate::core::tracker::get_global_tracker();
     let allocations = tracker.get_active_allocations()?;
 

@@ -1,11 +1,11 @@
 //! Cross-platform CPU, GPU, and IO resource monitoring for multi-threaded environments
-//! 
+//!
 //! This module provides platform-specific implementations for real-time resource monitoring
 //! that complements memory tracking with comprehensive system resource analysis.
 
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
-use serde::{Serialize, Deserialize};
 
 /// Platform-specific resource metrics collected in multi-threaded context
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -102,19 +102,21 @@ impl PlatformResourceCollector {
     }
 
     /// Collect current resource metrics from the platform
-    pub fn collect_metrics(&mut self) -> Result<PlatformResourceMetrics, Box<dyn std::error::Error>> {
+    pub fn collect_metrics(
+        &mut self,
+    ) -> Result<PlatformResourceMetrics, Box<dyn std::error::Error>> {
         let timestamp = self.last_collection_time.elapsed().as_millis() as u64;
-        
+
         #[cfg(target_os = "macos")]
         {
             self.macos_collector.collect_metrics(timestamp)
         }
-        
+
         #[cfg(target_os = "linux")]
         {
             self.linux_collector.collect_metrics(timestamp)
         }
-        
+
         #[cfg(not(any(target_os = "macos", target_os = "linux")))]
         {
             // Fallback for unsupported platforms
@@ -181,7 +183,7 @@ mod macos_impl {
         pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
             let cpu_count = num_cpus::get();
             let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) } as u64;
-            
+
             Ok(Self {
                 cpu_count,
                 page_size,
@@ -189,7 +191,10 @@ mod macos_impl {
             })
         }
 
-        pub fn collect_metrics(&mut self, timestamp: u64) -> Result<PlatformResourceMetrics, Box<dyn std::error::Error>> {
+        pub fn collect_metrics(
+            &mut self,
+            timestamp: u64,
+        ) -> Result<PlatformResourceMetrics, Box<dyn std::error::Error>> {
             let cpu_metrics = self.collect_cpu_metrics()?;
             let gpu_metrics = self.collect_gpu_metrics().ok();
             let io_metrics = self.collect_io_metrics()?;
@@ -204,11 +209,13 @@ mod macos_impl {
             })
         }
 
-        fn collect_cpu_metrics(&mut self) -> Result<CpuResourceMetrics, Box<dyn std::error::Error>> {
+        fn collect_cpu_metrics(
+            &mut self,
+        ) -> Result<CpuResourceMetrics, Box<dyn std::error::Error>> {
             // Use macOS-specific system calls for CPU metrics
             let mut host_cpu_load_info: libc::host_cpu_load_info = unsafe { mem::zeroed() };
             let mut count = libc::HOST_CPU_LOAD_INFO_COUNT;
-            
+
             let result = unsafe {
                 libc::host_statistics(
                     libc::mach_host_self(),
@@ -247,8 +254,8 @@ mod macos_impl {
                 overall_usage_percent: usage_percent,
                 per_core_usage: vec![usage_percent / self.cpu_count as f32; self.cpu_count],
                 frequency_mhz: vec![0; self.cpu_count], // Requires additional syscalls
-                temperature_celsius: Vec::new(), // Requires IOKit integration
-                context_switches_per_sec: 0, // Requires vm_stat parsing
+                temperature_celsius: Vec::new(),        // Requires IOKit integration
+                context_switches_per_sec: 0,            // Requires vm_stat parsing
                 interrupts_per_sec: 0,
                 load_average: (load_avg[0], load_avg[1], load_avg[2]),
             })
@@ -275,16 +282,18 @@ mod macos_impl {
             Ok(IoResourceMetrics::default())
         }
 
-        fn collect_thread_metrics(&self) -> Result<HashMap<u64, ThreadResourceMetrics>, Box<dyn std::error::Error>> {
+        fn collect_thread_metrics(
+            &self,
+        ) -> Result<HashMap<u64, ThreadResourceMetrics>, Box<dyn std::error::Error>> {
             let mut metrics = HashMap::new();
-            
+
             // Get current process info
             let _pid = unsafe { libc::getpid() };
-            
+
             // Use task_info to get thread information
             let mut task_info: libc::mach_task_basic_info = unsafe { mem::zeroed() };
             let mut count = libc::MACH_TASK_BASIC_INFO_COUNT;
-            
+
             let result = unsafe {
                 libc::task_info(
                     libc::mach_task_self(),
@@ -297,18 +306,21 @@ mod macos_impl {
             if result == libc::KERN_SUCCESS {
                 // Get current thread ID for basic info
                 let thread_id = unsafe { libc::pthread_self() } as u64;
-                
-                metrics.insert(thread_id, ThreadResourceMetrics {
+
+                metrics.insert(
                     thread_id,
-                    thread_name: std::thread::current().name().map(String::from),
-                    cpu_usage_percent: 0.0,
-                    memory_resident_bytes: task_info.resident_size,
-                    memory_virtual_bytes: task_info.virtual_size,
-                    io_read_bytes: 0,
-                    io_write_bytes: 0,
-                    cpu_time_user_ns: 0,
-                    cpu_time_kernel_ns: 0,
-                });
+                    ThreadResourceMetrics {
+                        thread_id,
+                        thread_name: std::thread::current().name().map(String::from),
+                        cpu_usage_percent: 0.0,
+                        memory_resident_bytes: task_info.resident_size,
+                        memory_virtual_bytes: task_info.virtual_size,
+                        io_read_bytes: 0,
+                        io_write_bytes: 0,
+                        cpu_time_user_ns: 0,
+                        cpu_time_kernel_ns: 0,
+                    },
+                );
             }
 
             Ok(metrics)
@@ -347,7 +359,7 @@ mod linux_impl {
         pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
             let cpu_count = num_cpus::get();
             let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) } as u64;
-            
+
             Ok(Self {
                 cpu_count,
                 page_size,
@@ -356,7 +368,10 @@ mod linux_impl {
             })
         }
 
-        pub fn collect_metrics(&mut self, timestamp: u64) -> Result<PlatformResourceMetrics, Box<dyn std::error::Error>> {
+        pub fn collect_metrics(
+            &mut self,
+            timestamp: u64,
+        ) -> Result<PlatformResourceMetrics, Box<dyn std::error::Error>> {
             let cpu_metrics = self.collect_cpu_metrics()?;
             let gpu_metrics = self.collect_gpu_metrics().ok();
             let io_metrics = self.collect_io_metrics()?;
@@ -371,10 +386,12 @@ mod linux_impl {
             })
         }
 
-        fn collect_cpu_metrics(&mut self) -> Result<CpuResourceMetrics, Box<dyn std::error::Error>> {
+        fn collect_cpu_metrics(
+            &mut self,
+        ) -> Result<CpuResourceMetrics, Box<dyn std::error::Error>> {
             let current_stats = self.read_proc_stat()?;
             let mut per_core_usage = Vec::new();
-            
+
             // Calculate usage if we have previous stats
             if !self.last_cpu_stats.is_empty() && self.last_cpu_stats.len() == current_stats.len() {
                 for (current, last) in current_stats.iter().zip(self.last_cpu_stats.iter()) {
@@ -393,7 +410,7 @@ mod linux_impl {
 
             // Read CPU frequencies
             let frequencies = self.read_cpu_frequencies()?;
-            
+
             // Read load average
             let load_average = self.read_load_average()?;
 
@@ -417,7 +434,9 @@ mod linux_impl {
             let mut stats = Vec::new();
 
             for line in content.lines() {
-                if line.starts_with("cpu") && line.chars().nth(3).map_or(false, |c| c.is_ascii_digit()) {
+                if line.starts_with("cpu")
+                    && line.chars().nth(3).map_or(false, |c| c.is_ascii_digit())
+                {
                     let parts: Vec<&str> = line.split_whitespace().collect();
                     if parts.len() >= 8 {
                         stats.push(CpuStat {
@@ -437,10 +456,20 @@ mod linux_impl {
         }
 
         fn calculate_cpu_usage(&self, current: &CpuStat, last: &CpuStat) -> f32 {
-            let current_total = current.user + current.nice + current.system + current.idle + 
-                               current.iowait + current.irq + current.softirq;
-            let last_total = last.user + last.nice + last.system + last.idle + 
-                            last.iowait + last.irq + last.softirq;
+            let current_total = current.user
+                + current.nice
+                + current.system
+                + current.idle
+                + current.iowait
+                + current.irq
+                + current.softirq;
+            let last_total = last.user
+                + last.nice
+                + last.system
+                + last.idle
+                + last.iowait
+                + last.irq
+                + last.softirq;
 
             let total_diff = current_total.saturating_sub(last_total);
             let idle_diff = current.idle.saturating_sub(last.idle);
@@ -454,9 +483,10 @@ mod linux_impl {
 
         fn read_cpu_frequencies(&self) -> Result<Vec<u32>, Box<dyn std::error::Error>> {
             let mut frequencies = Vec::new();
-            
+
             for i in 0..self.cpu_count {
-                let freq_path = format!("/sys/devices/system/cpu/cpu{}/cpufreq/scaling_cur_freq", i);
+                let freq_path =
+                    format!("/sys/devices/system/cpu/cpu{}/cpufreq/scaling_cur_freq", i);
                 if let Ok(content) = fs::read_to_string(freq_path) {
                     if let Ok(freq_khz) = content.trim().parse::<u32>() {
                         frequencies.push(freq_khz / 1000); // Convert to MHz
@@ -473,7 +503,7 @@ mod linux_impl {
 
         fn read_cpu_temperatures(&self) -> Result<Vec<f32>, Box<dyn std::error::Error>> {
             let mut temperatures = Vec::new();
-            
+
             // Try common thermal zones
             for i in 0..8 {
                 let temp_path = format!("/sys/class/thermal/thermal_zone{}/temp", i);
@@ -490,7 +520,7 @@ mod linux_impl {
         fn read_load_average(&self) -> Result<(f64, f64, f64), Box<dyn std::error::Error>> {
             let content = fs::read_to_string("/proc/loadavg")?;
             let parts: Vec<&str> = content.split_whitespace().collect();
-            
+
             if parts.len() >= 3 {
                 let load1 = parts[0].parse().unwrap_or(0.0);
                 let load5 = parts[1].parse().unwrap_or(0.0);
@@ -530,15 +560,19 @@ mod linux_impl {
                 Ok(output) if output.status.success() => {
                     let result = String::from_utf8_lossy(&output.stdout);
                     let parts: Vec<&str> = result.trim().split(',').collect();
-                    
+
                     if parts.len() >= 7 {
                         Ok(GpuResourceMetrics {
                             device_name: parts[0].trim().to_string(),
                             vendor: GpuVendor::Nvidia,
                             compute_usage_percent: parts[1].trim().parse().unwrap_or(0.0),
                             memory_usage_percent: 0.0, // Calculate from used/total
-                            memory_used_bytes: parts[2].trim().parse::<u64>().unwrap_or(0) * 1024 * 1024,
-                            memory_total_bytes: parts[3].trim().parse::<u64>().unwrap_or(0) * 1024 * 1024,
+                            memory_used_bytes: parts[2].trim().parse::<u64>().unwrap_or(0)
+                                * 1024
+                                * 1024,
+                            memory_total_bytes: parts[3].trim().parse::<u64>().unwrap_or(0)
+                                * 1024
+                                * 1024,
                             temperature_celsius: parts[4].trim().parse().unwrap_or(0.0),
                             power_usage_watts: parts[5].trim().parse().unwrap_or(0.0),
                             frequency_mhz: parts[6].trim().parse().unwrap_or(0),
@@ -547,7 +581,7 @@ mod linux_impl {
                         Err("Invalid nvidia-smi output".into())
                     }
                 }
-                _ => Err("nvidia-smi not available".into())
+                _ => Err("nvidia-smi not available".into()),
             }
         }
 
@@ -567,9 +601,11 @@ mod linux_impl {
             Ok(IoResourceMetrics::default())
         }
 
-        fn collect_thread_metrics(&self) -> Result<HashMap<u64, ThreadResourceMetrics>, Box<dyn std::error::Error>> {
+        fn collect_thread_metrics(
+            &self,
+        ) -> Result<HashMap<u64, ThreadResourceMetrics>, Box<dyn std::error::Error>> {
             let mut metrics = HashMap::new();
-            
+
             // Read /proc/self/task/ for thread information
             if let Ok(entries) = fs::read_dir("/proc/self/task") {
                 for entry in entries {
@@ -586,29 +622,36 @@ mod linux_impl {
             Ok(metrics)
         }
 
-        fn collect_single_thread_metrics(&self, tid: u64) -> Result<ThreadResourceMetrics, Box<dyn std::error::Error>> {
+        fn collect_single_thread_metrics(
+            &self,
+            tid: u64,
+        ) -> Result<ThreadResourceMetrics, Box<dyn std::error::Error>> {
             let stat_path = format!("/proc/self/task/{}/stat", tid);
             let status_path = format!("/proc/self/task/{}/status", tid);
             let comm_path = format!("/proc/self/task/{}/comm", tid);
 
             let stat_content = fs::read_to_string(stat_path).unwrap_or_default();
             let status_content = fs::read_to_string(status_path).unwrap_or_default();
-            let thread_name = fs::read_to_string(comm_path).ok().map(|s| s.trim().to_string());
+            let thread_name = fs::read_to_string(comm_path)
+                .ok()
+                .map(|s| s.trim().to_string());
 
             // Parse basic metrics from stat and status files
             let stat_parts: Vec<&str> = stat_content.split_whitespace().collect();
-            
+
             let mut memory_resident = 0u64;
             let mut memory_virtual = 0u64;
-            
+
             for line in status_content.lines() {
                 if line.starts_with("VmRSS:") {
                     if let Some(value) = line.split_whitespace().nth(1) {
-                        memory_resident = value.parse::<u64>().unwrap_or(0) * 1024; // Convert kB to bytes
+                        memory_resident = value.parse::<u64>().unwrap_or(0) * 1024;
+                        // Convert kB to bytes
                     }
                 } else if line.starts_with("VmSize:") {
                     if let Some(value) = line.split_whitespace().nth(1) {
-                        memory_virtual = value.parse::<u64>().unwrap_or(0) * 1024; // Convert kB to bytes
+                        memory_virtual = value.parse::<u64>().unwrap_or(0) * 1024;
+                        // Convert kB to bytes
                     }
                 }
             }
@@ -619,7 +662,7 @@ mod linux_impl {
                 cpu_usage_percent: 0.0, // Requires time-based calculation
                 memory_resident_bytes: memory_resident,
                 memory_virtual_bytes: memory_virtual,
-                io_read_bytes: 0,  // Requires /proc/self/task/*/io
+                io_read_bytes: 0, // Requires /proc/self/task/*/io
                 io_write_bytes: 0,
                 cpu_time_user_ns: stat_parts.get(13).and_then(|s| s.parse().ok()).unwrap_or(0),
                 cpu_time_kernel_ns: stat_parts.get(14).and_then(|s| s.parse().ok()).unwrap_or(0),
@@ -660,8 +703,8 @@ mod tests {
         };
 
         let serialized = serde_json::to_string(&metrics).expect("Failed to serialize metrics");
-        let _deserialized: PlatformResourceMetrics = serde_json::from_str(&serialized)
-            .expect("Failed to deserialize metrics");
+        let _deserialized: PlatformResourceMetrics =
+            serde_json::from_str(&serialized).expect("Failed to deserialize metrics");
     }
 
     #[test]
@@ -669,7 +712,7 @@ mod tests {
         if let Ok(collector) = PlatformResourceCollector::new() {
             let interval = collector.get_optimal_collection_interval();
             assert!(interval >= Duration::from_millis(50)); // At least 20Hz
-            assert!(interval <= Duration::from_secs(1));     // At most 1Hz
+            assert!(interval <= Duration::from_secs(1)); // At most 1Hz
         }
     }
 }
