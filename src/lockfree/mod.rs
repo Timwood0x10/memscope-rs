@@ -25,6 +25,11 @@ pub mod analysis;
 pub mod sampling;
 pub mod api;
 pub mod visualizer;
+pub mod system_profiler;
+pub mod enhanced_api;
+pub mod platform_resources;
+pub mod resource_integration;
+pub mod comprehensive_export;
 
 pub use tracker::{
     ThreadLocalTracker, 
@@ -50,4 +55,27 @@ pub use api::{
     memory_snapshot,
     quick_trace,
     MemorySnapshot,
+};
+// Platform-specific resource monitoring
+pub use platform_resources::{
+    PlatformResourceCollector,
+    PlatformResourceMetrics,
+    CpuResourceMetrics,
+    GpuResourceMetrics,
+    IoResourceMetrics,
+    ThreadResourceMetrics,
+};
+pub use resource_integration::{
+    IntegratedProfilingSession,
+    ComprehensiveAnalysis,
+    comprehensive_profile_execution,
+};
+pub use visualizer::{
+    generate_comprehensive_html_report,
+    generate_enhanced_html_report,
+};
+pub use comprehensive_export::{
+    export_comprehensive_analysis,
+    export_comprehensive_json,
+    export_resource_rankings_json,
 };

@@ -686,8 +686,8 @@ fn collect_system_metrics() -> Option<SystemMetrics> {
 fn analyze_allocation_pattern(
     size: usize, 
     frequency: u64, 
-    call_stack_hash: u64,
-    thread_history: &HashMap<u64, (u64, u64)> // (last_time, count)
+    _call_stack_hash: u64,
+    _thread_history: &HashMap<u64, (u64, u64)> // (last_time, count)
 ) -> Option<AnalysisData> {
     // Predict allocation lifetime based on size and frequency
     let predicted_lifetime_ms = match size {

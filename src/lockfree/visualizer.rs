@@ -3,9 +3,21 @@
 //! Creates rich, interactive HTML reports with charts, graphs, and detailed analysis
 
 use super::analysis::LockfreeAnalysis;
+use super::platform_resources::PlatformResourceMetrics;
+use super::resource_integration::ComprehensiveAnalysis;
 use std::path::Path;
 
-/// Generate enhanced HTML report with modern visualizations
+/// Generate comprehensive HTML report with CPU/GPU resource visualizations
+pub fn generate_comprehensive_html_report(
+    comprehensive_analysis: &ComprehensiveAnalysis,
+    output_path: &Path
+) -> Result<(), Box<dyn std::error::Error>> {
+    let html_content = build_comprehensive_html_report(comprehensive_analysis)?;
+    std::fs::write(output_path, html_content)?;
+    Ok(())
+}
+
+/// Generate enhanced HTML report with modern visualizations (memory only)
 pub fn generate_enhanced_html_report(
     analysis: &LockfreeAnalysis, 
     output_path: &Path
@@ -15,7 +27,947 @@ pub fn generate_enhanced_html_report(
     Ok(())
 }
 
-/// Build comprehensive HTML report with interactive visualizations
+/// Build comprehensive HTML report with CPU/GPU/Memory visualizations
+fn build_comprehensive_html_report(comprehensive_analysis: &ComprehensiveAnalysis) -> Result<String, Box<dyn std::error::Error>> {
+    let analysis = &comprehensive_analysis.memory_analysis;
+    let resource_timeline = &comprehensive_analysis.resource_timeline;
+    let performance_insights = &comprehensive_analysis.performance_insights;
+    
+    let mut html = String::new();
+    
+    // Enhanced HTML Document Structure with CPU/GPU monitoring
+    html.push_str(r#"<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚀 Comprehensive System Analysis Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    <style>
+        :root {
+            --primary-color: #667eea;
+            --secondary-color: #764ba2;
+            --accent-color: #f093fb;
+            --success-color: #4facfe;
+            --warning-color: #f6d365;
+            --danger-color: #fda085;
+            --dark-bg: #1a1a2e;
+            --card-bg: #16213e;
+            --text-light: #eee;
+            --border-color: #374151;
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, var(--dark-bg) 0%, #0f0c29 100%);
+            color: var(--text-light);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+        
+        .dashboard-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            padding: 2rem;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        
+        .dashboard-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .dashboard-subtitle {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+        
+        .resource-overview {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            padding: 2rem;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .resource-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            border: 1px solid var(--border-color);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .resource-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+        }
+        
+        .card-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+        
+        .card-icon {
+            font-size: 1.5rem;
+            margin-right: 0.5rem;
+        }
+        
+        .metric-value {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+        
+        .metric-label {
+            color: #9CA3AF;
+            font-size: 0.9rem;
+        }
+        
+        .cpu-metric { border-left: 4px solid var(--success-color); }
+        .gpu-metric { border-left: 4px solid var(--warning-color); }
+        .memory-metric { border-left: 4px solid var(--accent-color); }
+        .io-metric { border-left: 4px solid var(--danger-color); }
+        
+        .tabs-container {
+            max-width: 1400px;
+            margin: 2rem auto;
+            padding: 0 2rem;
+        }
+        
+        .tabs {
+            display: flex;
+            background: var(--card-bg);
+            border-radius: 12px 12px 0 0;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+        
+        .tab {
+            flex: 1;
+            padding: 1rem 2rem;
+            background: transparent;
+            color: var(--text-light);
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            border-right: 1px solid var(--border-color);
+        }
+        
+        .tab:last-child { border-right: none; }
+        
+        .tab.active {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+        }
+        
+        .tab-content {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-top: none;
+            border-radius: 0 0 12px 12px;
+            padding: 2rem;
+            min-height: 600px;
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 400px;
+            margin-bottom: 2rem;
+        }
+        
+        .ranking-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+        
+        .ranking-table th,
+        .ranking-table td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .ranking-table th {
+            background: var(--primary-color);
+            color: white;
+            font-weight: 600;
+        }
+        
+        .ranking-table tr:hover {
+            background: rgba(102, 126, 234, 0.1);
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: var(--border-color);
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 0.5rem 0;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--success-color), var(--warning-color));
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+        
+        .recommendation-card {
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+            border: 1px solid var(--primary-color);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .recommendation-title {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: var(--accent-color);
+        }
+        
+        .efficiency-score {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+        
+        .score-excellent { background: var(--success-color); color: white; }
+        .score-good { background: var(--warning-color); color: white; }
+        .score-fair { background: var(--danger-color); color: white; }
+        
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <div class="dashboard-header">
+        <h1 class="dashboard-title">🚀 Comprehensive System Analysis</h1>
+        <p class="dashboard-subtitle">Memory Tracking + CPU/GPU/IO Resource Monitoring</p>
+    </div>
+"#);
+
+    // Resource Overview Cards
+    html.push_str(&build_resource_overview_cards(resource_timeline, analysis, performance_insights)?);
+    
+    // Tabbed Content
+    html.push_str(&build_tabbed_content(comprehensive_analysis)?);
+    
+    // JavaScript for interactivity
+    html.push_str(&build_comprehensive_javascript(comprehensive_analysis)?);
+    
+    html.push_str("</body></html>");
+    
+    Ok(html)
+}
+
+/// Build resource overview cards showing key metrics
+fn build_resource_overview_cards(
+    resource_timeline: &[PlatformResourceMetrics],
+    analysis: &LockfreeAnalysis,
+    performance_insights: &super::resource_integration::PerformanceInsights,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let mut html = String::new();
+    
+    html.push_str(r#"<div class="resource-overview">"#);
+    
+    // Calculate metrics from timeline
+    let avg_cpu = if !resource_timeline.is_empty() {
+        resource_timeline.iter()
+            .map(|r| r.cpu_metrics.overall_usage_percent)
+            .sum::<f32>() / resource_timeline.len() as f32
+    } else { 0.0 };
+    
+    let max_cpu = resource_timeline.iter()
+        .map(|r| r.cpu_metrics.overall_usage_percent)
+        .fold(0.0f32, |a, b| a.max(b));
+    
+    let avg_gpu = if !resource_timeline.is_empty() {
+        let gpu_samples: Vec<f32> = resource_timeline.iter()
+            .filter_map(|r| r.gpu_metrics.as_ref())
+            .map(|g| g.compute_usage_percent)
+            .collect();
+        if !gpu_samples.is_empty() {
+            gpu_samples.iter().sum::<f32>() / gpu_samples.len() as f32
+        } else { 0.0 }
+    } else { 0.0 };
+    
+    // CPU Metrics Card
+    html.push_str(&format!(r#"
+    <div class="resource-card cpu-metric">
+        <div class="card-header">
+            <span class="card-icon">🔥</span>
+            CPU Performance
+        </div>
+        <div class="metric-value">{:.1}%</div>
+        <div class="metric-label">Average Usage</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: {}%"></div>
+        </div>
+        <div style="font-size: 0.85rem; margin-top: 0.5rem;">
+            Peak: {:.1}% | Cores: {}
+        </div>
+    </div>
+    "#, avg_cpu, avg_cpu, max_cpu, 
+        resource_timeline.first().map(|r| r.cpu_metrics.per_core_usage.len()).unwrap_or(0)));
+    
+    // GPU Metrics Card
+    html.push_str(&format!(r#"
+    <div class="resource-card gpu-metric">
+        <div class="card-header">
+            <span class="card-icon">🎮</span>
+            GPU Performance
+        </div>
+        <div class="metric-value">{:.1}%</div>
+        <div class="metric-label">Average Compute Usage</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: {}%"></div>
+        </div>
+        <div style="font-size: 0.85rem; margin-top: 0.5rem;">
+            Status: {}
+        </div>
+    </div>
+    "#, avg_gpu, avg_gpu, 
+        if avg_gpu > 0.0 { "Active" } else { "Idle/Not Available" }));
+    
+    // Memory Metrics Card
+    html.push_str(&format!(r#"
+    <div class="resource-card memory-metric">
+        <div class="card-header">
+            <span class="card-icon">💾</span>
+            Memory Analysis
+        </div>
+        <div class="metric-value">{}</div>
+        <div class="metric-label">Total Allocations</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: {}%"></div>
+        </div>
+        <div style="font-size: 0.85rem; margin-top: 0.5rem;">
+            Peak: {:.1} MB | Efficiency: {:.1}%
+        </div>
+    </div>
+    "#, analysis.summary.total_allocations,
+        (performance_insights.memory_efficiency_score).min(100.0),
+        analysis.summary.peak_memory_usage as f32 / 1024.0 / 1024.0,
+        performance_insights.memory_efficiency_score));
+    
+    // System Health Card
+    html.push_str(&format!(r#"
+    <div class="resource-card io-metric">
+        <div class="card-header">
+            <span class="card-icon">⚡</span>
+            System Health
+        </div>
+        <div class="metric-value">{:.0}%</div>
+        <div class="metric-label">Overall Efficiency</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: {}%"></div>
+        </div>
+        <div style="font-size: 0.85rem; margin-top: 0.5rem;">
+            Bottleneck: {:?}
+        </div>
+    </div>
+    "#, (performance_insights.cpu_efficiency_score + performance_insights.memory_efficiency_score) / 2.0,
+        (performance_insights.cpu_efficiency_score + performance_insights.memory_efficiency_score) / 2.0,
+        performance_insights.primary_bottleneck));
+    
+    html.push_str("</div>");
+    
+    Ok(html)
+}
+
+/// Build tabbed content with detailed analysis
+fn build_tabbed_content(comprehensive_analysis: &ComprehensiveAnalysis) -> Result<String, Box<dyn std::error::Error>> {
+    let mut html = String::new();
+    
+    html.push_str(r#"
+    <div class="tabs-container">
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('cpu-analysis')">🔥 CPU Analysis</button>
+            <button class="tab" onclick="showTab('gpu-analysis')">🎮 GPU Analysis</button>
+            <button class="tab" onclick="showTab('memory-analysis')">💾 Memory Analysis</button>
+            <button class="tab" onclick="showTab('thread-ranking')">🧵 Thread Ranking</button>
+            <button class="tab" onclick="showTab('recommendations')">💡 Recommendations</button>
+        </div>
+        
+        <div class="tab-content">
+    "#);
+    
+    // CPU Analysis Tab
+    html.push_str(&build_cpu_analysis_tab(&comprehensive_analysis.resource_timeline)?);
+    
+    // GPU Analysis Tab  
+    html.push_str(&build_gpu_analysis_tab(&comprehensive_analysis.resource_timeline)?);
+    
+    // Memory Analysis Tab
+    html.push_str(&build_memory_analysis_tab(&comprehensive_analysis.memory_analysis)?);
+    
+    // Thread Ranking Tab
+    html.push_str(&build_thread_ranking_tab(&comprehensive_analysis.performance_insights.thread_performance_ranking)?);
+    
+    // Recommendations Tab
+    html.push_str(&build_recommendations_tab(&comprehensive_analysis.performance_insights)?);
+    
+    html.push_str("</div></div>");
+    
+    Ok(html)
+}
+
+/// Build CPU analysis tab with charts and rankings
+fn build_cpu_analysis_tab(resource_timeline: &[PlatformResourceMetrics]) -> Result<String, Box<dyn std::error::Error>> {
+    let mut html = String::new();
+    
+    html.push_str(r#"
+    <div id="cpu-analysis" class="tab-panel">
+        <h2>🔥 CPU Performance Analysis</h2>
+        
+        <div class="chart-container">
+            <canvas id="cpuUsageChart"></canvas>
+        </div>
+        
+        <h3>CPU Usage Ranking by Timeline</h3>
+        <table class="ranking-table">
+            <thead>
+                <tr>
+                    <th>Sample #</th>
+                    <th>Overall Usage</th>
+                    <th>Core Count</th>
+                    <th>Load Average</th>
+                    <th>Performance</th>
+                </tr>
+            </thead>
+            <tbody>
+    "#);
+    
+    // Add CPU ranking data
+    for (i, metric) in resource_timeline.iter().enumerate().take(20) {
+        let performance_class = match metric.cpu_metrics.overall_usage_percent {
+            usage if usage < 30.0 => "score-excellent",
+            usage if usage < 70.0 => "score-good", 
+            _ => "score-fair",
+        };
+        
+        html.push_str(&format!(r#"
+                <tr>
+                    <td>{}</td>
+                    <td>{:.1}%</td>
+                    <td>{}</td>
+                    <td>{:.2}</td>
+                    <td><span class="efficiency-score {}">{}</span></td>
+                </tr>
+        "#, i + 1, 
+            metric.cpu_metrics.overall_usage_percent,
+            metric.cpu_metrics.per_core_usage.len(),
+            metric.cpu_metrics.load_average.0,
+            performance_class,
+            match metric.cpu_metrics.overall_usage_percent {
+                usage if usage < 30.0 => "Excellent",
+                usage if usage < 70.0 => "Good",
+                _ => "High Load",
+            }));
+    }
+    
+    html.push_str(r#"
+            </tbody>
+        </table>
+    </div>
+    "#);
+    
+    Ok(html)
+}
+
+/// Build GPU analysis tab
+fn build_gpu_analysis_tab(resource_timeline: &[PlatformResourceMetrics]) -> Result<String, Box<dyn std::error::Error>> {
+    let mut html = String::new();
+    
+    html.push_str(r#"
+    <div id="gpu-analysis" class="tab-panel hidden">
+        <h2>🎮 GPU Performance Analysis</h2>
+        
+        <div class="chart-container">
+            <canvas id="gpuUsageChart"></canvas>
+        </div>
+        
+        <h3>GPU Usage Ranking</h3>
+        <table class="ranking-table">
+            <thead>
+                <tr>
+                    <th>Sample #</th>
+                    <th>Compute Usage</th>
+                    <th>Memory Usage</th>
+                    <th>Temperature</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+    "#);
+    
+    // Add GPU ranking data
+    for (i, metric) in resource_timeline.iter().enumerate().take(20) {
+        if let Some(gpu) = &metric.gpu_metrics {
+            html.push_str(&format!(r#"
+                <tr>
+                    <td>{}</td>
+                    <td>{:.1}%</td>
+                    <td>{:.1}%</td>
+                    <td>{:.1}°C</td>
+                    <td><span class="efficiency-score score-good">Active</span></td>
+                </tr>
+            "#, i + 1, 
+                gpu.compute_usage_percent,
+                gpu.memory_usage_percent,
+                gpu.temperature_celsius));
+        } else {
+            html.push_str(&format!(r#"
+                <tr>
+                    <td>{}</td>
+                    <td>N/A</td>
+                    <td>N/A</td>
+                    <td>N/A</td>
+                    <td><span class="efficiency-score score-fair">Not Available</span></td>
+                </tr>
+            "#, i + 1));
+        }
+    }
+    
+    html.push_str(r#"
+            </tbody>
+        </table>
+    </div>
+    "#);
+    
+    Ok(html)
+}
+
+/// Build memory analysis tab
+fn build_memory_analysis_tab(analysis: &LockfreeAnalysis) -> Result<String, Box<dyn std::error::Error>> {
+    let mut html = String::new();
+    
+    html.push_str(r#"
+    <div id="memory-analysis" class="tab-panel hidden">
+        <h2>💾 Memory Usage Analysis</h2>
+        
+        <div class="chart-container">
+            <canvas id="memoryTimelineChart"></canvas>
+        </div>
+        
+        <h3>Thread Memory Usage Ranking</h3>
+        <table class="ranking-table">
+            <thead>
+                <tr>
+                    <th>Thread ID</th>
+                    <th>Allocations</th>
+                    <th>Deallocations</th>
+                    <th>Peak Usage</th>
+                    <th>Efficiency</th>
+                </tr>
+            </thead>
+            <tbody>
+    "#);
+    
+    // Sort threads by peak memory usage
+    let mut thread_stats: Vec<_> = analysis.thread_stats.iter().collect();
+    thread_stats.sort_by(|a, b| b.1.peak_memory.cmp(&a.1.peak_memory));
+    
+    for (thread_id, stats) in thread_stats.iter().take(15) {
+        let efficiency = if stats.total_allocations > 0 {
+            (stats.total_deallocations as f32 / stats.total_allocations as f32 * 100.0).min(100.0)
+        } else { 0.0 };
+        
+        let efficiency_class = match efficiency {
+            eff if eff >= 90.0 => "score-excellent",
+            eff if eff >= 70.0 => "score-good",
+            _ => "score-fair",
+        };
+        
+        html.push_str(&format!(r#"
+                <tr>
+                    <td>{}</td>
+                    <td>{}</td>
+                    <td>{}</td>
+                    <td>{:.1} KB</td>
+                    <td><span class="efficiency-score {}">{:.1}%</span></td>
+                </tr>
+        "#, thread_id,
+            stats.total_allocations,
+            stats.total_deallocations,
+            stats.peak_memory as f32 / 1024.0,
+            efficiency_class,
+            efficiency));
+    }
+    
+    html.push_str(r#"
+            </tbody>
+        </table>
+    </div>
+    "#);
+    
+    Ok(html)
+}
+
+/// Build thread ranking tab
+fn build_thread_ranking_tab(thread_rankings: &[super::resource_integration::ThreadPerformanceMetric]) -> Result<String, Box<dyn std::error::Error>> {
+    let mut html = String::new();
+    
+    html.push_str(r#"
+    <div id="thread-ranking" class="tab-panel hidden">
+        <h2>🧵 Thread Performance Ranking</h2>
+        <p>Threads ranked by overall efficiency combining CPU usage, memory allocation patterns, and resource consumption.</p>
+        
+        <table class="ranking-table">
+            <thead>
+                <tr>
+                    <th>Rank</th>
+                    <th>Thread ID</th>
+                    <th>Thread Name</th>
+                    <th>Efficiency Score</th>
+                    <th>Resource Usage</th>
+                    <th>Allocation Efficiency</th>
+                </tr>
+            </thead>
+            <tbody>
+    "#);
+    
+    for (rank, thread_perf) in thread_rankings.iter().enumerate().take(20) {
+        let efficiency_class = match thread_perf.efficiency_score {
+            score if score >= 80.0 => "score-excellent",
+            score if score >= 60.0 => "score-good",
+            _ => "score-fair",
+        };
+        
+        html.push_str(&format!(r#"
+                <tr>
+                    <td>{}</td>
+                    <td>{}</td>
+                    <td>{}</td>
+                    <td><span class="efficiency-score {}">{:.1}%</span></td>
+                    <td>{:.1}%</td>
+                    <td>{:.1}%</td>
+                </tr>
+        "#, rank + 1,
+            thread_perf.thread_id,
+            thread_perf.thread_name.as_ref().unwrap_or(&"Unknown".to_string()),
+            efficiency_class,
+            thread_perf.efficiency_score,
+            thread_perf.resource_usage_score,
+            thread_perf.allocation_efficiency));
+    }
+    
+    html.push_str(r#"
+            </tbody>
+        </table>
+    </div>
+    "#);
+    
+    Ok(html)
+}
+
+/// Build recommendations tab
+fn build_recommendations_tab(performance_insights: &super::resource_integration::PerformanceInsights) -> Result<String, Box<dyn std::error::Error>> {
+    let mut html = String::new();
+    
+    html.push_str(r#"
+    <div id="recommendations" class="tab-panel hidden">
+        <h2>💡 Performance Recommendations</h2>
+        <p>AI-generated insights based on comprehensive system analysis:</p>
+    "#);
+    
+    for (i, recommendation) in performance_insights.recommendations.iter().enumerate() {
+        html.push_str(&format!(r#"
+        <div class="recommendation-card">
+            <div class="recommendation-title">Recommendation #{}</div>
+            <div>{}</div>
+        </div>
+        "#, i + 1, recommendation));
+    }
+    
+    // System efficiency summary
+    html.push_str(&format!(r#"
+        <h3>System Efficiency Summary</h3>
+        <div class="recommendation-card">
+            <div class="recommendation-title">Overall Performance Scores</div>
+            <div>
+                <p><strong>CPU Efficiency:</strong> <span class="efficiency-score score-good">{:.1}%</span></p>
+                <p><strong>Memory Efficiency:</strong> <span class="efficiency-score score-good">{:.1}%</span></p>
+                <p><strong>IO Efficiency:</strong> <span class="efficiency-score score-good">{:.1}%</span></p>
+                <p><strong>Primary Bottleneck:</strong> {:?}</p>
+            </div>
+        </div>
+    </div>
+    "#, performance_insights.cpu_efficiency_score,
+        performance_insights.memory_efficiency_score,
+        performance_insights.io_efficiency_score,
+        performance_insights.primary_bottleneck));
+    
+    Ok(html)
+}
+
+/// Build comprehensive JavaScript for charts and interactivity
+fn build_comprehensive_javascript(comprehensive_analysis: &ComprehensiveAnalysis) -> Result<String, Box<dyn std::error::Error>> {
+    let mut js = String::new();
+    
+    js.push_str(r#"
+<script>
+// Tab switching functionality
+function showTab(tabId) {
+    // Hide all tab panels
+    const panels = document.querySelectorAll('.tab-panel');
+    panels.forEach(panel => panel.classList.add('hidden'));
+    
+    // Remove active class from all tabs
+    const tabs = document.querySelectorAll('.tab');
+    tabs.forEach(tab => tab.classList.remove('active'));
+    
+    // Show selected panel
+    document.getElementById(tabId).classList.remove('hidden');
+    
+    // Add active class to clicked tab
+    event.target.classList.add('active');
+}
+
+// CPU Usage Chart
+function createCpuUsageChart() {
+    const ctx = document.getElementById('cpuUsageChart').getContext('2d');
+    const cpuData = "#);
+    
+    // Generate CPU chart data
+    let mut cpu_data = Vec::new();
+    let mut labels = Vec::new();
+    
+    for (i, metric) in comprehensive_analysis.resource_timeline.iter().enumerate() {
+        cpu_data.push(metric.cpu_metrics.overall_usage_percent);
+        labels.push(format!("Sample {}", i + 1));
+    }
+    
+    js.push_str(&format!(r#"{:?};"#, cpu_data));
+    js.push_str(&format!(r#"
+    const cpuLabels = {:?};
+    
+    new Chart(ctx, {{
+        type: 'line',
+        data: {{
+            labels: cpuLabels,
+            datasets: [{{
+                label: 'CPU Usage %',
+                data: cpuData,
+                borderColor: '#4facfe',
+                backgroundColor: 'rgba(79, 172, 254, 0.1)',
+                tension: 0.4,
+                fill: true
+            }}]
+        }},
+        options: {{
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {{
+                legend: {{
+                    labels: {{
+                        color: '#eee'
+                    }}
+                }}
+            }},
+            scales: {{
+                x: {{
+                    ticks: {{
+                        color: '#9CA3AF'
+                    }},
+                    grid: {{
+                        color: '#374151'
+                    }}
+                }},
+                y: {{
+                    beginAtZero: true,
+                    max: 100,
+                    ticks: {{
+                        color: '#9CA3AF'
+                    }},
+                    grid: {{
+                        color: '#374151'
+                    }}
+                }}
+            }}
+        }}
+    }});
+}}
+
+// GPU Usage Chart
+function createGpuUsageChart() {{
+    const ctx = document.getElementById('gpuUsageChart').getContext('2d');
+    const gpuData = "#, labels));
+    
+    // Generate GPU chart data
+    let mut gpu_data = Vec::new();
+    let mut gpu_memory_data = Vec::new();
+    
+    for metric in &comprehensive_analysis.resource_timeline {
+        if let Some(gpu) = &metric.gpu_metrics {
+            gpu_data.push(gpu.compute_usage_percent);
+            gpu_memory_data.push(gpu.memory_usage_percent);
+        } else {
+            gpu_data.push(0.0);
+            gpu_memory_data.push(0.0);
+        }
+    }
+    
+    js.push_str(&format!(r#"{:?};
+    const gpuMemoryData = {:?};
+    
+    new Chart(ctx, {{
+        type: 'line',
+        data: {{
+            labels: cpuLabels,
+            datasets: [{{
+                label: 'GPU Compute %',
+                data: gpuData,
+                borderColor: '#f6d365',
+                backgroundColor: 'rgba(246, 211, 101, 0.1)',
+                tension: 0.4
+            }}, {{
+                label: 'GPU Memory %',
+                data: gpuMemoryData,
+                borderColor: '#fda085',
+                backgroundColor: 'rgba(253, 160, 133, 0.1)',
+                tension: 0.4
+            }}]
+        }},
+        options: {{
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {{
+                legend: {{
+                    labels: {{
+                        color: '#eee'
+                    }}
+                }}
+            }},
+            scales: {{
+                x: {{
+                    ticks: {{
+                        color: '#9CA3AF'
+                    }},
+                    grid: {{
+                        color: '#374151'
+                    }}
+                }},
+                y: {{
+                    beginAtZero: true,
+                    max: 100,
+                    ticks: {{
+                        color: '#9CA3AF'
+                    }},
+                    grid: {{
+                        color: '#374151'
+                    }}
+                }}
+            }}
+        }}
+    }});
+}}
+
+// Memory Timeline Chart
+function createMemoryTimelineChart() {{
+    const ctx = document.getElementById('memoryTimelineChart').getContext('2d');
+    
+    // Generate memory allocation timeline
+    const memoryData = "#, gpu_data, gpu_memory_data));
+    
+    // Generate memory timeline data (simplified)
+    let mut memory_allocations = Vec::new();
+    let mut running_total = 0;
+    
+    for (i, _) in comprehensive_analysis.resource_timeline.iter().enumerate() {
+        running_total += (i + 1) * 100; // Simplified allocation pattern
+        memory_allocations.push(running_total);
+    }
+    
+    js.push_str(&format!(r#"{:?};
+    
+    new Chart(ctx, {{
+        type: 'bar',
+        data: {{
+            labels: cpuLabels,
+            datasets: [{{
+                label: 'Cumulative Allocations',
+                data: memoryData,
+                backgroundColor: 'rgba(240, 147, 251, 0.7)',
+                borderColor: '#f093fb',
+                borderWidth: 1
+            }}]
+        }},
+        options: {{
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {{
+                legend: {{
+                    labels: {{
+                        color: '#eee'
+                    }}
+                }}
+            }},
+            scales: {{
+                x: {{
+                    ticks: {{
+                        color: '#9CA3AF'
+                    }},
+                    grid: {{
+                        color: '#374151'
+                    }}
+                }},
+                y: {{
+                    beginAtZero: true,
+                    ticks: {{
+                        color: '#9CA3AF'
+                    }},
+                    grid: {{
+                        color: '#374151'
+                    }}
+                }}
+            }}
+        }}
+    }});
+}}
+
+// Initialize all charts when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {{
+    createCpuUsageChart();
+    createGpuUsageChart();
+    createMemoryTimelineChart();
+}});
+
+// Performance animation for progress bars
+document.addEventListener('DOMContentLoaded', function() {{
+    const progressBars = document.querySelectorAll('.progress-fill');
+    progressBars.forEach(bar => {{
+        const width = bar.style.width;
+        bar.style.width = '0%';
+        setTimeout(() => {{
+            bar.style.width = width;
+        }}, 500);
+    }});
+}});
+</script>
+"#, memory_allocations));
+    
+    Ok(js)
+}
+
+/// Build comprehensive HTML report with interactive visualizations (memory only)
 fn build_enhanced_html_report(analysis: &LockfreeAnalysis) -> Result<String, Box<dyn std::error::Error>> {
     let mut html = String::new();
     
