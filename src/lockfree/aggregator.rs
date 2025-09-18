@@ -377,6 +377,19 @@ impl LockfreeAggregator {
     }
 
     fn build_html_report(&self, analysis: &LockfreeAnalysis) -> Result<String, Box<dyn std::error::Error>> {
+        // Use the new enhanced visualizer
+        use super::visualizer::generate_enhanced_html_report;
+        
+        // Create a temporary file to get the content
+        let temp_path = std::env::temp_dir().join("temp_report.html");
+        generate_enhanced_html_report(analysis, &temp_path)?;
+        let content = std::fs::read_to_string(&temp_path)?;
+        let _ = std::fs::remove_file(&temp_path); // Cleanup
+        
+        Ok(content)
+    }
+
+    fn build_html_report_legacy(&self, analysis: &LockfreeAnalysis) -> Result<String, Box<dyn std::error::Error>> {
         let mut html = String::new();
         
         // Enhanced HTML with modern styling and comprehensive data display

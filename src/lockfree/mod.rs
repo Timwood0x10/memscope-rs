@@ -24,6 +24,7 @@ pub mod aggregator;
 pub mod analysis;
 pub mod sampling;
 pub mod api;
+pub mod visualizer;
 
 pub use tracker::{
     ThreadLocalTracker, 

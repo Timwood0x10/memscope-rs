@@ -132,12 +132,23 @@ fn run_tracking_worker(
         .map_err(|e| format!("Thread {} init failed: {}", thread_idx, e))?;
     
     let mut allocated_ptrs = Vec::new();
-    let operation_count = 500; // Moderate workload
+    // DIFFERENT operation counts per thread to create variety
+    let operation_count = 400 + (thread_idx * 15) + (thread_idx % 4) * 50; // 400-950 operations
     
-    // Perform tracked allocations
+    // Perform tracked allocations with DIVERSE patterns per thread
     for i in 0..operation_count {
-        let size = 1024 + (i % 8) * 128; // Varied sizes
-        let ptr = thread_idx * 100000 + i * 1000; // Unique addresses
+        // Create DIFFERENT allocation patterns for each thread
+        let base_size = match thread_idx % 6 {
+            0 => 256,    // Small allocations
+            2 => 2048,   // Medium allocations
+            4 => 8192,   // Large allocations
+            6 => 16384,  // Very large allocations
+            8 => 4096,   // Medium-large allocations
+            _ => 1024,   // Default size
+        };
+        
+        let size = base_size + (i % 10) * 64 + (thread_idx % 7) * 32; // Varied sizes per thread
+        let ptr = thread_idx * 100000 + i * 1000 + size; // More unique addresses
         
         let call_stack = vec![
             run_tracking_worker as *const () as usize,
@@ -152,8 +163,9 @@ fn run_tracking_worker(
         allocated_ptrs.push((ptr, call_stack.clone()));
         total_operations.fetch_add(1, Ordering::Relaxed);
         
-        // Periodic deallocation
-        if i > 0 && i % 5 == 0 && !allocated_ptrs.is_empty() {
+        // VARIED deallocation patterns per thread
+        let dealloc_freq = 3 + (thread_idx % 5); // Different frequencies per thread
+        if i > 0 && i % dealloc_freq == 0 && !allocated_ptrs.is_empty() {
             let (old_ptr, old_stack) = allocated_ptrs.remove(0);
             track_deallocation_lockfree(old_ptr, &old_stack)
                 .map_err(|e| format!("Thread {} dealloc failed: {}", thread_idx, e))?;
