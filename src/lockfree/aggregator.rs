@@ -445,6 +445,7 @@ impl LockfreeAggregator {
         Ok(content)
     }
 
+    #[allow(dead_code)]
     fn build_html_report_legacy(
         &self,
         analysis: &LockfreeAnalysis,

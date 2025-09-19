@@ -6,7 +6,7 @@
 use memscope_rs::lockfree::aggregator::LockfreeAggregator;
 use memscope_rs::lockfree::tracker::{
     finalize_thread_tracker, init_thread_tracker, track_allocation_lockfree,
-    track_deallocation_lockfree, SamplingConfig,
+    SamplingConfig,
 };
 
 use std::collections::{BTreeMap, HashMap, HashSet};

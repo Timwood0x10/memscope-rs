@@ -175,7 +175,9 @@ mod macos_impl {
 
     pub struct MacOSResourceCollector {
         cpu_count: usize,
+        #[allow(dead_code)]
         page_size: u64,
+        #[allow(dead_code)]
         last_cpu_times: Vec<u64>,
     }
 
@@ -218,6 +220,7 @@ mod macos_impl {
 
             let result = unsafe {
                 libc::host_statistics(
+                    #[allow(deprecated)]
                     libc::mach_host_self(),
                     libc::HOST_CPU_LOAD_INFO,
                     &mut host_cpu_load_info as *mut _ as *mut i32,
@@ -296,6 +299,7 @@ mod macos_impl {
 
             let result = unsafe {
                 libc::task_info(
+                    #[allow(deprecated)]
                     libc::mach_task_self(),
                     libc::MACH_TASK_BASIC_INFO,
                     &mut task_info as *mut _ as *mut i32,

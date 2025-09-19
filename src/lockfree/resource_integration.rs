@@ -66,6 +66,7 @@ pub struct ThreadPerformanceMetric {
 /// Integrated profiling session that tracks both memory and system resources
 pub struct IntegratedProfilingSession {
     memory_trackers: HashMap<u64, ThreadLocalTracker>,
+    #[allow(dead_code)]
     resource_collector: PlatformResourceCollector,
     resource_timeline: Arc<Mutex<Vec<PlatformResourceMetrics>>>,
     is_active: Arc<AtomicBool>,

@@ -12,7 +12,7 @@ use memscope_rs::lockfree::tracker::{
     track_deallocation_lockfree, SamplingConfig,
 };
 use memscope_rs::lockfree::{
-    export_comprehensive_analysis, generate_comprehensive_html_report, IntegratedProfilingSession,
+    export_comprehensive_analysis, IntegratedProfilingSession,
     PlatformResourceCollector,
 };
 
@@ -332,7 +332,7 @@ fn run_enhanced_verified_worker(
     total_operations: &Arc<AtomicUsize>,
     tracking_log: &Arc<Mutex<Vec<(usize, bool)>>>,
 ) -> Result<(), String> {
-    let thread_name = format!("worker_{}", thread_idx);
+    let _thread_name = format!("worker_{}", thread_idx);
 
     // Enhanced workload for better resource monitoring
     let start_time = Instant::now();
@@ -434,125 +434,8 @@ fn run_enhanced_verified_worker(
     Ok(())
 }
 
-/// Run worker with explicit tracking verification
-fn run_verified_worker(
-    thread_idx: usize,
-    output_dir: &std::path::Path,
-    total_operations: &Arc<AtomicUsize>,
-    tracking_log: &Arc<Mutex<Vec<(usize, bool)>>>,
-) -> Result<(), String> {
-    let should_track = thread_idx % 2 == 0; // Only even threads
 
-    // Log our decision
-    if let Ok(mut log) = tracking_log.lock() {
-        log.push((thread_idx, should_track));
-    }
 
-    if should_track {
-        println!("   🟢 Thread {} TRACKING", thread_idx);
-        run_tracking_worker(thread_idx, output_dir, total_operations)
-    } else {
-        println!("   ⚫ Thread {} SKIPPED", thread_idx);
-        run_non_tracking_worker(thread_idx, total_operations)
-    }
-}
-
-/// Worker that actually initializes tracking
-fn run_tracking_worker(
-    thread_idx: usize,
-    output_dir: &std::path::Path,
-    total_operations: &Arc<AtomicUsize>,
-) -> Result<(), String> {
-    // Initialize tracking for this thread
-    init_thread_tracker(output_dir, Some(SamplingConfig::demo()))
-        .map_err(|e| format!("Thread {} init failed: {}", thread_idx, e))?;
-
-    let mut allocated_ptrs = Vec::new();
-    // DIFFERENT operation counts per thread to create variety
-    let operation_count = 400 + (thread_idx * 15) + (thread_idx % 4) * 50; // 400-950 operations
-
-    // Perform tracked allocations with DIVERSE patterns per thread
-    for i in 0..operation_count {
-        // Create DIFFERENT allocation patterns for each thread
-        let base_size = match thread_idx % 6 {
-            0 => 256,   // Small allocations
-            2 => 2048,  // Medium allocations
-            4 => 8192,  // Large allocations
-            6 => 16384, // Very large allocations
-            8 => 4096,  // Medium-large allocations
-            _ => 1024,  // Default size
-        };
-
-        let size = base_size + (i % 10) * 64 + (thread_idx % 7) * 32; // Varied sizes per thread
-        let ptr = thread_idx * 100000 + i * 1000 + size; // More unique addresses
-
-        let call_stack = vec![
-            run_tracking_worker as *const () as usize,
-            run_verified_worker as *const () as usize,
-            main as *const () as usize,
-        ];
-
-        // Track allocation with metadata that identifies our thread_idx
-        track_allocation_lockfree(ptr, size, &call_stack)
-            .map_err(|e| format!("Thread {} track failed: {}", thread_idx, e))?;
-
-        allocated_ptrs.push((ptr, call_stack.clone()));
-        total_operations.fetch_add(1, Ordering::Relaxed);
-
-        // VARIED deallocation patterns per thread
-        let dealloc_freq = 3 + (thread_idx % 5); // Different frequencies per thread
-        if i > 0 && i % dealloc_freq == 0 && !allocated_ptrs.is_empty() {
-            let (old_ptr, old_stack) = allocated_ptrs.remove(0);
-            track_deallocation_lockfree(old_ptr, &old_stack)
-                .map_err(|e| format!("Thread {} dealloc failed: {}", thread_idx, e))?;
-
-            total_operations.fetch_add(1, Ordering::Relaxed);
-        }
-
-        // Small work simulation
-        thread::sleep(Duration::from_micros(10));
-    }
-
-    // Clean up remaining allocations
-    for (ptr, stack) in allocated_ptrs {
-        track_deallocation_lockfree(ptr, &stack)
-            .map_err(|e| format!("Thread {} cleanup failed: {}", thread_idx, e))?;
-        total_operations.fetch_add(1, Ordering::Relaxed);
-    }
-
-    // Finalize tracking
-    finalize_thread_tracker()
-        .map_err(|e| format!("Thread {} finalize failed: {}", thread_idx, e))?;
-
-    Ok(())
-}
-
-/// Worker that does NOT initialize tracking
-fn run_non_tracking_worker(
-    thread_idx: usize,
-    total_operations: &Arc<AtomicUsize>,
-) -> Result<(), String> {
-    // NO tracking initialization - just simulate work
-    let operation_count = 500;
-
-    for i in 0..operation_count {
-        // Simulate work without any tracking calls
-        let _fake_size = 1024 + (i % 8) * 128;
-        let _fake_ptr = thread_idx * 100000 + i * 1000;
-
-        total_operations.fetch_add(1, Ordering::Relaxed);
-
-        // Simulate deallocation work
-        if i > 0 && i % 5 == 0 {
-            total_operations.fetch_add(1, Ordering::Relaxed);
-        }
-
-        // Same timing as tracking threads
-        thread::sleep(Duration::from_micros(10));
-    }
-
-    Ok(())
-}
 
 /// Verify that our logic worked correctly
 fn verify_selective_tracking_logic(

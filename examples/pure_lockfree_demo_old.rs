@@ -32,8 +32,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let thread_configs = create_thread_configurations();
     let thread_count = thread_configs.len();
     let total_operations = Arc::new(AtomicUsize::new(0));
-    let tracked_threads = Arc::new(AtomicUsize::new(0));
-    let untracked_threads = Arc::new(AtomicUsize::new(0));
+    let _tracked_threads = Arc::new(AtomicUsize::new(0));
+    let _untracked_threads = Arc::new(AtomicUsize::new(0));
 
     println!("🔄 Starting {} worker threads...", thread_count);
     println!("   📊 Tracking strategy: EVEN threads only (0,2,4,6...)");
@@ -288,7 +288,7 @@ fn run_worker_thread(
     let cleanup_count = (allocated_ptrs.len() as f64 * cleanup_ratio) as usize;
     let mut deallocated_count = 0;
 
-    for (ptr, call_stack) in allocated_ptrs.into_iter().take(cleanup_count) {
+    for (ptr, _call_stack) in allocated_ptrs.into_iter().take(cleanup_count) {
         // Track deallocation with REAL call stack
         let dealloc_call_stack = vec![
             run_worker_thread as *const () as usize,

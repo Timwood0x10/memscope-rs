@@ -180,7 +180,7 @@ fn analyze_binary_data(output_dir: &Path) -> Result<(), Box<dyn std::error::Erro
 fn analyze_call_stack_authenticity(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     println!("📞 **CALL STACK AUTHENTICITY ANALYSIS**");
 
-    let mut call_stack_patterns: HashMap<String, usize> = HashMap::new();
+    let call_stack_patterns: HashMap<String, usize> = HashMap::new();
     let mut address_ranges = HashMap::new();
     let mut depth_distribution = HashMap::new();
 
