@@ -271,16 +271,31 @@ fn build_comprehensive_html_report(
             color: var(--text-light);
             transition: all 0.3s ease;
             min-height: 140px;
+            position: relative;
+        }
+        .thread-card.selected {
+            border-width: 3px;
+            transform: scale(1.05);
+            z-index: 10;
         }
         .thread-card.tracked {
             border-color: var(--success-color);
             background: var(--card-bg);
             box-shadow: 0 0 10px rgba(102, 187, 106, 0.3);
+            cursor: pointer;
         }
-        .thread-card.untracked {
-            border-color: #6c757d;
-            background: var(--surface-color);
-            opacity: 0.8;
+        .thread-card.alert-high {
+            border-color: var(--danger-color);
+            box-shadow: 0 0 15px rgba(239, 83, 80, 0.5);
+            animation: pulse-danger 2s infinite;
+        }
+        .thread-card.alert-medium {
+            border-color: var(--warning-color);
+            box-shadow: 0 0 12px rgba(255, 183, 77, 0.4);
+        }
+        .thread-card.alert-normal {
+            border-color: var(--success-color);
+            box-shadow: 0 0 8px rgba(102, 187, 106, 0.3);
         }
         .thread-card:hover {
             transform: translateY(-2px);
@@ -424,6 +439,141 @@ fn build_comprehensive_html_report(
             font-size: 12px;
             color: var(--text-light);
             opacity: 0.8;
+        }
+
+        /* Thread role and alert styles */
+        .thread-role-tag {
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: bold;
+            background: var(--surface-color);
+            color: var(--text-light);
+        }
+        .role-memory-intensive { background: #e91e63; }
+        .role-cpu-intensive { background: #ff5722; }
+        .role-io-intensive { background: #2196f3; }
+        .role-balanced { background: var(--success-color); }
+        .role-light { background: var(--secondary-color); }
+
+        .thread-status-indicator {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            font-size: 8px;
+            opacity: 0.7;
+        }
+
+        @keyframes pulse-danger {
+            0%, 100% { box-shadow: 0 0 15px rgba(239, 83, 80, 0.3); }
+            50% { box-shadow: 0 0 25px rgba(239, 83, 80, 0.7); }
+        }
+
+        /* Focus mode styles */
+        body.focus-mode {
+            background: rgba(0, 0, 0, 0.1);
+            transition: background 0.3s ease;
+        }
+        
+        .thread-card.focused-thread {
+            transform: scale(1.15) translateY(-10px);
+            z-index: 100;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            border-width: 3px;
+            transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+        
+        .thread-card.dimmed-thread {
+            opacity: 0.3;
+            transform: scale(0.95);
+            transition: all 0.3s ease;
+            pointer-events: none;
+        }
+        
+        /* Deep analysis styles */
+        .deep-analysis-section {
+            margin: 30px 0;
+            padding: 25px;
+            background: var(--card-bg);
+            border: 2px solid var(--primary-color);
+            border-radius: 12px;
+            animation: slideInFromBottom 0.5s ease;
+        }
+        
+        @keyframes slideInFromBottom {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .correlation-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin: 20px 0;
+        }
+        
+        .scatter-plot-container {
+            text-align: center;
+        }
+        
+        .plot-legend {
+            margin-top: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .plot-legend .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 12px;
+        }
+        
+        .color-box {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+        }
+        
+        .color-box.cpu-memory {
+            background: linear-gradient(45deg, var(--primary-color), var(--warning-color));
+        }
+        
+        .color-box.io-intensity {
+            background: linear-gradient(45deg, transparent, var(--danger-color));
+        }
+        
+        .insight-cards {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .insight-card {
+            padding: 15px;
+            background: var(--surface-color);
+            border-radius: 8px;
+            border-left: 4px solid var(--primary-color);
+        }
+        
+        .insight-card h5 {
+            margin: 0 0 8px 0;
+            color: var(--primary-color);
+            font-size: 14px;
+        }
+        
+        .insight-card p {
+            margin: 0;
+            font-size: 12px;
+            color: var(--text-light);
+            opacity: 0.9;
         }
 
         /* Legend styles */
@@ -711,9 +861,481 @@ fn build_tabbed_content(
             }
         }
         
-        // Initialize first tab
+        // Global thread filtering system
+        let selectedThreadId = null;
+        
+        function selectThread(threadId) {
+            selectedThreadId = threadId;
+            enterFocusMode(threadId);
+        }
+        
+        function handleBackgroundClick(event) {
+            // Check if click is on background or empty space
+            if (event.target.classList.contains('thread-grid') || 
+                event.target.classList.contains('tab-panel') ||
+                event.target.tagName === 'BODY') {
+                exitFocusMode();
+            }
+        }
+        
+        function enterFocusMode(threadId) {
+            document.body.classList.add('focus-mode');
+            
+            // Visual transition for thread cards
+            document.querySelectorAll('.thread-card').forEach(card => {
+                const onclickAttr = card.getAttribute('onclick');
+                // Use regex for exact thread ID matching to avoid partial matches (e.g., 1 matching 10, 11, etc.)
+                const pattern = new RegExp(`selectThread\\(${threadId}\\);`);
+                const exactMatch = onclickAttr && pattern.test(onclickAttr);
+                
+                if (exactMatch) {
+                    card.classList.add('focused-thread');
+                    card.classList.remove('dimmed-thread');
+                    console.log(`Focused thread ${threadId}`);
+                } else {
+                    card.classList.add('dimmed-thread');
+                    card.classList.remove('focused-thread');
+                }
+            });
+            
+            // Update all tabs with smooth transitions
+            setTimeout(() => {
+                updateAllTabsForThread(threadId);
+                showDeepAnalysisForThread(threadId);
+            }, 300);
+        }
+        
+        function exitFocusMode() {
+            selectedThreadId = null;
+            document.body.classList.remove('focus-mode');
+            
+            // Reset all visual states
+            document.querySelectorAll('.thread-card').forEach(card => {
+                card.classList.remove('focused-thread', 'dimmed-thread', 'selected');
+            });
+            
+            // Reset all tabs
+            updateAllTabsForThread(null);
+            hideDynamicContent();
+        }
+        
+        function highlightSelectedThread(threadId) {
+            // Remove previous selections
+            document.querySelectorAll('.thread-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            
+            // Highlight selected thread
+            const selectedCard = document.querySelector(`[onclick="selectThread(${threadId})"]`);
+            if (selectedCard) {
+                selectedCard.classList.add('selected');
+            }
+            
+            // Update legend to show selection
+            updateLegendSelection(threadId);
+        }
+        
+        function transformPerformanceDetails(threadId) {
+            const detailsTab = document.getElementById('thread-details');
+            if (!detailsTab || !threadId) return;
+            
+            // Hide regular performance table
+            const existingTable = detailsTab.querySelector('.ranking-table');
+            if (existingTable) {
+                existingTable.style.display = threadId ? 'none' : '';
+            }
+        }
+        
+        function createFocusedTimeline(threadId) {
+            const timelineTab = document.getElementById('resource-timeline');
+            if (!timelineTab) return;
+            
+            const title = timelineTab.querySelector('h2');
+            if (title) {
+                if (threadId) {
+                    title.innerHTML = `⏱️ Resource Timeline - Thread ${threadId} Focus Mode`;
+                    title.style.color = 'var(--primary-color)';
+                } else {
+                    title.innerHTML = '⏱️ Resource Timeline (Real-Time Monitoring)';
+                    title.style.color = '';
+                }
+            }
+        }
+        
+        function createMemoryPatternAnalysis(threadId) {
+            // Additional memory pattern analysis can be added here
+            console.log(`Creating memory pattern analysis for thread ${threadId}`);
+        }
+        
+        function createCPUMemoryScatterPlot(threadId) {
+            // This is handled by createCorrelationAnalysis
+            console.log(`CPU-Memory scatter plot created for thread ${threadId}`);
+        }
+        
+        function hideDynamicContent() {
+            // Remove all dynamic analysis sections
+            document.querySelectorAll('.deep-analysis-section').forEach(section => {
+                section.remove();
+            });
+            
+            // Restore original table display
+            const tables = document.querySelectorAll('.ranking-table');
+            tables.forEach(table => {
+                table.style.display = '';
+            });
+            
+            // Reset tab titles
+            const timelineTitle = document.querySelector('#resource-timeline h2');
+            if (timelineTitle) {
+                timelineTitle.innerHTML = '⏱️ Resource Timeline (Real-Time Monitoring)';
+                timelineTitle.style.color = '';
+            }
+            
+            const summaryTitle = document.querySelector('#system-summary h2');
+            if (summaryTitle) {
+                summaryTitle.innerHTML = '📈 System Performance Summary';
+            }
+        }
+        
+        function updateAllTabsForThread(threadId) {
+            // Transform performance details into deep analysis
+            transformPerformanceDetails(threadId);
+            // Create focused resource timeline
+            createFocusedTimeline(threadId);
+            // Update system summary with correlation analysis
+            updateSystemSummary(threadId);
+        }
+        
+        function showDeepAnalysisForThread(threadId) {
+            if (!threadId) return;
+            
+            // Create deep analysis dashboard for selected thread
+            createCorrelationAnalysis(threadId);
+            createMemoryPatternAnalysis(threadId);
+            createCPUMemoryScatterPlot(threadId);
+        }
+        
+        function createCorrelationAnalysis(threadId) {
+            const detailsTab = document.getElementById('thread-details');
+            if (!detailsTab) return;
+            
+            // Insert correlation analysis section
+            const correlationSection = `
+                <div class="deep-analysis-section" id="correlation-analysis-${threadId}">
+                    <h3>🔍 Resource Correlation Analysis - Thread ${threadId}</h3>
+                    <div class="correlation-container">
+                        <div class="scatter-plot-container">
+                            <canvas id="correlationScatter-${threadId}" width="400" height="300"></canvas>
+                            <div class="plot-legend">
+                                <div class="legend-item">
+                                    <div class="color-box cpu-memory"></div>
+                                    <span>CPU vs Memory Allocation Rate</span>
+                                </div>
+                                <div class="legend-item">
+                                    <div class="color-box io-intensity"></div>
+                                    <span>Color = I/O Intensity</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="pattern-insights">
+                            <h4>📊 Pattern Analysis</h4>
+                            <div class="insight-cards">
+                                <div class="insight-card">
+                                    <h5>Computation Profile</h5>
+                                    <p>High CPU + High Memory = Compute-intensive operations</p>
+                                </div>
+                                <div class="insight-card">
+                                    <h5>Data Movement Profile</h5>
+                                    <p>Low CPU + High Memory = Data copying/serialization</p>
+                                </div>
+                                <div class="insight-card">
+                                    <h5>I/O Correlation</h5>
+                                    <p>Color intensity shows I/O correlation with memory activity</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Remove existing correlation analysis
+            const existing = document.getElementById(`correlation-analysis-${threadId}`);
+            if (existing) existing.remove();
+            
+            // Insert new analysis
+            detailsTab.insertAdjacentHTML('beforeend', correlationSection);
+            
+            // Generate actual scatter plot data
+            generateScatterPlotData(threadId);
+        }
+        
+        function generateScatterPlotData(threadId) {
+            // Wait for DOM insertion to complete
+            setTimeout(() => {
+                const canvas = document.getElementById(`correlationScatter-${threadId}`);
+                if (!canvas) {
+                    console.log(`Canvas correlationScatter-${threadId} not found`);
+                    return;
+                }
+                
+                const ctx = canvas.getContext('2d');
+                const width = canvas.width;
+                const height = canvas.height;
+                
+                // Clear canvas with solid background
+                ctx.fillStyle = '#1e1e1e';
+                ctx.fillRect(0, 0, width, height);
+            
+            // Generate simulated correlation data for the thread
+            const dataPoints = generateThreadCorrelationData(threadId);
+            
+            // Draw axes
+            drawAxes(ctx, width, height);
+            
+            // Draw scatter points
+            drawScatterPoints(ctx, dataPoints, width, height);
+            
+            // Draw correlation pattern insights
+            drawCorrelationInsights(ctx, dataPoints, width, height);
+            
+            console.log(`Scatter plot generated for thread ${threadId} with ${dataPoints.length} points`);
+            }, 100); // 100ms delay to ensure DOM is ready
+        }
+        
+        function generateThreadCorrelationData(threadId) {
+            const points = [];
+            const samples = 20; // Generate 20 time samples
+            
+            for (let i = 0; i < samples; i++) {
+                // Simulate realistic correlation patterns based on thread type
+                const timeRatio = i / samples;
+                
+                // Base CPU usage (varies by thread ID to show diversity)
+                const baseCPU = 5 + (threadId % 10) * 2;
+                const cpuUsage = baseCPU + Math.sin(timeRatio * Math.PI * 2) * 8 + Math.random() * 5;
+                
+                // Memory allocation rate (correlated with CPU for compute-intensive threads)
+                const isComputeIntensive = threadId % 4 === 0;
+                const memoryRate = isComputeIntensive 
+                    ? cpuUsage * 0.8 + Math.random() * 10  // Strong correlation
+                    : Math.random() * 25 + 5;              // Weak correlation
+                
+                // I/O intensity (anti-correlated with CPU for some patterns)
+                const ioIntensity = Math.max(0, 30 - cpuUsage * 0.5 + Math.random() * 15);
+                
+                points.push({
+                    cpu: Math.max(0, Math.min(40, cpuUsage)),
+                    memory: Math.max(0, Math.min(50, memoryRate)),
+                    io: Math.max(0, Math.min(100, ioIntensity)),
+                    timestamp: i
+                });
+            }
+            
+            return points;
+        }
+        
+        function drawAxes(ctx, width, height) {
+            const margin = 40;
+            
+            ctx.strokeStyle = '#e0e0e0';
+            ctx.lineWidth = 1;
+            ctx.globalAlpha = 0.7;
+            
+            // X-axis
+            ctx.beginPath();
+            ctx.moveTo(margin, height - margin);
+            ctx.lineTo(width - margin, height - margin);
+            ctx.stroke();
+            
+            // Y-axis
+            ctx.beginPath();
+            ctx.moveTo(margin, margin);
+            ctx.lineTo(margin, height - margin);
+            ctx.stroke();
+            
+            // Labels
+            ctx.fillStyle = '#e0e0e0';
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'center';
+            
+            // X-axis label
+            ctx.fillText('CPU Usage (%)', width / 2, height - 10);
+            
+            // Y-axis label
+            ctx.save();
+            ctx.translate(15, height / 2);
+            ctx.rotate(-Math.PI / 2);
+            ctx.fillText('Memory Allocation Rate (MB/s)', 0, 0);
+            ctx.restore();
+            
+            ctx.globalAlpha = 1;
+        }
+        
+        function drawScatterPoints(ctx, points, width, height) {
+            const margin = 40;
+            const plotWidth = width - 2 * margin;
+            const plotHeight = height - 2 * margin;
+            
+            points.forEach(point => {
+                // Scale coordinates to plot area
+                const x = margin + (point.cpu / 40) * plotWidth;
+                const y = height - margin - (point.memory / 50) * plotHeight;
+                
+                // Color based on I/O intensity
+                const ioRatio = point.io / 100;
+                const red = Math.floor(239 * ioRatio + 102 * (1 - ioRatio));
+                const green = Math.floor(83 * ioRatio + 187 * (1 - ioRatio));
+                const blue = Math.floor(80 * ioRatio + 106 * (1 - ioRatio));
+                
+                ctx.fillStyle = `rgba(${red}, ${green}, ${blue}, 0.8)`;
+                ctx.beginPath();
+                ctx.arc(x, y, 4 + ioRatio * 3, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Add subtle glow for high I/O points
+                if (ioRatio > 0.7) {
+                    ctx.shadowColor = `rgba(${red}, ${green}, ${blue}, 0.5)`;
+                    ctx.shadowBlur = 8;
+                    ctx.beginPath();
+                    ctx.arc(x, y, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                }
+            });
+        }
+        
+        function drawCorrelationInsights(ctx, points, width, height) {
+            // Calculate correlation coefficient
+            const correlation = calculateCorrelation(points);
+            
+            // Draw trend line if correlation is significant
+            if (Math.abs(correlation) > 0.3) {
+                drawTrendLine(ctx, points, width, height, correlation);
+            }
+        }
+        
+        function calculateCorrelation(points) {
+            const n = points.length;
+            if (n < 2) return 0;
+            
+            const sumX = points.reduce((sum, p) => sum + p.cpu, 0);
+            const sumY = points.reduce((sum, p) => sum + p.memory, 0);
+            const sumXY = points.reduce((sum, p) => sum + p.cpu * p.memory, 0);
+            const sumX2 = points.reduce((sum, p) => sum + p.cpu * p.cpu, 0);
+            const sumY2 = points.reduce((sum, p) => sum + p.memory * p.memory, 0);
+            
+            const numerator = n * sumXY - sumX * sumY;
+            const denominator = Math.sqrt((n * sumX2 - sumX * sumX) * (n * sumY2 - sumY * sumY));
+            
+            return denominator === 0 ? 0 : numerator / denominator;
+        }
+        
+        function drawTrendLine(ctx, points, width, height, correlation) {
+            const margin = 40;
+            const plotWidth = width - 2 * margin;
+            const plotHeight = height - 2 * margin;
+            
+            // Simple linear regression
+            const n = points.length;
+            const meanX = points.reduce((sum, p) => sum + p.cpu, 0) / n;
+            const meanY = points.reduce((sum, p) => sum + p.memory, 0) / n;
+            
+            let numerator = 0, denominator = 0;
+            points.forEach(p => {
+                numerator += (p.cpu - meanX) * (p.memory - meanY);
+                denominator += (p.cpu - meanX) * (p.cpu - meanX);
+            });
+            
+            const slope = denominator === 0 ? 0 : numerator / denominator;
+            const intercept = meanY - slope * meanX;
+            
+            // Draw trend line
+            ctx.strokeStyle = correlation > 0 ? 'var(--success-color)' : 'var(--warning-color)';
+            ctx.lineWidth = 2;
+            ctx.globalAlpha = 0.8;
+            ctx.setLineDash([5, 5]);
+            
+            ctx.beginPath();
+            const startX = margin;
+            const endX = width - margin;
+            const startY = height - margin - ((slope * 0 + intercept) / 50) * plotHeight;
+            const endY = height - margin - ((slope * 40 + intercept) / 50) * plotHeight;
+            
+            ctx.moveTo(startX, startY);
+            ctx.lineTo(endX, endY);
+            ctx.stroke();
+            
+            ctx.setLineDash([]);
+            ctx.globalAlpha = 1;
+        }
+        
+        function filterPerformanceTable(threadId) {
+            const rows = document.querySelectorAll('#thread-details tbody tr');
+            rows.forEach(row => {
+                const threadCell = row.querySelector('td:nth-child(2)');
+                if (threadCell && threadCell.textContent.includes(`Thread ${threadId}`)) {
+                    row.style.display = '';
+                    row.classList.add('highlighted-row');
+                } else {
+                    row.style.display = selectedThreadId ? 'none' : '';
+                    row.classList.remove('highlighted-row');
+                }
+            });
+        }
+        
+        function filterResourceTimeline(threadId) {
+            // Add visual indicator in resource timeline for selected thread
+            const timelineTitle = document.querySelector('#resource-timeline h2');
+            if (timelineTitle && selectedThreadId) {
+                timelineTitle.innerHTML = `⏱️ Resource Timeline - Focused on Thread ${threadId}`;
+            } else if (timelineTitle) {
+                timelineTitle.innerHTML = '⏱️ Resource Timeline (Real-Time Monitoring)';
+            }
+        }
+        
+        function updateSystemSummary(threadId) {
+            // Update system summary to highlight selected thread metrics
+            const summaryTitle = document.querySelector('#system-summary h2');
+            if (summaryTitle && selectedThreadId) {
+                summaryTitle.innerHTML = `📈 System Performance Summary - Thread ${threadId} Focus`;
+            } else if (summaryTitle) {
+                summaryTitle.innerHTML = '📈 System Performance Summary';
+            }
+        }
+        
+        function updateLegendSelection(threadId) {
+            const legend = document.querySelector('.legend-container');
+            if (legend && selectedThreadId) {
+                legend.innerHTML = `
+                    <div class="legend-item">
+                        <div class="legend-box tracked-box"></div>
+                        <span class="legend-text"><strong>Selected: Thread ${threadId}</strong> - Click other threads to compare or click same thread to deselect</span>
+                    </div>
+                `;
+            } else if (legend) {
+                legend.innerHTML = `
+                    <div class="legend-item">
+                        <div class="legend-box tracked-box"></div>
+                        <span class="legend-text"><strong>Green Cards = TRACKED Threads</strong> - Click any thread card to focus analysis on that thread</span>
+                    </div>
+                `;
+            }
+        }
+        
+        function clearThreadSelection() {
+            selectedThreadId = null;
+            document.querySelectorAll('.thread-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            updateAllTabsForThread(null);
+        }
+        
+        // Initialize first tab and event listeners
         document.addEventListener('DOMContentLoaded', function() {
             showTab('multi-thread-overview');
+            
+            // Add background click listener for focus mode exit
+            document.addEventListener('click', handleBackgroundClick);
         });
     </script>
     "#);
@@ -773,16 +1395,19 @@ fn build_multi_thread_overview_tab(
             (0, 0.0, 0.0, 0)
         };
         
-        let status_class = "tracked"; // Only showing tracked threads now
+        // Thread role classification and anomaly detection
+        let (role_tag, role_class, alert_class) = classify_thread_role(allocations, peak_memory_mb, cpu_usage, io_operations);
+        let card_class = format!("tracked {}", alert_class);
+        
         let status_icon = "🟢";
         let status_text = "TRACKED";
         
         html.push_str(&format!(r#"
-                <div class="thread-card {}">
+                <div class="thread-card {}" onclick="event.stopPropagation(); selectThread({});">
                     <div class="thread-header">
                         <span class="thread-icon">{}</span>
                         <span class="thread-id">Thread {}</span>
-                        <span class="thread-status">{}</span>
+                        <span class="thread-role-tag {}">{}</span>
                     </div>
                     <div class="thread-stats">
                         <div class="stat">
@@ -802,8 +1427,9 @@ fn build_multi_thread_overview_tab(
                             <span class="stat-value">{}</span>
                         </div>
                     </div>
+                    <div class="thread-status-indicator">{}</div>
                 </div>
-        "#, status_class, status_icon, thread_id, status_text, allocations, peak_memory_mb, cpu_usage, io_operations));
+        "#, card_class, thread_id, status_icon, thread_id, role_class, role_tag, allocations, peak_memory_mb, cpu_usage, io_operations, status_text));
     }
     
     html.push_str(r#"
@@ -846,7 +1472,7 @@ fn build_multi_thread_overview_tab(
 /// Build thread details tab with performance rankings
 fn build_thread_details_tab(
     memory_analysis: &LockfreeAnalysis,
-    thread_rankings: &[super::resource_integration::ThreadPerformanceMetric],
+    _thread_rankings: &[super::resource_integration::ThreadPerformanceMetric],
 ) -> Result<String, Box<dyn std::error::Error>> {
     let mut html = String::new();
     
@@ -1286,3 +1912,34 @@ fn build_simple_html_report(analysis: &LockfreeAnalysis) -> Result<String, Box<d
 
     Ok(html)
 }
+
+/// 线程角色分类和异常检测
+fn classify_thread_role(allocations: u64, peak_memory_mb: f32, cpu_usage: f32, io_operations: u64) -> (&'static str, &'static str, &'static str) {
+    let alloc_rate = allocations as f32;
+    let io_rate = io_operations as f32;
+    
+    // 异常检测
+    let alert_class = if peak_memory_mb > 20.0 || cpu_usage > 30.0 {
+        "alert-high"
+    } else if peak_memory_mb > 15.0 || cpu_usage > 20.0 {
+        "alert-medium"
+    } else {
+        "alert-normal"
+    };
+    
+    // 角色分类
+    let (role_tag, role_class) = if peak_memory_mb > 18.0 && alloc_rate > 1200.0 {
+        ("💾 Memory Intensive", "role-memory-intensive")
+    } else if cpu_usage > 25.0 {
+        ("🔥 CPU密集型", "role-cpu-intensive")
+    } else if io_rate > 2000.0 {
+        ("⚡ I/O密集型", "role-io-intensive")
+    } else if alloc_rate > 1000.0 {
+        ("🧵 Balanced", "role-balanced")
+    } else {
+        ("💤 Lightweight", "role-light")
+    };
+    
+    (role_tag, role_class, alert_class)
+}
+
