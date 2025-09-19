@@ -182,20 +182,23 @@ pub fn get_system_snapshot() -> Result<SystemResourceSnapshot, Box<dyn std::erro
 ///
 /// # Example
 /// ```rust
-/// use memscope_rs::lockfree::enhanced_system_profile;
+/// use memscope_rs::enhanced_system_profile;
 /// use std::time::Duration;
 ///
-/// let result = enhanced_system_profile!("./analysis", Duration::from_millis(200), {
-///     // Your CPU/GPU/memory intensive code here
-///     let data = vec![0u8; 10_000_000]; // 10MB allocation
+/// fn main() {
+///     let result = enhanced_system_profile!("./analysis", Duration::from_millis(200), {
+///         // Your CPU/GPU/memory intensive code here
+///         let data = vec![0u8; 10_000_000]; // 10MB allocation
 ///     
-///     // Simulate CPU work
-///     for i in 0..1000000 {
-///         let _ = i * i;
-///     }
-///     
-///     data.len()
-/// });
+///         // Simulate CPU work
+///         for i in 0..1000000 {
+///             let _ = i * i;
+///         }
+///         
+///         data.len()
+///     });
+///     println!("Processed {} bytes", result);
+/// }
 /// ```
 #[macro_export]
 macro_rules! enhanced_system_profile {

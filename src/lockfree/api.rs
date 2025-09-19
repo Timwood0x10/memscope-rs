@@ -64,13 +64,14 @@ pub fn trace_all<P: AsRef<Path>>(output_dir: P) -> Result<(), Box<dyn std::error
 /// Result indicating success or error during thread tracker initialization
 ///
 /// # Example
-/// ```rust
+/// ```rust,no_run
 /// use memscope_rs::lockfree::api::trace_thread;
 ///
 /// std::thread::spawn(|| {
-///     trace_thread("./thread_analysis")?;
+///     if let Err(e) = trace_thread("./thread_analysis") {
+///         eprintln!("Error starting thread tracking: {}", e);
+///     }
 ///     // This thread's allocations are now tracked
-///     # Ok::<(), Box<dyn std::error::Error>>(())
 /// });
 /// ```
 pub fn trace_thread<P: AsRef<Path>>(output_dir: P) -> Result<(), Box<dyn std::error::Error>> {
@@ -211,13 +212,15 @@ pub fn memory_snapshot() -> MemorySnapshot {
 ///
 /// # Example
 /// ```rust
-/// use memscope_rs::lockfree::auto_trace;
+/// use memscope_rs::auto_trace;
 ///
-/// let result = auto_trace!("./analysis", {
-///     let data = vec![1, 2, 3, 4, 5];
-///     data.len()
-/// });
-/// assert_eq!(result, 5);
+/// fn main() {
+///     let result = auto_trace!("./analysis", {
+///         let data = vec![1, 2, 3, 4, 5];
+///         data.len()
+///     });
+///     assert_eq!(result, 5);
+/// }
 /// ```
 #[macro_export]
 macro_rules! auto_trace {

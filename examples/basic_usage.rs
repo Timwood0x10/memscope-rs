@@ -79,7 +79,7 @@ fn main() {
             match export_user_variables_json(
                 allocations.clone(),
                 stats.clone(),
-                "basic_usage_snapshot",
+                "basic_usage",
             ) {
                 Ok(export_stats) => {
                     println!("✅ Legacy JSON export successful!");
@@ -192,7 +192,6 @@ fn show_enhanced_features(output_dir: &str) {
                     }
                 }
 
-                println!("   ✅ improve.md extensions found:");
                 println!("      • borrow_info: {has_borrow_info} allocations");
                 println!("      • clone_info: {has_clone_info} allocations");
                 println!(

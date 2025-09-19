@@ -994,15 +994,21 @@ mod tests {
         let thread_count = 10;
         let allocations_per_thread = 100;
         let counter = Arc::new(AtomicUsize::new(0));
+        let thread_ids = Arc::new(std::sync::Mutex::new(Vec::new()));
 
         let handles: Vec<_> = (0..thread_count)
             .map(|thread_idx| {
                 let temp_dir = temp_dir.clone();
                 let counter = Arc::clone(&counter);
+                let thread_ids = Arc::clone(&thread_ids);
 
                 thread::spawn(move || {
                     // Initialize tracker for this thread
                     init_thread_tracker(&temp_dir, None).unwrap();
+                    
+                    // Get and store the actual thread ID
+                    let actual_thread_id = get_thread_id();
+                    thread_ids.lock().unwrap().push(actual_thread_id);
 
                     for i in 0..allocations_per_thread {
                         let ptr = (thread_idx * 10000 + i * 8) as usize;
@@ -1037,10 +1043,23 @@ mod tests {
             thread_count * allocations_per_thread
         );
 
-        // Verify each thread created its own files
-        for thread_id in 1..=thread_count {
+        // Verify each thread created its own files using actual thread IDs
+        let actual_thread_ids = thread_ids.lock().unwrap();
+        for &thread_id in actual_thread_ids.iter() {
             let event_file = temp_dir.join(format!("memscope_thread_{}.bin", thread_id));
             let freq_file = temp_dir.join(format!("memscope_thread_{}.freq", thread_id));
+
+            // Debug: list files in directory if assertion fails
+            if !event_file.exists() || !freq_file.exists() {
+                println!("Files in temp directory for thread {}:", thread_id);
+                if let Ok(entries) = std::fs::read_dir(&temp_dir) {
+                    for entry in entries {
+                        if let Ok(entry) = entry {
+                            println!("  - {:?}", entry.file_name());
+                        }
+                    }
+                }
+            }
 
             assert!(
                 event_file.exists(),

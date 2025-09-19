@@ -27,6 +27,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Show which features are enabled
     print!("   Enhanced features: ");
+    #[allow(unused_mut)]
     let mut features: Vec<&str> = Vec::new();
 
     #[cfg(feature = "backtrace")]
