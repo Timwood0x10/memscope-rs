@@ -214,12 +214,13 @@ pub fn memory_snapshot() -> MemorySnapshot {
 /// ```rust
 /// use memscope_rs::auto_trace;
 ///
-/// fn main() {
+/// fn main() -> Result<(), Box<dyn std::error::Error>> {
 ///     let result = auto_trace!("./analysis", {
 ///         let data = vec![1, 2, 3, 4, 5];
 ///         data.len()
 ///     });
 ///     assert_eq!(result, 5);
+///     Ok(())
 /// }
 /// ```
 #[macro_export]

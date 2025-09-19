@@ -185,19 +185,20 @@ pub fn get_system_snapshot() -> Result<SystemResourceSnapshot, Box<dyn std::erro
 /// use memscope_rs::enhanced_system_profile;
 /// use std::time::Duration;
 ///
-/// fn main() {
+/// fn main() -> Result<(), Box<dyn std::error::Error>> {
 ///     let result = enhanced_system_profile!("./analysis", Duration::from_millis(200), {
 ///         // Your CPU/GPU/memory intensive code here
 ///         let data = vec![0u8; 10_000_000]; // 10MB allocation
 ///     
-///         // Simulate CPU work
-///         for i in 0..1000000 {
-///             let _ = i * i;
+///         // Simulate CPU work  
+///         for i in 0..100000u64 {
+///             let _ = i.wrapping_mul(i);
 ///         }
 ///         
 ///         data.len()
 ///     });
 ///     println!("Processed {} bytes", result);
+///     Ok(())
 /// }
 /// ```
 #[macro_export]
