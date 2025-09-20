@@ -65,6 +65,11 @@ rayon = "1.8"
 parking_lot = "0.12"
 tempfile = "3.10.1"
 criterion = { version = "0.7.0", features = ["html_reports"] }
+tokio = { version = "1.0", features = ["full"] }
+futures = "0.3"
+chrono = { version = "0.4", features = ["serde"] }
+reqwest = { version = "0.11", features = ["json"] }
+sha2 = "0.10"
 
 [[bench]]
 name = "fast_realistic_tracking"
