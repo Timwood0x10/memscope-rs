@@ -631,7 +631,8 @@ mod tests {
         assert!(output_path.exists());
         assert_eq!(export_stats.allocations_processed, 1);
         assert_eq!(export_stats.user_variables, 1);
-        assert!(export_stats.processing_time_ms >= 0);
+        // processing_time_ms is u64, so >= 0 is always true - check it's reasonable instead
+        assert!(export_stats.processing_time_ms < 10000); // less than 10 seconds
         assert!(export_stats.output_size_bytes > 0);
         assert!(export_stats.processing_rate >= 0.0);
 
@@ -1027,7 +1028,8 @@ mod tests {
         // Verify export stats reflect correct filtering
         assert_eq!(export_stats.user_variables, 2); // Only user allocations exported
         assert_eq!(export_stats.system_allocations, 2); // System allocations not exported but counted
-        assert!(export_stats.processing_time_ms >= 0);
+        // processing_time_ms is u64, so >= 0 is always true - check it's reasonable instead
+        assert!(export_stats.processing_time_ms < 10000); // less than 10 seconds
         assert!(export_stats.output_size_bytes > 0);
         assert!(export_stats.processing_rate >= 0.0);
 

@@ -2621,6 +2621,7 @@ fn classify_thread_role(allocations: u64, peak_memory_mb: f32, cpu_usage: f32, i
 }
 
 /// Get severity badge information
+#[allow(dead_code)]
 fn get_severity_badge(severity: &str) -> (&'static str, &'static str, &'static str) {
     match severity {
         "Critical" => ("🔴 Critical", "critical", "danger"),
@@ -2635,7 +2636,6 @@ fn get_severity_badge(severity: &str) -> (&'static str, &'static str, &'static s
 mod tests {
     use super::*;
     use tempfile::TempDir;
-    use crate::utils::format_bytes;
 
     #[test]
     fn test_generate_enhanced_html_report() {
