@@ -1,11 +1,11 @@
 //! System-wide Resource Profiler
-//! 
+//!
 //! Comprehensive system resource tracking: CPU, GPU, Memory, I/O, Network
 //! Cross-platform support for Windows, Linux, macOS
 
-use std::time::{Duration, Instant};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use serde::{Serialize, Deserialize};
+use std::time::{Duration, Instant};
 
 /// Comprehensive system resource snapshot
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -186,7 +186,7 @@ impl SystemProfiler {
     /// Take a comprehensive system resource snapshot
     pub fn take_snapshot(&mut self) -> Result<SystemResourceSnapshot, Box<dyn std::error::Error>> {
         let timestamp = self.start_time.elapsed().as_millis() as u64;
-        
+
         let snapshot = SystemResourceSnapshot {
             timestamp,
             cpu_metrics: self.collect_cpu_metrics()?,
@@ -197,7 +197,7 @@ impl SystemProfiler {
             process_metrics: self.collect_process_metrics()?,
             thread_metrics: self.collect_thread_metrics()?,
         };
-        
+
         self.last_snapshot = Some(snapshot.clone());
         Ok(snapshot)
     }
@@ -208,22 +208,22 @@ impl SystemProfiler {
         {
             let mut system = self.system.borrow_mut();
             system.refresh_cpu();
-            
+
             let overall_usage = system.global_cpu_info().cpu_usage();
             let core_usage: Vec<f32> = system.cpus().iter().map(|cpu| cpu.cpu_usage()).collect();
             let load_average = sysinfo::System::load_average();
-            
+
             Ok(CpuMetrics {
                 overall_usage,
                 core_usage,
                 frequency: 0, // Would need platform-specific code
                 load_average: Some((load_average.one, load_average.five, load_average.fifteen)),
-                temperature: None, // Would need platform-specific sensors
+                temperature: None,   // Would need platform-specific sensors
                 context_switches: 0, // Would need platform-specific code
                 cache_misses: None,
             })
         }
-        
+
         #[cfg(not(feature = "system-metrics"))]
         {
             // Fallback implementation
@@ -245,13 +245,13 @@ impl SystemProfiler {
         {
             let mut system = self.system.borrow_mut();
             system.refresh_memory();
-            
+
             let total_physical = system.total_memory();
             let available_physical = system.available_memory();
             let used_physical = total_physical - available_physical;
-            
+
             let pressure = (used_physical as f32 / total_physical as f32) * 100.0;
-            
+
             Ok(MemoryMetrics {
                 total_physical,
                 available_physical,
@@ -263,7 +263,7 @@ impl SystemProfiler {
                 bandwidth_utilization: None,
             })
         }
-        
+
         #[cfg(not(feature = "system-metrics"))]
         {
             Ok(MemoryMetrics {
@@ -285,7 +285,7 @@ impl SystemProfiler {
         // - Windows: DirectX/DXGI APIs
         // - Linux: nvidia-ml-py, ROCm, Intel GPU tools
         // - macOS: Metal Performance Shaders, system_profiler
-        
+
         #[cfg(target_os = "linux")]
         {
             // Try to read NVIDIA GPU metrics
@@ -293,7 +293,7 @@ impl SystemProfiler {
                 return Ok(Some(gpu_metrics));
             }
         }
-        
+
         #[cfg(target_os = "windows")]
         {
             // Try to read GPU metrics via WMI/DXGI
@@ -301,7 +301,7 @@ impl SystemProfiler {
                 return Ok(Some(gpu_metrics));
             }
         }
-        
+
         #[cfg(target_os = "macos")]
         {
             // Try to read GPU metrics via Metal/IOKit
@@ -309,7 +309,7 @@ impl SystemProfiler {
                 return Ok(Some(gpu_metrics));
             }
         }
-        
+
         Ok(None)
     }
 
@@ -319,7 +319,7 @@ impl SystemProfiler {
         // - Linux: /proc/diskstats, /sys/block/*/stat
         // - Windows: Performance Counters
         // - macOS: IOKit, system_profiler
-        
+
         Ok(IoMetrics {
             disk_read_bps: 0,
             disk_write_bps: 0,
@@ -337,7 +337,7 @@ impl SystemProfiler {
             // Network monitoring temporarily disabled due to sysinfo API changes
             let total_rx = 0;
             let total_tx = 0;
-            
+
             Ok(NetworkMetrics {
                 rx_bps: total_rx,
                 tx_bps: total_tx,
@@ -347,7 +347,7 @@ impl SystemProfiler {
                 connections: 0,
             })
         }
-        
+
         #[cfg(not(feature = "system-metrics"))]
         {
             Ok(NetworkMetrics {
@@ -367,9 +367,9 @@ impl SystemProfiler {
         {
             let mut system = self.system.borrow_mut();
             system.refresh_processes();
-            
+
             let current_pid = sysinfo::get_current_pid()?;
-            
+
             if let Some(process) = system.process(current_pid) {
                 Ok(ProcessMetrics {
                     pid: current_pid.as_u32(),
@@ -384,7 +384,7 @@ impl SystemProfiler {
                 Err("Could not find current process".into())
             }
         }
-        
+
         #[cfg(not(feature = "system-metrics"))]
         {
             Ok(ProcessMetrics {
@@ -400,25 +400,30 @@ impl SystemProfiler {
     }
 
     /// Collect per-thread metrics
-    fn collect_thread_metrics(&self) -> Result<HashMap<u64, ThreadMetrics>, Box<dyn std::error::Error>> {
+    fn collect_thread_metrics(
+        &self,
+    ) -> Result<HashMap<u64, ThreadMetrics>, Box<dyn std::error::Error>> {
         let mut thread_metrics = HashMap::new();
-        
+
         // Thread-level metrics would require platform-specific implementation:
         // - Linux: /proc/[pid]/task/[tid]/* files
         // - Windows: Thread performance counters
         // - macOS: thread_info() system calls
-        
+
         // For now, return current thread info
         let current_thread_id = get_current_thread_id();
-        thread_metrics.insert(current_thread_id, ThreadMetrics {
-            thread_id: current_thread_id,
-            thread_name: std::thread::current().name().map(String::from),
-            cpu_time_ns: 0,
-            state: ThreadState::Running,
-            priority: 0,
-            cpu_affinity: None,
-        });
-        
+        thread_metrics.insert(
+            current_thread_id,
+            ThreadMetrics {
+                thread_id: current_thread_id,
+                thread_name: std::thread::current().name().map(String::from),
+                cpu_time_ns: 0,
+                state: ThreadState::Running,
+                priority: 0,
+                cpu_affinity: None,
+            },
+        );
+
         Ok(thread_metrics)
     }
 
@@ -448,17 +453,17 @@ fn get_current_thread_id() -> u64 {
     {
         unsafe { libc::syscall(libc::SYS_gettid) as u64 }
     }
-    
+
     #[cfg(target_os = "windows")]
     {
         unsafe { winapi::um::processthreadsapi::GetCurrentThreadId() as u64 }
     }
-    
+
     #[cfg(target_os = "macos")]
     {
         unsafe { libc::pthread_self() as u64 }
     }
-    
+
     #[cfg(not(any(target_os = "linux", target_os = "windows", target_os = "macos")))]
     {
         std::thread::current().id().as_u64()
@@ -478,17 +483,18 @@ impl ContinuousProfiler {
     pub fn start_background_profiling(interval: Duration) -> Self {
         let profiler = SystemProfiler::new(interval);
         let is_running = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
-        
+
         Self {
             profiler,
             snapshots: Vec::new(),
             is_running,
         }
     }
-    
+
     /// Stop profiling and return collected data
     pub fn stop_and_collect(self) -> Vec<SystemResourceSnapshot> {
-        self.is_running.store(false, std::sync::atomic::Ordering::SeqCst);
+        self.is_running
+            .store(false, std::sync::atomic::Ordering::SeqCst);
         self.snapshots
     }
 }

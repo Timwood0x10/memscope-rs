@@ -383,8 +383,8 @@ impl IntegratedProfilingSession {
 
         // Efficiency is good when CPU usage is moderate (not too low, not maxed out)
         match avg_cpu_usage {
-            usage if usage >= 70.0 && usage <= 85.0 => 90.0,
-            usage if usage >= 50.0 && usage <= 95.0 => 75.0,
+            usage if (70.0..=85.0).contains(&usage) => 90.0,
+            usage if (50.0..=95.0).contains(&usage) => 75.0,
             usage if usage >= 30.0 => 60.0,
             _ => 40.0,
         }
@@ -401,9 +401,9 @@ impl IntegratedProfilingSession {
         // Good efficiency when allocations and deallocations are balanced
         let balance_ratio = deallocation_count as f32 / allocation_count as f32;
         match balance_ratio {
-            ratio if ratio >= 0.9 && ratio <= 1.1 => 95.0,
-            ratio if ratio >= 0.8 && ratio <= 1.2 => 85.0,
-            ratio if ratio >= 0.7 && ratio <= 1.3 => 70.0,
+            ratio if (0.9..=1.1).contains(&ratio) => 95.0,
+            ratio if (0.8..=1.2).contains(&ratio) => 85.0,
+            ratio if (0.7..=1.3).contains(&ratio) => 70.0,
             _ => 50.0,
         }
     }
@@ -587,9 +587,9 @@ impl IntegratedProfilingSession {
             let avg_cpu_usage = total_cpu_usage / sample_count as f32;
             // Score based on moderate CPU usage (not idle, not maxed out)
             match avg_cpu_usage {
-                usage if usage >= 30.0 && usage <= 70.0 => 90.0,
-                usage if usage >= 20.0 && usage <= 80.0 => 75.0,
-                usage if usage >= 10.0 && usage <= 90.0 => 60.0,
+                usage if (30.0..=70.0).contains(&usage) => 90.0,
+                usage if (20.0..=80.0).contains(&usage) => 75.0,
+                usage if (10.0..=90.0).contains(&usage) => 60.0,
                 _ => 40.0,
             }
         } else {

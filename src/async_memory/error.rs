@@ -182,8 +182,13 @@ impl AsyncError {
             Self::TaskTracking { .. } => true, // Task errors are usually recoverable
             Self::AllocationTracking { .. } => true, // Allocation errors don't crash system
             Self::BufferManagement { .. } => true, // Buffer overflow is expected
-            Self::DataAggregation { partial_data_available, .. } => *partial_data_available,
-            Self::Integration { fallback_available, .. } => *fallback_available,
+            Self::DataAggregation {
+                partial_data_available,
+                ..
+            } => *partial_data_available,
+            Self::Integration {
+                fallback_available, ..
+            } => *fallback_available,
             Self::System { .. } => false, // System errors are typically fatal
         }
     }
@@ -218,7 +223,11 @@ impl AsyncError {
 impl fmt::Display for AsyncError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Initialization { component, message, recoverable } => {
+            Self::Initialization {
+                component,
+                message,
+                recoverable,
+            } => {
                 write!(
                     f,
                     "Async memory tracking initialization failed in {}: {} ({})",
@@ -227,48 +236,98 @@ impl fmt::Display for AsyncError {
                     if *recoverable { "recoverable" } else { "fatal" }
                 )
             }
-            Self::TaskTracking { operation, message, task_id } => {
+            Self::TaskTracking {
+                operation,
+                message,
+                task_id,
+            } => {
                 if let Some(id) = task_id {
-                    write!(f, "Task tracking error during {:?} for task {}: {}", operation, id, message)
+                    write!(
+                        f,
+                        "Task tracking error during {:?} for task {}: {}",
+                        operation, id, message
+                    )
                 } else {
                     write!(f, "Task tracking error during {:?}: {}", operation, message)
                 }
             }
-            Self::AllocationTracking { event_type, message, allocation_size } => {
+            Self::AllocationTracking {
+                event_type,
+                message,
+                allocation_size,
+            } => {
                 if let Some(size) = allocation_size {
-                    write!(f, "Allocation tracking error during {:?} ({}B): {}", event_type, size, message)
+                    write!(
+                        f,
+                        "Allocation tracking error during {:?} ({}B): {}",
+                        event_type, size, message
+                    )
                 } else {
-                    write!(f, "Allocation tracking error during {:?}: {}", event_type, message)
+                    write!(
+                        f,
+                        "Allocation tracking error during {:?}: {}",
+                        event_type, message
+                    )
                 }
             }
-            Self::BufferManagement { buffer_type, message, events_lost } => {
+            Self::BufferManagement {
+                buffer_type,
+                message,
+                events_lost,
+            } => {
                 if let Some(lost) = events_lost {
-                    write!(f, "Buffer management error in {:?} ({} events lost): {}", buffer_type, lost, message)
+                    write!(
+                        f,
+                        "Buffer management error in {:?} ({} events lost): {}",
+                        buffer_type, lost, message
+                    )
                 } else {
-                    write!(f, "Buffer management error in {:?}: {}", buffer_type, message)
+                    write!(
+                        f,
+                        "Buffer management error in {:?}: {}",
+                        buffer_type, message
+                    )
                 }
             }
-            Self::DataAggregation { aggregator, message, partial_data_available } => {
+            Self::DataAggregation {
+                aggregator,
+                message,
+                partial_data_available,
+            } => {
                 write!(
                     f,
                     "Data aggregation error in {}: {} (partial data: {})",
-                    aggregator,
-                    message,
-                    partial_data_available
+                    aggregator, message, partial_data_available
                 )
             }
-            Self::Integration { component, message, fallback_available } => {
+            Self::Integration {
+                component,
+                message,
+                fallback_available,
+            } => {
                 write!(
                     f,
                     "Integration error with {}: {} (fallback: {})",
                     component,
                     message,
-                    if *fallback_available { "available" } else { "unavailable" }
+                    if *fallback_available {
+                        "available"
+                    } else {
+                        "unavailable"
+                    }
                 )
             }
-            Self::System { operation, message, source_error } => {
+            Self::System {
+                operation,
+                message,
+                source_error,
+            } => {
                 if let Some(source) = source_error {
-                    write!(f, "System error during {}: {} (source: {})", operation, message, source)
+                    write!(
+                        f,
+                        "System error during {}: {} (source: {})",
+                        operation, message, source
+                    )
                 } else {
                     write!(f, "System error during {}: {}", operation, message)
                 }
@@ -301,11 +360,8 @@ mod tests {
 
     #[test]
     fn test_error_display() {
-        let error = AsyncError::task_tracking(
-            TaskOperation::IdGeneration,
-            "Invalid context",
-            Some(12345),
-        );
+        let error =
+            AsyncError::task_tracking(TaskOperation::IdGeneration, "Invalid context", Some(12345));
         let display = format!("{}", error);
         assert!(display.contains("IdGeneration"));
         assert!(display.contains("12345"));
@@ -326,9 +382,14 @@ mod tests {
     #[test]
     fn test_error_recoverability() {
         // Recoverable errors
-        assert!(AsyncError::task_tracking(TaskOperation::Propagation, "test", None).is_recoverable());
-        assert!(AsyncError::allocation_tracking(AllocationEventType::Allocation, "test", None).is_recoverable());
-        
+        assert!(
+            AsyncError::task_tracking(TaskOperation::Propagation, "test", None).is_recoverable()
+        );
+        assert!(
+            AsyncError::allocation_tracking(AllocationEventType::Allocation, "test", None)
+                .is_recoverable()
+        );
+
         // Non-recoverable errors
         assert!(!AsyncError::system("io", "disk failure", None).is_recoverable());
     }

@@ -71,6 +71,7 @@ impl LockfreeAggregator {
     }
 
     /// Discover all thread binary files in output directory
+    #[allow(clippy::type_complexity)]
     fn discover_thread_files(
         &self,
     ) -> Result<Vec<(u64, std::path::PathBuf, std::path::PathBuf)>, Box<dyn std::error::Error>>

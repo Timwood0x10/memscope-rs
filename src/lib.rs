@@ -13,6 +13,7 @@ pub mod advanced_trackable_macro;
 pub mod advanced_types;
 /// Advanced memory analysis functionality
 pub mod analysis;
+pub mod async_memory;
 /// Command-line interface functionality
 pub mod cli;
 /// Core memory tracking functionality
@@ -21,7 +22,6 @@ pub mod core;
 pub mod export;
 /// Lock-free multi-threaded memory tracking
 pub mod lockfree;
-pub mod async_memory;
 /// Utility functions
 pub mod utils;
 /// Variable registry for lightweight HashMap-based variable tracking

@@ -76,11 +76,7 @@ fn main() {
         (Ok(allocations), Ok(stats)) => {
             // First, export using legacy API for comparison
             println!("📋 Exporting user variables to JSON (legacy)...");
-            match export_user_variables_json(
-                allocations.clone(),
-                stats.clone(),
-                "basic_usage",
-            ) {
+            match export_user_variables_json(allocations.clone(), stats.clone(), "basic_usage") {
                 Ok(export_stats) => {
                     println!("✅ Legacy JSON export successful!");
                     println!(

@@ -9,9 +9,9 @@ use std::task::{Context, Poll};
 
 // Note: tokio dependency will be added conditionally for async features
 
+use crate::async_memory::buffer::get_buffer_stats;
 use crate::async_memory::error::AsyncResult;
 use crate::async_memory::task_id::{generate_task_id, set_current_task, TaskInfo};
-use crate::async_memory::buffer::get_buffer_stats;
 
 /// Initialize async memory tracking system
 ///
@@ -28,7 +28,7 @@ pub fn initialize() -> AsyncResult<()> {
 ///
 /// Wraps the provided future in a TrackedFuture that automatically
 /// attributes memory allocations to the task.
-/// 
+///
 /// Note: Use with your preferred async runtime (tokio, async-std, etc.)
 pub fn create_tracked<F>(future: F) -> TrackedFuture<F>
 where
@@ -154,10 +154,14 @@ impl AsyncMemorySnapshot {
 /// aggregate data from all threads and the background aggregator.
 pub fn get_memory_snapshot() -> AsyncMemorySnapshot {
     let buffer_stats = get_buffer_stats();
-    
+
     // Simplified snapshot - real implementation would aggregate from all sources
     AsyncMemorySnapshot {
-        active_task_count: if buffer_stats.current_events > 0 { 1 } else { 0 },
+        active_task_count: if buffer_stats.current_events > 0 {
+            1
+        } else {
+            0
+        },
         total_allocated_bytes: buffer_stats.current_events as u64 * 1024, // Rough estimate
         allocation_events: buffer_stats.current_events as u64,
         events_dropped: buffer_stats.events_dropped as u64,
@@ -191,7 +195,7 @@ mod tests {
             events_dropped: 0,
             buffer_utilization: 0.5,
         };
-        
+
         // Basic validation of snapshot fields
         assert!(snapshot.buffer_utilization >= 0.0);
         assert!(snapshot.buffer_utilization <= 1.0);
@@ -205,21 +209,19 @@ mod tests {
     fn test_tracked_future_basic() {
         use crate::async_memory::task_id::get_current_task;
         use std::task::{RawWaker, RawWakerVTable, Waker};
-        
+
         // Helper to create a dummy waker for testing
         fn create_test_waker() -> Waker {
             fn noop(_: *const ()) {}
             fn clone_waker(data: *const ()) -> RawWaker {
                 RawWaker::new(data, &VTABLE)
             }
-            
+
             const VTABLE: RawWakerVTable = RawWakerVTable::new(clone_waker, noop, noop, noop);
-            
-            unsafe {
-                Waker::from_raw(RawWaker::new(std::ptr::null(), &VTABLE))
-            }
+
+            unsafe { Waker::from_raw(RawWaker::new(std::ptr::null(), &VTABLE)) }
         }
-        
+
         let future = async {
             // Check that we have task context during execution
             let _task_info = get_current_task();
@@ -230,7 +232,7 @@ mod tests {
         let mut tracked = create_tracked(future);
         let waker = create_test_waker();
         let mut cx = Context::from_waker(&waker);
-        
+
         // Poll the future
         let result = Pin::new(&mut tracked).poll(&mut cx);
         match result {

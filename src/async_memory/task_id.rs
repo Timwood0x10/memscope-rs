@@ -62,10 +62,10 @@ impl TaskInfo {
     }
 }
 
-/// Thread-local storage for current task information
-///
-/// Uses Cell for zero-overhead access from the allocator hook path.
-/// More efficient than tokio::task_local for our specific use case.
+// Thread-local storage for current task information
+//
+// Uses Cell for zero-overhead access from the allocator hook path.
+// More efficient than tokio::task_local for our specific use case.
 thread_local! {
     static CURRENT_TASK: Cell<TaskInfo> = const { Cell::new(TaskInfo {
         waker_id: 0,
@@ -83,13 +83,13 @@ pub fn generate_task_id(cx: &Context<'_>) -> AsyncResult<TaskId> {
     // Extract waker vtable address as unique identifier
     // Use waker pointer address as identifier (stable within task lifetime)
     let waker_addr = cx.waker() as *const _ as u64;
-    
+
     // Get monotonic epoch counter
     let epoch = TASK_EPOCH.fetch_add(1, Ordering::Relaxed);
-    
+
     // Combine epoch (high 64 bits) with waker address (low 64 bits)
     let task_id = ((epoch as u128) << 64) | (waker_addr as u128);
-    
+
     // Validate non-zero result
     if task_id == 0 {
         return Err(AsyncError::task_tracking(
@@ -98,7 +98,7 @@ pub fn generate_task_id(cx: &Context<'_>) -> AsyncResult<TaskId> {
             None,
         ));
     }
-    
+
     Ok(task_id)
 }
 
@@ -187,31 +187,29 @@ mod tests {
         fn clone_waker(data: *const ()) -> RawWaker {
             RawWaker::new(data, &VTABLE)
         }
-        
+
         const VTABLE: RawWakerVTable = RawWakerVTable::new(clone_waker, noop, noop, noop);
-        
-        unsafe {
-            Waker::from_raw(RawWaker::new(std::ptr::null(), &VTABLE))
-        }
+
+        unsafe { Waker::from_raw(RawWaker::new(std::ptr::null(), &VTABLE)) }
     }
 
     #[test]
     fn test_task_id_generation() {
         reset_epoch();
-        
+
         let waker = create_test_waker();
         let cx = Context::from_waker(&waker);
-        
+
         let id1 = generate_task_id(&cx).expect("Failed to generate task ID");
         let id2 = generate_task_id(&cx).expect("Failed to generate task ID");
-        
+
         // IDs should be different due to epoch increment
         assert_ne!(id1, id2);
-        
+
         // IDs should be non-zero
         assert_ne!(id1, 0);
         assert_ne!(id2, 0);
-        
+
         // High 64 bits should contain epoch values
         let epoch1 = (id1 >> 64) as u64;
         let epoch2 = (id2 >> 64) as u64;
@@ -221,16 +219,16 @@ mod tests {
     #[test]
     fn test_task_info_operations() {
         let info = TaskInfo::new(12345, Some(67890));
-        
+
         assert!(info.has_tracking_id());
         assert_eq!(info.primary_id(), 12345);
         assert_ne!(info.created_at, 0);
-        
+
         // Test fallback to span_id
         let info_no_waker = TaskInfo::new(0, Some(67890));
         assert!(info_no_waker.has_tracking_id());
         assert_eq!(info_no_waker.primary_id(), 67890);
-        
+
         // Test no tracking
         let info_empty = TaskInfo::default();
         assert!(!info_empty.has_tracking_id());
@@ -240,22 +238,22 @@ mod tests {
     #[test]
     fn test_thread_local_storage() {
         let info = TaskInfo::new(12345, Some(67890));
-        
+
         // Initially empty
         assert!(!get_current_task().has_tracking_id());
-        
+
         // Set and verify
         set_current_task(info);
         let retrieved = get_current_task();
         assert_eq!(retrieved.waker_id, 12345);
         assert_eq!(retrieved.span_id, Some(67890));
-        
+
         // Update span ID
         update_span_id(Some(99999)).expect("Failed to update span ID");
         let updated = get_current_task();
         assert_eq!(updated.waker_id, 12345); // Unchanged
         assert_eq!(updated.span_id, Some(99999)); // Updated
-        
+
         // Clear
         clear_current_task();
         assert!(!get_current_task().has_tracking_id());
@@ -265,10 +263,10 @@ mod tests {
     fn test_epoch_progression() {
         reset_epoch();
         let initial_epoch = current_epoch();
-        
+
         let waker = create_test_waker();
         let cx = Context::from_waker(&waker);
-        
+
         // Generate some task IDs
         for i in 0..5 {
             let _id = generate_task_id(&cx).expect("Failed to generate task ID");
@@ -280,7 +278,7 @@ mod tests {
     fn test_timestamp_generation() {
         let ts1 = current_timestamp();
         let ts2 = current_timestamp();
-        
+
         // Timestamps should be non-zero and monotonic (or at least not decreasing)
         assert_ne!(ts1, 0);
         assert_ne!(ts2, 0);
@@ -289,33 +287,35 @@ mod tests {
 
     #[test]
     fn test_concurrent_task_id_generation() {
-        use std::thread;
         use std::sync::{Arc, Mutex};
-        
+        use std::thread;
+
         reset_epoch();
         let ids = Arc::new(Mutex::new(Vec::new()));
-        let handles: Vec<_> = (0..10).map(|_| {
-            let ids_clone = Arc::clone(&ids);
-            thread::spawn(move || {
-                let waker = create_test_waker();
-                let cx = Context::from_waker(&waker);
-                let id = generate_task_id(&cx).expect("Failed to generate task ID");
-                ids_clone.lock().expect("Lock poisoned").push(id);
+        let handles: Vec<_> = (0..10)
+            .map(|_| {
+                let ids_clone = Arc::clone(&ids);
+                thread::spawn(move || {
+                    let waker = create_test_waker();
+                    let cx = Context::from_waker(&waker);
+                    let id = generate_task_id(&cx).expect("Failed to generate task ID");
+                    ids_clone.lock().expect("Lock poisoned").push(id);
+                })
             })
-        }).collect();
-        
+            .collect();
+
         for handle in handles {
             handle.join().expect("Thread panicked");
         }
-        
+
         let ids = ids.lock().expect("Lock poisoned");
-        
+
         // All IDs should be unique
         let mut sorted_ids = ids.clone();
         sorted_ids.sort();
         sorted_ids.dedup();
         assert_eq!(sorted_ids.len(), ids.len());
-        
+
         // All IDs should be non-zero
         assert!(ids.iter().all(|&id| id != 0));
     }

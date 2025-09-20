@@ -3,10 +3,10 @@
 //! Provides real-time monitoring of CPU, Memory, IO, Network, and GPU resources
 //! at the individual async task level.
 
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
-use serde::{Serialize, Deserialize};
 
 use crate::async_memory::TaskId;
 
@@ -19,19 +19,19 @@ pub struct TaskResourceProfile {
     pub start_time: u64,
     pub end_time: Option<u64>,
     pub duration_ms: Option<f64>,
-    
+
     // Resource metrics
     pub cpu_metrics: CpuMetrics,
     pub memory_metrics: MemoryMetrics,
     pub io_metrics: IoMetrics,
     pub network_metrics: NetworkMetrics,
     pub gpu_metrics: Option<GpuMetrics>,
-    
+
     // Performance analysis
     pub efficiency_score: f64,
     pub resource_balance: f64,
     pub bottleneck_type: BottleneckType,
-    
+
     // Enhanced features
     pub source_location: SourceLocation,
     pub hot_metrics: HotMetrics,
@@ -249,14 +249,15 @@ impl AsyncResourceMonitor {
 
     /// Start monitoring a new task with source location
     pub fn start_monitoring_with_location(
-        &mut self, 
-        task_id: TaskId, 
-        task_name: String, 
+        &mut self,
+        task_id: TaskId,
+        task_name: String,
         task_type: TaskType,
-        source_location: Option<SourceLocation>
+        source_location: Option<SourceLocation>,
     ) {
-        let location = source_location.unwrap_or_else(|| self.create_default_source_location(&task_name));
-        
+        let location =
+            source_location.unwrap_or_else(|| self.create_default_source_location(&task_name));
+
         let profile = TaskResourceProfile {
             task_id,
             task_name: task_name.clone(),
@@ -276,17 +277,17 @@ impl AsyncResourceMonitor {
             hot_metrics: self.generate_hot_metrics(&task_name, &task_type),
             efficiency_explanation: self.generate_initial_efficiency_explanation(),
         };
-        
+
         self.profiles.insert(task_id, profile);
     }
 
     /// Update metrics for a running task
     pub fn update_metrics(&mut self, task_id: TaskId) {
         let monitor_start = Instant::now();
-        
+
         // Collect task type first to avoid borrowing issues
         let task_type = self.profiles.get(&task_id).map(|p| p.task_type.clone());
-        
+
         if let Some(task_type) = task_type {
             // Collect all metrics first
             let cpu_metrics = self.collect_cpu_metrics(task_id, &task_type);
@@ -294,7 +295,7 @@ impl AsyncResourceMonitor {
             let io_metrics = self.collect_io_metrics(task_id, &task_type);
             let network_metrics = self.collect_network_metrics(task_id, &task_type);
             let gpu_metrics = self.collect_gpu_metrics(task_id, &task_type);
-            
+
             // Now update the profile
             if let Some(profile) = self.profiles.get_mut(&task_id) {
                 profile.cpu_metrics = cpu_metrics;
@@ -305,18 +306,18 @@ impl AsyncResourceMonitor {
                     profile.gpu_metrics = Some(gpu);
                 }
             }
-            
+
             // Analyze performance after updating metrics
             if let Some(profile) = self.profiles.get_mut(&task_id) {
                 let efficiency_score = Self::calculate_efficiency_score(profile);
                 let resource_balance = Self::calculate_resource_balance(profile);
                 let bottleneck_type = Self::identify_bottleneck(profile);
-                
+
                 profile.efficiency_score = efficiency_score;
                 profile.resource_balance = resource_balance;
                 profile.bottleneck_type = bottleneck_type;
             }
-            
+
             // Update efficiency explanation in a separate step to avoid borrowing conflicts
             if let Some(profile) = self.profiles.get(&task_id) {
                 let efficiency_explanation = self.generate_efficiency_explanation(profile);
@@ -325,10 +326,11 @@ impl AsyncResourceMonitor {
                 }
             }
         }
-        
+
         // Track monitoring overhead
         let overhead = monitor_start.elapsed().as_nanos() as u64;
-        self.monitoring_overhead.fetch_add(overhead, Ordering::Relaxed);
+        self.monitoring_overhead
+            .fetch_add(overhead, Ordering::Relaxed);
     }
 
     /// Finish monitoring a task
@@ -338,7 +340,7 @@ impl AsyncResourceMonitor {
             if let Some(end_time) = profile.end_time {
                 profile.duration_ms = Some((end_time - profile.start_time) as f64);
             }
-            
+
             // Final metrics update
             self.update_metrics(task_id);
         }
@@ -440,7 +442,7 @@ impl AsyncResourceMonitor {
     fn collect_cpu_metrics(&self, task_id: TaskId, task_type: &TaskType) -> CpuMetrics {
         let elapsed = self.start_time.elapsed().as_secs_f64();
         let base_factor = (task_id as f64 % 100.0) / 100.0;
-        
+
         let usage_percent = match task_type {
             TaskType::CpuIntensive => 75.0 + base_factor * 20.0 + (elapsed * 0.5).sin() * 5.0,
             TaskType::IoIntensive => 15.0 + base_factor * 10.0 + (elapsed * 0.3).sin() * 3.0,
@@ -450,7 +452,8 @@ impl AsyncResourceMonitor {
             TaskType::Mixed => 40.0 + base_factor * 30.0 + (elapsed * 0.8).sin() * 10.0,
             TaskType::Streaming => 30.0 + base_factor * 20.0 + (elapsed * 1.0).sin() * 5.0,
             TaskType::Background => 5.0 + base_factor * 5.0 + (elapsed * 0.1).sin() * 2.0,
-        }.min(100.0).max(0.0);
+        }
+        .clamp(0.0, 100.0);
 
         let user_time_ratio = match task_type {
             TaskType::CpuIntensive => 0.85,
@@ -482,7 +485,7 @@ impl AsyncResourceMonitor {
     fn collect_memory_metrics(&self, task_id: TaskId) -> MemoryMetrics {
         let elapsed = self.start_time.elapsed().as_secs_f64();
         let base_size = (task_id as u64 % 1000) * 1024 * 1024; // Base MB in bytes
-        
+
         MemoryMetrics {
             allocated_bytes: base_size + (elapsed * 1_048_576.0) as u64,
             peak_bytes: base_size + (elapsed * 1_048_576.0 * 1.5) as u64,
@@ -497,7 +500,7 @@ impl AsyncResourceMonitor {
 
     fn collect_io_metrics(&self, task_id: TaskId, task_type: &TaskType) -> IoMetrics {
         let elapsed = self.start_time.elapsed().as_secs_f64();
-        
+
         let (read_multiplier, write_multiplier, latency_base) = match task_type {
             TaskType::IoIntensive => (10.0, 5.0, 5.0),
             TaskType::NetworkIntensive => (3.0, 3.0, 15.0),
@@ -506,8 +509,10 @@ impl AsyncResourceMonitor {
             _ => (2.0, 2.0, 10.0),
         };
 
-        let bytes_read = ((elapsed * 1_048_576.0 * read_multiplier) as u64) + (task_id as u64 * 1024);
-        let bytes_written = ((elapsed * 1_048_576.0 * write_multiplier) as u64) + (task_id as u64 * 512);
+        let bytes_read =
+            ((elapsed * 1_048_576.0 * read_multiplier) as u64) + (task_id as u64 * 1024);
+        let bytes_written =
+            ((elapsed * 1_048_576.0 * write_multiplier) as u64) + (task_id as u64 * 512);
         let read_ops = bytes_read / 4096; // Assume 4KB average
         let write_ops = bytes_written / 4096;
 
@@ -530,7 +535,7 @@ impl AsyncResourceMonitor {
 
     fn collect_network_metrics(&self, task_id: TaskId, task_type: &TaskType) -> NetworkMetrics {
         let elapsed = self.start_time.elapsed().as_secs_f64();
-        
+
         let (traffic_multiplier, connection_count, latency_base) = match task_type {
             TaskType::NetworkIntensive => (5.0, 20, 10.0),
             TaskType::Streaming => (8.0, 5, 15.0),
@@ -538,8 +543,10 @@ impl AsyncResourceMonitor {
             _ => (2.0, 3, 20.0),
         };
 
-        let bytes_sent = ((elapsed * 1_048_576.0 * traffic_multiplier * 0.6) as u64) + (task_id as u64 * 2048);
-        let bytes_received = ((elapsed * 1_048_576.0 * traffic_multiplier * 0.4) as u64) + (task_id as u64 * 1536);
+        let bytes_sent =
+            ((elapsed * 1_048_576.0 * traffic_multiplier * 0.6) as u64) + (task_id as u64 * 2048);
+        let bytes_received =
+            ((elapsed * 1_048_576.0 * traffic_multiplier * 0.4) as u64) + (task_id as u64 * 1536);
 
         NetworkMetrics {
             bytes_sent,
@@ -561,13 +568,14 @@ impl AsyncResourceMonitor {
         }
 
         let elapsed = self.start_time.elapsed().as_secs_f64();
-        
+
         let utilization = match task_type {
             TaskType::GpuCompute => 80.0 + (elapsed * 0.5).sin() * 15.0,
             TaskType::Streaming => 40.0 + (elapsed * 0.3).sin() * 20.0,
             TaskType::Mixed => 30.0 + (elapsed * 0.4).sin() * 25.0,
             _ => 5.0 + (elapsed * 0.1).sin() * 5.0,
-        }.min(100.0).max(0.0);
+        }
+        .clamp(0.0, 100.0);
 
         Some(GpuMetrics {
             device_name: "Simulated RTX 4090".to_string(),
@@ -589,30 +597,52 @@ impl AsyncResourceMonitor {
         let memory_efficiency = Self::calculate_memory_efficiency(profile);
         let io_efficiency = Self::calculate_io_efficiency(profile);
         let network_efficiency = Self::calculate_network_efficiency(profile);
-        
+
         // Weight by task type
         match profile.task_type {
-            TaskType::CpuIntensive => cpu_efficiency * 0.6 + memory_efficiency * 0.2 + io_efficiency * 0.1 + network_efficiency * 0.1,
-            TaskType::IoIntensive => io_efficiency * 0.6 + cpu_efficiency * 0.2 + memory_efficiency * 0.1 + network_efficiency * 0.1,
-            TaskType::NetworkIntensive => network_efficiency * 0.6 + cpu_efficiency * 0.2 + memory_efficiency * 0.1 + io_efficiency * 0.1,
-            TaskType::MemoryIntensive => memory_efficiency * 0.6 + cpu_efficiency * 0.2 + io_efficiency * 0.1 + network_efficiency * 0.1,
+            TaskType::CpuIntensive => {
+                cpu_efficiency * 0.6
+                    + memory_efficiency * 0.2
+                    + io_efficiency * 0.1
+                    + network_efficiency * 0.1
+            }
+            TaskType::IoIntensive => {
+                io_efficiency * 0.6
+                    + cpu_efficiency * 0.2
+                    + memory_efficiency * 0.1
+                    + network_efficiency * 0.1
+            }
+            TaskType::NetworkIntensive => {
+                network_efficiency * 0.6
+                    + cpu_efficiency * 0.2
+                    + memory_efficiency * 0.1
+                    + io_efficiency * 0.1
+            }
+            TaskType::MemoryIntensive => {
+                memory_efficiency * 0.6
+                    + cpu_efficiency * 0.2
+                    + io_efficiency * 0.1
+                    + network_efficiency * 0.1
+            }
             _ => (cpu_efficiency + memory_efficiency + io_efficiency + network_efficiency) / 4.0,
         }
     }
 
     fn calculate_cpu_efficiency(profile: &TaskResourceProfile) -> f64 {
         let usage = profile.cpu_metrics.usage_percent / 100.0;
-        let context_switch_penalty = (profile.cpu_metrics.context_switches as f64 / 10000.0).min(0.3);
-        (usage * (1.0 - context_switch_penalty)).max(0.0).min(1.0)
+        let context_switch_penalty =
+            (profile.cpu_metrics.context_switches as f64 / 10000.0).min(0.3);
+        (usage * (1.0 - context_switch_penalty)).clamp(0.0, 1.0)
     }
 
     fn calculate_memory_efficiency(profile: &TaskResourceProfile) -> f64 {
         if profile.memory_metrics.allocated_bytes == 0 {
             return 1.0;
         }
-        let utilization = profile.memory_metrics.current_bytes as f64 / profile.memory_metrics.allocated_bytes as f64;
+        let utilization = profile.memory_metrics.current_bytes as f64
+            / profile.memory_metrics.allocated_bytes as f64;
         let fragmentation_penalty = profile.memory_metrics.heap_fragmentation;
-        (utilization * (1.0 - fragmentation_penalty)).max(0.0).min(1.0)
+        (utilization * (1.0 - fragmentation_penalty)).clamp(0.0, 1.0)
     }
 
     fn calculate_io_efficiency(profile: &TaskResourceProfile) -> f64 {
@@ -629,9 +659,12 @@ impl AsyncResourceMonitor {
         if profile.network_metrics.connections_active == 0 {
             return 1.0;
         }
-        let total_bytes = profile.network_metrics.bytes_sent + profile.network_metrics.bytes_received;
-        let bytes_per_connection = total_bytes as f64 / profile.network_metrics.connections_active as f64;
-        let error_rate = profile.network_metrics.connection_errors as f64 / profile.network_metrics.connections_established.max(1) as f64;
+        let total_bytes =
+            profile.network_metrics.bytes_sent + profile.network_metrics.bytes_received;
+        let bytes_per_connection =
+            total_bytes as f64 / profile.network_metrics.connections_active as f64;
+        let error_rate = profile.network_metrics.connection_errors as f64
+            / profile.network_metrics.connections_established.max(1) as f64;
         let throughput_score = (bytes_per_connection / 1_048_576.0).min(1.0); // 1MB per connection
         throughput_score * (1.0 - error_rate)
     }
@@ -641,8 +674,8 @@ impl AsyncResourceMonitor {
         let memory_norm = (profile.memory_metrics.current_bytes as f64 / 100_000_000.0).min(1.0);
         let io_norm = (profile.io_metrics.bandwidth_mbps / 1000.0).min(1.0);
         let network_norm = (profile.network_metrics.throughput_mbps / 100.0).min(1.0);
-        
-        let values = vec![cpu_norm, memory_norm, io_norm, network_norm];
+
+        let values = [cpu_norm, memory_norm, io_norm, network_norm];
         let mean = values.iter().sum::<f64>() / values.len() as f64;
         let variance = values.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / values.len() as f64;
         1.0 - variance.sqrt() // Lower variance = better balance
@@ -650,12 +683,16 @@ impl AsyncResourceMonitor {
 
     fn identify_bottleneck(profile: &TaskResourceProfile) -> BottleneckType {
         let cpu_pressure = profile.cpu_metrics.usage_percent / 100.0;
-        let memory_pressure = (profile.memory_metrics.current_bytes as f64 / 100_000_000.0).min(1.0);
+        let memory_pressure =
+            (profile.memory_metrics.current_bytes as f64 / 100_000_000.0).min(1.0);
         let io_pressure = profile.io_metrics.io_wait_percent / 100.0;
         let network_pressure = (profile.network_metrics.latency_avg_ms / 100.0).min(1.0);
-        
-        let max_pressure = cpu_pressure.max(memory_pressure).max(io_pressure).max(network_pressure);
-        
+
+        let max_pressure = cpu_pressure
+            .max(memory_pressure)
+            .max(io_pressure)
+            .max(network_pressure);
+
         if max_pressure < 0.5 {
             BottleneckType::Balanced
         } else if cpu_pressure == max_pressure {
@@ -673,10 +710,10 @@ impl AsyncResourceMonitor {
     fn simulate_core_affinity(&self, task_type: &TaskType) -> Vec<u32> {
         match task_type {
             TaskType::CpuIntensive => vec![0, 1, 2, 3], // Use multiple cores
-            TaskType::IoIntensive => vec![0], // Single core sufficient
-            TaskType::NetworkIntensive => vec![0, 1], // Two cores
-            TaskType::GpuCompute => vec![0], // GPU tasks don't need many CPU cores
-            _ => vec![0, 1], // Default to two cores
+            TaskType::IoIntensive => vec![0],           // Single core sufficient
+            TaskType::NetworkIntensive => vec![0, 1],   // Two cores
+            TaskType::GpuCompute => vec![0],            // GPU tasks don't need many CPU cores
+            _ => vec![0, 1],                            // Default to two cores
         }
     }
 
@@ -690,28 +727,40 @@ impl AsyncResourceMonitor {
             file_path: format!("examples/{}.rs", task_name.to_lowercase().replace(" ", "_")),
             line_number: 42 + (task_name.len() as u32 * 3) % 100,
             function_name: format!("execute_{}", task_name.to_lowercase().replace(" ", "_")),
-            module_path: format!("memscope_rs::examples::{}", task_name.to_lowercase().replace(" ", "_")),
+            module_path: format!(
+                "memscope_rs::examples::{}",
+                task_name.to_lowercase().replace(" ", "_")
+            ),
             crate_name: "memscope_rs".to_string(),
         }
     }
 
     fn generate_hot_metrics(&self, task_name: &str, task_type: &TaskType) -> HotMetrics {
         let elapsed = self.start_time.elapsed().as_secs_f64();
-        
+
         HotMetrics {
             cpu_hotspots: self.generate_cpu_hotspots(task_name, task_type, elapsed),
             memory_hotspots: self.generate_memory_hotspots(task_name, task_type, elapsed),
             io_hotspots: self.generate_io_hotspots(task_name, task_type, elapsed),
             network_hotspots: self.generate_network_hotspots(task_name, task_type, elapsed),
-            critical_path_analysis: self.generate_critical_path_analysis(task_name, task_type, elapsed),
+            critical_path_analysis: self
+                .generate_critical_path_analysis(task_name, task_type, elapsed),
         }
     }
 
-    fn generate_cpu_hotspots(&self, task_name: &str, task_type: &TaskType, elapsed: f64) -> Vec<CpuHotspot> {
+    fn generate_cpu_hotspots(
+        &self,
+        task_name: &str,
+        task_type: &TaskType,
+        elapsed: f64,
+    ) -> Vec<CpuHotspot> {
         match task_type {
             TaskType::CpuIntensive => vec![
                 CpuHotspot {
-                    function_name: format!("{}_core_computation", task_name.to_lowercase().replace(" ", "_")),
+                    function_name: format!(
+                        "{}_core_computation",
+                        task_name.to_lowercase().replace(" ", "_")
+                    ),
                     cpu_time_ms: elapsed * 650.0,
                     percentage_of_total: 65.0,
                     call_count: (elapsed * 1000.0) as u64,
@@ -764,23 +813,29 @@ impl AsyncResourceMonitor {
                     avg_time_per_call: 2.2,
                 },
             ],
-            _ => vec![
-                CpuHotspot {
-                    function_name: "generic_processing".to_string(),
-                    cpu_time_ms: elapsed * 200.0,
-                    percentage_of_total: 40.0,
-                    call_count: (elapsed * 200.0) as u64,
-                    avg_time_per_call: 1.0,
-                },
-            ],
+            _ => vec![CpuHotspot {
+                function_name: "generic_processing".to_string(),
+                cpu_time_ms: elapsed * 200.0,
+                percentage_of_total: 40.0,
+                call_count: (elapsed * 200.0) as u64,
+                avg_time_per_call: 1.0,
+            }],
         }
     }
 
-    fn generate_memory_hotspots(&self, task_name: &str, task_type: &TaskType, elapsed: f64) -> Vec<MemoryHotspot> {
+    fn generate_memory_hotspots(
+        &self,
+        task_name: &str,
+        task_type: &TaskType,
+        elapsed: f64,
+    ) -> Vec<MemoryHotspot> {
         match task_type {
             TaskType::MemoryIntensive => vec![
                 MemoryHotspot {
-                    allocation_site: format!("{}::large_buffer_allocation", task_name.replace(" ", "_")),
+                    allocation_site: format!(
+                        "{}::large_buffer_allocation",
+                        task_name.replace(" ", "_")
+                    ),
                     bytes_allocated: (elapsed * 50_000_000.0) as u64,
                     allocation_count: (elapsed * 10.0) as u64,
                     peak_usage: (elapsed * 75_000_000.0) as u64,
@@ -794,33 +849,37 @@ impl AsyncResourceMonitor {
                     lifetime_ms: elapsed * 300.0,
                 },
             ],
-            TaskType::CpuIntensive => vec![
-                MemoryHotspot {
-                    allocation_site: "matrix_multiplication::allocate_result".to_string(),
-                    bytes_allocated: (elapsed * 8_000_000.0) as u64,
-                    allocation_count: (elapsed * 5.0) as u64,
-                    peak_usage: (elapsed * 12_000_000.0) as u64,
-                    lifetime_ms: elapsed * 500.0,
-                },
-            ],
-            _ => vec![
-                MemoryHotspot {
-                    allocation_site: "general_buffer".to_string(),
-                    bytes_allocated: (elapsed * 5_000_000.0) as u64,
-                    allocation_count: (elapsed * 20.0) as u64,
-                    peak_usage: (elapsed * 7_000_000.0) as u64,
-                    lifetime_ms: elapsed * 200.0,
-                },
-            ],
+            TaskType::CpuIntensive => vec![MemoryHotspot {
+                allocation_site: "matrix_multiplication::allocate_result".to_string(),
+                bytes_allocated: (elapsed * 8_000_000.0) as u64,
+                allocation_count: (elapsed * 5.0) as u64,
+                peak_usage: (elapsed * 12_000_000.0) as u64,
+                lifetime_ms: elapsed * 500.0,
+            }],
+            _ => vec![MemoryHotspot {
+                allocation_site: "general_buffer".to_string(),
+                bytes_allocated: (elapsed * 5_000_000.0) as u64,
+                allocation_count: (elapsed * 20.0) as u64,
+                peak_usage: (elapsed * 7_000_000.0) as u64,
+                lifetime_ms: elapsed * 200.0,
+            }],
         }
     }
 
-    fn generate_io_hotspots(&self, task_name: &str, task_type: &TaskType, elapsed: f64) -> Vec<IoHotspot> {
+    fn generate_io_hotspots(
+        &self,
+        task_name: &str,
+        task_type: &TaskType,
+        elapsed: f64,
+    ) -> Vec<IoHotspot> {
         match task_type {
             TaskType::IoIntensive => vec![
                 IoHotspot {
                     operation_type: "Sequential Read".to_string(),
-                    file_path: format!("/tmp/{}_data.dat", task_name.to_lowercase().replace(" ", "_")),
+                    file_path: format!(
+                        "/tmp/{}_data.dat",
+                        task_name.to_lowercase().replace(" ", "_")
+                    ),
                     bytes_processed: (elapsed * 50_000_000.0) as u64,
                     operation_count: (elapsed * 1000.0) as u64,
                     total_time_ms: elapsed * 400.0,
@@ -828,27 +887,33 @@ impl AsyncResourceMonitor {
                 },
                 IoHotspot {
                     operation_type: "Random Write".to_string(),
-                    file_path: format!("/tmp/{}_output.dat", task_name.to_lowercase().replace(" ", "_")),
+                    file_path: format!(
+                        "/tmp/{}_output.dat",
+                        task_name.to_lowercase().replace(" ", "_")
+                    ),
                     bytes_processed: (elapsed * 20_000_000.0) as u64,
                     operation_count: (elapsed * 500.0) as u64,
                     total_time_ms: elapsed * 200.0,
                     avg_latency_ms: 0.4,
                 },
             ],
-            _ => vec![
-                IoHotspot {
-                    operation_type: "Config Read".to_string(),
-                    file_path: "/etc/config.toml".to_string(),
-                    bytes_processed: 4096,
-                    operation_count: (elapsed * 2.0) as u64,
-                    total_time_ms: elapsed * 10.0,
-                    avg_latency_ms: 5.0,
-                },
-            ],
+            _ => vec![IoHotspot {
+                operation_type: "Config Read".to_string(),
+                file_path: "/etc/config.toml".to_string(),
+                bytes_processed: 4096,
+                operation_count: (elapsed * 2.0) as u64,
+                total_time_ms: elapsed * 10.0,
+                avg_latency_ms: 5.0,
+            }],
         }
     }
 
-    fn generate_network_hotspots(&self, task_name: &str, task_type: &TaskType, elapsed: f64) -> Vec<NetworkHotspot> {
+    fn generate_network_hotspots(
+        &self,
+        task_name: &str,
+        task_type: &TaskType,
+        elapsed: f64,
+    ) -> Vec<NetworkHotspot> {
         match task_type {
             TaskType::NetworkIntensive => vec![
                 NetworkHotspot {
@@ -866,33 +931,34 @@ impl AsyncResourceMonitor {
                     error_rate: 0.001,
                 },
             ],
-            _ => vec![
-                NetworkHotspot {
-                    endpoint: format!("internal://{}", task_name.to_lowercase().replace(" ", "_")),
-                    request_count: (elapsed * 5.0) as u64,
-                    bytes_transferred: (elapsed * 100_000.0) as u64,
-                    avg_response_time_ms: 25.0,
-                    error_rate: 0.0,
-                },
-            ],
+            _ => vec![NetworkHotspot {
+                endpoint: format!("internal://{}", task_name.to_lowercase().replace(" ", "_")),
+                request_count: (elapsed * 5.0) as u64,
+                bytes_transferred: (elapsed * 100_000.0) as u64,
+                avg_response_time_ms: 25.0,
+                error_rate: 0.0,
+            }],
         }
     }
 
-    fn generate_critical_path_analysis(&self, _task_name: &str, task_type: &TaskType, elapsed: f64) -> CriticalPathAnalysis {
+    fn generate_critical_path_analysis(
+        &self,
+        _task_name: &str,
+        task_type: &TaskType,
+        elapsed: f64,
+    ) -> CriticalPathAnalysis {
         let total_time = elapsed * 1000.0;
-        
+
         let (critical_path_ratio, parallelization_potential, blocking_ops) = match task_type {
             TaskType::CpuIntensive => (
                 0.85,
                 0.3,
-                vec![
-                    BlockingOperation {
-                        operation_name: "Memory Allocation".to_string(),
-                        blocking_time_ms: total_time * 0.05,
-                        frequency: (elapsed * 10.0) as u64,
-                        impact_score: 0.3,
-                    },
-                ],
+                vec![BlockingOperation {
+                    operation_name: "Memory Allocation".to_string(),
+                    blocking_time_ms: total_time * 0.05,
+                    frequency: (elapsed * 10.0) as u64,
+                    impact_score: 0.3,
+                }],
             ),
             TaskType::IoIntensive => (
                 0.6,
@@ -933,14 +999,12 @@ impl AsyncResourceMonitor {
             _ => (
                 0.7,
                 0.5,
-                vec![
-                    BlockingOperation {
-                        operation_name: "Resource Contention".to_string(),
-                        blocking_time_ms: total_time * 0.1,
-                        frequency: (elapsed * 8.0) as u64,
-                        impact_score: 0.4,
-                    },
-                ],
+                vec![BlockingOperation {
+                    operation_name: "Resource Contention".to_string(),
+                    blocking_time_ms: total_time * 0.1,
+                    frequency: (elapsed * 8.0) as u64,
+                    impact_score: 0.4,
+                }],
             ),
         };
 
@@ -962,26 +1026,29 @@ impl AsyncResourceMonitor {
                 network_efficiency: 0.0,
                 resource_balance: 0.0,
             },
-            recommendations: vec![
-                PerformanceRecommendation {
-                    category: "Initialization".to_string(),
-                    description: "Task is starting up, metrics will be available after initial execution".to_string(),
-                    impact: "Low".to_string(),
-                    difficulty: "Easy".to_string(),
-                    estimated_improvement: 0.0,
-                },
-            ],
+            recommendations: vec![PerformanceRecommendation {
+                category: "Initialization".to_string(),
+                description:
+                    "Task is starting up, metrics will be available after initial execution"
+                        .to_string(),
+                impact: "Low".to_string(),
+                difficulty: "Easy".to_string(),
+                estimated_improvement: 0.0,
+            }],
             bottleneck_analysis: "No bottlenecks detected yet - task is initializing".to_string(),
             optimization_potential: 0.0,
         }
     }
 
-    fn generate_efficiency_explanation(&self, profile: &TaskResourceProfile) -> EfficiencyExplanation {
+    fn generate_efficiency_explanation(
+        &self,
+        profile: &TaskResourceProfile,
+    ) -> EfficiencyExplanation {
         let cpu_eff = Self::calculate_cpu_efficiency(profile);
         let memory_eff = Self::calculate_memory_efficiency(profile);
         let io_eff = Self::calculate_io_efficiency(profile);
         let network_eff = Self::calculate_network_efficiency(profile);
-        
+
         let component_scores = ComponentScores {
             cpu_efficiency: cpu_eff,
             memory_efficiency: memory_eff,
@@ -1003,7 +1070,11 @@ impl AsyncResourceMonitor {
         }
     }
 
-    fn generate_recommendations(&self, profile: &TaskResourceProfile, scores: &ComponentScores) -> Vec<PerformanceRecommendation> {
+    fn generate_recommendations(
+        &self,
+        profile: &TaskResourceProfile,
+        scores: &ComponentScores,
+    ) -> Vec<PerformanceRecommendation> {
         let mut recommendations = Vec::new();
 
         // CPU recommendations
@@ -1011,7 +1082,10 @@ impl AsyncResourceMonitor {
             recommendations.push(PerformanceRecommendation {
                 category: "CPU Optimization".to_string(),
                 description: match profile.task_type {
-                    TaskType::CpuIntensive => "Consider vectorization, loop unrolling, or algorithm optimization".to_string(),
+                    TaskType::CpuIntensive => {
+                        "Consider vectorization, loop unrolling, or algorithm optimization"
+                            .to_string()
+                    }
                     _ => "Reduce CPU overhead with more efficient algorithms".to_string(),
                 },
                 impact: "High".to_string(),
@@ -1043,10 +1117,14 @@ impl AsyncResourceMonitor {
         }
 
         // Network recommendations
-        if scores.network_efficiency < 0.7 && matches!(profile.task_type, TaskType::NetworkIntensive) {
+        if scores.network_efficiency < 0.7
+            && matches!(profile.task_type, TaskType::NetworkIntensive)
+        {
             recommendations.push(PerformanceRecommendation {
                 category: "Network Optimization".to_string(),
-                description: "Implement connection pooling, request batching, or optimize serialization".to_string(),
+                description:
+                    "Implement connection pooling, request batching, or optimize serialization"
+                        .to_string(),
                 impact: "High".to_string(),
                 difficulty: "Medium".to_string(),
                 estimated_improvement: (0.7 - scores.network_efficiency) * 90.0,
@@ -1057,7 +1135,9 @@ impl AsyncResourceMonitor {
         if scores.resource_balance < 0.6 {
             recommendations.push(PerformanceRecommendation {
                 category: "Resource Balance".to_string(),
-                description: "Balance workload across CPU, memory, and IO to avoid resource contention".to_string(),
+                description:
+                    "Balance workload across CPU, memory, and IO to avoid resource contention"
+                        .to_string(),
                 impact: "Medium".to_string(),
                 difficulty: "Hard".to_string(),
                 estimated_improvement: (0.6 - scores.resource_balance) * 60.0,
@@ -1095,17 +1175,23 @@ impl AsyncResourceMonitor {
     }
 
     fn calculate_optimization_potential(&self, scores: &ComponentScores) -> f64 {
-        let efficiency_scores = vec![
+        let efficiency_scores = [
             scores.cpu_efficiency,
             scores.memory_efficiency,
             scores.io_efficiency,
             scores.network_efficiency,
             scores.resource_balance,
         ];
-        
-        let min_score = efficiency_scores.iter().copied().fold(f64::INFINITY, f64::min);
-        let max_score = efficiency_scores.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-        
+
+        let min_score = efficiency_scores
+            .iter()
+            .copied()
+            .fold(f64::INFINITY, f64::min);
+        let max_score = efficiency_scores
+            .iter()
+            .copied()
+            .fold(f64::NEG_INFINITY, f64::max);
+
         // Optimization potential is based on the gap between worst and best performing areas
         ((max_score - min_score) * 100.0).min(50.0) // Cap at 50% potential improvement
     }
@@ -1139,13 +1225,13 @@ mod tests {
     fn test_task_monitoring_lifecycle() {
         let mut monitor = AsyncResourceMonitor::new();
         let task_id = 1234;
-        
+
         monitor.start_monitoring(task_id, "test_task".to_string(), TaskType::CpuIntensive);
         assert!(monitor.profiles.contains_key(&task_id));
-        
+
         monitor.update_metrics(task_id);
         monitor.finish_monitoring(task_id);
-        
+
         let profile = monitor.get_profile(task_id).unwrap();
         assert!(profile.end_time.is_some());
         assert!(profile.duration_ms.is_some());
@@ -1155,10 +1241,10 @@ mod tests {
     fn test_efficiency_calculation() {
         let mut monitor = AsyncResourceMonitor::new();
         let task_id = 5678;
-        
+
         monitor.start_monitoring(task_id, "cpu_task".to_string(), TaskType::CpuIntensive);
         monitor.update_metrics(task_id);
-        
+
         let profile = monitor.get_profile(task_id).unwrap();
         assert!(profile.efficiency_score >= 0.0);
         assert!(profile.efficiency_score <= 1.0);

@@ -3,10 +3,10 @@
 //! Provides comprehensive system resource monitoring capabilities including
 //! CPU, IO, Network, and GPU usage tracking at the async task level.
 
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
-use serde::{Serialize, Deserialize};
 
 use crate::async_memory::TaskId;
 
@@ -144,10 +144,10 @@ pub struct SystemResourceMonitor {
 /// Baseline system metrics for calculating task-specific usage
 #[derive(Debug, Clone)]
 struct SystemBaseline {
-    total_cpu_time: u64,
-    total_io_bytes: u64,
-    total_network_bytes: u64,
-    timestamp: Instant,
+    _total_cpu_time: u64,
+    _total_io_bytes: u64,
+    _total_network_bytes: u64,
+    _timestamp: Instant,
 }
 
 /// Internal monitoring counters
@@ -177,10 +177,10 @@ impl SystemResourceMonitor {
     /// Initialize monitoring with baseline measurements
     pub fn initialize(&mut self) -> Result<(), std::io::Error> {
         self.baseline_metrics = Some(SystemBaseline {
-            total_cpu_time: self.get_system_cpu_time()?,
-            total_io_bytes: self.get_system_io_bytes()?,
-            total_network_bytes: self.get_system_network_bytes()?,
-            timestamp: Instant::now(),
+            _total_cpu_time: self.get_system_cpu_time()?,
+            _total_io_bytes: self.get_system_io_bytes()?,
+            _total_network_bytes: self.get_system_network_bytes()?,
+            _timestamp: Instant::now(),
         });
         Ok(())
     }
@@ -195,7 +195,7 @@ impl SystemResourceMonitor {
             gpu_metrics: self.collect_gpu_metrics(task_id),
             timestamp: current_timestamp(),
         };
-        
+
         self.task_metrics.insert(task_id, metrics);
     }
 
@@ -207,7 +207,7 @@ impl SystemResourceMonitor {
         let network_metrics = self.collect_network_metrics(task_id);
         let gpu_metrics = self.collect_gpu_metrics(task_id);
         let timestamp = current_timestamp();
-        
+
         // Then update the stored metrics
         if let Some(metrics) = self.task_metrics.get_mut(&task_id) {
             metrics.cpu_metrics = cpu_metrics;
@@ -231,9 +231,9 @@ impl SystemResourceMonitor {
     /// Collect CPU metrics for a task
     fn collect_cpu_metrics(&self, task_id: TaskId) -> CpuMetrics {
         self.counters.cpu_samples.fetch_add(1, Ordering::Relaxed);
-        
+
         // Simulate CPU metrics collection
-        // In real implementation, this would read from /proc/[pid]/stat, 
+        // In real implementation, this would read from /proc/[pid]/stat,
         // performance counters, or use platform-specific APIs
         CpuMetrics {
             cpu_time_us: self.get_task_cpu_time(task_id),
@@ -250,7 +250,7 @@ impl SystemResourceMonitor {
     /// Collect IO metrics for a task
     fn collect_io_metrics(&self, task_id: TaskId) -> IoMetrics {
         self.counters.io_samples.fetch_add(1, Ordering::Relaxed);
-        
+
         // Simulate IO metrics collection
         // In real implementation, this would read from /proc/[pid]/io,
         // iotop data, or use BPF/eBPF tracing
@@ -269,8 +269,10 @@ impl SystemResourceMonitor {
 
     /// Collect network metrics for a task
     fn collect_network_metrics(&self, task_id: TaskId) -> NetworkMetrics {
-        self.counters.network_samples.fetch_add(1, Ordering::Relaxed);
-        
+        self.counters
+            .network_samples
+            .fetch_add(1, Ordering::Relaxed);
+
         // Simulate network metrics collection
         // In real implementation, this would use netstat, ss, or netlink sockets
         NetworkMetrics {
@@ -293,7 +295,7 @@ impl SystemResourceMonitor {
         }
 
         self.counters.gpu_samples.fetch_add(1, Ordering::Relaxed);
-        
+
         // Simulate GPU metrics collection
         // In real implementation, this would use NVIDIA ML, ROCm, or Intel GPU APIs
         Some(GpuMetrics {
@@ -433,8 +435,7 @@ impl SystemResourceMonitor {
 
     fn measure_network_latency(&self, _task_id: TaskId) -> f64 {
         // Simulate network latency with some variation
-        let base_latency = 10.0 + (self.start_time.elapsed().as_millis() as f64 % 100.0) / 10.0;
-        base_latency
+        10.0 + (self.start_time.elapsed().as_millis() as f64 % 100.0) / 10.0
     }
 
     fn calculate_bandwidth_utilization(&self, task_id: TaskId) -> f64 {
@@ -454,7 +455,7 @@ impl SystemResourceMonitor {
     }
 
     fn get_network_errors(&self, task_id: TaskId) -> u64 {
-        (task_id as u64 % 100) + (self.start_time.elapsed().as_secs() as u64 / 60)
+        (task_id as u64 % 100) + self.start_time.elapsed().as_secs()
     }
 
     fn is_gpu_available(&self) -> bool {
@@ -468,7 +469,9 @@ impl SystemResourceMonitor {
 
     fn get_gpu_utilization(&self, task_id: TaskId) -> f64 {
         let base_util = (task_id as f64 % 80.0) + 10.0;
-        let time_factor = (self.start_time.elapsed().as_secs() as f64 / 5.0).sin().abs();
+        let time_factor = (self.start_time.elapsed().as_secs() as f64 / 5.0)
+            .sin()
+            .abs();
         (base_util + time_factor * 15.0).min(100.0)
     }
 
@@ -530,22 +533,21 @@ mod tests {
     fn test_task_monitoring() {
         let mut monitor = SystemResourceMonitor::new();
         let task_id = 1234;
-        
+
         monitor.start_task_monitoring(task_id);
         assert!(monitor.task_metrics.contains_key(&task_id));
-        
+
         let metrics = monitor.get_task_metrics(task_id).unwrap();
         assert_eq!(metrics.task_id, task_id);
         assert!(metrics.cpu_metrics.cpu_time_us > 0);
-        assert!(metrics.io_metrics.bytes_read >= 0);
-        assert!(metrics.network_metrics.bytes_sent >= 0);
+        // bytes_read and bytes_sent are u64, always >= 0, so no need to check
     }
 
     #[test]
     fn test_cpu_metrics_calculation() {
         let monitor = SystemResourceMonitor::new();
         let cpu_metrics = monitor.collect_cpu_metrics(1000);
-        
+
         assert!(cpu_metrics.cpu_usage_percent >= 0.0);
         assert!(cpu_metrics.cpu_usage_percent <= 100.0);
         assert!(cpu_metrics.user_time_us <= cpu_metrics.cpu_time_us);
@@ -557,9 +559,8 @@ mod tests {
     fn test_io_metrics_calculation() {
         let monitor = SystemResourceMonitor::new();
         let io_metrics = monitor.collect_io_metrics(2000);
-        
-        assert!(io_metrics.bytes_read >= 0);
-        assert!(io_metrics.bytes_written >= 0);
+
+        // bytes_read and bytes_written are u64, always >= 0
         assert!(io_metrics.avg_io_latency_us > 0.0);
         assert!(io_metrics.disk_queue_depth > 0);
     }
@@ -568,9 +569,8 @@ mod tests {
     fn test_network_metrics_calculation() {
         let monitor = SystemResourceMonitor::new();
         let network_metrics = monitor.collect_network_metrics(3000);
-        
-        assert!(network_metrics.bytes_sent >= 0);
-        assert!(network_metrics.bytes_received >= 0);
+
+        // bytes_sent and bytes_received are u64, always >= 0
         assert!(network_metrics.active_connections > 0);
         assert!(network_metrics.network_latency_ms > 0.0);
     }
@@ -579,7 +579,7 @@ mod tests {
     fn test_gpu_metrics_availability() {
         let monitor = SystemResourceMonitor::new();
         let gpu_metrics = monitor.collect_gpu_metrics(4000);
-        
+
         if let Some(gpu) = gpu_metrics {
             assert!(gpu.gpu_utilization_percent >= 0.0);
             assert!(gpu.gpu_utilization_percent <= 100.0);

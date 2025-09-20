@@ -11,7 +11,7 @@ use std::time::Duration;
 
 use crate::async_memory::buffer::{collect_all_events, AllocationEvent};
 use crate::async_memory::error::{AsyncError, AsyncResult};
-use crate::async_memory::profile::{TaskMemoryProfile, AggregatedTaskStats};
+use crate::async_memory::profile::{AggregatedTaskStats, TaskMemoryProfile};
 use crate::async_memory::TaskId;
 
 /// Re-export TrackedFuture from api module
@@ -84,11 +84,7 @@ impl TaskMemoryTracker {
 
         if let Some(handle) = self.aggregator_handle.take() {
             handle.join().map_err(|_| {
-                AsyncError::system(
-                    "thread_join",
-                    "Failed to join aggregator thread",
-                    None,
-                )
+                AsyncError::system("thread_join", "Failed to join aggregator thread", None)
             })?;
         }
 
@@ -105,7 +101,8 @@ impl TaskMemoryTracker {
 
     /// Process a single allocation event
     fn process_single_event(&mut self, event: AllocationEvent) {
-        let profile = self.profiles
+        let profile = self
+            .profiles
             .entry(event.task_id)
             .or_insert_with(|| TaskMemoryProfile::new(event.task_id));
 
@@ -152,7 +149,8 @@ impl TaskMemoryTracker {
 
     /// Clean up completed tasks (keep only recent ones)
     pub fn cleanup_completed_tasks(&mut self, max_completed: usize) {
-        let mut completed_tasks: Vec<_> = self.profiles
+        let mut completed_tasks: Vec<_> = self
+            .profiles
             .iter()
             .filter(|(_, profile)| profile.is_completed())
             .map(|(&id, profile)| (id, profile.completed_at.unwrap_or(profile.created_at)))
@@ -167,8 +165,7 @@ impl TaskMemoryTracker {
 
         // Remove oldest completed tasks
         let to_remove = completed_tasks.len() - max_completed;
-        for i in 0..to_remove {
-            let task_id = completed_tasks[i].0;
+        for &(task_id, _) in completed_tasks.iter().take(to_remove) {
             self.profiles.remove(&task_id);
         }
 
@@ -237,14 +234,18 @@ mod tests {
         tracker.process_events(events);
 
         // Check task 1 profile
-        let profile1 = tracker.get_task_profile(1).expect("Task 1 profile not found");
+        let profile1 = tracker
+            .get_task_profile(1)
+            .expect("Task 1 profile not found");
         assert_eq!(profile1.total_allocated, 3072); // 1024 + 2048
-        assert_eq!(profile1.current_usage, 2048);   // 3072 - 1024
+        assert_eq!(profile1.current_usage, 2048); // 3072 - 1024
         assert_eq!(profile1.allocation_count, 2);
         assert_eq!(profile1.deallocation_count, 1);
 
         // Check task 2 profile
-        let profile2 = tracker.get_task_profile(2).expect("Task 2 profile not found");
+        let profile2 = tracker
+            .get_task_profile(2)
+            .expect("Task 2 profile not found");
         assert_eq!(profile2.total_allocated, 512);
         assert_eq!(profile2.current_usage, 512);
         assert_eq!(profile2.allocation_count, 1);
@@ -254,16 +255,14 @@ mod tests {
         let stats = tracker.get_aggregated_stats();
         assert_eq!(stats.total_tasks, 2);
         assert_eq!(stats.total_memory_allocated, 3584); // 3072 + 512
-        assert_eq!(stats.current_memory_usage, 2560);   // 2048 + 512
+        assert_eq!(stats.current_memory_usage, 2560); // 2048 + 512
     }
 
     #[test]
     fn test_task_completion() {
         let mut tracker = TaskMemoryTracker::new();
 
-        let events = vec![
-            AllocationEvent::allocation(1, 0x1000, 1024, 100),
-        ];
+        let events = vec![AllocationEvent::allocation(1, 0x1000, 1024, 100)];
         tracker.process_events(events);
 
         // Initially not completed
@@ -284,7 +283,12 @@ mod tests {
 
         // Create multiple completed tasks
         for i in 1..=10 {
-            let events = vec![AllocationEvent::allocation(i as TaskId, 0x1000 + i as usize, 1024, (100 + i) as u64)];
+            let events = vec![AllocationEvent::allocation(
+                i as TaskId,
+                0x1000 + i as usize,
+                1024,
+                (100 + i) as u64,
+            )];
             tracker.process_events(events);
             tracker.mark_task_completed(i);
         }
@@ -334,16 +338,21 @@ mod tests {
 
         // Create events for multiple tasks with different patterns
         let mut events = Vec::new();
-        
+
         // Task 1: Large allocations
         events.push(AllocationEvent::allocation(1, 0x1000, 10_000, 100));
         events.push(AllocationEvent::allocation(1, 0x2000, 20_000, 200));
-        
+
         // Task 2: Small frequent allocations
         for i in 0..10 {
-            events.push(AllocationEvent::allocation(2, 0x3000 + i, 100, (300 + i) as u64));
+            events.push(AllocationEvent::allocation(
+                2,
+                0x3000 + i,
+                100,
+                (300 + i) as u64,
+            ));
         }
-        
+
         // Task 3: Allocation and immediate deallocation
         events.push(AllocationEvent::allocation(3, 0x4000, 5000, 400));
         events.push(AllocationEvent::deallocation(3, 0x4000, 5000, 500));

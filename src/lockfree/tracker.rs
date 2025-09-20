@@ -177,7 +177,7 @@ pub use crate::lockfree::sampling::SamplingConfig;
 // Uses RefCell for interior mutability without locks
 thread_local! {
     static THREAD_TRACKER: std::cell::RefCell<Option<ThreadLocalTracker>> =
-        std::cell::RefCell::new(None);
+        const { std::cell::RefCell::new(None) };
 }
 
 /// Thread-local memory tracker with enhanced metadata collection
@@ -869,7 +869,6 @@ pub fn calculate_call_stack_hash(call_stack: &[usize]) -> u64 {
 }
 
 /// Global API functions for thread-local tracking
-
 /// Initialize thread-local tracker for current thread
 pub fn init_thread_tracker(
     output_dir: &std::path::Path,
@@ -963,10 +962,8 @@ mod tests {
         if !event_file.exists() || !freq_file.exists() {
             println!("Files in temp directory:");
             if let Ok(entries) = std::fs::read_dir(&temp_dir) {
-                for entry in entries {
-                    if let Ok(entry) = entry {
-                        println!("  - {:?}", entry.file_name());
-                    }
+                for entry in entries.flatten() {
+                    println!("  - {:?}", entry.file_name());
                 }
             }
         }
@@ -1005,13 +1002,13 @@ mod tests {
                 thread::spawn(move || {
                     // Initialize tracker for this thread
                     init_thread_tracker(&temp_dir, None).unwrap();
-                    
+
                     // Get and store the actual thread ID
                     let actual_thread_id = get_thread_id();
                     thread_ids.lock().unwrap().push(actual_thread_id);
 
                     for i in 0..allocations_per_thread {
-                        let ptr = (thread_idx * 10000 + i * 8) as usize;
+                        let ptr = thread_idx * 10000 + i * 8;
                         let size = 64 + (i % 10) * 64; // Varying sizes
                         let call_stack = vec![0x1000 + thread_idx, 0x2000 + i];
 
@@ -1053,10 +1050,8 @@ mod tests {
             if !event_file.exists() || !freq_file.exists() {
                 println!("Files in temp directory for thread {}:", thread_id);
                 if let Ok(entries) = std::fs::read_dir(&temp_dir) {
-                    for entry in entries {
-                        if let Ok(entry) = entry {
-                            println!("  - {:?}", entry.file_name());
-                        }
+                    for entry in entries.flatten() {
+                        println!("  - {:?}", entry.file_name());
                     }
                 }
             }
@@ -1079,11 +1074,12 @@ mod tests {
 
     #[test]
     fn test_intelligent_sampling() {
-        let mut config = SamplingConfig::default();
-        // Make sampling more predictable for testing
-        config.small_allocation_rate = 0.1; // 10% for small
-        config.medium_allocation_rate = 0.5; // 50% for medium
-        config.large_allocation_rate = 1.0; // 100% for large
+        let config = SamplingConfig {
+            small_allocation_rate: 0.1,  // 10% for small
+            medium_allocation_rate: 0.5, // 50% for medium
+            large_allocation_rate: 1.0,  // 100% for large
+            ..Default::default()
+        };
 
         let temp_dir = std::env::temp_dir().join("memscope_sampling_test");
         std::fs::create_dir_all(&temp_dir).unwrap();

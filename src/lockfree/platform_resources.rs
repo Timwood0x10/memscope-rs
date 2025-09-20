@@ -54,7 +54,7 @@ pub enum GpuVendor {
 }
 
 /// IO subsystem metrics including disk and network
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct IoResourceMetrics {
     pub disk_read_bytes_per_sec: u64,
     pub disk_write_bytes_per_sec: u64,
@@ -147,21 +147,6 @@ impl Default for CpuResourceMetrics {
             context_switches_per_sec: 0,
             interrupts_per_sec: 0,
             load_average: (0.0, 0.0, 0.0),
-        }
-    }
-}
-
-impl Default for IoResourceMetrics {
-    fn default() -> Self {
-        Self {
-            disk_read_bytes_per_sec: 0,
-            disk_write_bytes_per_sec: 0,
-            disk_read_ops_per_sec: 0,
-            disk_write_ops_per_sec: 0,
-            network_rx_bytes_per_sec: 0,
-            network_tx_bytes_per_sec: 0,
-            network_rx_packets_per_sec: 0,
-            network_tx_packets_per_sec: 0,
         }
     }
 }

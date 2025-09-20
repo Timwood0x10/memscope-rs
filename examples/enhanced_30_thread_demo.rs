@@ -27,23 +27,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Show which features are enabled
     print!("   Enhanced features: ");
-    #[allow(unused_mut)]
-    let mut features: Vec<&str> = Vec::new();
 
-    #[cfg(feature = "backtrace")]
-    features.push("Real Call Stacks");
+    #[allow(unused_mut, clippy::vec_init_then_push)]
+    {
+        let mut features = Vec::new();
 
-    #[cfg(feature = "system-metrics")]
-    features.push("System Metrics");
+        #[cfg(feature = "backtrace")]
+        features.push("Real Call Stacks");
 
-    #[cfg(feature = "advanced-analysis")]
-    features.push("Advanced Analysis");
+        #[cfg(feature = "system-metrics")]
+        features.push("System Metrics");
 
-    if features.is_empty() {
-        println!("Basic tracking only");
-        println!("   💡 Enable enhanced features with: --features enhanced-tracking");
-    } else {
-        println!("{}", features.join(", "));
+        #[cfg(feature = "advanced-analysis")]
+        features.push("Advanced Analysis");
+
+        if features.is_empty() {
+            println!("Basic tracking only");
+            println!("   💡 Enable enhanced features with: --features enhanced-tracking");
+        } else {
+            println!("{}", features.join(", "));
+        }
     }
 
     println!();
@@ -468,11 +471,9 @@ fn analyze_enhanced_data(output_dir: &std::path::Path) -> Result<(), Box<dyn std
     // File size analysis
     if let Ok(entries) = std::fs::read_dir(output_dir) {
         let mut total_size = 0u64;
-        for entry in entries {
-            if let Ok(entry) = entry {
-                if let Ok(metadata) = entry.metadata() {
-                    total_size += metadata.len();
-                }
+        for entry in entries.flatten() {
+            if let Ok(metadata) = entry.metadata() {
+                total_size += metadata.len();
             }
         }
         println!(

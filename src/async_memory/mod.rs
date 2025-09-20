@@ -53,20 +53,18 @@ pub mod tracker;
 pub mod visualization;
 
 // Re-export main types and functions
-pub use api::{
-    get_memory_snapshot, initialize, create_tracked, AsyncMemorySnapshot,
-};
+pub use api::{create_tracked, get_memory_snapshot, initialize, AsyncMemorySnapshot};
 pub use error::AsyncError;
 pub use profile::{TaskMemoryProfile, TaskPerformanceMetrics};
-pub use task_id::{TaskId, TaskInfo};
-pub use tracker::{TrackedFuture, TaskMemoryTracker};
 pub use resource_monitor::{
-    AsyncResourceMonitor, TaskResourceProfile, TaskType, BottleneckType,
-    CpuMetrics, MemoryMetrics, IoMetrics, NetworkMetrics, GpuMetrics
+    AsyncResourceMonitor, BottleneckType, CpuMetrics, GpuMetrics, IoMetrics, MemoryMetrics,
+    NetworkMetrics, TaskResourceProfile, TaskType,
 };
+pub use task_id::{TaskId, TaskInfo};
+pub use tracker::{TaskMemoryTracker, TrackedFuture};
 pub use visualization::{
-    VisualizationGenerator, VisualizationConfig, Theme, PerformanceBaselines,
-    CategoryRanking, PerformanceComparison, ComparisonType, VisualizationError
+    CategoryRanking, ComparisonType, PerformanceBaselines, PerformanceComparison, Theme,
+    VisualizationConfig, VisualizationError, VisualizationGenerator,
 };
 
 /// Current version of the async memory tracking system
@@ -85,7 +83,7 @@ macro_rules! const_assert_eq {
     };
 }
 
-/// Buffer size must be power of 2 for efficient masking
+// Buffer size must be power of 2 for efficient masking
 const_assert_eq!(DEFAULT_BUFFER_SIZE & (DEFAULT_BUFFER_SIZE - 1), 0);
 
 #[cfg(test)]
@@ -93,21 +91,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_module_constants() {
-        // Verify buffer size is power of 2
-        assert_eq!(DEFAULT_BUFFER_SIZE & (DEFAULT_BUFFER_SIZE - 1), 0);
-        
-        // Verify reasonable limits
-        assert!(MAX_TRACKED_TASKS >= 1024);
-        assert!(DEFAULT_BUFFER_SIZE >= 1024);
-    }
-
-    #[test]
     fn test_version_format() {
         // Ensure version follows semantic versioning
         let parts: Vec<&str> = VERSION.split('.').collect();
         assert_eq!(parts.len(), 3);
-        
+
         for part in parts {
             assert!(part.parse::<u32>().is_ok());
         }

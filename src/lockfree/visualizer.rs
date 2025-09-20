@@ -1001,7 +1001,7 @@ fn build_tabbed_content(
     );
 
     // Multi-Thread Overview Tab - NEW!
-    html.push_str(&build_multi_thread_overview_tab(&comprehensive_analysis)?);
+    html.push_str(&build_multi_thread_overview_tab(comprehensive_analysis)?);
 
     // Thread Details Tab
     html.push_str(&build_thread_details_tab(
@@ -1023,7 +1023,7 @@ fn build_tabbed_content(
     )?);
 
     html.push_str("</div></div>");
-    
+
     // Add JavaScript for tab switching
     html.push_str(r#"
     <script>
@@ -2025,7 +2025,7 @@ fn build_multi_thread_overview_tab(
     comprehensive_analysis: &ComprehensiveAnalysis,
 ) -> Result<String, Box<dyn std::error::Error>> {
     let mut html = String::new();
-    
+
     html.push_str(r#"
     <div id="multi-thread-overview" class="tab-panel">
         <h2>🧵 Multi-Thread Overview ({} Tracked Threads)</h2>
@@ -2041,45 +2041,59 @@ fn build_multi_thread_overview_tab(
         <div class="thread-grid-container">
             <div class="thread-grid">
     "#);
-    
+
     // Get only threads with significant allocations (tracked threads)
-    let mut tracked_thread_ids: Vec<u64> = comprehensive_analysis.memory_analysis.thread_stats.iter()
+    let mut tracked_thread_ids: Vec<u64> = comprehensive_analysis
+        .memory_analysis
+        .thread_stats
+        .iter()
         .filter(|(_, stats)| stats.total_allocations > 100) // Only show threads with meaningful activity
         .map(|(id, _)| *id)
         .collect();
     tracked_thread_ids.sort();
-    
+
     // Display header with tracked thread count
     html = html.replace("{}", &tracked_thread_ids.len().to_string());
-    
+
     // Create visual grid only for tracked threads
     for &thread_id in &tracked_thread_ids {
-        let thread_stats = comprehensive_analysis.memory_analysis.thread_stats.get(&thread_id);
-        
-        let (allocations, peak_memory_mb, cpu_usage, io_operations) = if let Some(stats) = thread_stats {
-            // Calculate realistic CPU usage based on memory activity
-            let base_cpu = (stats.total_allocations as f32 / 200.0).min(25.0); // Base from allocations
-            let memory_factor = (stats.peak_memory as f32 / 1024.0 / 1024.0 / 20.0).min(15.0); // Memory pressure
-            let estimated_cpu = (base_cpu + memory_factor).min(40.0); // Max realistic 40%
-            
-            // Calculate I/O operations (allocations + deallocations + estimated file I/O)
-            let memory_io = stats.total_allocations + stats.total_deallocations;
-            let estimated_file_io = (stats.total_allocations / 10).max(50); // Estimated file operations
-            let io_ops = memory_io + estimated_file_io;
-            
-            (stats.total_allocations, stats.peak_memory as f32 / 1024.0 / 1024.0, estimated_cpu, io_ops)
-        } else {
-            (0, 0.0, 0.0, 0)
-        };
-        
+        let thread_stats = comprehensive_analysis
+            .memory_analysis
+            .thread_stats
+            .get(&thread_id);
+
+        let (allocations, peak_memory_mb, cpu_usage, io_operations) =
+            if let Some(stats) = thread_stats {
+                // Calculate realistic CPU usage based on memory activity
+                let base_cpu = (stats.total_allocations as f32 / 200.0).min(25.0); // Base from allocations
+                let memory_factor = (stats.peak_memory as f32 / 1024.0 / 1024.0 / 20.0).min(15.0); // Memory pressure
+                let estimated_cpu = (base_cpu + memory_factor).min(40.0); // Max realistic 40%
+
+                // Calculate I/O operations (allocations + deallocations + estimated file I/O)
+                let memory_io = stats.total_allocations + stats.total_deallocations;
+                let estimated_file_io = (stats.total_allocations / 10).max(50); // Estimated file operations
+                let io_ops = memory_io + estimated_file_io;
+
+                (
+                    stats.total_allocations,
+                    stats.peak_memory as f32 / 1024.0 / 1024.0,
+                    estimated_cpu,
+                    io_ops,
+                )
+            } else {
+                (0, 0.0, 0.0, 0)
+            };
+
         // Thread role classification and anomaly detection
-        let (role_tag, role_class, alert_class) = classify_thread_role(allocations, peak_memory_mb, cpu_usage, io_operations);
+        let (role_tag, role_class, alert_class) =
+            classify_thread_role(allocations, peak_memory_mb, cpu_usage, io_operations);
         let card_class = format!("tracked {}", alert_class);
-        
+
         let status_icon = "🟢";
         let status_text = "TRACKED";
-        
-        html.push_str(&format!(r#"
+
+        html.push_str(&format!(
+            r#"
                 <div class="thread-card {}" onclick="event.stopPropagation(); selectThread({});">
                     <div class="thread-header">
                         <span class="thread-icon">{}</span>
@@ -2106,10 +2120,23 @@ fn build_multi_thread_overview_tab(
                     </div>
                     <div class="thread-status-indicator">{}</div>
                 </div>
-        "#, card_class, thread_id, status_icon, thread_id, role_class, role_tag, allocations, peak_memory_mb, cpu_usage, io_operations, status_text));
+        "#,
+            card_class,
+            thread_id,
+            status_icon,
+            thread_id,
+            role_class,
+            role_tag,
+            allocations,
+            peak_memory_mb,
+            cpu_usage,
+            io_operations,
+            status_text
+        ));
     }
-    
-    html.push_str(r#"
+
+    html.push_str(
+        r#"
             </div>
         </div>
         
@@ -2117,19 +2144,23 @@ fn build_multi_thread_overview_tab(
             <div class="summary-card tracked">
                 <h3>🟢 Tracked Threads (Even: 2,4,6,8...)</h3>
                 <div class="summary-stats">
-    "#);
-    
+    "#,
+    );
+
     // Calculate statistics for tracked threads only
-    let total_tracked_allocations: u64 = tracked_thread_ids.iter()
+    let total_tracked_allocations: u64 = tracked_thread_ids
+        .iter()
         .filter_map(|&id| comprehensive_analysis.memory_analysis.thread_stats.get(&id))
         .map(|stats| stats.total_allocations)
         .sum();
-    let total_tracked_memory: u64 = tracked_thread_ids.iter()
+    let total_tracked_memory: u64 = tracked_thread_ids
+        .iter()
         .filter_map(|&id| comprehensive_analysis.memory_analysis.thread_stats.get(&id))
         .map(|stats| stats.peak_memory as u64)
         .sum();
-    
-    html.push_str(&format!(r#"
+
+    html.push_str(&format!(
+        r#"
                     <p><strong>Active Tracked Threads:</strong> {} threads</p>
                     <p><strong>Total Allocations:</strong> {} operations</p>
                     <p><strong>Total Peak Memory:</strong> {:.1} MB</p>
@@ -2139,10 +2170,17 @@ fn build_multi_thread_overview_tab(
             </div>
         </div>
     </div>
-    "#, tracked_thread_ids.len(), total_tracked_allocations, 
+    "#,
+        tracked_thread_ids.len(),
+        total_tracked_allocations,
         total_tracked_memory as f32 / 1024.0 / 1024.0,
-        if !tracked_thread_ids.is_empty() { total_tracked_allocations / tracked_thread_ids.len() as u64 } else { 0 }));
-    
+        if !tracked_thread_ids.is_empty() {
+            total_tracked_allocations / tracked_thread_ids.len() as u64
+        } else {
+            0
+        }
+    ));
+
     Ok(html)
 }
 
@@ -2152,8 +2190,9 @@ fn build_thread_details_tab(
     _thread_rankings: &[super::resource_integration::ThreadPerformanceMetric],
 ) -> Result<String, Box<dyn std::error::Error>> {
     let mut html = String::new();
-    
-    html.push_str(r#"
+
+    html.push_str(
+        r#"
     <div id="thread-details" class="tab-panel hidden">
         <h2>📊 Thread Performance Details</h2>
         <p>Detailed performance analysis of tracked threads with memory allocation patterns</p>
@@ -2173,30 +2212,36 @@ fn build_thread_details_tab(
                         </tr>
                     </thead>
                     <tbody>
-    "#);
-    
+    "#,
+    );
+
     // Sort threads by peak memory usage (highest first)
-    let mut thread_memory_rankings: Vec<_> = memory_analysis.thread_stats.iter()
+    let mut thread_memory_rankings: Vec<_> = memory_analysis
+        .thread_stats
+        .iter()
         .filter(|(_, stats)| stats.total_allocations > 100) // Only meaningful threads
         .collect();
     thread_memory_rankings.sort_by(|a, b| b.1.peak_memory.cmp(&a.1.peak_memory));
-    
+
     for (rank, (thread_id, stats)) in thread_memory_rankings.iter().enumerate().take(15) {
         let peak_memory_mb = stats.peak_memory as f32 / 1024.0 / 1024.0;
         let efficiency = if stats.total_allocations > 0 {
             (stats.total_deallocations as f32 / stats.total_allocations as f32) * 100.0
-        } else { 0.0 };
-        
+        } else {
+            0.0
+        };
+
         let efficiency_class = match efficiency {
             eff if eff >= 80.0 => "score-excellent",
             eff if eff >= 60.0 => "score-good",
             _ => "score-fair",
         };
-        
+
         // Calculate a performance score based on memory efficiency
         let performance_score = efficiency;
-        
-        html.push_str(&format!(r#"
+
+        html.push_str(&format!(
+            r#"
                         <tr>
                             <td><strong>#{}</strong></td>
                             <td>Thread {}</td>
@@ -2205,11 +2250,19 @@ fn build_thread_details_tab(
                             <td>{:.1} MB</td>
                             <td>{:.1}%</td>
                         </tr>
-        "#, rank + 1, thread_id, efficiency_class, performance_score,
-            stats.total_allocations, peak_memory_mb, efficiency));
+        "#,
+            rank + 1,
+            thread_id,
+            efficiency_class,
+            performance_score,
+            stats.total_allocations,
+            peak_memory_mb,
+            efficiency
+        ));
     }
-    
-    html.push_str(r#"
+
+    html.push_str(
+        r#"
                     </tbody>
                 </table>
             </div>
@@ -2217,24 +2270,29 @@ fn build_thread_details_tab(
             <div class="memory-patterns">
                 <h3>💾 Memory Allocation Patterns</h3>
                 <div class="pattern-grid">
-    "#);
-    
+    "#,
+    );
+
     // Show memory patterns for top threads
-    let top_memory_threads: Vec<_> = memory_analysis.thread_stats.iter()
-        .collect::<Vec<_>>();
+    let top_memory_threads: Vec<_> = memory_analysis.thread_stats.iter().collect::<Vec<_>>();
     let mut sorted_memory_threads = top_memory_threads;
     sorted_memory_threads.sort_by(|a, b| b.1.total_allocations.cmp(&a.1.total_allocations));
-    
+
     for (thread_id, stats) in sorted_memory_threads.iter().take(10) {
         let efficiency = if stats.total_allocations > 0 {
             (stats.total_deallocations as f32 / stats.total_allocations as f32) * 100.0
-        } else { 0.0 };
-        
+        } else {
+            0.0
+        };
+
         let allocation_size = if stats.total_allocations > 0 {
             stats.peak_memory as f32 / stats.total_allocations as f32
-        } else { 0.0 };
-        
-        html.push_str(&format!(r#"
+        } else {
+            0.0
+        };
+
+        html.push_str(&format!(
+            r#"
                     <div class="pattern-card">
                         <h4>Thread {}</h4>
                         <div class="pattern-stats">
@@ -2252,21 +2310,26 @@ fn build_thread_details_tab(
                             </div>
                         </div>
                     </div>
-        "#, thread_id, stats.total_allocations, 
+        "#,
+            thread_id,
+            stats.total_allocations,
             (stats.total_allocations as f32 / 2000.0 * 100.0).min(100.0),
             allocation_size,
             (allocation_size / 50.0).min(100.0),
             efficiency,
-            efficiency));
+            efficiency
+        ));
     }
-    
-    html.push_str(r#"
+
+    html.push_str(
+        r#"
                 </div>
             </div>
         </div>
     </div>
-    "#);
-    
+    "#,
+    );
+
     Ok(html)
 }
 
@@ -2275,8 +2338,9 @@ fn build_resource_timeline_tab(
     resource_timeline: &[PlatformResourceMetrics],
 ) -> Result<String, Box<dyn std::error::Error>> {
     let mut html = String::new();
-    
-    html.push_str(r#"
+
+    html.push_str(
+        r#"
     <div id="resource-timeline" class="tab-panel hidden">
         <h2>⏱️ Resource Timeline (Real-Time Monitoring)</h2>
         <p>Timeline of CPU, memory, and system resource usage during 50-thread execution</p>
@@ -2285,9 +2349,11 @@ fn build_resource_timeline_tab(
             <div class="timeline-stats">
                 <div class="stat-card">
                     <h4>📊 Timeline Overview</h4>
-    "#);
-    
-    html.push_str(&format!(r#"
+    "#,
+    );
+
+    html.push_str(&format!(
+        r#"
                     <p><strong>Total Samples:</strong> {} samples</p>
                     <p><strong>Sampling Rate:</strong> ~10Hz (100ms intervals)</p>
                     <p><strong>Duration:</strong> ~{:.1} seconds</p>
@@ -2295,9 +2361,13 @@ fn build_resource_timeline_tab(
             </div>
             
             <div class="timeline-table-container">
-    "#, resource_timeline.len(), resource_timeline.len() as f32 * 0.1));
-    
-    html.push_str(&format!(r#"
+    "#,
+        resource_timeline.len(),
+        resource_timeline.len() as f32 * 0.1
+    ));
+
+    html.push_str(&format!(
+        r#"
                 <h3>📈 All Resource Samples ({} total)</h3>
                 <table class="ranking-table">
                     <thead>
@@ -2311,11 +2381,14 @@ fn build_resource_timeline_tab(
                         </tr>
                     </thead>
                     <tbody>
-    "#, resource_timeline.len()));
-    
+    "#,
+        resource_timeline.len()
+    ));
+
     // Show all samples (newest first)
     for (i, metric) in resource_timeline.iter().enumerate().rev() {
-        html.push_str(&format!(r#"
+        html.push_str(&format!(
+            r#"
                         <tr>
                             <td>#{}</td>
                             <td>{}</td>
@@ -2324,15 +2397,18 @@ fn build_resource_timeline_tab(
                             <td>{}</td>
                             <td>{:.2}</td>
                         </tr>
-        "#, i + 1,
+        "#,
+            i + 1,
             (i + 1) * 100, // approximate milliseconds
             metric.cpu_metrics.overall_usage_percent,
             metric.cpu_metrics.per_core_usage.len(),
             metric.thread_metrics.len(),
-            metric.cpu_metrics.load_average.0));
+            metric.cpu_metrics.load_average.0
+        ));
     }
-    
-    html.push_str(r#"
+
+    html.push_str(
+        r#"
                     </tbody>
                 </table>
             </div>
@@ -2340,18 +2416,20 @@ fn build_resource_timeline_tab(
             <div class="cpu-core-details">
                 <h3>🔥 Per-Core CPU Usage (Latest Sample)</h3>
                 <div class="core-grid">
-    "#);
-    
+    "#,
+    );
+
     // Show per-core usage from latest sample
     if let Some(latest_sample) = resource_timeline.last() {
         for (core_id, &usage) in latest_sample.cpu_metrics.per_core_usage.iter().enumerate() {
             let usage_class = match usage {
                 u if u < 20.0 => "low",
-                u if u < 60.0 => "medium", 
+                u if u < 60.0 => "medium",
                 _ => "high",
             };
-            
-            html.push_str(&format!(r#"
+
+            html.push_str(&format!(
+                r#"
                     <div class="core-card {}">
                         <div class="core-id">Core {}</div>
                         <div class="core-usage">{:.1}%</div>
@@ -2359,17 +2437,21 @@ fn build_resource_timeline_tab(
                             <div class="core-fill" style="width: {}%"></div>
                         </div>
                     </div>
-            "#, usage_class, core_id, usage, usage));
+            "#,
+                usage_class, core_id, usage, usage
+            ));
         }
     }
-    
-    html.push_str(r#"
+
+    html.push_str(
+        r#"
                 </div>
             </div>
         </div>
     </div>
-    "#);
-    
+    "#,
+    );
+
     Ok(html)
 }
 
@@ -2379,22 +2461,28 @@ fn build_system_summary_tab(
     resource_timeline: &[PlatformResourceMetrics],
 ) -> Result<String, Box<dyn std::error::Error>> {
     let mut html = String::new();
-    
+
     // Calculate real metrics from timeline
     let avg_cpu = if !resource_timeline.is_empty() {
-        resource_timeline.iter()
+        resource_timeline
+            .iter()
             .map(|r| r.cpu_metrics.overall_usage_percent)
-            .sum::<f32>() / resource_timeline.len() as f32
-    } else { 0.0 };
-    
-    let max_cpu = resource_timeline.iter()
+            .sum::<f32>()
+            / resource_timeline.len() as f32
+    } else {
+        0.0
+    };
+
+    let max_cpu = resource_timeline
+        .iter()
         .map(|r| r.cpu_metrics.overall_usage_percent)
         .fold(0.0f32, |a, b| a.max(b));
-    
-    let cpu_cores = resource_timeline.first()
+
+    let cpu_cores = resource_timeline
+        .first()
         .map(|r| r.cpu_metrics.per_core_usage.len())
         .unwrap_or(0);
-    
+
     let bottleneck_text = match performance_insights.primary_bottleneck {
         super::resource_integration::BottleneckType::CpuBound => "CPU-Intensive",
         super::resource_integration::BottleneckType::MemoryBound => "Memory-Intensive",
@@ -2403,7 +2491,7 @@ fn build_system_summary_tab(
         super::resource_integration::BottleneckType::ContentionBound => "Resource Contention",
         super::resource_integration::BottleneckType::Balanced => "Well Balanced",
     };
-    
+
     html.push_str(&format!(r#"
     <div id="system-summary" class="tab-panel hidden">
         <h2>📈 System Performance Summary</h2>
@@ -2506,16 +2594,16 @@ fn build_system_summary_tab(
         bottleneck_text,
         resource_timeline.len(),
         avg_cpu));
-    
-    
+
     Ok(html)
 }
 
-
 /// Build simple HTML report for LockfreeAnalysis
-fn build_simple_html_report(analysis: &LockfreeAnalysis) -> Result<String, Box<dyn std::error::Error>> {
+fn build_simple_html_report(
+    analysis: &LockfreeAnalysis,
+) -> Result<String, Box<dyn std::error::Error>> {
     let mut html = String::new();
-    
+
     html.push_str(r#"
 <!DOCTYPE html>
 <html lang="en">
@@ -2555,47 +2643,59 @@ fn build_simple_html_report(analysis: &LockfreeAnalysis) -> Result<String, Box<d
         <tbody>
 "#);
 
-    html.push_str(&format!(r#"
+    html.push_str(&format!(
+        r#"
         <div class="summary">
             <p><strong>Total Allocations:</strong> {}</p>
             <p><strong>Total Deallocations:</strong> {}</p>
             <p><strong>Peak Memory:</strong> {:.1} MB</p>
             <p><strong>Active Threads:</strong> {}</p>
         </div>
-    "#, 
+    "#,
         analysis.summary.total_allocations,
         analysis.summary.total_deallocations,
         analysis.summary.peak_memory_usage as f64 / 1024.0 / 1024.0,
-        analysis.thread_stats.len()));
+        analysis.thread_stats.len()
+    ));
 
     for (thread_id, stats) in analysis.thread_stats.iter() {
-        html.push_str(&format!(r#"
+        html.push_str(&format!(
+            r#"
             <tr>
                 <td>{}</td>
                 <td>{}</td>
                 <td>{}</td>
                 <td>{:.1}</td>
             </tr>
-        "#, thread_id, stats.total_allocations, stats.total_deallocations, 
-            stats.peak_memory as f32 / 1024.0));
+        "#,
+            thread_id,
+            stats.total_allocations,
+            stats.total_deallocations,
+            stats.peak_memory as f32 / 1024.0
+        ));
     }
 
-    html.push_str(r#"
+    html.push_str(
+        r#"
         </tbody>
     </table>
 </body>
 </html>
-    "#);
+    "#,
+    );
 
     Ok(html)
 }
 
-
-fn classify_thread_role(allocations: u64, peak_memory_mb: f32, cpu_usage: f32, io_operations: u64) -> (&'static str, &'static str, &'static str) {
+fn classify_thread_role(
+    allocations: u64,
+    peak_memory_mb: f32,
+    cpu_usage: f32,
+    io_operations: u64,
+) -> (&'static str, &'static str, &'static str) {
     let alloc_rate = allocations as f32;
     let io_rate = io_operations as f32;
-    
-    
+
     let alert_class = if peak_memory_mb > 20.0 || cpu_usage > 30.0 {
         "alert-high"
     } else if peak_memory_mb > 15.0 || cpu_usage > 20.0 {
@@ -2603,8 +2703,7 @@ fn classify_thread_role(allocations: u64, peak_memory_mb: f32, cpu_usage: f32, i
     } else {
         "alert-normal"
     };
-    
-    
+
     let (role_tag, role_class) = if peak_memory_mb > 18.0 && alloc_rate > 1200.0 {
         ("💾 Memory Intensive", "role-memory-intensive")
     } else if cpu_usage > 25.0 {
@@ -2616,10 +2715,9 @@ fn classify_thread_role(allocations: u64, peak_memory_mb: f32, cpu_usage: f32, i
     } else {
         ("💤 Lightweight", "role-light")
     };
-    
+
     (role_tag, role_class, alert_class)
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -2631,11 +2729,11 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let analysis = crate::lockfree::analysis::LockfreeAnalysis::new();
         let output_path = temp_dir.path().join("test_report.html");
-        
+
         let result = generate_enhanced_html_report(&analysis, &output_path);
         assert!(result.is_ok());
         assert!(output_path.exists());
-        
+
         let content = std::fs::read_to_string(&output_path).unwrap();
         assert!(content.contains("<!DOCTYPE html"));
         assert!(content.len() > 1000);
@@ -2644,7 +2742,7 @@ mod tests {
     #[test]
     fn test_build_simple_html_report() {
         let analysis = crate::lockfree::analysis::LockfreeAnalysis::new();
-        
+
         let html = build_simple_html_report(&analysis);
         let html_content = html.unwrap();
         assert!(html_content.contains("<!DOCTYPE html"));
@@ -2652,14 +2750,12 @@ mod tests {
         assert!(html_content.len() > 500);
     }
 
-
-
     #[test]
     fn test_html_structure_validity() {
         let analysis = crate::lockfree::analysis::LockfreeAnalysis::new();
         let html = build_simple_html_report(&analysis);
         let html_content = html.unwrap();
-        
+
         // Check for proper HTML structure
         assert!(html_content.contains("<html"));
         assert!(html_content.contains("</html>"));
@@ -2669,4 +2765,3 @@ mod tests {
         assert!(html_content.contains("</body>"));
     }
 }
-

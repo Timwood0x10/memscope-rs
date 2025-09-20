@@ -65,7 +65,7 @@ fn generate_test_data(output_dir: &std::path::Path, config: &AggregatorTestConfi
     let allocations_per_thread = config.allocations_per_thread;
 
     // Create varied sampling configurations for different threads
-    let sampling_configs = vec![
+    let sampling_configs = [
         SamplingConfig::default(),
         SamplingConfig::high_precision(),
         SamplingConfig::performance_optimized(),
@@ -248,13 +248,13 @@ fn test_aggregation_functionality(output_dir: &std::path::Path, config: &Aggrega
         );
 
         assert!(
-            stats.allocation_frequency.len() > 0,
+            !stats.allocation_frequency.is_empty(),
             "Thread {} has no frequency data",
             thread_id
         );
 
         assert!(
-            stats.timeline.len() > 0,
+            !stats.timeline.is_empty(),
             "Thread {} has no timeline events",
             thread_id
         );
@@ -269,7 +269,7 @@ fn test_aggregation_functionality(output_dir: &std::path::Path, config: &Aggrega
 
     // Validate hottest call stacks detection
     assert!(
-        analysis.hottest_call_stacks.len() > 0,
+        !analysis.hottest_call_stacks.is_empty(),
         "No hot call stacks detected"
     );
 
@@ -328,22 +328,27 @@ fn test_report_generation(output_dir: &std::path::Path) {
         "HTML report should contain proper HTML structure. Content preview: {}",
         &html_content[..std::cmp::min(200, html_content.len())]
     );
-    
+
     // Check for essential report sections (more flexible matching)
     assert!(
-        html_content.contains("Thread") || html_content.contains("Memory") || html_content.contains("Analysis"),
+        html_content.contains("Thread")
+            || html_content.contains("Memory")
+            || html_content.contains("Analysis"),
         "HTML report should contain analysis content. Size: {} bytes",
         html_content.len()
     );
-    
+
     // Validate that it's not just an error page
     assert!(
         !html_content.contains("error") || html_content.len() > 5000,
-        "HTML report appears to be an error page or too small: {} bytes", 
+        "HTML report appears to be an error page or too small: {} bytes",
         html_content.len()
     );
-    
-    println!("✅ HTML report validation passed: {} bytes generated", html_content.len());
+
+    println!(
+        "✅ HTML report validation passed: {} bytes generated",
+        html_content.len()
+    );
 }
 
 /// Validates that performance requirements are met

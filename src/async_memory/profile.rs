@@ -120,7 +120,7 @@ impl TaskPerformanceMetrics {
     pub fn from_profile(profile: &TaskMemoryProfile) -> Self {
         let lifetime = profile.lifetime();
         let lifetime_secs = lifetime.as_secs_f64();
-        
+
         let allocation_rate = if lifetime_secs > 0.0 {
             profile.total_allocated as f64 / lifetime_secs
         } else {
@@ -140,9 +140,13 @@ impl TaskPerformanceMetrics {
     pub fn performance_rating(&self) -> f64 {
         // Combine multiple factors for overall rating
         let efficiency_score = self.efficiency_ratio;
-        let speed_score = if self.allocation_rate < 1_000_000.0 { 1.0 } else { 0.5 }; // Prefer < 1MB/s
+        let speed_score = if self.allocation_rate < 1_000_000.0 {
+            1.0
+        } else {
+            0.5
+        }; // Prefer < 1MB/s
         let memory_score = if self.peak_memory_mb < 10.0 { 1.0 } else { 0.7 }; // Prefer < 10MB peak
-        
+
         (efficiency_score + speed_score + memory_score) / 3.0
     }
 }
@@ -186,22 +190,22 @@ impl AggregatedTaskStats {
     /// Add task profile to aggregated statistics
     pub fn add_task(&mut self, profile: &TaskMemoryProfile) {
         self.total_tasks += 1;
-        
+
         if profile.is_completed() {
             self.completed_tasks += 1;
         }
-        
+
         self.total_memory_allocated += profile.total_allocated;
         self.current_memory_usage += profile.current_usage;
-        
+
         if profile.peak_usage > self.peak_memory_usage {
             self.peak_memory_usage = profile.peak_usage;
         }
-        
+
         if profile.has_potential_leak() {
             self.potential_leaks += 1;
         }
-        
+
         // Recalculate averages (simplified)
         if self.completed_tasks > 0 {
             self.overall_efficiency = if self.total_memory_allocated > 0 {
@@ -241,25 +245,25 @@ mod tests {
     #[test]
     fn test_task_memory_profile_basic() {
         let mut profile = TaskMemoryProfile::new(12345);
-        
+
         assert_eq!(profile.task_id, 12345);
         assert!(!profile.is_completed());
         assert_eq!(profile.current_usage, 0);
         assert_eq!(profile.total_allocated, 0);
-        
+
         // Record some allocations
         profile.record_allocation(1024);
         assert_eq!(profile.current_usage, 1024);
         assert_eq!(profile.total_allocated, 1024);
         assert_eq!(profile.peak_usage, 1024);
         assert_eq!(profile.allocation_count, 1);
-        
+
         profile.record_allocation(2048);
         assert_eq!(profile.current_usage, 3072);
         assert_eq!(profile.total_allocated, 3072);
         assert_eq!(profile.peak_usage, 3072);
         assert_eq!(profile.allocation_count, 2);
-        
+
         // Record deallocation
         profile.record_deallocation(1024);
         assert_eq!(profile.current_usage, 2048);
@@ -271,16 +275,16 @@ mod tests {
     #[test]
     fn test_memory_efficiency_calculation() {
         let mut profile = TaskMemoryProfile::new(1);
-        
+
         // Perfect efficiency (all deallocated)
         profile.record_allocation(1000);
         profile.record_deallocation(1000);
         assert_eq!(profile.memory_efficiency(), 1.0);
-        
+
         // Partial efficiency
         profile.record_allocation(1000); // Total now 2000, current 1000
         assert_eq!(profile.memory_efficiency(), 0.5);
-        
+
         // Zero efficiency (nothing deallocated)
         let mut profile2 = TaskMemoryProfile::new(2);
         profile2.record_allocation(1000);
@@ -290,16 +294,16 @@ mod tests {
     #[test]
     fn test_memory_leak_detection() {
         let mut profile = TaskMemoryProfile::new(1);
-        
+
         // No leak if not completed
         profile.record_allocation(1000);
         assert!(!profile.has_potential_leak());
-        
+
         // No leak if completed with no current usage
         profile.record_deallocation(1000);
         profile.mark_completed();
         assert!(!profile.has_potential_leak());
-        
+
         // Potential leak if completed with current usage
         let mut profile2 = TaskMemoryProfile::new(2);
         profile2.record_allocation(1000);
@@ -311,7 +315,7 @@ mod tests {
     fn test_task_lifetime() {
         let profile = TaskMemoryProfile::new(1);
         thread::sleep(Duration::from_millis(10));
-        
+
         let lifetime = profile.lifetime();
         assert!(lifetime >= Duration::from_millis(10));
         assert!(lifetime < Duration::from_millis(100)); // Should be reasonable
@@ -320,24 +324,24 @@ mod tests {
     #[test]
     fn test_performance_metrics() {
         let mut profile = TaskMemoryProfile::new(1);
-        
+
         // Add some allocations
         profile.record_allocation(1_000_000); // 1MB
-        profile.record_allocation(500_000);   // 500KB
+        profile.record_allocation(500_000); // 500KB
         profile.record_deallocation(500_000); // Deallocate 500KB
-        
+
         thread::sleep(Duration::from_millis(10));
         profile.mark_completed();
-        
+
         let metrics = TaskPerformanceMetrics::from_profile(&profile);
-        
+
         assert!(metrics.execution_time >= Duration::from_millis(10));
         assert!(metrics.allocation_rate > 0.0);
         assert_eq!(metrics.efficiency_ratio, profile.memory_efficiency());
         assert_eq!(metrics.peak_memory_mb, 1.5); // 1.5MB peak
-        
+
         let rating = metrics.performance_rating();
-        assert!(rating >= 0.0 && rating <= 1.0);
+        assert!((0.0..=1.0).contains(&rating));
     }
 
     #[test]
@@ -345,30 +349,30 @@ mod tests {
         let mut stats = AggregatedTaskStats::new();
         assert_eq!(stats.total_tasks, 0);
         assert_eq!(stats.completed_tasks, 0);
-        
+
         // Add completed task
         let mut profile1 = TaskMemoryProfile::new(1);
         profile1.record_allocation(1000);
         profile1.record_deallocation(500);
         profile1.mark_completed();
         stats.add_task(&profile1);
-        
+
         assert_eq!(stats.total_tasks, 1);
         assert_eq!(stats.completed_tasks, 1);
         assert_eq!(stats.total_memory_allocated, 1000);
         assert_eq!(stats.current_memory_usage, 500);
         assert_eq!(stats.overall_efficiency, 0.5);
-        
+
         // Add active task
         let mut profile2 = TaskMemoryProfile::new(2);
         profile2.record_allocation(2000);
         stats.add_task(&profile2);
-        
+
         assert_eq!(stats.total_tasks, 2);
         assert_eq!(stats.completed_tasks, 1);
         assert_eq!(stats.total_memory_allocated, 3000);
         assert_eq!(stats.current_memory_usage, 2500);
-        
+
         // Test summary string
         let summary = stats.memory_summary();
         assert!(summary.contains("Tasks: 2"));
@@ -378,13 +382,13 @@ mod tests {
     #[test]
     fn test_average_allocation_size() {
         let mut profile = TaskMemoryProfile::new(1);
-        
+
         profile.record_allocation(100);
         assert_eq!(profile.average_allocation_size, 100.0);
-        
+
         profile.record_allocation(200);
         assert_eq!(profile.average_allocation_size, 150.0); // (100 + 200) / 2
-        
+
         profile.record_allocation(300);
         assert_eq!(profile.average_allocation_size, 200.0); // (100 + 200 + 300) / 3
     }

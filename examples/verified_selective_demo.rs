@@ -8,12 +8,10 @@
 
 use memscope_rs::lockfree::aggregator::LockfreeAggregator;
 use memscope_rs::lockfree::tracker::{
-    finalize_thread_tracker, init_thread_tracker, track_allocation_lockfree,
-    SamplingConfig,
+    finalize_thread_tracker, init_thread_tracker, track_allocation_lockfree, SamplingConfig,
 };
 use memscope_rs::lockfree::{
-    export_comprehensive_analysis, IntegratedProfilingSession,
-    PlatformResourceCollector,
+    export_comprehensive_analysis, IntegratedProfilingSession, PlatformResourceCollector,
 };
 
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -434,9 +432,6 @@ fn run_enhanced_verified_worker(
     Ok(())
 }
 
-
-
-
 /// Verify that our logic worked correctly
 fn verify_selective_tracking_logic(
     tracked_threads: &[usize],
@@ -524,14 +519,12 @@ fn verify_tracking_files(
     // Count actual tracking files
     let mut file_count = 0;
     if let Ok(entries) = std::fs::read_dir(output_dir) {
-        for entry in entries {
-            if let Ok(entry) = entry {
-                let file_name = entry.file_name();
-                if let Some(name) = file_name.to_str() {
-                    if name.starts_with("memscope_thread_") && name.ends_with(".bin") {
-                        file_count += 1;
-                        println!("   📄 Found tracking file: {}", name);
-                    }
+        for entry in entries.flatten() {
+            let file_name = entry.file_name();
+            if let Some(name) = file_name.to_str() {
+                if name.starts_with("memscope_thread_") && name.ends_with(".bin") {
+                    file_count += 1;
+                    println!("   📄 Found tracking file: {}", name);
                 }
             }
         }

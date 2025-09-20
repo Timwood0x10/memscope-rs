@@ -89,7 +89,9 @@ impl EventBuffer {
     /// Create new event buffer with default size
     pub fn new() -> Self {
         Self {
-            events: UnsafeCell::new(Box::new([AllocationEvent::allocation(0, 0, 0, 0); DEFAULT_BUFFER_SIZE])),
+            events: UnsafeCell::new(Box::new(
+                [AllocationEvent::allocation(0, 0, 0, 0); DEFAULT_BUFFER_SIZE],
+            )),
             write_pos: AtomicUsize::new(0),
             read_pos: AtomicUsize::new(0),
             dropped_events: AtomicUsize::new(0),
@@ -207,15 +209,15 @@ impl Default for EventBuffer {
 
 // Safe to share between threads because:
 // - Only one thread (producer) writes to write_pos and events at write_pos
-// - Only one thread (consumer) reads from read_pos and events at read_pos  
+// - Only one thread (consumer) reads from read_pos and events at read_pos
 // - Atomic operations ensure proper synchronization
 unsafe impl Sync for EventBuffer {}
 unsafe impl Send for EventBuffer {}
 
-/// Thread-local event buffer storage
-///
-/// Each thread gets its own event buffer to avoid contention.
-/// Uses UnsafeCell for zero-overhead access from allocator hooks.
+// Thread-local event buffer storage
+//
+// Each thread gets its own event buffer to avoid contention.
+// Uses UnsafeCell for zero-overhead access from allocator hooks.
 thread_local! {
     static THREAD_EVENT_BUFFER: UnsafeCell<EventBuffer> = UnsafeCell::new(EventBuffer::new());
 }
@@ -374,7 +376,9 @@ mod tests {
 
         // Pop one event and push should succeed again
         buffer.pop().expect("Failed to pop event");
-        buffer.push(overflow_event).expect("Failed to push after pop");
+        buffer
+            .push(overflow_event)
+            .expect("Failed to push after pop");
     }
 
     #[test]
@@ -441,8 +445,7 @@ mod tests {
         let high_fill = (capacity as f64 * 0.9) as usize;
 
         for i in 0..high_fill {
-            record_allocation_event(i as TaskId, i, 100, i as u64, true)
-                .expect("Failed to record");
+            record_allocation_event(i as TaskId, i, 100, i as u64, true).expect("Failed to record");
         }
 
         let stats = get_buffer_stats();
@@ -463,7 +466,8 @@ mod tests {
         // Producer thread
         let producer = thread::spawn(move || {
             for i in 0..1000 {
-                let event = AllocationEvent::allocation(i as TaskId, (i * 1000) as usize, 100, i as u64);
+                let event =
+                    AllocationEvent::allocation(i as TaskId, (i * 1000) as usize, 100, i as u64);
                 // Ignore overflow errors for this test
                 let _ = producer_buffer.push(event);
             }

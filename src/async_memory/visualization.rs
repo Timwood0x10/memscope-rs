@@ -3,9 +3,9 @@
 //! This module provides comprehensive visualization capabilities for async task performance data.
 //! It generates interactive HTML reports with charts, baselines, rankings, and detailed analytics.
 
-use super::{TaskId, TaskResourceProfile, TaskType};
+use super::{TaskId, TaskResourceProfile};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use serde::{Serialize, Deserialize};
 
 /// Visualization configuration options
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -121,7 +121,10 @@ impl VisualizationGenerator {
     }
 
     /// Calculate baseline metrics
-    fn calculate_baselines(&self, profiles: &HashMap<TaskId, TaskResourceProfile>) -> PerformanceBaselines {
+    fn calculate_baselines(
+        &self,
+        profiles: &HashMap<TaskId, TaskResourceProfile>,
+    ) -> PerformanceBaselines {
         let total = profiles.len() as f64;
         let mut totals = (0.0, 0.0, 0.0, 0.0, 0.0);
 
@@ -143,14 +146,21 @@ impl VisualizationGenerator {
     }
 
     /// Calculate category rankings
-    fn calculate_rankings(&self, profiles: &HashMap<TaskId, TaskResourceProfile>) -> HashMap<TaskId, CategoryRanking> {
+    fn calculate_rankings(
+        &self,
+        profiles: &HashMap<TaskId, TaskResourceProfile>,
+    ) -> HashMap<TaskId, CategoryRanking> {
         let mut rankings = HashMap::new();
-        let mut category_groups: HashMap<String, Vec<(TaskId, &TaskResourceProfile)>> = HashMap::new();
+        let mut category_groups: HashMap<String, Vec<(TaskId, &TaskResourceProfile)>> =
+            HashMap::new();
 
         // Group by task type
         for (task_id, profile) in profiles {
             let category = format!("{:?}", profile.task_type);
-            category_groups.entry(category).or_default().push((*task_id, profile));
+            category_groups
+                .entry(category)
+                .or_default()
+                .push((*task_id, profile));
         }
 
         // Calculate rankings within each category
@@ -186,18 +196,14 @@ impl VisualizationGenerator {
         let mut comparisons = HashMap::new();
 
         for (task_id, profile) in profiles {
-            let cpu_comp = self.compare_to_baseline(
-                profile.cpu_metrics.usage_percent,
-                baselines.avg_cpu_percent,
-            );
+            let cpu_comp = self
+                .compare_to_baseline(profile.cpu_metrics.usage_percent, baselines.avg_cpu_percent);
             let memory_comp = self.compare_to_baseline(
                 profile.memory_metrics.current_bytes as f64 / 1_048_576.0,
                 baselines.avg_memory_mb,
             );
-            let io_comp = self.compare_to_baseline(
-                profile.io_metrics.bandwidth_mbps,
-                baselines.avg_io_mbps,
-            );
+            let io_comp =
+                self.compare_to_baseline(profile.io_metrics.bandwidth_mbps, baselines.avg_io_mbps);
             let network_comp = self.compare_to_baseline(
                 profile.network_metrics.throughput_mbps,
                 baselines.avg_network_mbps,
@@ -287,24 +293,24 @@ impl VisualizationGenerator {
         profiles: &HashMap<TaskId, TaskResourceProfile>,
     ) -> Result<String, VisualizationError> {
         let mut html = String::new();
-        
+
         // HTML Header
         html.push_str(&self.generate_html_header());
-        
+
         // Summary Section
         html.push_str(&self.generate_summary_section(analytics));
-        
+
         // Charts Section (if enabled) - moved to top
         if self.config.include_charts {
             html.push_str(&self.generate_charts_section(profiles)?);
         }
-        
+
         // Tasks Section
         html.push_str(&self.generate_tasks_section(analytics, profiles)?);
-        
+
         // HTML Footer
         html.push_str(&self.generate_html_footer());
-        
+
         Ok(html)
     }
 
@@ -315,7 +321,8 @@ impl VisualizationGenerator {
             Theme::Light => self.get_light_theme_styles(),
         };
 
-        format!(r#"<!DOCTYPE html>
+        format!(
+            r#"<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -331,12 +338,15 @@ impl VisualizationGenerator {
             <h1>📊 {}</h1>
             <p>Advanced performance analysis with baselines, rankings, and trends</p>
         </div>
-"#, self.config.title, theme_styles, self.config.title)
+"#,
+            self.config.title, theme_styles, self.config.title
+        )
     }
 
     /// Generate summary statistics section
     fn generate_summary_section(&self, analytics: &PerformanceAnalytics) -> String {
-        format!(r#"
+        format!(
+            r#"
         <div class="summary">
             <div class="summary-card">
                 <h3>Total Tasks</h3>
@@ -355,7 +365,7 @@ impl VisualizationGenerator {
                 <div class="value">{:.0}%</div>
             </div>
         </div>
-"#, 
+"#,
             analytics.total_tasks,
             analytics.baselines.avg_cpu_percent,
             analytics.baselines.avg_memory_mb,
@@ -370,12 +380,14 @@ impl VisualizationGenerator {
         profiles: &HashMap<TaskId, TaskResourceProfile>,
     ) -> Result<String, VisualizationError> {
         let mut html = String::new();
-        
-        html.push_str(r#"
+
+        html.push_str(
+            r#"
         <div class="tasks-section">
             <h2 class="section-title">Task Performance Details</h2>
             <div class="tasks-grid">
-"#);
+"#,
+        );
 
         // Sort tasks by efficiency score
         let mut sorted_profiles: Vec<_> = profiles.iter().collect();
@@ -389,10 +401,12 @@ impl VisualizationGenerator {
             html.push_str(&self.generate_task_card(*task_id, profile, analytics)?);
         }
 
-        html.push_str(r#"
+        html.push_str(
+            r#"
             </div>
         </div>
-"#);
+"#,
+        );
 
         Ok(html)
     }
@@ -406,9 +420,9 @@ impl VisualizationGenerator {
     ) -> Result<String, VisualizationError> {
         let ranking = analytics.rankings.get(&task_id);
         let comparisons = analytics.comparisons.get(&task_id);
-        
+
         let task_type_class = format!("{:?}", profile.task_type).to_lowercase();
-        
+
         let rank_info = if let Some(ranking) = ranking {
             let rank_class = match ranking.rank {
                 1 => "rank-1",
@@ -416,20 +430,23 @@ impl VisualizationGenerator {
                 3 => "rank-3",
                 _ => "",
             };
-            format!(r#"<div class="ranking-badge {}">#{}/{}</div>"#, 
-                rank_class, ranking.rank, ranking.total_in_category)
+            format!(
+                r#"<div class="ranking-badge {}">#{}/{}</div>"#,
+                rank_class, ranking.rank, ranking.total_in_category
+            )
         } else {
             String::new()
         };
 
-        let comparison_info = if let Some(comp) = comparisons {
+        if let Some(comp) = comparisons {
             self.generate_comparison_info(comp)
         } else {
             String::new()
         };
 
         let efficiency_tooltip = if self.config.include_efficiency_breakdown {
-            format!(r#"
+            format!(
+                r#"
                 <div class="info-icon">?
                     <div class="tooltip">
                         <strong>Efficiency Breakdown:</strong><br>
@@ -440,18 +457,35 @@ impl VisualizationGenerator {
                         Overall: {:.1}%
                     </div>
                 </div>
-"#, 
-                profile.efficiency_explanation.component_scores.cpu_efficiency * 100.0,
-                profile.efficiency_explanation.component_scores.memory_efficiency * 100.0,
-                profile.efficiency_explanation.component_scores.io_efficiency * 100.0,
-                profile.efficiency_explanation.component_scores.network_efficiency * 100.0,
+"#,
+                profile
+                    .efficiency_explanation
+                    .component_scores
+                    .cpu_efficiency
+                    * 100.0,
+                profile
+                    .efficiency_explanation
+                    .component_scores
+                    .memory_efficiency
+                    * 100.0,
+                profile
+                    .efficiency_explanation
+                    .component_scores
+                    .io_efficiency
+                    * 100.0,
+                profile
+                    .efficiency_explanation
+                    .component_scores
+                    .network_efficiency
+                    * 100.0,
                 profile.efficiency_score * 100.0
             )
         } else {
             String::new()
         };
 
-        Ok(format!(r#"
+        Ok(format!(
+            r#"
                 <div class="task-card">
                     {}
                     <div class="task-header {}">
@@ -510,20 +544,52 @@ impl VisualizationGenerator {
                         </div>
                     </div>
                 </div>
-"#, 
+"#,
             rank_info,
             task_type_class,
             profile.task_name,
             task_type_class,
             profile.task_type,
             profile.cpu_metrics.usage_percent,
-            if let Some(comp) = comparisons { format!("<div class=\"metric-comparison {}\">{}</div>", self.get_comparison_class(&comp.cpu), self.format_comparison(&comp.cpu)) } else { String::new() },
+            if let Some(comp) = comparisons {
+                format!(
+                    "<div class=\"metric-comparison {}\">{}</div>",
+                    self.get_comparison_class(&comp.cpu),
+                    self.format_comparison(&comp.cpu)
+                )
+            } else {
+                String::new()
+            },
             profile.memory_metrics.current_bytes as f64 / 1_048_576.0,
-            if let Some(comp) = comparisons { format!("<div class=\"metric-comparison {}\">{}</div>", self.get_comparison_class(&comp.memory), self.format_comparison(&comp.memory)) } else { String::new() },
+            if let Some(comp) = comparisons {
+                format!(
+                    "<div class=\"metric-comparison {}\">{}</div>",
+                    self.get_comparison_class(&comp.memory),
+                    self.format_comparison(&comp.memory)
+                )
+            } else {
+                String::new()
+            },
             profile.io_metrics.bandwidth_mbps,
-            if let Some(comp) = comparisons { format!("<div class=\"metric-comparison {}\">{}</div>", self.get_comparison_class(&comp.io), self.format_comparison(&comp.io)) } else { String::new() },
+            if let Some(comp) = comparisons {
+                format!(
+                    "<div class=\"metric-comparison {}\">{}</div>",
+                    self.get_comparison_class(&comp.io),
+                    self.format_comparison(&comp.io)
+                )
+            } else {
+                String::new()
+            },
             profile.network_metrics.throughput_mbps,
-            if let Some(comp) = comparisons { format!("<div class=\"metric-comparison {}\">{}</div>", self.get_comparison_class(&comp.network), self.format_comparison(&comp.network)) } else { String::new() },
+            if let Some(comp) = comparisons {
+                format!(
+                    "<div class=\"metric-comparison {}\">{}</div>",
+                    self.get_comparison_class(&comp.network),
+                    self.format_comparison(&comp.network)
+                )
+            } else {
+                String::new()
+            },
             efficiency_tooltip,
             profile.efficiency_score * 100.0,
             profile.efficiency_score * 100.0,
@@ -534,7 +600,7 @@ impl VisualizationGenerator {
     }
 
     /// Generate comparison information display
-    fn generate_comparison_info(&self, comparisons: &TaskComparisons) -> String {
+    fn generate_comparison_info(&self, _comparisons: &TaskComparisons) -> String {
         // Implementation for comparison display
         String::new()
     }
@@ -543,8 +609,12 @@ impl VisualizationGenerator {
     fn format_comparison(&self, comparison: &PerformanceComparison) -> String {
         match comparison.comparison_type {
             ComparisonType::NearAverage => "(≈ avg)".to_string(),
-            ComparisonType::AboveAverage => format!("(+{:.1}% vs avg)", comparison.difference_percent.abs()),
-            ComparisonType::BelowAverage => format!("(-{:.1}% vs avg)", comparison.difference_percent.abs()),
+            ComparisonType::AboveAverage => {
+                format!("(+{:.1}% vs avg)", comparison.difference_percent.abs())
+            }
+            ComparisonType::BelowAverage => {
+                format!("(-{:.1}% vs avg)", comparison.difference_percent.abs())
+            }
         }
     }
 
@@ -558,42 +628,64 @@ impl VisualizationGenerator {
     }
 
     /// Generate charts section
-    fn generate_charts_section(&self, profiles: &HashMap<TaskId, TaskResourceProfile>) -> Result<String, VisualizationError> {
+    fn generate_charts_section(
+        &self,
+        profiles: &HashMap<TaskId, TaskResourceProfile>,
+    ) -> Result<String, VisualizationError> {
         let mut html = String::new();
-        
-        html.push_str(r#"
+
+        html.push_str(
+            r#"
         <div class="charts-section">
             <h2 class="section-title">📈 Performance Trends</h2>
-"#);
+"#,
+        );
 
         // Generate simple CSS charts
         let chart_html = self.generate_chart_scripts(profiles)?;
         html.push_str(&chart_html);
-        
-        html.push_str(r#"
+
+        html.push_str(
+            r#"
         </div>
-"#);
+"#,
+        );
 
         Ok(html)
     }
 
     /// Generate simple CSS charts (no JavaScript)
-    fn generate_chart_scripts(&self, profiles: &HashMap<TaskId, TaskResourceProfile>) -> Result<String, VisualizationError> {
+    fn generate_chart_scripts(
+        &self,
+        profiles: &HashMap<TaskId, TaskResourceProfile>,
+    ) -> Result<String, VisualizationError> {
         let mut cpu_bars = String::new();
         let mut memory_bars = String::new();
-        
+
         // Find max values for scaling
-        let max_cpu = profiles.values().map(|p| p.cpu_metrics.usage_percent).fold(0.0, f64::max).max(100.0);
-        let max_memory = profiles.values().map(|p| p.memory_metrics.current_bytes as f64 / 1_048_576.0).fold(0.0, f64::max);
+        let max_cpu = profiles
+            .values()
+            .map(|p| p.cpu_metrics.usage_percent)
+            .fold(0.0, f64::max)
+            .max(100.0);
+        let max_memory = profiles
+            .values()
+            .map(|p| p.memory_metrics.current_bytes as f64 / 1_048_576.0)
+            .fold(0.0, f64::max);
 
         for profile in profiles.values() {
             let cpu_percent = profile.cpu_metrics.usage_percent;
             let memory_mb = profile.memory_metrics.current_bytes as f64 / 1_048_576.0;
-            
+
             let cpu_width = (cpu_percent / max_cpu * 100.0).min(100.0);
-            let memory_width = if max_memory > 0.0 { (memory_mb / max_memory * 100.0).min(100.0) } else { 0.0 };
-            
-            cpu_bars.push_str(&format!(r#"
+            let memory_width = if max_memory > 0.0 {
+                (memory_mb / max_memory * 100.0).min(100.0)
+            } else {
+                0.0
+            };
+
+            cpu_bars.push_str(&format!(
+                r#"
                 <div class="chart-bar">
                     <div class="bar-label">{}</div>
                     <div class="bar-container">
@@ -601,9 +693,12 @@ impl VisualizationGenerator {
                         <div class="bar-value">{:.1}%</div>
                     </div>
                 </div>
-"#, profile.task_name, cpu_width, cpu_percent));
+"#,
+                profile.task_name, cpu_width, cpu_percent
+            ));
 
-            memory_bars.push_str(&format!(r#"
+            memory_bars.push_str(&format!(
+                r#"
                 <div class="chart-bar">
                     <div class="bar-label">{}</div>
                     <div class="bar-container">
@@ -611,18 +706,28 @@ impl VisualizationGenerator {
                         <div class="bar-value">{:.1}MB</div>
                     </div>
                 </div>
-"#, profile.task_name, memory_width, memory_mb));
+"#,
+                profile.task_name, memory_width, memory_mb
+            ));
         }
 
         // Generate network bars
         let mut network_bars = String::new();
-        let max_network = profiles.values().map(|p| p.network_metrics.throughput_mbps).fold(0.0, f64::max);
-        
+        let max_network = profiles
+            .values()
+            .map(|p| p.network_metrics.throughput_mbps)
+            .fold(0.0, f64::max);
+
         for profile in profiles.values() {
             let network_mbps = profile.network_metrics.throughput_mbps;
-            let network_width = if max_network > 0.0 { (network_mbps / max_network * 100.0).min(100.0) } else { 0.0 };
-            
-            network_bars.push_str(&format!(r#"
+            let network_width = if max_network > 0.0 {
+                (network_mbps / max_network * 100.0).min(100.0)
+            } else {
+                0.0
+            };
+
+            network_bars.push_str(&format!(
+                r#"
                 <div class="chart-bar">
                     <div class="bar-label">{}</div>
                     <div class="bar-container">
@@ -630,10 +735,13 @@ impl VisualizationGenerator {
                         <div class="bar-value">{:.1}Mbps</div>
                     </div>
                 </div>
-"#, profile.task_name, network_width, network_mbps));
+"#,
+                profile.task_name, network_width, network_mbps
+            ));
         }
 
-        Ok(format!(r#"
+        Ok(format!(
+            r#"
         <div class="simple-charts">
             <div class="simple-chart">
                 <h4>CPU Usage Distribution</h4>
@@ -654,7 +762,9 @@ impl VisualizationGenerator {
                 </div>
             </div>
         </div>
-"#, cpu_bars, memory_bars, network_bars))
+"#,
+            cpu_bars, memory_bars, network_bars
+        ))
     }
 
     /// Generate HTML footer
@@ -663,7 +773,8 @@ impl VisualizationGenerator {
     </div>
 </body>
 </html>
-"#.to_string()
+"#
+        .to_string()
     }
 
     /// Get dark theme CSS styles

@@ -35,7 +35,7 @@ impl Default for SamplingConfig {
             medium_allocation_rate: 0.1, // 10% - balanced coverage
             small_allocation_rate: 0.01, // 1% - minimal overhead
             large_threshold: 10 * 1024,  // 10KB threshold
-            medium_threshold: 1 * 1024,  // 1KB threshold
+            medium_threshold: 1024,      // 1KB threshold
             frequency_threshold: 10,     // Boost after 10 occurrences
         }
     }
@@ -81,9 +81,9 @@ impl SamplingConfig {
             large_allocation_rate: 1.0,
             medium_allocation_rate: 0.8, // High sampling for leaks
             small_allocation_rate: 0.01,
-            large_threshold: 1 * 1024, // 1KB threshold (lower)
-            medium_threshold: 256,     // 256B threshold
-            frequency_threshold: 3,    // Quick boost for patterns
+            large_threshold: 1024,  // 1KB threshold (lower)
+            medium_threshold: 256,  // 256B threshold
+            frequency_threshold: 3, // Quick boost for patterns
         }
     }
 
@@ -170,10 +170,10 @@ mod tests {
 
     #[test]
     fn test_invalid_config_validation() {
-        let mut config = SamplingConfig::default();
-
-        // Test invalid rate
-        config.large_allocation_rate = 1.5;
+        let mut config = SamplingConfig {
+            large_allocation_rate: 1.5,
+            ..Default::default()
+        };
         assert!(config.validate().is_err());
 
         // Test invalid thresholds
