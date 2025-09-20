@@ -2620,17 +2620,6 @@ fn classify_thread_role(allocations: u64, peak_memory_mb: f32, cpu_usage: f32, i
     (role_tag, role_class, alert_class)
 }
 
-/// Get severity badge information
-#[allow(dead_code)]
-fn get_severity_badge(severity: &str) -> (&'static str, &'static str, &'static str) {
-    match severity {
-        "Critical" => ("🔴 Critical", "critical", "danger"),
-        "High" => ("🟠 High", "high", "warning"),
-        "Medium" => ("🟡 Medium", "medium", "info"),
-        "Low" => ("🟢 Low", "low", "success"),
-        _ => ("⚪ Unknown", "unknown", "secondary"),
-    }
-}
 
 #[cfg(test)]
 mod tests {
@@ -2664,18 +2653,6 @@ mod tests {
     }
 
 
-    #[test]
-    fn test_get_severity_badge() {
-        let (tag, class, alert) = get_severity_badge("Critical");
-        assert_eq!(tag, "🔴 Critical");
-        assert_eq!(class, "critical");
-        assert_eq!(alert, "danger");
-        
-        let (tag, class, alert) = get_severity_badge("Low");
-        assert_eq!(tag, "🟢 Low");
-        assert_eq!(class, "low");
-        assert_eq!(alert, "success");
-    }
 
     #[test]
     fn test_html_structure_validity() {
