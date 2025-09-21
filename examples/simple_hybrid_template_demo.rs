@@ -8,8 +8,8 @@ use memscope_rs::export::fixed_hybrid_template::{
 };
 use std::time::Instant;
 
-const THREAD_COUNT: usize = 5;
-const TASK_COUNT: usize = 6;
+const THREAD_COUNT: usize = 24;
+const TASK_COUNT: usize = 36;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Starting Simple Fixed Hybrid Template Demo");
@@ -44,9 +44,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("  Generated: {}", filename);
     }
     
-    // Phase 4: Print analysis summary
-    println!("Phase 4: Analysis Summary");
-    print_analysis_summary(&hybrid_data);
+    // Phase 4: Print detailed relationship analysis
+    println!("Phase 4: Detailed Relationship Analysis");
+    print_detailed_relationships(&hybrid_data);
     
     let total_duration = demo_start.elapsed();
     println!("Demo completed in {:.2} seconds", total_duration.as_secs_f64());
@@ -54,7 +54,202 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-/// Print comprehensive analysis summary
+/// Print detailed relationships between threads, tasks, and variables
+fn print_detailed_relationships(data: &memscope_rs::export::fixed_hybrid_template::HybridAnalysisData) {
+    println!("\n=== 🧵 THREAD-TASK-VARIABLE RELATIONSHIP MATRIX ===");
+    
+    // Print detailed thread-task mappings with comprehensive analysis
+    for thread_id in 0..THREAD_COUNT {
+        let empty_tasks = vec![];
+        let tasks = data.thread_task_mapping.get(&thread_id).unwrap_or(&empty_tasks);
+        println!("\n🔗 Thread {} manages:", thread_id);
+        
+        if tasks.is_empty() {
+            println!("  ❌ No assigned tasks");
+            continue;
+        }
+        
+        for &task_id in tasks {
+            println!("  📋 Task {}", task_id);
+            
+            // Find variables for this thread-task combination
+            let task_variables: Vec<_> = data.variable_registry.values()
+                .filter(|v| v.thread_id == thread_id && v.task_id == Some(task_id))
+                .collect();
+            
+            if task_variables.is_empty() {
+                println!("    ❌ No variables");
+            } else {
+                println!("    🎯 {} variables:", task_variables.len());
+                for (idx, var) in task_variables.iter().enumerate() {
+                    let status_icon = match var.lifecycle_stage {
+                        memscope_rs::export::fixed_hybrid_template::LifecycleStage::Active => "🟢",
+                        memscope_rs::export::fixed_hybrid_template::LifecycleStage::Allocated => "🟡", 
+                        memscope_rs::export::fixed_hybrid_template::LifecycleStage::Shared => "🔄",
+                        memscope_rs::export::fixed_hybrid_template::LifecycleStage::Deallocated => "⚫",
+                    };
+                    println!("      {}. {} {} | {}KB | {} allocs | {:?}", 
+                        idx + 1, status_icon, var.name, 
+                        var.memory_usage / 1024, var.allocation_count, var.lifecycle_stage);
+                }
+                
+                // Task statistics aggregation
+                let task_memory: u64 = task_variables.iter().map(|v| v.memory_usage).sum();
+                let task_allocs: u64 = task_variables.iter().map(|v| v.allocation_count).sum();
+                println!("    📊 Task {} total: {}KB, {} allocations", 
+                    task_id, task_memory / 1024, task_allocs);
+            }
+        }
+        
+        // Thread summary
+        let thread_variables = data.variable_registry.values()
+            .filter(|v| v.thread_id == thread_id)
+            .count();
+        let thread_memory: u64 = data.variable_registry.values()
+            .filter(|v| v.thread_id == thread_id)
+            .map(|v| v.memory_usage)
+            .sum();
+        println!("  🎯 Thread {} total: {} vars, {}KB", 
+            thread_id, thread_variables, thread_memory / 1024);
+    }
+    
+    print_cross_thread_analysis(data);
+    print_task_distribution_analysis(data);
+    print_variable_lifecycle_flow(data);
+}
+
+/// Analyze cross-thread memory distribution and identify hotspots
+fn print_cross_thread_analysis(data: &memscope_rs::export::fixed_hybrid_template::HybridAnalysisData) {
+    println!("\n=== 🔄 CROSS-THREAD ANALYSIS ===");
+    
+    // Calculate memory distribution across threads for hotspot detection
+    let mut thread_memory_usage = vec![0u64; THREAD_COUNT];
+    let mut thread_var_counts = vec![0usize; THREAD_COUNT];
+    
+    for var in data.variable_registry.values() {
+        if var.thread_id < THREAD_COUNT {
+            thread_memory_usage[var.thread_id] += var.memory_usage;
+            thread_var_counts[var.thread_id] += 1;
+        }
+    }
+    
+    println!("Thread Memory Distribution:");
+    for (thread_id, &memory) in thread_memory_usage.iter().enumerate() {
+        let percentage = if memory > 0 { 
+            memory as f64 / thread_memory_usage.iter().sum::<u64>() as f64 * 100.0 
+        } else { 0.0 };
+        println!("  Thread {}: {}KB ({:.1}%) | {} vars", 
+            thread_id, memory / 1024, percentage, thread_var_counts[thread_id]);
+    }
+    
+    // Identify primary memory consumption hotspot
+    let max_memory_thread = thread_memory_usage.iter()
+        .enumerate()
+        .max_by_key(|(_, &memory)| memory)
+        .map(|(idx, _)| idx)
+        .unwrap_or(0);
+    
+    println!("🔥 Memory Hotspot: Thread {} ({}KB)", 
+        max_memory_thread, thread_memory_usage[max_memory_thread] / 1024);
+}
+
+/// Print task distribution analysis  
+fn print_task_distribution_analysis(data: &memscope_rs::export::fixed_hybrid_template::HybridAnalysisData) {
+    println!("\n=== 📋 TASK DISTRIBUTION ANALYSIS ===");
+    
+    let mut task_stats = std::collections::HashMap::new();
+    
+    for var in data.variable_registry.values() {
+        if let Some(task_id) = var.task_id {
+            let entry = task_stats.entry(task_id).or_insert((0usize, 0u64, 0u64));
+            entry.0 += 1; // variable count
+            entry.1 += var.memory_usage; // memory usage
+            entry.2 += var.allocation_count; // allocation count
+        }
+    }
+    
+    println!("Task Performance Ranking:");
+    let mut sorted_tasks: Vec<_> = task_stats.iter().collect();
+    sorted_tasks.sort_by_key(|(_, (_, memory, _))| std::cmp::Reverse(*memory));
+    
+    for (rank, (&task_id, &(var_count, memory, allocs))) in sorted_tasks.iter().enumerate() {
+        let thread_id = data.thread_task_mapping.iter()
+            .find(|(_, tasks)| tasks.contains(&task_id))
+            .map(|(tid, _)| *tid)
+            .unwrap_or(999);
+        
+        println!("  {}. Task {} (Thread {}): {} vars, {}KB, {} allocs", 
+            rank + 1, task_id, thread_id, var_count, memory / 1024, allocs);
+    }
+}
+
+/// Print variable lifecycle flow analysis
+fn print_variable_lifecycle_flow(data: &memscope_rs::export::fixed_hybrid_template::HybridAnalysisData) {
+    println!("\n=== 🔄 VARIABLE LIFECYCLE FLOW ===");
+    
+    use std::collections::HashMap;
+    let mut lifecycle_by_thread: HashMap<usize, HashMap<String, usize>> = HashMap::new();
+    
+    for var in data.variable_registry.values() {
+        let thread_lifecycle = lifecycle_by_thread.entry(var.thread_id).or_insert_with(HashMap::new);
+        let lifecycle_name = format!("{:?}", var.lifecycle_stage);
+        *thread_lifecycle.entry(lifecycle_name).or_insert(0) += 1;
+    }
+    
+    for thread_id in 0..THREAD_COUNT {
+        if let Some(lifecycle_map) = lifecycle_by_thread.get(&thread_id) {
+            println!("Thread {} Lifecycle Distribution:", thread_id);
+            for (stage, count) in lifecycle_map {
+                let icon = match stage.as_str() {
+                    "Active" => "🟢",
+                    "Allocated" => "🟡",
+                    "Shared" => "🔄", 
+                    "Deallocated" => "⚫",
+                    _ => "❓",
+                };
+                println!("  {} {}: {} variables", icon, stage, count);
+            }
+        }
+    }
+    
+    // Overall system summary
+    let total_variables = data.variable_registry.len();
+    let total_memory: u64 = data.variable_registry.values().map(|v| v.memory_usage).sum();
+    
+    println!("\n=== 🎯 SYSTEM SUMMARY ===");
+    println!("Total Variables: {}", total_variables);
+    println!("Total Memory: {:.2} MB", total_memory as f64 / 1024.0 / 1024.0);
+    println!("Average Memory per Variable: {:.1} KB", 
+        if total_variables > 0 { total_memory as f64 / total_variables as f64 / 1024.0 } else { 0.0 });
+    println!("Memory Distribution Efficiency: {:.1}%", 
+        calculate_memory_distribution_efficiency(data));
+}
+
+/// Calculate memory distribution efficiency
+fn calculate_memory_distribution_efficiency(data: &memscope_rs::export::fixed_hybrid_template::HybridAnalysisData) -> f64 {
+    let mut thread_memories = vec![0u64; THREAD_COUNT];
+    for var in data.variable_registry.values() {
+        if var.thread_id < THREAD_COUNT {
+            thread_memories[var.thread_id] += var.memory_usage;
+        }
+    }
+    
+    let total_memory: u64 = thread_memories.iter().sum();
+    if total_memory == 0 { return 100.0; }
+    
+    let avg_memory = total_memory as f64 / THREAD_COUNT as f64;
+    let variance: f64 = thread_memories.iter()
+        .map(|&m| (m as f64 - avg_memory).powi(2))
+        .sum::<f64>() / THREAD_COUNT as f64;
+    
+    let coefficient_of_variation = if avg_memory > 0.0 { 
+        (variance.sqrt() / avg_memory) * 100.0 
+    } else { 0.0 };
+    
+    (100.0 - coefficient_of_variation).max(0.0)
+}
+
+/// Original analysis summary for compatibility
 fn print_analysis_summary(data: &memscope_rs::export::fixed_hybrid_template::HybridAnalysisData) {
     let total_variables = data.variable_registry.len();
     let total_memory: u64 = data.variable_registry.values()
