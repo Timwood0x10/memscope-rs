@@ -314,8 +314,7 @@ fn generate_analysis_report(
     let analysis_json = output_dir.join("multithreaded_analysis.json");
     aggregator.export_analysis(&analysis, &analysis_json)?;
 
-    let report_html = output_dir.join("multithreaded_report.html");
-    aggregator.generate_html_report(&analysis, &report_html)?;
+    // HTML generation now uses comprehensive export
 
     info!("Analysis report generated successfully");
     Ok(())

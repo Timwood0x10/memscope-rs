@@ -54,4 +54,4 @@ pub use platform_resources::{
 pub use resource_integration::{
     comprehensive_profile_execution, ComprehensiveAnalysis, IntegratedProfilingSession,
 };
-pub use visualizer::{generate_comprehensive_html_report, generate_enhanced_html_report};
+pub use visualizer::generate_comprehensive_html_report;

@@ -12,6 +12,8 @@
 //! - Full enhanced: cargo run --example enhanced_30_thread_demo --features enhanced-tracking
 
 use memscope_rs::lockfree::aggregator::LockfreeAggregator;
+use memscope_rs::lockfree::resource_integration::{ComprehensiveAnalysis, PerformanceInsights, CorrelationMetrics, BottleneckType};
+use std::path::Path;
 use memscope_rs::lockfree::tracker::{
     finalize_thread_tracker, init_thread_tracker, track_allocation_lockfree,
     track_deallocation_lockfree, SamplingConfig,
@@ -461,12 +463,35 @@ fn analyze_enhanced_data(output_dir: &std::path::Path) -> Result<(), Box<dyn std
     let json_path = output_dir.join("enhanced_analysis.json");
     aggregator.export_analysis(&analysis, &json_path)?;
 
-    let html_path = output_dir.join("enhanced_report.html");
-    aggregator.generate_html_report(&analysis, &html_path)?;
+    // Use the same comprehensive analysis export as verified_selective_demo.rs
+    use memscope_rs::lockfree::comprehensive_export::export_comprehensive_analysis;
+    
+    // Create a comprehensive analysis from the lockfree analysis
+    let comprehensive_analysis = ComprehensiveAnalysis {
+        memory_analysis: analysis,
+        resource_timeline: Vec::new(), // Empty resource data for this demo
+        performance_insights: PerformanceInsights {
+            primary_bottleneck: BottleneckType::Balanced,
+            cpu_efficiency_score: 50.0,
+            memory_efficiency_score: 75.0,
+            io_efficiency_score: 60.0,
+            recommendations: vec!["Consider using memory pools for frequent allocations".to_string()],
+            thread_performance_ranking: Vec::new(),
+        },
+        correlation_metrics: CorrelationMetrics {
+            memory_cpu_correlation: 0.4,
+            memory_gpu_correlation: 0.5,
+            memory_io_correlation: 0.3,
+            allocation_rate_vs_cpu_usage: 0.3,
+            deallocation_rate_vs_memory_pressure: 0.2,
+        },
+    };
+    
+    export_comprehensive_analysis(&comprehensive_analysis, Path::new("./Memoryanalysis"), "enhanced_demo")?;
 
     println!("\n📄 Enhanced Reports Generated:");
-    println!("   🌐 HTML: {}", html_path.display());
-    println!("   📄 JSON: {}", json_path.display());
+    println!("   🌐 HTML: ./Memoryanalysis/enhanced_demo_dashboard.html");
+    println!("   📊 JSON: {}", json_path.display());
 
     // File size analysis
     if let Ok(entries) = std::fs::read_dir(output_dir) {

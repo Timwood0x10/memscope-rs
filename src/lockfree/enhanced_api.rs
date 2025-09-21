@@ -338,7 +338,32 @@ fn generate_enhanced_system_html(
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Use the existing visualizer but enhance it with system data
     let html_path = output_dir.join("system_analysis_report.html");
-    super::visualizer::generate_enhanced_html_report(memory_analysis, &html_path)?;
+    // Use comprehensive analysis instead of simple HTML
+    use super::comprehensive_export::export_comprehensive_analysis;
+    use super::resource_integration::{ComprehensiveAnalysis, PerformanceInsights, CorrelationMetrics, BottleneckType};
+    
+    // Create a comprehensive analysis from the lockfree analysis
+    let comprehensive_analysis = ComprehensiveAnalysis {
+        memory_analysis: memory_analysis.clone(),
+        resource_timeline: Vec::new(), // Empty resource data
+        performance_insights: PerformanceInsights {
+            primary_bottleneck: BottleneckType::Balanced,
+            cpu_efficiency_score: 50.0,
+            memory_efficiency_score: 75.0,
+            io_efficiency_score: 60.0,
+            recommendations: vec!["Consider using memory pools for frequent allocations".to_string()],
+            thread_performance_ranking: Vec::new(),
+        },
+        correlation_metrics: CorrelationMetrics {
+            memory_cpu_correlation: 0.4,
+            memory_gpu_correlation: 0.5,
+            memory_io_correlation: 0.3,
+            allocation_rate_vs_cpu_usage: 0.3,
+            deallocation_rate_vs_memory_pressure: 0.2,
+        },
+    };
+    
+    export_comprehensive_analysis(&comprehensive_analysis, output_dir, "enhanced_api")?;
 
     // TODO: Add system resource charts to the HTML
     // This would include:

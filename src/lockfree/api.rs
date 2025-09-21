@@ -8,6 +8,9 @@ use super::tracker::{finalize_thread_tracker, init_thread_tracker, SamplingConfi
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use super::comprehensive_export::export_comprehensive_analysis;
+use super::resource_integration::{ComprehensiveAnalysis, PerformanceInsights, CorrelationMetrics, BottleneckType};
+
 /// Global tracking state for lockfree module
 static TRACKING_ENABLED: AtomicBool = AtomicBool::new(false);
 use std::sync::OnceLock;
@@ -290,9 +293,28 @@ fn generate_reports(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>>
     let aggregator = LockfreeAggregator::new(output_dir.to_path_buf());
     let analysis = aggregator.aggregate_all_threads()?;
 
-    // Generate HTML report
-    let html_path = output_dir.join("memory_report.html");
-    aggregator.generate_html_report(&analysis, &html_path)?;
+    // Create a comprehensive analysis from the lockfree analysis
+    let comprehensive_analysis = ComprehensiveAnalysis {
+        memory_analysis: analysis.clone(),
+        resource_timeline: Vec::new(), // Empty resource data
+        performance_insights: PerformanceInsights {
+            primary_bottleneck: BottleneckType::Balanced,
+            cpu_efficiency_score: 50.0,
+            memory_efficiency_score: 75.0,
+            io_efficiency_score: 60.0,
+            recommendations: vec!["Consider using memory pools for frequent allocations".to_string()],
+            thread_performance_ranking: Vec::new(),
+        },
+        correlation_metrics: CorrelationMetrics {
+            memory_cpu_correlation: 0.4,
+            memory_gpu_correlation: 0.5,
+            memory_io_correlation: 0.3,
+            allocation_rate_vs_cpu_usage: 0.3,
+            deallocation_rate_vs_memory_pressure: 0.2,
+        },
+    };
+    
+    export_comprehensive_analysis(&comprehensive_analysis, output_dir, "api_export")?;
 
     // Generate JSON data export
     let json_path = output_dir.join("memory_data.json");

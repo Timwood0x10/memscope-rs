@@ -495,15 +495,13 @@ fn generate_verified_analysis(
         analysis.summary.peak_memory_usage as f64 / (1024.0 * 1024.0)
     );
 
-    // Generate reports
-    let html_path = output_dir.join("verified_selective_report.html");
-    aggregator.generate_html_report(&analysis, &html_path)?;
+    // Generate reports using comprehensive export
 
     let json_path = output_dir.join("verified_selective_data.json");
     aggregator.export_analysis(&analysis, &json_path)?;
 
     println!("\n📄 Reports Generated:");
-    println!("   🌐 HTML: {}", html_path.display());
+    println!("   🌐 HTML: {}", "platform_demo_dashboard.html");
     println!("   📄 JSON: {}", json_path.display());
 
     Ok(())

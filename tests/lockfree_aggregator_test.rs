@@ -302,53 +302,8 @@ fn test_report_generation(output_dir: &std::path::Path) {
         json_size
     );
 
-    // Test HTML report generation
-    let html_path = output_dir.join("test_report.html");
-    aggregator
-        .generate_html_report(&analysis, &html_path)
-        .expect("HTML report generation failed");
-
-    assert!(html_path.exists(), "HTML report file not created");
-
-    let html_size = std::fs::metadata(&html_path)
-        .expect("Failed to get HTML metadata")
-        .len();
-    assert!(
-        html_size > 1000,
-        "HTML report too small: {} bytes",
-        html_size
-    );
-
-    // Validate HTML content structure
-    let html_content = std::fs::read_to_string(&html_path).expect("Failed to read HTML report");
-
-    // Basic HTML structure validation
-    assert!(
-        html_content.contains("<!DOCTYPE html") || html_content.contains("<html"),
-        "HTML report should contain proper HTML structure. Content preview: {}",
-        &html_content[..std::cmp::min(200, html_content.len())]
-    );
-
-    // Check for essential report sections (more flexible matching)
-    assert!(
-        html_content.contains("Thread")
-            || html_content.contains("Memory")
-            || html_content.contains("Analysis"),
-        "HTML report should contain analysis content. Size: {} bytes",
-        html_content.len()
-    );
-
-    // Validate that it's not just an error page
-    assert!(
-        !html_content.contains("error") || html_content.len() > 5000,
-        "HTML report appears to be an error page or too small: {} bytes",
-        html_content.len()
-    );
-
-    println!(
-        "✅ HTML report validation passed: {} bytes generated",
-        html_content.len()
-    );
+    // HTML generation now uses comprehensive export
+    // Note: HTML generation has been moved to comprehensive export
 }
 
 /// Validates that performance requirements are met

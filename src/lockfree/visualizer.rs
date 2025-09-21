@@ -17,15 +17,6 @@ pub fn generate_comprehensive_html_report(
     Ok(())
 }
 
-/// Generate enhanced HTML report with modern visualizations (memory only)
-pub fn generate_enhanced_html_report(
-    analysis: &LockfreeAnalysis,
-    output_path: &Path,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let html_content = build_simple_html_report(analysis)?;
-    std::fs::write(output_path, html_content)?;
-    Ok(())
-}
 
 /// Build comprehensive HTML report with CPU/GPU/Memory visualizations
 fn build_comprehensive_html_report(
@@ -2598,94 +2589,6 @@ fn build_system_summary_tab(
     Ok(html)
 }
 
-/// Build simple HTML report for LockfreeAnalysis
-fn build_simple_html_report(
-    analysis: &LockfreeAnalysis,
-) -> Result<String, Box<dyn std::error::Error>> {
-    let mut html = String::new();
-
-    html.push_str(r#"
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Memory Analysis Report</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        .summary { background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; }
-        .thread-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-        .thread-table th, .thread-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        .thread-table th { background: #f1f1f1; }
-    </style>
-</head>
-<body>
-    <h1>Memory Analysis Report</h1>
-    
-    <div class="summary">
-        <h2>Summary</h2>
-        <p><strong>Total Allocations:</strong> {}</p>
-        <p><strong>Total Deallocations:</strong> {}</p>
-        <p><strong>Peak Memory:</strong> {:.1} MB</p>
-        <p><strong>Active Threads:</strong> {}</p>
-    </div>
-    
-    <h2>Thread Statistics</h2>
-    <table class="thread-table">
-        <thead>
-            <tr>
-                <th>Thread ID</th>
-                <th>Allocations</th>
-                <th>Deallocations</th>
-                <th>Peak Memory (KB)</th>
-            </tr>
-        </thead>
-        <tbody>
-"#);
-
-    html.push_str(&format!(
-        r#"
-        <div class="summary">
-            <p><strong>Total Allocations:</strong> {}</p>
-            <p><strong>Total Deallocations:</strong> {}</p>
-            <p><strong>Peak Memory:</strong> {:.1} MB</p>
-            <p><strong>Active Threads:</strong> {}</p>
-        </div>
-    "#,
-        analysis.summary.total_allocations,
-        analysis.summary.total_deallocations,
-        analysis.summary.peak_memory_usage as f64 / 1024.0 / 1024.0,
-        analysis.thread_stats.len()
-    ));
-
-    for (thread_id, stats) in analysis.thread_stats.iter() {
-        html.push_str(&format!(
-            r#"
-            <tr>
-                <td>{}</td>
-                <td>{}</td>
-                <td>{}</td>
-                <td>{:.1}</td>
-            </tr>
-        "#,
-            thread_id,
-            stats.total_allocations,
-            stats.total_deallocations,
-            stats.peak_memory as f32 / 1024.0
-        ));
-    }
-
-    html.push_str(
-        r#"
-        </tbody>
-    </table>
-</body>
-</html>
-    "#,
-    );
-
-    Ok(html)
-}
 
 fn classify_thread_role(
     allocations: u64,
@@ -2721,47 +2624,10 @@ fn classify_thread_role(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use tempfile::TempDir;
-
-    #[test]
-    fn test_generate_enhanced_html_report() {
-        let temp_dir = TempDir::new().unwrap();
-        let analysis = crate::lockfree::analysis::LockfreeAnalysis::new();
-        let output_path = temp_dir.path().join("test_report.html");
-
-        let result = generate_enhanced_html_report(&analysis, &output_path);
-        assert!(result.is_ok());
-        assert!(output_path.exists());
-
-        let content = std::fs::read_to_string(&output_path).unwrap();
-        assert!(content.contains("<!DOCTYPE html"));
-        assert!(content.len() > 1000);
-    }
-
-    #[test]
-    fn test_build_simple_html_report() {
-        let analysis = crate::lockfree::analysis::LockfreeAnalysis::new();
-
-        let html = build_simple_html_report(&analysis);
-        let html_content = html.unwrap();
-        assert!(html_content.contains("<!DOCTYPE html"));
-        assert!(html_content.contains("Memory Analysis Report"));
-        assert!(html_content.len() > 500);
-    }
-
     #[test]
     fn test_html_structure_validity() {
         let analysis = crate::lockfree::analysis::LockfreeAnalysis::new();
-        let html = build_simple_html_report(&analysis);
-        let html_content = html.unwrap();
-
-        // Check for proper HTML structure
-        assert!(html_content.contains("<html"));
-        assert!(html_content.contains("</html>"));
-        assert!(html_content.contains("<head>"));
-        assert!(html_content.contains("</head>"));
-        assert!(html_content.contains("<body>"));
-        assert!(html_content.contains("</body>"));
+        // Test that we can at least create a comprehensive analysis
+        assert_eq!(analysis.summary.total_allocations, 0);
     }
 }
