@@ -404,6 +404,88 @@ impl FixedHybridTemplate {
         }}
         .chart-toggle button:hover {{ background: var(--accent-purple); }}
 
+        /* Pie charts styling */
+        .pie-charts-section {{
+            margin: 20px 0;
+        }}
+        .pie-charts-section h3 {{
+            color: var(--text-primary); text-align: center; margin-bottom: 20px;
+        }}
+        .pie-charts-grid {{
+            display: grid; grid-template-columns: 1fr 1fr; gap: 30px;
+            margin: 20px 0;
+        }}
+        .pie-chart-container {{
+            background: var(--bg-tertiary); padding: 20px; border-radius: 12px;
+            box-shadow: var(--shadow-dark); border: 1px solid var(--border-color);
+            text-align: center; display: flex; flex-direction: column; align-items: center;
+        }}
+        .pie-chart-wrapper {{
+            display: flex; align-items: center; gap: 20px;
+        }}
+        .pie-legend {{
+            background: var(--bg-secondary); padding: 15px; border-radius: 8px;
+            border: 1px solid var(--border-color); min-width: 150px;
+        }}
+        .legend-item {{
+            display: flex; align-items: center; margin: 8px 0; font-size: 13px;
+            cursor: pointer; transition: all 0.2s ease;
+        }}
+        .legend-item:hover {{ background: var(--bg-tertiary); padding: 4px; border-radius: 4px; }}
+        .legend-color {{
+            width: 16px; height: 16px; border-radius: 3px; margin-right: 8px;
+        }}
+        .legend-text {{ color: var(--text-primary); }}
+        .chart-canvas {{ cursor: pointer; }}
+        .interactive-chart {{ 
+            cursor: crosshair; transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }}
+        .interactive-chart:hover {{ 
+            border-color: var(--accent-blue); 
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.3);
+        }}
+        
+        /* Beautiful modal dialog */
+        .modal-overlay {{
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.6); z-index: 10000;
+            display: none; align-items: center; justify-content: center;
+        }}
+        .modal-content {{
+            background: var(--bg-secondary); border-radius: 16px;
+            padding: 30px; max-width: 400px; width: 90%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--border-color);
+            animation: modalSlideIn 0.3s ease-out;
+        }}
+        @keyframes modalSlideIn {{
+            from {{ transform: translateY(-50px); opacity: 0; }}
+            to {{ transform: translateY(0); opacity: 1; }}
+        }}
+        .modal-header {{
+            font-size: 20px; font-weight: bold; color: var(--text-primary);
+            margin-bottom: 20px; text-align: center;
+            background: var(--gradient-primary); -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent; background-clip: text;
+        }}
+        .modal-body {{
+            color: var(--text-primary); line-height: 1.6; font-size: 14px;
+        }}
+        .modal-info-row {{
+            display: flex; justify-content: space-between; margin: 12px 0;
+            padding: 8px 0; border-bottom: 1px solid var(--border-color);
+        }}
+        .modal-info-label {{ color: var(--text-secondary); }}
+        .modal-info-value {{ color: var(--accent-blue); font-weight: bold; }}
+        .modal-close {{
+            background: var(--accent-blue); color: white; border: none;
+            padding: 10px 20px; border-radius: 8px; cursor: pointer;
+            font-size: 14px; margin-top: 20px; width: 100%;
+            transition: all 0.3s ease;
+        }}
+        .modal-close:hover {{ background: var(--accent-purple); }}
+
         /* Resource highlighting */
         .resource-highlight {{
             color: var(--accent-green); font-weight: bold;
@@ -651,7 +733,7 @@ impl FixedHybridTemplate {
         "#, total_variables, display_count, sampling_info, (display_count + 11) / 12);
 
         // Initially load only first page (12 variables from sampled set)
-        for (index, variable) in sampled_variables.iter().enumerate().take(12) {
+        for (_index, variable) in sampled_variables.iter().enumerate().take(12) {
             let lifecycle_class = match variable.lifecycle_stage {
                 LifecycleStage::Allocated => "allocated",
                 LifecycleStage::Active => "active",
@@ -851,6 +933,50 @@ impl FixedHybridTemplate {
         format!("[{}]", js_variables.join(","))
     }
 
+    /// Generate thread type distribution data for pie chart
+    fn generate_thread_distribution_data(data: &HybridAnalysisData) -> String {
+        let mut counts = std::collections::HashMap::new();
+        
+        for (_, thread_type) in &data.thread_classifications {
+            let type_name = match thread_type {
+                ThreadWorkloadType::CpuIntensive => "CPU Intensive",
+                ThreadWorkloadType::IoIntensive => "I/O Intensive", 
+                ThreadWorkloadType::NetworkIntensive => "Network Intensive",
+                ThreadWorkloadType::Mixed => "Mixed Workload",
+                ThreadWorkloadType::Idle => "Idle",
+            };
+            *counts.entry(type_name).or_insert(0) += 1;
+        }
+        
+        let js_obj: Vec<String> = counts.iter()
+            .map(|(k, v)| format!("\"{}\":{}", k, v))
+            .collect();
+        
+        format!("{{{}}}", js_obj.join(","))
+    }
+    
+    /// Generate task pattern distribution data for pie chart
+    fn generate_task_distribution_data(data: &HybridAnalysisData) -> String {
+        let mut counts = std::collections::HashMap::new();
+        
+        for (_, task_pattern) in &data.task_classifications {
+            let pattern_name = match task_pattern {
+                TaskExecutionPattern::CpuBound => "CPU-Bound",
+                TaskExecutionPattern::IoBound => "I/O-Bound",
+                TaskExecutionPattern::NetworkBound => "Network-Bound", 
+                TaskExecutionPattern::MemoryIntensive => "Memory-Intensive",
+                TaskExecutionPattern::Balanced => "Balanced",
+            };
+            *counts.entry(pattern_name).or_insert(0) += 1;
+        }
+        
+        let js_obj: Vec<String> = counts.iter()
+            .map(|(k, v)| format!("\"{}\":{}", k, v))
+            .collect();
+        
+        format!("{{{}}}", js_obj.join(","))
+    }
+
     /// Build performance metrics section
     fn build_performance_metrics(&self, data: &HybridAnalysisData) -> Result<String, Box<dyn std::error::Error>> {
         let thread_metrics = self.calculate_thread_metrics(data);
@@ -892,22 +1018,45 @@ impl FixedHybridTemplate {
             <div class="chart-toggle">
                 <button onclick="toggleCharts()" id="chartToggle">📊 Hide Performance Charts</button>
             </div>
+            
+            <!-- Pie Charts Section -->
+            <div class="pie-charts-section">
+                <h3>Resource Distribution Analysis</h3>
+                <div class="pie-charts-grid">
+                    <div class="pie-chart-container">
+                        <div class="chart-title">Thread Type Distribution</div>
+                        <div class="pie-chart-wrapper">
+                            <canvas id="threadPieChart" class="chart-canvas" width="350" height="350"></canvas>
+                            <div id="threadLegend" class="pie-legend"></div>
+                        </div>
+                    </div>
+                    <div class="pie-chart-container">
+                        <div class="chart-title">Task Pattern Distribution</div>
+                        <div class="pie-chart-wrapper">
+                            <canvas id="taskPieChart" class="chart-canvas" width="350" height="350"></canvas>
+                            <div id="taskLegend" class="pie-legend"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Performance Line Charts Section -->
             <div id="chartsContainer" class="charts-grid" style="display: grid;">
                 <div class="chart-container">
-                    <div class="chart-title">CPU Usage Over Time</div>
-                    <canvas id="cpuChart" width="400" height="200"></canvas>
+                    <div class="chart-title">CPU Usage Trend</div>
+                    <canvas id="cpuChart" class="interactive-chart" width="600" height="300"></canvas>
                 </div>
                 <div class="chart-container">
-                    <div class="chart-title">Memory Usage Progression</div>
-                    <canvas id="memoryChart" width="400" height="200"></canvas>
+                    <div class="chart-title">Memory Usage Trend</div>
+                    <canvas id="memoryChart" class="interactive-chart" width="600" height="300"></canvas>
                 </div>
                 <div class="chart-container">
-                    <div class="chart-title">I/O Operations Rate</div>
-                    <canvas id="ioChart" width="400" height="200"></canvas>
+                    <div class="chart-title">I/O Operations Trend</div>
+                    <canvas id="ioChart" class="interactive-chart" width="600" height="300"></canvas>
                 </div>
                 <div class="chart-container">
-                    <div class="chart-title">Network Throughput</div>
-                    <canvas id="networkChart" width="400" height="200"></canvas>
+                    <div class="chart-title">Network Throughput Trend</div>
+                    <canvas id="networkChart" class="interactive-chart" width="600" height="300"></canvas>
                 </div>
             </div>
             <div class="performance-grid">
@@ -955,27 +1104,751 @@ impl FixedHybridTemplate {
 
         format!(r#"
         <script>
-            // Simplified performance chart display (no Chart.js to avoid errors)
-            console.log('Performance data loaded: CPU, Memory, I/O, Network');
-            console.log('Charts disabled to prevent JavaScript errors and reduce memory usage');
+            // Chart data with controlled size (only 5 points for performance)
+            var timeLabels = {};
+            var cpuData = {};
+            var memoryData = {};
+            var ioData = {};
+            var networkData = {};
             
-            // Show performance data as simple text
-            setTimeout(function() {{
-                const containers = document.querySelectorAll('.chart-container canvas');
-                containers.forEach(function(canvas, index) {{
-                    const parent = canvas.parentElement;
-                    const titles = ['CPU Trend', 'Memory Trend', 'I/O Trend', 'Network Trend'];
-                    const data = [
-                        'Peak: 95.2% | Avg: 42.1% | Low: 15.3%',
-                        'Peak: 28.2MB | Avg: 12.5MB | Low: 0.003MB', 
-                        'Peak: 11760 ops | Avg: 3500 ops | Low: 30 ops',
-                        'Peak: 1152KB/s | Avg: 450KB/s | Low: 12KB/s'
-                    ];
-                    parent.innerHTML = '<h3>' + titles[index] + '</h3><p style="font-size:14px;color:var(--text-secondary)">' + data[index] + '</p>';
+            // Thread and Task distribution data
+            var threadTypeData = {};
+            var taskPatternData = {};
+            
+            // Initialize charts when page loads
+            document.addEventListener('DOMContentLoaded', function() {{
+                drawPieCharts();
+                drawLineCharts();
+            }});
+            
+            function drawPieCharts() {{
+                // Thread Type Pie Chart
+                var threadCanvas = document.getElementById('threadPieChart');
+                var threadLegend = document.getElementById('threadLegend');
+                if (threadCanvas && threadLegend) {{
+                    var threadCtx = threadCanvas.getContext('2d');
+                    var threadColors = ['#ef4444', '#3b82f6', '#8b5cf6', '#f59e0b', '#6b7280'];
+                    drawInteractivePieChart(threadCtx, threadTypeData, threadColors, threadLegend, 'thread');
+                }}
+                
+                // Task Pattern Pie Chart  
+                var taskCanvas = document.getElementById('taskPieChart');
+                var taskLegend = document.getElementById('taskLegend');
+                if (taskCanvas && taskLegend) {{
+                    var taskCtx = taskCanvas.getContext('2d');
+                    var taskColors = ['#10b981', '#06b6d4', '#f59e0b', '#8b5cf6', '#64748b'];
+                    drawInteractivePieChart(taskCtx, taskPatternData, taskColors, taskLegend, 'task');
+                }}
+            }}
+            
+            function drawLineCharts() {{
+                // CPU Usage Line Chart
+                var cpuCanvas = document.getElementById('cpuChart');
+                if (cpuCanvas) {{
+                    var cpuCtx = cpuCanvas.getContext('2d');
+                    drawLineChart(cpuCtx, timeLabels, cpuData, '#ef4444', 'CPU %');
+                }}
+                
+                // Memory Usage Line Chart
+                var memoryCanvas = document.getElementById('memoryChart');
+                if (memoryCanvas) {{
+                    var memoryCtx = memoryCanvas.getContext('2d');
+                    drawLineChart(memoryCtx, timeLabels, memoryData, '#10b981', 'Memory MB');
+                }}
+                
+                // I/O Operations Line Chart
+                var ioCanvas = document.getElementById('ioChart');
+                if (ioCanvas) {{
+                    var ioCtx = ioCanvas.getContext('2d');
+                    drawLineChart(ioCtx, timeLabels, ioData, '#3b82f6', 'I/O Ops');
+                }}
+                
+                // Network Throughput Line Chart
+                var networkCanvas = document.getElementById('networkChart');
+                if (networkCanvas) {{
+                    var networkCtx = networkCanvas.getContext('2d');
+                    drawLineChart(networkCtx, timeLabels, networkData, '#8b5cf6', 'Network KB/s');
+                }}
+            }}
+            
+            var pieChartStates = {{}};
+            
+            function drawInteractivePieChart(ctx, data, colors, legendContainer, chartId) {{
+                var total = 0;
+                for (var key in data) {{
+                    total += data[key];
+                }}
+                
+                var centerX = ctx.canvas.width / 2;
+                var centerY = ctx.canvas.height / 2;
+                var radius = Math.min(centerX, centerY) - 20;
+                
+                pieChartStates[chartId] = {{
+                    data: data,
+                    colors: colors,
+                    total: total,
+                    centerX: centerX,
+                    centerY: centerY,
+                    radius: radius,
+                    hoveredSlice: -1,
+                    selectedSlice: -1
+                }};
+                
+                // Clear canvas
+                ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+                
+                var currentAngle = 0;
+                var colorIndex = 0;
+                var slices = [];
+                
+                // Draw pie slices with hover effects
+                for (var key in data) {{
+                    var sliceAngle = (data[key] / total) * 2 * Math.PI;
+                    var isHovered = pieChartStates[chartId].hoveredSlice === colorIndex;
+                    var isSelected = pieChartStates[chartId].selectedSlice === colorIndex;
+                    var sliceRadius = radius + (isHovered ? 10 : 0) + (isSelected ? 5 : 0);
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(centerX, centerY);
+                    ctx.arc(centerX, centerY, sliceRadius, currentAngle, currentAngle + sliceAngle);
+                    ctx.closePath();
+                    
+                    var color = colors[colorIndex % colors.length];
+                    ctx.fillStyle = isHovered ? lightenColor(color) : color;
+                    ctx.fill();
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                    
+                    // Draw percentage labels
+                    var labelAngle = currentAngle + sliceAngle / 2;
+                    var labelRadius = sliceRadius * 0.75;
+                    var labelX = centerX + Math.cos(labelAngle) * labelRadius;
+                    var labelY = centerY + Math.sin(labelAngle) * labelRadius;
+                    
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = 'bold 12px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.shadowColor = 'rgba(0,0,0,0.5)';
+                    ctx.shadowBlur = 2;
+                    var percentage = ((data[key] / total) * 100).toFixed(1);
+                    ctx.fillText(percentage + '%', labelX, labelY);
+                    ctx.shadowBlur = 0;
+                    
+                    slices.push({{
+                        key: key,
+                        startAngle: currentAngle,
+                        endAngle: currentAngle + sliceAngle,
+                        color: color,
+                        value: data[key],
+                        percentage: percentage
+                    }});
+                    
+                    currentAngle += sliceAngle;
+                    colorIndex++;
+                }}
+                
+                pieChartStates[chartId].slices = slices;
+                
+                // Create interactive legend
+                createInteractiveLegend(legendContainer, slices, chartId);
+                
+                // Add mouse event listeners
+                addPieChartListeners(ctx.canvas, chartId);
+            }}
+            
+            function createInteractiveLegend(container, slices, chartId) {{
+                container.innerHTML = '';
+                
+                for (var i = 0; i < slices.length; i++) {{
+                    var slice = slices[i];
+                    var legendItem = document.createElement('div');
+                    legendItem.className = 'legend-item';
+                    legendItem.setAttribute('data-slice', i);
+                    legendItem.setAttribute('data-chart', chartId);
+                    
+                    var colorBox = document.createElement('div');
+                    colorBox.className = 'legend-color';
+                    colorBox.style.backgroundColor = slice.color;
+                    
+                    var textSpan = document.createElement('span');
+                    textSpan.className = 'legend-text';
+                    textSpan.textContent = slice.key + ': ' + slice.value + ' (' + slice.percentage + '%)';
+                    
+                    legendItem.appendChild(colorBox);
+                    legendItem.appendChild(textSpan);
+                    container.appendChild(legendItem);
+                    
+                    // Add click handler
+                    legendItem.addEventListener('click', function() {{
+                        var sliceIndex = parseInt(this.getAttribute('data-slice'));
+                        var chartId = this.getAttribute('data-chart');
+                        toggleSliceSelection(chartId, sliceIndex);
+                    }});
+                    
+                    // Add hover handlers
+                    legendItem.addEventListener('mouseenter', function() {{
+                        var sliceIndex = parseInt(this.getAttribute('data-slice'));
+                        var chartId = this.getAttribute('data-chart');
+                        hoverSlice(chartId, sliceIndex);
+                    }});
+                    
+                    legendItem.addEventListener('mouseleave', function() {{
+                        var chartId = this.getAttribute('data-chart');
+                        hoverSlice(chartId, -1);
+                    }});
+                }}
+            }}
+            
+            function addPieChartListeners(canvas, chartId) {{
+                canvas.addEventListener('mousemove', function(e) {{
+                    var rect = canvas.getBoundingClientRect();
+                    var x = e.clientX - rect.left;
+                    var y = e.clientY - rect.top;
+                    var sliceIndex = getSliceAtPoint(chartId, x, y);
+                    hoverSlice(chartId, sliceIndex);
                 }});
-            }}, 100);
+                
+                canvas.addEventListener('click', function(e) {{
+                    var rect = canvas.getBoundingClientRect();
+                    var x = e.clientX - rect.left;
+                    var y = e.clientY - rect.top;
+                    var sliceIndex = getSliceAtPoint(chartId, x, y);
+                    if (sliceIndex >= 0) {{
+                        toggleSliceSelection(chartId, sliceIndex);
+                    }}
+                }});
+            }}
+            
+            function getSliceAtPoint(chartId, x, y) {{
+                var state = pieChartStates[chartId];
+                var dx = x - state.centerX;
+                var dy = y - state.centerY;
+                var distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance > state.radius + 15) return -1;
+                
+                var angle = Math.atan2(dy, dx);
+                if (angle < 0) angle += 2 * Math.PI;
+                
+                for (var i = 0; i < state.slices.length; i++) {{
+                    var slice = state.slices[i];
+                    if (angle >= slice.startAngle && angle <= slice.endAngle) {{
+                        return i;
+                    }}
+                }}
+                return -1;
+            }}
+            
+            function hoverSlice(chartId, sliceIndex) {{
+                if (pieChartStates[chartId].hoveredSlice !== sliceIndex) {{
+                    pieChartStates[chartId].hoveredSlice = sliceIndex;
+                    redrawPieChart(chartId);
+                }}
+            }}
+            
+            function toggleSliceSelection(chartId, sliceIndex) {{
+                var state = pieChartStates[chartId];
+                state.selectedSlice = state.selectedSlice === sliceIndex ? -1 : sliceIndex;
+                
+                // Show detailed pie slice info in modal
+                if (state.selectedSlice >= 0) {{
+                    var slice = state.slices[sliceIndex];
+                    var chartType = chartId === 'thread' ? 'Thread Type' : 'Task Pattern';
+                    
+                    var modalContent = 
+                        '<div class="modal-info-row">' +
+                        '<span class="modal-info-label">Category:</span>' +
+                        '<span class="modal-info-value">' + slice.key + '</span>' +
+                        '</div>' +
+                        '<div class="modal-info-row">' +
+                        '<span class="modal-info-label">Count:</span>' +
+                        '<span class="modal-info-value">' + slice.value + ' items</span>' +
+                        '</div>' +
+                        '<div class="modal-info-row">' +
+                        '<span class="modal-info-label">Percentage:</span>' +
+                        '<span class="modal-info-value">' + slice.percentage + '%</span>' +
+                        '</div>' +
+                        '<div class="modal-info-row">' +
+                        '<span class="modal-info-label">Total Items:</span>' +
+                        '<span class="modal-info-value">' + state.total + '</span>' +
+                        '</div>' +
+                        '<div class="modal-info-row">' +
+                        '<span class="modal-info-label">Chart Type:</span>' +
+                        '<span class="modal-info-value">' + chartType + ' Distribution</span>' +
+                        '</div>';
+                    
+                    showModal('🥧 ' + chartType + ' Details', modalContent);
+                }}
+                
+                redrawPieChart(chartId);
+            }}
+            
+            function redrawPieChart(chartId) {{
+                var canvasId = chartId === 'thread' ? 'threadPieChart' : 'taskPieChart';
+                var canvas = document.getElementById(canvasId);
+                var legendId = chartId === 'thread' ? 'threadLegend' : 'taskLegend';
+                var legend = document.getElementById(legendId);
+                
+                if (canvas && legend) {{
+                    var ctx = canvas.getContext('2d');
+                    var state = pieChartStates[chartId];
+                    drawInteractivePieChart(ctx, state.data, state.colors, legend, chartId);
+                }}
+            }}
+            
+            function lightenColor(color) {{
+                // Simple color lightening
+                var num = parseInt(color.replace('#', ''), 16);
+                var amt = 40;
+                var R = (num >> 16) + amt;
+                var G = (num >> 8 & 0x00FF) + amt;
+                var B = (num & 0x0000FF) + amt;
+                return '#' + (0x1000000 + (R < 255 ? R < 1 ? 0 : R : 255) * 0x10000 +
+                    (G < 255 ? G < 1 ? 0 : G : 255) * 0x100 +
+                    (B < 255 ? B < 1 ? 0 : B : 255)).toString(16).slice(1);
+            }}
+            
+            function drawLineChart(ctx, labels, data, color, label) {{
+                var padding = 80; // Increased padding to prevent label cutoff
+                var chartWidth = ctx.canvas.width - padding * 2;
+                var chartHeight = ctx.canvas.height - padding * 2;
+                
+                // Clear canvas
+                ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+                
+                if (data.length === 0) return;
+                
+                // Find min/max values with some padding
+                var minValue = Math.min.apply(Math, data);
+                var maxValue = Math.max.apply(Math, data);
+                var range = maxValue - minValue || 1;
+                var valueStep = range / 4; // 5 grid lines
+                
+                // Round min/max for cleaner axis
+                minValue = Math.floor(minValue / valueStep) * valueStep;
+                maxValue = Math.ceil(maxValue / valueStep) * valueStep;
+                range = maxValue - minValue;
+                
+                // Draw background grid
+                ctx.strokeStyle = (getComputedStyle(document.body).getPropertyValue('--border-color') || '#374151') + '40';
+                ctx.lineWidth = 1;
+                
+                // Horizontal grid lines
+                for (var i = 0; i <= 4; i++) {{
+                    var y = padding + (i / 4) * chartHeight;
+                    ctx.beginPath();
+                    ctx.moveTo(padding, y);
+                    ctx.lineTo(padding + chartWidth, y);
+                    ctx.stroke();
+                }}
+                
+                // Vertical grid lines
+                for (var i = 0; i <= 4; i++) {{
+                    var x = padding + (i / 4) * chartWidth;
+                    ctx.beginPath();
+                    ctx.moveTo(x, padding);
+                    ctx.lineTo(x, padding + chartHeight);
+                    ctx.stroke();
+                }}
+                
+                // Draw main axes
+                ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue('--text-primary') || '#e5e7eb';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(padding, padding);
+                ctx.lineTo(padding, padding + chartHeight);
+                ctx.lineTo(padding + chartWidth, padding + chartHeight);
+                ctx.stroke();
+                
+                // Draw axis labels and values
+                ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--text-primary') || '#e5e7eb';
+                ctx.font = '12px Arial';
+                ctx.textAlign = 'center';
+                
+                // X-axis labels (time)
+                for (var i = 0; i < labels.length; i++) {{
+                    var x = padding + (i / (labels.length - 1)) * chartWidth;
+                    ctx.fillText(labels[i], x, padding + chartHeight + 20);
+                }}
+                
+                // Y-axis labels (values)
+                ctx.textAlign = 'right';
+                for (var i = 0; i <= 4; i++) {{
+                    var value = maxValue - (i / 4) * (maxValue - minValue);
+                    var y = padding + (i / 4) * chartHeight;
+                    var displayValue = value.toFixed(1);
+                    
+                    // Add appropriate units
+                    if (label.indexOf('CPU') >= 0) {{
+                        displayValue += '%';
+                    }} else if (label.indexOf('Memory') >= 0) {{
+                        displayValue += 'MB';
+                    }} else if (label.indexOf('I/O') >= 0) {{
+                        displayValue += ' ops';
+                    }} else if (label.indexOf('Network') >= 0) {{
+                        displayValue += 'KB/s';
+                    }}
+                    
+                    ctx.fillText(displayValue, padding - 10, y + 4);
+                }}
+                
+                // Draw axis titles
+                ctx.font = 'bold 14px Arial';
+                ctx.textAlign = 'center';
+                
+                // X-axis title
+                ctx.fillText('Time (seconds)', padding + chartWidth / 2, ctx.canvas.height - 10);
+                
+                // Y-axis title (rotated)
+                ctx.save();
+                ctx.translate(15, padding + chartHeight / 2);
+                ctx.rotate(-Math.PI / 2);
+                ctx.fillText(label, 0, 0);
+                ctx.restore();
+                
+                // Calculate control points for smooth curves
+                var points = [];
+                for (var i = 0; i < data.length; i++) {{
+                    var x = padding + (i / (data.length - 1)) * chartWidth;
+                    var y = padding + chartHeight - ((data[i] - minValue) / range) * chartHeight;
+                    points.push({{x: x, y: y, value: data[i]}});
+                }}
+                
+                // Draw smooth curve using bezier curves
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                
+                if (points.length > 0) {{
+                    ctx.moveTo(points[0].x, points[0].y);
+                    
+                    for (var i = 1; i < points.length; i++) {{
+                        if (i === 1) {{
+                            // First segment
+                            var cpx = (points[0].x + points[1].x) / 2;
+                            var cpy = (points[0].y + points[1].y) / 2;
+                            ctx.quadraticCurveTo(points[0].x, points[0].y, cpx, cpy);
+                        }} else if (i === points.length - 1) {{
+                            // Last segment
+                            var cpx = (points[i-1].x + points[i].x) / 2;
+                            var cpy = (points[i-1].y + points[i].y) / 2;
+                            ctx.quadraticCurveTo(cpx, cpy, points[i].x, points[i].y);
+                        }} else {{
+                            // Middle segments
+                            var cpx1 = (points[i-1].x + points[i].x) / 2;
+                            var cpy1 = (points[i-1].y + points[i].y) / 2;
+                            var cpx2 = (points[i].x + points[i+1].x) / 2;
+                            var cpy2 = (points[i].y + points[i+1].y) / 2;
+                            ctx.bezierCurveTo(cpx1, cpy1, cpx1, cpy1, points[i].x, points[i].y);
+                        }}
+                    }}
+                }}
+                
+                ctx.stroke();
+                
+                // Draw gradient fill under curve
+                ctx.globalAlpha = 0.2;
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.moveTo(points[0].x, padding + chartHeight);
+                ctx.lineTo(points[0].x, points[0].y);
+                
+                for (var i = 1; i < points.length; i++) {{
+                    if (i === 1) {{
+                        var cpx = (points[0].x + points[1].x) / 2;
+                        var cpy = (points[0].y + points[1].y) / 2;
+                        ctx.quadraticCurveTo(points[0].x, points[0].y, cpx, cpy);
+                    }} else if (i === points.length - 1) {{
+                        var cpx = (points[i-1].x + points[i].x) / 2;
+                        var cpy = (points[i-1].y + points[i].y) / 2;
+                        ctx.quadraticCurveTo(cpx, cpy, points[i].x, points[i].y);
+                    }} else {{
+                        var cpx1 = (points[i-1].x + points[i].x) / 2;
+                        var cpy1 = (points[i-1].y + points[i].y) / 2;
+                        ctx.bezierCurveTo(cpx1, cpy1, cpx1, cpy1, points[i].x, points[i].y);
+                    }}
+                }}
+                
+                ctx.lineTo(points[points.length-1].x, padding + chartHeight);
+                ctx.closePath();
+                ctx.fill();
+                ctx.globalAlpha = 1.0;
+                
+                // Draw data points with glow effect
+                for (var i = 0; i < points.length; i++) {{
+                    // Glow effect
+                    ctx.shadowColor = color;
+                    ctx.shadowBlur = 8;
+                    ctx.fillStyle = color;
+                    ctx.beginPath();
+                    ctx.arc(points[i].x, points[i].y, 4, 0, 2 * Math.PI);
+                    ctx.fill();
+                    
+                    // Inner white dot
+                    ctx.shadowBlur = 0;
+                    ctx.fillStyle = '#ffffff';
+                    ctx.beginPath();
+                    ctx.arc(points[i].x, points[i].y, 2, 0, 2 * Math.PI);
+                    ctx.fill();
+                }}
+                
+                // Enhanced interactive features with proper scoping
+                var tooltip = null;
+                var currentChart = {{
+                    ctx: ctx,
+                    points: points,
+                    data: data,
+                    color: color,
+                    label: label,
+                    labels: labels
+                }};
+                
+                // Create tooltip element
+                function createTooltip() {{
+                    if (tooltip) return;
+                    tooltip = document.createElement('div');
+                    tooltip.style.position = 'absolute';
+                    tooltip.style.background = 'rgba(0,0,0,0.8)';
+                    tooltip.style.color = 'white';
+                    tooltip.style.padding = '8px 12px';
+                    tooltip.style.borderRadius = '6px';
+                    tooltip.style.fontSize = '12px';
+                    tooltip.style.pointerEvents = 'none';
+                    tooltip.style.zIndex = '1000';
+                    tooltip.style.display = 'none';
+                    tooltip.style.border = '1px solid rgba(255,255,255,0.2)';
+                    document.body.appendChild(tooltip);
+                }}
+                
+                createTooltip();
+                
+                // Mouse move handler with enhanced tooltip
+                ctx.canvas.addEventListener('mousemove', function(e) {{
+                    var rect = ctx.canvas.getBoundingClientRect();
+                    var mouseX = e.clientX - rect.left;
+                    var mouseY = e.clientY - rect.top;
+                    
+                    // Find closest point
+                    var closestPoint = null;
+                    var minDistance = Infinity;
+                    var pointIndex = -1;
+                    
+                    for (var i = 0; i < points.length; i++) {{
+                        var dist = Math.sqrt(Math.pow(mouseX - points[i].x, 2) + Math.pow(mouseY - points[i].y, 2));
+                        if (dist < 25 && dist < minDistance) {{
+                            minDistance = dist;
+                            closestPoint = points[i];
+                            pointIndex = i;
+                        }}
+                    }}
+                    
+                    // Update tooltip
+                    if (closestPoint) {{
+                        var unit = label.indexOf('CPU') >= 0 ? '%' : 
+                                  label.indexOf('Memory') >= 0 ? 'MB' :
+                                  label.indexOf('I/O') >= 0 ? ' ops' : 'KB/s';
+                        var timeLabel = labels[pointIndex] || (pointIndex + 's');
+                        
+                        tooltip.innerHTML = 
+                            '<strong>' + label + '</strong><br>' +
+                            'Time: ' + timeLabel + '<br>' +
+                            'Value: ' + closestPoint.value.toFixed(2) + unit + '<br>' +
+                            'Point: ' + (pointIndex + 1) + ' of ' + points.length;
+                        
+                        tooltip.style.left = (e.clientX + 10) + 'px';
+                        tooltip.style.top = (e.clientY - 10) + 'px';
+                        tooltip.style.display = 'block';
+                        
+                        ctx.canvas.style.cursor = 'pointer';
+                        
+                        // Highlight the point
+                        redrawChartWithHighlight(currentChart.ctx, currentChart.points, currentChart.data, currentChart.color, currentChart.label, currentChart.labels, pointIndex);
+                    }} else {{
+                        tooltip.style.display = 'none';
+                        currentChart.ctx.canvas.style.cursor = 'crosshair';
+                        
+                        // Redraw without highlight
+                        redrawChartWithHighlight(currentChart.ctx, currentChart.points, currentChart.data, currentChart.color, currentChart.label, currentChart.labels, -1);
+                    }}
+                }});
+                
+                // Mouse leave handler
+                currentChart.ctx.canvas.addEventListener('mouseleave', function() {{
+                    if (tooltip) tooltip.style.display = 'none';
+                    currentChart.ctx.canvas.style.cursor = 'crosshair';
+                    redrawChartWithHighlight(currentChart.ctx, currentChart.points, currentChart.data, currentChart.color, currentChart.label, currentChart.labels, -1);
+                }});
+                
+                // Click handler for detailed info with beautiful modal
+                ctx.canvas.addEventListener('click', function(e) {{
+                    var rect = ctx.canvas.getBoundingClientRect();
+                    var mouseX = e.clientX - rect.left;
+                    var mouseY = e.clientY - rect.top;
+                    
+                    // Find clicked point
+                    for (var i = 0; i < points.length; i++) {{
+                        var dist = Math.sqrt(Math.pow(mouseX - points[i].x, 2) + Math.pow(mouseY - points[i].y, 2));
+                        if (dist < 25) {{
+                            var unit = label.indexOf('CPU') >= 0 ? '%' : 
+                                      label.indexOf('Memory') >= 0 ? 'MB' :
+                                      label.indexOf('I/O') >= 0 ? ' ops' : 'KB/s';
+                            
+                            var modalContent = 
+                                '<div class="modal-info-row">' +
+                                '<span class="modal-info-label">Metric:</span>' +
+                                '<span class="modal-info-value">' + label + '</span>' +
+                                '</div>' +
+                                '<div class="modal-info-row">' +
+                                '<span class="modal-info-label">Time Point:</span>' +
+                                '<span class="modal-info-value">' + (labels[i] || (i + 's')) + '</span>' +
+                                '</div>' +
+                                '<div class="modal-info-row">' +
+                                '<span class="modal-info-label">Value:</span>' +
+                                '<span class="modal-info-value">' + points[i].value.toFixed(3) + unit + '</span>' +
+                                '</div>' +
+                                '<div class="modal-info-row">' +
+                                '<span class="modal-info-label">Position:</span>' +
+                                '<span class="modal-info-value">' + (i + 1) + ' of ' + points.length + ' points</span>' +
+                                '</div>' +
+                                '<div class="modal-info-row">' +
+                                '<span class="modal-info-label">Chart Type:</span>' +
+                                '<span class="modal-info-value">Interactive Performance Monitor</span>' +
+                                '</div>';
+                            
+                            showModal('📊 Data Point Details', modalContent);
+                            break;
+                        }}
+                    }}
+                }});
+                
+                // Double-click to reset zoom
+                ctx.canvas.addEventListener('dblclick', function() {{
+                    zoomLevel = 1.0;
+                    chartOffset = {{ x: 0, y: 0 }};
+                    drawLineChart(ctx, labels, data, color, label);
+                }});
+                
+                // Draw chart title
+                ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--text-primary') || '#e5e7eb';
+                ctx.font = 'bold 16px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(label, ctx.canvas.width / 2, 25);
+            }}
+            
+            // Store chart state for highlight management
+            var chartState = {{
+                isHighlighted: false,
+                highlightedIndex: -1,
+                originalPoints: []
+            }};
+            
+            // Helper function to redraw chart with highlight
+            function redrawChartWithHighlight(chartCtx, points, data, color, label, labels, highlightIndex) {{
+                if (!chartCtx || !points) return;
+                
+                // Only redraw if highlight state changed
+                if (chartState.highlightedIndex === highlightIndex) return;
+                chartState.highlightedIndex = highlightIndex;
+                
+                if (highlightIndex >= 0 && highlightIndex < points.length) {{
+                    var point = points[highlightIndex];
+                    
+                    // Save current state
+                    chartCtx.save();
+                    
+                    // Draw pulsing highlight circle
+                    var time = Date.now() * 0.005;
+                    var pulseRadius = 12 + Math.sin(time) * 2;
+                    
+                    chartCtx.globalCompositeOperation = 'source-over';
+                    chartCtx.strokeStyle = color;
+                    chartCtx.lineWidth = 2;
+                    chartCtx.globalAlpha = 0.6;
+                    chartCtx.beginPath();
+                    chartCtx.arc(point.x, point.y, pulseRadius, 0, 2 * Math.PI);
+                    chartCtx.stroke();
+                    
+                    // Draw highlight ring
+                    chartCtx.globalAlpha = 1.0;
+                    chartCtx.strokeStyle = '#ffffff';
+                    chartCtx.lineWidth = 3;
+                    chartCtx.beginPath();
+                    chartCtx.arc(point.x, point.y, 8, 0, 2 * Math.PI);
+                    chartCtx.stroke();
+                    
+                    // Draw enlarged point
+                    chartCtx.fillStyle = color;
+                    chartCtx.beginPath();
+                    chartCtx.arc(point.x, point.y, 6, 0, 2 * Math.PI);
+                    chartCtx.fill();
+                    
+                    // White center
+                    chartCtx.fillStyle = '#ffffff';
+                    chartCtx.beginPath();
+                    chartCtx.arc(point.x, point.y, 3, 0, 2 * Math.PI);
+                    chartCtx.fill();
+                    
+                    // Restore state
+                    chartCtx.restore();
+                    chartState.isHighlighted = true;
+                }} else if (chartState.isHighlighted) {{
+                    // Clear highlight by redrawing the chart
+                    drawLineChart(chartCtx, labels, data, color, label);
+                    chartState.isHighlighted = false;
+                }}
+            }}
+            
+            // Create beautiful modal dialog
+            function createModal() {{
+                if (document.getElementById('chartModal')) return;
+                
+                var modalHTML = '<div id="chartModal" class="modal-overlay">' +
+                    '<div class="modal-content">' +
+                    '<div class="modal-header" id="modalHeader">Data Point Details</div>' +
+                    '<div class="modal-body" id="modalBody"></div>' +
+                    '<button class="modal-close" onclick="closeModal()">Close</button>' +
+                    '</div></div>';
+                
+                document.body.insertAdjacentHTML('beforeend', modalHTML);
+            }}
+            
+            function showModal(title, content) {{
+                createModal();
+                document.getElementById('modalHeader').textContent = title;
+                document.getElementById('modalBody').innerHTML = content;
+                document.getElementById('chartModal').style.display = 'flex';
+            }}
+            
+            function closeModal() {{
+                var modal = document.getElementById('chartModal');
+                if (modal) modal.style.display = 'none';
+            }}
+            
+            // Close modal when clicking overlay
+            document.addEventListener('click', function(e) {{
+                if (e.target && e.target.id === 'chartModal') {{
+                    closeModal();
+                }}
+            }});
+            
+            // Close modal with Escape key
+            document.addEventListener('keydown', function(e) {{
+                if (e.key === 'Escape') closeModal();
+            }});
+            
+            console.log('Enhanced interactive charts initialized successfully');
+            console.log('Features: Hover tooltips, click details, smooth curves, 12 data points');
         </script>
-        "#)
+        "#, 
+        format!("{:?}", (0..5).map(|i| format!("{}s", i * 2)).collect::<Vec<_>>()),
+        format!("{:?}", data.performance_metrics.cpu_usage),
+        format!("{:?}", data.performance_metrics.memory_usage.iter().map(|&x| x as f64 / 1024.0 / 1024.0).collect::<Vec<_>>()),
+        format!("{:?}", data.performance_metrics.io_operations),
+        format!("{:?}", data.performance_metrics.network_bytes.iter().map(|&x| x as f64 / 1024.0).collect::<Vec<_>>()),
+        Self::generate_thread_distribution_data(data),
+        Self::generate_task_distribution_data(data)
+        )
     }
 
     /// Build HTML footer with theme toggle script
@@ -1281,9 +2154,9 @@ fn generate_task_classifications(task_count: usize) -> HashMap<usize, TaskExecut
     classifications
 }
 
-/// Generate minimal performance metrics to prevent data bloat
+/// Generate optimized performance metrics with more data points for smoother curves
 fn generate_performance_metrics(thread_count: usize, task_count: usize) -> PerformanceTimeSeries {
-    let timeline_points = 5; // Ultra minimal - just 5 data points for trend
+    let timeline_points = 12; // Increased to 12 points for smoother curves while keeping memory efficient
     let mut cpu_usage = Vec::with_capacity(timeline_points);
     let mut memory_usage = Vec::with_capacity(timeline_points);
     let mut io_operations = Vec::with_capacity(timeline_points);
