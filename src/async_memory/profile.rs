@@ -338,7 +338,7 @@ mod tests {
         assert!(metrics.execution_time >= Duration::from_millis(10));
         assert!(metrics.allocation_rate > 0.0);
         assert_eq!(metrics.efficiency_ratio, profile.memory_efficiency());
-        assert_eq!(metrics.peak_memory_mb, 1.5); // 1.5MB peak
+        assert!((metrics.peak_memory_mb - 1.4305114746).abs() < 0.0001); // 1,500,000 bytes in MB
 
         let rating = metrics.performance_rating();
         assert!((0.0..=1.0).contains(&rating));

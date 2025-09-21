@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 /// Unified error type for async memory tracking operations
 ///
-/// Follows the project's pattern of using Arc<str> for efficient error messages
+/// Follows the project's pattern of using `Arc<str>` for efficient error messages
 /// and avoiding string cloning overhead.
 #[derive(Debug, Clone)]
 pub enum AsyncError {

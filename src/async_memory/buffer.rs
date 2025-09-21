@@ -74,7 +74,7 @@ impl AllocationEvent {
 /// (aggregator) runs on a dedicated background thread.
 pub struct EventBuffer {
     /// Pre-allocated ring buffer storage using UnsafeCell for interior mutability
-    events: UnsafeCell<Box<[AllocationEvent; DEFAULT_BUFFER_SIZE]>>,
+    events: UnsafeCell<Box<[AllocationEvent]>>,
     /// Write position (modified only by producer)
     write_pos: AtomicUsize,
     /// Read position (modified only by consumer)
@@ -88,15 +88,34 @@ pub struct EventBuffer {
 impl EventBuffer {
     /// Create new event buffer with default size
     pub fn new() -> Self {
+        Self::with_capacity(DEFAULT_BUFFER_SIZE)
+    }
+
+    /// Create new event buffer with specified capacity (must be power of 2)
+    fn with_capacity(capacity: usize) -> Self {
+        assert!(
+            capacity.is_power_of_two(),
+            "Buffer capacity must be power of 2"
+        );
+
+        // Create buffer on heap to avoid stack overflow
+        let mut events = Vec::with_capacity(capacity);
+        events.resize(capacity, AllocationEvent::allocation(0, 0, 0, 0));
+        let events_box = events.into_boxed_slice();
+
         Self {
-            events: UnsafeCell::new(Box::new(
-                [AllocationEvent::allocation(0, 0, 0, 0); DEFAULT_BUFFER_SIZE],
-            )),
+            events: UnsafeCell::new(events_box),
             write_pos: AtomicUsize::new(0),
             read_pos: AtomicUsize::new(0),
             dropped_events: AtomicUsize::new(0),
-            mask: DEFAULT_BUFFER_SIZE - 1,
+            mask: capacity - 1,
         }
+    }
+
+    /// Create small buffer for testing (avoids long test times)
+    #[cfg(test)]
+    fn new_test() -> Self {
+        Self::with_capacity(1024) // 1K events for testing
     }
 
     /// Push event to buffer (producer side)
@@ -174,7 +193,7 @@ impl EventBuffer {
 
     /// Get buffer capacity
     pub fn capacity(&self) -> usize {
-        DEFAULT_BUFFER_SIZE - 1 // One slot reserved for full/empty distinction
+        (self.mask + 1) - 1 // One slot reserved for full/empty distinction
     }
 
     /// Get number of dropped events
@@ -333,7 +352,7 @@ mod tests {
 
     #[test]
     fn test_event_buffer_basic_operations() {
-        let buffer = EventBuffer::new();
+        let buffer = EventBuffer::new_test();
         assert!(buffer.is_empty());
         assert_eq!(buffer.len(), 0);
         assert_eq!(buffer.dropped_count(), 0);
@@ -355,7 +374,7 @@ mod tests {
 
     #[test]
     fn test_buffer_overflow_handling() {
-        let buffer = EventBuffer::new();
+        let buffer = EventBuffer::new_test();
         buffer.reset_dropped_count();
 
         // Fill buffer to capacity
@@ -383,7 +402,7 @@ mod tests {
 
     #[test]
     fn test_buffer_wraparound() {
-        let buffer = EventBuffer::new();
+        let buffer = EventBuffer::new_test();
         let capacity = buffer.capacity();
 
         // Fill and empty buffer multiple times to test wraparound
@@ -459,7 +478,7 @@ mod tests {
         use std::thread;
         use std::time::Duration;
 
-        let buffer = Arc::new(EventBuffer::new());
+        let buffer = Arc::new(EventBuffer::new_test());
         let producer_buffer = Arc::clone(&buffer);
         let consumer_buffer = Arc::clone(&buffer);
 

@@ -30,7 +30,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     #[allow(unused_mut, clippy::vec_init_then_push)]
     {
-        let mut features = Vec::new();
+        let mut features: Vec<&str> = Vec::new();
 
         #[cfg(feature = "backtrace")]
         features.push("Real Call Stacks");

@@ -174,6 +174,33 @@ pub fn is_tracking_active() -> bool {
     crate::async_memory::allocator::is_tracking_enabled()
 }
 
+/// Spawn a tracked async task
+///
+/// This is a convenience function that wraps the provided future in a TrackedFuture.
+/// Use with your preferred async runtime (tokio, async-std, etc.)
+///
+/// Example with tokio:
+/// ```rust,no_run
+/// use memscope_rs::async_memory;
+///
+/// #[tokio::main]
+/// async fn main() {
+///     let handle = async_memory::spawn_tracked(async {
+///         let data = vec![0u8; 1024];
+///         data.len()
+///     });
+///     
+///     let result = handle.await;
+///     println!("Result: {}", result);
+/// }
+/// ```
+pub fn spawn_tracked<F>(future: F) -> TrackedFuture<F>
+where
+    F: Future,
+{
+    create_tracked(future)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

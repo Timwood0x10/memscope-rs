@@ -16,31 +16,32 @@
 //! - < 1MB memory overhead per thread
 //! - Lock-free, unwrap-free, clone-free design
 //!
-//! Usage:
-//! ```rust
-//! use memscope_rs::async_memory;
-//!
-//! #[tokio::main]
-//! async fn main() -> Result<(), async_memory::AsyncError> {
-//!     // Initialize tracking
-//!     async_memory::initialize()?;
-//!     
-//!     // Use tracked spawn
-//!     let handle = async_memory::spawn_tracked(async {
-//!         let data = vec![0u8; 1024 * 1024]; // 1MB allocation
-//!         process_data(&data).await
-//!     });
-//!     
-//!     let result = handle.await?;
-//!     
-//!     // Get memory statistics
-//!     let snapshot = async_memory::get_memory_snapshot();
-//!     println!("Tasks tracked: {}", snapshot.active_task_count());
-//!     
-//!     Ok(())
-//! }
-//! ```
-
+/// Usage:
+/// ```rust,no_run
+/// use memscope_rs::async_memory;
+///
+/// #[tokio::main]
+/// async fn main() -> Result<(), async_memory::AsyncError> {
+///     // Initialize tracking
+///     async_memory::initialize()?;
+///     
+///     // Use tracked spawn
+///     let handle = async_memory::spawn_tracked(async {
+///         let data = vec![0u8; 1024 * 1024]; // 1MB allocation
+///         // Process the data here
+///         data.len()
+///     });
+///     
+///     let result = handle.await;
+///     println!("Processed {} bytes", result);
+///     
+///     // Get memory statistics
+///     let snapshot = async_memory::get_memory_snapshot();
+///     println!("Tasks tracked: {}", snapshot.active_task_count());
+///     
+///     Ok(())
+/// }
+/// ```
 pub mod allocator;
 pub mod api;
 pub mod buffer;
@@ -53,7 +54,9 @@ pub mod tracker;
 pub mod visualization;
 
 // Re-export main types and functions
-pub use api::{create_tracked, get_memory_snapshot, initialize, AsyncMemorySnapshot};
+pub use api::{
+    create_tracked, get_memory_snapshot, initialize, spawn_tracked, AsyncMemorySnapshot,
+};
 pub use error::AsyncError;
 pub use profile::{TaskMemoryProfile, TaskPerformanceMetrics};
 pub use resource_monitor::{

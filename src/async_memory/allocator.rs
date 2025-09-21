@@ -146,7 +146,7 @@ fn current_timestamp() -> u64 {
 ///
 /// Example:
 /// ```rust
-/// use memscope_rs::async_memory::set_task_tracking_allocator;
+/// use memscope_rs::set_task_tracking_allocator;
 ///
 /// set_task_tracking_allocator!();
 /// ```
