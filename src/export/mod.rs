@@ -22,6 +22,7 @@ pub mod schema_validator;
 pub mod streaming_json_writer;
 pub mod system_optimizer;
 pub mod visualization;
+pub mod fixed_hybrid_template;
 
 // Lifecycle exporter for detailed ownership tracking
 pub mod lifecycle_exporter;
