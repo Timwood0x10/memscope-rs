@@ -704,9 +704,21 @@ impl FixedHybridTemplate {
             <div class="nav-bar">
                 🗺️ Memory Continent - Unified Execution Territory | {} Threads × {} Tasks
                 <div class="analysis-lens-tabs">
-                    <button class="lens-button active" data-lens="performance" onclick="switchAnalysisLens('performance')">📈 Performance Lens</button>
-                    <button class="lens-button" data-lens="concurrency" onclick="switchAnalysisLens('concurrency')">🚀 Concurrency Lens</button>
-                    <button class="lens-button" data-lens="safety" onclick="switchAnalysisLens('safety')">🛡️ Safety Lens</button>
+                    <button class="lens-button active" data-lens="performance" onclick="switchAnalysisLens('performance')">
+                        <div class="lens-icon">📈</div>
+                        <div class="lens-text">Performance</div>
+                        <div class="lens-subtitle">Macro Sentinel</div>
+                    </button>
+                    <button class="lens-button" data-lens="concurrency" onclick="switchAnalysisLens('concurrency')">
+                        <div class="lens-icon">🚀</div>
+                        <div class="lens-text">Concurrency</div>
+                        <div class="lens-subtitle">Structure Probe</div>
+                    </button>
+                    <button class="lens-button" data-lens="safety" onclick="switchAnalysisLens('safety')">
+                        <div class="lens-icon">🛡️</div>
+                        <div class="lens-text">Safety</div>
+                        <div class="lens-subtitle">Micro Scalpel</div>
+                    </button>
                 </div>
             </div>"#,
             self.thread_count, self.task_count
