@@ -703,10 +703,10 @@ impl FixedHybridTemplate {
             r#"<button class="theme-toggle" onclick="toggleTheme()">🌙 Dark Mode</button>
             <div class="nav-bar">
                 🗺️ Memory Continent - Unified Execution Territory | {} Threads × {} Tasks
-                <div class="continent-tabs">
-                    <button class="tab-button active" onclick="switchView('continent')">🗺️ Continent View</button>
-                    <button class="tab-button" onclick="switchView('territories')">🏞️ Territories</button>
-                    <button class="tab-button" onclick="switchView('boundaries')">🛡️ FFI Boundaries</button>
+                <div class="analysis-lens-tabs">
+                    <button class="lens-button active" data-lens="performance" onclick="switchAnalysisLens('performance')">📈 Performance Lens</button>
+                    <button class="lens-button" data-lens="concurrency" onclick="switchAnalysisLens('concurrency')">🚀 Concurrency Lens</button>
+                    <button class="lens-button" data-lens="safety" onclick="switchAnalysisLens('safety')">🛡️ Safety Lens</button>
                 </div>
             </div>"#,
             self.thread_count, self.task_count
@@ -2639,20 +2639,59 @@ impl FixedHybridTemplate {
         }}
         
         // Ensure all required functions are defined
-        function toggleCharts() {{
+        // Three-Lens Analysis System
+        function switchAnalysisLens(lensType) {
+            // Update button states
+            document.querySelectorAll('.lens-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector('[data-lens="' + lensType + '"]').classList.add('active');
+            
+            // Hide all sections first
+            document.querySelectorAll('.section').forEach(section => {
+                section.style.display = 'none';
+            });
+            
+            // Show relevant sections based on lens type
+            if (lensType === 'performance') {
+                // Performance Lens: Show overview + charts
+                const sections = document.querySelectorAll('.section');
+                if (sections[0]) sections[0].style.display = 'block'; // Memory Continent Overview
+                if (sections[1]) sections[1].style.display = 'block'; // Territory Treemap
+            } else if (lensType === 'concurrency') {
+                // Concurrency Lens: Show thread matrix + detailed analysis
+                const sections = document.querySelectorAll('.section');
+                if (sections[2]) sections[2].style.display = 'block'; // Thread-Task Matrix
+                if (sections[3]) sections[3].style.display = 'block'; // Interactive elements
+            } else if (lensType === 'safety') {
+                // Safety Lens: Show variable details + safety analysis
+                const sections = document.querySelectorAll('.section');
+                if (sections[4]) sections[4].style.display = 'block'; // Variable details
+                if (sections[5]) sections[5].style.display = 'block'; // Safety analysis
+            }
+            
+            console.log('Switched to ' + lensType + ' lens');
+        }
+        
+        // Initialize with performance lens
+        document.addEventListener('DOMContentLoaded', function() {
+            switchAnalysisLens('performance');
+        });
+
+        function toggleCharts() {
             const container = document.getElementById('chartsContainer');
             const button = document.getElementById('chartToggle');
             
-            if (container && button) {{
-                if (container.style.display === 'none') {{
+            if (container && button) {
+                if (container.style.display === 'none') {
                     container.style.display = 'grid';
                     button.textContent = '📊 Hide Performance Charts';
-                }} else {{
+                } else {
                     container.style.display = 'none';
                     button.textContent = '📊 Show Performance Charts';
-                }}
-            }}
-        }}
+                }
+            }
+        }
     </script>
 </body>
 </html>"#.to_string()
