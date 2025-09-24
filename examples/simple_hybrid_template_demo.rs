@@ -39,8 +39,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     async_api::initialize()?;
     println!("  ✅ Async API initialized");
     
-    // 1.3 Setup shared data structures for coordination
-    let memory_coordinator = Arc::new(Mutex::new(MemoryCoordinator::new()));
+    // 1.3 Setup enhanced coordinator for true multi-module integration
+    let memory_coordinator = Arc::new(Mutex::new(EnhancedMemoryCoordinator::new()));
     
     // Phase 2: Launch coordinated workload
     println!("Phase 2: Launching coordinated memory workload...");
@@ -88,12 +88,93 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-/// Coordinates memory tracking across three modules
+/// Enhanced Memory Coordinator - True multi-module integration
 #[derive(Debug)]
-struct MemoryCoordinator {
+struct EnhancedMemoryCoordinator {
+    // Legacy data structures
     thread_memories: Vec<ThreadMemoryInfo>,
     task_memories: Vec<TaskMemoryInfo>,
     global_variables: Vec<VariableInfo>,
+    
+    // New: Unified variable identity system
+    unified_variables: std::collections::HashMap<UnifiedVariableID, CrossModuleData>,
+    
+    // New: Cross-module event chain
+    timeline_events: std::collections::BTreeMap<u64, Vec<Event>>,
+    
+    // New: Triple association table (Variable ID -> Thread ID -> Task ID)
+    variable_relationships: std::collections::HashMap<String, (usize, Option<usize>)>,
+    
+    // New: Lens correlation context
+    lens_context: LensContext,
+}
+
+/// Unified variable identity system
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+struct UnifiedVariableID {
+    thread_id: usize,           // Provided by lockfree module
+    task_id: Option<usize>,     // Provided by async module  
+    var_name: String,           // Provided by tracking macros
+    allocation_site: String,    // Call stack information
+    timestamp: u64,             // Unified timestamp in microseconds
+}
+
+/// Cross-module data correlation
+#[derive(Debug, Clone)]
+struct CrossModuleData {
+    lockfree_data: Option<LockfreeTrackingData>,
+    async_data: Option<AsyncTrackingData>,
+    macro_data: Option<MacroTrackingData>,
+}
+
+#[derive(Debug, Clone)]
+struct LockfreeTrackingData {
+    thread_id: usize,
+    memory_usage: usize,
+    allocation_count: usize,
+}
+
+#[derive(Debug, Clone)]
+struct AsyncTrackingData {
+    task_id: usize,
+    task_type: String,
+    memory_peak: usize,
+}
+
+#[derive(Debug, Clone)]
+struct MacroTrackingData {
+    var_name: String,
+    size_bytes: usize,
+    lifecycle_state: String,
+    is_owned: bool,
+}
+
+/// Event chain tracking
+#[derive(Debug, Clone)]
+enum Event {
+    Allocation { var_id: UnifiedVariableID, size: usize },
+    ThreadBinding { var_id: UnifiedVariableID, thread_id: usize },
+    TaskBinding { var_id: UnifiedVariableID, task_id: usize },
+    FFICrossing { var_id: UnifiedVariableID, direction: String },
+    Deallocation { var_id: UnifiedVariableID },
+}
+
+/// Lens correlation context
+#[derive(Debug, Clone)]
+struct LensContext {
+    current_lens: String,
+    selected_timerange: Option<(u64, u64)>,
+    highlighted_threads: Vec<usize>,
+    highlighted_variables: Vec<String>,
+    active_correlations: Vec<CrossLensCorrelation>,
+}
+
+#[derive(Debug, Clone)]
+struct CrossLensCorrelation {
+    source_lens: String,
+    target_lens: String,
+    correlation_data: String,
+    trigger_condition: String,
 }
 
 #[derive(Debug, Clone)]
@@ -121,12 +202,22 @@ struct VariableInfo {
     lifecycle_state: String,
 }
 
-impl MemoryCoordinator {
+impl EnhancedMemoryCoordinator {
     fn new() -> Self {
         Self {
             thread_memories: Vec::new(),
             task_memories: Vec::new(),
             global_variables: Vec::new(),
+            unified_variables: std::collections::HashMap::new(),
+            timeline_events: std::collections::BTreeMap::new(),
+            variable_relationships: std::collections::HashMap::new(),
+            lens_context: LensContext {
+                current_lens: "performance".to_string(),
+                selected_timerange: None,
+                highlighted_threads: Vec::new(),
+                highlighted_variables: Vec::new(),
+                active_correlations: Vec::new(),
+            },
         }
     }
     
@@ -161,17 +252,162 @@ impl MemoryCoordinator {
     
     fn record_variable(&mut self, var_name: String, size: usize, thread_id: usize, task_id: Option<usize>, state: String) {
         self.global_variables.push(VariableInfo {
-            var_name,
+            var_name: var_name.clone(),
             size_bytes: size,
             thread_id,
             task_id,
-            lifecycle_state: state,
+            lifecycle_state: state.clone(),
         });
+        
+        // Establish triple association
+        self.variable_relationships.insert(var_name.clone(), (thread_id, task_id));
+    }
+    
+    /// New: Record unified variable events (true multi-module integration)
+    fn record_unified_variable(&mut self, 
+        var_name: String, 
+        size: usize, 
+        thread_id: usize, 
+        task_id: Option<usize>, 
+        state: String,
+        is_owned: bool,
+        allocation_site: String) {
+        
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_micros() as u64;
+            
+        // Create unified variable ID
+        let unified_id = UnifiedVariableID {
+            thread_id,
+            task_id,
+            var_name: var_name.clone(),
+            allocation_site: allocation_site.clone(),
+            timestamp,
+        };
+        
+        // Create cross-module data
+        let cross_module_data = CrossModuleData {
+            lockfree_data: Some(LockfreeTrackingData {
+                thread_id,
+                memory_usage: size,
+                allocation_count: 1,
+            }),
+            async_data: task_id.map(|tid| AsyncTrackingData {
+                task_id: tid,
+                task_type: "AsyncTask".to_string(),
+                memory_peak: size,
+            }),
+            macro_data: Some(MacroTrackingData {
+                var_name: var_name.clone(),
+                size_bytes: size,
+                lifecycle_state: state.clone(),
+                is_owned,
+            }),
+        };
+        
+        // Record to unified variable system
+        self.unified_variables.insert(unified_id.clone(), cross_module_data);
+        
+        // Record event chain
+        let event = match state.as_str() {
+            "Allocated" => Event::Allocation { var_id: unified_id.clone(), size },
+            "FFI_Shared" => Event::FFICrossing { var_id: unified_id.clone(), direction: "Rust_to_C".to_string() },
+            "Deallocated" => Event::Deallocation { var_id: unified_id.clone() },
+            _ => Event::Allocation { var_id: unified_id.clone(), size },
+        };
+        
+        self.timeline_events.entry(timestamp).or_insert_with(Vec::new).push(event);
+        
+        // Establish association table
+        self.variable_relationships.insert(var_name.clone(), (thread_id, task_id));
+        
+        // Record to legacy system (compatibility)
+        self.record_variable(var_name.clone(), size, thread_id, task_id, state.clone());
+        
+        println!("    🔗 Unified tracking: {} → Thread {} → Task {:?} @ {}", 
+                 var_name, thread_id, task_id, timestamp);
+    }
+    
+    /// New: Lens correlation analysis
+    fn analyze_lens_correlations(&mut self) {
+        // Performance -> Concurrency correlation analysis
+        let memory_hotspots = self.find_memory_hotspots();
+        if !memory_hotspots.is_empty() {
+            let correlation = CrossLensCorrelation {
+                source_lens: "performance".to_string(),
+                target_lens: "concurrency".to_string(),
+                correlation_data: format!("Memory hotspots detected in threads: {:?}", memory_hotspots),
+                trigger_condition: "memory_peak_detected".to_string(),
+            };
+            self.lens_context.active_correlations.push(correlation);
+            self.lens_context.highlighted_threads = memory_hotspots;
+        }
+        
+        // Concurrency -> Safety correlation analysis
+        let ffi_threads = self.find_ffi_threads();
+        if !ffi_threads.is_empty() {
+            let correlation = CrossLensCorrelation {
+                source_lens: "concurrency".to_string(),
+                target_lens: "safety".to_string(),
+                correlation_data: format!("FFI interactions detected in threads: {:?}", ffi_threads),
+                trigger_condition: "ffi_boundary_detected".to_string(),
+            };
+            self.lens_context.active_correlations.push(correlation);
+        }
+        
+        // Safety -> Performance backtrack analysis
+        let leak_variables = self.find_potential_leaks();
+        if !leak_variables.is_empty() {
+            let correlation = CrossLensCorrelation {
+                source_lens: "safety".to_string(),
+                target_lens: "performance".to_string(),
+                correlation_data: format!("Potential leaks detected: {:?}", leak_variables),
+                trigger_condition: "memory_leak_detected".to_string(),
+            };
+            self.lens_context.active_correlations.push(correlation);
+            self.lens_context.highlighted_variables = leak_variables;
+        }
+        
+        println!("  🔄 Lens correlations analyzed: {} active", self.lens_context.active_correlations.len());
+    }
+    
+    /// Find memory hotspot threads
+    fn find_memory_hotspots(&self) -> Vec<usize> {
+        let total_memory: usize = self.thread_memories.iter().map(|t| t.allocated_bytes).sum();
+        let threshold = total_memory / 10; // More than 10% considered hotspot
+        
+        self.thread_memories.iter()
+            .filter(|t| t.allocated_bytes > threshold)
+            .map(|t| t.thread_id)
+            .collect()
+    }
+    
+    /// Find threads with FFI interactions
+    fn find_ffi_threads(&self) -> Vec<usize> {
+        self.thread_memories.iter()
+            .filter(|t| t.has_ffi)
+            .map(|t| t.thread_id)
+            .collect()
+    }
+    
+    /// Find potential leak variables
+    fn find_potential_leaks(&self) -> Vec<String> {
+        self.global_variables.iter()
+            .filter(|v| v.lifecycle_state == "Active" || v.lifecycle_state == "FFI_Shared")
+            .map(|v| v.var_name.clone())
+            .collect()
+    }
+    
+    /// Get lens correlation context (for HTML generation)
+    fn get_lens_context(&self) -> &LensContext {
+        &self.lens_context
     }
 }
 
 /// Run coordinated workload using all three APIs
-async fn run_coordinated_workload(coordinator: Arc<Mutex<MemoryCoordinator>>) -> Result<(), Box<dyn std::error::Error>> {
+async fn run_coordinated_workload(coordinator: Arc<Mutex<EnhancedMemoryCoordinator>>) -> Result<(), Box<dyn std::error::Error>> {
     let mut handles = Vec::new();
     
     // Launch lockfree-tracked threads
@@ -231,6 +467,9 @@ async fn run_coordinated_workload(coordinator: Arc<Mutex<MemoryCoordinator>>) ->
                 // Simulate work and state transitions
                 std::thread::sleep(std::time::Duration::from_millis(5));
                 
+                // Record whether we have owned tracking before consuming traced_data
+                let has_owned_tracking = traced_data.is_some();
+                
                 if has_ffi {
                     
                     let ffi_buffer = vec![0u8; final_allocation.len()];
@@ -250,12 +489,15 @@ async fn run_coordinated_workload(coordinator: Arc<Mutex<MemoryCoordinator>>) ->
                     let ffi_tracked = ffi_buffer;
                     
                     let mut coord = coord_clone.lock().unwrap();
-                    coord.record_variable(
+                    
+                    coord.record_unified_variable(
                         var_name.clone(),
                         final_allocation.len(),
                         thread_id,
-                        None,
+                        Some(thread_id % TASK_COUNT),
                         "FFI_Shared".to_string(),
+                        false, 
+                        format!("thread_{}:ffi_call_{}", thread_id, var_idx),
                     );
                     
                     // Keep FFI result tracked in memory
@@ -287,12 +529,15 @@ async fn run_coordinated_workload(coordinator: Arc<Mutex<MemoryCoordinator>>) ->
                 
                 {
                     let mut coord = coord_clone.lock().unwrap();
-                    coord.record_variable(
+                   
+                    coord.record_unified_variable(
                         var_name,
                         size,
                         thread_id,
-                        None,
+                        Some(thread_id % TASK_COUNT),
                         final_state.to_string(),
+                        has_owned_tracking,
+                        format!("thread_{}:lifecycle_{}", thread_id, var_idx),
                     );
                 }
             }
@@ -360,7 +605,7 @@ async fn run_coordinated_workload(coordinator: Arc<Mutex<MemoryCoordinator>>) ->
 
 /// Generate hybrid data from real tracking results
 async fn generate_real_hybrid_data(
-    coordinator: Arc<Mutex<MemoryCoordinator>>
+    coordinator: Arc<Mutex<EnhancedMemoryCoordinator>>
 ) -> Result<memscope_rs::export::fixed_hybrid_template::HybridAnalysisData, Box<dyn std::error::Error>> {
     let coord = coordinator.lock().unwrap();
     
