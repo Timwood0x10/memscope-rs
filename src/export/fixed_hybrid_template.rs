@@ -8,18 +8,19 @@ use crate::async_memory::visualization::VisualizationConfig;
 use crate::lockfree::{LockfreeAnalysis};
 use std::collections::{HashMap, BTreeMap};
 use std::sync::Arc;
+use serde::{Serialize, Deserialize};
 
-/// 🔗 统一变量身份系统 - 三模块融合的核心
+/// Unified Variable Identity System - Core of three-module integration
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct UnifiedVariableID {
-    pub thread_id: usize,           // lockfree模块提供
-    pub task_id: Option<usize>,     // async模块提供
-    pub var_name: String,           // tracking宏提供
-    pub allocation_site: CodeLocation, // 调用栈信息
-    pub timestamp: u64,             // 统一时间戳
+    pub thread_id: usize,           // Provided by lockfree module
+    pub task_id: Option<usize>,     // Provided by async module
+    pub var_name: String,           // Provided by tracking macro
+    pub allocation_site: CodeLocation, // Call stack information
+    pub timestamp: u64,             // Unified timestamp
 }
 
-/// 代码位置信息
+/// Code location information
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct CodeLocation {
     pub file: String,
@@ -27,7 +28,7 @@ pub struct CodeLocation {
     pub function: String,
 }
 
-/// 跨模块事件类型
+/// Cross-module event types
 #[derive(Debug, Clone)]
 pub enum CrossModuleEvent {
     Allocation { id: UnifiedVariableID, size: u64 },
@@ -35,16 +36,25 @@ pub enum CrossModuleEvent {
     TaskBinding { id: UnifiedVariableID, task_id: usize },
     FFICrossing { id: UnifiedVariableID, direction: FFIDirection },
     Deallocation { id: UnifiedVariableID },
+    SmartPointerOperation { id: UnifiedVariableID, operation_type: String },  // Rc/Arc clone/drop
+    CollectionOperation { id: UnifiedVariableID, operation_type: String },    // Vec/HashMap resize
+    BorrowingOperation { id: UnifiedVariableID, borrow_type: String },        // RefCell/Mutex borrow
+    WeakPointerOperation { id: UnifiedVariableID, operation_type: String },   // Weak upgrade/downgrade
+    AsyncOperation { id: UnifiedVariableID, async_type: String },             // Future/Task state changes
+    ClosureOperation { id: UnifiedVariableID, capture_info: String },         // Closure creation/invocation
+    TupleOperation { id: UnifiedVariableID, field_access: String },           // Tuple field access
+    ResultOperation { id: UnifiedVariableID, result_type: String },           // Result unwrap/error
+    OptionOperation { id: UnifiedVariableID, option_type: String },           // Option Some/None
 }
 
-/// FFI 方向
+/// FFI direction
 #[derive(Debug, Clone)]
 pub enum FFIDirection {
     RustToC,
     CToRust,
 }
 
-/// 跨模块关联数据
+/// Cross-module correlation data
 #[derive(Debug, Clone)]
 pub struct CrossModuleData {
     pub relationships: Vec<RelationType>,
@@ -53,17 +63,25 @@ pub struct CrossModuleData {
     pub performance_impact: f64,
 }
 
-/// 变量关系类型
-#[derive(Debug, Clone)]
+/// Variable relationship types - Enhanced to support all track_var! trackable types
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum RelationType {
     SharedMemory,
     ThreadMigration,
     TaskHandover,
     FFIBoundary,
     OwnershipTransfer,
+    SmartPointerClone,     // Rc::clone, Arc::clone relationships
+    WeakPointerUpgrade,    // Weak::upgrade operations
+    CollectionResize,      // Vec/HashMap capacity changes
+    HeapReallocation,      // Memory reallocation events
+    RefCellBorrow,         // RefCell dynamic borrowing patterns
+    MutexLock,             // Mutex/RwLock access synchronization
+    AsyncTaskSpawn,        // Async task creation relationships
+    ClosureCapture,        // Closure variable capture analysis
 }
 
-/// 智能分析引擎
+/// Intelligent analysis engine
 #[derive(Debug)]
 pub struct IntelligentAnalysisEngine {
     pub leak_detector: LeakDetector,
@@ -72,7 +90,7 @@ pub struct IntelligentAnalysisEngine {
     pub pattern_miner: PatternMiner,
 }
 
-/// 内存泄漏检测器
+/// Memory leak detector
 #[derive(Debug)]
 pub struct LeakDetector {
     pub unmatched_allocations: Vec<VariableDetail>,
@@ -80,7 +98,7 @@ pub struct LeakDetector {
     pub ffi_boundary_leaks: Vec<FFILeakInfo>,
 }
 
-/// 竞争分析器
+/// Race analyzer
 #[derive(Debug)]
 pub struct RaceAnalyzer {
     pub shared_variable_access: HashMap<String, Vec<ThreadAccess>>,
@@ -88,7 +106,7 @@ pub struct RaceAnalyzer {
     pub deadlock_scenarios: Vec<DeadlockChain>,
 }
 
-/// FFI 安全审计器
+/// FFI security auditor
 #[derive(Debug)]
 pub struct FFIAuditor {
     pub boundary_crossings: Vec<FFICrossing>,
@@ -96,7 +114,7 @@ pub struct FFIAuditor {
     pub ownership_transfers: Vec<OwnershipEvent>,
 }
 
-/// 模式挖掘器
+/// Pattern miner
 #[derive(Debug)]
 pub struct PatternMiner {
     pub allocation_patterns: Vec<AllocationPattern>,
@@ -104,7 +122,7 @@ pub struct PatternMiner {
     pub thread_affinity: HashMap<String, usize>,
 }
 
-/// FFI 泄漏信息
+/// FFI leak information
 #[derive(Debug, Clone)]
 pub struct FFILeakInfo {
     pub variable_id: UnifiedVariableID,
@@ -112,7 +130,7 @@ pub struct FFILeakInfo {
     pub boundary_type: String,
 }
 
-/// 线程访问记录
+/// Thread access records
 #[derive(Debug, Clone)]
 pub struct ThreadAccess {
     pub thread_id: usize,
@@ -120,7 +138,7 @@ pub struct ThreadAccess {
     pub access_type: AccessType,
 }
 
-/// 访问类型
+/// Access types
 #[derive(Debug, Clone)]
 pub enum AccessType {
     Read,
@@ -128,7 +146,7 @@ pub enum AccessType {
     Exclusive,
 }
 
-/// 竞争条件
+/// Race conditions
 #[derive(Debug, Clone)]
 pub struct RaceCondition {
     pub variable_name: String,
@@ -136,7 +154,7 @@ pub struct RaceCondition {
     pub severity: RaceSeverity,
 }
 
-/// 竞争严重程度
+/// Race severity levels
 #[derive(Debug, Clone)]
 pub enum RaceSeverity {
     Low,
@@ -145,14 +163,14 @@ pub enum RaceSeverity {
     Critical,
 }
 
-/// 死锁链
+/// Deadlock chain
 #[derive(Debug, Clone)]
 pub struct DeadlockChain {
     pub involved_threads: Vec<usize>,
     pub resource_chain: Vec<String>,
 }
 
-/// FFI 跨界
+/// FFI boundary crossing
 #[derive(Debug, Clone)]
 pub struct FFICrossing {
     pub variable_id: UnifiedVariableID,
@@ -160,7 +178,7 @@ pub struct FFICrossing {
     pub safety_level: SafetyLevel,
 }
 
-/// 安全级别
+/// Safety levels
 #[derive(Debug, Clone)]
 pub enum SafetyLevel {
     Safe,
@@ -169,7 +187,7 @@ pub enum SafetyLevel {
     Critical,
 }
 
-/// 风险矩阵
+/// Risk matrix
 #[derive(Debug, Clone)]
 pub struct RiskMatrix {
     pub memory_safety_score: f64,
@@ -178,7 +196,7 @@ pub struct RiskMatrix {
     pub overall_risk: RiskLevel,
 }
 
-/// 风险级别
+/// Risk levels
 #[derive(Debug, Clone)]
 pub enum RiskLevel {
     Low,
@@ -187,7 +205,7 @@ pub enum RiskLevel {
     Critical,
 }
 
-/// 所有权事件
+/// Ownership events
 #[derive(Debug, Clone)]
 pub struct OwnershipEvent {
     pub variable_id: UnifiedVariableID,
@@ -196,7 +214,7 @@ pub struct OwnershipEvent {
     pub transfer_type: OwnershipTransferType,
 }
 
-/// 所有权转移类型
+/// Ownership transfer types
 #[derive(Debug, Clone)]
 pub enum OwnershipTransferType {
     Move,
@@ -205,7 +223,7 @@ pub enum OwnershipTransferType {
     FFIHandover,
 }
 
-/// 分配模式
+/// Allocation patterns
 #[derive(Debug, Clone)]
 pub struct AllocationPattern {
     pub pattern_type: String,
@@ -213,7 +231,7 @@ pub struct AllocationPattern {
     pub typical_size: u64,
 }
 
-/// 生命周期模式
+/// Lifecycle patterns
 #[derive(Debug, Clone)]
 pub struct LifecyclePattern {
     pub pattern_name: String,
@@ -221,7 +239,7 @@ pub struct LifecyclePattern {
     pub variables_count: usize,
 }
 
-/// 透镜联动状态
+/// Lens linkage state
 #[derive(Debug, Clone)]
 pub enum LensLinkageState {
     Performance,
@@ -237,9 +255,9 @@ pub struct FixedHybridTemplate {
     task_count: usize,
     variable_details_enabled: bool,
     render_mode: RenderMode,
-    /// 新增：智能分析引擎
+    /// New: Intelligent analysis engine
     pub analysis_engine: Option<IntelligentAnalysisEngine>,
-    /// 新增：透镜联动状态
+    /// New: Lens linkage state
     pub lens_state: LensLinkageState,
 }
 
@@ -252,7 +270,7 @@ pub enum RenderMode {
     VariableDetailed,
 }
 
-/// Combined analysis data from multiple sources - 增强版三模块融合
+/// Combined analysis data from multiple sources - Enhanced three-module integration
 #[derive(Debug)]
 pub struct HybridAnalysisData {
     pub lockfree_analysis: Option<LockfreeAnalysis>,
@@ -263,16 +281,16 @@ pub struct HybridAnalysisData {
     pub thread_classifications: HashMap<usize, ThreadWorkloadType>,
     pub task_classifications: HashMap<usize, TaskExecutionPattern>,
     
-    /// 🔗 三模块融合的核心数据结构
+    /// Core data structure for three-module integration
     pub unified_variable_index: HashMap<UnifiedVariableID, CrossModuleData>,
     pub timeline_events: BTreeMap<u64, Vec<CrossModuleEvent>>,
     pub variable_relationships: HashMap<String, Vec<RelationType>>,
     pub intelligent_analysis: Option<IntelligentAnalysisEngine>,
     
-    /// 透镜联动数据
+    /// Lens linkage data
     pub lens_linkage_data: LensLinkageData,
     
-    /// FFI 安全数据
+    /// FFI safety data
     pub ffi_safety_data: FFISafetyData,
 }
 
@@ -329,20 +347,20 @@ pub enum TaskExecutionPattern {
     Balanced,
 }
 
-/// 透镜联动数据 - 实现智能上下文传递
+/// Lens linkage data - Intelligent context transmission implementation
 #[derive(Debug, Clone)]
 pub struct LensLinkageData {
-    /// Performance → Concurrency 联动
+    /// Performance → Concurrency linkage
     pub performance_anomalies: Vec<PerformanceAnomaly>,
-    /// Concurrency → Safety 联动  
+    /// Concurrency → Safety linkage  
     pub concurrency_risks: Vec<ConcurrencyRisk>,
-    /// Safety → Performance 回溯
+    /// Safety → Performance backtracking
     pub safety_performance_impact: Vec<SafetyPerformanceImpact>,
-    /// 当前活跃的联动上下文
+    /// Currently active linkage context
     pub active_linkage_context: Option<LinkageContext>,
 }
 
-/// 性能异常检测
+/// Performance anomaly detection
 #[derive(Debug, Clone)]
 pub struct PerformanceAnomaly {
     pub timestamp: u64,
@@ -353,7 +371,7 @@ pub struct PerformanceAnomaly {
     pub suggested_lens: String, // "concurrency", "safety"
 }
 
-/// 异常类型
+/// Anomaly types
 #[derive(Debug, Clone)]
 pub enum AnomalyType {
     MemorySpike,
@@ -362,7 +380,7 @@ pub enum AnomalyType {
     ThreadStarvation,
 }
 
-/// 并发风险
+/// Concurrency risks
 #[derive(Debug, Clone)]
 pub struct ConcurrencyRisk {
     pub risk_type: ConcurrencyRiskType,
@@ -372,7 +390,7 @@ pub struct ConcurrencyRisk {
     pub suggested_lens: String, // "safety"
 }
 
-/// 并发风险类型
+/// Concurrency risk types
 #[derive(Debug, Clone)]
 pub enum ConcurrencyRiskType {
     DataRace,
@@ -381,16 +399,16 @@ pub enum ConcurrencyRiskType {
     MemoryContention,
 }
 
-/// 安全性能影响
+/// Safety performance impact
 #[derive(Debug, Clone)]
 pub struct SafetyPerformanceImpact {
     pub leak_info: FFILeakInfo,
-    pub performance_degradation: f64, // 百分比
+    pub performance_degradation: f64, // Percentage
     pub affected_timeline: (u64, u64), // (start, end)
     pub suggested_lens: String, // "performance"
 }
 
-/// 联动上下文
+/// Linkage context
 #[derive(Debug, Clone)]
 pub struct LinkageContext {
     pub source_lens: String,
@@ -399,7 +417,7 @@ pub struct LinkageContext {
     pub transition_data: TransitionData,
 }
 
-/// 上下文过滤器
+/// Context filters
 #[derive(Debug, Clone)]
 pub struct ContextFilter {
     pub time_range: Option<(u64, u64)>,
@@ -408,7 +426,7 @@ pub struct ContextFilter {
     pub variable_filter: Vec<String>,
 }
 
-/// 转换数据
+/// Transition data
 #[derive(Debug, Clone)]
 pub struct TransitionData {
     pub highlighted_elements: Vec<String>,
@@ -416,7 +434,7 @@ pub struct TransitionData {
     pub context_annotations: Vec<ContextAnnotation>,
 }
 
-/// 上下文注释
+/// Context annotations
 #[derive(Debug, Clone)]
 pub struct ContextAnnotation {
     pub element_id: String,
@@ -425,10 +443,10 @@ pub struct ContextAnnotation {
     pub severity: f64,
 }
 
-/// FFI 安全数据
+/// FFI safety data
 #[derive(Debug, Clone)]
 pub struct FFISafetyData {
-    /// 基于168次FFI边界追踪的数据
+    /// Data based on 168 FFI boundary tracking instances
     pub boundary_crossings: Vec<FFICrossing>,
     pub safety_violations: Vec<SafetyViolation>,
     pub ownership_chain_analysis: Vec<OwnershipChainAnalysis>,
@@ -436,7 +454,7 @@ pub struct FFISafetyData {
     pub safety_score_timeline: Vec<(u64, f64)>,
 }
 
-/// 安全违规
+/// Safety violations
 #[derive(Debug, Clone)]
 pub struct SafetyViolation {
     pub violation_type: SafetyViolationType,
@@ -446,7 +464,7 @@ pub struct SafetyViolation {
     pub description: String,
 }
 
-/// 安全违规类型
+/// Safety violation types
 #[derive(Debug, Clone)]
 pub enum SafetyViolationType {
     MemoryLeak,
@@ -456,7 +474,7 @@ pub enum SafetyViolationType {
     FFIBoundaryViolation,
 }
 
-/// 所有权链分析
+/// Ownership chain analysis
 #[derive(Debug, Clone)]
 pub struct OwnershipChainAnalysis {
     pub variable_id: UnifiedVariableID,
@@ -478,7 +496,7 @@ impl FixedHybridTemplate {
         }
     }
     
-    /// 创建带有智能分析引擎的增强版模板
+    /// Create enhanced template with intelligent analysis engine
     pub fn new_with_intelligence(thread_count: usize, task_count: usize) -> Self {
         let analysis_engine = IntelligentAnalysisEngine {
             leak_detector: LeakDetector {
@@ -518,7 +536,7 @@ impl FixedHybridTemplate {
         }
     }
     
-    /// 设置透镜联动状态
+    /// Set lens linkage state
     pub fn with_lens_state(mut self, state: LensLinkageState) -> Self {
         self.lens_state = state;
         self
@@ -536,7 +554,7 @@ impl FixedHybridTemplate {
         self
     }
     
-    /// 🔗 智能透镜联动：Performance → Concurrency
+    /// Intelligent lens linkage: Performance → Concurrency
     pub fn trigger_performance_to_concurrency_linkage(
         &self,
         data: &HybridAnalysisData,
@@ -572,7 +590,7 @@ impl FixedHybridTemplate {
         }
     }
     
-    /// 🔗 智能透镜联动：Concurrency → Safety
+    /// Intelligent lens linkage: Concurrency → Safety
     pub fn trigger_concurrency_to_safety_linkage(
         &self,
         data: &HybridAnalysisData,
@@ -614,7 +632,7 @@ impl FixedHybridTemplate {
         }
     }
     
-    /// 🔗 智能透镜联动：Safety → Performance 回溯
+    /// Intelligent lens linkage: Safety → Performance backtracking
     pub fn trigger_safety_to_performance_linkage(
         &self,
         data: &HybridAnalysisData,
@@ -652,14 +670,14 @@ impl FixedHybridTemplate {
         }
     }
     
-    /// 🎯 内存泄漏智能检测
+    /// Intelligent memory leak detection
     pub fn detect_memory_leaks(&self, data: &HybridAnalysisData) -> Vec<FFILeakInfo> {
         let mut leaks = Vec::new();
         
-        // 基于真实的track_var_owned!数据进行检测
+        // Detection based on real track_var_owned! data
         for (var_name, var_detail) in &data.variable_registry {
-            // 检查渐进式泄漏：内存使用量持续增长
-            if var_detail.memory_usage > 10 * 1024 * 1024 { // 10MB 阈值
+            // Check for progressive leaks: continuous memory usage growth
+            if var_detail.memory_usage > 10 * 1024 * 1024 { // 10MB threshold
                 if matches!(var_detail.lifecycle_stage, LifecycleStage::Active) {
                     // 检查是否为FFI边界泄漏
                     if let Some(unified_id) = self.find_unified_variable_id(data, var_name) {
@@ -678,7 +696,7 @@ impl FixedHybridTemplate {
         leaks
     }
     
-    /// 🔄 并发竞争深度分析
+    /// Deep concurrency race analysis
     pub fn analyze_concurrency_races(&self, data: &HybridAnalysisData) -> Vec<RaceCondition> {
         let mut races = Vec::new();
         
@@ -712,7 +730,7 @@ impl FixedHybridTemplate {
         races
     }
     
-    /// 🛡️ FFI安全深度审计
+    /// Deep FFI safety audit
     pub fn audit_ffi_safety(&self, data: &HybridAnalysisData) -> FFISafetyData {
         let mut boundary_crossings = Vec::new();
         let mut safety_violations = Vec::new();
@@ -886,7 +904,6 @@ impl FixedHybridTemplate {
         // Build HTML structure
         html_content.push_str(&self.build_html_header());
         html_content.push_str(&self.build_navigation_bar());
-        html_content.push_str(&self.build_memory_continent_overview(data)?);
         html_content.push_str(&self.build_territory_treemap(data)?);
         html_content.push_str(&self.build_interactive_drilldown_panel(data)?);
         html_content.push_str(&self.build_performance_charts(data)?);
@@ -1736,8 +1753,8 @@ impl FixedHybridTemplate {
                     <div class="primary-lens-row">
                         <button class="lens-button active" id="concurrency-lens" data-lens="concurrency" onclick="switchAnalysisLens('concurrency')">
                             <div class="lens-icon">🚀</div>
-                            <div class="lens-text">Concurrency Ocean</div>
-                            <div class="lens-subtitle">Thread/Task Deep Dive</div>
+                            <div class="lens-text">Concurrency</div>
+                            <div class="lens-subtitle">Thread/Task Analysis</div>
                         </button>
                         <button class="lens-button" id="safety-lens" data-lens="safety" onclick="switchAnalysisLens('safety')">
                             <div class="lens-icon">🛡️</div>
@@ -1751,303 +1768,10 @@ impl FixedHybridTemplate {
                         </button>
                     </div>
                     
-                    <!-- 细粒度数据挖掘控制器 -->
-                    <div class="data-mining-controls">
-                        <div class="mining-depth-selector">
-                            <label>🔍 Mining Depth:</label>
-                            <select id="mining-depth" onchange="adjustMiningDepth(this.value)">
-                                <option value="surface">Surface Scan</option>
-                                <option value="deep" selected>Deep Analysis</option>
-                                <option value="molecular">Molecular Level</option>
-                            </select>
-                        </div>
-                        <div class="cross-lens-linkage">
-                            <button id="auto-link-toggle" onclick="toggleAutoLinkage()" class="auto-link-btn active">
-                                🔗 Auto Cross-Link
-                            </button>
-                        </div>
-                        <div class="data-flow-indicator">
-                            <div class="flow-badge" id="active-flows">
-                                <span class="flow-count">0</span> Active Flows
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </div>"#,
             self.thread_count, self.task_count
         )
-    }
-
-    /// Build Memory Continent overview with territorial summary
-    fn build_memory_continent_overview(&self, data: &HybridAnalysisData) -> Result<String, Box<dyn std::error::Error>> {
-        let total_variables = data.variable_registry.len();
-        let total_memory = data.variable_registry.values()
-            .map(|v| v.memory_usage)
-            .sum::<u64>();
-        let active_variables = data.variable_registry.values()
-            .filter(|v| matches!(v.lifecycle_stage, LifecycleStage::Active))
-            .count();
-
-        Ok(format!(r#"
-        <!-- 主工作台布局 - 三透镜深度联合分析 -->
-        <div class="workbench-layout">
-            <!-- 主视图区域 (75%) - 透镜内容 -->
-            <div class="main-analysis-area">
-                
-                <!-- Concurrency Ocean Lens - 默认激活 -->
-                <div class="lens-content active" id="concurrency-content">
-                    <div class="lens-header">
-                        <h2>🚀 Concurrency Ocean - Thread/Task Deep Analysis</h2>
-                        <div class="analysis-stats">
-                            <span class="stat-badge">Threads: {}</span>
-                            <span class="stat-badge">Tasks: {}</span>
-                            <span class="stat-badge">Variables: {}</span>
-                            <span class="stat-badge">Relationships: {}</span>
-                        </div>
-                    </div>
-                    
-                    <!-- 多维度可视化容器 -->
-                    <div class="multi-dimensional-viz">
-                        <!-- 3D线程/任务关系图 -->
-                        <div class="viz-panel" id="thread-task-3d">
-                            <h3>🌐 3D Thread-Task Relationship Graph</h3>
-                            <div class="threejs-container" id="concurrency-3d-canvas"></div>
-                        </div>
-                        
-                        <!-- 变量流动热力图 -->
-                        <div class="viz-panel" id="variable-flow-heatmap">
-                            <h3>🌡️ Variable Flow Heatmap</h3>
-                            <div class="heatmap-container" id="concurrency-heatmap"></div>
-                        </div>
-                        
-                        <!-- 实时数据流监控 -->
-                        <div class="viz-panel" id="realtime-flow-monitor">
-                            <h3>📡 Real-time Data Flow Monitor</h3>
-                            <div class="flow-monitor-container" id="flow-monitor"></div>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Safety Audit Lens -->
-                <div class="lens-content" id="safety-content">
-                    <div class="lens-header">
-                        <h2>🛡️ Safety Audit - FFI/Unsafe Deep Scan</h2>
-                        <div class="safety-metrics">
-                            <span class="safety-score">Safety Score: <span id="safety-score">94.2%</span></span>
-                            <span class="risk-level">Risk Level: <span id="risk-level">LOW</span></span>
-                        </div>
-                    </div>
-                    
-                    <!-- 安全分析可视化 -->
-                    <div class="safety-analysis-viz">
-                        <!-- 内存安全泳道图 -->
-                        <div class="viz-panel" id="memory-safety-swimlane">
-                            <h3>🏊 Memory Safety Swimlane</h3>
-                            <div class="swimlane-container" id="safety-swimlane"></div>
-                        </div>
-                        
-                        <!-- FFI边界审计图 -->
-                        <div class="viz-panel" id="ffi-boundary-audit">
-                            <h3>⚡ FFI Boundary Audit</h3>
-                            <div class="boundary-audit-container" id="ffi-audit"></div>
-                        </div>
-                        
-                        <!-- 内存泄漏检测器 -->
-                        <div class="viz-panel" id="leak-detector">
-                            <h3>🔍 Memory Leak Detector</h3>
-                            <div class="leak-detector-container" id="leak-detection"></div>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Performance Mining Lens -->
-                <div class="lens-content" id="performance-content">
-                    <div class="lens-header">
-                        <h2>📈 Performance Mining - Time-series Deep Analytics</h2>
-                        <div class="performance-kpis">
-                            <span class="kpi-item">Avg Alloc: <span id="avg-alloc">2.3ms</span></span>
-                            <span class="kpi-item">Peak Memory: <span id="peak-memory">{:.1}MB</span></span>
-                            <span class="kpi-item">Efficiency: <span id="efficiency">{}%</span></span>
-                        </div>
-                    </div>
-                    
-                    <!-- 性能挖掘可视化 -->
-                    <div class="performance-mining-viz">
-                        <!-- 多维时间序列图 -->
-                        <div class="viz-panel" id="multi-dimensional-timeseries">
-                            <h3>📊 Multi-dimensional Time Series</h3>
-                            <div class="timeseries-container" id="performance-timeseries"></div>
-                        </div>
-                        
-                        <!-- 变量生命周期瀑布图 -->
-                        <div class="viz-panel" id="variable-lifecycle-waterfall">
-                            <h3>💧 Variable Lifecycle Waterfall</h3>
-                            <div class="waterfall-container" id="lifecycle-waterfall"></div>
-                        </div>
-                        
-                        <!-- 内存分配模式识别 -->
-                        <div class="viz-panel" id="allocation-pattern-recognition">
-                            <h3>🧠 Allocation Pattern Recognition</h3>
-                            <div class="pattern-container" id="pattern-recognition"></div>
-                        </div>
-                    </div>
-                </div>
-                
-            </div>
-            
-            <!-- 侧边栏 (25%) - 深度数据挖掘面板 -->
-            <div class="deep-analysis-sidebar">
-                
-                <!-- 全局数据挖掘控制台 -->
-                <div class="mining-console">
-                    <h3>🌊 Data Ocean Console</h3>
-                    <div class="console-metrics">
-                        <div class="metric-row">
-                            <span>Track Variables:</span>
-                            <span class="metric-value">{}</span>
-                        </div>
-                        <div class="metric-row">
-                            <span>Memory Tracked:</span>
-                            <span class="metric-value">{:.1}MB</span>
-                        </div>
-                        <div class="metric-row">
-                            <span>Active Scopes:</span>
-                            <span class="metric-value">{}</span>
-                        </div>
-                        <div class="metric-row">
-                            <span>FFI Crossings:</span>
-                            <span class="metric-value">{}</span>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- 透镜特定侧边栏 -->
-                <div class="lens-sidebar active" id="concurrency-sidebar">
-                    <h3>🎯 Concurrency Deep Dive</h3>
-                    <div class="deep-analysis-panel">
-                        <!-- 线程竞争热点 -->
-                        <div class="analysis-section">
-                            <h4>🔥 Thread Contention Hotspots</h4>
-                            <div id="thread-contention-list"></div>
-                        </div>
-                        
-                        <!-- 变量共享模式 -->
-                        <div class="analysis-section">
-                            <h4>🔄 Variable Sharing Patterns</h4>
-                            <div id="variable-sharing-patterns"></div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="lens-sidebar" id="safety-sidebar">
-                    <h3>🛡️ Safety Deep Audit</h3>
-                    <div class="deep-analysis-panel">
-                        <!-- 内存安全报告 -->
-                        <div class="analysis-section">
-                            <h4>📋 Memory Safety Report</h4>
-                            <div id="memory-safety-report"></div>
-                        </div>
-                        
-                        <!-- FFI风险评估 -->
-                        <div class="analysis-section">
-                            <h4>⚠️ FFI Risk Assessment</h4>
-                            <div id="ffi-risk-assessment"></div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="lens-sidebar" id="performance-sidebar">
-                    <h3>📈 Performance Insights</h3>
-                    <div class="deep-analysis-panel">
-                        <!-- 性能瓶颈识别 -->
-                        <div class="analysis-section">
-                            <h4>🚫 Performance Bottlenecks</h4>
-                            <div id="performance-bottlenecks"></div>
-                        </div>
-                        
-                        <!-- 内存使用趋势 -->
-                        <div class="analysis-section">
-                            <h4>📈 Memory Usage Trends</h4>
-                            <div id="memory-usage-trends"></div>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- 跨透镜智能联动面板 -->
-                <div class="cross-lens-linkage-panel">
-                    <h3>🔗 Cross-Lens Intelligence</h3>
-                    <div class="linkage-status">
-                        <div class="linkage-indicator" id="linkage-indicator">
-                            <span class="status-dot active"></span>
-                            <span>Auto-linking Active</span>
-                        </div>
-                    </div>
-                    <div class="active-links" id="active-cross-links">
-                        <!-- 动态生成的跨透镜链接 -->
-                    </div>
-                </div>
-                
-            </div>
-        </div>
-        
-        <div class="section">
-            
-            <div class="performance-grid">
-                <div class="perf-card">
-                    <div class="perf-value">{}</div>
-                    <div class="perf-label">🏞️ Total Territories</div>
-                </div>
-                <div class="perf-card">
-                    <div class="perf-value">{}</div>
-                    <div class="perf-label">📊 Variables Tracked</div>
-                </div>
-                <div class="perf-card">
-                    <div class="perf-value">{:.1}MB</div>
-                    <div class="perf-label">💾 Total Memory</div>
-                </div>
-                <div class="perf-card">
-                    <div class="perf-value">{}%</div>
-                    <div class="perf-label">🎯 Memory Efficiency</div>
-                </div>
-            </div>
-            
-            <div class="metric-row">
-                <span>🧵 Main Thread Territory:</span>
-                <span class="metric-value">{:.1}% of memory</span>
-            </div>
-            <div class="metric-row">
-                <span>🔄 Thread Pool Territory:</span>
-                <span class="metric-value">{:.1}% of memory</span>
-            </div>
-            <div class="metric-row">
-                <span>⚡ Async Runtime Territory:</span>
-                <span class="metric-value">{:.1}% of memory</span>
-            </div>
-            <div class="metric-row">
-                <span>🛡️ FFI Boundary Zone:</span>
-                <span class="metric-value">{:.1}% of memory</span>
-            </div>
-        </div>
-        "#, 
-        self.thread_count, // Threads
-        self.task_count,   // Tasks  
-        total_variables,   // Variables
-        data.variable_relationships.len(), // Relationships
-        total_variables,   // Track Variables
-        total_memory as f64 / 1024.0 / 1024.0, // Memory Tracked
-        data.variable_registry.values().filter(|v| matches!(v.lifecycle_stage, LifecycleStage::Active)).count(), // Active Scopes
-        data.unified_variable_index.len(), // FFI Crossings
-        total_memory as f64 / 1024.0 / 1024.0, // Peak Memory
-        if total_variables > 0 { (active_variables as f64 / total_variables as f64 * 100.0).round() } else { 0.0 }, // Efficiency
-        4, // Total territories
-        total_variables,   // Variables (for perf card)
-        total_memory as f64 / 1024.0 / 1024.0, // Memory (for perf card)
-        if total_variables > 0 { (active_variables as f64 / total_variables as f64 * 100.0).round() } else { 0.0 }, // Efficiency (for perf card)
-        5.0,  // Main thread percentage
-        75.0, // Thread pool percentage
-        18.0, // Async runtime percentage
-        2.0   // FFI boundaries percentage
-        ))
     }
 
     /// Build Territory Treemap - the core "Memory Continent" visualization
@@ -2678,12 +2402,12 @@ impl FixedHybridTemplate {
 
     /// Build JavaScript for interactive charts
     fn build_chart_scripts(&self, data: &HybridAnalysisData) -> String {
-        let cpu_data = format!("{:?}", data.performance_metrics.cpu_usage);
-        let memory_data = format!("{:?}", data.performance_metrics.memory_usage.iter().map(|&x| x as f64 / 1024.0 / 1024.0).collect::<Vec<f64>>());
-        let io_data = format!("{:?}", data.performance_metrics.io_operations);
-        let network_data = format!("{:?}", data.performance_metrics.network_bytes.iter().map(|&x| x as f64 / 1024.0).collect::<Vec<f64>>());
+        let _cpu_data = format!("{:?}", data.performance_metrics.cpu_usage);
+        let _memory_data = format!("{:?}", data.performance_metrics.memory_usage.iter().map(|&x| x as f64 / 1024.0 / 1024.0).collect::<Vec<f64>>());
+        let _io_data = format!("{:?}", data.performance_metrics.io_operations);
+        let _network_data = format!("{:?}", data.performance_metrics.network_bytes.iter().map(|&x| x as f64 / 1024.0).collect::<Vec<f64>>());
         let timestamps: Vec<String> = data.performance_metrics.timestamps.iter().enumerate().map(|(i, _)| format!("{}s", i)).collect();
-        let labels = format!("{:?}", timestamps);
+        let _labels = format!("{:?}", timestamps);
 
         format!(r#"
         <script>
@@ -3806,24 +3530,13 @@ impl FixedHybridTemplate {
             loadLensContent(lensName);
         }
         
-        // 🌊 深度数据挖掘系统 - Deep Data Mining System
+        // Deep Data Mining System
         let currentMiningDepth = 'deep';
         let autoLinkageEnabled = true;
         let crossLensFlows = [];
         let dataOceanCache = new Map();
         
-        // 🔧 核心控制函数 - 修复undefined错误
-        function adjustMiningDepth(depth) {
-            console.log('🔍 Adjusting mining depth to:', depth);
-            currentMiningDepth = depth;
-            
-            // 重新加载当前透镜的内容以反映新的挖掘深度
-            const activeLens = document.querySelector('.lens-button.active')?.getAttribute('data-lens') || 'concurrency';
-            loadLensContent(activeLens);
-            
-            // 显示深度变化提示
-            showMiningDepthNotification(depth);
-        }
+        // Core control function - Fix undefined errors
         
         function toggleAutoLinkage() {
             autoLinkageEnabled = !autoLinkageEnabled;
@@ -3839,29 +3552,13 @@ impl FixedHybridTemplate {
                 console.log('❌ Auto cross-linkage disabled');
             }
             
-            // 更新跨透镜数据流
+            // Update cross-lens data flows
             const activeLens = document.querySelector('.lens-button.active')?.getAttribute('data-lens') || 'concurrency';
-            updateCrossLensFlows(activeLens);
+            if (typeof updateCrossLensFlows === 'function') {
+                updateCrossLensFlows(activeLens);
+            }
         }
         
-        function showMiningDepthNotification(depth) {
-            const notification = document.createElement('div');
-            notification.style.cssText = `
-                position: fixed; top: 20px; right: 20px; z-index: 1000;
-                background: #3b82f6; color: white; padding: 12px 20px;
-                border-radius: 8px; font-size: 14px; font-weight: 500;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-                transform: translateX(100%); transition: transform 0.3s ease;
-            `;
-            notification.textContent = `🔍 Mining depth: ${depth}`;
-            document.body.appendChild(notification);
-            
-            setTimeout(() => notification.style.transform = 'translateX(0)', 100);
-            setTimeout(() => {
-                notification.style.transform = 'translateX(100%)';
-                setTimeout(() => document.body.removeChild(notification), 300);
-            }, 2000);
-        }
         
         // 清除之前的分析数据
         function clearPreviousAnalysis() {
@@ -3895,47 +3592,49 @@ impl FixedHybridTemplate {
             // 清除之前的分析数据
             clearPreviousAnalysis();
             
-            // 根据挖掘深度加载数据
+            // Load data based on mining depth
             switch(lensName) {
                 case 'concurrency':
-                    loadConcurrencyOceanAnalysis();
-                    break;
-                case 'safety':
-                    loadSafetyDeepAudit();
+                    loadConcurrencyAnalysis();
                     break;
                 case 'performance':
-                    loadPerformanceMiningAnalysis();
+                    loadPerformanceAnalysis();
+                    break;
+                case 'safety':
+                    loadSafetyAnalysis();
                     break;
                 default:
                     console.warn('❌ Unknown lens:', lensName);
             }
             
-            // 更新跨透镜数据流
-            updateCrossLensFlows(lensName);
+            // Update cross-lens data flows
+            if (typeof updateCrossLensFlows === 'function') {
+                updateCrossLensFlows(lensName);
+            }
         }
         
-        // 🚀 Concurrency Ocean - 深度并发分析
-        function loadConcurrencyOceanAnalysis() {
-            console.log('🚀 Loading Concurrency Ocean Analysis...');
+        // Concurrency Analysis - Core concurrency analysis
+        function loadConcurrencyAnalysis() {
+            console.log('🚀 Loading Concurrency Analysis...');
             
-            // 从全局数据中提取线程/任务关系
+            // Extract thread/task relationships from global data
             const threads = extractThreadData();
             const tasks = extractTaskData();
             const variableFlows = extractVariableFlows();
             
-            // 更新统计数据
+            // Update statistical data
             updateConcurrencyStats(threads.length, tasks.length, variableFlows.length);
             
-            // 渲染3D线程任务关系图
+            // Render 3D thread-task relationship graph
             render3DThreadTaskGraph(threads, tasks);
             
-            // 渲染变量流动热力图
+            // Render variable flow heatmap
             renderVariableFlowHeatmap(variableFlows);
             
-            // 渲染实时数据流监控
+            // Render realtime data flow monitoring
             renderRealtimeFlowMonitor();
             
-            // 加载侧边栏深度分析
+            // Load sidebar deep analysis
             loadConcurrencySidebarAnalysis(threads, tasks, variableFlows);
         }
         

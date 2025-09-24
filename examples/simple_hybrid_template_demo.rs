@@ -10,6 +10,7 @@
 use memscope_rs::export::fixed_hybrid_template::{
     create_sample_hybrid_data, FixedHybridTemplate, RenderMode
 };
+use serde::{Serialize, Deserialize};
 use memscope_rs::lockfree::api as lockfree_api;
 use memscope_rs::async_memory::api as async_api;
 use memscope_rs::{track_var, track_var_owned}; 
@@ -110,7 +111,7 @@ struct EnhancedMemoryCoordinator {
 }
 
 /// Unified variable identity system
-#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+#[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
 struct UnifiedVariableID {
     thread_id: usize,           // Provided by lockfree module
     task_id: Option<usize>,     // Provided by async module  
@@ -120,28 +121,28 @@ struct UnifiedVariableID {
 }
 
 /// Cross-module data correlation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct CrossModuleData {
     lockfree_data: Option<LockfreeTrackingData>,
     async_data: Option<AsyncTrackingData>,
     macro_data: Option<MacroTrackingData>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct LockfreeTrackingData {
     thread_id: usize,
     memory_usage: usize,
     allocation_count: usize,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct AsyncTrackingData {
     task_id: usize,
     task_type: String,
     memory_peak: usize,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct MacroTrackingData {
     var_name: String,
     size_bytes: usize,
@@ -150,7 +151,7 @@ struct MacroTrackingData {
 }
 
 /// Event chain tracking
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 enum Event {
     Allocation { var_id: UnifiedVariableID, size: usize },
     ThreadBinding { var_id: UnifiedVariableID, thread_id: usize },
