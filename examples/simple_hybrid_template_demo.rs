@@ -106,6 +106,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 /// Enhanced Memory Coordinator - True multi-module integration
 #[derive(Debug)]
+#[allow(dead_code)]
 struct EnhancedMemoryCoordinator {
     // Legacy data structures
     thread_memories: Vec<ThreadMemoryInfo>,
@@ -192,6 +193,7 @@ enum Event {
 
 /// Lens correlation context
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct LensContext {
     current_lens: String,
     selected_timerange: Option<(u64, u64)>,
@@ -201,6 +203,7 @@ struct LensContext {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct CrossLensCorrelation {
     source_lens: String,
     target_lens: String,
@@ -1019,6 +1022,7 @@ fn calculate_memory_distribution_efficiency(
 }
 
 /// Original analysis summary for compatibility
+#[allow(dead_code)]
 fn print_analysis_summary(data: &memscope_rs::export::fixed_hybrid_template::HybridAnalysisData) {
     let total_variables = data.variable_registry.len();
     let total_memory: u64 = data

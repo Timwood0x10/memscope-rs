@@ -83,12 +83,14 @@ pub mod primitives {
     }
 
     /// Write a f32 value in little endian
+    #[allow(dead_code)]
     pub fn write_f32<W: Write>(writer: &mut W, value: f32) -> Result<usize, BinaryExportError> {
         writer.write_all(&value.to_le_bytes())?;
         Ok(4)
     }
 
     /// Read a f32 value in little endian
+    #[allow(dead_code)]
     pub fn read_f32<R: Read>(reader: &mut R) -> Result<f32, BinaryExportError> {
         let mut buffer = [0u8; 4];
         reader.read_exact(&mut buffer)?;
@@ -155,6 +157,7 @@ pub mod primitives {
     }
 
     /// Write an optional string
+    #[allow(dead_code)]
     pub fn write_string_option<W: Write>(
         writer: &mut W,
         value: &Option<String>,
@@ -172,6 +175,7 @@ pub mod primitives {
     }
 
     /// Read an optional string
+    #[allow(dead_code)]
     pub fn read_string_option<R: Read>(
         reader: &mut R,
     ) -> Result<Option<String>, BinaryExportError> {
