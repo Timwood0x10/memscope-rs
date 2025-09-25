@@ -9,7 +9,9 @@ use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use super::comprehensive_export::export_comprehensive_analysis;
-use super::resource_integration::{ComprehensiveAnalysis, PerformanceInsights, CorrelationMetrics, BottleneckType};
+use super::resource_integration::{
+    BottleneckType, ComprehensiveAnalysis, CorrelationMetrics, PerformanceInsights,
+};
 
 /// Global tracking state for lockfree module
 static TRACKING_ENABLED: AtomicBool = AtomicBool::new(false);
@@ -302,7 +304,9 @@ fn generate_reports(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>>
             cpu_efficiency_score: 50.0,
             memory_efficiency_score: 75.0,
             io_efficiency_score: 60.0,
-            recommendations: vec!["Consider using memory pools for frequent allocations".to_string()],
+            recommendations: vec![
+                "Consider using memory pools for frequent allocations".to_string()
+            ],
             thread_performance_ranking: Vec::new(),
         },
         correlation_metrics: CorrelationMetrics {
@@ -313,7 +317,7 @@ fn generate_reports(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>>
             deallocation_rate_vs_memory_pressure: 0.2,
         },
     };
-    
+
     export_comprehensive_analysis(&comprehensive_analysis, output_dir, "api_export")?;
 
     // Generate JSON data export

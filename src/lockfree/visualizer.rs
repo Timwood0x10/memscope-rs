@@ -17,7 +17,6 @@ pub fn generate_comprehensive_html_report(
     Ok(())
 }
 
-
 /// Build comprehensive HTML report with CPU/GPU/Memory visualizations
 fn build_comprehensive_html_report(
     comprehensive_analysis: &ComprehensiveAnalysis,
@@ -2588,7 +2587,6 @@ fn build_system_summary_tab(
 
     Ok(html)
 }
-
 
 fn classify_thread_role(
     allocations: u64,

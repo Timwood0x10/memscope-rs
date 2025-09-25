@@ -419,7 +419,6 @@ impl LockfreeAggregator {
         Ok(())
     }
 
-
     #[allow(dead_code)]
     fn build_html_report_legacy(
         &self,

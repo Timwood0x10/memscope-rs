@@ -340,8 +340,10 @@ fn generate_enhanced_system_html(
     let html_path = output_dir.join("system_analysis_report.html");
     // Use comprehensive analysis instead of simple HTML
     use super::comprehensive_export::export_comprehensive_analysis;
-    use super::resource_integration::{ComprehensiveAnalysis, PerformanceInsights, CorrelationMetrics, BottleneckType};
-    
+    use super::resource_integration::{
+        BottleneckType, ComprehensiveAnalysis, CorrelationMetrics, PerformanceInsights,
+    };
+
     // Create a comprehensive analysis from the lockfree analysis
     let comprehensive_analysis = ComprehensiveAnalysis {
         memory_analysis: memory_analysis.clone(),
@@ -351,7 +353,9 @@ fn generate_enhanced_system_html(
             cpu_efficiency_score: 50.0,
             memory_efficiency_score: 75.0,
             io_efficiency_score: 60.0,
-            recommendations: vec!["Consider using memory pools for frequent allocations".to_string()],
+            recommendations: vec![
+                "Consider using memory pools for frequent allocations".to_string()
+            ],
             thread_performance_ranking: Vec::new(),
         },
         correlation_metrics: CorrelationMetrics {
@@ -362,7 +366,7 @@ fn generate_enhanced_system_html(
             deallocation_rate_vs_memory_pressure: 0.2,
         },
     };
-    
+
     export_comprehensive_analysis(&comprehensive_analysis, output_dir, "enhanced_api")?;
 
     // TODO: Add system resource charts to the HTML

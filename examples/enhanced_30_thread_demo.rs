@@ -12,12 +12,14 @@
 //! - Full enhanced: cargo run --example enhanced_30_thread_demo --features enhanced-tracking
 
 use memscope_rs::lockfree::aggregator::LockfreeAggregator;
-use memscope_rs::lockfree::resource_integration::{ComprehensiveAnalysis, PerformanceInsights, CorrelationMetrics, BottleneckType};
-use std::path::Path;
+use memscope_rs::lockfree::resource_integration::{
+    BottleneckType, ComprehensiveAnalysis, CorrelationMetrics, PerformanceInsights,
+};
 use memscope_rs::lockfree::tracker::{
     finalize_thread_tracker, init_thread_tracker, track_allocation_lockfree,
     track_deallocation_lockfree, SamplingConfig,
 };
+use std::path::Path;
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -465,7 +467,7 @@ fn analyze_enhanced_data(output_dir: &std::path::Path) -> Result<(), Box<dyn std
 
     // Use the same comprehensive analysis export as verified_selective_demo.rs
     use memscope_rs::lockfree::comprehensive_export::export_comprehensive_analysis;
-    
+
     // Create a comprehensive analysis from the lockfree analysis
     let comprehensive_analysis = ComprehensiveAnalysis {
         memory_analysis: analysis,
@@ -475,7 +477,9 @@ fn analyze_enhanced_data(output_dir: &std::path::Path) -> Result<(), Box<dyn std
             cpu_efficiency_score: 50.0,
             memory_efficiency_score: 75.0,
             io_efficiency_score: 60.0,
-            recommendations: vec!["Consider using memory pools for frequent allocations".to_string()],
+            recommendations: vec![
+                "Consider using memory pools for frequent allocations".to_string()
+            ],
             thread_performance_ranking: Vec::new(),
         },
         correlation_metrics: CorrelationMetrics {
@@ -486,8 +490,12 @@ fn analyze_enhanced_data(output_dir: &std::path::Path) -> Result<(), Box<dyn std
             deallocation_rate_vs_memory_pressure: 0.2,
         },
     };
-    
-    export_comprehensive_analysis(&comprehensive_analysis, Path::new("./Memoryanalysis"), "enhanced_demo")?;
+
+    export_comprehensive_analysis(
+        &comprehensive_analysis,
+        Path::new("./Memoryanalysis"),
+        "enhanced_demo",
+    )?;
 
     println!("\n📄 Enhanced Reports Generated:");
     println!("   🌐 HTML: ./Memoryanalysis/enhanced_demo_dashboard.html");

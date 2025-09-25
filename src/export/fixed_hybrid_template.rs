@@ -5,19 +5,18 @@
 //! that showcase variable details across multiple threads and tasks.
 
 use crate::async_memory::visualization::VisualizationConfig;
-use crate::lockfree::{LockfreeAnalysis};
-use std::collections::{HashMap, BTreeMap};
-use std::sync::Arc;
-use serde::{Serialize, Deserialize};
+use crate::lockfree::LockfreeAnalysis;
+use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, HashMap};
 
 /// Unified Variable Identity System - Core of three-module integration
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct UnifiedVariableID {
-    pub thread_id: usize,           // Provided by lockfree module
-    pub task_id: Option<usize>,     // Provided by async module
-    pub var_name: String,           // Provided by tracking macro
+    pub thread_id: usize,              // Provided by lockfree module
+    pub task_id: Option<usize>,        // Provided by async module
+    pub var_name: String,              // Provided by tracking macro
     pub allocation_site: CodeLocation, // Call stack information
-    pub timestamp: u64,             // Unified timestamp
+    pub timestamp: u64,                // Unified timestamp
 }
 
 /// Code location information
@@ -31,20 +30,61 @@ pub struct CodeLocation {
 /// Cross-module event types
 #[derive(Debug, Clone)]
 pub enum CrossModuleEvent {
-    Allocation { id: UnifiedVariableID, size: u64 },
-    ThreadAssignment { id: UnifiedVariableID, thread_id: usize },
-    TaskBinding { id: UnifiedVariableID, task_id: usize },
-    FFICrossing { id: UnifiedVariableID, direction: FFIDirection },
-    Deallocation { id: UnifiedVariableID },
-    SmartPointerOperation { id: UnifiedVariableID, operation_type: String },  // Rc/Arc clone/drop
-    CollectionOperation { id: UnifiedVariableID, operation_type: String },    // Vec/HashMap resize
-    BorrowingOperation { id: UnifiedVariableID, borrow_type: String },        // RefCell/Mutex borrow
-    WeakPointerOperation { id: UnifiedVariableID, operation_type: String },   // Weak upgrade/downgrade
-    AsyncOperation { id: UnifiedVariableID, async_type: String },             // Future/Task state changes
-    ClosureOperation { id: UnifiedVariableID, capture_info: String },         // Closure creation/invocation
-    TupleOperation { id: UnifiedVariableID, field_access: String },           // Tuple field access
-    ResultOperation { id: UnifiedVariableID, result_type: String },           // Result unwrap/error
-    OptionOperation { id: UnifiedVariableID, option_type: String },           // Option Some/None
+    Allocation {
+        id: UnifiedVariableID,
+        size: u64,
+    },
+    ThreadAssignment {
+        id: UnifiedVariableID,
+        thread_id: usize,
+    },
+    TaskBinding {
+        id: UnifiedVariableID,
+        task_id: usize,
+    },
+    FFICrossing {
+        id: UnifiedVariableID,
+        direction: FFIDirection,
+    },
+    Deallocation {
+        id: UnifiedVariableID,
+    },
+    SmartPointerOperation {
+        id: UnifiedVariableID,
+        operation_type: String,
+    }, // Rc/Arc clone/drop
+    CollectionOperation {
+        id: UnifiedVariableID,
+        operation_type: String,
+    }, // Vec/HashMap resize
+    BorrowingOperation {
+        id: UnifiedVariableID,
+        borrow_type: String,
+    }, // RefCell/Mutex borrow
+    WeakPointerOperation {
+        id: UnifiedVariableID,
+        operation_type: String,
+    }, // Weak upgrade/downgrade
+    AsyncOperation {
+        id: UnifiedVariableID,
+        async_type: String,
+    }, // Future/Task state changes
+    ClosureOperation {
+        id: UnifiedVariableID,
+        capture_info: String,
+    }, // Closure creation/invocation
+    TupleOperation {
+        id: UnifiedVariableID,
+        field_access: String,
+    }, // Tuple field access
+    ResultOperation {
+        id: UnifiedVariableID,
+        result_type: String,
+    }, // Result unwrap/error
+    OptionOperation {
+        id: UnifiedVariableID,
+        option_type: String,
+    }, // Option Some/None
 }
 
 /// FFI direction
@@ -71,14 +111,14 @@ pub enum RelationType {
     TaskHandover,
     FFIBoundary,
     OwnershipTransfer,
-    SmartPointerClone,     // Rc::clone, Arc::clone relationships
-    WeakPointerUpgrade,    // Weak::upgrade operations
-    CollectionResize,      // Vec/HashMap capacity changes
-    HeapReallocation,      // Memory reallocation events
-    RefCellBorrow,         // RefCell dynamic borrowing patterns
-    MutexLock,             // Mutex/RwLock access synchronization
-    AsyncTaskSpawn,        // Async task creation relationships
-    ClosureCapture,        // Closure variable capture analysis
+    SmartPointerClone,  // Rc::clone, Arc::clone relationships
+    WeakPointerUpgrade, // Weak::upgrade operations
+    CollectionResize,   // Vec/HashMap capacity changes
+    HeapReallocation,   // Memory reallocation events
+    RefCellBorrow,      // RefCell dynamic borrowing patterns
+    MutexLock,          // Mutex/RwLock access synchronization
+    AsyncTaskSpawn,     // Async task creation relationships
+    ClosureCapture,     // Closure variable capture analysis
 }
 
 /// Intelligent analysis engine
@@ -245,7 +285,11 @@ pub enum LensLinkageState {
     Performance,
     Concurrency,
     Safety,
-    Transitioning { from: Box<LensLinkageState>, to: Box<LensLinkageState>, progress: f64 },
+    Transitioning {
+        from: Box<LensLinkageState>,
+        to: Box<LensLinkageState>,
+        progress: f64,
+    },
 }
 
 /// Fixed hybrid template configuration for rendering complex data
@@ -280,16 +324,16 @@ pub struct HybridAnalysisData {
     pub performance_metrics: PerformanceTimeSeries,
     pub thread_classifications: HashMap<usize, ThreadWorkloadType>,
     pub task_classifications: HashMap<usize, TaskExecutionPattern>,
-    
+
     /// Core data structure for three-module integration
     pub unified_variable_index: HashMap<UnifiedVariableID, CrossModuleData>,
     pub timeline_events: BTreeMap<u64, Vec<CrossModuleEvent>>,
     pub variable_relationships: HashMap<String, Vec<RelationType>>,
     pub intelligent_analysis: Option<IntelligentAnalysisEngine>,
-    
+
     /// Lens linkage data
     pub lens_linkage_data: LensLinkageData,
-    
+
     /// FFI safety data
     pub ffi_safety_data: FFISafetyData,
 }
@@ -375,7 +419,7 @@ pub struct PerformanceAnomaly {
 #[derive(Debug, Clone)]
 pub enum AnomalyType {
     MemorySpike,
-    CpuSurge, 
+    CpuSurge,
     IoBlocking,
     ThreadStarvation,
 }
@@ -403,9 +447,9 @@ pub enum ConcurrencyRiskType {
 #[derive(Debug, Clone)]
 pub struct SafetyPerformanceImpact {
     pub leak_info: FFILeakInfo,
-    pub performance_degradation: f64, // Percentage
+    pub performance_degradation: f64,  // Percentage
     pub affected_timeline: (u64, u64), // (start, end)
-    pub suggested_lens: String, // "performance"
+    pub suggested_lens: String,        // "performance"
 }
 
 /// Linkage context
@@ -495,7 +539,7 @@ impl FixedHybridTemplate {
             lens_state: LensLinkageState::Performance,
         }
     }
-    
+
     /// Create enhanced template with intelligent analysis engine
     pub fn new_with_intelligence(thread_count: usize, task_count: usize) -> Self {
         let analysis_engine = IntelligentAnalysisEngine {
@@ -525,7 +569,7 @@ impl FixedHybridTemplate {
                 thread_affinity: HashMap::new(),
             },
         };
-        
+
         Self {
             thread_count,
             task_count,
@@ -535,7 +579,7 @@ impl FixedHybridTemplate {
             lens_state: LensLinkageState::Performance,
         }
     }
-    
+
     /// Set lens linkage state
     pub fn with_lens_state(mut self, state: LensLinkageState) -> Self {
         self.lens_state = state;
@@ -553,24 +597,29 @@ impl FixedHybridTemplate {
         self.variable_details_enabled = enabled;
         self
     }
-    
+
     /// Intelligent lens linkage: Performance → Concurrency
     pub fn trigger_performance_to_concurrency_linkage(
         &self,
-        data: &HybridAnalysisData,
+        _data: &HybridAnalysisData,
         anomaly: &PerformanceAnomaly,
     ) -> LinkageContext {
         LinkageContext {
             source_lens: "performance".to_string(),
             target_lens: "concurrency".to_string(),
             context_filter: ContextFilter {
-                time_range: Some((anomaly.timestamp.saturating_sub(5000), anomaly.timestamp + 5000)),
+                time_range: Some((
+                    anomaly.timestamp.saturating_sub(5000),
+                    anomaly.timestamp + 5000,
+                )),
                 thread_filter: anomaly.affected_threads.clone(),
                 task_filter: anomaly.affected_tasks.clone(),
                 variable_filter: Vec::new(),
             },
             transition_data: TransitionData {
-                highlighted_elements: anomaly.affected_threads.iter()
+                highlighted_elements: anomaly
+                    .affected_threads
+                    .iter()
                     .map(|&id| format!("thread-{}", id))
                     .collect(),
                 priority_sort: vec![
@@ -578,22 +627,20 @@ impl FixedHybridTemplate {
                     "thread-contention".to_string(),
                     "task-scheduling".to_string(),
                 ],
-                context_annotations: vec![
-                    ContextAnnotation {
-                        element_id: format!("anomaly-{}", anomaly.timestamp),
-                        annotation_type: "performance-spike".to_string(),
-                        message: format!("Performance anomaly detected: {:?}", anomaly.anomaly_type),
-                        severity: anomaly.severity,
-                    }
-                ],
+                context_annotations: vec![ContextAnnotation {
+                    element_id: format!("anomaly-{}", anomaly.timestamp),
+                    annotation_type: "performance-spike".to_string(),
+                    message: format!("Performance anomaly detected: {:?}", anomaly.anomaly_type),
+                    severity: anomaly.severity,
+                }],
             },
         }
     }
-    
+
     /// Intelligent lens linkage: Concurrency → Safety
     pub fn trigger_concurrency_to_safety_linkage(
         &self,
-        data: &HybridAnalysisData,
+        _data: &HybridAnalysisData,
         risk: &ConcurrencyRisk,
     ) -> LinkageContext {
         LinkageContext {
@@ -606,36 +653,40 @@ impl FixedHybridTemplate {
                 variable_filter: risk.involved_variables.clone(),
             },
             transition_data: TransitionData {
-                highlighted_elements: risk.involved_variables.iter()
+                highlighted_elements: risk
+                    .involved_variables
+                    .iter()
                     .map(|var| format!("variable-{}", var))
-                    .chain(risk.involved_threads.iter().map(|&id| format!("thread-{}", id)))
+                    .chain(
+                        risk.involved_threads
+                            .iter()
+                            .map(|&id| format!("thread-{}", id)),
+                    )
                     .collect(),
                 priority_sort: vec![
                     "ffi-boundaries".to_string(),
                     "unsafe-operations".to_string(),
                     "ownership-transfers".to_string(),
                 ],
-                context_annotations: vec![
-                    ContextAnnotation {
-                        element_id: format!("risk-{:?}", risk.risk_type),
-                        annotation_type: "concurrency-risk".to_string(),
-                        message: format!("Concurrency risk detected: {:?}", risk.risk_type),
-                        severity: match risk.risk_type {
-                            ConcurrencyRiskType::DataRace => 0.9,
-                            ConcurrencyRiskType::DeadlockPotential => 0.8,
-                            ConcurrencyRiskType::FFIUnsafeSharing => 0.95,
-                            ConcurrencyRiskType::MemoryContention => 0.6,
-                        },
-                    }
-                ],
+                context_annotations: vec![ContextAnnotation {
+                    element_id: format!("risk-{:?}", risk.risk_type),
+                    annotation_type: "concurrency-risk".to_string(),
+                    message: format!("Concurrency risk detected: {:?}", risk.risk_type),
+                    severity: match risk.risk_type {
+                        ConcurrencyRiskType::DataRace => 0.9,
+                        ConcurrencyRiskType::DeadlockPotential => 0.8,
+                        ConcurrencyRiskType::FFIUnsafeSharing => 0.95,
+                        ConcurrencyRiskType::MemoryContention => 0.6,
+                    },
+                }],
             },
         }
     }
-    
+
     /// Intelligent lens linkage: Safety → Performance backtracking
     pub fn trigger_safety_to_performance_linkage(
         &self,
-        data: &HybridAnalysisData,
+        _data: &HybridAnalysisData,
         impact: &SafetyPerformanceImpact,
     ) -> LinkageContext {
         LinkageContext {
@@ -650,36 +701,40 @@ impl FixedHybridTemplate {
             transition_data: TransitionData {
                 highlighted_elements: vec![
                     format!("leak-{}", impact.leak_info.variable_id.var_name),
-                    format!("timeline-{}-{}", impact.affected_timeline.0, impact.affected_timeline.1),
+                    format!(
+                        "timeline-{}-{}",
+                        impact.affected_timeline.0, impact.affected_timeline.1
+                    ),
                 ],
                 priority_sort: vec![
                     "memory-timeline".to_string(),
                     "performance-impact".to_string(),
                     "degradation-curve".to_string(),
                 ],
-                context_annotations: vec![
-                    ContextAnnotation {
-                        element_id: format!("leak-impact-{}", impact.leak_info.variable_id.var_name),
-                        annotation_type: "memory-leak-impact".to_string(),
-                        message: format!("Memory leak causing {:.1}% performance degradation", 
-                                       impact.performance_degradation),
-                        severity: impact.performance_degradation / 100.0,
-                    }
-                ],
+                context_annotations: vec![ContextAnnotation {
+                    element_id: format!("leak-impact-{}", impact.leak_info.variable_id.var_name),
+                    annotation_type: "memory-leak-impact".to_string(),
+                    message: format!(
+                        "Memory leak causing {:.1}% performance degradation",
+                        impact.performance_degradation
+                    ),
+                    severity: impact.performance_degradation / 100.0,
+                }],
             },
         }
     }
-    
+
     /// Intelligent memory leak detection
     pub fn detect_memory_leaks(&self, data: &HybridAnalysisData) -> Vec<FFILeakInfo> {
         let mut leaks = Vec::new();
-        
+
         // Detection based on real track_var_owned! data
         for (var_name, var_detail) in &data.variable_registry {
             // Check for progressive leaks: continuous memory usage growth
-            if var_detail.memory_usage > 10 * 1024 * 1024 { // 10MB threshold
+            if var_detail.memory_usage > 10 * 1024 * 1024 {
+                // 10MB threshold
                 if matches!(var_detail.lifecycle_stage, LifecycleStage::Active) {
-                    // 检查是否为FFI边界泄漏
+                    // Check for FFI boundary leaks
                     if let Some(unified_id) = self.find_unified_variable_id(data, var_name) {
                         if self.is_ffi_boundary_variable(data, &unified_id) {
                             leaks.push(FFILeakInfo {
@@ -692,24 +747,25 @@ impl FixedHybridTemplate {
                 }
             }
         }
-        
+
         leaks
     }
-    
+
     /// Deep concurrency race analysis
     pub fn analyze_concurrency_races(&self, data: &HybridAnalysisData) -> Vec<RaceCondition> {
         let mut races = Vec::new();
-        
-        // 基于真实的24线程数据检测竞争
+
+        // Detect races based on real 24-thread data
         for (var_name, var_detail) in &data.variable_registry {
             if matches!(var_detail.lifecycle_stage, LifecycleStage::Shared) {
-                // 查找访问该变量的所有线程
-                let accessing_threads: Vec<usize> = data.variable_registry
+                // Find all threads accessing this variable
+                let accessing_threads: Vec<usize> = data
+                    .variable_registry
                     .values()
                     .filter(|v| v.name == *var_name)
                     .map(|v| v.thread_id)
                     .collect();
-                
+
                 if accessing_threads.len() > 1 {
                     let severity = match accessing_threads.len() {
                         2..=3 => RaceSeverity::Low,
@@ -717,7 +773,7 @@ impl FixedHybridTemplate {
                         7..=10 => RaceSeverity::High,
                         _ => RaceSeverity::Critical,
                     };
-                    
+
                     races.push(RaceCondition {
                         variable_name: var_name.clone(),
                         competing_threads: accessing_threads,
@@ -726,19 +782,19 @@ impl FixedHybridTemplate {
                 }
             }
         }
-        
+
         races
     }
-    
+
     /// Deep FFI safety audit
     pub fn audit_ffi_safety(&self, data: &HybridAnalysisData) -> FFISafetyData {
         let mut boundary_crossings = Vec::new();
-        let mut safety_violations = Vec::new();
+        let safety_violations = Vec::new();
         let mut ownership_chain_analysis = Vec::new();
-        
-        // 基于168次FFI边界追踪进行安全评估
+
+        // Security assessment based on 168 FFI boundary tracking instances
         for (unified_id, cross_data) in &data.unified_variable_index {
-            // 检查FFI边界穿越
+            // Check FFI boundary crossings
             for event in &cross_data.event_chain {
                 if let CrossModuleEvent::FFICrossing { id, direction } = event {
                     let safety_level = self.assess_ffi_safety_level(data, id);
@@ -749,9 +805,11 @@ impl FixedHybridTemplate {
                     });
                 }
             }
-            
-            // 检查所有权链完整性
-            let ownership_events: Vec<_> = cross_data.event_chain.iter()
+
+            // Check ownership chain integrity
+            let ownership_events: Vec<_> = cross_data
+                .event_chain
+                .iter()
                 .filter_map(|event| match event {
                     CrossModuleEvent::Allocation { id, .. } => Some(OwnershipEvent {
                         variable_id: id.clone(),
@@ -774,7 +832,7 @@ impl FixedHybridTemplate {
                     _ => None,
                 })
                 .collect();
-            
+
             if !ownership_events.is_empty() {
                 let chain_integrity = self.calculate_ownership_chain_integrity(&ownership_events);
                 ownership_chain_analysis.push(OwnershipChainAnalysis {
@@ -785,10 +843,10 @@ impl FixedHybridTemplate {
                 });
             }
         }
-        
-        // 计算整体风险矩阵
+
+        // Calculate overall risk matrix
         let risk_matrix = self.calculate_risk_matrix(&boundary_crossings, &safety_violations);
-        
+
         FFISafetyData {
             boundary_crossings,
             safety_violations,
@@ -797,23 +855,37 @@ impl FixedHybridTemplate {
             safety_score_timeline: self.generate_safety_score_timeline(data),
         }
     }
-    
-    // 辅助方法
-    fn find_unified_variable_id(&self, data: &HybridAnalysisData, var_name: &str) -> Option<UnifiedVariableID> {
-        data.unified_variable_index.keys()
+
+    // Helper methods
+    fn find_unified_variable_id(
+        &self,
+        data: &HybridAnalysisData,
+        var_name: &str,
+    ) -> Option<UnifiedVariableID> {
+        data.unified_variable_index
+            .keys()
             .find(|id| id.var_name == var_name)
             .cloned()
     }
-    
+
     fn is_ffi_boundary_variable(&self, data: &HybridAnalysisData, id: &UnifiedVariableID) -> bool {
-        data.unified_variable_index.get(id)
-            .map(|cross_data| cross_data.relationships.iter()
-                .any(|rel| matches!(rel, RelationType::FFIBoundary)))
+        data.unified_variable_index
+            .get(id)
+            .map(|cross_data| {
+                cross_data
+                    .relationships
+                    .iter()
+                    .any(|rel| matches!(rel, RelationType::FFIBoundary))
+            })
             .unwrap_or(false)
     }
-    
-    fn assess_ffi_safety_level(&self, data: &HybridAnalysisData, id: &UnifiedVariableID) -> SafetyLevel {
-        // 简化的安全级别评估
+
+    fn assess_ffi_safety_level(
+        &self,
+        data: &HybridAnalysisData,
+        id: &UnifiedVariableID,
+    ) -> SafetyLevel {
+        // Simplified safety level assessment
         if let Some(var_detail) = data.variable_registry.get(&id.var_name) {
             match var_detail.memory_usage {
                 0..=1024 => SafetyLevel::Safe,
@@ -825,10 +897,12 @@ impl FixedHybridTemplate {
             SafetyLevel::Warning
         }
     }
-    
+
     fn calculate_ownership_chain_integrity(&self, events: &[OwnershipEvent]) -> f64 {
-        if events.is_empty() { return 1.0; }
-        
+        if events.is_empty() {
+            return 1.0;
+        }
+
         let mut integrity_score = 1.0;
         for event in events {
             match event.transfer_type {
@@ -840,7 +914,7 @@ impl FixedHybridTemplate {
         }
         integrity_score
     }
-    
+
     fn identify_ownership_issues(&self, integrity: f64) -> Vec<String> {
         let mut issues = Vec::new();
         if integrity < 0.8 {
@@ -854,41 +928,56 @@ impl FixedHybridTemplate {
         }
         issues
     }
-    
-    fn calculate_risk_matrix(&self, crossings: &[FFICrossing], violations: &[SafetyViolation]) -> RiskMatrix {
-        let memory_safety_score = if violations.is_empty() { 10.0 } else {
+
+    fn calculate_risk_matrix(
+        &self,
+        crossings: &[FFICrossing],
+        violations: &[SafetyViolation],
+    ) -> RiskMatrix {
+        let memory_safety_score = if violations.is_empty() {
+            10.0
+        } else {
             10.0 - violations.len() as f64 * 2.0
-        }.max(0.0);
-        
-        let ffi_safety_score = if crossings.is_empty() { 10.0 } else {
-            let critical_crossings = crossings.iter()
+        }
+        .max(0.0);
+
+        let ffi_safety_score = if crossings.is_empty() {
+            10.0
+        } else {
+            let critical_crossings = crossings
+                .iter()
                 .filter(|c| matches!(c.safety_level, SafetyLevel::Critical))
                 .count();
             10.0 - critical_crossings as f64 * 3.0
-        }.max(0.0);
-        
+        }
+        .max(0.0);
+
         let overall_risk = match (memory_safety_score + ffi_safety_score) / 2.0 {
             score if score >= 8.0 => RiskLevel::Low,
             score if score >= 6.0 => RiskLevel::Medium,
             score if score >= 4.0 => RiskLevel::High,
             _ => RiskLevel::Critical,
         };
-        
+
         RiskMatrix {
             memory_safety_score,
-            thread_safety_score: 8.0, // 简化计算
+            thread_safety_score: 8.0, // Simplified calculation
             ffi_safety_score,
             overall_risk,
         }
     }
-    
+
     fn generate_safety_score_timeline(&self, data: &HybridAnalysisData) -> Vec<(u64, f64)> {
-        // 简化的安全分数时间线生成
-        data.timeline_events.iter()
+        // Simplified safety score timeline generation
+        data.timeline_events
+            .iter()
             .map(|(timestamp, events)| {
-                let safety_score = 10.0 - events.iter()
-                    .filter(|e| matches!(e, CrossModuleEvent::FFICrossing { .. }))
-                    .count() as f64 * 0.5;
+                let safety_score = 10.0
+                    - events
+                        .iter()
+                        .filter(|e| matches!(e, CrossModuleEvent::FFICrossing { .. }))
+                        .count() as f64
+                        * 0.5;
                 (*timestamp, safety_score.max(0.0))
             })
             .collect()
@@ -900,7 +989,7 @@ impl FixedHybridTemplate {
         data: &HybridAnalysisData,
     ) -> Result<String, Box<dyn std::error::Error>> {
         let mut html_content = String::with_capacity(50000);
-        
+
         // Build HTML structure
         html_content.push_str(&self.build_html_header());
         html_content.push_str(&self.build_navigation_bar());
@@ -917,7 +1006,8 @@ impl FixedHybridTemplate {
 
     /// Build HTML header with styles and scripts
     fn build_html_header(&self) -> String {
-        format!(r#"<!DOCTYPE html>
+        format!(
+            r#"<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -1185,7 +1275,7 @@ impl FixedHybridTemplate {
         }}
         .chart-toggle button:hover {{ background: var(--accent-purple); }}
 
-        /* 深度数据挖掘工作台样式 - Data Ocean Deep Mining Workbench */
+        /* Deep Data Mining Workbench Styles */
         .lens-system {{
             margin-top: 20px;
         }}
@@ -1219,7 +1309,7 @@ impl FixedHybridTemplate {
         .lens-text {{ font-weight: 600; font-size: 14px; }}
         .lens-subtitle {{ font-size: 11px; opacity: 0.8; margin-top: 2px; }}
         
-        /* 数据挖掘控制器样式 */
+        /* Data Mining Controller Styles */
         .data-mining-controls {{
             display: flex; justify-content: space-between; align-items: center;
             background: rgba(255, 255, 255, 0.05); padding: 12px 20px;
@@ -1253,7 +1343,7 @@ impl FixedHybridTemplate {
         }}
         .flow-count {{ font-weight: bold; }}
         
-        /* 主工作台布局 */
+        /* Main Workbench Layout */
         .workbench-layout {{
             display: flex; gap: 25px; margin: 25px 0;
         }}
@@ -1266,7 +1356,7 @@ impl FixedHybridTemplate {
             flex: 0 0 23%; display: flex; flex-direction: column; gap: 20px;
         }}
         
-        /* 透镜内容区域 */
+        /* Lens Content Area */
         .lens-content {{
             display: none; height: 100%;
         }}
@@ -1304,7 +1394,7 @@ impl FixedHybridTemplate {
         .kpi-item {{ color: var(--text-secondary); font-size: 13px; }}
         .kpi-item span {{ color: var(--accent-blue); font-weight: bold; }}
         
-        /* 多维度可视化容器 */
+        /* Multi-dimensional Visualization Container */
         .multi-dimensional-viz {{
             display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
             margin-top: 20px; min-height: 500px;
@@ -1339,7 +1429,7 @@ impl FixedHybridTemplate {
             color: var(--text-secondary);
         }}
         
-        /* 安全分析可视化 */
+        /* Safety Analysis Visualization */
         .safety-analysis-viz {{
             display: grid; grid-template-columns: 1fr; gap: 20px;
             margin-top: 20px;
@@ -1358,7 +1448,7 @@ impl FixedHybridTemplate {
             border-radius: 8px; border: 1px solid var(--border-color);
         }}
         
-        /* 性能挖掘可视化 */
+        /* Performance Mining Visualization */
         .performance-mining-viz {{
             display: grid; grid-template-columns: 1fr; gap: 20px;
             margin-top: 20px;
@@ -1376,7 +1466,7 @@ impl FixedHybridTemplate {
             border-radius: 8px; border: 1px solid var(--border-color);
         }}
         
-        /* 深度分析侧边栏 */
+        /* Deep Analysis Sidebar */
         .mining-console {{
             background: var(--bg-secondary); padding: 20px;
             border-radius: 12px; box-shadow: var(--shadow-dark);
@@ -1417,7 +1507,7 @@ impl FixedHybridTemplate {
             font-size: 14px; font-weight: 600;
         }}
         
-        /* 跨透镜智能联动面板 */
+        /* Cross-lens Intelligent Linkage Panel */
         .cross-lens-linkage-panel {{
             background: var(--bg-secondary); padding: 20px;
             border-radius: 12px; box-shadow: var(--shadow-dark);
@@ -1739,7 +1829,9 @@ impl FixedHybridTemplate {
 </head>
 <body>
     <div class="container">
-"#, self.thread_count, self.task_count)
+"#,
+            self.thread_count, self.task_count
+        )
     }
 
     /// Build navigation bar with theme toggle for Memory Continent
@@ -1749,7 +1841,7 @@ impl FixedHybridTemplate {
             <div class="nav-bar">
                 🌊 Memory Data Ocean - Deep Variable Insights | {} Threads × {} Tasks
                 <div class="lens-system">
-                    <!-- 主分析透镜系统 -->
+                    <!-- Main Analysis Lens System -->
                     <div class="primary-lens-row">
                         <button class="lens-button active" id="concurrency-lens" data-lens="concurrency" onclick="switchAnalysisLens('concurrency')">
                             <div class="lens-icon">🚀</div>
@@ -1775,16 +1867,24 @@ impl FixedHybridTemplate {
     }
 
     /// Build Territory Treemap - the core "Memory Continent" visualization
-    fn build_territory_treemap(&self, data: &HybridAnalysisData) -> Result<String, Box<dyn std::error::Error>> {
-        let total_memory = data.variable_registry.values().map(|v| v.memory_usage).sum::<u64>();
-        
+    fn build_territory_treemap(
+        &self,
+        data: &HybridAnalysisData,
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        let total_memory = data
+            .variable_registry
+            .values()
+            .map(|v| v.memory_usage)
+            .sum::<u64>();
+
         // Calculate territory sizes based on actual data
         let main_thread_memory = total_memory / 20; // 5% for main thread
-        let thread_pool_memory = total_memory * 3 / 4; // 75% for thread pool  
+        let thread_pool_memory = total_memory * 3 / 4; // 75% for thread pool
         let async_runtime_memory = total_memory * 18 / 100; // 18% for async runtime
         let ffi_boundary_memory = total_memory / 50; // 2% for FFI boundaries
-        
-        Ok(format!(r#"
+
+        Ok(format!(
+            r#"
         <div class="territory-treemap">
             <h2>🗺️ Memory Continent Treemap</h2>
             <p>Click on any territory to drill down into detailed analysis. Rectangle size represents memory usage.</p>
@@ -1851,26 +1951,29 @@ impl FixedHybridTemplate {
                 <p>🛡️ <span style="color: #ef4444;">FFI Boundaries</span> - Foreign function interfaces</p>
             </div>
         </div>
-        "#, 
-        main_thread_memory as f64 / 1024.0 / 1024.0,  // main-thread onmouseover
-        main_thread_memory as f64 / 1024.0 / 1024.0,  // main-thread title
-        main_thread_memory as f64 / 1024.0 / 1024.0,  // main-thread content
-        thread_pool_memory as f64 / 1024.0 / 1024.0,  // thread-pool onmouseover
-        thread_pool_memory as f64 / 1024.0 / 1024.0,  // thread-pool title
-        thread_pool_memory as f64 / 1024.0 / 1024.0,  // thread-pool content
-        self.thread_count,                             // thread count
-        async_runtime_memory as f64 / 1024.0 / 1024.0, // async-runtime onmouseover
-        async_runtime_memory as f64 / 1024.0 / 1024.0, // async-runtime title
-        async_runtime_memory as f64 / 1024.0 / 1024.0, // async-runtime content
-        self.task_count,                                // task count
-        ffi_boundary_memory as f64 / 1024.0 / 1024.0,  // ffi-boundary onmouseover
-        ffi_boundary_memory as f64 / 1024.0 / 1024.0,  // ffi-boundary title
-        ffi_boundary_memory as f64 / 1024.0 / 1024.0   // ffi-boundary content
+        "#,
+            main_thread_memory as f64 / 1024.0 / 1024.0, // main-thread onmouseover
+            main_thread_memory as f64 / 1024.0 / 1024.0, // main-thread title
+            main_thread_memory as f64 / 1024.0 / 1024.0, // main-thread content
+            thread_pool_memory as f64 / 1024.0 / 1024.0, // thread-pool onmouseover
+            thread_pool_memory as f64 / 1024.0 / 1024.0, // thread-pool title
+            thread_pool_memory as f64 / 1024.0 / 1024.0, // thread-pool content
+            self.thread_count,                           // thread count
+            async_runtime_memory as f64 / 1024.0 / 1024.0, // async-runtime onmouseover
+            async_runtime_memory as f64 / 1024.0 / 1024.0, // async-runtime title
+            async_runtime_memory as f64 / 1024.0 / 1024.0, // async-runtime content
+            self.task_count,                             // task count
+            ffi_boundary_memory as f64 / 1024.0 / 1024.0, // ffi-boundary onmouseover
+            ffi_boundary_memory as f64 / 1024.0 / 1024.0, // ffi-boundary title
+            ffi_boundary_memory as f64 / 1024.0 / 1024.0  // ffi-boundary content
         ))
     }
 
     /// Build Interactive Drilldown Panel for detailed analysis
-    fn build_interactive_drilldown_panel(&self, _data: &HybridAnalysisData) -> Result<String, Box<dyn std::error::Error>> {
+    fn build_interactive_drilldown_panel(
+        &self,
+        _data: &HybridAnalysisData,
+    ) -> Result<String, Box<dyn std::error::Error>> {
         Ok(r#"
         <div class="drilldown-panel" id="drilldownPanel">
             <div class="drilldown-header">
@@ -1881,12 +1984,17 @@ impl FixedHybridTemplate {
                 <p>Click on a territory in the treemap above to explore detailed analysis...</p>
             </div>
         </div>
-        "#.to_string())
+        "#
+        .to_string())
     }
 
     /// Build thread-task matrix visualization
-    fn build_thread_task_matrix(&self, data: &HybridAnalysisData) -> Result<String, Box<dyn std::error::Error>> {
-        let mut matrix_html = String::from(r#"
+    fn build_thread_task_matrix(
+        &self,
+        data: &HybridAnalysisData,
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        let mut matrix_html = String::from(
+            r#"
         <div class="section">
             <h2>Intelligent Thread-Task Classification Matrix</h2>
             <div class="classification-legend">
@@ -1897,41 +2005,54 @@ impl FixedHybridTemplate {
                 <span class="legend-item idle-thread">😴 Idle</span>
             </div>
             <div class="matrix-grid">
-        "#);
+        "#,
+        );
 
         // Sort threads by resource usage (memory) for better prioritization
         let mut thread_resource_usage: Vec<(usize, u64)> = (0..self.thread_count)
             .map(|thread_id| {
-                let memory_usage: u64 = data.variable_registry.values()
+                let memory_usage: u64 = data
+                    .variable_registry
+                    .values()
                     .filter(|v| v.thread_id == thread_id)
                     .map(|v| v.memory_usage)
                     .sum();
                 (thread_id, memory_usage)
             })
             .collect();
-        
+
         thread_resource_usage.sort_by(|a, b| b.1.cmp(&a.1)); // Sort by memory usage descending
-        
+
         // Generate thread cards with workload classification (sorted by resource usage)
         for (thread_id, thread_memory) in thread_resource_usage {
             let empty_tasks = vec![];
-            let tasks = data.thread_task_mapping.get(&thread_id).unwrap_or(&empty_tasks);
-            let variables_in_thread = data.variable_registry.values()
+            let tasks = data
+                .thread_task_mapping
+                .get(&thread_id)
+                .unwrap_or(&empty_tasks);
+            let variables_in_thread = data
+                .variable_registry
+                .values()
                 .filter(|v| v.thread_id == thread_id)
                 .count();
-            
-            let thread_classification = data.thread_classifications.get(&thread_id)
+
+            let thread_classification = data
+                .thread_classifications
+                .get(&thread_id)
                 .unwrap_or(&ThreadWorkloadType::Mixed);
-            
+
             let (class_icon, class_name, card_class) = match thread_classification {
                 ThreadWorkloadType::CpuIntensive => ("🔥", "CPU Intensive", "cpu-intensive"),
                 ThreadWorkloadType::IoIntensive => ("💾", "I/O Intensive", "io-intensive"),
-                ThreadWorkloadType::NetworkIntensive => ("🌐", "Network Intensive", "network-intensive"),
+                ThreadWorkloadType::NetworkIntensive => {
+                    ("🌐", "Network Intensive", "network-intensive")
+                }
                 ThreadWorkloadType::Mixed => ("🔄", "Mixed Workload", "mixed-workload"),
                 ThreadWorkloadType::Idle => ("😴", "Idle", "idle-thread"),
             };
 
-            matrix_html.push_str(&format!(r#"
+            matrix_html.push_str(&format!(
+                r#"
                 <div class="thread-card {}" onclick="toggleThreadDetails({})">
                     <h3>{} Thread {} <span class="expand-icon">▼</span></h3>
                     <div class="workload-type">{}</div>
@@ -1948,30 +2069,47 @@ impl FixedHybridTemplate {
                         <span class="resource-highlight">{:.1} MB</span>
                     </div>
                     <div id="thread-details-{}" class="thread-details" style="display: none;">
-            "#, card_class, thread_id, class_icon, thread_id, class_name, variables_in_thread, tasks.len(), thread_memory as f64 / 1024.0 / 1024.0, thread_id));
+            "#,
+                card_class,
+                thread_id,
+                class_icon,
+                thread_id,
+                class_name,
+                variables_in_thread,
+                tasks.len(),
+                thread_memory as f64 / 1024.0 / 1024.0,
+                thread_id
+            ));
 
             // Sort tasks within thread by resource usage
-            let mut task_resource_usage: Vec<(usize, u64)> = tasks.iter()
+            let mut task_resource_usage: Vec<(usize, u64)> = tasks
+                .iter()
                 .map(|&task_id| {
-                    let task_memory: u64 = data.variable_registry.values()
+                    let task_memory: u64 = data
+                        .variable_registry
+                        .values()
                         .filter(|v| v.thread_id == thread_id && v.task_id == Some(task_id))
                         .map(|v| v.memory_usage)
                         .sum();
                     (task_id, task_memory)
                 })
                 .collect();
-            
+
             task_resource_usage.sort_by(|a, b| b.1.cmp(&a.1)); // Sort by memory usage descending
-            
+
             // Add task items with classification (sorted by resource usage)
             for (task_id, task_memory) in task_resource_usage {
-                let task_variables = data.variable_registry.values()
+                let task_variables = data
+                    .variable_registry
+                    .values()
                     .filter(|v| v.thread_id == thread_id && v.task_id == Some(task_id))
                     .count();
-                
-                let task_classification = data.task_classifications.get(&task_id)
+
+                let task_classification = data
+                    .task_classifications
+                    .get(&task_id)
                     .unwrap_or(&TaskExecutionPattern::Balanced);
-                    
+
                 let (task_icon, task_type) = match task_classification {
                     TaskExecutionPattern::CpuBound => ("⚡", "CPU-Bound"),
                     TaskExecutionPattern::IoBound => ("📁", "I/O-Bound"),
@@ -1979,7 +2117,7 @@ impl FixedHybridTemplate {
                     TaskExecutionPattern::MemoryIntensive => ("🧠", "Memory-Intensive"),
                     TaskExecutionPattern::Balanced => ("⚖️", "Balanced"),
                 };
-                
+
                 matrix_html.push_str(&format!(r#"
                     <div class="task-item" onclick="toggleTaskVariables({}, {})" data-task="{}">
                         {} Task {}: {} vars ({}) - <span class="resource-highlight">{:.1} MB</span>
@@ -1998,7 +2136,10 @@ impl FixedHybridTemplate {
     }
 
     /// Build intelligent variable details section with pagination and virtualization
-    fn build_variable_details_section(&self, data: &HybridAnalysisData) -> Result<String, Box<dyn std::error::Error>> {
+    fn build_variable_details_section(
+        &self,
+        data: &HybridAnalysisData,
+    ) -> Result<String, Box<dyn std::error::Error>> {
         if !self.variable_details_enabled {
             return Ok(String::new());
         }
@@ -2006,14 +2147,15 @@ impl FixedHybridTemplate {
         // Sort variables by memory usage for better visualization
         let mut sorted_variables: Vec<_> = data.variable_registry.values().collect();
         sorted_variables.sort_by(|a, b| b.memory_usage.cmp(&a.memory_usage));
-        
+
         let total_variables = sorted_variables.len();
-        
+
         // Intelligent sampling strategy based on data volume
         let (sampled_variables, sampling_info) = Self::intelligent_sampling(&sorted_variables);
         let display_count = sampled_variables.len();
 
-        let mut details_html = format!(r#"
+        let mut details_html = format!(
+            r#"
         <div class="section">
             <h2>Variable Details ({} total, {} displayed)</h2>
             <div class="sampling-info">
@@ -2037,7 +2179,12 @@ impl FixedHybridTemplate {
                 </div>
             </div>
             <div id="variableContainer" class="variable-grid">
-        "#, total_variables, display_count, sampling_info, (display_count + 11) / 12);
+        "#,
+            total_variables,
+            display_count,
+            sampling_info,
+            (display_count + 11) / 12
+        );
 
         // Initially load only first page (12 variables from sampled set)
         for (_index, variable) in sampled_variables.iter().enumerate().take(12) {
@@ -2048,11 +2195,13 @@ impl FixedHybridTemplate {
                 LifecycleStage::Deallocated => "deallocated",
             };
 
-            let task_info = variable.task_id
+            let task_info = variable
+                .task_id
                 .map(|id| format!("Task {}", id))
                 .unwrap_or_else(|| "No Task".to_string());
 
-            details_html.push_str(&format!(r#"
+            details_html.push_str(&format!(
+                r#"
                 <div class="variable-card">
                     <h4>{}</h4>
                     <div class="metric-row">
@@ -2082,20 +2231,20 @@ impl FixedHybridTemplate {
                         </span>
                     </div>
                 </div>
-            "#, 
-            variable.name, 
-            variable.type_info, 
-            variable.thread_id, 
-            task_info,
-            variable.memory_usage as f64 / 1024.0,
-            variable.allocation_count,
-            lifecycle_class,
-            variable.lifecycle_stage
+            "#,
+                variable.name,
+                variable.type_info,
+                variable.thread_id,
+                task_info,
+                variable.memory_usage as f64 / 1024.0,
+                variable.allocation_count,
+                lifecycle_class,
+                variable.lifecycle_stage
             ));
         }
 
         details_html.push_str("</div>");
-        
+
         // Add JavaScript data and pagination logic
         details_html.push_str(&format!(r#"
             </div>
@@ -2178,52 +2327,72 @@ impl FixedHybridTemplate {
             </script>
         </div>
         "#, Self::serialize_variables_for_js(&sampled_variables)));
-        
+
         Ok(details_html)
     }
 
     /// Intelligent sampling strategy to reduce memory usage while preserving data insights
-    fn intelligent_sampling<'a>(variables: &'a [&'a VariableDetail]) -> (Vec<&'a VariableDetail>, String) {
+    fn intelligent_sampling<'a>(
+        variables: &'a [&'a VariableDetail],
+    ) -> (Vec<&'a VariableDetail>, String) {
         let total_count = variables.len();
-        
+
         let (sampled_vars, info) = match total_count {
             0..=20 => {
                 // Small dataset: show all variables
                 (variables.to_vec(), "📊 Full Dataset".to_string())
-            },
+            }
             21..=100 => {
                 // Medium dataset: sample every 5th variable, max 20 items
                 let sampled: Vec<_> = variables.iter().step_by(5).copied().collect();
                 let count = sampled.len();
-                (sampled, format!("📉 Smart Sampling: Every 5th (showing {} of {})", count, total_count))
-            },
+                (
+                    sampled,
+                    format!(
+                        "📉 Smart Sampling: Every 5th (showing {} of {})",
+                        count, total_count
+                    ),
+                )
+            }
             101..=300 => {
-                // Large dataset: sample every 15th variable, max 20 items  
+                // Large dataset: sample every 15th variable, max 20 items
                 let sampled: Vec<_> = variables.iter().step_by(15).copied().collect();
                 let count = sampled.len();
-                (sampled, format!("📉 Smart Sampling: Every 15th (showing {} of {})", count, total_count))
-            },
+                (
+                    sampled,
+                    format!(
+                        "📉 Smart Sampling: Every 15th (showing {} of {})",
+                        count, total_count
+                    ),
+                )
+            }
             _ => {
                 // Very large dataset: sample every 30th variable, max 20 items
                 let sampled: Vec<_> = variables.iter().step_by(30).copied().collect();
                 let count = sampled.len();
-                (sampled, format!("📉 Ultra Sampling: Every 30th (showing {} of {})", count, total_count))
+                (
+                    sampled,
+                    format!(
+                        "📉 Ultra Sampling: Every 30th (showing {} of {})",
+                        count, total_count
+                    ),
+                )
             }
         };
-        
+
         (sampled_vars, info)
     }
 
     /// Serialize variables to JavaScript array format for client-side processing
     fn serialize_variables_for_js(variables: &[&VariableDetail]) -> String {
         let mut js_variables = Vec::new();
-        
+
         for var in variables {
             let task_id_str = match var.task_id {
                 Some(id) => id.to_string(),
                 None => "null".to_string(),
             };
-            
+
             let js_var = format!(
                 "{{\"name\":\"{}\",\"type_info\":\"{}\",\"thread_id\":{},\"task_id\":{},\"allocation_count\":{},\"memory_usage\":{},\"lifecycle_stage\":\"{}\"}}",
                 var.name.replace("\"", "\\\""),
@@ -2236,60 +2405,66 @@ impl FixedHybridTemplate {
             );
             js_variables.push(js_var);
         }
-        
+
         format!("[{}]", js_variables.join(","))
     }
 
     /// Generate thread type distribution data for pie chart
     fn generate_thread_distribution_data(data: &HybridAnalysisData) -> String {
         let mut counts = std::collections::HashMap::new();
-        
+
         for (_, thread_type) in &data.thread_classifications {
             let type_name = match thread_type {
                 ThreadWorkloadType::CpuIntensive => "CPU Intensive",
-                ThreadWorkloadType::IoIntensive => "I/O Intensive", 
+                ThreadWorkloadType::IoIntensive => "I/O Intensive",
                 ThreadWorkloadType::NetworkIntensive => "Network Intensive",
                 ThreadWorkloadType::Mixed => "Mixed Workload",
                 ThreadWorkloadType::Idle => "Idle",
             };
             *counts.entry(type_name).or_insert(0) += 1;
         }
-        
-        let js_obj: Vec<String> = counts.iter()
+
+        let js_obj: Vec<String> = counts
+            .iter()
             .map(|(k, v)| format!("\"{}\":{}", k, v))
             .collect();
-        
+
         format!("{{{}}}", js_obj.join(","))
     }
-    
+
     /// Generate task pattern distribution data for pie chart
     fn generate_task_distribution_data(data: &HybridAnalysisData) -> String {
         let mut counts = std::collections::HashMap::new();
-        
+
         for (_, task_pattern) in &data.task_classifications {
             let pattern_name = match task_pattern {
                 TaskExecutionPattern::CpuBound => "CPU-Bound",
                 TaskExecutionPattern::IoBound => "I/O-Bound",
-                TaskExecutionPattern::NetworkBound => "Network-Bound", 
+                TaskExecutionPattern::NetworkBound => "Network-Bound",
                 TaskExecutionPattern::MemoryIntensive => "Memory-Intensive",
                 TaskExecutionPattern::Balanced => "Balanced",
             };
             *counts.entry(pattern_name).or_insert(0) += 1;
         }
-        
-        let js_obj: Vec<String> = counts.iter()
+
+        let js_obj: Vec<String> = counts
+            .iter()
             .map(|(k, v)| format!("\"{}\":{}", k, v))
             .collect();
-        
+
         format!("{{{}}}", js_obj.join(","))
     }
 
     /// Build performance metrics section
-    fn build_performance_metrics(&self, data: &HybridAnalysisData) -> Result<String, Box<dyn std::error::Error>> {
+    fn build_performance_metrics(
+        &self,
+        data: &HybridAnalysisData,
+    ) -> Result<String, Box<dyn std::error::Error>> {
         let thread_metrics = self.calculate_thread_metrics(data);
         let task_metrics = self.calculate_task_metrics(data);
 
-        Ok(format!(r#"
+        Ok(format!(
+            r#"
         <div class="section">
             <h2>Performance Metrics</h2>
             <div class="metric-row">
@@ -2309,17 +2484,21 @@ impl FixedHybridTemplate {
                 <span class="metric-value">{:.1}%</span>
             </div>
         </div>
-        "#, 
-        thread_metrics.avg_variables_per_thread,
-        thread_metrics.avg_memory_per_thread / 1024.0 / 1024.0,
-        task_metrics.avg_variables_per_task,
-        task_metrics.memory_efficiency * 100.0
+        "#,
+            thread_metrics.avg_variables_per_thread,
+            thread_metrics.avg_memory_per_thread / 1024.0 / 1024.0,
+            task_metrics.avg_variables_per_task,
+            task_metrics.memory_efficiency * 100.0
         ))
     }
 
     /// Build performance charts section with real-time metrics
-    fn build_performance_charts(&self, data: &HybridAnalysisData) -> Result<String, Box<dyn std::error::Error>> {
-        let mut charts_html = String::from(r#"
+    fn build_performance_charts(
+        &self,
+        data: &HybridAnalysisData,
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        let mut charts_html = String::from(
+            r#"
         <div class="section">
             <h2>Real-time Performance Metrics</h2>
             <div class="chart-toggle">
@@ -2367,15 +2546,26 @@ impl FixedHybridTemplate {
                 </div>
             </div>
             <div class="performance-grid">
-        "#);
+        "#,
+        );
 
         // Add performance summary cards
-        let peak_cpu = data.performance_metrics.cpu_usage.iter().fold(0.0f64, |acc, &x| acc.max(x));
-        let peak_memory = *data.performance_metrics.memory_usage.iter().max().unwrap_or(&0);
+        let peak_cpu = data
+            .performance_metrics
+            .cpu_usage
+            .iter()
+            .fold(0.0f64, |acc, &x| acc.max(x));
+        let peak_memory = *data
+            .performance_metrics
+            .memory_usage
+            .iter()
+            .max()
+            .unwrap_or(&0);
         let total_io = data.performance_metrics.io_operations.iter().sum::<u64>();
         let total_network = data.performance_metrics.network_bytes.iter().sum::<u64>();
 
-        charts_html.push_str(&format!(r#"
+        charts_html.push_str(&format!(
+            r#"
                 <div class="perf-card">
                     <div class="perf-value">{:.1}%</div>
                     <div class="perf-label">Peak CPU Usage</div>
@@ -2394,7 +2584,12 @@ impl FixedHybridTemplate {
                 </div>
             </div>
         </div>
-        "#, peak_cpu, peak_memory as f64 / 1024.0 / 1024.0, total_io, total_network as f64 / 1024.0 / 1024.0));
+        "#,
+            peak_cpu,
+            peak_memory as f64 / 1024.0 / 1024.0,
+            total_io,
+            total_network as f64 / 1024.0 / 1024.0
+        ));
 
         charts_html.push_str(&self.build_chart_scripts(data));
         Ok(charts_html)
@@ -2403,13 +2598,34 @@ impl FixedHybridTemplate {
     /// Build JavaScript for interactive charts
     fn build_chart_scripts(&self, data: &HybridAnalysisData) -> String {
         let _cpu_data = format!("{:?}", data.performance_metrics.cpu_usage);
-        let _memory_data = format!("{:?}", data.performance_metrics.memory_usage.iter().map(|&x| x as f64 / 1024.0 / 1024.0).collect::<Vec<f64>>());
+        let _memory_data = format!(
+            "{:?}",
+            data.performance_metrics
+                .memory_usage
+                .iter()
+                .map(|&x| x as f64 / 1024.0 / 1024.0)
+                .collect::<Vec<f64>>()
+        );
         let _io_data = format!("{:?}", data.performance_metrics.io_operations);
-        let _network_data = format!("{:?}", data.performance_metrics.network_bytes.iter().map(|&x| x as f64 / 1024.0).collect::<Vec<f64>>());
-        let timestamps: Vec<String> = data.performance_metrics.timestamps.iter().enumerate().map(|(i, _)| format!("{}s", i)).collect();
+        let _network_data = format!(
+            "{:?}",
+            data.performance_metrics
+                .network_bytes
+                .iter()
+                .map(|&x| x as f64 / 1024.0)
+                .collect::<Vec<f64>>()
+        );
+        let timestamps: Vec<String> = data
+            .performance_metrics
+            .timestamps
+            .iter()
+            .enumerate()
+            .map(|(i, _)| format!("{}s", i))
+            .collect();
         let _labels = format!("{:?}", timestamps);
 
-        format!(r#"
+        format!(
+            r#"
         <script>
             // Chart data with controlled size (only 5 points for performance)
             var timeLabels = {};
@@ -3482,19 +3698,36 @@ impl FixedHybridTemplate {
             console.log('Memory Continent system initialized successfully');
             console.log('Features: Territory treemap, drilldown analysis, unified view');
         </script>
-        "#, 
-        format!("{:?}", (0..5).map(|i| format!("{}s", i * 2)).collect::<Vec<_>>()),
-        format!("{:?}", data.performance_metrics.cpu_usage),
-        format!("{:?}", data.performance_metrics.memory_usage.iter().map(|&x| x as f64 / 1024.0 / 1024.0).collect::<Vec<_>>()),
-        format!("{:?}", data.performance_metrics.io_operations),
-        format!("{:?}", data.performance_metrics.network_bytes.iter().map(|&x| x as f64 / 1024.0).collect::<Vec<_>>()),
-        Self::generate_thread_distribution_data(data),
-        Self::generate_task_distribution_data(data)
+        "#,
+            format!(
+                "{:?}",
+                (0..5).map(|i| format!("{}s", i * 2)).collect::<Vec<_>>()
+            ),
+            format!("{:?}", data.performance_metrics.cpu_usage),
+            format!(
+                "{:?}",
+                data.performance_metrics
+                    .memory_usage
+                    .iter()
+                    .map(|&x| x as f64 / 1024.0 / 1024.0)
+                    .collect::<Vec<_>>()
+            ),
+            format!("{:?}", data.performance_metrics.io_operations),
+            format!(
+                "{:?}",
+                data.performance_metrics
+                    .network_bytes
+                    .iter()
+                    .map(|&x| x as f64 / 1024.0)
+                    .collect::<Vec<_>>()
+            ),
+            Self::generate_thread_distribution_data(data),
+            Self::generate_task_distribution_data(data)
         )
     }
 
     /// Build HTML footer with unified analysis workbench JavaScript
-    /// 
+    ///
     /// Implements three analysis lenses (concurrency, safety, performance) with tight integration
     /// following aim/requirement.md coding standards
     fn build_html_footer(&self) -> String {
@@ -3560,7 +3793,7 @@ impl FixedHybridTemplate {
         }
         
         
-        // 清除之前的分析数据
+        // Clear previous analysis data
         function clearPreviousAnalysis() {
             console.log('🧹 Clearing previous analysis data...');
             if (typeof dataOceanCache !== 'undefined') {
@@ -3568,7 +3801,7 @@ impl FixedHybridTemplate {
             }
             crossLensFlows = [];
             
-            // 清除可能的容器内容
+            // Clear possible container contents
             const containers = [
                 'concurrency-3d-canvas',
                 'concurrency-heatmap', 
@@ -3589,7 +3822,7 @@ impl FixedHybridTemplate {
         function loadLensContent(lensName) {
             console.log('🌊 Loading deep analysis for lens:', lensName, 'at depth:', currentMiningDepth);
             
-            // 清除之前的分析数据
+            // Clear previous analysis data
             clearPreviousAnalysis();
             
             // Load data based on mining depth
@@ -3638,28 +3871,28 @@ impl FixedHybridTemplate {
             loadConcurrencySidebarAnalysis(threads, tasks, variableFlows);
         }
         
-        // 提取线程数据（基于track_var!宏收集的数据）
+        // Extract thread data (based on data collected by track_var! macro)
         function extractThreadData() {
             const threadData = [];
             const processedThreads = new Set();
             
-            // 从全局analysis数据中提取线程信息
+            // Extract thread information from global analysis data
             if (window.analysisData && window.analysisData.variable_registry) {
                 for (const [varName, varDetail] of Object.entries(window.analysisData.variable_registry)) {
                     const threadId = varDetail.thread_id;
                     if (!processedThreads.has(threadId)) {
                         processedThreads.add(threadId);
                         
-                        // 计算该线程的内存使用量
+                        // Calculate memory usage for this thread
                         const threadMemory = Object.values(window.analysisData.variable_registry)
                             .filter(v => v.thread_id === threadId)
                             .reduce((sum, v) => sum + v.memory_usage, 0);
                         
-                        // 计算变量数量
+                        // Calculate variable count
                         const variableCount = Object.values(window.analysisData.variable_registry)
                             .filter(v => v.thread_id === threadId).length;
                         
-                        // 分析线程工作负载类型
+                        // Analyze thread workload type
                         const workloadType = analyzeThreadWorkload(threadId);
                         
                         threadData.push({
@@ -3684,7 +3917,7 @@ impl FixedHybridTemplate {
             return threadData.sort((a, b) => b.memory - a.memory);
         }
         
-        // 分析线程工作负载类型
+        // Analyze thread workload type
         function analyzeThreadWorkload(threadId) {
             if (!window.analysisData || !window.analysisData.variable_registry) return 'unknown';
             
@@ -3694,7 +3927,7 @@ impl FixedHybridTemplate {
             const totalMemory = threadVars.reduce((sum, v) => sum + v.memory_usage, 0);
             const avgVarSize = threadVars.length > 0 ? totalMemory / threadVars.length : 0;
             
-            // 基于内存使用模式判断工作负载
+            // Determine workload based on memory usage patterns
             if (avgVarSize > 1024 * 1024) return 'memory-intensive';
             if (threadVars.length > 50) return 'cpu-intensive';
             if (threadVars.some(v => v.type_name && v.type_name.includes('Network'))) return 'network-intensive';
@@ -3702,64 +3935,64 @@ impl FixedHybridTemplate {
             return 'mixed-workload';
         }
         
-        // 🛡️ Safety Deep Audit - 深度安全审计实现
+        // 🛡️ Safety Deep Audit - Deep Safety Audit Implementation
         function loadSafetyDeepAudit() {
             console.log('🛡️ Loading Safety Deep Audit...');
             
-            // 提取安全相关数据
+            // Extract safety-related data
             const unsafeOperations = extractUnsafeOperations();
             const ffiCrossings = extractFFICrossings();
             const memoryLeaks = detectPotentialMemoryLeaks();
             
-            // 计算安全分数
+            // Calculate safety score
             const safetyScore = calculateSafetyScore(unsafeOperations, ffiCrossings, memoryLeaks);
             updateSafetyMetrics(safetyScore);
             
-            // 渲染安全泳道图
+            // Render safety swimlane chart
             renderMemorySafetySwimlane(unsafeOperations, ffiCrossings);
             
-            // 渲染FFI边界审计
+            // Render FFI boundary audit
             renderFFIBoundaryAudit(ffiCrossings);
             
-            // 渲染内存泄漏检测器
+            // Render memory leak detector
             renderMemoryLeakDetector(memoryLeaks);
             
-            // 加载侧边栏安全分析
+            // Load sidebar safety analysis
             loadSafetySidebarAnalysis(unsafeOperations, ffiCrossings, memoryLeaks);
         }
         
-        // 📈 Performance Mining Analysis - 深度性能挖掘实现
+        // 📈 Performance Mining Analysis - Deep Performance Mining Implementation
         function loadPerformanceMiningAnalysis() {
             console.log('📈 Loading Performance Mining Analysis...');
             
-            // 提取性能数据
+            // Extract performance data
             const allocationPatterns = extractAllocationPatterns();
             const memoryTimeline = extractMemoryTimeline();
             const performanceBottlenecks = identifyPerformanceBottlenecks();
             
-            // 更新性能指标
+            // Update performance metrics
             updatePerformanceKPIs(allocationPatterns, memoryTimeline);
             
-            // 渲染多维时间序列图
+            // Render multi-dimensional time series chart
             renderMultiDimensionalTimeSeries(memoryTimeline);
             
-            // 渲染变量生命周期瀑布图
+            // Render variable lifecycle waterfall chart
             renderVariableLifecycleWaterfall();
             
-            // 渲染内存分配模式识别
+            // Render memory allocation pattern recognition
             renderAllocationPatternRecognition(allocationPatterns);
             
-            // 加载侧边栏性能分析
+            // Load sidebar performance analysis
             loadPerformanceSidebarAnalysis(performanceBottlenecks);
         }
         
-        // 提取不安全操作
+        // Extract unsafe operations
         function extractUnsafeOperations() {
             const unsafeOps = [];
             
             if (window.analysisData && window.analysisData.variable_registry) {
                 for (const [varName, varDetail] of Object.entries(window.analysisData.variable_registry)) {
-                    // 检测潜在的不安全操作
+                    // Detect potential unsafe operations
                     if (varDetail.type_name && varDetail.type_name.includes('*')) {
                         unsafeOps.push({
                             variable: varName,
@@ -3771,8 +4004,8 @@ impl FixedHybridTemplate {
                         });
                     }
                     
-                    // 检测大内存分配（可能的泄漏风险）
-                    if (varDetail.memory_usage > 1024 * 1024) { // 1MB阈值
+                    // Detect large memory allocations (potential leak risk)
+                    if (varDetail.memory_usage > 1024 * 1024) { // 1MB threshold
                         unsafeOps.push({
                             variable: varName,
                             operation: 'large_allocation',
@@ -3788,7 +4021,7 @@ impl FixedHybridTemplate {
             return unsafeOps;
         }
         
-        // 提取FFI边界穿越
+        // Extract FFI boundary crossings
         function extractFFICrossings() {
             const crossings = [];
             
@@ -3808,13 +4041,13 @@ impl FixedHybridTemplate {
             return crossings;
         }
         
-        // 检测潜在内存泄漏
+        // Detect potential memory leaks
         function detectPotentialMemoryLeaks() {
             const leaks = [];
             
             if (window.analysisData && window.analysisData.variable_registry) {
                 for (const [varName, varDetail] of Object.entries(window.analysisData.variable_registry)) {
-                    // 检测长期存活的大内存变量
+                    // Detect long-lived large memory variables
                     if (varDetail.lifecycle_stage === 'Active' && varDetail.memory_usage > 2 * 1024 * 1024) {
                         leaks.push({
                             variable: varName,
@@ -3830,7 +4063,7 @@ impl FixedHybridTemplate {
             return leaks;
         }
         
-        // 计算安全分数
+        // Calculate safety score
         function calculateSafetyScore(unsafeOps, ffiCrossings, memoryLeaks) {
             const totalVars = Object.keys(window.analysisData?.variable_registry || {}).length;
             if (totalVars === 0) return 100;
@@ -3839,7 +4072,7 @@ impl FixedHybridTemplate {
             return Math.max(0, Math.min(100, 100 - (riskCount / totalVars) * 100));
         }
         
-        // 更新安全指标
+        // Update safety metrics
         function updateSafetyMetrics(safetyScore) {
             const scoreElement = document.getElementById('safety-score');
             const riskElement = document.getElementById('risk-level');
@@ -3859,7 +4092,7 @@ impl FixedHybridTemplate {
             }
         }
         
-        // 渲染内存安全泳道图
+        // Render memory safety swimlane chart
         function renderMemorySafetySwimlane(unsafeOps, ffiCrossings) {
             const container = document.getElementById('safety-swimlane');
             if (!container) return;
@@ -3902,7 +4135,7 @@ impl FixedHybridTemplate {
             `;
         }
         
-        // 渲染FFI边界审计
+        // Render FFI boundary audit
         function renderFFIBoundaryAudit(ffiCrossings) {
             const container = document.getElementById('ffi-audit');
             if (!container) return;
@@ -3921,7 +4154,7 @@ impl FixedHybridTemplate {
             `;
         }
         
-        // 渲染内存泄漏检测器
+        // Render memory leak detector
         function renderMemoryLeakDetector(memoryLeaks) {
             const container = document.getElementById('leak-detection');
             if (!container) return;
@@ -3942,7 +4175,7 @@ impl FixedHybridTemplate {
             `;
         }
         
-        // 加载安全侧边栏分析
+        // Load safety sidebar analysis
         function loadSafetySidebarAnalysis(unsafeOps, ffiCrossings, memoryLeaks) {
             const reportContainer = document.getElementById('memory-safety-report');
             if (reportContainer) {
@@ -3978,7 +4211,7 @@ impl FixedHybridTemplate {
             }
         }
         
-        // 📈 Performance Analysis Helper Functions - 性能分析辅助函数
+        // 📈 Performance Analysis Helper Functions - Performance Analysis Helper Functions
         function extractAllocationPatterns() {
             const patterns = [];
             
@@ -4003,8 +4236,8 @@ impl FixedHybridTemplate {
             
             if (window.analysisData && window.analysisData.variable_registry) {
                 for (const [varName, varDetail] of Object.entries(window.analysisData.variable_registry)) {
-                    // 模拟时间戳
-                    const allocTime = now - Math.random() * 60000; // 最近1分钟内
+                    // Simulate timestamps
+                    const allocTime = now - Math.random() * 60000; // Within the last minute
                     timeline.push({
                         timestamp: allocTime,
                         event: 'allocation',
@@ -4033,8 +4266,8 @@ impl FixedHybridTemplate {
             
             if (window.analysisData && window.analysisData.variable_registry) {
                 for (const [varName, varDetail] of Object.entries(window.analysisData.variable_registry)) {
-                    // 识别内存热点
-                    if (varDetail.memory_usage > 5 * 1024 * 1024) { // 5MB阈值
+                    // Identify memory hotspots
+                    if (varDetail.memory_usage > 5 * 1024 * 1024) { // 5MB threshold
                         bottlenecks.push({
                             type: 'memory_hotspot',
                             variable: varName,
@@ -4044,7 +4277,7 @@ impl FixedHybridTemplate {
                         });
                     }
                     
-                    // 识别高频分配
+                    // Identify high-frequency allocations
                     if (varDetail.allocation_count && varDetail.allocation_count > 100) {
                         bottlenecks.push({
                             type: 'high_allocation_frequency',
@@ -4101,7 +4334,7 @@ impl FixedHybridTemplate {
                 </div>
             `;
             
-            // 绘制简单的时间序列图
+            // Draw simple time series chart
             setTimeout(() => drawTimeSeriesChart(memoryTimeline), 100);
         }
         
@@ -4113,16 +4346,16 @@ impl FixedHybridTemplate {
             const width = canvas.width;
             const height = canvas.height;
             
-            // 清除画布
+            // Clear canvas
             ctx.clearRect(0, 0, width, height);
             
             if (timeline.length === 0) return;
             
-            // 计算数据范围
+            // Calculate data range
             const timeRange = timeline[timeline.length - 1].timestamp - timeline[0].timestamp;
             const maxSize = Math.max(...timeline.map(t => t.size));
             
-            // 绘制坐标轴
+            // Draw coordinate axes
             ctx.strokeStyle = '#e5e7eb';
             ctx.lineWidth = 1;
             ctx.beginPath();
@@ -4132,7 +4365,7 @@ impl FixedHybridTemplate {
             ctx.lineTo(40, height - 30);
             ctx.stroke();
             
-            // 绘制数据点和线
+            // Draw data points and lines
             ctx.strokeStyle = '#3b82f6';
             ctx.fillStyle = '#3b82f6';
             ctx.lineWidth = 2;
@@ -4150,7 +4383,7 @@ impl FixedHybridTemplate {
                     ctx.lineTo(x, y);
                 }
                 
-                // 绘制数据点
+                // Draw data points
                 ctx.save();
                 ctx.beginPath();
                 ctx.arc(x, y, 3, 0, 2 * Math.PI);
@@ -4163,7 +4396,7 @@ impl FixedHybridTemplate {
             
             ctx.stroke();
             
-            // 添加标签
+            // Add labels
             ctx.fillStyle = '#374151';
             ctx.font = '12px Arial';
             ctx.fillText('Memory Usage', 50, 15);
@@ -4195,7 +4428,7 @@ impl FixedHybridTemplate {
             const container = document.getElementById('pattern-recognition');
             if (!container) return;
             
-            // 分析分配模式
+            // Analyze allocation patterns
             const sizeDistribution = {
                 small: allocationPatterns.filter(p => p.size < 1024).length,
                 medium: allocationPatterns.filter(p => p.size >= 1024 && p.size < 1024 * 1024).length,
@@ -4258,7 +4491,7 @@ impl FixedHybridTemplate {
             }
         }
         
-        // Memory Passport 显示函数
+        // Memory Passport display function
         function showMemoryPassport(memoryId) {
             const container = document.getElementById('memoryPassport');
             if (!container) return;
@@ -4625,7 +4858,9 @@ impl FixedHybridTemplate {
     /// Calculate thread-level performance metrics
     fn calculate_thread_metrics(&self, data: &HybridAnalysisData) -> ThreadMetrics {
         let total_variables = data.variable_registry.len() as f64;
-        let total_memory: u64 = data.variable_registry.values()
+        let total_memory: u64 = data
+            .variable_registry
+            .values()
             .map(|v| v.memory_usage)
             .sum();
 
@@ -4638,13 +4873,19 @@ impl FixedHybridTemplate {
     /// Calculate task-level performance metrics
     fn calculate_task_metrics(&self, data: &HybridAnalysisData) -> TaskMetrics {
         let total_variables = data.variable_registry.len() as f64;
-        let active_variables = data.variable_registry.values()
+        let active_variables = data
+            .variable_registry
+            .values()
             .filter(|v| matches!(v.lifecycle_stage, LifecycleStage::Active))
             .count() as f64;
 
         TaskMetrics {
             avg_variables_per_task: total_variables / self.task_count as f64,
-            memory_efficiency: if total_variables > 0.0 { active_variables / total_variables } else { 0.0 },
+            memory_efficiency: if total_variables > 0.0 {
+                active_variables / total_variables
+            } else {
+                0.0
+            },
         }
     }
 }
@@ -4681,7 +4922,7 @@ pub fn create_sample_hybrid_data(thread_count: usize, task_count: usize) -> Hybr
     let mut _variable_counter = 0;
     for thread_id in 0..thread_count {
         let tasks = thread_task_mapping.get(&thread_id).unwrap();
-        
+
         for &task_id in tasks {
             // Create variables for each task (original full data)
             for var_idx in 0..((thread_id + 1) * 2) {
@@ -4708,10 +4949,10 @@ pub fn create_sample_hybrid_data(thread_count: usize, task_count: usize) -> Hybr
 
     // Create visualization config
     let visualization_config = VisualizationConfig::default();
-    
+
     // Generate realistic performance metrics with fewer data points
     let performance_metrics = generate_performance_metrics(thread_count, task_count);
-    
+
     // Generate intelligent thread and task classifications
     let thread_classifications = generate_thread_classifications(thread_count);
     let task_classifications = generate_task_classifications(task_count);
@@ -4778,36 +5019,36 @@ pub fn create_sample_hybrid_data(thread_count: usize, task_count: usize) -> Hybr
 /// Generate intelligent thread workload classifications
 fn generate_thread_classifications(thread_count: usize) -> HashMap<usize, ThreadWorkloadType> {
     let mut classifications = HashMap::new();
-    
+
     for thread_id in 0..thread_count {
         let classification = match thread_id % 5 {
             0 => ThreadWorkloadType::CpuIntensive,
-            1 => ThreadWorkloadType::IoIntensive, 
+            1 => ThreadWorkloadType::IoIntensive,
             2 => ThreadWorkloadType::NetworkIntensive,
             3 => ThreadWorkloadType::Mixed,
             _ => ThreadWorkloadType::Idle,
         };
         classifications.insert(thread_id, classification);
     }
-    
+
     classifications
 }
 
 /// Generate intelligent task execution pattern classifications
 fn generate_task_classifications(task_count: usize) -> HashMap<usize, TaskExecutionPattern> {
     let mut classifications = HashMap::new();
-    
+
     for task_id in 0..task_count {
         let classification = match task_id % 5 {
             0 => TaskExecutionPattern::CpuBound,
             1 => TaskExecutionPattern::IoBound,
-            2 => TaskExecutionPattern::NetworkBound, 
+            2 => TaskExecutionPattern::NetworkBound,
             3 => TaskExecutionPattern::MemoryIntensive,
             _ => TaskExecutionPattern::Balanced,
         };
         classifications.insert(task_id, classification);
     }
-    
+
     classifications
 }
 
@@ -4826,25 +5067,33 @@ fn generate_performance_metrics(thread_count: usize, task_count: usize) -> Perfo
     for i in 0..timeline_points {
         let time_progress = i as f64 / timeline_points as f64;
         timestamps.push(i as u64 * 100); // 100ms intervals
-        
+
         // CPU usage: simulated workload with peaks and valleys
         let base_cpu = 15.0 + (thread_count as f64 * 2.5);
         let workload_spike = 40.0 * (1.0 + (time_progress * 6.28).sin()) / 2.0;
-        let thread_stress = if time_progress > 0.3 && time_progress < 0.8 { 25.0 } else { 0.0 };
+        let thread_stress = if time_progress > 0.3 && time_progress < 0.8 {
+            25.0
+        } else {
+            0.0
+        };
         cpu_usage.push((base_cpu + workload_spike + thread_stress).min(95.0));
-        
+
         // Memory usage: progressive increase with allocation bursts
         let base_memory = (thread_count * task_count * 1024 * 1024) as u64; // Base memory per thread-task
         let allocation_growth = (time_progress * base_memory as f64 * 0.8) as u64;
         let burst_pattern = if i % 7 == 0 { base_memory / 4 } else { 0 };
         memory_usage.push(base_memory + allocation_growth + burst_pattern);
-        
+
         // I/O operations: periodic spikes based on task scheduling
         let base_io = thread_count as u64 * 10;
-        let io_burst = if i % 5 == 0 { task_count as u64 * 50 } else { 0 };
+        let io_burst = if i % 5 == 0 {
+            task_count as u64 * 50
+        } else {
+            0
+        };
         let sustained_io = (time_progress * 200.0) as u64;
         io_operations.push(base_io + io_burst + sustained_io);
-        
+
         // Network throughput: communication between threads/tasks
         let base_network = (thread_count * task_count * 512) as u64; // Base network activity
         let communication_spike = if time_progress > 0.4 && time_progress < 0.9 {
@@ -4854,31 +5103,31 @@ fn generate_performance_metrics(thread_count: usize, task_count: usize) -> Perfo
         };
         network_bytes.push(base_network + communication_spike);
     }
-    
+
     // Generate per-thread breakdowns
     for thread_id in 0..thread_count {
         let mut thread_cpu = Vec::new();
         let mut thread_memory = Vec::new();
-        
+
         for i in 0..timeline_points {
             let time_progress = i as f64 / timeline_points as f64;
-            
+
             // Each thread has different usage patterns
             let thread_factor = (thread_id + 1) as f64 / thread_count as f64;
             let thread_phase = time_progress + (thread_id as f64 * 0.2);
-            
+
             // CPU per thread
             let thread_base_cpu = cpu_usage[i] * thread_factor;
             let thread_specific_load = 10.0 * (thread_phase * 6.28).cos().abs();
             thread_cpu.push((thread_base_cpu + thread_specific_load).min(100.0));
-            
+
             // Memory per thread
             let thread_base_memory = memory_usage[i] / thread_count as u64;
-            let thread_allocation_pattern = ((thread_id + 1) as u64 * 1024 * 1024) * 
-                (1.0 + time_progress * thread_factor) as u64;
+            let thread_allocation_pattern = ((thread_id + 1) as u64 * 1024 * 1024)
+                * (1.0 + time_progress * thread_factor) as u64;
             thread_memory.push(thread_base_memory + thread_allocation_pattern);
         }
-        
+
         thread_cpu_breakdown.insert(thread_id, thread_cpu);
         thread_memory_breakdown.insert(thread_id, thread_memory);
     }
