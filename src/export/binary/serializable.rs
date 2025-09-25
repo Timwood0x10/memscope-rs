@@ -804,6 +804,7 @@ mod tests {
 
 /// Binary serializable wrapper for UnsafeReport
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[allow(dead_code)]
 pub struct BinaryUnsafeReport {
     pub report_id: String,
     pub source_type: u8, // 0=UnsafeBlock, 1=FfiFunction, 2=RawPointer, 3=Transmute
@@ -860,6 +861,7 @@ impl BinarySerializable for BinaryUnsafeReport {
 
 /// Binary serializable wrapper for MemoryPassport
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[allow(dead_code)]
 pub struct BinaryMemoryPassport {
     pub passport_id: String,
     pub memory_address: u64,
@@ -908,6 +910,7 @@ impl BinarySerializable for BinaryMemoryPassport {
 
 /// Binary serializable wrapper for CallStackRef
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[allow(dead_code)]
 pub struct BinaryCallStackRef {
     pub id: u32,
     pub depth: u16,
@@ -938,6 +941,7 @@ impl BinarySerializable for BinaryCallStackRef {
 
 /// Binary serializable wrapper for BorrowInfo
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[allow(dead_code)]
 pub struct BinaryBorrowInfo {
     pub immutable_borrows: u32,
     pub mutable_borrows: u32,
@@ -993,6 +997,7 @@ impl BinarySerializable for BinaryBorrowInfo {
 
 /// Binary serializable wrapper for CloneInfo
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[allow(dead_code)]
 pub struct BinaryCloneInfo {
     pub clone_count: u32,
     pub is_clone: bool,
@@ -1035,6 +1040,7 @@ impl BinarySerializable for BinaryCloneInfo {
 
 /// Binary serializable wrapper for OwnershipEvent
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[allow(dead_code)]
 pub struct BinaryOwnershipEvent {
     pub timestamp: u64,
     pub event_type: u8, // 0=Allocated, 1=Cloned, 2=Dropped, 3=OwnershipTransferred, 4=Borrowed, 5=MutablyBorrowed
@@ -1103,6 +1109,7 @@ impl BinarySerializable for BinaryOwnershipEvent {
 
 /// Binary serializable wrapper for ResolvedFfiFunction
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[allow(dead_code)]
 pub struct BinaryResolvedFfiFunction {
     pub library_name: String,
     pub function_name: String,
