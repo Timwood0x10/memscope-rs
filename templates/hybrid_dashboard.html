@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{TITLE}}</title>
+    <style>
+        /* CSS Variables for theming */
+        :root {
+            --primary: #3b82f6;
+            --secondary: #64748b;
+            --accent: #f59e0b;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --success: #10b981;
+            --bg: #ffffff;
+            --bg2: #f8fafc;
+            --text: #1e293b;
+            --text2: #64748b;
+            --border: #e2e8f0;
+        }
+
+        [data-theme="dark"] {
+            --primary: #60a5fa;
+            --secondary: #94a3b8;
+            --accent: #fbbf24;
+            --warning: #fbbf24;
+            --danger: #f87171;
+            --success: #34d399;
+            --bg: #0f172a;
+            --bg2: #1e293b;
+            --text: #f1f5f9;
+            --text2: #94a3b8;
+            --border: #334155;
+        }
+
+        * { 
+            box-sizing: border-box; 
+            margin: 0; 
+            padding: 0; 
+        }
+        
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg); 
+            color: var(--text); 
+            line-height: 1.6;
+            transition: all 0.3s ease;
+        }
+        
+        .container { 
+            max-width: 1400px; 
+            margin: 0 auto; 
+            padding: 20px; 
+        }
+        
+        .header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 30px; 
+            padding: 20px; 
+            background: var(--bg2); 
+            border-radius: 12px; 
+            border: 1px solid var(--border);
+        }
+        
+        .header h1 { 
+            color: var(--primary); 
+            font-size: 2rem; 
+            font-weight: 700; 
+        }
+        
+        .controls { 
+            display: flex; 
+            gap: 12px; 
+        }
+        
+        .btn { 
+            padding: 8px 16px; 
+            border: none; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            font-weight: 600; 
+            transition: all 0.2s ease;
+            background: var(--primary); 
+            color: white;
+        }
+        
+        .btn:hover { 
+            transform: translateY(-1px); 
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1); 
+        }
+        
+        .stats-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); 
+            gap: 20px; 
+            margin-bottom: 30px; 
+        }
+        
+        .stat-card { 
+            background: var(--bg2); 
+            padding: 20px; 
+            border-radius: 12px; 
+            border: 1px solid var(--border);
+            transition: all 0.2s ease;
+        }
+        
+        .stat-card:hover { 
+            transform: translateY(-2px); 
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1); 
+        }
+        
+        .stat-value { 
+            font-size: 2rem; 
+            font-weight: 700; 
+            margin-bottom: 8px; 
+        }
+        
+        .stat-label { 
+            color: var(--text2); 
+            font-size: 0.9rem; 
+        }
+        
+        .section { 
+            background: var(--bg2); 
+            padding: 24px; 
+            border-radius: 12px; 
+            margin-bottom: 24px; 
+            border: 1px solid var(--border);
+        }
+        
+        .section h3 { 
+            margin-bottom: 20px; 
+            color: var(--primary); 
+            font-size: 1.4rem; 
+            font-weight: 600; 
+        }
+        
+        .variables-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); 
+            gap: 16px; 
+        }
+        
+        .variable-card { 
+            background: var(--bg); 
+            padding: 16px; 
+            border-radius: 8px; 
+            border: 1px solid var(--border);
+            cursor: pointer; 
+            transition: all 0.2s ease;
+        }
+        
+        .variable-card:hover { 
+            transform: translateY(-1px); 
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1); 
+        }
+        
+        .variable-name { 
+            font-weight: 600; 
+            margin-bottom: 8px; 
+        }
+        
+        .variable-info { 
+            display: flex; 
+            justify-content: space-between; 
+            color: var(--text2); 
+            font-size: 0.9rem; 
+        }
+        
+        .status-active { color: var(--success); }
+        .status-allocated { color: var(--warning); }
+        .status-shared { color: var(--primary); }
+        .status-deallocated { color: var(--text2); }
+        
+        .modal { 
+            display: none; 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%; 
+            background: rgba(0,0,0,0.5); 
+            z-index: 1000; 
+        }
+        
+        .modal-content { 
+            position: absolute; 
+            top: 50%; 
+            left: 50%; 
+            transform: translate(-50%, -50%); 
+            background: var(--bg); 
+            padding: 24px; 
+            border-radius: 12px; 
+            max-width: 600px; 
+            width: 90%; 
+            max-height: 80vh; 
+            overflow-y: auto; 
+        }
+        
+        .close { 
+            position: absolute; 
+            top: 12px; 
+            right: 20px; 
+            font-size: 24px; 
+            cursor: pointer; 
+            color: var(--text2); 
+        }
+        
+        .drill-down-content h4 { 
+            margin-bottom: 16px; 
+            color: var(--primary); 
+        }
+        
+        .metric-row, .pattern-row { 
+            display: flex; 
+            justify-content: space-between; 
+            padding: 8px 0; 
+            border-bottom: 1px solid var(--border); 
+        }
+        
+        .recommendations, .optimization-tips { 
+            margin-top: 16px; 
+        }
+        
+        .rec-item, .tip-item { 
+            display: flex; 
+            gap: 12px; 
+            padding: 8px; 
+            margin: 8px 0; 
+            background: var(--bg2); 
+            border-radius: 6px; 
+        }
+        
+        .rec-priority, .tip-priority { 
+            padding: 2px 8px; 
+            border-radius: 4px; 
+            font-size: 0.8rem; 
+            font-weight: 600; 
+        }
+        
+        .rec-priority.high, .tip-priority.high { 
+            background: var(--danger); 
+            color: white; 
+        }
+        
+        .rec-priority.medium, .tip-priority.medium { 
+            background: var(--warning); 
+            color: white; 
+        }
+        
+        .rec-priority.low, .tip-priority.low { 
+            background: var(--success); 
+            color: white; 
+        }
+
+        /* FFI Crossing Visualization */
+        .ffi-crossing-section { 
+            background: var(--bg2); 
+            border-radius: 8px; 
+            padding: 16px; 
+            margin-bottom: 20px; 
+            border-left: 4px solid var(--warning); 
+        }
+        
+        .ffi-swimlane { 
+            display: flex; 
+            align-items: center; 
+            gap: 12px; 
+            margin: 16px 0; 
+            padding: 12px; 
+            background: var(--bg); 
+            border-radius: 8px; 
+        }
+        
+        .ffi-lane { 
+            flex: 1; 
+            text-align: center; 
+            padding: 12px; 
+            border-radius: 6px; 
+        }
+        
+        .rust-lane { 
+            background: linear-gradient(135deg, #f97316, #ea580c); 
+            color: white; 
+        }
+        
+        .c-lane { 
+            background: linear-gradient(135deg, #6b7280, #4b5563); 
+            color: white; 
+        }
+        
+        .lane-label { 
+            font-size: 12px; 
+            font-weight: 600; 
+            margin-bottom: 4px; 
+        }
+        
+        .ffi-event { 
+            font-size: 14px; 
+        }
+        
+        .ffi-boundary { 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            gap: 4px; 
+        }
+        
+        .boundary-arrow { 
+            font-size: 20px; 
+            font-weight: bold; 
+            color: var(--warning); 
+        }
+        
+        .boundary-label { 
+            font-size: 10px; 
+            color: var(--text2); 
+            font-weight: 600; 
+        }
+        
+        .ffi-warning { 
+            display: flex; 
+            align-items: center; 
+            gap: 8px; 
+            background: rgba(245, 158, 11, 0.1); 
+            padding: 8px 12px; 
+            border-radius: 6px; 
+            margin-top: 12px; 
+        }
+        
+        .warning-icon { 
+            font-size: 16px; 
+        }
+        
+        .warning-text { 
+            font-size: 14px; 
+            color: var(--warning); 
+            font-weight: 600; 
+        }
+
+        /* Attribution Panel Styles */
+        .attribution-panel {
+            animation: slideInFromTop 0.3s ease;
+        }
+
+        .attribution-section {
+            background: var(--bg2);
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+
+        .attribution-summary {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .hotspot-indicator {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .hotspot-badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            color: white;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .hotspot-desc {
+            color: var(--text2);
+            font-size: 0.9rem;
+        }
+
+        .attribution-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-secondary {
+            padding: 6px 12px;
+            border: 1px solid var(--border);
+            background: var(--bg);
+            color: var(--text);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s ease;
+        }
+
+        .btn-secondary:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .contributors-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .contributor-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            background: var(--bg);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .contributor-item:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .contributor-rank {
+            font-weight: 700;
+            color: var(--primary);
+            min-width: 30px;
+        }
+
+        .contributor-name {
+            flex: 1;
+            font-weight: 600;
+        }
+
+        .contributor-impact {
+            color: var(--text2);
+            font-size: 0.9rem;
+        }
+
+        .contributor-action {
+            color: var(--primary);
+            font-size: 0.85rem;
+        }
+
+        /* Inspector Modal Styles */
+        .inspector-container {
+            max-width: 800px;
+            width: 100%;
+        }
+
+        .inspector-header h3 {
+            margin-bottom: 16px;
+            color: var(--primary);
+        }
+
+        .inspector-tabs {
+            display: flex;
+            gap: 4px;
+            border-bottom: 2px solid var(--border);
+            margin-bottom: 20px;
+        }
+
+        .inspector-tab {
+            padding: 10px 16px;
+            border: none;
+            background: transparent;
+            color: var(--text2);
+            cursor: pointer;
+            border-radius: 6px 6px 0 0;
+            transition: all 0.2s ease;
+        }
+
+        .inspector-tab.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        .inspector-tab:hover:not(.active) {
+            background: var(--bg2);
+            color: var(--text);
+        }
+
+        .inspector-content {
+            min-height: 400px;
+        }
+
+        .inspector-page {
+            display: none;
+        }
+
+        .inspector-page.active {
+            display: block;
+        }
+
+        .lifecycle-timeline {
+            background: var(--bg2);
+            padding: 16px;
+            border-radius: 8px;
+        }
+
+        .timeline-events {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .timeline-event {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            padding: 8px;
+            border-radius: 6px;
+            min-width: 80px;
+        }
+
+        .timeline-event.allocated {
+            background: rgba(245, 158, 11, 0.1);
+        }
+
+        .timeline-event.active {
+            background: rgba(16, 185, 129, 0.1);
+        }
+
+        .timeline-event.shared {
+            background: rgba(59, 130, 246, 0.1);
+        }
+
+        .event-time {
+            font-size: 0.8rem;
+            color: var(--text2);
+        }
+
+        .event-label {
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+
+        .event-details {
+            font-size: 0.75rem;
+            color: var(--text2);
+            text-align: center;
+        }
+
+        .thread-metrics .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .metric-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 16px;
+            background: var(--bg2);
+            border-radius: 8px;
+        }
+
+        .metric-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .metric-label {
+            font-size: 0.85rem;
+            color: var(--text2);
+            margin-top: 4px;
+        }
+
+        .task-items, .variables-table-content, .task-variables-content {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .task-item, .var-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            background: var(--bg2);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .task-item:hover, .var-row:hover {
+            background: var(--primary);
+            color: white;
+        }
+
+        .task-id, .var-name {
+            font-weight: 600;
+            flex: 1;
+        }
+
+        .task-status, .var-status, .var-lifecycle {
+            font-size: 0.85rem;
+            padding: 2px 8px;
+            border-radius: 12px;
+            background: var(--success);
+            color: white;
+        }
+
+        .task-memory, .var-size {
+            font-size: 0.9rem;
+            color: var(--text2);
+        }
+
+        .variable-search input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            margin-bottom: 16px;
+        }
+
+        .optimization-recommendations {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .rec-item.priority-high {
+            border-left: 4px solid var(--danger);
+        }
+
+        .rec-item.priority-medium {
+            border-left: 4px solid var(--warning);
+        }
+
+        .rec-impact {
+            font-size: 0.85rem;
+            color: var(--success);
+            font-weight: 600;
+        }
+
+        .task-basic-info {
+            background: var(--bg2);
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+        }
+
+        .task-basic-info p {
+            margin-bottom: 8px;
+        }
+
+        .optimization-report {
+            background: var(--bg2);
+            padding: 16px;
+            border-radius: 8px;
+            border-left: 4px solid var(--success);
+        }
+
+        .report-summary p {
+            margin-bottom: 8px;
+        }
+
+        @keyframes slideInFromTop {
+            from {
+                transform: translateY(-20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>{{TITLE}}</h1>
+            <div class="controls">
+                <button class="btn" id="theme-toggle" onclick="window.toggleTheme()">🌙 Dark Mode</button>
+                <button class="btn" id="memory-map-toggle" onclick="window.toggleMemoryMap()">🗺️ Show Memory Map</button>
+            </div>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card" onclick="window.focusAttribution('memory')">
+                <div class="stat-value" style="color: var(--primary);">{{TOTAL_MEMORY}}</div>
+                <div class="stat-label">Total Memory</div>
+            </div>
+            <div class="stat-card" onclick="window.focusAttribution('variables')">
+                <div class="stat-value" style="color: var(--success);">{{TOTAL_VARIABLES}}</div>
+                <div class="stat-label">Total Variables</div>
+            </div>
+            <div class="stat-card" onclick="window.focusAttribution('threads')">
+                <div class="stat-value" style="color: var(--warning);">{{THREAD_COUNT}}</div>
+                <div class="stat-label">Active Threads</div>
+            </div>
+            <div class="stat-card" onclick="window.focusAttribution('efficiency')">
+                <div class="stat-value" style="color: var(--accent);">{{EFFICIENCY}}%</div>
+                <div class="stat-label">Memory Efficiency</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>🧵 Thread Variables</h3>
+            <div class="variables-grid" id="variables-container">
+                {{VARIABLES_HTML}}
+            </div>
+        </div>
+
+        <div class="section memory-map-section" style="display: none;">
+            <h3>🗺️ Memory Map</h3>
+            <div id="memory-map-content">
+                {{MEMORY_MAP_HTML}}
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for variable details -->
+    <div id="variable-modal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <div id="modal-body"></div>
+        </div>
+    </div>
+
+    <!-- Include JavaScript -->
+    <script src="./templates/hybrid_dashboard.js"></script>
+    <script>
+        // Initialize with data
+        window.DASHBOARD_DATA = {
+            variables: {{VARIABLES_DATA}},
+            threads: {{THREADS_DATA}},
+            tasks: {{TASKS_DATA}}
+        };
+        
+        console.log('🎯 Attribution Analysis Dashboard initialized');
+        console.log('🔍 Ready for 3-click root cause discovery');
+    </script>
+</body>
+</html>
