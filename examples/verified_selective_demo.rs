@@ -337,7 +337,7 @@ fn run_enhanced_verified_worker(
     let mut local_ops = 0;
 
     // Only EVEN threads should initialize tracking
-    let should_track = thread_idx % 2 == 0;
+    let should_track = thread_idx.is_multiple_of(2);
 
     if should_track {
         // Initialize tracking for even threads
@@ -419,7 +419,7 @@ fn run_enhanced_verified_worker(
     total_operations.fetch_add(local_ops, Ordering::Relaxed);
 
     let duration = start_time.elapsed();
-    if thread_idx < 5 || thread_idx % 10 == 0 {
+    if thread_idx < 5 || thread_idx.is_multiple_of(10) {
         println!(
             "   Thread {} ({}tracked): {} ops in {:?}",
             thread_idx,
@@ -501,7 +501,7 @@ fn generate_verified_analysis(
     aggregator.export_analysis(&analysis, &json_path)?;
 
     println!("\n📄 Reports Generated:");
-    println!("   🌐 HTML: {}", "platform_demo_dashboard.html");
+    println!("   🌐 HTML: platform_demo_dashboard.html");
     println!("   📄 JSON: {}", json_path.display());
 
     Ok(())

@@ -168,11 +168,11 @@ fn should_track_thread(thread_id: usize, workload_type: WorkloadType) -> bool {
         // Track all data processing and batch processing threads
         WorkloadType::DataProcessing | WorkloadType::BatchProcessing => true,
         // Track every 3rd compute intensive thread
-        WorkloadType::ComputeIntensive => thread_id % 3 == 0,
+        WorkloadType::ComputeIntensive => thread_id.is_multiple_of(3),
         // Track half of I/O simulation threads
-        WorkloadType::IoSimulation => thread_id % 2 == 0,
+        WorkloadType::IoSimulation => thread_id.is_multiple_of(2),
         // Track every 4th stream processing thread
-        WorkloadType::StreamProcessing => thread_id % 4 == 0,
+        WorkloadType::StreamProcessing => thread_id.is_multiple_of(4),
         // Track all cache workers
         WorkloadType::CacheWorker => true,
     }

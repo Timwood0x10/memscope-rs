@@ -155,7 +155,7 @@ fn generate_thread_allocations(
         .map_err(|e| format!("Allocation tracking failed: {}", e))?;
 
     // Simulate realistic deallocation patterns
-    if alloc_idx % 3 == 0 && alloc_idx > 0 {
+    if alloc_idx.is_multiple_of(3) && alloc_idx > 0 {
         let dealloc_ptr = ptr_base + ((alloc_idx - 1) * 64);
         track_deallocation_lockfree(dealloc_ptr, &call_stack)
             .map_err(|e| format!("Deallocation tracking failed: {}", e))?;

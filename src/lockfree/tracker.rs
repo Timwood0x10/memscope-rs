@@ -313,7 +313,7 @@ impl ThreadLocalTracker {
         if self.should_sample_allocation(size, current_frequency) || current_frequency <= 10 {
             // Update performance sampling counter
             self.performance_sample_counter += 1;
-            let _should_collect_enhanced = self.performance_sample_counter % 10 == 0; // Sample every 10th allocation
+            let _should_collect_enhanced = self.performance_sample_counter.is_multiple_of(10); // Sample every 10th allocation
 
             // Update thread history for advanced analysis
             #[cfg(feature = "advanced-analysis")]
@@ -407,7 +407,7 @@ impl ThreadLocalTracker {
 
             // Performance-gated enhanced collection for deallocations too
             self.performance_sample_counter += 1;
-            let _should_collect_enhanced = self.performance_sample_counter % 20 == 0; // Less frequent for deallocations
+            let _should_collect_enhanced = self.performance_sample_counter.is_multiple_of(20); // Less frequent for deallocations
 
             let event = Event {
                 timestamp,

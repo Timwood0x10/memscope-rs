@@ -366,10 +366,10 @@ fn generate_workload_allocation(
 
 fn should_deallocate_workload(config: &EnhancedWorkload, iteration: usize) -> bool {
     match config.workload_type {
-        WorkloadType::IOBound => iteration % 3 == 0, // Frequent cleanup
-        WorkloadType::CPUBound => iteration % 4 == 0, // Regular cleanup
-        WorkloadType::MemoryBound => iteration % 8 == 0, // Less frequent (more caching)
-        WorkloadType::Interactive => iteration % 5 == 0, // Moderate cleanup
+        WorkloadType::IOBound => iteration.is_multiple_of(3), // Frequent cleanup
+        WorkloadType::CPUBound => iteration.is_multiple_of(4), // Regular cleanup
+        WorkloadType::MemoryBound => iteration.is_multiple_of(8), // Less frequent (more caching)
+        WorkloadType::Interactive => iteration.is_multiple_of(5), // Moderate cleanup
     }
 }
 
@@ -389,28 +389,28 @@ fn select_deallocation_target(config: &EnhancedWorkload, available: usize) -> us
 fn simulate_workload_timing(config: &EnhancedWorkload, iteration: usize) {
     let sleep_duration = match config.workload_type {
         WorkloadType::IOBound => {
-            if iteration % 50 == 0 {
+            if iteration.is_multiple_of(50) {
                 Duration::from_millis(5) // Simulate I/O wait
             } else {
                 Duration::from_micros(100)
             }
         }
         WorkloadType::CPUBound => {
-            if iteration % 200 == 0 {
+            if iteration.is_multiple_of(200) {
                 Duration::from_millis(1) // Brief context switch
             } else {
                 Duration::from_nanos(1000)
             }
         }
         WorkloadType::MemoryBound => {
-            if iteration % 100 == 0 {
+            if iteration.is_multiple_of(100) {
                 Duration::from_millis(2) // Memory pressure pause
             } else {
                 Duration::from_micros(500)
             }
         }
         WorkloadType::Interactive => {
-            if iteration % 30 == 0 {
+            if iteration.is_multiple_of(30) {
                 Duration::from_millis(10) // User interaction delay
             } else {
                 Duration::from_micros(200)

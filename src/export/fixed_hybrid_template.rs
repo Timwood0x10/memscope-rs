@@ -282,7 +282,7 @@ impl FixedHybridTemplate {
                 let size_kb = variable.memory_usage / 1024;
                 html.push_str(&format!(
                     r#"<div class="memory-var-block" style="width: {}px; height: 20px; background: var(--primary); margin: 2px; display: inline-block; opacity: 0.7;" title="{}: {}KB"></div>"#,
-                    (size_kb / 10).max(10).min(100),
+                    (size_kb / 10).clamp(10, 100),
                     variable.name,
                     size_kb
                 ));

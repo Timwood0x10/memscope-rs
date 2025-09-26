@@ -321,6 +321,7 @@ impl EnhancedMemoryCoordinator {
     }
 
     /// New: Record unified variable events (true multi-module integration)
+    #[allow(clippy::too_many_arguments)]
     fn record_unified_variable(
         &mut self,
         var_name: String,
@@ -390,7 +391,7 @@ impl EnhancedMemoryCoordinator {
 
         self.timeline_events
             .entry(timestamp)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(event);
 
         // Establish association table
@@ -856,8 +857,8 @@ fn print_cross_thread_analysis(
     println!("\n=== 🔄 CROSS-THREAD ANALYSIS ===");
 
     // Calculate memory distribution across threads for hotspot detection
-    let mut thread_memory_usage = vec![0u64; THREAD_COUNT];
-    let mut thread_var_counts = vec![0usize; THREAD_COUNT];
+    let mut thread_memory_usage = [0u64; THREAD_COUNT];
+    let mut thread_var_counts = [0usize; THREAD_COUNT];
 
     for var in data.variable_registry.values() {
         if var.thread_id < THREAD_COUNT {
@@ -948,9 +949,7 @@ fn print_variable_lifecycle_flow(
     let mut lifecycle_by_thread: HashMap<usize, HashMap<String, usize>> = HashMap::new();
 
     for var in data.variable_registry.values() {
-        let thread_lifecycle = lifecycle_by_thread
-            .entry(var.thread_id)
-            .or_insert_with(HashMap::new);
+        let thread_lifecycle = lifecycle_by_thread.entry(var.thread_id).or_default();
         let lifecycle_name = format!("{:?}", var.lifecycle_stage);
         *thread_lifecycle.entry(lifecycle_name).or_insert(0) += 1;
     }
@@ -1003,7 +1002,7 @@ fn print_variable_lifecycle_flow(
 fn calculate_memory_distribution_efficiency(
     data: &memscope_rs::export::fixed_hybrid_template::HybridAnalysisData,
 ) -> f64 {
-    let mut thread_memories = vec![0u64; THREAD_COUNT];
+    let mut thread_memories = [0u64; THREAD_COUNT];
     for var in data.variable_registry.values() {
         if var.thread_id < THREAD_COUNT {
             thread_memories[var.thread_id] += var.memory_usage;

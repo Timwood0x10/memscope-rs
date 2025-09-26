@@ -2474,7 +2474,8 @@ impl EnhancedStreamingValidator {
 
                 // Report progress if callback is set
                 if let Some(callback) = &self.progress_callback {
-                    if processed_bytes % self.streaming_config.progress_report_interval as u64 == 0
+                    if processed_bytes
+                        .is_multiple_of(self.streaming_config.progress_report_interval as u64)
                     {
                         callback(progress);
                     }
@@ -2483,7 +2484,7 @@ impl EnhancedStreamingValidator {
 
             // Save checkpoint if enabled
             if self.streaming_config.enable_resume
-                && processed_bytes % self.streaming_config.checkpoint_interval as u64 == 0
+                && processed_bytes.is_multiple_of(self.streaming_config.checkpoint_interval as u64)
             {
                 self.create_checkpoint(
                     processed_bytes,

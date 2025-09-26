@@ -198,7 +198,7 @@ impl ParallelShardProcessor {
             .fetch_add(shard.len(), Ordering::Relaxed);
 
         // If monitoring is enabled, print progress
-        if self.config.enable_monitoring && shard_index % 10 == 0 {
+        if self.config.enable_monitoring && shard_index.is_multiple_of(10) {
             let _processed = self.processed_count.load(Ordering::Relaxed);
             tracing::info!(
                 "   Shard {shard_index} completed: {} allocations, {} bytes, {processing_time:?}",
