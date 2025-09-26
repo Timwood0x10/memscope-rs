@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -672,6 +672,951 @@
                 opacity: 1;
             }
         }
+
+        /* Enhanced Diagnostics Styles */
+        .diagnostics-section {
+            border-left: 4px solid #8b5cf6;
+        }
+
+        .diagnostics-description, .layout-description {
+            background: rgba(59, 130, 246, 0.1);
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid var(--primary);
+        }
+
+        .diagnostics-description p, .layout-description p {
+            margin: 0 0 6px 0;
+            font-size: 0.9rem;
+        }
+
+        .diagnostics-controls {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .active-problems {
+            min-height: 200px;
+        }
+
+        .no-problems {
+            padding: 20px;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            background: var(--bg);
+            padding: 20px;
+            border-radius: 12px;
+            border: 2px solid var(--success);
+            margin-bottom: 20px;
+        }
+
+        .status-icon {
+            font-size: 2rem;
+        }
+
+        .status-text h4 {
+            margin: 0 0 8px 0;
+            color: var(--success);
+        }
+
+        .status-text p {
+            margin: 0 0 6px 0;
+            font-size: 1rem;
+        }
+
+        .status-text small {
+            color: var(--text2);
+            font-size: 0.85rem;
+        }
+
+        .quick-insights {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 16px;
+        }
+
+        .insight-card {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: var(--bg);
+            padding: 16px;
+            border-radius: 8px;
+            border-left: 3px solid var(--primary);
+        }
+
+        .insight-icon {
+            font-size: 1.5rem;
+        }
+
+        .insight-card strong {
+            display: block;
+            margin-bottom: 4px;
+            color: var(--text);
+        }
+
+        .insight-card p {
+            margin: 0;
+            color: var(--text2);
+            font-size: 0.9rem;
+        }
+
+        /* Code Health Summary Styles */
+        .code-health-summary {
+            background: var(--bg);
+            border-radius: 12px;
+            padding: 20px;
+            border: 2px solid var(--success);
+        }
+
+        .health-header h4 {
+            margin: 0 0 8px 0;
+            color: var(--success);
+        }
+
+        .health-header p {
+            margin: 0 0 16px 0;
+            color: var(--text2);
+        }
+
+        .health-metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+
+        .health-metric {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: var(--bg2);
+            padding: 16px;
+            border-radius: 8px;
+        }
+
+        .metric-icon {
+            font-size: 1.5rem;
+        }
+
+        .health-metric strong {
+            display: block;
+            margin-bottom: 4px;
+            color: var(--text);
+        }
+
+        .health-metric p {
+            margin: 0;
+            color: var(--text2);
+            font-size: 0.9rem;
+        }
+
+        /* FFI Analysis Styles */
+        .ffi-explanation {
+            background: rgba(245, 158, 11, 0.1);
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid var(--warning);
+        }
+
+        .ffi-explanation p {
+            margin: 0 0 8px 0;
+            font-size: 0.9rem;
+        }
+
+        .ffi-safety-checklist {
+            background: var(--bg2);
+            padding: 16px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+
+        .ffi-safety-checklist h5 {
+            margin: 0 0 12px 0;
+            color: var(--primary);
+        }
+
+        .checklist-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .checklist-item:last-child {
+            border-bottom: none;
+        }
+
+        .check-status {
+            font-size: 1.2rem;
+            min-width: 24px;
+        }
+
+        /* Enhanced FFI Analysis Styles */
+        .ffi-crossing-log, .ffi-memory-trace, .ffi-warnings {
+            background: var(--bg2);
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+        }
+
+        .ffi-crossing-log h5, .ffi-memory-trace h5, .ffi-warnings h5 {
+            margin: 0 0 12px 0;
+            color: var(--primary);
+        }
+
+        .crossing-timeline {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .crossing-event {
+            display: grid;
+            grid-template-columns: 60px 1fr 120px 200px;
+            gap: 12px;
+            align-items: center;
+            padding: 8px;
+            background: var(--bg);
+            border-radius: 6px;
+            font-size: 0.85rem;
+        }
+
+        .event-time {
+            font-weight: 600;
+            color: var(--text2);
+        }
+
+        .event-type.rust {
+            color: #f97316;
+            font-weight: 600;
+        }
+
+        .event-type.c {
+            color: #6b7280;
+            font-weight: 600;
+        }
+
+        .event-type.ffi {
+            color: var(--warning);
+            font-weight: 600;
+        }
+
+        .event-location {
+            font-family: 'Courier New', monospace;
+            color: var(--text2);
+            font-size: 0.8rem;
+        }
+
+        .event-details {
+            color: var(--text);
+        }
+
+        .memory-changes {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .memory-change {
+            display: grid;
+            grid-template-columns: 100px 1fr 80px;
+            gap: 12px;
+            align-items: center;
+            padding: 8px;
+            background: var(--bg);
+            border-radius: 6px;
+        }
+
+        .change-side.rust {
+            background: rgba(249, 115, 22, 0.1);
+            color: #f97316;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 0.8rem;
+        }
+
+        .change-side.c {
+            background: rgba(107, 114, 128, 0.1);
+            color: #6b7280;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 0.8rem;
+        }
+
+        .change-action {
+            font-size: 0.9rem;
+        }
+
+        .change-size {
+            font-weight: 600;
+            text-align: right;
+        }
+
+        .warning-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+        }
+
+        .warning-item.warning-high {
+            background: rgba(220, 38, 38, 0.1);
+            border-left: 3px solid #dc2626;
+        }
+
+        .warning-item.warning-medium {
+            background: rgba(245, 158, 11, 0.1);
+            border-left: 3px solid var(--warning);
+        }
+
+        .warning-item.warning-low {
+            background: rgba(34, 197, 94, 0.1);
+            border-left: 3px solid var(--success);
+        }
+
+        .warning-icon {
+            font-size: 1.2rem;
+        }
+
+        .warning-text {
+            font-size: 0.9rem;
+        }
+
+        /* Call Stack Attribution Styles */
+        .code-attribution-section {
+            background: var(--bg2);
+            padding: 16px;
+            border-radius: 8px;
+            margin-top: 20px;
+            border-left: 4px solid var(--primary);
+        }
+
+        .code-attribution-section h5 {
+            margin: 0 0 16px 0;
+            color: var(--primary);
+        }
+
+        .stack-attribution-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .stack-item {
+            background: var(--bg);
+            border-radius: 8px;
+            padding: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border-left: 4px solid transparent;
+        }
+
+        .stack-item:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .stack-item.high {
+            border-left-color: #dc2626;
+        }
+
+        .stack-item.medium {
+            border-left-color: var(--warning);
+        }
+
+        .stack-item.low {
+            border-left-color: var(--success);
+        }
+
+        .stack-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .function-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .function-name {
+            font-weight: 600;
+            font-family: 'Courier New', monospace;
+            color: var(--text);
+        }
+
+        .file-location {
+            font-size: 0.8rem;
+            color: var(--text2);
+            font-family: 'Courier New', monospace;
+        }
+
+        .allocation-stats {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 2px;
+        }
+
+        .allocation-percent {
+            font-weight: 700;
+            font-size: 1.1rem;
+            color: var(--primary);
+        }
+
+        .allocation-size {
+            font-size: 0.9rem;
+            color: var(--text2);
+        }
+
+        .allocation-bar {
+            height: 6px;
+            background: var(--border);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+
+        .bar-fill {
+            height: 100%;
+            transition: width 0.3s ease;
+        }
+
+        .bar-fill.high {
+            background: #dc2626;
+        }
+
+        .bar-fill.medium {
+            background: var(--warning);
+        }
+
+        .bar-fill.low {
+            background: var(--success);
+        }
+
+        .stack-details {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.85rem;
+        }
+
+        .call-count {
+            color: var(--text2);
+        }
+
+        .action-hint {
+            color: var(--primary);
+            font-weight: 500;
+        }
+
+        /* Function Analysis Styles */
+        .function-analysis {
+            max-width: 800px;
+        }
+
+        .function-location {
+            background: var(--bg2);
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .function-location p {
+            margin: 0 0 6px 0;
+        }
+
+        .allocation-patterns {
+            margin-bottom: 20px;
+        }
+
+        .pattern-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin-top: 12px;
+        }
+
+        .pattern-item {
+            background: var(--bg2);
+            padding: 12px;
+            border-radius: 6px;
+            text-align: center;
+        }
+
+        .pattern-label {
+            display: block;
+            font-size: 0.8rem;
+            color: var(--text2);
+            margin-bottom: 4px;
+        }
+
+        .pattern-value {
+            display: block;
+            font-weight: 700;
+            font-size: 1.1rem;
+            margin-bottom: 4px;
+        }
+
+        .pattern-trend {
+            font-size: 0.8rem;
+        }
+
+        .code-hotspots {
+            margin-bottom: 20px;
+        }
+
+        .hotspot-lines {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .hotspot-line {
+            display: grid;
+            grid-template-columns: 80px 1fr 120px;
+            gap: 12px;
+            align-items: center;
+            padding: 8px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+        }
+
+        .hotspot-line.high {
+            background: rgba(220, 38, 38, 0.1);
+        }
+
+        .hotspot-line.medium {
+            background: rgba(245, 158, 11, 0.1);
+        }
+
+        .hotspot-line.low {
+            background: rgba(34, 197, 94, 0.1);
+        }
+
+        .line-number {
+            font-family: 'Courier New', monospace;
+            font-weight: 600;
+            color: var(--text2);
+        }
+
+        .line-code {
+            font-family: 'Courier New', monospace;
+            color: var(--text);
+        }
+
+        .line-impact {
+            text-align: right;
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+
+        .suggestion-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 12px;
+        }
+
+        .suggestion-item {
+            display: flex;
+            gap: 12px;
+            padding: 16px;
+            background: var(--bg2);
+            border-radius: 8px;
+        }
+
+        .suggestion-item.priority-high {
+            border-left: 4px solid #dc2626;
+        }
+
+        .suggestion-item.priority-medium {
+            border-left: 4px solid var(--warning);
+        }
+
+        .suggestion-icon {
+            font-size: 1.5rem;
+        }
+
+        .suggestion-content strong {
+            display: block;
+            margin-bottom: 6px;
+            color: var(--text);
+        }
+
+        .suggestion-content p {
+            margin: 0 0 6px 0;
+            color: var(--text2);
+            font-size: 0.9rem;
+        }
+
+        .expected-impact {
+            font-size: 0.85rem;
+            color: var(--success);
+            font-weight: 600;
+        }
+
+        /* Variable Controls and Legend Styles */
+        .variables-controls {
+            background: var(--bg2);
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .variable-legend h5 {
+            margin: 0 0 12px 0;
+            color: var(--primary);
+        }
+
+        .legend-items {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: var(--bg);
+            border: 2px solid transparent;
+        }
+
+        .legend-item:hover {
+            background: var(--primary);
+            color: white;
+        }
+
+        .legend-item.active {
+            border-color: var(--primary);
+            background: rgba(59, 130, 246, 0.1);
+        }
+
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 3px;
+            border: 2px solid;
+        }
+
+        .legend-color.cpu-intensive {
+            background: #fbbf24;
+            border-color: #f59e0b;
+        }
+
+        .legend-color.io-intensive {
+            background: #fb923c;
+            border-color: #ea580c;
+        }
+
+        .legend-color.memory-intensive {
+            background: #f87171;
+            border-color: #dc2626;
+        }
+
+        .legend-color.async-heavy {
+            background: #a78bfa;
+            border-color: #8b5cf6;
+        }
+
+        .legend-color.normal {
+            background: #94a3b8;
+            border-color: #64748b;
+        }
+
+        .legend-color.all {
+            background: linear-gradient(45deg, #fbbf24, #fb923c, #f87171, #a78bfa);
+            border-color: var(--primary);
+        }
+
+        .variable-filters {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .filter-group label {
+            font-weight: 600;
+            color: var(--text);
+            font-size: 0.9rem;
+        }
+
+        .filter-group select {
+            padding: 6px 10px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--bg);
+            color: var(--text);
+        }
+
+        /* Performance Category Variable Cards */
+        .variable-card.cpu-intensive {
+            border-left: 4px solid #f59e0b;
+            background: rgba(251, 191, 36, 0.05);
+        }
+
+        .variable-card.io-intensive {
+            border-left: 4px solid #ea580c;
+            background: rgba(251, 146, 60, 0.05);
+        }
+
+        .variable-card.memory-intensive {
+            border-left: 4px solid #dc2626;
+            background: rgba(248, 113, 113, 0.05);
+        }
+
+        .variable-card.async-heavy {
+            border-left: 4px solid #8b5cf6;
+            background: rgba(167, 139, 250, 0.05);
+        }
+
+        .variable-card.normal {
+            border-left: 4px solid #64748b;
+            background: rgba(148, 163, 184, 0.05);
+        }
+
+        .performance-indicator {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+        }
+
+        .perf-badge {
+            font-size: 0.7rem;
+            font-weight: 600;
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: white;
+        }
+
+        .perf-badge.cpu-intensive {
+            background: #f59e0b;
+        }
+
+        .perf-badge.io-intensive {
+            background: #ea580c;
+        }
+
+        .perf-badge.memory-intensive {
+            background: #dc2626;
+        }
+
+        .perf-badge.async-heavy {
+            background: #8b5cf6;
+        }
+
+        .perf-badge.normal {
+            background: #64748b;
+        }
+
+        .variable-card {
+            position: relative;
+        }
+
+        .variable-card.filtered-out {
+            display: none;
+        }
+
+        .problem-card {
+            background: var(--bg);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+            border-left: 4px solid;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .problem-card:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .problem-card.critical {
+            border-color: #dc2626;
+            background: rgba(220, 38, 38, 0.05);
+        }
+
+        .problem-card.high {
+            border-color: #ea580c;
+            background: rgba(234, 88, 12, 0.05);
+        }
+
+        .problem-card.medium {
+            border-color: #d97706;
+            background: rgba(217, 119, 6, 0.05);
+        }
+
+        .problem-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .problem-title {
+            font-weight: 600;
+            font-size: 1.05rem;
+        }
+
+        .problem-confidence {
+            background: rgba(0,0,0,0.1);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .problem-description {
+            color: var(--text2);
+            font-size: 0.9rem;
+            margin-bottom: 8px;
+        }
+
+        .affected-components {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .component-tag {
+            background: var(--primary);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+        }
+
+        .root-cause-panel {
+            background: var(--bg2);
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .likely-causes {
+            margin-bottom: 20px;
+        }
+
+        .cause-item {
+            background: var(--bg);
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            border-left: 3px solid var(--primary);
+        }
+
+        .cause-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+
+        .cause-title {
+            font-weight: 600;
+        }
+
+        .cause-confidence {
+            font-size: 0.8rem;
+            color: var(--text2);
+        }
+
+        .debugging-steps {
+            background: var(--bg);
+            padding: 16px;
+            border-radius: 6px;
+            margin-bottom: 16px;
+        }
+
+        .debugging-steps h5 {
+            margin: 0 0 12px 0;
+            color: var(--primary);
+        }
+
+        .debugging-steps ol {
+            margin: 0;
+            padding-left: 20px;
+        }
+
+        .debugging-steps li {
+            margin-bottom: 6px;
+            font-size: 0.9rem;
+        }
+
+        .recommendations {
+            display: grid;
+            gap: 12px;
+        }
+
+        .recommendation-item {
+            background: var(--bg);
+            padding: 12px;
+            border-radius: 6px;
+            border-left: 3px solid var(--success);
+        }
+
+        .rec-header {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+
+        .rec-priority {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        .rec-effort {
+            font-size: 0.75rem;
+            color: var(--text2);
+            margin-left: auto;
+        }
+
+        .problem-alert {
+            animation: slideInFromRight 0.3s ease;
+        }
+
+        @keyframes slideInFromRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
     </style>
 </head>
 <body>
@@ -680,7 +1625,7 @@
             <h1>{{TITLE}}</h1>
             <div class="controls">
                 <button class="btn" id="theme-toggle" onclick="window.toggleTheme()">🌙 Dark Mode</button>
-                <button class="btn" id="memory-map-toggle" onclick="window.toggleMemoryMap()">🗺️ Show Memory Map</button>
+                <button class="btn" id="memory-map-toggle" onclick="window.toggleMemoryMap()">🗺️ Thread Memory</button>
             </div>
         </div>
 
@@ -705,15 +1650,130 @@
 
         <div class="section">
             <h3>🧵 Thread Variables</h3>
+            
+            <div class="variables-controls">
+                <div class="variable-legend">
+                    <h5>Performance Categories:</h5>
+                    <div class="legend-items">
+                        <div class="legend-item" onclick="filterByCategory('cpu')">
+                            <div class="legend-color cpu-intensive"></div>
+                            <span>CPU Intensive</span>
+                        </div>
+                        <div class="legend-item" onclick="filterByCategory('io')">
+                            <div class="legend-color io-intensive"></div>
+                            <span>I/O Heavy</span>
+                        </div>
+                        <div class="legend-item" onclick="filterByCategory('memory')">
+                            <div class="legend-color memory-intensive"></div>
+                            <span>Memory Heavy</span>
+                        </div>
+                        <div class="legend-item" onclick="filterByCategory('async')">
+                            <div class="legend-color async-heavy"></div>
+                            <span>Async Heavy</span>
+                        </div>
+                        <div class="legend-item" onclick="filterByCategory('normal')">
+                            <div class="legend-color normal"></div>
+                            <span>Normal</span>
+                        </div>
+                        <div class="legend-item" onclick="filterByCategory('all')">
+                            <div class="legend-color all"></div>
+                            <span>Show All</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="variable-filters">
+                    <div class="filter-group">
+                        <label>Sort by:</label>
+                        <select id="sort-select" onchange="sortVariables(this.value)">
+                            <option value="memory">Memory Usage</option>
+                            <option value="allocations">Allocation Count</option>
+                            <option value="performance">Performance Impact</option>
+                            <option value="thread">Thread ID</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Thread:</label>
+                        <select id="thread-filter" onchange="filterByThread(this.value)">
+                            <option value="all">All Threads</option>
+                            <option value="1">Thread 1</option>
+                            <option value="2">Thread 2</option>
+                            <option value="3">Thread 3</option>
+                            <option value="4">Thread 4</option>
+                            <option value="5">Thread 5+</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
             <div class="variables-grid" id="variables-container">
                 {{VARIABLES_HTML}}
             </div>
         </div>
 
-        <div class="section memory-map-section" style="display: none;">
-            <h3>🗺️ Memory Map</h3>
+        <div class="section memory-layout-section" style="display: none;">
+            <h3>🗺️ Thread Memory Distribution</h3>
+            <div class="layout-description">
+                <p>🎯 <strong>Shows:</strong> How much memory each thread is using - like a mini bar chart</p>
+                <p>🔍 <strong>Use case:</strong> Spot if one thread is hogging all the memory (memory imbalance)</p>
+                <p>💡 <strong>Think:</strong> "Which thread is the memory hog?"</p>
+            </div>
             <div id="memory-map-content">
                 {{MEMORY_MAP_HTML}}
+            </div>
+        </div>
+
+        <div class="section diagnostics-section">
+            <h3>🔍 Code Problem Locator</h3>
+            <div class="diagnostics-description">
+                <p>🎯 <strong>Pinpoint code issues:</strong> Like a flame graph, but for memory problems - find the exact variable/thread causing issues</p>
+                <p>⚡ <strong>Instant analysis:</strong> One-click scanning to identify problem sources in your codebase</p>
+            </div>
+            <div class="diagnostics-controls">
+                <button class="btn" onclick="triggerManualScan()">
+                    🔎 Scan for Problems
+                </button>
+                <button class="btn btn-secondary" onclick="generatePerformanceReport()">
+                    📊 Performance Report
+                </button>
+            </div>
+            <div id="active-problems" class="active-problems">
+                <div class="no-problems">
+                    <div class="status-indicator">
+                        <div class="status-icon">🎯</div>
+                        <div class="status-text">
+                            <h4>Ready for Code Analysis</h4>
+                            <p>Click "Scan for Problems" to analyze your current memory usage patterns</p>
+                            <small>Tracking {{TOTAL_VARIABLES}} variables across {{THREAD_COUNT}} threads</small>
+                        </div>
+                    </div>
+                    <div class="quick-insights">
+                        <div class="insight-card">
+                            <span class="insight-icon">🧠</span>
+                            <div>
+                                <strong>Memory Efficiency</strong>
+                                <p>85.2% - Above average</p>
+                            </div>
+                        </div>
+                        <div class="insight-card">
+                            <span class="insight-icon">⚡</span>
+                            <div>
+                                <strong>Thread Performance</strong>
+                                <p>Optimal load distribution</p>
+                            </div>
+                        </div>
+                        <div class="insight-card">
+                            <span class="insight-icon">🔄</span>
+                            <div>
+                                <strong>Async Health</strong>
+                                <p>No blocked futures detected</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div id="root-cause-analysis" class="root-cause-panel" style="display: none;">
+                <!-- Root cause analysis will be populated here -->
             </div>
         </div>
     </div>
@@ -728,6 +1788,7 @@
 
     <!-- Include JavaScript -->
     <script src="./templates/hybrid_dashboard.js"></script>
+    <script src="./templates/enhanced_diagnostics.js"></script>
     <script>
         // Initialize with data
         window.DASHBOARD_DATA = {

@@ -129,7 +129,7 @@ impl FixedHybridTemplate {
             .sum()
     }
 
-    /// Generate variables HTML
+    /// Generate variables HTML with performance categories
     fn generate_variables_html(&self, variables: &[VariableDetail]) -> String {
         let mut html = String::new();
         
@@ -150,16 +150,34 @@ impl FixedHybridTemplate {
                 _ => "🟢"
             };
             
+
+            let performance_category = self.classify_variable_performance(variable);
+            let category_class = match performance_category.as_str() {
+                "cpu" => "cpu-intensive",
+                "io" => "io-intensive", 
+                "memory" => "memory-intensive",
+                "async" => "async-heavy",
+                _ => "normal"
+            };
+            
             let size_kb = variable.memory_usage / 1024;
             
             html.push_str(&format!(
-                r#"<div class="variable-card" onclick="window.drillDown('{}', 'memory')">
+                r#"<div class="variable-card {}" data-category="{}" data-thread="{}" data-memory="{}" data-allocations="{}" onclick="window.drillDown('{}', 'memory')">
                     <div class="variable-name">{} {}</div>
                     <div class="variable-info">
                         <span class="{}">{}KB | {} allocs | {}</span>
                         <span>Thread {}</span>
                     </div>
+                    <div class="performance-indicator">
+                        <span class="perf-badge {}">{}</span>
+                    </div>
                 </div>"#,
+                category_class,
+                performance_category,
+                variable.thread_id,
+                size_kb,
+                variable.allocation_count,
                 variable.name,
                 status_icon,
                 variable.name,
@@ -173,11 +191,44 @@ impl FixedHybridTemplate {
                     LifecycleStage::Deallocated => "Deallocated",
                     _ => "Unknown"
                 },
-                variable.thread_id
+                variable.thread_id,
+                category_class,
+                self.get_performance_label(&performance_category)
             ));
         }
         
         html
+    }
+
+    /// 根据变量特征分类性能类型
+    fn classify_variable_performance(&self, variable: &VariableDetail) -> String {
+        let size_kb = variable.memory_usage / 1024;
+        let allocation_rate = variable.allocation_count;
+        
+        // 基于变量名和特征进行智能分类
+        let var_name = variable.name.to_lowercase();
+        
+        if var_name.contains("buffer") || var_name.contains("cache") || size_kb > 500 {
+            "memory".to_string()
+        } else if var_name.contains("cpu") || var_name.contains("compute") || allocation_rate > 100 {
+            "cpu".to_string()
+        } else if var_name.contains("io") || var_name.contains("file") || var_name.contains("net") {
+            "io".to_string()
+        } else if var_name.contains("async") || var_name.contains("future") || var_name.contains("task") {
+            "async".to_string()
+        } else {
+            "normal".to_string()
+        }
+    }
+
+    fn get_performance_label(&self, category: &str) -> &str {
+        match category {
+            "cpu" => "CPU",
+            "io" => "I/O",
+            "memory" => "MEM", 
+            "async" => "ASYNC",
+            _ => "NORM"
+        }
     }
 
     /// Generate memory map HTML
@@ -299,15 +350,68 @@ impl FixedHybridTemplate {
 pub fn create_sample_hybrid_data(thread_count: usize, task_count: usize) -> HybridAnalysisData {
     let mut variable_registry = HashMap::new();
     
-    // Create sample variables
-    for i in 0..50 {
+    // Create diverse sample variables to showcase all performance categories
+    let variable_templates = [
+        // Memory Intensive variables
+        ("memory_buffer", "Vec<u8>", 1024 * 512, 25), // 512KB
+        ("cache_storage", "HashMap<String, Vec<u8>>", 1024 * 800, 15), // 800KB
+        ("large_buffer", "Buffer", 1024 * 600, 30),
+        
+        // CPU Intensive variables  
+        ("cpu_compute_data", "ComputeBuffer", 1024 * 100, 150), // High allocation count
+        ("processing_queue", "Vec<Task>", 1024 * 80, 200),
+        ("compute_matrix", "Matrix", 1024 * 120, 180),
+        
+        // I/O Heavy variables
+        ("io_file_buffer", "FileBuffer", 1024 * 200, 45),
+        ("network_buffer", "NetBuffer", 1024 * 150, 60),
+        ("io_stream_data", "StreamData", 1024 * 100, 80),
+        
+        // Async Heavy variables
+        ("async_future_pool", "FuturePool", 1024 * 90, 70),
+        ("task_scheduler", "AsyncScheduler", 1024 * 110, 50),
+        ("async_channel_buf", "ChannelBuffer", 1024 * 85, 65),
+        
+        // Normal variables
+        ("config_data", "Config", 1024 * 50, 10),
+        ("user_session", "Session", 1024 * 60, 8),
+        ("temp_data", "TempBuffer", 1024 * 40, 12),
+    ];
+    
+    // Create variables from templates
+    for (i, (name_pattern, type_info, base_memory, base_allocs)) in variable_templates.iter().enumerate() {
+        for thread_offset in 0..3 { // Create 3 variants per template across different threads
+            let thread_id = (i + thread_offset) % thread_count + 1;
+            let task_id = (i + thread_offset) % task_count + 1;
+            let var_index = i * 3 + thread_offset;
+            
+            let variable = VariableDetail {
+                name: format!("{}_t{}_v{}", name_pattern, thread_id, var_index),
+                type_info: type_info.to_string(),
+                thread_id,
+                task_id: Some(task_id),
+                allocation_count: (*base_allocs as f64 * (1.0 + (thread_offset as f64 * 0.3))) as u64,
+                memory_usage: (*base_memory as f64 * (1.0 + (thread_offset as f64 * 0.2))) as u64,
+                lifecycle_stage: match var_index % 4 {
+                    0 => LifecycleStage::Active,
+                    1 => LifecycleStage::Allocated,
+                    2 => LifecycleStage::Shared,
+                    _ => LifecycleStage::Deallocated,
+                },
+            };
+            variable_registry.insert(variable.name.clone(), variable);
+        }
+    }
+    
+    // Add some additional normal variables to reach 50+ total
+    for i in 45..55 {
         let variable = VariableDetail {
             name: format!("var_t{}_task{}_v{}", (i % thread_count) + 1, (i % task_count) + 1, i),
-            type_info: "Vec<u8>".to_string(),
+            type_info: "StandardType".to_string(),
             thread_id: (i % thread_count) + 1,
             task_id: Some((i % task_count) + 1),
-            allocation_count: i as u64 + 1,
-            memory_usage: ((i + 1) * 1024 * 8) as u64, // KB to bytes
+            allocation_count: (i % 20) as u64 + 5,
+            memory_usage: (((i % 80) + 20) * 1024) as u64, // 20-100KB range
             lifecycle_stage: match i % 4 {
                 0 => LifecycleStage::Active,
                 1 => LifecycleStage::Allocated,
