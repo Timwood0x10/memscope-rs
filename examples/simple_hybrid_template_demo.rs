@@ -222,6 +222,7 @@ struct ThreadMemoryInfo {
 #[derive(Debug, Clone)]
 struct TaskMemoryInfo {
     task_id: usize,
+    #[allow(dead_code)]
     task_type: String,
     memory_peak: usize,
     lifecycle_events: Vec<String>,
@@ -229,9 +230,13 @@ struct TaskMemoryInfo {
 
 #[derive(Debug, Clone)]
 struct VariableInfo {
+    #[allow(dead_code)]
     var_name: String,
+    #[allow(dead_code)]
     size_bytes: usize,
+    #[allow(dead_code)]
     thread_id: usize,
+    #[allow(dead_code)]
     task_id: Option<usize>,
     lifecycle_state: String,
 }
@@ -402,6 +407,7 @@ impl EnhancedMemoryCoordinator {
     }
 
     /// New: Lens correlation analysis
+    #[allow(dead_code)]
     fn analyze_lens_correlations(&mut self) {
         // Performance -> Concurrency correlation analysis
         let memory_hotspots = self.find_memory_hotspots();
@@ -454,6 +460,7 @@ impl EnhancedMemoryCoordinator {
     }
 
     /// Find memory hotspot threads
+    #[allow(dead_code)]
     fn find_memory_hotspots(&self) -> Vec<usize> {
         let total_memory: usize = self.thread_memories.iter().map(|t| t.allocated_bytes).sum();
         let threshold = total_memory / 10; // More than 10% considered hotspot
@@ -466,6 +473,7 @@ impl EnhancedMemoryCoordinator {
     }
 
     /// Find threads with FFI interactions
+    #[allow(dead_code)]
     fn find_ffi_threads(&self) -> Vec<usize> {
         self.thread_memories
             .iter()
@@ -475,6 +483,7 @@ impl EnhancedMemoryCoordinator {
     }
 
     /// Find potential leak variables
+    #[allow(dead_code)]
     fn find_potential_leaks(&self) -> Vec<String> {
         self.global_variables
             .iter()
@@ -484,6 +493,7 @@ impl EnhancedMemoryCoordinator {
     }
 
     /// Get lens correlation context (for HTML generation)
+    #[allow(dead_code)]
     fn get_lens_context(&self) -> &LensContext {
         &self.lens_context
     }

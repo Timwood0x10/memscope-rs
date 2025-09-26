@@ -1,7 +1,7 @@
 // Enhanced Diagnostics for Real Problem Detection
 // Extends the basic dashboard with advanced debugging capabilities
 
-// 问题模式识别引擎
+// Problem Pattern Recognition Engine
 class ProblemPatternDetector {
     constructor() {
         this.patterns = new Map();
@@ -12,7 +12,7 @@ class ProblemPatternDetector {
     }
     
     initializePatterns() {
-        // 内存泄漏模式
+        // Memory leak pattern
         this.patterns.set('memory_leak', {
             name: 'Memory Leak',
             severity: 'HIGH',
@@ -27,7 +27,7 @@ class ProblemPatternDetector {
             }
         });
         
-        // 异步任务堆积
+        // Async task buildup
         this.patterns.set('async_task_buildup', {
             name: 'Async Task Buildup',
             severity: 'HIGH',
@@ -42,7 +42,7 @@ class ProblemPatternDetector {
             }
         });
         
-        // 死锁风险
+        // Deadlock risk
         this.patterns.set('deadlock_risk', {
             name: 'Deadlock Risk',
             severity: 'CRITICAL',
@@ -53,7 +53,7 @@ class ProblemPatternDetector {
             ]
         });
         
-        // 资源竞争
+        // Resource contention
         this.patterns.set('resource_contention', {
             name: 'Resource Contention',
             severity: 'MEDIUM',
@@ -65,7 +65,7 @@ class ProblemPatternDetector {
         });
     }
     
-    // 实时问题检测
+    // Real-time problem detection
     detectProblems(data) {
         const detectedProblems = [];
         
@@ -86,7 +86,7 @@ class ProblemPatternDetector {
     }
     
     evaluatePattern(pattern, data) {
-        // 简化的模式匹配逻辑
+        // Simplified pattern matching logic
         let score = 0;
         let totalIndicators = pattern.indicators.length;
         
@@ -115,7 +115,7 @@ class ProblemPatternDetector {
     }
     
     checkMonotonicGrowth(data, thresholds) {
-        // 检查内存是否持续增长
+        // Check if memory keeps growing
         if (!data.memory_timeline || data.memory_timeline.length < 5) return false;
         
         const timeline = data.memory_timeline;
@@ -135,7 +135,7 @@ class ProblemPatternDetector {
     }
     
     checkCircularWait(data) {
-        // 简化的死锁检测
+        // Simplified deadlock detection
         return data.lock_wait_chains && data.lock_wait_chains.some(chain => chain.circular);
     }
     
@@ -144,7 +144,7 @@ class ProblemPatternDetector {
     }
     
     getAffectedComponents(patternId, data) {
-        // 识别受影响的组件
+        // Identify affected components
         switch (patternId) {
             case 'memory_leak':
                 return this.getLeakingVariables(data);
@@ -197,7 +197,7 @@ class ProblemPatternDetector {
     }
 }
 
-// 根因分析引擎
+// Root Cause Analysis Engine
 class RootCauseAnalyzer {
     constructor() {
         this.analysisHistory = [];
@@ -206,7 +206,7 @@ class RootCauseAnalyzer {
     }
     
     initializeKnowledgeBase() {
-        // 常见问题的根因知识库
+        // Root cause knowledge base for common issues
         this.knowledgeBase.set('memory_leak', [
             {
                 cause: 'Forget to drop large Vec/HashMap',
@@ -267,7 +267,7 @@ class RootCauseAnalyzer {
             debuggingSteps: []
         };
         
-        // 基于上下文数据评估可能的原因
+        // Evaluate possible causes based on context data
         possibleCauses.forEach(cause => {
             const contextScore = this.evaluateContextualRelevance(cause, contextData);
             const finalConfidence = cause.confidence * contextScore;
@@ -280,10 +280,10 @@ class RootCauseAnalyzer {
             }
         });
         
-        // 生成调试步骤
+        // Generate debugging steps
         analysis.debuggingSteps = this.generateDebuggingSteps(problem, contextData);
         
-        // 生成推荐操作
+        // Generate recommended actions
         analysis.recommendations = this.generateRecommendations(problem, analysis.likelyCauses);
         
         this.analysisHistory.push(analysis);
@@ -291,7 +291,7 @@ class RootCauseAnalyzer {
     }
     
     evaluateContextualRelevance(cause, contextData) {
-        // 基于上下文数据评估原因的相关性
+        // Evaluate cause relevance based on context data
         let score = 0.5; // base score
         
         if (cause.cause.includes('Vec/HashMap') && contextData.has_collections) {
@@ -359,26 +359,26 @@ class RootCauseAnalyzer {
     }
     
     estimateEffort(cause) {
-        // 简单的工作量估算
+        // Simple effort estimation
         if (cause.solution.includes('Refactor')) return 'High';
         if (cause.solution.includes('Add') || cause.solution.includes('Use')) return 'Medium';
         return 'Low';
     }
     
     estimateImpact(cause) {
-        // 简单的影响估算
+        // Simple impact estimation
         if (cause.confidence > 0.8) return 'High';
         if (cause.confidence > 0.6) return 'Medium';
         return 'Low';
     }
 }
 
-// 增强的Dashboard扩展
+// Enhanced Dashboard Extensions
 window.enhancedDiagnostics = {
     problemDetector: new ProblemPatternDetector(),
     rootCauseAnalyzer: new RootCauseAnalyzer(),
     
-    // 启动实时问题检测
+    // Start real-time problem detection
     startRealTimeDetection() {
         setInterval(() => {
             const currentData = this.gatherCurrentData();
@@ -390,9 +390,9 @@ window.enhancedDiagnostics = {
         }, 5000); // Check every 5 seconds
     },
     
-    // 收集当前数据
+    // Collect current data
     gatherCurrentData() {
-        // 这里应该从实际的追踪器收集数据
+        // Should collect data from actual tracker here
         return {
             memory_timeline: this.generateMockMemoryTimeline(),
             pending_futures: Math.floor(Math.random() * 2000),
@@ -432,12 +432,12 @@ window.enhancedDiagnostics = {
         }));
     },
     
-    // 处理检测到的问题
+    // Handle detected problems
     handleDetectedProblems(problems) {
         problems.forEach(problem => {
             this.showProblemAlert(problem);
             
-            // 自动进行根因分析
+            // Automatically perform root cause analysis
             const contextData = this.gatherCurrentData();
             const analysis = this.rootCauseAnalyzer.analyzeRootCause(problem, contextData);
             
@@ -498,7 +498,7 @@ window.enhancedDiagnostics = {
     },
     
     updateProblemDashboard(problem, analysis) {
-        // 更新问题仪表板
+        // Update problem dashboard
         console.log('Problem detected and analyzed:', problem, analysis);
         
         this.showProblemInDashboard(problem, analysis);
@@ -508,13 +508,13 @@ window.enhancedDiagnostics = {
         const activeProblemsContainer = document.getElementById('active-problems');
         if (!activeProblemsContainer) return;
         
-        // 隐藏"无问题"消息
+        // Hide 'no problems' message
         const noProblems = activeProblemsContainer.querySelector('.no-problems');
         if (noProblems) {
             noProblems.style.display = 'none';
         }
         
-        // 创建问题卡片
+        // Create problem cards
         const problemCard = document.createElement('div');
         problemCard.className = `problem-card ${problem.pattern.severity.toLowerCase()}`;
         problemCard.onclick = () => this.showRootCauseAnalysis(problem, analysis);
@@ -588,15 +588,15 @@ window.enhancedDiagnostics = {
     }
 };
 
-// 初始化增强诊断
+// Initialize enhanced diagnostics
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🔍 Enhanced Diagnostics System loaded');
     
-    // 启动实时检测（可选）
+    // Start real-time detection (optional)
     // window.enhancedDiagnostics.startRealTimeDetection();
 });
 
-// 生成调用栈归因分析
+// Generate call stack attribution analysis
 window.generateCallStackAttribution = function(variableId, rank) {
     const mockStacks = [
         {
@@ -659,7 +659,7 @@ window.generateCallStackAttribution = function(variableId, rank) {
     return html;
 };
 
-// 钻取到具体函数的详细分析
+// Drill down to specific function detailed analysis
 window.drillIntoFunction = function(functionName, fileName, lineNumber) {
     const modal = document.getElementById('variable-modal');
     const modalBody = document.getElementById('modal-body');

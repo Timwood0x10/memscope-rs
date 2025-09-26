@@ -40,14 +40,14 @@ window.toggleMemoryMap = function() {
     }
 };
 
-// Focus attribution functionality - 实现热点分析入口
+// Focus attribution functionality - implement hotspot analysis entry
 window.focusAttribution = function(type) {
     console.log('Focusing on ' + type + ' attribution');
     
-    // 显示归因分析面板
+    // Show attribution analysis panel
     showAttributionPanel(type);
     
-    // 滚动到变量列表区域
+    // Scroll to variable list area
     const variablesSection = document.querySelector('.variables-grid').parentElement;
     if (variablesSection) {
         variablesSection.scrollIntoView({ behavior: 'smooth' });
@@ -56,34 +56,34 @@ window.focusAttribution = function(type) {
     showToast('🎯 ' + getTypeDisplayName(type) + ' hotspot analysis activated');
 };
 
-// 显示归因分析面板
+// Show attribution analysis panel
 function showAttributionPanel(type) {
-    // 移除现有的归因面板
+    // Remove existing attribution panel
     const existingPanel = document.querySelector('.attribution-panel');
     if (existingPanel) {
         existingPanel.remove();
     }
     
-    // 创建归因面板
+    // Create attribution panel
     const panel = document.createElement('div');
     panel.className = 'attribution-panel';
     panel.innerHTML = getAttributionPanelHTML(type);
     
-    // 插入到变量列表之前
+    // Insert before variable list
     const variablesSection = document.querySelector('.variables-grid').parentElement;
     variablesSection.parentNode.insertBefore(panel, variablesSection);
     
-    // 高亮相关的变量卡片
+    // Highlight related variable cards
     highlightRelevantVariables(type);
 }
 
-// 获取归因面板HTML
+// Get attribution panel HTML
 function getAttributionPanelHTML(type) {
     const typeInfo = getAttributionTypeInfo(type);
     
     return `
         <div class="section attribution-section" style="border-left: 4px solid ${typeInfo.color};">
-            <h3>${typeInfo.icon} ${typeInfo.title} 热点归因分析</h3>
+            <h3>${typeInfo.icon} ${typeInfo.title} Hotspot Attribution Analysis</h3>
             <div class="attribution-summary">
                 <div class="hotspot-indicator">
                     <span class="hotspot-badge" style="background: ${typeInfo.color};">${typeInfo.badge}</span>
@@ -108,7 +108,7 @@ function getAttributionPanelHTML(type) {
     `;
 }
 
-// 获取归因类型信息
+// Get attribution type info
 function getAttributionTypeInfo(type) {
     const typeMap = {
         'memory': {
@@ -154,30 +154,31 @@ function getTypeDisplayName(type) {
     return nameMap[type] || type;
 }
 
-// Variable drill down functionality - 实现深度检查器
+// Variable drill down functionality - implement deep inspector
 window.drillDown = function(variableId, type) {
     const modal = document.getElementById('variable-modal');
     const modalBody = document.getElementById('modal-body');
     
     if (!modal || !modalBody) return;
     
-    // 生成深度检查器内容
+    // Generate deep inspector content
     const content = generateInspectorContent(variableId, type);
     modalBody.innerHTML = content;
     modal.style.display = 'block';
     
-    // 初始化检查器功能
+    // Initialize inspector functionality
     initializeInspector(variableId, type);
     
     showToast(`🔍 Opening inspector for ${variableId}`);
 };
 
-// 生成检查器内容 - 多标签页深度分析
+// Generate inspector content - multi-tab deep analysis
 function generateInspectorContent(variableId, type) {
-    // 所有变量都应该有完整的详情页 - 不再区分变量类型
-    const isVariable = true; // 强制所有点击的都是变量
-    const isThread = variableId.includes('Thread ') && !variableId.includes('_t'); // 只有明确的Thread才是线程
-    const isTask = variableId.includes('Task ') && !variableId.includes('_t'); // 只有明确的Task才是任务
+    const isVariable = true; // Force all clicks to be variables
+    const isThread = variableId.includes('Thread ') && !variableId.includes('_t'); // Only explicit Thread are threads
+    const isTask = variableId.includes('Task ') && !variableId.includes('_t'); // Only explicit Task are tasks
+    
+    console.log(`🔍 Inspector logic for ${variableId}: isVariable=${isVariable}, isThread=${isThread}, isTask=${isTask}`);
     
     return `
         <div class="inspector-container">
@@ -194,7 +195,7 @@ function generateInspectorContent(variableId, type) {
     `;
 }
 
-// 生成检查器标签页
+// Generate inspector tabs
 function generateInspectorTabs(isVariable, isThread, isTask) {
     let tabs = '';
     
@@ -224,7 +225,7 @@ function generateInspectorTabs(isVariable, isThread, isTask) {
     return tabs;
 }
 
-// 生成检查器页面内容
+// Generate inspector page content
 function generateInspectorPages(variableId, type, isVariable, isThread, isTask) {
     let pages = '';
     
@@ -244,7 +245,7 @@ function generateInspectorPages(variableId, type, isVariable, isThread, isTask) 
     return pages;
 }
 
-// 生成变量检查器页面
+// Generate variable inspector page
 function generateVariableInspectorPages(variableId, type) {
     const rank = Math.floor(Math.random() * 10) + 1;
     
@@ -366,28 +367,8 @@ function generateVariableInspectorPages(variableId, type) {
     `;
 }
 
-// 生成检查器内容 - 多标签页深度分析
-function generateInspectorContent(variableId, type) {
-    const isVariable = variableId.includes('var_');
-    const isThread = variableId.includes('Thread ') || /thread_\d+/.test(variableId);
-    const isTask = variableId.includes('Task ') || /task\d+/.test(variableId);
-    
-    return `
-        <div class="inspector-container">
-            <div class="inspector-header">
-                <h3>${getInspectorIcon(type)} ${variableId} Deep Inspector</h3>
-                <div class="inspector-tabs">
-                    ${generateInspectorTabs(isVariable, isThread, isTask)}
-                </div>
-            </div>
-            <div class="inspector-content">
-                ${generateInspectorPages(variableId, type, isVariable, isThread, isTask)}
-            </div>
-        </div>
-    `;
-}
 
-// 生成检查器标签页
+// Generate inspector tabs
 function generateInspectorTabs(isVariable, isThread, isTask) {
     let tabs = '';
     
@@ -417,7 +398,7 @@ function generateInspectorTabs(isVariable, isThread, isTask) {
     return tabs;
 }
 
-// 生成检查器页面内容
+// Generate inspector page content
 function generateInspectorPages(variableId, type, isVariable, isThread, isTask) {
     let pages = '';
     
@@ -437,7 +418,7 @@ function generateInspectorPages(variableId, type, isVariable, isThread, isTask) 
     return pages;
 }
 
-// 生成变量检查器页面
+// Generate variable inspector page
 function generateVariableInspectorPages(variableId, type) {
     const rank = Math.floor(Math.random() * 10) + 1;
     
@@ -559,7 +540,7 @@ function generateVariableInspectorPages(variableId, type) {
     `;
 }
 
-// 生成线程检查器页面
+// Generate thread inspector page
 function generateThreadInspectorPages(threadId) {
     const threadNum = parseInt(threadId.match(/\d+/)?.[0] || '1');
     
@@ -602,7 +583,7 @@ function generateThreadInspectorPages(threadId) {
     `;
 }
 
-// 生成任务检查器页面
+// Generate task inspector page
 function generateTaskInspectorPages(taskId) {
     const taskNum = parseInt(taskId.match(/\d+/)?.[0] || '1');
     
@@ -916,9 +897,9 @@ document.addEventListener('DOMContentLoaded', function() {
     updateFilterStats();
 });
 
-// 添加归因分析相关的辅助函数
+// Add attribution analysis helper functions
 function getTopContributorsHTML(type) {
-    // 模拟热点贡献者数据
+    // Mock hotspot contributor data
     const contributors = generateMockContributors(type);
     
     let html = '<div class="contributors-list">';
@@ -953,7 +934,7 @@ function highlightRelevantVariables(type) {
         card.style.transform = 'scale(0.98)';
     });
     
-    // 高亮前几个作为示例
+    // Highlight first few as examples
     for (let i = 0; i < Math.min(3, variableCards.length); i++) {
         const card = variableCards[i];
         card.style.opacity = '1';
@@ -1001,7 +982,7 @@ function closeAttributionPanel() {
         panel.remove();
     }
     
-    // 恢复所有变量卡片样式
+    // Restore all variable card styles
     const variableCards = document.querySelectorAll('.variable-card');
     variableCards.forEach(card => {
         card.style.opacity = '1';
@@ -1070,9 +1051,9 @@ function generateVariableTableForTask(taskNum) {
     return html;
 }
 
-// 初始化检查器功能
+// Initialize inspector functionality
 function initializeInspector(variableId, type) {
-    // 绑定标签页切换事件
+    // Bind tab switching events
     const tabs = document.querySelectorAll('.inspector-tab');
     const pages = document.querySelectorAll('.inspector-page');
     
@@ -1080,11 +1061,11 @@ function initializeInspector(variableId, type) {
         tab.addEventListener('click', function() {
             const targetTab = this.getAttribute('data-tab');
             
-            // 切换标签页样式
+            // Switch tab styles
             tabs.forEach(t => t.classList.remove('active'));
             this.classList.add('active');
             
-            // 切换页面内容
+            // Switch page content
             pages.forEach(page => {
                 page.classList.remove('active');
                 if (page.getAttribute('data-page') === targetTab) {
@@ -1094,14 +1075,14 @@ function initializeInspector(variableId, type) {
         });
     });
     
-    // 生成相关图表
+    // Generate related charts
     setTimeout(() => {
         generateInspectorCharts(variableId, type);
     }, 100);
 }
 
 function generateInspectorCharts(variableId, type) {
-    // 这里可以添加图表生成逻辑
+    // Chart generation logic can be added here
     console.log('Generating charts for inspector:', variableId, type);
 }
 
@@ -1117,7 +1098,7 @@ function filterVariables(searchTerm) {
     });
 }
 
-// 代码问题扫描 - 类似火焰图的快速定位
+// Code problem scanning - flame graph-like quick location
 function triggerManualScan() {
     showToast('🔎 Scanning code for memory issues...');
     
@@ -1130,7 +1111,7 @@ function triggerManualScan() {
         return;
     }
     
-    // 显示发现的问题并定位到具体代码
+    // Show discovered problems and locate specific code
     problems.forEach(problem => {
         const contextData = window.enhancedDiagnostics.gatherCurrentData();
         const analysis = window.enhancedDiagnostics.rootCauseAnalyzer.analyzeRootCause(problem, contextData);
@@ -1145,13 +1126,13 @@ function showCodeHealthSummary(data) {
     const activeProblemsContainer = document.getElementById('active-problems');
     if (!activeProblemsContainer) return;
     
-    // 隐藏"准备分析"状态
+    // Hide 'ready for analysis' status
     const noProblems = activeProblemsContainer.querySelector('.no-problems');
     if (noProblems) {
         noProblems.style.display = 'none';
     }
     
-    // 显示代码健康总结
+    // Show code health summary
     const healthSummary = document.createElement('div');
     healthSummary.className = 'code-health-summary';
     healthSummary.innerHTML = `
@@ -1308,17 +1289,17 @@ function resetScanView() {
     const activeProblemsContainer = document.getElementById('active-problems');
     if (!activeProblemsContainer) return;
     
-    // 清除所有问题卡片和健康总结
+    // Clear all problem cards and health summary
     const problemCards = activeProblemsContainer.querySelectorAll('.problem-card, .code-health-summary');
     problemCards.forEach(card => card.remove());
     
-    // 显示原始的"准备分析"状态
+    // Show original 'ready for analysis' status
     const noProblems = activeProblemsContainer.querySelector('.no-problems');
     if (noProblems) {
         noProblems.style.display = 'block';
     }
     
-    // 隐藏根因分析面板
+    // Hide root cause analysis panel
     const rootCausePanel = document.getElementById('root-cause-analysis');
     if (rootCausePanel) {
         rootCausePanel.style.display = 'none';
@@ -1327,7 +1308,7 @@ function resetScanView() {
     showToast('🔄 Scan view reset - ready for new analysis');
 }
 
-// 扩展问题分析显示函数
+// Extended problem analysis display function
 window.showProblemAnalysis = function(problem, analysis) {
     window.enhancedDiagnostics.showProblemInDashboard(problem, analysis);
 };
