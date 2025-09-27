@@ -437,12 +437,47 @@ window.enhancedDiagnostics = {
         problems.forEach(problem => {
             this.showProblemAlert(problem);
             
+            // Add unique ID if not present
+            if (!problem.id) {
+                problem.id = 'problem_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            }
+            
+            // Store problem in global variable for Root Cause Analysis Panel
+            if (!window.detectedProblems) {
+                window.detectedProblems = [];
+            }
+            
+            // Convert to format compatible with Root Cause Analysis Engine
+            const rootCauseProblem = {
+                id: problem.id,
+                type: this.mapProblemTypeToRootCause(problem.pattern.name),
+                title: problem.pattern.name,
+                description: problem.pattern.description,
+                severity: problem.pattern.severity,
+                affectedThreads: problem.affectedComponents ? problem.affectedComponents.map(comp => comp.id) : ['Thread_unknown'],
+                timestamp: new Date().toISOString()
+            };
+            
+            window.detectedProblems.push(rootCauseProblem);
+            
             // Automatically perform root cause analysis
             const contextData = this.gatherCurrentData();
             const analysis = this.rootCauseAnalyzer.analyzeRootCause(problem, contextData);
             
             this.updateProblemDashboard(problem, analysis);
         });
+    },
+    
+    mapProblemTypeToRootCause(problemName) {
+        // Map enhanced diagnostics problem names to Root Cause Analysis Engine types
+        if (problemName.includes('Memory Leak') || problemName.includes('memory')) {
+            return 'memory_leak';
+        } else if (problemName.includes('Performance') || problemName.includes('CPU') || problemName.includes('Async Task Buildup')) {
+            return 'performance_bottleneck';
+        } else if (problemName.includes('Deadlock') || problemName.includes('Resource')) {
+            return 'resource_contention';
+        }
+        return 'memory_leak'; // default fallback
     },
     
     showProblemAlert(problem) {
@@ -529,6 +564,11 @@ window.enhancedDiagnostics = {
                 ${problem.affectedComponents.map(comp => 
                     `<span class="component-tag">${comp.type}: ${comp.id}</span>`
                 ).join('')}
+            </div>
+            <div class="problem-actions">
+                <button class="investigate-btn" onclick="event.stopPropagation(); showRootCausePanel('${problem.id || 'problem_' + Date.now()}')">
+                    🕵️ Investigate Root Cause
+                </button>
             </div>
         `;
         

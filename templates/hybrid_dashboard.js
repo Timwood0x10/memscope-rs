@@ -1441,3 +1441,412 @@ function updateFilterStats() {
 
 console.log('🎯 Attribution Analysis Dashboard JavaScript loaded');
 console.log('🔍 Ready for 3-click root cause discovery');
+
+// 🕵️ Root Cause Analysis Panel System
+class RootCauseAnalysisEngine {
+    constructor() {
+        this.problemPatterns = new Map();
+        this.initializeCauseDatabase();
+    }
+    
+    initializeCauseDatabase() {
+        // Memory leak patterns
+        this.problemPatterns.set('memory_leak', {
+            name: 'Memory Leak',
+            severity: 'HIGH',
+            indicators: ['continuous_growth', 'no_deallocation', 'resource_accumulation'],
+            causes: [
+                {
+                    cause: 'Unclosed FFI resource handles',
+                    confidence: 0.92,
+                    evidence: ['ffi_boundary_violations', 'resource_handle_growth'],
+                    debugSteps: [
+                        'Check FFI resource disposal in error paths',
+                        'Audit resource cleanup in destructors',
+                        'Verify proper RAII implementation'
+                    ],
+                    recommendations: [
+                        'Add explicit resource cleanup in Drop implementations',
+                        'Use RAII patterns for automatic resource management',
+                        'Implement resource leak detection in tests'
+                    ]
+                },
+                {
+                    cause: 'Circular references in async tasks',
+                    confidence: 0.78,
+                    evidence: ['task_accumulation', 'reference_cycles'],
+                    debugSteps: [
+                        'Analyze async task lifecycle',
+                        'Check for strong reference cycles',
+                        'Verify weak reference usage'
+                    ],
+                    recommendations: [
+                        'Use Weak references to break cycles',
+                        'Implement proper task cancellation',
+                        'Add timeout mechanisms for long-running tasks'
+                    ]
+                }
+            ]
+        });
+        
+        // Performance bottleneck patterns
+        this.problemPatterns.set('performance_bottleneck', {
+            name: 'Performance Bottleneck',
+            severity: 'MEDIUM',
+            indicators: ['high_cpu_usage', 'thread_contention', 'blocking_operations'],
+            causes: [
+                {
+                    cause: 'Blocking operations in async context',
+                    confidence: 0.85,
+                    evidence: ['thread_pool_starvation', 'task_queue_buildup'],
+                    debugSteps: [
+                        'Identify blocking I/O operations',
+                        'Check async/await usage patterns',
+                        'Analyze thread pool utilization'
+                    ],
+                    recommendations: [
+                        'Replace blocking I/O with async equivalents',
+                        'Implement proper backpressure mechanisms',
+                        'Consider task batching for better throughput'
+                    ]
+                },
+                {
+                    cause: 'Lock contention in multithreaded code',
+                    confidence: 0.73,
+                    evidence: ['mutex_contention', 'thread_blocking'],
+                    debugSteps: [
+                        'Profile lock acquisition times',
+                        'Identify critical sections',
+                        'Analyze lock ordering patterns'
+                    ],
+                    recommendations: [
+                        'Reduce critical section size',
+                        'Use lock-free data structures',
+                        'Implement reader-writer locks where appropriate'
+                    ]
+                }
+            ]
+        });
+        
+        // Resource contention patterns
+        this.problemPatterns.set('resource_contention', {
+            name: 'Resource Contention',
+            severity: 'MEDIUM',
+            indicators: ['thread_blocking', 'resource_waiting', 'performance_degradation'],
+            causes: [
+                {
+                    cause: 'Inefficient synchronization primitives',
+                    confidence: 0.80,
+                    evidence: ['mutex_overhead', 'context_switching'],
+                    debugSteps: [
+                        'Profile synchronization overhead',
+                        'Check for unnecessary locks',
+                        'Analyze critical path performance'
+                    ],
+                    recommendations: [
+                        'Use atomic operations where possible',
+                        'Implement lock-free algorithms',
+                        'Consider message passing instead of shared state'
+                    ]
+                }
+            ]
+        });
+    }
+    
+    detectProblems(memoryData) {
+        const problems = [];
+        
+        // Simulate problem detection based on memory data
+        const totalMemory = memoryData?.totalMemory || 0;
+        const activeAllocs = memoryData?.activeAllocs || 0;
+        const deallocatedCount = memoryData?.deallocatedCount || 0;
+        
+        // Memory leak detection
+        if (totalMemory > 100000 && deallocatedCount < activeAllocs * 0.5) {
+            problems.push({
+                id: 'leak_' + Date.now(),
+                type: 'memory_leak',
+                title: 'Potential Memory Leak Detected',
+                description: `High memory usage (${(totalMemory/1024).toFixed(1)}KB) with low deallocation rate`,
+                severity: 'HIGH',
+                affectedThreads: ['Thread_3', 'Thread_7'],
+                timestamp: new Date().toISOString()
+            });
+        }
+        
+        // Performance bottleneck detection
+        if (activeAllocs > 50) {
+            problems.push({
+                id: 'perf_' + Date.now(),
+                type: 'performance_bottleneck',
+                title: 'High Allocation Pressure',
+                description: `${activeAllocs} active allocations may indicate performance issues`,
+                severity: 'MEDIUM',
+                affectedThreads: ['Thread_1', 'Thread_4'],
+                timestamp: new Date().toISOString()
+            });
+        }
+        
+        return problems;
+    }
+    
+    analyzeRootCause(problem) {
+        const pattern = this.problemPatterns.get(problem.type);
+        if (!pattern) return null;
+        
+        return {
+            problem: problem,
+            pattern: pattern,
+            analysis: {
+                likelyCauses: pattern.causes.sort((a, b) => b.confidence - a.confidence),
+                contextualEvidence: this.gatherEvidence(problem),
+                recommendations: this.generateRecommendations(pattern.causes)
+            }
+        };
+    }
+    
+    gatherEvidence(problem) {
+        // Simulate evidence gathering based on problem type
+        const evidence = {
+            flameGraph: null,
+            ffiAudit: null,
+            threadInteraction: null,
+            memoryTimeline: null
+        };
+        
+        switch(problem.type) {
+            case 'memory_leak':
+                evidence.flameGraph = 'focused_allocation_hotspots';
+                evidence.ffiAudit = 'resource_handle_tracking';
+                evidence.memoryTimeline = 'growth_pattern_analysis';
+                break;
+            case 'performance_bottleneck':
+                evidence.flameGraph = 'cpu_hotspot_analysis';
+                evidence.threadInteraction = 'contention_visualization';
+                break;
+            case 'resource_contention':
+                evidence.threadInteraction = 'lock_contention_map';
+                evidence.ffiAudit = 'resource_access_patterns';
+                break;
+        }
+        
+        return evidence;
+    }
+    
+    generateRecommendations(causes) {
+        const recommendations = [];
+        causes.forEach(cause => {
+            recommendations.push(...cause.recommendations);
+        });
+        return [...new Set(recommendations)]; // Remove duplicates
+    }
+}
+
+// Initialize the Root Cause Analysis Engine
+window.rootCauseEngine = new RootCauseAnalysisEngine();
+
+// Show Root Cause Analysis Panel
+window.showRootCausePanel = function(problemId) {
+    const problem = window.detectedProblems?.find(p => p.id === problemId);
+    if (!problem) return;
+    
+    const analysis = window.rootCauseEngine.analyzeRootCause(problem);
+    if (!analysis) return;
+    
+    const panelHTML = generateRootCausePanelHTML(analysis);
+    
+    // Create modal
+    const modal = document.createElement('div');
+    modal.className = 'root-cause-modal';
+    modal.innerHTML = `
+        <div class="root-cause-panel">
+            <div class="panel-header">
+                <h3>🕵️ Root Cause Analysis</h3>
+                <button class="close-panel" onclick="closeRootCausePanel()">&times;</button>
+            </div>
+            <div class="panel-content">
+                ${panelHTML}
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    modal.style.display = 'flex';
+    
+    // Initialize interactive elements
+    initializeRootCausePanelInteractions();
+};
+
+// Generate Root Cause Panel HTML
+function generateRootCausePanelHTML(analysis) {
+    const { problem, pattern, analysis: rootCauseAnalysis } = analysis;
+    
+    return `
+        <div class="problem-summary">
+            <div class="problem-header">
+                <span class="severity-badge ${problem.severity.toLowerCase()}">${problem.severity}</span>
+                <h4>${problem.title}</h4>
+            </div>
+            <p class="problem-description">${problem.description}</p>
+            <div class="affected-threads">
+                <strong>Affected:</strong> ${problem.affectedThreads.join(', ')}
+            </div>
+        </div>
+        
+        <div class="analysis-sections">
+            <div class="analysis-section">
+                <h4>🎯 Likely Causes</h4>
+                <div class="causes-list">
+                    ${rootCauseAnalysis.likelyCauses.map((cause, index) => `
+                        <div class="cause-item ${index === 0 ? 'primary' : index === 1 ? 'secondary' : 'tertiary'}">
+                            <div class="cause-header">
+                                <span class="confidence-bar">
+                                    <span class="confidence-fill" style="width: ${cause.confidence * 100}%"></span>
+                                </span>
+                                <span class="confidence-text">${(cause.confidence * 100).toFixed(0)}%</span>
+                                <h5>${cause.cause}</h5>
+                            </div>
+                            <div class="cause-evidence">
+                                <strong>Evidence:</strong> ${cause.evidence.join(', ')}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+            
+            <div class="analysis-section">
+                <h4>🔍 Visual Evidence</h4>
+                <div class="evidence-grid">
+                    ${generateEvidenceVisualization(rootCauseAnalysis.contextualEvidence)}
+                </div>
+            </div>
+            
+            <div class="analysis-section">
+                <h4>🛠️ Debugging Steps</h4>
+                <div class="debugging-checklist">
+                    ${rootCauseAnalysis.likelyCauses[0].debugSteps.map((step, index) => `
+                        <div class="debug-step">
+                            <input type="checkbox" id="step_${index}" class="debug-checkbox">
+                            <label for="step_${index}" class="debug-label">${index + 1}. ${step}</label>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+            
+            <div class="analysis-section">
+                <h4>💡 Recommendations</h4>
+                <div class="recommendations-list">
+                    ${rootCauseAnalysis.recommendations.map(rec => `
+                        <div class="recommendation-item">
+                            <span class="rec-icon">💡</span>
+                            <span class="rec-text">${rec}</span>
+                            <button class="apply-rec-btn" onclick="applyRecommendation('${rec}')">Apply</button>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Generate Evidence Visualization
+function generateEvidenceVisualization(evidence) {
+    let html = '';
+    
+    if (evidence.flameGraph) {
+        html += `
+            <div class="evidence-card">
+                <h5>🔥 Code Attribution</h5>
+                <div class="mini-flame-graph">
+                    <div class="flame-bar" style="width: 80%; background: #ff6b6b;">
+                        <span>allocation_hotspot()</span>
+                    </div>
+                    <div class="flame-bar" style="width: 60%; background: #4ecdc4; margin-left: 20px;">
+                        <span>ffi_resource_create()</span>
+                    </div>
+                    <div class="flame-bar" style="width: 40%; background: #45b7d1; margin-left: 40px;">
+                        <span>handle_request()</span>
+                    </div>
+                </div>
+                <button class="expand-evidence" onclick="expandEvidence('flameGraph')">🔍 Expand</button>
+            </div>
+        `;
+    }
+    
+    if (evidence.ffiAudit) {
+        html += `
+            <div class="evidence-card">
+                <h5>🌉 FFI Boundaries</h5>
+                <div class="mini-ffi-audit">
+                    <div class="ffi-boundary">
+                        <span class="boundary-label">Rust → C</span>
+                        <span class="resource-count">12 handles</span>
+                        <span class="leak-indicator">⚠️</span>
+                    </div>
+                    <div class="ffi-boundary">
+                        <span class="boundary-label">C → Rust</span>
+                        <span class="resource-count">8 callbacks</span>
+                        <span class="leak-indicator">✅</span>
+                    </div>
+                </div>
+                <button class="expand-evidence" onclick="expandEvidence('ffiAudit')">🔍 Expand</button>
+            </div>
+        `;
+    }
+    
+    if (evidence.threadInteraction) {
+        html += `
+            <div class="evidence-card">
+                <h5>🧵 Thread Interaction</h5>
+                <div class="mini-thread-map">
+                    <div class="thread-node active">T1</div>
+                    <div class="thread-connection"></div>
+                    <div class="thread-node contention">T3</div>
+                    <div class="thread-connection"></div>
+                    <div class="thread-node">T7</div>
+                </div>
+                <button class="expand-evidence" onclick="expandEvidence('threadInteraction')">🔍 Expand</button>
+            </div>
+        `;
+    }
+    
+    return html || '<p>No visual evidence available for this problem type.</p>';
+}
+
+// Close Root Cause Panel
+window.closeRootCausePanel = function() {
+    const modal = document.querySelector('.root-cause-modal');
+    if (modal) {
+        modal.remove();
+    }
+};
+
+// Initialize interactive elements in the panel
+function initializeRootCausePanelInteractions() {
+    // Debug step checkboxes
+    const checkboxes = document.querySelectorAll('.debug-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const label = this.nextElementSibling;
+            if (this.checked) {
+                label.style.textDecoration = 'line-through';
+                label.style.opacity = '0.6';
+            } else {
+                label.style.textDecoration = 'none';
+                label.style.opacity = '1';
+            }
+        });
+    });
+}
+
+// Apply recommendation
+window.applyRecommendation = function(recommendation) {
+    alert(`Applying recommendation: ${recommendation}\n\nThis would integrate with your IDE or generate code snippets.`);
+};
+
+// Expand evidence visualization
+window.expandEvidence = function(evidenceType) {
+    alert(`Expanding ${evidenceType} visualization\n\nThis would show the full interactive visualization in a larger view.`);
+};
+
+console.log('🕵️ Root Cause Analysis Engine initialized');
