@@ -511,11 +511,11 @@ async fn run_coordinated_workload(
         let coord_clone = coordinator.clone();
         let handle = std::thread::spawn(move || {
             // Initialize thread-specific tracking with direct API call
-            println!("  🧵 Thread {} initializing lockfree tracking", thread_id);
+            println!("  🧵 Thread {thread_id} initializing lockfree tracking");
 
             // Use real memory allocations that can be tracked
             for var_idx in 0..48 {
-                let var_name = format!("thread_{}_var_{}", thread_id, var_idx);
+                let var_name = format!("thread_{thread_id}_var_{var_idx}");
                 let size = 1024 + (var_idx * 512); // Variable sizes
                 let has_ffi = var_idx % 7 == 0; // Some variables involve FFI
 

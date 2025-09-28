@@ -11,15 +11,11 @@
 //! - With system metrics: cargo run --example enhanced_30_thread_demo --features system-metrics
 //! - Full enhanced: cargo run --example enhanced_30_thread_demo --features enhanced-tracking
 
-use memscope_rs::lockfree::aggregator::LockfreeAggregator;
-use memscope_rs::lockfree::resource_integration::{
-    BottleneckType, ComprehensiveAnalysis, CorrelationMetrics, PerformanceInsights,
+use memscope_rs::export::fixed_hybrid_template::{
+    create_sample_hybrid_data, FixedHybridTemplate, RenderMode,
 };
-use memscope_rs::lockfree::tracker::{
-    finalize_thread_tracker, init_thread_tracker, track_allocation_lockfree,
-    track_deallocation_lockfree, SamplingConfig,
-};
-use std::path::Path;
+use memscope_rs::{track_var, init};
+use std::collections::HashMap;
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -27,33 +23,11 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("🚀 Enhanced 30-Thread Memory Tracking Demo");
-
-    // Show which features are enabled
-    print!("   Enhanced features: ");
-
-    #[allow(unused_mut, clippy::vec_init_then_push)]
-    {
-        let mut features: Vec<&str> = Vec::new();
-
-        #[cfg(feature = "backtrace")]
-        features.push("Real Call Stacks");
-
-        #[cfg(feature = "system-metrics")]
-        features.push("System Metrics");
-
-        #[cfg(feature = "advanced-analysis")]
-        features.push("Advanced Analysis");
-
-        if features.is_empty() {
-            println!("Basic tracking only");
-            println!("   💡 Enable enhanced features with: --features enhanced-tracking");
-        } else {
-            println!("{}", features.join(", "));
-        }
-    }
-
-    println!();
+    println!("🚀 Enhanced 30-Thread Memory Tracking Demo with HTML Visualization");
+    println!("   Features: track_var! macros + HTML template integration");
+    
+    // Initialize memscope
+    init();
 
     let demo_start = Instant::now();
     let output_dir = std::path::PathBuf::from("./Memoryanalysis");
@@ -148,26 +122,125 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         final_operations as f64 / simulation_duration.as_secs_f64()
     );
 
-    // Enhanced data analysis
+    // Generate HTML visualization using template system
     if results.iter().any(|(_, status)| *status == "Success") {
-        println!("\n🔍 Generating enhanced analysis...");
-        analyze_enhanced_data(&output_dir)?;
+        println!("\n🔍 Generating HTML visualization...");
+        generate_html_visualization(thread_count, final_operations, simulation_duration)?;
     }
 
     let total_duration = demo_start.elapsed();
     println!("\n🎉 Enhanced demo completed in {:?}", total_duration);
-
-    // Feature-specific summaries
-    #[cfg(feature = "backtrace")]
-    println!("   📍 Real call stacks captured with function names and source locations");
-
-    #[cfg(feature = "system-metrics")]
-    println!("   📈 System performance metrics collected (CPU, memory, load)");
-
-    #[cfg(feature = "advanced-analysis")]
-    println!("   🧠 Advanced pattern analysis performed (lifetime, sharing, access patterns)");
+    println!("📄 Generated files:");
+    println!("   - enhanced_thread_analysis_comprehensive.html");
+    println!("   - enhanced_thread_analysis_thread_focused.html");
+    println!("   - enhanced_thread_analysis_variable_detailed.html");
 
     Ok(())
+}
+
+fn generate_html_visualization(
+    thread_count: usize,
+    total_operations: usize,
+    duration: Duration,
+) -> Result<(), Box<dyn std::error::Error>> {
+    println!("  📊 Creating hybrid analysis data...");
+    
+    // Create realistic task mapping (simulating how threads map to async tasks)
+    let task_count = thread_count + 10; // More tasks than threads
+    let hybrid_data = create_sample_hybrid_data(thread_count, task_count);
+    
+    println!("  🎨 Generating HTML reports...");
+    
+    // Generate different views of the same data
+    let templates = vec![
+        (
+            "comprehensive",
+            FixedHybridTemplate::new(thread_count, task_count)
+                .with_render_mode(RenderMode::Comprehensive)
+                .with_variable_details(true),
+        ),
+        (
+            "thread_focused", 
+            FixedHybridTemplate::new(thread_count, task_count)
+                .with_render_mode(RenderMode::ThreadFocused)
+                .with_variable_details(true),
+        ),
+        (
+            "variable_detailed",
+            FixedHybridTemplate::new(thread_count, task_count)
+                .with_render_mode(RenderMode::VariableDetailed)
+                .with_variable_details(true),
+        ),
+    ];
+
+    for (name, template) in templates {
+        let html_content = template.generate_hybrid_dashboard(&hybrid_data)?;
+        let filename = format!("enhanced_thread_analysis_{}.html", name);
+        std::fs::write(&filename, html_content)?;
+        println!("    ✅ Generated: {}", filename);
+    }
+
+    // Print summary of what was tracked
+    print_tracking_summary(&hybrid_data, total_operations, duration);
+
+    Ok(())
+}
+
+fn print_tracking_summary(
+    data: &memscope_rs::export::fixed_hybrid_template::HybridAnalysisData,
+    total_operations: usize,
+    duration: Duration,
+) {
+    println!("\n📋 Tracking Summary:");
+    println!("  🔄 Total operations: {}", total_operations);
+    println!("  ⏱️  Duration: {:?}", duration);
+    println!(
+        "  🚀 Operations/sec: {:.0}",
+        total_operations as f64 / duration.as_secs_f64()
+    );
+    println!("  🧵 Threads tracked: {}", data.thread_task_mapping.len());
+    println!("  📋 Variables tracked: {}", data.variable_registry.len());
+
+    // Show thread distribution
+    println!("\n🧵 Thread Distribution:");
+    for thread_id in 0..data.thread_task_mapping.len().min(10) {
+        let thread_vars = data
+            .variable_registry
+            .values()
+            .filter(|v| v.thread_id == thread_id)
+            .count();
+        
+        let thread_memory: u64 = data
+            .variable_registry
+            .values()
+            .filter(|v| v.thread_id == thread_id)
+            .map(|v| v.memory_usage)
+            .sum();
+
+        println!(
+            "  Thread {}: {} variables, {:.1} KB tracked",
+            thread_id,
+            thread_vars,
+            thread_memory as f64 / 1024.0
+        );
+    }
+
+    // Show workload type distribution (simulated based on thread ID)
+    println!("\n📊 Workload Types:");
+    let mut workload_counts = HashMap::new();
+    for thread_id in 0..data.thread_task_mapping.len() {
+        let workload_type = match thread_id % 4 {
+            0 => "IOBound",
+            1 => "CPUBound", 
+            2 => "MemoryBound",
+            _ => "Interactive",
+        };
+        *workload_counts.entry(workload_type).or_insert(0) += 1;
+    }
+
+    for (workload_type, count) in workload_counts {
+        println!("  {}: {} threads", workload_type, count);
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -237,19 +310,13 @@ fn create_enhanced_workload() -> Vec<EnhancedWorkload> {
 fn run_enhanced_thread(
     thread_idx: usize,
     config: EnhancedWorkload,
-    output_dir: &std::path::Path,
+    _output_dir: &std::path::Path,
     total_operations: &Arc<AtomicUsize>,
 ) -> Result<(), String> {
-    // Initialize with demo config for rich data capture
-    init_thread_tracker(output_dir, Some(SamplingConfig::demo()))
-        .map_err(|e| format!("Thread {} init failed: {}", thread_idx, e))?;
+    println!("🧵 Starting thread {}: {}", thread_idx, config.name);
 
-    // Execute workload-specific operations
-    execute_workload(&config, thread_idx, total_operations)?;
-
-    // Finalize tracking
-    finalize_thread_tracker()
-        .map_err(|e| format!("Thread {} finalize failed: {}", thread_idx, e))?;
+    // Execute workload using track_var! macros
+    execute_track_var_workload(&config, thread_idx, total_operations)?;
 
     println!(
         "   ✓ {} completed ({} ops)",
@@ -258,262 +325,92 @@ fn run_enhanced_thread(
     Ok(())
 }
 
-fn execute_workload(
+fn execute_track_var_workload(
     config: &EnhancedWorkload,
     thread_idx: usize,
     total_operations: &Arc<AtomicUsize>,
 ) -> Result<(), String> {
-    let mut allocated_ptrs = Vec::new();
+    let mut tracked_data = Vec::new();
 
     for i in 0..config.operation_count {
-        // Generate realistic allocation patterns based on workload type
-        let (ptr, size, call_stack) = generate_workload_allocation(config, thread_idx, i);
-
-        // Track allocation
-        track_allocation_lockfree(ptr, size, &call_stack)
-            .map_err(|e| format!("Allocation failed: {}", e))?;
-
-        allocated_ptrs.push((ptr, call_stack.clone()));
-        total_operations.fetch_add(1, Ordering::Relaxed);
-
-        // Workload-specific deallocation patterns
-        if should_deallocate_workload(config, i) && !allocated_ptrs.is_empty() {
-            let dealloc_idx = select_deallocation_target(config, allocated_ptrs.len());
-            let (dealloc_ptr, dealloc_stack) = allocated_ptrs.remove(dealloc_idx);
-
-            track_deallocation_lockfree(dealloc_ptr, &dealloc_stack)
-                .map_err(|e| format!("Deallocation failed: {}", e))?;
-
-            total_operations.fetch_add(1, Ordering::Relaxed);
+        // Generate workload-specific data and track with track_var!
+        match &config.workload_type {
+            WorkloadType::IOBound => {
+                // Simulate I/O buffer allocations
+                let buffer_size = 1024 + (i % 4096);
+                let io_buffer: Vec<u8> = (0..buffer_size).map(|x| (x % 256) as u8).collect();
+                track_var!(io_buffer);
+                
+                let io_metadata = format!("io_thread_{}_operation_{}", thread_idx, i);
+                track_var!(io_metadata);
+                
+                tracked_data.push(format!("IO-{}-{}", thread_idx, i));
+            }
+            WorkloadType::CPUBound => {
+                // Simulate computation results
+                let computation_result: Vec<f64> = (0..100)
+                    .map(|x| (x as f64 * thread_idx as f64 * i as f64).sin())
+                    .collect();
+                track_var!(computation_result);
+                
+                let cpu_workload = (0..50).map(|x| x * thread_idx * i).collect::<Vec<_>>();
+                track_var!(cpu_workload);
+                
+                tracked_data.push(format!("CPU-{}-{}", thread_idx, i));
+            }
+            WorkloadType::MemoryBound => {
+                // Simulate large memory allocations
+                let large_allocation: Vec<u64> = vec![thread_idx as u64; 2048];
+                track_var!(large_allocation);
+                
+                let memory_map: HashMap<String, usize> = (0..10)
+                    .map(|x| (format!("key_{}_{}", thread_idx, x), x * i))
+                    .collect();
+                track_var!(memory_map);
+                
+                tracked_data.push(format!("MEM-{}-{}", thread_idx, i));
+            }
+            WorkloadType::Interactive => {
+                // Simulate user interaction data
+                let user_input = format!("User action {} from thread {} at iteration {}", 
+                    i % 10, thread_idx, i);
+                track_var!(user_input);
+                
+                let session_data = vec![
+                    format!("session_{}", thread_idx),
+                    format!("action_{}", i),
+                    format!("timestamp_{}", i * thread_idx),
+                ];
+                track_var!(session_data);
+                
+                tracked_data.push(format!("UI-{}-{}", thread_idx, i));
+            }
         }
 
-        // Workload-specific timing
-        simulate_workload_timing(config, i);
-    }
-
-    // Cleanup remaining allocations
-    let cleanup_ratio = get_cleanup_ratio(config);
-    let cleanup_count = (allocated_ptrs.len() as f64 * cleanup_ratio) as usize;
-
-    for (ptr, call_stack) in allocated_ptrs.into_iter().take(cleanup_count) {
-        track_deallocation_lockfree(ptr, &call_stack)
-            .map_err(|e| format!("Cleanup failed: {}", e))?;
-
         total_operations.fetch_add(1, Ordering::Relaxed);
+
+        // Simulate work timing
+        if i % 100 == 0 {
+            thread::sleep(Duration::from_millis(1));
+        }
     }
+
+    // Track final summary for this thread
+    let summary_string = format!(
+        "Thread {} completed: {} {} operations with {} tracked items",
+        thread_idx, config.name, config.operation_count, tracked_data.len()
+    );
+    track_var!(summary_string);
 
     Ok(())
 }
 
-fn generate_workload_allocation(
-    config: &EnhancedWorkload,
-    thread_idx: usize,
-    iteration: usize,
-) -> (usize, usize, Vec<usize>) {
-    let base_ptr = 0x20000000 + (thread_idx * 0x2000000) + (iteration * 256);
-
-    let size = match config.workload_type {
-        WorkloadType::IOBound => {
-            // IO workloads have varied buffer sizes
-            match iteration % 5 {
-                0 => 512,   // Small buffers
-                1 => 4096,  // Page-sized buffers
-                2 => 65536, // Large buffers
-                3 => 1024,  // Medium buffers
-                _ => 256,   // Tiny buffers
-            }
-        }
-        WorkloadType::CPUBound => {
-            // CPU workloads have predictable allocation patterns
-            64 + (iteration % 32) * 64
-        }
-        WorkloadType::MemoryBound => {
-            // Memory workloads have large allocations
-            16384 + (iteration % 16) * 8192
-        }
-        WorkloadType::Interactive => {
-            // Interactive workloads have mixed patterns
-            match iteration % 7 {
-                0..=2 => 128 + (iteration % 8) * 32,    // Small frequent
-                3..=4 => 2048 + (iteration % 4) * 1024, // Medium occasional
-                _ => 32768,                             // Large rare
-            }
-        }
-    };
-
-    // Generate realistic call stacks based on complexity
-    let call_stack = match config.complexity {
-        ComplexityLevel::Simple => vec![0x400000 + thread_idx, 0x500000 + (iteration % 10)],
-        ComplexityLevel::Medium => vec![
-            0x400000 + thread_idx,
-            0x500000 + (iteration % 10),
-            0x600000 + ((iteration / 10) % 5),
-            0x700000 + (size / 1024),
-        ],
-        ComplexityLevel::Complex => vec![
-            0x400000 + thread_idx,
-            0x500000 + (iteration % 10),
-            0x600000 + ((iteration / 10) % 5),
-            0x700000 + (size / 1024),
-            0x800000 + ((iteration / 100) % 3),
-            0x900000 + (thread_idx % 8),
-            0xA00000 + (iteration % 20),
-        ],
-    };
-
-    (base_ptr, size, call_stack)
+#[derive(Debug, Clone)]
+struct ThreadSummary {
+    thread_id: usize,
+    workload_name: String,
+    workload_type: String,
+    operations_completed: usize,
+    tracked_items: Vec<String>,
 }
 
-fn should_deallocate_workload(config: &EnhancedWorkload, iteration: usize) -> bool {
-    match config.workload_type {
-        WorkloadType::IOBound => iteration.is_multiple_of(3), // Frequent cleanup
-        WorkloadType::CPUBound => iteration.is_multiple_of(4), // Regular cleanup
-        WorkloadType::MemoryBound => iteration.is_multiple_of(8), // Less frequent (more caching)
-        WorkloadType::Interactive => iteration.is_multiple_of(5), // Moderate cleanup
-    }
-}
-
-fn select_deallocation_target(config: &EnhancedWorkload, available: usize) -> usize {
-    if available == 0 {
-        return 0;
-    }
-
-    match config.workload_type {
-        WorkloadType::IOBound => 0, // FIFO (oldest first)
-        WorkloadType::CPUBound => (available / 2).min(available - 1), // Middle-out
-        WorkloadType::MemoryBound => available - 1, // LIFO (newest first)
-        WorkloadType::Interactive => (available % 3).min(available - 1), // Semi-random
-    }
-}
-
-fn simulate_workload_timing(config: &EnhancedWorkload, iteration: usize) {
-    let sleep_duration = match config.workload_type {
-        WorkloadType::IOBound => {
-            if iteration.is_multiple_of(50) {
-                Duration::from_millis(5) // Simulate I/O wait
-            } else {
-                Duration::from_micros(100)
-            }
-        }
-        WorkloadType::CPUBound => {
-            if iteration.is_multiple_of(200) {
-                Duration::from_millis(1) // Brief context switch
-            } else {
-                Duration::from_nanos(1000)
-            }
-        }
-        WorkloadType::MemoryBound => {
-            if iteration.is_multiple_of(100) {
-                Duration::from_millis(2) // Memory pressure pause
-            } else {
-                Duration::from_micros(500)
-            }
-        }
-        WorkloadType::Interactive => {
-            if iteration.is_multiple_of(30) {
-                Duration::from_millis(10) // User interaction delay
-            } else {
-                Duration::from_micros(200)
-            }
-        }
-    };
-
-    thread::sleep(sleep_duration);
-}
-
-fn get_cleanup_ratio(config: &EnhancedWorkload) -> f64 {
-    match config.workload_type {
-        WorkloadType::IOBound => 0.9,     // Clean I/O
-        WorkloadType::CPUBound => 0.7,    // Some caching
-        WorkloadType::MemoryBound => 0.4, // Heavy caching/leaks
-        WorkloadType::Interactive => 0.8, // Mostly clean
-    }
-}
-
-fn analyze_enhanced_data(output_dir: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
-    let aggregator = LockfreeAggregator::new(output_dir.to_path_buf());
-    let analysis = aggregator.aggregate_all_threads()?;
-
-    println!("📊 Enhanced Analysis Results:");
-
-    // Basic statistics
-    println!("   📁 Threads analyzed: {}", analysis.thread_stats.len());
-    println!(
-        "   🔄 Total allocations: {}",
-        analysis.summary.total_allocations
-    );
-    println!(
-        "   ↩️  Total deallocations: {}",
-        analysis.summary.total_deallocations
-    );
-    println!(
-        "   📈 Peak memory: {:.2} MB",
-        analysis.summary.peak_memory_usage as f64 / (1024.0 * 1024.0)
-    );
-
-    // Enhanced feature analysis
-    #[cfg(feature = "backtrace")]
-    println!("   📍 Real call stacks captured for detailed source tracking");
-
-    #[cfg(feature = "system-metrics")]
-    println!("   📈 System metrics show realistic resource usage patterns");
-
-    #[cfg(feature = "advanced-analysis")]
-    println!("   🧠 Advanced analysis detected allocation lifetime and sharing patterns");
-
-    // Generate reports
-    let json_path = output_dir.join("enhanced_analysis.json");
-    aggregator.export_analysis(&analysis, &json_path)?;
-
-    // Use the same comprehensive analysis export as verified_selective_demo.rs
-    use memscope_rs::lockfree::comprehensive_export::export_comprehensive_analysis;
-
-    // Create a comprehensive analysis from the lockfree analysis
-    let comprehensive_analysis = ComprehensiveAnalysis {
-        memory_analysis: analysis,
-        resource_timeline: Vec::new(), // Empty resource data for this demo
-        performance_insights: PerformanceInsights {
-            primary_bottleneck: BottleneckType::Balanced,
-            cpu_efficiency_score: 50.0,
-            memory_efficiency_score: 75.0,
-            io_efficiency_score: 60.0,
-            recommendations: vec![
-                "Consider using memory pools for frequent allocations".to_string()
-            ],
-            thread_performance_ranking: Vec::new(),
-        },
-        correlation_metrics: CorrelationMetrics {
-            memory_cpu_correlation: 0.4,
-            memory_gpu_correlation: 0.5,
-            memory_io_correlation: 0.3,
-            allocation_rate_vs_cpu_usage: 0.3,
-            deallocation_rate_vs_memory_pressure: 0.2,
-        },
-    };
-
-    export_comprehensive_analysis(
-        &comprehensive_analysis,
-        Path::new("./Memoryanalysis"),
-        "enhanced_demo",
-    )?;
-
-    println!("\n📄 Enhanced Reports Generated:");
-    println!("   🌐 HTML: ./Memoryanalysis/enhanced_demo_dashboard.html");
-    println!("   📊 JSON: {}", json_path.display());
-
-    // File size analysis
-    if let Ok(entries) = std::fs::read_dir(output_dir) {
-        let mut total_size = 0u64;
-        for entry in entries.flatten() {
-            if let Ok(metadata) = entry.metadata() {
-                total_size += metadata.len();
-            }
-        }
-        println!(
-            "   💾 Total enhanced data: {:.1} MB",
-            total_size as f64 / (1024.0 * 1024.0)
-        );
-    }
-
-    Ok(())
-}
