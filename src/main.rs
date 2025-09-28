@@ -269,69 +269,86 @@ fn run_test_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::error
 }
 
 fn run_unified_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> {
-    use memscope_rs::unified::{UnifiedBackend, BackendConfig};
+    use memscope_rs::unified::{BackendConfig, UnifiedBackend};
     use std::process::{Command, Stdio};
-    
+
     // Extract command arguments
     let command_args: Vec<&String> = matches
         .get_many::<String>("command")
         .ok_or("Command argument is required")?
         .collect();
-        
+
     // Parse unified backend configuration
     let config = BackendConfig {
         auto_detect: true,
         force_strategy: None,
         sample_rate: 1.0,
-        max_overhead_percent: *matches.get_one::<u64>("max-overhead").unwrap_or(&64) as f64 / 1024.0, // Convert MB to percent
+        max_overhead_percent: *matches.get_one::<u64>("max-overhead").unwrap_or(&64) as f64
+            / 1024.0, // Convert MB to percent
     };
-    
-    let export_format = matches.get_one::<String>("export").map(|s| s.as_str()).unwrap_or("html");
-    let output_path = matches.get_one::<String>("output").map(|s| s.as_str()).unwrap_or("unified_analysis");
-    
+
+    let export_format = matches
+        .get_one::<String>("export")
+        .map(|s| s.as_str())
+        .unwrap_or("html");
+    let output_path = matches
+        .get_one::<String>("output")
+        .map(|s| s.as_str())
+        .unwrap_or("unified_analysis");
+
     tracing::info!("🚀 Starting unified memory tracking...");
     tracing::info!("Command: {:?}", command_args);
     tracing::info!("Export format: {}", export_format);
     tracing::info!("Output path: {}", output_path);
-    
+
     // Initialize unified backend
     let mut backend = UnifiedBackend::initialize(config)?;
-    
+
     // Start tracking session
     let session = backend.start_tracking()?;
-    tracing::info!("✅ Unified tracking session started: {}", session.session_id());
-    
+    tracing::info!(
+        "✅ Unified tracking session started: {}",
+        session.session_id()
+    );
+
     // Execute the target command
     if command_args.is_empty() {
         return Err("No command provided".into());
     }
-    
+
     let program = command_args[0];
     let args = &command_args[1..];
-    
+
     let mut cmd = Command::new(program);
     cmd.args(args);
     cmd.stdout(Stdio::inherit());
     cmd.stderr(Stdio::inherit());
-    
+
     // Set environment for unified tracking
     cmd.env("MEMSCOPE_UNIFIED_ENABLED", "1");
     cmd.env("MEMSCOPE_SESSION_ID", &session.session_id());
-    
+
     if matches.get_flag("track-async") {
         cmd.env("MEMSCOPE_TRACK_ASYNC", "1");
     }
-    
+
     tracing::info!("🔄 Executing command with unified tracking...");
     let status = cmd.status()?;
-    
+
     // Collect tracking data
     let analysis_data = backend.collect_data()?;
     let tracking_data = analysis_data.raw_data;
-    
-    tracing::info!("📊 Tracking completed. Collected {} bytes of data", tracking_data.len());
-    tracing::info!("💾 Exporting analysis to: {}.{}", output_path, export_format);
-    
+
+    tracing::info!(
+        "📊 Tracking completed. Collected {} bytes of data",
+        tracking_data.len()
+    );
+    tracing::info!(
+        "💾 Exporting analysis to: {}.{}",
+        output_path,
+        export_format
+    );
+
     // Export data in requested format
     match export_format {
         "json" => {
@@ -351,17 +368,23 @@ fn run_unified_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::er
             tracing::info!("✅ HTML export completed: {}", html_path);
         }
         _ => {
-            tracing::warn!("Unsupported export format: {}, defaulting to JSON", export_format);
+            tracing::warn!(
+                "Unsupported export format: {}, defaulting to JSON",
+                export_format
+            );
             let json_path = format!("{}.json", output_path);
             std::fs::write(&json_path, &tracking_data)?;
         }
     }
-    
+
     if status.success() {
         tracing::info!("🎉 Unified tracking completed successfully");
         Ok(())
     } else {
-        tracing::error!("❌ Target command failed with exit code: {:?}", status.code());
+        tracing::error!(
+            "❌ Target command failed with exit code: {:?}",
+            status.code()
+        );
         Err(format!("Command failed with exit code: {:?}", status.code()).into())
     }
 }

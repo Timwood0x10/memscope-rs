@@ -2,7 +2,9 @@
 // Optimized implementation for async/await applications
 // Uses task-local storage and async context awareness
 
-use crate::unified::tracking_dispatcher::{MemoryTracker, TrackerConfig, TrackerStatistics, TrackerType, TrackerError};
+use crate::unified::tracking_dispatcher::{
+    MemoryTracker, TrackerConfig, TrackerError, TrackerStatistics, TrackerType,
+};
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
 use tracing::{debug, info, warn};
@@ -65,7 +67,6 @@ struct AsyncGlobalMetrics {
     total_overhead_bytes: AtomicUsize,
 }
 
-
 impl Default for AsyncGlobalState {
     /// Initialize async global state with inactive values
     fn default() -> Self {
@@ -108,7 +109,7 @@ impl AsyncStrategy {
     /// Initializes async coordination structures
     pub fn new() -> Self {
         debug!("Creating new async strategy");
-        
+
         Self {
             config: None,
             global_state: Arc::new(AsyncGlobalState::default()),
@@ -120,24 +121,43 @@ impl AsyncStrategy {
     /// Register current async task for tracking
     /// Should be called when entering async context
     pub fn register_current_task(&self) -> Result<u64, TrackerError> {
-        let task_id = self.global_state.next_task_id.fetch_add(1, Ordering::Relaxed);
-        
+        let task_id = self
+            .global_state
+            .next_task_id
+            .fetch_add(1, Ordering::Relaxed);
+
         debug!("Registering async task for tracking: id={}", task_id);
-        
+
         // Update task registry
-        self.task_registry.total_registered_tasks.fetch_add(1, Ordering::Relaxed);
-        let current_active = self.task_registry.active_tracking_tasks.fetch_add(1, Ordering::Relaxed) + 1;
-        
+        self.task_registry
+            .total_registered_tasks
+            .fetch_add(1, Ordering::Relaxed);
+        let current_active = self
+            .task_registry
+            .active_tracking_tasks
+            .fetch_add(1, Ordering::Relaxed)
+            + 1;
+
         // Update peak concurrent tasks
-        let current_peak = self.task_registry.peak_concurrent_tasks.load(Ordering::Relaxed);
+        let current_peak = self
+            .task_registry
+            .peak_concurrent_tasks
+            .load(Ordering::Relaxed);
         if current_active > current_peak {
-            self.task_registry.peak_concurrent_tasks.store(current_active, Ordering::Relaxed);
+            self.task_registry
+                .peak_concurrent_tasks
+                .store(current_active, Ordering::Relaxed);
         }
-        
+
         // Update global metrics
-        self.global_metrics.total_task_spawns.fetch_add(1, Ordering::Relaxed);
-        
-        info!("Async task registered: id={}, active_tasks={}", task_id, current_active);
+        self.global_metrics
+            .total_task_spawns
+            .fetch_add(1, Ordering::Relaxed);
+
+        info!(
+            "Async task registered: id={}, active_tasks={}",
+            task_id, current_active
+        );
         Ok(task_id)
     }
 
@@ -154,7 +174,7 @@ impl AsyncStrategy {
         // Note: In a complete implementation, this would collect data from
         // task-local storage across all async tasks. For this demo, we return
         // basic structure with metadata.
-        
+
         let mut output = serde_json::Map::new();
         output.insert("allocations".to_string(), serde_json::Value::Array(vec![]));
         output.insert("strategy_metadata".to_string(), serde_json::json!({
@@ -165,11 +185,10 @@ impl AsyncStrategy {
             "peak_concurrent_tasks": self.task_registry.peak_concurrent_tasks.load(Ordering::Relaxed),
             "overhead_bytes": self.global_metrics.total_overhead_bytes.load(Ordering::Relaxed)
         }));
-        
-        serde_json::to_string_pretty(&output)
-            .map_err(|e| TrackerError::DataCollectionFailed {
-                reason: format!("JSON serialization failed: {}", e),
-            })
+
+        serde_json::to_string_pretty(&output).map_err(|e| TrackerError::DataCollectionFailed {
+            reason: format!("JSON serialization failed: {}", e),
+        })
     }
 }
 
@@ -177,28 +196,36 @@ impl MemoryTracker for AsyncStrategy {
     /// Initialize strategy with provided configuration
     fn initialize(&mut self, config: TrackerConfig) -> Result<(), TrackerError> {
         debug!("Initializing async strategy with config: {:?}", config);
-        
+
         // Validate configuration
         if config.sample_rate < 0.0 || config.sample_rate > 1.0 {
             return Err(TrackerError::InvalidConfiguration {
                 reason: "Sample rate must be between 0.0 and 1.0".to_string(),
             });
         }
-        
+
         // Store configuration
         self.config = Some(config);
-        
+
         // Reset global state
         self.global_state.is_active.store(0, Ordering::Relaxed);
         self.global_state.active_tasks.store(0, Ordering::Relaxed);
-        self.global_state.next_allocation_id.store(1, Ordering::Relaxed);
+        self.global_state
+            .next_allocation_id
+            .store(1, Ordering::Relaxed);
         self.global_state.next_task_id.store(1, Ordering::Relaxed);
-        
+
         // Reset metrics
-        self.global_metrics.total_allocations.store(0, Ordering::Relaxed);
-        self.global_metrics.total_bytes_allocated.store(0, Ordering::Relaxed);
-        self.global_metrics.total_task_spawns.store(0, Ordering::Relaxed);
-        
+        self.global_metrics
+            .total_allocations
+            .store(0, Ordering::Relaxed);
+        self.global_metrics
+            .total_bytes_allocated
+            .store(0, Ordering::Relaxed);
+        self.global_metrics
+            .total_task_spawns
+            .store(0, Ordering::Relaxed);
+
         info!("Async strategy initialized successfully");
         Ok(())
     }
@@ -206,16 +233,18 @@ impl MemoryTracker for AsyncStrategy {
     /// Start active memory tracking for async contexts
     fn start_tracking(&mut self) -> Result<(), TrackerError> {
         debug!("Starting async tracking");
-        
+
         let was_active = self.global_state.is_active.swap(1, Ordering::Relaxed);
         if was_active == 1 {
             warn!("Async tracking was already active");
             return Ok(());
         }
-        
+
         // Record session start time
-        self.global_state.session_start_ns.store(Self::get_timestamp_ns(), Ordering::Relaxed);
-        
+        self.global_state
+            .session_start_ns
+            .store(Self::get_timestamp_ns(), Ordering::Relaxed);
+
         info!("Async tracking started successfully");
         Ok(())
     }
@@ -223,30 +252,47 @@ impl MemoryTracker for AsyncStrategy {
     /// Stop tracking and collect data from all async tasks
     fn stop_tracking(&mut self) -> Result<Vec<u8>, TrackerError> {
         debug!("Stopping async tracking");
-        
+
         let was_active = self.global_state.is_active.swap(0, Ordering::Relaxed);
         if was_active == 0 {
             warn!("Async tracking was not active");
         }
-        
+
         // Export data
         let json_data = self.export_as_json()?;
-        
-        let total_allocations = self.global_metrics.total_allocations.load(Ordering::Relaxed);
-        let total_tasks = self.task_registry.total_registered_tasks.load(Ordering::Relaxed);
-        
-        info!("Async tracking stopped: {} allocations from {} tasks", 
-              total_allocations, total_tasks);
-        
+
+        let total_allocations = self
+            .global_metrics
+            .total_allocations
+            .load(Ordering::Relaxed);
+        let total_tasks = self
+            .task_registry
+            .total_registered_tasks
+            .load(Ordering::Relaxed);
+
+        info!(
+            "Async tracking stopped: {} allocations from {} tasks",
+            total_allocations, total_tasks
+        );
+
         Ok(json_data.into_bytes())
     }
 
     /// Get current tracking statistics
     fn get_statistics(&self) -> TrackerStatistics {
         TrackerStatistics {
-            allocations_tracked: self.global_metrics.total_allocations.load(Ordering::Relaxed),
-            memory_tracked_bytes: self.global_metrics.total_bytes_allocated.load(Ordering::Relaxed),
-            overhead_bytes: self.global_metrics.total_overhead_bytes.load(Ordering::Relaxed) as u64,
+            allocations_tracked: self
+                .global_metrics
+                .total_allocations
+                .load(Ordering::Relaxed),
+            memory_tracked_bytes: self
+                .global_metrics
+                .total_bytes_allocated
+                .load(Ordering::Relaxed),
+            overhead_bytes: self
+                .global_metrics
+                .total_overhead_bytes
+                .load(Ordering::Relaxed) as u64,
             tracking_duration_ms: {
                 let start_ns = self.global_state.session_start_ns.load(Ordering::Relaxed);
                 if start_ns > 0 {

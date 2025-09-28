@@ -62,7 +62,7 @@ pub use analysis::enhanced_memory_analysis::EnhancedMemoryAnalyzer;
 pub use analysis::unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, UnsafeFFITracker};
 pub use core::allocator::TrackingAllocator;
 pub use core::tracker::memory_tracker::BinaryExportMode;
-pub use core::tracker::{get_global_tracker, ExportOptions, MemoryTracker};
+pub use core::tracker::{get_tracker, ExportOptions, MemoryTracker};
 pub use core::types::{AllocationInfo, TrackingError, TrackingResult};
 pub use utils::{format_bytes, get_simple_type, simplify_type_name};
 
@@ -248,7 +248,7 @@ impl<T> Trackable for std::rc::Rc<T> {
     }
 
     fn track_clone_relationship(&self, clone_ptr: usize, source_ptr: usize) {
-        let tracker = crate::core::tracker::get_global_tracker();
+        let tracker = crate::core::tracker::get_tracker();
         let _data_ptr = self.get_data_ptr();
         let _strong_count = std::rc::Rc::strong_count(self);
         let weak_count = std::rc::Rc::weak_count(self);
@@ -263,7 +263,7 @@ impl<T> Trackable for std::rc::Rc<T> {
     }
 
     fn update_ref_count_tracking(&self, ptr: usize) {
-        let tracker = crate::core::tracker::get_global_tracker();
+        let tracker = crate::core::tracker::get_tracker();
         let strong_count = std::rc::Rc::strong_count(self);
         let weak_count = std::rc::Rc::weak_count(self);
 
@@ -304,7 +304,7 @@ impl<T> Trackable for std::sync::Arc<T> {
     }
 
     fn track_clone_relationship(&self, clone_ptr: usize, source_ptr: usize) {
-        let tracker = crate::core::tracker::get_global_tracker();
+        let tracker = crate::core::tracker::get_tracker();
         let data_ptr = self.get_data_ptr();
         let strong_count = std::sync::Arc::strong_count(self);
         let weak_count = std::sync::Arc::weak_count(self);
@@ -321,7 +321,7 @@ impl<T> Trackable for std::sync::Arc<T> {
     }
 
     fn update_ref_count_tracking(&self, ptr: usize) {
-        let tracker = crate::core::tracker::get_global_tracker();
+        let tracker = crate::core::tracker::get_tracker();
         let strong_count = std::sync::Arc::strong_count(self);
         let weak_count = std::sync::Arc::weak_count(self);
 
@@ -894,7 +894,7 @@ impl<T: Trackable> TrackedVariable<T> {
 
         // Track creation using the same logic as _track_var_impl
         if let Some(ptr_val) = ptr {
-            let tracker = get_global_tracker();
+            let tracker = crate::core::tracker::get_tracker();
 
             // 1. Register variable in HashMap registry (lightweight and fast)
             let _ = crate::variable_registry::VariableRegistry::register_variable(
@@ -1052,7 +1052,7 @@ impl<T: Trackable> TrackedVariable<T> {
         }
 
         // Track deallocation with precise lifetime in memory tracker
-        let tracker = get_global_tracker();
+        let tracker = crate::core::tracker::get_tracker();
         tracker.track_deallocation_with_lifetime(ptr, lifetime_ms)?;
 
         tracing::debug!(
@@ -1088,7 +1088,7 @@ impl<T: Trackable> TrackedVariable<T> {
         }
 
         // Track smart pointer deallocation with enhanced metadata
-        let tracker = get_global_tracker();
+        let tracker = crate::core::tracker::get_tracker();
         tracker.track_smart_pointer_deallocation(ptr, lifetime_ms, final_ref_count)?;
 
         tracing::debug!(
@@ -1115,7 +1115,7 @@ impl<T: Trackable> Drop for TrackedVariable<T> {
                 // Use catch_unwind to prevent panic in drop from affecting program termination
                 let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                     // Skip expensive drop tracking in fast mode
-                    let tracker = get_global_tracker();
+                    let tracker = crate::core::tracker::get_tracker();
                     if tracker.is_fast_mode() {
                         return;
                     }
@@ -1196,7 +1196,7 @@ impl<T: Trackable + Clone> Clone for TrackedVariable<T> {
 /// Enhanced with log-based variable name persistence for lifecycle-independent tracking.
 #[doc(hidden)]
 pub fn _track_var_impl<T: Trackable>(var: &T, var_name: &str) -> TrackingResult<()> {
-    let tracker = get_global_tracker();
+    let tracker = crate::core::tracker::get_tracker();
 
     // Fast path for testing mode
     if tracker.is_fast_mode() {
@@ -1514,7 +1514,7 @@ pub mod test_utils {
         });
 
         // Enable fast mode on the global tracker
-        let tracker = super::get_global_tracker();
+        let tracker = crate::core::tracker::get_tracker();
         tracker.enable_fast_mode();
     }
 
@@ -1581,6 +1581,12 @@ fn install_exit_hook() {
         tracing::debug!("📌 Exit hooks installed for automatic memory export");
     });
 }
+
+#[cfg(test)]
+mod test_unified_tracking;
+
+#[cfg(test)]
+mod test_high_concurrency;
 
 #[cfg(test)]
 mod tests {

@@ -2,7 +2,7 @@
 //!
 //! This program directly tests the performance of the fast export coordinator's core, without any validation
 
-use memscope_rs::{get_global_tracker, init};
+use memscope_rs::{get_tracker, init};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -81,7 +81,7 @@ fn run_core_performance_tests(output_dir: &Path) {
         let output_path = output_dir.join(format!("traditional_core_run_{run}.json"));
 
         // get global tracker and export (use minimal config, only generate main file)
-        let tracker = get_global_tracker();
+        let tracker = get_tracker();
         let result = tracker.export_to_json(&output_path);
         let export_time = start_time.elapsed();
 

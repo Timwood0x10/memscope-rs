@@ -8,7 +8,7 @@ use crate::analysis::unsafe_ffi_tracker::{
     get_global_unsafe_ffi_tracker, EnhancedAllocationInfo, UnsafeFFIStats,
 };
 use crate::core::scope_tracker::get_global_scope_tracker;
-use crate::core::tracker::get_global_tracker;
+use crate::core::tracker::get_tracker;
 use crate::core::types::MemoryStats;
 use crate::core::types::ScopeInfo;
 use crate::core::types::{AllocationInfo, TrackingError, TrackingResult};
@@ -111,7 +111,7 @@ impl DataLocalizer {
 
         // step 1: get basic memory tracking data with timeout and retry
         let basic_start = Instant::now();
-        let tracker = get_global_tracker();
+        let tracker = get_tracker();
 
         // Use try_lock with timeout to avoid deadlock
         let allocations = self.get_allocations_with_timeout(&tracker)?;

@@ -31,9 +31,9 @@ pub enum RuntimeEnvironment {
     /// Async runtime detected with runtime type
     AsyncRuntime { runtime_type: AsyncRuntimeType },
     /// Hybrid mode with both threads and async tasks
-    Hybrid { 
-        thread_count: usize, 
-        async_task_count: usize 
+    Hybrid {
+        thread_count: usize,
+        async_task_count: usize,
     },
 }
 
@@ -84,7 +84,6 @@ pub struct TrackingSession {
     start_time: std::time::Instant,
 }
 
-
 /// Comprehensive memory analysis data from tracking session
 #[derive(Debug)]
 pub struct MemoryAnalysisData {
@@ -130,19 +129,19 @@ pub enum BackendError {
     /// Environment detection failed
     #[error("Failed to detect runtime environment: {reason}")]
     EnvironmentDetectionFailed { reason: String },
-    
+
     /// Strategy selection failed
     #[error("Cannot select appropriate tracking strategy for environment: {environment:?}")]
     StrategySelectionFailed { environment: RuntimeEnvironment },
-    
+
     /// Tracking initialization failed
     #[error("Failed to initialize tracking session: {reason}")]
     TrackingInitializationFailed { reason: String },
-    
+
     /// Data collection error
     #[error("Error collecting tracking data: {reason}")]
     DataCollectionError { reason: String },
-    
+
     /// Configuration validation error
     #[error("Invalid backend configuration: {reason}")]
     ConfigurationError { reason: String },
@@ -217,7 +216,7 @@ impl UnifiedBackend {
 
         // Check for async runtime presence
         let async_runtime = Self::detect_async_runtime();
-        
+
         // Count available threads
         let thread_count = std::thread::available_parallelism()
             .map(|p| p.get())
@@ -231,13 +230,15 @@ impl UnifiedBackend {
             }
             (Some(runtime_type), 1) => RuntimeEnvironment::AsyncRuntime { runtime_type },
             (Some(_runtime_type), threads) => {
-                RuntimeEnvironment::Hybrid { 
-                    thread_count: threads, 
-                    async_task_count: 0 // Will be detected during runtime
+                RuntimeEnvironment::Hybrid {
+                    thread_count: threads,
+                    async_task_count: 0, // Will be detected during runtime
                 }
             }
             (None, 1) => RuntimeEnvironment::SingleThreaded,
-            (None, threads) => RuntimeEnvironment::MultiThreaded { thread_count: threads }
+            (None, threads) => RuntimeEnvironment::MultiThreaded {
+                thread_count: threads,
+            },
         };
 
         debug!("Environment detection completed: {:?}", environment);
@@ -288,19 +289,25 @@ impl UnifiedBackend {
             RuntimeEnvironment::Hybrid { .. } => TrackingStrategy::HybridTracking,
         };
 
-        debug!("Selected strategy {:?} for environment {:?}", strategy, environment);
+        debug!(
+            "Selected strategy {:?} for environment {:?}",
+            strategy, environment
+        );
         Ok(strategy)
     }
 
     /// Start active memory tracking session
     /// Returns session handle for controlling tracking lifecycle
     pub fn start_tracking(&mut self) -> Result<TrackingSession, BackendError> {
-        let session_id = format!("session_{}", std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_err(|e| BackendError::TrackingInitializationFailed {
-                reason: format!("Failed to generate session ID: {}", e),
-            })?
-            .as_millis());
+        let session_id = format!(
+            "session_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_err(|e| BackendError::TrackingInitializationFailed {
+                    reason: format!("Failed to generate session ID: {}", e),
+                })?
+                .as_millis()
+        );
 
         info!("Starting tracking session: {}", session_id);
 
@@ -385,8 +392,10 @@ impl UnifiedBackend {
             session_metadata,
         };
 
-        info!("Data collection completed, {} allocations tracked", 
-              analysis_data.statistics.total_allocations);
+        info!(
+            "Data collection completed, {} allocations tracked",
+            analysis_data.statistics.total_allocations
+        );
 
         Ok(analysis_data)
     }
@@ -413,10 +422,10 @@ impl UnifiedBackend {
     /// Shutdown backend and finalize all tracking
     pub fn shutdown(self) -> Result<MemoryAnalysisData, BackendError> {
         info!("Shutting down unified backend");
-        
+
         // Collect final data before shutdown
         let final_data = self.collect_data()?;
-        
+
         debug!("Backend shutdown completed successfully");
         Ok(final_data)
     }
@@ -453,13 +462,15 @@ impl TrackingSession {
     /// End tracking session and collect final data
     pub fn end_session(self) -> Result<MemoryAnalysisData, BackendError> {
         info!("Ending tracking session: {}", self.session_id);
-        
+
         let final_data = self.backend.collect_data()?;
-        
-        debug!("Session {} ended after {:?}", 
-               self.session_id, 
-               self.start_time.elapsed());
-        
+
+        debug!(
+            "Session {} ended after {:?}",
+            self.session_id,
+            self.start_time.elapsed()
+        );
+
         Ok(final_data)
     }
 }
@@ -488,7 +499,10 @@ mod tests {
             ..Default::default()
         };
         let result = UnifiedBackend::initialize(config);
-        assert!(matches!(result, Err(BackendError::ConfigurationError { .. })));
+        assert!(matches!(
+            result,
+            Err(BackendError::ConfigurationError { .. })
+        ));
     }
 
     #[test]

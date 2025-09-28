@@ -2,7 +2,7 @@
 //!
 //! This program focuses on testing export performance, disabling all quality validation to obtain true performance data
 
-use memscope_rs::{get_global_tracker, init};
+use memscope_rs::{get_tracker, init};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -74,7 +74,7 @@ fn run_performance_only_tests(output_dir: &Path) {
         let output_path = output_dir.join(format!("traditional_export_run_{run}.json"));
 
         // get tracker and export (use minimal configuration)
-        let tracker = get_global_tracker();
+        let tracker = get_tracker();
         let options = memscope_rs::core::tracker::export_json::ExportJsonOptions::default()
             .parallel_processing(false)
             .fast_export_mode(true)
@@ -106,7 +106,7 @@ fn run_performance_only_tests(output_dir: &Path) {
         let output_path = output_dir.join(format!("fast_export_run_{run}.json"));
 
         // get tracker and use fast export (disable validation)
-        let tracker = get_global_tracker();
+        let tracker = get_tracker();
         let options = memscope_rs::core::tracker::export_json::ExportJsonOptions::default()
             .parallel_processing(true)
             .fast_export_mode(true)

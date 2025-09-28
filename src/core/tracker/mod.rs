@@ -17,5 +17,5 @@ pub mod tracking_manager;
 pub use config::{ExportMode, ExportOptions};
 pub use export_json::build_unified_dashboard_structure;
 pub use global_functions::*;
-pub use memory_tracker::{get_global_tracker, MemoryTracker};
+pub use memory_tracker::{configure_tracking_strategy, get_tracker, MemoryTracker};
 pub use tracking_manager::{ComprehensiveTrackingReport, TrackingManager};

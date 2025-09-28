@@ -1,6 +1,6 @@
 use memscope_rs::analysis::unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, BoundaryEventType};
 use memscope_rs::export::binary::{detect_binary_type, BinaryParser};
-use memscope_rs::{get_global_tracker, init, track_var};
+use memscope_rs::{get_tracker, init, track_var};
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::fs;
 use std::rc::Rc;
@@ -28,7 +28,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         data_creation_time.as_secs_f64() * 1000.0
     );
 
-    let tracker = get_global_tracker();
+    let tracker = get_tracker();
 
     // Export user-only binary
     println!("\\nExporting user-only binary...");

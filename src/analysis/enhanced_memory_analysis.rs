@@ -858,7 +858,7 @@ pub fn analyze_memory_with_enhanced_features() -> Result<String, Box<dyn std::er
         );
     }
 
-    let tracker = crate::core::tracker::get_global_tracker();
+    let tracker = crate::core::tracker::get_tracker();
     let allocations = tracker.get_active_allocations()?;
 
     // Perform analysis

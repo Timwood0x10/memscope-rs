@@ -2,11 +2,13 @@
 // Optimized implementation for single-threaded applications
 // Provides zero-overhead tracking with direct global storage
 
-use crate::unified::tracking_dispatcher::{MemoryTracker, TrackerConfig, TrackerStatistics, TrackerType, TrackerError};
+use crate::core::tracker::{get_tracker, MemoryTracker as CoreMemoryTracker};
 use crate::lockfree::aggregator::LockfreeAggregator;
-use crate::core::tracker::{get_global_tracker, MemoryTracker as CoreMemoryTracker};
-use std::sync::Mutex;
+use crate::unified::tracking_dispatcher::{
+    MemoryTracker, TrackerConfig, TrackerError, TrackerStatistics, TrackerType,
+};
 use std::collections::HashMap;
+use std::sync::Mutex;
 use std::time::Instant;
 use tracing::{debug, info, warn};
 
@@ -23,6 +25,7 @@ pub struct SingleThreadStrategy {
     /// Performance metrics
     metrics: PerformanceMetrics,
     /// Integration with existing aggregator
+    #[allow(dead_code)]
     aggregator: Option<LockfreeAggregator>,
     /// Integration with core global tracker
     core_tracker: Option<std::sync::Arc<CoreMemoryTracker>>,
@@ -104,7 +107,7 @@ impl SingleThreadStrategy {
     /// Returns uninitialized strategy ready for configuration
     pub fn new() -> Self {
         debug!("Creating new single-thread strategy");
-        
+
         Self {
             config: None,
             tracking_state: TrackingState::Uninitialized,
@@ -119,9 +122,9 @@ impl SingleThreadStrategy {
     /// Enables compatibility with existing lockfree infrastructure
     pub fn with_aggregator(output_dir: std::path::PathBuf) -> Self {
         debug!("Creating single-thread strategy with aggregator integration");
-        
+
         let aggregator = LockfreeAggregator::new(output_dir);
-        
+
         Self {
             config: None,
             tracking_state: TrackingState::Uninitialized,
@@ -136,9 +139,9 @@ impl SingleThreadStrategy {
     /// Enables seamless integration with existing global tracking system
     pub fn with_core_integration() -> Self {
         debug!("Creating single-thread strategy with core tracker integration");
-        
-        let core_tracker = get_global_tracker();
-        
+
+        let core_tracker = get_tracker();
+
         Self {
             config: None,
             tracking_state: TrackingState::Uninitialized,
@@ -153,10 +156,10 @@ impl SingleThreadStrategy {
     /// Provides maximum compatibility with existing infrastructure
     pub fn with_full_integration(output_dir: std::path::PathBuf) -> Self {
         debug!("Creating single-thread strategy with full integration");
-        
+
         let aggregator = LockfreeAggregator::new(output_dir);
-        let core_tracker = get_global_tracker();
-        
+        let core_tracker = get_tracker();
+
         Self {
             config: None,
             tracking_state: TrackingState::Uninitialized,
@@ -170,11 +173,11 @@ impl SingleThreadStrategy {
     /// Track new memory allocation
     /// Records allocation details with minimal overhead
     pub fn track_allocation(
-        &mut self, 
-        ptr: usize, 
-        size: usize, 
+        &mut self,
+        ptr: usize,
+        size: usize,
         var_name: Option<String>,
-        type_name: String
+        type_name: String,
     ) -> Result<(), TrackerError> {
         if self.tracking_state != TrackingState::Active {
             return Err(TrackerError::StartFailed {
@@ -183,13 +186,13 @@ impl SingleThreadStrategy {
         }
 
         let start_time = Instant::now();
-        
+
         // Generate unique allocation ID
         let id = self.metrics.total_allocations + 1;
-        
+
         // Capture stack trace (simplified for performance)
         let stack_trace = self.capture_stack_trace();
-        
+
         // Create allocation record
         let record = AllocationRecord {
             id,
@@ -205,7 +208,7 @@ impl SingleThreadStrategy {
 
         // Store record
         self.allocation_records.lock().unwrap().push(record);
-        
+
         // Integrate with core tracker if available
         if let Some(core_tracker) = &self.core_tracker {
             // Track in core system using basic allocation tracking
@@ -214,24 +217,27 @@ impl SingleThreadStrategy {
                 // Continue with unified tracking even if core integration fails
             }
         }
-        
+
         // Update metrics
         self.metrics.total_allocations += 1;
         self.metrics.total_bytes_allocated += size as u64;
-        
+
         // Update peak allocations
         let current_allocations = self.allocation_records.lock().unwrap().len() as u64;
         if current_allocations > self.metrics.peak_allocations {
             self.metrics.peak_allocations = current_allocations;
         }
-        
+
         // Update average allocation time
         let allocation_time_ns = start_time.elapsed().as_nanos() as f64;
         let weight = 0.1; // Exponential moving average
-        self.metrics.avg_allocation_time_ns = 
+        self.metrics.avg_allocation_time_ns =
             (1.0 - weight) * self.metrics.avg_allocation_time_ns + weight * allocation_time_ns;
 
-        debug!("Tracked allocation: ptr={:x}, size={}, id={}", ptr, size, id);
+        debug!(
+            "Tracked allocation: ptr={:x}, size={}, id={}",
+            ptr, size, id
+        );
         Ok(())
     }
 
@@ -245,15 +251,18 @@ impl SingleThreadStrategy {
         }
 
         let timestamp = self.get_timestamp_ns();
-        
+
         // Find and update allocation record
         let mut records = self.allocation_records.lock().unwrap();
-        if let Some(record) = records.iter_mut().find(|r| r.ptr == ptr && r.timestamp_dealloc.is_none()) {
+        if let Some(record) = records
+            .iter_mut()
+            .find(|r| r.ptr == ptr && r.timestamp_dealloc.is_none())
+        {
             record.timestamp_dealloc = Some(timestamp);
             debug!("Tracked deallocation: ptr={ptr:x}, id={}", record.id);
             Ok(())
         } else {
-            warn!("Deallocation tracked for unknown pointer: {ptr:x}", );
+            warn!("Deallocation tracked for unknown pointer: {ptr:x}",);
             Err(TrackerError::DataCollectionFailed {
                 reason: format!("Unknown pointer for deallocation: {ptr:x}"),
             })
@@ -285,61 +294,80 @@ impl SingleThreadStrategy {
         let records = self.allocation_records.lock().unwrap();
         let record_overhead = records.len() * std::mem::size_of::<AllocationRecord>();
         let base_overhead = std::mem::size_of::<Self>();
-        
+
         record_overhead + base_overhead
     }
 
     /// Convert allocation records to JSON format compatible with existing exports
     fn export_as_json(&self) -> Result<String, TrackerError> {
         let records = self.allocation_records.lock().unwrap();
-        
+
         // Create JSON structure compatible with existing format
         let mut allocations = Vec::new();
-        
+
         for record in records.iter() {
             let mut allocation = serde_json::Map::new();
-            
-            allocation.insert("ptr".to_string(), 
-                serde_json::Value::String(format!("{:x}", record.ptr)));
-            allocation.insert("size".to_string(), 
-                serde_json::Value::Number(serde_json::Number::from(record.size)));
-            allocation.insert("timestamp_alloc".to_string(), 
-                serde_json::Value::Number(serde_json::Number::from(record.timestamp_alloc)));
-            
+
+            allocation.insert(
+                "ptr".to_string(),
+                serde_json::Value::String(format!("{:x}", record.ptr)),
+            );
+            allocation.insert(
+                "size".to_string(),
+                serde_json::Value::Number(serde_json::Number::from(record.size)),
+            );
+            allocation.insert(
+                "timestamp_alloc".to_string(),
+                serde_json::Value::Number(serde_json::Number::from(record.timestamp_alloc)),
+            );
+
             if let Some(var_name) = &record.var_name {
-                allocation.insert("var_name".to_string(), 
-                    serde_json::Value::String(var_name.clone()));
+                allocation.insert(
+                    "var_name".to_string(),
+                    serde_json::Value::String(var_name.clone()),
+                );
             }
-            
-            allocation.insert("type_name".to_string(), 
-                serde_json::Value::String(record.type_name.clone()));
-            
+
+            allocation.insert(
+                "type_name".to_string(),
+                serde_json::Value::String(record.type_name.clone()),
+            );
+
             if let Some(timestamp_dealloc) = record.timestamp_dealloc {
-                allocation.insert("timestamp_dealloc".to_string(), 
-                    serde_json::Value::Number(serde_json::Number::from(timestamp_dealloc)));
+                allocation.insert(
+                    "timestamp_dealloc".to_string(),
+                    serde_json::Value::Number(serde_json::Number::from(timestamp_dealloc)),
+                );
             }
-            
+
             // Add tracking strategy metadata
-            allocation.insert("tracking_strategy".to_string(), 
-                serde_json::Value::String("single_thread".to_string()));
-            
+            allocation.insert(
+                "tracking_strategy".to_string(),
+                serde_json::Value::String("single_thread".to_string()),
+            );
+
             allocations.push(serde_json::Value::Object(allocation));
         }
-        
+
         let mut output = serde_json::Map::new();
-        output.insert("allocations".to_string(), serde_json::Value::Array(allocations));
-        output.insert("strategy_metadata".to_string(), serde_json::json!({
-            "strategy_type": "single_thread",
-            "total_allocations": self.metrics.total_allocations,
-            "total_bytes": self.metrics.total_bytes_allocated,
-            "tracking_duration_us": self.metrics.tracking_duration_us,
-            "overhead_bytes": self.calculate_overhead()
-        }));
-        
-        serde_json::to_string_pretty(&output)
-            .map_err(|e| TrackerError::DataCollectionFailed {
-                reason: format!("JSON serialization failed: {e}"),
-            })
+        output.insert(
+            "allocations".to_string(),
+            serde_json::Value::Array(allocations),
+        );
+        output.insert(
+            "strategy_metadata".to_string(),
+            serde_json::json!({
+                "strategy_type": "single_thread",
+                "total_allocations": self.metrics.total_allocations,
+                "total_bytes": self.metrics.total_bytes_allocated,
+                "tracking_duration_us": self.metrics.tracking_duration_us,
+                "overhead_bytes": self.calculate_overhead()
+            }),
+        );
+
+        serde_json::to_string_pretty(&output).map_err(|e| TrackerError::DataCollectionFailed {
+            reason: format!("JSON serialization failed: {e}"),
+        })
     }
 }
 
@@ -348,34 +376,40 @@ impl MemoryTracker for SingleThreadStrategy {
     /// Sets up tracking infrastructure and validates configuration
     fn initialize(&mut self, config: TrackerConfig) -> Result<(), TrackerError> {
         let start_time = Instant::now();
-        
-        debug!("Initializing single-thread strategy with config: {:?}", config);
-        
+
+        debug!(
+            "Initializing single-thread strategy with config: {:?}",
+            config
+        );
+
         // Validate configuration
         if config.sample_rate < 0.0 || config.sample_rate > 1.0 {
             return Err(TrackerError::InvalidConfiguration {
                 reason: "Sample rate must be between 0.0 and 1.0".to_string(),
             });
         }
-        
+
         if config.max_overhead_mb == 0 {
             return Err(TrackerError::InvalidConfiguration {
                 reason: "Maximum overhead must be greater than 0".to_string(),
             });
         }
-        
+
         // Store configuration
         self.config = Some(config);
-        
+
         // Initialize allocation storage with reasonable capacity
         let initial_capacity = 1000; // Expect ~1000 allocations initially
         self.allocation_records = Mutex::new(Vec::with_capacity(initial_capacity));
-        
+
         // Update state and metrics
         self.tracking_state = TrackingState::Initialized;
         self.metrics.init_time_us = start_time.elapsed().as_micros() as u64;
-        
-        info!("Single-thread strategy initialized in {}μs", self.metrics.init_time_us);
+
+        info!(
+            "Single-thread strategy initialized in {}μs",
+            self.metrics.init_time_us
+        );
         Ok(())
     }
 
@@ -385,17 +419,17 @@ impl MemoryTracker for SingleThreadStrategy {
         match &self.tracking_state {
             TrackingState::Initialized => {
                 debug!("Starting single-thread tracking");
-                
+
                 self.tracking_state = TrackingState::Active;
-                
+
                 // Reset metrics for new session
                 self.metrics.total_allocations = 0;
                 self.metrics.total_bytes_allocated = 0;
                 self.metrics.peak_allocations = 0;
-                
+
                 // Clear previous allocation records
                 self.allocation_records.lock().unwrap().clear();
-                
+
                 info!("Single-thread tracking started successfully");
                 Ok(())
             }
@@ -403,11 +437,9 @@ impl MemoryTracker for SingleThreadStrategy {
                 warn!("Tracking already active");
                 Ok(()) // Already active, not an error
             }
-            other_state => {
-                Err(TrackerError::StartFailed {
-                    reason: format!("Cannot start tracking from state: {other_state:?}"),
-                })
-            }
+            other_state => Err(TrackerError::StartFailed {
+                reason: format!("Cannot start tracking from state: {other_state:?}"),
+            }),
         }
     }
 
@@ -417,18 +449,20 @@ impl MemoryTracker for SingleThreadStrategy {
         match &self.tracking_state {
             TrackingState::Active => {
                 debug!("Stopping single-thread tracking");
-                
+
                 self.tracking_state = TrackingState::Stopped;
-                
+
                 // Update final metrics
                 self.metrics.overhead_bytes = self.calculate_overhead();
-                
+
                 // Export data in JSON format
                 let json_data = self.export_as_json()?;
-                
-                info!("Single-thread tracking stopped, collected {} allocations", 
-                      self.metrics.total_allocations);
-                
+
+                info!(
+                    "Single-thread tracking stopped, collected {} allocations",
+                    self.metrics.total_allocations
+                );
+
                 Ok(json_data.into_bytes())
             }
             TrackingState::Stopped => {
@@ -436,11 +470,9 @@ impl MemoryTracker for SingleThreadStrategy {
                 let json_data = self.export_as_json()?;
                 Ok(json_data.into_bytes())
             }
-            other_state => {
-                Err(TrackerError::DataCollectionFailed {
-                    reason: format!("Cannot stop tracking from state: {other_state:?}"),
-                })
-            }
+            other_state => Err(TrackerError::DataCollectionFailed {
+                reason: format!("Cannot stop tracking from state: {other_state:?}"),
+            }),
         }
     }
 
@@ -495,7 +527,7 @@ mod tests {
             thread_affinity: None,
             custom_params: HashMap::new(),
         };
-        
+
         let result = strategy.initialize(config);
         assert!(result.is_ok());
         assert_eq!(strategy.tracking_state, TrackingState::Initialized);
@@ -510,7 +542,7 @@ mod tests {
             thread_affinity: None,
             custom_params: HashMap::new(),
         };
-        
+
         let result = strategy.initialize(config);
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -525,31 +557,31 @@ mod tests {
     fn test_tracking_lifecycle() {
         let mut strategy = SingleThreadStrategy::new();
         let config = TrackerConfig::default();
-        
+
         // Initialize
         assert!(strategy.initialize(config).is_ok());
-        
+
         // Start tracking
         assert!(strategy.start_tracking().is_ok());
         assert!(strategy.is_active());
-        
+
         // Track allocation
         let result = strategy.track_allocation(
-            0x1000, 
-            128, 
-            Some("test_var".to_string()), 
-            "TestType".to_string()
+            0x1000,
+            128,
+            Some("test_var".to_string()),
+            "TestType".to_string(),
         );
         assert!(result.is_ok());
-        
+
         // Check statistics
         let stats = strategy.get_statistics();
         assert_eq!(stats.allocations_tracked, 1);
         assert_eq!(stats.memory_tracked_bytes, 128);
-        
+
         // Track deallocation
         assert!(strategy.track_deallocation(0x1000).is_ok());
-        
+
         // Stop tracking
         let data = strategy.stop_tracking();
         assert!(data.is_ok());
@@ -561,24 +593,27 @@ mod tests {
         let mut strategy = SingleThreadStrategy::new();
         strategy.initialize(TrackerConfig::default()).unwrap();
         strategy.start_tracking().unwrap();
-        
+
         // Track multiple allocations
         for i in 0..10 {
             let ptr = 0x1000 + i * 0x100;
             let size = 64 + i * 8;
-            
+
             let result = strategy.track_allocation(
-                ptr, 
-                size, 
-                Some(format!("var_{i}")), 
-                "TestType".to_string()
+                ptr,
+                size,
+                Some(format!("var_{i}")),
+                "TestType".to_string(),
             );
             assert!(result.is_ok());
         }
-        
+
         let stats = strategy.get_statistics();
         assert_eq!(stats.allocations_tracked, 10);
-        assert_eq!(stats.memory_tracked_bytes, 64 * 10 + 8 * (0 + 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9));
+        assert_eq!(
+            stats.memory_tracked_bytes,
+            64 * 10 + 8 * (0 + 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9)
+        );
     }
 
     #[test]
@@ -586,32 +621,37 @@ mod tests {
         let mut strategy = SingleThreadStrategy::new();
         strategy.initialize(TrackerConfig::default()).unwrap();
         strategy.start_tracking().unwrap();
-        
+
         // Track one allocation
-        strategy.track_allocation(
-            0x1000, 
-            256, 
-            Some("test_variable".to_string()), 
-            "TestStruct".to_string()
-        ).unwrap();
-        
+        strategy
+            .track_allocation(
+                0x1000,
+                256,
+                Some("test_variable".to_string()),
+                "TestStruct".to_string(),
+            )
+            .unwrap();
+
         let data = strategy.stop_tracking().unwrap();
         let json_str = String::from_utf8(data).unwrap();
-        
+
         // Verify JSON structure
         let parsed: serde_json::Value = serde_json::from_str(&json_str).unwrap();
         assert!(parsed["allocations"].is_array());
         assert!(parsed["strategy_metadata"].is_object());
-        
+
         let allocations = parsed["allocations"].as_array().unwrap();
         assert_eq!(allocations.len(), 1);
-        
+
         let first_alloc = &allocations[0];
         assert_eq!(first_alloc["ptr"].as_str().unwrap(), "1000");
         assert_eq!(first_alloc["size"].as_u64().unwrap(), 256);
         assert_eq!(first_alloc["var_name"].as_str().unwrap(), "test_variable");
         assert_eq!(first_alloc["type_name"].as_str().unwrap(), "TestStruct");
-        assert_eq!(first_alloc["tracking_strategy"].as_str().unwrap(), "single_thread");
+        assert_eq!(
+            first_alloc["tracking_strategy"].as_str().unwrap(),
+            "single_thread"
+        );
     }
 
     #[test]
@@ -619,22 +659,19 @@ mod tests {
         let mut strategy = SingleThreadStrategy::new();
         strategy.initialize(TrackerConfig::default()).unwrap();
         strategy.start_tracking().unwrap();
-        
+
         // Track allocations to generate metrics
         for i in 0..100 {
-            strategy.track_allocation(
-                0x1000 + i * 0x10, 
-                64, 
-                None, 
-                "TestType".to_string()
-            ).unwrap();
+            strategy
+                .track_allocation(0x1000 + i * 0x10, 64, None, "TestType".to_string())
+                .unwrap();
         }
-        
+
         let stats = strategy.get_statistics();
         assert_eq!(stats.allocations_tracked, 100);
         assert_eq!(stats.memory_tracked_bytes, 6400);
         assert!(stats.overhead_bytes > 0);
-        
+
         // Check that average allocation time is reasonable
         assert!(strategy.metrics.avg_allocation_time_ns > 0.0);
         assert!(strategy.metrics.avg_allocation_time_ns < 1_000_000.0); // Less than 1ms

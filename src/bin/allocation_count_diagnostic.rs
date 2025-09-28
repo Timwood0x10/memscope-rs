@@ -2,7 +2,7 @@
 //!
 //! check why the exported file size does not linearly increase with allocation count
 
-use memscope_rs::{get_global_tracker, init};
+use memscope_rs::{get_tracker, init};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -53,7 +53,7 @@ fn diagnose_allocation_count() {
     tracing::info!("📊 diagnose allocation count and file size relationship");
     tracing::info!("==============================");
 
-    let tracker = get_global_tracker();
+    let tracker = get_tracker();
     let stats = tracker.get_stats().expect("Failed to get statistics");
 
     tracing::info!("🔍 global tracker stats:");
@@ -86,7 +86,7 @@ fn test_traditional_export(output_dir: &Path, stats: &memscope_rs::core::types::
     tracing::info!("🐌 test traditional export:");
 
     let output_path = output_dir.join("traditional_diagnostic.json");
-    let tracker = get_global_tracker();
+    let tracker = get_tracker();
 
     match tracker.export_to_json(&output_path) {
         Ok(_) => {
@@ -178,7 +178,7 @@ fn test_raw_data_access(stats: &memscope_rs::core::types::MemoryStats) {
     tracing::info!("");
     tracing::info!("🔍 test raw data access:");
 
-    let _tracker = get_global_tracker();
+    let _tracker = get_tracker();
 
     // try to access allocation data directly
     tracing::info!("  • try to access allocation data directly...");

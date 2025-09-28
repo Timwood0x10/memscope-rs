@@ -2,7 +2,7 @@
 // Intelligently detects execution context to optimize memory tracking strategy
 // Supports single-thread, multi-thread, async, and hybrid runtime detection
 
-use crate::unified::backend::{RuntimeEnvironment, AsyncRuntimeType, BackendError};
+use crate::unified::backend::{AsyncRuntimeType, BackendError, RuntimeEnvironment};
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 use tracing::{debug, info, warn};
@@ -109,7 +109,7 @@ impl EnvironmentDetector {
     /// Create new environment detector with configuration
     pub fn new(config: DetectionConfig) -> Self {
         debug!("Creating environment detector with config: {:?}", config);
-        
+
         Self {
             config,
             runtime_stats: RuntimeStatistics::default(),
@@ -137,11 +137,8 @@ impl EnvironmentDetector {
 
         // Phase 3: Combine results and calculate confidence
         let has_dynamic = dynamic_env.is_some();
-        let (final_env, confidence, alternatives) = self.synthesize_results(
-            static_env, 
-            dynamic_env, 
-            &warnings
-        )?;
+        let (final_env, confidence, alternatives) =
+            self.synthesize_results(static_env, dynamic_env, &warnings)?;
 
         let detection_time = start_time.elapsed().as_millis() as u64;
         self.runtime_stats.detection_duration_ms = detection_time;
@@ -158,14 +155,19 @@ impl EnvironmentDetector {
             },
         };
 
-        info!("Environment analysis completed: {:?} (confidence: {:.2})", 
-              analysis.environment, analysis.confidence);
+        info!(
+            "Environment analysis completed: {:?} (confidence: {:.2})",
+            analysis.environment, analysis.confidence
+        );
 
         Ok(analysis)
     }
 
     /// Perform static environment analysis based on available system information
-    fn perform_static_analysis(&self, warnings: &mut Vec<String>) -> Result<RuntimeEnvironment, BackendError> {
+    fn perform_static_analysis(
+        &self,
+        warnings: &mut Vec<String>,
+    ) -> Result<RuntimeEnvironment, BackendError> {
         debug!("Performing static environment analysis");
 
         // Detect available parallelism
@@ -189,9 +191,9 @@ impl EnvironmentDetector {
             }
             (Some(runtime_type), 1) => RuntimeEnvironment::AsyncRuntime { runtime_type },
             (Some(_runtime_type), cores) if cores >= self.config.multi_thread_threshold => {
-                RuntimeEnvironment::Hybrid { 
-                    thread_count: cores, 
-                    async_task_count: 0 // Will be determined dynamically
+                RuntimeEnvironment::Hybrid {
+                    thread_count: cores,
+                    async_task_count: 0, // Will be determined dynamically
                 }
             }
             (Some(runtime_type), _cores) => {
@@ -200,7 +202,9 @@ impl EnvironmentDetector {
             }
             (None, 1) => RuntimeEnvironment::SingleThreaded,
             (None, cores) if cores >= self.config.multi_thread_threshold => {
-                RuntimeEnvironment::MultiThreaded { thread_count: cores }
+                RuntimeEnvironment::MultiThreaded {
+                    thread_count: cores,
+                }
             }
             (None, cores) => {
                 warnings.push(format!("Low core count {} but above single-thread", cores));
@@ -267,7 +271,7 @@ impl EnvironmentDetector {
     fn is_async_std_runtime_present(&self) -> bool {
         // async-std detection is more challenging as it has fewer runtime introspection APIs
         // Check for async-std specific environment variables or patterns
-        
+
         // Method 1: Check for async-std environment indicators
         if std::env::var("ASYNC_STD_THREAD_COUNT").is_ok() {
             return true;
@@ -275,12 +279,15 @@ impl EnvironmentDetector {
 
         // Method 2: Check if we're running inside async-std executor
         // This would require async-std specific detection logic
-        
+
         false
     }
 
     /// Perform dynamic runtime analysis through sampling and observation
-    fn perform_dynamic_analysis(&mut self, warnings: &mut Vec<String>) -> Result<RuntimeEnvironment, BackendError> {
+    fn perform_dynamic_analysis(
+        &mut self,
+        warnings: &mut Vec<String>,
+    ) -> Result<RuntimeEnvironment, BackendError> {
         debug!("Performing dynamic runtime analysis");
 
         let analysis_start = std::time::Instant::now();
@@ -304,7 +311,7 @@ impl EnvironmentDetector {
 
             // Sleep for sampling interval
             std::thread::sleep(std::time::Duration::from_millis(
-                self.config.analysis_period_ms / 10
+                self.config.analysis_period_ms / 10,
             ));
         }
 
@@ -320,32 +327,38 @@ impl EnvironmentDetector {
 
         let has_async_activity = async_indicators.iter().any(|&active| active);
 
-        debug!("Dynamic analysis: avg_threads={}, peak_threads={}, async_activity={}", 
-               avg_threads, peak_threads, has_async_activity);
+        debug!(
+            "Dynamic analysis: avg_threads={}, peak_threads={}, async_activity={}",
+            avg_threads, peak_threads, has_async_activity
+        );
 
         // Determine environment from dynamic analysis
         let environment = match (has_async_activity, peak_threads) {
             (true, 0) => {
                 warnings.push("Async activity detected with zero threads".to_string());
-                let runtime_type = self.detect_async_runtime_static(warnings)
+                let runtime_type = self
+                    .detect_async_runtime_static(warnings)
                     .unwrap_or(AsyncRuntimeType::Custom);
                 RuntimeEnvironment::AsyncRuntime { runtime_type }
             }
             (true, 1) => {
                 // Async activity on single thread suggests async runtime
-                let runtime_type = self.detect_async_runtime_static(warnings)
+                let runtime_type = self
+                    .detect_async_runtime_static(warnings)
                     .unwrap_or(AsyncRuntimeType::Custom);
                 RuntimeEnvironment::AsyncRuntime { runtime_type }
             }
             (true, threads) => {
                 // Both async and multi-thread activity
-                RuntimeEnvironment::Hybrid { 
-                    thread_count: threads, 
-                    async_task_count: sample_count // Use sample count as proxy
+                RuntimeEnvironment::Hybrid {
+                    thread_count: threads,
+                    async_task_count: sample_count, // Use sample count as proxy
                 }
             }
             (false, 1) => RuntimeEnvironment::SingleThreaded,
-            (false, threads) => RuntimeEnvironment::MultiThreaded { thread_count: threads },
+            (false, threads) => RuntimeEnvironment::MultiThreaded {
+                thread_count: threads,
+            },
         };
 
         debug!("Dynamic analysis determined environment: {:?}", environment);
@@ -356,7 +369,7 @@ impl EnvironmentDetector {
     fn sample_thread_activity(&self) -> usize {
         // This is a simplified implementation
         // Real implementation would use platform-specific APIs to count active threads
-        
+
         // For now, use available parallelism as baseline
         std::thread::available_parallelism()
             .map(|p| p.get())
@@ -367,7 +380,7 @@ impl EnvironmentDetector {
     fn sample_async_activity(&self) -> bool {
         // This would use runtime-specific APIs to detect async task activity
         // For now, use simple heuristics
-        
+
         // Check if we can detect any async runtime activity
         self.is_tokio_runtime_present() || self.is_async_std_runtime_present()
     }
@@ -412,7 +425,10 @@ impl EnvironmentDetector {
             confidence = confidence.max(0.3); // Minimum confidence threshold
         }
 
-        debug!("Final synthesis: {:?} with confidence {:.2}", final_environment, confidence);
+        debug!(
+            "Final synthesis: {:?} with confidence {:.2}",
+            final_environment, confidence
+        );
         Ok((final_environment, confidence, alternatives))
     }
 
@@ -444,17 +460,22 @@ impl EnvironmentDetector {
 pub fn detect_environment() -> Result<RuntimeEnvironment, BackendError> {
     let mut detector = EnvironmentDetector::new(DetectionConfig::default());
     let analysis = detector.analyze_environment()?;
-    
+
     if analysis.confidence < 0.5 {
-        warn!("Low confidence environment detection: {:.2}", analysis.confidence);
+        warn!(
+            "Low confidence environment detection: {:.2}",
+            analysis.confidence
+        );
     }
-    
+
     Ok(analysis.environment)
 }
 
 /// Advanced environment detection with custom configuration
 /// Provides detailed analysis results for advanced use cases
-pub fn detect_environment_detailed(config: DetectionConfig) -> Result<EnvironmentAnalysis, BackendError> {
+pub fn detect_environment_detailed(
+    config: DetectionConfig,
+) -> Result<EnvironmentAnalysis, BackendError> {
     let mut detector = EnvironmentDetector::new(config);
     detector.analyze_environment()
 }
@@ -475,7 +496,7 @@ mod tests {
         let config = DetectionConfig::default();
         let detector = EnvironmentDetector::new(config);
         let mut warnings = Vec::new();
-        
+
         let result = detector.perform_static_analysis(&mut warnings);
         assert!(result.is_ok());
     }
@@ -484,7 +505,7 @@ mod tests {
     fn test_tokio_detection() {
         let config = DetectionConfig::default();
         let detector = EnvironmentDetector::new(config);
-        
+
         // This test will pass regardless of Tokio presence
         let _has_tokio = detector.is_tokio_runtime_present();
         // Just ensure the method doesn't panic
@@ -494,7 +515,7 @@ mod tests {
     fn test_environment_analysis_confidence() {
         let mut detector = EnvironmentDetector::new(DetectionConfig::default());
         let analysis = detector.analyze_environment();
-        
+
         assert!(analysis.is_ok());
         let analysis = analysis.unwrap();
         assert!(analysis.confidence >= 0.0 && analysis.confidence <= 1.0);
@@ -513,10 +534,10 @@ mod tests {
             max_detection_time_ms: 50,   // Short timeout for test
             ..Default::default()
         };
-        
+
         let result = detect_environment_detailed(config);
         assert!(result.is_ok());
-        
+
         let analysis = result.unwrap();
         assert!(analysis.detection_metadata.detection_time_ms <= 100); // Should be quick
     }

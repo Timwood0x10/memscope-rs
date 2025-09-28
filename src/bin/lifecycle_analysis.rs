@@ -2,7 +2,7 @@
 //!
 //! analyze why most allocations in complex_lifecycle_showcase are released
 
-use memscope_rs::{get_global_tracker, init, track_var};
+use memscope_rs::{get_tracker, init, track_var};
 use std::collections::HashMap;
 
 fn main() {
@@ -91,7 +91,7 @@ fn test_mixed_lifetime_pattern() -> Vec<Box<dyn std::any::Any>> {
 }
 
 fn print_stats(phase: &str) {
-    let tracker = get_global_tracker();
+    let tracker = get_tracker();
     if let Ok(stats) = tracker.get_stats() {
         tracing::info!(
             "  📊 {}: total allocations={}, active allocations={}, released={}",
@@ -104,7 +104,7 @@ fn print_stats(phase: &str) {
 }
 
 fn analyze_lifecycle_patterns() {
-    let tracker = get_global_tracker();
+    let tracker = get_tracker();
     if let Ok(stats) = tracker.get_stats() {
         tracing::info!("🔍 lifecycle pattern analysis:");
         tracing::info!("  • total allocations: {}", stats.total_allocations);

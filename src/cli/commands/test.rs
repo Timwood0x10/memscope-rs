@@ -2,7 +2,7 @@
 //!
 //! This module provides the test subcommand functionality.
 
-use crate::core::tracker::get_global_tracker;
+use crate::core::tracker::get_tracker;
 use crate::track_var;
 use clap::ArgMatches;
 use std::error::Error;
@@ -27,7 +27,7 @@ pub fn run_test(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
 }
 
 fn run_enhanced_memory_test() -> Result<(), Box<dyn Error>> {
-    use crate::core::tracker::get_global_tracker;
+    use crate::core::tracker::get_tracker;
 
     tracing::info!("Creating test allocations...");
 
@@ -49,7 +49,7 @@ fn run_enhanced_memory_test() -> Result<(), Box<dyn Error>> {
     }
 
     // Get all allocations
-    let tracker = get_global_tracker();
+    let tracker = get_tracker();
     let _allocations = match tracker.get_active_allocations() {
         Ok(allocs) => allocs,
         Err(e) => {
@@ -90,7 +90,7 @@ fn _test_enhanced_memory_analysis() {
     }
 
     // Get all allocations
-    let tracker = get_global_tracker();
+    let tracker = get_tracker();
     let _allocations = match tracker.get_active_allocations() {
         Ok(allocs) => allocs,
         Err(e) => {

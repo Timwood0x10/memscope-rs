@@ -23,7 +23,7 @@ pub fn run_analyze(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
         .get_one::<String>("output")
         .map(|s| s.as_str())
         .unwrap_or("memory_analysis");
-    
+
     // Extract unified backend options
     let tracking_mode = matches
         .get_one::<String>("mode")
@@ -49,7 +49,13 @@ pub fn run_analyze(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
     // Route to appropriate tracking system based on mode
     match tracking_mode {
         "unified" => {
-            run_unified_analysis(&command_args, strategy, sample_rate, export_format, output_path)?;
+            run_unified_analysis(
+                &command_args,
+                strategy,
+                sample_rate,
+                export_format,
+                output_path,
+            )?;
         }
         "legacy" => {
             run_legacy_analysis(&command_args, export_format, output_path)?;
@@ -58,7 +64,13 @@ pub fn run_analyze(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
             // Auto-detect best mode based on environment
             if should_use_unified_backend(&command_args) {
                 tracing::info!("🤖 Auto-detected: Using unified backend");
-                run_unified_analysis(&command_args, strategy, sample_rate, export_format, output_path)?;
+                run_unified_analysis(
+                    &command_args,
+                    strategy,
+                    sample_rate,
+                    export_format,
+                    output_path,
+                )?;
             } else {
                 tracing::info!("🤖 Auto-detected: Using legacy backend");
                 run_legacy_analysis(&command_args, export_format, output_path)?;
@@ -80,14 +92,14 @@ fn run_unified_analysis(
     export_format: &str,
     output_path: &str,
 ) -> Result<(), Box<dyn Error>> {
-    use crate::unified::{UnifiedBackend, BackendConfig, detect_environment};
-    
+    use crate::unified::{detect_environment, BackendConfig, UnifiedBackend};
+
     tracing::info!("🔧 Initializing unified backend...");
-    
+
     // Detect environment for strategy selection
     let detected_environment = detect_environment()?;
     tracing::info!("🌍 Environment detected: {:?}", detected_environment);
-    
+
     // Build backend configuration
     let config = BackendConfig {
         auto_detect: strategy == "auto",
@@ -95,26 +107,32 @@ fn run_unified_analysis(
         sample_rate,
         max_overhead_percent: 5.0,
     };
-    
+
     // Initialize unified backend
     let mut backend = UnifiedBackend::initialize(config)?;
-    
+
     // Start tracking session
     let session = backend.start_tracking()?;
-    tracing::info!("✅ Unified tracking session started: {}", session.session_id());
-    
+    tracing::info!(
+        "✅ Unified tracking session started: {}",
+        session.session_id()
+    );
+
     // Execute command with tracking
     let result = execute_with_unified_tracking(command_args, &session.session_id())?;
-    
+
     // Collect tracking data
     let analysis_data = backend.collect_data()?;
     let tracking_data = analysis_data.raw_data;
-    
-    tracing::info!("📊 Analysis completed. Collected {} bytes of data", tracking_data.len());
-    
+
+    tracing::info!(
+        "📊 Analysis completed. Collected {} bytes of data",
+        tracking_data.len()
+    );
+
     // Export results
     export_unified_results(&tracking_data, export_format, output_path)?;
-    
+
     if result.success() {
         tracing::info!("🎉 Unified analysis completed successfully");
         Ok(())
@@ -130,16 +148,16 @@ fn run_legacy_analysis(
     output_path: &str,
 ) -> Result<(), Box<dyn Error>> {
     tracing::info!("🔧 Initializing legacy backend...");
-    
+
     // Initialize legacy memory tracking
     crate::init();
-    
+
     // Execute command with legacy tracking
     execute_with_tracking(command_args, &[])?;
-    
+
     tracing::info!("📊 Legacy analysis completed");
     tracing::info!("💾 Results exported to: {}.{}", output_path, export_format);
-    
+
     Ok(())
 }
 
@@ -148,35 +166,39 @@ fn should_use_unified_backend(command_args: &[&String]) -> bool {
     if command_args.is_empty() {
         return false;
     }
-    
+
     let command = command_args[0].as_str();
-    
+
     // Check for async-heavy programs
     if command.contains("tokio") || command.contains("async-std") {
         tracing::debug!("Detected async runtime, recommending unified backend");
         return true;
     }
-    
+
     // Check for multi-threaded programs
-    if command_args.iter().any(|arg| {
-        arg.contains("--jobs") || arg.contains("-j") || arg.contains("parallel")
-    }) {
+    if command_args
+        .iter()
+        .any(|arg| arg.contains("--jobs") || arg.contains("-j") || arg.contains("parallel"))
+    {
         tracing::debug!("Detected multi-threading hints, recommending unified backend");
         return true;
     }
-    
+
     // Check for cargo commands that might benefit from unified tracking
     if command == "cargo" && command_args.len() > 1 {
         let subcommand = command_args[1].as_str();
         match subcommand {
             "test" | "bench" | "run" => {
-                tracing::debug!("Detected cargo {}, recommending unified backend", subcommand);
+                tracing::debug!(
+                    "Detected cargo {}, recommending unified backend",
+                    subcommand
+                );
                 return true;
             }
             _ => {}
         }
     }
-    
+
     // Default to legacy for simple commands
     tracing::debug!("No unified backend indicators found, using legacy");
     false
@@ -190,23 +212,27 @@ fn execute_with_unified_tracking(
     if command_args.is_empty() {
         return Err("No command provided".into());
     }
-    
+
     let program = command_args[0];
     let args = &command_args[1..];
-    
+
     let mut cmd = Command::new(program);
     cmd.args(args);
     cmd.stdout(Stdio::inherit());
     cmd.stderr(Stdio::inherit());
-    
+
     // Set environment variables for unified tracking
     cmd.env("MEMSCOPE_UNIFIED_ENABLED", "1");
     cmd.env("MEMSCOPE_SESSION_ID", session_id);
     cmd.env("MEMSCOPE_AUTO_EXPORT", "1");
-    
-    let args_str = args.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(" ");
+
+    let args_str = args
+        .iter()
+        .map(|s| s.as_str())
+        .collect::<Vec<_>>()
+        .join(" ");
     tracing::info!("🔄 Executing: {} {}", program, args_str);
-    
+
     let status = cmd.status()?;
     Ok(status)
 }
@@ -238,12 +264,15 @@ fn export_unified_results(
             tracing::info!("✅ SVG export completed: {}", svg_path);
         }
         _ => {
-            tracing::warn!("Unsupported export format: {}, defaulting to JSON", export_format);
+            tracing::warn!(
+                "Unsupported export format: {}, defaulting to JSON",
+                export_format
+            );
             let json_path = format!("{}.json", output_path);
             std::fs::write(&json_path, tracking_data)?;
         }
     }
-    
+
     Ok(())
 }
 
@@ -301,7 +330,7 @@ fn generate_unified_html_report(tracking_data: &[u8]) -> Result<String, Box<dyn 
 </html>"#,
         tracking_data.len()
     );
-    
+
     Ok(html_content)
 }
 
@@ -324,7 +353,7 @@ fn generate_unified_svg_visualization(tracking_data: &[u8]) -> Result<String, Bo
         </svg>"#,
         "#f8f9fa", "#333", "#666", data_size, "#e8f4fd", "#1976d2", "#1976d2"
     );
-    
+
     Ok(svg_content)
 }
 
