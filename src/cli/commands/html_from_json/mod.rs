@@ -267,12 +267,12 @@ pub struct JsonLoadStats {
 /// Collection of JSON data from different analysis files
 type JsonDataCollection = HashMap<String, Value>;
 
-/// 流式加载JSON文件，避免内存峰值
+/// Stream-load JSON file to avoid memory peaks
 fn load_json_streaming_safe(file_path: &str) -> Result<Value, Box<dyn Error>> {
     let file = File::open(file_path)?;
     let reader = BufReader::new(file);
 
-    // 使用serde_json的流式API，直接从BufReader读取，避免一次性加载到内存
+    // Use serde_json streaming API, read directly from BufReader to avoid loading all into memory at once
     let json_value: Value = serde_json::from_reader(reader)?;
     Ok(json_value)
 }

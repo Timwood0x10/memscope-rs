@@ -93,7 +93,7 @@ fn run_performance_only_tests(output_dir: &Path) {
             }
         }
 
-        // 短暂休息
+        // Brief rest
         std::thread::sleep(std::time::Duration::from_millis(100));
     }
 
@@ -278,7 +278,7 @@ this indicates that the fast export system's core algorithm needs further optimi
 ## 📝 important findings
 
 1. **quality validation impact**: through disabling validation, we can see the true performance of the core export algorithm
-2. **parallel processing effect**: in the absence of validation, parallel processing shows more明显
+2. **parallel processing effect**: in the absence of validation, parallel processing shows more obvious benefits
 3. **performance bottleneck identification**: helps distinguish between algorithm issues and validation overhead
 
 ## 📁 generated files

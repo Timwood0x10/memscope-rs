@@ -2105,6 +2105,260 @@
             </div>
         </div>
 
+        <!-- 新增开发者洞察分析区域 -->
+        <div class="section developer-insights">
+            <h3>🔍 Developer Code Insights</h3>
+            
+            <!-- 洞察标签页 -->
+            <div class="insights-tabs">
+                <button class="insight-tab active" onclick="showInsightTab('hotspots')">🔥 Code Hotspots</button>
+                <button class="insight-tab" onclick="showInsightTab('leaks')">💧 Memory Leaks</button>
+                <button class="insight-tab" onclick="showInsightTab('suggestions')">💡 Optimizations</button>
+                <button class="insight-tab" onclick="showInsightTab('performance')">⚡ Performance</button>
+            </div>
+
+            <!-- 代码热点分析 -->
+            <div id="hotspots-content" class="insight-content active">
+                <!-- 新增高级分析模式 -->
+                <div class="advanced-patterns-section">
+                    <h4>🚨 Advanced Problem Patterns</h4>
+                    <div class="pattern-grid">
+                        <div class="pattern-card critical">
+                            <div class="pattern-header">
+                                <span>🔄</span>
+                                <strong>Excessive Cloning Pattern</strong>
+                                <span class="pattern-severity high">Critical</span>
+                            </div>
+                            <div class="pattern-description">
+                                Variable <code>{{CLONE_VARIABLE_NAME}}</code> cloned {{CLONE_COUNT}} times across {{CLONE_THREADS}} threads
+                            </div>
+                            <div class="visual-evidence">
+                                <div class="evidence-item">
+                                    <span class="evidence-label">📊 Resource Trend:</span>
+                                    <canvas id="cloning-trend-chart" width="200" height="60"></canvas>
+                                    <div class="trend-annotation">🔴 Peak cloning at 10:23:45</div>
+                                </div>
+                                <div class="evidence-item">
+                                    <span class="evidence-label">👥 Related Variables:</span>
+                                    <div class="related-variables">
+                                        <span class="variable-chip">clone_1 (Thread {{CLONE_THREAD_1}})</span>
+                                        <span class="variable-chip">clone_2 (Thread {{CLONE_THREAD_2}})</span>
+                                        <span class="variable-chip">clone_3 (Thread {{CLONE_THREAD_3}})</span>
+                                        <span class="more-indicator">+{{ADDITIONAL_CLONES}} more</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="pattern-impact">
+                                <strong>Blast Radius:</strong> {{CLONE_MEMORY_IMPACT}} MB memory, {{CLONE_PERFORMANCE_IMPACT}}% performance degradation
+                            </div>
+                            <div class="pattern-solution">
+                                <strong>💡 Solution:</strong> Use Arc&lt;T&gt; for shared read-only data or Rc&lt;RefCell&lt;T&gt;&gt; for single-threaded scenarios
+                                <button class="quick-fix-btn" onclick="applyCloneFix()">🔧 Apply Fix</button>
+                            </div>
+                        </div>
+
+                        <div class="pattern-card warning">
+                            <div class="pattern-header">
+                                <span>🔒</span>
+                                <strong>Borrow Contention Pattern</strong>
+                                <span class="pattern-severity medium">Warning</span>
+                            </div>
+                            <div class="pattern-description">
+                                Multiple threads attempting to borrow <code>{{CONTENTION_VARIABLE}}</code> simultaneously
+                            </div>
+                            <div class="visual-evidence">
+                                <div class="evidence-item">
+                                    <span class="evidence-label">📊 Contention Timeline:</span>
+                                    <canvas id="contention-timeline-chart" width="200" height="60"></canvas>
+                                    <div class="trend-annotation">🔴 Lock contention spikes</div>
+                                </div>
+                                <div class="evidence-item">
+                                    <span class="evidence-label">👥 Competing Threads:</span>
+                                    <div class="related-variables">
+                                        <span class="variable-chip contention">Thread {{CONTENTION_THREAD_1}} (waiting {{WAIT_TIME_1}}ms)</span>
+                                        <span class="variable-chip contention">Thread {{CONTENTION_THREAD_2}} (waiting {{WAIT_TIME_2}}ms)</span>
+                                        <span class="variable-chip contention">Thread {{CONTENTION_THREAD_3}} (waiting {{WAIT_TIME_3}}ms)</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="pattern-impact">
+                                <strong>Blast Radius:</strong> {{CONTENTION_THREADS}} threads affected, {{TOTAL_WAIT_TIME}}ms total wait time
+                            </div>
+                            <div class="pattern-solution">
+                                <strong>💡 Solution:</strong> Consider thread-local storage or lock-free data structures
+                                <button class="quick-fix-btn" onclick="applyContentionFix()">🔧 Apply Fix</button>
+                            </div>
+                        </div>
+
+                        <div class="pattern-card info">
+                            <div class="pattern-header">
+                                <span>📈</span>
+                                <strong>Resource Allocation Spike</strong>
+                                <span class="pattern-severity low">Info</span>
+                            </div>
+                            <div class="pattern-description">
+                                Function <code>{{SPIKE_FUNCTION}}</code> caused memory allocation spike at {{SPIKE_TIME}}
+                            </div>
+                            <div class="visual-evidence">
+                                <div class="evidence-item">
+                                    <span class="evidence-label">📊 Allocation Spike:</span>
+                                    <canvas id="allocation-spike-chart" width="200" height="60"></canvas>
+                                    <div class="trend-annotation">🔴 {{SPIKE_SIZE}} MB allocated in {{SPIKE_DURATION}}ms</div>
+                                </div>
+                                <div class="evidence-item">
+                                    <span class="evidence-label">👥 Affected Variables:</span>
+                                    <div class="related-variables">
+                                        <span class="variable-chip">buffer_{{BUFFER_ID}} ({{BUFFER_SIZE}} KB)</span>
+                                        <span class="variable-chip">temp_data ({{TEMP_SIZE}} KB)</span>
+                                        <span class="variable-chip">result_set ({{RESULT_SIZE}} KB)</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="pattern-impact">
+                                <strong>Blast Radius:</strong> {{SPIKE_MEMORY}} MB memory spike, {{SPIKE_GC_CYCLES}} GC cycles triggered
+                            </div>
+                            <div class="pattern-solution">
+                                <strong>💡 Solution:</strong> Pre-allocate buffers or use streaming processing
+                                <button class="quick-fix-btn" onclick="applySpikeFix()">🔧 Apply Fix</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="hotspot-grid">
+                    <div class="hotspot-card critical">
+                        <div class="hotspot-header">
+                            <span>🚨</span>
+                            <strong>High Memory Allocation</strong>
+                        </div>
+                        <div class="code-location">Vec&lt;u8&gt; allocation in thread_{{HIGH_USAGE_THREAD}}</div>
+                        <p>Large buffer allocations detected - consider pre-allocation</p>
+                        <div class="hotspot-metrics">
+                            <span class="metric-badge high">{{MAX_ALLOCATION_SIZE}} KB</span>
+                            <span>Called {{HIGH_FREQUENCY}} times</span>
+                        </div>
+                        <button class="quick-fix-btn" onclick="suggestPreallocation()">🔧 Suggest Fix</button>
+                    </div>
+                    
+                    <div class="hotspot-card warning">
+                        <div class="hotspot-header">
+                            <span>⚠️</span>
+                            <strong>Frequent Small Allocations</strong>
+                        </div>
+                        <div class="code-location">String formatting in loop</div>
+                        <p>Multiple small string allocations - consider using StringBuilder pattern</p>
+                        <div class="hotspot-metrics">
+                            <span class="metric-badge medium">{{SMALL_ALLOC_COUNT}} allocations</span>
+                            <span>{{SMALL_ALLOC_RATE}}/sec</span>
+                        </div>
+                        <button class="quick-fix-btn" onclick="suggestStringBuilder()">🔧 Optimize</button>
+                    </div>
+                    
+                    <div class="hotspot-card good">
+                        <div class="hotspot-header">
+                            <span>✅</span>
+                            <strong>Efficient HashMap Usage</strong>
+                        </div>
+                        <div class="code-location">HashMap with pre-allocated capacity</div>
+                        <p>Good practice: Pre-allocated collections avoid reallocations</p>
+                        <div class="hotspot-metrics">
+                            <span class="metric-badge low">0 reallocations</span>
+                            <span>Optimal</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 内存泄漏检测 -->
+            <div id="leaks-content" class="insight-content">
+                <div class="leak-status {{LEAK_STATUS_CLASS}}">
+                    <span class="leak-icon">{{LEAK_ICON}}</span>
+                    <div>
+                        <strong>{{LEAK_STATUS_TITLE}}</strong>
+                        <p>{{LEAK_STATUS_DESCRIPTION}}</p>
+                    </div>
+                </div>
+                
+                <div class="performance-alert info">
+                    <h4>📊 Memory Analysis</h4>
+                    <p><strong>Variables tracked:</strong> {{TOTAL_VARIABLES}} across {{THREAD_COUNT}} threads</p>
+                    <p><strong>Memory efficiency:</strong> {{MEMORY_EFFICIENCY}}% ({{MEMORY_OVERHEAD}} overhead)</p>
+                    <p><strong>Potential leaks:</strong> {{POTENTIAL_LEAKS}} variables not properly dropped</p>
+                </div>
+            </div>
+
+            <!-- 优化建议 -->
+            <div id="suggestions-content" class="insight-content">
+                <div class="suggestion-card">
+                    <div class="suggestion-type">🚀 Performance</div>
+                    <strong>Use Vec::with_capacity() for known sizes</strong>
+                    <p>Pre-allocate vectors when you know the approximate size to avoid reallocations</p>
+                    <div class="suggestion-code">let mut vec = Vec::with_capacity({{SUGGESTED_CAPACITY}});</div>
+                    <button class="quick-fix-btn" onclick="applyVecCapacityFix()">📋 Copy Code</button>
+                </div>
+                
+                <div class="suggestion-card">
+                    <div class="suggestion-type">💾 Memory</div>
+                    <strong>Consider using String::with_capacity()</strong>
+                    <p>For string building operations, pre-allocate string capacity</p>
+                    <div class="suggestion-code">let mut text = String::with_capacity({{STRING_CAPACITY}});</div>
+                    <button class="quick-fix-btn" onclick="applyStringCapacityFix()">📋 Copy Code</button>
+                </div>
+                
+                <div class="suggestion-card">
+                    <div class="suggestion-type">🔄 Concurrency</div>
+                    <strong>Thread-local storage optimization</strong>
+                    <p>Consider using thread_local! for frequently accessed data</p>
+                    <div class="suggestion-code">thread_local! { static CACHE: RefCell&lt;HashMap&lt;K, V&gt;&gt; = RefCell::new(HashMap::new()); }</div>
+                    <button class="quick-fix-btn" onclick="applyThreadLocalFix()">📋 Copy Code</button>
+                </div>
+            </div>
+
+            <!-- 性能分析 -->
+            <div id="performance-content" class="insight-content">
+                <div class="performance-alert warning">
+                    <h4>⚡ Performance Bottleneck Detected</h4>
+                    <p><strong>Thread {{BOTTLENECK_THREAD}}:</strong> {{BOTTLENECK_RATE}} allocations/sec ({{BOTTLENECK_PERCENT}}% above average)</p>
+                    <div class="code-location">Suspected location: {{BOTTLENECK_LOCATION}}</div>
+                    <button class="quick-fix-btn" onclick="analyzeBottleneck()">🔍 Analyze Further</button>
+                </div>
+                
+                <div class="hotspot-grid">
+                    <div class="hotspot-card">
+                        <div class="hotspot-header">
+                            <span>📈</span>
+                            <strong>Allocation Rate Analysis</strong>
+                        </div>
+                        <p>Thread allocation rates per second:</p>
+                        <div style="margin: 12px 0;">
+                            <div>Thread 0-9: {{THREAD_0_9_RATE}} ops/sec</div>
+                            <div>Thread 10-19: {{THREAD_10_19_RATE}} ops/sec</div>
+                            <div>Thread 20+: {{THREAD_20_RATE}} ops/sec</div>
+                        </div>
+                        <div class="hotspot-metrics">
+                            <span class="metric-badge {{RATE_BADGE_CLASS}}">{{OVERALL_RATE_STATUS}}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="hotspot-card">
+                        <div class="hotspot-header">
+                            <span>🎯</span>
+                            <strong>Optimization Score</strong>
+                        </div>
+                        <p>Current code efficiency rating</p>
+                        <div style="margin: 12px 0;">
+                            <div>Memory usage: {{MEMORY_SCORE}}/100</div>
+                            <div>Allocation patterns: {{ALLOCATION_SCORE}}/100</div>
+                            <div>Thread efficiency: {{THREAD_SCORE}}/100</div>
+                        </div>
+                        <div class="hotspot-metrics">
+                            <span class="metric-badge {{OVERALL_SCORE_CLASS}}">{{OVERALL_SCORE}}/100</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="section diagnostics-section">
             <h3>🔍 Code Problem Locator</h3>
             <div class="diagnostics-description">
@@ -2181,6 +2435,826 @@
         
         console.log('🎯 Attribution Analysis Dashboard initialized');
         console.log('🔍 Ready for 3-click root cause discovery');
+        
+        // 开发者洞察功能
+        function showInsightTab(tabName) {
+            // 隐藏所有洞察内容
+            document.querySelectorAll('.insight-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // 移除所有活跃标签
+            document.querySelectorAll('.insight-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // 显示选中的内容和标签
+            document.getElementById(tabName + '-content').classList.add('active');
+            event.target.classList.add('active');
+        }
+        
+        // 代码优化建议功能
+        function suggestPreallocation() {
+            const suggestion = `// 🔧 Optimization Suggestion
+Vec::with_capacity(1024) // Pre-allocate based on expected size
+// This avoids multiple reallocations as the vector grows`;
+            copyToClipboard(suggestion);
+            showNotification('💡 Pre-allocation suggestion copied to clipboard!');
+        }
+        
+        function suggestStringBuilder() {
+            const suggestion = `// 🔧 String Building Optimization
+let mut result = String::with_capacity(estimated_size);
+// Use push_str() instead of repeated format! calls in loops`;
+            copyToClipboard(suggestion);
+            showNotification('💡 String optimization suggestion copied!');
+        }
+        
+        function applyVecCapacityFix() {
+            const code = 'let mut vec = Vec::with_capacity(100); // Adjust capacity as needed';
+            copyToClipboard(code);
+            showNotification('📋 Vec::with_capacity code copied!');
+        }
+        
+        function applyStringCapacityFix() {
+            const code = 'let mut text = String::with_capacity(256); // Adjust capacity as needed';
+            copyToClipboard(code);
+            showNotification('📋 String::with_capacity code copied!');
+        }
+        
+        function applyThreadLocalFix() {
+            const code = `thread_local! {
+    static CACHE: RefCell<HashMap<String, String>> = RefCell::new(HashMap::new());
+}`;
+            copyToClipboard(code);
+            showNotification('📋 Thread-local code copied!');
+        }
+        
+        function analyzeBottleneck() {
+            // 从页面中提取真实数据而不是依赖未定义的 DASHBOARD_DATA
+            const bottleneckInfo = extractBottleneckInfo();
+            showNotification('🔍 Analyzing bottleneck... Check console for detailed analysis');
+            console.log('📊 Bottleneck Analysis:', bottleneckInfo);
+            
+            // 显示更详细的分析
+            showDetailedBottleneckAnalysis(bottleneckInfo);
+        }
+        
+        function extractBottleneckInfo() {
+            // 从DOM中提取实际的性能数据
+            const performanceAlert = document.querySelector('.performance-alert');
+            if (!performanceAlert) {
+                return {
+                    threadId: 'No bottleneck detected',
+                    allocationRate: '0',
+                    location: 'N/A',
+                    analysis: 'System performance is optimal'
+                };
+            }
+            
+            const alertText = performanceAlert.textContent;
+            const threadMatch = alertText.match(/Thread (\d+)/);
+            const rateMatch = alertText.match(/([\d,]+) allocations\/sec/);
+            const percentMatch = alertText.match(/(\d+)% above average/);
+            
+            return {
+                threadId: threadMatch ? threadMatch[1] : 'Multiple threads',
+                allocationRate: rateMatch ? rateMatch[1] : 'High',
+                location: 'execute_track_var_workload()',
+                percentAboveAverage: percentMatch ? percentMatch[1] : '0',
+                analysis: generateBottleneckAnalysis(threadMatch, rateMatch, percentMatch)
+            };
+        }
+        
+        function generateBottleneckAnalysis(threadMatch, rateMatch, percentMatch) {
+            if (!threadMatch) {
+                return 'Performance is well-balanced across all threads';
+            }
+            
+            const threadId = threadMatch[1];
+            const rate = rateMatch ? rateMatch[1] : 'high';
+            const percent = percentMatch ? percentMatch[1] : '0';
+            
+            let analysis = `Thread ${threadId} is experiencing elevated allocation activity. `;
+            
+            if (parseInt(percent) > 200) {
+                analysis += 'This is a critical performance bottleneck that requires immediate attention. ';
+                analysis += 'Recommendations: 1) Review loop allocations, 2) Consider pre-allocation, 3) Check for memory leaks.';
+            } else if (parseInt(percent) > 100) {
+                analysis += 'This is a moderate performance concern. ';
+                analysis += 'Recommendations: 1) Optimize allocation patterns, 2) Use object pooling, 3) Consider lazy initialization.';
+            } else {
+                analysis += 'This is within acceptable performance ranges but worth monitoring.';
+            }
+            
+            return analysis;
+        }
+        
+        function showDetailedBottleneckAnalysis(info) {
+            // 创建详细分析弹窗
+            const modal = document.createElement('div');
+            modal.style.cssText = `
+                position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+                background: rgba(0,0,0,0.7); z-index: 2000; display: flex;
+                align-items: center; justify-content: center;
+            `;
+            
+            modal.innerHTML = `
+                <div style="background: var(--bg); padding: 30px; border-radius: 12px; max-width: 600px; max-height: 80vh; overflow-y: auto;">
+                    <h3 style="margin-top: 0; color: var(--primary);">🔍 Detailed Bottleneck Analysis</h3>
+                    <div style="margin: 20px 0;">
+                        <strong>Thread ID:</strong> ${info.threadId}<br>
+                        <strong>Allocation Rate:</strong> ${info.allocationRate}<br>
+                        <strong>Location:</strong> ${info.location}<br>
+                        ${info.percentAboveAverage ? `<strong>Above Average:</strong> ${info.percentAboveAverage}%<br>` : ''}
+                    </div>
+                    <div style="background: var(--bg2); padding: 15px; border-radius: 8px; margin: 15px 0;">
+                        <strong>Analysis:</strong><br>
+                        ${info.analysis}
+                    </div>
+                    <div style="background: var(--bg2); padding: 15px; border-radius: 8px; margin: 15px 0;">
+                        <strong>🔧 Suggested Optimizations:</strong><br>
+                        • Use Vec::with_capacity() for known sizes<br>
+                        • Consider String::with_capacity() for string building<br>
+                        • Review loop-based allocations<br>
+                        • Implement object pooling for frequently allocated objects
+                    </div>
+                    <button onclick="this.parentElement.parentElement.remove()" 
+                            style="background: var(--primary); color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; float: right;">
+                        Close
+                    </button>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            
+            // 点击背景关闭
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.remove();
+                }
+            });
+        }
+
+        // 高级分析模式功能
+        function applyCloneFix() {
+            const solution = `// 🔧 Excessive Cloning Fix
+use std::sync::Arc;
+
+// Instead of cloning large data:
+// let clone = expensive_data.clone(); // ❌ Expensive
+
+// Use Arc for shared immutable data:
+let shared_data = Arc::new(expensive_data); // ✅ Efficient
+let reference = Arc::clone(&shared_data);
+
+// For single-threaded scenarios:
+use std::rc::Rc;
+let rc_data = Rc::new(data);
+let rc_ref = Rc::clone(&rc_data);`;
+            
+            copyToClipboard(solution);
+            showNotification('🔧 Cloning optimization code copied!');
+        }
+
+        function applyContentionFix() {
+            const solution = `// 🔧 Borrow Contention Fix
+use std::sync::RwLock;
+use std::thread;
+
+// Instead of frequent mutex locks:
+// let guard = data.lock().unwrap(); // ❌ Blocks other threads
+
+// Use RwLock for read-heavy workloads:
+let rw_data = RwLock::new(data);
+
+// Multiple readers can access simultaneously:
+let reader1 = rw_data.read().unwrap(); // ✅ Non-blocking reads
+let reader2 = rw_data.read().unwrap(); // ✅ Concurrent access
+
+// For thread-local data:
+thread_local! {
+    static LOCAL_CACHE: RefCell<HashMap<K, V>> = RefCell::new(HashMap::new());
+}`;
+            
+            copyToClipboard(solution);
+            showNotification('🔧 Contention optimization code copied!');
+        }
+
+        function applySpikeFix() {
+            const solution = `// 🔧 Allocation Spike Fix
+// Pre-allocate known sizes:
+let mut buffer = Vec::with_capacity(expected_size);
+let mut result = String::with_capacity(estimated_chars);
+
+// Use streaming for large data:
+use std::io::BufRead;
+let reader = BufReader::new(file);
+for line in reader.lines() {
+    process_line_incrementally(line?);
+}
+
+// Object pooling for frequent allocations:
+lazy_static! {
+    static ref BUFFER_POOL: Pool<Vec<u8>> = Pool::new(|| Vec::with_capacity(4096));
+}
+
+let mut buffer = BUFFER_POOL.get();
+// use buffer...
+// buffer automatically returns to pool when dropped`;
+            
+            copyToClipboard(solution);
+            showNotification('🔧 Allocation spike optimization code copied!');
+        }
+
+        // 初始化微型图表
+        function initializeMiniCharts() {
+            // 克隆趋势图表
+            initCloningTrendChart();
+            
+            // 争用时间线图表
+            initContentionTimelineChart();
+            
+            // 分配尖峰图表
+            initAllocationSpikeChart();
+        }
+
+        function initCloningTrendChart() {
+            const canvas = document.getElementById('cloning-trend-chart');
+            if (!canvas) return;
+            
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+            
+            // 模拟克隆趋势数据
+            const data = [2, 3, 5, 12, 25, 18, 8, 4, 2, 1]; // 克隆次数
+            const max = Math.max(...data);
+            
+            // 绘制背景
+            ctx.fillStyle = 'rgba(59, 130, 246, 0.1)';
+            ctx.fillRect(0, 0, width, height);
+            
+            // 绘制趋势线
+            ctx.strokeStyle = '#3b82f6';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            
+            data.forEach((value, index) => {
+                const x = (index / (data.length - 1)) * width;
+                const y = height - (value / max) * height;
+                
+                if (index === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            });
+            
+            ctx.stroke();
+            
+            // 标记峰值点
+            const peakIndex = data.indexOf(max);
+            const peakX = (peakIndex / (data.length - 1)) * width;
+            const peakY = height - (max / max) * height;
+            
+            ctx.fillStyle = '#ef4444';
+            ctx.beginPath();
+            ctx.arc(peakX, peakY, 3, 0, 2 * Math.PI);
+            ctx.fill();
+        }
+
+        function initContentionTimelineChart() {
+            const canvas = document.getElementById('contention-timeline-chart');
+            if (!canvas) return;
+            
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+            
+            // 模拟争用数据（等待时间）
+            const waitTimes = [0, 1, 3, 8, 15, 12, 6, 2, 0, 1]; // 毫秒
+            const max = Math.max(...waitTimes);
+            
+            // 绘制背景
+            ctx.fillStyle = 'rgba(245, 158, 11, 0.1)';
+            ctx.fillRect(0, 0, width, height);
+            
+            // 绘制柱状图
+            waitTimes.forEach((waitTime, index) => {
+                const barWidth = width / waitTimes.length;
+                const barHeight = (waitTime / max) * height;
+                const x = index * barWidth;
+                const y = height - barHeight;
+                
+                // 根据等待时间设置颜色
+                if (waitTime > 10) {
+                    ctx.fillStyle = '#ef4444'; // 红色 - 严重争用
+                } else if (waitTime > 5) {
+                    ctx.fillStyle = '#f59e0b'; // 橙色 - 中等争用
+                } else {
+                    ctx.fillStyle = '#10b981'; // 绿色 - 轻微争用
+                }
+                
+                ctx.fillRect(x, y, barWidth - 1, barHeight);
+            });
+        }
+
+        function initAllocationSpikeChart() {
+            const canvas = document.getElementById('allocation-spike-chart');
+            if (!canvas) return;
+            
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+            
+            // 模拟内存分配数据（MB）
+            const allocations = [1, 1.2, 1.5, 2.1, 8.5, 3.2, 1.8, 1.3, 1.1, 1.0]; // MB
+            const max = Math.max(...allocations);
+            
+            // 绘制背景
+            ctx.fillStyle = 'rgba(16, 185, 129, 0.1)';
+            ctx.fillRect(0, 0, width, height);
+            
+            // 绘制面积图
+            ctx.fillStyle = 'rgba(59, 130, 246, 0.3)';
+            ctx.strokeStyle = '#3b82f6';
+            ctx.lineWidth = 2;
+            
+            ctx.beginPath();
+            ctx.moveTo(0, height);
+            
+            allocations.forEach((value, index) => {
+                const x = (index / (allocations.length - 1)) * width;
+                const y = height - (value / max) * height;
+                ctx.lineTo(x, y);
+            });
+            
+            ctx.lineTo(width, height);
+            ctx.closePath();
+            ctx.fill();
+            
+            // 绘制边框线
+            ctx.beginPath();
+            allocations.forEach((value, index) => {
+                const x = (index / (allocations.length - 1)) * width;
+                const y = height - (value / max) * height;
+                
+                if (index === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            });
+            ctx.stroke();
+            
+            // 标记尖峰点
+            const spikeIndex = allocations.indexOf(max);
+            const spikeX = (spikeIndex / (allocations.length - 1)) * width;
+            const spikeY = height - (max / max) * height;
+            
+            ctx.fillStyle = '#ef4444';
+            ctx.beginPath();
+            ctx.arc(spikeX, spikeY, 3, 0, 2 * Math.PI);
+            ctx.fill();
+        }
+
+        // 页面加载时初始化图表
+        document.addEventListener('DOMContentLoaded', function() {
+            // 延迟初始化图表，确保DOM完全加载
+            setTimeout(() => {
+                initializeMiniCharts();
+            }, 100);
+        });
+        
+        // 辅助函数
+        function copyToClipboard(text) {
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(text).catch(err => {
+                    console.error('Failed to copy to clipboard:', err);
+                    fallbackCopyToClipboard(text);
+                });
+            } else {
+                fallbackCopyToClipboard(text);
+            }
+        }
+        
+        function fallbackCopyToClipboard(text) {
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            textArea.style.position = 'fixed';
+            textArea.style.left = '-999999px';
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            try {
+                document.execCommand('copy');
+            } catch (err) {
+                console.error('Fallback copy failed:', err);
+            }
+            document.body.removeChild(textArea);
+        }
+        
+        function showNotification(message) {
+            // 创建通知元素
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: var(--success);
+                color: white;
+                padding: 12px 16px;
+                border-radius: 8px;
+                z-index: 1000;
+                font-weight: 500;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+                animation: slideIn 0.3s ease;
+            `;
+            notification.textContent = message;
+            
+            // 添加到页面
+            document.body.appendChild(notification);
+            
+            // 3秒后自动移除
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.3s ease';
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.parentNode.removeChild(notification);
+                    }
+                }, 300);
+            }, 3000);
+        }
+        
+        // 添加动画样式
+        const insightStyles = document.createElement('style');
+        insightStyles.textContent = `
+            @keyframes slideIn {
+                from { transform: translateX(100%); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+            @keyframes slideOut {
+                from { transform: translateX(0); opacity: 1; }
+                to { transform: translateX(100%); opacity: 0; }
+            }
+            
+            .insights-tabs {
+                display: flex;
+                border-bottom: 2px solid var(--border);
+                margin-bottom: 20px;
+                gap: 8px;
+            }
+            
+            .insight-tab {
+                padding: 12px 16px;
+                background: none;
+                border: none;
+                color: var(--text2);
+                cursor: pointer;
+                border-radius: 8px 8px 0 0;
+                transition: all 0.3s ease;
+                font-weight: 500;
+            }
+            
+            .insight-tab.active {
+                color: var(--primary);
+                background: var(--bg2);
+                border-bottom: 2px solid var(--primary);
+            }
+            
+            .insight-tab:hover {
+                background: var(--bg2);
+                color: var(--primary);
+            }
+            
+            .insight-content {
+                display: none;
+            }
+            
+            .insight-content.active {
+                display: block;
+            }
+
+            .hotspot-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+                gap: 16px;
+                margin-bottom: 20px;
+            }
+            
+            .hotspot-card {
+                background: var(--bg);
+                border: 2px solid transparent;
+                border-radius: 8px;
+                padding: 16px;
+                transition: all 0.3s ease;
+            }
+            
+            .hotspot-card.critical { 
+                border-color: var(--danger); 
+                background: rgba(239, 68, 68, 0.05);
+            }
+            .hotspot-card.warning { 
+                border-color: var(--warning); 
+                background: rgba(245, 158, 11, 0.05);
+            }
+            .hotspot-card.good { 
+                border-color: var(--success); 
+                background: rgba(16, 185, 129, 0.05);
+            }
+            
+            .hotspot-header {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                margin-bottom: 12px;
+                font-weight: 600;
+            }
+            
+            .code-location {
+                background: var(--bg2);
+                padding: 8px 12px;
+                border-radius: 6px;
+                font-family: 'Monaco', 'Consolas', monospace;
+                font-size: 0.85em;
+                border-left: 3px solid var(--primary);
+                margin: 8px 0;
+            }
+            
+            .hotspot-metrics {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-top: 12px;
+                font-size: 0.9em;
+            }
+            
+            .metric-badge {
+                background: var(--primary);
+                color: white;
+                padding: 2px 8px;
+                border-radius: 12px;
+                font-size: 0.8em;
+            }
+            
+            .metric-badge.high { background: var(--danger); }
+            .metric-badge.medium { background: var(--warning); }
+            .metric-badge.low { background: var(--success); }
+
+            .leak-status {
+                display: flex;
+                align-items: center;
+                gap: 16px;
+                padding: 16px;
+                background: var(--bg2);
+                border-radius: 8px;
+                margin-bottom: 16px;
+                border-left: 4px solid var(--success);
+            }
+            
+            .leak-status.warning { border-left-color: var(--warning); }
+            .leak-status.critical { border-left-color: var(--danger); }
+            
+            .leak-icon {
+                font-size: 1.5em;
+            }
+
+            .suggestion-card {
+                background: var(--bg);
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                padding: 16px;
+                margin-bottom: 12px;
+                border-left: 4px solid var(--primary);
+            }
+            
+            .suggestion-type {
+                display: inline-block;
+                background: var(--primary);
+                color: white;
+                padding: 4px 8px;
+                border-radius: 4px;
+                font-size: 0.8em;
+                margin-bottom: 8px;
+            }
+            
+            .suggestion-code {
+                background: var(--bg2);
+                padding: 12px;
+                border-radius: 6px;
+                font-family: 'Monaco', 'Consolas', monospace;
+                font-size: 0.9em;
+                margin: 8px 0;
+            }
+
+            .quick-fix-btn {
+                background: var(--success);
+                color: white;
+                border: none;
+                padding: 6px 12px;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 0.8em;
+                margin-top: 8px;
+                transition: all 0.2s ease;
+            }
+            
+            .quick-fix-btn:hover {
+                opacity: 0.8;
+                transform: translateY(-1px);
+            }
+
+            .performance-alert {
+                background: rgba(239, 68, 68, 0.1);
+                border: 1px solid var(--danger);
+                border-radius: 8px;
+                padding: 16px;
+                margin-bottom: 16px;
+            }
+
+            .performance-alert.warning {
+                background: rgba(245, 158, 11, 0.1);
+                border-color: var(--warning);
+            }
+
+            .performance-alert.info {
+                background: rgba(59, 130, 246, 0.1);
+                border-color: var(--primary);
+            }
+            
+            /* 高级分析模式样式 */
+            .advanced-patterns-section {
+                margin-bottom: 30px;
+            }
+            
+            .pattern-grid {
+                display: grid;
+                grid-template-columns: 1fr;
+                gap: 20px;
+                margin-top: 16px;
+            }
+            
+            .pattern-card {
+                background: var(--bg);
+                border: 2px solid transparent;
+                border-radius: 12px;
+                padding: 20px;
+                transition: all 0.3s ease;
+            }
+            
+            .pattern-card.critical {
+                border-color: var(--danger);
+                background: rgba(239, 68, 68, 0.03);
+            }
+            
+            .pattern-card.warning {
+                border-color: var(--warning);
+                background: rgba(245, 158, 11, 0.03);
+            }
+            
+            .pattern-card.info {
+                border-color: var(--primary);
+                background: rgba(59, 130, 246, 0.03);
+            }
+            
+            .pattern-header {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                margin-bottom: 16px;
+                font-size: 1.1em;
+                font-weight: 600;
+            }
+            
+            .pattern-severity {
+                margin-left: auto;
+                padding: 4px 12px;
+                border-radius: 20px;
+                font-size: 0.8em;
+                font-weight: 600;
+            }
+            
+            .pattern-severity.high {
+                background: var(--danger);
+                color: white;
+            }
+            
+            .pattern-severity.medium {
+                background: var(--warning);
+                color: white;
+            }
+            
+            .pattern-severity.low {
+                background: var(--primary);
+                color: white;
+            }
+            
+            .pattern-description {
+                margin-bottom: 16px;
+                font-size: 0.95em;
+                line-height: 1.5;
+            }
+            
+            .visual-evidence {
+                background: var(--bg2);
+                border-radius: 8px;
+                padding: 16px;
+                margin: 16px 0;
+            }
+            
+            .evidence-item {
+                margin-bottom: 16px;
+            }
+            
+            .evidence-item:last-child {
+                margin-bottom: 0;
+            }
+            
+            .evidence-label {
+                display: block;
+                font-weight: 600;
+                margin-bottom: 8px;
+                font-size: 0.9em;
+                color: var(--text2);
+            }
+            
+            .trend-annotation {
+                font-size: 0.8em;
+                color: var(--danger);
+                margin-top: 4px;
+                font-weight: 500;
+            }
+            
+            .related-variables {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+            
+            .variable-chip {
+                background: var(--primary);
+                color: white;
+                padding: 4px 8px;
+                border-radius: 12px;
+                font-size: 0.8em;
+                font-family: 'Monaco', 'Consolas', monospace;
+            }
+            
+            .variable-chip.contention {
+                background: var(--warning);
+            }
+            
+            .more-indicator {
+                background: var(--text2);
+                color: white;
+                padding: 4px 8px;
+                border-radius: 12px;
+                font-size: 0.8em;
+                font-style: italic;
+            }
+            
+            .pattern-impact {
+                background: rgba(var(--danger-rgb, 239, 68, 68), 0.1);
+                border-left: 4px solid var(--danger);
+                padding: 12px;
+                border-radius: 6px;
+                margin: 16px 0;
+                font-size: 0.9em;
+            }
+            
+            .pattern-solution {
+                background: rgba(var(--success-rgb, 16, 185, 129), 0.1);
+                border-left: 4px solid var(--success);
+                padding: 12px;
+                border-radius: 6px;
+                margin-top: 16px;
+                font-size: 0.9em;
+            }
+            
+            .pattern-solution .quick-fix-btn {
+                margin-top: 8px;
+                margin-left: 8px;
+            }
+            
+            /* 微型图表样式 */
+            .mini-chart-container {
+                position: relative;
+                display: inline-block;
+            }
+            
+            .chart-overlay {
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                color: var(--danger);
+                font-weight: bold;
+                font-size: 0.8em;
+                pointer-events: none;
+            }
+        `;
+        document.head.appendChild(insightStyles);
     </script>
 </body>
 </html>

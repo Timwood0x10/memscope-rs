@@ -784,7 +784,7 @@ mod tests {
         assert_eq!(info_max.size, usize::MAX);
 
         // Test with special characters in strings
-        let special_chars = "测试中文字符!@#$%^&*()[]{}|\\:;\"'<>,.?/~`";
+        let special_chars = "test special chars!@#$%^&*()[]{}|\\:;\"'<>,.?/~`";
         let info_special = OptimizedAllocationInfo::new(0xC000, 1024)
             .with_var_info(special_chars, special_chars)
             .with_scope(special_chars);

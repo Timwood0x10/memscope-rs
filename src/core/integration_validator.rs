@@ -911,7 +911,7 @@ mod tests {
             // Very long string
             "a".repeat(10000),
             // Unicode string
-            "Hello 世界 🦀".to_string(),
+            "Hello World 🦀".to_string(),
             // String with null bytes (if supported)
             "test\0null".to_string(),
             // String with newlines

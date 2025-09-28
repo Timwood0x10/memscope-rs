@@ -43,7 +43,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let thread_count = thread_configs.len();
     let total_operations = Arc::new(AtomicUsize::new(0));
 
-    println!("🔄 Starting {} enhanced worker threads...", thread_count);
+    println!("🔄 Starting {thread_count} enhanced worker threads...");
     let start_time = Instant::now();
 
     // Spawn threads with varied workloads
@@ -151,13 +151,14 @@ fn generate_html_visualization(
     
     println!("  🎨 Generating HTML reports...");
     
-    // Generate different views of the same data
+    // Generate different views of the same data with enhanced insights
     let templates = vec![
         (
             "comprehensive",
             FixedHybridTemplate::new(thread_count, task_count)
                 .with_render_mode(RenderMode::Comprehensive)
-                .with_variable_details(true),
+                .with_variable_details(true)
+                .with_enhanced_insights(true),  // 新增洞察功能
         ),
         (
             "thread_focused", 

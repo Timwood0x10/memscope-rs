@@ -259,7 +259,7 @@ impl SystemOptimizer {
 
     /// Get available memory (MB)
     fn get_available_memory_mb() -> usize {
-        // 简化实现 - 在实际应用中可以使用 sysinfo 等库获取准确信息
+        // Simplified implementation - in real applications can use sysinfo crate for accurate info
         #[cfg(target_os = "linux")]
         {
             if let Ok(meminfo) = std::fs::read_to_string("/proc/meminfo") {
@@ -267,7 +267,7 @@ impl SystemOptimizer {
                     if line.starts_with("MemAvailable:") {
                         if let Some(kb_str) = line.split_whitespace().nth(1) {
                             if let Ok(kb) = kb_str.parse::<usize>() {
-                                return kb / 1024; // 转换为 MB
+                                return kb / 1024; // Convert to MB
                             }
                         }
                     }
@@ -275,13 +275,13 @@ impl SystemOptimizer {
             }
         }
 
-        // 回退到估算值
-        4096 // 假设 4GB 可用内存
+        // Fallback to estimated value
+        4096 // Assume 4GB available memory
     }
 
     /// Get system load
     fn get_system_load() -> f64 {
-        // 简化实现 - 在实际应用中可以读取 /proc/loadavg
+        // Simplified implementation - in real applications can read /proc/loadavg
         #[cfg(target_os = "linux")]
         {
             if let Ok(loadavg) = std::fs::read_to_string("/proc/loadavg") {
@@ -293,13 +293,13 @@ impl SystemOptimizer {
             }
         }
 
-        0.5 // 默认低负载
+        0.5 // Default low load
     }
 
     /// Get available disk space (MB)
     fn get_disk_space_mb() -> usize {
-        // 简化实现 - 在实际应用中可以使用 statvfs 系统调用
-        10240 // 假设 10GB 可用空间
+        // Simplified implementation - in real applications can use statvfs system call
+        10240 // Assume 10GB available space
     }
 
     /// Classify system type
