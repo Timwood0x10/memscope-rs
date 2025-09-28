@@ -22,6 +22,8 @@ pub mod core;
 pub mod export;
 /// Lock-free multi-threaded memory tracking
 pub mod lockfree;
+/// Unified backend for intelligent memory tracking
+pub mod unified;
 /// Utility functions
 pub mod utils;
 /// Variable registry for lightweight HashMap-based variable tracking
