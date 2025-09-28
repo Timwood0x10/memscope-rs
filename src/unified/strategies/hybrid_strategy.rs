@@ -27,18 +27,14 @@ struct HybridCoordinationState {
     /// Whether hybrid tracking is active
     is_active: bool,
     /// Primary tracking mode
-    primary_mode: TrackingMode,
+    _primary_mode: TrackingMode,
     /// Fallback mode when primary fails
-    fallback_mode: TrackingMode,
+    _fallback_mode: TrackingMode,
 }
 
 /// Tracking mode for hybrid strategy
 #[derive(Debug, Clone, PartialEq)]
 enum TrackingMode {
-    /// Primarily thread-local with async fallback
-    ThreadLocalPrimary,
-    /// Primarily async with thread-local fallback
-    AsyncPrimary,
     /// Both modes active simultaneously
     DualMode,
     /// Automatic mode selection based on context
@@ -50,8 +46,8 @@ impl Default for HybridCoordinationState {
     fn default() -> Self {
         Self {
             is_active: false,
-            primary_mode: TrackingMode::Adaptive,
-            fallback_mode: TrackingMode::DualMode,
+            _primary_mode: TrackingMode::Adaptive,
+            _fallback_mode: TrackingMode::DualMode,
         }
     }
 }
@@ -118,7 +114,7 @@ impl MemoryTracker for HybridStrategy {
         
         let merged_json = serde_json::to_string_pretty(&merged)
             .map_err(|e| TrackerError::DataCollectionFailed {
-                reason: format!("Failed to merge hybrid data: {}", e),
+                reason: format!("Failed to merge hybrid data: {e}"),
             })?;
         
         self.coordination_state.is_active = false;

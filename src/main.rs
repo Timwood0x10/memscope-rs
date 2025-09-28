@@ -21,6 +21,30 @@ fn main() {
                         .value_name("COMMAND"),
                 )
                 .arg(
+                    Arg::new("mode")
+                        .long("mode")
+                        .value_name("MODE")
+                        .help("Tracking mode: unified, legacy, auto")
+                        .value_parser(["unified", "legacy", "auto"])
+                        .default_value("auto"),
+                )
+                .arg(
+                    Arg::new("strategy")
+                        .long("strategy")
+                        .value_name("STRATEGY")
+                        .help("Unified backend strategy: single-thread, thread-local, async, hybrid, auto")
+                        .value_parser(["single-thread", "thread-local", "async", "hybrid", "auto"])
+                        .default_value("auto"),
+                )
+                .arg(
+                    Arg::new("sample-rate")
+                        .long("sample-rate")
+                        .value_name("RATE")
+                        .help("Sampling rate for performance optimization (0.0-1.0)")
+                        .value_parser(clap::value_parser!(f64))
+                        .default_value("1.0"),
+                )
+                .arg(
                     Arg::new("export")
                         .short('e')
                         .long("export")
@@ -35,6 +59,59 @@ fn main() {
                         .value_name("FILE")
                         .help("Output file path")
                         .default_value("memory_analysis"),
+                ),
+        )
+        .subcommand(
+            Command::new("run")
+                .about("Run program with unified memory tracking")
+                .arg(
+                    Arg::new("command")
+                        .help("Command to execute with tracking")
+                        .required(true)
+                        .num_args(1..)
+                        .value_name("COMMAND"),
+                )
+                .arg(
+                    Arg::new("track-async")
+                        .long("track-async")
+                        .help("Enable async task tracking")
+                        .action(clap::ArgAction::SetTrue),
+                )
+                .arg(
+                    Arg::new("detailed-tracking")
+                        .long("detailed-tracking")
+                        .help("Enable detailed allocation tracking")
+                        .action(clap::ArgAction::SetTrue),
+                )
+                .arg(
+                    Arg::new("performance-monitoring")
+                        .long("performance-monitoring")
+                        .help("Enable performance monitoring")
+                        .action(clap::ArgAction::SetTrue),
+                )
+                .arg(
+                    Arg::new("max-overhead")
+                        .long("max-overhead")
+                        .value_name("MB")
+                        .help("Maximum memory overhead in MB")
+                        .value_parser(clap::value_parser!(u64))
+                        .default_value("64"),
+                )
+                .arg(
+                    Arg::new("export")
+                        .short('e')
+                        .long("export")
+                        .value_name("FORMAT")
+                        .help("Export format (json, svg, html)")
+                        .default_value("html"),
+                )
+                .arg(
+                    Arg::new("output")
+                        .short('o')
+                        .long("output")
+                        .value_name("FILE")
+                        .help("Output file path")
+                        .default_value("unified_analysis"),
                 ),
         )
         .subcommand(
@@ -138,6 +215,12 @@ fn main() {
                 process::exit(1);
             }
         }
+        Some(("run", sub_matches)) => {
+            if let Err(e) = run_unified_command(sub_matches) {
+                tracing::error!("Error running unified command: {}", e);
+                process::exit(1);
+            }
+        }
         Some(("report", sub_matches)) => {
             if let Err(e) = run_report_command(sub_matches) {
                 tracing::error!("Error running report command: {}", e);
@@ -183,6 +266,104 @@ fn run_html_from_json_command(
 fn run_test_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> {
     use memscope_rs::cli::commands::test::run_test;
     run_test(matches)
+}
+
+fn run_unified_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> {
+    use memscope_rs::unified::{UnifiedBackend, BackendConfig};
+    use std::process::{Command, Stdio};
+    
+    // Extract command arguments
+    let command_args: Vec<&String> = matches
+        .get_many::<String>("command")
+        .ok_or("Command argument is required")?
+        .collect();
+        
+    // Parse unified backend configuration
+    let config = BackendConfig {
+        auto_detect: true,
+        force_strategy: None,
+        sample_rate: 1.0,
+        max_overhead_percent: *matches.get_one::<u64>("max-overhead").unwrap_or(&64) as f64 / 1024.0, // Convert MB to percent
+    };
+    
+    let export_format = matches.get_one::<String>("export").map(|s| s.as_str()).unwrap_or("html");
+    let output_path = matches.get_one::<String>("output").map(|s| s.as_str()).unwrap_or("unified_analysis");
+    
+    tracing::info!("🚀 Starting unified memory tracking...");
+    tracing::info!("Command: {:?}", command_args);
+    tracing::info!("Export format: {}", export_format);
+    tracing::info!("Output path: {}", output_path);
+    
+    // Initialize unified backend
+    let mut backend = UnifiedBackend::initialize(config)?;
+    
+    // Start tracking session
+    let session = backend.start_tracking()?;
+    tracing::info!("✅ Unified tracking session started: {}", session.session_id());
+    
+    // Execute the target command
+    if command_args.is_empty() {
+        return Err("No command provided".into());
+    }
+    
+    let program = command_args[0];
+    let args = &command_args[1..];
+    
+    let mut cmd = Command::new(program);
+    cmd.args(args);
+    cmd.stdout(Stdio::inherit());
+    cmd.stderr(Stdio::inherit());
+    
+    // Set environment for unified tracking
+    cmd.env("MEMSCOPE_UNIFIED_ENABLED", "1");
+    cmd.env("MEMSCOPE_SESSION_ID", &session.session_id());
+    
+    if matches.get_flag("track-async") {
+        cmd.env("MEMSCOPE_TRACK_ASYNC", "1");
+    }
+    
+    tracing::info!("🔄 Executing command with unified tracking...");
+    let status = cmd.status()?;
+    
+    // Collect tracking data
+    let analysis_data = backend.collect_data()?;
+    let tracking_data = analysis_data.raw_data;
+    
+    tracing::info!("📊 Tracking completed. Collected {} bytes of data", tracking_data.len());
+    tracing::info!("💾 Exporting analysis to: {}.{}", output_path, export_format);
+    
+    // Export data in requested format
+    match export_format {
+        "json" => {
+            let json_path = format!("{}.json", output_path);
+            std::fs::write(&json_path, &tracking_data)?;
+            tracing::info!("✅ JSON export completed: {}", json_path);
+        }
+        "html" => {
+            let html_path = format!("{}.html", output_path);
+            // Convert binary data to HTML (simplified for now)
+            let html_content = format!(
+                "<html><body><h1>Unified Memory Analysis</h1><p>Data size: {} bytes</p><p>Exit code: {}</p></body></html>",
+                tracking_data.len(),
+                status.code().unwrap_or(-1)
+            );
+            std::fs::write(&html_path, html_content)?;
+            tracing::info!("✅ HTML export completed: {}", html_path);
+        }
+        _ => {
+            tracing::warn!("Unsupported export format: {}, defaulting to JSON", export_format);
+            let json_path = format!("{}.json", output_path);
+            std::fs::write(&json_path, &tracking_data)?;
+        }
+    }
+    
+    if status.success() {
+        tracing::info!("🎉 Unified tracking completed successfully");
+        Ok(())
+    } else {
+        tracing::error!("❌ Target command failed with exit code: {:?}", status.code());
+        Err(format!("Command failed with exit code: {:?}", status.code()).into())
+    }
 }
 
 #[cfg(test)]

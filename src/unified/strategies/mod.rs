@@ -290,8 +290,6 @@ impl StrategyFactory {
         performance: &StrategyPerformance, 
         requirements: &StrategyRequirements
     ) -> f64 {
-        let mut score = 0.0;
-        
         // Weight factors for different requirements
         let overhead_weight = 0.3;
         let speed_weight = 0.3;
@@ -311,7 +309,7 @@ impl StrategyFactory {
         // Reliability score
         let reliability_score = performance.success_rate * performance.satisfaction_score;
         
-        score = overhead_weight * overhead_score + 
+        let score = overhead_weight * overhead_score + 
                 speed_weight * speed_score + 
                 reliability_weight * reliability_score;
         

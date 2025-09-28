@@ -60,50 +60,11 @@ struct AsyncGlobalMetrics {
     /// Total task spawns tracked
     total_task_spawns: AtomicU64,
     /// Average task lifetime (nanoseconds)
-    avg_task_lifetime_ns: AtomicU64,
+    _avg_task_lifetime_ns: AtomicU64,
     /// Total tracking overhead in bytes
     total_overhead_bytes: AtomicUsize,
 }
 
-/// Task-local allocation record for async contexts
-/// Stored in task-local storage for async-aware tracking
-#[derive(Debug, Clone)]
-struct AsyncAllocationRecord {
-    /// Globally unique allocation ID
-    global_id: u64,
-    /// Task-local allocation sequence
-    task_sequence: u64,
-    /// Task ID where allocation occurred
-    task_id: u64,
-    /// Memory pointer address
-    ptr: usize,
-    /// Allocated size in bytes
-    size: usize,
-    /// Variable name (if available)
-    var_name: Option<String>,
-    /// Type information
-    type_name: String,
-    /// Allocation timestamp (nanoseconds)
-    timestamp_alloc: u64,
-    /// Deallocation timestamp (if deallocated)
-    timestamp_dealloc: Option<u64>,
-    /// Async context information
-    async_context: AsyncContext,
-}
-
-/// Async execution context information
-/// Captures async-specific tracking metadata
-#[derive(Debug, Clone)]
-struct AsyncContext {
-    /// Future name (if available)
-    future_name: Option<String>,
-    /// Task spawn location
-    spawn_location: Option<String>,
-    /// Executor type (if detectable)
-    executor_type: Option<String>,
-    /// Task priority (if available)
-    task_priority: Option<u8>,
-}
 
 impl Default for AsyncGlobalState {
     /// Initialize async global state with inactive values
@@ -136,7 +97,7 @@ impl Default for AsyncGlobalMetrics {
             total_allocations: AtomicU64::new(0),
             total_bytes_allocated: AtomicU64::new(0),
             total_task_spawns: AtomicU64::new(0),
-            avg_task_lifetime_ns: AtomicU64::new(0),
+            _avg_task_lifetime_ns: AtomicU64::new(0),
             total_overhead_bytes: AtomicUsize::new(0),
         }
     }

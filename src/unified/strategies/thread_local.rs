@@ -69,7 +69,7 @@ struct ThreadLocalRecord {
     /// Globally unique allocation ID
     global_id: u64,
     /// Thread-local allocation sequence number
-    local_sequence: u64,
+    _local_sequence: u64,
     /// Memory pointer address
     ptr: usize,
     /// Allocated size in bytes
@@ -110,7 +110,7 @@ struct ThreadMetrics {
     /// Bytes allocated by this thread
     bytes_allocated: u64,
     /// Thread tracking start time
-    start_time_ns: u64,
+    _start_time_ns: u64,
     /// Average allocation tracking time (nanoseconds)
     avg_allocation_time_ns: f64,
     /// Thread overhead in bytes
@@ -127,7 +127,7 @@ thread_local! {
         thread_metrics: ThreadMetrics {
             allocations_count: 0,
             bytes_allocated: 0,
-            start_time_ns: 0,
+            _start_time_ns: 0,
             avg_allocation_time_ns: 0.0,
             thread_overhead_bytes: 0,
         },
@@ -206,7 +206,7 @@ impl ThreadLocalStrategy {
             thread_data.thread_metrics = ThreadMetrics {
                 allocations_count: 0,
                 bytes_allocated: 0,
-                start_time_ns: Self::get_timestamp_ns(),
+                _start_time_ns: Self::get_timestamp_ns(),
                 avg_allocation_time_ns: 0.0,
                 thread_overhead_bytes: std::mem::size_of::<ThreadLocalData>(),
             };
@@ -254,7 +254,7 @@ impl ThreadLocalStrategy {
             // Create allocation record
             let record = ThreadLocalRecord {
                 global_id,
-                local_sequence: thread_data.local_sequence,
+                _local_sequence: thread_data.local_sequence,
                 ptr,
                 size,
                 var_name,

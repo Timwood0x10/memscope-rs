@@ -4,6 +4,7 @@
 
 use crate::unified::tracking_dispatcher::{MemoryTracker, TrackerConfig, TrackerStatistics, TrackerType, TrackerError};
 use crate::lockfree::aggregator::LockfreeAggregator;
+use crate::core::tracker::{get_global_tracker, MemoryTracker as CoreMemoryTracker};
 use std::sync::Mutex;
 use std::collections::HashMap;
 use std::time::Instant;
@@ -23,6 +24,8 @@ pub struct SingleThreadStrategy {
     metrics: PerformanceMetrics,
     /// Integration with existing aggregator
     aggregator: Option<LockfreeAggregator>,
+    /// Integration with core global tracker
+    core_tracker: Option<std::sync::Arc<CoreMemoryTracker>>,
 }
 
 /// Current state of tracking session
@@ -36,8 +39,6 @@ enum TrackingState {
     Active,
     /// Tracking stopped, data available for collection
     Stopped,
-    /// Error state, tracking failed
-    Failed { reason: String },
 }
 
 /// Individual memory allocation record
@@ -59,9 +60,9 @@ struct AllocationRecord {
     /// Deallocation timestamp (if deallocated)
     timestamp_dealloc: Option<u64>,
     /// Stack trace at allocation
-    stack_trace: Vec<String>,
+    _stack_trace: Vec<String>,
     /// Additional metadata
-    metadata: HashMap<String, String>,
+    _metadata: HashMap<String, String>,
 }
 
 /// Performance metrics for single-thread strategy
@@ -110,6 +111,7 @@ impl SingleThreadStrategy {
             allocation_records: Mutex::new(Vec::new()),
             metrics: PerformanceMetrics::default(),
             aggregator: None,
+            core_tracker: None,
         }
     }
 
@@ -126,6 +128,42 @@ impl SingleThreadStrategy {
             allocation_records: Mutex::new(Vec::new()),
             metrics: PerformanceMetrics::default(),
             aggregator: Some(aggregator),
+            core_tracker: None,
+        }
+    }
+
+    /// Create strategy with full core tracker integration
+    /// Enables seamless integration with existing global tracking system
+    pub fn with_core_integration() -> Self {
+        debug!("Creating single-thread strategy with core tracker integration");
+        
+        let core_tracker = get_global_tracker();
+        
+        Self {
+            config: None,
+            tracking_state: TrackingState::Uninitialized,
+            allocation_records: Mutex::new(Vec::new()),
+            metrics: PerformanceMetrics::default(),
+            aggregator: None,
+            core_tracker: Some(core_tracker),
+        }
+    }
+
+    /// Create strategy with both aggregator and core integration
+    /// Provides maximum compatibility with existing infrastructure
+    pub fn with_full_integration(output_dir: std::path::PathBuf) -> Self {
+        debug!("Creating single-thread strategy with full integration");
+        
+        let aggregator = LockfreeAggregator::new(output_dir);
+        let core_tracker = get_global_tracker();
+        
+        Self {
+            config: None,
+            tracking_state: TrackingState::Uninitialized,
+            allocation_records: Mutex::new(Vec::new()),
+            metrics: PerformanceMetrics::default(),
+            aggregator: Some(aggregator),
+            core_tracker: Some(core_tracker),
         }
     }
 
@@ -161,12 +199,21 @@ impl SingleThreadStrategy {
             type_name,
             timestamp_alloc: self.get_timestamp_ns(),
             timestamp_dealloc: None,
-            stack_trace,
-            metadata: HashMap::new(),
+            _stack_trace: stack_trace,
+            _metadata: HashMap::new(),
         };
 
         // Store record
         self.allocation_records.lock().unwrap().push(record);
+        
+        // Integrate with core tracker if available
+        if let Some(core_tracker) = &self.core_tracker {
+            // Track in core system using basic allocation tracking
+            if let Err(e) = core_tracker.track_allocation(ptr, size) {
+                warn!("Core tracker integration failed: {:?}", e);
+                // Continue with unified tracking even if core integration fails
+            }
+        }
         
         // Update metrics
         self.metrics.total_allocations += 1;
