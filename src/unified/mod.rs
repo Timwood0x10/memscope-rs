@@ -25,6 +25,7 @@
 pub mod backend;
 pub mod environment_detector;
 pub mod tracking_dispatcher;
+pub mod strategies;
 
 // Re-export main types for convenience
 pub use backend::{

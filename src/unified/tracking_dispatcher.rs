@@ -146,6 +146,13 @@ pub enum TrackerError {
     /// Tracker configuration invalid
     #[error("Invalid tracker configuration: {reason}")]
     InvalidConfiguration { reason: String },
+    
+    /// JSON serialization/deserialization error
+    #[error("JSON processing error: {source}")]
+    JsonError {
+        #[from]
+        source: serde_json::Error,
+    },
 }
 
 impl Default for DispatcherConfig {

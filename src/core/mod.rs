@@ -131,6 +131,17 @@ pub use enhanced_type_inference::{
     TypeInferenceEngine, TypeSignature,
 };
 
+// Re-export unified backend system
+pub use crate::unified::{
+    UnifiedBackend, BackendConfig, TrackingSession, MemoryAnalysisData, MemoryStatistics,
+    SessionMetadata, RuntimeEnvironment, AsyncRuntimeType, TrackingStrategy, BackendError,
+    EnvironmentDetector, DetectionConfig, EnvironmentAnalysis, DetectionMetadata, DetectionMethod,
+    detect_environment, detect_environment_detailed,
+    TrackingDispatcher, DispatcherConfig, DispatcherMetrics, MemoryTracker as UnifiedMemoryTracker,
+    TrackerConfig, TrackerStatistics, TrackerType, TrackerError, TrackingOperation,
+    quick_start as unified_quick_start, test_unified_system,
+};
+
 // Re-export ownership history functionality
 pub use ownership_history::{
     ActiveBorrow, BorrowInfo, BorrowType, CloneInfo as OwnershipCloneInfo, HistoryConfig,
