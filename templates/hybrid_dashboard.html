@@ -2343,7 +2343,7 @@
                         <input type="range" id="timeline-slider" min="0" max="1000" value="0" onchange="updateTimelinePosition(this.value)" style="width: 200px;">
                         <span>Time: <span id="timeline-time">0ms</span></span>
                     </div>
-                    <canvas id="sync-timeline" width="600" height="400" style="border: 1px solid var(--border); border-radius: 4px; cursor: pointer;"></canvas>
+                    <canvas id="sync-timeline" width="1200" height="600" style="width: 800px; height: 400px; border: 1px solid var(--border); border-radius: 4px; cursor: pointer;"></canvas>
                     <div class="timeline-legend">
                         <span class="legend-item">🔴 Thread 1 - High Priority</span>
                         <span class="legend-item">🟢 Thread 2 - Medium Priority</span>
@@ -2850,17 +2850,10 @@
             const isDarkMode = document.body.classList.contains('dark-theme') || 
                                window.matchMedia('(prefers-color-scheme: dark)').matches;
             
-            const colors = isDarkMode ? {
-                bg: '#1e1e1e',
+            const colors = {
+                bg: '#000000',
                 text: '#ffffff',
-                grid: '#333333',
-                high: '#ff0066',
-                medium: '#ffaa00',
-                low: '#00ff66'
-            } : {
-                bg: '#f8f9fa',
-                text: '#000000',
-                grid: '#e9ecef',
+                grid: '#111111',
                 high: '#ff0066',
                 medium: '#ffaa00',
                 low: '#00ff66'
@@ -2977,15 +2970,9 @@
             const isDarkMode = document.body.classList.contains('dark-theme') || 
                                window.matchMedia('(prefers-color-scheme: dark)').matches;
             
-            const colors = isDarkMode ? {
-                bg: '#1e1e1e',
+            const colors = {
+                bg: '#000000',
                 text: '#ffffff',
-                readOnly: '#00ff88',
-                writeHeavy: '#ff0066',
-                mixed: '#ffaa00'
-            } : {
-                bg: '#f8f9fa', 
-                text: '#000000',
                 readOnly: '#00ff88',
                 writeHeavy: '#ff0066',
                 mixed: '#ffaa00'
@@ -3136,60 +3123,57 @@
             timelineCanvas = canvas;
             isDarkModeGlobal = isDarkMode;
             
-            const colors = isDarkMode ? {
-                bg: '#1e1e1e',
+            const colors = {
+                bg: '#000000',
                 text: '#ffffff',
                 thread1: '#ff0066',
                 thread2: '#00ff88', 
                 thread3: '#0088ff',
                 sync: '#ffaa00'
-            } : {
-                bg: '#f8f9fa',
-                text: '#000000',
-                thread1: '#ff0066',
-                thread2: '#00ff88',
-                thread3: '#0088ff',
-                sync: '#ffaa00'
             };
             
-            ctx.clearRect(0, 0, 600, 350);
+            const width = canvas.width;
+            const height = canvas.height;
+            
+            ctx.clearRect(0, 0, width, height);
             
             // Draw modern timeline background
-            const timelineGradient = ctx.createRadialGradient(300, 175, 0, 300, 175, 350);
+            const timelineGradient = ctx.createRadialGradient(width/2, height/2, 0, width/2, height/2, height/2);
             timelineGradient.addColorStop(0, colors.bg + 'F0');
             timelineGradient.addColorStop(0.7, colors.bg + 'CC');
             timelineGradient.addColorStop(1, colors.bg + '99');
             ctx.fillStyle = timelineGradient;
-            ctx.fillRect(0, 0, 600, 350);
+            ctx.fillRect(0, 0, width, height);
             
             // Add timeline background pattern
-            ctx.strokeStyle = isDarkMode ? '#1a1a1a' : '#f8f9fa';
+            ctx.strokeStyle = '#111111';
             ctx.lineWidth = 1;
-            for (let i = 100; i <= 600; i += 50) {
+            for (let i = 100; i <= width - 100; i += 50) {
                 ctx.beginPath();
                 ctx.moveTo(i, 50);
-                ctx.lineTo(i, 300);
+                ctx.lineTo(i, height - 50);
                 ctx.stroke();
             }
             
             // Modern card border
-            ctx.strokeStyle = isDarkMode ? '#333' : '#dee2e6';
+            ctx.strokeStyle = '#333333';
             ctx.lineWidth = 1;
-            ctx.strokeRect(0, 0, 600, 350);
+            ctx.strokeRect(0, 0, width, height);
             
             // Title with icon
             ctx.fillStyle = colors.text;
             ctx.font = 'bold 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
             ctx.fillText('⏱️ Synchronization Timeline', 20, 30);
             
-            // Timeline
-            const timelineY = 80;
-            const timelineWidth = 500;
-            const threads = ['Thread 1', 'Thread 2', 'Thread 3'];
-            const threadColors = [colors.thread1, colors.thread2, colors.thread3];
+            // Timeline (expanded to use full width)
+            const timelineY = 100;
+            const timelineWidth = width - 200; // Use almost full width
+            const threadHeight = 80; // Increase thread spacing
+            const threads = ['Thread 1', 'Thread 2', 'Thread 3', 'Thread 4', 'Thread 5'];
+            const threadColors = [colors.thread1, colors.thread2, colors.thread3, '#ff6600', '#9900ff'];
             
             threads.forEach((thread, i) => {
-                const y = timelineY + i * 60;
+                const y = timelineY + i * threadHeight;
                 
                 // Thread label
                 ctx.fillStyle = colors.text;
@@ -3224,18 +3208,18 @@
                 });
             });
             
-            // Time markers
+            // Time markers (adjusted for larger canvas)
             ctx.fillStyle = colors.text;
-            ctx.font = '10px Arial';
+            ctx.font = '12px Arial';
             for (let i = 0; i <= 10; i++) {
                 const x = 100 + (i / 10) * timelineWidth;
-                ctx.fillText(`${i * 100}ms`, x - 10, 300);
+                ctx.fillText(`${i * 100}ms`, x - 10, height - 20);
                 
                 ctx.strokeStyle = colors.text + '40';
                 ctx.lineWidth = 1;
                 ctx.beginPath();
                 ctx.moveTo(x, timelineY - 20);
-                ctx.lineTo(x, timelineY + 180);
+                ctx.lineTo(x, timelineY + (threadHeight * threads.length) + 20);
                 ctx.stroke();
             }
             
@@ -3279,22 +3263,14 @@
             // Redraw timeline with highlighted events at current time
             const ctx = timelineCanvas.getContext('2d');
             
-            const colors = isDarkModeGlobal ? {
-                bg: '#1e1e1e',
+            const colors = {
+                bg: '#000000',
                 text: '#ffffff',
                 thread1: '#ff0066',
                 thread2: '#00ff88', 
                 thread3: '#0088ff',
                 sync: '#ffaa00',
                 highlight: '#ffffff'
-            } : {
-                bg: '#f8f9fa',
-                text: '#000000',
-                thread1: '#ff0066',
-                thread2: '#00ff88',
-                thread3: '#0088ff',
-                sync: '#ffaa00',
-                highlight: '#000000'
             };
             
             // Redraw the entire timeline first
@@ -3388,6 +3364,12 @@
             const canvas = document.getElementById('dependency-graph');
             if (!canvas) return;
             
+            // Set canvas size with proper DPI scaling for crisp display
+            canvas.width = 1200;
+            canvas.height = 800;
+            canvas.style.width = '800px';
+            canvas.style.height = '533px';
+            
             const ctx = canvas.getContext('2d');
             const width = canvas.width;
             const height = canvas.height;
@@ -3401,31 +3383,26 @@
                                getComputedStyle(document.body).backgroundColor === 'rgb(33, 37, 41)';
             
             // Set colors based on theme
-            const colors = isDarkMode ? {
-                background: '#1e1e1e',
+            const colors = {
+                background: '#000000',
                 node: '#00ff88',
                 nodeHover: '#44ffaa',
                 edge: '#888888',
                 edgeActive: '#00ffff',
                 text: '#ffffff',
                 textSecondary: '#cccccc'
-            } : {
-                background: '#f8f9fa',
-                node: '#ff6b35',
-                nodeHover: '#ff8f65',
-                edge: '#999999',
-                edgeActive: '#ff6b35',
-                text: '#000000',
-                textSecondary: '#666666'
             };
             
-            // Enhanced nodes with real variable data
+            // Enhanced nodes with real variable data (expanded layout)
             const nodes = [
-                { name: 'shared_buffer', x: 120, y: 80, connections: [1, 2], size: 20, type: 'buffer' },
-                { name: 'cache_data', x: 280, y: 100, connections: [2, 3], size: 16, type: 'cache' },
-                { name: 'work_queue', x: 200, y: 180, connections: [3, 4], size: 18, type: 'queue' },
-                { name: 'mutex_lock', x: 350, y: 160, connections: [0], size: 14, type: 'sync' },
-                { name: 'result_store', x: 80, y: 200, connections: [0, 2], size: 15, type: 'storage' }
+                { name: 'shared_buffer', x: 150, y: 120, connections: [1, 2], size: 25, type: 'buffer' },
+                { name: 'cache_data', x: 400, y: 150, connections: [2, 3], size: 22, type: 'cache' },
+                { name: 'work_queue', x: 300, y: 280, connections: [3, 4], size: 24, type: 'queue' },
+                { name: 'mutex_lock', x: 550, y: 220, connections: [0], size: 20, type: 'sync' },
+                { name: 'result_store', x: 150, y: 350, connections: [0, 2], size: 21, type: 'storage' },
+                { name: 'thread_pool', x: 650, y: 150, connections: [1, 4], size: 23, type: 'thread' },
+                { name: 'memory_arena', x: 450, y: 400, connections: [2, 5], size: 26, type: 'memory' },
+                { name: 'async_queue', x: 200, y: 480, connections: [4, 6], size: 19, type: 'async' }
             ];
             
             // Add hover and click interaction state
@@ -3548,15 +3525,18 @@
                     
                     // Node type indicator
                     ctx.fillStyle = colors.background;
-                    ctx.font = '12px Arial';
+                    ctx.font = '16px Arial';
                     const typeSymbols = {
                         'buffer': '📦',
                         'cache': '💾',
                         'queue': '📋',
                         'sync': '🔒',
-                        'storage': '🗄️'
+                        'storage': '🗄️',
+                        'thread': '🧵',
+                        'memory': '🧠',
+                        'async': '⚡'
                     };
-                    ctx.fillText(typeSymbols[node.type] || '●', node.x - 6, node.y + 4);
+                    ctx.fillText(typeSymbols[node.type] || '●', node.x - 8, node.y + 6);
                     
                     // Node label
                     ctx.fillStyle = colors.text;
@@ -3564,19 +3544,59 @@
                     const textWidth = ctx.measureText(node.name).width;
                     ctx.fillText(node.name, node.x - textWidth / 2, node.y + nodeSize + 15);
                     
-                    // Show details for selected/hovered node
+                    // Show detailed info for selected/hovered node
                     if (isHovered || isSelected) {
+                        // Node details background
+                        const infoWidth = 180;
+                        const infoHeight = 80;
+                        const infoX = node.x + nodeSize + 10;
+                        const infoY = node.y - infoHeight / 2;
+                        
+                        // Draw info background
+                        ctx.fillStyle = colors.background + 'E0';
+                        ctx.fillRect(infoX, infoY, infoWidth, infoHeight);
+                        ctx.strokeStyle = colors.edgeActive;
+                        ctx.lineWidth = 2;
+                        ctx.strokeRect(infoX, infoY, infoWidth, infoHeight);
+                        
+                        // Node info text
+                        ctx.fillStyle = colors.text;
+                        ctx.font = 'bold 12px Arial';
+                        ctx.fillText(`${node.name}`, infoX + 8, infoY + 16);
+                        
+                        ctx.font = '10px Arial';
                         ctx.fillStyle = colors.textSecondary;
-                        ctx.font = '9px Arial';
-                        ctx.fillText(`${node.connections.length} connections`, 
-                                   node.x - 25, node.y + nodeSize + 28);
+                        ctx.fillText(`Type: ${node.type}`, infoX + 8, infoY + 32);
+                        ctx.fillText(`Connections: ${node.connections.length}`, infoX + 8, infoY + 46);
+                        ctx.fillText(`Size: ${node.size}px`, infoX + 8, infoY + 60);
+                        
+                        // Show connected nodes
+                        if (node.connections.length > 0) {
+                            const connectedNames = node.connections.map(i => nodes[i]?.name || 'unknown').join(', ');
+                            ctx.fillText(`→ ${connectedNames}`, infoX + 8, infoY + 74);
+                        }
                     }
                 });
                 
-                // Instructions
+                // Instructions and status
                 ctx.fillStyle = colors.textSecondary;
                 ctx.font = '10px Arial';
-                ctx.fillText('Click nodes to select • Hover for details • Scroll to zoom', 10, height - 10);
+                ctx.fillText('Click nodes to select • Hover for details • Drag to move', 10, height - 25);
+                
+                // Show current hover/selection status
+                if (hoveredNode >= 0) {
+                    ctx.fillStyle = colors.edgeActive;
+                    ctx.font = 'bold 11px Arial';
+                    ctx.fillText(`Hovering: ${nodes[hoveredNode].name}`, 10, height - 10);
+                } else if (selectedNode >= 0) {
+                    ctx.fillStyle = colors.nodeHover;
+                    ctx.font = 'bold 11px Arial';
+                    ctx.fillText(`Selected: ${nodes[selectedNode].name}`, 10, height - 10);
+                } else {
+                    ctx.fillStyle = colors.textSecondary;
+                    ctx.font = '10px Arial';
+                    ctx.fillText('Hover over nodes to see details', 10, height - 10);
+                }
             }
             
             // Mouse interaction
@@ -3589,10 +3609,16 @@
             }
             
             function getNodeAt(x, y) {
+                // Account for canvas scaling
+                const scaleX = canvas.width / canvas.offsetWidth;
+                const scaleY = canvas.height / canvas.offsetHeight;
+                const scaledX = x * scaleX;
+                const scaledY = y * scaleY;
+                
                 for (let i = 0; i < nodes.length; i++) {
                     const node = nodes[i];
-                    const distance = Math.sqrt((x - node.x) ** 2 + (y - node.y) ** 2);
-                    if (distance <= node.size + 5) {
+                    const distance = Math.sqrt((scaledX - node.x) ** 2 + (scaledY - node.y) ** 2);
+                    if (distance <= node.size + 10) { // Increased hit area
                         return i;
                     }
                 }
