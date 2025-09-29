@@ -1999,6 +1999,706 @@
             50% { opacity: 0.5; }
             100% { opacity: 1; }
         }
+
+        /* Health Assessment Panel Styles */
+        .health-assessment {
+            background: linear-gradient(135deg, var(--card-bg) 0%, rgba(72, 187, 120, 0.1) 100%);
+            border: 2px solid rgba(72, 187, 120, 0.3);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+        }
+
+        .health-summary {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 2rem;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .health-score {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .score-circle {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: conic-gradient(var(--success) 0deg 306deg, var(--card-bg) 306deg 360deg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            position: relative;
+            font-weight: bold;
+        }
+
+        .score-circle::before {
+            content: '';
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            background: var(--card-bg);
+            border-radius: 50%;
+            z-index: -1;
+        }
+
+        #health-score-value {
+            font-size: 1.5rem;
+            color: var(--success);
+        }
+
+        .score-unit {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .health-status {
+            text-align: center;
+        }
+
+        .status-text {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .health-emoji {
+            font-size: 1.5rem;
+        }
+
+        .vital-signs {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        .vital-sign {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .vital-icon {
+            font-size: 1.2rem;
+        }
+
+        .vital-label {
+            flex: 1;
+            font-weight: 500;
+        }
+
+        .vital-value {
+            font-weight: 600;
+            color: var(--accent);
+        }
+
+        .health-recommendations {
+            background: rgba(72, 187, 120, 0.1);
+            border-radius: 8px;
+            padding: 1rem;
+            border-left: 4px solid var(--success);
+        }
+
+        .health-recommendations h5 {
+            margin: 0 0 0.5rem 0;
+            color: var(--success);
+        }
+
+        .health-recommendations ul {
+            margin: 0;
+            padding-left: 1.5rem;
+        }
+
+        .health-recommendations li {
+            margin-bottom: 0.25rem;
+            color: var(--text-secondary);
+        }
+
+        /* Health score color variations */
+        .health-critical { --health-color: var(--danger); }
+        .health-warning { --health-color: var(--warning); }
+        .health-good { --health-color: var(--success); }
+        .health-excellent { --health-color: #00d084; }
+
+        /* Memory Stories Panel Styles */
+        .memory-stories {
+            background: linear-gradient(135deg, var(--card-bg) 0%, rgba(138, 43, 226, 0.1) 100%);
+            border: 2px solid rgba(138, 43, 226, 0.3);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+        }
+
+        .story-summary {
+            margin-bottom: 1.5rem;
+        }
+
+        .story-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+        }
+
+        .story-title {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #8a2be2;
+            font-family: 'Georgia', serif;
+        }
+
+        .story-genre {
+            background: rgba(138, 43, 226, 0.2);
+            color: #8a2be2;
+            padding: 0.25rem 0.75rem;
+            border-radius: 15px;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+
+        .character-gallery h5 {
+            margin: 0 0 0.75rem 0;
+            color: #8a2be2;
+        }
+
+        .characters-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 0.75rem;
+        }
+
+        .character-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(138, 43, 226, 0.3);
+            border-radius: 8px;
+            padding: 0.75rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .character-card:hover {
+            background: rgba(138, 43, 226, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .character-emoji {
+            font-size: 1.5rem;
+            display: block;
+            margin-bottom: 0.25rem;
+        }
+
+        .character-name {
+            font-weight: 600;
+            color: var(--text);
+            font-size: 0.9rem;
+        }
+
+        .character-role {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 0.25rem;
+        }
+
+        .story-chapters {
+            margin-bottom: 1.5rem;
+        }
+
+        .chapter-tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .chapter-tab {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(138, 43, 226, 0.3);
+            border-radius: 8px;
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            color: var(--text);
+            font-weight: 500;
+        }
+
+        .chapter-tab.active {
+            background: rgba(138, 43, 226, 0.3);
+            border-color: #8a2be2;
+            color: #8a2be2;
+        }
+
+        .chapter-tab:hover {
+            background: rgba(138, 43, 226, 0.2);
+        }
+
+        .chapter-content {
+            position: relative;
+            min-height: 150px;
+        }
+
+        .chapter {
+            display: none;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            padding: 1.25rem;
+            border-left: 4px solid #8a2be2;
+        }
+
+        .chapter.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .story-text {
+            font-size: 1rem;
+            line-height: 1.6;
+            color: var(--text);
+            font-family: 'Georgia', serif;
+            margin-bottom: 1rem;
+        }
+
+        .character-mention {
+            color: #8a2be2;
+            font-weight: 600;
+            background: rgba(138, 43, 226, 0.1);
+            padding: 0.1rem 0.3rem;
+            border-radius: 3px;
+        }
+
+        .highlight {
+            background: linear-gradient(120deg, rgba(138, 43, 226, 0.3) 0%, rgba(138, 43, 226, 0.1) 100%);
+            color: #8a2be2;
+            font-weight: 600;
+            padding: 0.1rem 0.3rem;
+            border-radius: 3px;
+        }
+
+        .lessons-learned {
+            background: rgba(138, 43, 226, 0.1);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 1rem;
+        }
+
+        .lessons-learned h6 {
+            margin: 0 0 0.5rem 0;
+            color: #8a2be2;
+            font-weight: 600;
+        }
+
+        .lessons-learned ul {
+            margin: 0;
+            padding-left: 1.5rem;
+        }
+
+        .lessons-learned li {
+            margin-bottom: 0.25rem;
+            color: var(--text-secondary);
+        }
+
+        .story-actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+        }
+
+        .story-btn {
+            background: rgba(138, 43, 226, 0.2);
+            border: 1px solid #8a2be2;
+            color: #8a2be2;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+
+        .story-btn:hover {
+            background: #8a2be2;
+            color: white;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Help button and modal styles */
+        .help-btn {
+            background: rgba(72, 187, 120, 0.2);
+            border: 1px solid var(--success);
+            color: var(--success);
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            font-size: 12px;
+            cursor: pointer;
+            margin-left: 0.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .help-btn:hover {
+            background: var(--success);
+            color: white;
+            transform: scale(1.1);
+        }
+
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background: var(--card-bg);
+            border: 2px solid var(--success);
+            border-radius: 12px;
+            padding: 2rem;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 1rem;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--text-secondary);
+        }
+
+        .modal-close:hover {
+            color: var(--danger);
+        }
+
+        .scoring-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .scoring-table th,
+        .scoring-table td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .scoring-table th {
+            background: rgba(72, 187, 120, 0.2);
+            color: var(--success);
+            font-weight: 600;
+        }
+
+        .scoring-table tr:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .score-excellent { color: #00d084; }
+        .score-good { color: #f6e05e; }
+        .score-fair { color: #ed8936; }
+        .score-poor { color: #e53e3e; }
+        .score-critical { color: #c53030; }
+
+        /* Memory Landscape - 简单直观的内存可视化 */
+        .memory-landscape {
+            background: linear-gradient(135deg, var(--card-bg) 0%, rgba(34, 139, 34, 0.1) 100%);
+            border: 2px solid rgba(34, 139, 34, 0.3);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+        }
+
+        .landscape-controls {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .landscape-btn {
+            background: rgba(34, 139, 34, 0.2);
+            border: 1px solid #228B22;
+            color: #228B22;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+
+        .landscape-btn.active {
+            background: #228B22;
+            color: white;
+            box-shadow: 0 0 15px rgba(34, 139, 34, 0.5);
+        }
+
+        .landscape-btn:hover {
+            background: #228B22;
+            color: white;
+            transform: translateY(-2px);
+        }
+
+        .landscape-description {
+            background: rgba(34, 139, 34, 0.1);
+            border-radius: 8px;
+            padding: 0.75rem;
+            margin-bottom: 1rem;
+            border-left: 4px solid #228B22;
+        }
+
+        .landscape-description p {
+            margin: 0;
+            color: var(--text);
+            font-size: 0.9rem;
+        }
+
+        .memory-landscape-container {
+            min-height: 400px;
+            background: linear-gradient(180deg, #87CEEB 0%, #32CD32 70%, #228B22 100%);
+            border-radius: 12px;
+            padding: 2rem;
+            position: relative;
+            overflow: hidden;
+            perspective: 1000px;
+        }
+
+        /* Building styles */
+        .memory-building {
+            position: absolute;
+            bottom: 0;
+            border-radius: 4px 4px 0 0;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 0.8rem;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.7);
+        }
+
+        .memory-building:hover {
+            transform: scale(1.1) translateY(-10px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+            z-index: 10;
+        }
+
+        .memory-building.healthy {
+            background: linear-gradient(180deg, #90EE90, #32CD32);
+        }
+
+        .memory-building.moderate {
+            background: linear-gradient(180deg, #FFD700, #FFA500);
+        }
+
+        .memory-building.high {
+            background: linear-gradient(180deg, #FF8C00, #FF6347);
+        }
+
+        .memory-building.critical {
+            background: linear-gradient(180deg, #FF4500, #DC143C);
+        }
+
+        /* Street labels */
+        .street-label {
+            position: absolute;
+            bottom: -30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            white-space: nowrap;
+        }
+
+        /* Heatmap mode */
+        .heatmap-cell {
+            position: absolute;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 0.7rem;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.7);
+        }
+
+        .heatmap-cell:hover {
+            transform: scale(1.2);
+            z-index: 10;
+        }
+
+        /* Bar chart mode */
+        .bar-chart-container {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-around;
+            height: 100%;
+            padding: 2rem 1rem;
+        }
+
+        .memory-bar {
+            background: linear-gradient(180deg, #32CD32, #228B22);
+            border-radius: 8px 8px 0 0;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.7);
+        }
+
+        .memory-bar:hover {
+            transform: scale(1.05);
+            filter: brightness(1.2);
+        }
+
+        .landscape-legend {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 1rem;
+            border: 1px solid rgba(34, 139, 34, 0.3);
+        }
+
+        .landscape-legend h5 {
+            margin: 0 0 0.75rem 0;
+            color: #228B22;
+            font-weight: 600;
+        }
+
+        .landscape-legend .legend-items {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 0.5rem;
+        }
+
+        .landscape-legend .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .landscape-legend .legend-color {
+            width: 20px;
+            height: 16px;
+            border-radius: 3px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .landscape-legend .legend-color.healthy {
+            background: linear-gradient(180deg, #90EE90, #32CD32);
+        }
+
+        .landscape-legend .legend-color.moderate {
+            background: linear-gradient(180deg, #FFD700, #FFA500);
+        }
+
+        .landscape-legend .legend-color.high {
+            background: linear-gradient(180deg, #FF8C00, #FF6347);
+        }
+
+        .landscape-legend .legend-color.critical {
+            background: linear-gradient(180deg, #FF4500, #DC143C);
+        }
+
+        .variable-detail-panel {
+            background: rgba(34, 139, 34, 0.1);
+            border: 1px solid #228B22;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 1rem;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .variable-detail-panel h5 {
+            margin: 0 0 0.75rem 0;
+            color: #228B22;
+            font-weight: 600;
+        }
+
+        #detail-content {
+            color: var(--text-secondary);
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
+        .detail-item {
+            margin-bottom: 0.5rem;
+            padding: 0.25rem 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .detail-item:last-child {
+            border-bottom: none;
+        }
+
+        .detail-label {
+            color: #228B22;
+            font-weight: 600;
+        }
+
+        .detail-value {
+            color: var(--text);
+        }
+
+        /* 动画效果 */
+        .building-grow {
+            animation: buildingGrow 2s ease-out;
+        }
+
+        @keyframes buildingGrow {
+            from {
+                height: 0;
+                opacity: 0;
+            }
+            to {
+                height: var(--final-height);
+                opacity: 1;
+            }
+        }
     </style>
 </head>
 <body>
@@ -2027,6 +2727,184 @@
             <div class="stat-card" onclick="window.focusAttribution('efficiency')">
                 <div class="stat-value" style="color: var(--accent);">{{EFFICIENCY}}%</div>
                 <div class="stat-label">Memory Efficiency</div>
+            </div>
+        </div>
+
+        <!-- Memory Health Assessment Panel -->
+        <div class="section health-assessment">
+            <h3>
+                🩺 Memory Health Assessment
+                <button class="help-btn" onclick="showHealthScoringGuide()" title="查看评分标准">
+                    ❓
+                </button>
+            </h3>
+            <div class="health-summary">
+                <div class="health-score">
+                    <div class="score-circle" id="health-score-circle">
+                        <span id="health-score-value">85</span>
+                        <span class="score-unit">/100</span>
+                    </div>
+                    <div class="health-status">
+                        <div class="status-text" id="health-status">Good Health</div>
+                        <div class="health-emoji" id="health-emoji">💛🩺</div>
+                    </div>
+                </div>
+                <div class="vital-signs">
+                    <div class="vital-sign">
+                        <span class="vital-icon">🩸</span>
+                        <span class="vital-label">Memory Pressure</span>
+                        <span class="vital-value" id="memory-pressure">Normal</span>
+                    </div>
+                    <div class="vital-sign">
+                        <span class="vital-icon">🫁</span>
+                        <span class="vital-label">Thread Efficiency</span>
+                        <span class="vital-value" id="thread-efficiency">85%</span>
+                    </div>
+                    <div class="vital-sign">
+                        <span class="vital-icon">❤️</span>
+                        <span class="vital-label">Allocation Rate</span>
+                        <span class="vital-value" id="allocation-rate">Normal</span>
+                    </div>
+                    <div class="vital-sign">
+                        <span class="vital-icon">🌡️</span>
+                        <span class="vital-label">Fragmentation</span>
+                        <span class="vital-value" id="fragmentation-level">Low</span>
+                    </div>
+                </div>
+            </div>
+            <div class="health-recommendations" id="health-recommendations">
+                <h5>💊 Health Recommendations</h5>
+                <ul id="recommendations-list">
+                    <li>✅ Memory usage is healthy - maintain current practices</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Memory Story Narrative Panel -->
+        <div class="section memory-stories">
+            <h3>📖 Memory Stories & Patterns</h3>
+            <div class="story-summary">
+                <div class="story-header">
+                    <div class="story-title" id="story-title">The Tale of Thread City</div>
+                    <div class="story-genre" id="story-genre">Adventure</div>
+                </div>
+                <div class="character-gallery">
+                    <h5>🎭 Cast of Characters</h5>
+                    <div class="characters-grid" id="characters-grid">
+                        <!-- Characters will be populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+            
+            <div class="story-chapters">
+                <div class="chapter-tabs">
+                    <button class="chapter-tab active" onclick="showChapter('setup', event)">
+                        📚 Chapter 1: Setup
+                    </button>
+                    <button class="chapter-tab" onclick="showChapter('action', event)">
+                        ⚡ Chapter 2: The Action
+                    </button>
+                    <button class="chapter-tab" onclick="showChapter('climax', event)">
+                        🎯 Chapter 3: The Climax
+                    </button>
+                    <button class="chapter-tab" onclick="showChapter('resolution', event)">
+                        🏆 Chapter 4: Resolution
+                    </button>
+                </div>
+                
+                <div class="chapter-content">
+                    <div id="setup-content" class="chapter active">
+                        <div class="story-text" id="setup-story">
+                            Once upon a time in Thread City, there lived <span class="character-mention">{{THREAD_COUNT}} brave workers</span>...
+                        </div>
+                    </div>
+                    <div id="action-content" class="chapter">
+                        <div class="story-text" id="action-story">
+                            The workers began their daily tasks, each managing their own memory territories...
+                        </div>
+                    </div>
+                    <div id="climax-content" class="chapter">
+                        <div class="story-text" id="climax-story">
+                            At the peak of their efforts, the city consumed <span class="highlight">{{TOTAL_MEMORY}}</span> of precious memory...
+                        </div>
+                    </div>
+                    <div id="resolution-content" class="chapter">
+                        <div class="story-text" id="resolution-story">
+                            And so our heroes learned valuable lessons about memory management...
+                        </div>
+                        <div class="lessons-learned" id="lessons-learned">
+                            <h6>🎓 Lessons Learned</h6>
+                            <ul id="lessons-list">
+                                <li>Memory efficiency is a team effort</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="story-actions">
+                <button class="btn story-btn" onclick="generateNewStory()">
+                    🎲 Generate New Story
+                </button>
+                <button class="btn story-btn" onclick="showStoryInsights()">
+                    💡 Story Insights
+                </button>
+            </div>
+        </div>
+
+        <!-- Simple Memory Landscape - 更直观的可视化 -->
+        <div class="section memory-landscape">
+            <h3>🏔️ Memory Landscape</h3>
+            <div class="landscape-controls">
+                <button class="landscape-btn active" onclick="switchLandscapeView('cityscape')" id="cityscape-btn">
+                    🏙️ Memory City
+                </button>
+                <button class="landscape-btn" onclick="switchLandscapeView('heatmap')" id="heatmap-btn">
+                    🌡️ Heat Map
+                </button>
+                <button class="landscape-btn" onclick="switchLandscapeView('timeline')" id="timeline-btn">
+                    📊 Bar Chart
+                </button>
+                <button class="landscape-btn" onclick="animateLandscape()" title="动画展示">
+                    ✨ Animate
+                </button>
+            </div>
+            
+            <div class="landscape-description" id="landscape-description">
+                <p>🏙️ <strong>Memory City:</strong> Each thread is a street, variables are buildings. Building height = memory size, color = health status.</p>
+            </div>
+            
+            <div class="memory-landscape-container" id="memory-landscape-container">
+                <!-- 动态生成的内存景观 -->
+            </div>
+            
+            <div class="landscape-legend">
+                <h5>🎨 内存景观图例</h5>
+                <div class="legend-items">
+                    <div class="legend-item">
+                        <div class="legend-color healthy"></div>
+                        <span>Healthy Memory (&lt;1KB) - Green Houses</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color moderate"></div>
+                        <span>Moderate Usage (1-10KB) - Yellow Buildings</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color high"></div>
+                        <span>High Usage (10-100KB) - Orange Towers</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color critical"></div>
+                        <span>Critical State (&gt;100KB) - Red Skyscrapers</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="variable-detail-panel" id="variable-detail" style="display: none;">
+                <h5>🏠 Building Details</h5>
+                <div id="detail-content">
+                    Click any building to inspect variable details...
+                </div>
             </div>
         </div>
 
@@ -2765,6 +3643,212 @@
         </div>
     </div>
 
+    <!-- Health Scoring Guide Modal -->
+    <div class="modal-overlay" id="scoring-guide-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>🩺 Memory Health Assessment - 评分标准指南</h3>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            
+            <div class="modal-body">
+                <h4>🎯 总体健康评分等级</h4>
+                <table class="scoring-table">
+                    <tr>
+                        <th>分数范围</th>
+                        <th>健康等级</th>
+                        <th>状态</th>
+                        <th>建议</th>
+                    </tr>
+                    <tr>
+                        <td class="score-excellent">90-100分</td>
+                        <td>💚🩺 优秀健康</td>
+                        <td>内存使用模式极佳</td>
+                        <td>保持当前实践</td>
+                    </tr>
+                    <tr>
+                        <td class="score-good">75-89分</td>
+                        <td>💛🩺 良好健康</td>
+                        <td>内存使用合理</td>
+                        <td>小幅优化空间</td>
+                    </tr>
+                    <tr>
+                        <td class="score-fair">60-74分</td>
+                        <td>🧡🩺 一般健康</td>
+                        <td>需要关注</td>
+                        <td>建议优化</td>
+                    </tr>
+                    <tr>
+                        <td class="score-poor">40-59分</td>
+                        <td>❤️🩺 较差健康</td>
+                        <td>存在问题</td>
+                        <td>需要立即行动</td>
+                    </tr>
+                    <tr>
+                        <td class="score-critical">0-39分</td>
+                        <td>🆘🚨 危险状态</td>
+                        <td>严重问题</td>
+                        <td>需要紧急处理</td>
+                    </tr>
+                </table>
+
+                <h4>📊 四大评分维度详解</h4>
+                
+                <h5>🩸 内存压力评估 (权重: 30%)</h5>
+                <table class="scoring-table">
+                    <tr>
+                        <th>平均内存/变量</th>
+                        <th>压力等级</th>
+                        <th>扣分</th>
+                        <th>说明</th>
+                    </tr>
+                    <tr>
+                        <td>< 1KB</td>
+                        <td>Normal</td>
+                        <td>0分</td>
+                        <td>🟢 理想状态</td>
+                    </tr>
+                    <tr>
+                        <td>1KB - 10KB</td>
+                        <td>Elevated</td>
+                        <td>-10分</td>
+                        <td>🟡 轻度压力</td>
+                    </tr>
+                    <tr>
+                        <td>10KB - 100KB</td>
+                        <td>High</td>
+                        <td>-25分</td>
+                        <td>🟠 高压力</td>
+                    </tr>
+                    <tr>
+                        <td>> 100KB</td>
+                        <td>Critical</td>
+                        <td>-40分</td>
+                        <td>🔴 危险状态</td>
+                    </tr>
+                </table>
+
+                <h5>🫁 线程效率评估 (权重: 25%)</h5>
+                <table class="scoring-table">
+                    <tr>
+                        <th>变量/线程比</th>
+                        <th>效率评分</th>
+                        <th>说明</th>
+                    </tr>
+                    <tr>
+                        <td>≤ 10</td>
+                        <td>100%</td>
+                        <td>🟢 优秀协调</td>
+                    </tr>
+                    <tr>
+                        <td>11-30</td>
+                        <td>85%</td>
+                        <td>🟡 良好分工</td>
+                    </tr>
+                    <tr>
+                        <td>31-100</td>
+                        <td>70%</td>
+                        <td>🟠 负载较重</td>
+                    </tr>
+                    <tr>
+                        <td>> 100</td>
+                        <td>50%</td>
+                        <td>🔴 线程过载</td>
+                    </tr>
+                </table>
+
+                <h5>❤️ 分配率评估 (权重: 25%)</h5>
+                <table class="scoring-table">
+                    <tr>
+                        <th>变量总数</th>
+                        <th>分配率等级</th>
+                        <th>扣分</th>
+                        <th>建议</th>
+                    </tr>
+                    <tr>
+                        <td>< 100</td>
+                        <td>Low</td>
+                        <td>0分</td>
+                        <td>可能需要更多功能</td>
+                    </tr>
+                    <tr>
+                        <td>100-500</td>
+                        <td>Normal</td>
+                        <td>0分</td>
+                        <td>🟢 合理范围</td>
+                    </tr>
+                    <tr>
+                        <td>500-1000</td>
+                        <td>High</td>
+                        <td>-10分</td>
+                        <td>🟡 考虑优化</td>
+                    </tr>
+                    <tr>
+                        <td>> 1000</td>
+                        <td>Excessive</td>
+                        <td>-25分</td>
+                        <td>🔴 需要重构</td>
+                    </tr>
+                </table>
+
+                <h5>🌡️ 碎片化评估 (权重: 20%)</h5>
+                <table class="scoring-table">
+                    <tr>
+                        <th>内存效率</th>
+                        <th>碎片化等级</th>
+                        <th>扣分</th>
+                        <th>状态</th>
+                    </tr>
+                    <tr>
+                        <td>> 90%</td>
+                        <td>Minimal</td>
+                        <td>0分</td>
+                        <td>🟢 极低碎片</td>
+                    </tr>
+                    <tr>
+                        <td>80-90%</td>
+                        <td>Low</td>
+                        <td>0分</td>
+                        <td>🟢 健康状态</td>
+                    </tr>
+                    <tr>
+                        <td>60-80%</td>
+                        <td>Moderate</td>
+                        <td>-10分</td>
+                        <td>🟡 需要注意</td>
+                    </tr>
+                    <tr>
+                        <td>< 60%</td>
+                        <td>High</td>
+                        <td>-20分</td>
+                        <td>🔴 严重碎片化</td>
+                    </tr>
+                </table>
+
+                <h4>🚀 快速提升策略</h4>
+                <div style="background: rgba(72, 187, 120, 0.1); padding: 1rem; border-radius: 8px; margin-top: 1rem;">
+                    <h6>⚡ 立即行动 (15分钟):</h6>
+                    <ul>
+                        <li>添加 <code>Vec::with_capacity()</code> 到大型集合</li>
+                        <li>移除不必要的 <code>.clone()</code> 调用</li>
+                    </ul>
+                    
+                    <h6>🔧 短期优化 (1-2小时):</h6>
+                    <ul>
+                        <li>实施对象池模式</li>
+                        <li>使用 <code>Arc&lt;T&gt;</code> 替代数据复制</li>
+                    </ul>
+                    
+                    <h6>📈 长期重构 (1-2天):</h6>
+                    <ul>
+                        <li>重新设计内存分配策略</li>
+                        <li>优化线程架构</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Include JavaScript -->
     <script src="hybrid_dashboard.js"></script>
     <script src="enhanced_diagnostics.js"></script>
@@ -2778,6 +3862,772 @@
         
         console.log('🎯 Attribution Analysis Dashboard initialized');
         console.log('🔍 Ready for 3-click root cause discovery');
+        
+        // Memory Health Analysis - Simple and effective!
+        window.calculateMemoryHealth = function() {
+            const totalMemory = parseInt('{{TOTAL_MEMORY}}'.replace(/[^\d]/g, '')) || 0;
+            const totalVariables = parseInt('{{TOTAL_VARIABLES}}') || 0;
+            const threadCount = parseInt('{{THREAD_COUNT}}') || 1;
+            const efficiency = parseFloat('{{EFFICIENCY}}') || 100;
+            
+            // Calculate vital signs
+            const avgMemoryPerVar = totalVariables > 0 ? totalMemory / totalVariables : 0;
+            const varsPerThread = totalVariables / threadCount;
+            
+            // Memory pressure assessment
+            let memoryPressure = "Normal";
+            if (avgMemoryPerVar > 102400) memoryPressure = "Critical"; // >100KB per var
+            else if (avgMemoryPerVar > 10240) memoryPressure = "High"; // >10KB per var  
+            else if (avgMemoryPerVar > 1024) memoryPressure = "Elevated"; // >1KB per var
+            
+            // Thread efficiency
+            const threadEfficiency = varsPerThread <= 10 ? 100 : 
+                                   varsPerThread <= 30 ? 85 :
+                                   varsPerThread <= 100 ? 70 : 50;
+            
+            // Allocation rate
+            let allocationRate = "Normal";
+            if (totalVariables > 1000) allocationRate = "Excessive";
+            else if (totalVariables > 500) allocationRate = "High";
+            else if (totalVariables < 100) allocationRate = "Low";
+            
+            // Fragmentation (simplified)
+            const fragmentation = efficiency > 90 ? "Minimal" :
+                                efficiency > 80 ? "Low" :
+                                efficiency > 60 ? "Moderate" : "High";
+            
+            // Calculate overall health score
+            let healthScore = 100;
+            if (memoryPressure === "Critical") healthScore -= 40;
+            else if (memoryPressure === "High") healthScore -= 25;
+            else if (memoryPressure === "Elevated") healthScore -= 10;
+            
+            healthScore -= Math.max(0, (100 - threadEfficiency) * 0.3);
+            
+            if (allocationRate === "Excessive") healthScore -= 25;
+            else if (allocationRate === "High") healthScore -= 10;
+            
+            if (fragmentation === "High") healthScore -= 20;
+            else if (fragmentation === "Moderate") healthScore -= 10;
+            
+            healthScore = Math.max(0, Math.round(healthScore));
+            
+            // Health status and emoji
+            let healthStatus, healthEmoji, healthColor;
+            if (healthScore >= 90) {
+                healthStatus = "Excellent Health";
+                healthEmoji = "💚🩺";
+                healthColor = "#00d084";
+            } else if (healthScore >= 75) {
+                healthStatus = "Good Health";
+                healthEmoji = "💛🩺";
+                healthColor = "#f6e05e";
+            } else if (healthScore >= 60) {
+                healthStatus = "Fair Health - Needs Attention";
+                healthEmoji = "🧡🩺";
+                healthColor = "#ed8936";
+            } else if (healthScore >= 40) {
+                healthStatus = "Poor Health - Action Required";
+                healthEmoji = "❤️🩺";
+                healthColor = "#e53e3e";
+            } else {
+                healthStatus = "Critical - Immediate Action Needed";
+                healthEmoji = "🆘🚨";
+                healthColor = "#c53030";
+            }
+            
+            // Generate recommendations
+            const recommendations = [];
+            if (memoryPressure === "High" || memoryPressure === "Critical") {
+                recommendations.push("💊 Use Vec::with_capacity() to pre-allocate memory");
+                recommendations.push("🔄 Implement object pooling for frequently allocated types");
+            }
+            if (threadEfficiency < 70) {
+                recommendations.push("🧵 Optimize thread-to-variable ratio (target: 10-30 vars per thread)");
+                recommendations.push("📊 Use Arc<T> for shared data instead of cloning");
+            }
+            if (allocationRate === "Excessive") {
+                recommendations.push("⚡ Reduce allocation frequency with buffering strategies");
+            }
+            if (fragmentation === "High") {
+                recommendations.push("🧹 Implement memory defragmentation strategies");
+            }
+            if (healthScore >= 85) {
+                recommendations.push("✅ Memory usage is healthy - maintain current practices");
+            }
+            
+            return {
+                score: healthScore,
+                status: healthStatus,
+                emoji: healthEmoji,
+                color: healthColor,
+                memoryPressure,
+                threadEfficiency: threadEfficiency.toFixed(0) + "%",
+                allocationRate,
+                fragmentation,
+                recommendations
+            };
+        };
+        
+        // Update health display
+        window.updateHealthDisplay = function() {
+            const health = window.calculateMemoryHealth();
+            
+            // Update score circle
+            const scoreCircle = document.getElementById('health-score-circle');
+            const scoreValue = document.getElementById('health-score-value');
+            const percentage = (health.score / 100) * 360;
+            
+            scoreCircle.style.background = `conic-gradient(${health.color} 0deg ${percentage}deg, var(--card-bg) ${percentage}deg 360deg)`;
+            scoreValue.textContent = health.score;
+            scoreValue.style.color = health.color;
+            
+            // Update status
+            document.getElementById('health-status').textContent = health.status;
+            document.getElementById('health-emoji').textContent = health.emoji;
+            
+            // Update vital signs
+            document.getElementById('memory-pressure').textContent = health.memoryPressure;
+            document.getElementById('thread-efficiency').textContent = health.threadEfficiency;
+            document.getElementById('allocation-rate').textContent = health.allocationRate;
+            document.getElementById('fragmentation-level').textContent = health.fragmentation;
+            
+            // Update recommendations
+            const recommendationsList = document.getElementById('recommendations-list');
+            recommendationsList.innerHTML = health.recommendations.map(rec => `<li>${rec}</li>`).join('');
+            
+            console.log('🩺 Health assessment updated:', health);
+        };
+        
+        // Initialize health display
+        window.updateHealthDisplay();
+        
+        // Memory Story Generation System - Transform data into narratives!
+        window.memoryStoryGenerator = {
+            // Character archetypes based on thread behavior
+            characterTypes: {
+                hoarder: { emoji: "🐿️", name: "The Hoarder", trait: "allocates but rarely deallocates" },
+                optimizer: { emoji: "⚡", name: "The Optimizer", trait: "efficient memory patterns" },
+                sprinter: { emoji: "🏃", name: "The Sprinter", trait: "fast allocation/deallocation" },
+                worker: { emoji: "🔧", name: "The Worker", trait: "steady, consistent patterns" },
+                leak: { emoji: "👻", name: "The Memory Leak", trait: "never cleans up" }
+            },
+            
+            // Story templates for different scenarios
+            storyTemplates: {
+                optimization: {
+                    genre: "Success Story",
+                    setup: "In the bustling city of Thread Town, {threadCount} dedicated workers began their daily tasks.",
+                    action: "The workers discovered they could work more efficiently by pre-allocating their memory spaces.",
+                    climax: "At peak performance, they managed {totalMemory} of memory with {efficiency}% efficiency!",
+                    resolution: "Through teamwork and smart planning, they achieved optimal memory harmony."
+                },
+                competition: {
+                    genre: "Adventure",
+                    setup: "A great competition arose in Memory Valley between {threadCount} ambitious threads.",
+                    action: "Each thread fought valiantly to claim their share of the {totalMemory} treasure.",
+                    climax: "The battle reached its peak when all threads simultaneously demanded memory!",
+                    resolution: "Peace was restored when they learned to share resources using Arc<T> and proper coordination."
+                },
+                mystery: {
+                    genre: "Mystery",
+                    setup: "Detective Thread noticed something strange - memory was disappearing without a trace...",
+                    action: "The investigation revealed {totalVariables} suspects, each with their own memory alibis.",
+                    climax: "The mystery deepened when {totalMemory} of memory couldn't be accounted for!",
+                    resolution: "The case was solved when they implemented proper deallocation tracking."
+                },
+                educational: {
+                    genre: "Fable",
+                    setup: "Once upon a time, there was a young thread who learned about memory management...",
+                    action: "The thread made many mistakes, creating {totalVariables} variables without thinking.",
+                    climax: "Soon, the thread ran out of memory space and couldn't create any more variables!",
+                    resolution: "The wise Optimizer taught the thread about Vec::with_capacity() and object pooling."
+                }
+            },
+            
+            // Analyze data to determine story type and characters
+            analyzeMemoryStory: function() {
+                const totalMemory = parseInt('{{TOTAL_MEMORY}}'.replace(/[^\d]/g, '')) || 0;
+                const totalVariables = parseInt('{{TOTAL_VARIABLES}}') || 0;
+                const threadCount = parseInt('{{THREAD_COUNT}}') || 1;
+                const efficiency = parseFloat('{{EFFICIENCY}}') || 100;
+                
+                // Determine story type based on data patterns
+                let storyType = 'educational'; // default
+                if (efficiency > 85) storyType = 'optimization';
+                else if (threadCount > 10) storyType = 'competition';
+                else if (totalVariables > 1000) storyType = 'mystery';
+                
+                // Generate characters based on thread behavior
+                const characters = this.generateCharacters(threadCount, totalVariables, efficiency);
+                
+                return {
+                    type: storyType,
+                    characters: characters,
+                    data: { totalMemory: '{{TOTAL_MEMORY}}', totalVariables, threadCount, efficiency }
+                };
+            },
+            
+            // Generate character lineup based on patterns
+            generateCharacters: function(threadCount, totalVariables, efficiency) {
+                const characters = [];
+                const varsPerThread = totalVariables / threadCount;
+                
+                // Assign character types based on behavior patterns
+                for (let i = 0; i < Math.min(threadCount, 6); i++) {
+                    let characterType;
+                    
+                    if (efficiency > 90) characterType = 'optimizer';
+                    else if (varsPerThread > 100) characterType = 'hoarder';
+                    else if (threadCount > 15) characterType = 'sprinter';
+                    else if (i === threadCount - 1 && efficiency < 60) characterType = 'leak';
+                    else characterType = 'worker';
+                    
+                    const template = this.characterTypes[characterType];
+                    characters.push({
+                        id: `thread-${i}`,
+                        emoji: template.emoji,
+                        name: `${template.name} ${i + 1}`,
+                        role: template.trait,
+                        type: characterType
+                    });
+                }
+                
+                return characters;
+            },
+            
+            // Generate full story from template
+            generateStory: function(analysis) {
+                const template = this.storyTemplates[analysis.type];
+                const data = analysis.data;
+                
+                return {
+                    title: this.generateTitle(analysis.type, data),
+                    genre: template.genre,
+                    chapters: {
+                        setup: this.fillTemplate(template.setup, data),
+                        action: this.fillTemplate(template.action, data),
+                        climax: this.fillTemplate(template.climax, data),
+                        resolution: this.fillTemplate(template.resolution, data)
+                    },
+                    lessons: this.generateLessons(analysis)
+                };
+            },
+            
+            // Generate dynamic titles
+            generateTitle: function(type, data) {
+                const titles = {
+                    optimization: `The Optimization Heroes of Thread City`,
+                    competition: `The Great Memory War of ${data.threadCount} Threads`,
+                    mystery: `The Case of the Missing ${data.totalMemory}`,
+                    educational: `The Thread Who Learned to Manage Memory`
+                };
+                return titles[type] || "A Memory Tale";
+            },
+            
+            // Fill template with actual data
+            fillTemplate: function(template, data) {
+                return template
+                    .replace(/{threadCount}/g, data.threadCount)
+                    .replace(/{totalMemory}/g, data.totalMemory)
+                    .replace(/{totalVariables}/g, data.totalVariables)
+                    .replace(/{efficiency}/g, data.efficiency);
+            },
+            
+            // Generate educational lessons
+            generateLessons: function(analysis) {
+                const lessons = [];
+                const { efficiency, totalVariables, threadCount } = analysis.data;
+                
+                if (efficiency > 85) {
+                    lessons.push("Excellent memory efficiency leads to better performance");
+                }
+                if (totalVariables / threadCount > 50) {
+                    lessons.push("Consider using object pooling for frequently allocated objects");
+                    lessons.push("Vec::with_capacity() can reduce allocation overhead");
+                }
+                if (threadCount > 10) {
+                    lessons.push("Thread coordination becomes crucial with many concurrent workers");
+                    lessons.push("Arc<T> and Rc<T> help share data efficiently between threads");
+                }
+                if (efficiency < 70) {
+                    lessons.push("Memory fragmentation may be impacting performance");
+                    lessons.push("Regular memory profiling helps identify optimization opportunities");
+                }
+                
+                return lessons.length > 0 ? lessons : ["Memory management is a continuous learning journey"];
+            }
+        };
+        
+        // Story UI management functions
+        window.showChapter = function(chapterName, event) {
+            // Update tabs
+            document.querySelectorAll('.chapter-tab').forEach(tab => tab.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // Update content
+            document.querySelectorAll('.chapter').forEach(chapter => chapter.classList.remove('active'));
+            document.getElementById(chapterName + '-content').classList.add('active');
+        };
+        
+        window.generateNewStory = function() {
+            const analysis = window.memoryStoryGenerator.analyzeMemoryStory();
+            const story = window.memoryStoryGenerator.generateStory(analysis);
+            
+            // Update story content
+            document.getElementById('story-title').textContent = story.title;
+            document.getElementById('story-genre').textContent = story.genre;
+            
+            // Update chapters
+            document.getElementById('setup-story').innerHTML = story.chapters.setup;
+            document.getElementById('action-story').innerHTML = story.chapters.action;
+            document.getElementById('climax-story').innerHTML = story.chapters.climax;
+            document.getElementById('resolution-story').innerHTML = story.chapters.resolution;
+            
+            // Update lessons
+            const lessonsList = document.getElementById('lessons-list');
+            lessonsList.innerHTML = story.lessons.map(lesson => `<li>${lesson}</li>`).join('');
+            
+            // Update characters
+            window.updateCharacterGallery(analysis.characters);
+            
+            console.log('📖 New memory story generated:', story);
+        };
+        
+        window.updateCharacterGallery = function(characters) {
+            const gallery = document.getElementById('characters-grid');
+            gallery.innerHTML = characters.map(char => `
+                <div class="character-card" onclick="showCharacterStory('${char.id}')">
+                    <span class="character-emoji">${char.emoji}</span>
+                    <div class="character-name">${char.name}</div>
+                    <div class="character-role">${char.role}</div>
+                </div>
+            `).join('');
+        };
+        
+        window.showCharacterStory = function(characterId) {
+            // Could expand to show individual character backstories
+            console.log('📚 Showing story for character:', characterId);
+        };
+        
+        window.showStoryInsights = function() {
+            const health = window.calculateMemoryHealth();
+            alert(`📊 Story Insights:\n\n` +
+                  `Health Score: ${health.score}/100\n` +
+                  `Memory Pressure: ${health.memoryPressure}\n` +
+                  `Thread Efficiency: ${health.threadEfficiency}\n\n` +
+                  `💡 The story reflects your actual memory patterns!`);
+        };
+        
+        // Initialize story system
+        window.generateNewStory();
+        
+        // Health Scoring Guide Modal Functions
+        window.showHealthScoringGuide = function() {
+            const modal = document.getElementById('scoring-guide-modal');
+            modal.style.display = 'flex';
+            document.body.style.overflow = 'hidden'; // Prevent background scrolling
+        };
+        
+        window.closeModal = function() {
+            const modal = document.getElementById('scoring-guide-modal');
+            modal.style.display = 'none';
+            document.body.style.overflow = 'auto'; // Restore scrolling
+        };
+        
+        // Close modal when clicking outside
+        document.getElementById('scoring-guide-modal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                window.closeModal();
+            }
+        });
+        
+        // Close modal with Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                window.closeModal();
+            }
+        });
+        
+        // Memory Landscape Visualization - 简单直观的内存可视化  
+        window.memoryLandscape = {
+            currentView: 'cityscape',
+            memoryData: [], 
+            isAnimating: false,
+            
+            // 初始化内存景观
+            init: function() {
+                console.log('🏔️ Initializing Memory Landscape...');
+                
+                const container = document.getElementById('memory-landscape-container');
+                if (!container) {
+                    console.error('Landscape container not found');
+                    return;
+                }
+                
+                // 生成内存数据
+                this.generateMemoryData();
+                
+                // 渲染景观
+                this.renderLandscape();
+                
+                console.log('✅ Memory Landscape initialized');
+            },
+            
+            // 生成简单的内存数据
+            generateMemoryData: function() {
+                const totalMemory = parseInt('{{TOTAL_MEMORY}}'.replace(/[^\d]/g, '')) || 0;
+                const totalVariables = parseInt('{{TOTAL_VARIABLES}}') || 0;
+                const threadCount = parseInt('{{THREAD_COUNT}}') || 1;
+                
+                this.memoryData = [];
+                const avgMemoryPerVar = totalMemory / Math.max(totalVariables, 1);
+                
+                for (let threadId = 0; threadId < threadCount; threadId++) {
+                    const varsInThread = Math.floor(totalVariables / threadCount) + 
+                                        (threadId < totalVariables % threadCount ? 1 : 0);
+                    
+                    for (let varIndex = 0; varIndex < varsInThread; varIndex++) {
+                        const variance = avgMemoryPerVar * (0.5 + Math.random() * 1.5);
+                        const size = Math.max(100, Math.floor(variance));
+                        
+                        this.memoryData.push({
+                            id: `thread_${threadId}_var_${varIndex}`,
+                            threadId: threadId,
+                            name: `var_${varIndex}`,
+                            type: this.getRandomType(),
+                            size: size,
+                            health: this.getHealthLevel(size)
+                        });
+                    }
+                }
+                
+                console.log('📊 Generated memory data:', this.memoryData.length, 'variables');
+            },
+            
+            getRandomType: function() {
+                const types = ['Vec<u8>', 'String', 'HashMap', 'Arc<T>', 'Box<T>', 'Option<T>'];
+                return types[Math.floor(Math.random() * types.length)];
+            },
+            
+            getHealthLevel: function(size) {
+                if (size < 1024) return 'healthy';
+                if (size < 10240) return 'moderate';
+                if (size < 102400) return 'high';
+                return 'critical';
+            },
+            
+            // 渲染内存景观
+            renderLandscape: function() {
+                const container = document.getElementById('memory-landscape-container');
+                if (!container || this.memoryData.length === 0) return;
+                
+                switch (this.currentView) {
+                    case 'cityscape':
+                        this.renderCityscape(container);
+                        break;
+                    case 'heatmap':
+                        this.renderHeatmap(container);
+                        break;
+                    case 'timeline':
+                        this.renderBarChart(container);
+                        break;
+                }
+            },
+            
+            // 渲染城市景观
+            renderCityscape: function(container) {
+                container.innerHTML = '';
+                
+                // 按线程分组
+                const threadGroups = {};
+                this.memoryData.forEach(variable => {
+                    if (!threadGroups[variable.threadId]) {
+                        threadGroups[variable.threadId] = [];
+                    }
+                    threadGroups[variable.threadId].push(variable);
+                });
+                
+                const threadCount = Object.keys(threadGroups).length;
+                const containerWidth = container.clientWidth - 40; // 减去padding
+                
+                Object.keys(threadGroups).forEach((threadId, streetIndex) => {
+                    const variables = threadGroups[threadId];
+                    const streetWidth = containerWidth / threadCount;
+                    const streetLeft = streetIndex * streetWidth;
+                    
+                    // 创建街道标签
+                    const streetLabel = document.createElement('div');
+                    streetLabel.className = 'street-label';
+                    streetLabel.textContent = `Thread ${threadId}`;
+                    streetLabel.style.left = `${streetLeft + streetWidth/2}px`;
+                    container.appendChild(streetLabel);
+                    
+                    // 创建建筑物
+                    variables.forEach((variable, buildingIndex) => {
+                        const building = this.createBuilding(variable, streetLeft, streetWidth, buildingIndex, variables.length);
+                        container.appendChild(building);
+                    });
+                });
+            },
+            
+            // 创建建筑物元素
+            createBuilding: function(variable, streetLeft, streetWidth, buildingIndex, totalBuildings) {
+                const building = document.createElement('div');
+                building.className = `memory-building ${variable.health}`;
+                
+                // 计算建筑物尺寸和位置
+                const maxHeight = 200; // 最大高度200px
+                const height = Math.max(20, Math.min(maxHeight, Math.log(variable.size / 100 + 1) * 30));
+                const width = Math.max(15, streetWidth / totalBuildings - 5);
+                const left = streetLeft + (buildingIndex * streetWidth / totalBuildings) + 2;
+                
+                building.style.cssText = `
+                    width: ${width}px;
+                    height: ${height}px;
+                    left: ${left}px;
+                    --final-height: ${height}px;
+                `;
+                
+                // 添加建筑物标签
+                building.textContent = this.formatBytes(variable.size);
+                building.title = `${variable.name} (${variable.type})`;
+                
+                // 点击事件
+                building.addEventListener('click', () => {
+                    this.showVariableDetail(variable);
+                });
+                
+                // 动画类
+                if (this.isAnimating) {
+                    building.classList.add('building-grow');
+                }
+                
+                return building;
+            },
+            
+            // 显示变量详情
+            showVariableDetail: function(variable) {
+                const panel = document.getElementById('variable-detail');
+                const content = document.getElementById('detail-content');
+                
+                content.innerHTML = `
+                    <div class="detail-item">
+                        <span class="detail-label">Variable:</span>
+                        <span class="detail-value">${variable.name}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Type:</span>
+                        <span class="detail-value">${variable.type}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Thread:</span>
+                        <span class="detail-value">Thread ${variable.threadId}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Memory Size:</span>
+                        <span class="detail-value">${this.formatBytes(variable.size)}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Health Status:</span>
+                        <span class="detail-value">${this.getHealthText(variable.health)}</span>
+                    </div>
+                `;
+                
+                panel.style.display = 'block';
+            },
+            
+            // 格式化字节大小
+            formatBytes: function(bytes) {
+                if (bytes < 1024) return bytes + ' B';
+                if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+                return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+            },
+            
+            // Get health status text
+            getHealthText: function(health) {
+                const healthMap = {
+                    healthy: '🟢 Healthy',
+                    moderate: '🟡 Moderate', 
+                    high: '🟠 High',
+                    critical: '🔴 Critical'
+                };
+                return healthMap[health] || 'Unknown';
+            },
+            
+            // 渲染热力图
+            renderHeatmap: function(container) {
+                container.innerHTML = '';
+                const gridSize = Math.ceil(Math.sqrt(this.memoryData.length));
+                const cellSize = Math.min(40, (container.clientWidth - 40) / gridSize);
+                
+                this.memoryData.forEach((variable, index) => {
+                    const row = Math.floor(index / gridSize);
+                    const col = index % gridSize;
+                    
+                    const cell = document.createElement('div');
+                    cell.className = `heatmap-cell ${variable.health}`;
+                    cell.style.cssText = `
+                        width: ${cellSize}px;
+                        height: ${cellSize}px;
+                        left: ${col * (cellSize + 2)}px;
+                        top: ${row * (cellSize + 2)}px;
+                    `;
+                    cell.textContent = variable.name;
+                    cell.title = `${variable.name}: ${this.formatBytes(variable.size)}`;
+                    cell.addEventListener('click', () => this.showVariableDetail(variable));
+                    container.appendChild(cell);
+                });
+            },
+            
+            // 渲染柱状图
+            renderBarChart: function(container) {
+                container.innerHTML = '<div class="bar-chart-container"></div>';
+                const chartContainer = container.querySelector('.bar-chart-container');
+                
+                // 按线程分组并计算总内存
+                const threadTotals = {};
+                this.memoryData.forEach(variable => {
+                    if (!threadTotals[variable.threadId]) {
+                        threadTotals[variable.threadId] = 0;
+                    }
+                    threadTotals[variable.threadId] += variable.size;
+                });
+                
+                const maxTotal = Math.max(...Object.values(threadTotals));
+                const maxHeight = 300;
+                
+                Object.keys(threadTotals).forEach(threadId => {
+                    const total = threadTotals[threadId];
+                    const height = (total / maxTotal) * maxHeight;
+                    const bar = document.createElement('div');
+                    bar.className = 'memory-bar';
+                    bar.style.cssText = `
+                        width: ${80}px;
+                        height: ${height}px;
+                    `;
+                    bar.textContent = `T${threadId}`;
+                    bar.title = `Thread ${threadId}: ${this.formatBytes(total)}`;
+                    chartContainer.appendChild(bar);
+                });
+            }
+        };
+        
+        // Landscape control functions
+        window.switchLandscapeView = function(viewType) {
+            // Update button states
+            document.querySelectorAll('.landscape-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(viewType + '-btn').classList.add('active');
+            
+            // Update description
+            const descriptions = {
+                cityscape: "🏙️ <strong>Memory City:</strong> Each thread is a street, variables are buildings. Building height = memory size, color = health status.",
+                heatmap: "🌡️ <strong>Heat Map:</strong> Grid showing all variables, color represents memory usage health status, uniform size for easy comparison.",
+                timeline: "📊 <strong>Bar Chart:</strong> Summary by thread showing memory usage, height represents total memory consumption per thread."
+            };
+            const descElement = document.getElementById('landscape-description');
+            if (descElement) {
+                descElement.innerHTML = `<p>${descriptions[viewType]}</p>`;
+            }
+            
+            // Switch view
+            if (window.memoryLandscape) {
+                window.memoryLandscape.currentView = viewType;
+                window.memoryLandscape.renderLandscape();
+            }
+        };
+        
+        window.animateLandscape = function() {
+            if (window.memoryLandscape) {
+                window.memoryLandscape.isAnimating = true;
+                window.memoryLandscape.renderLandscape();
+                setTimeout(() => {
+                    if (window.memoryLandscape) {
+                        window.memoryLandscape.isAnimating = false;
+                    }
+                }, 2000);
+            }
+        };
+        
+        // Initialize landscape system
+        setTimeout(() => {
+            if (window.memoryLandscape && window.memoryLandscape.init) {
+                window.memoryLandscape.init();
+            }
+        }, 1000);
+        
+        // All Three.js related code removed
+        // Now using simple CSS+JavaScript implementation, no complex 3D libraries needed
+        
+        // Cross-Process Analysis Functions
+        
+        function crossProcessAnalysis() {
+            console.log('Cross-process analysis functionality preserved');
+        }
+        
+        // End of functional code - removed all Three.js residual code
+        
+        // 3D View Control Functions (legacy - to be removed)
+        window.switch3DView = function(viewType) {
+                
+                // Group variables by thread (floors)
+                const threadGroups = {};
+                this.memoryData.forEach(variable => {
+                    if (!threadGroups[variable.threadId]) {
+                        threadGroups[variable.threadId] = [];
+                    }
+                    threadGroups[variable.threadId].push(variable);
+                });
+                
+                // Create building floors for each thread
+                Object.keys(threadGroups).forEach((threadId, floorIndex) => {
+                    const variables = threadGroups[threadId];
+                    const floorY = floorIndex * 3;
+                    
+                    // Create floor base
+                    const floorGeometry = new THREE.BoxGeometry(8, 0.2, 6);
+                    const floorMaterial = new THREE.MeshLambertMaterial({ 
+                        color: 0x444444,
+                        transparent: true,
+                        opacity: 0.7
+                    });
+                    const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+                    floor.position.set(0, floorY, 0);
+                    floor.castShadow = true;
+                    floor.receiveShadow = true;
+                    this.scene.add(floor);
+                    
+                    // Add floor label
+                    this.addFloorLabel(`Thread ${threadId}`, 0, floorY + 1, -4);
+                    
+                    // Create variable blocks on this floor
+                    variables.forEach((variable, index) => {
+                        const height = Math.log(variable.size / 100 + 1) * 2; // Logarithmic height scaling
+                        const geometry = new THREE.BoxGeometry(0.8, height, 0.8);
+                        const material = new THREE.MeshLambertMaterial({ 
+                            color: variable.health.color,
+                            transparent: true,
+                            opacity: 0.8
+                        });
+                        
+                        const cube = new THREE.Mesh(geometry, material);
+                        cube.position.set(
+                            variable.x,
+                            floorY + height / 2 + 0.1,
+                            variable.z
+                        );
+                        cube.castShadow = true;
+                        cube.userData = variable; // Store variable data for inspection
+                        
+                        this.scene.add(cube);
+                        this.memoryObjects.push(cube);
+                    });
+                });
+        }
+        
+        // Landscape control functions
+        
+        // Cross-Process Analysis Functions
         
         // Cross-Process Analysis Functions
         window.showCrossTab = function(tabName, event) {
