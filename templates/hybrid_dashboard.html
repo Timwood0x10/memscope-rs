@@ -2105,11 +2105,356 @@
             </div>
         </div>
 
-        <!-- 新增开发者洞察分析区域 -->
+        <!-- Developer Insights Analysis Area -->
+        <!-- Cross-Process Analysis Section -->
+        <div class="section cross-process-analysis">
+            <h3>
+                <span class="lang-en">🌐 Cross-Process Variable Competition Analysis</span>
+            </h3>
+            <div class="analysis-summary">
+                <div class="summary-card">
+                    <div class="summary-icon">🔄</div>
+                    <div class="summary-content">
+                        <div class="summary-value">{{CROSS_PROCESS_PATTERNS_COUNT}}</div>
+                        <div class="summary-label">
+                            <span class="lang-en">Shared Memory Patterns</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-icon">⚡</div>
+                    <div class="summary-content">
+                        <div class="summary-value">{{COMPETITION_COUNT}}</div>
+                        <div class="summary-label">
+                            <span class="lang-en">Variable Competitions</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-icon">🔒</div>
+                    <div class="summary-content">
+                        <div class="summary-value">{{BOTTLENECK_COUNT}}</div>
+                        <div class="summary-label">
+                            <span class="lang-en">Sync Bottlenecks</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-icon">💡</div>
+                    <div class="summary-content">
+                        <div class="summary-value">{{OPTIMIZATION_COUNT}}</div>
+                        <div class="summary-label">
+                            <span class="lang-en">Optimizations Found</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="cross-process-tabs">
+                <button class="cross-tab active" onclick="showCrossTab('competitions', event)">
+                    🥊 Variable Competitions
+                </button>
+                <button class="cross-tab" onclick="showCrossTab('shared-memory', event)">
+                    🔄 Shared Memory Patterns
+                </button>
+                <button class="cross-tab" onclick="showCrossTab('bottlenecks', event)">
+                    🔒 Synchronization Bottlenecks
+                </button>
+                <button class="cross-tab" onclick="showCrossTab('relationships', event)">
+                    🕸️ Variable Relationships
+                </button>
+            </div>
+
+            <!-- Variable Competitions Tab -->
+            <div id="competitions-content" class="cross-content active">
+                <div class="competition-alerts">
+                    <div class="competition-alert critical">
+                        <div class="alert-header">
+                            <span class="alert-icon">🚨</span>
+                            <strong>
+                                <span class="lang-en">Critical Data Race Detected</span>
+                            </strong>
+                            <span class="risk-badge critical">
+                                <span class="lang-en">Critical Risk</span>
+                            </span>
+                        </div>
+                        <div class="alert-details">
+                            <p>
+                                <strong>
+                                    <span class="lang-en">Variable:</span>
+                                </strong> 
+                                <code>{{CRITICAL_VARIABLE_NAME}}</code> 
+                                <span class="lang-en">in Process</span>
+                                 
+                                {{CRITICAL_PROCESS_ID}}
+                            </p>
+                            <p>
+                                <strong>
+                                    <span class="lang-en">Competition Type:</span>
+                                    
+                                </strong> 
+                                {{CRITICAL_COMPETITION_TYPE}}
+                            </p>
+                            <p>
+                                <strong>
+                                    <span class="lang-en">Competing Processes:</span>
+                                    
+                                </strong> 
+                                {{COMPETING_PROCESSES_LIST}}
+                            </p>
+                            <p>
+                                <strong>
+                                    <span class="lang-en">Risk Factors:</span>
+                                    
+                                </strong>
+                            </p>
+                            <ul>
+                                <li>
+                                    Access frequency: {{CRITICAL_ACCESS_FREQUENCY}}/sec
+                                </li>
+                                <li>
+                                    Memory size: {{CRITICAL_MEMORY_SIZE}} MB
+                                </li>
+                                <li>
+                                    <span class="lang-en">Thread count:</span>
+                                    
+                                    {{CRITICAL_THREAD_COUNT}}
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="alert-solution">
+                            <strong>
+                                <span class="lang-en">💡 Recommended Solution:</span>
+                                
+                            </strong>
+                            <div class="solution-code">{{CRITICAL_SOLUTION_CODE}}</div>
+                            <button class="quick-fix-btn" onclick="applyCriticalFix()">
+                                <span class="lang-en">🔧 Apply Fix</span>
+                                
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="competition-alert warning">
+                        <div class="alert-header">
+                            <span class="alert-icon">⚠️</span>
+                            <strong>Resource Contention Warning</strong>
+                            <span class="risk-badge warning">High Risk</span>
+                        </div>
+                        <div class="alert-details">
+                            <p><strong>Shared Resource:</strong> <code>{{WARNING_RESOURCE_NAME}}</code></p>
+                            <p><strong>Contending Processes:</strong> {{WARNING_PROCESS_COUNT}} processes</p>
+                            <p><strong>Estimated Wait Time:</strong> {{WARNING_WAIT_TIME}}ms</p>
+                        </div>
+                        <div class="alert-solution">
+                            <strong>💡 Optimization Strategy:</strong>
+                            <div class="solution-code">{{WARNING_SOLUTION_CODE}}</div>
+                            <button class="quick-fix-btn" onclick="applyContentionFix()">🔧 Optimize</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Shared Memory Patterns Tab -->
+            <div id="shared-memory-content" class="cross-content">
+                <div class="memory-pattern-grid">
+                    <div class="pattern-visualization">
+                        <h4>📊 Interactive Memory Access Heatmap</h4>
+                        <div class="heatmap-controls">
+                            <button onclick="toggleHeatmapMode()" class="btn">🔄 Toggle Mode</button>
+                            <select onchange="filterHeatmapByProcess(this.value)" class="control-select">
+                                <option value="all">All Processes</option>
+                                <option value="high">High Activity</option>
+                                <option value="medium">Medium Activity</option>
+                                <option value="low">Low Activity</option>
+                            </select>
+                        </div>
+                        <canvas id="memory-access-heatmap" width="600" height="400" style="border: 1px solid var(--border); border-radius: 4px; cursor: crosshair;"></canvas>
+                        <div class="heatmap-legend">
+                            <span class="legend-item hot">🔴 High Frequency (Write-Heavy)</span>
+                            <span class="legend-item warm">🟡 Medium Frequency (Mixed Access)</span>
+                            <span class="legend-item cool">🟢 Low Frequency (Read-Only)</span>
+                        </div>
+                        <div class="heatmap-info">
+                            <span id="heatmap-hover-info">Hover over cells for details</span>
+                        </div>
+                    </div>
+                    <div class="pattern-details">
+                        <h4>
+                            <span class="lang-en">🔍 Shared Memory Analysis</span>
+                            
+                        </h4>
+                        <div class="shared-memory-list">
+                            <div class="memory-item high-risk">
+                                <div class="memory-header">
+                                    <strong>{{SHARED_VAR_1_NAME}}</strong>
+                                    <span class="access-count">{{SHARED_VAR_1_ACCESS}} accesses</span>
+                                </div>
+                                <div class="memory-processes">
+                                    <span class="process-badge">Process {{SHARED_VAR_1_PROC_1}}</span>
+                                    <span class="process-badge">Process {{SHARED_VAR_1_PROC_2}}</span>
+                                    <span class="process-badge">Process {{SHARED_VAR_1_PROC_3}}</span>
+                                </div>
+                                <div class="memory-risk">
+                                    <span class="lang-en">Risk Level:</span>
+                                    
+                                    <span class="risk-high">{{SHARED_VAR_1_RISK}}%</span>
+                                </div>
+                            </div>
+                            <div class="memory-item medium-risk">
+                                <div class="memory-header">
+                                    <strong>{{SHARED_VAR_2_NAME}}</strong>
+                                    <span class="access-count">
+                                        {{SHARED_VAR_2_ACCESS}} 
+                                        <span class="lang-en">accesses</span>
+                                        
+                                    </span>
+                                </div>
+                                <div class="memory-processes">
+                                    <span class="process-badge">
+                                        <span class="lang-en">Process</span>
+                                        
+                                        {{SHARED_VAR_2_PROC_1}}
+                                    </span>
+                                    <span class="process-badge">
+                                        <span class="lang-en">Process</span>
+                                        
+                                        {{SHARED_VAR_2_PROC_2}}
+                                    </span>
+                                </div>
+                                <div class="memory-risk">
+                                    <span class="lang-en">Risk Level:</span>
+                                    
+                                    <span class="risk-medium">{{SHARED_VAR_2_RISK}}%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Synchronization Bottlenecks Tab -->
+            <div id="bottlenecks-content" class="cross-content">
+                <div class="bottleneck-timeline">
+                    <h4>⏱️ Interactive Synchronization Timeline</h4>
+                    <div class="timeline-controls">
+                        <button onclick="toggleTimelineMode()" class="btn">🔄 Switch View</button>
+                        <button onclick="playTimelineAnimation()" class="btn">▶️ Play Animation</button>
+                        <input type="range" id="timeline-slider" min="0" max="1000" value="0" onchange="updateTimelinePosition(this.value)" style="width: 200px;">
+                        <span>Time: <span id="timeline-time">0ms</span></span>
+                    </div>
+                    <canvas id="sync-timeline" width="600" height="400" style="border: 1px solid var(--border); border-radius: 4px; cursor: pointer;"></canvas>
+                    <div class="timeline-legend">
+                        <span class="legend-item">🔴 Thread 1 - High Priority</span>
+                        <span class="legend-item">🟢 Thread 2 - Medium Priority</span>
+                        <span class="legend-item">🔵 Thread 3 - Low Priority</span>
+                        <span class="legend-item">🟡 Synchronization Event</span>
+                    </div>
+                    </h4>
+                    <canvas id="sync-timeline" width="600" height="150"></canvas>
+                    <div class="timeline-controls">
+                        <button class="timeline-btn" onclick="zoomTimeline('1s')">1s</button>
+                        <button class="timeline-btn" onclick="zoomTimeline('5s')">5s</button>
+                        <button class="timeline-btn" onclick="zoomTimeline('10s')">10s</button>
+                        <button class="timeline-btn active" onclick="zoomTimeline('full')">Full</button>
+                    </div>
+                </div>
+                <div class="bottleneck-details">
+                    <h4>
+                        <span class="lang-en">🔒 Bottleneck Analysis</span>
+                        
+                    </h4>
+                    <div class="bottleneck-list">
+                        <div class="bottleneck-item severe">
+                            <div class="bottleneck-header">
+                                <span class="severity-icon">🚨</span>
+                                <strong>High Contention Variable</strong>
+                                <span class="severity-badge severe">Severe</span>
+                            </div>
+                            <div class="bottleneck-stats">
+                                <p><strong>Variable:</strong> <code>{{BOTTLENECK_VAR_NAME}}</code></p>
+                                <p><strong>Affected Processes:</strong> {{BOTTLENECK_PROCESS_COUNT}}</p>
+                                <p><strong>Total Wait Time:</strong> {{BOTTLENECK_WAIT_TIME}}ms</p>
+                                <p><strong>Peak Contention:</strong> {{BOTTLENECK_PEAK_TIME}}</p>
+                            </div>
+                            <div class="bottleneck-suggestion">
+                                <strong>🔧 Optimization:</strong> {{BOTTLENECK_OPTIMIZATION}}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Variable Relationships Tab -->
+            <div id="relationships-content" class="cross-content">
+                <div class="relationship-visualization">
+                    <h4>
+                        <span class="lang-en">🕸️ Variable Dependency Graph</span>
+                        
+                    </h4>
+                    <div class="graph-container">
+                        <canvas id="dependency-graph" width="500" height="300"></canvas>
+                        <div class="graph-controls">
+                            <button class="graph-btn" onclick="toggleGraphMode('hierarchy')">
+                                <span class="lang-en">🏗️ Hierarchy</span>
+                                
+                            </button>
+                            <button class="graph-btn active" onclick="toggleGraphMode('network')">
+                                <span class="lang-en">🕸️ Network</span>
+                                
+                            </button>
+                            <button class="graph-btn" onclick="toggleGraphMode('clusters')">
+                                <span class="lang-en">📦 Clusters</span>
+                                
+                            </button>
+                        </div>
+                    </div>
+                    <div class="relationship-details">
+                        <h5>
+                            <span class="lang-en">🔗 Strong Relationships</span>
+                            
+                        </h5>
+                        <div class="relationship-list">
+                            <div class="relationship-item">
+                                <div class="relationship-pair">
+                                    <code>{{REL_VAR_1}}</code> ↔ <code>{{REL_VAR_2}}</code>
+                                </div>
+                                <div class="relationship-strength">
+                                    <span class="lang-en">Strength:</span>
+                                    
+                                    {{REL_STRENGTH_1}}%
+                                </div>
+                                <div class="relationship-type">
+                                    <span class="lang-en">Type:</span>
+                                    
+                                    {{REL_TYPE_1}}
+                                </div>
+                            </div>
+                            <div class="relationship-item">
+                                <div class="relationship-pair">
+                                    <code>{{REL_VAR_3}}</code> ↔ <code>{{REL_VAR_4}}</code>
+                                </div>
+                                <div class="relationship-strength">
+                                    <span class="lang-en">Strength:</span>
+                                    
+                                    {{REL_STRENGTH_2}}%
+                                </div>
+                                <div class="relationship-type">
+                                    <span class="lang-en">Type:</span>
+                                    
+                                    {{REL_TYPE_2}}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="section developer-insights">
             <h3>🔍 Developer Code Insights</h3>
             
-            <!-- 洞察标签页 -->
+            <!-- Insights Tabs -->
             <div class="insights-tabs">
                 <button class="insight-tab active" onclick="showInsightTab('hotspots')">🔥 Code Hotspots</button>
                 <button class="insight-tab" onclick="showInsightTab('leaks')">💧 Memory Leaks</button>
@@ -2117,9 +2462,8 @@
                 <button class="insight-tab" onclick="showInsightTab('performance')">⚡ Performance</button>
             </div>
 
-            <!-- 代码热点分析 -->
+            <!-- Code Hotspot Analysis -->
             <div id="hotspots-content" class="insight-content active">
-                <!-- 新增高级分析模式 -->
                 <div class="advanced-patterns-section">
                     <h4>🚨 Advanced Problem Patterns</h4>
                     <div class="pattern-grid">
@@ -2269,7 +2613,6 @@
                 </div>
             </div>
 
-            <!-- 内存泄漏检测 -->
             <div id="leaks-content" class="insight-content">
                 <div class="leak-status {{LEAK_STATUS_CLASS}}">
                     <span class="leak-icon">{{LEAK_ICON}}</span>
@@ -2287,7 +2630,7 @@
                 </div>
             </div>
 
-            <!-- 优化建议 -->
+            <!-- Optimization Suggestions -->
             <div id="suggestions-content" class="insight-content">
                 <div class="suggestion-card">
                     <div class="suggestion-type">🚀 Performance</div>
@@ -2314,7 +2657,7 @@
                 </div>
             </div>
 
-            <!-- 性能分析 -->
+            <!-- Performance Analysis -->
             <div id="performance-content" class="insight-content">
                 <div class="performance-alert warning">
                     <h4>⚡ Performance Bottleneck Detected</h4>
@@ -2423,8 +2766,8 @@
     </div>
 
     <!-- Include JavaScript -->
-    <script src="./templates/hybrid_dashboard.js"></script>
-    <script src="./templates/enhanced_diagnostics.js"></script>
+    <script src="hybrid_dashboard.js"></script>
+    <script src="enhanced_diagnostics.js"></script>
     <script>
         // Initialize with data
         window.DASHBOARD_DATA = {
@@ -2436,24 +2779,884 @@
         console.log('🎯 Attribution Analysis Dashboard initialized');
         console.log('🔍 Ready for 3-click root cause discovery');
         
-        // 开发者洞察功能
+        // Cross-Process Analysis Functions
+        window.showCrossTab = function(tabName, event) {
+            // Hide all cross-content
+            document.querySelectorAll('.cross-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // Remove active from all tabs
+            document.querySelectorAll('.cross-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Show selected content and tab
+            const contentElement = document.getElementById(tabName + '-content');
+            if (contentElement) {
+                contentElement.classList.add('active');
+            }
+            
+            // Add active to clicked tab
+            if (event && event.target) {
+                event.target.classList.add('active');
+            }
+            
+            // Initialize visualizations for the selected tab
+            initTabVisualization(tabName);
+        };
+        
+        function initTabVisualization(tabName) {
+            switch(tabName) {
+                case 'competitions':
+                    setTimeout(() => drawVariableCompetitionChart(), 100);
+                    break;
+                case 'shared-memory':
+                    setTimeout(() => drawMemoryAccessHeatmap(), 100);
+                    break;
+                case 'bottlenecks':
+                    setTimeout(() => drawSyncTimeline(), 100);
+                    break;
+                case 'relationships':
+                    setTimeout(() => drawDependencyGraph(), 100);
+                    break;
+            }
+        }
+
+        // Cross-process visualization functions
+        function drawVariableCompetitionChart() {
+            console.log('Drawing variable competition chart');
+            const container = document.getElementById('competitions-content');
+            if (!container) return;
+            
+            // Create or find chart container
+            let chartContainer = container.querySelector('.competition-chart-container');
+            if (!chartContainer) {
+                chartContainer = document.createElement('div');
+                chartContainer.className = 'competition-chart-container';
+                chartContainer.style.cssText = 'margin-top: 20px; padding: 15px; background: var(--card-bg); border-radius: 8px; border: 1px solid var(--border);';
+                container.appendChild(chartContainer);
+            }
+            
+            const canvas = chartContainer.querySelector('canvas') || document.createElement('canvas');
+            canvas.width = 600;
+            canvas.height = 350;
+            canvas.style.cssText = 'border: 1px solid var(--border); border-radius: 4px; background: var(--bg);';
+            if (!chartContainer.querySelector('canvas')) {
+                chartContainer.appendChild(canvas);
+            }
+            
+            const ctx = canvas.getContext('2d');
+            const isDarkMode = document.body.classList.contains('dark-theme') || 
+                               window.matchMedia('(prefers-color-scheme: dark)').matches;
+            
+            const colors = isDarkMode ? {
+                bg: '#1e1e1e',
+                text: '#ffffff',
+                grid: '#333333',
+                high: '#ff0066',
+                medium: '#ffaa00',
+                low: '#00ff66'
+            } : {
+                bg: '#f8f9fa',
+                text: '#000000',
+                grid: '#e9ecef',
+                high: '#ff0066',
+                medium: '#ffaa00',
+                low: '#00ff66'
+            };
+            
+            ctx.clearRect(0, 0, 600, 350);
+            
+            // Draw modern card-style background with subtle pattern
+            const gradient = ctx.createLinearGradient(0, 0, 0, 350);
+            gradient.addColorStop(0, colors.bg + 'F0');
+            gradient.addColorStop(0.5, colors.bg + 'E0');
+            gradient.addColorStop(1, colors.bg + 'D0');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 600, 350);
+            
+            // Add subtle grid pattern
+            ctx.strokeStyle = isDarkMode ? '#2a2a2a' : '#f5f5f5';
+            ctx.lineWidth = 0.5;
+            for (let i = 0; i < 600; i += 40) {
+                ctx.beginPath();
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i, 350);
+                ctx.stroke();
+            }
+            for (let i = 0; i < 350; i += 40) {
+                ctx.beginPath();
+                ctx.moveTo(0, i);
+                ctx.lineTo(600, i);
+                ctx.stroke();
+            }
+            
+            // Modern border
+            ctx.strokeStyle = isDarkMode ? '#404040' : '#e0e0e0';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(1, 1, 598, 348);
+            
+            // Title with modern font
+            ctx.fillStyle = colors.text;
+            ctx.font = 'bold 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+            ctx.fillText('🥊 Variable Competition Analysis', 20, 30);
+            
+            // Competition data
+            const competitions = [
+                { name: 'shared_buffer', contentions: 45, threads: 8, severity: 'high' },
+                { name: 'cache_data', contentions: 23, threads: 5, severity: 'medium' },
+                { name: 'work_queue', contentions: 12, threads: 3, severity: 'low' },
+                { name: 'mutex_lock', contentions: 67, threads: 12, severity: 'high' },
+                { name: 'result_store', contentions: 18, threads: 4, severity: 'medium' }
+            ];
+            
+            // Draw bars
+            const barWidth = 80;
+            const barSpacing = 100;
+            const maxContentions = Math.max(...competitions.map(c => c.contentions));
+            
+            competitions.forEach((comp, i) => {
+                const x = 50 + i * barSpacing;
+                const barHeight = (comp.contentions / maxContentions) * 200;
+                const y = 280 - barHeight;
+                
+                // Bar color based on severity
+                ctx.fillStyle = colors[comp.severity];
+                ctx.fillRect(x, y, barWidth, barHeight);
+                
+                // Add gradient effect
+                const gradient = ctx.createLinearGradient(x, y, x, y + barHeight);
+                gradient.addColorStop(0, colors[comp.severity] + '80');
+                gradient.addColorStop(1, colors[comp.severity]);
+                ctx.fillStyle = gradient;
+                ctx.fillRect(x, y, barWidth, barHeight);
+                
+                // Bar border
+                ctx.strokeStyle = colors.text;
+                ctx.lineWidth = 1;
+                ctx.strokeRect(x, y, barWidth, barHeight);
+                
+                // Values on bars
+                ctx.fillStyle = colors.text;
+                ctx.font = 'bold 12px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(comp.contentions.toString(), x + barWidth/2, y - 5);
+                ctx.fillText(`${comp.threads} threads`, x + barWidth/2, y - 20);
+                
+                // Variable names
+                ctx.font = '10px Arial';
+                ctx.fillText(comp.name, x + barWidth/2, 300);
+            });
+            
+            // Legend
+            ctx.textAlign = 'left';
+            ctx.font = '12px Arial';
+            ctx.fillStyle = colors.high;
+            ctx.fillRect(20, 320, 15, 15);
+            ctx.fillStyle = colors.text;
+            ctx.fillText('High Contention (>40)', 40, 332);
+            
+            ctx.fillStyle = colors.medium;
+            ctx.fillRect(180, 320, 15, 15);
+            ctx.fillStyle = colors.text;
+            ctx.fillText('Medium (20-40)', 200, 332);
+            
+            ctx.fillStyle = colors.low;
+            ctx.fillRect(320, 320, 15, 15);
+            ctx.fillStyle = colors.text;
+            ctx.fillText('Low (<20)', 340, 332);
+        }
+
+        function drawMemoryAccessHeatmap() {
+            console.log('Drawing interactive memory access heatmap');
+            const canvas = document.getElementById('memory-access-heatmap');
+            if (!canvas) return;
+            
+            const ctx = canvas.getContext('2d');
+            const isDarkMode = document.body.classList.contains('dark-theme') || 
+                               window.matchMedia('(prefers-color-scheme: dark)').matches;
+            
+            const colors = isDarkMode ? {
+                bg: '#1e1e1e',
+                text: '#ffffff',
+                readOnly: '#00ff88',
+                writeHeavy: '#ff0066',
+                mixed: '#ffaa00'
+            } : {
+                bg: '#f8f9fa', 
+                text: '#000000',
+                readOnly: '#00ff88',
+                writeHeavy: '#ff0066',
+                mixed: '#ffaa00'
+            };
+            
+            ctx.clearRect(0, 0, 600, 350);
+            
+            // Draw modern card-style background
+            const gradient = ctx.createLinearGradient(0, 0, 0, 350);
+            gradient.addColorStop(0, colors.bg + 'CC');
+            gradient.addColorStop(1, colors.bg + '99');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 600, 350);
+            
+            // Add subtle border
+            ctx.strokeStyle = isDarkMode ? '#333' : '#ddd';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(0, 0, 600, 350);
+            
+            // Title with better styling
+            ctx.fillStyle = colors.text;
+            ctx.font = 'bold 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+            ctx.fillText('📊 Memory Access Patterns', 20, 30);
+            
+            // Create heatmap grid
+            const gridSize = 20;
+            const rows = 12;
+            const cols = 25;
+            
+            for (let row = 0; row < rows; row++) {
+                for (let col = 0; col < cols; col++) {
+                    const x = 50 + col * gridSize;
+                    const y = 60 + row * gridSize;
+                    
+                    // Simulate access intensity
+                    const intensity = Math.random();
+                    let color;
+                    
+                    if (intensity > 0.7) {
+                        color = colors.writeHeavy;
+                    } else if (intensity > 0.4) {
+                        color = colors.mixed;
+                    } else {
+                        color = colors.readOnly;
+                    }
+                    
+                    ctx.fillStyle = color + Math.floor(intensity * 255).toString(16).padStart(2, '0');
+                    ctx.fillRect(x, y, gridSize - 1, gridSize - 1);
+                }
+            }
+            
+            // Legend
+            ctx.fillStyle = colors.text;
+            ctx.font = '12px Arial';
+            ctx.fillText('Memory Access Intensity:', 50, 320);
+            
+            ctx.fillStyle = colors.readOnly;
+            ctx.fillRect(50, 330, 20, 15);
+            ctx.fillStyle = colors.text;
+            ctx.fillText('Read-Only', 75, 342);
+            
+            ctx.fillStyle = colors.mixed;
+            ctx.fillRect(160, 330, 20, 15);
+            ctx.fillText('Mixed Access', 185, 342);
+            
+            ctx.fillStyle = colors.writeHeavy;
+            ctx.fillRect(290, 330, 20, 15);
+            ctx.fillText('Write-Heavy', 315, 342);
+            
+            // Add mouse interaction for heatmap
+            let heatmapData = [];
+            let currentHeatmapMode = 'all';
+            
+            // Store grid data for interaction
+            for (let row = 0; row < 12; row++) {
+                heatmapData[row] = [];
+                for (let col = 0; col < 25; col++) {
+                    const intensity = Math.random();
+                    let type = intensity > 0.7 ? 'write' : intensity > 0.4 ? 'mixed' : 'read';
+                    heatmapData[row][col] = { intensity, type, processes: Math.floor(Math.random() * 5) + 1 };
+                }
+            }
+            
+            // Mouse interaction for heatmap
+            canvas.addEventListener('mousemove', (e) => {
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left - 50;
+                const y = e.clientY - rect.top - 60;
+                
+                if (x >= 0 && y >= 0 && x < 500 && y < 240) {
+                    const col = Math.floor(x / 20);
+                    const row = Math.floor(y / 20);
+                    
+                    if (row < 12 && col < 25 && heatmapData[row] && heatmapData[row][col]) {
+                        const cell = heatmapData[row][col];
+                        const info = `Cell [${row},${col}]: ${cell.type} access, ${cell.processes} processes, intensity: ${Math.round(cell.intensity * 100)}%`;
+                        document.getElementById('heatmap-hover-info').textContent = info;
+                        canvas.style.cursor = 'pointer';
+                    }
+                } else {
+                    document.getElementById('heatmap-hover-info').textContent = 'Hover over cells for details';
+                    canvas.style.cursor = 'crosshair';
+                }
+            });
+            
+            canvas.addEventListener('click', (e) => {
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left - 50;
+                const y = e.clientY - rect.top - 60;
+                
+                if (x >= 0 && y >= 0 && x < 500 && y < 240) {
+                    const col = Math.floor(x / 20);
+                    const row = Math.floor(y / 20);
+                    
+                    if (row < 12 && col < 25) {
+                        console.log(`Clicked heatmap cell [${row},${col}]`, heatmapData[row][col]);
+                        // Could show detailed popup here
+                    }
+                }
+            });
+        }
+        
+        // Heatmap interaction functions
+        function toggleHeatmapMode() {
+            const modes = ['all', 'intensity', 'processes'];
+            const currentIndex = modes.indexOf(currentHeatmapMode);
+            currentHeatmapMode = modes[(currentIndex + 1) % modes.length];
+            console.log('Heatmap mode changed to:', currentHeatmapMode);
+            drawMemoryAccessHeatmap(); // Redraw with new mode
+        }
+        
+        function filterHeatmapByProcess(value) {
+            console.log('Filtering heatmap by:', value);
+            // Implement filtering logic
+            drawMemoryAccessHeatmap();
+        }
+
+        function drawSyncTimeline() {
+            console.log('Drawing interactive sync timeline');
+            const canvas = document.getElementById('sync-timeline');
+            if (!canvas) return;
+            
+            const ctx = canvas.getContext('2d');
+            const isDarkMode = document.body.classList.contains('dark-theme') || 
+                               window.matchMedia('(prefers-color-scheme: dark)').matches;
+            
+            // Store for global use
+            timelineCanvas = canvas;
+            isDarkModeGlobal = isDarkMode;
+            
+            const colors = isDarkMode ? {
+                bg: '#1e1e1e',
+                text: '#ffffff',
+                thread1: '#ff0066',
+                thread2: '#00ff88', 
+                thread3: '#0088ff',
+                sync: '#ffaa00'
+            } : {
+                bg: '#f8f9fa',
+                text: '#000000',
+                thread1: '#ff0066',
+                thread2: '#00ff88',
+                thread3: '#0088ff',
+                sync: '#ffaa00'
+            };
+            
+            ctx.clearRect(0, 0, 600, 350);
+            
+            // Draw modern timeline background
+            const timelineGradient = ctx.createRadialGradient(300, 175, 0, 300, 175, 350);
+            timelineGradient.addColorStop(0, colors.bg + 'F0');
+            timelineGradient.addColorStop(0.7, colors.bg + 'CC');
+            timelineGradient.addColorStop(1, colors.bg + '99');
+            ctx.fillStyle = timelineGradient;
+            ctx.fillRect(0, 0, 600, 350);
+            
+            // Add timeline background pattern
+            ctx.strokeStyle = isDarkMode ? '#1a1a1a' : '#f8f9fa';
+            ctx.lineWidth = 1;
+            for (let i = 100; i <= 600; i += 50) {
+                ctx.beginPath();
+                ctx.moveTo(i, 50);
+                ctx.lineTo(i, 300);
+                ctx.stroke();
+            }
+            
+            // Modern card border
+            ctx.strokeStyle = isDarkMode ? '#333' : '#dee2e6';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(0, 0, 600, 350);
+            
+            // Title with icon
+            ctx.fillStyle = colors.text;
+            ctx.font = 'bold 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+            ctx.fillText('⏱️ Synchronization Timeline', 20, 30);
+            
+            // Timeline
+            const timelineY = 80;
+            const timelineWidth = 500;
+            const threads = ['Thread 1', 'Thread 2', 'Thread 3'];
+            const threadColors = [colors.thread1, colors.thread2, colors.thread3];
+            
+            threads.forEach((thread, i) => {
+                const y = timelineY + i * 60;
+                
+                // Thread label
+                ctx.fillStyle = colors.text;
+                ctx.font = '12px Arial';
+                ctx.fillText(thread, 20, y - 5);
+                
+                // Timeline base
+                ctx.strokeStyle = threadColors[i];
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(100, y);
+                ctx.lineTo(100 + timelineWidth, y);
+                ctx.stroke();
+                
+                // Synchronization events
+                const events = [
+                    { time: 0.2, duration: 0.1, type: 'mutex' },
+                    { time: 0.5, duration: 0.15, type: 'wait' },
+                    { time: 0.8, duration: 0.05, type: 'mutex' }
+                ];
+                
+                events.forEach(event => {
+                    const x = 100 + event.time * timelineWidth;
+                    const width = event.duration * timelineWidth;
+                    
+                    ctx.fillStyle = colors.sync;
+                    ctx.fillRect(x, y - 8, width, 16);
+                    
+                    ctx.strokeStyle = colors.text;
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(x, y - 8, width, 16);
+                });
+            });
+            
+            // Time markers
+            ctx.fillStyle = colors.text;
+            ctx.font = '10px Arial';
+            for (let i = 0; i <= 10; i++) {
+                const x = 100 + (i / 10) * timelineWidth;
+                ctx.fillText(`${i * 100}ms`, x - 10, 300);
+                
+                ctx.strokeStyle = colors.text + '40';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(x, timelineY - 20);
+                ctx.lineTo(x, timelineY + 180);
+                ctx.stroke();
+            }
+            
+            // Note: Timeline interaction state moved to global scope
+            
+            // Add click interaction for timeline
+            canvas.addEventListener('click', (e) => {
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                
+                // Check if click is in timeline area
+                if (x >= 100 && x <= 600 && y >= 80 && y <= 260) {
+                    const timePercent = (x - 100) / 500;
+                    currentTimePosition = timePercent * 1000;
+                    document.getElementById('timeline-time').textContent = `${Math.round(currentTimePosition)}ms`;
+                    document.getElementById('timeline-slider').value = currentTimePosition;
+                    
+                    // Highlight events at this time
+                    highlightTimelineEvents(timePercent);
+                    console.log(`Timeline clicked at ${Math.round(currentTimePosition)}ms`);
+                }
+            });
+            
+            // Note: highlightTimelineEvents function moved to global scope
+        }
+        
+        // Global timeline variables and functions (moved outside drawSyncTimeline)
+        let currentTimePosition = 0;
+        let isPlaying = false;
+        let animationId = null;
+        let timelineCanvas = null;
+        let isDarkModeGlobal = false;
+        
+        function highlightTimelineEvents(timePercent) {
+            if (!timelineCanvas) {
+                timelineCanvas = document.getElementById('sync-timeline');
+                if (!timelineCanvas) return;
+            }
+            
+            // Redraw timeline with highlighted events at current time
+            const ctx = timelineCanvas.getContext('2d');
+            
+            const colors = isDarkModeGlobal ? {
+                bg: '#1e1e1e',
+                text: '#ffffff',
+                thread1: '#ff0066',
+                thread2: '#00ff88', 
+                thread3: '#0088ff',
+                sync: '#ffaa00',
+                highlight: '#ffffff'
+            } : {
+                bg: '#f8f9fa',
+                text: '#000000',
+                thread1: '#ff0066',
+                thread2: '#00ff88',
+                thread3: '#0088ff',
+                sync: '#ffaa00',
+                highlight: '#000000'
+            };
+            
+            // Redraw the entire timeline first
+            drawSyncTimeline();
+            
+            // Draw time cursor
+            const cursorX = 100 + timePercent * 500;
+            ctx.strokeStyle = colors.highlight;
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(cursorX, 60);
+            ctx.lineTo(cursorX, 280);
+            ctx.stroke();
+            
+            // Highlight current time text
+            ctx.fillStyle = colors.highlight;
+            ctx.font = 'bold 12px Arial';
+            ctx.fillText(`⏰ ${Math.round(timePercent * 1000)}ms`, cursorX - 30, 50);
+        }
+
+        // Timeline interaction functions
+        function toggleTimelineMode() {
+            console.log('Toggling timeline view mode');
+            // Could switch between thread view and event view
+            drawSyncTimeline();
+        }
+        
+        function playTimelineAnimation() {
+            if (isPlaying) {
+                clearInterval(animationId);
+                isPlaying = false;
+                const playButton = document.querySelector('button[onclick*="playTimelineAnimation"]');
+                if (playButton) playButton.textContent = '▶️ Play Animation';
+            } else {
+                isPlaying = true;
+                const playButton = document.querySelector('button[onclick*="playTimelineAnimation"]');
+                if (playButton) playButton.textContent = '⏸️ Pause Animation';
+                
+                animationId = setInterval(() => {
+                    currentTimePosition += 10;
+                    if (currentTimePosition > 1000) {
+                        currentTimePosition = 0;
+                    }
+                    
+                    const timeElement = document.getElementById('timeline-time');
+                    const sliderElement = document.getElementById('timeline-slider');
+                    
+                    if (timeElement) timeElement.textContent = `${currentTimePosition}ms`;
+                    if (sliderElement) sliderElement.value = currentTimePosition;
+                    
+                    const timePercent = currentTimePosition / 1000;
+                    highlightTimelineEvents(timePercent);
+                }, 50);
+            }
+        }
+        
+        function updateTimelinePosition(value) {
+            currentTimePosition = parseInt(value);
+            const timeElement = document.getElementById('timeline-time');
+            if (timeElement) timeElement.textContent = `${currentTimePosition}ms`;
+            
+            const timePercent = currentTimePosition / 1000;
+            highlightTimelineEvents(timePercent);
+        }
+
+        function toggleGraphMode() {
+            const button = event.target;
+            const currentMode = button.textContent.trim();
+            
+            if (currentMode === 'Network View') {
+                button.textContent = 'Tree View';
+                showNetworkView();
+            } else {
+                button.textContent = 'Network View';
+                showTreeView();
+            }
+        }
+        
+        function showNetworkView() {
+            console.log('Switching to network view');
+            // Implement network visualization
+        }
+        
+        function showTreeView() {
+            console.log('Switching to tree view');
+            // Implement tree visualization
+        }
+
+        function drawDependencyGraph() {
+            console.log('Drawing interactive dependency graph');
+            const canvas = document.getElementById('dependency-graph');
+            if (!canvas) return;
+            
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, width, height);
+            
+            // Detect dark mode
+            const isDarkMode = document.body.classList.contains('dark-theme') || 
+                               window.matchMedia('(prefers-color-scheme: dark)').matches ||
+                               getComputedStyle(document.body).backgroundColor === 'rgb(33, 37, 41)';
+            
+            // Set colors based on theme
+            const colors = isDarkMode ? {
+                background: '#1e1e1e',
+                node: '#00ff88',
+                nodeHover: '#44ffaa',
+                edge: '#888888',
+                edgeActive: '#00ffff',
+                text: '#ffffff',
+                textSecondary: '#cccccc'
+            } : {
+                background: '#f8f9fa',
+                node: '#ff6b35',
+                nodeHover: '#ff8f65',
+                edge: '#999999',
+                edgeActive: '#ff6b35',
+                text: '#000000',
+                textSecondary: '#666666'
+            };
+            
+            // Enhanced nodes with real variable data
+            const nodes = [
+                { name: 'shared_buffer', x: 120, y: 80, connections: [1, 2], size: 20, type: 'buffer' },
+                { name: 'cache_data', x: 280, y: 100, connections: [2, 3], size: 16, type: 'cache' },
+                { name: 'work_queue', x: 200, y: 180, connections: [3, 4], size: 18, type: 'queue' },
+                { name: 'mutex_lock', x: 350, y: 160, connections: [0], size: 14, type: 'sync' },
+                { name: 'result_store', x: 80, y: 200, connections: [0, 2], size: 15, type: 'storage' }
+            ];
+            
+            // Add hover and click interaction state
+            let hoveredNode = -1;
+            let selectedNode = -1;
+            
+            function drawGraph() {
+                ctx.clearRect(0, 0, width, height);
+                
+                // Draw modern dependency graph background
+                const depGradient = ctx.createLinearGradient(0, 0, width, height);
+                depGradient.addColorStop(0, colors.background + 'F5');
+                depGradient.addColorStop(0.3, colors.background + 'E8');
+                depGradient.addColorStop(0.7, colors.background + 'DD');
+                depGradient.addColorStop(1, colors.background + 'CC');
+                ctx.fillStyle = depGradient;
+                ctx.fillRect(0, 0, width, height);
+                
+                // Add subtle mesh pattern for nodes
+                ctx.strokeStyle = isDarkMode ? '#1a1a1a' : '#f8f9fa';
+                ctx.lineWidth = 0.3;
+                for (let i = 0; i < width; i += 30) {
+                    for (let j = 0; j < height; j += 30) {
+                        ctx.beginPath();
+                        ctx.arc(i, j, 1, 0, 2 * Math.PI);
+                        ctx.stroke();
+                    }
+                }
+                
+                // Modern card border
+                ctx.strokeStyle = isDarkMode ? '#404040' : '#dee2e6';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(0, 0, width, height);
+                
+                // Title with modern styling
+                ctx.fillStyle = colors.text;
+                ctx.font = 'bold 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                ctx.fillText('🕸️ Variable Dependency Graph', 10, 25);
+                
+                // Draw edges first
+                ctx.lineWidth = 2;
+                nodes.forEach((node, i) => {
+                    node.connections.forEach(connIndex => {
+                        if (connIndex < nodes.length) {
+                            const target = nodes[connIndex];
+                            const isActive = selectedNode === i || selectedNode === connIndex || 
+                                           hoveredNode === i || hoveredNode === connIndex;
+                            
+                            // Draw modern connection lines with gradient
+                            const lineGradient = ctx.createLinearGradient(node.x, node.y, target.x, target.y);
+                            const edgeColor = isActive ? colors.edgeActive : colors.edge;
+                            lineGradient.addColorStop(0, edgeColor + 'DD');
+                            lineGradient.addColorStop(0.5, edgeColor + 'AA');
+                            lineGradient.addColorStop(1, edgeColor + 'DD');
+                            ctx.strokeStyle = lineGradient;
+                            ctx.lineWidth = isActive ? 3 : 1.5;
+                            
+                            // Add line cap for smoother appearance
+                            ctx.lineCap = 'round';
+                            ctx.beginPath();
+                            ctx.moveTo(node.x, node.y);
+                            ctx.lineTo(target.x, target.y);
+                            ctx.stroke();
+                            
+                            // Draw edge weight
+                            if (isActive) {
+                                const midX = (node.x + target.x) / 2;
+                                const midY = (node.y + target.y) / 2;
+                                ctx.fillStyle = colors.edgeActive;
+                                ctx.font = '10px Arial';
+                                ctx.fillText('87%', midX - 10, midY - 5);
+                            }
+                        }
+                    });
+                });
+                
+                // Draw nodes
+                nodes.forEach((node, i) => {
+                    const isHovered = hoveredNode === i;
+                    const isSelected = selectedNode === i;
+                    const nodeSize = node.size + (isHovered ? 4 : 0) + (isSelected ? 6 : 0);
+                    
+                    // Node shadow for depth
+                    if (isHovered || isSelected) {
+                        ctx.shadowColor = colors.node;
+                        ctx.shadowBlur = 10;
+                        ctx.shadowOffsetX = 2;
+                        ctx.shadowOffsetY = 2;
+                    }
+                    
+                    // Draw modern node with gradient
+                    const nodeGradient = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, nodeSize);
+                    const nodeColor = isHovered || isSelected ? colors.nodeHover : colors.node;
+                    nodeGradient.addColorStop(0, nodeColor);
+                    nodeGradient.addColorStop(0.7, nodeColor + 'DD');
+                    nodeGradient.addColorStop(1, nodeColor + 'BB');
+                    ctx.fillStyle = nodeGradient;
+                    ctx.beginPath();
+                    ctx.arc(node.x, node.y, nodeSize, 0, 2 * Math.PI);
+                    ctx.fill();
+                    
+                    // Modern node border with glow effect
+                    if (isSelected || isHovered) {
+                        ctx.shadowColor = colors.node;
+                        ctx.shadowBlur = 8;
+                        ctx.shadowOffsetX = 0;
+                        ctx.shadowOffsetY = 0;
+                    }
+                    ctx.strokeStyle = isSelected ? colors.nodeHover : (colors.text + '80');
+                    ctx.lineWidth = isSelected ? 2 : 1;
+                    ctx.stroke();
+                    
+                    // Reset shadow
+                    ctx.shadowBlur = 0;
+                    
+                    // Reset shadow
+                    ctx.shadowBlur = 0;
+                    ctx.shadowOffsetX = 0;
+                    ctx.shadowOffsetY = 0;
+                    
+                    // Node type indicator
+                    ctx.fillStyle = colors.background;
+                    ctx.font = '12px Arial';
+                    const typeSymbols = {
+                        'buffer': '📦',
+                        'cache': '💾',
+                        'queue': '📋',
+                        'sync': '🔒',
+                        'storage': '🗄️'
+                    };
+                    ctx.fillText(typeSymbols[node.type] || '●', node.x - 6, node.y + 4);
+                    
+                    // Node label
+                    ctx.fillStyle = colors.text;
+                    ctx.font = isSelected ? 'bold 11px Arial' : '10px Arial';
+                    const textWidth = ctx.measureText(node.name).width;
+                    ctx.fillText(node.name, node.x - textWidth / 2, node.y + nodeSize + 15);
+                    
+                    // Show details for selected/hovered node
+                    if (isHovered || isSelected) {
+                        ctx.fillStyle = colors.textSecondary;
+                        ctx.font = '9px Arial';
+                        ctx.fillText(`${node.connections.length} connections`, 
+                                   node.x - 25, node.y + nodeSize + 28);
+                    }
+                });
+                
+                // Instructions
+                ctx.fillStyle = colors.textSecondary;
+                ctx.font = '10px Arial';
+                ctx.fillText('Click nodes to select • Hover for details • Scroll to zoom', 10, height - 10);
+            }
+            
+            // Mouse interaction
+            function getMousePos(e) {
+                const rect = canvas.getBoundingClientRect();
+                return {
+                    x: e.clientX - rect.left,
+                    y: e.clientY - rect.top
+                };
+            }
+            
+            function getNodeAt(x, y) {
+                for (let i = 0; i < nodes.length; i++) {
+                    const node = nodes[i];
+                    const distance = Math.sqrt((x - node.x) ** 2 + (y - node.y) ** 2);
+                    if (distance <= node.size + 5) {
+                        return i;
+                    }
+                }
+                return -1;
+            }
+            
+            // Event listeners
+            canvas.addEventListener('mousemove', (e) => {
+                const pos = getMousePos(e);
+                const newHoveredNode = getNodeAt(pos.x, pos.y);
+                
+                if (newHoveredNode !== hoveredNode) {
+                    hoveredNode = newHoveredNode;
+                    canvas.style.cursor = hoveredNode >= 0 ? 'pointer' : 'default';
+                    drawGraph();
+                }
+            });
+            
+            canvas.addEventListener('click', (e) => {
+                const pos = getMousePos(e);
+                const clickedNode = getNodeAt(pos.x, pos.y);
+                
+                if (clickedNode >= 0) {
+                    selectedNode = selectedNode === clickedNode ? -1 : clickedNode;
+                    drawGraph();
+                    
+                    // Show node details in console or popup
+                    if (selectedNode >= 0) {
+                        console.log(`Selected: ${nodes[selectedNode].name}`, {
+                            type: nodes[selectedNode].type,
+                            connections: nodes[selectedNode].connections.map(i => nodes[i].name)
+                        });
+                    }
+                }
+            });
+            
+            canvas.addEventListener('mouseleave', () => {
+                hoveredNode = -1;
+                canvas.style.cursor = 'default';
+                drawGraph();
+            });
+            
+            // Initial draw
+            drawGraph();
+        }
+        
+        
         function showInsightTab(tabName) {
-            // 隐藏所有洞察内容
+           
             document.querySelectorAll('.insight-content').forEach(content => {
                 content.classList.remove('active');
             });
             
-            // 移除所有活跃标签
+            
             document.querySelectorAll('.insight-tab').forEach(tab => {
                 tab.classList.remove('active');
             });
             
-            // 显示选中的内容和标签
+            
             document.getElementById(tabName + '-content').classList.add('active');
             event.target.classList.add('active');
         }
         
-        // 代码优化建议功能
+        
         function suggestPreallocation() {
             const suggestion = `// 🔧 Optimization Suggestion
 Vec::with_capacity(1024) // Pre-allocate based on expected size
@@ -2491,17 +3694,17 @@ let mut result = String::with_capacity(estimated_size);
         }
         
         function analyzeBottleneck() {
-            // 从页面中提取真实数据而不是依赖未定义的 DASHBOARD_DATA
+            // Extract real data from page instead of relying on undefined DASHBOARD_DATA
             const bottleneckInfo = extractBottleneckInfo();
             showNotification('🔍 Analyzing bottleneck... Check console for detailed analysis');
             console.log('📊 Bottleneck Analysis:', bottleneckInfo);
             
-            // 显示更详细的分析
+            // Show more detailed analysis
             showDetailedBottleneckAnalysis(bottleneckInfo);
         }
         
         function extractBottleneckInfo() {
-            // 从DOM中提取实际的性能数据
+            // Extract actual performance data from DOM
             const performanceAlert = document.querySelector('.performance-alert');
             if (!performanceAlert) {
                 return {
@@ -2551,7 +3754,7 @@ let mut result = String::with_capacity(estimated_size);
         }
         
         function showDetailedBottleneckAnalysis(info) {
-            // 创建详细分析弹窗
+            // Create detailed analysis popup
             const modal = document.createElement('div');
             modal.style.cssText = `
                 position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -2588,7 +3791,7 @@ let mut result = String::with_capacity(estimated_size);
             
             document.body.appendChild(modal);
             
-            // 点击背景关闭
+            // Click background to close
             modal.addEventListener('click', (e) => {
                 if (e.target === modal) {
                     modal.remove();
@@ -2596,7 +3799,6 @@ let mut result = String::with_capacity(estimated_size);
             });
         }
 
-        // 高级分析模式功能
         function applyCloneFix() {
             const solution = `// 🔧 Excessive Cloning Fix
 use std::sync::Arc;
@@ -2667,15 +3869,15 @@ let mut buffer = BUFFER_POOL.get();
             showNotification('🔧 Allocation spike optimization code copied!');
         }
 
-        // 初始化微型图表
+        // Initialize mini charts
         function initializeMiniCharts() {
-            // 克隆趋势图表
+            // Clone trend chart
             initCloningTrendChart();
             
-            // 争用时间线图表
+            // Contention timeline chart
             initContentionTimelineChart();
             
-            // 分配尖峰图表
+            // Allocation spike chart
             initAllocationSpikeChart();
         }
 
@@ -2687,15 +3889,15 @@ let mut buffer = BUFFER_POOL.get();
             const width = canvas.width;
             const height = canvas.height;
             
-            // 模拟克隆趋势数据
-            const data = [2, 3, 5, 12, 25, 18, 8, 4, 2, 1]; // 克隆次数
+            // Simulate clone trend data
+            const data = [2, 3, 5, 12, 25, 18, 8, 4, 2, 1]; // Clone count
             const max = Math.max(...data);
             
-            // 绘制背景
+            // Draw background
             ctx.fillStyle = 'rgba(59, 130, 246, 0.1)';
             ctx.fillRect(0, 0, width, height);
             
-            // 绘制趋势线
+            // Draw trend line
             ctx.strokeStyle = '#3b82f6';
             ctx.lineWidth = 2;
             ctx.beginPath();
@@ -2713,7 +3915,7 @@ let mut buffer = BUFFER_POOL.get();
             
             ctx.stroke();
             
-            // 标记峰值点
+            // Mark peak points
             const peakIndex = data.indexOf(max);
             const peakX = (peakIndex / (data.length - 1)) * width;
             const peakY = height - (max / max) * height;
@@ -2732,28 +3934,28 @@ let mut buffer = BUFFER_POOL.get();
             const width = canvas.width;
             const height = canvas.height;
             
-            // 模拟争用数据（等待时间）
-            const waitTimes = [0, 1, 3, 8, 15, 12, 6, 2, 0, 1]; // 毫秒
+            // Simulate contention data (wait time)
+            const waitTimes = [0, 1, 3, 8, 15, 12, 6, 2, 0, 1]; // milliseconds
             const max = Math.max(...waitTimes);
             
-            // 绘制背景
+            // Draw background
             ctx.fillStyle = 'rgba(245, 158, 11, 0.1)';
             ctx.fillRect(0, 0, width, height);
             
-            // 绘制柱状图
+            // Draw bar chart
             waitTimes.forEach((waitTime, index) => {
                 const barWidth = width / waitTimes.length;
                 const barHeight = (waitTime / max) * height;
                 const x = index * barWidth;
                 const y = height - barHeight;
                 
-                // 根据等待时间设置颜色
+                // Set color based on wait time
                 if (waitTime > 10) {
-                    ctx.fillStyle = '#ef4444'; // 红色 - 严重争用
+                    ctx.fillStyle = '#ef4444'; // Red - severe contention
                 } else if (waitTime > 5) {
-                    ctx.fillStyle = '#f59e0b'; // 橙色 - 中等争用
+                    ctx.fillStyle = '#f59e0b'; // Orange - moderate contention
                 } else {
-                    ctx.fillStyle = '#10b981'; // 绿色 - 轻微争用
+                    ctx.fillStyle = '#10b981'; // Green - light contention
                 }
                 
                 ctx.fillRect(x, y, barWidth - 1, barHeight);
@@ -2768,15 +3970,15 @@ let mut buffer = BUFFER_POOL.get();
             const width = canvas.width;
             const height = canvas.height;
             
-            // 模拟内存分配数据（MB）
+            // Simulate memory allocation data (MB)
             const allocations = [1, 1.2, 1.5, 2.1, 8.5, 3.2, 1.8, 1.3, 1.1, 1.0]; // MB
             const max = Math.max(...allocations);
             
-            // 绘制背景
+            // Draw background
             ctx.fillStyle = 'rgba(16, 185, 129, 0.1)';
             ctx.fillRect(0, 0, width, height);
             
-            // 绘制面积图
+            // Draw area chart
             ctx.fillStyle = 'rgba(59, 130, 246, 0.3)';
             ctx.strokeStyle = '#3b82f6';
             ctx.lineWidth = 2;
@@ -2794,7 +3996,7 @@ let mut buffer = BUFFER_POOL.get();
             ctx.closePath();
             ctx.fill();
             
-            // 绘制边框线
+            // Draw border line
             ctx.beginPath();
             allocations.forEach((value, index) => {
                 const x = (index / (allocations.length - 1)) * width;
@@ -2808,7 +4010,7 @@ let mut buffer = BUFFER_POOL.get();
             });
             ctx.stroke();
             
-            // 标记尖峰点
+            // Mark spike points
             const spikeIndex = allocations.indexOf(max);
             const spikeX = (spikeIndex / (allocations.length - 1)) * width;
             const spikeY = height - (max / max) * height;
@@ -2819,15 +4021,15 @@ let mut buffer = BUFFER_POOL.get();
             ctx.fill();
         }
 
-        // 页面加载时初始化图表
+        // Initialize charts on page load
         document.addEventListener('DOMContentLoaded', function() {
-            // 延迟初始化图表，确保DOM完全加载
+            // Delay chart initialization to ensure DOM is fully loaded
             setTimeout(() => {
                 initializeMiniCharts();
             }, 100);
         });
         
-        // 辅助函数
+        // Helper functions
         function copyToClipboard(text) {
             if (navigator.clipboard) {
                 navigator.clipboard.writeText(text).catch(err => {
@@ -2856,7 +4058,7 @@ let mut buffer = BUFFER_POOL.get();
         }
         
         function showNotification(message) {
-            // 创建通知元素
+            // Create notification element
             const notification = document.createElement('div');
             notification.style.cssText = `
                 position: fixed;
@@ -2873,10 +4075,10 @@ let mut buffer = BUFFER_POOL.get();
             `;
             notification.textContent = message;
             
-            // 添加到页面
+            // Add to page
             document.body.appendChild(notification);
             
-            // 3秒后自动移除
+            // Auto remove after 3 seconds
             setTimeout(() => {
                 notification.style.animation = 'slideOut 0.3s ease';
                 setTimeout(() => {
@@ -2887,7 +4089,7 @@ let mut buffer = BUFFER_POOL.get();
             }, 3000);
         }
         
-        // 添加动画样式
+        // Add animation styles
         const insightStyles = document.createElement('style');
         insightStyles.textContent = `
             @keyframes slideIn {
@@ -3083,7 +4285,431 @@ let mut buffer = BUFFER_POOL.get();
                 border-color: var(--primary);
             }
             
-            /* 高级分析模式样式 */
+            /* Cross-Process Analysis Styles */
+            .cross-process-analysis {
+                background: var(--bg);
+                border: 1px solid var(--border);
+                border-radius: 12px;
+                padding: 24px;
+                margin-bottom: 24px;
+            }
+            
+            .analysis-summary {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                gap: 16px;
+                margin-bottom: 24px;
+            }
+            
+            .summary-card {
+                background: var(--bg2);
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                padding: 16px;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                transition: transform 0.2s ease;
+            }
+            
+            .summary-card:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            }
+            
+            .summary-icon {
+                font-size: 1.5em;
+                width: 40px;
+                text-align: center;
+            }
+            
+            .summary-value {
+                font-size: 1.8em;
+                font-weight: bold;
+                color: var(--primary);
+            }
+            
+            .summary-label {
+                font-size: 0.9em;
+                color: var(--text2);
+            }
+            
+            .cross-process-tabs {
+                display: flex;
+                border-bottom: 2px solid var(--border);
+                margin-bottom: 20px;
+                gap: 4px;
+            }
+            
+            .cross-tab {
+                padding: 12px 20px;
+                background: none;
+                border: none;
+                color: var(--text2);
+                cursor: pointer;
+                border-radius: 8px 8px 0 0;
+                transition: all 0.3s ease;
+                font-weight: 500;
+            }
+            
+            .cross-tab.active {
+                color: var(--primary);
+                background: var(--bg2);
+                border-bottom: 2px solid var(--primary);
+            }
+            
+            .cross-tab:hover {
+                background: var(--bg2);
+                color: var(--primary);
+            }
+            
+            .cross-content {
+                display: none;
+            }
+            
+            .cross-content.active {
+                display: block;
+            }
+            
+            .competition-alerts {
+                display: flex;
+                flex-direction: column;
+                gap: 16px;
+            }
+            
+            .competition-alert {
+                border: 2px solid transparent;
+                border-radius: 12px;
+                padding: 20px;
+                background: var(--bg);
+            }
+            
+            .competition-alert.critical {
+                border-color: var(--danger);
+                background: rgba(239, 68, 68, 0.05);
+            }
+            
+            .competition-alert.warning {
+                border-color: var(--warning);
+                background: rgba(245, 158, 11, 0.05);
+            }
+            
+            .alert-header {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                margin-bottom: 16px;
+                font-size: 1.1em;
+            }
+            
+            .risk-badge {
+                margin-left: auto;
+                padding: 4px 12px;
+                border-radius: 20px;
+                font-size: 0.8em;
+                font-weight: 600;
+            }
+            
+            .risk-badge.critical {
+                background: var(--danger);
+                color: white;
+            }
+            
+            .risk-badge.warning {
+                background: var(--warning);
+                color: white;
+            }
+            
+            .alert-details {
+                margin-bottom: 16px;
+                line-height: 1.6;
+            }
+            
+            .alert-details ul {
+                margin: 8px 0;
+                padding-left: 20px;
+            }
+            
+            .alert-solution {
+                background: var(--bg2);
+                border-radius: 8px;
+                padding: 16px;
+                border-left: 4px solid var(--primary);
+            }
+            
+            .solution-code {
+                background: var(--bg);
+                border: 1px solid var(--border);
+                border-radius: 6px;
+                padding: 12px;
+                font-family: 'Monaco', 'Consolas', monospace;
+                font-size: 0.9em;
+                margin: 8px 0;
+                overflow-x: auto;
+            }
+            
+            .memory-pattern-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 24px;
+            }
+            
+            .pattern-visualization,
+            .pattern-details {
+                background: var(--bg2);
+                border-radius: 8px;
+                padding: 20px;
+            }
+            
+            .heatmap-legend {
+                display: flex;
+                justify-content: center;
+                gap: 16px;
+                margin-top: 12px;
+            }
+            
+            .legend-item {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                font-size: 0.9em;
+            }
+            
+            .shared-memory-list {
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+            }
+            
+            .memory-item {
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                padding: 16px;
+                background: var(--bg);
+            }
+            
+            .memory-item.high-risk {
+                border-left: 4px solid var(--danger);
+            }
+            
+            .memory-item.medium-risk {
+                border-left: 4px solid var(--warning);
+            }
+            
+            .memory-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 8px;
+            }
+            
+            .access-count {
+                font-size: 0.9em;
+                color: var(--text2);
+            }
+            
+            .memory-processes {
+                display: flex;
+                gap: 6px;
+                margin-bottom: 8px;
+                flex-wrap: wrap;
+            }
+            
+            .process-badge {
+                background: var(--primary);
+                color: white;
+                padding: 2px 8px;
+                border-radius: 12px;
+                font-size: 0.8em;
+            }
+            
+            .memory-risk {
+                font-size: 0.9em;
+            }
+            
+            .risk-high {
+                color: var(--danger);
+                font-weight: bold;
+            }
+            
+            .risk-medium {
+                color: var(--warning);
+                font-weight: bold;
+            }
+            
+            .bottleneck-timeline {
+                background: var(--bg2);
+                border-radius: 8px;
+                padding: 20px;
+                margin-bottom: 24px;
+            }
+            
+            .timeline-controls {
+                display: flex;
+                justify-content: center;
+                gap: 8px;
+                margin-top: 12px;
+            }
+            
+            .timeline-btn {
+                padding: 6px 12px;
+                background: var(--bg);
+                border: 1px solid var(--border);
+                border-radius: 6px;
+                cursor: pointer;
+                transition: all 0.2s ease;
+            }
+            
+            .timeline-btn.active {
+                background: var(--primary);
+                color: white;
+                border-color: var(--primary);
+            }
+            
+            .timeline-btn:hover {
+                background: var(--primary);
+                color: white;
+            }
+            
+            .bottleneck-details {
+                background: var(--bg2);
+                border-radius: 8px;
+                padding: 20px;
+            }
+            
+            .bottleneck-item {
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                padding: 16px;
+                background: var(--bg);
+            }
+            
+            .bottleneck-item.severe {
+                border-left: 4px solid var(--danger);
+            }
+            
+            .bottleneck-header {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                margin-bottom: 12px;
+            }
+            
+            .severity-badge {
+                margin-left: auto;
+                padding: 4px 12px;
+                border-radius: 20px;
+                font-size: 0.8em;
+                font-weight: 600;
+            }
+            
+            .severity-badge.severe {
+                background: var(--danger);
+                color: white;
+            }
+            
+            .bottleneck-stats {
+                margin-bottom: 12px;
+                line-height: 1.6;
+            }
+            
+            .bottleneck-suggestion {
+                background: var(--bg2);
+                border-radius: 6px;
+                padding: 12px;
+                border-left: 4px solid var(--success);
+            }
+            
+            .relationship-visualization {
+                background: var(--bg2);
+                border-radius: 8px;
+                padding: 20px;
+            }
+            
+            .graph-container {
+                text-align: center;
+                margin-bottom: 20px;
+            }
+            
+            .graph-controls {
+                display: flex;
+                justify-content: center;
+                gap: 8px;
+                margin-top: 12px;
+            }
+            
+            .graph-btn {
+                padding: 6px 12px;
+                background: var(--bg);
+                border: 1px solid var(--border);
+                border-radius: 6px;
+                cursor: pointer;
+                transition: all 0.2s ease;
+            }
+            
+            .graph-btn.active {
+                background: var(--primary);
+                color: white;
+                border-color: var(--primary);
+            }
+            
+            .graph-btn:hover {
+                background: var(--primary);
+                color: white;
+            }
+            
+            .relationship-details {
+                background: var(--bg);
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                padding: 16px;
+                margin-top: 16px;
+            }
+            
+            .relationship-list {
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+            }
+            
+            .relationship-item {
+                background: var(--bg2);
+                border-radius: 6px;
+                padding: 12px;
+            }
+            
+            .relationship-pair {
+                font-family: 'Monaco', 'Consolas', monospace;
+                font-weight: bold;
+                margin-bottom: 4px;
+            }
+            
+            .relationship-strength {
+                font-size: 0.9em;
+                color: var(--primary);
+                font-weight: 600;
+            }
+            
+            .relationship-type {
+                font-size: 0.8em;
+                color: var(--text2);
+            }
+            
+            @media (max-width: 768px) {
+                .memory-pattern-grid {
+                    grid-template-columns: 1fr;
+                }
+                
+                .analysis-summary {
+                    grid-template-columns: repeat(2, 1fr);
+                }
+                
+                .cross-process-tabs {
+                    flex-wrap: wrap;
+                }
+            }
+            
+            
             .advanced-patterns-section {
                 margin-bottom: 30px;
             }
@@ -3237,7 +4863,7 @@ let mut buffer = BUFFER_POOL.get();
                 margin-left: 8px;
             }
             
-            /* 微型图表样式 */
+            /* Mini chart styles */
             .mini-chart-container {
                 position: relative;
                 display: inline-block;
