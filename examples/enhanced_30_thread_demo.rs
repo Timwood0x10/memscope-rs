@@ -158,7 +158,7 @@ fn generate_html_visualization(
             FixedHybridTemplate::new(thread_count, task_count)
                 .with_render_mode(RenderMode::Comprehensive)
                 .with_variable_details(true)
-                .with_enhanced_insights(true),  // 新增洞察功能
+                .with_enhanced_insights(true),
         ),
         (
             "thread_focused", 
