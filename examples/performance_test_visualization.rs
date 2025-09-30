@@ -3,13 +3,12 @@
 //! Creates interactive HTML dashboards for smart dispatch strategy performance results.
 //! Integrates with the existing HTML template system to provide visual analysis.
 
-use memscope_rs::{track_var, init};
+use memscope_rs::{init, track_var};
 use serde::{Deserialize, Serialize};
-use std::fs;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::{Duration, Instant};
+use std::sync::Arc;
 use std::thread;
+use std::time::{Duration, Instant};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct PerformanceMetrics {
@@ -54,41 +53,42 @@ struct PerformanceComparison {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🎨 Starting Performance Test Visualization");
-    
+
     // Initialize memscope
     init();
-    
+
     // Run performance tests and collect data
     let visualization_data = run_performance_tests_for_visualization()?;
-    
+
     // Generate single practical HTML report
     generate_practical_report(&visualization_data)?;
-    
+
     println!("✅ Practical performance report generated!");
     println!("📄 Generated file: performance_analysis.html");
-    
+
     Ok(())
 }
 
-fn run_performance_tests_for_visualization() -> Result<VisualizationData, Box<dyn std::error::Error>> {
+fn run_performance_tests_for_visualization() -> Result<VisualizationData, Box<dyn std::error::Error>>
+{
     println!("🔬 Running performance tests for visualization...");
-    
+
     let test_start = Instant::now();
     let scenarios = vec![
         ("Standard Concurrency", 15, 800),
         ("High Concurrency", 30, 1000),
         ("Heavy Load", 50, 1200),
     ];
-    
+
     let mut test_scenarios = Vec::new();
-    
+
     for (name, thread_count, ops_per_worker) in scenarios {
         println!("  📊 Testing: {} ({} threads)", name, thread_count);
-        
+
         let metrics = run_single_performance_test(thread_count, ops_per_worker)?;
-        
+
         println!("    ✅ {:.0} ops/sec", metrics.operations_per_second);
-        
+
         test_scenarios.push(TestScenario {
             name: name.to_string(),
             thread_count,
@@ -96,23 +96,24 @@ fn run_performance_tests_for_visualization() -> Result<VisualizationData, Box<dy
             metrics,
         });
     }
-    
+
     let test_duration = test_start.elapsed();
-    
+
     // Calculate performance comparison metrics
     let peak_performance = test_scenarios
         .iter()
         .map(|s| s.metrics.operations_per_second)
         .fold(0.0, f64::max);
-    
+
     let avg_efficiency = test_scenarios
         .iter()
         .map(|s| s.metrics.operations_per_second / s.thread_count as f64)
-        .sum::<f64>() / test_scenarios.len() as f64;
-    
+        .sum::<f64>()
+        / test_scenarios.len() as f64;
+
     let scalability_score = calculate_scalability_score(&test_scenarios);
     let memory_efficiency = calculate_memory_efficiency(&test_scenarios);
-    
+
     Ok(VisualizationData {
         test_timestamp: std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -140,13 +141,13 @@ fn run_single_performance_test(
 ) -> Result<PerformanceMetrics, Box<dyn std::error::Error>> {
     let start_time = Instant::now();
     let total_operations = Arc::new(AtomicUsize::new(0));
-    
+
     let mut handles = Vec::new();
-    
+
     // Spawn thread workers
     for thread_id in 0..thread_count {
         let ops_counter = Arc::clone(&total_operations);
-        
+
         let handle = thread::spawn(move || {
             // Simulate diverse memory allocation patterns
             for i in 0..operations_per_worker {
@@ -168,9 +169,9 @@ fn run_single_performance_test(
                     }
                     _ => unreachable!(),
                 }
-                
+
                 ops_counter.fetch_add(1, Ordering::Relaxed);
-                
+
                 // Simulate work
                 if i % 200 == 0 {
                     thread::sleep(Duration::from_micros(1));
@@ -179,15 +180,15 @@ fn run_single_performance_test(
         });
         handles.push(handle);
     }
-    
+
     // Wait for all workers to complete
     for handle in handles {
         handle.join().unwrap();
     }
-    
+
     let duration = start_time.elapsed();
     let final_operations = total_operations.load(Ordering::Relaxed);
-    
+
     Ok(PerformanceMetrics {
         total_operations: final_operations,
         duration,
@@ -202,14 +203,14 @@ fn calculate_scalability_score(scenarios: &[TestScenario]) -> f64 {
     if scenarios.len() < 2 {
         return 100.0;
     }
-    
+
     // Calculate performance increase ratio vs thread increase ratio
     let first = &scenarios[0];
     let last = &scenarios[scenarios.len() - 1];
-    
+
     let perf_ratio = last.metrics.operations_per_second / first.metrics.operations_per_second;
     let thread_ratio = last.thread_count as f64 / first.thread_count as f64;
-    
+
     // Ideal is linear scaling (ratio = 1.0)
     let efficiency = perf_ratio / thread_ratio;
     (efficiency * 100.0).min(100.0)
@@ -220,16 +221,18 @@ fn calculate_memory_efficiency(scenarios: &[TestScenario]) -> f64 {
     let avg_throughput = scenarios
         .iter()
         .map(|s| s.metrics.operations_per_second)
-        .sum::<f64>() / scenarios.len() as f64;
-    
+        .sum::<f64>()
+        / scenarios.len() as f64;
+
     // Anything over 2M ops/sec gets high efficiency score
     ((avg_throughput / 2_000_000.0) * 100.0).min(100.0)
 }
 
 fn generate_practical_report(data: &VisualizationData) -> Result<(), Box<dyn std::error::Error>> {
     println!("🔍 Generating practical performance analysis...");
-    
-    let html = format!(r#"
+
+    let html = format!(
+        r#"
 <!DOCTYPE html>
 <html>
 <head>
@@ -345,77 +348,99 @@ fn generate_practical_report(data: &VisualizationData) -> Result<(), Box<dyn std
         timestamp = data.test_timestamp,
         peak_perf = data.performance_comparison.peak_performance,
         scalability = data.performance_comparison.scalability_score,
-        max_threads = data.scenarios.iter().map(|s| s.thread_count).max().unwrap_or(0),
+        max_threads = data
+            .scenarios
+            .iter()
+            .map(|s| s.thread_count)
+            .max()
+            .unwrap_or(0),
         memory_eff = data.performance_comparison.memory_efficiency,
         arch = data.system_info.target_arch,
         performance_rows = generate_performance_rows(data),
         memory_status_class = "good",
         memory_class = "efficient",
-        safety_status_class = "good", 
-        scaling_status_class = if data.performance_comparison.scalability_score > 80.0 { "good" } else { "warning" },
-        scaling_class = if data.performance_comparison.scalability_score > 80.0 { "efficient" } else { "hotspot" },
+        safety_status_class = "good",
+        scaling_status_class = if data.performance_comparison.scalability_score > 80.0 {
+            "good"
+        } else {
+            "warning"
+        },
+        scaling_class = if data.performance_comparison.scalability_score > 80.0 {
+            "efficient"
+        } else {
+            "hotspot"
+        },
         issues_section = generate_issues_section(data)
     );
-    
+
     std::fs::write("performance_analysis.html", html)?;
     println!("  ✅ Practical report generated");
     Ok(())
 }
 
 fn generate_performance_rows(data: &VisualizationData) -> String {
-    data.scenarios.iter().map(|scenario| {
-        let efficiency = scenario.metrics.operations_per_second / scenario.thread_count as f64;
-        let status = if scenario.metrics.operations_per_second > 2_500_000.0 {
-            "🟢 Excellent"
-        } else if scenario.metrics.operations_per_second > 2_000_000.0 {
-            "🟡 Good" 
-        } else {
-            "🔴 Needs attention"
-        };
-        
-        format!(
-            "<tr><td>{}</td><td>{}</td><td>{:.0}</td><td>{:.0}</td><td>{}</td></tr>",
-            scenario.name,
-            scenario.thread_count,
-            scenario.metrics.operations_per_second,
-            efficiency,
-            status
-        )
-    }).collect()
+    data.scenarios
+        .iter()
+        .map(|scenario| {
+            let efficiency = scenario.metrics.operations_per_second / scenario.thread_count as f64;
+            let status = if scenario.metrics.operations_per_second > 2_500_000.0 {
+                "🟢 Excellent"
+            } else if scenario.metrics.operations_per_second > 2_000_000.0 {
+                "🟡 Good"
+            } else {
+                "🔴 Needs attention"
+            };
+
+            format!(
+                "<tr><td>{}</td><td>{}</td><td>{:.0}</td><td>{:.0}</td><td>{}</td></tr>",
+                scenario.name,
+                scenario.thread_count,
+                scenario.metrics.operations_per_second,
+                efficiency,
+                status
+            )
+        })
+        .collect()
 }
 
 fn generate_issues_section(data: &VisualizationData) -> String {
     let mut issues = Vec::new();
-    
+
     // Check for performance issues
-    let min_perf = data.scenarios.iter()
+    let min_perf = data
+        .scenarios
+        .iter()
         .map(|s| s.metrics.operations_per_second)
         .fold(f64::INFINITY, f64::min);
-    
+
     if min_perf < 1_000_000.0 {
-        issues.push("⚠️ <strong>Performance Issue:</strong> Some scenarios below 1M ops/sec threshold");
+        issues.push(
+            "⚠️ <strong>Performance Issue:</strong> Some scenarios below 1M ops/sec threshold",
+        );
     }
-    
+
     if data.performance_comparison.scalability_score < 70.0 {
         issues.push("⚠️ <strong>Scalability Issue:</strong> Non-linear scaling detected");
     }
-    
+
     // Check for efficiency drop
-    let efficiencies: Vec<f64> = data.scenarios.iter()
+    let efficiencies: Vec<f64> = data
+        .scenarios
+        .iter()
         .map(|s| s.metrics.operations_per_second / s.thread_count as f64)
         .collect();
-    
+
     if efficiencies.len() > 1 {
-        let efficiency_drop = (efficiencies[0] - efficiencies[efficiencies.len() - 1]) / efficiencies[0];
+        let efficiency_drop =
+            (efficiencies[0] - efficiencies[efficiencies.len() - 1]) / efficiencies[0];
         if efficiency_drop > 0.3 {
             issues.push("⚠️ <strong>Efficiency Drop:</strong> Per-thread efficiency drops significantly with high concurrency");
         }
     }
-    
+
     if issues.is_empty() {
         "✅ <strong>No Issues Detected</strong><br>All performance metrics are within excellent ranges.".to_string()
     } else {
         issues.join("<br>")
     }
 }
-

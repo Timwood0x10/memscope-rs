@@ -243,7 +243,7 @@ async fn test_fan_out() -> Result<(), Box<dyn std::error::Error>> {
         });
     }
 
-    while let Some(_) = tasks.join_next().await {}
+    while (tasks.join_next().await).is_some() {}
     Ok(())
 }
 

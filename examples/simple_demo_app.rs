@@ -136,7 +136,7 @@ fn demo_async_simulation() {
 
         // Simulate async yield points
         for step in 0..5 {
-            let step_data = vec![step; 50];
+            let step_data = [step; 50];
             thread::sleep(Duration::from_millis(3)); // Simulate async yield
 
             // Process step data

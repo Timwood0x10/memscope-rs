@@ -14,7 +14,7 @@
 use memscope_rs::export::fixed_hybrid_template::{
     create_sample_hybrid_data, FixedHybridTemplate, RenderMode,
 };
-use memscope_rs::{track_var, init};
+use memscope_rs::{init, track_var};
 use std::collections::HashMap;
 
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -25,7 +25,7 @@ use std::time::{Duration, Instant};
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🚀 Enhanced 30-Thread Memory Tracking Demo with HTML Visualization");
     println!("   Features: track_var! macros + HTML template integration");
-    
+
     // Initialize memscope
     init();
 
@@ -144,13 +144,13 @@ fn generate_html_visualization(
     duration: Duration,
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("  📊 Creating hybrid analysis data...");
-    
+
     // Create realistic task mapping (simulating how threads map to async tasks)
     let task_count = thread_count + 10; // More tasks than threads
     let hybrid_data = create_sample_hybrid_data(thread_count, task_count);
-    
+
     println!("  🎨 Generating HTML reports...");
-    
+
     // Generate different views of the same data with enhanced insights
     let templates = vec![
         (
@@ -161,7 +161,7 @@ fn generate_html_visualization(
                 .with_enhanced_insights(true),
         ),
         (
-            "thread_focused", 
+            "thread_focused",
             FixedHybridTemplate::new(thread_count, task_count)
                 .with_render_mode(RenderMode::ThreadFocused)
                 .with_variable_details(true),
@@ -210,7 +210,7 @@ fn print_tracking_summary(
             .values()
             .filter(|v| v.thread_id == thread_id)
             .count();
-        
+
         let thread_memory: u64 = data
             .variable_registry
             .values()
@@ -232,7 +232,7 @@ fn print_tracking_summary(
     for thread_id in 0..data.thread_task_mapping.len() {
         let workload_type = match thread_id % 4 {
             0 => "IOBound",
-            1 => "CPUBound", 
+            1 => "CPUBound",
             2 => "MemoryBound",
             _ => "Interactive",
         };
@@ -341,10 +341,10 @@ fn execute_track_var_workload(
                 let buffer_size = 1024 + (i % 4096);
                 let io_buffer: Vec<u8> = (0..buffer_size).map(|x| (x % 256) as u8).collect();
                 track_var!(io_buffer);
-                
+
                 let io_metadata = format!("io_thread_{}_operation_{}", thread_idx, i);
                 track_var!(io_metadata);
-                
+
                 tracked_data.push(format!("IO-{}-{}", thread_idx, i));
             }
             WorkloadType::CPUBound => {
@@ -353,37 +353,41 @@ fn execute_track_var_workload(
                     .map(|x| (x as f64 * thread_idx as f64 * i as f64).sin())
                     .collect();
                 track_var!(computation_result);
-                
+
                 let cpu_workload = (0..50).map(|x| x * thread_idx * i).collect::<Vec<_>>();
                 track_var!(cpu_workload);
-                
+
                 tracked_data.push(format!("CPU-{}-{}", thread_idx, i));
             }
             WorkloadType::MemoryBound => {
                 // Simulate large memory allocations
                 let large_allocation: Vec<u64> = vec![thread_idx as u64; 2048];
                 track_var!(large_allocation);
-                
+
                 let memory_map: HashMap<String, usize> = (0..10)
                     .map(|x| (format!("key_{}_{}", thread_idx, x), x * i))
                     .collect();
                 track_var!(memory_map);
-                
+
                 tracked_data.push(format!("MEM-{}-{}", thread_idx, i));
             }
             WorkloadType::Interactive => {
                 // Simulate user interaction data
-                let user_input = format!("User action {} from thread {} at iteration {}", 
-                    i % 10, thread_idx, i);
+                let user_input = format!(
+                    "User action {} from thread {} at iteration {}",
+                    i % 10,
+                    thread_idx,
+                    i
+                );
                 track_var!(user_input);
-                
+
                 let session_data = vec![
                     format!("session_{}", thread_idx),
                     format!("action_{}", i),
                     format!("timestamp_{}", i * thread_idx),
                 ];
                 track_var!(session_data);
-                
+
                 tracked_data.push(format!("UI-{}-{}", thread_idx, i));
             }
         }
@@ -399,19 +403,12 @@ fn execute_track_var_workload(
     // Track final summary for this thread
     let summary_string = format!(
         "Thread {} completed: {} {} operations with {} tracked items",
-        thread_idx, config.name, config.operation_count, tracked_data.len()
+        thread_idx,
+        config.name,
+        config.operation_count,
+        tracked_data.len()
     );
     track_var!(summary_string);
 
     Ok(())
 }
-
-#[derive(Debug, Clone)]
-struct ThreadSummary {
-    thread_id: usize,
-    workload_name: String,
-    workload_type: String,
-    operations_completed: usize,
-    tracked_items: Vec<String>,
-}
-

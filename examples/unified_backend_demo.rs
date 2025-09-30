@@ -56,7 +56,7 @@ fn demo_quick_start() -> Result<(), Box<dyn std::error::Error>> {
     println!("✅ Tracking session started: {}", session.session_id());
 
     // Simulate some memory operations
-    let data = vec![1, 2, 3, 4, 5];
+    let data = [1, 2, 3, 4, 5];
     let processed: Vec<i32> = data.iter().map(|x| x * 2).collect();
     let sum: i32 = processed.iter().sum();
 
@@ -243,7 +243,7 @@ async fn async_workload() -> usize {
     let mut total = 0;
 
     for i in 0..3 {
-        let data = vec![i; 50];
+        let data = [i; 50];
         tokio::time::sleep(Duration::from_millis(10)).await;
         total += data.len();
     }
