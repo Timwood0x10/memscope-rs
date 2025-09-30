@@ -326,7 +326,7 @@ fn run_unified_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::er
 
     // Set environment for unified tracking
     cmd.env("MEMSCOPE_UNIFIED_ENABLED", "1");
-    cmd.env("MEMSCOPE_SESSION_ID", &session.session_id());
+    cmd.env("MEMSCOPE_SESSION_ID", session.session_id());
 
     if matches.get_flag("track-async") {
         cmd.env("MEMSCOPE_TRACK_ASYNC", "1");

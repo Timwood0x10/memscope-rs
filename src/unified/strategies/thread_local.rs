@@ -123,7 +123,7 @@ struct ThreadMetrics {
 thread_local! {
     /// Thread-local tracking data storage
     /// Each thread maintains its own independent allocation records
-    static THREAD_LOCAL_DATA: RefCell<ThreadLocalData> = RefCell::new(ThreadLocalData {
+    static THREAD_LOCAL_DATA: RefCell<ThreadLocalData> = const{ RefCell::new(ThreadLocalData {
         allocations: Vec::new(),
         local_sequence: 0,
         thread_metrics: ThreadMetrics {
@@ -134,7 +134,7 @@ thread_local! {
             thread_overhead_bytes: 0,
         },
         is_registered: false,
-    });
+    })};
 }
 
 impl Default for GlobalTrackingState {
@@ -613,7 +613,7 @@ impl MemoryTracker for ThreadLocalStrategy {
             tracking_duration_ms: {
                 let start_ns = self.global_state.session_start_ns.load(Ordering::Relaxed);
                 if start_ns > 0 {
-                    ((Self::get_timestamp_ns() - start_ns) / 1_000_000).max(0)
+                    (Self::get_timestamp_ns() - start_ns) / 1_000_000
                 } else {
                     0
                 }

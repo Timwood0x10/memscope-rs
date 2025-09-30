@@ -383,74 +383,100 @@ impl FixedHybridTemplate {
     /// Replace all insight placeholders with actual data
     fn replace_insights_placeholders(&self, mut html: String, data: &HybridAnalysisData) -> String {
         // Find high usage thread and metrics
-        let (high_usage_thread, max_allocation_size, high_frequency) = self.analyze_high_usage(data);
+        let (high_usage_thread, max_allocation_size, high_frequency) =
+            self.analyze_high_usage(data);
         let (small_alloc_count, small_alloc_rate) = self.analyze_small_allocations(data);
-        let (bottleneck_thread, bottleneck_rate, bottleneck_percent) = self.analyze_bottlenecks(data);
-        
+        let (bottleneck_thread, bottleneck_rate, bottleneck_percent) =
+            self.analyze_bottlenecks(data);
+
         // Replace hotspot variables
         html = html.replace("{{HIGH_USAGE_THREAD}}", &high_usage_thread.to_string());
         html = html.replace("{{MAX_ALLOCATION_SIZE}}", &max_allocation_size.to_string());
         html = html.replace("{{HIGH_FREQUENCY}}", &high_frequency.to_string());
         html = html.replace("{{SMALL_ALLOC_COUNT}}", &small_alloc_count.to_string());
         html = html.replace("{{SMALL_ALLOC_RATE}}", &format!("{}/sec", small_alloc_rate));
-        
+
         // Replace leak detection variables
-        let (leak_status_class, leak_icon, leak_status_title, leak_status_description) = 
+        let (leak_status_class, leak_icon, leak_status_title, leak_status_description) =
             self.analyze_memory_leaks(data);
         html = html.replace("{{LEAK_STATUS_CLASS}}", &leak_status_class);
         html = html.replace("{{LEAK_ICON}}", &leak_icon);
         html = html.replace("{{LEAK_STATUS_TITLE}}", &leak_status_title);
         html = html.replace("{{LEAK_STATUS_DESCRIPTION}}", &leak_status_description);
-        
+
         // Replace memory analysis variables
         let memory_efficiency = self.calculate_memory_efficiency(data);
         let memory_overhead = self.calculate_memory_overhead(data);
         let potential_leaks = self.count_potential_leaks(data);
-        
-        html = html.replace("{{MEMORY_EFFICIENCY}}", &format!("{:.1}", memory_efficiency));
+
+        html = html.replace(
+            "{{MEMORY_EFFICIENCY}}",
+            &format!("{:.1}", memory_efficiency),
+        );
         html = html.replace("{{MEMORY_OVERHEAD}}", &format!("{:.2}MB", memory_overhead));
         html = html.replace("{{POTENTIAL_LEAKS}}", &potential_leaks.to_string());
-        
+
         // Replace performance variables
         html = html.replace("{{BOTTLENECK_THREAD}}", &bottleneck_thread.to_string());
         html = html.replace("{{BOTTLENECK_RATE}}", &format!("{:.0}", bottleneck_rate));
-        html = html.replace("{{BOTTLENECK_PERCENT}}", &format!("{:.0}", bottleneck_percent));
+        html = html.replace(
+            "{{BOTTLENECK_PERCENT}}",
+            &format!("{:.0}", bottleneck_percent),
+        );
         html = html.replace("{{BOTTLENECK_LOCATION}}", "execute_track_var_workload()");
-        
+
         // Replace suggestion variables
         let suggested_capacity = self.calculate_suggested_capacity(data);
         let string_capacity = self.calculate_string_capacity(data);
         html = html.replace("{{SUGGESTED_CAPACITY}}", &suggested_capacity.to_string());
         html = html.replace("{{STRING_CAPACITY}}", &string_capacity.to_string());
-        
+
         // Replace thread rate analysis
         let (thread_0_9_rate, thread_10_19_rate, thread_20_rate) = self.analyze_thread_rates(data);
         html = html.replace("{{THREAD_0_9_RATE}}", &format!("{:.0}", thread_0_9_rate));
-        html = html.replace("{{THREAD_10_19_RATE}}", &format!("{:.0}", thread_10_19_rate));
+        html = html.replace(
+            "{{THREAD_10_19_RATE}}",
+            &format!("{:.0}", thread_10_19_rate),
+        );
         html = html.replace("{{THREAD_20_RATE}}", &format!("{:.0}", thread_20_rate));
-        
+
         // Replace scoring variables
-        let (memory_score, allocation_score, thread_score, overall_score) = self.calculate_scores(data);
+        let (memory_score, allocation_score, thread_score, overall_score) =
+            self.calculate_scores(data);
         html = html.replace("{{MEMORY_SCORE}}", &memory_score.to_string());
         html = html.replace("{{ALLOCATION_SCORE}}", &allocation_score.to_string());
         html = html.replace("{{THREAD_SCORE}}", &thread_score.to_string());
         html = html.replace("{{OVERALL_SCORE}}", &overall_score.to_string());
-        
+
         // Replace badge classes
-        let rate_badge_class = if thread_0_9_rate > 1000.0 { "high" } else { "medium" };
-        let overall_rate_status = if thread_0_9_rate > 1000.0 { "High Load" } else { "Normal" };
-        let overall_score_class = if overall_score > 80 { "low" } else if overall_score > 60 { "medium" } else { "high" };
-        
+        let rate_badge_class = if thread_0_9_rate > 1000.0 {
+            "high"
+        } else {
+            "medium"
+        };
+        let overall_rate_status = if thread_0_9_rate > 1000.0 {
+            "High Load"
+        } else {
+            "Normal"
+        };
+        let overall_score_class = if overall_score > 80 {
+            "low"
+        } else if overall_score > 60 {
+            "medium"
+        } else {
+            "high"
+        };
+
         html = html.replace("{{RATE_BADGE_CLASS}}", rate_badge_class);
         html = html.replace("{{OVERALL_RATE_STATUS}}", overall_rate_status);
         html = html.replace("{{OVERALL_SCORE_CLASS}}", overall_score_class);
-        
+
         // Replace advanced pattern variables
         html = self.replace_advanced_pattern_variables(html, data);
-        
+
         // Replace cross-process analysis variables
         html = self.replace_cross_process_variables(html, data);
-        
+
         html
     }
 
@@ -459,7 +485,7 @@ impl FixedHybridTemplate {
         let mut max_thread = 0;
         let mut max_memory = 0u64;
         let mut max_frequency = 0u64;
-        
+
         for var in data.variable_registry.values() {
             if var.memory_usage > max_memory {
                 max_memory = var.memory_usage;
@@ -469,186 +495,238 @@ impl FixedHybridTemplate {
                 max_frequency = var.allocation_count;
             }
         }
-        
+
         (max_thread, max_memory / 1024, max_frequency) // Convert to KB
     }
-    
+
     fn analyze_small_allocations(&self, data: &HybridAnalysisData) -> (u64, u64) {
-        let small_allocations: Vec<_> = data.variable_registry.values()
+        let small_allocations: Vec<_> = data
+            .variable_registry
+            .values()
             .filter(|v| v.memory_usage < 50 * 1024) // < 50KB
             .collect();
-        
+
         let count = small_allocations.len() as u64;
-        let rate = small_allocations.iter().map(|v| v.allocation_count).sum::<u64>() / 10; // Simulated rate
-        
+        let rate = small_allocations
+            .iter()
+            .map(|v| v.allocation_count)
+            .sum::<u64>()
+            / 10; // Simulated rate
+
         (count, rate)
     }
-    
+
     fn analyze_bottlenecks(&self, data: &HybridAnalysisData) -> (usize, f64, f64) {
         let mut thread_loads = std::collections::HashMap::new();
-        
+
         for var in data.variable_registry.values() {
             *thread_loads.entry(var.thread_id).or_insert(0u64) += var.allocation_count;
         }
-        
-        let max_thread = thread_loads.iter()
+
+        let max_thread = thread_loads
+            .iter()
             .max_by_key(|(_, &count)| count)
             .map(|(&thread_id, _)| thread_id)
             .unwrap_or(0);
-            
+
         let max_rate = thread_loads.values().max().unwrap_or(&0) * 10; // Simulated rate/sec
         let avg_rate = thread_loads.values().sum::<u64>() / thread_loads.len() as u64 * 10;
-        let percent_above = if avg_rate > 0 { 
-            ((max_rate as f64 - avg_rate as f64) / avg_rate as f64) * 100.0 
-        } else { 0.0 };
-        
+        let percent_above = if avg_rate > 0 {
+            ((max_rate as f64 - avg_rate as f64) / avg_rate as f64) * 100.0
+        } else {
+            0.0
+        };
+
         (max_thread, max_rate as f64, percent_above)
     }
-    
+
     fn analyze_memory_leaks(&self, data: &HybridAnalysisData) -> (String, String, String, String) {
-        let potential_leaks = data.variable_registry.values()
+        let potential_leaks = data
+            .variable_registry
+            .values()
             .filter(|v| matches!(v.lifecycle_stage, LifecycleStage::Allocated))
             .count();
-            
+
         if potential_leaks == 0 {
             (
                 "clean".to_string(),
                 "✅".to_string(),
                 "No Memory Leaks Detected".to_string(),
-                "All tracked variables have proper lifecycle management".to_string()
+                "All tracked variables have proper lifecycle management".to_string(),
             )
         } else if potential_leaks < 5 {
             (
                 "warning".to_string(),
                 "⚠️".to_string(),
                 format!("{} Potential Issues", potential_leaks),
-                "Some variables may not be properly deallocated".to_string()
+                "Some variables may not be properly deallocated".to_string(),
             )
         } else {
             (
                 "critical".to_string(),
                 "🚨".to_string(),
                 format!("{} Memory Leaks Found", potential_leaks),
-                "Multiple variables are not being properly deallocated".to_string()
+                "Multiple variables are not being properly deallocated".to_string(),
             )
         }
     }
-    
+
     fn calculate_memory_efficiency(&self, data: &HybridAnalysisData) -> f64 {
-        let active_vars = data.variable_registry.values()
-            .filter(|v| matches!(v.lifecycle_stage, LifecycleStage::Active | LifecycleStage::Shared))
+        let active_vars = data
+            .variable_registry
+            .values()
+            .filter(|v| {
+                matches!(
+                    v.lifecycle_stage,
+                    LifecycleStage::Active | LifecycleStage::Shared
+                )
+            })
             .count();
         let total_vars = data.variable_registry.len();
-        
+
         if total_vars > 0 {
             (active_vars as f64 / total_vars as f64) * 100.0
         } else {
             100.0
         }
     }
-    
+
     fn calculate_memory_overhead(&self, _data: &HybridAnalysisData) -> f64 {
         0.15 // Simulated overhead in MB
     }
-    
+
     fn count_potential_leaks(&self, data: &HybridAnalysisData) -> usize {
-        data.variable_registry.values()
+        data.variable_registry
+            .values()
             .filter(|v| matches!(v.lifecycle_stage, LifecycleStage::Allocated))
             .count()
     }
-    
+
     fn calculate_suggested_capacity(&self, data: &HybridAnalysisData) -> usize {
-        let avg_vec_size = data.variable_registry.values()
+        let avg_vec_size = data
+            .variable_registry
+            .values()
             .filter(|v| v.type_info.contains("Vec"))
             .map(|v| v.memory_usage / 1024)
             .collect::<Vec<_>>();
-            
+
         if !avg_vec_size.is_empty() {
             (avg_vec_size.iter().sum::<u64>() / avg_vec_size.len() as u64) as usize
         } else {
             1024
         }
     }
-    
+
     fn calculate_string_capacity(&self, data: &HybridAnalysisData) -> usize {
-        let avg_string_size = data.variable_registry.values()
+        let avg_string_size = data
+            .variable_registry
+            .values()
             .filter(|v| v.type_info.contains("String") || v.name.contains("string"))
             .map(|v| v.memory_usage)
             .collect::<Vec<_>>();
-            
+
         if !avg_string_size.is_empty() {
             (avg_string_size.iter().sum::<u64>() / avg_string_size.len() as u64) as usize
         } else {
             256
         }
     }
-    
+
     fn analyze_thread_rates(&self, data: &HybridAnalysisData) -> (f64, f64, f64) {
         let mut thread_groups = [Vec::new(), Vec::new(), Vec::new()];
-        
+
         for var in data.variable_registry.values() {
-            let group = if var.thread_id <= 9 { 0 } 
-                       else if var.thread_id <= 19 { 1 } 
-                       else { 2 };
+            let group = if var.thread_id <= 9 {
+                0
+            } else if var.thread_id <= 19 {
+                1
+            } else {
+                2
+            };
             thread_groups[group].push(var.allocation_count);
         }
-        
-        let rates: Vec<f64> = thread_groups.iter().map(|group| {
-            if !group.is_empty() {
-                group.iter().sum::<u64>() as f64 / group.len() as f64 * 50.0 // Simulated rate
-            } else {
-                0.0
-            }
-        }).collect();
-        
+
+        let rates: Vec<f64> = thread_groups
+            .iter()
+            .map(|group| {
+                if !group.is_empty() {
+                    group.iter().sum::<u64>() as f64 / group.len() as f64 * 50.0
+                // Simulated rate
+                } else {
+                    0.0
+                }
+            })
+            .collect();
+
         (rates[0], rates[1], rates[2])
     }
-    
+
     fn calculate_scores(&self, data: &HybridAnalysisData) -> (u8, u8, u8, u8) {
         let efficiency = self.calculate_memory_efficiency(data);
         let memory_score = (efficiency * 0.9) as u8; // Memory efficiency score
-        
-        let avg_allocs = data.variable_registry.values()
+
+        let avg_allocs = data
+            .variable_registry
+            .values()
             .map(|v| v.allocation_count)
-            .sum::<u64>() / data.variable_registry.len().max(1) as u64;
-        let allocation_score = if avg_allocs < 50 { 90 } else if avg_allocs < 100 { 75 } else { 60 };
-        
-        let unique_threads = data.variable_registry.values()
+            .sum::<u64>()
+            / data.variable_registry.len().max(1) as u64;
+        let allocation_score = if avg_allocs < 50 {
+            90
+        } else if avg_allocs < 100 {
+            75
+        } else {
+            60
+        };
+
+        let unique_threads = data
+            .variable_registry
+            .values()
             .map(|v| v.thread_id)
             .collect::<std::collections::HashSet<_>>()
             .len();
         let thread_score = if unique_threads > 10 { 85 } else { 70 };
-        
+
         let overall_score = (memory_score + allocation_score + thread_score) / 3;
-        
+
         (memory_score, allocation_score, thread_score, overall_score)
     }
-    
+
     /// Replace advanced pattern analysis variables
-    fn replace_advanced_pattern_variables(&self, mut html: String, data: &HybridAnalysisData) -> String {
+    fn replace_advanced_pattern_variables(
+        &self,
+        mut html: String,
+        data: &HybridAnalysisData,
+    ) -> String {
         // Analyze cloning patterns
-        let (clone_var, clone_count, clone_threads, clone_memory_impact, clone_perf_impact) = 
+        let (clone_var, clone_count, clone_threads, clone_memory_impact, clone_perf_impact) =
             self.analyze_cloning_patterns(data);
-        
+
         html = html.replace("{{CLONE_VARIABLE_NAME}}", &clone_var);
         html = html.replace("{{CLONE_COUNT}}", &clone_count.to_string());
         html = html.replace("{{CLONE_THREADS}}", &clone_threads.to_string());
-        html = html.replace("{{CLONE_MEMORY_IMPACT}}", &format!("{:.1}", clone_memory_impact));
-        html = html.replace("{{CLONE_PERFORMANCE_IMPACT}}", &format!("{:.0}", clone_perf_impact));
-        
+        html = html.replace(
+            "{{CLONE_MEMORY_IMPACT}}",
+            &format!("{:.1}", clone_memory_impact),
+        );
+        html = html.replace(
+            "{{CLONE_PERFORMANCE_IMPACT}}",
+            &format!("{:.0}", clone_perf_impact),
+        );
+
         // Clone thread distribution
         let clone_thread_ids = self.get_clone_thread_distribution(data);
         html = html.replace("{{CLONE_THREAD_1}}", &clone_thread_ids.0.to_string());
         html = html.replace("{{CLONE_THREAD_2}}", &clone_thread_ids.1.to_string());
         html = html.replace("{{CLONE_THREAD_3}}", &clone_thread_ids.2.to_string());
         html = html.replace("{{ADDITIONAL_CLONES}}", &clone_thread_ids.3.to_string());
-        
+
         // Analyze borrow contention
         let (contention_var, contention_threads, total_wait) = self.analyze_borrow_contention(data);
         html = html.replace("{{CONTENTION_VARIABLE}}", &contention_var);
         html = html.replace("{{CONTENTION_THREADS}}", &contention_threads.to_string());
         html = html.replace("{{TOTAL_WAIT_TIME}}", &total_wait.to_string());
-        
+
         // Contention thread wait times
         let contention_details = self.get_contention_details(data);
         html = html.replace("{{CONTENTION_THREAD_1}}", &contention_details.0.to_string());
@@ -657,222 +735,366 @@ impl FixedHybridTemplate {
         html = html.replace("{{WAIT_TIME_2}}", &contention_details.3.to_string());
         html = html.replace("{{CONTENTION_THREAD_3}}", &contention_details.4.to_string());
         html = html.replace("{{WAIT_TIME_3}}", &contention_details.5.to_string());
-        
+
         // Analyze allocation spikes
-        let (spike_function, spike_time, spike_size, spike_duration, spike_memory, spike_gc) = 
+        let (spike_function, spike_time, spike_size, spike_duration, spike_memory, spike_gc) =
             self.analyze_allocation_spikes(data);
-        
+
         html = html.replace("{{SPIKE_FUNCTION}}", &spike_function);
         html = html.replace("{{SPIKE_TIME}}", &spike_time);
         html = html.replace("{{SPIKE_SIZE}}", &format!("{:.1}", spike_size));
         html = html.replace("{{SPIKE_DURATION}}", &spike_duration.to_string());
         html = html.replace("{{SPIKE_MEMORY}}", &format!("{:.1}", spike_memory));
         html = html.replace("{{SPIKE_GC_CYCLES}}", &spike_gc.to_string());
-        
+
         // Spike-related variables
         let spike_variables = self.get_spike_variables(data);
         html = html.replace("{{BUFFER_ID}}", &spike_variables.0.to_string());
         html = html.replace("{{BUFFER_SIZE}}", &spike_variables.1.to_string());
         html = html.replace("{{TEMP_SIZE}}", &spike_variables.2.to_string());
         html = html.replace("{{RESULT_SIZE}}", &spike_variables.3.to_string());
-        
+
         html
     }
-    
+
     // Advanced pattern analysis methods
-    fn analyze_cloning_patterns(&self, data: &HybridAnalysisData) -> (String, u64, usize, f64, f64) {
+    fn analyze_cloning_patterns(
+        &self,
+        data: &HybridAnalysisData,
+    ) -> (String, u64, usize, f64, f64) {
         // Find variables that might be frequently cloned (based on type and memory usage)
-        let potential_clones: Vec<_> = data.variable_registry.values()
-            .filter(|v| v.type_info.contains("Vec") || v.type_info.contains("String") || v.type_info.contains("HashMap"))
+        let potential_clones: Vec<_> = data
+            .variable_registry
+            .values()
+            .filter(|v| {
+                v.type_info.contains("Vec")
+                    || v.type_info.contains("String")
+                    || v.type_info.contains("HashMap")
+            })
             .collect();
-            
+
         if let Some(max_var) = potential_clones.iter().max_by_key(|v| v.memory_usage) {
             let clone_count = max_var.allocation_count * 3; // Simulate clone count
-            let unique_threads = data.variable_registry.values()
+            let unique_threads = data
+                .variable_registry
+                .values()
                 .filter(|v| v.name.contains(&max_var.name[..max_var.name.len().min(5)]))
                 .map(|v| v.thread_id)
                 .collect::<std::collections::HashSet<_>>()
                 .len();
-            
-            let memory_impact = (max_var.memory_usage as f64 / 1024.0 / 1024.0) * (clone_count as f64 / 10.0);
+
+            let memory_impact =
+                (max_var.memory_usage as f64 / 1024.0 / 1024.0) * (clone_count as f64 / 10.0);
             let perf_impact = (clone_count as f64 / 100.0) * 10.0;
-            
-            (max_var.name.clone(), clone_count, unique_threads, memory_impact, perf_impact)
+
+            (
+                max_var.name.clone(),
+                clone_count,
+                unique_threads,
+                memory_impact,
+                perf_impact,
+            )
         } else {
             ("shared_data".to_string(), 15, 5, 2.3, 12.0)
         }
     }
-    
-    fn get_clone_thread_distribution(&self, data: &HybridAnalysisData) -> (usize, usize, usize, usize) {
-        let threads: Vec<usize> = data.variable_registry.values()
+
+    fn get_clone_thread_distribution(
+        &self,
+        data: &HybridAnalysisData,
+    ) -> (usize, usize, usize, usize) {
+        let threads: Vec<usize> = data
+            .variable_registry
+            .values()
             .map(|v| v.thread_id)
             .collect::<std::collections::HashSet<_>>()
             .into_iter()
             .take(5)
             .collect();
-            
+
         (
-            threads.get(0).unwrap_or(&0).clone(),
-            threads.get(1).unwrap_or(&1).clone(),
-            threads.get(2).unwrap_or(&2).clone(),
-            threads.len().saturating_sub(3)
+            *threads.first().unwrap_or(&0),
+            *threads.get(1).unwrap_or(&1),
+            *threads.get(2).unwrap_or(&2),
+            threads.len().saturating_sub(3),
         )
     }
-    
+
     fn analyze_borrow_contention(&self, data: &HybridAnalysisData) -> (String, usize, u64) {
         // Find potentially contended shared variables
-        let shared_vars: Vec<_> = data.variable_registry.values()
+        let shared_vars: Vec<_> = data
+            .variable_registry
+            .values()
             .filter(|v| matches!(v.lifecycle_stage, LifecycleStage::Shared))
             .collect();
-            
+
         if let Some(contended_var) = shared_vars.first() {
-            let thread_count = data.variable_registry.values()
-                .filter(|v| v.name.contains(&contended_var.name[..contended_var.name.len().min(5)]))
+            let thread_count = data
+                .variable_registry
+                .values()
+                .filter(|v| {
+                    v.name
+                        .contains(&contended_var.name[..contended_var.name.len().min(5)])
+                })
                 .map(|v| v.thread_id)
                 .collect::<std::collections::HashSet<_>>()
                 .len();
-            
-            (contended_var.name.clone(), thread_count, thread_count as u64 * 15) // Simulate wait time
+
+            (
+                contended_var.name.clone(),
+                thread_count,
+                thread_count as u64 * 15,
+            ) // Simulate wait time
         } else {
             ("shared_resource".to_string(), 3, 45)
         }
     }
-    
-    fn get_contention_details(&self, data: &HybridAnalysisData) -> (usize, u64, usize, u64, usize, u64) {
-        let threads: Vec<usize> = data.variable_registry.values()
+
+    fn get_contention_details(
+        &self,
+        data: &HybridAnalysisData,
+    ) -> (usize, u64, usize, u64, usize, u64) {
+        let threads: Vec<usize> = data
+            .variable_registry
+            .values()
             .map(|v| v.thread_id)
             .collect::<std::collections::HashSet<_>>()
             .into_iter()
             .take(3)
             .collect();
-            
+
         (
-            threads.get(0).unwrap_or(&0).clone(), 15, // thread 1, wait time 1
-            threads.get(1).unwrap_or(&1).clone(), 22, // thread 2, wait time 2  
-            threads.get(2).unwrap_or(&2).clone(), 8   // thread 3, wait time 3
+            *threads.first().unwrap_or(&0),
+            15, // thread 1, wait time 1
+            *threads.get(1).unwrap_or(&1),
+            22, // thread 2, wait time 2
+            *threads.get(2).unwrap_or(&2),
+            8, // thread 3, wait time 3
         )
     }
-    
-    fn analyze_allocation_spikes(&self, _data: &HybridAnalysisData) -> (String, String, f64, u64, f64, u64) {
+
+    fn analyze_allocation_spikes(
+        &self,
+        _data: &HybridAnalysisData,
+    ) -> (String, String, f64, u64, f64, u64) {
         (
             "process_large_dataset".to_string(),
             "10:23:45".to_string(),
-            8.5, // spike size MB
-            125, // duration ms
+            8.5,  // spike size MB
+            125,  // duration ms
             12.3, // total memory MB
-            3    // GC cycles
+            3,    // GC cycles
         )
     }
-    
+
     fn get_spike_variables(&self, data: &HybridAnalysisData) -> (usize, u64, u64, u64) {
-        let largest_vars: Vec<_> = data.variable_registry.values()
+        let largest_vars: Vec<_> = data
+            .variable_registry
+            .values()
             .filter(|v| v.memory_usage > 1000) // > 1KB
             .take(3)
             .collect();
-            
+
         (
-            largest_vars.get(0).map(|v| v.thread_id).unwrap_or(1),
-            largest_vars.get(0).map(|v| v.memory_usage / 1024).unwrap_or(256), // KB
-            largest_vars.get(1).map(|v| v.memory_usage / 1024).unwrap_or(128),
-            largest_vars.get(2).map(|v| v.memory_usage / 1024).unwrap_or(64)
+            largest_vars.first().map(|v| v.thread_id).unwrap_or(1),
+            largest_vars
+                .first()
+                .map(|v| v.memory_usage / 1024)
+                .unwrap_or(256), // KB
+            largest_vars
+                .get(1)
+                .map(|v| v.memory_usage / 1024)
+                .unwrap_or(128),
+            largest_vars
+                .get(2)
+                .map(|v| v.memory_usage / 1024)
+                .unwrap_or(64),
         )
     }
-    
+
     /// Replace cross-process analysis variables
-    fn replace_cross_process_variables(&self, mut html: String, data: &HybridAnalysisData) -> String {
+    fn replace_cross_process_variables(
+        &self,
+        mut html: String,
+        data: &HybridAnalysisData,
+    ) -> String {
         // Calculate cross-process analysis metrics
-        let shared_vars = data.variable_registry.values()
+        let shared_vars = data
+            .variable_registry
+            .values()
             .filter(|v| matches!(v.lifecycle_stage, LifecycleStage::Shared))
             .count();
-        
-        let competition_vars = data.variable_registry.values()
+
+        let competition_vars = data
+            .variable_registry
+            .values()
             .filter(|v| v.allocation_count > 50) // High contention variables
             .count();
-            
-        let bottleneck_vars = data.variable_registry.values()
+
+        let bottleneck_vars = data
+            .variable_registry
+            .values()
             .filter(|v| v.memory_usage > 100 * 1024) // Large memory variables that could cause bottlenecks
             .count();
-            
+
         let optimization_opportunities = shared_vars + competition_vars + bottleneck_vars;
-        
+
         // Replace basic cross-process variables
         html = html.replace("{{CROSS_PROCESS_PATTERNS_COUNT}}", &shared_vars.to_string());
         html = html.replace("{{COMPETITION_COUNT}}", &competition_vars.to_string());
         html = html.replace("{{BOTTLENECK_COUNT}}", &bottleneck_vars.to_string());
-        html = html.replace("{{OPTIMIZATION_COUNT}}", &optimization_opportunities.to_string());
-        
+        html = html.replace(
+            "{{OPTIMIZATION_COUNT}}",
+            &optimization_opportunities.to_string(),
+        );
+
         // Find critical variables for detailed analysis
-        let critical_var = data.variable_registry.values()
+        let critical_var = data
+            .variable_registry
+            .values()
             .max_by_key(|v| v.allocation_count)
             .cloned();
-            
-        let shared_vars_list: Vec<_> = data.variable_registry.values()
+
+        let shared_vars_list: Vec<_> = data
+            .variable_registry
+            .values()
             .filter(|v| matches!(v.lifecycle_stage, LifecycleStage::Shared))
             .take(3)
             .collect();
-        
+
         // Replace critical variable analysis
         if let Some(critical) = critical_var {
             html = html.replace("{{CRITICAL_VARIABLE_NAME}}", &critical.name);
             html = html.replace("{{CRITICAL_PROCESS_ID}}", &critical.thread_id.to_string());
             html = html.replace("{{CRITICAL_COMPETITION_TYPE}}", "Memory Access");
-            html = html.replace("{{COMPETING_PROCESSES_LIST}}", &format!("Thread {}, Thread {}, Thread {}", 
-                critical.thread_id, 
-                (critical.thread_id + 1) % 30 + 1, 
-                (critical.thread_id + 2) % 30 + 1));
-            html = html.replace("{{CRITICAL_ACCESS_FREQUENCY}}", &(critical.allocation_count * 10).to_string());
-            html = html.replace("{{CRITICAL_MEMORY_SIZE}}", &format!("{:.1}", critical.memory_usage as f64 / 1024.0 / 1024.0));
+            html = html.replace(
+                "{{COMPETING_PROCESSES_LIST}}",
+                &format!(
+                    "Thread {}, Thread {}, Thread {}",
+                    critical.thread_id,
+                    (critical.thread_id + 1) % 30 + 1,
+                    (critical.thread_id + 2) % 30 + 1
+                ),
+            );
+            html = html.replace(
+                "{{CRITICAL_ACCESS_FREQUENCY}}",
+                &(critical.allocation_count * 10).to_string(),
+            );
+            html = html.replace(
+                "{{CRITICAL_MEMORY_SIZE}}",
+                &format!("{:.1}", critical.memory_usage as f64 / 1024.0 / 1024.0),
+            );
             html = html.replace("{{CRITICAL_THREAD_COUNT}}", "3");
         } else {
             // Fallback values
             html = html.replace("{{CRITICAL_VARIABLE_NAME}}", "shared_buffer");
             html = html.replace("{{CRITICAL_PROCESS_ID}}", "1");
             html = html.replace("{{CRITICAL_COMPETITION_TYPE}}", "Memory Access");
-            html = html.replace("{{COMPETING_PROCESSES_LIST}}", "Thread 1, Thread 2, Thread 3");
+            html = html.replace(
+                "{{COMPETING_PROCESSES_LIST}}",
+                "Thread 1, Thread 2, Thread 3",
+            );
             html = html.replace("{{CRITICAL_ACCESS_FREQUENCY}}", "250");
             html = html.replace("{{CRITICAL_MEMORY_SIZE}}", "2.5");
             html = html.replace("{{CRITICAL_THREAD_COUNT}}", "3");
         }
-        
+
         // Replace shared variable details
         for (i, var) in shared_vars_list.iter().enumerate() {
             let index = i + 1;
             html = html.replace(&format!("{{{{SHARED_VAR_{}_NAME}}}}", index), &var.name);
-            html = html.replace(&format!("{{{{SHARED_VAR_{}_ACCESS}}}}", index), &(var.allocation_count * 5).to_string());
-            html = html.replace(&format!("{{{{SHARED_VAR_{}_PROC_1}}}}", index), &var.thread_id.to_string());
-            html = html.replace(&format!("{{{{SHARED_VAR_{}_PROC_2}}}}", index), &((var.thread_id % 30) + 1).to_string());
-            html = html.replace(&format!("{{{{SHARED_VAR_{}_PROC_3}}}}", index), &((var.thread_id % 30) + 2).to_string());
-            html = html.replace(&format!("{{{{SHARED_VAR_{}_SIZE}}}}", index), &format!("{:.1}", var.memory_usage as f64 / 1024.0));
-            html = html.replace(&format!("{{{{SHARED_VAR_{}_RISK}}}}", index), &((var.allocation_count % 100) + 10).to_string());
+            html = html.replace(
+                &format!("{{{{SHARED_VAR_{}_ACCESS}}}}", index),
+                &(var.allocation_count * 5).to_string(),
+            );
+            html = html.replace(
+                &format!("{{{{SHARED_VAR_{}_PROC_1}}}}", index),
+                &var.thread_id.to_string(),
+            );
+            html = html.replace(
+                &format!("{{{{SHARED_VAR_{}_PROC_2}}}}", index),
+                &((var.thread_id % 30) + 1).to_string(),
+            );
+            html = html.replace(
+                &format!("{{{{SHARED_VAR_{}_PROC_3}}}}", index),
+                &((var.thread_id % 30) + 2).to_string(),
+            );
+            html = html.replace(
+                &format!("{{{{SHARED_VAR_{}_SIZE}}}}", index),
+                &format!("{:.1}", var.memory_usage as f64 / 1024.0),
+            );
+            html = html.replace(
+                &format!("{{{{SHARED_VAR_{}_RISK}}}}", index),
+                &((var.allocation_count % 100) + 10).to_string(),
+            );
         }
-        
+
         // Fill remaining shared variable slots with defaults
         for i in shared_vars_list.len() + 1..=5 {
-            html = html.replace(&format!("{{{{SHARED_VAR_{}_NAME}}}}", i), &format!("shared_data_{}", i));
-            html = html.replace(&format!("{{{{SHARED_VAR_{}_ACCESS}}}}", i), &(50 + i * 10).to_string());
+            html = html.replace(
+                &format!("{{{{SHARED_VAR_{}_NAME}}}}", i),
+                &format!("shared_data_{}", i),
+            );
+            html = html.replace(
+                &format!("{{{{SHARED_VAR_{}_ACCESS}}}}", i),
+                &(50 + i * 10).to_string(),
+            );
             html = html.replace(&format!("{{{{SHARED_VAR_{}_PROC_1}}}}", i), &i.to_string());
-            html = html.replace(&format!("{{{{SHARED_VAR_{}_PROC_2}}}}", i), &((i % 5) + 1).to_string());
-            html = html.replace(&format!("{{{{SHARED_VAR_{}_PROC_3}}}}", i), &((i % 7) + 1).to_string());
-            html = html.replace(&format!("{{{{SHARED_VAR_{}_SIZE}}}}", i), &format!("{:.1}", (i as f64 * 0.5) + 1.0));
-            html = html.replace(&format!("{{{{SHARED_VAR_{}_RISK}}}}", i), &(25 + i * 15).to_string());
+            html = html.replace(
+                &format!("{{{{SHARED_VAR_{}_PROC_2}}}}", i),
+                &((i % 5) + 1).to_string(),
+            );
+            html = html.replace(
+                &format!("{{{{SHARED_VAR_{}_PROC_3}}}}", i),
+                &((i % 7) + 1).to_string(),
+            );
+            html = html.replace(
+                &format!("{{{{SHARED_VAR_{}_SIZE}}}}", i),
+                &format!("{:.1}", (i as f64 * 0.5) + 1.0),
+            );
+            html = html.replace(
+                &format!("{{{{SHARED_VAR_{}_RISK}}}}", i),
+                &(25 + i * 15).to_string(),
+            );
         }
-        
+
         // Replace warning and bottleneck variables
-        let bottleneck_var = data.variable_registry.values()
+        let bottleneck_var = data
+            .variable_registry
+            .values()
             .filter(|v| v.memory_usage > 50 * 1024) // > 50KB
             .max_by_key(|v| v.memory_usage)
             .cloned();
-            
+
         if let Some(bottleneck) = bottleneck_var {
             html = html.replace("{{WARNING_RESOURCE_NAME}}", &bottleneck.name);
             html = html.replace("{{WARNING_PROCESS_COUNT}}", "4");
-            html = html.replace("{{WARNING_WAIT_TIME}}", &(bottleneck.allocation_count / 2).to_string());
+            html = html.replace(
+                "{{WARNING_WAIT_TIME}}",
+                &(bottleneck.allocation_count / 2).to_string(),
+            );
             html = html.replace("{{BOTTLENECK_VAR_NAME}}", &bottleneck.name);
-            html = html.replace("{{BOTTLENECK_PROCESS_COUNT}}", &format!("{} processes", 
-                data.variable_registry.values().map(|v| v.thread_id).collect::<std::collections::HashSet<_>>().len().min(5)));
-            html = html.replace("{{BOTTLENECK_WAIT_TIME}}", &(bottleneck.allocation_count * 2).to_string());
+            html = html.replace(
+                "{{BOTTLENECK_PROCESS_COUNT}}",
+                &format!(
+                    "{} processes",
+                    data.variable_registry
+                        .values()
+                        .map(|v| v.thread_id)
+                        .collect::<std::collections::HashSet<_>>()
+                        .len()
+                        .min(5)
+                ),
+            );
+            html = html.replace(
+                "{{BOTTLENECK_WAIT_TIME}}",
+                &(bottleneck.allocation_count * 2).to_string(),
+            );
             html = html.replace("{{BOTTLENECK_PEAK_TIME}}", "14:23:45");
-            html = html.replace("{{BOTTLENECK_OPTIMIZATION}}", "Consider using Arc<RwLock<T>> for read-heavy access patterns");
+            html = html.replace(
+                "{{BOTTLENECK_OPTIMIZATION}}",
+                "Consider using Arc<RwLock<T>> for read-heavy access patterns",
+            );
         } else {
             // Fallbacks
             html = html.replace("{{WARNING_RESOURCE_NAME}}", "shared_cache");
@@ -882,48 +1104,91 @@ impl FixedHybridTemplate {
             html = html.replace("{{BOTTLENECK_PROCESS_COUNT}}", "5 processes");
             html = html.replace("{{BOTTLENECK_WAIT_TIME}}", "120");
             html = html.replace("{{BOTTLENECK_PEAK_TIME}}", "14:23:45");
-            html = html.replace("{{BOTTLENECK_OPTIMIZATION}}", "Consider using Arc<RwLock<T>> for read-heavy access patterns");
+            html = html.replace(
+                "{{BOTTLENECK_OPTIMIZATION}}",
+                "Consider using Arc<RwLock<T>> for read-heavy access patterns",
+            );
         }
-        
+
         // Replace solution code snippets
         html = html.replace("{{CRITICAL_SOLUTION_CODE}}", 
             "// Use parking_lot::RwLock for better performance\nuse parking_lot::RwLock;\nlet shared_data = Arc::new(RwLock::new(data));");
         html = html.replace("{{WARNING_SOLUTION_CODE}}", 
             "// Implement backoff strategy\nuse std::thread;\nthread::sleep(Duration::from_millis(rand::random::<u64>() % 10));");
-            
+
         // Replace clone thread references
-        let thread_ids: Vec<usize> = data.variable_registry.values()
+        let thread_ids: Vec<usize> = data
+            .variable_registry
+            .values()
             .map(|v| v.thread_id)
             .collect::<std::collections::HashSet<_>>()
             .into_iter()
             .take(3)
             .collect();
-            
-        html = html.replace("{{CLONE_THREAD_1}}", &thread_ids.get(0).unwrap_or(&1).to_string());
-        html = html.replace("{{CLONE_THREAD_2}}", &thread_ids.get(1).unwrap_or(&2).to_string());
-        html = html.replace("{{CLONE_THREAD_3}}", &thread_ids.get(2).unwrap_or(&3).to_string());
-        
-        // Replace contention thread references  
-        html = html.replace("{{CONTENTION_THREAD_1}}", &thread_ids.get(0).unwrap_or(&1).to_string());
-        html = html.replace("{{CONTENTION_THREAD_2}}", &thread_ids.get(1).unwrap_or(&2).to_string());
-        html = html.replace("{{CONTENTION_THREAD_3}}", &thread_ids.get(2).unwrap_or(&3).to_string());
+
+        html = html.replace(
+            "{{CLONE_THREAD_1}}",
+            &thread_ids.first().unwrap_or(&1).to_string(),
+        );
+        html = html.replace(
+            "{{CLONE_THREAD_2}}",
+            &thread_ids.get(1).unwrap_or(&2).to_string(),
+        );
+        html = html.replace(
+            "{{CLONE_THREAD_3}}",
+            &thread_ids.get(2).unwrap_or(&3).to_string(),
+        );
+
+        // Replace contention thread references
+        html = html.replace(
+            "{{CONTENTION_THREAD_1}}",
+            &thread_ids.first().unwrap_or(&1).to_string(),
+        );
+        html = html.replace(
+            "{{CONTENTION_THREAD_2}}",
+            &thread_ids.get(1).unwrap_or(&2).to_string(),
+        );
+        html = html.replace(
+            "{{CONTENTION_THREAD_3}}",
+            &thread_ids.get(2).unwrap_or(&3).to_string(),
+        );
         html = html.replace("{{WAIT_TIME_1}}", "15");
         html = html.replace("{{WAIT_TIME_2}}", "22");
         html = html.replace("{{WAIT_TIME_3}}", "8");
-        
+
         // Replace variable relationship data
-        let var_names: Vec<String> = data.variable_registry.values()
+        let var_names: Vec<String> = data
+            .variable_registry
+            .values()
             .take(6)
             .map(|v| v.name.clone())
             .collect();
-            
-        html = html.replace("{{REL_VAR_1}}", var_names.get(0).unwrap_or(&"buffer_a".to_string()));
-        html = html.replace("{{REL_VAR_2}}", var_names.get(1).unwrap_or(&"cache_b".to_string()));
-        html = html.replace("{{REL_VAR_3}}", var_names.get(2).unwrap_or(&"queue_c".to_string()));
-        html = html.replace("{{REL_VAR_4}}", var_names.get(3).unwrap_or(&"data_d".to_string()));
-        html = html.replace("{{REL_VAR_5}}", var_names.get(4).unwrap_or(&"mutex_e".to_string()));
-        html = html.replace("{{REL_VAR_6}}", var_names.get(5).unwrap_or(&"shared_f".to_string()));
-        
+
+        html = html.replace(
+            "{{REL_VAR_1}}",
+            var_names.first().unwrap_or(&"buffer_a".to_string()),
+        );
+        html = html.replace(
+            "{{REL_VAR_2}}",
+            var_names.get(1).unwrap_or(&"cache_b".to_string()),
+        );
+        html = html.replace(
+            "{{REL_VAR_3}}",
+            var_names.get(2).unwrap_or(&"queue_c".to_string()),
+        );
+        html = html.replace(
+            "{{REL_VAR_4}}",
+            var_names.get(3).unwrap_or(&"data_d".to_string()),
+        );
+        html = html.replace(
+            "{{REL_VAR_5}}",
+            var_names.get(4).unwrap_or(&"mutex_e".to_string()),
+        );
+        html = html.replace(
+            "{{REL_VAR_6}}",
+            var_names.get(5).unwrap_or(&"shared_f".to_string()),
+        );
+
         // Calculate relationship strengths based on memory proximity
         html = html.replace("{{REL_STRENGTH_1}}", "87");
         html = html.replace("{{REL_STRENGTH_2}}", "64");
@@ -931,7 +1196,7 @@ impl FixedHybridTemplate {
         html = html.replace("{{REL_TYPE_1}}", "Mutex Dependency");
         html = html.replace("{{REL_TYPE_2}}", "Shared Access");
         html = html.replace("{{REL_TYPE_3}}", "Producer-Consumer");
-        
+
         html
     }
 

@@ -119,7 +119,7 @@ fn run_unified_analysis(
     );
 
     // Execute command with tracking
-    let result = execute_with_unified_tracking(command_args, &session.session_id())?;
+    let result = execute_with_unified_tracking(command_args, session.session_id())?;
 
     // Collect tracking data
     let analysis_data = backend.collect_data()?;

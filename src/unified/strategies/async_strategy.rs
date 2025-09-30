@@ -296,7 +296,7 @@ impl MemoryTracker for AsyncStrategy {
             tracking_duration_ms: {
                 let start_ns = self.global_state.session_start_ns.load(Ordering::Relaxed);
                 if start_ns > 0 {
-                    ((Self::get_timestamp_ns() - start_ns) / 1_000_000).max(0)
+                    (Self::get_timestamp_ns() - start_ns) / 1_000_000
                 } else {
                     0
                 }

@@ -236,7 +236,7 @@ impl StrategyFactory {
                 .performance_history
                 .strategy_performance
                 .entry(strategy_name.to_string())
-                .or_insert_with(StrategyPerformance::default);
+                .or_default();
 
             // Update with exponential moving average
             let weight = 0.1; // 10% weight for new data
@@ -344,7 +344,15 @@ impl StrategyFactory {
             + speed_weight * speed_score
             + reliability_weight * reliability_score;
 
-        score.max(0.0).min(1.0) // Clamp to [0, 1]
+        score.clamp(0.0, 1.0) // Clamp to [0, 1]
+    }
+}
+
+
+impl Default for StrategyFactory {
+    /// Initialize strategy factory with default configurations
+    fn default() -> Self {
+        Self::new()
     }
 }
 
