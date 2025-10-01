@@ -348,7 +348,6 @@ impl StrategyFactory {
     }
 }
 
-
 impl Default for StrategyFactory {
     /// Initialize strategy factory with default configurations
     fn default() -> Self {

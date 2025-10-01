@@ -15,13 +15,15 @@
 //!
 //! ## Quick Start
 //!
-//! ```rust
-//! use memscope_rs::unified::{UnifiedBackend, BackendConfig};
-//!
-//! // Initialize unified backend
-//! let backend = UnifiedBackend::initialize(BackendConfig::default())?;
-//! ```
-
+/// ```rust
+/// use memscope_rs::unified::{UnifiedBackend, BackendConfig};
+///
+/// fn main() -> Result<(), Box<dyn std::error::Error>> {
+///     // Initialize unified backend
+///     let backend = UnifiedBackend::initialize(BackendConfig::default())?;
+///     Ok(())
+/// }
+/// ```
 pub mod backend;
 pub mod environment_detector;
 pub mod strategies;

@@ -5,6 +5,7 @@
 //! data from all tracking modes: track_var!, lockfree, and async_memory.
 
 use crate::core::tracker::memory_tracker::MemoryTracker;
+use crate::core::types::MemoryStats;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, Weak};
 use std::thread::ThreadId;
@@ -17,10 +18,24 @@ static THREAD_REGISTRY: std::sync::OnceLock<Arc<Mutex<ThreadRegistry>>> =
 struct ThreadRegistry {
     /// Map of thread ID to weak reference of memory tracker
     trackers: HashMap<ThreadId, Weak<MemoryTracker>>,
+    /// Cached data from completed threads (persisted after thread exit)
+    cached_thread_data: HashMap<ThreadId, CachedThreadData>,
     /// Total number of threads ever registered
     total_threads_registered: usize,
     /// Number of currently active threads
     active_threads: usize,
+}
+
+/// Cached tracking data from a completed thread
+#[derive(Debug, Clone)]
+pub struct CachedThreadData {
+    /// Thread ID
+    pub thread_id: ThreadId,
+    /// Cached memory stats
+    pub stats: MemoryStats,
+    /// Timestamp when data was cached
+    #[allow(dead_code)]
+    pub cached_at: std::time::SystemTime,
 }
 
 impl ThreadRegistry {
@@ -28,6 +43,7 @@ impl ThreadRegistry {
     fn new() -> Self {
         Self {
             trackers: HashMap::new(),
+            cached_thread_data: HashMap::new(),
             total_threads_registered: 0,
             active_threads: 0,
         }
@@ -53,24 +69,69 @@ impl ThreadRegistry {
 
     /// Collect all currently active trackers for data aggregation
     fn collect_active_trackers(&mut self) -> Vec<Arc<MemoryTracker>> {
-        // Clean up dead references first
-        self.cleanup_dead_references();
+        // First, try to cache data from all trackers that are still upgradeable
+        self.cache_all_available_data();
 
         // Collect all strong references that are still alive
         let mut active_trackers = Vec::new();
+        let mut dead_thread_ids = Vec::new();
+
         for (thread_id, weak_tracker) in &self.trackers {
             if let Some(strong_tracker) = weak_tracker.upgrade() {
                 active_trackers.push(strong_tracker);
+                tracing::debug!("Successfully collected tracker for thread {:?}", thread_id);
             } else {
-                tracing::debug!("Found dead tracker reference for thread {:?}", thread_id);
+                // Tracker is dead but we might have cached data
+                if self.cached_thread_data.contains_key(thread_id) {
+                    tracing::debug!("Found cached data for dead thread {:?}", thread_id);
+                } else {
+                    tracing::debug!(
+                        "Found dead tracker reference with no cached data for thread {:?}",
+                        thread_id
+                    );
+                }
+                dead_thread_ids.push(*thread_id);
             }
         }
 
         tracing::debug!(
-            "Collected {} active trackers for aggregation",
-            active_trackers.len()
+            "Collected {} active trackers, {} dead with cached data, {} total cached entries",
+            active_trackers.len(),
+            dead_thread_ids.len(),
+            self.cached_thread_data.len()
         );
+
         active_trackers
+    }
+
+    /// Cache data from all currently available trackers
+    fn cache_all_available_data(&mut self) {
+        for (thread_id, weak_tracker) in &self.trackers {
+            if let Some(strong_tracker) = weak_tracker.upgrade() {
+                if let Ok(stats) = strong_tracker.get_stats() {
+                    // Only cache if we have meaningful data
+                    if stats.total_allocations > 0 {
+                        let allocations = stats.total_allocations;
+                        let allocated = stats.total_allocated;
+
+                        self.cached_thread_data.insert(
+                            *thread_id,
+                            CachedThreadData {
+                                thread_id: *thread_id,
+                                stats,
+                                cached_at: std::time::SystemTime::now(),
+                            },
+                        );
+                        tracing::debug!(
+                            "Cached data for thread {:?}: {} allocations, {} bytes",
+                            thread_id,
+                            allocations,
+                            allocated
+                        );
+                    }
+                }
+            }
+        }
     }
 
     /// Remove dead weak references from the registry
@@ -178,13 +239,15 @@ pub fn collect_unified_tracking_data() -> Result<AggregatedTrackingData, String>
     let mut total_bytes_allocated = 0u64;
     let mut peak_memory_usage = 0u64;
 
-    // Collect track_var! data from all thread-local trackers
+    // Collect track_var! data from all thread-local trackers (active + cached)
     let active_trackers = collect_all_trackers();
+    let cached_data = get_cached_thread_data();
 
+    // Process active trackers
     for tracker in &active_trackers {
         if let Ok(stats) = tracker.get_stats() {
             let thread_stats = CombinedTrackerStats {
-                thread_id: std::thread::current().id(), // This will be updated per thread
+                thread_id: std::thread::current().id(), // Will be improved with actual thread IDs
                 tracking_mode: "track_var!".to_string(),
                 allocations: stats.total_allocations as u64,
                 bytes_allocated: stats.total_allocated as u64,
@@ -197,6 +260,23 @@ pub fn collect_unified_tracking_data() -> Result<AggregatedTrackingData, String>
 
             combined_stats.push(thread_stats);
         }
+    }
+
+    // Process cached data from completed threads
+    for cached in cached_data {
+        let thread_stats = CombinedTrackerStats {
+            thread_id: cached.thread_id,
+            tracking_mode: "track_var!".to_string(),
+            allocations: cached.stats.total_allocations as u64,
+            bytes_allocated: cached.stats.total_allocated as u64,
+            peak_memory: cached.stats.peak_memory as u64,
+        };
+
+        total_allocations += cached.stats.total_allocations as u64;
+        total_bytes_allocated += cached.stats.total_allocated as u64;
+        peak_memory_usage = peak_memory_usage.max(cached.stats.peak_memory as u64);
+
+        combined_stats.push(thread_stats);
     }
 
     // TODO: Integrate with lockfree module data
@@ -236,6 +316,20 @@ pub fn collect_all_trackers() -> Vec<Arc<MemoryTracker>> {
                 "Failed to acquire registry lock for tracker collection: {}",
                 e
             );
+            Vec::new()
+        }
+    }
+}
+
+/// Get cached thread data from completed threads.
+///
+/// This function returns data that was cached from threads that have already
+/// completed but whose tracking data is still valuable for aggregation.
+pub fn get_cached_thread_data() -> Vec<CachedThreadData> {
+    match get_registry().lock() {
+        Ok(registry) => registry.cached_thread_data.values().cloned().collect(),
+        Err(e) => {
+            tracing::error!("Failed to acquire registry lock for cached data: {}", e);
             Vec::new()
         }
     }

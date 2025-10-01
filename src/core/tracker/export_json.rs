@@ -406,9 +406,9 @@ impl MemoryTracker {
     ///
     /// ## Default Mode (Fast - Recommended)
     /// ```no_run
-    /// # use memscope_rs::core::get_global_tracker;
+    /// # use memscope_rs::core::tracker::get_tracker;
     /// # use memscope_rs::core::tracker::export_json::ExportJsonOptions;
-    /// let tracker = get_global_tracker();
+    /// let tracker = get_tracker();
     /// tracker.export_to_json("output").unwrap();
     /// // OR explicitly
     /// tracker.export_to_json_with_options("output", ExportJsonOptions::default()).unwrap();
@@ -419,9 +419,9 @@ impl MemoryTracker {
     ///
     /// ## Complete Mode (Slow - Debug Only)
     /// ```no_run
-    /// # use memscope_rs::core::get_global_tracker;
+    /// # use memscope_rs::core::tracker::get_tracker;
     /// # use memscope_rs::core::tracker::export_json::ExportJsonOptions;
-    /// let tracker = get_global_tracker();
+    /// let tracker = get_tracker();
     /// let mut options = ExportJsonOptions::default();
     /// options.security_analysis = true;
     /// tracker.export_to_json_with_options("output", options).unwrap();
@@ -470,17 +470,17 @@ impl MemoryTracker {
     ///
     /// ## Fast mode (default - recommended for most users)
     /// ```no_run
-    /// # use memscope_rs::core::get_global_tracker;
+    /// # use memscope_rs::core::tracker::get_tracker;
     /// # use memscope_rs::core::tracker::export_json::ExportJsonOptions;
-    /// let tracker = get_global_tracker();
+    /// let tracker = get_tracker();
     /// tracker.export_to_json_with_options("output", ExportJsonOptions::default()).unwrap();
     /// ```
     ///
     /// ## Complete mode (slow - for debugging)
     /// ```no_run
-    /// # use memscope_rs::core::get_global_tracker;
+    /// # use memscope_rs::core::tracker::get_tracker;
     /// # use memscope_rs::core::tracker::export_json::ExportJsonOptions;
-    /// let tracker = get_global_tracker();
+    /// let tracker = get_tracker();
     /// let mut options = ExportJsonOptions::default();
     /// options.security_analysis = true;
     /// options.schema_validation = true;
