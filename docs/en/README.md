@@ -6,10 +6,11 @@ Welcome to memscope-rs - A Rust memory tracking and analysis library!
 
 If you're new to memscope-rs, we recommend reading in this order:
 
-1. **[Installation](getting-started/installation.md)** - Project integration and environment setup
-2. **[5-Minute Quick Start](getting-started/quick-start.md)** - Get started immediately
-3. **[Basic Tracking](getting-started/basic-tracking.md)** - Learn core functionality
-4. **[First Analysis](getting-started/first-analysis.md)** - Generate your first analysis report
+1. **[Core Modules Overview](modules/README.md)** - Understand the four tracking modules
+2. **[Installation](getting-started/installation.md)** - Project integration and environment setup
+3. **[5-Minute Quick Start](getting-started/quick-start.md)** - Get started immediately
+4. **[Basic Tracking](getting-started/basic-tracking.md)** - Learn core functionality
+5. **[First Analysis](getting-started/first-analysis.md)** - Generate your first analysis report
 
 ## 📚 Documentation Navigation
 
@@ -19,6 +20,14 @@ If you're new to memscope-rs, we recommend reading in this order:
 - [Quick Start](getting-started/quick-start.md) - 5-minute getting started guide
 - [Basic Tracking](getting-started/basic-tracking.md) - Core tracking functionality
 - [First Analysis](getting-started/first-analysis.md) - Generate analysis reports
+
+### Core Modules
+
+- **[Core Modules Overview](modules/README.md)** - Complete comparison of all four modules
+- **[Single-threaded Module](modules/single-threaded.md)** - Zero-overhead `track_var!` macros
+- **[Multi-threaded Module](modules/multithread.md)** - Lock-free high-concurrency tracking
+- **[Async Module](modules/async.md)** - Task-centric memory analysis
+- **[Hybrid Module](modules/hybrid.md)** - Comprehensive cross-module analysis
 
 ### User Guide
 
