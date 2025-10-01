@@ -3238,58 +3238,7 @@
             document.querySelectorAll('.chapter').forEach(chapter => chapter.classList.remove('active'));
             document.getElementById(chapterName + '-content').classList.add('active');
         };
-        
-        window.generateNewStory = function() {
-            const analysis = window.memoryStoryGenerator.analyzeMemoryStory();
-            const story = window.memoryStoryGenerator.generateStory(analysis);
-            
-            // Update story content
-            document.getElementById('story-title').textContent = story.title;
-            document.getElementById('story-genre').textContent = story.genre;
-            
-            // Update chapters
-            document.getElementById('setup-story').innerHTML = story.chapters.setup;
-            document.getElementById('action-story').innerHTML = story.chapters.action;
-            document.getElementById('climax-story').innerHTML = story.chapters.climax;
-            document.getElementById('resolution-story').innerHTML = story.chapters.resolution;
-            
-            // Update lessons
-            const lessonsList = document.getElementById('lessons-list');
-            lessonsList.innerHTML = story.lessons.map(lesson => `<li>${lesson}</li>`).join('');
-            
-            // Update characters
-            window.updateCharacterGallery(analysis.characters);
-            
-            console.log('📖 New memory story generated:', story);
-        };
-        
-        window.updateCharacterGallery = function(characters) {
-            const gallery = document.getElementById('characters-grid');
-            gallery.innerHTML = characters.map(char => `
-                <div class="character-card" onclick="showCharacterStory('${char.id}')">
-                    <span class="character-emoji">${char.emoji}</span>
-                    <div class="character-name">${char.name}</div>
-                    <div class="character-role">${char.role}</div>
-                </div>
-            `).join('');
-        };
-        
-        window.showCharacterStory = function(characterId) {
-            // Could expand to show individual character backstories
-            console.log('📚 Showing story for character:', characterId);
-        };
-        
-        window.showStoryInsights = function() {
-            const health = window.calculateMemoryHealth();
-            alert(`📊 Story Insights:\n\n` +
-                  `Health Score: ${health.score}/100\n` +
-                  `Memory Pressure: ${health.memoryPressure}\n` +
-                  `Thread Efficiency: ${health.threadEfficiency}\n\n` +
-                  `💡 The story reflects your actual memory patterns!`);
-        };
-        
-        // Initialize story system
-        window.generateNewStory();
+
         
         // Health Scoring Guide Modal Functions
         window.showHealthScoringGuide = function() {
@@ -3299,15 +3248,25 @@
         };
         
         window.closeModal = function() {
-            const modal = document.getElementById('scoring-guide-modal');
-            modal.style.display = 'none';
+            // Close all visible modals
+            const modals = document.querySelectorAll('.modal');
+            modals.forEach(modal => {
+                if (modal && modal.style.display !== 'none') {
+                    modal.style.display = 'none';
+                }
+            });
             document.body.style.overflow = 'auto'; // Restore scrolling
         };
         
-        // Close modal when clicking outside
-        document.getElementById('scoring-guide-modal').addEventListener('click', function(e) {
-            if (e.target === this) {
-                window.closeModal();
+        // Close modal when clicking outside (for all modals)
+        const allModals = document.querySelectorAll('.modal');
+        allModals.forEach(modal => {
+            if (modal) {
+                modal.addEventListener('click', function(e) {
+                    if (e.target === this) {
+                        window.closeModal();
+                    }
+                });
             }
         });
         
