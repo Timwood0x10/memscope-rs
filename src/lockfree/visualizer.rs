@@ -793,6 +793,144 @@ fn build_comprehensive_html_report(
         }
         
         .hidden { display: none; }
+        
+        /* Missing styles for thread detailed analysis */
+        .analysis-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        
+        .analysis-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+        }
+        
+        .analysis-card h3 {
+            margin: 0 0 15px 0;
+            color: var(--primary-color);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 8px;
+            font-size: 16px;
+        }
+        
+        .info-table {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .info-row:last-child {
+            border-bottom: none;
+        }
+        
+        .info-label {
+            color: var(--secondary-color);
+            font-weight: 500;
+            width: 50%;
+        }
+        
+        .info-value {
+            color: var(--text-light);
+            font-weight: 600;
+            text-align: right;
+        }
+        
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        
+        .metric-item {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            background: var(--surface-color);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+        
+        .metric-content {
+            flex: 1;
+            margin-left: 12px;
+        }
+        
+        .allocation-breakdown {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .alloc-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .alloc-label {
+            width: 140px;
+            font-size: 12px;
+            color: var(--text-light);
+        }
+        
+        .alloc-bar {
+            flex: 1;
+            height: 20px;
+            background: var(--surface-color);
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .alloc-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary-color), var(--success-color));
+            transition: width 0.3s ease;
+        }
+        
+        .alloc-count {
+            width: 60px;
+            text-align: right;
+            font-size: 12px;
+            color: var(--text-light);
+            font-weight: bold;
+        }
+        
+        .timeline-container {
+            text-align: center;
+            margin: 15px 0;
+        }
+        
+        .timeline-info {
+            margin-top: 15px;
+            padding: 15px;
+            background: var(--surface-color);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+        
+        .timeline-info p {
+            margin: 5px 0;
+            font-size: 13px;
+            color: var(--text-light);
+        }
+        
+        /* Fix surface color variable */
+        :root {
+            --surface-color: #2a2a3e;
+        }
     </style>
 </head>
 <body>
@@ -1351,8 +1489,8 @@ fn build_tabbed_content(
                                     <tr><td><strong>Tracking Status:</strong></td><td>${threadData.isTracked ? 'TRACKED' : 'UNTRACKED'}</td></tr>
                                     <tr><td><strong>Total Allocations:</strong></td><td>${threadData.totalAllocations || 0}</td></tr>
                                     <tr><td><strong>Total Deallocations:</strong></td><td>${threadData.totalDeallocations || 0}</td></tr>
-                                    <tr><td><strong>Peak Memory:</strong></td><td>${(threadData.peakMemory / 1024 / 1024).toFixed(2)} MB</td></tr>
-                                    <tr><td><strong>Allocation Efficiency:</strong></td><td>${threadData.efficiency.toFixed(1)}%</td></tr>
+                                    <tr><td><strong>Peak Memory:</strong></td><td>${((threadData.peakMemory || 0) / 1024 / 1024).toFixed(2)} MB</td></tr>
+                                    <tr><td><strong>Allocation Efficiency:</strong></td><td>${(threadData.efficiency || 0).toFixed(1)}%</td></tr>
                                 </table>
                             </div>
                         </div>
