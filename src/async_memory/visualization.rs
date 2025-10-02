@@ -1281,13 +1281,19 @@ impl VisualizationGenerator {
 mod tests {
     use super::*;
     use crate::async_memory::resource_monitor::{
-        TaskType, TaskResourceProfile, CpuMetrics, MemoryMetrics, IoMetrics, NetworkMetrics, 
-        SourceLocation, EfficiencyExplanation, ComponentScores, BottleneckType, HotMetrics,
-        CriticalPathAnalysis
+        BottleneckType, ComponentScores, CpuMetrics, CriticalPathAnalysis, EfficiencyExplanation,
+        HotMetrics, IoMetrics, MemoryMetrics, NetworkMetrics, SourceLocation, TaskResourceProfile,
+        TaskType,
     };
 
     /// Helper function to create a test task profile
-    fn create_test_profile(task_name: &str, task_type: TaskType, cpu_usage: f64, memory_bytes: u64, efficiency: f64) -> TaskResourceProfile {
+    fn create_test_profile(
+        task_name: &str,
+        task_type: TaskType,
+        cpu_usage: f64,
+        memory_bytes: u64,
+        efficiency: f64,
+    ) -> TaskResourceProfile {
         TaskResourceProfile {
             task_id: 1u128,
             task_name: task_name.to_string(),
@@ -1382,7 +1388,7 @@ mod tests {
     #[test]
     fn test_visualization_config_default() {
         let config = VisualizationConfig::default();
-        
+
         assert_eq!(config.title, "Async Task Performance Analysis");
         assert!(matches!(config.theme, Theme::Dark));
         assert!(config.include_charts);
@@ -1407,7 +1413,7 @@ mod tests {
             include_rankings: false,
             include_efficiency_breakdown: false,
         };
-        
+
         let generator = VisualizationGenerator::with_config(custom_config.clone());
         assert_eq!(generator.config.title, "Custom Analysis");
         assert!(matches!(generator.config.theme, Theme::Light));
@@ -1418,18 +1424,18 @@ mod tests {
     fn test_calculate_baselines() {
         let generator = VisualizationGenerator::new();
         let mut profiles = HashMap::new();
-        
+
         profiles.insert(
             1u128,
-            create_test_profile("task1", TaskType::CpuIntensive, 50.0, 1024 * 1024, 0.8)
+            create_test_profile("task1", TaskType::CpuIntensive, 50.0, 1024 * 1024, 0.8),
         );
         profiles.insert(
             2u128,
-            create_test_profile("task2", TaskType::IoIntensive, 30.0, 2048 * 1024, 0.6)
+            create_test_profile("task2", TaskType::IoIntensive, 30.0, 2048 * 1024, 0.6),
         );
-        
+
         let baselines = generator.calculate_baselines(&profiles);
-        
+
         assert_eq!(baselines.avg_cpu_percent, 40.0);
         assert_eq!(baselines.avg_memory_mb, 1.5);
         assert_eq!(baselines.avg_io_mbps, 10.0);
@@ -1441,34 +1447,34 @@ mod tests {
     fn test_calculate_rankings() {
         let generator = VisualizationGenerator::new();
         let mut profiles = HashMap::new();
-        
+
         // Create tasks with different efficiency scores in same category
         profiles.insert(
             1u128,
-            create_test_profile("task1", TaskType::CpuIntensive, 50.0, 1024 * 1024, 0.9)
+            create_test_profile("task1", TaskType::CpuIntensive, 50.0, 1024 * 1024, 0.9),
         );
         profiles.insert(
-            2u128, 
-            create_test_profile("task2", TaskType::CpuIntensive, 30.0, 2048 * 1024, 0.7)
+            2u128,
+            create_test_profile("task2", TaskType::CpuIntensive, 30.0, 2048 * 1024, 0.7),
         );
         profiles.insert(
             3u128,
-            create_test_profile("task3", TaskType::IoIntensive, 20.0, 512 * 1024, 0.8)
+            create_test_profile("task3", TaskType::IoIntensive, 20.0, 512 * 1024, 0.8),
         );
-        
+
         let rankings = generator.calculate_rankings(&profiles);
-        
+
         // Check CPU intensive tasks ranking
         let task1_ranking = rankings.get(&1u128).expect("Task 1 should have ranking");
         let task2_ranking = rankings.get(&2u128).expect("Task 2 should have ranking");
-        
+
         assert_eq!(task1_ranking.rank, 1); // Higher efficiency should rank first
         assert_eq!(task1_ranking.total_in_category, 2);
         assert_eq!(task1_ranking.category_name, "CpuIntensive");
-        
+
         assert_eq!(task2_ranking.rank, 2);
         assert_eq!(task2_ranking.total_in_category, 2);
-        
+
         // Check IO intensive task ranking
         let task3_ranking = rankings.get(&3u128).expect("Task 3 should have ranking");
         assert_eq!(task3_ranking.rank, 1);
@@ -1479,22 +1485,22 @@ mod tests {
     #[test]
     fn test_compare_to_baseline() {
         let generator = VisualizationGenerator::new();
-        
+
         // Test above average
         let comp = generator.compare_to_baseline(110.0, 100.0);
         assert!(matches!(comp.comparison_type, ComparisonType::AboveAverage));
         assert_eq!(comp.difference_percent, 10.0);
-        
+
         // Test below average
         let comp = generator.compare_to_baseline(90.0, 100.0);
         assert!(matches!(comp.comparison_type, ComparisonType::BelowAverage));
         assert_eq!(comp.difference_percent, -10.0);
-        
+
         // Test near average
         let comp = generator.compare_to_baseline(102.0, 100.0);
         assert!(matches!(comp.comparison_type, ComparisonType::NearAverage));
         assert_eq!(comp.difference_percent, 2.0);
-        
+
         // Test zero baseline
         let comp = generator.compare_to_baseline(50.0, 0.0);
         assert_eq!(comp.difference_percent, 0.0);
@@ -1504,16 +1510,19 @@ mod tests {
     fn test_analyze_profiles_empty() {
         let generator = VisualizationGenerator::new();
         let profiles = HashMap::new();
-        
+
         let result = generator.analyze_profiles(&profiles);
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), VisualizationError::NoDataAvailable));
+        assert!(matches!(
+            result.unwrap_err(),
+            VisualizationError::NoDataAvailable
+        ));
     }
 
     #[test]
     fn test_format_comparison() {
         let generator = VisualizationGenerator::new();
-        
+
         let comp_above = PerformanceComparison {
             value: 110.0,
             baseline: 100.0,
@@ -1521,7 +1530,7 @@ mod tests {
             comparison_type: ComparisonType::AboveAverage,
         };
         assert_eq!(generator.format_comparison(&comp_above), "(+10.5% vs avg)");
-        
+
         let comp_below = PerformanceComparison {
             value: 85.0,
             baseline: 100.0,
@@ -1529,7 +1538,7 @@ mod tests {
             comparison_type: ComparisonType::BelowAverage,
         };
         assert_eq!(generator.format_comparison(&comp_below), "(-15.0% vs avg)");
-        
+
         let comp_average = PerformanceComparison {
             value: 102.0,
             baseline: 100.0,
@@ -1542,40 +1551,49 @@ mod tests {
     #[test]
     fn test_get_comparison_class() {
         let generator = VisualizationGenerator::new();
-        
+
         let comp_above = PerformanceComparison {
             value: 110.0,
             baseline: 100.0,
             difference_percent: 10.0,
             comparison_type: ComparisonType::AboveAverage,
         };
-        assert_eq!(generator.get_comparison_class(&comp_above), "comparison-above");
-        
+        assert_eq!(
+            generator.get_comparison_class(&comp_above),
+            "comparison-above"
+        );
+
         let comp_below = PerformanceComparison {
             value: 90.0,
             baseline: 100.0,
             difference_percent: -10.0,
             comparison_type: ComparisonType::BelowAverage,
         };
-        assert_eq!(generator.get_comparison_class(&comp_below), "comparison-below");
-        
+        assert_eq!(
+            generator.get_comparison_class(&comp_below),
+            "comparison-below"
+        );
+
         let comp_average = PerformanceComparison {
             value: 102.0,
             baseline: 100.0,
             difference_percent: 2.0,
             comparison_type: ComparisonType::NearAverage,
         };
-        assert_eq!(generator.get_comparison_class(&comp_average), "comparison-average");
+        assert_eq!(
+            generator.get_comparison_class(&comp_average),
+            "comparison-average"
+        );
     }
 
     #[test]
     fn test_theme_styles() {
         let generator = VisualizationGenerator::new();
-        
+
         let dark_styles = generator.get_dark_theme_styles();
         assert!(dark_styles.contains("background: #0d1117"));
         assert!(dark_styles.contains("color: #f0f6fc"));
-        
+
         let light_styles = generator.get_light_theme_styles();
         assert!(light_styles.contains("background: #ffffff"));
         assert!(light_styles.contains("color: #24292f"));
@@ -1585,11 +1603,14 @@ mod tests {
     fn test_visualization_error_display() {
         let err = VisualizationError::NoDataAvailable;
         assert_eq!(format!("{}", err), "No data available for visualization");
-        
+
         let err = VisualizationError::InvalidConfiguration("test error".to_string());
         assert_eq!(format!("{}", err), "Invalid configuration: test error");
-        
+
         let err = VisualizationError::TemplateError("template failed".to_string());
-        assert_eq!(format!("{}", err), "Template generation error: template failed");
+        assert_eq!(
+            format!("{}", err),
+            "Template generation error: template failed"
+        );
     }
 }

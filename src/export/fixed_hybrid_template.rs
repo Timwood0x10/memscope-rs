@@ -1356,14 +1356,16 @@ mod tests {
         let template = FixedHybridTemplate::new(4, 8);
         assert_eq!(template.thread_count, 4);
         assert_eq!(template.task_count, 8);
-        assert_eq!(template.output_path, "simple_hybrid_dashboard_variable_detailed.html");
+        assert_eq!(
+            template.output_path,
+            "simple_hybrid_dashboard_variable_detailed.html"
+        );
         assert!(matches!(template.render_mode, RenderMode::VariableDetailed));
     }
 
     #[test]
     fn test_with_render_mode() {
-        let template = FixedHybridTemplate::new(2, 4)
-            .with_render_mode(RenderMode::ThreadFocused);
+        let template = FixedHybridTemplate::new(2, 4).with_render_mode(RenderMode::ThreadFocused);
         assert!(matches!(template.render_mode, RenderMode::ThreadFocused));
     }
 
@@ -1371,20 +1373,23 @@ mod tests {
     fn test_calculate_total_memory() {
         let template = FixedHybridTemplate::new(2, 4);
         let data = create_test_data();
-        
+
         let total_mb = template.calculate_total_memory(&data);
         assert!(total_mb > 0.0);
         // Should be approximately (1024 + 512) KB = 1536 KB ≈ 1.5 MB
-        assert!(total_mb >= 1.0 && total_mb <= 2.0);
+        assert!((1.0..=2.0).contains(&total_mb));
     }
 
     #[test]
     fn test_classify_variable_performance() {
         let template = FixedHybridTemplate::new(2, 4);
-        
+
         let buffer_var = create_test_variable("buffer_large", 0, 600 * 1024);
-        assert_eq!(template.classify_variable_performance(&buffer_var), "memory");
-        
+        assert_eq!(
+            template.classify_variable_performance(&buffer_var),
+            "memory"
+        );
+
         let cpu_var = VariableDetail {
             name: "cpu_intensive".to_string(),
             type_info: "Vec<u8>".to_string(),
@@ -1395,21 +1400,24 @@ mod tests {
             lifecycle_stage: LifecycleStage::Active,
         };
         assert_eq!(template.classify_variable_performance(&cpu_var), "cpu");
-        
+
         let io_var = create_test_variable("file_handler", 0, 1024);
         assert_eq!(template.classify_variable_performance(&io_var), "io");
-        
+
         let async_var = create_test_variable("async_task", 0, 1024);
         assert_eq!(template.classify_variable_performance(&async_var), "async");
-        
+
         let normal_var = create_test_variable("regular_data", 0, 1024);
-        assert_eq!(template.classify_variable_performance(&normal_var), "normal");
+        assert_eq!(
+            template.classify_variable_performance(&normal_var),
+            "normal"
+        );
     }
 
     #[test]
     fn test_get_performance_label() {
         let template = FixedHybridTemplate::new(2, 4);
-        
+
         assert_eq!(template.get_performance_label("cpu"), "CPU");
         assert_eq!(template.get_performance_label("io"), "I/O");
         assert_eq!(template.get_performance_label("memory"), "MEM");
@@ -1424,7 +1432,7 @@ mod tests {
             create_test_variable("test_var", 0, 1024),
             create_test_variable("buffer_var", 1, 2048),
         ];
-        
+
         let html = template.generate_variables_html(&variables);
         assert!(html.contains("test_var"));
         assert!(html.contains("buffer_var"));
@@ -1437,7 +1445,7 @@ mod tests {
     fn test_generate_memory_map_html() {
         let template = FixedHybridTemplate::new(2, 4);
         let data = create_test_data();
-        
+
         let html = template.generate_memory_map_html(&data);
         assert!(html.contains("memory-map-grid"));
         assert!(html.contains("memory-thread-block"));
@@ -1452,7 +1460,7 @@ mod tests {
             create_test_variable("var1", 0, 1024),
             create_test_variable("var2", 1, 2048),
         ];
-        
+
         let json = template.serialize_variables_for_js(&variables);
         assert!(json.starts_with('['));
         assert!(json.ends_with(']'));
@@ -1466,7 +1474,7 @@ mod tests {
     fn test_analyze_high_usage() {
         let template = FixedHybridTemplate::new(2, 4);
         let data = create_test_data();
-        
+
         let (thread, max_memory_kb, max_frequency) = template.analyze_high_usage(&data);
         assert!(thread <= 1); // Should be one of our test threads (0 or 1)
         assert!(max_memory_kb >= 512); // test_var1 is 1024KB
@@ -1477,9 +1485,9 @@ mod tests {
     fn test_calculate_memory_efficiency() {
         let template = FixedHybridTemplate::new(2, 4);
         let data = create_test_data();
-        
+
         let efficiency = template.calculate_memory_efficiency(&data);
-        assert!(efficiency >= 0.0 && efficiency <= 100.0);
+        assert!((0.0..=100.0).contains(&efficiency));
         // All test variables are Active, so efficiency should be 100%
         assert_eq!(efficiency, 100.0);
     }
@@ -1488,8 +1496,9 @@ mod tests {
     fn test_calculate_scores() {
         let template = FixedHybridTemplate::new(2, 4);
         let data = create_test_data();
-        
-        let (mem_score, alloc_score, thread_score, overall_score) = template.calculate_scores(&data);
+
+        let (mem_score, alloc_score, thread_score, overall_score) =
+            template.calculate_scores(&data);
         assert!(mem_score <= 100);
         assert!(alloc_score <= 100);
         assert!(thread_score <= 100);
@@ -1503,7 +1512,7 @@ mod tests {
         let allocated = LifecycleStage::Allocated;
         let shared = LifecycleStage::Shared;
         let deallocated = LifecycleStage::Deallocated;
-        
+
         // Test that all variants can be formatted
         assert!(!format!("{:?}", active).is_empty());
         assert!(!format!("{:?}", allocated).is_empty());
@@ -1516,7 +1525,7 @@ mod tests {
         let comprehensive = RenderMode::Comprehensive;
         let thread_focused = RenderMode::ThreadFocused;
         let variable_detailed = RenderMode::VariableDetailed;
-        
+
         // Test that all variants can be formatted
         assert!(!format!("{:?}", comprehensive).is_empty());
         assert!(!format!("{:?}", thread_focused).is_empty());
@@ -1527,7 +1536,7 @@ mod tests {
     fn test_variable_detail_clone() {
         let var1 = create_test_variable("test", 0, 1024);
         let var2 = var1.clone();
-        
+
         assert_eq!(var1.name, var2.name);
         assert_eq!(var1.thread_id, var2.thread_id);
         assert_eq!(var1.memory_usage, var2.memory_usage);

@@ -321,7 +321,7 @@ mod tests {
     fn test_tracked_future_creation() {
         let future = async { 42 };
         let tracked = create_tracked(future);
-        
+
         // Verify initial state
         assert!(tracked.task_id.is_none());
     }
@@ -330,7 +330,7 @@ mod tests {
     fn test_spawn_tracked_alias() {
         let future = async { "hello" };
         let tracked = spawn_tracked(future);
-        
+
         // spawn_tracked should be equivalent to create_tracked
         assert!(tracked.task_id.is_none());
     }
@@ -355,15 +355,18 @@ mod tests {
     #[test]
     fn test_tracked_future_multiple_polls() {
         use std::sync::{Arc, Mutex};
-        
+
         let poll_count = Arc::new(Mutex::new(0));
         let poll_count_clone = poll_count.clone();
-        
+
         // Create a future that's pending the first time, ready the second
         let future = async move {
-            let mut count = poll_count_clone.lock().unwrap();
-            *count += 1;
-            if *count == 1 {
+            let should_wait = {
+                let mut count = poll_count_clone.lock().unwrap();
+                *count += 1;
+                *count == 1
+            };
+            if should_wait {
                 // Simulate pending on first poll
                 std::future::pending::<()>().await;
             }
@@ -376,21 +379,21 @@ mod tests {
 
         // First poll - may generate task ID
         let _result1 = Pin::new(&mut tracked).poll(&mut cx);
-        
+
         // Second poll - should reuse task ID if generated
         let _result2 = Pin::new(&mut tracked).poll(&mut cx);
-        
+
         // Task ID should be consistent between polls if generated
         // (We can't easily test the internal state, but the behavior should be consistent)
     }
 
     #[test]
     fn test_tracked_future_task_context() {
-        use crate::async_memory::task_id::{get_current_task, clear_current_task};
-        
+        use crate::async_memory::task_id::{clear_current_task, get_current_task};
+
         // Clear any existing context first
         clear_current_task();
-        
+
         let future = async {
             // Try to get current task context during execution
             let _task_info = get_current_task();
@@ -403,7 +406,7 @@ mod tests {
 
         // Poll the future
         let _result = Pin::new(&mut tracked).poll(&mut cx);
-        
+
         // Context should be cleared after completion
         let _current_task = get_current_task();
         // May or may not have task info depending on implementation
@@ -420,7 +423,7 @@ mod tests {
     fn test_get_memory_snapshot_integration() {
         // Test the real get_memory_snapshot function
         let snapshot = get_memory_snapshot();
-        
+
         // Verify snapshot has reasonable values
         assert!(snapshot.buffer_utilization >= 0.0);
         assert!(snapshot.buffer_utilization <= 1.0);
@@ -480,16 +483,16 @@ mod tests {
         // Test behavior when task ID generation might fail
         let future = async { "test" };
         let mut tracked = TrackedFuture::new(future);
-        
+
         // Verify initial state
         assert!(tracked.task_id.is_none());
-        
+
         let waker = create_test_waker();
         let mut cx = Context::from_waker(&waker);
-        
+
         // Poll should handle ID generation gracefully
         let _result = Pin::new(&mut tracked).poll(&mut cx);
-        
+
         // Should not panic even if ID generation fails
     }
 
@@ -497,7 +500,7 @@ mod tests {
     fn test_tracked_future_new_constructor() {
         let future = async { vec![1, 2, 3] };
         let tracked = TrackedFuture::new(future);
-        
+
         assert!(tracked.task_id.is_none());
         // The inner future should be properly boxed and pinned
     }
@@ -524,7 +527,7 @@ mod tests {
         // Test with various return types
         let string_future = create_tracked(async { String::from("test") });
         let number_future = create_tracked(async { 42u64 });
-        let unit_future = create_tracked(async { () });
+        let unit_future = create_tracked(async {});
         let option_future = create_tracked(async { Some(100) });
         let result_future = create_tracked(async { Ok::<_, &str>(200) });
 

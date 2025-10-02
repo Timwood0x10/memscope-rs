@@ -249,6 +249,7 @@ struct EnhancedWorkload {
     name: String,
     workload_type: WorkloadType,
     operation_count: usize,
+    #[allow(dead_code)]
     complexity: ComplexityLevel,
 }
 

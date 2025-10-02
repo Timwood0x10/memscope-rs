@@ -12,7 +12,7 @@ pub struct PlatformResourceMetrics {
     pub timestamp: u64,
     pub cpu_metrics: CpuResourceMetrics,
     pub gpu_metrics: Option<GpuResourceMetrics>, // Always None - not implemented
-    pub io_metrics: IoResourceMetrics, // Always default values
+    pub io_metrics: IoResourceMetrics,           // Always default values
     pub thread_metrics: HashMap<u64, ThreadResourceMetrics>,
 }
 
@@ -101,7 +101,7 @@ impl PlatformResourceCollector {
             .as_millis() as u64;
 
         let cpu_metrics = self.collect_basic_cpu_metrics();
-        
+
         Ok(PlatformResourceMetrics {
             timestamp,
             cpu_metrics,
@@ -119,14 +119,14 @@ impl PlatformResourceCollector {
     fn collect_basic_cpu_metrics(&self) -> CpuResourceMetrics {
         // Basic CPU usage estimation (simplified)
         let usage = self.estimate_cpu_usage();
-        
+
         CpuResourceMetrics {
             overall_usage_percent: usage,
             per_core_usage: vec![usage / self.cpu_count as f32; self.cpu_count],
             frequency_mhz: vec![0; self.cpu_count], // Not implemented
-            temperature_celsius: Vec::new(), // Not implemented
-            context_switches_per_sec: 0, // Not implemented
-            interrupts_per_sec: 0, // Not implemented
+            temperature_celsius: Vec::new(),        // Not implemented
+            context_switches_per_sec: 0,            // Not implemented
+            interrupts_per_sec: 0,                  // Not implemented
             load_average: self.get_load_average(),
         }
     }
@@ -136,15 +136,15 @@ impl PlatformResourceCollector {
         #[cfg(unix)]
         {
             if let Ok(uptime) = std::fs::read_to_string("/proc/uptime") {
-                let parts: Vec<&str> = uptime.trim().split_whitespace().collect();
+                let parts: Vec<&str> = uptime.split_whitespace().collect();
                 if parts.len() >= 2 {
                     let total = parts[0].parse::<f64>().unwrap_or(1.0);
                     let idle = parts[1].parse::<f64>().unwrap_or(0.0);
-                    return ((total - idle) / total * 100.0).max(0.0).min(100.0) as f32;
+                    return ((total - idle) / total * 100.0).clamp(0.0, 100.0) as f32;
                 }
             }
         }
-        
+
         // Fallback: return moderate usage
         25.0
     }
@@ -159,13 +159,13 @@ impl PlatformResourceCollector {
                 }
             }
         }
-        
+
         (0.0, 0.0, 0.0)
     }
 
     fn collect_basic_thread_metrics(&self) -> HashMap<u64, ThreadResourceMetrics> {
         let mut metrics = HashMap::new();
-        
+
         // Add current thread only - use a simple counter as thread ID
         let thread_id = 1u64; // Simplified thread ID
         metrics.insert(
@@ -175,14 +175,14 @@ impl PlatformResourceCollector {
                 thread_name: std::thread::current().name().map(String::from),
                 cpu_usage_percent: 0.0,
                 memory_resident_bytes: 0, // Not implemented
-                memory_virtual_bytes: 0, // Not implemented
+                memory_virtual_bytes: 0,  // Not implemented
                 io_read_bytes: 0,
                 io_write_bytes: 0,
                 cpu_time_user_ns: 0,
                 cpu_time_kernel_ns: 0,
             },
         );
-        
+
         metrics
     }
 }
@@ -216,11 +216,11 @@ mod tests {
         if let Ok(mut collector) = PlatformResourceCollector::new() {
             let result = collector.collect_metrics();
             assert!(result.is_ok());
-            
+
             let metrics = result.unwrap();
             assert!(metrics.timestamp > 0);
             assert!(metrics.gpu_metrics.is_none()); // GPU not implemented
-            // I/O metrics should be default (all zeros)
+                                                    // I/O metrics should be default (all zeros)
         }
     }
 

@@ -283,7 +283,11 @@ mod tests {
     use super::*;
     use std::time::Instant;
 
-    fn create_test_thread_stats(thread_id: u64, allocations: u64, peak_memory: usize) -> ThreadStats {
+    fn create_test_thread_stats(
+        thread_id: u64,
+        allocations: u64,
+        peak_memory: usize,
+    ) -> ThreadStats {
         let mut allocation_frequency = HashMap::new();
         allocation_frequency.insert(12345, allocations / 2);
         allocation_frequency.insert(67890, allocations / 2);
@@ -320,7 +324,7 @@ mod tests {
     #[test]
     fn test_lockfree_analysis_creation() {
         let analysis = LockfreeAnalysis::new();
-        
+
         assert!(analysis.thread_stats.is_empty());
         assert!(analysis.hottest_call_stacks.is_empty());
         assert!(analysis.thread_interactions.is_empty());
@@ -341,34 +345,40 @@ mod tests {
     fn test_calculate_summary_single_thread() {
         let mut analysis = LockfreeAnalysis::new();
         let start_time = Instant::now();
-        
+
         // Add a single thread
         let thread_stats = create_test_thread_stats(1, 100, 8192);
         analysis.thread_stats.insert(1, thread_stats);
-        
+
         analysis.calculate_summary(start_time);
-        
+
         assert_eq!(analysis.summary.total_threads, 1);
         assert_eq!(analysis.summary.total_allocations, 100);
         assert_eq!(analysis.summary.total_deallocations, 99);
         assert_eq!(analysis.summary.peak_memory_usage, 8192);
         assert_eq!(analysis.summary.total_memory_allocated, 8192);
         assert_eq!(analysis.summary.unique_call_stacks, 2); // Two call stacks in test data
-        // assert!(analysis.summary.analysis_duration_ms >= 0); // Always true for u64
+                                                            // assert!(analysis.summary.analysis_duration_ms >= 0); // Always true for u64
     }
 
     #[test]
     fn test_calculate_summary_multiple_threads() {
         let mut analysis = LockfreeAnalysis::new();
         let start_time = Instant::now();
-        
+
         // Add multiple threads
-        analysis.thread_stats.insert(1, create_test_thread_stats(1, 100, 4096));
-        analysis.thread_stats.insert(2, create_test_thread_stats(2, 50, 2048));
-        analysis.thread_stats.insert(3, create_test_thread_stats(3, 200, 8192));
-        
+        analysis
+            .thread_stats
+            .insert(1, create_test_thread_stats(1, 100, 4096));
+        analysis
+            .thread_stats
+            .insert(2, create_test_thread_stats(2, 50, 2048));
+        analysis
+            .thread_stats
+            .insert(3, create_test_thread_stats(3, 200, 8192));
+
         analysis.calculate_summary(start_time);
-        
+
         assert_eq!(analysis.summary.total_threads, 3);
         assert_eq!(analysis.summary.total_allocations, 350); // 100 + 50 + 200
         assert_eq!(analysis.summary.total_deallocations, 347); // 99 + 49 + 199
@@ -380,13 +390,19 @@ mod tests {
     #[test]
     fn test_get_most_active_threads() {
         let mut analysis = LockfreeAnalysis::new();
-        
-        analysis.thread_stats.insert(1, create_test_thread_stats(1, 100, 4096));
-        analysis.thread_stats.insert(2, create_test_thread_stats(2, 300, 2048));
-        analysis.thread_stats.insert(3, create_test_thread_stats(3, 50, 8192));
-        
+
+        analysis
+            .thread_stats
+            .insert(1, create_test_thread_stats(1, 100, 4096));
+        analysis
+            .thread_stats
+            .insert(2, create_test_thread_stats(2, 300, 2048));
+        analysis
+            .thread_stats
+            .insert(3, create_test_thread_stats(3, 50, 8192));
+
         let most_active = analysis.get_most_active_threads(2);
-        
+
         assert_eq!(most_active.len(), 2);
         assert_eq!(most_active[0], (2, 300)); // Most active thread
         assert_eq!(most_active[1], (1, 100)); // Second most active
@@ -402,13 +418,19 @@ mod tests {
     #[test]
     fn test_get_highest_memory_threads() {
         let mut analysis = LockfreeAnalysis::new();
-        
-        analysis.thread_stats.insert(1, create_test_thread_stats(1, 100, 4096));
-        analysis.thread_stats.insert(2, create_test_thread_stats(2, 300, 2048));
-        analysis.thread_stats.insert(3, create_test_thread_stats(3, 50, 8192));
-        
+
+        analysis
+            .thread_stats
+            .insert(1, create_test_thread_stats(1, 100, 4096));
+        analysis
+            .thread_stats
+            .insert(2, create_test_thread_stats(2, 300, 2048));
+        analysis
+            .thread_stats
+            .insert(3, create_test_thread_stats(3, 50, 8192));
+
         let highest_memory = analysis.get_highest_memory_threads(2);
-        
+
         assert_eq!(highest_memory.len(), 2);
         assert_eq!(highest_memory[0], (3, 8192)); // Highest memory usage
         assert_eq!(highest_memory[1], (1, 4096)); // Second highest
@@ -417,29 +439,33 @@ mod tests {
     #[test]
     fn test_get_critical_bottlenecks() {
         let mut analysis = LockfreeAnalysis::new();
-        
-        analysis.performance_bottlenecks.push(PerformanceBottleneck {
-            bottleneck_type: BottleneckType::HighFrequencySmallAllocation,
-            thread_id: 1,
-            call_stack_hash: 12345,
-            severity: 0.8,
-            description: "High frequency allocations detected".to_string(),
-            suggestion: "Consider using a memory pool".to_string(),
-        });
-        
-        analysis.performance_bottlenecks.push(PerformanceBottleneck {
-            bottleneck_type: BottleneckType::MemoryLeak,
-            thread_id: 2,
-            call_stack_hash: 67890,
-            severity: 0.3,
-            description: "Potential memory leak".to_string(),
-            suggestion: "Check deallocation patterns".to_string(),
-        });
-        
+
+        analysis
+            .performance_bottlenecks
+            .push(PerformanceBottleneck {
+                bottleneck_type: BottleneckType::HighFrequencySmallAllocation,
+                thread_id: 1,
+                call_stack_hash: 12345,
+                severity: 0.8,
+                description: "High frequency allocations detected".to_string(),
+                suggestion: "Consider using a memory pool".to_string(),
+            });
+
+        analysis
+            .performance_bottlenecks
+            .push(PerformanceBottleneck {
+                bottleneck_type: BottleneckType::MemoryLeak,
+                thread_id: 2,
+                call_stack_hash: 67890,
+                severity: 0.3,
+                description: "Potential memory leak".to_string(),
+                suggestion: "Check deallocation patterns".to_string(),
+            });
+
         let critical = analysis.get_critical_bottlenecks(0.7);
         assert_eq!(critical.len(), 1);
         assert_eq!(critical[0].severity, 0.8);
-        
+
         let all_bottlenecks = analysis.get_critical_bottlenecks(0.0);
         assert_eq!(all_bottlenecks.len(), 2);
     }
@@ -461,7 +487,7 @@ mod tests {
             event_type: EventType::Allocation,
             thread_id: 1,
         };
-        
+
         assert_eq!(event.timestamp, 12345);
         assert_eq!(event.ptr, 0x1000);
         assert_eq!(event.size, 1024);
@@ -473,7 +499,7 @@ mod tests {
     #[test]
     fn test_thread_stats_creation() {
         let stats = create_test_thread_stats(42, 1000, 16384);
-        
+
         assert_eq!(stats.thread_id, 42);
         assert_eq!(stats.total_allocations, 1000);
         assert_eq!(stats.total_deallocations, 999);
@@ -493,7 +519,7 @@ mod tests {
             impact_score: 819200,
             threads: vec![1, 2, 3],
         };
-        
+
         assert_eq!(hot_stack.call_stack_hash, 12345);
         assert_eq!(hot_stack.total_frequency, 100);
         assert_eq!(hot_stack.total_size, 8192);
@@ -510,7 +536,7 @@ mod tests {
             interaction_strength: 50,
             interaction_type: InteractionType::SimilarPatterns,
         };
-        
+
         assert_eq!(interaction.thread_a, 1);
         assert_eq!(interaction.thread_b, 2);
         assert_eq!(interaction.shared_patterns.len(), 2);
@@ -526,7 +552,7 @@ mod tests {
             active_allocations: 500,
             triggering_call_stack: 12345,
         };
-        
+
         assert_eq!(peak.timestamp, 123456789);
         assert_eq!(peak.thread_id, 3);
         assert_eq!(peak.memory_usage, 1048576);
@@ -544,7 +570,7 @@ mod tests {
             description: "High frequency".to_string(),
             suggestion: "Use pools".to_string(),
         };
-        
+
         let bottleneck2 = PerformanceBottleneck {
             bottleneck_type: BottleneckType::LargeAllocationSpike,
             thread_id: 2,
@@ -553,7 +579,7 @@ mod tests {
             description: "Large spike".to_string(),
             suggestion: "Optimize allocation".to_string(),
         };
-        
+
         // Test different bottleneck types can be created
         assert_eq!(bottleneck1.thread_id, 1);
         assert_eq!(bottleneck2.thread_id, 2);
@@ -564,22 +590,22 @@ mod tests {
         let similar = InteractionType::SimilarPatterns;
         let sharing = InteractionType::MemorySharing;
         let producer_consumer = InteractionType::ProducerConsumer;
-        
+
         // Test that all interaction types can be created
         // (Mainly for coverage, these are simple enums)
-        let _interactions = vec![similar, sharing, producer_consumer];
+        let _interactions = [similar, sharing, producer_consumer];
     }
 
     #[test]
     fn test_bottleneck_types_complete() {
-        let types = vec![
+        let types = [
             BottleneckType::HighFrequencySmallAllocation,
             BottleneckType::LargeAllocationSpike,
             BottleneckType::MemoryLeak,
             BottleneckType::ThreadContention,
             BottleneckType::FragmentationRisk,
         ];
-        
+
         // Test that all bottleneck types can be created
         assert_eq!(types.len(), 5);
     }
@@ -596,7 +622,7 @@ mod tests {
             analysis_duration_ms: 500,
             sampling_effectiveness: 85.5,
         };
-        
+
         assert_eq!(summary.total_threads, 5);
         assert_eq!(summary.total_allocations, 1000);
         assert_eq!(summary.total_deallocations, 950);
@@ -611,12 +637,18 @@ mod tests {
     fn test_complex_analysis_workflow() {
         let mut analysis = LockfreeAnalysis::new();
         let start_time = Instant::now();
-        
+
         // Build a complex analysis scenario
-        analysis.thread_stats.insert(1, create_test_thread_stats(1, 1000, 8192));
-        analysis.thread_stats.insert(2, create_test_thread_stats(2, 500, 4096));
-        analysis.thread_stats.insert(3, create_test_thread_stats(3, 2000, 16384));
-        
+        analysis
+            .thread_stats
+            .insert(1, create_test_thread_stats(1, 1000, 8192));
+        analysis
+            .thread_stats
+            .insert(2, create_test_thread_stats(2, 500, 4096));
+        analysis
+            .thread_stats
+            .insert(3, create_test_thread_stats(3, 2000, 16384));
+
         analysis.hottest_call_stacks.push(HotCallStack {
             call_stack_hash: 12345,
             total_frequency: 1000,
@@ -624,7 +656,7 @@ mod tests {
             impact_score: 16384000,
             threads: vec![1, 2, 3],
         });
-        
+
         analysis.thread_interactions.push(ThreadInteraction {
             thread_a: 1,
             thread_b: 2,
@@ -632,7 +664,7 @@ mod tests {
             interaction_strength: 75,
             interaction_type: InteractionType::SimilarPatterns,
         });
-        
+
         analysis.memory_peaks.push(MemoryPeak {
             timestamp: 1000000,
             thread_id: 3,
@@ -640,18 +672,20 @@ mod tests {
             active_allocations: 1000,
             triggering_call_stack: 12345,
         });
-        
-        analysis.performance_bottlenecks.push(PerformanceBottleneck {
-            bottleneck_type: BottleneckType::HighFrequencySmallAllocation,
-            thread_id: 3,
-            call_stack_hash: 12345,
-            severity: 0.9,
-            description: "Very high allocation frequency".to_string(),
-            suggestion: "Consider object pooling".to_string(),
-        });
-        
+
+        analysis
+            .performance_bottlenecks
+            .push(PerformanceBottleneck {
+                bottleneck_type: BottleneckType::HighFrequencySmallAllocation,
+                thread_id: 3,
+                call_stack_hash: 12345,
+                severity: 0.9,
+                description: "Very high allocation frequency".to_string(),
+                suggestion: "Consider object pooling".to_string(),
+            });
+
         analysis.calculate_summary(start_time);
-        
+
         // Verify complex analysis state
         assert_eq!(analysis.summary.total_threads, 3);
         assert_eq!(analysis.summary.total_allocations, 3500);
@@ -666,7 +700,7 @@ mod tests {
     #[test]
     fn test_edge_cases() {
         let mut analysis = LockfreeAnalysis::new();
-        
+
         // Test with zero allocations thread
         let empty_stats = ThreadStats {
             thread_id: 99,
@@ -679,14 +713,14 @@ mod tests {
             timeline: Vec::new(),
         };
         analysis.thread_stats.insert(99, empty_stats);
-        
+
         let start_time = Instant::now();
         analysis.calculate_summary(start_time);
-        
+
         assert_eq!(analysis.summary.total_threads, 1);
         assert_eq!(analysis.summary.total_allocations, 0);
         assert_eq!(analysis.summary.sampling_effectiveness, 0.0);
-        
+
         // Test getting active threads with no activity
         let active = analysis.get_most_active_threads(10);
         assert_eq!(active.len(), 1);
@@ -697,10 +731,10 @@ mod tests {
     fn test_serialization_deserialization() {
         // Test that structures can be serialized (important for data export)
         let analysis = LockfreeAnalysis::new();
-        
+
         // This will compile if Serialize/Deserialize are properly implemented
         let _json = serde_json::to_string(&analysis);
-        
+
         let event = AllocationEvent {
             timestamp: 1000,
             ptr: 0x1000,
@@ -709,7 +743,7 @@ mod tests {
             event_type: EventType::Allocation,
             thread_id: 1,
         };
-        
+
         let _event_json = serde_json::to_string(&event);
     }
 }

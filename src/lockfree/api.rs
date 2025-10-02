@@ -372,7 +372,7 @@ mod tests {
     fn test_trace_all_creates_directory() {
         let temp_dir = create_test_dir();
         let output_path = temp_dir.path().join("test_output");
-        
+
         let result = trace_all(&output_path);
         assert!(result.is_ok());
         assert!(output_path.exists());
@@ -383,13 +383,13 @@ mod tests {
     fn test_trace_all_cleans_existing_directory() {
         let temp_dir = create_test_dir();
         let output_path = temp_dir.path().join("test_output");
-        
+
         // Create directory with existing file
         fs::create_dir_all(&output_path).unwrap();
         let test_file = output_path.join("existing_file.txt");
         fs::write(&test_file, "test content").unwrap();
         assert!(test_file.exists());
-        
+
         // Call trace_all should clean the directory
         let result = trace_all(&output_path);
         assert!(result.is_ok());
@@ -401,11 +401,11 @@ mod tests {
     fn test_stop_tracing() {
         let temp_dir = create_test_dir();
         let output_path = temp_dir.path().join("test_output");
-        
+
         // Test stop tracing functionality
         // (Simplified to avoid global state conflicts)
         let _ = trace_all(&output_path);
-        
+
         // Stop tracing should not panic
         let result = stop_tracing();
         assert!(result.is_ok());
@@ -423,7 +423,7 @@ mod tests {
     fn test_trace_thread() {
         let temp_dir = create_test_dir();
         let output_path = temp_dir.path().join("test_output");
-        
+
         let result = trace_thread(&output_path);
         assert!(result.is_ok());
         assert!(output_path.exists());
@@ -433,39 +433,39 @@ mod tests {
     fn test_is_tracking() {
         let temp_dir = create_test_dir();
         let output_path = temp_dir.path().join("test_output");
-        
+
         // Test the is_tracking function concept
         // (Simplified to avoid global state conflicts)
-        let initial_state = is_tracking();
-        
+        let _initial_state = is_tracking();
+
         // Test tracking operations
         let _ = trace_all(&output_path);
         let _tracking_state = is_tracking();
         let _ = stop_tracing();
         let _final_state = is_tracking();
-        
+
         // Basic validation that function doesn't panic
-        assert!(initial_state == true || initial_state == false);
+        // Note: Boolean state is always valid
     }
 
     #[test]
     fn test_memory_snapshot() {
         let temp_dir = create_test_dir();
         let output_path = temp_dir.path().join("test_output");
-        
+
         // Test basic functionality without relying on global state order
         let snapshot1 = memory_snapshot();
         // The snapshot should have reasonable values regardless of global state
         assert!(snapshot1.active_threads <= 1); // Could be 0 or 1 depending on other tests
-        
+
         // Start tracking and test again
         trace_all(&output_path).unwrap();
         let snapshot2 = memory_snapshot();
         assert_eq!(snapshot2.active_threads, 1); // Should definitely be 1 after trace_all
-        
+
         // Clean up
         stop_tracing().unwrap();
-        
+
         // After stopping, should be 0 again
         let snapshot3 = memory_snapshot();
         assert_eq!(snapshot3.active_threads, 0);
@@ -484,31 +484,31 @@ mod tests {
     fn test_tracking_enabled_state() {
         let temp_dir = create_test_dir();
         let output_path = temp_dir.path().join("test_output");
-        
+
         // Test tracking state functionality
         // (Simplified to avoid global state conflicts)
-        let initial_state = TRACKING_ENABLED.load(Ordering::Relaxed);
-        
+        let _initial_state = TRACKING_ENABLED.load(Ordering::Relaxed);
+
         // Test operations
         let _ = trace_all(&output_path);
         let _enabled_state = TRACKING_ENABLED.load(Ordering::Relaxed);
         let _ = stop_tracing();
         let _final_state = TRACKING_ENABLED.load(Ordering::Relaxed);
-        
+
         // Basic validation that atomic operations work
-        assert!(initial_state == true || initial_state == false);
+        // Note: Boolean state is always valid
     }
 
     #[test]
     fn test_output_directory_persistence() {
         let temp_dir = create_test_dir();
         let output_path = temp_dir.path().join("test_output");
-        
+
         // Test that we can create and access the output directory
         // (Simplified to avoid global state conflicts in parallel tests)
         assert!(std::fs::create_dir_all(&output_path).is_ok());
         assert!(output_path.exists());
-        
+
         // Test the output directory concept without relying on global state
         let _ = trace_all(&output_path);
         let _ = stop_tracing();
@@ -517,7 +517,7 @@ mod tests {
     #[test]
     fn test_sampling_config_creation() {
         let config = SamplingConfig::default();
-        
+
         assert_eq!(config.large_allocation_rate, 1.0);
         assert_eq!(config.medium_allocation_rate, 0.1);
         assert_eq!(config.small_allocation_rate, 0.01);
@@ -532,17 +532,17 @@ mod tests {
         assert!(high_precision.validate().is_ok());
         assert_eq!(high_precision.large_allocation_rate, 1.0);
         assert_eq!(high_precision.medium_allocation_rate, 0.5);
-        
+
         let performance_optimized = SamplingConfig::performance_optimized();
         assert!(performance_optimized.validate().is_ok());
         assert_eq!(performance_optimized.small_allocation_rate, 0.001);
-        
+
         let leak_detection = SamplingConfig::leak_detection();
         assert!(leak_detection.validate().is_ok());
         assert_eq!(leak_detection.medium_allocation_rate, 0.8);
     }
 
-    #[test] 
+    #[test]
     fn test_error_handling_invalid_path() {
         // Test with path that might cause issues
         let result = trace_all("");
@@ -553,12 +553,12 @@ mod tests {
     #[test]
     fn test_memory_snapshot_structure() {
         let snapshot = memory_snapshot();
-        
+
         // Test that all fields exist and are reasonable
         assert!(snapshot.current_mb >= 0.0);
         assert!(snapshot.peak_mb >= 0.0);
         // assert!(snapshot.allocations >= 0); // Always true for u64
-        // assert!(snapshot.deallocations >= 0); // Always true for u64  
+        // assert!(snapshot.deallocations >= 0); // Always true for u64
         // assert!(snapshot.active_threads >= 0); // Always true for u64
     }
 }
