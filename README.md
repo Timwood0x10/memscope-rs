@@ -869,6 +869,37 @@ cargo run --bin memscope-benchmark -- --threads 50 --allocations 10000
 - **[Examples](examples/)** - Real-world usage examples
 - **[Performance Guide](docs/performance.md)** - Optimization tips
 
+## 🙏 Help Me Improve This Project
+
+**I need your feedback!** While memscope-rs has comprehensive functionality, I believe it can be even better with your help.
+
+### 🐛 **Found a Bug? Please Tell Me!**
+
+I've put tremendous effort into testing, but complex software inevitably has edge cases I haven't encountered. Your real-world usage scenarios are invaluable:
+
+- **Performance issues** in your specific use case
+- **Compatibility problems** with certain crates or Rust versions  
+- **Unexpected behavior** that doesn't match documentation
+- **Missing features** that would make your workflow easier
+
+### 💡 **How You Can Help**
+
+1. **Create Issues**: [Open an issue](https://github.com/TimWood0x10/memscope-rs/issues/new) - no matter how small!
+2. **Share Use Cases**: Tell me how you're using memscope-rs
+3. **Report Performance**: Let me know if tracking overhead is higher than expected
+4. **Documentation Gaps**: Point out anything confusing or unclear
+
+### 🚀 **Your Experience Matters**
+
+Every issue report helps make memscope-rs more robust for the entire Rust community. I'm committed to:
+- **Quick responses** to reported issues
+- **Transparent communication** about fixes and improvements  
+- **Recognition** for your contributions
+
+**Together, we can build the best memory analysis tool for Rust!** 🦀
+
+---
+
 ## 🤝 Contributing
 
 We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
