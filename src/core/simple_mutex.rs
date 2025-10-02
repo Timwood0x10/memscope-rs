@@ -207,7 +207,9 @@ mod tests {
 
                 #[cfg(not(feature = "parking-lot"))]
                 {
-                    let mut guard = mutex_clone.lock().unwrap();
+                    let mut guard = mutex_clone
+                        .lock()
+                        .expect("Mutex should not be poisoned in thread");
                     *guard += 1;
                 }
             });
@@ -215,7 +217,7 @@ mod tests {
         }
 
         for handle in handles {
-            handle.join().unwrap();
+            handle.join().expect("Thread should complete successfully");
         }
 
         #[cfg(feature = "parking-lot")]

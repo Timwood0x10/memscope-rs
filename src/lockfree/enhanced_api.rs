@@ -532,9 +532,9 @@ mod tests {
         let output_path = temp_dir.path().join("test_cleanup");
 
         // Create directory with existing file
-        std::fs::create_dir_all(&output_path).unwrap();
+        std::fs::create_dir_all(&output_path).expect("Should be able to create output directory");
         let test_file = output_path.join("existing_file.txt");
-        std::fs::write(&test_file, "test content").unwrap();
+        std::fs::write(&test_file, "test content").expect("Should be able to write test file");
         assert!(test_file.exists());
 
         // Start profiling should clean the directory
@@ -579,7 +579,7 @@ mod tests {
         let result = get_system_snapshot();
         assert!(result.is_ok());
 
-        let snapshot = result.unwrap();
+        let snapshot = result.expect("System snapshot should be available");
         // Basic validation of snapshot data
         assert!(snapshot.cpu_metrics.overall_usage >= 0.0);
         assert!(snapshot.cpu_metrics.overall_usage <= 100.0);
@@ -601,13 +601,14 @@ mod tests {
         assert!(is_enhanced_profiling_active());
 
         // Stop profiling
-        stop_system_profiling().unwrap();
+        stop_system_profiling().expect("System profiling should stop successfully");
         assert!(!is_enhanced_profiling_active());
     }
 
     #[test]
     fn test_system_snapshot_cpu_metrics() {
-        let snapshot = get_system_snapshot().unwrap();
+        let snapshot = get_system_snapshot()
+            .expect("System snapshot should be available for CPU metrics test");
 
         // CPU metrics validation
         assert!(snapshot.cpu_metrics.overall_usage >= 0.0);

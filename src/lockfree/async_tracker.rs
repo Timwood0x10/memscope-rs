@@ -449,13 +449,13 @@ mod tests {
         tracker.track_async_allocation(task_id, allocation);
 
         // Check task state
-        let task_state = tracker.task_allocations.get(&task_id).unwrap();
+        let task_state = tracker.task_allocations.get(&task_id).expect("Task should exist in allocations map");
         assert_eq!(task_state.current_memory, 1024);
         assert_eq!(task_state.peak_memory, 1024);
         assert_eq!(task_state.allocations.len(), 1);
 
         // Finish task
-        let report = tracker.finish_task(task_id).unwrap();
+        let report = tracker.finish_task(task_id).expect("Task should finish successfully");
         assert_eq!(report.task_name, "test_task");
         assert_eq!(report.total_allocations, 1);
         assert_eq!(report.total_allocated, 1024);

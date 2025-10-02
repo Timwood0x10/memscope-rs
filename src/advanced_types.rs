@@ -1257,7 +1257,8 @@ mod tests {
     #[test]
     fn test_analyze_type() {
         let allocation = create_test_allocation("std::sync::Mutex<String>", 2048);
-        let analysis = analyze_type(&allocation).unwrap();
+        let analysis =
+            analyze_type(&allocation).expect("Type analysis should succeed for valid allocation");
 
         assert_eq!(analysis.category, AdvancedTypeCategory::Synchronization);
         assert!(analysis.behavior.deadlock_potential);

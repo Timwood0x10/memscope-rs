@@ -597,10 +597,12 @@ mod tests {
         );
 
         assert!(result.is_ok());
-        let case_id = result.unwrap();
+        let case_id = result.expect("Edge case handling should succeed");
         assert!(case_id > 0);
 
-        let retrieved_case = handler.get_edge_case(case_id).unwrap();
+        let retrieved_case = handler
+            .get_edge_case(case_id)
+            .expect("Retrieving edge case should succeed");
         assert_eq!(retrieved_case.case_type, EdgeCaseType::NullPointerAccess);
         assert_eq!(retrieved_case.severity, EdgeCaseSeverity::High);
     }
@@ -622,9 +624,11 @@ mod tests {
                 "Test unknown case".to_string(),
                 context,
             )
-            .unwrap();
+            .expect("Edge case with recovery action should be handled successfully");
 
-        let case = handler.get_edge_case(case_id).unwrap();
+        let case = handler
+            .get_edge_case(case_id)
+            .expect("Edge case should exist after being created");
         assert!(case.handled_successfully);
         assert_eq!(
             case.recovery_action,
@@ -647,10 +651,12 @@ mod tests {
                     format!("Test case {i}"),
                     context.clone(),
                 )
-                .unwrap();
+                .expect("Multiple edge case handling should succeed");
         }
 
-        let stats = handler.get_stats().unwrap();
+        let stats = handler
+            .get_stats()
+            .expect("Getting edge case stats should succeed");
         assert_eq!(stats.total_cases_detected, 5);
         assert!(stats.cases_handled_successfully > 0);
     }
@@ -672,7 +678,7 @@ mod tests {
                     format!("Test case {i}"),
                     context.clone(),
                 )
-                .unwrap();
+                .expect("Edge case handling during cleanup test should succeed");
         }
 
         // Should have triggered cleanup

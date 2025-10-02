@@ -681,8 +681,12 @@ mod tests {
     #[test]
     fn test_single_thread_tracking() {
         let mut strategy = ThreadLocalStrategy::new();
-        strategy.initialize(TrackerConfig::default()).unwrap();
-        strategy.start_tracking().unwrap();
+        strategy
+            .initialize(TrackerConfig::default())
+            .expect("Strategy initialization should succeed");
+        strategy
+            .start_tracking()
+            .expect("Strategy should start tracking successfully");
 
         // Track allocation
         let result = strategy.track_allocation(
@@ -709,8 +713,12 @@ mod tests {
     #[test]
     fn test_multi_thread_tracking() {
         let mut strategy = ThreadLocalStrategy::new();
-        strategy.initialize(TrackerConfig::default()).unwrap();
-        strategy.start_tracking().unwrap();
+        strategy
+            .initialize(TrackerConfig::default())
+            .expect("Multi-thread strategy initialization should succeed");
+        strategy
+            .start_tracking()
+            .expect("Multi-thread strategy should start tracking successfully");
 
         let strategy = Arc::new(strategy);
         let barrier = Arc::new(Barrier::new(3)); // Main thread + 2 worker threads
@@ -723,7 +731,9 @@ mod tests {
 
             let handle = thread::spawn(move || {
                 // Register thread
-                strategy_clone.register_current_thread().unwrap();
+                strategy_clone
+                    .register_current_thread()
+                    .expect("Thread registration should succeed");
 
                 // Wait for all threads to be ready
                 barrier_clone.wait();
@@ -754,7 +764,9 @@ mod tests {
 
         // Wait for all threads to complete
         for handle in handles {
-            handle.join().unwrap();
+            handle
+                .join()
+                .expect("Worker thread should complete successfully");
         }
 
         // Verify statistics
@@ -772,8 +784,12 @@ mod tests {
     #[test]
     fn test_json_export_format() {
         let mut strategy = ThreadLocalStrategy::new();
-        strategy.initialize(TrackerConfig::default()).unwrap();
-        strategy.start_tracking().unwrap();
+        strategy
+            .initialize(TrackerConfig::default())
+            .expect("Strategy initialization should succeed for cleanup test");
+        strategy
+            .start_tracking()
+            .expect("Strategy should start tracking successfully for cleanup test");
 
         // Track one allocation
         strategy
@@ -783,13 +799,16 @@ mod tests {
                 Some("test_variable".to_string()),
                 "TestStruct".to_string(),
             )
-            .unwrap();
+            .expect("Allocation tracking should succeed");
 
-        let data = strategy.stop_tracking().unwrap();
-        let json_str = String::from_utf8(data).unwrap();
+        let data = strategy
+            .stop_tracking()
+            .expect("Strategy should stop tracking and return data successfully");
+        let json_str = String::from_utf8(data).expect("Strategy data should be valid UTF-8");
 
         // Verify JSON structure
-        let parsed: serde_json::Value = serde_json::from_str(&json_str).unwrap();
+        let parsed: serde_json::Value =
+            serde_json::from_str(&json_str).expect("Generated JSON should be valid");
         assert!(parsed["allocations"].is_array());
         assert!(parsed["strategy_metadata"].is_object());
 
