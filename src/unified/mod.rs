@@ -9,9 +9,9 @@
 //!
 //! ## Key Components
 //!
-//! - [`UnifiedBackend`](backend::UnifiedBackend) - Main orchestrator
-//! - [`EnvironmentDetector`](environment_detector::EnvironmentDetector) - Runtime detection
-//! - [`TrackingDispatcher`](tracking_dispatcher::TrackingDispatcher) - Strategy routing
+//! - [`UnifiedBackend`](crate::unified::backend::UnifiedBackend) - Main orchestrator
+//! - [`EnvironmentDetector`](crate::unified::environment_detector::EnvironmentDetector) - Runtime detection
+//! - [`TrackingDispatcher`](crate::unified::tracking_dispatcher::TrackingDispatcher) - Strategy routing
 //!
 //! ## Quick Start
 //!
