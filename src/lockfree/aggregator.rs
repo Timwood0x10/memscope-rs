@@ -31,6 +31,7 @@ impl LockfreeAggregator {
 
         // Discover all thread files
         let thread_files = self.discover_thread_files()?;
+        let mut temp_files_to_cleanup = Vec::new();
 
         for (thread_id, event_file, freq_file) in thread_files {
             let events = self.parse_event_file(&event_file)?;
@@ -38,6 +39,10 @@ impl LockfreeAggregator {
 
             let stats = self.analyze_thread_data(thread_id, events, frequencies)?;
             thread_stats.insert(thread_id, stats);
+            
+            // Collect files for cleanup after successful processing
+            temp_files_to_cleanup.push(event_file);
+            temp_files_to_cleanup.push(freq_file);
         }
 
         // Perform cross-thread analysis
@@ -66,6 +71,9 @@ impl LockfreeAggregator {
 
         // IMPORTANT: Calculate summary statistics from thread data
         analysis.calculate_summary(std::time::Instant::now());
+
+        // Clean up temporary files after successful aggregation
+        self.cleanup_temp_files(&temp_files_to_cleanup)?;
 
         Ok(analysis)
     }
@@ -105,6 +113,35 @@ impl LockfreeAggregator {
         }
 
         Ok(files)
+    }
+
+    /// Clean up temporary binary and frequency files after successful aggregation
+    fn cleanup_temp_files(&self, files: &[std::path::PathBuf]) -> Result<(), Box<dyn std::error::Error>> {
+        let mut cleaned_count = 0;
+        let mut failed_count = 0;
+
+        for file_path in files {
+            match std::fs::remove_file(file_path) {
+                Ok(()) => {
+                    cleaned_count += 1;
+                    eprintln!("🗑️  Cleaned up temporary file: {:?}", file_path);
+                }
+                Err(e) => {
+                    failed_count += 1;
+                    eprintln!("⚠️  Failed to clean up file {:?}: {}", file_path, e);
+                }
+            }
+        }
+
+        if cleaned_count > 0 {
+            eprintln!("✅ Successfully cleaned up {} temporary files", cleaned_count);
+        }
+        
+        if failed_count > 0 {
+            eprintln!("⚠️  Failed to clean up {} files", failed_count);
+        }
+
+        Ok(())
     }
 
     /// Parse event file and return all events
