@@ -1,5 +1,7 @@
 //! Binary file format definitions using simple TLV (Type-Length-Value) structure
 
+use bincode::{Decode, Encode};
+
 /// File magic bytes for format identification
 pub const MAGIC_BYTES: &[u8; 8] = b"MEMSCOPE";
 
@@ -23,7 +25,7 @@ pub const ADVANCED_METRICS_MAGIC: &[u8; 4] = b"ADVD"; // Advanced Data segment i
 
 /// Binary export mode for header identification
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, Encode, Decode)]
 pub enum BinaryExportMode {
     /// User-only export mode (strict filtering)
     UserOnly = 0,
@@ -62,7 +64,7 @@ pub mod feature_flags {
 /// Enhanced file header structure (32 bytes fixed size)
 /// Extended to include safety analysis and passport tracking information
 #[repr(C)]
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, Encode, Decode)]
 pub struct FileHeader {
     pub magic: [u8; 8],           // 8 bytes: File magic identifier
     pub version: u32,             // 4 bytes: Format version

@@ -39,7 +39,7 @@ impl LockfreeAggregator {
 
             let stats = self.analyze_thread_data(thread_id, events, frequencies)?;
             thread_stats.insert(thread_id, stats);
-            
+
             // Collect files for cleanup after successful processing
             temp_files_to_cleanup.push(event_file);
             temp_files_to_cleanup.push(freq_file);
@@ -116,7 +116,10 @@ impl LockfreeAggregator {
     }
 
     /// Clean up temporary binary and frequency files after successful aggregation
-    fn cleanup_temp_files(&self, files: &[std::path::PathBuf]) -> Result<(), Box<dyn std::error::Error>> {
+    fn cleanup_temp_files(
+        &self,
+        files: &[std::path::PathBuf],
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let mut cleaned_count = 0;
         let mut failed_count = 0;
 
@@ -134,9 +137,12 @@ impl LockfreeAggregator {
         }
 
         if cleaned_count > 0 {
-            eprintln!("✅ Successfully cleaned up {} temporary files", cleaned_count);
+            eprintln!(
+                "✅ Successfully cleaned up {} temporary files",
+                cleaned_count
+            );
         }
-        
+
         if failed_count > 0 {
             eprintln!("⚠️  Failed to clean up {} files", failed_count);
         }

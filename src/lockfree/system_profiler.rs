@@ -207,9 +207,9 @@ impl SystemProfiler {
         #[cfg(feature = "system-metrics")]
         {
             let mut system = self.system.borrow_mut();
-            system.refresh_cpu();
+            system.refresh_cpu_all();
 
-            let overall_usage = system.global_cpu_info().cpu_usage();
+            let overall_usage = system.global_cpu_usage();
             let core_usage: Vec<f32> = system.cpus().iter().map(|cpu| cpu.cpu_usage()).collect();
             let load_average = sysinfo::System::load_average();
 
@@ -366,14 +366,14 @@ impl SystemProfiler {
         #[cfg(feature = "system-metrics")]
         {
             let mut system = self.system.borrow_mut();
-            system.refresh_processes();
+            system.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
 
             let current_pid = sysinfo::get_current_pid()?;
 
             if let Some(process) = system.process(current_pid) {
                 Ok(ProcessMetrics {
                     pid: current_pid.as_u32(),
-                    name: process.name().to_string(),
+                    name: process.name().to_string_lossy().to_string(),
                     cpu_usage: process.cpu_usage(),
                     memory_usage: process.memory(),
                     thread_count: 0, // Would need platform-specific code

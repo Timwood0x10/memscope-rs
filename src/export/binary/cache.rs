@@ -378,16 +378,18 @@ impl IndexCache {
 
     /// Serialize an index to bytes
     fn serialize_index(&self, index: &BinaryIndex) -> Result<Vec<u8>, BinaryExportError> {
-        bincode::serialize(index).map_err(|e| {
+        bincode::encode_to_vec(index, bincode::config::standard()).map_err(|e| {
             BinaryExportError::SerializationError(format!("Failed to serialize index: {e}"))
         })
     }
 
     /// Deserialize an index from bytes
     fn deserialize_index(&self, data: &[u8]) -> Result<BinaryIndex, BinaryExportError> {
-        bincode::deserialize(data).map_err(|e| {
-            BinaryExportError::SerializationError(format!("Failed to deserialize index: {e}"))
-        })
+        bincode::decode_from_slice(data, bincode::config::standard())
+            .map(|(result, _)| result)
+            .map_err(|e| {
+                BinaryExportError::SerializationError(format!("Failed to deserialize index: {e}"))
+            })
     }
 
     /// Compress data using a simple compression algorithm

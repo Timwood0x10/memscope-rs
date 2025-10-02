@@ -8,13 +8,14 @@
 
 use crate::export::binary::error::BinaryExportError;
 use crate::export::binary::format::FileHeader;
+use bincode::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::SystemTime;
 
 /// Main binary file index containing all metadata needed for fast access
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode)]
 pub struct BinaryIndex {
     /// Version of the index format for compatibility
     pub version: u32,
@@ -95,7 +96,7 @@ impl BinaryIndex {
 }
 
 /// String table index information
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, Encode, Decode)]
 pub struct StringTableIndex {
     /// Offset of the string table in the file
     pub offset: u64,
@@ -111,7 +112,7 @@ pub struct StringTableIndex {
 }
 
 /// Compact allocation index using relative offsets and compressed data
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, Encode, Decode)]
 pub struct CompactAllocationIndex {
     /// Total number of allocation records
     pub count: u32,
@@ -182,7 +183,7 @@ impl CompactAllocationIndex {
 }
 
 /// Quick filtering data for large files to enable fast pre-filtering
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode)]
 pub struct QuickFilterData {
     /// Batch size used for range calculations (e.g., 1000 records per batch)
     pub batch_size: usize,
@@ -259,7 +260,7 @@ impl QuickFilterData {
 }
 
 /// Bloom filter parameters for consistent configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode)]
 pub struct BloomFilterParams {
     /// Number of hash functions used
     pub hash_functions: u32,
@@ -286,7 +287,7 @@ impl Default for BloomFilterParams {
 }
 
 /// Advanced metrics segment index information
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode)]
 pub struct AdvancedMetricsIndex {
     /// Offset of the advanced metrics segment
     pub offset: u64,
@@ -302,7 +303,7 @@ pub struct AdvancedMetricsIndex {
 }
 
 /// Index information for a specific metric section
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode)]
 pub struct MetricSectionIndex {
     /// Offset within the advanced metrics segment
     pub relative_offset: u32,

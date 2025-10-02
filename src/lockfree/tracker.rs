@@ -705,12 +705,12 @@ fn collect_system_metrics() -> Option<SystemMetrics> {
 
     SYSTEM.with(|sys| {
         let mut system = sys.borrow_mut();
-        system.refresh_cpu();
+        system.refresh_cpu_all();
         system.refresh_memory();
-        system.refresh_processes();
+        system.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
 
         // Get CPU usage (sysinfo 0.30+ API)
-        let cpu_usage = system.global_cpu_info().cpu_usage();
+        let cpu_usage = system.global_cpu_usage();
         let available_memory = system.available_memory();
         let total_memory = system.total_memory();
 
