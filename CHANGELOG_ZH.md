@@ -1,3 +1,105 @@
+## [0.1.6] - 2025-10-02
+
+### 🚀 重大功能特性
+
+#### 无锁多线程跟踪模块
+- **feat(lockfree)**: 面向高并发场景的完整无锁跟踪系统（支持100+线程）
+  - 线程本地跟踪，零共享状态设计
+  - 智能采样，性能优化
+  - 高效二进制文件格式
+  - 离线聚合分析
+- **feat(lockfree/aggregator)**: 高级无锁聚合器，960行优化代码
+- **feat(lockfree/analysis)**: 性能分析引擎，支持瓶颈检测
+- **feat(lockfree/visualizer)**: 综合可视化系统（2,860行代码）
+- **feat(lockfree/api)**: 增强功能的高级API
+- **feat(lockfree/platform)**: 跨平台资源监控（CPU、内存、IO、GPU）
+
+#### 异步任务中心内存跟踪模块
+- **feat(async_memory)**: 零开销异步任务内存跟踪系统
+  - 每次分配跟踪开销 < 5ns
+  - 典型工作负载CPU开销 < 0.1%
+  - 每线程内存开销 < 1MB
+  - 无锁、无unwrap、无clone设计
+- **feat(async_memory/tracker)**: 基于Context waker地址的任务感知内存跟踪
+- **feat(async_memory/buffer)**: 带质量监控的无锁事件缓冲
+- **feat(async_memory/resource_monitor)**: 全面异步资源监控（1,254行代码）
+- **feat(async_memory/visualization)**: 高级可视化生成器（1,616行代码）
+- **feat(async_memory/api)**: 生产级API，集成TrackedFuture
+
+#### 统一后端系统
+- **feat(unified)**: 不同跟踪策略间的智能路由系统
+  - 自动环境检测和策略选择
+  - 动态策略切换和组合
+  - 与现有核心系统完全兼容
+- **feat(unified/environment_detector)**: 运行时环境自动检测
+- **feat(unified/tracking_dispatcher)**: 高级策略调度器（762行代码）
+- **feat(unified/strategies)**: 多种跟踪策略（异步、混合、单线程、多线程）
+
+### ✨ 功能增强
+
+#### 核心系统改进
+- **feat(core/sampling_tracker)**: 可配置采样率的高级采样跟踪器
+- **feat(core/thread_registry)**: 线程注册和管理系统
+- **feat(analysis/competition_detector)**: 资源竞争检测
+- **feat(analysis/cross_process_analyzer)**: 跨进程分析能力
+- **feat(analysis/variable_relationship_mapper)**: 变量关系映射
+
+#### 高级可视化
+- **feat(templates/hybrid_dashboard)**: 综合混合仪表板（5,382行代码）
+- **feat(templates/performance_dashboard)**: 实时性能监控
+- **feat(export/fixed_hybrid_template)**: 固定混合模板系统
+- **feat(visualizer)**: 多维数据可视化
+
+#### CLI 和工具
+- **feat(cli/html_from_json)**: 从JSON数据生成综合HTML
+- **feat(cli/commands)**: 增强的命令行界面，包含analyze、generate-report、test命令
+- **feat(bin)**: 多个专业诊断和基准测试工具
+
+#### 导出和分析
+- **feat(export/streaming)**: 高性能流式JSON导出
+- **feat(export/binary)**: 支持选择性读取的高级二进制格式
+- **feat(analysis/enhanced_ffi)**: 增强的FFI函数解析和安全分析
+- **feat(analysis/memory_passport)**: 内存护照跟踪系统
+
+### 🔧 技术改进
+
+#### 性能优化
+- **perf(core/optimized_locks)**: 高性能分片锁定机制
+- **perf(core/string_pool)**: 字符串池化内存优化
+- **perf(export/batch_processor)**: 批处理提高吞吐量
+- **perf(lockfree/sampling)**: 智能采样减少开销
+
+#### API设计增强
+- **feat(api/clean_unified)**: 清洁统一API设计
+- **feat(api/enhanced_tracking)**: 增强跟踪API，更好的人机工程学
+- **feat(macros/advanced_trackable)**: 高级可跟踪宏系统
+
+#### 文档和示例
+- **docs**: 中英文综合文档
+- **examples**: 多个真实世界使用示例和展示
+- **benches**: 广泛的性能验证基准套件
+
+### 🐛 错误修复
+
+#### Drop逻辑和智能指针处理
+- **fix(drop)**: 通过原子保护修复重复drop调用
+- **fix(smart_pointers)**: 集中化智能指针检测和处理
+- **fix(error_handling)**: 增强错误报告和防panic的drop逻辑
+- **fix(performance)**: 从MemoryTracker drop逻辑中移除自动导出
+
+#### 并发性和线程安全
+- **fix(concurrency)**: 改进所有模块的线程安全性
+- **fix(locks)**: 通过分片锁解决锁竞争问题
+- **fix(atomic)**: 增强原子操作以获得更好性能
+
+### 📊 统计数据
+
+- **119个文件修改**，全面改进
+- **146次提交**增量开发
+- **新增63,905行，删除3,469行**（净增60,436行）
+- **完整模块重构**，提高可维护性
+
+
 ## [0.1.5] - 2025-09-14
 
 ### Added
