@@ -1276,3 +1276,320 @@ impl VisualizationGenerator {
         "#
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::async_memory::resource_monitor::{
+        TaskType, TaskResourceProfile, CpuMetrics, MemoryMetrics, IoMetrics, NetworkMetrics, 
+        SourceLocation, EfficiencyExplanation, ComponentScores, BottleneckType, HotMetrics,
+        CriticalPathAnalysis
+    };
+
+    /// Helper function to create a test task profile
+    fn create_test_profile(task_name: &str, task_type: TaskType, cpu_usage: f64, memory_bytes: u64, efficiency: f64) -> TaskResourceProfile {
+        TaskResourceProfile {
+            task_id: 1u128,
+            task_name: task_name.to_string(),
+            task_type,
+            start_time: 1000,
+            end_time: Some(2000),
+            duration_ms: Some(1000.0),
+            cpu_metrics: CpuMetrics {
+                usage_percent: cpu_usage,
+                time_user_ms: 100.0,
+                time_kernel_ms: 50.0,
+                context_switches: 10,
+                cpu_cycles: 1000000,
+                instructions: 500000,
+                cache_misses: 100,
+                branch_misses: 50,
+                core_affinity: vec![0],
+            },
+            memory_metrics: MemoryMetrics {
+                allocated_bytes: memory_bytes,
+                peak_bytes: memory_bytes + 1024,
+                current_bytes: memory_bytes,
+                allocation_count: 5,
+                deallocation_count: 3,
+                page_faults: 10,
+                heap_fragmentation: 0.1,
+                memory_bandwidth_mbps: 1000.0,
+            },
+            io_metrics: IoMetrics {
+                bytes_read: 1024,
+                bytes_written: 512,
+                read_operations: 10,
+                write_operations: 5,
+                sync_operations: 3,
+                async_operations: 12,
+                avg_latency_us: 100.0,
+                bandwidth_mbps: 10.0,
+                queue_depth: 4,
+                io_wait_percent: 5.0,
+            },
+            network_metrics: NetworkMetrics {
+                bytes_sent: 2048,
+                bytes_received: 1536,
+                packets_sent: 100,
+                packets_received: 95,
+                connections_active: 5,
+                connections_established: 10,
+                connection_errors: 1,
+                latency_avg_ms: 10.0,
+                throughput_mbps: 5.0,
+                retransmissions: 2,
+            },
+            gpu_metrics: None,
+            efficiency_score: efficiency,
+            resource_balance: 0.8,
+            bottleneck_type: BottleneckType::Balanced,
+            source_location: SourceLocation {
+                file_path: "test.rs".to_string(),
+                line_number: 42,
+                function_name: "test_function".to_string(),
+                module_path: "test::module".to_string(),
+                crate_name: "test_crate".to_string(),
+            },
+            hot_metrics: HotMetrics {
+                cpu_hotspots: vec![],
+                memory_hotspots: vec![],
+                io_hotspots: vec![],
+                network_hotspots: vec![],
+                critical_path_analysis: CriticalPathAnalysis {
+                    total_execution_time_ms: 1000.0,
+                    critical_path_time_ms: 800.0,
+                    parallelization_potential: 0.5,
+                    blocking_operations: vec![],
+                },
+            },
+            efficiency_explanation: EfficiencyExplanation {
+                overall_score: efficiency,
+                component_scores: ComponentScores {
+                    cpu_efficiency: efficiency,
+                    memory_efficiency: efficiency,
+                    io_efficiency: efficiency,
+                    network_efficiency: efficiency,
+                    resource_balance: 0.8,
+                },
+                recommendations: vec![],
+                bottleneck_analysis: "No bottlenecks detected".to_string(),
+                optimization_potential: 0.2,
+            },
+        }
+    }
+
+    #[test]
+    fn test_visualization_config_default() {
+        let config = VisualizationConfig::default();
+        
+        assert_eq!(config.title, "Async Task Performance Analysis");
+        assert!(matches!(config.theme, Theme::Dark));
+        assert!(config.include_charts);
+        assert!(config.include_baselines);
+        assert!(config.include_rankings);
+        assert!(config.include_efficiency_breakdown);
+    }
+
+    #[test]
+    fn test_visualization_generator_new() {
+        let generator = VisualizationGenerator::new();
+        assert_eq!(generator.config.title, "Async Task Performance Analysis");
+    }
+
+    #[test]
+    fn test_visualization_generator_with_config() {
+        let custom_config = VisualizationConfig {
+            title: "Custom Analysis".to_string(),
+            theme: Theme::Light,
+            include_charts: false,
+            include_baselines: false,
+            include_rankings: false,
+            include_efficiency_breakdown: false,
+        };
+        
+        let generator = VisualizationGenerator::with_config(custom_config.clone());
+        assert_eq!(generator.config.title, "Custom Analysis");
+        assert!(matches!(generator.config.theme, Theme::Light));
+        assert!(!generator.config.include_charts);
+    }
+
+    #[test]
+    fn test_calculate_baselines() {
+        let generator = VisualizationGenerator::new();
+        let mut profiles = HashMap::new();
+        
+        profiles.insert(
+            1u128,
+            create_test_profile("task1", TaskType::CpuIntensive, 50.0, 1024 * 1024, 0.8)
+        );
+        profiles.insert(
+            2u128,
+            create_test_profile("task2", TaskType::IoIntensive, 30.0, 2048 * 1024, 0.6)
+        );
+        
+        let baselines = generator.calculate_baselines(&profiles);
+        
+        assert_eq!(baselines.avg_cpu_percent, 40.0);
+        assert_eq!(baselines.avg_memory_mb, 1.5);
+        assert_eq!(baselines.avg_io_mbps, 10.0);
+        assert_eq!(baselines.avg_network_mbps, 5.0);
+        assert_eq!(baselines.avg_efficiency_score, 0.7);
+    }
+
+    #[test]
+    fn test_calculate_rankings() {
+        let generator = VisualizationGenerator::new();
+        let mut profiles = HashMap::new();
+        
+        // Create tasks with different efficiency scores in same category
+        profiles.insert(
+            1u128,
+            create_test_profile("task1", TaskType::CpuIntensive, 50.0, 1024 * 1024, 0.9)
+        );
+        profiles.insert(
+            2u128, 
+            create_test_profile("task2", TaskType::CpuIntensive, 30.0, 2048 * 1024, 0.7)
+        );
+        profiles.insert(
+            3u128,
+            create_test_profile("task3", TaskType::IoIntensive, 20.0, 512 * 1024, 0.8)
+        );
+        
+        let rankings = generator.calculate_rankings(&profiles);
+        
+        // Check CPU intensive tasks ranking
+        let task1_ranking = rankings.get(&1u128).expect("Task 1 should have ranking");
+        let task2_ranking = rankings.get(&2u128).expect("Task 2 should have ranking");
+        
+        assert_eq!(task1_ranking.rank, 1); // Higher efficiency should rank first
+        assert_eq!(task1_ranking.total_in_category, 2);
+        assert_eq!(task1_ranking.category_name, "CpuIntensive");
+        
+        assert_eq!(task2_ranking.rank, 2);
+        assert_eq!(task2_ranking.total_in_category, 2);
+        
+        // Check IO intensive task ranking
+        let task3_ranking = rankings.get(&3u128).expect("Task 3 should have ranking");
+        assert_eq!(task3_ranking.rank, 1);
+        assert_eq!(task3_ranking.total_in_category, 1);
+        assert_eq!(task3_ranking.category_name, "IoIntensive");
+    }
+
+    #[test]
+    fn test_compare_to_baseline() {
+        let generator = VisualizationGenerator::new();
+        
+        // Test above average
+        let comp = generator.compare_to_baseline(110.0, 100.0);
+        assert!(matches!(comp.comparison_type, ComparisonType::AboveAverage));
+        assert_eq!(comp.difference_percent, 10.0);
+        
+        // Test below average
+        let comp = generator.compare_to_baseline(90.0, 100.0);
+        assert!(matches!(comp.comparison_type, ComparisonType::BelowAverage));
+        assert_eq!(comp.difference_percent, -10.0);
+        
+        // Test near average
+        let comp = generator.compare_to_baseline(102.0, 100.0);
+        assert!(matches!(comp.comparison_type, ComparisonType::NearAverage));
+        assert_eq!(comp.difference_percent, 2.0);
+        
+        // Test zero baseline
+        let comp = generator.compare_to_baseline(50.0, 0.0);
+        assert_eq!(comp.difference_percent, 0.0);
+    }
+
+    #[test]
+    fn test_analyze_profiles_empty() {
+        let generator = VisualizationGenerator::new();
+        let profiles = HashMap::new();
+        
+        let result = generator.analyze_profiles(&profiles);
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), VisualizationError::NoDataAvailable));
+    }
+
+    #[test]
+    fn test_format_comparison() {
+        let generator = VisualizationGenerator::new();
+        
+        let comp_above = PerformanceComparison {
+            value: 110.0,
+            baseline: 100.0,
+            difference_percent: 10.5,
+            comparison_type: ComparisonType::AboveAverage,
+        };
+        assert_eq!(generator.format_comparison(&comp_above), "(+10.5% vs avg)");
+        
+        let comp_below = PerformanceComparison {
+            value: 85.0,
+            baseline: 100.0,
+            difference_percent: -15.0,
+            comparison_type: ComparisonType::BelowAverage,
+        };
+        assert_eq!(generator.format_comparison(&comp_below), "(-15.0% vs avg)");
+        
+        let comp_average = PerformanceComparison {
+            value: 102.0,
+            baseline: 100.0,
+            difference_percent: 2.0,
+            comparison_type: ComparisonType::NearAverage,
+        };
+        assert_eq!(generator.format_comparison(&comp_average), "(≈ avg)");
+    }
+
+    #[test]
+    fn test_get_comparison_class() {
+        let generator = VisualizationGenerator::new();
+        
+        let comp_above = PerformanceComparison {
+            value: 110.0,
+            baseline: 100.0,
+            difference_percent: 10.0,
+            comparison_type: ComparisonType::AboveAverage,
+        };
+        assert_eq!(generator.get_comparison_class(&comp_above), "comparison-above");
+        
+        let comp_below = PerformanceComparison {
+            value: 90.0,
+            baseline: 100.0,
+            difference_percent: -10.0,
+            comparison_type: ComparisonType::BelowAverage,
+        };
+        assert_eq!(generator.get_comparison_class(&comp_below), "comparison-below");
+        
+        let comp_average = PerformanceComparison {
+            value: 102.0,
+            baseline: 100.0,
+            difference_percent: 2.0,
+            comparison_type: ComparisonType::NearAverage,
+        };
+        assert_eq!(generator.get_comparison_class(&comp_average), "comparison-average");
+    }
+
+    #[test]
+    fn test_theme_styles() {
+        let generator = VisualizationGenerator::new();
+        
+        let dark_styles = generator.get_dark_theme_styles();
+        assert!(dark_styles.contains("background: #0d1117"));
+        assert!(dark_styles.contains("color: #f0f6fc"));
+        
+        let light_styles = generator.get_light_theme_styles();
+        assert!(light_styles.contains("background: #ffffff"));
+        assert!(light_styles.contains("color: #24292f"));
+    }
+
+    #[test]
+    fn test_visualization_error_display() {
+        let err = VisualizationError::NoDataAvailable;
+        assert_eq!(format!("{}", err), "No data available for visualization");
+        
+        let err = VisualizationError::InvalidConfiguration("test error".to_string());
+        assert_eq!(format!("{}", err), "Invalid configuration: test error");
+        
+        let err = VisualizationError::TemplateError("template failed".to_string());
+        assert_eq!(format!("{}", err), "Template generation error: template failed");
+    }
+}

@@ -1304,3 +1304,232 @@ pub fn create_sample_hybrid_data(thread_count: usize, task_count: usize) -> Hybr
         },
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::async_memory::visualization::VisualizationConfig;
+    use std::collections::HashMap;
+
+    fn create_test_variable(name: &str, thread_id: usize, memory_usage: u64) -> VariableDetail {
+        VariableDetail {
+            name: name.to_string(),
+            type_info: "Vec<u8>".to_string(),
+            thread_id,
+            task_id: Some(1),
+            allocation_count: 10,
+            memory_usage,
+            lifecycle_stage: LifecycleStage::Active,
+        }
+    }
+
+    fn create_test_data() -> HybridAnalysisData {
+        let mut variable_registry = HashMap::new();
+        variable_registry.insert(
+            "test_var1".to_string(),
+            create_test_variable("test_var1", 0, 1024 * 1024),
+        );
+        variable_registry.insert(
+            "test_var2".to_string(),
+            create_test_variable("test_var2", 1, 512 * 1024),
+        );
+
+        HybridAnalysisData {
+            lockfree_analysis: None,
+            visualization_config: VisualizationConfig::default(),
+            thread_task_mapping: HashMap::new(),
+            variable_registry,
+            performance_metrics: PerformanceTimeSeries {
+                cpu_usage: vec![50.0, 60.0, 70.0],
+                memory_usage: vec![1024, 2048, 3072],
+                io_operations: vec![100, 200, 300],
+                network_bytes: vec![1000, 2000, 3000],
+                timestamps: vec![1000, 2000, 3000],
+                thread_cpu_breakdown: HashMap::new(),
+                thread_memory_breakdown: HashMap::new(),
+            },
+        }
+    }
+
+    #[test]
+    fn test_fixed_hybrid_template_new() {
+        let template = FixedHybridTemplate::new(4, 8);
+        assert_eq!(template.thread_count, 4);
+        assert_eq!(template.task_count, 8);
+        assert_eq!(template.output_path, "simple_hybrid_dashboard_variable_detailed.html");
+        assert!(matches!(template.render_mode, RenderMode::VariableDetailed));
+    }
+
+    #[test]
+    fn test_with_render_mode() {
+        let template = FixedHybridTemplate::new(2, 4)
+            .with_render_mode(RenderMode::ThreadFocused);
+        assert!(matches!(template.render_mode, RenderMode::ThreadFocused));
+    }
+
+    #[test]
+    fn test_calculate_total_memory() {
+        let template = FixedHybridTemplate::new(2, 4);
+        let data = create_test_data();
+        
+        let total_mb = template.calculate_total_memory(&data);
+        assert!(total_mb > 0.0);
+        // Should be approximately (1024 + 512) KB = 1536 KB ≈ 1.5 MB
+        assert!(total_mb >= 1.0 && total_mb <= 2.0);
+    }
+
+    #[test]
+    fn test_classify_variable_performance() {
+        let template = FixedHybridTemplate::new(2, 4);
+        
+        let buffer_var = create_test_variable("buffer_large", 0, 600 * 1024);
+        assert_eq!(template.classify_variable_performance(&buffer_var), "memory");
+        
+        let cpu_var = VariableDetail {
+            name: "cpu_intensive".to_string(),
+            type_info: "Vec<u8>".to_string(),
+            thread_id: 0,
+            task_id: Some(1),
+            allocation_count: 150,
+            memory_usage: 1024,
+            lifecycle_stage: LifecycleStage::Active,
+        };
+        assert_eq!(template.classify_variable_performance(&cpu_var), "cpu");
+        
+        let io_var = create_test_variable("file_handler", 0, 1024);
+        assert_eq!(template.classify_variable_performance(&io_var), "io");
+        
+        let async_var = create_test_variable("async_task", 0, 1024);
+        assert_eq!(template.classify_variable_performance(&async_var), "async");
+        
+        let normal_var = create_test_variable("regular_data", 0, 1024);
+        assert_eq!(template.classify_variable_performance(&normal_var), "normal");
+    }
+
+    #[test]
+    fn test_get_performance_label() {
+        let template = FixedHybridTemplate::new(2, 4);
+        
+        assert_eq!(template.get_performance_label("cpu"), "CPU");
+        assert_eq!(template.get_performance_label("io"), "I/O");
+        assert_eq!(template.get_performance_label("memory"), "MEM");
+        assert_eq!(template.get_performance_label("async"), "ASYNC");
+        assert_eq!(template.get_performance_label("unknown"), "NORM");
+    }
+
+    #[test]
+    fn test_generate_variables_html() {
+        let template = FixedHybridTemplate::new(2, 4);
+        let variables = vec![
+            create_test_variable("test_var", 0, 1024),
+            create_test_variable("buffer_var", 1, 2048),
+        ];
+        
+        let html = template.generate_variables_html(&variables);
+        assert!(html.contains("test_var"));
+        assert!(html.contains("buffer_var"));
+        assert!(html.contains("variable-card"));
+        assert!(html.contains("Thread 0"));
+        assert!(html.contains("Thread 1"));
+    }
+
+    #[test]
+    fn test_generate_memory_map_html() {
+        let template = FixedHybridTemplate::new(2, 4);
+        let data = create_test_data();
+        
+        let html = template.generate_memory_map_html(&data);
+        assert!(html.contains("memory-map-grid"));
+        assert!(html.contains("memory-thread-block"));
+        assert!(html.contains("Thread 0"));
+        assert!(html.contains("Thread 1"));
+    }
+
+    #[test]
+    fn test_serialize_variables_for_js() {
+        let template = FixedHybridTemplate::new(2, 4);
+        let variables = vec![
+            create_test_variable("var1", 0, 1024),
+            create_test_variable("var2", 1, 2048),
+        ];
+        
+        let json = template.serialize_variables_for_js(&variables);
+        assert!(json.starts_with('['));
+        assert!(json.ends_with(']'));
+        assert!(json.contains("var1"));
+        assert!(json.contains("var2"));
+        assert!(json.contains("\"thread\":0"));
+        assert!(json.contains("\"thread\":1"));
+    }
+
+    #[test]
+    fn test_analyze_high_usage() {
+        let template = FixedHybridTemplate::new(2, 4);
+        let data = create_test_data();
+        
+        let (thread, max_memory_kb, max_frequency) = template.analyze_high_usage(&data);
+        assert!(thread <= 1); // Should be one of our test threads (0 or 1)
+        assert!(max_memory_kb >= 512); // test_var1 is 1024KB
+        assert!(max_frequency >= 10);
+    }
+
+    #[test]
+    fn test_calculate_memory_efficiency() {
+        let template = FixedHybridTemplate::new(2, 4);
+        let data = create_test_data();
+        
+        let efficiency = template.calculate_memory_efficiency(&data);
+        assert!(efficiency >= 0.0 && efficiency <= 100.0);
+        // All test variables are Active, so efficiency should be 100%
+        assert_eq!(efficiency, 100.0);
+    }
+
+    #[test]
+    fn test_calculate_scores() {
+        let template = FixedHybridTemplate::new(2, 4);
+        let data = create_test_data();
+        
+        let (mem_score, alloc_score, thread_score, overall_score) = template.calculate_scores(&data);
+        assert!(mem_score <= 100);
+        assert!(alloc_score <= 100);
+        assert!(thread_score <= 100);
+        assert!(overall_score <= 100);
+        assert!(overall_score > 0);
+    }
+
+    #[test]
+    fn test_lifecycle_stage_debug() {
+        let active = LifecycleStage::Active;
+        let allocated = LifecycleStage::Allocated;
+        let shared = LifecycleStage::Shared;
+        let deallocated = LifecycleStage::Deallocated;
+        
+        // Test that all variants can be formatted
+        assert!(!format!("{:?}", active).is_empty());
+        assert!(!format!("{:?}", allocated).is_empty());
+        assert!(!format!("{:?}", shared).is_empty());
+        assert!(!format!("{:?}", deallocated).is_empty());
+    }
+
+    #[test]
+    fn test_render_mode_debug() {
+        let comprehensive = RenderMode::Comprehensive;
+        let thread_focused = RenderMode::ThreadFocused;
+        let variable_detailed = RenderMode::VariableDetailed;
+        
+        // Test that all variants can be formatted
+        assert!(!format!("{:?}", comprehensive).is_empty());
+        assert!(!format!("{:?}", thread_focused).is_empty());
+        assert!(!format!("{:?}", variable_detailed).is_empty());
+    }
+
+    #[test]
+    fn test_variable_detail_clone() {
+        let var1 = create_test_variable("test", 0, 1024);
+        let var2 = var1.clone();
+        
+        assert_eq!(var1.name, var2.name);
+        assert_eq!(var1.thread_id, var2.thread_id);
+        assert_eq!(var1.memory_usage, var2.memory_usage);
+    }
+}

@@ -349,6 +349,7 @@ pub type AsyncResult<T> = Result<T, AsyncError>;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::error::Error;
 
     #[test]
     fn test_error_creation() {
@@ -392,5 +393,276 @@ mod tests {
 
         // Non-recoverable errors
         assert!(!AsyncError::system("io", "disk failure", None).is_recoverable());
+    }
+
+    #[test]
+    fn test_initialization_error_non_recoverable() {
+        let error = AsyncError::initialization("runtime", "Critical failure", false);
+        assert!(!error.is_recoverable());
+        assert_eq!(error.component(), "runtime");
+        assert_eq!(error.message(), "Critical failure");
+        
+        let display = format!("{}", error);
+        assert!(display.contains("fatal"));
+        assert!(display.contains("runtime"));
+        assert!(display.contains("Critical failure"));
+    }
+
+    #[test]
+    fn test_task_tracking_all_operations() {
+        let operations = [
+            TaskOperation::IdGeneration,
+            TaskOperation::Propagation,
+            TaskOperation::Registration,
+            TaskOperation::Cleanup,
+        ];
+        
+        for op in &operations {
+            let error = AsyncError::task_tracking(*op, "test message", None);
+            assert!(error.is_recoverable());
+            assert_eq!(error.component(), "task_tracking");
+            
+            let display = format!("{}", error);
+            assert!(display.contains(&format!("{:?}", op)));
+        }
+    }
+
+    #[test]
+    fn test_task_tracking_without_task_id() {
+        let error = AsyncError::task_tracking(TaskOperation::Registration, "No task ID", None);
+        let display = format!("{}", error);
+        assert!(display.contains("Registration"));
+        assert!(display.contains("No task ID"));
+        // When no task_id is provided, the format should not include "for task [id]"
+        assert!(!display.contains("for task"));
+    }
+
+    #[test]
+    fn test_allocation_tracking_all_event_types() {
+        let event_types = [
+            AllocationEventType::Allocation,
+            AllocationEventType::Deallocation,
+            AllocationEventType::BufferWrite,
+            AllocationEventType::Processing,
+        ];
+        
+        for event_type in &event_types {
+            let error = AsyncError::allocation_tracking(*event_type, "test", Some(1024));
+            assert!(error.is_recoverable());
+            assert_eq!(error.component(), "allocation_tracking");
+            
+            let display = format!("{}", error);
+            assert!(display.contains(&format!("{:?}", event_type)));
+            assert!(display.contains("1024B"));
+        }
+    }
+
+    #[test]
+    fn test_allocation_tracking_without_size() {
+        let error = AsyncError::allocation_tracking(
+            AllocationEventType::Processing,
+            "Unknown size",
+            None,
+        );
+        let display = format!("{}", error);
+        assert!(display.contains("Processing"));
+        assert!(display.contains("Unknown size"));
+        assert!(!display.contains("B):"));
+    }
+
+    #[test]
+    fn test_buffer_management_all_types() {
+        let buffer_types = [
+            BufferType::AllocationEvents,
+            BufferType::TaskProfiles,
+            BufferType::QualityMetrics,
+        ];
+        
+        for buffer_type in &buffer_types {
+            let error = AsyncError::buffer_management(*buffer_type, "test error", None);
+            assert!(error.is_recoverable());
+            assert_eq!(error.component(), "buffer_management");
+            
+            let display = format!("{}", error);
+            assert!(display.contains(&format!("{:?}", buffer_type)));
+        }
+    }
+
+    #[test]
+    fn test_buffer_management_without_events_lost() {
+        let error = AsyncError::buffer_management(
+            BufferType::TaskProfiles,
+            "Generic buffer error",
+            None,
+        );
+        let display = format!("{}", error);
+        assert!(display.contains("TaskProfiles"));
+        assert!(display.contains("Generic buffer error"));
+        assert!(!display.contains("events lost"));
+    }
+
+    #[test]
+    fn test_data_aggregation_with_partial_data() {
+        let error = AsyncError::data_aggregation("metrics_collector", "Incomplete data", true);
+        assert!(error.is_recoverable());
+        assert_eq!(error.component(), "metrics_collector");
+        assert_eq!(error.message(), "Incomplete data");
+        
+        let display = format!("{}", error);
+        assert!(display.contains("metrics_collector"));
+        assert!(display.contains("partial data: true"));
+    }
+
+    #[test]
+    fn test_data_aggregation_without_partial_data() {
+        let error = AsyncError::data_aggregation("failed_aggregator", "Total failure", false);
+        assert!(!error.is_recoverable());
+        assert_eq!(error.component(), "failed_aggregator");
+        
+        let display = format!("{}", error);
+        assert!(display.contains("partial data: false"));
+    }
+
+    #[test]
+    fn test_integration_with_fallback() {
+        let error = AsyncError::integration("tokio", "Runtime unavailable", true);
+        assert!(error.is_recoverable());
+        assert_eq!(error.component(), "tokio");
+        
+        let display = format!("{}", error);
+        assert!(display.contains("tokio"));
+        assert!(display.contains("fallback: available"));
+    }
+
+    #[test]
+    fn test_integration_without_fallback() {
+        let error = AsyncError::integration("tracing", "Critical dependency missing", false);
+        assert!(!error.is_recoverable());
+        assert_eq!(error.component(), "tracing");
+        
+        let display = format!("{}", error);
+        assert!(display.contains("fallback: unavailable"));
+    }
+
+    #[test]
+    fn test_system_error_with_source() {
+        let error = AsyncError::system("file_io", "Write failed", Some("Permission denied"));
+        assert!(!error.is_recoverable());
+        assert_eq!(error.component(), "file_io");
+        assert_eq!(error.message(), "Write failed");
+        
+        let display = format!("{}", error);
+        assert!(display.contains("file_io"));
+        assert!(display.contains("Write failed"));
+        assert!(display.contains("source: Permission denied"));
+    }
+
+    #[test]
+    fn test_system_error_without_source() {
+        let error = AsyncError::system("network", "Connection timeout", None);
+        assert!(!error.is_recoverable());
+        
+        let display = format!("{}", error);
+        assert!(display.contains("network"));
+        assert!(display.contains("Connection timeout"));
+        assert!(!display.contains("source:"));
+    }
+
+    #[test]
+    fn test_enum_equality() {
+        // Test TaskOperation equality
+        assert_eq!(TaskOperation::IdGeneration, TaskOperation::IdGeneration);
+        assert_ne!(TaskOperation::IdGeneration, TaskOperation::Propagation);
+        
+        // Test AllocationEventType equality
+        assert_eq!(AllocationEventType::Allocation, AllocationEventType::Allocation);
+        assert_ne!(AllocationEventType::Allocation, AllocationEventType::Deallocation);
+        
+        // Test BufferType equality
+        assert_eq!(BufferType::AllocationEvents, BufferType::AllocationEvents);
+        assert_ne!(BufferType::AllocationEvents, BufferType::TaskProfiles);
+    }
+
+    #[test]
+    fn test_enum_debug_formatting() {
+        // Test TaskOperation debug format
+        let op = TaskOperation::Registration;
+        assert_eq!(format!("{:?}", op), "Registration");
+        
+        // Test AllocationEventType debug format
+        let event = AllocationEventType::BufferWrite;
+        assert_eq!(format!("{:?}", event), "BufferWrite");
+        
+        // Test BufferType debug format
+        let buffer = BufferType::QualityMetrics;
+        assert_eq!(format!("{:?}", buffer), "QualityMetrics");
+    }
+
+    #[test]
+    fn test_error_clone() {
+        let original = AsyncError::initialization("test", "clone test", true);
+        let cloned = original.clone();
+        
+        assert_eq!(original.component(), cloned.component());
+        assert_eq!(original.message(), cloned.message());
+        assert_eq!(original.is_recoverable(), cloned.is_recoverable());
+    }
+
+    #[test]
+    fn test_error_debug_formatting() {
+        let error = AsyncError::task_tracking(TaskOperation::Cleanup, "debug test", Some(999));
+        let debug_str = format!("{:?}", error);
+        
+        assert!(debug_str.contains("TaskTracking"));
+        assert!(debug_str.contains("Cleanup"));
+        assert!(debug_str.contains("debug test"));
+        assert!(debug_str.contains("999"));
+    }
+
+    #[test]
+    fn test_error_source_method() {
+        let error = AsyncError::system("test", "source test", None);
+        assert!(error.source().is_none());
+    }
+
+    #[test]
+    fn test_async_result_type_alias() {
+        let success: AsyncResult<i32> = Ok(42);
+        assert_eq!(success.unwrap(), 42);
+        
+        let failure: AsyncResult<i32> = Err(AsyncError::system("test", "fail", None));
+        assert!(failure.is_err());
+    }
+
+    #[test]
+    fn test_comprehensive_error_scenarios() {
+        // Test edge case combinations that might occur in real usage
+        
+        // Task tracking with large task ID
+        let large_id_error = AsyncError::task_tracking(
+            TaskOperation::IdGeneration,
+            "Large ID test",
+            Some(u128::MAX),
+        );
+        let display = format!("{}", large_id_error);
+        assert!(display.contains(&u128::MAX.to_string()));
+        
+        // Allocation tracking with zero size
+        let zero_size_error = AsyncError::allocation_tracking(
+            AllocationEventType::Allocation,
+            "Zero size allocation",
+            Some(0),
+        );
+        let display = format!("{}", zero_size_error);
+        assert!(display.contains("0B"));
+        
+        // Buffer management with large events lost
+        let large_lost_error = AsyncError::buffer_management(
+            BufferType::AllocationEvents,
+            "Massive overflow",
+            Some(1_000_000),
+        );
+        let display = format!("{}", large_lost_error);
+        assert!(display.contains("1000000 events lost"));
     }
 }
