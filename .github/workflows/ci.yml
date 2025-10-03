@@ -54,7 +54,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        rust: [stable, 1.82.0] # MSRV updated for icu_properties_data compatibility
+        rust: [stable, 1.85.0] # MSRV updated for bincode 2.0.1 compatibility
         include:
           - os: ubuntu-latest
             rust: beta
