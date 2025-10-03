@@ -3,7 +3,7 @@
 //! This module provides a unified interface that combines memory tracking and scope tracking
 //! while preserving all existing functionality.
 
-use super::memory_tracker::{get_global_tracker, MemoryTracker};
+use super::memory_tracker::{get_tracker, MemoryTracker};
 use crate::core::types::{
     AllocationInfo, MemoryStats, ScopeAnalysis, ScopeLifecycleMetrics, TrackingResult,
 };
@@ -21,7 +21,7 @@ impl TrackingManager {
     /// Create a new tracking manager instance
     pub fn new() -> Self {
         Self {
-            memory_tracker: get_global_tracker(),
+            memory_tracker: get_tracker(),
             scope_tracker: crate::core::scope_tracker::get_global_scope_tracker(),
         }
     }

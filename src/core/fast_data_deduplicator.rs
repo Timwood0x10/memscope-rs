@@ -301,7 +301,7 @@ mod tests {
     fn test_unicode_string_deduplication() {
         // Test deduplicating unicode strings
         let mut dedup = SimpleDataDeduplicator::new();
-        let unicode_str = "Hello 世界 🌍";
+        let unicode_str = "Hello World 🌍";
 
         let result = dedup
             .deduplicate_string(unicode_str)

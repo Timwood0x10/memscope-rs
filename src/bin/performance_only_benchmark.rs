@@ -2,7 +2,7 @@
 //!
 //! This program focuses on testing export performance, disabling all quality validation to obtain true performance data
 
-use memscope_rs::{get_global_tracker, init};
+use memscope_rs::{get_tracker, init};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -74,7 +74,7 @@ fn run_performance_only_tests(output_dir: &Path) {
         let output_path = output_dir.join(format!("traditional_export_run_{run}.json"));
 
         // get tracker and export (use minimal configuration)
-        let tracker = get_global_tracker();
+        let tracker = get_tracker();
         let options = memscope_rs::core::tracker::export_json::ExportJsonOptions::default()
             .parallel_processing(false)
             .fast_export_mode(true)
@@ -93,7 +93,7 @@ fn run_performance_only_tests(output_dir: &Path) {
             }
         }
 
-        // 短暂休息
+        // Brief rest
         std::thread::sleep(std::time::Duration::from_millis(100));
     }
 
@@ -106,7 +106,7 @@ fn run_performance_only_tests(output_dir: &Path) {
         let output_path = output_dir.join(format!("fast_export_run_{run}.json"));
 
         // get tracker and use fast export (disable validation)
-        let tracker = get_global_tracker();
+        let tracker = get_tracker();
         let options = memscope_rs::core::tracker::export_json::ExportJsonOptions::default()
             .parallel_processing(true)
             .fast_export_mode(true)
@@ -278,7 +278,7 @@ this indicates that the fast export system's core algorithm needs further optimi
 ## 📝 important findings
 
 1. **quality validation impact**: through disabling validation, we can see the true performance of the core export algorithm
-2. **parallel processing effect**: in the absence of validation, parallel processing shows more明显
+2. **parallel processing effect**: in the absence of validation, parallel processing shows more obvious benefits
 3. **performance bottleneck identification**: helps distinguish between algorithm issues and validation overhead
 
 ## 📁 generated files

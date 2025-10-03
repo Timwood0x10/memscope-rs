@@ -905,7 +905,7 @@ mod tests {
         let result = engine.create_lifetime_analysis(&allocations);
         assert!(result.is_ok());
 
-        let analysis_data = result.unwrap();
+        let analysis_data = result.expect("Lifetime analysis should succeed with valid test data");
         assert_eq!(
             analysis_data.metadata.analysis_type,
             "integrated_lifetime_analysis"
@@ -971,22 +971,25 @@ mod tests {
         // Test all analysis methods with empty data
         let memory_result = engine.create_memory_analysis(&empty_allocations);
         assert!(memory_result.is_ok());
-        let memory_data = memory_result.unwrap();
+        let memory_data = memory_result.expect("Memory analysis should succeed with empty data");
         assert_eq!(memory_data.metadata.total_allocations, 0);
 
         let lifetime_result = engine.create_lifetime_analysis(&empty_allocations);
         assert!(lifetime_result.is_ok());
-        let lifetime_data = lifetime_result.unwrap();
+        let lifetime_data =
+            lifetime_result.expect("Lifetime analysis should succeed with empty data");
         assert_eq!(lifetime_data.metadata.total_allocations, 0);
 
         let performance_result = engine.create_performance_analysis(&empty_allocations);
         assert!(performance_result.is_ok());
-        let performance_data = performance_result.unwrap();
+        let performance_data =
+            performance_result.expect("Performance analysis should succeed with empty data");
         assert_eq!(performance_data.metadata.total_allocations, 0);
 
         let complex_types_result = engine.create_complex_types_analysis(&empty_allocations);
         assert!(complex_types_result.is_ok());
-        let complex_types_data = complex_types_result.unwrap();
+        let complex_types_data =
+            complex_types_result.expect("Complex types analysis should succeed with empty data");
         assert_eq!(complex_types_data.metadata.total_allocations, 0);
     }
 

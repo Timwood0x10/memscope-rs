@@ -2579,9 +2579,18 @@ mod tests {
         let tracker = create_test_tracker();
 
         // Verify initial state
-        assert!(tracker.get_enhanced_allocations().unwrap().is_empty());
-        assert!(tracker.get_safety_violations().unwrap().is_empty());
-        assert!(tracker.get_c_library_stats().unwrap().is_empty());
+        assert!(tracker
+            .get_enhanced_allocations()
+            .expect("Should get enhanced allocations")
+            .is_empty());
+        assert!(tracker
+            .get_safety_violations()
+            .expect("Should get safety violations")
+            .is_empty());
+        assert!(tracker
+            .get_c_library_stats()
+            .expect("Should get C library stats")
+            .is_empty());
     }
 
     #[test]
@@ -2589,8 +2598,14 @@ mod tests {
         let tracker = UnsafeFFITracker::default();
 
         // Verify default state
-        assert!(tracker.get_enhanced_allocations().unwrap().is_empty());
-        assert!(tracker.get_safety_violations().unwrap().is_empty());
+        assert!(tracker
+            .get_enhanced_allocations()
+            .expect("Should get enhanced allocations after reset")
+            .is_empty());
+        assert!(tracker
+            .get_safety_violations()
+            .expect("Should get safety violations after reset")
+            .is_empty());
     }
 
     #[test]

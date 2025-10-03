@@ -534,9 +534,9 @@ mod tests {
         assert_eq!(mixed_result, "helloworld");
 
         // Test with unicode strings
-        let unicode_parts = vec!["Hello", " ", "世界", " ", "🦀"];
+        let unicode_parts = vec!["Hello", " ", "World", " ", "🦀"];
         let unicode_result = efficient_string_concat(&unicode_parts);
-        assert_eq!(unicode_result, "Hello 世界 🦀");
+        assert_eq!(unicode_result, "Hello World 🦀");
 
         // Test with very large single string
         let large_string = "a".repeat(10000);

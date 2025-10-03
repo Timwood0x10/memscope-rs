@@ -7,7 +7,7 @@
 
 use memscope_rs::export::export_user_variables_json;
 use memscope_rs::unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, BoundaryEventType};
-use memscope_rs::{get_global_tracker, init, track_var};
+use memscope_rs::{get_tracker, init, track_var};
 use std::alloc::{alloc, dealloc, Layout};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -16,7 +16,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🦀 Starting Unsafe Rust & FFI Memory Analysis Demo");
 
     // Get trackers
-    let tracker = get_global_tracker();
+    let tracker = get_tracker();
     let unsafe_ffi_tracker = get_global_unsafe_ffi_tracker();
 
     // 1. Safe Rust allocations for comparison

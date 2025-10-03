@@ -811,7 +811,10 @@ mod tests {
         analyzer.record_drop_event(0x1000, "Vec<i32>", true);
 
         // Verify drop event was recorded
-        let events = analyzer.drop_events.lock().unwrap();
+        let events = analyzer
+            .drop_events
+            .lock()
+            .expect("Drop events lock should not be poisoned");
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].ptr, 0x1000);
         assert_eq!(events[0].type_name, "Vec<i32>");
@@ -1184,7 +1187,10 @@ mod tests {
         analyzer.analyze_closure_capture(0x5000, captured_vars.clone());
 
         // Verify closure capture was recorded
-        let captures = analyzer.closure_captures.lock().unwrap();
+        let captures = analyzer
+            .closure_captures
+            .lock()
+            .expect("Closure captures lock should not be poisoned");
         assert_eq!(captures.len(), 1);
 
         let capture = &captures[0];
@@ -1209,7 +1215,10 @@ mod tests {
         analyzer.track_borrow_release(0x1000, 1);
 
         // Verify borrow operations were tracked
-        let tracker = analyzer.borrow_tracker.lock().unwrap();
+        let tracker = analyzer
+            .borrow_tracker
+            .lock()
+            .expect("Borrow tracker lock should not be poisoned");
         assert_eq!(tracker.borrow_history.len(), 2);
         assert!(!tracker.active_borrows.contains_key(&0x1000));
     }

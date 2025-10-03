@@ -12,6 +12,7 @@ pub mod error_recovery;
 pub mod export_enhanced;
 pub mod export_modes;
 pub mod fast_export_coordinator;
+pub mod fixed_hybrid_template;
 pub mod high_speed_buffered_writer;
 pub mod html_export;
 pub mod optimized_json_export;

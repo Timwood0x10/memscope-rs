@@ -83,12 +83,14 @@ pub mod primitives {
     }
 
     /// Write a f32 value in little endian
+    #[allow(dead_code)]
     pub fn write_f32<W: Write>(writer: &mut W, value: f32) -> Result<usize, BinaryExportError> {
         writer.write_all(&value.to_le_bytes())?;
         Ok(4)
     }
 
     /// Read a f32 value in little endian
+    #[allow(dead_code)]
     pub fn read_f32<R: Read>(reader: &mut R) -> Result<f32, BinaryExportError> {
         let mut buffer = [0u8; 4];
         reader.read_exact(&mut buffer)?;
@@ -155,6 +157,7 @@ pub mod primitives {
     }
 
     /// Write an optional string
+    #[allow(dead_code)]
     pub fn write_string_option<W: Write>(
         writer: &mut W,
         value: &Option<String>,
@@ -172,6 +175,7 @@ pub mod primitives {
     }
 
     /// Read an optional string
+    #[allow(dead_code)]
     pub fn read_string_option<R: Read>(
         reader: &mut R,
     ) -> Result<Option<String>, BinaryExportError> {
@@ -800,6 +804,7 @@ mod tests {
 
 /// Binary serializable wrapper for UnsafeReport
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[allow(dead_code)]
 pub struct BinaryUnsafeReport {
     pub report_id: String,
     pub source_type: u8, // 0=UnsafeBlock, 1=FfiFunction, 2=RawPointer, 3=Transmute
@@ -856,6 +861,7 @@ impl BinarySerializable for BinaryUnsafeReport {
 
 /// Binary serializable wrapper for MemoryPassport
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[allow(dead_code)]
 pub struct BinaryMemoryPassport {
     pub passport_id: String,
     pub memory_address: u64,
@@ -904,6 +910,7 @@ impl BinarySerializable for BinaryMemoryPassport {
 
 /// Binary serializable wrapper for CallStackRef
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[allow(dead_code)]
 pub struct BinaryCallStackRef {
     pub id: u32,
     pub depth: u16,
@@ -934,6 +941,7 @@ impl BinarySerializable for BinaryCallStackRef {
 
 /// Binary serializable wrapper for BorrowInfo
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[allow(dead_code)]
 pub struct BinaryBorrowInfo {
     pub immutable_borrows: u32,
     pub mutable_borrows: u32,
@@ -989,6 +997,7 @@ impl BinarySerializable for BinaryBorrowInfo {
 
 /// Binary serializable wrapper for CloneInfo
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[allow(dead_code)]
 pub struct BinaryCloneInfo {
     pub clone_count: u32,
     pub is_clone: bool,
@@ -1031,6 +1040,7 @@ impl BinarySerializable for BinaryCloneInfo {
 
 /// Binary serializable wrapper for OwnershipEvent
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[allow(dead_code)]
 pub struct BinaryOwnershipEvent {
     pub timestamp: u64,
     pub event_type: u8, // 0=Allocated, 1=Cloned, 2=Dropped, 3=OwnershipTransferred, 4=Borrowed, 5=MutablyBorrowed
@@ -1099,6 +1109,7 @@ impl BinarySerializable for BinaryOwnershipEvent {
 
 /// Binary serializable wrapper for ResolvedFfiFunction
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[allow(dead_code)]
 pub struct BinaryResolvedFfiFunction {
     pub library_name: String,
     pub function_name: String,

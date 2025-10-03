@@ -357,7 +357,7 @@ mod tests {
         let test_cases = vec![
             ("Simple error message", TrackingError::AllocationFailed("Simple error message".to_string())),
             ("Error with special chars: !@#$%^&*()", TrackingError::IoError("Error with special chars: !@#$%^&*()".to_string())),
-            ("Unicode error: 错误信息 🦀", TrackingError::BorrowCheckError("Unicode error: 错误信息 🦀".to_string())),
+            ("Unicode error: error message 🦀", TrackingError::BorrowCheckError("Unicode error: error message 🦀".to_string())),
             ("", TrackingError::InternalError("".to_string())), // Empty message
             ("Very long error message that spans multiple lines and contains lots of details about what went wrong in the system", 
              TrackingError::ConfigurationError("Very long error message that spans multiple lines and contains lots of details about what went wrong in the system".to_string())),

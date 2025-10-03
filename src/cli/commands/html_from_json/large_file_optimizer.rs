@@ -296,9 +296,9 @@ impl LargeFileOptimizer {
             .allocate(self.config.stream_chunk_size)?;
 
         // For streaming, use serde_json's streaming parser directly from BufReader
-        // 避免将整个文件读入内存
+        // Avoid loading entire file into memory
 
-        // Parse JSON directly from BufReader - 流式解析，避免内存峰值
+        // Parse JSON directly from BufReader - streaming parse to avoid memory peaks
         let json_value: Value = serde_json::from_reader(reader)
             .map_err(|e| LargeFileError::StreamingParseError(e.to_string()))?;
 
@@ -321,12 +321,12 @@ impl LargeFileOptimizer {
         file_path: P,
         file_type: &str,
     ) -> Result<(Value, usize), LargeFileError> {
-        // 使用流式读取避免内存峰值
+        // Use streaming read to avoid memory peaks
         let file = File::open(file_path).map_err(LargeFileError::IoError)?;
         let reader = BufReader::new(file);
 
         // Track memory for reader buffer
-        self.memory_monitor.allocate(8192)?; // BufReader默认缓冲区大小
+        self.memory_monitor.allocate(8192)?; // BufReader default buffer size
 
         // Parse JSON directly from reader
         let json_value: Value = serde_json::from_reader(reader)

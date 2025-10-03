@@ -2,7 +2,7 @@
 //!
 //! create large active allocations to test the true large file export performance
 
-use memscope_rs::{get_global_tracker, init, track_var};
+use memscope_rs::{get_tracker, init, track_var};
 use std::collections::HashMap;
 
 fn main() {
@@ -41,7 +41,7 @@ fn run_large_active_allocations() -> Vec<Box<dyn std::any::Any>> {
     }
 
     tracing::info!("\n📊 final statistics:");
-    let tracker = get_global_tracker();
+    let tracker = get_tracker();
     if let Ok(stats) = tracker.get_stats() {
         tracing::info!("  • total allocations: {}", stats.total_allocations);
         tracing::info!("  • active allocations: {}", stats.active_allocations);

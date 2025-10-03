@@ -94,9 +94,7 @@ unsafe impl GlobalAlloc for TrackingAllocator {
                 TRACKING_DISABLED.with(|disabled| disabled.set(true));
 
                 // CRITICAL FIX: Use simple tracking like master branch to avoid recursion
-                if let Ok(tracker) =
-                    std::panic::catch_unwind(crate::core::tracker::get_global_tracker)
-                {
+                if let Ok(tracker) = std::panic::catch_unwind(crate::core::tracker::get_tracker) {
                     // Simple tracking without context to prevent recursive allocations
                     let _ = tracker.track_allocation(ptr as usize, layout.size());
                 }
@@ -118,8 +116,7 @@ unsafe impl GlobalAlloc for TrackingAllocator {
             TRACKING_DISABLED.with(|disabled| disabled.set(true));
 
             // Track the deallocation - use try_lock approach to avoid deadlocks
-            if let Ok(tracker) = std::panic::catch_unwind(crate::core::tracker::get_global_tracker)
-            {
+            if let Ok(tracker) = std::panic::catch_unwind(crate::core::tracker::get_tracker) {
                 // Ignore errors to prevent deallocation failures from breaking the program
                 let _ = tracker.track_deallocation(ptr as usize);
             }

@@ -1,7 +1,7 @@
 // Complex lifecycle showcase demonstrating enhanced tracking capabilities
 // This example shows various built-in types, custom types, and complex memory patterns
 
-use memscope_rs::{get_global_tracker, init, track_var};
+use memscope_rs::{get_tracker, init, track_var};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::rc::Rc;
@@ -589,7 +589,7 @@ fn generate_final_analysis() {
     println!("📊 Final Analysis & Export");
     println!("=========================");
 
-    let tracker = get_global_tracker();
+    let tracker = get_tracker();
 
     // Get comprehensive statistics
     if let Ok(stats) = tracker.get_stats() {

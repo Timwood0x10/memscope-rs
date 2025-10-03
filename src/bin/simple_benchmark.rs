@@ -2,7 +2,7 @@
 //!
 //! this program runs a simple performance benchmark, comparing the performance of traditional export and fast export
 
-use memscope_rs::{get_global_tracker, init};
+use memscope_rs::{get_tracker, init};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -74,7 +74,7 @@ fn run_benchmark_tests(output_dir: &Path) {
         let output_path = output_dir.join(format!("traditional_export_run_{run}.json"));
 
         // get tracker and export
-        let tracker = get_global_tracker();
+        let tracker = get_tracker();
         let result = tracker.export_to_json(&output_path);
         let export_time = start_time.elapsed();
 
@@ -101,7 +101,7 @@ fn run_benchmark_tests(output_dir: &Path) {
         let output_path = output_dir.join(format!("fast_export_run_{run}.json"));
 
         // get tracker and use optimized export
-        let tracker = get_global_tracker();
+        let tracker = get_tracker();
         let options = memscope_rs::core::tracker::export_json::ExportJsonOptions::default()
             .parallel_processing(true) // enable parallel processing
             .fast_export_mode(true) // enable fast export mode

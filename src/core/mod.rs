@@ -39,6 +39,7 @@ pub mod string_pool;
 pub mod string_pool_monitor;
 pub mod targeted_optimizations;
 pub mod test_optimized_locks;
+pub mod thread_registry;
 pub mod threshold_batch_processor;
 pub mod tracker;
 
@@ -48,7 +49,7 @@ pub mod unwrap_safe;
 
 // Re-export key types for easier access
 pub use allocator::TrackingAllocator;
-pub use tracker::{get_global_tracker, MemoryTracker};
+pub use tracker::{get_tracker, MemoryTracker};
 pub use types::{AllocationInfo, TrackingError, TrackingResult};
 
 // Re-export the new unified error system
@@ -129,6 +130,20 @@ pub use enhanced_pointer_extractor::{
 pub use enhanced_type_inference::{
     AllocationContext, InferenceMethod, InferenceStatistics, InferredType, TypeConfidence,
     TypeInferenceEngine, TypeSignature,
+};
+
+// Re-export the new dual-mode tracking functionality
+pub use tracker::configure_tracking_strategy;
+
+// Re-export unified backend system
+pub use crate::unified::{
+    detect_environment, detect_environment_detailed, quick_start as unified_quick_start,
+    test_unified_system, AsyncRuntimeType, BackendConfig, BackendError, DetectionConfig,
+    DetectionMetadata, DetectionMethod, DispatcherConfig, DispatcherMetrics, EnvironmentAnalysis,
+    EnvironmentDetector, MemoryAnalysisData, MemoryStatistics,
+    MemoryTracker as UnifiedMemoryTracker, RuntimeEnvironment, SessionMetadata, TrackerConfig,
+    TrackerError, TrackerStatistics, TrackerType, TrackingDispatcher, TrackingOperation,
+    TrackingSession, TrackingStrategy, UnifiedBackend,
 };
 
 // Re-export ownership history functionality

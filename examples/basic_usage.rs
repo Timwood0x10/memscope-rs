@@ -7,7 +7,7 @@
 
 use memscope_rs::export::enhanced_json_exporter::{EnhancedJsonExporter, ExportConfig};
 use memscope_rs::export::{export_user_variables_binary, export_user_variables_json};
-use memscope_rs::{get_global_tracker, init, track_var};
+use memscope_rs::{get_tracker, init, track_var};
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -59,7 +59,7 @@ fn main() {
     println!("Content of 'arc_data': {}", *arc_data);
 
     // Get memory statistics
-    let tracker = get_global_tracker();
+    let tracker = get_tracker();
     if let Ok(stats) = tracker.get_stats() {
         println!("\nMemory Statistics:");
         println!("  Active allocations: {}", stats.active_allocations);
@@ -76,11 +76,7 @@ fn main() {
         (Ok(allocations), Ok(stats)) => {
             // First, export using legacy API for comparison
             println!("📋 Exporting user variables to JSON (legacy)...");
-            match export_user_variables_json(
-                allocations.clone(),
-                stats.clone(),
-                "basic_usage_snapshot",
-            ) {
+            match export_user_variables_json(allocations.clone(), stats.clone(), "basic_usage") {
                 Ok(export_stats) => {
                     println!("✅ Legacy JSON export successful!");
                     println!(
@@ -192,7 +188,6 @@ fn show_enhanced_features(output_dir: &str) {
                     }
                 }
 
-                println!("   ✅ improve.md extensions found:");
                 println!("      • borrow_info: {has_borrow_info} allocations");
                 println!("      • clone_info: {has_clone_info} allocations");
                 println!(

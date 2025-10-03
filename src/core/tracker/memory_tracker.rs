@@ -15,6 +15,7 @@ use crate::core::types::{
 };
 
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
 /// Binary export mode enumeration for selecting export strategy
@@ -35,17 +36,80 @@ impl Default for BinaryExportMode {
     }
 }
 
-/// Global memory tracker instance
+/// Tracking strategy constants for dual-mode architecture
+const STRATEGY_GLOBAL_SINGLETON: u8 = 0;
+const STRATEGY_THREAD_LOCAL: u8 = 1;
+
+/// Global tracking strategy configuration
+static TRACKING_STRATEGY: AtomicU8 = AtomicU8::new(STRATEGY_GLOBAL_SINGLETON);
+
+/// Global memory tracker instance (for single-threaded mode)
 static GLOBAL_TRACKER: OnceLock<Arc<MemoryTracker>> = OnceLock::new();
 
-/// Get the global memory tracker instance.
+// Thread-local memory tracker instances (for concurrent mode)
+thread_local! {
+    static THREAD_LOCAL_TRACKER: Arc<MemoryTracker> = {
+        let tracker = Arc::new(MemoryTracker::new());
+        // Auto-register this thread's tracker when first accessed
+        crate::core::thread_registry::register_current_thread_tracker(&tracker);
+        tracker
+    };
+}
+
+/// Configure tracking strategy for the application.
 ///
-/// This function returns a reference to the singleton memory tracker
-/// that is used throughout the application.
+/// This function should be called at program startup to set the appropriate
+/// tracking strategy based on whether the application is concurrent or not.
+///
+/// # Arguments
+/// * `is_concurrent` - true for multi-threaded/async applications, false for single-threaded
+pub fn configure_tracking_strategy(is_concurrent: bool) {
+    let strategy = if is_concurrent {
+        STRATEGY_THREAD_LOCAL
+    } else {
+        STRATEGY_GLOBAL_SINGLETON
+    };
+
+    TRACKING_STRATEGY.store(strategy, Ordering::Relaxed);
+
+    tracing::info!(
+        "Configured tracking strategy: {}",
+        if is_concurrent {
+            "thread-local"
+        } else {
+            "global-singleton"
+        }
+    );
+}
+
+/// Get the appropriate memory tracker based on current strategy.
+///
+/// This function implements the dual-mode dispatch:
+/// - In single-threaded mode: returns the global singleton tracker
+/// - In concurrent mode: returns the current thread's local tracker
+pub fn get_tracker() -> Arc<MemoryTracker> {
+    match TRACKING_STRATEGY.load(Ordering::Relaxed) {
+        STRATEGY_GLOBAL_SINGLETON => GLOBAL_TRACKER
+            .get_or_init(|| Arc::new(MemoryTracker::new()))
+            .clone(),
+        STRATEGY_THREAD_LOCAL => THREAD_LOCAL_TRACKER.with(|tracker| tracker.clone()),
+        _ => {
+            // Fallback to global singleton for unknown strategy
+            tracing::warn!("Unknown tracking strategy, falling back to global singleton");
+            GLOBAL_TRACKER
+                .get_or_init(|| Arc::new(MemoryTracker::new()))
+                .clone()
+        }
+    }
+}
+
+/// Get the global memory tracker instance (legacy compatibility).
+///
+/// This function is preserved for backward compatibility but now delegates to get_tracker().
+/// New code should use get_tracker() directly for dual-mode support.
+#[deprecated(note = "Use get_tracker() instead for dual-mode support")]
 pub fn get_global_tracker() -> Arc<MemoryTracker> {
-    GLOBAL_TRACKER
-        .get_or_init(|| Arc::new(MemoryTracker::new()))
-        .clone()
+    get_tracker()
 }
 
 /// Core memory tracking functionality.
@@ -1351,8 +1415,8 @@ mod tests {
 
     #[test]
     fn test_global_tracker_singleton() {
-        let tracker1 = get_global_tracker();
-        let tracker2 = get_global_tracker();
+        let tracker1 = get_tracker();
+        let tracker2 = get_tracker();
 
         // Should be the same instance (Arc comparison)
         assert!(Arc::ptr_eq(&tracker1, &tracker2));

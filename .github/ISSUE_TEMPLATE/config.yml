@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 📚 Documentation
+    url: https://docs.rs/memscope-rs
+    about: Check the API documentation and user guides
+  - name: 💬 Discussions
+    url: https://github.com/TimWood0x10/memscope-rs/discussions
+    about: Ask questions and discuss ideas with the community
+  - name: 📖 Examples
+    url: https://github.com/TimWood0x10/memscope-rs/tree/main/examples
+    about: Browse real-world usage examples
