@@ -7,11 +7,9 @@ on:
   pull_request:
     branches: [master, develop]
 
-# Permissions needed for GitHub Pages deployment
+# Permissions for CI operations
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 env:
   CARGO_TERM_COLOR: always

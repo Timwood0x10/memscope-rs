@@ -1,0 +1,6 @@
+# This file disables Jekyll processing for GitHub Pages
+# 
+# memscope-rs documentation is deployed as static files
+# No Jekyll processing needed - just serve the docs as-is
+#
+# Learn more: https://docs.github.com/en/pages/getting-started-with-github-pages/about-github-pages#static-site-generators
