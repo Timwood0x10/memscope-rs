@@ -7,5 +7,5 @@ contact_links:
     url: https://github.com/TimWood0x10/memscope-rs/discussions
     about: Ask questions and discuss ideas with the community
   - name: 📖 Examples
-    url: https://github.com/TimWood0x10/memscope-rs/tree/main/examples
+    url: https://github.com/TimWood0x10/memscope-rs/tree/master/examples
     about: Browse real-world usage examples

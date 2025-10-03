@@ -168,13 +168,20 @@ jobs:
       - name: Build documentation
         run: cargo doc --workspace --all-features --no-deps
 
+      - name: Setup Pages
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        uses: actions/configure-pages@v4
+        
+      - name: Upload documentation artifacts
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./target/doc
+          
       - name: Deploy to GitHub Pages
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./target/doc
-          force_orphan: true
+        id: deployment
+        uses: actions/deploy-pages@v4
 
   security:
     name: Security Audit
