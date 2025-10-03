@@ -7,11 +7,11 @@
 //! Key features:
 //! - Zero-lock design: Each thread operates independently
 //! - Intelligent sampling: Frequency + size dual-dimension sampling
-//! - Binary format: Uses postcard for zero-overhead serialization
+//! - Binary format: Uses bincode for zero-overhead serialization
 //! - Thread isolation: Complete elimination of shared state
 //! - Performance focused: Minimal overhead on target application
 
-use postcard;
+use bincode::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
@@ -22,7 +22,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 pub use crate::lockfree::analysis::EventType;
 
 /// Enhanced tracking event with rich metadata
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode)]
 pub struct Event {
     pub timestamp: u64,
     pub ptr: usize,
@@ -54,7 +54,7 @@ pub struct Event {
 }
 
 /// Enhanced frequency tracking data
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode)]
 pub struct FrequencyData {
     pub call_stack_hash: u64,
     pub frequency: u64,
@@ -71,7 +71,7 @@ pub struct FrequencyData {
 }
 
 /// Memory allocation category
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode)]
 pub enum AllocationCategory {
     Small,  // < 2KB
     Medium, // 2KB - 64KB
@@ -79,7 +79,7 @@ pub enum AllocationCategory {
 }
 
 /// Process memory statistics snapshot
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode)]
 pub struct MemoryStats {
     /// Virtual memory size in bytes
     pub virtual_memory: usize,
@@ -93,7 +93,7 @@ pub struct MemoryStats {
 
 /// Real call stack with symbol information
 #[cfg(feature = "backtrace")]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode)]
 pub struct RealCallStack {
     /// Raw addresses from backtrace
     pub addresses: Vec<usize>,
@@ -104,7 +104,7 @@ pub struct RealCallStack {
 }
 
 #[cfg(feature = "backtrace")]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode)]
 pub struct StackFrame {
     /// Function name if available
     pub function_name: Option<String>,
@@ -118,7 +118,7 @@ pub struct StackFrame {
 
 /// System performance metrics
 #[cfg(feature = "system-metrics")]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode)]
 pub struct SystemMetrics {
     /// CPU usage percentage (0-100)
     pub cpu_usage: f32,
@@ -136,7 +136,7 @@ pub struct SystemMetrics {
 
 /// Advanced analysis data
 #[cfg(feature = "advanced-analysis")]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode)]
 pub struct AnalysisData {
     /// Allocation lifetime prediction
     pub predicted_lifetime_ms: u64,
@@ -151,7 +151,7 @@ pub struct AnalysisData {
 }
 
 #[cfg(feature = "advanced-analysis")]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode)]
 pub enum FrequencyPattern {
     Sporadic,
     Regular,
@@ -160,7 +160,7 @@ pub enum FrequencyPattern {
 }
 
 #[cfg(feature = "advanced-analysis")]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode)]
 pub enum AccessPattern {
     Sequential,
     Random,
@@ -520,8 +520,8 @@ impl ThreadLocalTracker {
             return Ok(());
         }
 
-        // Serialize events using postcard (zero-overhead binary format)
-        let serialized = postcard::to_allocvec(&self.event_buffer)?;
+        // Serialize events using bincode (zero-overhead binary format)
+        let serialized = bincode::encode_to_vec(&self.event_buffer, bincode::config::standard())?;
 
         // Append to file (create if doesn't exist)
         use std::fs::OpenOptions;
@@ -590,7 +590,7 @@ impl ThreadLocalTracker {
             .collect();
 
         let frequency_file = self.file_path.with_extension("freq");
-        let serialized = postcard::to_allocvec(&frequency_data)?;
+        let serialized = bincode::encode_to_vec(&frequency_data, bincode::config::standard())?;
 
         std::fs::write(frequency_file, serialized)?;
         Ok(())

@@ -18,7 +18,7 @@ categories = [
 
 [dependencies]
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = [
+tracing-subscriber = { version = "0.3.20", features = [
     "env-filter",
     "tracing-log",
 ] }
@@ -38,7 +38,6 @@ regex = "1.10"
 rand = "0.9.2"
 dashmap = "6.0"
 parking_lot = "0.12"
-postcard = { version = "1.0", features = ["alloc"] }
 bincode = "2.0.1"
 memscope-derive = { path = "./memscope-derive", optional = true, version = "0.1.0" }
 

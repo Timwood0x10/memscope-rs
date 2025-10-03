@@ -5,7 +5,7 @@
 
 use crate::lockfree::analysis::{AllocationEvent, EventType, InteractionType};
 use crate::lockfree::tracker::{Event, FrequencyData};
-use postcard;
+use bincode;
 // Removed unused serde imports
 use std::collections::HashMap;
 use std::path::Path;
@@ -174,7 +174,8 @@ impl LockfreeAggregator {
 
             // Deserialize events chunk
             let chunk_data = &file_content[offset..offset + length];
-            let chunk_events: Vec<Event> = postcard::from_bytes(chunk_data)?;
+            let (chunk_events, _): (Vec<Event>, _) =
+                bincode::decode_from_slice(chunk_data, bincode::config::standard())?;
             events.extend(chunk_events);
             offset += length;
         }
@@ -188,7 +189,8 @@ impl LockfreeAggregator {
         file_path: &Path,
     ) -> Result<Vec<FrequencyData>, Box<dyn std::error::Error>> {
         let file_content = std::fs::read(file_path)?;
-        let frequencies: Vec<FrequencyData> = postcard::from_bytes(&file_content)?;
+        let (frequencies, _): (Vec<FrequencyData>, _) =
+            bincode::decode_from_slice(&file_content, bincode::config::standard())?;
         Ok(frequencies)
     }
 

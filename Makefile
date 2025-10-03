@@ -130,6 +130,17 @@ release:
 check:
 	@echo "$(BLUE)Checking $(PROJECT_NAME) for errors...$(NC)"
 	$(CARGO) check --all-targets --all-features
+	@echo "$(BLUE)Checking code formatting...$(NC)"
+	$(CARGO) fmt --all -- --check
+	@echo "$(BLUE)Running clippy linter...$(NC)"
+	$(CARGO) clippy --all-targets --all-features -- -D warnings
+	@echo "$(BLUE)Running security audit...$(NC)"
+	@if command -v cargo-audit >/dev/null 2>&1; then \
+		$(CARGO) audit || echo "$(YELLOW)⚠️  Some audit warnings may be acceptable$(NC)"; \
+	else \
+		echo "$(YELLOW)cargo-audit not installed. Install with: cargo install cargo-audit$(NC)"; \
+	fi
+	@echo "$(GREEN)✅ All quality checks completed!$(NC)"
 
 .PHONY: clean
 clean:

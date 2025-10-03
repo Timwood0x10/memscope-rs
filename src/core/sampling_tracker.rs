@@ -1,7 +1,7 @@
 //! High-performance sampling-based memory tracker using binary serialization.
 //!
 //! This module implements the core multi-thread tracking system using:
-//! - postcard binary serialization for zero-overhead data storage
+//! - bincode binary serialization for zero-overhead data storage
 //! - Intelligent sampling (frequency + size dimensions)
 //! - Thread-local storage with file-based communication
 //! - Batch writing for optimal performance
@@ -115,8 +115,8 @@ impl ThreadLocalData {
         self.ensure_file_handle()?;
         
         if let Some(ref mut file) = self.file_handle {
-            // Serialize events to binary format using postcard
-            let serialized = postcard::to_allocvec(&self.event_buffer)
+            // Serialize events to binary format using bincode
+            let serialized = bincode::encode_to_vec(&self.event_buffer, bincode::config::standard())
                 .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
             
             // Write length prefix for easier parsing
@@ -152,7 +152,7 @@ impl ThreadLocalData {
             .collect();
 
         if let Some(ref mut file) = self.file_handle {
-            let serialized = postcard::to_allocvec(&freq_data)
+            let serialized = bincode::encode_to_vec(&freq_data, bincode::config::standard())
                 .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
             
             // Write marker for frequency data

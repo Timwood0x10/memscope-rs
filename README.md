@@ -1,6 +1,6 @@
 # memscope-rs - Advanced Rust Memory Analysis Toolkit
 
-[![Rust](https://img.shields.io/badge/rust-1.70+-orange.svg)](https://www.rust-lang.org)
+[![Rust](https://img.shields.io/badge/rust-1.75+-orange.svg)](https://www.rust-lang.org)
 [![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE)
 [![Crates.io](https://img.shields.io/crates/v/memscope-rs.svg)](https://crates.io/crates/memscope-rs)
 
@@ -430,7 +430,7 @@ cargo run --example multithreaded_stress_test
 
 ### System Requirements
 
-- **Rust**: 1.70 or later (we're not asking for much)
+- **Rust**: 1.75 or later (modern Rust for best experience)
 - **OS**: Linux, macOS, Windows (basically everywhere Rust runs)
 - **Memory**: At least 4GB RAM recommended (for analyzing large projects)
 

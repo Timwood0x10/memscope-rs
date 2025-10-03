@@ -3,11 +3,12 @@
 //! This module defines the data structures used to represent analysis
 //! results from lock-free multi-threaded tracking data.
 
+use bincode::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// Per-thread statistics from lock-free tracking
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode)]
 pub struct ThreadStats {
     /// Thread identifier
     pub thread_id: u64,
@@ -28,7 +29,7 @@ pub struct ThreadStats {
 }
 
 /// Allocation event from lock-free tracking
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode)]
 pub struct AllocationEvent {
     /// Timestamp in nanoseconds
     pub timestamp: u64,
@@ -45,7 +46,7 @@ pub struct AllocationEvent {
 }
 
 /// Type of memory event
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Encode, Decode)]
 pub enum EventType {
     /// Memory allocation event
     Allocation,
@@ -54,7 +55,7 @@ pub enum EventType {
 }
 
 /// Comprehensive analysis results from multiple threads
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode)]
 pub struct LockfreeAnalysis {
     /// Statistics for each thread
     pub thread_stats: HashMap<u64, ThreadStats>,
@@ -71,7 +72,7 @@ pub struct LockfreeAnalysis {
 }
 
 /// Hot call stack information
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode)]
 pub struct HotCallStack {
     /// Hash of the call stack
     pub call_stack_hash: u64,
@@ -86,7 +87,7 @@ pub struct HotCallStack {
 }
 
 /// Interaction between threads
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode)]
 pub struct ThreadInteraction {
     /// First thread in the interaction
     pub thread_a: u64,
@@ -101,7 +102,7 @@ pub struct ThreadInteraction {
 }
 
 /// Type of thread interaction
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode)]
 pub enum InteractionType {
     /// Similar allocation patterns
     SimilarPatterns,
@@ -112,7 +113,7 @@ pub enum InteractionType {
 }
 
 /// Memory usage peak
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode)]
 pub struct MemoryPeak {
     /// Timestamp of the peak
     pub timestamp: u64,
@@ -127,7 +128,7 @@ pub struct MemoryPeak {
 }
 
 /// Performance bottleneck detection
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode)]
 pub struct PerformanceBottleneck {
     /// Type of bottleneck detected
     pub bottleneck_type: BottleneckType,
@@ -144,7 +145,7 @@ pub struct PerformanceBottleneck {
 }
 
 /// Type of performance bottleneck
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode)]
 pub enum BottleneckType {
     /// High frequency small allocations
     HighFrequencySmallAllocation,
@@ -159,7 +160,7 @@ pub enum BottleneckType {
 }
 
 /// Overall analysis summary
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode)]
 pub struct AnalysisSummary {
     /// Total number of threads analyzed
     pub total_threads: usize,

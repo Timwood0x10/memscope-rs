@@ -72,8 +72,8 @@ let frequency_multiplier = if frequency > self.config.frequency_threshold {
 
 ### **3. High-Performance Binary Serialization**
 ```rust
-// Zero-overhead postcard serialization
-let serialized = postcard::to_allocvec(&self.event_buffer)?;
+// Zero-overhead bincode serialization
+let serialized = bincode::encode_to_vec(&self.event_buffer, bincode::config::standard())?;
 
 // Efficient batch writing
 let len = serialized.len() as u32;
