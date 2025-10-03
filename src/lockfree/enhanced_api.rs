@@ -596,16 +596,38 @@ mod tests {
         let temp_dir = create_test_dir();
         let output_path = temp_dir.path().join("test_state");
 
-        // Initially inactive
-        assert!(!is_enhanced_profiling_active());
+        // Ensure clean state first - multiple stops to handle any contamination
+        let _ = stop_system_profiling();
+        let _ = stop_system_profiling();
 
-        // Start profiling
+        // Wait a moment for cleanup to complete
+        std::thread::sleep(Duration::from_millis(10));
+
+        // Test: state should be initially inactive after cleanup
+        let initial_state = is_enhanced_profiling_active();
+        if initial_state {
+            // If still active, try one more cleanup
+            let _ = stop_system_profiling();
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        assert!(
+            !is_enhanced_profiling_active(),
+            "Profiling should be inactive after cleanup"
+        );
+
+        // Test: start profiling
         start_full_system_profiling(&output_path, Duration::from_millis(100)).unwrap();
-        assert!(is_enhanced_profiling_active());
+        assert!(
+            is_enhanced_profiling_active(),
+            "Profiling should be active after start"
+        );
 
-        // Stop profiling
+        // Test: stop profiling
         stop_system_profiling().expect("System profiling should stop successfully");
-        assert!(!is_enhanced_profiling_active());
+        assert!(
+            !is_enhanced_profiling_active(),
+            "Profiling should be inactive after stop"
+        );
     }
 
     #[test]

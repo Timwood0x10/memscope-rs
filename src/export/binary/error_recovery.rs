@@ -8,7 +8,9 @@ use crate::export::binary::{BinaryExportError, BinaryIndex, BinaryIndexBuilder};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime};
-use tracing::{debug, error, info, warn};
+#[cfg(not(test))]
+use tracing::error;
+use tracing::{debug, info, warn};
 
 /// Simplified error recovery manager
 pub struct ErrorRecoveryManager {
@@ -214,7 +216,11 @@ impl ErrorRecoveryManager {
 
         // All retries failed
         self.error_stats.failed_recoveries += 1;
+        // Only log error if not in test mode
+        #[cfg(not(test))]
         error!("All recovery attempts failed for: {}", context);
+        #[cfg(test)]
+        debug!("All recovery attempts failed for: {} (test mode)", context);
 
         RecoveryResult {
             result: None,
@@ -301,7 +307,13 @@ impl ErrorRecoveryManager {
                 Ok(index)
             }
             Err(error) => {
+                #[cfg(not(test))]
                 error!("Failed to rebuild index for: {:?} - {}", binary_path, error);
+                #[cfg(test)]
+                debug!(
+                    "Failed to rebuild index for: {:?} - {} (test mode)",
+                    binary_path, error
+                );
                 Err(error)
             }
         }
