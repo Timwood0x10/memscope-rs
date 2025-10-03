@@ -3,6 +3,8 @@
 //! This test validates the complete pipeline from thread-local tracking
 //! to offline data aggregation and analysis report generation.
 
+#![allow(clippy::manual_is_multiple_of)] // is_multiple_of is unstable in Rust 1.85
+
 use memscope_rs::lockfree::{
     finalize_thread_tracker, init_thread_tracker, track_allocation_lockfree,
     track_deallocation_lockfree, LockfreeAggregator, SamplingConfig,
@@ -155,7 +157,7 @@ fn generate_thread_allocations(
         .map_err(|e| format!("Allocation tracking failed: {}", e))?;
 
     // Simulate realistic deallocation patterns
-    if alloc_idx.is_multiple_of(3) && alloc_idx > 0 {
+    if alloc_idx % 3 == 0 && alloc_idx > 0 {
         let dealloc_ptr = ptr_base + ((alloc_idx - 1) * 64);
         track_deallocation_lockfree(dealloc_ptr, &call_stack)
             .map_err(|e| format!("Deallocation tracking failed: {}", e))?;

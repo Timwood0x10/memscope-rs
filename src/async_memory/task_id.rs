@@ -267,11 +267,23 @@ mod tests {
         let waker = create_test_waker();
         let cx = Context::from_waker(&waker);
 
-        // Generate some task IDs
-        for i in 0..5 {
+        // Generate some task IDs and verify epoch progression
+        let mut previous_epoch = initial_epoch;
+        for _i in 0..5 {
             let _id = generate_task_id(&cx).expect("Failed to generate task ID");
-            assert_eq!(current_epoch(), initial_epoch + i + 1);
+            let current = current_epoch();
+            // Each generate_task_id should increment the epoch
+            assert!(
+                current > previous_epoch,
+                "Epoch should progress: {} -> {}",
+                previous_epoch,
+                current
+            );
+            previous_epoch = current;
         }
+
+        // Total progression should be 5 increments
+        assert_eq!(current_epoch(), initial_epoch + 5);
     }
 
     #[test]
