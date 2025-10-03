@@ -25,6 +25,7 @@ jobs:
           components: rustfmt, clippy
 
       - name: Handle Cargo.lock compatibility
+        shell: bash
         run: |
           # Always regenerate Cargo.lock for CI to ensure compatibility
           echo "Regenerating Cargo.lock for CI compatibility..."
@@ -53,7 +54,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        rust: [stable, 1.75.0] # MSRV
+        rust: [stable, 1.82.0] # MSRV updated for icu_properties_data compatibility
         include:
           - os: ubuntu-latest
             rust: beta
@@ -70,6 +71,7 @@ jobs:
           toolchain: ${{ matrix.rust }}
 
       - name: Handle Cargo.lock compatibility
+        shell: bash
         run: |
           # Always regenerate Cargo.lock for CI to ensure compatibility
           echo "Regenerating Cargo.lock for CI compatibility..."
@@ -112,6 +114,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Handle Cargo.lock compatibility
+        shell: bash
         run: |
           # Always regenerate Cargo.lock for CI to ensure compatibility
           echo "Regenerating Cargo.lock for CI compatibility..."
@@ -143,6 +146,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Handle Cargo.lock compatibility
+        shell: bash
         run: |
           # Always regenerate Cargo.lock for CI to ensure compatibility
           echo "Regenerating Cargo.lock for CI compatibility..."
@@ -176,6 +180,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Handle Cargo.lock compatibility
+        shell: bash
         run: |
           # Always regenerate Cargo.lock for CI to ensure compatibility
           echo "Regenerating Cargo.lock for CI compatibility..."
@@ -252,6 +257,7 @@ jobs:
           targets: ${{ matrix.target }}
 
       - name: Handle Cargo.lock compatibility
+        shell: bash
         run: |
           # Always regenerate Cargo.lock for CI to ensure compatibility
           echo "Regenerating Cargo.lock for CI compatibility..."
