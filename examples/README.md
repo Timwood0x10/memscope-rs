@@ -1,343 +1,252 @@
-# MemScope Unified Backend Examples
+# MemScope-rs Examples
 
-This directory contains comprehensive examples demonstrating the MemScope Unified Backend features.
+This directory contains comprehensive examples demonstrating different tracking strategies and use cases for memscope-rs.
 
-## Files Overview
+## 📁 Available Examples
 
-- **`unified_backend_demo.rs`** - Comprehensive API demonstration with all backend features
-- **`simple_demo_app.rs`** - Simple application with different memory patterns for CLI testing
-- **`demo_script.sh`** - Interactive shell script demonstrating CLI features
-- **`README.md`** - This documentation file
+### Core Single-threaded Examples
+| Example | Description | Key Features |
+|---------|-------------|--------------|
+| [`basic_usage.rs`](basic_usage.rs) | Simple single-threaded tracking | Zero-overhead reference tracking |
 
-## Quick Start
+### Lock-free Multi-threaded Examples  
+| Example | Description | Key Features |
+|---------|-------------|--------------|
+| [`complex_multithread_showcase.rs`](complex_multithread_showcase.rs) | High-concurrency demonstration (100+ threads) | Thread-local tracking, automatic cleanup |
+| [`enhanced_30_thread_demo.rs`](enhanced_30_thread_demo.rs) | ⭐ **Interactive HTML Dashboard** | Real-time visualization with JavaScript |
 
-### 1. Build the Examples
+### Async Examples
+| Example | Description | Key Features |
+|---------|-------------|--------------|
+| [`comprehensive_async_showcase.rs`](comprehensive_async_showcase.rs) | Task-aware async memory tracking | Context-based task tracking |
 
-```bash
-# Build all examples
-cargo build --examples
+### Lifecycle & Analysis Examples
+| Example | Description | Key Features |
+|---------|-------------|--------------|
+| [`complex_lifecycle_showcase.rs`](complex_lifecycle_showcase.rs) | Variable lifecycle analysis | Drop tracking, reference counting |
+| [`performance_test_visualization.rs`](performance_test_visualization.rs) | Performance benchmarking | Timing analysis, bottleneck detection |
 
-# Or build specific examples
-cargo build --example unified_backend_demo
-cargo build --example simple_demo_app
-```
+### Advanced Features
+| Example | Description | Key Features |
+|---------|-------------|--------------|
+| [`unsafe_ffi_demo.rs`](unsafe_ffi_demo.rs) | FFI boundary tracking | C/C++ interop analysis |
+| [`large_binary.rs`](large_binary.rs) | Large dataset handling | Binary export, streaming |
+| [`verified_selective_demo.rs`](verified_selective_demo.rs) | Selective tracking strategies | Custom filtering |
+| [`comprehensive_binary_to_html_demo.rs`](comprehensive_binary_to_html_demo.rs) | Binary to HTML conversion | Format conversion pipeline |
 
-### 2. Run the Comprehensive API Demo
+## 🌟 Featured Example: Enhanced 30-Thread Demo
 
-```bash
-# Run the full API demonstration
-cargo run --example unified_backend_demo
-```
+The [`enhanced_30_thread_demo.rs`](enhanced_30_thread_demo.rs) example creates an **interactive HTML dashboard** with real-time data visualization.
 
-This will show:
-- ✅ Quick start usage
-- 🌍 Environment detection
-- ⚙️ Manual strategy configuration
-- 🧵 Multi-threaded tracking
-- ⚡ Async tracking
-- 🔧 System integration testing
+### ⚠️ **Important Setup Requirement**
 
-### 3. Run CLI Demonstrations
-
-```bash
-# Make the script executable
-chmod +x examples/demo_script.sh
-
-# Run the full interactive demo
-./examples/demo_script.sh
-
-# Or run a quick demo
-./examples/demo_script.sh quick
-```
-
-## Individual CLI Examples
-
-### Basic Analysis Commands
+For full interactivity, the generated HTML file **must be placed in the same directory** as the JavaScript files:
 
 ```bash
-# Auto-detection mode (recommended)
-cargo run --bin memscope-rs -- analyze --mode auto \
-    cargo run --example simple_demo_app single
+# Run the example
+cargo run --example enhanced_30_thread_demo
 
-# Use unified backend explicitly
-cargo run --bin memscope-rs -- analyze --mode unified \
-    cargo run --example simple_demo_app multi
+# This generates: enhanced_30_thread_demo.html
 
-# Use legacy backend for comparison
-cargo run --bin memscope-rs -- analyze --mode legacy \
-    cargo run --example simple_demo_app memory-intensive
+# REQUIRED: Copy JavaScript dependencies to the same directory
+cp ./templates/hybrid_dashboard.js ./enhanced_30_thread_demo_files/
+cp ./templates/enhanced_diagnostics.js ./enhanced_30_thread_demo_files/
+
+# Now open enhanced_30_thread_demo.html in your browser
 ```
 
-### Strategy-Specific Analysis
+### Interactive Features (with JavaScript)
+- 📊 **Real-time Charts**: Dynamic memory usage visualization
+- 🔍 **Drill-down Analysis**: Click to explore detailed data
+- 📈 **Performance Metrics**: Live performance monitoring
+- 🧭 **Navigation**: Interactive timeline and filtering
 
+### Static View (without JavaScript)
+- 📋 **Summary Dashboard**: Basic statistics and overview
+- 📄 **Static Charts**: Non-interactive visualizations
+- 📝 **Text Reports**: Detailed textual analysis
+
+## 🚀 Quick Start
+
+### Single-threaded (Zero Overhead)
 ```bash
-# Single-threaded strategy
-cargo run --bin memscope-rs -- analyze --strategy single-thread \
-    cargo run --example simple_demo_app single
-
-# Thread-local strategy for multi-threaded apps
-cargo run --bin memscope-rs -- analyze --strategy thread-local \
-    cargo run --example simple_demo_app multi
-
-# Async strategy for async-like patterns
-cargo run --bin memscope-rs -- analyze --strategy async \
-    cargo run --example simple_demo_app async
-
-# Hybrid strategy for complex scenarios
-cargo run --bin memscope-rs -- analyze --strategy hybrid \
-    cargo run --example simple_demo_app leak-simulation
+cargo run --example basic_usage
 ```
 
-### New Run Command Examples
-
+### Multi-threaded (High Concurrency)
 ```bash
-# Basic run with async tracking
-cargo run --bin memscope-rs -- run --track-async \
-    cargo run --example simple_demo_app async
+# Simple multi-threading
+cargo run --example complex_multithread_showcase
 
-# Full featured run
-cargo run --bin memscope-rs -- run \
-    --track-async \
-    --detailed-tracking \
-    --performance-monitoring \
-    --max-overhead 64 \
-    cargo run --example simple_demo_app memory-intensive
-
-# Constrained memory overhead
-cargo run --bin memscope-rs -- run --max-overhead 16 \
-    cargo run --example simple_demo_app single
+# Interactive dashboard (remember to copy JS files!)
+cargo run --example enhanced_30_thread_demo
 ```
 
-### Export Format Examples
-
+### Async Task Tracking
 ```bash
-# Generate HTML report
-cargo run --bin memscope-rs -- analyze --mode unified \
-    --export html --output my_analysis \
-    cargo run --example simple_demo_app multi
-
-# Generate JSON data
-cargo run --bin memscope-rs -- analyze --mode unified \
-    --export json --output my_data \
-    cargo run --example simple_demo_app single
-
-# Generate SVG visualization
-cargo run --bin memscope-rs -- analyze --mode unified \
-    --export svg --output my_chart \
-    cargo run --example simple_demo_app memory-intensive
+cargo run --example comprehensive_async_showcase
 ```
 
-### Performance Tuning Examples
+## 📊 Output Formats
 
-```bash
-# High precision (100% sampling)
-cargo run --bin memscope-rs -- analyze --sample-rate 1.0 \
-    cargo run --example simple_demo_app leak-simulation
-
-# Balanced performance (80% sampling)
-cargo run --bin memscope-rs -- analyze --sample-rate 0.8 \
-    cargo run --example simple_demo_app multi
-
-# Low overhead (50% sampling)
-cargo run --bin memscope-rs -- analyze --sample-rate 0.5 \
-    cargo run --example simple_demo_app memory-intensive
-```
-
-## Demo Application Modes
-
-The `simple_demo_app` supports different memory patterns:
-
-### Single-threaded Mode
-```bash
-cargo run --example simple_demo_app single
-```
-- Demonstrates basic memory operations
-- Creates various data structures
-- Shows allocation and deallocation patterns
-
-### Multi-threaded Mode
-```bash
-cargo run --example simple_demo_app multi
-```
-- Spawns multiple worker threads
-- Each thread performs independent memory operations
-- Good for testing thread-local strategy
-
-### Async Simulation Mode
-```bash
-cargo run --example simple_demo_app async
-```
-- Simulates async-like behavior with delays
-- Shows task switching patterns
-- Ideal for testing async strategy
-
-### Memory-intensive Mode
-```bash
-cargo run --example simple_demo_app memory-intensive
-```
-- Creates large allocations progressively
-- Demonstrates allocation/deallocation cycles
-- Tests memory overhead limits
-
-### Leak Simulation Mode
-```bash
-cargo run --example simple_demo_app leak-simulation
-```
-- Simulates memory leak patterns (controlled)
-- Shows growing memory usage over time
-- Demonstrates leak detection capabilities
-
-## Real-world Usage Examples
-
-### Web Server Analysis
-```bash
-# Analyze a Tokio-based web server
-cargo run --bin memscope-rs -- analyze --strategy async \
-    --export html --output web_server_analysis \
-    cargo run --bin your_web_server
-
-# Monitor with performance limits
-cargo run --bin memscope-rs -- run --track-async \
-    --performance-monitoring --max-overhead 32 \
-    cargo run --bin your_web_server
-```
-
-### Batch Processing Analysis
-```bash
-# Analyze CPU-intensive batch job
-cargo run --bin memscope-rs -- analyze --strategy thread-local \
-    --sample-rate 0.8 --export json \
-    your_batch_processor --input large_dataset.csv
-
-# Monitor with detailed tracking
-cargo run --bin memscope-rs -- run --detailed-tracking \
-    --max-overhead 128 \
-    your_batch_processor --parallel --jobs 8
-```
-
-### Game Engine Profiling
-```bash
-# Profile game loop with hybrid strategy
-cargo run --bin memscope-rs -- analyze --strategy hybrid \
-    --sample-rate 1.0 --export svg \
-    your_game_engine --level test_map
-
-# Real-time monitoring with strict limits
-cargo run --bin memscope-rs -- run --performance-monitoring \
-    --max-overhead 16 \
-    your_game_client --graphics high
-```
-
-## Understanding Output
-
-### JSON Output
+### JSON Export (Human-readable)
 ```json
 {
-  "session_id": "session_12345",
-  "duration_ms": 1250,
-  "strategy_used": "AsyncOptimized",
-  "total_allocations": 142,
-  "peak_memory_mb": 8.5,
-  "data_size_bytes": 2048
+  "tracking_strategy": "lockfree",
+  "total_allocations": 12500,
+  "peak_memory": "2.4MB",
+  "threads_tracked": 30,
+  "analysis_duration": "15ms"
 }
 ```
 
-### HTML Reports
-- Interactive memory usage charts
-- Allocation timeline visualization  
-- Strategy performance metrics
-- Detailed allocation breakdown
-- Clickable elements for exploration
+### Binary Export (High Performance)
+- **Speed**: 5-10x faster than JSON
+- **Size**: 60-80% smaller files  
+- **Use case**: Large datasets, production monitoring
 
-### SVG Visualizations
-- Memory usage over time graphs
-- Allocation pattern diagrams
-- Performance hotspot indicators
-- Scalable vector graphics for presentations
+### HTML Dashboard (Interactive)
+- **Real-time visualization**: Dynamic charts and graphs
+- **Detailed analysis**: Drill-down capabilities
+- **Cross-platform**: Works in any modern browser
 
-## Troubleshooting
+## 🎯 Tracking Strategies
 
-### Common Issues
+### 🧩 Core (Single-threaded)
+```rust
+use memscope_rs::{track_var, export_user_variables_json};
 
-1. **"Command not found" errors**
-   ```bash
-   # Make sure MemScope is built
-   cargo build --release --bin memscope-rs
-   
-   # Or use the full path
-   cargo run --bin memscope-rs -- --help
-   ```
+fn main() {
+    let data = vec![1, 2, 3];
+    track_var!(data);
+    export_user_variables_json("analysis.json").unwrap();
+}
+```
+- **Overhead**: ~0% (zero-cost)
+- **Best for**: Development, debugging, precise analysis
 
-2. **High memory overhead warnings**
-   ```bash
-   # Reduce sampling rate
-   --sample-rate 0.5
-   
-   # Lower overhead limit
-   --max-overhead 32
-   ```
+### 🔀 Lock-free (Multi-threaded)  
+```rust
+use memscope_rs::lockfree;
 
-3. **Async tracking not working**
-   ```bash
-   # Ensure async flag is set
-   --track-async
-   
-   # Use async strategy explicitly
-   --strategy async
-   ```
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    lockfree::initialize_lockfree_tracking()?;
+    
+    // Spawn 100+ threads - scales efficiently
+    // ... your multi-threaded code ...
+    
+    let analysis = lockfree::aggregate_all_threads()?;
+    lockfree::export_analysis(&analysis, "analysis")?;
+    Ok(())
+}
+```
+- **Overhead**: ~2-8% (adaptive sampling)
+- **Scalability**: 100+ threads with zero contention
+- **Best for**: High-concurrency production applications
 
-### Debug Mode
+### ⚡ Async (Task-aware)
+```rust
+use memscope_rs::async_memory;
 
-```bash
-# Enable debug logging
-RUST_LOG=debug cargo run --bin memscope-rs -- analyze your_program
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    async_memory::initialize().await?;
+    
+    // Track memory across async tasks
+    // ... your async code ...
+    
+    let analysis = async_memory::generate_analysis().await?;
+    async_memory::export_visualization(&analysis, "async_analysis").await?;
+    Ok(())
+}
+```
+- **Overhead**: <5ns per allocation
+- **Context-aware**: Tracks memory per async task
+- **Best for**: async/await applications, microservices
 
-# Trace level for maximum detail
-RUST_LOG=trace cargo run --bin memscope-rs -- run --detailed-tracking your_program
+## 🔧 Advanced Usage
+
+### Custom Configuration
+```rust
+use memscope_rs::lockfree::{TrackerConfig, SamplingMode};
+
+let config = TrackerConfig {
+    sampling_mode: SamplingMode::Adaptive,
+    enable_advanced_analysis: true,
+    max_threads: 50,
+    ..Default::default()
+};
+
+lockfree::initialize_with_config(config)?;
 ```
 
-## Performance Expectations
+### Performance Monitoring
+```rust
+// Check overhead impact
+let stats = lockfree::get_performance_stats()?;
+println!("CPU overhead: {:.2}%", stats.cpu_overhead_percent);
+println!("Memory overhead: {}MB", stats.memory_overhead_mb);
+```
 
-| Mode | Memory Overhead | CPU Overhead | Best For |
-|------|----------------|--------------|----------|
-| `auto` | 2-5% | 1-3% | General applications |
-| `unified` | 2-5% | 1-3% | Modern applications |
-| `legacy` | 3-7% | 2-5% | Compatibility testing |
+## 📈 Performance Comparison
 
-| Strategy | Memory Overhead | CPU Overhead | Best For |
-|----------|----------------|--------------|----------|
-| `single-thread` | 1-2% | 0.5-1% | Simple programs |
-| `thread-local` | 2-4% | 1-2% | Multi-threaded apps |
-| `async` | 2-3% | 1-2% | Async applications |
-| `hybrid` | 3-5% | 2-3% | Complex mixed workloads |
+| Strategy | Memory Overhead | CPU Overhead | Concurrency | Best Use Case |
+|----------|-----------------|--------------|-------------|---------------|
+| **Core** | ~100 bytes/var | ~0% | Single thread | Development debugging |
+| **Lock-free** | Thread-local | ~2-8% | 100+ threads | Production monitoring |
+| **Async** | Task-local | <5ns/alloc | 50+ tasks | Async applications |
 
-## Next Steps
+## 🛠️ Development Workflow
 
-1. **Try with your own applications**:
-   ```bash
-   memscope analyze --mode unified your_program
-   ```
+### 1. Choose Your Strategy
+- **Debugging**: Start with `basic_usage.rs`
+- **Multi-threading**: Try `complex_multithread_showcase.rs`  
+- **Async**: Use `comprehensive_async_showcase.rs`
+- **Interactive analysis**: Run `enhanced_30_thread_demo.rs`
 
-2. **Explore different strategies**:
-   ```bash
-   memscope analyze --strategy auto your_program
-   ```
+### 2. Customize Configuration
+- Adjust sampling rates for performance
+- Enable/disable advanced features
+- Configure export formats
 
-3. **Generate reports for analysis**:
-   ```bash
-   memscope analyze --export html --output analysis your_program
-   ```
+### 3. Analyze Results
+- Use HTML dashboards for interactive exploration
+- JSON for integration with other tools
+- Binary for high-performance scenarios
 
-4. **Read the full documentation**:
-   - English: `docs/en/unified-backend-guide.md`
-   - 中文: `docs/zh/unified-backend-guide.md`
+## 💡 Best Practices
 
-## Contributing
+### Performance
+- **High-frequency allocations**: Enable adaptive sampling
+- **Memory-constrained environments**: Use binary export
+- **Real-time applications**: Monitor overhead continuously
 
-Found issues or want to add more examples? Please:
-1. Check existing issues in the repository
-2. Add new example applications in this directory
-3. Update this README with your examples
-4. Submit a pull request
+### Development
+- **Start simple**: Begin with single-threaded examples
+- **Scale gradually**: Add complexity as needed
+- **Test thoroughly**: Verify tracking overhead in your specific use case
 
-Happy memory tracking! 🚀
+### Production
+- **Monitor overhead**: Set acceptable performance thresholds
+- **Use sampling**: Reduce overhead with intelligent sampling
+- **Automate cleanup**: Enable automatic file cleanup for long-running apps
+
+## 🤝 Contributing
+
+Want to add a new example?
+
+1. **Follow naming convention**: `purpose_description.rs`
+2. **Add comprehensive docs**: Explain use case and expected output
+3. **Test across platforms**: Ensure compatibility
+4. **Update this README**: Add your example to the table above
+
+## 📚 Additional Resources
+
+- **[API Documentation](https://docs.rs/memscope-rs)**: Complete API reference
+- **[User Guide](../docs/user_guide.md)**: Detailed usage instructions  
+- **[Performance Guide](../docs/performance.md)**: Optimization techniques
+- **[GitHub Repository](https://github.com/TimWood0x10/memscope-rs)**: Source code and issues
+
+---
+
+**Happy memory tracking! 🚀🦀**
