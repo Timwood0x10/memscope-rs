@@ -86,10 +86,7 @@ fn record_contention(mutex_type: &str, wait_time: Duration) {
     TOTAL_WAIT_TIME_NS.fetch_add(wait_time.as_nanos() as u64, Ordering::Relaxed);
 
     // Simple logging without heavy overhead
-    if CONTENTION_COUNTER
-        .load(Ordering::Relaxed)
-        .is_multiple_of(1000)
-    {
+    if CONTENTION_COUNTER.load(Ordering::Relaxed) % 1000 == 0 {
         let avg_wait =
             TOTAL_WAIT_TIME_NS.load(Ordering::Relaxed) / CONTENTION_COUNTER.load(Ordering::Relaxed);
         tracing::debug!(

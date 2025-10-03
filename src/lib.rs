@@ -6,6 +6,7 @@
 //! for exporting memory usage data in various formats.
 
 #![allow(missing_docs)]
+#![allow(clippy::manual_is_multiple_of)] // is_multiple_of is unstable in Rust 1.85
 
 /// Macro for advanced type Trackable implementations
 pub mod advanced_trackable_macro;

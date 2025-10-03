@@ -18,7 +18,7 @@ fn calculate_allocation_percentiles(allocations: &[AllocationInfo]) -> (usize, u
     let len = sizes.len();
 
     // Calculate median (50th percentile)
-    let median = if len.is_multiple_of(2) {
+    let median = if len % 2 == 0 {
         (sizes[len / 2 - 1] + sizes[len / 2]) / 2
     } else {
         sizes[len / 2]

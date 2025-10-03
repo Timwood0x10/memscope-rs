@@ -2484,7 +2484,7 @@ impl EnhancedStreamingValidator {
 
             // Save checkpoint if enabled
             if self.streaming_config.enable_resume
-                && processed_bytes.is_multiple_of(self.streaming_config.checkpoint_interval as u64)
+                && processed_bytes % (self.streaming_config.checkpoint_interval as u64) == 0
             {
                 self.create_checkpoint(
                     processed_bytes,

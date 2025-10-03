@@ -287,7 +287,7 @@ impl BoundedMemoryStats {
     /// Create historical summary from removed allocation data
     fn maybe_create_historical_summary(&mut self, _removed_summary: &AllocationSummary) {
         // Create historical summary periodically (e.g., every 1000 allocations)
-        if self.total_allocations.is_multiple_of(1000) {
+        if self.total_allocations % 1000 == 0 {
             let summary = HistoricalSummary {
                 timestamp: self.get_current_timestamp(),
                 total_allocations: self.total_allocations,

@@ -551,7 +551,7 @@ impl UnknownMemoryAnalyzer {
     // Pattern detection methods
     fn is_likely_mmap_allocation(&self, allocation: &AllocationInfo) -> bool {
         // Large, page-aligned allocations are often mmap
-        allocation.size >= 4096 && allocation.ptr.is_multiple_of(4096)
+        allocation.size >= 4096 && allocation.ptr % 4096 == 0
     }
 
     fn is_likely_tls_allocation(&self, allocation: &AllocationInfo) -> bool {
