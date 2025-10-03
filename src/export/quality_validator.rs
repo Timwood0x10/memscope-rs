@@ -2474,8 +2474,8 @@ impl EnhancedStreamingValidator {
 
                 // Report progress if callback is set
                 if let Some(callback) = &self.progress_callback {
-                    if processed_bytes
-                        .is_multiple_of(self.streaming_config.progress_report_interval as u64)
+                    if processed_bytes % (self.streaming_config.progress_report_interval as u64)
+                        == 0
                     {
                         callback(progress);
                     }

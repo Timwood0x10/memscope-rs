@@ -1418,8 +1418,13 @@ mod tests {
     fn test_export_error_handling() -> TrackingResult<()> {
         let exporter = EnhancedJsonExporter::default();
 
-        // Test with invalid directory path
-        let invalid_path = std::path::Path::new("/invalid/nonexistent/path");
+        // Use a path that should fail on all platforms
+        let invalid_path = if cfg!(windows) {
+            std::path::Path::new("C:\\invalid<>|path") // Invalid Windows characters
+        } else {
+            std::path::Path::new("/dev/null/invalid") // /dev/null is not a directory
+        };
+
         let allocations = vec![create_test_allocation(0x1000, 64)];
         let mut memory_stats = create_test_memory_stats();
         memory_stats.allocations = allocations;
@@ -1433,7 +1438,11 @@ mod tests {
             &memory_passports,
         );
 
-        assert!(result.is_err());
+        assert!(
+            result.is_err(),
+            "Expected error when exporting to invalid path: {:?}",
+            invalid_path
+        );
 
         Ok(())
     }

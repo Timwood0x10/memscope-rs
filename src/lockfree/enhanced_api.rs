@@ -486,7 +486,10 @@ mod tests {
 
     #[test]
     fn test_is_enhanced_profiling_active_initial() {
-        // Initially should be false
+        // Ensure clean state by stopping any active profiling from other tests
+        let _ = stop_system_profiling();
+
+        // Now should be false
         assert!(!is_enhanced_profiling_active());
     }
 

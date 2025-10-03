@@ -496,12 +496,19 @@ mod tests {
     fn test_export_with_invalid_path() {
         let tracker = create_test_tracker();
 
-        // Try to write to a directory that should be read-only
-        let result = tracker.export_interactive_dashboard("/proc/invalid/path/dashboard.html");
+        // Use a path with invalid characters that should fail on all platforms
+        let invalid_path = if cfg!(windows) {
+            "C:\\invalid<>|path\\dashboard.html" // Invalid Windows filename characters
+        } else {
+            "/dev/null/invalid/dashboard.html" // /dev/null is not a directory
+        };
+
+        let result = tracker.export_interactive_dashboard(invalid_path);
 
         assert!(
             result.is_err(),
-            "Expected error when writing to invalid path"
+            "Expected error when writing to invalid path: {}",
+            invalid_path
         );
     }
 
