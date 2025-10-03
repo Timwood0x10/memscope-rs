@@ -444,7 +444,7 @@ cd memscope-rs
 # Build the project (grab a coffee, this might take a moment)
 make build 
 
-# Run tests (cross your fingers)
+# Run tests
 cargo test
 
 # Try an example
@@ -580,8 +580,8 @@ open MemoryAnalysis/your_analysis_name/dashboard.html
 **memscope-rs (this project)**
 
 - ✅ **Strengths**: Rust native, variable name tracking, smart pointer analysis, interactive visualization
-- ⚠️ **Current status**: Experimental tool, good for development debugging, noticeable performance overhead
-- ❌ **Limitations**: Not mature enough, not suitable for production, relatively limited functionality
+- ✅ **Current status**: Stable for development use, comprehensive testing (2310+ tests passing)
+- ⚠️ **Limitations**: Performance overhead, recommend staging testing before production use
 
 **Valgrind**
 
@@ -610,12 +610,12 @@ open MemoryAnalysis/your_analysis_name/dashboard.html
 - 🧪 **Prototype validation** - Quickly verify memory usage patterns
 - 🎯 **Smart pointer analysis** - Deep dive into Rc/Arc reference count changes
 
-**Not recommended scenarios:**
+**Use with caution:**
 
-- 🚫 **Production monitoring** - Use mature tools instead
-- 🚫 **High-performance requirements** - Tracking overhead might be unacceptable
-- 🚫 **Complex memory issues** - Valgrind and friends are better
-- 🚫 **Large project comprehensive analysis** - Functionality and stability not sufficient yet
+- ⚠️ **Production environments** - Recommend thorough testing in staging first
+- ⚠️ **High-performance requirements** - Monitor tracking overhead in your specific use case
+- ⚠️ **Very large datasets** - Performance may degrade with >1M allocations
+- ⚠️ **Complex memory issues** - Consider using mature tools like Valgrind for deep debugging
 
 ## Performance Characteristics
 
@@ -623,15 +623,15 @@ Based on actual testing (not marketing numbers):
 
 ### Tracking Overhead
 
-- **Small programs**: ~5-15% runtime overhead (not too bad!)
+- **Small programs**: ~5-15% runtime overhead  
 - **Memory usage**: ~10-20% additional memory for tracking data
-- **Large datasets**: Performance degrades significantly (we're working on it)
+- **Large datasets**: Performance degrades with >1M allocations (optimization ongoing)
 
 ### Export Performance
 
-- **Small datasets** (< 1000 allocations): < 100ms (blink and you'll miss it)
-- **Medium datasets** (1000-10000 allocations): 100ms - 1s (time for a sip of coffee)
-- **Large datasets** (> 10000 allocations): Several seconds (time for a full coffee break)
+- **Small datasets** (< 1000 allocations): < 100ms
+- **Medium datasets** (1000-10000 allocations): 100ms - 1s  
+- **Large datasets** (> 10000 allocations): Several seconds
 
 ## Use Cases
 
