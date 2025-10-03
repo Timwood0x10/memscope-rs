@@ -168,14 +168,6 @@ jobs:
       - name: Build documentation
         run: cargo doc --workspace --all-features --no-deps
 
-      - name: Deploy to GitHub Pages
-        if: github.ref == 'refs/heads/master'
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./target/doc
-          force_orphan: true
-
   security:
     name: Security Audit
     runs-on: ubuntu-latest
