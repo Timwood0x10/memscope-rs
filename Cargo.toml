@@ -41,6 +41,10 @@ parking_lot = "0.12"
 bincode = "2.0.1"
 memscope-derive = { path = "./memscope-derive", optional = true, version = "0.1.0" }
 
+# Windows-specific dependencies
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3", features = ["processthreadsapi", "winnt"] }
+
 
 [lib]
 name = "memscope_rs"
