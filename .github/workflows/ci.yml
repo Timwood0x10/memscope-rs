@@ -7,6 +7,12 @@ on:
   pull_request:
     branches: [main, master, develop]
 
+# Permissions needed for GitHub Pages deployment
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
@@ -128,7 +134,7 @@ jobs:
           key: bench-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Run benchmarks
-        run: cargo bench --bench binary_performance
+        run: cargo bench --bench minimal_performance
 
       - name: Upload benchmark results
         uses: actions/upload-artifact@v4
