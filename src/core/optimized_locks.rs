@@ -273,30 +273,34 @@ impl LockFreeCounter {
 
     /// Increment the counter and return the new value
     pub fn increment(&self) -> u64 {
-        self.value
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-            + 1
+        let old_value = self
+            .value
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        old_value.wrapping_add(1)
     }
 
     /// Decrement the counter and return the new value
     pub fn decrement(&self) -> u64 {
-        self.value
-            .fetch_sub(1, std::sync::atomic::Ordering::Relaxed)
-            - 1
+        let old_value = self
+            .value
+            .fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+        old_value.wrapping_sub(1)
     }
 
     /// Add a value to the counter and return the new value
     pub fn add(&self, value: u64) -> u64 {
-        self.value
-            .fetch_add(value, std::sync::atomic::Ordering::Relaxed)
-            + value
+        let old_value = self
+            .value
+            .fetch_add(value, std::sync::atomic::Ordering::Relaxed);
+        old_value.wrapping_add(value)
     }
 
     /// Subtract a value from the counter and return the new value
     pub fn sub(&self, value: u64) -> u64 {
-        self.value
-            .fetch_sub(value, std::sync::atomic::Ordering::Relaxed)
-            - value
+        let old_value = self
+            .value
+            .fetch_sub(value, std::sync::atomic::Ordering::Relaxed);
+        old_value.wrapping_sub(value)
     }
 
     /// Get the current value
