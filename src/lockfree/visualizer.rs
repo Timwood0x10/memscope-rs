@@ -154,10 +154,16 @@ struct DashboardData {
     // Summary data
     total_threads: usize,
     tracked_threads: usize,
+    tracked_threads_count: usize, // Alias for tracked_threads
     untracked_threads: usize,
     resource_samples_count: usize,
     sampling_rate: usize,
+    sampling_interval: usize,
+    test_duration: String,
     system_status_message: String,
+    tracked_threads_description: String,
+    peak_cpu_usage: f32,
+    bar_percentage: f32, // Default bar percentage for progress bars
 }
 
 pub fn generate_comprehensive_html_report(
@@ -188,7 +194,22 @@ pub fn build_comprehensive_html_report_with_template(
     // Render template
     let rendered = handlebars.render("dashboard", &dashboard_data)?;
 
-    Ok(rendered)
+    // Inject comprehensive data for JavaScript interactions
+    let comprehensive_json = serde_json::to_string(&comprehensive_analysis)?;
+    let injected_html = rendered.replace(
+        "</body>",
+        &format!(
+            r#"
+<script>
+// Inject comprehensive analysis data for interactive features
+window.comprehensiveData = {};
+</script>
+</body>"#,
+            comprehensive_json
+        )
+    );
+
+    Ok(injected_html)
 }
 
 /// Build template data from analysis results
@@ -258,6 +279,11 @@ fn build_template_data(comprehensive_analysis: &ComprehensiveAnalysis) -> Result
     }
 
     // Build CPU cores data - dynamic based on actual core count
+    let cpu_cores_count = resource_timeline
+        .first()
+        .map(|r| r.cpu_metrics.per_core_usage.len())
+        .unwrap_or(0);
+
     let cpu_cores: Vec<CpuCoreData> = if let Some(first_sample) = resource_timeline.first() {
         first_sample
             .cpu_metrics
@@ -378,6 +404,7 @@ fn build_template_data(comprehensive_analysis: &ComprehensiveAnalysis) -> Result
     // Summary data
     total_threads: analysis.thread_stats.len(),
     tracked_threads: threads.len(),
+    tracked_threads_count: threads.len(), // Alias for tracked_threads
     untracked_threads: 0, // All threads are tracked in this analysis
     resource_samples_count: resource_timeline.len(),
     sampling_rate: 10,
@@ -388,6 +415,11 @@ fn build_template_data(comprehensive_analysis: &ComprehensiveAnalysis) -> Result
         "Thread performance data collected".to_string(),
     ],
     tracking_verification_message: "All threads tracked and analyzed".to_string(),
+    tracked_threads_description: format!("Lock-Free Memory Tracking ({} Threads)", threads.len()),
+    sampling_interval: 100, // 100ms intervals
+    test_duration: format!("{:.1}", resource_timeline.len() as f32 * 0.1),
+    peak_cpu_usage: max_cpu, // Add missing field
+    bar_percentage: 75.0, // Default bar percentage for progress bars
     })
 }
 

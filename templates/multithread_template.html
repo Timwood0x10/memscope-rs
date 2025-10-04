@@ -919,7 +919,7 @@
             <div class="progress-fill" style="width: {{cpu_usage}}%"></div>
         </div>
         <div style="font-size: 0.85rem; margin-top: 0.5rem;">
-            Peak: {{cpu_peak}}% | Cores: {{cpu_cores}}
+            Peak: {{cpu_peak}}% | Cores: {{cpu_cores_count}}
         </div>
     </div>
     
@@ -1019,25 +1019,6 @@
                         <div class="thread-status-indicator">TRACKED</div>
                     </div>
                     {{/each}}
-                    <div class="thread-stats">
-                        <div class="stat">
-                            <span class="stat-label">Allocations:</span>
-                            <span class="stat-value">1480</span>
-                        </div>
-                        <div class="stat">
-                            <span class="stat-label">Peak Memory:</span>
-                            <span class="stat-value">1.4MB</span>
-                        </div>
-                        <div class="stat">
-                            <span class="stat-label">CPU Usage:</span>
-                            <span class="stat-value">7.5%</span>
-                        </div>
-                        <div class="stat">
-                            <span class="stat-label">I/O Operations:</span>
-                            <span class="stat-value">1628</span>
-                        </div>
-                    </div>
-                    <div class="thread-status-indicator">TRACKED</div>
                 </div>
         
             </div>
@@ -1249,7 +1230,7 @@
                     </div>
                     <div class="result-item">
                         <span class="result-icon">📊</span>
-                        <span class="result-text">{{resource_samples}} resource samples collected at {{sampling_rate}}Hz sampling rate</span>
+                        <span class="result-text">{{resource_samples_count}} resource samples collected at {{sampling_rate}}Hz sampling rate</span>
                     </div>
                     <div class="result-item">
                         <span class="result-icon">⚡</span>
