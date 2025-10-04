@@ -1,370 +1,4 @@
-//! Advanced HTML Visualizer for Memory Analysis
-//!
-//! Creates rich, interactive HTML reports with charts, graphs, and detailed analysis
-
-use super::analysis::LockfreeAnalysis;
-use super::platform_resources::PlatformResourceMetrics;
-use super::resource_integration::ComprehensiveAnalysis;
-use serde::Serialize;
-use std::path::Path;
-
-/// Template data structure for the dashboard
-#[derive(Serialize, Debug)]
-struct DashboardData {
-    // System metrics
-    cpu_usage: f32,
-    cpu_peak: f32,
-    cpu_cores_count: usize,
-    gpu_usage: f32,
-    gpu_status: String,
-    total_allocations: u64,
-    peak_memory: String,
-    memory_efficiency: f32,
-    system_efficiency: f32,
-    bottleneck_type: String,
-    
-    // Thread data
-    thread_count: usize,
-    active_tracked_threads: usize,
-    total_peak_memory: String,
-    avg_allocations_per_thread: u64,
-    threads: Vec<ThreadData>,
-    
-    // Performance data
-    top_performing_threads: Vec<ThreadPerformanceData>,
-    memory_allocation_patterns: Vec<ThreadAllocationPattern>,
-    resource_samples: Vec<ResourceSample>,
-    cpu_cores: Vec<CpuCoreData>,
-    
-    // Analysis data
-    thread_details: Vec<ThreadDetailData>,
-    timeline_chart_data: String, // JSON string for Chart.js
-    total_samples: usize,
-    analysis_duration: String,
-    peak_time: String,
-    avg_cpu_usage: f32,
-    
-    // Summary data
-    total_threads: usize,
-    tracked_threads: usize,
-    untracked_threads: usize,
-    resource_samples_count: usize,
-    sampling_rate: u32,
-    system_status_message: String,
-    recommendations: Vec<String>,
-    tracking_verification_message: String,
-}
-
-#[derive(Serialize, Debug, Clone)]
-struct ThreadData {
-    id: u32,
-    alert_level: String, // "high", "medium", "normal"
-    role: String,
-    role_icon: String,
-    role_name: String,
-    allocations: usize,
-    peak_memory: String,
-    cpu_usage: f32,
-    io_operations: usize,
-}
-
-#[derive(Serialize, Debug)]
-struct ThreadPerformanceData {
-    rank: usize,
-    thread_id: u32,
-    efficiency_score: f32,
-    efficiency_class: String, // "excellent", "good", "fair"
-    allocations: usize,
-    memory: String,
-    gpu_usage: f32,
-}
-
-#[derive(Serialize, Debug)]
-struct ThreadAllocationPattern {
-    thread_id: u32,
-    allocations: usize,
-    bar_width: f32,
-}
-
-#[derive(Serialize, Debug)]
-struct ResourceSample {
-    sample_id: usize,
-    timestamp: String,
-    memory_usage: f32,
-    cpu_usage: f32,
-    gpu_usage: f32,
-    io_operations: usize,
-}
-
-#[derive(Serialize, Debug)]
-struct CpuCoreData {
-    core_id: usize,
-    usage: f32,
-}
-
-#[derive(Serialize, Debug)]
-struct ThreadDetailData {
-    id: u32,
-    status: String,
-    total_allocations: usize,
-    peak_memory: String,
-    current_memory: String,
-}
-
-/// Generate comprehensive HTML report using template
-pub fn generate_comprehensive_html_report(
-    comprehensive_analysis: &ComprehensiveAnalysis,
-    output_path: &Path,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let html_content = build_comprehensive_html_report_with_template(comprehensive_analysis)?;
-    std::fs::write(output_path, html_content)?;
-    Ok(())
-}
-
-/// Generate HTML report using Handlebars template
-pub fn build_comprehensive_html_report_with_template(
-    comprehensive_analysis: &ComprehensiveAnalysis,
-) -> Result<String, Box<dyn std::error::Error>> {
-    use handlebars::Handlebars;
-    
-    // Read template file
-    let template_content = std::fs::read_to_string("templates/multithread_template.html")?;
-    
-    // Create Handlebars registry
-    let mut handlebars = Handlebars::new();
-    handlebars.register_template_string("dashboard", template_content)?;
-    
-    // Build template data
-    let dashboard_data = build_template_data(comprehensive_analysis)?;
-    
-    // Render template
-    let rendered = handlebars.render("dashboard", &dashboard_data)?;
-    
-    Ok(rendered)
-}
-
-/// Build template data from analysis results
-fn build_template_data(comprehensive_analysis: &ComprehensiveAnalysis) -> Result<DashboardData, Box<dyn std::error::Error>> {
-    let analysis = &comprehensive_analysis.memory_analysis;
-    let resource_timeline = &comprehensive_analysis.resource_timeline;
-    let performance_insights = &comprehensive_analysis.performance_insights;
-
-    // Calculate system metrics
-    let avg_cpu = if !resource_timeline.is_empty() {
-        resource_timeline
-            .iter()
-            .map(|r| r.cpu_metrics.overall_usage_percent)
-            .sum::<f32>()
-            / resource_timeline.len() as f32
-    } else {
-        0.0
-    };
-
-    let max_cpu = resource_timeline
-        .iter()
-        .map(|r| r.cpu_metrics.overall_usage_percent)
-        .fold(0.0f32, |a, b| a.max(b));
-
-    let avg_gpu = if !resource_timeline.is_empty() {
-        let gpu_samples: Vec<f32> = resource_timeline
-            .iter()
-            .filter_map(|r| r.gpu_metrics.as_ref())
-            .map(|g| g.compute_usage_percent)
-            .collect();
-        if !gpu_samples.is_empty() {
-            gpu_samples.iter().sum::<f32>() / gpu_samples.len() as f32
-        } else {
-            0.0
-        }
-    } else {
-        0.0
-    };
-
-    let cpu_cores_count = resource_timeline
-        .first()
-        .map(|r| r.cpu_metrics.per_core_usage.len())
-        .unwrap_or(0);
-
-    // Build thread data
-    let mut threads = Vec::new();
-    let mut thread_id_counter = 1u32;
-    
-    for (thread_id, thread_stats) in &analysis.thread_stats {
-        let role = classify_thread_role(thread_stats);
-        let (role_icon, role_name) = get_role_display(&role);
-        let alert_level = determine_alert_level(thread_stats);
-        
-        threads.push(ThreadData {
-            id: thread_id_counter,
-            alert_level,
-            role: role.clone(),
-            role_icon,
-            role_name,
-            allocations: thread_stats.total_allocations as usize,
-            peak_memory: format!("{:.1} MB", thread_stats.peak_memory as f32 / 1024.0 / 1024.0),
-            cpu_usage: 5.0 + (thread_id_counter as f32 * 0.3) % 3.0, // Mock CPU usage
-            io_operations: 1000 + (thread_id_counter as usize * 22),
-        });
-        
-        thread_id_counter += 1;
-    }
-
-    // Build CPU cores data
-    let cpu_cores = if let Some(first_sample) = resource_timeline.first() {
-        first_sample
-            .cpu_metrics
-            .per_core_usage
-            .iter()
-            .enumerate()
-            .map(|(i, &usage)| CpuCoreData {
-                core_id: i,
-                usage,
-            })
-            .collect()
-    } else {
-        Vec::new()
-    };
-
-    // Build resource samples
-    let resource_samples = resource_timeline
-        .iter()
-        .enumerate()
-        .map(|(i, sample)| ResourceSample {
-            sample_id: i + 1,
-            timestamp: format!("T+{:.1}s", i as f32 * 0.1),
-            memory_usage: 100.0 + i as f32 * 5.0, // Mock memory usage
-            cpu_usage: sample.cpu_metrics.overall_usage_percent,
-            gpu_usage: sample.gpu_metrics.as_ref().map(|g| g.compute_usage_percent).unwrap_or(0.0),
-            io_operations: 1000 + i * 22, // Mock IO data
-        })
-        .collect();
-
-    // Build chart data for timeline
-    let timeline_labels: Vec<String> = resource_timeline
-        .iter()
-        .enumerate()
-        .map(|(i, _)| format!("T+{:.1}s", i as f32 * 0.1))
-        .collect();
-    
-    let memory_data: Vec<f32> = resource_timeline
-        .iter()
-        .enumerate()
-        .map(|(i, _)| 100.0 + i as f32 * 5.0) // Mock memory data
-        .collect();
-    
-    let cpu_data: Vec<f32> = resource_timeline
-        .iter()
-        .map(|r| r.cpu_metrics.overall_usage_percent)
-        .collect();
-
-    let timeline_chart_data = serde_json::json!({
-        "labels": timeline_labels,
-        "memory": memory_data,
-        "cpu": cpu_data
-    });
-
-    Ok(DashboardData {
-        // System metrics
-        cpu_usage: avg_cpu,
-        cpu_peak: max_cpu,
-        cpu_cores_count,
-        gpu_usage: avg_gpu,
-        gpu_status: if avg_gpu > 0.0 { "Active".to_string() } else { "Idle/Not Available".to_string() },
-        total_allocations: analysis.summary.total_allocations,
-        peak_memory: format!("{:.1} MB", analysis.summary.peak_memory_usage as f32 / 1024.0 / 1024.0),
-        memory_efficiency: performance_insights.memory_efficiency_score,
-        system_efficiency: (performance_insights.cpu_efficiency_score + performance_insights.memory_efficiency_score) / 2.0,
-        bottleneck_type: format!("{:?}", performance_insights.primary_bottleneck),
-        
-        // Thread data
-        thread_count: threads.len(),
-        active_tracked_threads: threads.len(),
-        total_peak_memory: format!("{:.1}", analysis.summary.peak_memory_usage as f32 / 1024.0 / 1024.0),
-        avg_allocations_per_thread: if !threads.is_empty() { analysis.summary.total_allocations / threads.len() as u64 } else { 0 },
-        
-        // Performance data
-        top_performing_threads: Vec::new(), // Will be populated with actual performance data
-        memory_allocation_patterns: Vec::new(), // Will be populated
-        resource_samples,
-        cpu_cores,
-        
-        // Analysis data
-        thread_details: Vec::new(), // Will be populated
-        timeline_chart_data: timeline_chart_data.to_string(),
-        total_samples: resource_timeline.len(),
-        analysis_duration: format!("{:.2}s", resource_timeline.len() as f32 * 0.1),
-        peak_time: "T+1.5s".to_string(), // Mock peak time
-        avg_cpu_usage: avg_cpu,
-        
-        threads: threads.clone(),
-        
-        // Summary data
-        total_threads: threads.len() * 2, // Mock: assume some untracked threads
-        tracked_threads: threads.len(),
-        untracked_threads: threads.len(),
-        resource_samples_count: resource_timeline.len(),
-        sampling_rate: 10,
-        system_status_message: "System performance remained stable during multi-thread execution".to_string(),
-        recommendations: vec![
-            "Consider optimizing memory allocation patterns in high-usage threads".to_string(),
-            "Monitor CPU usage spikes during peak allocation periods".to_string(),
-            "Evaluate thread workload distribution for better balance".to_string(),
-        ],
-        tracking_verification_message: "Selective tracking verified: Only specified threads tracked".to_string(),
-    })
-}
-
-/// Classify thread role based on behavior
-fn classify_thread_role(thread_stats: &super::analysis::ThreadStats) -> String {
-    let alloc_rate = thread_stats.total_allocations as f32 / thread_stats.peak_memory as f32;
-    
-    if thread_stats.peak_memory > 10 * 1024 * 1024 { // > 10MB
-        "memory-intensive".to_string()
-    } else if alloc_rate > 0.1 {
-        "cpu-intensive".to_string()
-    } else if thread_stats.total_allocations > 1000 {
-        "balanced".to_string()
-    } else {
-        "light".to_string()
-    }
-}
-
-/// Get display info for thread role
-fn get_role_display(role: &str) -> (String, String) {
-    match role {
-        "memory-intensive" => ("🔥".to_string(), "Memory Intensive".to_string()),
-        "cpu-intensive" => ("⚡".to_string(), "CPU Intensive".to_string()),
-        "io-intensive" => ("💾".to_string(), "I/O Intensive".to_string()),
-        "balanced" => ("🧵".to_string(), "Balanced".to_string()),
-        "light" => ("💤".to_string(), "Lightweight".to_string()),
-        _ => ("🔍".to_string(), "Unknown".to_string()),
-    }
-}
-
-/// Determine alert level for thread
-fn determine_alert_level(thread_stats: &super::analysis::ThreadStats) -> String {
-    if thread_stats.peak_memory > 20 * 1024 * 1024 { // > 20MB
-        "high".to_string()
-    } else if thread_stats.peak_memory > 5 * 1024 * 1024 { // > 5MB
-        "medium".to_string()
-    } else {
-        "normal".to_string()
-    }
-}
-
-/// Build comprehensive HTML report with CPU/GPU/Memory visualizations
-fn build_comprehensive_html_report(
-    comprehensive_analysis: &ComprehensiveAnalysis,
-) -> Result<String, Box<dyn std::error::Error>> {
-    let analysis = &comprehensive_analysis.memory_analysis;
-    let resource_timeline = &comprehensive_analysis.resource_timeline;
-    let performance_insights = &comprehensive_analysis.performance_insights;
-
-    let mut html = String::new();
-
-    // Enhanced HTML Document Structure with CPU/GPU monitoring
-    html.push_str(
-        r#"<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -1273,184 +907,67 @@ fn build_comprehensive_html_report(
         <h1 class="dashboard-title">🚀 Comprehensive System Analysis</h1>
         <p class="dashboard-subtitle">Memory Tracking + CPU/GPU/IO Resource Monitoring</p>
     </div>
-"#,
-    );
-
-    // Resource Overview Cards
-    html.push_str(&build_resource_overview_cards(
-        resource_timeline,
-        analysis,
-        performance_insights,
-    )?);
-
-    // Tabbed Content
-    html.push_str(&build_tabbed_content(comprehensive_analysis)?);
-
-    // JavaScript for interactivity
-    // JavaScript will be embedded inline in tabs
-
-    html.push_str("</body></html>");
-
-    Ok(html)
-}
-
-/// Build resource overview cards showing key metrics
-fn build_resource_overview_cards(
-    resource_timeline: &[PlatformResourceMetrics],
-    analysis: &LockfreeAnalysis,
-    performance_insights: &super::resource_integration::PerformanceInsights,
-) -> Result<String, Box<dyn std::error::Error>> {
-    let mut html = String::new();
-
-    html.push_str(r#"<div class="resource-overview">"#);
-
-    // Calculate metrics from timeline
-    let avg_cpu = if !resource_timeline.is_empty() {
-        resource_timeline
-            .iter()
-            .map(|r| r.cpu_metrics.overall_usage_percent)
-            .sum::<f32>()
-            / resource_timeline.len() as f32
-    } else {
-        0.0
-    };
-
-    let max_cpu = resource_timeline
-        .iter()
-        .map(|r| r.cpu_metrics.overall_usage_percent)
-        .fold(0.0f32, |a, b| a.max(b));
-
-    let avg_gpu = if !resource_timeline.is_empty() {
-        let gpu_samples: Vec<f32> = resource_timeline
-            .iter()
-            .filter_map(|r| r.gpu_metrics.as_ref())
-            .map(|g| g.compute_usage_percent)
-            .collect();
-        if !gpu_samples.is_empty() {
-            gpu_samples.iter().sum::<f32>() / gpu_samples.len() as f32
-        } else {
-            0.0
-        }
-    } else {
-        0.0
-    };
-
-    // CPU Metrics Card
-    html.push_str(&format!(
-        r#"
+<div class="resource-overview">
     <div class="resource-card cpu-metric">
         <div class="card-header">
             <span class="card-icon">🔥</span>
             CPU Performance
         </div>
-        <div class="metric-value">{:.1}%</div>
+        <div class="metric-value">{{cpu_usage}}%</div>
         <div class="metric-label">Average Usage</div>
         <div class="progress-bar">
-            <div class="progress-fill" style="width: {}%"></div>
+            <div class="progress-fill" style="width: {{cpu_usage}}%"></div>
         </div>
         <div style="font-size: 0.85rem; margin-top: 0.5rem;">
-            Peak: {:.1}% | Cores: {}
+            Peak: {{cpu_peak}}% | Cores: {{cpu_cores}}
         </div>
     </div>
-    "#,
-        avg_cpu,
-        avg_cpu,
-        max_cpu,
-        resource_timeline
-            .first()
-            .map(|r| r.cpu_metrics.per_core_usage.len())
-            .unwrap_or(0)
-    ));
-
-    // GPU Metrics Card
-    html.push_str(&format!(
-        r#"
+    
     <div class="resource-card gpu-metric">
         <div class="card-header">
             <span class="card-icon">🎮</span>
             GPU Performance
         </div>
-        <div class="metric-value">{:.1}%</div>
+        <div class="metric-value">{{gpu_usage}}%</div>
         <div class="metric-label">Average Compute Usage</div>
         <div class="progress-bar">
-            <div class="progress-fill" style="width: {}%"></div>
+            <div class="progress-fill" style="width: {{bar_percentage}}%"></div>
         </div>
         <div style="font-size: 0.85rem; margin-top: 0.5rem;">
-            Status: {}
+            Status: {{gpu_status}}
         </div>
     </div>
-    "#,
-        avg_gpu,
-        avg_gpu,
-        if avg_gpu > 0.0 {
-            "Active"
-        } else {
-            "Idle/Not Available"
-        }
-    ));
-
-    // Memory Metrics Card
-    html.push_str(&format!(
-        r#"
+    
     <div class="resource-card memory-metric">
         <div class="card-header">
             <span class="card-icon">💾</span>
             Memory Analysis
         </div>
-        <div class="metric-value">{}</div>
+        <div class="metric-value">{{total_allocations}}</div>
         <div class="metric-label">Total Allocations</div>
         <div class="progress-bar">
-            <div class="progress-fill" style="width: {}%"></div>
+            <div class="progress-fill" style="width: {{bar_percentage}}%"></div>
         </div>
         <div style="font-size: 0.85rem; margin-top: 0.5rem;">
-            Peak: {:.1} MB | Efficiency: {:.1}%
+            Peak: {{peak_memory}} | Efficiency: {{memory_efficiency}}%
         </div>
     </div>
-    "#,
-        analysis.summary.total_allocations,
-        (performance_insights.memory_efficiency_score).min(100.0),
-        analysis.summary.peak_memory_usage as f32 / 1024.0 / 1024.0,
-        performance_insights.memory_efficiency_score
-    ));
-
-    // System Health Card
-    html.push_str(&format!(
-        r#"
+    
     <div class="resource-card io-metric">
         <div class="card-header">
             <span class="card-icon">⚡</span>
             System Health
         </div>
-        <div class="metric-value">{:.0}%</div>
+        <div class="metric-value">{{system_efficiency}}%</div>
         <div class="metric-label">Overall Efficiency</div>
         <div class="progress-bar">
-            <div class="progress-fill" style="width: {}%"></div>
+            <div class="progress-fill" style="width: {{system_efficiency}}%"></div>
         </div>
         <div style="font-size: 0.85rem; margin-top: 0.5rem;">
-            Bottleneck: {:?}
+            Bottleneck: {{bottleneck_type}}
         </div>
     </div>
-    "#,
-        (performance_insights.cpu_efficiency_score + performance_insights.memory_efficiency_score)
-            / 2.0,
-        (performance_insights.cpu_efficiency_score + performance_insights.memory_efficiency_score)
-            / 2.0,
-        performance_insights.primary_bottleneck
-    ));
-
-    html.push_str("</div>");
-
-    Ok(html)
-}
-
-/// Build tabbed content with detailed analysis
-fn build_tabbed_content(
-    comprehensive_analysis: &ComprehensiveAnalysis,
-) -> Result<String, Box<dyn std::error::Error>> {
-    let mut html = String::new();
-
-    html.push_str(
-        r#"
+    </div>
     <div class="tabs-container">
         <div class="tabs">
             <button class="tab active" onclick="showTab('multi-thread-overview')">🧵 Multi-Thread Overview</button>
@@ -1460,35 +977,564 @@ fn build_tabbed_content(
         </div>
         
         <div class="tab-content">
-    "#,
-    );
-
-    // Multi-Thread Overview Tab - NEW!
-    html.push_str(&build_multi_thread_overview_tab(comprehensive_analysis)?);
-
-    // Thread Details Tab
-    html.push_str(&build_thread_details_tab(
-        &comprehensive_analysis.memory_analysis,
-        &comprehensive_analysis
-            .performance_insights
-            .thread_performance_ranking,
-    )?);
-
-    // Resource Timeline Tab
-    html.push_str(&build_resource_timeline_tab(
-        &comprehensive_analysis.resource_timeline,
-    )?);
-
-    // System Summary Tab
-    html.push_str(&build_system_summary_tab(
-        &comprehensive_analysis.performance_insights,
-        &comprehensive_analysis.resource_timeline,
-    )?);
-
-    html.push_str("</div></div>");
-
-    // Add JavaScript for tab switching
-    html.push_str(r#"
+    
+    <div id="multi-thread-overview" class="tab-panel">
+        <h2>🧵 Multi-Thread Overview ({{thread_count}} Tracked Threads)</h2>
+        <p>Only showing threads with active memory tracking - real allocation data only</p>
+        
+        <div class="legend-container">
+            <div class="legend-item">
+                <div class="legend-box tracked-box"></div>
+                <span class="legend-text"><strong>Green Cards = TRACKED Threads</strong> - Threads with detailed memory monitoring and allocation tracking</span>
+            </div>
+        </div>
+        
+        <div class="thread-grid-container">
+            <div class="thread-grid">
+                    {{#each threads}}
+                    <div class="thread-card tracked alert-{{alert_level}}" onclick="event.stopPropagation(); selectThread({{id}});">
+                        <div class="thread-header">
+                            <span class="thread-icon">🟢</span>
+                            <span class="thread-id">Thread {{id}}</span>
+                            <span class="thread-role-tag role-{{role}}">{{role_icon}} {{role_name}}</span>
+                        </div>
+                        <div class="thread-stats">
+                            <div class="stat">
+                                <span class="stat-label">Allocations:</span>
+                                <span class="stat-value">{{allocations}}</span>
+                            </div>
+                            <div class="stat">
+                                <span class="stat-label">Peak Memory:</span>
+                                <span class="stat-value">{{peak_memory}}</span>
+                            </div>
+                            <div class="stat">
+                                <span class="stat-label">CPU Usage:</span>
+                                <span class="stat-value">{{cpu_usage}}%</span>
+                            </div>
+                            <div class="stat">
+                                <span class="stat-label">I/O Operations:</span>
+                                <span class="stat-value">{{io_operations}}</span>
+                            </div>
+                        </div>
+                        <div class="thread-status-indicator">TRACKED</div>
+                    </div>
+                    {{/each}}
+                    <div class="thread-stats">
+                        <div class="stat">
+                            <span class="stat-label">Allocations:</span>
+                            <span class="stat-value">1480</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-label">Peak Memory:</span>
+                            <span class="stat-value">1.4MB</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-label">CPU Usage:</span>
+                            <span class="stat-value">7.5%</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-label">I/O Operations:</span>
+                            <span class="stat-value">1628</span>
+                        </div>
+                    </div>
+                    <div class="thread-status-indicator">TRACKED</div>
+                </div>
+        
+            </div>
+        </div>
+        
+        <div class="thread-summary">
+            <div class="summary-card tracked">
+            </div>
+        </div>
+    </div>
+    
+    <div id="thread-details" class="tab-panel hidden">
+        <h2>📊 Thread Performance Details</h2>
+        <p>Detailed performance analysis of tracked threads with memory allocation patterns</p>
+        
+        <div class="details-container">
+            <div class="performance-rankings">
+                <h3>🏆 Top Performing Threads</h3>
+                <table class="ranking-table">
+                    <thead>
+                        <tr>
+                            <th>Rank</th>
+                            <th>Thread ID</th>
+                            <th>Performance Score</th>
+                            <th>Allocations</th>
+                            <th>Peak Memory (MB)</th>
+                            <th>Efficiency</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+    
+                        
+                            {{#each top_performing_threads}}
+                            <tr>
+                                <td><strong>#{{rank}}</strong></td>
+                                <td>Thread {{thread_id}}</td>
+                                <td><span class="efficiency-score score-{{efficiency_class}}">{{efficiency_score}}</span></td>
+                                <td>{{allocations}}</td>
+                                <td>{{memory}} MB</td>
+                                <td>{{gpu_usage}}%</td>
+                            </tr>
+                            {{/each}}
+                        </tbody>
+                </table>
+            </div>
+            
+            <div class="memory-patterns">
+                <h3>💾 Memory Allocation Patterns</h3>
+                <div class="pattern-grid">
+    
+                    <div class="pattern-card">
+                        <h4>Thread {{thread_id}}</h4>
+                        <div class="pattern-stats">
+                            <div class="pattern-bar">
+                                <div class="bar-label">Allocations: 1480</div>
+                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
+                            </div>
+                            <div class="pattern-bar">
+                                <div class="bar-label">Avg Size: 1024B</div>
+                                <div class="bar-fill" style="width: 20.48%"></div>
+                            </div>
+                            <div class="pattern-bar">
+                                <div class="bar-label">Efficiency: {{gpu_usage}}%</div>
+                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
+                            </div>
+                        </div>
+                    </div>
+        
+                    <div class="pattern-card">
+                        <h4>Thread {{thread_id}}</h4>
+                        <div class="pattern-stats">
+                            <div class="pattern-bar">
+                                <div class="bar-label">Allocations: 1460</div>
+                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
+                            </div>
+                            <div class="pattern-bar">
+                                <div class="bar-label">Avg Size: 16384B</div>
+                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
+                            </div>
+                            <div class="pattern-bar">
+                                <div class="bar-label">Efficiency: {{gpu_usage}}%</div>
+                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
+                            </div>
+                        </div>
+                    </div>
+        
+                    <div class="pattern-card">
+                        <h4>Thread {{thread_id}}</h4>
+                        <div class="pattern-stats">
+                            <div class="pattern-bar">
+                                <div class="bar-label">Allocations: 1440</div>
+                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
+                            </div>
+                            <div class="pattern-bar">
+                                <div class="bar-label">Avg Size: 1024B</div>
+                                <div class="bar-fill" style="width: 20.48%"></div>
+                            </div>
+                            <div class="pattern-bar">
+                                <div class="bar-label">Efficiency: {{gpu_usage}}%</div>
+                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
+                            </div>
+                        </div>
+                    </div>
+        
+                    <div class="pattern-card">
+                        <h4>Thread {{thread_id}}</h4>
+                        <div class="pattern-stats">
+                            <div class="pattern-bar">
+                                <div class="bar-label">Allocations: {{allocations}}</div>
+                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
+                            </div>
+                            <div class="pattern-bar">
+                                <div class="bar-label">Avg Size: 16384B</div>
+                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
+                            </div>
+                            <div class="pattern-bar">
+                                <div class="bar-label">Efficiency: {{gpu_usage}}%</div>
+                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
+                            </div>
+                        </div>
+                    </div>
+        
+                    <div class="pattern-card">
+                        <h4>Thread {{thread_id}}</h4>
+                        <div class="pattern-stats">
+                            <div class="pattern-bar">
+                                <div class="bar-label">Allocations: 1400</div>
+                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
+                            </div>
+                            <div class="pattern-bar">
+                                <div class="bar-label">Avg Size: 1024B</div>
+                                <div class="bar-fill" style="width: 20.48%"></div>
+                            </div>
+                            <div class="pattern-bar">
+                                <div class="bar-label">Efficiency: {{gpu_usage}}%</div>
+                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
+                            </div>
+                        </div>
+                    </div>
+        
+                    <div class="pattern-card">
+                        <h4>Thread {{thread_id}}</h4>
+                        <div class="pattern-stats">
+                            <div class="pattern-bar">
+                                <div class="bar-label">Allocations: 1380</div>
+                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
+                            </div>
+                            <div class="pattern-bar">
+                                <div class="bar-label">Avg Size: 16384B</div>
+                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
+                            </div>
+                            <div class="pattern-bar">
+                                <div class="bar-label">Efficiency: {{gpu_usage}}%</div>
+                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
+                            </div>
+                        </div>
+                    </div>
+        
+                    <div class="pattern-card">
+                        <h4>Thread {{thread_id}}</h4>
+                        <div class="pattern-stats">
+                            <div class="pattern-bar">
+                                <div class="bar-label">Allocations: 1360</div>
+                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
+                            </div>
+                            <div class="pattern-bar">
+                                <div class="bar-label">Avg Size: 1024B</div>
+                                <div class="bar-fill" style="width: 20.48%"></div>
+                            </div>
+                            <div class="pattern-bar">
+                                <div class="bar-label">Efficiency: {{gpu_usage}}%</div>
+                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
+                            </div>
+                        </div>
+                    </div>
+        
+                    <div class="pattern-card">
+                        <h4>Thread {{thread_id}}</h4>
+                        <div class="pattern-stats">
+                            <div class="pattern-bar">
+                                <div class="bar-label">Allocations: 1340</div>
+                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
+                            </div>
+                            <div class="pattern-bar">
+                                <div class="bar-label">Avg Size: 16384B</div>
+                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
+                            </div>
+                            <div class="pattern-bar">
+                                <div class="bar-label">Efficiency: {{gpu_usage}}%</div>
+                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
+                            </div>
+                        </div>
+                    </div>
+        
+                    <div class="pattern-card">
+                        <h4>Thread {{thread_id}}</h4>
+                        <div class="pattern-stats">
+                            <div class="pattern-bar">
+                                <div class="bar-label">Allocations: 1320</div>
+                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
+                            </div>
+                            <div class="pattern-bar">
+                                <div class="bar-label">Avg Size: 1024B</div>
+                                <div class="bar-fill" style="width: 20.48%"></div>
+                            </div>
+                            <div class="pattern-bar">
+                                <div class="bar-label">Efficiency: {{gpu_usage}}%</div>
+                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
+                            </div>
+                        </div>
+                    </div>
+        
+                    <div class="pattern-card">
+                        <h4>Thread {{thread_id}}</h4>
+                        <div class="pattern-stats">
+                            <div class="pattern-bar">
+                                <div class="bar-label">Allocations: 1300</div>
+                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
+                            </div>
+                            <div class="pattern-bar">
+                                <div class="bar-label">Avg Size: 16384B</div>
+                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
+                            </div>
+                            <div class="pattern-bar">
+                                <div class="bar-label">Efficiency: {{gpu_usage}}%</div>
+                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
+                            </div>
+                        </div>
+                    </div>
+        
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="resource-timeline" class="tab-panel hidden">
+        <h2>⏱️ Resource Timeline (Real-Time Monitoring)</h2>
+        <p>Timeline of CPU, memory, and system resource usage during 50-thread execution</p>
+        
+        <div class="timeline-container">
+            <div class="timeline-stats">
+                <div class="stat-card">
+                    <h4>📊 Timeline Overview</h4>
+    
+                    <p><strong>Total Samples:</strong> 31 samples</p>
+                    <p><strong>Sampling Rate:</strong> ~10Hz (100ms intervals)</p>
+                    <p><strong>Duration:</strong> ~3.1 seconds</p>
+                </div>
+            </div>
+            
+            <div class="timeline-table-container">
+    
+                <h3>📈 All Resource Samples ({{total_samples}} total)</h3>
+                <table class="ranking-table">
+                    <thead>
+                        <tr>
+                            <th>Sample #</th>
+                            <th>Time (ms)</th>
+                            <th>CPU Usage</th>
+                            <th>CPU Cores</th>
+                            <th>Active Threads</th>
+                            <th>System Load</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+    
+                        
+                            {{#each top_performing_threads}}
+                            <tr>
+                                <td><strong>#{{rank}}</strong></td>
+                                <td>Thread {{thread_id}}</td>
+                                <td><span class="efficiency-score score-{{efficiency_class}}">{{efficiency_score}}</span></td>
+                                <td>{{allocations}}</td>
+                                <td>{{memory}} MB</td>
+                                <td>{{gpu_usage}}%</td>
+                            </tr>
+                            {{/each}}
+                        </tbody>
+                </table>
+            </div>
+            
+            <div class="cpu-core-details">
+                <h3>🔥 Per-Core CPU Usage (Latest Sample)</h3>
+                <div class="core-grid">
+    
+                    <div class="core-card low">
+                        <div class="core-id">Core 0</div>
+                        <div class="core-usage">1.8%</div>
+                        <div class="core-bar">
+                            <div class="core-fill" style="width: 1.7857143%"></div>
+                        </div>
+                    </div>
+            
+                    <div class="core-card low">
+                        <div class="core-id">Core 1</div>
+                        <div class="core-usage">1.8%</div>
+                        <div class="core-bar">
+                            <div class="core-fill" style="width: 1.7857143%"></div>
+                        </div>
+                    </div>
+            
+                    <div class="core-card low">
+                        <div class="core-id">Core 2</div>
+                        <div class="core-usage">1.8%</div>
+                        <div class="core-bar">
+                            <div class="core-fill" style="width: 1.7857143%"></div>
+                        </div>
+                    </div>
+            
+                    <div class="core-card low">
+                        <div class="core-id">Core 3</div>
+                        <div class="core-usage">1.8%</div>
+                        <div class="core-bar">
+                            <div class="core-fill" style="width: 1.7857143%"></div>
+                        </div>
+                    </div>
+            
+                    <div class="core-card low">
+                        <div class="core-id">Core 4</div>
+                        <div class="core-usage">1.8%</div>
+                        <div class="core-bar">
+                            <div class="core-fill" style="width: 1.7857143%"></div>
+                        </div>
+                    </div>
+            
+                    <div class="core-card low">
+                        <div class="core-id">Core 5</div>
+                        <div class="core-usage">1.8%</div>
+                        <div class="core-bar">
+                            <div class="core-fill" style="width: 1.7857143%"></div>
+                        </div>
+                    </div>
+            
+                    <div class="core-card low">
+                        <div class="core-id">Core 6</div>
+                        <div class="core-usage">1.8%</div>
+                        <div class="core-bar">
+                            <div class="core-fill" style="width: 1.7857143%"></div>
+                        </div>
+                    </div>
+            
+                    <div class="core-card low">
+                        <div class="core-id">Core 7</div>
+                        <div class="core-usage">1.8%</div>
+                        <div class="core-bar">
+                            <div class="core-fill" style="width: 1.7857143%"></div>
+                        </div>
+                    </div>
+            
+                    <div class="core-card low">
+                        <div class="core-id">Core 8</div>
+                        <div class="core-usage">1.8%</div>
+                        <div class="core-bar">
+                            <div class="core-fill" style="width: 1.7857143%"></div>
+                        </div>
+                    </div>
+            
+                    <div class="core-card low">
+                        <div class="core-id">Core 9</div>
+                        <div class="core-usage">1.8%</div>
+                        <div class="core-bar">
+                            <div class="core-fill" style="width: 1.7857143%"></div>
+                        </div>
+                    </div>
+            
+                    <div class="core-card low">
+                        <div class="core-id">Core 10</div>
+                        <div class="core-usage">1.8%</div>
+                        <div class="core-bar">
+                            <div class="core-fill" style="width: 1.7857143%"></div>
+                        </div>
+                    </div>
+            
+                    <div class="core-card low">
+                        <div class="core-id">Core 11</div>
+                        <div class="core-usage">1.8%</div>
+                        <div class="core-bar">
+                            <div class="core-fill" style="width: 1.7857143%"></div>
+                        </div>
+                    </div>
+            
+                    <div class="core-card low">
+                        <div class="core-id">Core 12</div>
+                        <div class="core-usage">1.8%</div>
+                        <div class="core-bar">
+                            <div class="core-fill" style="width: 1.7857143%"></div>
+                        </div>
+                    </div>
+            
+                    <div class="core-card low">
+                        <div class="core-id">Core 13</div>
+                        <div class="core-usage">1.8%</div>
+                        <div class="core-bar">
+                            <div class="core-fill" style="width: 1.7857143%"></div>
+                        </div>
+                    </div>
+            
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="system-summary" class="tab-panel hidden">
+        <h2>📈 System Performance Summary</h2>
+        <p>Overall system performance during 50-thread execution with selective tracking</p>
+        
+        <div class="summary-grid">
+            <div class="summary-section">
+                <h3>🔥 CPU Performance</h3>
+                <div class="metric-cards">
+                    <div class="metric-card">
+                        <div class="metric-value">25.00%</div>
+                        <div class="metric-label">Average CPU Usage</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">25.00%</div>
+                        <div class="metric-label">Peak CPU Usage</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">14</div>
+                        <div class="metric-label">CPU Cores</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">40.0%</div>
+                        <div class="metric-label">CPU Efficiency</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="summary-section">
+                <h3>💾 Memory Performance</h3>
+                <div class="metric-cards">
+                    <div class="metric-card">
+                        <div class="metric-value">25</div>
+                        <div class="metric-label">Tracked Threads</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">{{memory_efficiency}}%</div>
+                        <div class="metric-label">Memory Efficiency</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">40.0%</div>
+                        <div class="metric-label">I/O Efficiency</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">Well {{bottleneck_type}}</div>
+                        <div class="metric-label">Primary Bottleneck</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="summary-section">
+                <h3>🎯 Experiment Results</h3>
+                <div class="experiment-results">
+                    <div class="result-item">
+                        <span class="result-icon">✅</span>
+                        <span class="result-text">{{tracking_verification_message}}</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="result-icon">🧵</span>
+                        <span class="result-text">{{total_threads}} threads total: {{tracked_threads}} tracked + {{untracked_threads}} untracked for comparison</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="result-icon">📊</span>
+                        <span class="result-text">{{resource_samples}} resource samples collected at {{sampling_rate}}Hz sampling rate</span>
+                    </div>
+                    <div class="result-item">
+                        <span class="result-icon">⚡</span>
+                        <span class="result-text">{{system_status_message}}</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="summary-section">
+                <h3>🏆 Key Achievements</h3>
+                <div class="achievement-list">
+                    <div class="achievement">
+                        <h4>Zero Memory Leaks</h4>
+                        <p>All tracked memory allocations properly recorded</p>
+                    </div>
+                    <div class="achievement">
+                        <h4>Stable CPU Usage</h4>
+                        <p>CPU usage stayed consistent at ~{{cpu_usage}}% across all threads</p>
+                    </div>
+                    <div class="achievement">
+                        <h4>Successful Thread Isolation</h4>
+                        <p>Tracked and untracked threads executed independently</p>
+                    </div>
+                    <div class="achievement">
+                        <h4>Real-Time Monitoring</h4>
+                        <p>Continuous resource monitoring without performance impact</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    </div></div>
     <script>
         function showTab(tabId) {
             // Hide all tab panels
@@ -2304,7 +2350,7 @@ fn build_tabbed_content(
             if (threadData.peakMemory > 20 * 1024 * 1024) {
                 return "High memory consumption detected. This thread performs large data operations.";
             } else if (threadData.peakMemory > 5 * 1024 * 1024) {
-                return "Moderate memory usage. Balanced allocation pattern observed.";
+                return "Moderate memory usage. {{bottleneck_type}} allocation pattern observed.";
             } else {
                 return "Low memory footprint. Efficient memory usage pattern.";
             }
@@ -2314,7 +2360,7 @@ fn build_tabbed_content(
             if (threadData.cpuUsage > 25) {
                 return "High CPU utilization. Compute-intensive operations detected.";
             } else if (threadData.cpuUsage > 10) {
-                return "Moderate CPU usage. Balanced computational workload.";
+                return "Moderate CPU usage. {{bottleneck_type}} computational workload.";
             } else {
                 return "Low CPU usage. I/O or memory-bound operations.";
             }
@@ -2530,7 +2576,7 @@ fn build_tabbed_content(
                 baseData.totalDeallocations = Math.floor(baseData.totalAllocations * 0.8);
                 baseData.peakMemory = (50 + (threadSeed % 200)) * 1024 * 1024; // 50-250 MB
                 baseData.efficiency = 70 + (threadSeed % 30); // 70-100%
-                baseData.cpuUsage = 5 + (threadSeed % 40); // 5-45%
+                baseData.cpuUsage = 5 + (threadSeed % 40); // 5-{{system_efficiency}}%
                 baseData.memoryRate = (baseData.peakMemory / 1024 / 1024) / 10; // MB/s
                 baseData.ioOperations = 10 + (threadSeed % 100);
                 baseData.performanceScore = 60 + (threadSeed % 40); // 60-100
@@ -2569,583 +2615,4 @@ fn build_tabbed_content(
         
         console.log('🎯 All missing JavaScript functions added successfully');
     </script>
-    "#);
-
-    Ok(html)
-}
-
-/// Build multi-thread overview tab showing all 50 threads
-fn build_multi_thread_overview_tab(
-    comprehensive_analysis: &ComprehensiveAnalysis,
-) -> Result<String, Box<dyn std::error::Error>> {
-    let mut html = String::new();
-
-    html.push_str(r#"
-    <div id="multi-thread-overview" class="tab-panel">
-        <h2>🧵 Multi-Thread Overview ({} Tracked Threads)</h2>
-        <p>Only showing threads with active memory tracking - real allocation data only</p>
-        
-        <div class="legend-container">
-            <div class="legend-item">
-                <div class="legend-box tracked-box"></div>
-                <span class="legend-text"><strong>Green Cards = TRACKED Threads</strong> - Threads with detailed memory monitoring and allocation tracking</span>
-            </div>
-        </div>
-        
-        <div class="thread-grid-container">
-            <div class="thread-grid">
-    "#);
-
-    // Get only threads with significant allocations (tracked threads)
-    let mut tracked_thread_ids: Vec<u64> = comprehensive_analysis
-        .memory_analysis
-        .thread_stats
-        .iter()
-        .filter(|(_, stats)| stats.total_allocations > 100) // Only show threads with meaningful activity
-        .map(|(id, _)| *id)
-        .collect();
-    tracked_thread_ids.sort();
-
-    // Display header with tracked thread count
-    html = html.replace("{}", &tracked_thread_ids.len().to_string());
-
-    // Create visual grid only for tracked threads
-    for &thread_id in &tracked_thread_ids {
-        let thread_stats = comprehensive_analysis
-            .memory_analysis
-            .thread_stats
-            .get(&thread_id);
-
-        let (allocations, peak_memory_mb, cpu_usage, io_operations) =
-            if let Some(stats) = thread_stats {
-                // Calculate realistic CPU usage based on memory activity
-                let base_cpu = (stats.total_allocations as f32 / 200.0).min(25.0); // Base from allocations
-                let memory_factor = (stats.peak_memory as f32 / 1024.0 / 1024.0 / 20.0).min(15.0); // Memory pressure
-                let estimated_cpu = (base_cpu + memory_factor).min(40.0); // Max realistic 40%
-
-                // Calculate I/O operations (allocations + deallocations + estimated file I/O)
-                let memory_io = stats.total_allocations + stats.total_deallocations;
-                let estimated_file_io = (stats.total_allocations / 10).max(50); // Estimated file operations
-                let io_ops = memory_io + estimated_file_io;
-
-                (
-                    stats.total_allocations,
-                    stats.peak_memory as f32 / 1024.0 / 1024.0,
-                    estimated_cpu,
-                    io_ops,
-                )
-            } else {
-                (0, 0.0, 0.0, 0)
-            };
-
-        // Thread role classification and anomaly detection
-        let (role_tag, role_class, alert_class) =
-            classify_thread_role(allocations, peak_memory_mb, cpu_usage, io_operations);
-        let card_class = format!("tracked {}", alert_class);
-
-        let status_icon = "🟢";
-        let status_text = "TRACKED";
-
-        html.push_str(&format!(
-            r#"
-                <div class="thread-card {}" onclick="event.stopPropagation(); selectThread({});">
-                    <div class="thread-header">
-                        <span class="thread-icon">{}</span>
-                        <span class="thread-id">Thread {}</span>
-                        <span class="thread-role-tag {}">{}</span>
-                    </div>
-                    <div class="thread-stats">
-                        <div class="stat">
-                            <span class="stat-label">Allocations:</span>
-                            <span class="stat-value">{}</span>
-                        </div>
-                        <div class="stat">
-                            <span class="stat-label">Peak Memory:</span>
-                            <span class="stat-value">{:.1}MB</span>
-                        </div>
-                        <div class="stat">
-                            <span class="stat-label">CPU Usage:</span>
-                            <span class="stat-value">{:.1}%</span>
-                        </div>
-                        <div class="stat">
-                            <span class="stat-label">I/O Operations:</span>
-                            <span class="stat-value">{}</span>
-                        </div>
-                    </div>
-                    <div class="thread-status-indicator">{}</div>
-                </div>
-        "#,
-            card_class,
-            thread_id,
-            status_icon,
-            thread_id,
-            role_class,
-            role_tag,
-            allocations,
-            peak_memory_mb,
-            cpu_usage,
-            io_operations,
-            status_text
-        ));
-    }
-
-    html.push_str(
-        r#"
-            </div>
-        </div>
-        
-        <div class="thread-summary">
-            <div class="summary-card tracked">
-                <h3>🟢 Tracked Threads (Even: 2,4,6,8...)</h3>
-                <div class="summary-stats">
-    "#,
-    );
-
-    // Calculate statistics for tracked threads only
-    let total_tracked_allocations: u64 = tracked_thread_ids
-        .iter()
-        .filter_map(|&id| comprehensive_analysis.memory_analysis.thread_stats.get(&id))
-        .map(|stats| stats.total_allocations)
-        .sum();
-    let total_tracked_memory: u64 = tracked_thread_ids
-        .iter()
-        .filter_map(|&id| comprehensive_analysis.memory_analysis.thread_stats.get(&id))
-        .map(|stats| stats.peak_memory as u64)
-        .sum();
-
-    html.push_str(&format!(
-        r#"
-                    <p><strong>Active Tracked Threads:</strong> {} threads</p>
-                    <p><strong>Total Allocations:</strong> {} operations</p>
-                    <p><strong>Total Peak Memory:</strong> {:.1} MB</p>
-                    <p><strong>Average per Thread:</strong> {} allocations</p>
-                    <p><strong>Memory Range:</strong> Dynamic based on actual usage</p>
-                </div>
-            </div>
-        </div>
-    </div>
-    "#,
-        tracked_thread_ids.len(),
-        total_tracked_allocations,
-        total_tracked_memory as f32 / 1024.0 / 1024.0,
-        if !tracked_thread_ids.is_empty() {
-            total_tracked_allocations / tracked_thread_ids.len() as u64
-        } else {
-            0
-        }
-    ));
-
-    Ok(html)
-}
-
-/// Build thread details tab with performance rankings
-fn build_thread_details_tab(
-    memory_analysis: &LockfreeAnalysis,
-    _thread_rankings: &[super::resource_integration::ThreadPerformanceMetric],
-) -> Result<String, Box<dyn std::error::Error>> {
-    let mut html = String::new();
-
-    html.push_str(
-        r#"
-    <div id="thread-details" class="tab-panel hidden">
-        <h2>📊 Thread Performance Details</h2>
-        <p>Detailed performance analysis of tracked threads with memory allocation patterns</p>
-        
-        <div class="details-container">
-            <div class="performance-rankings">
-                <h3>🏆 Top Performing Threads</h3>
-                <table class="ranking-table">
-                    <thead>
-                        <tr>
-                            <th>Rank</th>
-                            <th>Thread ID</th>
-                            <th>Performance Score</th>
-                            <th>Allocations</th>
-                            <th>Peak Memory (MB)</th>
-                            <th>Efficiency</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-    "#,
-    );
-
-    // Sort threads by peak memory usage (highest first)
-    let mut thread_memory_rankings: Vec<_> = memory_analysis
-        .thread_stats
-        .iter()
-        .filter(|(_, stats)| stats.total_allocations > 100) // Only meaningful threads
-        .collect();
-    thread_memory_rankings.sort_by(|a, b| b.1.peak_memory.cmp(&a.1.peak_memory));
-
-    for (rank, (thread_id, stats)) in thread_memory_rankings.iter().enumerate().take(15) {
-        let peak_memory_mb = stats.peak_memory as f32 / 1024.0 / 1024.0;
-        let efficiency = if stats.total_allocations > 0 {
-            (stats.total_deallocations as f32 / stats.total_allocations as f32) * 100.0
-        } else {
-            0.0
-        };
-
-        let efficiency_class = match efficiency {
-            eff if eff >= 80.0 => "score-excellent",
-            eff if eff >= 60.0 => "score-good",
-            _ => "score-fair",
-        };
-
-        // Calculate a performance score based on memory efficiency
-        let performance_score = efficiency;
-
-        html.push_str(&format!(
-            r#"
-                        <tr>
-                            <td><strong>#{}</strong></td>
-                            <td>Thread {}</td>
-                            <td><span class="efficiency-score {}">{:.1}</span></td>
-                            <td>{}</td>
-                            <td>{:.1} MB</td>
-                            <td>{:.1}%</td>
-                        </tr>
-        "#,
-            rank + 1,
-            thread_id,
-            efficiency_class,
-            performance_score,
-            stats.total_allocations,
-            peak_memory_mb,
-            efficiency
-        ));
-    }
-
-    html.push_str(
-        r#"
-                    </tbody>
-                </table>
-            </div>
-            
-            <div class="memory-patterns">
-                <h3>💾 Memory Allocation Patterns</h3>
-                <div class="pattern-grid">
-    "#,
-    );
-
-    // Show memory patterns for top threads
-    let top_memory_threads: Vec<_> = memory_analysis.thread_stats.iter().collect::<Vec<_>>();
-    let mut sorted_memory_threads = top_memory_threads;
-    sorted_memory_threads.sort_by(|a, b| b.1.total_allocations.cmp(&a.1.total_allocations));
-
-    for (thread_id, stats) in sorted_memory_threads.iter().take(10) {
-        let efficiency = if stats.total_allocations > 0 {
-            (stats.total_deallocations as f32 / stats.total_allocations as f32) * 100.0
-        } else {
-            0.0
-        };
-
-        let allocation_size = if stats.total_allocations > 0 {
-            stats.peak_memory as f32 / stats.total_allocations as f32
-        } else {
-            0.0
-        };
-
-        html.push_str(&format!(
-            r#"
-                    <div class="pattern-card">
-                        <h4>Thread {}</h4>
-                        <div class="pattern-stats">
-                            <div class="pattern-bar">
-                                <div class="bar-label">Allocations: {}</div>
-                                <div class="bar-fill" style="width: {}%"></div>
-                            </div>
-                            <div class="pattern-bar">
-                                <div class="bar-label">Avg Size: {:.0}B</div>
-                                <div class="bar-fill" style="width: {}%"></div>
-                            </div>
-                            <div class="pattern-bar">
-                                <div class="bar-label">Efficiency: {:.1}%</div>
-                                <div class="bar-fill" style="width: {}%"></div>
-                            </div>
-                        </div>
-                    </div>
-        "#,
-            thread_id,
-            stats.total_allocations,
-            (stats.total_allocations as f32 / 2000.0 * 100.0).min(100.0),
-            allocation_size,
-            (allocation_size / 50.0).min(100.0),
-            efficiency,
-            efficiency
-        ));
-    }
-
-    html.push_str(
-        r#"
-                </div>
-            </div>
-        </div>
-    </div>
-    "#,
-    );
-
-    Ok(html)
-}
-
-/// Build resource timeline tab
-fn build_resource_timeline_tab(
-    resource_timeline: &[PlatformResourceMetrics],
-) -> Result<String, Box<dyn std::error::Error>> {
-    let mut html = String::new();
-
-    html.push_str(
-        r#"
-    <div id="resource-timeline" class="tab-panel hidden">
-        <h2>⏱️ Resource Timeline (Real-Time Monitoring)</h2>
-        <p>Timeline of CPU, memory, and system resource usage during 50-thread execution</p>
-        
-        <div class="timeline-container">
-            <div class="timeline-stats">
-                <div class="stat-card">
-                    <h4>📊 Timeline Overview</h4>
-    "#,
-    );
-
-    html.push_str(&format!(
-        r#"
-                    <p><strong>Total Samples:</strong> {} samples</p>
-                    <p><strong>Sampling Rate:</strong> ~10Hz (100ms intervals)</p>
-                    <p><strong>Duration:</strong> ~{:.1} seconds</p>
-                </div>
-            </div>
-            
-            <div class="timeline-table-container">
-    "#,
-        resource_timeline.len(),
-        resource_timeline.len() as f32 * 0.1
-    ));
-
-    html.push_str(&format!(
-        r#"
-                <h3>📈 All Resource Samples ({} total)</h3>
-                <table class="ranking-table">
-                    <thead>
-                        <tr>
-                            <th>Sample #</th>
-                            <th>Time (ms)</th>
-                            <th>CPU Usage</th>
-                            <th>CPU Cores</th>
-                            <th>Active Threads</th>
-                            <th>System Load</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-    "#,
-        resource_timeline.len()
-    ));
-
-    // Show all samples (newest first)
-    for (i, metric) in resource_timeline.iter().enumerate().rev() {
-        html.push_str(&format!(
-            r#"
-                        <tr>
-                            <td>#{}</td>
-                            <td>{}</td>
-                            <td><strong>{:.2}%</strong></td>
-                            <td>{} cores</td>
-                            <td>{}</td>
-                            <td>{:.2}</td>
-                        </tr>
-        "#,
-            i + 1,
-            (i + 1) * 100, // approximate milliseconds
-            metric.cpu_metrics.overall_usage_percent,
-            metric.cpu_metrics.per_core_usage.len(),
-            metric.thread_metrics.len(),
-            metric.cpu_metrics.load_average.0
-        ));
-    }
-
-    html.push_str(
-        r#"
-                    </tbody>
-                </table>
-            </div>
-            
-            <div class="cpu-core-details">
-                <h3>🔥 Per-Core CPU Usage (Latest Sample)</h3>
-                <div class="core-grid">
-    "#,
-    );
-
-    // Show per-core usage from latest sample
-    if let Some(latest_sample) = resource_timeline.last() {
-        for (core_id, &usage) in latest_sample.cpu_metrics.per_core_usage.iter().enumerate() {
-            let usage_class = match usage {
-                u if u < 20.0 => "low",
-                u if u < 60.0 => "medium",
-                _ => "high",
-            };
-
-            html.push_str(&format!(
-                r#"
-                    <div class="core-card {}">
-                        <div class="core-id">Core {}</div>
-                        <div class="core-usage">{:.1}%</div>
-                        <div class="core-bar">
-                            <div class="core-fill" style="width: {}%"></div>
-                        </div>
-                    </div>
-            "#,
-                usage_class, core_id, usage, usage
-            ));
-        }
-    }
-
-    html.push_str(
-        r#"
-                </div>
-            </div>
-        </div>
-    </div>
-    "#,
-    );
-
-    Ok(html)
-}
-
-/// Build system summary tab
-fn build_system_summary_tab(
-    performance_insights: &super::resource_integration::PerformanceInsights,
-    resource_timeline: &[PlatformResourceMetrics],
-) -> Result<String, Box<dyn std::error::Error>> {
-    let mut html = String::new();
-
-    // Calculate real metrics from timeline
-    let avg_cpu = if !resource_timeline.is_empty() {
-        resource_timeline
-            .iter()
-            .map(|r| r.cpu_metrics.overall_usage_percent)
-            .sum::<f32>()
-            / resource_timeline.len() as f32
-    } else {
-        0.0
-    };
-
-    let max_cpu = resource_timeline
-        .iter()
-        .map(|r| r.cpu_metrics.overall_usage_percent)
-        .fold(0.0f32, |a, b| a.max(b));
-
-    let cpu_cores = resource_timeline
-        .first()
-        .map(|r| r.cpu_metrics.per_core_usage.len())
-        .unwrap_or(0);
-
-    let bottleneck_text = match performance_insights.primary_bottleneck {
-        super::resource_integration::BottleneckType::CpuBound => "CPU-Intensive",
-        super::resource_integration::BottleneckType::MemoryBound => "Memory-Intensive",
-        super::resource_integration::BottleneckType::IoBound => "I/O-Intensive",
-        super::resource_integration::BottleneckType::GpuBound => "GPU-Intensive",
-        super::resource_integration::BottleneckType::ContentionBound => "Resource Contention",
-        super::resource_integration::BottleneckType::Balanced => "Well Balanced",
-    };
-
-    html.push_str(&format!(r#"
-    <div id="system-summary" class="tab-panel hidden">
-        <h2>📈 System Performance Summary</h2>
-        <p>Overall system performance during 50-thread execution with selective tracking</p>
-        
-        <div class="summary-grid">
-            <div class="summary-section">
-                <h3>🔥 CPU Performance</h3>
-                <div class="metric-cards">
-                    <div class="metric-card">
-                        <div class="metric-value">{:.2}%</div>
-                        <div class="metric-label">Average CPU Usage</div>
-                    </div>
-                    <div class="metric-card">
-                        <div class="metric-value">{:.2}%</div>
-                        <div class="metric-label">Peak CPU Usage</div>
-                    </div>
-                    <div class="metric-card">
-                        <div class="metric-value">{}</div>
-                        <div class="metric-label">CPU Cores</div>
-                    </div>
-                    <div class="metric-card">
-                        <div class="metric-value">{:.1}%</div>
-                        <div class="metric-label">CPU Efficiency</div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="summary-section">
-                <h3>💾 Memory Performance</h3>
-                <div class="metric-cards">
-                    <div class="metric-card">
-                        <div class="metric-value">{}</div>
-                        <div class="metric-label">Tracked Threads</div>
-                    </div>
-                    <div class="metric-card">
-                        <div class="metric-value">{:.1}%</div>
-                        <div class="metric-label">Memory Efficiency</div>
-                    </div>
-                    <div class="metric-card">
-                        <div class="metric-value">{:.1}%</div>
-                        <div class="metric-label">I/O Efficiency</div>
-                    </div>
-                    <div class="metric-card">
-                        <div class="metric-value">{}</div>
-                        <div class="metric-label">Primary Bottleneck</div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="summary-section">
-                <h3>🎯 Experiment Results</h3>
-                <div class="experiment-results">
-                    <div class="result-item">
-                        <span class="result-icon">✅</span>
-                        <span class="result-text">Selective tracking verified: Only even threads (2,4,6...) tracked</span>
-                    </div>
-                    <div class="result-item">
-                        <span class="result-icon">🧵</span>
-                        <span class="result-text">50 threads total: 25 tracked + 25 untracked for comparison</span>
-                    </div>
-                    <div class="result-item">
-                        <span class="result-icon">📊</span>
-                        <span class="result-text">{} resource samples collected at 10Hz sampling rate</span>
-                    </div>
-                    <div class="result-item">
-                        <span class="result-icon">⚡</span>
-                        <span class="result-text">System performance remained stable during multi-thread execution</span>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="summary-section">
-                <h3>🏆 Key Achievements</h3>
-                <div class="achievement-list">
-                    <div class="achievement">
-                        <h4>Zero Memory Leaks</h4>
-                        <p>All tracked memory allocations properly recorded</p>
-                    </div>
-                    <div class="achievement">
-                        <h4>Stable CPU Usage</h4>
-                        <p>CPU usage stayed consistent at ~{:.1}% across all threads</p>
-                    </div>
-                    <div class="achievement">
-                        <h4>Successful Thread Isolation</h4>
-                        <p>Tracked and untracked threads executed independently</p>
-                    </div>
-                    <div class="achievement">
-                        <h4>Real-Time Monitoring</h4>
-                        <p>Continuous resource monitoring without performance impact</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    "#, avg_cpu, max_cpu, cpu_cores, performance_insights.cpu_efficiency_score,
-        performance_insights.thread_performance_ranking.len(),
-        performance_insights.memory_efficiency_score,
-        performance_insights.io_efficiency_score,
-        bottleneck_text,
-        resource_timeline.len(),
-        avg_cpu));
-}
+    </body></html>

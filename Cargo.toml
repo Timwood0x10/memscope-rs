@@ -17,6 +17,7 @@ categories = [
 ]
 
 [dependencies]
+handlebars = "4.5"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3.20", features = [
     "env-filter",
