@@ -8,109 +8,7 @@ use super::resource_integration::ComprehensiveAnalysis;
 use serde::Serialize;
 use std::path::Path;
 
-// Data structures for template rendering
-#[derive(Serialize, Debug)]
-struct ThreadData {
-    id: u32,
-    alert_level: String,
-    role: String,
-    role_icon: String,
-    role_name: String,
-    allocations: usize,
-    peak_memory: String,
-    cpu_usage: f32,
-    io_operations: usize,
-}
-
-#[derive(Serialize, Debug)]
-struct CpuCoreData {
-    core_id: usize,
-    usage: f32,
-}
-
-#[derive(Serialize, Debug)]
-struct ThreadAllocationPattern {
-    thread_id: u32,
-    allocations: usize,
-    bar_width: f32,
-}
-
-#[derive(Serialize, Debug)]
-struct ResourceSample {
-    sample_id: usize,
-    timestamp: String,
-    memory_usage: f32,
-    cpu_usage: f32,
-    gpu_usage: f32,
-    io_operations: usize,
-}
-
-#[derive(Serialize, Debug)]
-struct ThreadPerformanceData {
-    rank: usize,
-    thread_id: u32,
-    efficiency_score: f32,
-    efficiency_class: String,
-    allocations: usize,
-    memory: String,
-    gpu_usage: f32,
-}
-
-#[derive(Serialize, Debug)]
-struct ThreadDetailData {
-    id: u32,
-    status: String,
-    total_allocations: usize,
-    peak_memory: String,
-    current_memory: String,
-}
-
-#[derive(Serialize, Debug)]
-struct HotCallStackData {
-    call_stack_hash: String,
-    total_frequency: usize,
-    total_size: String,
-    impact_score: usize,
-    threads: Vec<u32>,
-}
-
-#[derive(Serialize, Debug)]
-struct ThreadInteractionData {
-    thread_a: u32,
-    thread_b: u32,
-    shared_patterns: Vec<String>,
-    interaction_strength: usize,
-    interaction_type: String,
-}
-
-#[derive(Serialize, Debug)]
-struct MemoryPeakData {
-    timestamp: String,
-    thread_id: u32,
-    memory_usage: String,
-    active_allocations: usize,
-    triggering_call_stack: String,
-}
-
-#[derive(Serialize, Debug)]
-struct PerformanceBottleneckData {
-    bottleneck_type: String,
-    thread_id: u32,
-    call_stack_hash: String,
-    severity: f32,
-    description: String,
-    suggestion: String,
-}
-
-#[derive(Serialize, Debug)]
-struct AllocationEventData {
-    timestamp: String,
-    thread_id: u32,
-    size: String,
-    event_type: String,
-    call_stack_hash: String,
-}
-
+/// Template data structure for the dashboard
 #[derive(Serialize, Debug)]
 struct DashboardData {
     // System metrics
@@ -132,23 +30,89 @@ struct DashboardData {
     avg_allocations_per_thread: u64,
     threads: Vec<ThreadData>,
 
+    // Performance data
     top_performing_threads: Vec<ThreadPerformanceData>,
     memory_allocation_patterns: Vec<ThreadAllocationPattern>,
     resource_samples: Vec<ResourceSample>,
     cpu_cores: Vec<CpuCoreData>,
 
-    // Enhanced analysis data - NEW FIELDS
-    hottest_call_stacks: Vec<HotCallStackData>,
-    thread_interactions: Vec<ThreadInteractionData>,
-    memory_peaks: Vec<MemoryPeakData>,
-    performance_bottlenecks: Vec<PerformanceBottleneckData>,
-    allocation_timeline: Vec<AllocationEventData>,
-    tracking_verification_message: String,
+    // Analysis data
+    thread_details: Vec<ThreadDetailData>,
+    timeline_chart_data: String, // JSON string for Chart.js
+    total_samples: usize,
+    analysis_duration: String,
+    peak_time: String,
+    avg_cpu_usage: f32,
+
+    // Summary data
+    total_threads: usize,
+    tracked_threads: usize,
+    untracked_threads: usize,
+    resource_samples_count: usize,
+    sampling_rate: u32,
+    system_status_message: String,
     recommendations: Vec<String>,
+    tracking_verification_message: String,
 }
 
+#[derive(Serialize, Debug, Clone)]
+struct ThreadData {
+    id: u32,
+    alert_level: String, // "high", "medium", "normal"
+    role: String,
+    role_icon: String,
+    role_name: String,
+    allocations: usize,
+    peak_memory: String,
+    cpu_usage: f32,
+    io_operations: usize,
+}
+
+#[derive(Serialize, Debug)]
+struct ThreadPerformanceData {
+    rank: usize,
+    thread_id: u32,
+    efficiency_score: f32,
+    efficiency_class: String, // "excellent", "good", "fair"
+    allocations: usize,
+    memory: String,
+    gpu_usage: f32,
+}
+
+#[derive(Serialize, Debug)]
+struct ThreadAllocationPattern {
+    thread_id: u32,
+    allocations: usize,
+    bar_width: f32,
+}
+
+#[derive(Serialize, Debug)]
+struct ResourceSample {
+    sample_id: usize,
+    timestamp: String,
+    memory_usage: f32,
+    cpu_usage: f32,
+    gpu_usage: f32,
+    io_operations: usize,
+}
+
+#[derive(Serialize, Debug)]
+struct CpuCoreData {
+    core_id: usize,
+    usage: f32,
+}
+
+#[derive(Serialize, Debug)]
+struct ThreadDetailData {
+    id: u32,
+    status: String,
+    total_allocations: usize,
+    peak_memory: String,
+    current_memory: String,
+}
+
+/// Generate comprehensive HTML report using template
 pub fn generate_comprehensive_html_report(
-{{ ... }}
     comprehensive_analysis: &ComprehensiveAnalysis,
     output_path: &Path,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -162,20 +126,20 @@ pub fn build_comprehensive_html_report_with_template(
     comprehensive_analysis: &ComprehensiveAnalysis,
 ) -> Result<String, Box<dyn std::error::Error>> {
     use handlebars::Handlebars;
-    
+
     // Read template file
     let template_content = std::fs::read_to_string("templates/multithread_template.html")?;
-    
+
     // Create Handlebars registry
     let mut handlebars = Handlebars::new();
     handlebars.register_template_string("dashboard", template_content)?;
-    
+
     // Build template data
     let dashboard_data = build_template_data(comprehensive_analysis)?;
-    
+
     // Render template
     let rendered = handlebars.render("dashboard", &dashboard_data)?;
-    
+
     Ok(rendered)
 }
 
@@ -225,7 +189,7 @@ fn build_template_data(comprehensive_analysis: &ComprehensiveAnalysis) -> Result
     let mut threads = Vec::new();
     let mut thread_id_counter = 1u32;
 
-    for (_thread_id, thread_stats) in &analysis.thread_stats {
+    for (thread_id, thread_stats) in &analysis.thread_stats {
         let role = classify_thread_role(thread_stats);
         let (role_icon, role_name) = get_role_display(&role);
         let alert_level = determine_alert_level(thread_stats);
@@ -239,7 +203,7 @@ fn build_template_data(comprehensive_analysis: &ComprehensiveAnalysis) -> Result
             allocations: thread_stats.total_allocations as usize,
             peak_memory: format!("{:.1} MB", thread_stats.peak_memory as f32 / 1024.0 / 1024.0),
             cpu_usage: thread_stats.total_allocations as f32 / 100.0, // Real CPU calculation
-            io_operations: (thread_stats.total_allocations / 10) as usize, // Estimated I/O operations
+            io_operations: thread_stats.total_allocations / 10, // Estimated I/O operations
         });
 
         thread_id_counter += 1;
@@ -252,16 +216,9 @@ fn build_template_data(comprehensive_analysis: &ComprehensiveAnalysis) -> Result
             .per_core_usage
             .iter()
             .enumerate()
-            .map(|(i, &usage)| {
-                let _level = match usage {
-                    u if u < 20.0 => "low",
-                    u if u < 60.0 => "medium",
-                    _ => "high",
-                };
-                CpuCoreData {
-                    core_id: i,
-                    usage,
-                }
+            .map(|(i, &usage)| CpuCoreData {
+                core_id: i,
+                usage,
             })
             .collect()
     } else {
@@ -274,7 +231,7 @@ fn build_template_data(comprehensive_analysis: &ComprehensiveAnalysis) -> Result
         .iter()
         .take(10) // Limit to top 10 threads
         .map(|(thread_id, stats)| {
-            let _efficiency = if stats.total_allocations > 0 {
+            let efficiency = if stats.total_allocations > 0 {
                 (stats.total_deallocations as f32 / stats.total_allocations as f32) * 100.0
             } else {
                 0.0
@@ -294,10 +251,10 @@ fn build_template_data(comprehensive_analysis: &ComprehensiveAnalysis) -> Result
         .map(|(i, sample)| ResourceSample {
             sample_id: i + 1,
             timestamp: format!("T+{:.1}s", i as f32 * 0.1),
-            memory_usage: 0.0, // Memory usage not available in PlatformResourceMetrics
+            memory_usage: sample.memory_metrics.total_used_bytes as f32 / 1024.0 / 1024.0, // Convert to MB
             cpu_usage: sample.cpu_metrics.overall_usage_percent,
             gpu_usage: sample.gpu_metrics.as_ref().map(|g| g.compute_usage_percent).unwrap_or(0.0),
-            io_operations: 0, // I/O operations not available in IoResourceMetrics
+            io_operations: sample.io_metrics.as_ref().map(|io| io.total_operations).unwrap_or(0),
         })
         .collect();
 
@@ -310,7 +267,7 @@ fn build_template_data(comprehensive_analysis: &ComprehensiveAnalysis) -> Result
 
     let memory_data: Vec<f32> = resource_timeline
         .iter()
-        .map(|_sample| 0.0) // Memory usage not available in PlatformResourceMetrics
+        .map(|sample| sample.memory_metrics.total_used_bytes as f32 / 1024.0 / 1024.0) // Convert to MB
         .collect();
 
     let cpu_data: Vec<f32> = resource_timeline
@@ -349,22 +306,15 @@ fn build_template_data(comprehensive_analysis: &ComprehensiveAnalysis) -> Result
         resource_samples,
         cpu_cores,
 
-    // Analysis data
-    thread_details: Vec::new(), // Will be populated
-    timeline_chart_data: timeline_chart_data.to_string(),
-    total_samples: resource_timeline.len(),
-    analysis_duration: format!("{:.2}s", resource_timeline.len() as f32 * 0.1),
-    peak_time: "T+1.5s".to_string(), // Mock peak time
-    avg_cpu_usage: avg_cpu,
+        // Analysis data
+        thread_details: Vec::new(), // Will be populated
+        timeline_chart_data: timeline_chart_data.to_string(),
+        total_samples: resource_timeline.len(),
+        analysis_duration: format!("{:.2}s", resource_timeline.len() as f32 * 0.1),
+        peak_time: "T+1.5s".to_string(), // Mock peak time
+        avg_cpu_usage: avg_cpu,
 
-    // Enhanced analysis data - NEW FIELDS
-    hottest_call_stacks: build_hottest_call_stacks_data(analysis),
-    thread_interactions: build_thread_interactions_data(analysis),
-    memory_peaks: build_memory_peaks_data(analysis),
-    performance_bottlenecks: build_performance_bottlenecks_data(analysis),
-    allocation_timeline: build_allocation_timeline_data(analysis),
-
-    threads: threads.clone(),
+        threads: threads.clone(),
 
         // Summary data
         total_threads: analysis.thread_stats.len(),
@@ -385,7 +335,7 @@ fn build_template_data(comprehensive_analysis: &ComprehensiveAnalysis) -> Result
 /// Classify thread role based on behavior
 fn classify_thread_role(thread_stats: &super::analysis::ThreadStats) -> String {
     let alloc_rate = thread_stats.total_allocations as f32 / thread_stats.peak_memory as f32;
-    
+
     if thread_stats.peak_memory > 10 * 1024 * 1024 { // > 10MB
         "memory-intensive".to_string()
     } else if alloc_rate > 0.1 {
@@ -407,97 +357,6 @@ fn get_role_display(role: &str) -> (String, String) {
         "light" => ("💤".to_string(), "Lightweight".to_string()),
         _ => ("🔍".to_string(), "Unknown".to_string()),
     }
-}
-
-/// Build hottest call stacks data for visualization
-fn build_hottest_call_stacks_data(analysis: &LockfreeAnalysis) -> Vec<HotCallStackData> {
-    analysis
-        .hottest_call_stacks
-        .iter()
-        .take(10) // Top 10 hottest call stacks
-        .map(|hot_stack| HotCallStackData {
-            call_stack_hash: format!("0x{:x}", hot_stack.call_stack_hash),
-            total_frequency: hot_stack.total_frequency as usize,
-            total_size: format!("{:.1} MB", hot_stack.total_size as f32 / 1024.0 / 1024.0),
-            impact_score: hot_stack.impact_score as usize,
-            threads: hot_stack.threads.iter().map(|&id| id as u32).collect(),
-        })
-        .collect()
-}
-
-/// Build thread interactions data for visualization
-fn build_thread_interactions_data(analysis: &LockfreeAnalysis) -> Vec<ThreadInteractionData> {
-    analysis
-        .thread_interactions
-        .iter()
-        .take(15) // Top 15 interactions
-        .map(|interaction| ThreadInteractionData {
-            thread_a: interaction.thread_a as u32,
-            thread_b: interaction.thread_b as u32,
-            shared_patterns: interaction.shared_patterns.iter().map(|&hash| format!("0x{:x}", hash)).collect(),
-            interaction_strength: interaction.interaction_strength as usize,
-            interaction_type: format!("{:?}", interaction.interaction_type),
-        })
-        .collect()
-}
-
-/// Build memory peaks data for visualization
-fn build_memory_peaks_data(analysis: &LockfreeAnalysis) -> Vec<MemoryPeakData> {
-    analysis
-        .memory_peaks
-        .iter()
-        .take(20) // Top 20 memory peaks
-        .map(|peak| MemoryPeakData {
-            timestamp: format!("T+{:.1}s", peak.timestamp as f32 / 1_000_000_000.0),
-            thread_id: peak.thread_id as u32,
-            memory_usage: format!("{:.1} MB", peak.memory_usage as f32 / 1024.0 / 1024.0),
-            active_allocations: peak.active_allocations as usize,
-            triggering_call_stack: format!("0x{:x}", peak.triggering_call_stack),
-        })
-        .collect()
-}
-
-/// Build performance bottlenecks data for visualization
-fn build_performance_bottlenecks_data(analysis: &LockfreeAnalysis) -> Vec<PerformanceBottleneckData> {
-    analysis
-        .performance_bottlenecks
-        .iter()
-        .filter(|bottleneck| bottleneck.severity >= 0.5) // Only significant bottlenecks
-        .take(10)
-        .map(|bottleneck| PerformanceBottleneckData {
-            bottleneck_type: format!("{:?}", bottleneck.bottleneck_type),
-            thread_id: bottleneck.thread_id as u32,
-            call_stack_hash: format!("0x{:x}", bottleneck.call_stack_hash),
-            severity: bottleneck.severity as f32,
-            description: bottleneck.description.clone(),
-            suggestion: bottleneck.suggestion.clone(),
-        })
-        .collect()
-}
-
-/// Build allocation timeline data for visualization
-fn build_allocation_timeline_data(analysis: &LockfreeAnalysis) -> Vec<AllocationEventData> {
-    // Collect allocation events from all threads
-    let mut all_events: Vec<_> = analysis
-        .thread_stats
-        .values()
-        .flat_map(|stats| &stats.timeline)
-        .take(100) // Limit to 100 events for performance
-        .collect();
-
-    // Sort by timestamp
-    all_events.sort_by_key(|event| event.timestamp);
-
-    all_events
-        .iter()
-        .map(|event| AllocationEventData {
-            timestamp: format!("T+{:.3}s", event.timestamp as f32 / 1_000_000_000.0),
-            thread_id: event.thread_id as u32,
-            size: format!("{:.0} B", event.size),
-            event_type: format!("{:?}", event.event_type),
-            call_stack_hash: format!("0x{:x}", event.call_stack_hash),
-        })
-        .collect()
 }
 
 /// Determine alert level for thread

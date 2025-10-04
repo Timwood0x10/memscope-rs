@@ -1045,6 +1045,15 @@
         
         <div class="thread-summary">
             <div class="summary-card tracked">
+                <h3>🟢 {{tracked_threads_description}}</h3>
+                <div class="summary-stats">
+    
+                    <p><strong>Active Tracked Threads:</strong> {{active_tracked_threads}} threads</p>
+                    <p><strong>Total Allocations:</strong> {{total_allocations}} operations</p>
+                    <p><strong>Total Peak Memory:</strong> {{total_peak_memory}} MB</p>
+                    <p><strong>Average per Thread:</strong> {{avg_allocations_per_thread}} allocations</p>
+                    <p><strong>Memory Range:</strong> Dynamic based on actual usage</p>
+                </div>
             </div>
         </div>
     </div>
@@ -1087,187 +1096,27 @@
             <div class="memory-patterns">
                 <h3>💾 Memory Allocation Patterns</h3>
                 <div class="pattern-grid">
-    
-                    <div class="pattern-card">
-                        <h4>Thread {{thread_id}}</h4>
-                        <div class="pattern-stats">
-                            <div class="pattern-bar">
-                                <div class="bar-label">Allocations: 1480</div>
-                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
-                            </div>
-                            <div class="pattern-bar">
-                                <div class="bar-label">Avg Size: 1024B</div>
-                                <div class="bar-fill" style="width: 20.48%"></div>
-                            </div>
-                            <div class="pattern-bar">
-                                <div class="bar-label">Efficiency: {{gpu_usage}}%</div>
-                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
-                            </div>
-                        </div>
-                    </div>
-        
-                    <div class="pattern-card">
-                        <h4>Thread {{thread_id}}</h4>
-                        <div class="pattern-stats">
-                            <div class="pattern-bar">
-                                <div class="bar-label">Allocations: 1460</div>
-                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
-                            </div>
-                            <div class="pattern-bar">
-                                <div class="bar-label">Avg Size: 16384B</div>
-                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
-                            </div>
-                            <div class="pattern-bar">
-                                <div class="bar-label">Efficiency: {{gpu_usage}}%</div>
-                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
-                            </div>
-                        </div>
-                    </div>
-        
-                    <div class="pattern-card">
-                        <h4>Thread {{thread_id}}</h4>
-                        <div class="pattern-stats">
-                            <div class="pattern-bar">
-                                <div class="bar-label">Allocations: 1440</div>
-                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
-                            </div>
-                            <div class="pattern-bar">
-                                <div class="bar-label">Avg Size: 1024B</div>
-                                <div class="bar-fill" style="width: 20.48%"></div>
-                            </div>
-                            <div class="pattern-bar">
-                                <div class="bar-label">Efficiency: {{gpu_usage}}%</div>
-                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
-                            </div>
-                        </div>
-                    </div>
-        
+
+                    {{#each memory_patterns}}
                     <div class="pattern-card">
                         <h4>Thread {{thread_id}}</h4>
                         <div class="pattern-stats">
                             <div class="pattern-bar">
                                 <div class="bar-label">Allocations: {{allocations}}</div>
-                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
+                                <div class="bar-fill pattern-bar-allocations"></div>
                             </div>
                             <div class="pattern-bar">
-                                <div class="bar-label">Avg Size: 16384B</div>
-                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
+                                <div class="bar-label">Avg Size: {{avg_size}}</div>
+                                <div class="bar-fill pattern-bar-size"></div>
                             </div>
                             <div class="pattern-bar">
-                                <div class="bar-label">Efficiency: {{gpu_usage}}%</div>
-                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
+                                <div class="bar-label">Efficiency: {{efficiency}}%</div>
+                                <div class="bar-fill pattern-bar-efficiency"></div>
                             </div>
                         </div>
                     </div>
-        
-                    <div class="pattern-card">
-                        <h4>Thread {{thread_id}}</h4>
-                        <div class="pattern-stats">
-                            <div class="pattern-bar">
-                                <div class="bar-label">Allocations: 1400</div>
-                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
-                            </div>
-                            <div class="pattern-bar">
-                                <div class="bar-label">Avg Size: 1024B</div>
-                                <div class="bar-fill" style="width: 20.48%"></div>
-                            </div>
-                            <div class="pattern-bar">
-                                <div class="bar-label">Efficiency: {{gpu_usage}}%</div>
-                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
-                            </div>
-                        </div>
-                    </div>
-        
-                    <div class="pattern-card">
-                        <h4>Thread {{thread_id}}</h4>
-                        <div class="pattern-stats">
-                            <div class="pattern-bar">
-                                <div class="bar-label">Allocations: 1380</div>
-                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
-                            </div>
-                            <div class="pattern-bar">
-                                <div class="bar-label">Avg Size: 16384B</div>
-                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
-                            </div>
-                            <div class="pattern-bar">
-                                <div class="bar-label">Efficiency: {{gpu_usage}}%</div>
-                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
-                            </div>
-                        </div>
-                    </div>
-        
-                    <div class="pattern-card">
-                        <h4>Thread {{thread_id}}</h4>
-                        <div class="pattern-stats">
-                            <div class="pattern-bar">
-                                <div class="bar-label">Allocations: 1360</div>
-                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
-                            </div>
-                            <div class="pattern-bar">
-                                <div class="bar-label">Avg Size: 1024B</div>
-                                <div class="bar-fill" style="width: 20.48%"></div>
-                            </div>
-                            <div class="pattern-bar">
-                                <div class="bar-label">Efficiency: {{gpu_usage}}%</div>
-                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
-                            </div>
-                        </div>
-                    </div>
-        
-                    <div class="pattern-card">
-                        <h4>Thread {{thread_id}}</h4>
-                        <div class="pattern-stats">
-                            <div class="pattern-bar">
-                                <div class="bar-label">Allocations: 1340</div>
-                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
-                            </div>
-                            <div class="pattern-bar">
-                                <div class="bar-label">Avg Size: 16384B</div>
-                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
-                            </div>
-                            <div class="pattern-bar">
-                                <div class="bar-label">Efficiency: {{gpu_usage}}%</div>
-                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
-                            </div>
-                        </div>
-                    </div>
-        
-                    <div class="pattern-card">
-                        <h4>Thread {{thread_id}}</h4>
-                        <div class="pattern-stats">
-                            <div class="pattern-bar">
-                                <div class="bar-label">Allocations: 1320</div>
-                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
-                            </div>
-                            <div class="pattern-bar">
-                                <div class="bar-label">Avg Size: 1024B</div>
-                                <div class="bar-fill" style="width: 20.48%"></div>
-                            </div>
-                            <div class="pattern-bar">
-                                <div class="bar-label">Efficiency: {{gpu_usage}}%</div>
-                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
-                            </div>
-                        </div>
-                    </div>
-        
-                    <div class="pattern-card">
-                        <h4>Thread {{thread_id}}</h4>
-                        <div class="pattern-stats">
-                            <div class="pattern-bar">
-                                <div class="bar-label">Allocations: 1300</div>
-                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
-                            </div>
-                            <div class="pattern-bar">
-                                <div class="bar-label">Avg Size: 16384B</div>
-                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
-                            </div>
-                            <div class="pattern-bar">
-                                <div class="bar-label">Efficiency: {{gpu_usage}}%</div>
-                                <div class="bar-fill" style="width: {{bar_percentage}}%"></div>
-                            </div>
-                        </div>
-                    </div>
-        
+                    {{/each}}
+
                 </div>
             </div>
         </div>
@@ -1282,9 +1131,9 @@
                 <div class="stat-card">
                     <h4>📊 Timeline Overview</h4>
     
-                    <p><strong>Total Samples:</strong> 31 samples</p>
-                    <p><strong>Sampling Rate:</strong> ~10Hz (100ms intervals)</p>
-                    <p><strong>Duration:</strong> ~3.1 seconds</p>
+                    <p><strong>Total Samples:</strong> {{total_samples}} samples</p>
+                    <p><strong>Sampling Rate:</strong> {{sampling_rate}}Hz ({{sampling_interval}}ms intervals)</p>
+                    <p><strong>Duration:</strong> {{test_duration}} seconds</p>
                 </div>
             </div>
             
@@ -1323,117 +1172,15 @@
                 <h3>🔥 Per-Core CPU Usage (Latest Sample)</h3>
                 <div class="core-grid">
     
-                    <div class="core-card low">
-                        <div class="core-id">Core 0</div>
-                        <div class="core-usage">1.8%</div>
+                    {{#each cpu_cores}}
+                    <div class="core-card {{level}}">
+                        <div class="core-id">{{name}}</div>
+                        <div class="core-usage">{{usage}}%</div>
                         <div class="core-bar">
-                            <div class="core-fill" style="width: 1.7857143%"></div>
+                            <div class="core-fill" style="width: {{usage}}%"></div>
                         </div>
                     </div>
-            
-                    <div class="core-card low">
-                        <div class="core-id">Core 1</div>
-                        <div class="core-usage">1.8%</div>
-                        <div class="core-bar">
-                            <div class="core-fill" style="width: 1.7857143%"></div>
-                        </div>
-                    </div>
-            
-                    <div class="core-card low">
-                        <div class="core-id">Core 2</div>
-                        <div class="core-usage">1.8%</div>
-                        <div class="core-bar">
-                            <div class="core-fill" style="width: 1.7857143%"></div>
-                        </div>
-                    </div>
-            
-                    <div class="core-card low">
-                        <div class="core-id">Core 3</div>
-                        <div class="core-usage">1.8%</div>
-                        <div class="core-bar">
-                            <div class="core-fill" style="width: 1.7857143%"></div>
-                        </div>
-                    </div>
-            
-                    <div class="core-card low">
-                        <div class="core-id">Core 4</div>
-                        <div class="core-usage">1.8%</div>
-                        <div class="core-bar">
-                            <div class="core-fill" style="width: 1.7857143%"></div>
-                        </div>
-                    </div>
-            
-                    <div class="core-card low">
-                        <div class="core-id">Core 5</div>
-                        <div class="core-usage">1.8%</div>
-                        <div class="core-bar">
-                            <div class="core-fill" style="width: 1.7857143%"></div>
-                        </div>
-                    </div>
-            
-                    <div class="core-card low">
-                        <div class="core-id">Core 6</div>
-                        <div class="core-usage">1.8%</div>
-                        <div class="core-bar">
-                            <div class="core-fill" style="width: 1.7857143%"></div>
-                        </div>
-                    </div>
-            
-                    <div class="core-card low">
-                        <div class="core-id">Core 7</div>
-                        <div class="core-usage">1.8%</div>
-                        <div class="core-bar">
-                            <div class="core-fill" style="width: 1.7857143%"></div>
-                        </div>
-                    </div>
-            
-                    <div class="core-card low">
-                        <div class="core-id">Core 8</div>
-                        <div class="core-usage">1.8%</div>
-                        <div class="core-bar">
-                            <div class="core-fill" style="width: 1.7857143%"></div>
-                        </div>
-                    </div>
-            
-                    <div class="core-card low">
-                        <div class="core-id">Core 9</div>
-                        <div class="core-usage">1.8%</div>
-                        <div class="core-bar">
-                            <div class="core-fill" style="width: 1.7857143%"></div>
-                        </div>
-                    </div>
-            
-                    <div class="core-card low">
-                        <div class="core-id">Core 10</div>
-                        <div class="core-usage">1.8%</div>
-                        <div class="core-bar">
-                            <div class="core-fill" style="width: 1.7857143%"></div>
-                        </div>
-                    </div>
-            
-                    <div class="core-card low">
-                        <div class="core-id">Core 11</div>
-                        <div class="core-usage">1.8%</div>
-                        <div class="core-bar">
-                            <div class="core-fill" style="width: 1.7857143%"></div>
-                        </div>
-                    </div>
-            
-                    <div class="core-card low">
-                        <div class="core-id">Core 12</div>
-                        <div class="core-usage">1.8%</div>
-                        <div class="core-bar">
-                            <div class="core-fill" style="width: 1.7857143%"></div>
-                        </div>
-                    </div>
-            
-                    <div class="core-card low">
-                        <div class="core-id">Core 13</div>
-                        <div class="core-usage">1.8%</div>
-                        <div class="core-bar">
-                            <div class="core-fill" style="width: 1.7857143%"></div>
-                        </div>
-                    </div>
+                    {{/each}}
             
                 </div>
             </div>
@@ -1449,19 +1196,19 @@
                 <h3>🔥 CPU Performance</h3>
                 <div class="metric-cards">
                     <div class="metric-card">
-                        <div class="metric-value">25.00%</div>
+                        <div class="metric-value">{{avg_cpu_usage}}%</div>
                         <div class="metric-label">Average CPU Usage</div>
                     </div>
                     <div class="metric-card">
-                        <div class="metric-value">25.00%</div>
+                        <div class="metric-value">{{peak_cpu_usage}}%</div>
                         <div class="metric-label">Peak CPU Usage</div>
                     </div>
                     <div class="metric-card">
-                        <div class="metric-value">14</div>
+                        <div class="metric-value">{{cpu_cores}}</div>
                         <div class="metric-label">CPU Cores</div>
                     </div>
                     <div class="metric-card">
-                        <div class="metric-value">40.0%</div>
+                        <div class="metric-value">{{cpu_efficiency}}%</div>
                         <div class="metric-label">CPU Efficiency</div>
                     </div>
                 </div>
@@ -1471,7 +1218,7 @@
                 <h3>💾 Memory Performance</h3>
                 <div class="metric-cards">
                     <div class="metric-card">
-                        <div class="metric-value">25</div>
+                        <div class="metric-value">{{tracked_threads_count}}</div>
                         <div class="metric-label">Tracked Threads</div>
                     </div>
                     <div class="metric-card">
@@ -1479,7 +1226,7 @@
                         <div class="metric-label">Memory Efficiency</div>
                     </div>
                     <div class="metric-card">
-                        <div class="metric-value">40.0%</div>
+                        <div class="metric-value">{{io_efficiency}}%</div>
                         <div class="metric-label">I/O Efficiency</div>
                     </div>
                     <div class="metric-card">
