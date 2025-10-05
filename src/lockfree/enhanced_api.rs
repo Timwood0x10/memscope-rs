@@ -712,10 +712,10 @@ mod tests {
         // Ensure clean initial state with more robust cleanup
         let _ = stop_system_profiling();
         ENHANCED_PROFILING_ACTIVE.store(false, Ordering::SeqCst);
-        
+
         // Wait for any background threads to complete
         std::thread::sleep(Duration::from_millis(50));
-        
+
         // Verify clean state
         if is_enhanced_profiling_active() {
             // Try one more cleanup in CI environments
@@ -734,7 +734,7 @@ mod tests {
         // Clean up with more robust handling
         let _ = stop_system_profiling();
         std::thread::sleep(Duration::from_millis(50));
-        
+
         // In CI environments with test contamination, we may not achieve perfect cleanup
         // So we make the assertion more lenient
         let final_state = is_enhanced_profiling_active();
