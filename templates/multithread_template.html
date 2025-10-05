@@ -51,8 +51,8 @@
         
         .resource-overview {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 1.5rem;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 1.2rem;
             padding: 2rem;
             max-width: 1400px;
             margin: 0 auto;
@@ -100,6 +100,7 @@
         .gpu-metric { border-left: 4px solid var(--warning-color); }
         .memory-metric { border-left: 4px solid var(--accent-color); }
         .io-metric { border-left: 4px solid var(--danger-color); }
+        .thread-tracking-metric { border-left: 4px solid var(--primary-color); }
         
         .tabs-container {
             max-width: 1400px;
@@ -140,8 +141,23 @@
             border: 1px solid var(--border-color);
             border-top: none;
             border-radius: 0 0 12px 12px;
-            padding: 2rem;
-            min-height: 600px;
+            padding: 1.5rem;
+            min-height: auto;
+        }
+        
+        .tab-panel {
+            margin: 0;
+            padding: 0;
+        }
+        
+        .tab-panel h2 {
+            margin-top: 0;
+            margin-bottom: 0.5rem;
+        }
+        
+        .tab-panel p {
+            margin-top: 0;
+            margin-bottom: 1rem;
         }
         
         .chart-container {
@@ -919,7 +935,7 @@
             <div class="progress-fill" style="width: {{cpu_usage}}%"></div>
         </div>
         <div style="font-size: 0.85rem; margin-top: 0.5rem;">
-            Peak: {{cpu_peak}}% | Cores: {{cpu_cores_count}}
+            Peak: {{cpu_peak}}% | Cores: {{cpu_cores_count}} cores
         </div>
     </div>
     
@@ -965,6 +981,21 @@
         </div>
         <div style="font-size: 0.85rem; margin-top: 0.5rem;">
             Bottleneck: {{bottleneck_type}}
+        </div>
+    </div>
+    
+    <div class="resource-card thread-tracking-metric">
+        <div class="card-header">
+            <span class="card-icon">🧵</span>
+            Thread Tracking
+        </div>
+        <div class="metric-value">{{active_tracked_threads}}</div>
+        <div class="metric-label">Active Threads</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: {{thread_progress_percentage}}%"></div>
+        </div>
+        <div style="font-size: 0.85rem; margin-top: 0.5rem;">
+            Allocations: {{total_allocations}} | Peak: {{total_peak_memory}} MB
         </div>
     </div>
     </div>
@@ -1024,19 +1055,6 @@
             </div>
         </div>
         
-        <div class="thread-summary">
-            <div class="summary-card tracked">
-                <h3>🟢 {{tracked_threads_description}}</h3>
-                <div class="summary-stats">
-    
-                    <p><strong>Active Tracked Threads:</strong> {{active_tracked_threads}} threads</p>
-                    <p><strong>Total Allocations:</strong> {{total_allocations}} operations</p>
-                    <p><strong>Total Peak Memory:</strong> {{total_peak_memory}} MB</p>
-                    <p><strong>Average per Thread:</strong> {{avg_allocations_per_thread}} allocations</p>
-                    <p><strong>Memory Range:</strong> Dynamic based on actual usage</p>
-                </div>
-            </div>
-        </div>
     </div>
     
     <div id="thread-details" class="tab-panel hidden">
@@ -1111,10 +1129,9 @@
             <div class="timeline-stats">
                 <div class="stat-card">
                     <h4>📊 Timeline Overview</h4>
-    
                     <p><strong>Total Samples:</strong> {{total_samples}} samples</p>
-                    <p><strong>Sampling Rate:</strong> {{sampling_rate}}Hz ({{sampling_interval}}ms intervals)</p>
-                    <p><strong>Duration:</strong> {{test_duration}} seconds</p>
+                    <p><strong>Sampling Rate:</strong> {{sampling_rate}}Hz</p>
+                    <p><strong>Duration:</strong> {{analysis_duration}}</p>
                 </div>
             </div>
             
@@ -1211,7 +1228,7 @@
                         <div class="metric-label">I/O Efficiency</div>
                     </div>
                     <div class="metric-card">
-                        <div class="metric-value">Well {{bottleneck_type}}</div>
+                        <div class="metric-value">{{bottleneck_type}}</div>
                         <div class="metric-label">Primary Bottleneck</div>
                     </div>
                 </div>
