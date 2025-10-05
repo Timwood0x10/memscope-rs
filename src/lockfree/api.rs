@@ -3,6 +3,8 @@
 //! Provides simple, high-level interfaces for lockfree memory tracking.
 //! Designed for minimal friction and maximum usability.
 
+use tracing::info;
+
 use super::aggregator::LockfreeAggregator;
 use super::tracker::{finalize_thread_tracker, init_thread_tracker, SamplingConfig};
 use std::path::Path;
@@ -324,6 +326,9 @@ fn generate_reports(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>>
     let json_path = output_dir.join("memory_data.json");
     aggregator.export_analysis(&analysis, &json_path)?;
 
+    // Clean up intermediate files for a cleaner output directory
+    cleanup_intermediate_files_api(output_dir)?;
+
     // Print summary statistics
     print_analysis_summary(&analysis);
 
@@ -356,6 +361,41 @@ fn print_analysis_summary(analysis: &super::analysis::LockfreeAnalysis) {
             * 100.0;
         println!("   ⚡ Memory efficiency: {:.1}%", efficiency);
     }
+}
+
+/// Clean up intermediate binary files in API context
+///
+/// Removes .bin and .freq files to keep the output directory clean.
+/// Called automatically after generating reports.
+fn cleanup_intermediate_files_api(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    let mut cleaned_count = 0;
+
+    // Look for intermediate files
+    if let Ok(entries) = std::fs::read_dir(output_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if let Some(file_name) = path.file_name() {
+                if let Some(name_str) = file_name.to_str() {
+                    // Match intermediate binary and frequency files
+                    if (name_str.starts_with("memscope_thread_")
+                        && (name_str.ends_with(".bin") || name_str.ends_with(".freq")))
+                        || (name_str.starts_with("thread_") && name_str.ends_with(".bin"))
+                    {
+                        // Remove the intermediate file
+                        if std::fs::remove_file(&path).is_ok() {
+                            cleaned_count += 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if cleaned_count > 0 {
+        info!("Cleaned {} intermediate tracking files", cleaned_count);
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]

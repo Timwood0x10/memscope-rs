@@ -490,8 +490,8 @@ impl AsyncResourceMonitor {
 
         MemoryMetrics {
             allocated_bytes: base_size + (elapsed * 512_000.0) as u64, // Much smaller growth
-            peak_bytes: base_size + (elapsed * 768_000.0) as u64, // 1.5x growth
-            current_bytes: base_size + (elapsed * 409_600.0) as u64, // 0.8x growth
+            peak_bytes: base_size + (elapsed * 768_000.0) as u64,      // 1.5x growth
+            current_bytes: base_size + (elapsed * 409_600.0) as u64,   // 0.8x growth
             allocation_count: (elapsed * 100.0) as u64 + task_id as u64,
             deallocation_count: (elapsed * 80.0) as u64 + task_id as u64 / 2,
             page_faults: (elapsed * 50.0) as u64,

@@ -19,20 +19,20 @@ struct DashboardData {
     memory_efficiency: f32,
     system_efficiency: f32,
     bottleneck_type: String,
-    
+
     // Thread Data
     thread_count: usize,
     active_tracked_threads: usize,
     total_peak_memory: String,
     avg_allocations_per_thread: u64,
     threads: Vec<ThreadData>,
-    
+
     // Performance Data
     top_performing_threads: Vec<ThreadPerformanceData>,
     memory_allocation_patterns: Vec<ThreadAllocationPattern>,
     resource_samples: Vec<ResourceSample>,
     cpu_cores_data: Vec<CpuCoreData>,
-    
+
     // Analysis Data
     thread_details: Vec<ThreadDetailData>,
     timeline_chart_data: String,
@@ -40,13 +40,13 @@ struct DashboardData {
     analysis_duration: String,
     peak_time: String,
     avg_cpu_usage: f32,
-    
+
     // Additional System Summary data
     peak_cpu_usage: f32,
     cpu_efficiency: f32,
     io_efficiency: f32,
     tracked_threads_count: usize,
-    
+
     // Summary Data
     total_threads: usize,
     tracked_threads: usize,
@@ -59,7 +59,7 @@ struct DashboardData {
     tracking_verification_message: String,
 }
 
-#[derive(Serialize, Debug   ,Clone)]
+#[derive(Serialize, Debug, Clone)]
 struct ThreadData {
     id: u32,
     alert_level: String,
@@ -144,20 +144,20 @@ fn render_template_with_data(
     comprehensive_analysis: &ComprehensiveAnalysis,
 ) -> Result<String, Box<dyn std::error::Error>> {
     use handlebars::Handlebars;
-    
+
     // Read template
     let template_content = std::fs::read_to_string("templates/multithread_template.html")?;
-    
+
     // Create Handlebars engine
     let mut handlebars = Handlebars::new();
     handlebars.register_template_string("dashboard", template_content)?;
-    
+
     // Build data from real analysis
     let dashboard_data = extract_template_data(comprehensive_analysis)?;
-    
+
     // Render
     let rendered = handlebars.render("dashboard", &dashboard_data)?;
-    
+
     Ok(rendered)
 }
 
@@ -172,25 +172,25 @@ fn extract_template_data(
     // Calculate system metrics from real data
     let (avg_cpu, max_cpu, cpu_cores_count) = calculate_cpu_metrics(resource_timeline);
     let avg_gpu = calculate_gpu_metrics(resource_timeline);
-    
+
     // Build threads data from analysis.thread_stats
     let threads_data = build_threads_data(&analysis.thread_stats);
-    
+
     // Build resource samples from timeline
     let resource_samples = build_resource_samples(resource_timeline);
-    
+
     // Build CPU cores data
     let cpu_cores_data = build_cpu_cores_data(resource_timeline, cpu_cores_count);
-    
+
     // Build performance rankings
     let top_performing_threads = build_performance_rankings(&threads_data);
-    
+
     // Build allocation patterns
     let memory_allocation_patterns = build_allocation_patterns(&threads_data);
-    
+
     // Build thread details
     let thread_details = build_thread_details(&threads_data);
-    
+
     // Build chart data
     let timeline_chart_data = build_chart_data(&resource_samples)?;
 
@@ -200,28 +200,42 @@ fn extract_template_data(
         cpu_peak: max_cpu,
         cpu_cores: cpu_cores_count,
         gpu_usage: avg_gpu,
-        gpu_status: if avg_gpu > 0.0 { "Active".to_string() } else { "Idle/Not Available".to_string() },
+        gpu_status: if avg_gpu > 0.0 {
+            "Active".to_string()
+        } else {
+            "Idle/Not Available".to_string()
+        },
         total_allocations: analysis.summary.total_allocations,
-        peak_memory: format!("{:.1} MB", analysis.summary.peak_memory_usage as f32 / 1024.0 / 1024.0),
+        peak_memory: format!(
+            "{:.1} MB",
+            analysis.summary.peak_memory_usage as f32 / 1024.0 / 1024.0
+        ),
         memory_efficiency: performance_insights.memory_efficiency_score,
-        system_efficiency: (performance_insights.cpu_efficiency_score + performance_insights.memory_efficiency_score) / 2.0,
+        system_efficiency: (performance_insights.cpu_efficiency_score
+            + performance_insights.memory_efficiency_score)
+            / 2.0,
         bottleneck_type: format!("{:?}", performance_insights.primary_bottleneck),
-        
+
         // Thread Data
         thread_count: threads_data.len(),
         active_tracked_threads: threads_data.len(),
-        total_peak_memory: format!("{:.1}", analysis.summary.peak_memory_usage as f32 / 1024.0 / 1024.0),
-        avg_allocations_per_thread: if !threads_data.is_empty() { 
-            analysis.summary.total_allocations / threads_data.len() as u64 
-        } else { 0 },
+        total_peak_memory: format!(
+            "{:.1}",
+            analysis.summary.peak_memory_usage as f32 / 1024.0 / 1024.0
+        ),
+        avg_allocations_per_thread: if !threads_data.is_empty() {
+            analysis.summary.total_allocations / threads_data.len() as u64
+        } else {
+            0
+        },
         threads: threads_data.clone(),
-        
+
         // Performance Data
         top_performing_threads,
         memory_allocation_patterns,
         resource_samples: resource_samples.clone(),
         cpu_cores_data,
-        
+
         // Analysis Data
         thread_details,
         timeline_chart_data,
@@ -229,23 +243,27 @@ fn extract_template_data(
         analysis_duration: format!("{:.2}s", resource_samples.len() as f32 * 0.1),
         peak_time: "T+1.5s".to_string(),
         avg_cpu_usage: avg_cpu,
-        
+
         // Additional System Summary data
         peak_cpu_usage: max_cpu,
         cpu_efficiency: performance_insights.cpu_efficiency_score,
         io_efficiency: performance_insights.io_efficiency_score,
         tracked_threads_count: threads_data.len(),
-        
+
         // Summary Data
         total_threads: threads_data.len() * 2, // Assume some untracked
         tracked_threads: threads_data.len(),
         untracked_threads: threads_data.len(),
-        thread_progress_percentage: (threads_data.len() as f32 / (threads_data.len() * 2) as f32 * 100.0).min(100.0),
+        thread_progress_percentage: (threads_data.len() as f32 / (threads_data.len() * 2) as f32
+            * 100.0)
+            .min(100.0),
         resource_samples_count: resource_samples.len(),
         sampling_rate: 10,
-        system_status_message: "System performance remained stable during multi-thread execution".to_string(),
+        system_status_message: "System performance remained stable during multi-thread execution"
+            .to_string(),
         recommendations: performance_insights.recommendations.clone(),
-        tracking_verification_message: "Selective tracking verified: All active threads tracked".to_string(),
+        tracking_verification_message: "Selective tracking verified: All active threads tracked"
+            .to_string(),
     })
 }
 
@@ -253,22 +271,23 @@ fn calculate_cpu_metrics(resource_timeline: &[PlatformResourceMetrics]) -> (f32,
     if resource_timeline.is_empty() {
         return (25.0, 35.0, 8); // Default values
     }
-    
+
     let avg_cpu = resource_timeline
         .iter()
         .map(|r| r.cpu_metrics.overall_usage_percent)
-        .sum::<f32>() / resource_timeline.len() as f32;
-        
+        .sum::<f32>()
+        / resource_timeline.len() as f32;
+
     let max_cpu = resource_timeline
         .iter()
         .map(|r| r.cpu_metrics.overall_usage_percent)
         .fold(0.0f32, |a, b| a.max(b));
-        
+
     let cpu_cores_count = resource_timeline
         .first()
         .map(|r| r.cpu_metrics.per_core_usage.len())
         .unwrap_or(8);
-        
+
     (avg_cpu, max_cpu, cpu_cores_count)
 }
 
@@ -276,13 +295,13 @@ fn calculate_gpu_metrics(resource_timeline: &[PlatformResourceMetrics]) -> f32 {
     if resource_timeline.is_empty() {
         return 0.0;
     }
-    
+
     let gpu_samples: Vec<f32> = resource_timeline
         .iter()
         .filter_map(|r| r.gpu_metrics.as_ref())
         .map(|g| g.compute_usage_percent)
         .collect();
-        
+
     if gpu_samples.is_empty() {
         0.0
     } else {
@@ -290,15 +309,17 @@ fn calculate_gpu_metrics(resource_timeline: &[PlatformResourceMetrics]) -> f32 {
     }
 }
 
-fn build_threads_data(thread_stats: &std::collections::HashMap<u64, super::analysis::ThreadStats>) -> Vec<ThreadData> {
+fn build_threads_data(
+    thread_stats: &std::collections::HashMap<u64, super::analysis::ThreadStats>,
+) -> Vec<ThreadData> {
     let mut threads = Vec::new();
     let mut thread_counter = 1u32;
-    
-    for (_thread_id, stats) in thread_stats {
+
+    for stats in thread_stats.values() {
         let role = classify_thread_role(stats);
         let (role_icon, role_name) = get_role_display(&role);
         let alert_level = determine_alert_level(stats);
-        
+
         threads.push(ThreadData {
             id: thread_counter,
             alert_level,
@@ -311,10 +332,10 @@ fn build_threads_data(thread_stats: &std::collections::HashMap<u64, super::analy
             cpu_usage_formatted: format!("{:.1}", (5.0 + (thread_counter as f32 * 0.3) % 3.0)),
             io_operations: 1000 + (thread_counter as usize * 22),
         });
-        
+
         thread_counter += 1;
     }
-    
+
     // If no real data, create sample data
     if threads.is_empty() {
         for i in 1..=10 {
@@ -336,7 +357,7 @@ fn build_threads_data(thread_stats: &std::collections::HashMap<u64, super::analy
             });
         }
     }
-    
+
     threads
 }
 
@@ -350,23 +371,32 @@ fn build_resource_samples(resource_timeline: &[PlatformResourceMetrics]) -> Vec<
                 timestamp: format!("T+{:.1}s", i as f32 * 0.1),
                 memory_usage: 100.0 + i as f32 * 5.0, // Mock for now
                 cpu_usage: sample.cpu_metrics.overall_usage_percent,
-                gpu_usage: sample.gpu_metrics.as_ref().map(|g| g.compute_usage_percent).unwrap_or(0.0),
+                gpu_usage: sample
+                    .gpu_metrics
+                    .as_ref()
+                    .map(|g| g.compute_usage_percent)
+                    .unwrap_or(0.0),
                 io_operations: 1000 + i * 22,
             })
             .collect()
     } else {
-        (0..31).map(|i| ResourceSample {
-            sample_id: i + 1,
-            timestamp: format!("T+{:.1}s", i as f32 * 0.1),
-            memory_usage: 100.0 + i as f32 * 5.0,
-            cpu_usage: 20.0 + (i as f32 * 2.0) % 15.0,
-            gpu_usage: 0.0,
-            io_operations: 1000 + i * 22,
-        }).collect()
+        (0..31)
+            .map(|i| ResourceSample {
+                sample_id: i + 1,
+                timestamp: format!("T+{:.1}s", i as f32 * 0.1),
+                memory_usage: 100.0 + i as f32 * 5.0,
+                cpu_usage: 20.0 + (i as f32 * 2.0) % 15.0,
+                gpu_usage: 0.0,
+                io_operations: 1000 + i * 22,
+            })
+            .collect()
     }
 }
 
-fn build_cpu_cores_data(resource_timeline: &[PlatformResourceMetrics], cpu_cores_count: usize) -> Vec<CpuCoreData> {
+fn build_cpu_cores_data(
+    resource_timeline: &[PlatformResourceMetrics],
+    cpu_cores_count: usize,
+) -> Vec<CpuCoreData> {
     if let Some(first_sample) = resource_timeline.first() {
         first_sample
             .cpu_metrics
@@ -380,11 +410,13 @@ fn build_cpu_cores_data(resource_timeline: &[PlatformResourceMetrics], cpu_cores
             })
             .collect()
     } else {
-        (0..cpu_cores_count).map(|i| CpuCoreData {
-            core_id: i,
-            usage: ((15.0 + (i as f32 * 3.0) % 25.0) * 100.0).round() / 100.0,
-            usage_formatted: format!("{:.1}", 15.0 + (i as f32 * 3.0) % 25.0),
-        }).collect()
+        (0..cpu_cores_count)
+            .map(|i| CpuCoreData {
+                core_id: i,
+                usage: ((15.0 + (i as f32 * 3.0) % 25.0) * 100.0).round() / 100.0,
+                usage_formatted: format!("{:.1}", 15.0 + (i as f32 * 3.0) % 25.0),
+            })
+            .collect()
     }
 }
 
@@ -406,68 +438,86 @@ fn build_performance_rankings(threads_data: &[ThreadData]) -> Vec<ThreadPerforma
             gpu_usage: 0.0,
         })
         .collect();
-    
+
     rankings.sort_by(|a, b| b.efficiency_score.partial_cmp(&a.efficiency_score).unwrap());
     rankings.truncate(10);
     rankings
 }
 
 fn build_allocation_patterns(threads_data: &[ThreadData]) -> Vec<ThreadAllocationPattern> {
-    threads_data.iter().map(|t| ThreadAllocationPattern {
-        thread_id: t.id,
-        allocations: t.allocations,
-        bar_width: (t.allocations as f32 / 2000.0 * 100.0).min(100.0),
-        peak_memory: format!("{:.1}", t.id as f32 * 2.5),
-        avg_size: format!("{:.1}", 1.5 + (t.id as f32 * 0.3)),
-        efficiency: format!("{:.1}", 75.0 - (t.id as f32 * 3.0)),
-        thread_type: match t.id % 4 {
-            0 => "FFT".to_string(),
-            1 => "ECC".to_string(),
-            2 => "Mixed".to_string(),
-            _ => "Stress".to_string(),
-        },
-        small_percent: 40.0 + (t.id as f32 * 2.0),
-        medium_percent: 35.0 + (t.id as f32 * 1.5),
-        large_percent: 25.0 - (t.id as f32 * 0.5),
-        small_count: 500 + (t.id as usize * 10),
-        medium_count: 300 + (t.id as usize * 8),
-        large_count: 100 + (t.id as usize * 5),
-        trend_icon: if t.id % 3 == 0 { "📈" } else if t.id % 3 == 1 { "📊" } else { "🔄" }.to_string(),
-        trend_description: match t.id % 3 {
-            0 => "Increasing allocation frequency".to_string(),
-            1 => "Stable memory usage pattern".to_string(),
-            _ => "Variable allocation sizes".to_string(),
-        },
-    }).collect()
+    threads_data
+        .iter()
+        .map(|t| ThreadAllocationPattern {
+            thread_id: t.id,
+            allocations: t.allocations,
+            bar_width: (t.allocations as f32 / 2000.0 * 100.0).min(100.0),
+            peak_memory: format!("{:.1}", t.id as f32 * 2.5),
+            avg_size: format!("{:.1}", 1.5 + (t.id as f32 * 0.3)),
+            efficiency: format!("{:.1}", 75.0 - (t.id as f32 * 3.0)),
+            thread_type: match t.id % 4 {
+                0 => "FFT".to_string(),
+                1 => "ECC".to_string(),
+                2 => "Mixed".to_string(),
+                _ => "Stress".to_string(),
+            },
+            small_percent: 40.0 + (t.id as f32 * 2.0),
+            medium_percent: 35.0 + (t.id as f32 * 1.5),
+            large_percent: 25.0 - (t.id as f32 * 0.5),
+            small_count: 500 + (t.id as usize * 10),
+            medium_count: 300 + (t.id as usize * 8),
+            large_count: 100 + (t.id as usize * 5),
+            trend_icon: if t.id % 3 == 0 {
+                "📈"
+            } else if t.id % 3 == 1 {
+                "📊"
+            } else {
+                "🔄"
+            }
+            .to_string(),
+            trend_description: match t.id % 3 {
+                0 => "Increasing allocation frequency".to_string(),
+                1 => "Stable memory usage pattern".to_string(),
+                _ => "Variable allocation sizes".to_string(),
+            },
+        })
+        .collect()
 }
 
 fn build_thread_details(threads_data: &[ThreadData]) -> Vec<ThreadDetailData> {
-    threads_data.iter().map(|t| ThreadDetailData {
-        id: t.id,
-        status: "Active".to_string(),
-        total_allocations: t.allocations,
-        peak_memory: t.peak_memory.clone(),
-        current_memory: format!("{:.1}", t.allocations as f32 / 1000.0),
-    }).collect()
+    threads_data
+        .iter()
+        .map(|t| ThreadDetailData {
+            id: t.id,
+            status: "Active".to_string(),
+            total_allocations: t.allocations,
+            peak_memory: t.peak_memory.clone(),
+            current_memory: format!("{:.1}", t.allocations as f32 / 1000.0),
+        })
+        .collect()
 }
 
-fn build_chart_data(resource_samples: &[ResourceSample]) -> Result<String, Box<dyn std::error::Error>> {
-    let labels: Vec<String> = resource_samples.iter().map(|s| s.timestamp.clone()).collect();
+fn build_chart_data(
+    resource_samples: &[ResourceSample],
+) -> Result<String, Box<dyn std::error::Error>> {
+    let labels: Vec<String> = resource_samples
+        .iter()
+        .map(|s| s.timestamp.clone())
+        .collect();
     let memory_data: Vec<f32> = resource_samples.iter().map(|s| s.memory_usage).collect();
     let cpu_data: Vec<f32> = resource_samples.iter().map(|s| s.cpu_usage).collect();
-    
+
     let chart_data = serde_json::json!({
         "labels": labels,
         "memory": memory_data,
         "cpu": cpu_data
     });
-    
+
     Ok(chart_data.to_string())
 }
 
 fn classify_thread_role(thread_stats: &super::analysis::ThreadStats) -> String {
     let alloc_rate = thread_stats.total_allocations as f32 / thread_stats.peak_memory.max(1) as f32;
-    
+
     if thread_stats.peak_memory > 10 * 1024 * 1024 {
         "memory-intensive".to_string()
     } else if alloc_rate > 0.1 {

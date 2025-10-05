@@ -7,6 +7,7 @@ use super::visualizer::generate_comprehensive_html_report;
 // Comprehensive export functionality
 use serde_json::{json, Value};
 use std::path::Path;
+use tracing::{debug, info, trace, warn};
 
 /// Export comprehensive analysis to multiple formats
 pub fn export_comprehensive_analysis(
@@ -34,10 +35,13 @@ pub fn export_comprehensive_analysis(
         &output_dir.join(format!("{}_resource_rankings.json", base_name)),
     )?;
 
-    println!("📊 Comprehensive analysis exported to:");
-    println!("   📄 JSON: {}_comprehensive.json", base_name);
-    println!("   🌐 HTML: {}_dashboard.html", base_name);
-    println!("   📈 Rankings: {}_resource_rankings.json", base_name);
+    info!("📊 Comprehensive analysis exported to:");
+    info!("   📄 JSON: {}_comprehensive.json", base_name);
+    info!("   🌐 HTML: {}_dashboard.html", base_name);
+    info!("   📈 Rankings: {}_resource_rankings.json", base_name);
+
+    // Clean up intermediate binary files for a cleaner output directory
+    cleanup_intermediate_files(output_dir)?;
 
     Ok(())
 }
@@ -414,6 +418,65 @@ fn compute_detailed_resource_rankings(
         },
         "performance_insights": insights_summary
     }))
+}
+
+/// Clean up intermediate binary files generated during lockfree tracking
+///
+/// Removes .bin and .freq files to keep the output directory clean and organized.
+/// Only keeps the final analysis reports (JSON and HTML files).
+fn cleanup_intermediate_files(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    debug!(
+        "🧹 Cleaning up intermediate files in {}",
+        output_dir.display()
+    );
+
+    let mut cleaned_count = 0;
+    let mut cleaned_size = 0u64;
+
+    // Look for intermediate files with patterns: memscope_thread_*.bin and memscope_thread_*.freq
+    if let Ok(entries) = std::fs::read_dir(output_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if let Some(file_name) = path.file_name() {
+                if let Some(name_str) = file_name.to_str() {
+                    // Match intermediate binary and frequency files
+                    if (name_str.starts_with("memscope_thread_")
+                        && (name_str.ends_with(".bin") || name_str.ends_with(".freq")))
+                        || (name_str.starts_with("thread_") && name_str.ends_with(".bin"))
+                    {
+                        // Get file size before deletion for reporting
+                        if let Ok(metadata) = path.metadata() {
+                            cleaned_size += metadata.len();
+                        }
+
+                        // Remove the intermediate file
+                        if let Err(e) = std::fs::remove_file(&path) {
+                            warn!(
+                                "Failed to remove intermediate file {}: {}",
+                                path.display(),
+                                e
+                            );
+                        } else {
+                            trace!("Removed intermediate file: {}", name_str);
+                            cleaned_count += 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if cleaned_count > 0 {
+        info!(
+            "Cleaned {} intermediate files ({:.1} KB) - output directory organized",
+            cleaned_count,
+            cleaned_size as f64 / 1024.0
+        );
+    } else {
+        debug!("No intermediate files found - directory already clean");
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
