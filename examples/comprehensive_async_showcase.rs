@@ -643,7 +643,6 @@ async fn generate_advanced_html_report(
         mon.get_all_profiles().clone()
     };
 
-    // 使用内置的VisualizationGenerator生成HTML报告
     let viz_generator = VisualizationGenerator::new();
     let html_content = viz_generator.generate_html_report(&profiles)?;
     tokio::fs::write("comprehensive_async_dashboard.html", html_content).await?;

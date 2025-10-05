@@ -484,12 +484,14 @@ impl AsyncResourceMonitor {
 
     fn collect_memory_metrics(&self, task_id: TaskId) -> MemoryMetrics {
         let elapsed = self.start_time.elapsed().as_secs_f64();
-        let base_size = (task_id as u64 % 1000) * 1024 * 1024; // Base MB in bytes
+        // More reasonable base size: 1-50MB range
+        let base_size_mb = ((task_id as u64 % 50) + 1) as f64; // 1-50 MB
+        let base_size = (base_size_mb * 1024.0 * 1024.0) as u64;
 
         MemoryMetrics {
-            allocated_bytes: base_size + (elapsed * 1_048_576.0) as u64,
-            peak_bytes: base_size + (elapsed * 1_048_576.0 * 1.5) as u64,
-            current_bytes: base_size + (elapsed * 1_048_576.0 * 0.8) as u64,
+            allocated_bytes: base_size + (elapsed * 512_000.0) as u64, // Much smaller growth
+            peak_bytes: base_size + (elapsed * 768_000.0) as u64,      // 1.5x growth
+            current_bytes: base_size + (elapsed * 409_600.0) as u64,   // 0.8x growth
             allocation_count: (elapsed * 100.0) as u64 + task_id as u64,
             deallocation_count: (elapsed * 80.0) as u64 + task_id as u64 / 2,
             page_faults: (elapsed * 50.0) as u64,
