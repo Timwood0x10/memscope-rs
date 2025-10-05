@@ -1,6 +1,5 @@
 //! Clean HTML Visualizer implementation based on API-Template mapping
 
-use super::analysis::LockfreeAnalysis;
 use super::platform_resources::PlatformResourceMetrics;
 use super::resource_integration::ComprehensiveAnalysis;
 use serde::Serialize;
