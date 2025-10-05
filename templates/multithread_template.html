@@ -935,7 +935,7 @@
             <div class="progress-fill" style="width: {{cpu_usage}}%"></div>
         </div>
         <div style="font-size: 0.85rem; margin-top: 0.5rem;">
-            Peak: {{cpu_peak}}% | Cores: {{cpu_cores_count}} cores
+            Peak: {{cpu_peak}}% | Cores: {{cpu_cores}}
         </div>
     </div>
     
@@ -1096,7 +1096,7 @@
                 <h3>💾 Memory Allocation Patterns</h3>
                 <div class="pattern-grid">
 
-                    {{#each memory_patterns}}
+                    {{#each memory_allocation_patterns}}
                     <div class="pattern-card">
                         <h4>Thread {{thread_id}}</h4>
                         <div class="pattern-stats">
@@ -1170,9 +1170,9 @@
                 <h3>🔥 Per-Core CPU Usage (Latest Sample)</h3>
                 <div class="core-grid">
     
-                    {{#each cpu_cores}}
-                    <div class="core-card {{level}}">
-                        <div class="core-id">{{name}}</div>
+                    {{#each cpu_cores_data}}
+                    <div class="core-card">
+                        <div class="core-id">Core {{core_id}}</div>
                         <div class="core-usage">{{usage}}%</div>
                         <div class="core-bar">
                             <div class="core-fill" style="width: {{usage}}%"></div>
@@ -1202,7 +1202,7 @@
                         <div class="metric-label">Peak CPU Usage</div>
                     </div>
                     <div class="metric-card">
-                        <div class="metric-value">{{cpu_cores_count}}</div>
+                        <div class="metric-value">{{cpu_cores}}</div>
                         <div class="metric-label">CPU Cores</div>
                     </div>
                     <div class="metric-card">
