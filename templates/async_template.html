@@ -1,0 +1,1763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🦀 {{title}} - Rust Async Performance Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    <style>
+        :root {
+            --rust-orange: #ff6b35;
+            --rust-brown: #8b4513;
+            --async-blue: #4c9aff;
+            --async-cyan: #00d9ff;
+            --async-purple: #8b5cf6;
+            --success-green: #10b981;
+            --warning-yellow: #f59e0b;
+            --error-red: #ef4444;
+            --dark-bg: #0c0c0c;
+            --card-bg: #1a1a1a;
+            --surface-bg: #262626;
+            --text-primary: #ffffff;
+            --text-secondary: #a3a3a3;
+            --border-color: #404040;
+            --glow-rust: rgba(255, 107, 53, 0.3);
+            --glow-async: rgba(76, 154, 255, 0.3);
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Consolas', monospace;
+            background: linear-gradient(135deg, var(--dark-bg) 0%, #111111 50%, var(--dark-bg) 100%);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        
+        /* Rust-themed animated background */
+        .rust-bg-pattern {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            background-image: 
+                radial-gradient(circle at 25% 25%, var(--glow-rust) 0%, transparent 50%),
+                radial-gradient(circle at 75% 75%, var(--glow-async) 0%, transparent 50%),
+                radial-gradient(circle at 50% 10%, rgba(139, 92, 246, 0.1) 0%, transparent 50%);
+            animation: rustFlow 30s ease-in-out infinite;
+        }
+        
+        @keyframes rustFlow {
+            0%, 100% { transform: translateY(0px) rotate(0deg); opacity: 0.7; }
+            25% { transform: translateY(-10px) rotate(0.5deg); opacity: 0.9; }
+            50% { transform: translateY(-5px) rotate(-0.5deg); opacity: 0.8; }
+            75% { transform: translateY(-15px) rotate(0.3deg); opacity: 0.6; }
+        }
+        
+        .dashboard-container {
+            max-width: 1800px;
+            margin: 0 auto;
+            padding: 20px;
+            position: relative;
+        }
+        
+        /* Enhanced Rust-themed header */
+        .rust-header {
+            background: linear-gradient(135deg, var(--rust-orange), var(--rust-brown), var(--async-blue));
+            padding: 3rem 2rem;
+            text-align: center;
+            border-radius: 20px;
+            margin-bottom: 3rem;
+            box-shadow: 0 20px 60px var(--glow-rust), inset 0 1px 0 rgba(255,255,255,0.1);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .rust-header::before {
+            content: '🦀';
+            position: absolute;
+            top: 20px;
+            left: 30px;
+            font-size: 3rem;
+            opacity: 0.3;
+            animation: rustCrab 5s ease-in-out infinite;
+        }
+        
+        .rust-header::after {
+            content: '⚡';
+            position: absolute;
+            top: 20px;
+            right: 30px;
+            font-size: 3rem;
+            opacity: 0.3;
+            animation: asyncBolt 3s ease-in-out infinite;
+        }
+        
+        @keyframes rustCrab {
+            0%, 100% { transform: translateX(0px) rotate(0deg); }
+            50% { transform: translateX(10px) rotate(5deg); }
+        }
+        
+        @keyframes asyncBolt {
+            0%, 100% { transform: scale(1); opacity: 0.3; }
+            50% { transform: scale(1.1); opacity: 0.6; }
+        }
+        
+        .rust-title {
+            font-size: 3.5rem;
+            font-weight: 800;
+            margin-bottom: 1rem;
+            background: linear-gradient(45deg, #ffffff, var(--async-cyan), var(--rust-orange));
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 30px rgba(255, 107, 53, 0.5);
+            position: relative;
+            z-index: 1;
+        }
+        
+        .rust-subtitle {
+            font-size: 1.3rem;
+            opacity: 0.9;
+            font-weight: 400;
+            position: relative;
+            z-index: 1;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+        }
+        
+        /* Performance metrics grid */
+        .performance-metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+        
+        .metric-card {
+            background: var(--card-bg);
+            border: 2px solid var(--border-color);
+            border-radius: 16px;
+            padding: 2rem;
+            position: relative;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            overflow: hidden;
+        }
+        
+        .metric-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: var(--metric-color, linear-gradient(90deg, var(--rust-orange), var(--async-blue)));
+        }
+        
+        .metric-card:hover {
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 25px 80px var(--metric-glow, var(--glow-rust));
+            border-color: var(--metric-border, var(--rust-orange));
+        }
+        
+        .metric-icon {
+            font-size: 2.8rem;
+            margin-bottom: 1rem;
+            display: block;
+            filter: drop-shadow(0 0 10px currentColor);
+        }
+        
+        .metric-value {
+            font-size: 2.8rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(45deg, var(--metric-color, var(--rust-orange)), var(--async-cyan));
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .metric-label {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            font-weight: 600;
+        }
+        
+        .metric-details {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border-color);
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+        
+        /* Task type specific colors */
+        .cpu-intensive { --metric-color: #ef4444; --metric-glow: rgba(239, 68, 68, 0.3); --metric-border: #ef4444; }
+        .memory-intensive { --metric-color: #8b5cf6; --metric-glow: rgba(139, 92, 246, 0.3); --metric-border: #8b5cf6; }
+        .io-intensive { --metric-color: #10b981; --metric-glow: rgba(16, 185, 129, 0.3); --metric-border: #10b981; }
+        .network-intensive { --metric-color: #f59e0b; --metric-glow: rgba(245, 158, 11, 0.3); --metric-border: #f59e0b; }
+        .gpu-compute { --metric-color: #ec4899; --metric-glow: rgba(236, 72, 153, 0.3); --metric-border: #ec4899; }
+        .mixed { --metric-color: #6366f1; --metric-glow: rgba(99, 102, 241, 0.3); --metric-border: #6366f1; }
+        .streaming { --metric-color: #14b8a6; --metric-glow: rgba(20, 184, 166, 0.3); --metric-border: #14b8a6; }
+        .background { --metric-color: #64748b; --metric-glow: rgba(100, 116, 139, 0.3); --metric-border: #64748b; }
+        
+        /* Task Flow Section */
+        .async-task-flow {
+            background: var(--card-bg);
+            border-radius: 20px;
+            padding: 2rem;
+            margin-bottom: 3rem;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        
+        .flow-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 3rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid var(--border-color);
+        }
+        
+        .flow-title {
+            font-size: 2rem;
+            font-weight: 700;
+            background: linear-gradient(45deg, var(--rust-orange), var(--async-blue));
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .flow-stats {
+            display: flex;
+            gap: 2rem;
+            flex-wrap: wrap;
+        }
+        
+        .stat-item {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            background: var(--surface-bg);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+        
+        /* Task Categories */
+        .task-categories {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 2rem;
+        }
+        
+        .category-lane {
+            background: var(--surface-bg);
+            border-radius: 16px;
+            padding: 1.5rem;
+            border: 2px solid var(--border-color);
+            transition: all 0.3s ease;
+        }
+        
+        .category-lane:hover {
+            border-color: var(--metric-border);
+            box-shadow: 0 8px 32px var(--metric-glow);
+        }
+        
+        .lane-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .lane-icon {
+            font-size: 1.5rem;
+            filter: drop-shadow(0 0 8px currentColor);
+        }
+        
+        .lane-title {
+            font-weight: 600;
+            font-size: 1.1rem;
+            flex: 1;
+        }
+        
+        .lane-count {
+            background: var(--metric-color);
+            color: var(--dark-bg);
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 0.8rem;
+        }
+        
+        .lane-efficiency {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+        
+        /* Task Cards */
+        .tasks-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            max-height: 500px;
+            overflow-y: auto;
+            padding-right: 0.5rem;
+        }
+        
+        .tasks-container::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .tasks-container::-webkit-scrollbar-track {
+            background: var(--border-color);
+            border-radius: 3px;
+        }
+        
+        .tasks-container::-webkit-scrollbar-thumb {
+            background: var(--metric-color);
+            border-radius: 3px;
+        }
+        
+        .task-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid var(--border-color);
+            border-left: 4px solid var(--metric-color);
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .task-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(45deg, transparent 30%, var(--metric-glow) 50%, transparent 70%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .task-card:hover::before {
+            opacity: 1;
+        }
+        
+        .task-card:hover {
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 0 12px 40px var(--metric-glow);
+            border-color: var(--metric-color);
+        }
+        
+        .task-card.selected {
+            border-color: var(--rust-orange);
+            box-shadow: 0 0 20px var(--glow-rust);
+            transform: scale(1.05);
+        }
+        
+        .task-header {
+            margin-bottom: 1rem;
+        }
+        
+        .task-name {
+            font-weight: 600;
+            font-size: 1rem;
+            margin-bottom: 0.25rem;
+            color: var(--text-primary);
+        }
+        
+        .task-source {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            font-family: 'Courier New', monospace;
+            background: var(--surface-bg);
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            display: inline-block;
+        }
+        
+        .task-metrics {
+            margin-bottom: 1rem;
+        }
+        
+        .metric-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+            font-size: 0.85rem;
+        }
+        
+        .metric-label {
+            color: var(--text-secondary);
+            min-width: 80px;
+        }
+        
+        .metric-value {
+            font-weight: 600;
+            color: var(--text-primary);
+            min-width: 60px;
+            text-align: right;
+        }
+        
+        .metric-bar {
+            flex: 1;
+            height: 4px;
+            background: var(--border-color);
+            border-radius: 2px;
+            margin: 0 0.5rem;
+            overflow: hidden;
+        }
+        
+        .metric-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--metric-color), color-mix(in srgb, var(--metric-color) 70%, white));
+            border-radius: 2px;
+            transition: width 0.6s ease;
+        }
+        
+        .task-status {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.8rem;
+        }
+        
+        .status-badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .status-badge.completed {
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--success-green);
+            border: 1px solid var(--success-green);
+        }
+        
+        .status-badge.running {
+            background: rgba(76, 154, 255, 0.2);
+            color: var(--async-blue);
+            border: 1px solid var(--async-blue);
+        }
+        
+        .status-badge.pending {
+            background: rgba(245, 158, 11, 0.2);
+            color: var(--warning-yellow);
+            border: 1px solid var(--warning-yellow);
+        }
+        
+        .status-badge.failed {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--error-red);
+            border: 1px solid var(--error-red);
+        }
+        
+        .duration {
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+        
+        /* Responsive Design */
+        @media (max-width: 1200px) {
+            .task-categories {
+                grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            }
+            
+            .flow-header {
+                flex-direction: column;
+                gap: 1rem;
+                align-items: flex-start;
+            }
+            
+            .flow-stats {
+                gap: 1rem;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .task-categories {
+                grid-template-columns: 1fr;
+            }
+            
+            .performance-metrics {
+                grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            }
+            
+            .rust-title {
+                font-size: 2.5rem;
+            }
+            
+            .flow-stats {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+            
+            .lane-header {
+                flex-wrap: wrap;
+                gap: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="rust-bg-pattern"></div>
+    
+    <div class="dashboard-container">
+        <div class="rust-header">
+            <h1 class="rust-title">🦀 {{title}}</h1>
+            <p class="rust-subtitle">{{subtitle}}</p>
+        </div>
+        
+        <div class="performance-metrics">
+            <div class="metric-card">
+                <span class="metric-icon">🚀</span>
+                <div class="metric-value">{{total_tasks}}</div>
+                <div class="metric-label">Async Tasks</div>
+                <div class="metric-details">
+                    Active: {{active_tasks}} | Completed: {{completed_tasks}} | Failed: {{failed_tasks}}
+                </div>
+            </div>
+            
+            <div class="metric-card cpu-intensive">
+                <span class="metric-icon">🔥</span>
+                <div class="metric-value">{{cpu_usage_avg}}%</div>
+                <div class="metric-label">CPU Usage</div>
+                <div class="metric-details">
+                    Peak: {{cpu_usage_peak}}% | Cores: {{cpu_cores}} | Context Switches: {{context_switches}}
+                </div>
+            </div>
+            
+            <div class="metric-card memory-intensive">
+                <span class="metric-icon">💾</span>
+                <div class="metric-value">{{total_memory_mb}}MB</div>
+                <div class="metric-label">Memory Usage</div>
+                <div class="metric-details">
+                    Peak: {{peak_memory_mb}}MB | Allocations: {{total_allocations}} | Efficiency: {{memory_efficiency}}%
+                </div>
+            </div>
+            
+            <div class="metric-card io-intensive">
+                <span class="metric-icon">⚡</span>
+                <div class="metric-value">{{io_throughput}}MB/s</div>
+                <div class="metric-label">I/O Throughput</div>
+                <div class="metric-details">
+                    Read: {{total_read_mb}}MB | Write: {{total_write_mb}}MB | Ops: {{total_io_ops}}
+                </div>
+            </div>
+            
+            <div class="metric-card network-intensive">
+                <span class="metric-icon">🌐</span>
+                <div class="metric-value">{{network_throughput}}Mbps</div>
+                <div class="metric-label">Network Throughput</div>
+                <div class="metric-details">
+                    Sent: {{total_sent_mb}}MB | Received: {{total_received_mb}}MB | Latency: {{avg_latency}}ms
+                </div>
+            </div>
+            
+            <div class="metric-card">
+                <span class="metric-icon">⚖️</span>
+                <div class="metric-value">{{efficiency_score}}%</div>
+                <div class="metric-label">Overall Efficiency</div>
+                <div class="metric-details">
+                    Balance: {{resource_balance}}% | Bottlenecks: {{bottleneck_count}} | Optimization: {{optimization_potential}}%
+                </div>
+            </div>
+        </div>
+        
+        <!-- Task Flow Visualization with Rust Async characteristics -->
+        <div class="async-task-flow">
+            <div class="flow-header">
+                <h2 class="flow-title">🦀 Rust Async Task Flow Analysis</h2>
+                <div class="flow-stats">
+                    <span class="stat-item">📊 Futures: {{futures_count}}</span>
+                    <span class="stat-item">🔄 Polled: {{total_polls}}</span>
+                    <span class="stat-item">⏱️ Avg Poll Time: {{avg_poll_time}}μs</span>
+                    <span class="stat-item">🎯 Ready Rate: {{ready_rate}}%</span>
+                </div>
+            </div>
+            
+            <!-- Task Type Categories -->
+            <div class="task-categories">
+                <div class="category-lane cpu-intensive">
+                    <div class="lane-header">
+                        <span class="lane-icon">🔥</span>
+                        <span class="lane-title">CPU Intensive Tasks</span>
+                        <span class="lane-count">{{cpu_intensive_count}}</span>
+                        <span class="lane-efficiency">{{cpu_avg_efficiency}}% efficiency</span>
+                    </div>
+                    <div class="tasks-container">
+                        {{#each cpu_intensive_tasks}}
+                        <div class="task-card cpu-intensive" data-task-id="{{task_id}}" onclick="event.stopPropagation(); selectTask('{{task_id}}'); return false;">
+                            <div class="task-header">
+                                <div class="task-name">{{task_name}}</div>
+                                <div class="task-source">{{source_file}}:{{source_line}}</div>
+                            </div>
+                            <div class="task-metrics">
+                                <div class="metric-row">
+                                    <span class="metric-label">CPU:</span>
+                                    <span class="metric-value">{{cpu_usage}}%</span>
+                                    <div class="metric-bar">
+                                        <div class="metric-fill" style="width: {{cpu_usage}}%"></div>
+                                    </div>
+                                </div>
+                                <div class="metric-row">
+                                    <span class="metric-label">Cycles:</span>
+                                    <span class="metric-value">{{cpu_cycles}}M</span>
+                                </div>
+                                <div class="metric-row">
+                                    <span class="metric-label">Instructions:</span>
+                                    <span class="metric-value">{{instructions}}M</span>
+                                </div>
+                                <div class="metric-row">
+                                    <span class="metric-label">Cache Misses:</span>
+                                    <span class="metric-value">{{cache_misses}}K</span>
+                                </div>
+                            </div>
+                            <div class="task-status">
+                                <span class="status-badge {{status_class}}">{{status}}</span>
+                                <span class="duration">{{duration_ms}}ms</span>
+                            </div>
+                        </div>
+                        {{/each}}
+                    </div>
+                </div>
+                
+                <div class="category-lane memory-intensive">
+                    <div class="lane-header">
+                        <span class="lane-icon">💾</span>
+                        <span class="lane-title">Memory Intensive Tasks</span>
+                        <span class="lane-count">{{memory_intensive_count}}</span>
+                        <span class="lane-efficiency">{{memory_avg_efficiency}}% efficiency</span>
+                    </div>
+                    <div class="tasks-container">
+                        {{#each memory_intensive_tasks}}
+                        <div class="task-card memory-intensive" data-task-id="{{task_id}}" onclick="event.stopPropagation(); selectTask('{{task_id}}'); return false;">
+                            <div class="task-header">
+                                <div class="task-name">{{task_name}}</div>
+                                <div class="task-source">{{source_file}}:{{source_line}}</div>
+                            </div>
+                            <div class="task-metrics">
+                                <div class="metric-row">
+                                    <span class="metric-label">Allocated:</span>
+                                    <span class="metric-value">{{allocated_mb}}MB</span>
+                                    <div class="metric-bar">
+                                        <div class="metric-fill" style="width: {{memory_usage_percent}}%"></div>
+                                    </div>
+                                </div>
+                                <div class="metric-row">
+                                    <span class="metric-label">Peak:</span>
+                                    <span class="metric-value">{{peak_memory_mb}}MB</span>
+                                </div>
+                                <div class="metric-row">
+                                    <span class="metric-label">Allocations:</span>
+                                    <span class="metric-value">{{allocation_count}}</span>
+                                </div>
+                                <div class="metric-row">
+                                    <span class="metric-label">Fragmentation:</span>
+                                    <span class="metric-value">{{heap_fragmentation}}%</span>
+                                </div>
+                            </div>
+                            <div class="task-status">
+                                <span class="status-badge {{status_class}}">{{status}}</span>
+                                <span class="duration">{{duration_ms}}ms</span>
+                            </div>
+                        </div>
+                        {{/each}}
+                    </div>
+                </div>
+                
+                <div class="category-lane io-intensive">
+                    <div class="lane-header">
+                        <span class="lane-icon">⚡</span>
+                        <span class="lane-title">I/O Intensive Tasks</span>
+                        <span class="lane-count">{{io_intensive_count}}</span>
+                        <span class="lane-efficiency">{{io_avg_efficiency}}% efficiency</span>
+                    </div>
+                    <div class="tasks-container">
+                        {{#each io_intensive_tasks}}
+                        <div class="task-card io-intensive" data-task-id="{{task_id}}" onclick="event.stopPropagation(); selectTask('{{task_id}}'); return false;">
+                            <div class="task-header">
+                                <div class="task-name">{{task_name}}</div>
+                                <div class="task-source">{{source_file}}:{{source_line}}</div>
+                            </div>
+                            <div class="task-metrics">
+                                <div class="metric-row">
+                                    <span class="metric-label">Read:</span>
+                                    <span class="metric-value">{{bytes_read_mb}}MB</span>
+                                    <div class="metric-bar">
+                                        <div class="metric-fill" style="width: {{io_usage_percent}}%"></div>
+                                    </div>
+                                </div>
+                                <div class="metric-row">
+                                    <span class="metric-label">Write:</span>
+                                    <span class="metric-value">{{bytes_written_mb}}MB</span>
+                                </div>
+                                <div class="metric-row">
+                                    <span class="metric-label">Latency:</span>
+                                    <span class="metric-value">{{avg_latency_us}}μs</span>
+                                </div>
+                                <div class="metric-row">
+                                    <span class="metric-label">Queue Depth:</span>
+                                    <span class="metric-value">{{queue_depth}}</span>
+                                </div>
+                            </div>
+                            <div class="task-status">
+                                <span class="status-badge {{status_class}}">{{status}}</span>
+                                <span class="duration">{{duration_ms}}ms</span>
+                            </div>
+                        </div>
+                        {{/each}}
+                    </div>
+                </div>
+                
+                <div class="category-lane network-intensive">
+                    <div class="lane-header">
+                        <span class="lane-icon">🌐</span>
+                        <span class="lane-title">Network Intensive Tasks</span>
+                        <span class="lane-count">{{network_intensive_count}}</span>
+                        <span class="lane-efficiency">{{network_avg_efficiency}}% efficiency</span>
+                    </div>
+                    <div class="tasks-container">
+                        {{#each network_intensive_tasks}}
+                        <div class="task-card network-intensive" data-task-id="{{task_id}}" onclick="event.stopPropagation(); selectTask('{{task_id}}'); return false;">
+                            <div class="task-header">
+                                <div class="task-name">{{task_name}}</div>
+                                <div class="task-source">{{source_file}}:{{source_line}}</div>
+                            </div>
+                            <div class="task-metrics">
+                                <div class="metric-row">
+                                    <span class="metric-label">Sent:</span>
+                                    <span class="metric-value">{{bytes_sent_mb}}MB</span>
+                                    <div class="metric-bar">
+                                        <div class="metric-fill" style="width: {{network_usage_percent}}%"></div>
+                                    </div>
+                                </div>
+                                <div class="metric-row">
+                                    <span class="metric-label">Received:</span>
+                                    <span class="metric-value">{{bytes_received_mb}}MB</span>
+                                </div>
+                                <div class="metric-row">
+                                    <span class="metric-label">Connections:</span>
+                                    <span class="metric-value">{{active_connections}}</span>
+                                </div>
+                                <div class="metric-row">
+                                    <span class="metric-label">Latency:</span>
+                                    <span class="metric-value">{{avg_latency_ms}}ms</span>
+                                </div>
+                            </div>
+                            <div class="task-status">
+                                <span class="status-badge {{status_class}}">{{status}}</span>
+                                <span class="duration">{{duration_ms}}ms</span>
+                            </div>
+                        </div>
+                        {{/each}}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Advanced Analytics Section -->
+        <div class="analytics-section">
+            <div class="analytics-header">
+                <h2 class="analytics-title">🔬 Advanced Rust Async Analytics</h2>
+            </div>
+            
+            <div class="analytics-grid">
+                <div class="analytics-card">
+                    <h3>🚀 Future Polling Insights</h3>
+                    <div class="insight-metrics">
+                        <div class="insight-metric">
+                            <span class="label">Total Polls:</span>
+                            <span class="value">{{total_polls}}</span>
+                        </div>
+                        <div class="insight-metric">
+                            <span class="label">Avg Poll Duration:</span>
+                            <span class="value">{{avg_poll_duration}}μs</span>
+                        </div>
+                        <div class="insight-metric">
+                            <span class="label">Ready Immediately:</span>
+                            <span class="value">{{immediate_ready_percent}}%</span>
+                        </div>
+                        <div class="insight-metric">
+                            <span class="label">Waker Efficiency:</span>
+                            <span class="value">{{waker_efficiency}}%</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="analytics-card">
+                    <h3>🧠 Memory Management</h3>
+                    <div class="insight-metrics">
+                        <div class="insight-metric">
+                            <span class="label">Total Allocations:</span>
+                            <span class="value">{{total_allocations}}</span>
+                        </div>
+                        <div class="insight-metric">
+                            <span class="label">Peak Allocation Rate:</span>
+                            <span class="value">{{peak_alloc_rate}}/s</span>
+                        </div>
+                        <div class="insight-metric">
+                            <span class="label">Memory Fragmentation:</span>
+                            <span class="value">{{avg_fragmentation}}%</span>
+                        </div>
+                        <div class="insight-metric">
+                            <span class="label">GC Pressure:</span>
+                            <span class="value">{{gc_pressure}}%</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="analytics-card">
+                    <h3>⚡ Async Runtime Health</h3>
+                    <div class="insight-metrics">
+                        <div class="insight-metric">
+                            <span class="label">Executor Utilization:</span>
+                            <span class="value">{{executor_utilization}}%</span>
+                        </div>
+                        <div class="insight-metric">
+                            <span class="label">Task Queue Length:</span>
+                            <span class="value">{{avg_queue_length}}</span>
+                        </div>
+                        <div class="insight-metric">
+                            <span class="label">Blocking Tasks:</span>
+                            <span class="value">{{blocking_tasks_count}}</span>
+                        </div>
+                        <div class="insight-metric">
+                            <span class="label">Deadlock Risk:</span>
+                            <span class="value">{{deadlock_risk}}%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Enhanced JavaScript for Rust Async Dashboard
+        
+        let selectedTaskId = null;
+        let animationFrameId = null;
+        
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeDashboard();
+            startMetricAnimations();
+            setupTaskInteractions();
+        });
+        
+        function initializeDashboard() {
+            console.log('🦀 Rust Async Performance Dashboard Initialized');
+            
+            // Add pulse animation to metric cards
+            const metricCards = document.querySelectorAll('.metric-card');
+            metricCards.forEach((card, index) => {
+                setTimeout(() => {
+                    card.style.opacity = '0';
+                    card.style.transform = 'translateY(20px)';
+                    card.style.transition = 'all 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+                    
+                    setTimeout(() => {
+                        card.style.opacity = '1';
+                        card.style.transform = 'translateY(0)';
+                    }, 100);
+                }, index * 100);
+            });
+        }
+        
+        function selectTask(taskId) {
+            // Check if event exists to prevent errors
+            if (typeof event !== 'undefined') {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            
+            console.log(`🦀 Selecting Rust async task: ${taskId}`);
+            
+            // Remove previous selection
+            document.querySelectorAll('.task-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            
+            // Add selection to clicked task
+            const taskCard = document.querySelector(`[data-task-id="${taskId}"]`);
+            if (taskCard) {
+                taskCard.classList.add('selected');
+                selectedTaskId = taskId;
+                
+                // Show task details with delay to ensure DOM is ready
+                setTimeout(() => {
+                    showTaskDetails(taskId);
+                }, 100);
+                
+                // Scroll task into view
+                taskCard.scrollIntoView({ 
+                    behavior: 'smooth', 
+                    block: 'center' 
+                });
+            }
+        }
+        
+        function showTaskDetails(taskId) {
+            // Create or update task details panel
+            let detailsPanel = document.getElementById('task-details-panel');
+            if (!detailsPanel) {
+                detailsPanel = createTaskDetailsPanel();
+                document.body.appendChild(detailsPanel);
+            }
+            
+            // Populate with task data
+            const taskCard = document.querySelector(`[data-task-id="${taskId}"]`);
+            if (taskCard) {
+                const taskName = taskCard.querySelector('.task-name').textContent;
+                const taskSource = taskCard.querySelector('.task-source').textContent;
+                const taskStatus = taskCard.querySelector('.status-badge').textContent;
+                const taskDuration = taskCard.querySelector('.duration').textContent;
+                
+                // Get task type from card classes
+                const taskType = Array.from(taskCard.classList).find(cls => cls.includes('-intensive')) || 'unknown';
+                const taskTypeDisplay = taskType.replace('-intensive', '').replace('-', ' ').toUpperCase();
+                
+                // Build comprehensive task details
+                detailsPanel.innerHTML = `
+                    <div class="details-header">
+                        <div class="header-content">
+                            <h3>🦀 Rust Async Task Details</h3>
+                            <div class="task-title-info">
+                                <span class="task-title">${taskName}</span>
+                                <span class="task-type-badge ${taskType}">${taskTypeDisplay} TASK</span>
+                            </div>
+                        </div>
+                        <button onclick="closeTaskDetails()" class="close-btn">✕</button>
+                    </div>
+                    <div class="details-content">
+                        <div class="detail-section">
+                            <h4>📍 Source Location & Context</h4>
+                            <div class="source-info">
+                                <p class="source-code">${taskSource}</p>
+                                <div class="execution-info">
+                                    <span class="info-item">Status: <strong class="status-${taskStatus.toLowerCase()}">${taskStatus}</strong></span>
+                                    <span class="info-item">Duration: <strong>${taskDuration}</strong></span>
+                                    <span class="info-item">Task ID: <strong>${taskId}</strong></span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="detail-section">
+                            <h4>📊 Detailed Performance Metrics</h4>
+                            <div class="metrics-grid">
+                                ${Array.from(taskCard.querySelectorAll('.metric-row')).map(row => {
+                                    const label = row.querySelector('.metric-label').textContent;
+                                    const value = row.querySelector('.metric-value').textContent;
+                                    const bar = row.querySelector('.metric-fill');
+                                    const percentage = bar ? bar.style.width : '0%';
+                                    
+                                    return `<div class="metric-detail-card">
+                                        <div class="metric-header">
+                                            <span class="metric-name">${label}</span>
+                                            <span class="metric-val">${value}</span>
+                                        </div>
+                                        <div class="metric-bar-container">
+                                            <div class="metric-bar-bg">
+                                                <div class="metric-bar-fill ${taskType}" style="width: ${percentage}"></div>
+                                            </div>
+                                            <span class="metric-percentage">${percentage}</span>
+                                        </div>
+                                    </div>`;
+                                }).join('')}
+                            </div>
+                        </div>
+                        
+                        <div class="detail-section">
+                            <h4>🔬 Async Runtime Analysis</h4>
+                            <div class="analysis-grid">
+                                <div class="analysis-card">
+                                    <div class="analysis-icon">⚡</div>
+                                    <div class="analysis-content">
+                                        <h5>Future Polling</h5>
+                                        <p>This task represents a Rust Future that gets polled by the async executor. Monitor polling frequency and ready states for optimization.</p>
+                                    </div>
+                                </div>
+                                <div class="analysis-card">
+                                    <div class="analysis-icon">🧠</div>
+                                    <div class="analysis-content">
+                                        <h5>Resource Usage</h5>
+                                        <p>Track ${taskTypeDisplay.toLowerCase()} resource consumption patterns to identify bottlenecks and optimization opportunities.</p>
+                                    </div>
+                                </div>
+                                <div class="analysis-card">
+                                    <div class="analysis-icon">🎯</div>
+                                    <div class="analysis-content">
+                                        <h5>Efficiency Score</h5>
+                                        <p>Overall task efficiency based on resource utilization, context switches, and async runtime behavior.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="detail-section">
+                            <h4>🔧 ${taskTypeDisplay} Task Optimization Suggestions</h4>
+                            <div class="suggestions-container">
+                                ${getTaskSpecificSuggestions(taskType)}
+                            </div>
+                        </div>
+                        
+                        <div class="detail-section">
+                            <h4>📈 Performance Timeline</h4>
+                            <div class="timeline-placeholder">
+                                <p>📊 Detailed performance timeline visualization would appear here in a full implementation</p>
+                                <div class="timeline-mock">
+                                    <div class="timeline-item">Start → Resource Allocation → Execution → Completion</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="details-footer">
+                        <button onclick="exportTaskData('${taskId}')" class="action-btn export-btn">📤 Export Task Data</button>
+                        <button onclick="analyzeTaskPerformance('${taskId}')" class="action-btn analyze-btn">🔍 Deep Analysis</button>
+                        <button onclick="closeTaskDetails()" class="action-btn close-action-btn">Close</button>
+                    </div>
+                `;
+                
+                // Show panel with animation
+                detailsPanel.style.display = 'block';
+                setTimeout(() => {
+                    detailsPanel.classList.add('visible');
+                    // Add backdrop blur effect
+                    document.body.classList.add('modal-open');
+                }, 10);
+                
+                console.log(`🦀 Opened detailed view for Rust async task: ${taskName} (${taskId})`);
+            }
+        }
+        
+        function createTaskDetailsPanel() {
+            const panel = document.createElement('div');
+            panel.id = 'task-details-panel';
+            panel.className = 'task-details-panel';
+            panel.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%) scale(0.9);
+                width: 90%;
+                max-width: 600px;
+                max-height: 80vh;
+                background: var(--card-bg);
+                border: 2px solid var(--rust-orange);
+                border-radius: 16px;
+                box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+                z-index: 1000;
+                display: none;
+                opacity: 0;
+                transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+                overflow-y: auto;
+                color: var(--text-primary);
+            `;
+            
+            return panel;
+        }
+        
+        function closeTaskDetails() {
+            const panel = document.getElementById('task-details-panel');
+            if (panel) {
+                panel.classList.remove('visible');
+                document.body.classList.remove('modal-open');
+                setTimeout(() => {
+                    panel.style.display = 'none';
+                }, 300);
+            }
+            
+            // Also remove selection from task cards
+            document.querySelectorAll('.task-card.selected').forEach(card => {
+                card.classList.remove('selected');
+            });
+            selectedTaskId = null;
+            console.log('🦀 Closed task details panel');
+        }
+        
+        // Get task-specific optimization suggestions
+        function getTaskSpecificSuggestions(taskType) {
+            const suggestions = {
+                'cpu-intensive': [
+                    'Use rayon for parallel computation where applicable',
+                    'Consider async-friendly CPU-bound algorithms',
+                    'Implement work-stealing for better load distribution',
+                    'Profile hot paths and optimize critical sections',
+                    'Use tokio::task::yield_now() to prevent blocking the executor'
+                ],
+                'memory-intensive': [
+                    'Implement memory pooling to reduce allocations',
+                    'Use async streams for large data processing',
+                    'Consider zero-copy techniques where possible',
+                    'Monitor heap fragmentation and optimize allocation patterns',
+                    'Use Arc and Rc judiciously to minimize cloning'
+                ],
+                'io-intensive': [
+                    'Use async I/O operations with proper buffering',
+                    'Implement connection pooling for database operations',
+                    'Consider batch operations to reduce I/O overhead',
+                    'Use tokio::fs for async file operations',
+                    'Optimize buffer sizes based on workload patterns'
+                ],
+                'network-intensive': [
+                    'Implement connection reuse and keep-alive',
+                    'Use async HTTP clients with connection pooling',
+                    'Consider implementing backpressure for streaming data',
+                    'Optimize serialization/deserialization performance',
+                    'Use compression for large data transfers'
+                ]
+            };
+            
+            const taskSuggestions = suggestions[taskType] || suggestions['cpu-intensive'];
+            return taskSuggestions.map(suggestion => 
+                `<div class="suggestion-item">
+                    <div class="suggestion-icon">💡</div>
+                    <div class="suggestion-text">${suggestion}</div>
+                </div>`
+            ).join('');
+        }
+        
+        // Export task data functionality
+        function exportTaskData(taskId) {
+            const taskCard = document.querySelector(`[data-task-id="${taskId}"]`);
+            if (taskCard) {
+                const taskData = {
+                    taskId: taskId,
+                    taskName: taskCard.querySelector('.task-name').textContent,
+                    sourceLocation: taskCard.querySelector('.task-source').textContent,
+                    status: taskCard.querySelector('.status-badge').textContent,
+                    duration: taskCard.querySelector('.duration').textContent,
+                    metrics: Array.from(taskCard.querySelectorAll('.metric-row')).map(row => ({
+                        label: row.querySelector('.metric-label').textContent,
+                        value: row.querySelector('.metric-value').textContent
+                    })),
+                    exportTimestamp: new Date().toISOString()
+                };
+                
+                const blob = new Blob([JSON.stringify(taskData, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `rust-async-task-${taskId}-${Date.now()}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+                
+                console.log(`📤 Exported data for task: ${taskId}`);
+            }
+        }
+        
+        // Deep analysis functionality (placeholder)
+        function analyzeTaskPerformance(taskId) {
+            console.log(`🔍 Starting deep analysis for task: ${taskId}`);
+            
+            // Create analysis notification
+            const notification = document.createElement('div');
+            notification.className = 'analysis-notification';
+            notification.innerHTML = `
+                <div class="notification-content">
+                    <span class="notification-icon">🔬</span>
+                    <span class="notification-text">Deep analysis started for task ${taskId}</span>
+                    <span class="notification-progress">Analyzing...</span>
+                </div>
+            `;
+            
+            document.body.appendChild(notification);
+            
+            // Simulate analysis process
+            setTimeout(() => {
+                notification.querySelector('.notification-progress').textContent = 'Analysis complete!';
+                notification.classList.add('success');
+                
+                setTimeout(() => {
+                    document.body.removeChild(notification);
+                }, 2000);
+            }, 3000);
+        }
+        
+        function startMetricAnimations() {
+            // Animate metric bars
+            const metricFills = document.querySelectorAll('.metric-fill');
+            metricFills.forEach(fill => {
+                const width = fill.style.width;
+                fill.style.width = '0%';
+                setTimeout(() => {
+                    fill.style.width = width;
+                }, Math.random() * 1000 + 500);
+            });
+            
+            // Pulse animation for real-time feeling
+            setInterval(() => {
+                const activeCards = document.querySelectorAll('.task-card');
+                const randomCard = activeCards[Math.floor(Math.random() * activeCards.length)];
+                if (randomCard && !randomCard.classList.contains('selected')) {
+                    randomCard.style.transform = 'scale(1.01)';
+                    setTimeout(() => {
+                        randomCard.style.transform = '';
+                    }, 200);
+                }
+            }, 3000);
+        }
+        
+        function setupTaskInteractions() {
+            // Add keyboard navigation
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    closeTaskDetails();
+                    // Deselect all tasks
+                    document.querySelectorAll('.task-card').forEach(card => {
+                        card.classList.remove('selected');
+                    });
+                    selectedTaskId = null;
+                }
+            });
+            
+            // Add click outside to close details - but only on backdrop, not the panel itself
+            document.addEventListener('click', function(e) {
+                const panel = document.getElementById('task-details-panel');
+                if (panel && panel.classList.contains('visible')) {
+                    // Only close if clicking directly on the backdrop, not the panel content
+                    if (e.target === panel) {
+                        closeTaskDetails();
+                    }
+                }
+            });
+        }
+        
+        // Utility functions for enhanced interactivity
+        function filterTasksByType(taskType) {
+            const allCards = document.querySelectorAll('.task-card');
+            allCards.forEach(card => {
+                if (taskType === 'all' || card.classList.contains(taskType)) {
+                    card.style.display = 'block';
+                    card.style.opacity = '1';
+                } else {
+                    card.style.opacity = '0.3';
+                }
+            });
+        }
+        
+        function exportDashboardData() {
+            const data = {
+                timestamp: new Date().toISOString(),
+                tasks: Array.from(document.querySelectorAll('.task-card')).map(card => ({
+                    id: card.dataset.taskId,
+                    name: card.querySelector('.task-name').textContent,
+                    type: Array.from(card.classList).find(c => c.includes('-intensive')),
+                    metrics: Array.from(card.querySelectorAll('.metric-row')).map(row => ({
+                        label: row.querySelector('.metric-label').textContent,
+                        value: row.querySelector('.metric-value').textContent
+                    }))
+                }))
+            };
+            
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `rust-async-performance-${Date.now()}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+        
+        // Performance monitoring
+        function monitorPerformance() {
+            if ('performance' in window) {
+                const navigation = performance.getEntriesByType('navigation')[0];
+                console.log(`🦀 Dashboard Load Time: ${navigation.loadEventEnd - navigation.loadEventStart}ms`);
+                
+                // Monitor memory usage if available
+                if ('memory' in performance) {
+                    const memory = performance.memory;
+                    console.log(`💾 Memory Usage: ${(memory.usedJSHeapSize / 1048576).toFixed(2)}MB`);
+                }
+            }
+        }
+        
+        // Initialize performance monitoring
+        window.addEventListener('load', monitorPerformance);
+        
+        // CSS for task details panel
+        const detailsStyles = `
+            /* Enhanced Task Details Panel */
+            .task-details-panel {
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%) scale(0.9);
+                width: 95%;
+                max-width: 900px;
+                max-height: 90vh;
+                background: var(--card-bg);
+                border: 2px solid var(--rust-orange);
+                border-radius: 20px;
+                box-shadow: 0 25px 80px rgba(0,0,0,0.7), 0 0 0 1000px rgba(0,0,0,0.5);
+                z-index: 1000;
+                display: none;
+                opacity: 0;
+                transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+                overflow: hidden;
+                color: var(--text-primary);
+            }
+            
+            .task-details-panel.visible {
+                opacity: 1 !important;
+                transform: translate(-50%, -50%) scale(1) !important;
+            }
+            
+            .body.modal-open {
+                overflow: hidden;
+            }
+            
+            .details-header {
+                background: linear-gradient(135deg, var(--rust-orange), var(--async-blue));
+                padding: 2rem;
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-start;
+                border-bottom: 2px solid var(--border-color);
+            }
+            
+            .header-content h3 {
+                font-size: 1.5rem;
+                margin-bottom: 1rem;
+                color: white;
+                text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            }
+            
+            .task-title-info {
+                display: flex;
+                flex-direction: column;
+                gap: 0.75rem;
+            }
+            
+            .task-title {
+                font-size: 1.3rem;
+                font-weight: 700;
+                color: white;
+                text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+            }
+            
+            .task-type-badge {
+                display: inline-block;
+                padding: 0.5rem 1rem;
+                border-radius: 25px;
+                font-size: 0.8rem;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+                background: rgba(255,255,255,0.2);
+                border: 1px solid rgba(255,255,255,0.3);
+                color: white;
+                backdrop-filter: blur(10px);
+            }
+            
+            .details-content {
+                padding: 2rem;
+                overflow-y: auto;
+                max-height: 60vh;
+            }
+            
+            .details-content::-webkit-scrollbar {
+                width: 8px;
+            }
+            
+            .details-content::-webkit-scrollbar-track {
+                background: var(--surface-bg);
+                border-radius: 4px;
+            }
+            
+            .details-content::-webkit-scrollbar-thumb {
+                background: var(--rust-orange);
+                border-radius: 4px;
+            }
+            
+            .detail-section {
+                margin-bottom: 2.5rem;
+                padding-bottom: 1.5rem;
+                border-bottom: 1px solid var(--border-color);
+            }
+            
+            .detail-section:last-child {
+                border-bottom: none;
+            }
+            
+            .detail-section h4 {
+                color: var(--rust-orange);
+                margin-bottom: 1.5rem;
+                font-size: 1.2rem;
+                font-weight: 600;
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+            }
+            
+            .source-info {
+                background: var(--surface-bg);
+                padding: 1.5rem;
+                border-radius: 12px;
+                border: 1px solid var(--border-color);
+            }
+            
+            .source-code {
+                background: var(--dark-bg);
+                padding: 1rem;
+                border-radius: 8px;
+                font-family: 'Courier New', monospace;
+                font-size: 0.9rem;
+                color: var(--async-cyan);
+                border-left: 4px solid var(--rust-orange);
+                margin-bottom: 1rem;
+            }
+            
+            .execution-info {
+                display: flex;
+                gap: 2rem;
+                flex-wrap: wrap;
+            }
+            
+            .info-item {
+                font-size: 0.9rem;
+                color: var(--text-secondary);
+            }
+            
+            .info-item strong {
+                color: var(--text-primary);
+                font-weight: 600;
+            }
+            
+            .metrics-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                gap: 1rem;
+            }
+            
+            .metric-detail-card {
+                background: var(--surface-bg);
+                padding: 1.5rem;
+                border-radius: 12px;
+                border: 1px solid var(--border-color);
+                transition: all 0.3s ease;
+            }
+            
+            .metric-detail-card:hover {
+                border-color: var(--rust-orange);
+                box-shadow: 0 4px 16px rgba(255, 107, 53, 0.2);
+            }
+            
+            .metric-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 1rem;
+            }
+            
+            .metric-name {
+                color: var(--text-secondary);
+                font-size: 0.9rem;
+                font-weight: 500;
+            }
+            
+            .metric-val {
+                color: var(--text-primary);
+                font-weight: 700;
+                font-size: 1.1rem;
+            }
+            
+            .metric-bar-container {
+                display: flex;
+                align-items: center;
+                gap: 1rem;
+            }
+            
+            .metric-bar-bg {
+                flex: 1;
+                height: 8px;
+                background: var(--border-color);
+                border-radius: 4px;
+                overflow: hidden;
+            }
+            
+            .metric-bar-fill {
+                height: 100%;
+                border-radius: 4px;
+                transition: width 0.6s ease;
+                background: linear-gradient(90deg, var(--metric-color), color-mix(in srgb, var(--metric-color) 70%, white));
+            }
+            
+            .metric-percentage {
+                font-size: 0.8rem;
+                color: var(--text-secondary);
+                min-width: 40px;
+                text-align: right;
+            }
+            
+            .analysis-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                gap: 1.5rem;
+            }
+            
+            .analysis-card {
+                background: var(--surface-bg);
+                padding: 1.5rem;
+                border-radius: 12px;
+                border: 1px solid var(--border-color);
+                display: flex;
+                gap: 1rem;
+                transition: all 0.3s ease;
+            }
+            
+            .analysis-card:hover {
+                border-color: var(--async-blue);
+                box-shadow: 0 4px 16px rgba(76, 154, 255, 0.2);
+            }
+            
+            .analysis-icon {
+                font-size: 2rem;
+                filter: drop-shadow(0 0 8px currentColor);
+            }
+            
+            .analysis-content h5 {
+                margin-bottom: 0.5rem;
+                color: var(--text-primary);
+                font-weight: 600;
+            }
+            
+            .analysis-content p {
+                font-size: 0.9rem;
+                color: var(--text-secondary);
+                line-height: 1.5;
+            }
+            
+            .suggestions-container {
+                display: flex;
+                flex-direction: column;
+                gap: 1rem;
+            }
+            
+            .suggestion-item {
+                display: flex;
+                align-items: flex-start;
+                gap: 1rem;
+                background: var(--surface-bg);
+                padding: 1rem;
+                border-radius: 8px;
+                border-left: 4px solid var(--async-blue);
+                transition: all 0.3s ease;
+            }
+            
+            .suggestion-item:hover {
+                background: color-mix(in srgb, var(--surface-bg) 80%, var(--async-blue));
+            }
+            
+            .suggestion-icon {
+                font-size: 1.2rem;
+                margin-top: 0.2rem;
+            }
+            
+            .suggestion-text {
+                color: var(--text-primary);
+                font-size: 0.9rem;
+                line-height: 1.5;
+            }
+            
+            .timeline-placeholder {
+                background: var(--surface-bg);
+                padding: 2rem;
+                border-radius: 12px;
+                border: 1px dashed var(--border-color);
+                text-align: center;
+            }
+            
+            .timeline-mock {
+                margin-top: 1rem;
+                padding: 1rem;
+                background: var(--dark-bg);
+                border-radius: 8px;
+                font-family: monospace;
+                color: var(--async-cyan);
+            }
+            
+            .details-footer {
+                background: var(--surface-bg);
+                padding: 1.5rem 2rem;
+                border-top: 1px solid var(--border-color);
+                display: flex;
+                gap: 1rem;
+                justify-content: flex-end;
+                flex-wrap: wrap;
+            }
+            
+            .action-btn {
+                padding: 0.75rem 1.5rem;
+                border: none;
+                border-radius: 8px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+                font-size: 0.9rem;
+            }
+            
+            .export-btn {
+                background: var(--success-green);
+                color: white;
+            }
+            
+            .export-btn:hover {
+                background: #059669;
+                transform: translateY(-2px);
+            }
+            
+            .analyze-btn {
+                background: var(--async-blue);
+                color: white;
+            }
+            
+            .analyze-btn:hover {
+                background: #2563eb;
+                transform: translateY(-2px);
+            }
+            
+            .close-action-btn {
+                background: var(--error-red);
+                color: white;
+            }
+            
+            .close-action-btn:hover {
+                background: #dc2626;
+                transform: translateY(-2px);
+            }
+            
+            .close-btn {
+                background: rgba(255,255,255,0.2);
+                color: white;
+                border: 1px solid rgba(255,255,255,0.3);
+                padding: 0.75rem 1rem;
+                border-radius: 8px;
+                cursor: pointer;
+                font-weight: 600;
+                backdrop-filter: blur(10px);
+                transition: all 0.3s ease;
+            }
+            
+            .close-btn:hover {
+                background: rgba(255,255,255,0.3);
+                transform: scale(1.05);
+            }
+            
+            /* Analysis notification */
+            .analysis-notification {
+                position: fixed;
+                top: 2rem;
+                right: 2rem;
+                background: var(--card-bg);
+                border: 2px solid var(--async-blue);
+                border-radius: 12px;
+                padding: 1rem 1.5rem;
+                box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+                z-index: 1001;
+                color: var(--text-primary);
+                transition: all 0.3s ease;
+            }
+            
+            .analysis-notification.success {
+                border-color: var(--success-green);
+            }
+            
+            .notification-content {
+                display: flex;
+                align-items: center;
+                gap: 1rem;
+            }
+            
+            .notification-icon {
+                font-size: 1.5rem;
+            }
+            
+            .notification-text {
+                font-weight: 600;
+            }
+            
+            .notification-progress {
+                color: var(--text-secondary);
+                font-size: 0.9rem;
+            }
+            .analytics-section {
+                background: var(--card-bg);
+                border-radius: 20px;
+                padding: 2rem;
+                margin-bottom: 3rem;
+                border: 1px solid var(--border-color);
+            }
+            .analytics-title {
+                font-size: 1.8rem;
+                font-weight: 700;
+                margin-bottom: 2rem;
+                background: linear-gradient(45deg, var(--rust-orange), var(--async-blue));
+                background-clip: text;
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+            }
+            .analytics-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                gap: 2rem;
+            }
+            .analytics-card {
+                background: var(--surface-bg);
+                border-radius: 12px;
+                padding: 1.5rem;
+                border: 1px solid var(--border-color);
+            }
+            .analytics-card h3 {
+                margin-bottom: 1rem;
+                color: var(--text-primary);
+            }
+            .insight-metrics {
+                display: flex;
+                flex-direction: column;
+                gap: 0.75rem;
+            }
+            .insight-metric {
+                display: flex;
+                justify-content: space-between;
+                padding: 0.5rem;
+                background: var(--card-bg);
+                border-radius: 6px;
+                font-size: 0.9rem;
+            }
+            .insight-metric .label {
+                color: var(--text-secondary);
+            }
+            .insight-metric .value {
+                font-weight: 600;
+                color: var(--rust-orange);
+            }
+        `;
+        
+        // Inject styles
+        const styleSheet = document.createElement('style');
+        styleSheet.textContent = detailsStyles;
+        document.head.appendChild(styleSheet);
+        
+    </script>
+</body>
+</html>
