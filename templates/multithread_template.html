@@ -248,11 +248,6 @@
             min-height: 140px;
             position: relative;
         }
-        .thread-card.selected {
-            border-width: 3px;
-            transform: scale(1.05);
-            z-index: 10;
-        }
         .thread-card.tracked {
             border-color: var(--success-color);
             background: var(--card-bg);
@@ -271,6 +266,17 @@
         .thread-card.alert-normal {
             border-color: var(--success-color);
             box-shadow: 0 0 8px rgba(102, 187, 106, 0.3);
+        }
+        .thread-card.selected {
+            background: var(--surface-color) !important;
+            border-color: var(--primary-color) !important;
+            box-shadow: 0 0 15px rgba(102, 126, 234, 0.5) !important;
+            transform: translateY(-2px);
+        }
+        
+        /* 确保选中状态不影响页面背景 */
+        body.has-selected-thread {
+            background: linear-gradient(135deg, var(--dark-bg) 0%, #0f0c29 100%) !important;
         }
         .thread-card:hover {
             transform: translateY(-2px);
@@ -636,7 +642,7 @@
 
         /* Focus mode styles */
         body.focus-mode {
-            background: rgba(0, 0, 0, 0.1);
+            background: linear-gradient(135deg, #1a1a2e 0%, #0f0c29 100%) !important;
             transition: background 0.3s ease;
         }
         
@@ -1040,7 +1046,7 @@
                             </div>
                             <div class="stat">
                                 <span class="stat-label">CPU Usage:</span>
-                                <span class="stat-value">{{cpu_usage}}%</span>
+                                <span class="stat-value">{{cpu_usage_formatted}}%</span>
                             </div>
                             <div class="stat">
                                 <span class="stat-label">I/O Operations:</span>
@@ -1173,9 +1179,9 @@
                     {{#each cpu_cores_data}}
                     <div class="core-card">
                         <div class="core-id">Core {{core_id}}</div>
-                        <div class="core-usage">{{usage}}%</div>
+                        <div class="core-usage">{{usage_formatted}}%</div>
                         <div class="core-bar">
-                            <div class="core-fill" style="width: {{usage}}%"></div>
+                            <div class="core-fill" style="width: {{usage_formatted}}%"></div>
                         </div>
                     </div>
                     {{/each}}
@@ -1310,6 +1316,21 @@
         
         function selectThread(threadId) {
             selectedThreadId = threadId;
+            
+            // 确保页面背景不受影响
+            document.body.style.background = 'linear-gradient(135deg, #1a1a2e 0%, #0f0c29 100%)';
+            document.body.style.color = '#eee';
+            
+            // Remove previous selections
+            const cards = document.querySelectorAll('.thread-card');
+            cards.forEach(card => card.classList.remove('selected'));
+            
+            // Add selection to clicked card
+            const selectedCard = document.querySelector(`[onclick*="selectThread(${threadId})"]`);
+            if (selectedCard) {
+                selectedCard.classList.add('selected');
+            }
+            
             enterFocusMode(threadId);
         }
         

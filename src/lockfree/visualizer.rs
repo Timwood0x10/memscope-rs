@@ -70,6 +70,7 @@ struct ThreadData {
     allocations: usize,
     peak_memory: String,
     cpu_usage: f32,
+    cpu_usage_formatted: String,
     io_operations: usize,
 }
 
@@ -105,6 +106,7 @@ struct ResourceSample {
 struct CpuCoreData {
     core_id: usize,
     usage: f32,
+    usage_formatted: String,
 }
 
 #[derive(Serialize, Debug)]
@@ -293,8 +295,9 @@ fn build_threads_data(thread_stats: &std::collections::HashMap<u64, super::analy
             role_icon,
             role_name,
             allocations: stats.total_allocations as usize,
-            peak_memory: format!("{:.1} MB", stats.peak_memory as f32 / 1024.0 / 1024.0),
-            cpu_usage: 5.0 + (thread_counter as f32 * 0.3) % 3.0,
+            peak_memory: format!("{:.1}", stats.peak_memory as f32 / 1024.0 / 1024.0),
+            cpu_usage: ((5.0 + (thread_counter as f32 * 0.3) % 3.0) * 100.0).round() / 100.0,
+            cpu_usage_formatted: format!("{:.1}", (5.0 + (thread_counter as f32 * 0.3) % 3.0)),
             io_operations: 1000 + (thread_counter as usize * 22),
         });
         
@@ -315,8 +318,9 @@ fn build_threads_data(thread_stats: &std::collections::HashMap<u64, super::analy
                 role_icon: "🧵".to_string(),
                 role_name: "Balanced".to_string(),
                 allocations: 1000 + (i as usize * 20),
-                peak_memory: format!("{:.1} MB", i as f32 * 2.5),
-                cpu_usage: 5.0 + (i as f32 * 0.5),
+                peak_memory: format!("{:.1}", i as f32 * 2.5),
+                cpu_usage: ((5.0 + (i as f32 * 0.5)) * 100.0).round() / 100.0,
+                cpu_usage_formatted: format!("{:.1}", 5.0 + (i as f32 * 0.5)),
                 io_operations: 1100 + (i as usize * 22),
             });
         }
@@ -360,13 +364,15 @@ fn build_cpu_cores_data(resource_timeline: &[PlatformResourceMetrics], cpu_cores
             .enumerate()
             .map(|(i, &usage)| CpuCoreData {
                 core_id: i,
-                usage,
+                usage: (usage * 100.0).round() / 100.0,
+                usage_formatted: format!("{:.1}", usage),
             })
             .collect()
     } else {
         (0..cpu_cores_count).map(|i| CpuCoreData {
             core_id: i,
-            usage: 15.0 + (i as f32 * 3.0) % 25.0,
+            usage: ((15.0 + (i as f32 * 3.0) % 25.0) * 100.0).round() / 100.0,
+            usage_formatted: format!("{:.1}", 15.0 + (i as f32 * 3.0) % 25.0),
         }).collect()
     }
 }
@@ -409,7 +415,7 @@ fn build_thread_details(threads_data: &[ThreadData]) -> Vec<ThreadDetailData> {
         status: "Active".to_string(),
         total_allocations: t.allocations,
         peak_memory: t.peak_memory.clone(),
-        current_memory: format!("{:.1} MB", t.allocations as f32 / 1000.0),
+        current_memory: format!("{:.1}", t.allocations as f32 / 1000.0),
     }).collect()
 }
 
