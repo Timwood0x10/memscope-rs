@@ -1,5 +1,11 @@
 //! Direct JSON template generator that uses raw JSON data without complex processing
 
+// Embedded templates - 1:1 copy with all placeholders preserved
+const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =
+    include_str!("../../../../templates/clean_dashboard.html");
+const EMBEDDED_STYLES_CSS: &str = include_str!("../../../../templates/styles.css");
+const EMBEDDED_SCRIPT_JS: &str = include_str!("../../../../templates/script.js");
+
 use serde_json::Value;
 use std::collections::HashMap;
 use std::error::Error;
@@ -56,44 +62,15 @@ pub fn generate_direct_html(json_data: &HashMap<String, Value>) -> Result<String
     }
 
     // Try multiple possible paths for the template files - prioritize the original dashboard.html
-    let template_paths = [
-        // Primary: Use the new clean dashboard template
-        "templates/clean_dashboard.html",
-        "./templates/clean_dashboard.html",
-        "../templates/clean_dashboard.html",
-        "../../templates/clean_dashboard.html",
-    ];
 
-    let css_paths = [
-        "templates/styles.css",
-        "./templates/styles.css",
-        "../templates/styles.css",
-        "../../templates/styles.css",
-    ];
+    // Use embedded template to avoid external file dependency
+    let template_content = EMBEDDED_CLEAN_DASHBOARD_TEMPLATE.to_string();
 
-    let js_paths = [
-        "templates/script.js",
-        "./templates/script.js",
-        "../templates/script.js",
-        "../../templates/script.js",
-    ];
+    // Use embedded CSS to avoid external file dependency
+    let css_content = EMBEDDED_STYLES_CSS.to_string();
 
-    let template_content = template_paths
-        .iter()
-        .find_map(|path| std::fs::read_to_string(path).ok())
-        .ok_or("Failed to find dashboard template file in any expected location")?;
-
-    // Load CSS content
-    let css_content = css_paths
-        .iter()
-        .find_map(|path| std::fs::read_to_string(path).ok())
-        .ok_or("Failed to find CSS template file in any expected location")?;
-
-    // Load JavaScript content
-    let js_content = js_paths
-        .iter()
-        .find_map(|path| std::fs::read_to_string(path).ok())
-        .ok_or("Failed to find JavaScript template file in any expected location")?;
+    // Use embedded JavaScript to avoid external file dependency
+    let js_content = EMBEDDED_SCRIPT_JS.to_string();
 
     // Replace placeholders in the template with proper escaping
     let mut html = template_content

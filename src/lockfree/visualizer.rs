@@ -1,5 +1,9 @@
 //! Clean HTML Visualizer implementation based on API-Template mapping
 
+// Embedded multithread_template.html template - 1:1 copy with all placeholders preserved
+const EMBEDDED_MULTITHREAD_TEMPLATE: &str =
+    include_str!("../../templates/multithread_template.html");
+
 use super::platform_resources::PlatformResourceMetrics;
 use super::resource_integration::ComprehensiveAnalysis;
 use serde::Serialize;
@@ -146,7 +150,8 @@ fn render_template_with_data(
     use handlebars::Handlebars;
 
     // Read template
-    let template_content = std::fs::read_to_string("templates/multithread_template.html")?;
+    // 🔥 使用内嵌的multithread模板，避免外部文件依赖
+    let template_content = EMBEDDED_MULTITHREAD_TEMPLATE.to_string();
 
     // Create Handlebars engine
     let mut handlebars = Handlebars::new();

@@ -4,7 +4,11 @@
 use crate::async_memory::visualization::VisualizationConfig;
 use crate::lockfree::LockfreeAnalysis;
 use std::collections::HashMap;
-use std::fs;
+// Embedded templates - 1:1 copy with all placeholders preserved
+const EMBEDDED_HYBRID_DASHBOARD_TEMPLATE: &str =
+    include_str!("../../templates/hybrid_dashboard.html");
+
+// use std::fs; // No longer needed - using embedded templates
 
 /// Combined analysis data from multiple sources
 #[derive(Debug)]
@@ -95,18 +99,8 @@ impl FixedHybridTemplate {
         data: &HybridAnalysisData,
     ) -> Result<String, Box<dyn std::error::Error>> {
         // Load external template
-        let template_content = match fs::read_to_string("templates/hybrid_dashboard.html") {
-            Ok(content) => content,
-            Err(_) => {
-                // Try alternative path for when running from examples directory
-                match fs::read_to_string("../templates/hybrid_dashboard.html") {
-                    Ok(content) => content,
-                    Err(_) => {
-                        return Err("Template file templates/hybrid_dashboard.html not found".into())
-                    }
-                }
-            }
-        };
+        // Use embedded template to avoid external file dependency
+        let template_content = EMBEDDED_HYBRID_DASHBOARD_TEMPLATE.to_string();
 
         Ok(self.render_with_template(&template_content, data))
     }

@@ -1,6 +1,68 @@
 //! Binary to HTML conversion functionality
 //! Converts binary memscope files to HTML reports using clean_dashboard.html template
 
+// Embedded binary_dashboard.html template - 1:1 copy with all placeholders preserved
+const EMBEDDED_BINARY_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{PROJECT_NAME}} - Binary Memory Analysis</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+        }
+    </script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    
+    <!-- Binary Data injection script -->
+    <script>
+        // Global data store - populated directly from binary data
+        console.log("Binary data injection script loaded");
+        try {
+            window.analysisData = {{ALLOCATION_DATA}};
+            window.embeddedJsonData = {{ALLOCATION_DATA}};
+            window.dataSource = "binary_direct";
+            window.generationTime = "{{TIMESTAMP}}";
+            console.log("Analysis data loaded successfully:", window.analysisData ? "YES" : "NO");
+        } catch (e) {
+            console.error("Error loading analysis data:", e);
+            window.analysisData = null;
+        }
+    </script>
+</head>
+
+<body class="bg-gray-50 dark:bg-gray-900 font-sans text-neutral dark:text-gray-100 transition-colors">
+     <!-- Header -->
+    <header class="bg-gradient-to-r from-blue-600 to-purple-600 text-white py-8">
+        <div class="container mx-auto px-4 text-center">
+            <h1 class="text-4xl font-bold mb-2">{{PROJECT_NAME}}</h1>
+            <p class="text-xl opacity-90">Binary Memory Analysis Dashboard</p>
+            <div class="mt-4 flex justify-center space-x-4 text-sm">
+                <span class="bg-white/20 px-3 py-1 rounded-full">Generated: {{TIMESTAMP}}</span>
+                <span class="bg-white/20 px-3 py-1 rounded-full">Source: Binary Direct</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Navigation -->
+    <nav class="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
+        <div class="container mx-auto px-4">
+            <div class="flex justify-center space-x-8 py-4">
+                <button onclick="showSection('overview')" class="nav-button px-4 py-2 rounded-lg font-medium transition-colors bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+                    <i class="fa fa-chart-line mr-2"></i>Overview
+                </button>
+                <button onclick="showSection('allocations')" class="nav-button px-4 py-2 rounded-lg font-medium transition-colors hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i class="fa fa-list mr-2"></i>Allocations
+                </button>
+                <button onclick="showSection('safety')" class="nav-button px-4 py-2 rounded-lg font-medium transition-colors hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <i class="fa fa-shield mr-2"></i>Safety Analysis
+                </button>
+            </div>
+        </div>
+    </nav>"#;
+
 use crate::core::types::{AllocationInfo, MemoryStats};
 use crate::export::binary::error::BinaryExportError;
 use crate::export::binary::reader::BinaryReader;
@@ -74,29 +136,9 @@ fn generate_statistics(allocations: &[AllocationInfo]) -> MemoryStats {
 
 /// Load binary dashboard template
 fn load_binary_dashboard_template() -> Result<String, BinaryExportError> {
-    // Try to load from templates directory - use binary_dashboard.html for binary conversion
-    let template_paths = [
-        "templates/binary_dashboard.html",
-        "../templates/binary_dashboard.html",
-        "../../templates/binary_dashboard.html",
-    ];
-
-    for path in &template_paths {
-        tracing::debug!("Trying to load template from: {path}");
-        if let Ok(content) = fs::read_to_string(path) {
-            tracing::debug!(
-                "Successfully loaded template from: {path} ({len} chars)",
-                len = content.len()
-            );
-            return Ok(content);
-        } else {
-            tracing::debug!("Failed to load from: {path}");
-        }
-    }
-
-    tracing::debug!("Using fallback embedded template");
-    // Fallback to embedded template
-    Ok(get_embedded_binary_template())
+    // Use embedded template to avoid external file dependency
+    tracing::debug!("Using embedded binary_dashboard.html template");
+    Ok(EMBEDDED_BINARY_DASHBOARD_TEMPLATE.to_string())
 }
 
 /// Generate HTML content from template and data
@@ -420,196 +462,6 @@ fn format_memory_size(bytes: usize) -> String {
     } else {
         format!("{size:.2} {}", UNITS[unit_index])
     }
-}
-
-/// Get embedded binary dashboard template - use actual working_dashboard.html content
-fn get_embedded_binary_template() -> String {
-    // Force read the actual working_dashboard.html template
-    match std::fs::read_to_string("templates/working_dashboard.html") {
-        Ok(content) => {
-            tracing::debug!(
-                "Successfully loaded working_dashboard.html template ({} chars)",
-                content.len()
-            );
-            return content;
-        }
-        Err(e) => {
-            tracing::debug!("Failed to load working_dashboard.html: {e}");
-        }
-    }
-
-    // Fallback to a simplified version if file not found
-    r#"<!DOCTYPE html>
-<html lang="en" class="light">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{PROJECT_NAME}} - Binary Memory Analysis</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-        }
-    </script>
-    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
-    
-    <!-- Binary Data injection script -->
-    <script>
-        // Global data store - populated directly from binary data
-        console.log('Binary data injection script loaded');
-        try {
-            window.analysisData = {{ALLOCATION_DATA}};
-            window.embeddedJsonData = {{ALLOCATION_DATA}};
-            window.dataSource = "binary_direct";
-            window.generationTime = "{{TIMESTAMP}}";
-            console.log('Analysis data loaded successfully:', window.analysisData ? 'YES' : 'NO');
-        } catch (e) {
-            console.error('Error loading analysis data:', e);
-            window.analysisData = null;
-        }
-    </script>
-</head>
-
-<body class="bg-gray-50 dark:bg-gray-900 font-sans text-neutral dark:text-gray-100 transition-colors">
-    <!-- Header -->
-    <header class="bg-gradient-to-r from-blue-600 to-purple-600 text-white py-8">
-        <div class="container mx-auto px-4 text-center">
-            <h1 class="text-4xl font-bold mb-2">{{PROJECT_NAME}}</h1>
-            <p class="text-xl opacity-90">Binary Memory Analysis Report - {{TIMESTAMP}}</p>
-        </div>
-    </header>
-
-    <!-- Main Content -->
-    <main class="container mx-auto px-4 py-8">
-        <!-- Stats Grid -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-                <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Total Allocations</h3>
-                <p class="text-3xl font-bold text-gray-900 dark:text-white">{{TOTAL_ALLOCATIONS}}</p>
-            </div>
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-                <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Active Memory</h3>
-                <p class="text-3xl font-bold text-green-600">{{ACTIVE_MEMORY}}</p>
-            </div>
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-                <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Leaked Memory</h3>
-                <p class="text-3xl font-bold text-red-600">{{LEAKED_MEMORY}}</p>
-            </div>
-        </div>
-
-        <!-- Allocations Table -->
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
-            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h2 class="text-xl font-semibold text-gray-900 dark:text-white">Memory Allocations</h2>
-            </div>
-            <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                    <thead class="bg-gray-50 dark:bg-gray-700">
-                        <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Pointer</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Size</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Variable</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Type</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Borrow Info</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Clone Info</th>
-                        </tr>
-                    </thead>
-                    <tbody id="allocations-tbody" class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                        <tr><td colspan="7" class="px-6 py-4 text-center">Loading allocation data...</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </main>
-
-    <script>
-        console.log('🚀 Binary Dashboard Loading...');
-        
-        // Use the injected data
-        const allocations = window.analysisData || [];
-        
-        function formatSize(bytes) {
-            if (!bytes || bytes === 0) return '0 B';
-            const units = ['B', 'KB', 'MB', 'GB'];
-            let size = bytes;
-            let unitIndex = 0;
-            
-            while (size >= 1024 && unitIndex < units.length - 1) {
-                size /= 1024;
-                unitIndex++;
-            }
-            
-            return unitIndex === 0 ? 
-                bytes + ' ' + units[unitIndex] : 
-                size.toFixed(2) + ' ' + units[unitIndex];
-        }
-        
-        function loadBinaryAllocations() {
-            console.log('📊 Loading', allocations.length, 'allocations from binary data');
-            
-            const tbody = document.getElementById('allocations-tbody');
-            if (!tbody) {
-                console.error('❌ Table body not found');
-                return;
-            }
-            
-            if (!allocations || allocations.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" class="px-6 py-4 text-center">No allocation data available</td></tr>';
-                return;
-            }
-            
-            tbody.innerHTML = '';
-            
-            allocations.forEach((alloc, index) => {
-                try {
-                    const row = document.createElement('tr');
-                    row.className = 'hover:bg-gray-50 dark:hover:bg-gray-700';
-                    
-                    const status = alloc.timestamp_dealloc ? 
-                        '<span class="text-gray-600">Deallocated</span>' : 
-                        (alloc.is_leaked ? '<span class="text-red-600 font-semibold">Leaked</span>' : '<span class="text-green-600 font-semibold">Active</span>');
-                    
-                    const borrowInfo = alloc.borrow_info ? 
-                        '<div class="text-xs text-gray-600">I:' + (alloc.borrow_info.immutable_borrows || 0) + ' M:' + (alloc.borrow_info.mutable_borrows || 0) + '</div>' : 
-                        '<span class="text-gray-400">-</span>';
-                    
-                    const cloneInfo = alloc.clone_info ? 
-                        '<div class="text-xs text-blue-600">Count:' + (alloc.clone_info.clone_count || 0) + '</div>' : 
-                        '<span class="text-gray-400">-</span>';
-                    
-                    row.innerHTML = `
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900 dark:text-gray-100">${alloc.ptr || 'N/A'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-green-600">${formatSize(alloc.size || 0)}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-orange-600 font-medium">${alloc.var_name || 'unnamed'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-purple-600 font-medium">${alloc.type_name || 'unknown'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm">${status}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm">${borrowInfo}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm">${cloneInfo}</td>
-                    `;
-                    
-                    tbody.appendChild(row);
-                } catch (e) {
-                    console.error('❌ Error processing allocation', index, ':', e);
-                }
-            });
-            
-            console.log('✅ Binary allocations loaded successfully');
-        }
-        
-        // Initialize when DOM is ready
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('📋 Binary Dashboard DOM ready');
-            try {
-                loadBinaryAllocations();
-                console.log('✅ Binary dashboard initialized successfully');
-            } catch (error) {
-                console.error('❌ Failed to initialize binary dashboard:', error);
-            }
-        });
-    </script>
-</body>
-</html>"#.to_string()
 }
 
 /// Generate enhanced data for all dashboard modules - match exact JSON structure
