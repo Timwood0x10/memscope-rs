@@ -1453,6 +1453,178 @@ const EMBEDDED_HYBRID_DASHBOARD_TEMPLATE: &str = r#"
             display: none;
         }
 
+        /* Thread Grid and Cards Styles */
+        .thread-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .thread-card {
+            background: var(--bg);
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .thread-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+            border-color: var(--primary);
+        }
+
+        .thread-card.active {
+            border-color: var(--primary);
+            background: rgba(59, 130, 246, 0.05);
+        }
+
+        .thread-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .thread-id {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .thread-status {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            background: var(--success);
+            color: white;
+        }
+
+        .thread-metrics {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .thread-metric {
+            text-align: center;
+        }
+
+        .metric-value {
+            display: block;
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .metric-label {
+            display: block;
+            font-size: 0.8rem;
+            color: var(--text2);
+            margin-top: 2px;
+        }
+
+        .thread-workload {
+            background: var(--bg2);
+            padding: 8px 12px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+
+        .workload-cpubound { color: #f59e0b; }
+        .workload-iobound { color: #ea580c; }
+        .workload-memorybound { color: #dc2626; }
+        .workload-interactive { color: #8b5cf6; }
+
+        .thread-variables-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 16px;
+            background: var(--bg2);
+            border-radius: 8px;
+        }
+
+        .thread-info {
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        /* Detailed Variable Card Styles */
+        .variable-card.detailed {
+            padding: 20px;
+            border-radius: 12px;
+            border: 2px solid var(--border);
+            background: var(--bg);
+            margin-bottom: 16px;
+        }
+
+        .variable-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .variable-details {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 4px 0;
+        }
+
+        .detail-label {
+            font-weight: 600;
+            color: var(--text2);
+            font-size: 0.9rem;
+        }
+
+        .detail-value {
+            font-weight: 500;
+            color: var(--text);
+            font-family: monospace;
+        }
+
+        .variable-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+
+        .btn-detail {
+            padding: 6px 12px;
+            border: 1px solid var(--primary);
+            background: var(--primary);
+            color: white;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s ease;
+        }
+
+        .btn-detail:hover {
+            background: transparent;
+            color: var(--primary);
+        }
+
         .problem-card {
             background: var(--bg);
             border-radius: 8px;
@@ -2788,11 +2960,26 @@ const EMBEDDED_HYBRID_DASHBOARD_TEMPLATE: &str = r#"
         </div>
 
         <div class="section">
-            <h3>🧵 Thread Variables</h3>
+            <h3>🧵 Thread Overview</h3>
+            
+            <div class="thread-grid" id="threadGrid">
+                <!-- Thread cards will be generated here -->
+            </div>
+        </div>
+
+        <div class="section" id="threadVariablesSection" style="display: none;">
+            <h3 id="threadVariablesTitle">🧵 Thread Variables</h3>
+            
+            <div class="thread-variables-controls">
+                <button onclick="backToThreadOverview()" class="btn btn-secondary">← Back to Thread Overview</button>
+                <div class="thread-info">
+                    <span id="selectedThreadInfo"></span>
+                </div>
+            </div>
             
             <div class="variables-controls">
                 <div class="variable-legend">
-                    <h5>Performance Categories:</h5>
+                    <h5>Variable Categories:</h5>
                     <div class="legend-items">
                         <div class="legend-item" onclick="filterByCategory('cpu')">
                             <div class="legend-color cpu-intensive"></div>
@@ -6725,10 +6912,11 @@ function generatePerformanceReport() {
 }
 
 function calculateTotalMemory() {
-    // Calculate total memory from actual variable registry data
+    // Calculate total memory from DASHBOARD_DATA instead of variableRegistry
+    const data = window.DASHBOARD_DATA?.variables || [];
     let total = 0;
-    for (const variable of Object.values(window.variableRegistry || {})) {
-        total += variable.memory_usage || 0;
+    for (const variable of data) {
+        total += variable.size || 0;
     }
     // Convert bytes to MB
     return (total / 1024 / 1024).toFixed(1);
@@ -6942,6 +7130,180 @@ function updateFilterStats() {
 
 console.log('🎯 Attribution Analysis Dashboard JavaScript loaded');
 console.log('🔍 Ready for 3-click root cause discovery');
+
+// Thread-centric navigation system
+function initializeThreadOverview() {
+    generateThreadCards();
+}
+
+function generateThreadCards() {
+    const data = window.DASHBOARD_DATA?.variables || [];
+    const threadGrid = document.getElementById('threadGrid');
+    
+    // Group variables by thread
+    const threadGroups = {};
+    data.forEach(variable => {
+        if (variable && variable.thread !== undefined) {
+            if (!threadGroups[variable.thread]) {
+                threadGroups[variable.thread] = [];
+            }
+            threadGroups[variable.thread].push(variable);
+        }
+    });
+    
+    let html = '';
+    Object.keys(threadGroups).sort((a, b) => Number(a) - Number(b)).forEach(threadId => {
+        const variables = threadGroups[threadId];
+        const totalMemory = variables.reduce((sum, v) => sum + (v.size || 0), 0);
+        const memoryMB = (totalMemory / (1024 * 1024)).toFixed(2);
+        
+        // Determine workload type based on variable patterns
+        const workloadType = determineWorkloadType(variables);
+        
+        html += `
+            <div class="thread-card" onclick="showThreadVariables(${threadId})">
+                <div class="thread-header">
+                    <div class="thread-id">Thread ${threadId}</div>
+                    <div class="thread-status">Active</div>
+                </div>
+                <div class="thread-metrics">
+                    <div class="thread-metric">
+                        <span class="metric-value">${variables.length}</span>
+                        <span class="metric-label">Variables</span>
+                    </div>
+                    <div class="thread-metric">
+                        <span class="metric-value">${memoryMB}MB</span>
+                        <span class="metric-label">Memory</span>
+                    </div>
+                </div>
+                <div class="thread-workload workload-${workloadType}">
+                    ${workloadType.charAt(0).toUpperCase() + workloadType.slice(1)} Workload
+                </div>
+            </div>
+        `;
+    });
+    
+    threadGrid.innerHTML = html;
+}
+
+function determineWorkloadType(variables) {
+    // Simple heuristic based on variable names and sizes
+    const hasNetworkVars = variables.some(v => v.name.includes('network') || v.name.includes('recv') || v.name.includes('send'));
+    const hasComputeVars = variables.some(v => v.name.includes('matrix') || v.name.includes('computation') || v.name.includes('hash'));
+    const hasMemoryVars = variables.some(v => v.name.includes('image') || v.name.includes('buffer') && (v.size || 0) > 1024);
+    const hasInteractiveVars = variables.some(v => v.name.includes('http') || v.name.includes('request') || v.name.includes('response'));
+    
+    if (hasInteractiveVars) return 'interactive';
+    if (hasMemoryVars) return 'memorybound';
+    if (hasComputeVars) return 'cpubound';
+    if (hasNetworkVars) return 'iobound';
+    return 'cpubound'; // default
+}
+
+function showThreadVariables(threadId) {
+    // Hide thread overview using correct selector
+    const threadOverviewSection = document.querySelector('h3').parentElement;
+    threadOverviewSection.style.display = 'none';
+    
+    // Show thread variables section
+    document.getElementById('threadVariablesSection').style.display = 'block';
+    
+    // Update title and info
+    document.getElementById('threadVariablesTitle').textContent = `🧵 Thread ${threadId} Variables`;
+    
+    const data = window.DASHBOARD_DATA?.variables || [];
+    const threadVariables = data.filter(v => v && v.thread === threadId);
+    const totalMemory = threadVariables.reduce((sum, v) => sum + (v.size || 0), 0);
+    const memoryMB = (totalMemory / (1024 * 1024)).toFixed(2);
+    
+    document.getElementById('selectedThreadInfo').textContent = 
+        `Thread ${threadId}: ${threadVariables.length} variables, ${memoryMB}MB total memory`;
+    
+    // Generate detailed variable cards for this specific thread
+    generateDetailedVariableCardsForThread(threadId, threadVariables);
+}
+
+function backToThreadOverview() {
+    // Show thread overview
+    const threadOverviewSection = document.querySelector('h3').parentElement;
+    threadOverviewSection.style.display = 'block';
+    
+    // Hide thread variables section
+    document.getElementById('threadVariablesSection').style.display = 'none';
+}
+
+function generateDetailedVariableCardsForThread(threadId, variables) {
+    const variablesGrid = document.querySelector('#threadVariablesSection .variables-grid');
+    
+    let html = '';
+    variables.forEach((variable, index) => {
+        const memoryKB = (variable.size / 1024).toFixed(1);
+        const memoryMB = (variable.size / (1024 * 1024)).toFixed(3);
+        const category = determineVariableCategory(variable);
+        const allocs = variable.allocs || 1;
+        
+        html += `
+            <div class="variable-card detailed ${category}" onclick="window.drillDown('${variable.name}', 'memory')">
+                <div class="variable-header">
+                    <div class="variable-name">${variable.name}</div>
+                    <div class="performance-indicator">
+                        <span class="perf-badge ${category}">${category.replace('-', ' ')}</span>
+                    </div>
+                </div>
+                <div class="variable-details">
+                    <div class="detail-row">
+                        <span class="detail-label">Memory Size:</span>
+                        <span class="detail-value">${memoryKB}KB (${memoryMB}MB)</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Allocations:</span>
+                        <span class="detail-value">${allocs}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Status:</span>
+                        <span class="detail-value status-${(variable.state || 'active').toLowerCase()}">${variable.state || 'Active'}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Type:</span>
+                        <span class="detail-value">${variable.type || 'Unknown'}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Thread:</span>
+                        <span class="detail-value">Thread ${threadId}</span>
+                    </div>
+                </div>
+                <div class="variable-actions">
+                    <button class="btn-detail" onclick="event.stopPropagation(); showVariableDetail('${variable.name}')">
+                        🔍 Deep Inspector
+                    </button>
+                </div>
+            </div>
+        `;
+    });
+    
+    variablesGrid.innerHTML = html;
+}
+
+function determineVariableCategory(variable) {
+    const name = variable.name.toLowerCase();
+    const size = variable.size || 0;
+    
+    if (name.includes('matrix') || name.includes('computation') || name.includes('hash')) return 'cpu-intensive';
+    if (name.includes('network') || name.includes('recv') || name.includes('send')) return 'io-intensive';
+    if (name.includes('image') || name.includes('buffer') && size > 2048) return 'memory-intensive';
+    if (name.includes('http') || name.includes('request') || name.includes('async')) return 'async-heavy';
+    return 'normal';
+}
+
+function showVariableDetail(variableName) {
+    // Use existing drillDown function for detailed variable analysis
+    window.drillDown(variableName, 'memory');
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    initializeThreadOverview();
+});
 
 // 🕵️ Root Cause Analysis Panel System
 class RootCauseAnalysisEngine {
