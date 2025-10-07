@@ -631,6 +631,8 @@ mod tests {
             type_name,
             timestamp: 1000,
             size: 64,
+            thread_id: 1,
+            memory_usage: 64,
         }
     }
 

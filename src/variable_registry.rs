@@ -19,6 +19,10 @@ pub struct VariableInfo {
     pub timestamp: u64,
     /// Estimated size of the variable
     pub size: usize,
+    /// Thread ID that created this variable
+    pub thread_id: usize,
+    /// Memory usage of this variable
+    pub memory_usage: u64,
 }
 
 /// Global variable registry using HashMap for fast lookups
@@ -43,6 +47,13 @@ impl VariableRegistry {
         type_name: String,
         size: usize,
     ) -> TrackingResult<()> {
+        let thread_id = {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            std::thread::current().id().hash(&mut hasher);
+            hasher.finish() as usize
+        };
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
@@ -53,6 +64,8 @@ impl VariableRegistry {
             type_name,
             timestamp,
             size,
+            thread_id,
+            memory_usage: size as u64,
         };
 
         if let Ok(mut registry) = get_global_registry().try_lock() {
@@ -963,6 +976,8 @@ mod tests {
         assert_eq!(info.type_name, type_name);
         assert_eq!(info.size, size);
         assert!(info.timestamp > 0);
+        assert!(info.thread_id > 0);
+        assert_eq!(info.memory_usage, size as u64);
     }
 
     #[test]
@@ -1443,6 +1458,8 @@ mod tests {
                 type_name: "i32".to_string(),
                 timestamp: 1000,
                 size: 4,
+                thread_id: 1,
+                memory_usage: 4,
             },
         );
         registry.insert(
@@ -1452,6 +1469,8 @@ mod tests {
                 type_name: "String".to_string(),
                 timestamp: 2000,
                 size: 24,
+                thread_id: 2,
+                memory_usage: 24,
             },
         );
 

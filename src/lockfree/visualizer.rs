@@ -2737,7 +2737,6 @@ const EMBEDDED_MULTITHREAD_TEMPLATE: &str = r#"<!DOCTYPE html>
     </script>
     </body></html>"#;
 
-
 use super::platform_resources::PlatformResourceMetrics;
 use super::resource_integration::ComprehensiveAnalysis;
 use serde::Serialize;
