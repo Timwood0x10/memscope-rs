@@ -213,7 +213,7 @@ impl LockfreeAnalysis {
         for stats in self.thread_stats.values() {
             total_allocations += stats.total_allocations;
             total_deallocations += stats.total_deallocations;
-            peak_memory += stats.peak_memory;  // 修复：累加所有线程的峰值内存
+            peak_memory += stats.peak_memory; // 修复：累加所有线程的峰值内存
             total_allocated += stats.total_allocated;
 
             for &call_stack_hash in stats.allocation_frequency.keys() {

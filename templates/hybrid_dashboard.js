@@ -624,9 +624,13 @@ function generateTaskInspectorPages(taskId) {
 
 // Memory drill down generator
 window.generateMemoryDrillDown = function(variableId, rank) {
-    const memoryUsage = 50 + rank * 10;
-    const allocations = 100 + rank * 20;
-    const deallocations = 80 + rank * 15;
+    // Use real data from DASHBOARD_DATA instead of mock data
+    const data = window.DASHBOARD_DATA?.variables || {};
+    const variableData = Object.values(data).find(v => v.name === variableId) || {};
+    
+    const memoryUsage = variableData.memory_usage ? (variableData.memory_usage / (1024 * 1024)).toFixed(1) : '0';
+    const allocations = variableData.allocation_count || 1;
+    const deallocations = 0; // Calculate from lifecycle data if available
     
     return '<div class="drill-down-content">' +
                '<h4>🧠 Memory Analysis: ' + variableId + '</h4>' +
@@ -899,8 +903,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Add attribution analysis helper functions
 function getTopContributorsHTML(type) {
-    // Mock hotspot contributor data
-    const contributors = generateMockContributors(type);
+    // Get real hotspot contributor data from DASHBOARD_DATA
+    const contributors = generateRealContributors(type);
     
     let html = '<div class="contributors-list">';
     contributors.forEach((item, index) => {
@@ -918,13 +922,27 @@ function getTopContributorsHTML(type) {
     return html;
 }
 
-function generateMockContributors(type) {
+function generateRealContributors(type) {
     const data = window.DASHBOARD_DATA?.variables || [];
-    return data.slice(0, 5).map((item, index) => ({
+    // Sort by memory usage to get real top contributors
+    const sortedData = Object.values(data)
+        .filter(item => item && item.memory_usage)
+        .sort((a, b) => b.memory_usage - a.memory_usage)
+        .slice(0, 5);
+    
+    const totalMemory = sortedData.reduce((sum, item) => sum + (item.memory_usage || 0), 0);
+    
+    return sortedData.map((item, index) => ({
         id: item.name || `${type}_item_${index}`,
         name: item.name || `${type}_${index}`,
-        impact: `${Math.floor(Math.random() * 50 + 30)}% contribution`
+        impact: totalMemory > 0 ? `${((item.memory_usage / totalMemory) * 100).toFixed(1)}% contribution` : '0% contribution'
     }));
+}
+
+// Keep the old function for compatibility but mark as deprecated
+function generateMockContributors(type) {
+    console.warn('generateMockContributors is deprecated, use generateRealContributors instead');
+    return generateRealContributors(type);
 }
 
 function highlightRelevantVariables(type) {
@@ -1003,50 +1021,148 @@ function getInspectorIcon(type) {
     return iconMap[type] || '🔍';
 }
 
+function calculateTotalMemory() {
+    // Calculate total memory from real tracked variables
+    const data = window.DASHBOARD_DATA?.variables || {};
+    let total = 0;
+    
+    // Sum up memory usage from all tracked variables
+    for (const variable of Object.values(data)) {
+        if (variable && typeof variable.memory_usage === 'number') {
+            total += variable.memory_usage;
+        }
+    }
+    
+    // Convert bytes to MB for display
+    return (total / (1024 * 1024)).toFixed(2);
+}
+
 function generateTaskListForThread(threadNum) {
     let html = '<div class="task-items">';
-    for (let i = 1; i <= 3; i++) {
-        const taskId = threadNum * 3 + i;
+    
+    // 从DASHBOARD_DATA获取该线程的真实任务数据
+    const data = window.DASHBOARD_DATA?.variables || [];
+    // 修复字段名称不匹配：数据中使用 'thread' 而不是 'thread_id'
+    const threadVariables = data.filter(v => v && v.thread === threadNum);
+    
+    console.log(`📋 Thread ${threadNum} task data:`, threadVariables); // 调试信息
+    
+    // 将变量分组为任务（每3-5个变量为一个任务）
+    const tasksPerThread = Math.max(1, Math.floor(threadVariables.length / 3));
+    
+    if (threadVariables.length > 0) {
+        for (let i = 1; i <= tasksPerThread; i++) {
+            const taskId = threadNum * 100 + i;
+            const taskVariables = threadVariables.slice((i-1)*3, i*3);
+            // 修复字段名称：数据中使用 'size' 而不是 'memory_usage'
+            const taskMemory = taskVariables.reduce((sum, v) => sum + (v.size || 0), 0);
+            
+            html += `
+                <div class="task-item" onclick="window.drillDown('Task ${taskId}', 'task')">
+                    <span class="task-id">Task ${taskId}</span>
+                    <span class="task-status">${taskVariables.length > 0 ? 'Active' : 'Idle'}</span>
+                    <span class="task-memory">${taskMemory > 0 ? (taskMemory / 1024).toFixed(1) : '0'}KB</span>
+                </div>
+            `;
+        }
+    } else {
+        // 确保至少显示一个任务
         html += `
-            <div class="task-item" onclick="window.drillDown('Task ${taskId}', 'task')">
-                <span class="task-id">Task ${taskId}</span>
-                <span class="task-status">Running</span>
-                <span class="task-memory">${Math.floor(Math.random() * 100 + 50)}KB</span>
+            <div class="task-item">
+                <span class="task-id">Task ${threadNum}01</span>
+                <span class="task-status">Idle</span>
+                <span class="task-memory">0KB</span>
             </div>
         `;
     }
+    
     html += '</div>';
     return html;
 }
 
 function generateVariableTableForThread(threadNum) {
     let html = '<div class="variables-table-content">';
-    for (let i = 0; i < 5; i++) {
-        const varName = `thread_${threadNum}_var_${i}`;
+    
+    // 从DASHBOARD_DATA获取该线程的真实变量数据
+    const data = window.DASHBOARD_DATA?.variables || [];
+    console.log(`🔍 DASHBOARD_DATA structure for thread ${threadNum}:`, data); // 调试信息
+    
+    // 修复字段名称不匹配：数据中使用 'thread' 而不是 'thread_id'
+    const threadVariables = data.filter(v => v && v.thread === threadNum);
+    
+    console.log(`🧵 Thread ${threadNum} variables:`, threadVariables); // 调试信息
+    
+    if (threadVariables.length > 0) {
+        // 显示该线程的真实变量
+        threadVariables.forEach(variable => {
+            // 修复字段名称：数据中使用 'size' 而不是 'memory_usage'，'state' 而不是 'lifecycle_stage'
+            const memoryKB = variable.size ? (variable.size / 1024).toFixed(1) : '0';
+            const status = variable.state || 'Active';
+            
+            html += `
+                <div class="var-row" onclick="window.drillDown('${variable.name}', 'memory')">
+                    <span class="var-name">${variable.name}</span>
+                    <span class="var-size">${memoryKB}KB</span>
+                    <span class="var-status">${status}</span>
+                </div>
+            `;
+        });
+    } else {
+        // 当没有找到变量时显示占位符
         html += `
-            <div class="var-row" onclick="window.drillDown('${varName}', 'memory')">
-                <span class="var-name">${varName}</span>
-                <span class="var-size">${Math.floor(Math.random() * 200 + 50)}KB</span>
-                <span class="var-status">Active</span>
+            <div class="var-row">
+                <span class="var-name">No variables tracked for Thread ${threadNum}</span>
+                <span class="var-size">0KB</span>
+                <span class="var-status">Idle</span>
             </div>
         `;
     }
+    
     html += '</div>';
     return html;
 }
 
 function generateVariableTableForTask(taskNum) {
     let html = '<div class="task-variables-content">';
-    for (let i = 0; i < 3; i++) {
-        const varName = `task_${taskNum}_var_${i}`;
+    
+    // Extract thread number from task number (task ID format: threadNum * 100 + taskIndex)
+    const threadNum = Math.floor(taskNum / 100);
+    const taskIndex = taskNum % 100;
+    
+    // Get real variables for this task from DASHBOARD_DATA
+    const data = window.DASHBOARD_DATA?.variables || [];
+    // 修复字段名称不匹配：数据中使用 'thread' 而不是 'thread_id'
+    const threadVariables = data.filter(v => v && v.thread === threadNum);
+    
+    // Get variables for this specific task (3 variables per task)
+    const startIndex = (taskIndex - 1) * 3;
+    const taskVariables = threadVariables.slice(startIndex, startIndex + 3);
+    
+    if (taskVariables.length > 0) {
+        taskVariables.forEach(variable => {
+            // 修复字段名称：数据中使用 'size' 而不是 'memory_usage'，'state' 而不是 'lifecycle_stage'
+            const memoryKB = (variable.size / 1024).toFixed(1);
+            const lifecycle = variable.state || 'Allocated';
+            
+            html += `
+                <div class="var-row" onclick="window.drillDown('${variable.name}', 'memory')">
+                    <span class="var-name">${variable.name}</span>
+                    <span class="var-size">${memoryKB}KB</span>
+                    <span class="var-lifecycle">${lifecycle}</span>
+                </div>
+            `;
+        });
+    } else {
+        // Show placeholder when no variables are found for this task
         html += `
-            <div class="var-row" onclick="window.drillDown('${varName}', 'memory')">
-                <span class="var-name">${varName}</span>
-                <span class="var-size">${Math.floor(Math.random() * 150 + 30)}KB</span>
-                <span class="var-lifecycle">Allocated</span>
+            <div class="var-row">
+                <span class="var-name">No variables for this task</span>
+                <span class="var-size">0KB</span>
+                <span class="var-lifecycle">Idle</span>
             </div>
         `;
     }
+    
     html += '</div>';
     return html;
 }
@@ -1172,6 +1288,8 @@ function showCodeHealthSummary(data) {
 }
 
 function generatePerformanceReport() {
+    // Calculate total memory from real data instead of using undefined totalMemoryMB
+    const totalMemoryMB = calculateTotalMemory();
     showToast('📊 Generating comprehensive performance report...');
     
     const modal = document.getElementById('variable-modal');

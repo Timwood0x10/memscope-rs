@@ -48,11 +48,25 @@ impl VariableRegistry {
         size: usize,
     ) -> TrackingResult<()> {
         let thread_id = {
-            use std::collections::hash_map::DefaultHasher;
-            use std::hash::{Hash, Hasher};
-            let mut hasher = DefaultHasher::new();
-            std::thread::current().id().hash(&mut hasher);
-            hasher.finish() as usize
+            // Use a simple atomic counter for thread IDs instead of hash
+            static THREAD_COUNTER: std::sync::atomic::AtomicUsize =
+                std::sync::atomic::AtomicUsize::new(1);
+            static THREAD_ID_MAP: std::sync::OnceLock<
+                std::sync::Mutex<std::collections::HashMap<std::thread::ThreadId, usize>>,
+            > = std::sync::OnceLock::new();
+
+            let map = THREAD_ID_MAP
+                .get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()));
+            let current_thread_id = std::thread::current().id();
+
+            if let Ok(mut map) = map.try_lock() {
+                *map.entry(current_thread_id).or_insert_with(|| {
+                    THREAD_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+                })
+            } else {
+                // Fallback if we can't get the lock
+                1
+            }
         };
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
