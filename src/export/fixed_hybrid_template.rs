@@ -8561,7 +8561,11 @@ impl FixedHybridTemplate {
             .unwrap_or(0);
 
         let max_rate = thread_loads.values().max().unwrap_or(&0) * 10; // Simulated rate/sec
-        let avg_rate = thread_loads.values().sum::<u64>() / thread_loads.len() as u64 * 10;
+        let avg_rate = if thread_loads.is_empty() {
+            0
+        } else {
+            thread_loads.values().sum::<u64>() / thread_loads.len() as u64 * 10
+        };
         let percent_above = if avg_rate > 0 {
             ((max_rate as f64 - avg_rate as f64) / avg_rate as f64) * 100.0
         } else {
@@ -8718,7 +8722,7 @@ impl FixedHybridTemplate {
             .len();
         let thread_score = if unique_threads > 10 { 85 } else { 70 };
 
-        let overall_score = (memory_score + allocation_score + thread_score) / 3;
+        let overall_score = (memory_score.saturating_add(allocation_score).saturating_add(thread_score)) / 3;
 
         (memory_score, allocation_score, thread_score, overall_score)
     }
