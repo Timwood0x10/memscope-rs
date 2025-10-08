@@ -209,7 +209,7 @@ fn generate_html_visualization(
         .into_iter()
         .map(|(addr, var_info)| {
             (
-                format!("{}_{:x}", var_info.var_name, addr), // 使用变量名+地址作为key
+                format!("{}_{:x}", var_info.var_name, addr),
                 memscope_rs::export::fixed_hybrid_template::VariableDetail {
                     name: var_info.var_name.clone(),
                     type_info: var_info.type_name.clone(),
@@ -220,11 +220,11 @@ fn generate_html_visualization(
                             .saturating_mul(100)
                             .saturating_add(addr % 100)
                             .min(10000),
-                    ), // 更好的任务ID生成
-                    allocation_count: 1, // 每个变量至少有1次分配
+                    ),
+                    allocation_count: 1,
                     memory_usage: var_info.memory_usage,
                     lifecycle_stage:
-                        memscope_rs::export::fixed_hybrid_template::LifecycleStage::Active, // 默认为Active状态
+                        memscope_rs::export::fixed_hybrid_template::LifecycleStage::Active,
                 },
             )
         })
@@ -347,7 +347,7 @@ fn print_tracking_summary(
     println!("  🧵 Threads tracked: {}", tracked_threads.len());
     println!("  📋 Variables tracked: {}", data.variable_registry.len());
 
-    // Show thread distribution - 显示所有有变量的线程
+    // Show thread distribution
     println!("\n🧵 Thread Distribution:");
     let mut thread_list: Vec<_> = tracked_threads.into_iter().collect();
     thread_list.sort();
