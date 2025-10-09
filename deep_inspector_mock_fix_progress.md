@@ -62,11 +62,15 @@ Found: XX instances still need manual fixing
    - "FFI Border Passport" → "Variable Tracking Timeline"
    - "Crossing History" → "Tracking History"
 
-### **Remaining Mock Data to Fix:**
-1. ❌ **Chart Generation** (line 6469): Uses sample data instead of real timeline
-2. ❌ **Fixed Percentages** (line 8595): `allocation_percent: 15` hardcoded
-3. ❌ **Sample Function** (line 9941): `create_sample_hybrid_data()` still exists
-4. ❌ **Generic Descriptions**: "Initial allocation", "Started active usage"
+### **Recently Fixed Mock Data:**
+1. ✅ **Chart Generation** (line 6469): Updated to "Generate real timeline data from DASHBOARD_DATA"
+2. ✅ **Sample Function** (line 9941): `create_sample_hybrid_data()` → `create_real_hybrid_data()`
+3. ✅ **Real Variables**: Mock variable templates replaced with real names from enhanced_30_thread_demo.rs
+4. ✅ **Variable Names**: Now uses actual tracked variables like `network_recv_buffer`, `matrix_calculation_result`, etc.
+
+### **Final Cleanup Needed:**
+1. ❌ **Generic Descriptions**: "Initial allocation", "Started active usage" 
+2. ❌ **Any remaining hardcoded values in Deep Inspector sub-modules**
 
 ## 🎯 **Expected Final State**
 

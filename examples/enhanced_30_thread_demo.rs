@@ -143,6 +143,8 @@ fn generate_html_visualization(
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("  📊 Creating hybrid analysis data...");
 
+    // 使用真实的追踪数据而不是样本数据
+    let _tracker = memscope_rs::analysis::unsafe_ffi_tracker::get_global_unsafe_ffi_tracker(); // 保留用于将来可能的扩展
     let real_variables = memscope_rs::variable_registry::VariableRegistry::get_all_variables();
 
     println!("📊 Real data collection stats:");
