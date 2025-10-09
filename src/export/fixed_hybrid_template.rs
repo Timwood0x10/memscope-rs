@@ -5976,25 +5976,25 @@ function generateVariableInspectorPages(variableId, type) {
                         <span class="event-time">0ms</span>
                         <span class="event-type rust">🦀 Created in Rust</span>
                         <span class="event-location">enhanced_30_thread_demo.rs:${50 + variableData.thread}</span>
-                        <span class="event-details">Vec&lt;u8&gt; allocated (${(variableData.size / 1024).toFixed(1)}KB)</span>
+                        <span class="event-details">${variableData.name} allocated (${(variableData.size / 1024).toFixed(1)}KB)</span>
                     </div>
                     <div class="crossing-event">
                         <span class="event-time">${variableData.thread * 15}ms</span>
                         <span class="event-type ffi">🌉 Passed to C</span>
                         <span class="event-location">track_var.rs:${100 + variableData.thread}</span>
-                        <span class="event-details">Raw pointer: 0x${variableData.thread.toString(16).padStart(6, '0')}</span>
+                        <span class="event-details">track_var!(${variableData.name}) registered</span>
                     </div>
                     <div class="crossing-event">
                         <span class="event-time">${variableData.thread * 20}ms</span>
                         <span class="event-type c">🔧 Modified in C</span>
                         <span class="event-location">allocator.rs:${200 + variableData.thread}</span>
-                        <span class="event-details">Buffer written, size changed to ${(variableData.size * variableData.allocs / 1024).toFixed(1)}KB</span>
+                        <span class="event-details">Variable ${variableData.name} tracked: ${variableData.size} bytes</span>
                     </div>
                     <div class="crossing-event">
                         <span class="event-time">${variableData.thread * 25}ms</span>
                         <span class="event-type ffi">🌉 Returned to Rust</span>
                         <span class="event-location">variable_registry.rs:${300 + variableData.thread}</span>
-                        <span class="event-details">Ownership reclaimed, validation: ✅</span>
+                        <span class="event-details">Thread ${variableData.thread} stats updated</span>
                     </div>
                 </div>
             </div>
@@ -6152,25 +6152,25 @@ function generateVariableInspectorPages(variableId, type) {
                         <span class="event-time">0ms</span>
                         <span class="event-type rust">🦀 Created in Rust</span>
                         <span class="event-location">enhanced_30_thread_demo.rs:${50 + variableData.thread}</span>
-                        <span class="event-details">Vec&lt;u8&gt; allocated (${(variableData.size / 1024).toFixed(1)}KB)</span>
+                        <span class="event-details">${variableData.name} allocated (${(variableData.size / 1024).toFixed(1)}KB)</span>
                     </div>
                     <div class="crossing-event">
                         <span class="event-time">${variableData.thread * 15}ms</span>
                         <span class="event-type ffi">🌉 Passed to C</span>
                         <span class="event-location">track_var.rs:${100 + variableData.thread}</span>
-                        <span class="event-details">Raw pointer: 0x${variableData.thread.toString(16).padStart(6, '0')}</span>
+                        <span class="event-details">track_var!(${variableData.name}) registered</span>
                     </div>
                     <div class="crossing-event">
                         <span class="event-time">${variableData.thread * 20}ms</span>
                         <span class="event-type c">🔧 Modified in C</span>
                         <span class="event-location">allocator.rs:${200 + variableData.thread}</span>
-                        <span class="event-details">Buffer written, size changed to ${(variableData.size * variableData.allocs / 1024).toFixed(1)}KB</span>
+                        <span class="event-details">Variable ${variableData.name} tracked: ${variableData.size} bytes</span>
                     </div>
                     <div class="crossing-event">
                         <span class="event-time">${variableData.thread * 25}ms</span>
                         <span class="event-type ffi">🌉 Returned to Rust</span>
                         <span class="event-location">variable_registry.rs:${300 + variableData.thread}</span>
-                        <span class="event-details">Ownership reclaimed, validation: ✅</span>
+                        <span class="event-details">Thread ${variableData.thread} stats updated</span>
                     </div>
                 </div>
             </div>
