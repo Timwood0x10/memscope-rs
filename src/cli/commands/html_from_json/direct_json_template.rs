@@ -1,5 +1,7 @@
 //! Direct JSON template generator that uses raw JSON data without complex processing
 
+use std::path::absolute;
+
 // Embedded templates - 1:1 copy with all placeholders preserved
 const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
 <html lang="en">
@@ -7377,8 +7379,8 @@ function createMetricCard(title, value, percentage, color, status) {
                                 stroke-dasharray="${strokeDasharray}" stroke-dashoffset="${strokeDashoffset}"
                                 stroke-linecap="round" class="transition-all duration-500"/>
                     </svg>
-                    <div class="absolute inset-0 flex items-center justify-center">
-                        <span class="text-xs font-bold" style="color: ${color}">${Math.round(percentage)}%</span>
+                    <div class="absolute inset-0 flex items-center justify-center ">
+                        <span class="text-xs font-bold " style="color: ${color}">${Math.round(percentage)}%</span>
                     </div>
                 </div>
             </div>
@@ -7398,15 +7400,15 @@ function createTimelineVisualization(allocations) {
     return sortedAllocs.slice(0, 20).map((alloc, index) => {
         const position = ((alloc.timestamp_alloc - minTime) / timeRange) * 100;
         const height = Math.min(80, Math.max(4, (alloc.size / 1024) * 20));
-        const color = alloc.var_name && alloc.var_name !== 'unknown' ? '#3498db' : '#95a5a6';
+        const color = alloc.var_name && alloc.var_name !== "unknown" ? "#3498db" : "#95a5a6";
 
         return `
-            <div class="absolute bottom-0 bg-opacity-80 rounded-t transition-all hover:bg-opacity-100" 
-                 style="left: ${position}%; width: 4px; height: ${height}%; background-color: ${color};"
-                 title="${alloc.var_name || 'System'}: ${formatBytes(alloc.size)}">
+            <div class=" absolute bottom-0 bg-opacity-80 rounded-t transition-all hover:bg-opacity-100 " 
+                 style=" left: ${position}%; width: 4px; height: ${height}%; background-color: ${color};"
+                 title="${alloc.var_name || "System"}: ${formatBytes(alloc.size)}">
             </div>
         `;
-    }).join('');
+    }).join("");
 }
 
 // Create treemap-style visualization
@@ -7432,10 +7434,10 @@ function createTreemapVisualization(allocations) {
         const width = totalSize > 0 ? (data.size / totalSize) * 100 : 12.5;
         const color = getTypeColor(type, index);
         const result = `
-            <div class="absolute h-full transition-all hover:brightness-110 cursor-pointer rounded" 
+            <div class="absolute h-full transition-all hover:brightness-110 cursor-pointer rounded " 
                  style="left: ${currentX}%; width: ${width}%; background-color: ${color};"
                  title="${type}: ${formatBytes(data.size)} (${data.count} allocs)">
-                <div class="p-2 h-full flex flex-col justify-center text-white text-xs font-semibold text-center">
+                <div class="p-2 h-full flex flex-col justify-center text-white text-xs font-semibold text-center ">
                     <div class="truncate">${type.length > 10 ? type.substring(0, 8) + '...' : type}</div>
                     <div class="text-xs opacity-90">${formatBytes(data.size)}</div>
                 </div>
@@ -7450,7 +7452,7 @@ function createTreemapVisualization(allocations) {
 function createFragmentationBar(label, count, total, color) {
     const percentage = total > 0 ? (count / total) * 100 : 0;
     return `
-        <div class="flex items-center justify-between">
+        <div class="flex items-center justify-between ">
             <span class="text-sm font-medium text-gray-700 dark:text-gray-300 w-24">${label}</span>
             <div class="flex-1 mx-3">
                 <div class="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-4">
@@ -7458,7 +7460,7 @@ function createFragmentationBar(label, count, total, color) {
                          style="width: ${percentage}%; background-color: ${color}"></div>
                 </div>
             </div>
-            <span class="text-sm font-bold text-gray-900 dark:text-white w-12 text-right">${count}</span>
+            <span class="text-sm font-bold text-gray-900 dark:text-white w-12 text-right ">${count}</span>
         </div>
     `;
 }
@@ -7531,23 +7533,23 @@ function createAdvancedMetricCard(title, value, percentage, color, status) {
 
     return `
         <div class="bg-white dark:bg-gray-700 rounded-lg p-3 shadow-sm hover:shadow-md transition-all border border-gray-200 dark:border-gray-600">
-            <div class="flex flex-col items-center">
+            <div class="flex flex-col items-center ">
                 <div class="relative w-10 h-10 mb-2">
                     <svg class="w-10 h-10 transform -rotate-90" viewBox="0 0 50 50">
-                        <circle cx="25" cy="25" r="20" stroke="#e5e7eb" stroke-width="4" fill="none" class="dark:stroke-gray-600"/>
+                        <circle cx="25" cy="25" r="20" stroke="#e5e7eb " stroke-width="4" fill="none" class="dark:stroke-gray-600"/>
                         <circle cx="25" cy="25" r="20" stroke="${color}" stroke-width="4" fill="none" 
                                 stroke-dasharray="${strokeDasharray}" stroke-dashoffset="${strokeDashoffset}"
                                 stroke-linecap="round" class="transition-all duration-500"/>
                     </svg>
-                    <div class="absolute inset-0 flex items-center justify-center">
-                        <span class="text-xs font-bold" style="color: ${color}">${Math.round(percentage)}%</span>
+                    <div class="absolute inset-0 flex items-center justify-center ">
+                        <span class="text-xs font-bold " style="color: ${color}">${Math.round(percentage)}%</span>
                     </div>
                 </div>
-                <p class="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase text-center">${title}</p>
-                <p class="text-sm font-bold text-gray-900 dark:text-white text-center">${value}</p>
+                <p class="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase text-center ">${title}</p>
+                <p class="text-sm font-bold text-gray-900 dark:text-white text-center ">${value}</p>
                 <div class="flex items-center mt-1">
                     <div class="w-1.5 h-1.5 rounded-full mr-1" style="background-color: ${statusColors[status]}"></div>
-                    <span class="text-xs font-semibold" style="color: ${statusColors[status]}">${status}</span>
+                    <span class="text-xs font-semibold " style="color: ${statusColors[status]}">${status}</span>
                 </div>
             </div>
         </div>
@@ -7589,10 +7591,10 @@ function createAdvancedTimelineVisualization(allocations, totalMemory) {
             const width = Math.max(2, (alloc.size / totalMemory) * 100);
 
             return `
-                        <div class="absolute h-4 rounded opacity-80 hover:opacity-100 transition-opacity cursor-pointer" 
+                        <div class="absolute h-4 rounded opacity-80 hover:opacity-100 transition-opacity cursor-pointer " 
                              style="left: ${position}%; width: ${Math.max(4, width)}px; background-color: ${color};"
-                             title="${alloc.var_name || 'System'}: ${formatBytes(alloc.size)}">
-                        </div>
+                             title="${alloc.var_name || "System"}: ${formatBytes(alloc.size)}">
+                        </div>`;
                     `;
         }).join('')}
             </div>
@@ -7649,7 +7651,7 @@ function createAdvancedTreemapVisualization(allocations, totalMemory) {
         
         // Category container with background
         html += `
-            <div class="absolute w-full rounded-lg border-2 border-white shadow-sm transition-all hover:shadow-md" 
+            <div class="absolute w-full rounded-lg border-2 border-white shadow-sm transition-all hover:shadow-md " 
                  style="top: ${currentY}px; height: ${categoryHeight}px; background-color: ${categoryData.color}; opacity: 0.15;">
             </div>
         `;
@@ -7682,11 +7684,11 @@ function createAdvancedTreemapVisualization(allocations, totalMemory) {
                      style="left: ${currentX}px; top: ${typeY}px; width: ${typeWidth}px; height: ${typeHeight}px; 
                             background-color: ${categoryData.color}; opacity: 0.9;"
                      title="${type}: ${formatBytes(typeData.size)} (${typeData.count} allocs, ${typePercentage.toFixed(1)}% of ${categoryName})">
-                    <div class="p-1 h-full flex flex-col justify-center text-white text-xs font-bold text-center">
-                        <div class="truncate text-shadow" style="text-shadow: 1px 1px 2px rgba(0,0,0,0.8);">
+                    <div class="p-1 h-full flex flex-col justify-center text-white text-xs font-bold text-center ">
+                        <div class="truncate text-shadow " style="text-shadow: 1px 1px 2px rgba(0,0,0,0.8);">
                             ${type.length > 12 ? type.substring(0, 10) + '..' : type}
                         </div>
-                        <div class="text-xs opacity-90 font-semibold" style="text-shadow: 1px 1px 2px rgba(0,0,0,0.6);">
+                        <div class="text-xs opacity-90 font-semibold " style="text-shadow: 1px 1px 2px rgba(0,0,0,0.6);">
                             ${formatBytes(typeData.size)}
                         </div>
                         <div class="text-xs opacity-75" style="text-shadow: 1px 1px 2px rgba(0,0,0,0.6);">
@@ -7722,7 +7724,7 @@ function createAdvancedFragmentationBar(label, count, total, color) {
     const barHeight = Math.max(8, (count / total) * 60);
 
     return `
-        <div class="flex items-center justify-between">
+        <div class="flex items-center justify-between ">
             <div class="flex items-center w-32">
                 <div class="w-4 rounded mr-3 border border-gray-300 dark:border-gray-500" 
                      style="height: ${barHeight}px; background-color: ${color}"></div>
@@ -7734,7 +7736,7 @@ function createAdvancedFragmentationBar(label, count, total, color) {
                          style="width: ${percentage}%; background-color: ${color}"></div>
                 </div>
             </div>
-            <span class="text-sm font-bold text-gray-900 dark:text-white w-12 text-right">${count}</span>
+            <span class="text-sm font-bold text-gray-900 dark:text-white w-12 text-right ">${count}</span>
         </div>
     `;
 }
@@ -7754,11 +7756,11 @@ function createCallStackAnalysis(allocations) {
         const radius = Math.min(8, Math.max(3, Math.sqrt((alloc.size || 0) / 100)));
 
         return `
-            <div class="flex items-center space-x-3 p-2 bg-white dark:bg-gray-600 rounded border">
+            <div class="flex items-center space-x-3 p-2 bg-white dark:bg-gray-600 rounded border ">
                 <div class="w-4 h-4 rounded-full border-2 border-gray-300 dark:border-gray-500" 
                      style="background-color: ${color}"></div>
                 <div class="flex-1 min-w-0">
-                    <div class="text-sm font-medium text-gray-900 dark:text-white truncate">
+                    <div class="text-sm font-medium text-gray-900 dark:text-white truncate ">
                         ${alloc.var_name || 'System/Runtime allocations'}
                     </div>
                     <div class="text-xs text-gray-500 dark:text-gray-400">
@@ -7789,39 +7791,39 @@ function createAdvancedGrowthTrendVisualization(allocations, totalMemory) {
         }
     });
 
-    return `
+    return '
         <!-- Background Grid -->
         <div class="absolute inset-0">
-            ${[20, 40, 60, 80].map(y => `
+            ${[20, 40, 60, 80].map(y => '
                 <div class="absolute w-full border-t border-gray-200 dark:border-gray-500 opacity-30" 
                      style="top: ${y}%"></div>
-            `).join('')}
+            ').join("")}
         </div>
         
         <!-- Growth Line -->
-        <svg class="absolute inset-0 w-full h-full">
+        <svg class="absolute inset-0 w-full h-full ">
             <polyline
                 fill="none"
                 stroke="#27ae60"
                 stroke-width="3"
                 stroke-linecap="round"
                 stroke-linejoin="round"
-                points="${points.map(p => `${p.x},${p.y}`).join(' ')}"
-                class="drop-shadow-sm"
+                points="${points.map(p => \"${p.x},${p.y}\").join(' ')}"
+                class="drop-shadow-sm "
             />
         </svg>
         
         <!-- Data Points -->
-        ${points.map(point => `
-            <div class="absolute w-2 h-2 bg-green-500 rounded-full border border-white dark:border-gray-600 transform -translate-x-1/2 -translate-y-1/2 hover:scale-150 transition-transform cursor-pointer" 
-                 style="left: ${point.x}%; top: ${point.y}%"
-                 title="Memory: ${formatBytes(point.size)}">
+        ${points.map(point => "
+            <div class=\"absolute w-2 h-2 bg-green-500 rounded-full border border-white dark:border-gray-600 transform -translate-x-1/2 -translate-y-1/2 hover:scale-150 transition-transform cursor-pointer \" 
+                 style='left: ${point.x}%; top: ${point.y}%'
+                 title='Memory: ${formatBytes(point.size)}'>
             </div>
-        `).join('')}
+        ").join("")}
         
         <!-- Peak Memory Line -->
         <div class="absolute w-full border-t-2 border-red-500 border-dashed opacity-60" style="top: 20%">
-            <div class="absolute -top-1 right-0 text-xs text-red-500 bg-white dark:bg-gray-600 px-1 rounded">
+            <div class="absolute -top-1 right-0 text-xs text-red-500 bg-white dark:bg-gray-600 px-1 rounded ">
                 Peak: ${formatBytes(totalMemory)}
             </div>
         </div>
@@ -7830,82 +7832,82 @@ function createAdvancedGrowthTrendVisualization(allocations, totalMemory) {
 
 // Create variable allocation timeline
 function createVariableAllocationTimeline(allocations) {
-    const userAllocs = allocations.filter(a => a.var_name && a.var_name !== 'unknown')
+    const userAllocs = allocations.filter(a => a.var_name && a.var_name !== "unknown")
         .sort((a, b) => (a.timestamp_alloc || 0) - (b.timestamp_alloc || 0))
         .slice(0, 10);
 
     return userAllocs.map((alloc, index) => {
-        const color = getTypeColor(alloc.type_name || '', index);
+        const color = getTypeColor(alloc.type_name || "", index);
 
-        return `
-            <div class="flex items-center space-x-3 p-2 bg-white dark:bg-gray-600 rounded border">
-                <div class="w-3 h-3 rounded-full" style="background-color: ${color}"></div>
+        return '
+            <div class="flex items-center space-x-3 p-2 bg-white dark:bg-gray-600 rounded border ">
+                <div class="w-3 h-3 rounded-full " style="background-color: ${color}"></div>
                 <div class="flex-1 min-w-0">
-                    <div class="text-sm font-medium text-gray-900 dark:text-white">
+                    <div class="text-sm font-medium text-gray-900 dark:text-white ">
                         ${alloc.var_name}
                     </div>
                     <div class="text-xs text-gray-500 dark:text-gray-400">
-                        ${alloc.type_name || 'unknown'} • ${formatBytes(alloc.size || 0)}
+                        ${alloc.type_name || "unknown"} • ${formatBytes(alloc.size || 0)}
                     </div>
                 </div>
                 <div class="text-xs text-gray-500 dark:text-gray-400">
                     ${new Date(alloc.timestamp_alloc / 1000000).toLocaleTimeString()}
                 </div>
             </div>
-        `;
-    }).join('');
+        ';
+    }).join("");
 }
 
 // Helper functions for type categorization
 function getTypeCategory(type) {
-    if (!type || type === 'System' || type === 'unknown') return 'system';
+    if (!type || type === "System" || type === "unknown") return "system";
     
     const typeLower = type.toLowerCase();
     
     // Collections
-    if (typeLower.includes('vec') || typeLower.includes('hash') || typeLower.includes('btree') || 
-        typeLower.includes('deque') || typeLower.includes('set') || typeLower.includes('map')) {
-        return 'collections';
+    if (typeLower.includes("vec") || typeLower.includes("hash") || typeLower.includes("btree") || 
+        typeLower.includes("deque") || typeLower.includes("set") || typeLower.includes("map")) {
+        return "collections";
     }
     
     // Smart Pointers
-    if (typeLower.includes('box') || typeLower.includes('rc') || typeLower.includes('arc') || 
-        typeLower.includes('refcell') || typeLower.includes('cell') || typeLower.includes('weak')) {
-        return 'smart_pointers';
+    if (typeLower.includes("box") || typeLower.includes("rc") || typeLower.includes("arc") || 
+        typeLower.includes("refcell") || typeLower.includes("cell") || typeLower.includes("weak")) {
+        return "smart_pointers";
     }
     
     // Basic types (String, primitives, etc.)
-    return 'basic';
+    return "basic";
 }
 
 function getCategoryColor(category) {
     const colors = {
-        'collections': '#3498db',      // Bright blue
-        'basic': '#27ae60',           // Bright green  
-        'smart_pointers': '#9b59b6',  // Purple
-        'system': '#95a5a6'           // Gray
+        "collections": "#3498db",      // Bright blue
+        "basic": "#27ae60",           // Bright green  
+        "smart_pointers": "#9b59b6",  // Purple
+        "system": "#95a5a6"           // Gray
     };
-    return colors[category] || '#95a5a6';
+    return colors[category] || "#95a5a6";
 }
 
 // Initialize allocations table with improved collapsible functionality
 function initAllocationsTable() {
-    console.log('📊 Initializing allocations table...');
+    console.log("📊 Initializing allocations table... ");
 
-    const tbody = document.getElementById('allocations-table');
-    const toggleButton = document.getElementById('toggle-allocations');
+    const tbody = document.getElementById("allocations-table ");
+    const toggleButton = document.getElementById("toggle-allocations ");
 
     if (!tbody) {
-        console.warn('⚠️ Allocations table body not found');
+        console.warn("⚠️ Allocations table body not found ");
         return;
     }
 
     const allocations = window.analysisData.memory_analysis?.allocations || [];
 
     if (allocations.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">No allocations found</td></tr>';
+        tbody.innerHTML = "<tr><td colspan= / "5" class=/"px-4 py-8 text-center text-gray-500 dark:text-gray-400\">No allocations found</td></tr>";
         if (toggleButton) {
-            toggleButton.style.display = 'none';
+            toggleButton.style.display = "none";
         }
         return;
     }
@@ -7914,15 +7916,15 @@ function initAllocationsTable() {
     const maxInitialRows = 5;
 
     function renderTable(showAll = false) {
-        console.log(`📊 Rendering table, showAll: ${showAll}, total allocations: ${allocations.length}`);
+        console.log("📊 Rendering table, showAll: " + showAll + ", total allocations: " + allocations.length);
 
         const displayAllocations = showAll ? allocations : allocations.slice(0, maxInitialRows);
 
-        tbody.innerHTML = displayAllocations.map(alloc => `
-            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                <td class="px-4 py-2 text-gray-900 dark:text-gray-100 font-mono">0x${(alloc.ptr ? parseInt(alloc.ptr.toString().replace('0x', ''), 16) : 0).toString(16).padStart(8, '0')}</td>
-                <td class="px-4 py-2 text-gray-900 dark:text-gray-100">${alloc.var_name || 'System Allocation'}</td>
-                <td class="px-4 py-2 text-gray-900 dark:text-gray-100">${formatTypeName(alloc.type_name || 'System Allocation')}</td>
+        tbody.innerHTML = displayAllocations.map(alloc => "
+            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ">
+                <td class="px-4 py-2 text-gray-900 dark:text-gray-100 font-mono ">0x${(alloc.ptr ? parseInt(alloc.ptr.toString().replace("0x", ""), 16) : 0).toString(16).padStart(8, "0")}</td>
+                <td class="px-4 py-2 text-gray-900 dark:text-gray-100">${alloc.var_name || "System Allocation"}</td>
+                <td class="px-4 py-2 text-gray-900 dark:text-gray-100">${formatTypeName(alloc.type_name || "System Allocation")}</td>
                 <td class="px-4 py-2 text-right text-gray-900 dark:text-gray-100">${formatBytes(alloc.size || 0)}</td>
                 <td class="px-4 py-2 text-right text-gray-900 dark:text-gray-100">
                     <span class="px-2 py-1 text-xs rounded-full ${alloc.is_active ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'}">
@@ -7930,7 +7932,7 @@ function initAllocationsTable() {
                     </span>
                 </td>
             </tr>
-        `).join('');
+        ').join('');
 
         if (!showAll && allocations.length > maxInitialRows) {
             tbody.innerHTML += `
@@ -9807,7 +9809,7 @@ function createMemoryGrowthChart(timePoints, peakMemory) {
         
         <!-- Peak Memory Indicator -->
         <div class="absolute w-full border-t-2 border-red-500 border-dashed opacity-60" style="top: 10%">
-            <div class="absolute -top-1 right-0 text-xs text-red-500 bg-white dark:bg-gray-600 px-1 rounded">
+            <div class="absolute -top-1 right-0 text-xs text-red-500 bg-white dark:bg-gray-600 px-1 rounded ">
                 Peak
             </div>
         </div>
