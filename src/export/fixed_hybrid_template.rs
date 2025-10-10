@@ -10070,7 +10070,7 @@ pub fn create_real_hybrid_data(thread_count: usize, task_count: usize) -> Hybrid
         ("image_processing_buffer", "Vec<u64>", 16384, 1), // Real 16KB buffer
         ("database_index_cache", "HashMap<String, usize>", 1024, 1),
         ("video_frame_buffer", "Vec<Frame>", 8192, 1),
-        // CPUBound variables (from demo)  
+        // CPUBound variables (from demo)
         ("matrix_calculation_result", "Vec<f64>", 800, 1), // Real calculation data
         ("hash_computation_state", "Vec<usize>", 400, 1),
         ("crypto_key_schedule", "Vec<u8>", 1024, 1),

@@ -13,7 +13,7 @@ function initCleanTemplate() {
     console.log('📊 Available data:', Object.keys(window.analysisData||{}));
     const data = window.analysisData || {};
 
-    // KPI 关键指标
+    // KPI
     updateKPICards(data);
 
     // Memory by type (Chart.js)
