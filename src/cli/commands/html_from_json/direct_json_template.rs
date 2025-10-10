@@ -1,9 +1,7 @@
 //! Direct JSON template generator that uses raw JSON data without complex processing
 
-use std::path::absolute;
-
 // Embedded templates - 1:1 copy with all placeholders preserved
-const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
+const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -6606,7 +6604,7 @@ rn Variable Graph Styles */
     100% { opacity: 1; }
 }"#;
 
-const EMBEDDED_SCRIPT_JS: &str = r#"// MemScope Dashboard JavaScript - Clean rendering for clean_dashboard.html
+const EMBEDDED_SCRIPT_JS: &str = r##"// MemScope Dashboard JavaScript - Clean rendering for clean_dashboard.html
 // This file contains comprehensive functions for memory analysis dashboard
 
 // Global data store - will be populated by HTML template
@@ -7397,18 +7395,27 @@ function createTimelineVisualization(allocations) {
     const maxTime = sortedAllocs[sortedAllocs.length - 1]?.timestamp_alloc || minTime + 1;
     const timeRange = maxTime - minTime || 1;
 
-    return sortedAllocs.slice(0, 20).map((alloc, index) => {
-        const position = ((alloc.timestamp_alloc - minTime) / timeRange) * 100;
-        const height = Math.min(80, Math.max(4, (alloc.size / 1024) * 20));
-        const color = alloc.var_name && alloc.var_name !== "unknown" ? "#3498db" : "#95a5a6";
-
-        return `
-            <div class=" absolute bottom-0 bg-opacity-80 rounded-t transition-all hover:bg-opacity-100 " 
-                 style=" left: ${position}%; width: 4px; height: ${height}%; background-color: ${color};"
-                 title="${alloc.var_name || "System"}: ${formatBytes(alloc.size)}">
-            </div>
-        `;
-    }).join("");
+    return sortedAllocs.slice(0, 20).map(function(alloc, index) {
+        var position = ((alloc.timestamp_alloc - minTime) / timeRange) * 100;
+        var height = Math.min(80, Math.max(4, (alloc.size / 1024) * 20));
+        var color = (alloc.var_name && alloc.var_name !== 'unknown') ? '#3498db' : '#95a5a6';
+        var varName = alloc.var_name || 'System';
+        var sizeStr = formatBytes(alloc.size);
+        
+        var html = [];
+        html.push('<div class="absolute bottom-0 bg-opacity-80 rounded-t transition-all hover:bg-opacity-100" style="left:');
+        html.push(position);
+        html.push('%;width:4px;height:');
+        html.push(height);
+        html.push('%;background-color:');
+        html.push(color);
+        html.push('" title="');
+        html.push(varName);
+        html.push(':');
+        html.push(sizeStr);
+        html.push('"></div>');
+        return html.join('');
+    }).join('');
 }
 
 // Create treemap-style visualization
@@ -8282,7 +8289,7 @@ function renderLifetimeVisualizationFromRustWithCollapse(variableGroups) {
         console.log("📊 Lifecycle toggle button hidden (not enough data)");
     }
 
-    console.log(`✅ Rendered ${variableGroups.length} Rust-preprocessed variables in lifetime visualization with collapse functionality`);
+    console.log("✅ Rendered " + variableGroups.length + " Rust-preprocessed variables in lifetime visualization with collapse functionality");
 }
 
 // Render the lifetime visualization with collapsible functionality
@@ -8324,10 +8331,10 @@ function renderLifetimeVisualizationWithCollapse(variableGroups) {
     const maxTime = Math.max(...allTimestamps);
     const timeRange = maxTime - minTime;
 
-    console.log(`📊 Timeline: ${minTime} to ${maxTime} (range: ${timeRange})`);
+    console.log("📊 Timeline: " + minTime + " to " + maxTime + " (range: " + timeRange + ")");
 
     function renderLifetimeRows(showAll = false) {
-        console.log(`📊 Rendering lifecycle rows, showAll: ${showAll}, total groups: ${variableGroups.length}`);
+        console.log("📊 Rendering lifecycle rows, showAll: " + showAll + ", total groups: " + variableGroups.length);
         
         container.innerHTML = "";
         
@@ -8376,20 +8383,19 @@ function renderLifetimeVisualizationWithCollapse(variableGroups) {
             // Format type name for display
             const displayTypeName = formatTypeName(group.type_name);
 
-            varDiv.innerHTML = `
-                <div class="w-40 flex-shrink-0 text-sm font-medium dark:text-gray-200">
-                    ${group.var_name} (${displayTypeName})
-                </div>
-                <div class="flex-grow relative">
-                    <div class="lifespan-indicator ${colors.bg}" 
-                         style="width: ${finalWidthPercent}%; margin-left: ${finalStartPercent}%;" 
-                         title="Variable: ${group.var_name}, Type: ${displayTypeName}">
-                        <div class="absolute -top-6 left-0 text-xs ${colors.bg} text-white px-2 py-1 rounded whitespace-nowrap">
-                            Allocated: ${formatTimestamp(startTime, minTime)}
-                        </div>
-                    </div>
-                </div>
-            `;
+            varDiv.innerHTML = 
+                "<div class=\"w-40 flex-shrink-0 text-sm font-medium dark:text-gray-200\">" +
+                    group.var_name + " (" + displayTypeName + ")" +
+                "</div>" +
+                "<div class=\"flex-grow relative\">" +
+                    "<div class=\"lifespan-indicator " + colors.bg + "\" " +
+                         "style=\"width: " + finalWidthPercent + "%; margin-left: " + finalStartPercent + "%;\" " +
+                         "title=\"Variable: " + group.var_name + ", Type: " + displayTypeName + "\">" +
+                        "<div class=\"absolute -top-6 left-0 text-xs " + colors.bg + " text-white px-2 py-1 rounded whitespace-nowrap\">" +
+                            "Allocated: " + formatTimestamp(startTime, minTime) +
+                        "</div>" +
+                    "</div>" +
+                "</div>";
 
             container.appendChild(varDiv);
         });
@@ -8445,12 +8451,12 @@ function renderLifetimeVisualizationWithCollapse(variableGroups) {
         console.log("📊 Lifecycle toggle button hidden (not enough data)");
     }
 
-    console.log(`✅ Rendered ${variableGroups.length} variables in lifetime visualization with collapse functionality`);
+    console.log("✅ Rendered " + variableGroups.length + " variables in lifetime visualization with collapse " + "functionality");
 }
 
 // Initialize FFI visualization with enhanced support for improve.md fields
 function initFFIVisualization() {
-    console.log("🔄 Initializing FFI visualization...');
+    console.log("🔄 Initializing FFI visualization...");
 
     const container = document.getElementById('ffiVisualization');
     if (!container) return;
@@ -8527,7 +8533,7 @@ function initFFIVisualization() {
         
         // Check for improve.md specific fields
         const sampleAlloc = allocations[0];
-        console.log("🔍 Improve.md fields check:');
+        console.log("🔍 Improve.md fields check:");
         console.log("  - borrow_info:", sampleAlloc.borrow_info);
         console.log("  - clone_info:", sampleAlloc.clone_info);
         console.log("  - ownership_history_available:", sampleAlloc.ownership_history_available);
@@ -15674,8 +15680,8 @@ function showFFIFlowNodeDetail(ptr, size, allocs) {
     document.body.appendChild(modal);
     modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
 }
-"#;
-s
+"##;
+
 use serde_json::Value;
 use std::collections::HashMap;
 use std::error::Error;
@@ -16963,13 +16969,13 @@ fn inject_safety_risk_data_into_html(
     }
 
     // Ensure safety risks are loaded after initialization - but only call if function exists
-    html = html.replace("console.log("✅ Enhanced dashboard initialized');", 
-                       "console.log("✅ Enhanced dashboard initialized'); setTimeout(() => { if (typeof loadSafetyRisks === 'function') { loadSafetyRisks(); } }, 100);");
+    html = html.replace("console.log('✅ Enhanced dashboard initialized');", 
+                       "console.log('✅ Enhanced dashboard initialized'); setTimeout(() => { if (typeof loadSafetyRisks === 'function') { loadSafetyRisks(); } }, 100);");
 
     // Also add to manual initialization if it exists - with safer replacement
-    if html.contains("manualBtn.addEventListener("click", manualInitialize);") {
-        html = html.replace("manualBtn.addEventListener("click", manualInitialize);", 
-                           "manualBtn.addEventListener("click", function() { manualInitialize(); setTimeout(() => { if (typeof loadSafetyRisks === 'function') { loadSafetyRisks(); } }, 100); });");
+    if html.contains("manualBtn.addEventListener('click', manualInitialize);") {
+        html = html.replace("manualBtn.addEventListener('click', manualInitialize);", 
+                           "manualBtn.addEventListener('click', function() { manualInitialize(); setTimeout(() => { if (typeof loadSafetyRisks === 'function') { loadSafetyRisks(); } }, 100); });");
     }
 
     // Remove any standalone loadSafetyRisks calls that might cause errors
