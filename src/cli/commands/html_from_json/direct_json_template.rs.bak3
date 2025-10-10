@@ -700,7 +700,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
             console.log("🚀 Triggering enhanced features initialization...");
             if (typeof initEnhancedLifecycleVisualization === "function") {
               setTimeout(() => {
-                console.log("🔄 Calling initEnhancedLifecycleVisualization...');
+                console.log('🔄 Calling initEnhancedLifecycleVisualization...');
                 initEnhancedLifecycleVisualization();
               }, 100);
             } else {
@@ -710,7 +710,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
             // Also trigger the main dashboard initialization if needed
             if (typeof initDashboard === 'function') {
               setTimeout(() => {
-                console.log("🔄 Calling initDashboard...');
+                console.log('🔄 Calling initDashboard...');
                 initDashboard();
               }, 200);
             }
@@ -742,14 +742,14 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
               ]
             }
           };
-          console.log("⚠️ Using dummy data for testing');
+          console.log('⚠️ Using dummy data for testing');
         });
     } else {
-      console.log("✅ Data injection successful');
+      console.log('✅ Data injection successful');
     }
 
-    console.log("Final analysisData:", window.analysisData);
-    console.log("Allocations available:", window.analysisData?.memory_analysis?.allocations?.length || 0);
+    console.log('Final analysisData:', window.analysisData);
+    console.log('Allocations available:', window.analysisData?.memory_analysis?.allocations?.length || 0);
 
     // Enhanced Memory Visualization Functions
     class EnhancedMemoryVisualizer {
@@ -773,7 +773,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
 
       init() {
         if (this.initialized) return;
-        console.log("Initializing EnhancedMemoryVisualizer...');
+        console.log('Initializing EnhancedMemoryVisualizer...');
 
         this.initTooltip();
         this.init3DVisualization();
@@ -782,12 +782,12 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
         this.bindEvents();
 
         this.initialized = true;
-        console.log("EnhancedMemoryVisualizer initialized successfully');
+        console.log('EnhancedMemoryVisualizer initialized successfully');
       }
 
       initTooltip() {
         this.tooltip = document.createElement('div');
-        this.tooltip.className = "memory-tooltip";
+        this.tooltip.className = 'memory-tooltip';
         this.tooltip.style.display = 'none';
         document.body.appendChild(this.tooltip);
       }
@@ -1020,7 +1020,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
         });
 
         canvas.style.cursor = 'grab';
-        console.log("✅ Manual 3D controls initialized (mouse drag to rotate, wheel to zoom)');
+        console.log('✅ Manual 3D controls initialized (mouse drag to rotate, wheel to zoom)');
       }
 
       animate3D() {
@@ -1212,7 +1212,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
           }
         });
 
-        canvas.addEventListener("click", (event) => {
+        canvas.addEventListener('click', (event) => {
           if (this.hoveredObject) {
             this.selectMemoryBlock(this.hoveredObject);
           }
@@ -1317,7 +1317,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
       }
 
       initTimelineControls() {
-        console.log("Initializing timeline controls...');
+        console.log('Initializing timeline controls...');
 
         const playBtn = document.getElementById('timelinePlay');
         const pauseBtn = document.getElementById('timelinePause');
@@ -1326,7 +1326,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
         const slider = document.getElementById('timelineSlider');
         const thumb = document.getElementById('timelineThumb');
 
-        console.log("Found timeline buttons:", {
+        console.log('Found timeline buttons:', {
           playBtn: !!playBtn,
           pauseBtn: !!pauseBtn,
           resetBtn: !!resetBtn,
@@ -1336,41 +1336,41 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
         });
 
         if (playBtn) {
-          playBtn.addEventListener("click", () => {
-            console.log("Timeline play button clicked');
+          playBtn.addEventListener('click', () => {
+            console.log('Timeline play button clicked');
             this.playTimeline();
           });
-          console.log("Play button event bound');
+          console.log('Play button event bound');
         } else {
           console.error('timelinePlay button not found');
         }
 
         if (pauseBtn) {
-          pauseBtn.addEventListener("click", () => {
-            console.log("Timeline pause button clicked');
+          pauseBtn.addEventListener('click', () => {
+            console.log('Timeline pause button clicked');
             this.pauseTimeline();
           });
-          console.log("Pause button event bound');
+          console.log('Pause button event bound');
         } else {
           console.error('timelinePause button not found');
         }
 
         if (resetBtn) {
-          resetBtn.addEventListener("click", () => {
-            console.log("Timeline reset button clicked');
+          resetBtn.addEventListener('click', () => {
+            console.log('Timeline reset button clicked');
             this.resetTimeline();
           });
-          console.log("Reset button event bound');
+          console.log('Reset button event bound');
         } else {
           console.error('timelineReset button not found');
         }
 
         if (stepBtn) {
-          stepBtn.addEventListener("click", () => {
-            console.log("Timeline step button clicked');
+          stepBtn.addEventListener('click', () => {
+            console.log('Timeline step button clicked');
             this.stepTimeline();
           });
-          console.log("Step button event bound');
+          console.log('Step button event bound');
         } else {
           console.error('timelineStep button not found');
         }
@@ -1397,7 +1397,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
             isDragging = false;
           });
 
-          slider.addEventListener("click", (e) => {
+          slider.addEventListener('click', (e) => {
             if (isDragging) return;
 
             const rect = slider.getBoundingClientRect();
@@ -1458,13 +1458,13 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
       }
 
       playTimeline() {
-        console.log("Starting timeline playback...');
+        console.log('Starting timeline playback...');
         if (this.timeline.isPlaying) {
-          console.log("Timeline already playing');
+          console.log('Timeline already playing');
           return;
         }
 
-        console.log("Timeline data:", {
+        console.log('Timeline data:', {
           totalTime: this.timeline.totalTime,
           currentTime: this.timeline.currentTime,
           dataLength: this.timeline.data.length
@@ -1477,7 +1477,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
         if (playBtn) playBtn.disabled = true;
         if (pauseBtn) pauseBtn.disabled = false;
 
-        console.log("Timeline playback started');
+        console.log('Timeline playback started');
 
         // Get speed from control
         const speedSelect = document.getElementById('timelineSpeed');
@@ -1495,7 +1495,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
             this.timeline.currentTime = this.timeline.totalTime;
             this.updateTimelineVisualization();
             this.pauseTimeline();
-            console.log("Timeline playback completed');
+            console.log('Timeline playback completed');
             return;
           }
 
@@ -1529,7 +1529,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
       }
 
       resetTimeline() {
-        console.log("Resetting timeline...');
+        console.log('Resetting timeline...');
         this.pauseTimeline();
         this.timeline.currentTime = 0;
         this.updateTimelineVisualization();
@@ -1539,7 +1539,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
           this.create3DMemoryBlocks(window.analysisData.memory_analysis.allocations || []);
         }
         
-        console.log("Timeline reset to beginning');
+        console.log('Timeline reset to beginning');
       }
 
       stepTimeline() {
@@ -1633,7 +1633,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
         const modeButtons = document.querySelectorAll('.heatmap-mode-btn');
 
         modeButtons.forEach(btn => {
-          btn.addEventListener("click", (e) => {
+          btn.addEventListener('click', (e) => {
             modeButtons.forEach(b => b.classList.remove('active'));
             e.target.classList.add('active');
             this.heatmapMode = e.target.dataset.mode;
@@ -1643,7 +1643,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
       }
 
       generateHeatmap(allocations) {
-        console.log("Generating enhanced heatmap with", allocations?.length || 0, 'allocations');
+        console.log('Generating enhanced heatmap with', allocations?.length || 0, 'allocations');
         if (!allocations) return;
 
         const container = document.getElementById('memoryHeatmap');
@@ -2074,7 +2074,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
       }
 
       bindEvents() {
-        console.log("🔧 Binding 3D visualization events...');
+        console.log('🔧 Binding 3D visualization events...');
 
         // Add visual feedback for button interactions
         this.addButtonFeedback();
@@ -2086,7 +2086,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
           const autoRotateBtn = document.getElementById('autoRotate3D');
           const focusLargestBtn = document.getElementById('focusLargest');
 
-          console.log("🔍 Found buttons:", {
+          console.log('🔍 Found buttons:', {
             toggle3DBtn: !!toggle3DBtn,
             reset3DBtn: !!reset3DBtn,
             autoRotateBtn: !!autoRotateBtn,
@@ -2098,9 +2098,9 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
             toggle3DBtn.replaceWith(toggle3DBtn.cloneNode(true));
             const newToggle3DBtn = document.getElementById('toggle3DView');
             
-            newToggle3DBtn.addEventListener("click", (e) => {
+            newToggle3DBtn.addEventListener('click', (e) => {
               e.preventDefault();
-              console.log("🎯 Toggle 3D view clicked');
+              console.log('🎯 Toggle 3D view clicked');
               const container = document.getElementById('memory3DContainer');
               if (container) {
                 const isHidden = container.style.display === 'none';
@@ -2109,11 +2109,11 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
                   container.style.display = 'block';
                   newToggle3DBtn.innerHTML = '<i class="fa fa-eye-slash"></i><span>Hide 3D</span>';
                   newToggle3DBtn.style.background = 'var(--primary-red)';
-                  console.log("✅ Showing 3D view');
+                  console.log('✅ Showing 3D view');
                   
                   // Reinitialize 3D scene if needed
                   if (!this.scene) {
-                    console.log("🔄 Reinitializing 3D scene...');
+                    console.log('🔄 Reinitializing 3D scene...');
                     this.init3DVisualization();
                   }
                   
@@ -2126,13 +2126,13 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
                   container.style.display = 'none';
                   newToggle3DBtn.innerHTML = '<i class="fa fa-eye"></i><span>Show 3D</span>';
                   newToggle3DBtn.style.background = 'var(--primary-green)';
-                  console.log("✅ Hiding 3D view');
+                  console.log('✅ Hiding 3D view');
                 }
               } else {
                 console.error('❌ 3D container not found');
               }
             });
-            console.log("✅ Toggle 3D button event bound');
+            console.log('✅ Toggle 3D button event bound');
           } else {
             console.error('❌ toggle3DView button not found');
           }
@@ -2142,12 +2142,12 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
             reset3DBtn.replaceWith(reset3DBtn.cloneNode(true));
             const newReset3DBtn = document.getElementById('reset3DView');
             
-            newReset3DBtn.addEventListener("click", (e) => {
+            newReset3DBtn.addEventListener('click', (e) => {
               e.preventDefault();
-              console.log("🎯 Reset 3D view clicked');
+              console.log('🎯 Reset 3D view clicked');
               this.reset3DView();
             });
-            console.log("✅ Reset 3D button event bound');
+            console.log('✅ Reset 3D button event bound');
           } else {
             console.error('❌ reset3DView button not found');
           }
@@ -2157,12 +2157,12 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
             autoRotateBtn.replaceWith(autoRotateBtn.cloneNode(true));
             const newAutoRotateBtn = document.getElementById('autoRotate3D');
             
-            newAutoRotateBtn.addEventListener("click", (e) => {
+            newAutoRotateBtn.addEventListener('click', (e) => {
               e.preventDefault();
-              console.log("🎯 Auto rotate clicked');
+              console.log('🎯 Auto rotate clicked');
               this.toggleAutoRotate();
             });
-            console.log("✅ Auto rotate button event bound');
+            console.log('✅ Auto rotate button event bound');
           } else {
             console.error('❌ autoRotate3D button not found');
           }
@@ -2172,12 +2172,12 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
             focusLargestBtn.replaceWith(focusLargestBtn.cloneNode(true));
             const newFocusLargestBtn = document.getElementById('focusLargest');
             
-            newFocusLargestBtn.addEventListener("click", (e) => {
+            newFocusLargestBtn.addEventListener('click', (e) => {
               e.preventDefault();
-              console.log("🎯 Focus largest clicked');
+              console.log('🎯 Focus largest clicked');
               this.focusOnLargestBlock();
             });
-            console.log("✅ Focus largest button event bound');
+            console.log('✅ Focus largest button event bound');
           } else {
             console.error('❌ focusLargest button not found');
           }
@@ -2228,7 +2228,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
       }
 
       reset3DView() {
-        console.log("🔄 Resetting 3D view...');
+        console.log('🔄 Resetting 3D view...');
         
         // Show visual feedback
         const resetBtn = document.getElementById('reset3DView');
@@ -2256,7 +2256,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
             }
           }, 500);
           
-          console.log("✅ 3D view reset complete');
+          console.log('✅ 3D view reset complete');
         } else {
           console.error('❌ Camera or controls not available for reset');
           if (resetBtn) {
@@ -2277,7 +2277,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
     }
 
       toggleAutoRotate() {
-        console.log("🔄 Toggling auto rotate...');
+        console.log('🔄 Toggling auto rotate...');
         if (this.controls) {
           this.controls.autoRotate = !this.controls.autoRotate;
           this.controls.autoRotateSpeed = 2.0; // Set rotation speed
@@ -2287,11 +2287,11 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
             if (this.controls.autoRotate) {
               btn.innerHTML = '<i class="fa fa-pause"></i><span>Stop Rotate</span>';
               btn.style.background = 'var(--primary-red)';
-              console.log("✅ Auto rotate enabled');
+              console.log('✅ Auto rotate enabled');
             } else {
               btn.innerHTML = '<i class="fa fa-rotate-right"></i><span>Auto Rotate</span>';
               btn.style.background = 'var(--primary-blue)';
-              console.log("✅ Auto rotate disabled');
+              console.log('✅ Auto rotate disabled');
             }
           }
         } else {
@@ -2309,7 +2309,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
       }
 
       focusOnLargestBlock() {
-        console.log("🎯 Focusing on largest block...');
+        console.log('🎯 Focusing on largest block...');
         
         // Show visual feedback
         const focusBtn = document.getElementById('focusLargest');
@@ -2393,20 +2393,20 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
 
       // Main initialization method
       initializeWithData(analysisData) {
-        console.log("initializeWithData called with:", analysisData);
+        console.log('initializeWithData called with:', analysisData);
 
         let allocations = null;
 
         // Try different data structure paths
         if (analysisData && analysisData.memory_analysis && analysisData.memory_analysis.allocations) {
           allocations = analysisData.memory_analysis.allocations;
-          console.log("Found allocations in memory_analysis:", allocations.length);
+          console.log('Found allocations in memory_analysis:', allocations.length);
         } else if (analysisData && analysisData.allocations) {
           allocations = analysisData.allocations;
-          console.log("Found allocations directly:", allocations.length);
+          console.log('Found allocations directly:', allocations.length);
         } else {
           console.warn('No allocation data found in analysisData');
-          console.log("Available keys:", Object.keys(analysisData || {}));
+          console.log('Available keys:', Object.keys(analysisData || {}));
           return;
         }
 
@@ -2432,11 +2432,11 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
         // Initialize memory fragmentation visualization
         this.initializeMemoryFragmentation(allocations);
 
-        console.log("Enhanced memory visualization initialized successfully');
+        console.log('Enhanced memory visualization initialized successfully');
       }
 
       initializeMemoryFragmentation(allocations) {
-        console.log("Initializing memory fragmentation with", allocations?.length || 0, 'allocations');
+        console.log('Initializing memory fragmentation with', allocations?.length || 0, 'allocations');
         const container = document.getElementById('memoryFragmentation');
         if (!container) {
           console.error('Memory fragmentation container not found');
@@ -2448,7 +2448,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
           return;
         }
 
-        console.log("Processing", allocations.length, 'allocations for fragmentation analysis');
+        console.log('Processing', allocations.length, 'allocations for fragmentation analysis');
 
         // Calculate fragmentation metrics
         const sortedAllocs = [...allocations].sort((a, b) => {
@@ -2495,7 +2495,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
         const fragmentation = totalMemory > 0 ? (totalGapSize / (totalMemory + totalGapSize)) * 100 : 0;
         const efficiency = Math.max(100 - fragmentation, 0);
 
-        console.log("Fragmentation metrics:", { gaps, totalGapSize, fragmentation, efficiency });
+        console.log('Fragmentation metrics:', { gaps, totalGapSize, fragmentation, efficiency });
 
         // Create visualization
         container.innerHTML = `
@@ -2671,7 +2671,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
           const blockHeight = availableHeight * 0.7;
 
           const block = document.createElement('div');
-          block.className = "memory-block";
+          block.className = 'memory-block';
           block.style.cssText = `
             position: absolute;
             left: ${currentX}px;
@@ -2713,7 +2713,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
           });
 
           // 添加点击事件显示详细信息
-          block.addEventListener("click", () => {
+          block.addEventListener('click', () => {
             this.showBlockDetails(alloc);
           });
 
@@ -2760,7 +2760,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
         }
 
         if (fitBtn) {
-          fitBtn.addEventListener("click", () => {
+          fitBtn.addEventListener('click', () => {
             // 自动计算最佳缩放比例
             const container = document.getElementById('memoryDistributionViz');
             if (container && allocations) {
@@ -2786,7 +2786,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
         }
 
         if (resetBtn) {
-          resetBtn.addEventListener("click", () => {
+          resetBtn.addEventListener('click', () => {
             if (scaleSlider) {
               scaleSlider.value = 100;
               safeUpdateElement('memoryDistScaleValue', '100%');
@@ -2847,11 +2847,11 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
           document.body.removeChild(modal);
         };
 
-        modal.addEventListener("click", (e) => {
+        modal.addEventListener('click', (e) => {
           if (e.target === modal) closeModal();
         });
 
-        content.querySelector('#closeModal').addEventListener("click", closeModal);
+        content.querySelector('#closeModal').addEventListener('click', closeModal);
       }
 
       updateEnhancedMetrics(allocations) {
@@ -2939,7 +2939,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
 
     // Global function to bind 3D controls - can be called from console for debugging
     window.bind3DControls = function() {
-      console.log("🔧 Manually binding 3D controls...');
+      console.log('🔧 Manually binding 3D controls...');
       if (window.enhancedVisualizer) {
         window.enhancedVisualizer.bindEvents();
       }
@@ -2960,7 +2960,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
     }
     
     function loadSafetyRisks() {
-        console.log("🛡️ Loading safety risk data...');
+        console.log('🛡️ Loading safety risk data...');
         const unsafeTable = document.getElementById('unsafeTable');
         if (!unsafeTable) {
             console.warn('⚠️ unsafeTable not found');
@@ -2976,7 +2976,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
         unsafeTable.innerHTML = '';
         risks.forEach((risk, index) => {
             const row = document.createElement('tr');
-            row.className = "hover:bg-gray-50 dark:hover:bg-gray-700";
+            row.className = 'hover:bg-gray-50 dark:hover:bg-gray-700';
             
             const riskLevelClass = risk.risk_level === 'High' ? 'text-red-600 font-bold' : 
                                  risk.risk_level === 'Medium' ? 'text-yellow-600 font-semibold' : 
@@ -2990,11 +2990,11 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
             unsafeTable.appendChild(row);
         });
         
-        console.log("✅ Safety risks loaded:", risks.length, 'items');
+        console.log('✅ Safety risks loaded:', risks.length, 'items');
     }
 
     document.addEventListener('DOMContentLoaded', function() {
-      console.log("🚀 DOM loaded, binding 3D controls...');
+      console.log('🚀 DOM loaded, binding 3D controls...');
       setTimeout(() => {
         if (window.enhancedVisualizer) {
           window.enhancedVisualizer.bindEvents();
@@ -3009,7 +3009,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
     let timelineOffset = 0;
 
     function initializeEnhancedUnsafeAnalysis() {
-        console.log("🔧 Initializing Enhanced Unsafe Rust & FFI Memory Analysis...');
+        console.log('🔧 Initializing Enhanced Unsafe Rust & FFI Memory Analysis...');
         
         // Load unsafe/FFI data from multiple sources
         const allocations = window.analysisData?.memory_analysis?.allocations || [];
@@ -3026,7 +3026,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
         const filteredData = applyUnsafeAnalysisFilter(unsafeAnalysisCurrentFilter, unsafeAnalysisData);
         renderEnhancedUnsafeTimeline(filteredData);
         
-        console.log("✅ Enhanced Unsafe Analysis initialized with", unsafeAnalysisData.length, 'memory objects');
+        console.log('✅ Enhanced Unsafe Analysis initialized with', unsafeAnalysisData.length, 'memory objects');
     }
 
     function loadUnsafeFfiSnapshot() {
@@ -3153,7 +3153,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
         const filterTabs = document.querySelectorAll('.unsafe-filter-tab');
         
         filterTabs.forEach(tab => {
-            tab.addEventListener("click", () => {
+            tab.addEventListener('click', () => {
                 filterTabs.forEach(t => t.classList.remove('active'));
                 tab.classList.add('active');
                 
@@ -3166,17 +3166,17 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
     }
 
     function setupTimelineControls() {
-        document.getElementById('timelineZoomIn')?.addEventListener("click", () => {
+        document.getElementById('timelineZoomIn')?.addEventListener('click', () => {
             timelineZoomLevel *= 1.5;
             rerenderTimeline();
         });
         
-        document.getElementById('timelineZoomOut')?.addEventListener("click", () => {
+        document.getElementById('timelineZoomOut')?.addEventListener('click', () => {
             timelineZoomLevel /= 1.5;
             rerenderTimeline();
         });
         
-        document.getElementById('timelineReset')?.addEventListener("click", () => {
+        document.getElementById('timelineReset')?.addEventListener('click', () => {
             timelineZoomLevel = 1;
             timelineOffset = 0;
             rerenderTimeline();
@@ -3187,11 +3187,11 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
         const modal = document.getElementById('memoryPassport');
         const closeBtn = modal?.querySelector('.passport-close');
         
-        closeBtn?.addEventListener("click", () => {
+        closeBtn?.addEventListener('click', () => {
             modal.style.display = 'none';
         });
         
-        modal?.addEventListener("click", (e) => {
+        modal?.addEventListener('click', (e) => {
             if (e.target === modal) {
                 modal.style.display = 'none';
             }
@@ -3342,7 +3342,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
     }
 
     function renderEnhancedUnsafeTimeline(data) {
-        console.log("🎨 Rendering enhanced unsafe timeline with", data.length, 'items');
+        console.log('🎨 Rendering enhanced unsafe timeline with', data.length, 'items');
         
         // Clear existing timeline
         const rustTrack = document.getElementById('rustTimelineTrack');
@@ -3401,7 +3401,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
         
         // Create lifecycle path
         const lifecyclePath = document.createElement('div');
-        lifecyclePath.className = "memory-lifecycle-path";
+        lifecyclePath.className = 'memory-lifecycle-path';
         lifecyclePath.style.cssText = `
             position: absolute;
             left: ${startPercent}%;
@@ -3442,7 +3442,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
         });
         
         // Add click event to show passport
-        lifecyclePath.addEventListener("click", () => {
+        lifecyclePath.addEventListener('click', () => {
             showMemoryPassport(memoryObj);
         });
         
@@ -3482,7 +3482,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
         const eventPercent = ((eventTime - minTime) / timeRange) * 100;
         
         const boundaryIndicator = document.createElement('div');
-        boundaryIndicator.className = "boundary-event-indicator";
+        boundaryIndicator.className = 'boundary-event-indicator';
         boundaryIndicator.style.cssText = `
             position: absolute;
             left: ${eventPercent}%;
@@ -3557,14 +3557,14 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
         
         if (!container) return;
         
-        expandBtn?.addEventListener("click", () => {
+        expandBtn?.addEventListener('click', () => {
             container.classList.remove('compact');
             container.classList.add('expanded');
             container.style.minHeight = '900px';
             updateAnalysisLayout();
         });
         
-        compactBtn?.addEventListener("click", () => {
+        compactBtn?.addEventListener('click', () => {
             container.classList.remove('expanded');
             container.classList.add('compact');
             container.style.minHeight = '500px';
@@ -3586,7 +3586,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
         const views = document.querySelectorAll('.risk-view');
         
         tabs.forEach(tab => {
-            tab.addEventListener("click", () => {
+            tab.addEventListener('click', () => {
                 const targetView = tab.dataset.view;
                 
                 // Update tab states
@@ -3691,7 +3691,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
     
     // Enhanced loadSafetyRisks function with real data extraction
     function loadSafetyRisks() {
-        console.log("🛡️ Loading safety risk data from real unsafe/FFI analysis...');
+        console.log('🛡️ Loading safety risk data from real unsafe/FFI analysis...');
         const unsafeTable = document.getElementById('unsafeTable');
         if (!unsafeTable) {
             console.warn('⚠️ unsafeTable not found');
@@ -3723,7 +3723,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
                     rawData: { base: { size: 512 } }
                 }
             ];
-            console.log("🛡️ Using fallback sample risk data for demonstration');
+            console.log('🛡️ Using fallback sample risk data for demonstration');
         }
         
         if (risks.length === 0) {
@@ -3734,7 +3734,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
         unsafeTable.innerHTML = '';
         risks.forEach((risk, index) => {
             const row = document.createElement('tr');
-            row.className = "hover:bg-gray-50 dark:hover:bg-gray-700";
+            row.className = 'hover:bg-gray-50 dark:hover:bg-gray-700';
             
             const riskLevelClass = risk.risk_level === 'High' ? 'text-red-600' :
                 risk.risk_level === 'Medium' ? 'text-yellow-600' : 'text-green-600';
@@ -3767,7 +3767,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
         safeUpdateElement('medium-risk-count', mediumCount);
         safeUpdateElement('low-risk-count', lowCount);
         
-        console.log("✅ Real safety risks loaded:", risks.length, 'items');
+        console.log('✅ Real safety risks loaded:', risks.length, 'items');
     }
 
     // Extract real safety risks from actual unsafe/FFI data
@@ -3862,7 +3862,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
         
         modal.style.display = 'flex';
         
-        console.log("🔧 Showing risk action modal for:", location);
+        console.log('🔧 Showing risk action modal for:', location);
     }
 
     function generateRiskActionContent(risk, location, operation, riskLevel) {
@@ -4003,19 +4003,19 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
     // Quick action functions
     function copyLocationToClipboard(location) {
         navigator.clipboard.writeText(location).then(() => {
-            console.log("📋 Location copied to clipboard:", location);
+            console.log('📋 Location copied to clipboard:', location);
             // Could show a toast notification here
         });
     }
 
     function openInEditor(location) {
-        console.log("🔧 Opening in editor:", location);
+        console.log('🔧 Opening in editor:', location);
         // This would integrate with VS Code or other editor
         // Example: vscode://file/path/to/file:line:column
     }
 
     function generateFixPatch(location, operation) {
-        console.log("🪄 Generating fix patch for:", location, operation);
+        console.log('🪄 Generating fix patch for:', location, operation);
         // This would generate actual code fixes based on the risk type
     }
 
@@ -5431,12 +5431,12 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
 
     function initEnhancedLifecycleVisualization() {
       // Debug what's available
-      console.log("Checking data availability...');
-      console.log("window.analysisData exists:", !!window.analysisData);
-      console.log("window.analysisData type:", typeof window.analysisData);
+      console.log('Checking data availability...');
+      console.log('window.analysisData exists:', !!window.analysisData);
+      console.log('window.analysisData type:', typeof window.analysisData);
 
       if (window.analysisData) {
-        console.log("window.analysisData keys:", Object.keys(window.analysisData));
+        console.log('window.analysisData keys:', Object.keys(window.analysisData));
       }
 
       // Try multiple data structure paths
@@ -5446,19 +5446,19 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
         // Method 1: Direct allocations (old structure)
         if (window.analysisData.allocations && Array.isArray(window.analysisData.allocations)) {
           allocations = window.analysisData.allocations;
-          console.log("✅ Found allocations directly:", allocations.length);
+          console.log('✅ Found allocations directly:', allocations.length);
         }
         // Method 2: Memory analysis structure (new structure)
         else if (window.analysisData.memory_analysis && window.analysisData.memory_analysis.allocations) {
           allocations = window.analysisData.memory_analysis.allocations;
-          console.log("✅ Found allocations in memory_analysis:", allocations.length);
+          console.log('✅ Found allocations in memory_analysis:', allocations.length);
         }
         // Method 3: Check all keys for allocations
         else {
           for (const [key, value] of Object.entries(window.analysisData)) {
             if (value && typeof value === 'object' && value.allocations && Array.isArray(value.allocations)) {
               allocations = value.allocations;
-              console.log("✅ Found allocations in", key + ':", allocations.length);
+              console.log('✅ Found allocations in', key + ':', allocations.length);
               break;
             }
           }
@@ -5472,7 +5472,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
         if (typeof getAllocations === 'function') {
           try {
             allocations = getAllocations();
-            console.log("✅ Got allocations from getAllocations():", allocations.length);
+            console.log('✅ Got allocations from getAllocations():', allocations.length);
           } catch (e) {
             console.warn('getAllocations() failed:', e);
           }
@@ -5482,7 +5482,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
         if (!allocations && window.memoryAnalysisData) {
           if (window.memoryAnalysisData.allocations) {
             allocations = window.memoryAnalysisData.allocations;
-            console.log("✅ Got allocations from memoryAnalysisData:", allocations.length);
+            console.log('✅ Got allocations from memoryAnalysisData:', allocations.length);
           }
         }
 
@@ -5490,7 +5490,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
         if (!allocations) {
           const existingTable = document.getElementById('allocTable');
           if (existingTable && existingTable.children.length > 1) {
-            console.log("Trying to extract data from existing table...');
+            console.log('Trying to extract data from existing table...');
             // This is a last resort - we'll create dummy data based on table rows
             const rows = existingTable.querySelectorAll('tbody tr');
             if (rows.length > 0) {
@@ -5505,7 +5505,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
                   is_leaked: cells[4]?.textContent?.includes('Yes') || false
                 };
               });
-              console.log("✅ Extracted", allocations.length, 'allocations from existing table');
+              console.log('✅ Extracted', allocations.length, 'allocations from existing table');
             }
           }
         }
@@ -5521,8 +5521,8 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
         return;
       }
 
-      console.log("✅ Found", allocations.length, 'allocations for enhanced visualization');
-      console.log("Sample allocation:", allocations[0]);
+      console.log('✅ Found', allocations.length, 'allocations for enhanced visualization');
+      console.log('Sample allocation:', allocations[0]);
 
       // Statistics
       let heapCount = 0, stackCount = 0, unknownCount = 0;
@@ -5545,7 +5545,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
         totalMemory += alloc.size || 0;
       });
 
-      console.log("Statistics calculated:", { heapCount, stackCount, totalLifetime, validLifetimes });
+      console.log('Statistics calculated:', { heapCount, stackCount, totalLifetime, validLifetimes });
 
       // Update mini counters
       const heapCountMini = document.getElementById('heap-count-mini');
@@ -5553,41 +5553,41 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
 
       if (heapCountMini) {
         safeUpdateElement('heapCountMini', heapCount);
-        console.log("Updated heap-count-mini:", heapCount);
+        console.log('Updated heap-count-mini:', heapCount);
       } else {
         console.warn('heap-count-mini element not found');
       }
 
       if (stackCountMini) {
         safeUpdateElement('stackCountMini', stackCount);
-        console.log("Updated stack-count-mini:", stackCount);
+        console.log('Updated stack-count-mini:', stackCount);
       } else {
         console.warn('stack-count-mini element not found');
       }
 
       // Create lifecycle visualization
-      console.log("Calling createLifecycleVisualization...');
+      console.log('Calling createLifecycleVisualization...');
       createLifecycleVisualization(allocations);
 
       // Update enhanced statistics
-      console.log("Calling updateEnhancedStatistics...');
+      console.log('Calling updateEnhancedStatistics...');
       updateEnhancedStatistics(allocations, heapCount, stackCount, validLifetimes, totalLifetime);
 
       // Setup filters
-      console.log("Calling setupLifecycleFilters...');
+      console.log('Calling setupLifecycleFilters...');
       setupLifecycleFilters(allocations);
 
-      console.log("✅ All enhanced features processing completed');
+      console.log('✅ All enhanced features processing completed');
     }
 
     function createLifecycleVisualization(allocations) {
-      console.log("createLifecycleVisualization called with", allocations.length, 'allocations');
+      console.log('createLifecycleVisualization called with', allocations.length, 'allocations');
       const container = document.getElementById('lifecycleVisualizationContainer');
       if (!container) {
         console.error('❌ Lifecycle visualization container not found in DOM');
         return;
       }
-      console.log("✅ Found lifecycleVisualizationContainer, creating visualization...');
+      console.log('✅ Found lifecycleVisualizationContainer, creating visualization...');
       container.innerHTML = '';
 
       // Calculate timeline bounds
@@ -5624,7 +5624,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
         }
 
         // Debug and validate time data
-        console.log("Debug allocation:", {
+        console.log('Debug allocation:', {
           var_name: alloc.var_name,
           timestamp_alloc: alloc.timestamp_alloc,
           timestamp_dealloc: alloc.timestamp_dealloc,
@@ -5736,7 +5736,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
     }
 
     function updateEnhancedStatistics(allocations, heapCount, stackCount, validLifetimes, totalLifetime) {
-      console.log("Updating enhanced statistics...');
+      console.log('Updating enhanced statistics...');
 
       // Update Enhanced Memory Statistics
       const totalAllocsEnhanced = document.getElementById('total-allocs-enhanced');
@@ -5746,7 +5746,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
 
       if (totalAllocsEnhanced) {
         safeUpdateElement('total-allocs-enhanced', allocations.length);
-        console.log("Updated total-allocs-enhanced:", allocations.length);
+        console.log('Updated total-allocs-enhanced:', allocations.length);
       }
 
       // Safe DOM updates with enhanced error handling
@@ -5754,7 +5754,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
         try {
           const ratio = stackCount > 0 ? (heapCount / stackCount).toFixed(1) : heapCount;
           safeUpdateElement('heap-stack-ratio', ratio + ':1');
-          console.log("Updated heap-stack-ratio:", ratio + ':1');
+          console.log('Updated heap-stack-ratio:', ratio + ':1');
         } catch (error) {
           console.error('Error updating heap-stack-ratio:', error);
         }
@@ -5764,7 +5764,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
         try {
           const avgLifetime = validLifetimes > 0 ? formatLifetime(totalLifetime / validLifetimes) : 'N/A';
           safeUpdateElement('avg-lifetime-enhanced', avgLifetime);
-          console.log("Updated avg-lifetime-enhanced:", avgLifetime);
+          console.log('Updated avg-lifetime-enhanced:', avgLifetime);
         } catch (error) {
           console.error('Error updating avg-lifetime-enhanced:', error);
         }
@@ -5775,7 +5775,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
         try {
           const efficiency = allocations.length > 0 ? ((allocations.length - allocations.filter(a => a.is_leaked).length) / allocations.length * 100).toFixed(0) : 0;
           safeUpdateElement('memory-efficiency', efficiency + '%');
-          console.log("Updated memory-efficiency:", efficiency + '%');
+          console.log('Updated memory-efficiency:', efficiency + '%');
         } catch (error) {
           console.error('Error updating memory-efficiency:', error);
         }
@@ -5821,9 +5821,9 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
         }
       }
 
-      heapBtn.addEventListener("click", () => applyFilter('heap'));
-      stackBtn.addEventListener("click", () => applyFilter('stack'));
-      allBtn.addEventListener("click", () => applyFilter('all'));
+      heapBtn.addEventListener('click', () => applyFilter('heap'));
+      stackBtn.addEventListener('click', () => applyFilter('stack'));
+      allBtn.addEventListener('click', () => applyFilter('all'));
 
       // Initialize
       applyFilter('all');
@@ -5848,7 +5848,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
       try {
         initEnhancedFeatures();
         enhancedInitialized = true;
-        console.log("✅ Enhanced features initialized successfully');
+        console.log('✅ Enhanced features initialized successfully');
       } catch (error) {
         console.warn('Enhanced features initialization failed:', error);
       }
@@ -5881,11 +5881,11 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
       const statusEl = document.getElementById('init-status');
       safeUpdateElement('init-status', 'Initializing...');
 
-      console.log("🔄 Manual initialization triggered');
-      console.log("window.analysisData:", window.analysisData);
+      console.log('🔄 Manual initialization triggered');
+      console.log('window.analysisData:', window.analysisData);
 
       if (window.analysisData && window.analysisData.memory_analysis && window.analysisData.memory_analysis.allocations) {
-        console.log("✅ Data found, calling initEnhancedLifecycleVisualization...');
+        console.log('✅ Data found, calling initEnhancedLifecycleVisualization...');
         initEnhancedLifecycleVisualization();
         safeUpdateElement('init-status', 'Initialized successfully!');
       } else {
@@ -5896,7 +5896,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
         fetch('./large_scale_user_memory_analysis.json')
           .then(response => response.json())
           .then(memoryData => {
-            console.log("✅ Manually loaded data:", memoryData);
+            console.log('✅ Manually loaded data:', memoryData);
             window.analysisData = {
               memory_analysis: memoryData
             };
@@ -5920,11 +5920,11 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
           
           // Auto-load Safety Risk Analysis when data is ready
           setTimeout(() => {
-            console.log("🛡️ Data ready - auto-loading Safety Risk Analysis...');
+            console.log('🛡️ Data ready - auto-loading Safety Risk Analysis...');
             try {
               initializeEnhancedUnsafeAnalysis();
               loadSafetyRisks();
-              console.log("✅ Safety Risk Analysis loaded automatically');
+              console.log('✅ Safety Risk Analysis loaded automatically');
             } catch (riskError) {
               console.error('❌ Error auto-loading safety risks:', riskError);
             }
@@ -5933,10 +5933,10 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
           // Initialize enhanced visualization features
           if (window.enhancedVisualizer) {
             setTimeout(() => {
-              console.log("Initializing enhanced visualizer...');
+              console.log('Initializing enhanced visualizer...');
               window.enhancedVisualizer.init();
               window.enhancedVisualizer.initializeWithData(window.analysisData);
-              console.log("Enhanced visualizer initialized');
+              console.log('Enhanced visualizer initialized');
               safeUpdateElement('data-status', 'Ready');
             }, 1000); // Give more time for DOM elements to be ready
           } else {
@@ -5954,7 +5954,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
 
     // Initialize enhanced features after everything loads
     document.addEventListener('DOMContentLoaded', function () {
-      console.log("🚀 Dashboard initialization started');
+      console.log('🚀 Dashboard initialization started');
       
       // Update status indicators
       safeUpdateElement('dashboard-status', 'Initializing');
@@ -5964,13 +5964,13 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
         // Setup manual initialize button
         const manualBtn = document.getElementById('manual-init-btn');
         if (manualBtn) {
-          manualBtn.addEventListener("click", manualInitialize);
+          manualBtn.addEventListener('click', manualInitialize);
         }
         
         // Load safety risks after initialization with longer delay
         setTimeout(function() {
           try {
-            console.log("🛡️ Auto-loading safety risks on dashboard initialization...');
+            console.log('🛡️ Auto-loading safety risks on dashboard initialization...');
             loadSafetyRisks();
             // Also ensure unsafe analysis is initialized
             if (window.analysisData) {
@@ -5985,7 +5985,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str =r#"<!DOCTYPE html>
         waitForDataAndInit();
         
         safeUpdateElement('dashboard-status', 'Ready');
-        console.log("✅ Dashboard initialization completed');
+        console.log('✅ Dashboard initialization completed');
         
       } catch (error) {
         console.error('❌ Dashboard initialization failed:', error);
@@ -6617,8 +6617,8 @@ const FFI_STYLE = 'svg';
 
 // Initialize all dashboard components - Clean layout
 function initCleanTemplate() {
-    console.log("🚀 Initializing MemScope Dashboard...');
-    console.log("📊 Available data:", Object.keys(window.analysisData||{}));
+    console.log('🚀 Initializing MemScope Dashboard...');
+    console.log('📊 Available data:', Object.keys(window.analysisData||{}));
     const data = window.analysisData || {};
 
     // KPI 关键指标
@@ -6754,8 +6754,8 @@ function initCleanTemplate() {
     }
 }
 function initializeDashboard() {
-    console.log("🚀 Initializing MemScope dashboard...');
-    console.log("📊 Available data:", Object.keys(window.analysisData || {}));
+    console.log('🚀 Initializing MemScope dashboard...');
+    console.log('📊 Available data:', Object.keys(window.analysisData || {}));
 
     // Initialize theme system first
     initThemeToggle();
@@ -6783,27 +6783,27 @@ function initThemeToggle() {
     // Check for saved theme preference or default to light mode
     const savedTheme = localStorage.getItem('memscope-theme') || 'light';
 
-    console.log("🎨 Initializing theme system, saved theme:", savedTheme);
+    console.log('🎨 Initializing theme system, saved theme:', savedTheme);
 
     // Apply initial theme
     applyTheme(savedTheme === 'dark');
 
     if (themeToggle) {
-        themeToggle.addEventListener("click", () => {
+        themeToggle.addEventListener('click', () => {
             const isDark = html.classList.contains('dark');
 
             if (isDark) {
                 applyTheme(false);
                 localStorage.setItem('memscope-theme', 'light');
-                console.log("🎨 Theme switched to: light mode');
+                console.log('🎨 Theme switched to: light mode');
             } else {
                 applyTheme(true);
                 localStorage.setItem('memscope-theme', 'dark');
-                console.log("🎨 Theme switched to: dark mode');
+                console.log('🎨 Theme switched to: dark mode');
             }
         });
 
-        console.log("✅ Theme toggle initialized successfully');
+        console.log('✅ Theme toggle initialized successfully');
     } else {
         console.warn('⚠️ Theme toggle button not found');
     }
@@ -6852,9 +6852,9 @@ function updateThemeToggleIcon(isDark) {
         const icon = themeToggle.querySelector('i');
         if (icon) {
             if (isDark) {
-                icon.className = "fa fa-sun";
+                icon.className = 'fa fa-sun';
             } else {
-                icon.className = "fa fa-moon";
+                icon.className = 'fa fa-moon';
             }
         }
     }
@@ -6908,7 +6908,7 @@ function applyThemeToAllModules(isDark) {
 
 // Initialize summary statistics
 function initSummaryStats() {
-    console.log("📊 Initializing summary stats...');
+    console.log('📊 Initializing summary stats...');
 
     const data = window.analysisData;
 
@@ -6940,7 +6940,7 @@ function initSummaryStats() {
 
 // Initialize charts - simplified
 function initCharts() {
-    console.log("📊 Initializing charts...');
+    console.log('📊 Initializing charts...');
 
     // Initialize memory distribution chart
     initMemoryDistributionChart();
@@ -7108,13 +7108,13 @@ function processMemoryAnalysisData(rawData) {
         }
     }
 
-    console.log("✅ Processed memory analysis data:", processedData);
+    console.log('✅ Processed memory analysis data:', processedData);
     return processedData;
 }
 
 // Generate fallback memory data when real data is unavailable
 function generateFallbackMemoryData() {
-    console.log("🔄 Generating fallback memory data');
+    console.log('🔄 Generating fallback memory data');
 
     return {
         stats: {
@@ -8206,39 +8206,40 @@ function renderLifetimeVisualizationFromRustWithCollapse(variableGroups) {
                     "<div class="text-xs text-gray-500 dark:text-gray-400">" + displayTypeName + "</div>" +
                 "</div>" +
                 "<div class=\"flex-grow relative bg-gray-200 dark:bg-gray-600 rounded-full h-6 overflow-hidden\">" +
-                    "<div class="absolute inset-0 rounded-full " " +
-                         "style=" + gradientStyle + " width: " + finalWidthPercent + "%; margin-left: " + finalStartPercent + "%; " +
-                                "box-shadow: 0 2px 4px rgba(0,0,0,0.1); " +
-                                "transition: all 0.3s ease;" " +
-                         "title="Variable: " + group.var_name + ", Type: " + displayTypeName + ">" +
-                        "<div class=\"absolute inset-0 flex items-center justify-center\">" +
-                            "<span class=\"text-xs font-bold text-white drop-shadow-sm\">" +
+                    "<div class="absolute inset-0 rounded-full" " +
+                         'style="' + gradientStyle + ' width: ' + finalWidthPercent + '%; margin-left: ' + finalStartPercent + '%; ' +
+                                'box-shadow: 0 2px 4px rgba(0,0,0,0.1); ' +
+                                'transition: all 0.3s ease;" ' +
+                         'title="Variable: ' + group.var_name + ', Type: ' + displayTypeName + '">' +
+                        '<div class="absolute inset-0 flex items-center justify-center">' +
+                            '<span class="text-xs font-bold text-white drop-shadow-sm">' +
                                 Math.round(finalWidthPercent) + '%' +
                             "</span>" +
                         "</div>"
                     </div>
                     <div class="absolute -top-8 left-0 text-xs bg-gray-700 text-white px-2 py-1 rounded opacity-0 hover:opacity-100 transition-opacity whitespace-nowrap">
-                        "Duration: " + (firstEvent && firstEvent.lifetime_ms ? firstEvent.lifetime_ms + "ms" : "Active") +
+                        "Duration: " + (firstEvent && firstEvent.lifetime_ms ? firstEvent.lifetime_ms + 'ms' : "Active") +
                     "</div>" +
                 "</div>" +
-                "<div class=\"w-20 flex-shrink-0 pl-4 text-right\">" +
-                    "<div class=\"text-xs text-gray-600 dark:text-gray-400\">" +
+                '<div class="w-20 flex-shrink-0 pl-4 text-right">' +
+                    '<div class="text-xs text-gray-600 dark:text-gray-400">' +
                         formatBytes(group.size || (group.events && group.events[0] ? group.events[0].size : 0) || 0) +
                     "</div>" +
                 "</div>" +
-            "";
+            '';
 
             container.appendChild(varDiv);
         });
 
         // Add "show more" indicator if collapsed
         if (!showAll && variableGroups.length > maxInitialRows) {
-            const moreDiv = document.createElement("div");
-            moreDiv.className = "flex items-center py-4 bg-gray-50 dark:bg-gray-700 border-b border-gray-100 dark:border-gray-600";
-            moreDiv.innerHTML = 
-                "<div class=\"w-full text-center text-gray-500 dark:text-gray-400 text-sm\">" +
-                    "... and " + (variableGroups.length - maxInitialRows) + " more variables" +
-                "</div>";
+            const moreDiv = document.createElement('div');
+            moreDiv.className = 'flex items-center py-4 bg-gray-50 dark:bg-gray-700 border-b border-gray-100 dark:border-gray-600';
+            moreDiv.innerHTML = `
+                <div class="w-full text-center text-gray-500 dark:text-gray-400 text-sm">
+                    ... and ${variableGroups.length - maxInitialRows} more variables
+                </div>
+            `;
             container.appendChild(moreDiv);
         }
     }
@@ -8248,38 +8249,38 @@ function renderLifetimeVisualizationFromRustWithCollapse(variableGroups) {
 
     // Toggle functionality
     if (toggleButton && variableGroups.length > maxInitialRows) {
-        console.log("📊 Setting up lifecycle toggle button for", variableGroups.length, "variables");
+        console.log('📊 Setting up lifecycle toggle button for', variableGroups.length, 'variables');
 
         // Remove any existing event listeners
         const newToggleButton = toggleButton.cloneNode(true);
         toggleButton.parentNode.replaceChild(newToggleButton, toggleButton);
 
-        newToggleButton.addEventListener("click", function (e) {
+        newToggleButton.addEventListener('click', function (e) {
             e.preventDefault();
-            console.log("📊 Lifecycle toggle button clicked, current state:", isExpanded);
+            console.log('📊 Lifecycle toggle button clicked, current state:', isExpanded);
 
             isExpanded = !isExpanded;
             renderLifetimeRows(isExpanded);
 
             const icon = newToggleButton.querySelector('i');
-            const text = newToggleButton.querySelector("span");
+            const text = newToggleButton.querySelector('span');
 
             if (isExpanded) {
-                icon.className = "fa fa-chevron-up mr-1";
-                text.textContent = "Show Less";
-                console.log("📊 Expanded lifecycle to show all variables");
+                icon.className = 'fa fa-chevron-up mr-1';
+                text.textContent = 'Show Less';
+                console.log('📊 Expanded lifecycle to show all variables');
             } else {
-                icon.className = "fa fa-chevron-down mr-1";
-                text.textContent = "Show All";
-                console.log("📊 Collapsed lifecycle to show first ", maxInitialRows, "variables");
+                icon.className = 'fa fa-chevron-down mr-1';
+                text.textContent = 'Show All';
+                console.log('📊 Collapsed lifecycle to show first', maxInitialRows, 'variables');
             }
         });
 
-        console.log("✅ Lifecycle toggle button initialized successfully ");
+        console.log('✅ Lifecycle toggle button initialized successfully');
     } else if (toggleButton) {
         // Hide button if not needed
-        toggleButton.style.display = "none";
-        console.log("📊 Lifecycle toggle button hidden (not enough data)");
+        toggleButton.style.display = 'none';
+        console.log('📊 Lifecycle toggle button hidden (not enough data)');
     }
 
     console.log(`✅ Rendered ${variableGroups.length} Rust-preprocessed variables in lifetime visualization with collapse functionality`);
@@ -8287,18 +8288,18 @@ function renderLifetimeVisualizationFromRustWithCollapse(variableGroups) {
 
 // Render the lifetime visualization with collapsible functionality
 function renderLifetimeVisualizationWithCollapse(variableGroups) {
-    const container = document.getElementById("lifetimeVisualization");
-    const toggleButton = document.getElementById("toggle-lifecycle");
+    const container = document.getElementById('lifetimeVisualization');
+    const toggleButton = document.getElementById('toggle-lifecycle');
     
     if (!container) return;
 
     // Clear loading state
-    container.innerHTML = "";
+    container.innerHTML = '';
 
     if (!variableGroups || variableGroups.length === 0) {
         showEmptyLifetimeState();
         if (toggleButton) {
-            toggleButton.style.display = "none";
+            toggleButton.style.display = 'none';
         }
         return;
     }
@@ -8308,12 +8309,12 @@ function renderLifetimeVisualizationWithCollapse(variableGroups) {
 
     // Get color scheme for different types
     const typeColors = {
-        "Vec": { bg: "bg-blue-500", border: "border-blue-500" },
-        "Box": { bg: "bg-purple-500", border: "border-purple-500" },
-        "Rc": { bg: "bg-yellow-500", border: "border-yellow-500" },
-        "Arc": { bg: "bg-green-500", border: "border-green-500" },
-        "String": { bg: "bg-pink-500", border: "border-pink-500" },
-        "default": { bg: "bg-gray-500", border: "border-gray-500" }
+        'Vec': { bg: 'bg-blue-500', border: 'border-blue-500' },
+        'Box': { bg: 'bg-purple-500', border: 'border-purple-500' },
+        'Rc': { bg: 'bg-yellow-500', border: 'border-yellow-500' },
+        'Arc': { bg: 'bg-green-500', border: 'border-green-500' },
+        'String': { bg: 'bg-pink-500', border: 'border-pink-500' },
+        'default': { bg: 'bg-gray-500', border: 'border-gray-500' }
     };
 
     // Calculate timeline bounds
@@ -8329,19 +8330,19 @@ function renderLifetimeVisualizationWithCollapse(variableGroups) {
     function renderLifetimeRows(showAll = false) {
         console.log(`📊 Rendering lifecycle rows, showAll: ${showAll}, total groups: ${variableGroups.length}`);
         
-        container.innerHTML = "";
+        container.innerHTML = '';
         
         const displayGroups = showAll ? variableGroups : variableGroups.slice(0, maxInitialRows);
 
         // Render each variable
         displayGroups.forEach((group) => {
-            const varDiv = document.createElement("div");
-            varDiv.className = "flex items-end py-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors";
+            const varDiv = document.createElement('div');
+            varDiv.className = 'flex items-end py-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors';
 
             // Determine color based on type
             const typeKey = Object.keys(typeColors).find(key =>
                 group.type_name.includes(key)
-            ) || "default";
+            ) || 'default';
             const colors = typeColors[typeKey];
 
             // Calculate position and width based on timestamps
@@ -8396,12 +8397,13 @@ function renderLifetimeVisualizationWithCollapse(variableGroups) {
 
         // Add "show more" indicator if collapsed
         if (!showAll && variableGroups.length > maxInitialRows) {
-            const moreDiv = document.createElement("div");
-            moreDiv.className = "flex items-center py-3 bg-gray-50 dark:bg-gray-700 border-b border-gray-100 dark:border-gray-600";
-            moreDiv.innerHTML = 
-                "<div class=\"w-full text-center text-gray-500 dark:text-gray-400 text-sm\">" +
-                    "... and " + (variableGroups.length - maxInitialRows) + " more variables" +
-                "</div>";
+            const moreDiv = document.createElement('div');
+            moreDiv.className = 'flex items-center py-3 bg-gray-50 dark:bg-gray-700 border-b border-gray-100 dark:border-gray-600';
+            moreDiv.innerHTML = `
+                <div class="w-full text-center text-gray-500 dark:text-gray-400 text-sm">
+                    ... and ${variableGroups.length - maxInitialRows} more variables
+                </div>
+            `;
             container.appendChild(moreDiv);
         }
     }
@@ -8411,38 +8413,38 @@ function renderLifetimeVisualizationWithCollapse(variableGroups) {
 
     // Toggle functionality
     if (toggleButton && variableGroups.length > maxInitialRows) {
-        console.log("📊 Setting up lifecycle toggle button for", variableGroups.length, "variables");
+        console.log('📊 Setting up lifecycle toggle button for', variableGroups.length, 'variables');
 
         // Remove any existing event listeners
         const newToggleButton = toggleButton.cloneNode(true);
         toggleButton.parentNode.replaceChild(newToggleButton, toggleButton);
 
-        newToggleButton.addEventListener("click", function (e) {
+        newToggleButton.addEventListener('click', function (e) {
             e.preventDefault();
-            console.log("📊 Lifecycle toggle button clicked, current state:", isExpanded);
+            console.log('📊 Lifecycle toggle button clicked, current state:', isExpanded);
 
             isExpanded = !isExpanded;
             renderLifetimeRows(isExpanded);
 
             const icon = newToggleButton.querySelector('i');
-            const text = newToggleButton.querySelector("span");
+            const text = newToggleButton.querySelector('span');
 
             if (isExpanded) {
-                icon.className = "fa fa-chevron-up mr-1";
-                text.textContent = "Show Less";
-                console.log("📊 Expanded lifecycle to show all variables');
+                icon.className = 'fa fa-chevron-up mr-1';
+                text.textContent = 'Show Less';
+                console.log('📊 Expanded lifecycle to show all variables');
             } else {
-                icon.className = "fa fa-chevron-down mr-1";
+                icon.className = 'fa fa-chevron-down mr-1';
                 text.textContent = 'Show All';
-                console.log("📊 Collapsed lifecycle to show first ", maxInitialRows, "variables");
+                console.log('📊 Collapsed lifecycle to show first', maxInitialRows, 'variables');
             }
         });
 
-        console.log("✅ Lifecycle toggle button initialized successfully ");
+        console.log('✅ Lifecycle toggle button initialized successfully');
     } else if (toggleButton) {
         // Hide button if not needed
         toggleButton.style.display = 'none';
-        console.log("📊 Lifecycle toggle button hidden (not enough data)");
+        console.log('📊 Lifecycle toggle button hidden (not enough data)');
     }
 
     console.log(`✅ Rendered ${variableGroups.length} variables in lifetime visualization with collapse functionality`);
@@ -8450,7 +8452,7 @@ function renderLifetimeVisualizationWithCollapse(variableGroups) {
 
 // Initialize FFI visualization with enhanced support for improve.md fields
 function initFFIVisualization() {
-    console.log("🔄 Initializing FFI visualization...');
+    console.log('🔄 Initializing FFI visualization...');
 
     const container = document.getElementById('ffiVisualization');
     if (!container) return;
@@ -8461,18 +8463,18 @@ function initFFIVisualization() {
     let memoryPassports = [];
     let ffiStatistics = {};
     
-    console.log("🔍 Checking analysisData structure:", Object.keys(window.analysisData || {}));
+    console.log('🔍 Checking analysisData structure:', Object.keys(window.analysisData || {}));
     
     // Enhanced data extraction supporting improve.md structure
     if (window.analysisData) {
         // Debug: Show what data structure we actually have FIRST
-        console.log("🔍 Available data keys:", Object.keys(window.analysisData));
+        console.log('🔍 Available data keys:', Object.keys(window.analysisData));
         if (window.analysisData.unsafe_ffi) {
-            console.log("🔍 unsafe_ffi keys:", Object.keys(window.analysisData.unsafe_ffi));
-            console.log("🔍 unsafe_ffi.allocations exists:", !!window.analysisData.unsafe_ffi.allocations);
+            console.log('🔍 unsafe_ffi keys:', Object.keys(window.analysisData.unsafe_ffi));
+            console.log('🔍 unsafe_ffi.allocations exists:', !!window.analysisData.unsafe_ffi.allocations);
             
             // Data will be handled by initializeAnalysis function
-            console.log("🔍 unsafe_ffi.allocations length:", window.analysisData.unsafe_ffi.allocations ? window.analysisData.unsafe_ffi.allocations.length : 'undefined');
+            console.log('🔍 unsafe_ffi.allocations length:', window.analysisData.unsafe_ffi.allocations ? window.analysisData.unsafe_ffi.allocations.length : 'undefined');
         }
         
         // Try unsafe_ffi data first (improve.md structure)
@@ -8481,33 +8483,33 @@ function initFFIVisualization() {
             unsafeReports = window.analysisData.unsafe_ffi.unsafe_reports || [];
             memoryPassports = window.analysisData.unsafe_ffi.memory_passports || [];
             ffiStatistics = window.analysisData.unsafe_ffi.ffi_statistics || {};
-            console.log("📊 Found unsafe_ffi data - allocations:", allocations.length, 'reports:", unsafeReports.length, 'passports:", memoryPassports.length);
+            console.log('📊 Found unsafe_ffi data - allocations:', allocations.length, 'reports:', unsafeReports.length, 'passports:', memoryPassports.length);
         }
         // Try complex_types structure (for large_scale_user files)
         else if (window.analysisData.complex_types && window.analysisData.complex_types.allocations) {
             allocations = window.analysisData.complex_types.allocations;
-            console.log("📊 Found complex_types allocations:", allocations.length);
+            console.log('📊 Found complex_types allocations:', allocations.length);
         }
         // Try direct allocations array (for files like large_scale_user_unsafe_ffi.json)
         else if (window.analysisData.allocations) {
             allocations = window.analysisData.allocations;
-            console.log("📊 Found direct allocations:", allocations.length);
+            console.log('📊 Found direct allocations:', allocations.length);
         }
         // Fallback to memory_analysis
         else if (window.analysisData.memory_analysis && window.analysisData.memory_analysis.allocations) {
             allocations = window.analysisData.memory_analysis.allocations;
-            console.log("📊 Using memory_analysis allocations:", allocations.length);
+            console.log('📊 Using memory_analysis allocations:', allocations.length);
         }
         
         // Debug: Show what data structure we actually have
-        console.log("🔍 Available data keys:", Object.keys(window.analysisData));
+        console.log('🔍 Available data keys:', Object.keys(window.analysisData));
         if (window.analysisData.unsafe_ffi) {
-            console.log("🔍 unsafe_ffi keys:", Object.keys(window.analysisData.unsafe_ffi));
+            console.log('🔍 unsafe_ffi keys:', Object.keys(window.analysisData.unsafe_ffi));
         }
         
         // Extract metadata if available
         const metadata = window.analysisData.metadata || {};
-        console.log("📊 Metadata:", metadata);
+        console.log('📊 Metadata:', metadata);
     }
 
     // Filter for FFI-tracked allocations with enhanced field support
@@ -8518,29 +8520,29 @@ function initFFIVisualization() {
         (alloc.borrow_info && (alloc.borrow_info.immutable_borrows > 0 || alloc.borrow_info.mutable_borrows > 0)) ||
         (alloc.clone_info && alloc.clone_info.clone_count > 0)
     );
-    console.log("📊 Found FFI-tracked allocations:", ffiAllocations.length);
+    console.log('📊 Found FFI-tracked allocations:', ffiAllocations.length);
     
     // Debug: show first few allocations with improve.md fields
     if (allocations.length > 0) {
-        console.log("🔍 Sample allocation with improve.md fields:", allocations[0]);
-        console.log("🔍 FFI tracked allocations sample:", ffiAllocations.slice(0, 3));
+        console.log('🔍 Sample allocation with improve.md fields:', allocations[0]);
+        console.log('🔍 FFI tracked allocations sample:', ffiAllocations.slice(0, 3));
         
         // Check for improve.md specific fields
         const sampleAlloc = allocations[0];
-        console.log("🔍 Improve.md fields check:');
-        console.log("  - borrow_info:", sampleAlloc.borrow_info);
-        console.log("  - clone_info:", sampleAlloc.clone_info);
-        console.log("  - ownership_history_available:", sampleAlloc.ownership_history_available);
-        console.log("  - ffi_tracked:", sampleAlloc.ffi_tracked);
-        console.log("  - safety_violations:", sampleAlloc.safety_violations);
+        console.log('🔍 Improve.md fields check:');
+        console.log('  - borrow_info:', sampleAlloc.borrow_info);
+        console.log('  - clone_info:', sampleAlloc.clone_info);
+        console.log('  - ownership_history_available:', sampleAlloc.ownership_history_available);
+        console.log('  - ffi_tracked:', sampleAlloc.ffi_tracked);
+        console.log('  - safety_violations:', sampleAlloc.safety_violations);
     }
 
     // Debug: Show what we found before filtering
-    console.log("🔍 Before filtering - Total allocations:", allocations.length);
-    console.log("🔍 Sample allocation fields:", allocations[0] ? Object.keys(allocations[0]) : 'No allocations');
-    console.log("🔍 FFI tracked count:", allocations.filter(a => a.ffi_tracked === true).length);
-    console.log("🔍 Borrow info count:", allocations.filter(a => a.borrow_info).length);
-    console.log("🔍 Clone info count:", allocations.filter(a => a.clone_info).length);
+    console.log('🔍 Before filtering - Total allocations:', allocations.length);
+    console.log('🔍 Sample allocation fields:', allocations[0] ? Object.keys(allocations[0]) : 'No allocations');
+    console.log('🔍 FFI tracked count:', allocations.filter(a => a.ffi_tracked === true).length);
+    console.log('🔍 Borrow info count:', allocations.filter(a => a.borrow_info).length);
+    console.log('🔍 Clone info count:', allocations.filter(a => a.clone_info).length);
     
     // Enhanced rendering with improve.md support - ALWAYS show if we have any allocations
     if (allocations.length === 0) {
@@ -8550,7 +8552,7 @@ function initFFIVisualization() {
     
     // If we have allocations but no FFI-specific ones, still show the dashboard with all data
     const displayAllocations = ffiAllocations.length > 0 ? ffiAllocations : allocations.slice(0, 20);
-    console.log("🎯 Rendering FFI dashboard with:", displayAllocations.length, 'allocations,", unsafeReports.length, 'reports,", memoryPassports.length, 'passports');
+    console.log('🎯 Rendering FFI dashboard with:', displayAllocations.length, 'allocations,', unsafeReports.length, 'reports,', memoryPassports.length, 'passports');
 
     // Generate enhanced FFI analysis with improve.md fields
     try {
@@ -8573,19 +8575,19 @@ function initFFIVisualization() {
                 boundaryEvents,
                 unsafeReports
             );
-            console.log("✅ FFI SVG-style dashboard rendered');
+            console.log('✅ FFI SVG-style dashboard rendered');
             return;
         }
-        console.log("🔄 Generating FFI analysis...');
+        console.log('🔄 Generating FFI analysis...');
         const ffiAnalysis = generateEnhancedFFIAnalysisWithImproveFields(displayAllocations, unsafeReports, memoryPassports, ffiStatistics);
-        console.log("✅ FFI analysis generated:", ffiAnalysis);
+        console.log('✅ FFI analysis generated:', ffiAnalysis);
         
-        console.log("🔄 Creating FFI dashboard...');
+        console.log('🔄 Creating FFI dashboard...');
         const dashboardHTML = createEnhancedFFIDashboardWithImproveFields(ffiAnalysis, displayAllocations, unsafeReports, memoryPassports);
-        console.log("✅ Dashboard HTML created, length:", dashboardHTML.length);
+        console.log('✅ Dashboard HTML created, length:', dashboardHTML.length);
         
         container.innerHTML = dashboardHTML;
-        console.log("✅ Dashboard rendered successfully!');
+        console.log('✅ Dashboard rendered successfully!');
     } catch (error) {
         console.error('❌ Error in FFI rendering:', error);
         container.innerHTML = `<div class="bg-red-100 p-4 rounded text-red-800">Error rendering FFI data: ${error.message}</div>`;
@@ -9851,13 +9853,13 @@ class NodeDetailPanel {
     }
 
     show(nodeData, position) {
-        console.log("Showing panel for:", nodeData.id);
+        console.log('Showing panel for:', nodeData.id);
         this.hide(); // Close existing panel
         this.panel = this.createPanel(nodeData);
-        console.log("Panel created:", this.panel);
+        console.log('Panel created:', this.panel);
         this.positionPanel(position);
         this.container.appendChild(this.panel);
-        console.log("Panel added to container');
+        console.log('Panel added to container');
         this.currentNode = nodeData;
     }
 
@@ -9871,7 +9873,7 @@ class NodeDetailPanel {
 
     createPanel(nodeData) {
         const panel = document.createElement('div');
-        panel.className = "node-detail-panel";
+        panel.className = 'node-detail-panel';
 
         // Find related allocation data
         const allocations = window.analysisData.memory_analysis?.allocations || [];
@@ -9960,7 +9962,7 @@ class NodeDetailPanel {
 
         // Add close button functionality
         const closeButton = panel.querySelector('.close-button');
-        closeButton.addEventListener("click", () => {
+        closeButton.addEventListener('click', () => {
             this.hide();
         });
 
@@ -9976,7 +9978,7 @@ class NodeDetailPanel {
         this.panel.style.top = '20px';
         this.panel.style.zIndex = '1000';
 
-        console.log("Panel positioned at:", this.panel.style.left, this.panel.style.top);
+        console.log('Panel positioned at:', this.panel.style.left, this.panel.style.top);
     }
 }
 
@@ -10259,7 +10261,7 @@ function initVariableGraph() {
 
     node.on('click', function (event, d) {
         event.stopPropagation();
-        console.log("Node clicked:", d.id, d);
+        console.log('Node clicked:', d.id, d);
         const position = {
             x: event.pageX,
             y: event.pageY
@@ -10902,7 +10904,7 @@ function formatTimestamp(timestamp, minTime) {
 
 // Enhanced summary statistics with comprehensive data analysis
 function initEnhancedSummaryStats() {
-    console.log("📊 Initializing enhanced summary statistics...');
+    console.log('📊 Initializing enhanced summary statistics...');
     
     try {
         // Get merged data from all sources
@@ -10926,7 +10928,7 @@ function initEnhancedSummaryStats() {
         updateElement('safety-score', `${stats.safetyScore}%`);
         updateElement('ffi-tracked', `${stats.ffiTracked} FFI`);
         
-        console.log("✅ Enhanced dashboard updated successfully');
+        console.log('✅ Enhanced dashboard updated successfully');
     } catch (error) {
         console.error('❌ Error initializing enhanced stats:', error);
     }
@@ -11095,7 +11097,7 @@ function initThemeToggle() {
     const savedTheme = localStorage.getItem('memscope-theme') || 'light';
     applyTheme(savedTheme === 'dark');
     
-    toggleBtn.addEventListener("click", () => {
+    toggleBtn.addEventListener('click', () => {
         const isDark = document.documentElement.classList.contains('dark');
         const newTheme = isDark ? 'light' : 'dark';
         
@@ -11104,16 +11106,16 @@ function initThemeToggle() {
         
         // Update button text
         const icon = toggleBtn.querySelector('i');
-        const text = toggleBtn.querySelector("span");
+        const text = toggleBtn.querySelector('span');
         if (newTheme === 'dark') {
-            icon.className = "fa fa-sun";
+            icon.className = 'fa fa-sun';
             text.textContent = 'Light Mode';
         } else {
-            icon.className = "fa fa-moon";
+            icon.className = 'fa fa-moon';
             text.textContent = 'Dark Mode';
         }
         
-        console.log("🎨 Theme switched to:", newTheme);
+        console.log('🎨 Theme switched to:', newTheme);
     });
 }
 
@@ -11173,7 +11175,7 @@ function updateUnsafeTable(data) {
 
 // Initialize Charts
 function initCharts(data) {
-    console.log("📊 Initializing charts...');
+    console.log('📊 Initializing charts...');
     
     // Memory type distribution chart
     initTypeChart(data);
@@ -11435,7 +11437,7 @@ function initEnhancedTypeChart(data) {
     const typeData = {};
     const allocs = data.memory_analysis?.allocations || data.allocations || [];
     
-    console.log("Type chart data extraction:", { totalAllocs: allocs.length });
+    console.log('Type chart data extraction:', { totalAllocs: allocs.length });
     
     allocs.forEach(alloc => {
         let type = alloc.type_name || 'Unknown';
@@ -11466,7 +11468,7 @@ function initEnhancedTypeChart(data) {
         }
     });
     
-    console.log("Type data aggregated:", typeData);
+    console.log('Type data aggregated:', typeData);
 
     const sortedEntries = Object.entries(typeData).sort((a, b) => b[1] - a[1]);
     const labels = sortedEntries.map(([k, v]) => k);
@@ -13225,7 +13227,7 @@ function setupGraphInteractions() {
         });
         
         // Click event for details
-        node.addEventListener("click", function(e) {
+        node.addEventListener('click', function(e) {
             if (!isDragging) {
                 showNodeDetails(this);
             }
@@ -13411,21 +13413,21 @@ function setupPanZoom() {
     
     // Button controls
     if (zoomInBtn) {
-        zoomInBtn.addEventListener("click", () => {
+        zoomInBtn.addEventListener('click', () => {
             const rect = svg.getBoundingClientRect();
             zoom(1.2, rect.width / 2, rect.height / 2);
         });
     }
     
     if (zoomOutBtn) {
-        zoomOutBtn.addEventListener("click", () => {
+        zoomOutBtn.addEventListener('click', () => {
             const rect = svg.getBoundingClientRect();
             zoom(0.8, rect.width / 2, rect.height / 2);
         });
     }
     
     if (resetBtn) {
-        resetBtn.addEventListener("click", () => {
+        resetBtn.addEventListener('click', () => {
             transform.x = 0;
             transform.y = 0;
             transform.scale = 1;
@@ -13487,7 +13489,7 @@ function setupLifecycleToggle() {
     
     let isExpanded = false;
     
-    toggleBtn.addEventListener("click", function() {
+    toggleBtn.addEventListener('click', function() {
         const container = document.getElementById('lifetimeVisualization');
         if (!container) return;
         
@@ -13500,16 +13502,16 @@ function setupLifecycleToggle() {
         }
         
         const icon = toggleBtn.querySelector('i');
-        const text = toggleBtn.querySelector("span");
+        const text = toggleBtn.querySelector('span');
         
         if (!isExpanded) {
             renderFullLifecycleTimeline(allocs);
-            icon.className = "fa fa-chevron-up";
-            text.textContent = "Show Less";
+            icon.className = 'fa fa-chevron-up';
+            text.textContent = 'Show Less';
             isExpanded = true;
         } else {
             renderLimitedLifecycleTimeline(allocs);
-            icon.className = "fa fa-chevron-down";
+            icon.className = 'fa fa-chevron-down';
             text.textContent = 'Show All';
             isExpanded = false;
         }
@@ -13785,14 +13787,14 @@ function initCompleteJSONExplorer() {
     
     // Setup expand/collapse functionality
     if (expandBtn) {
-        expandBtn.addEventListener("click", () => {
+        expandBtn.addEventListener('click', () => {
             const details = container.querySelectorAll('details');
             details.forEach(detail => detail.open = true);
         });
     }
     
     if (collapseBtn) {
-        collapseBtn.addEventListener("click", () => {
+        collapseBtn.addEventListener('click', () => {
             const details = container.querySelectorAll('details');
             details.forEach(detail => detail.open = false);
         });
@@ -14563,12 +14565,12 @@ function renderEnhancedDataInsights() {
     renderBorrowPatternChart(borrowPatterns);
     
     // Force Type Memory Distribution to render with debug info
-    console.log("🔍 Forcing Type Memory Distribution render with data:", allocs.length, 'allocations');
+    console.log('🔍 Forcing Type Memory Distribution render with data:', allocs.length, 'allocations');
     setTimeout(() => {
         renderMemoryDistributionChart(allocs);
     }, 100);
     
-    console.log("✅ Enhanced data insights rendered:", {
+    console.log('✅ Enhanced data insights rendered:', {
         timeSpan: timeSpanMs.toFixed(2) + 'ms',
         totalBorrows,
         totalClones,
@@ -14753,7 +14755,7 @@ function renderMemoryDistributionChart(allocs) {
     
     // Group by type and sum memory
     const typeMemory = {};
-    console.log("🔍 Processing allocations for memory blocks:", allocs.length);
+    console.log('🔍 Processing allocations for memory blocks:', allocs.length);
     
     allocs.forEach((alloc, index) => {
         let typeName = alloc.type_name || 'Unknown';
@@ -14792,7 +14794,7 @@ function renderMemoryDistributionChart(allocs) {
         .filter(([type, data]) => data.size > 0)
         .sort((a, b) => b[1].size - a[1].size);
     
-    console.log("Memory blocks data:", sortedTypes);
+    console.log('Memory blocks data:', sortedTypes);
     
     if (sortedTypes.length === 0) {
         container.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary);">No type data available</div>';
@@ -15452,7 +15454,7 @@ function updateEnhancedMetrics() {
     if (rcEl) rcEl.textContent = rcCount;
     if (collEl) collEl.textContent = collectionsCount;
     
-    console.log("✅ Enhanced metrics updated:", {
+    console.log('✅ Enhanced metrics updated:', {
         peakMemory: formatBytes(peakMemory),
         allocationRate: allocationRate.toFixed(1) + '/sec',
         avgLifetime: avgLifetime.toFixed(2) + 'ms',
@@ -15516,12 +15518,12 @@ function renderEnhancedCharts() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-    console.log("🚀 MemScope Dashboard Loaded');
+    console.log('🚀 MemScope Dashboard Loaded');
     
     // Initialize theme toggle
     try { 
         initThemeToggle(); 
-        console.log("✅ Theme toggle initialized');
+        console.log('✅ Theme toggle initialized');
     } catch(e) { 
         console.warn('⚠️ Theme toggle initialization failed:', e?.message); 
     }
@@ -15553,7 +15555,7 @@ document.addEventListener("DOMContentLoaded", () => {
         try { updateEmbeddedFFISVG && updateEmbeddedFFISVG(); } catch(_) {}
         try { updatePerformanceMetrics && updatePerformanceMetrics(); } catch(_) {}
         
-        console.log("✅ All dashboard components initialized');
+        console.log('✅ All dashboard components initialized');
     } catch(e) { 
         console.error('❌ Dashboard initialization failed:', e); 
     }
@@ -15567,7 +15569,7 @@ function setupFFIFlowInteractivity(allocs) {
         const ffiNodes = document.querySelectorAll('.ffi-node');
         
         [...rustNodes, ...ffiNodes].forEach(node => {
-            node.addEventListener("click", (e) => {
+            node.addEventListener('click', (e) => {
                 const ptr = e.target.getAttribute('data-ptr');
                 const size = e.target.getAttribute('data-size');
                 showFFIFlowNodeDetail(ptr, size, allocs);
@@ -16923,7 +16925,7 @@ fn inject_safety_risk_data_into_html(
             let safety_function_injection = r#"
     // Safety Risk Data Management Function
     function loadSafetyRisks() {
-        console.log("🛡️ Loading safety risk data...');
+        console.log('🛡️ Loading safety risk data...');
         const unsafeTable = document.getElementById('unsafeTable');
         if (!unsafeTable) {
             console.warn('⚠️ unsafeTable not found');
@@ -16939,7 +16941,7 @@ fn inject_safety_risk_data_into_html(
         unsafeTable.innerHTML = '';
         risks.forEach((risk, index) => {
             const row = document.createElement('tr');
-            row.className = "hover:bg-gray-50 dark:hover:bg-gray-700";
+            row.className = 'hover:bg-gray-50 dark:hover:bg-gray-700';
             
             const riskLevelClass = risk.risk_level === 'High' ? 'text-red-600 font-bold' : 
                                  risk.risk_level === 'Medium' ? 'text-yellow-600 font-semibold' : 
@@ -16953,7 +16955,7 @@ fn inject_safety_risk_data_into_html(
             unsafeTable.appendChild(row);
         });
         
-        console.log("✅ Safety risks loaded:", risks.length, 'items');
+        console.log('✅ Safety risks loaded:', risks.length, 'items');
     }
     
     "#;
@@ -16963,13 +16965,13 @@ fn inject_safety_risk_data_into_html(
     }
 
     // Ensure safety risks are loaded after initialization - but only call if function exists
-    html = html.replace("console.log("✅ Enhanced dashboard initialized');", 
-                       "console.log("✅ Enhanced dashboard initialized'); setTimeout(() => { if (typeof loadSafetyRisks === 'function') { loadSafetyRisks(); } }, 100);");
+    html = html.replace("console.log('✅ Enhanced dashboard initialized');", 
+                       "console.log('✅ Enhanced dashboard initialized'); setTimeout(() => { if (typeof loadSafetyRisks === 'function') { loadSafetyRisks(); } }, 100);");
 
     // Also add to manual initialization if it exists - with safer replacement
-    if html.contains("manualBtn.addEventListener("click", manualInitialize);") {
-        html = html.replace("manualBtn.addEventListener("click", manualInitialize);", 
-                           "manualBtn.addEventListener("click", function() { manualInitialize(); setTimeout(() => { if (typeof loadSafetyRisks === 'function') { loadSafetyRisks(); } }, 100); });");
+    if html.contains("manualBtn.addEventListener('click', manualInitialize);") {
+        html = html.replace("manualBtn.addEventListener('click', manualInitialize);", 
+                           "manualBtn.addEventListener('click', function() { manualInitialize(); setTimeout(() => { if (typeof loadSafetyRisks === 'function') { loadSafetyRisks(); } }, 100); });");
     }
 
     // Remove any standalone loadSafetyRisks calls that might cause errors
