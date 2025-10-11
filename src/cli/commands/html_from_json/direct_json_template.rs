@@ -62,7 +62,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
       min-height: 100vh;
     }
 
-    /* 顶部标题栏 */
+  
     .header {
       display: flex;
       justify-content: space-between;
@@ -85,7 +85,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
       margin-top: 4px;
     }
 
-    /* 主题切换按钮 */
+    
     .theme-toggle {
       background: var(--primary-blue);
       color: white;
@@ -130,7 +130,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
       padding-bottom: 8px;
     }
 
-    /* 网格布局 */
+    
     .grid {
       display: grid;
       gap: 24px;
@@ -149,7 +149,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
       grid-template-columns: repeat(4, 1fr);
     }
 
-    /* KPI 指标卡片 */
+    
     .kpi-card {
       text-align: center;
       padding: 20px;
@@ -172,7 +172,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
       font-weight: 500;
     }
 
-    /* 图表容器 */
+    
     .chart-container {
       height: 300px;
       background: var(--bg-primary);
@@ -181,7 +181,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
       padding: 16px;
     }
 
-    /* 表格样式 */
+    
     table {
       width: 100%;
       border-collapse: collapse;
@@ -698,7 +698,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
             console.log("🚀 Triggering enhanced features initialization...");
             if (typeof initEnhancedLifecycleVisualization === "function") {
               setTimeout(() => {
-                console.log("🔄 Calling initEnhancedLifecycleVisualization...');
+                console.log("🔄 Calling initEnhancedLifecycleVisualization...");
                 initEnhancedLifecycleVisualization();
               }, 100);
             } else {
@@ -708,7 +708,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
             // Also trigger the main dashboard initialization if needed
             if (typeof initDashboard === 'function') {
               setTimeout(() => {
-                console.log("🔄 Calling initDashboard...');
+                console.log("🔄 Calling initDashboard...");
                 initDashboard();
               }, 200);
             }
@@ -740,10 +740,10 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
               ]
             }
           };
-          console.log("⚠️ Using dummy data for testing');
+          console.log("⚠️ Using dummy data for testing");
         });
     } else {
-      console.log("✅ Data injection successful');
+      console.log("✅ Data injection successful");
     }
 
     console.log("Final analysisData:", window.analysisData);
@@ -771,7 +771,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
 
       init() {
         if (this.initialized) return;
-        console.log("Initializing EnhancedMemoryVisualizer...');
+        console.log("Initializing EnhancedMemoryVisualizer...");
 
         this.initTooltip();
         this.init3DVisualization();
@@ -780,12 +780,12 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
         this.bindEvents();
 
         this.initialized = true;
-        console.log("EnhancedMemoryVisualizer initialized successfully');
+        console.log("EnhancedMemoryVisualizer initialized successfully");
       }
 
       initTooltip() {
         this.tooltip = document.createElement('div');
-        this.tooltip.className = "memory-tooltip";
+        this.tooltip.className = 'memory-tooltip';
         this.tooltip.style.display = 'none';
         document.body.appendChild(this.tooltip);
       }
@@ -1018,7 +1018,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
         });
 
         canvas.style.cursor = 'grab';
-        console.log("✅ Manual 3D controls initialized (mouse drag to rotate, wheel to zoom)');
+        console.log("✅ Manual 3D controls initialized (mouse drag to rotate, wheel to zoom)");
       }
 
       animate3D() {
@@ -1297,7 +1297,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
               <div>Address: 0x${(alloc.ptr || 0).toString(16)}</div>
               <div>Scope: ${alloc.scope_name || 'unknown'}</div>
               <div>Lifetime: ${(alloc.lifetime_ms || 0).toFixed(2)}ms</div>
-              <div>Status: ${alloc.is_leaked ? 'Leaked' : "Active"}</div>
+              <div>Status: ${alloc.is_leaked ? 'Leaked' : 'Active'}</div>
             </div>
           `;
         }
@@ -1315,7 +1315,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
       }
 
       initTimelineControls() {
-        console.log("Initializing timeline controls...');
+        console.log("Initializing timeline controls...");
 
         const playBtn = document.getElementById('timelinePlay');
         const pauseBtn = document.getElementById('timelinePause');
@@ -1335,40 +1335,40 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
 
         if (playBtn) {
           playBtn.addEventListener("click", () => {
-            console.log("Timeline play button clicked');
+            console.log("Timeline play button clicked");
             this.playTimeline();
           });
-          console.log("Play button event bound');
+          console.log("Play button event bound");
         } else {
           console.error('timelinePlay button not found');
         }
 
         if (pauseBtn) {
           pauseBtn.addEventListener("click", () => {
-            console.log("Timeline pause button clicked');
+            console.log("Timeline pause button clicked");
             this.pauseTimeline();
           });
-          console.log("Pause button event bound');
+          console.log("Pause button event bound");
         } else {
           console.error('timelinePause button not found');
         }
 
         if (resetBtn) {
           resetBtn.addEventListener("click", () => {
-            console.log("Timeline reset button clicked');
+            console.log("Timeline reset button clicked");
             this.resetTimeline();
           });
-          console.log("Reset button event bound');
+          console.log("Reset button event bound");
         } else {
           console.error('timelineReset button not found');
         }
 
         if (stepBtn) {
           stepBtn.addEventListener("click", () => {
-            console.log("Timeline step button clicked');
+            console.log("Timeline step button clicked");
             this.stepTimeline();
           });
-          console.log("Step button event bound');
+          console.log("Step button event bound");
         } else {
           console.error('timelineStep button not found');
         }
@@ -1456,9 +1456,9 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
       }
 
       playTimeline() {
-        console.log("Starting timeline playback...');
+        console.log("Starting timeline playback...");
         if (this.timeline.isPlaying) {
-          console.log("Timeline already playing');
+          console.log("Timeline already playing");
           return;
         }
 
@@ -1475,7 +1475,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
         if (playBtn) playBtn.disabled = true;
         if (pauseBtn) pauseBtn.disabled = false;
 
-        console.log("Timeline playback started');
+        console.log("Timeline playback started");
 
         // Get speed from control
         const speedSelect = document.getElementById('timelineSpeed');
@@ -1493,7 +1493,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
             this.timeline.currentTime = this.timeline.totalTime;
             this.updateTimelineVisualization();
             this.pauseTimeline();
-            console.log("Timeline playback completed');
+            console.log("Timeline playback completed");
             return;
           }
 
@@ -1527,7 +1527,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
       }
 
       resetTimeline() {
-        console.log("Resetting timeline...');
+        console.log("Resetting timeline...");
         this.pauseTimeline();
         this.timeline.currentTime = 0;
         this.updateTimelineVisualization();
@@ -1537,7 +1537,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
           this.create3DMemoryBlocks(window.analysisData.memory_analysis.allocations || []);
         }
         
-        console.log("Timeline reset to beginning');
+        console.log("Timeline reset to beginning");
       }
 
       stepTimeline() {
@@ -1907,7 +1907,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
         };
       }
 
-      getHeatmapColor(intensity, mode = 'density') {
+      getHeatmapColor(intensity, mode = 'density") {
         const scaledIntensity = Math.min(Math.max(intensity, 0), 1);
 
         // Different color schemes for different modes
@@ -2072,7 +2072,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
       }
 
       bindEvents() {
-        console.log("🔧 Binding 3D visualization events...');
+        console.log("🔧 Binding 3D visualization events...");
 
         // Add visual feedback for button interactions
         this.addButtonFeedback();
@@ -2098,7 +2098,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
             
             newToggle3DBtn.addEventListener("click", (e) => {
               e.preventDefault();
-              console.log("🎯 Toggle 3D view clicked');
+              console.log("🎯 Toggle 3D view clicked");
               const container = document.getElementById('memory3DContainer');
               if (container) {
                 const isHidden = container.style.display === 'none';
@@ -2107,11 +2107,11 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
                   container.style.display = 'block';
                   newToggle3DBtn.innerHTML = '<i class="fa fa-eye-slash"></i><span>Hide 3D</span>';
                   newToggle3DBtn.style.background = 'var(--primary-red)';
-                  console.log("✅ Showing 3D view');
+                  console.log("✅ Showing 3D view");
                   
                   // Reinitialize 3D scene if needed
                   if (!this.scene) {
-                    console.log("🔄 Reinitializing 3D scene...');
+                    console.log("🔄 Reinitializing 3D scene...");
                     this.init3DVisualization();
                   }
                   
@@ -2124,13 +2124,13 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
                   container.style.display = 'none';
                   newToggle3DBtn.innerHTML = '<i class="fa fa-eye"></i><span>Show 3D</span>';
                   newToggle3DBtn.style.background = 'var(--primary-green)';
-                  console.log("✅ Hiding 3D view');
+                  console.log("✅ Hiding 3D view");
                 }
               } else {
                 console.error('❌ 3D container not found');
               }
             });
-            console.log("✅ Toggle 3D button event bound');
+            console.log("✅ Toggle 3D button event bound");
           } else {
             console.error('❌ toggle3DView button not found');
           }
@@ -2142,10 +2142,10 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
             
             newReset3DBtn.addEventListener("click", (e) => {
               e.preventDefault();
-              console.log("🎯 Reset 3D view clicked');
+              console.log("🎯 Reset 3D view clicked");
               this.reset3DView();
             });
-            console.log("✅ Reset 3D button event bound');
+            console.log("✅ Reset 3D button event bound");
           } else {
             console.error('❌ reset3DView button not found');
           }
@@ -2157,10 +2157,10 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
             
             newAutoRotateBtn.addEventListener("click", (e) => {
               e.preventDefault();
-              console.log("🎯 Auto rotate clicked');
+              console.log("🎯 Auto rotate clicked");
               this.toggleAutoRotate();
             });
-            console.log("✅ Auto rotate button event bound');
+            console.log("✅ Auto rotate button event bound");
           } else {
             console.error('❌ autoRotate3D button not found');
           }
@@ -2172,10 +2172,10 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
             
             newFocusLargestBtn.addEventListener("click", (e) => {
               e.preventDefault();
-              console.log("🎯 Focus largest clicked');
+              console.log("🎯 Focus largest clicked");
               this.focusOnLargestBlock();
             });
-            console.log("✅ Focus largest button event bound');
+            console.log("✅ Focus largest button event bound");
           } else {
             console.error('❌ focusLargest button not found');
           }
@@ -2226,7 +2226,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
       }
 
       reset3DView() {
-        console.log("🔄 Resetting 3D view...');
+        console.log("🔄 Resetting 3D view...");
         
         // Show visual feedback
         const resetBtn = document.getElementById('reset3DView');
@@ -2254,7 +2254,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
             }
           }, 500);
           
-          console.log("✅ 3D view reset complete');
+          console.log("✅ 3D view reset complete");
         } else {
           console.error('❌ Camera or controls not available for reset');
           if (resetBtn) {
@@ -2275,7 +2275,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
     }
 
       toggleAutoRotate() {
-        console.log("🔄 Toggling auto rotate...');
+        console.log("🔄 Toggling auto rotate...");
         if (this.controls) {
           this.controls.autoRotate = !this.controls.autoRotate;
           this.controls.autoRotateSpeed = 2.0; // Set rotation speed
@@ -2285,11 +2285,11 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
             if (this.controls.autoRotate) {
               btn.innerHTML = '<i class="fa fa-pause"></i><span>Stop Rotate</span>';
               btn.style.background = 'var(--primary-red)';
-              console.log("✅ Auto rotate enabled');
+              console.log("✅ Auto rotate enabled");
             } else {
               btn.innerHTML = '<i class="fa fa-rotate-right"></i><span>Auto Rotate</span>';
               btn.style.background = 'var(--primary-blue)';
-              console.log("✅ Auto rotate disabled');
+              console.log("✅ Auto rotate disabled");
             }
           }
         } else {
@@ -2307,7 +2307,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
       }
 
       focusOnLargestBlock() {
-        console.log("🎯 Focusing on largest block...');
+        console.log("🎯 Focusing on largest block...");
         
         // Show visual feedback
         const focusBtn = document.getElementById('focusLargest');
@@ -2430,7 +2430,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
         // Initialize memory fragmentation visualization
         this.initializeMemoryFragmentation(allocations);
 
-        console.log("Enhanced memory visualization initialized successfully');
+        console.log("Enhanced memory visualization initialized successfully");
       }
 
       initializeMemoryFragmentation(allocations) {
@@ -2565,7 +2565,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
           block.style.cursor = 'pointer';
           block.style.transition = 'all 0.2s ease';
 
-          if (range.type === 'gap') {
+          if (range.type === 'gap") {
             block.style.background = 'linear-gradient(45deg, #dc2626, #ef4444)';
             block.style.border = '1px solid #b91c1c';
             block.title = `Memory Gap: ${this.formatBytes(range.size)}`;
@@ -2937,7 +2937,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
 
     // Global function to bind 3D controls - can be called from console for debugging
     window.bind3DControls = function() {
-      console.log("🔧 Manually binding 3D controls...');
+      console.log("🔧 Manually binding 3D controls...");
       if (window.enhancedVisualizer) {
         window.enhancedVisualizer.bindEvents();
       }
@@ -2948,9 +2948,9 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
     window.safetyRisks = [];
     
     function getRiskAssessment(risk) {
-        if (risk.risk_level === 'High') {
+        if (risk.risk_level === 'High") {
             return 'Critical memory safety issue - immediate attention required';
-        } else if (risk.risk_level === 'Medium') {
+        } else if (risk.risk_level === 'Medium") {
             return 'Potential memory issue - review recommended';
         } else {
             return 'Low risk - monitoring suggested';
@@ -2958,7 +2958,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
     }
     
     function loadSafetyRisks() {
-        console.log("🛡️ Loading safety risk data...');
+        console.log("🛡️ Loading safety risk data...");
         const unsafeTable = document.getElementById('unsafeTable');
         if (!unsafeTable) {
             console.warn('⚠️ unsafeTable not found');
@@ -2992,7 +2992,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
     }
 
     document.addEventListener('DOMContentLoaded', function() {
-      console.log("🚀 DOM loaded, binding 3D controls...');
+      console.log("🚀 DOM loaded, binding 3D controls...");
       setTimeout(() => {
         if (window.enhancedVisualizer) {
           window.enhancedVisualizer.bindEvents();
@@ -3007,7 +3007,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
     let timelineOffset = 0;
 
     function initializeEnhancedUnsafeAnalysis() {
-        console.log("🔧 Initializing Enhanced Unsafe Rust & FFI Memory Analysis...');
+        console.log("🔧 Initializing Enhanced Unsafe Rust & FFI Memory Analysis...");
         
         // Load unsafe/FFI data from multiple sources
         const allocations = window.analysisData?.memory_analysis?.allocations || [];
@@ -3164,17 +3164,17 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
     }
 
     function setupTimelineControls() {
-        document.getElementById('timelineZoomIn')?.addEventListener("click", () => {
+        document.getElementById('timelineZoomIn')?.addEventListener('click', () => {
             timelineZoomLevel *= 1.5;
             rerenderTimeline();
         });
         
-        document.getElementById('timelineZoomOut')?.addEventListener("click", () => {
+        document.getElementById('timelineZoomOut')?.addEventListener('click', () => {
             timelineZoomLevel /= 1.5;
             rerenderTimeline();
         });
         
-        document.getElementById('timelineReset')?.addEventListener("click", () => {
+        document.getElementById('timelineReset')?.addEventListener('click', () => {
             timelineZoomLevel = 1;
             timelineOffset = 0;
             rerenderTimeline();
@@ -3688,8 +3688,8 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
     }
     
     // Enhanced loadSafetyRisks function with real data extraction
-    function loadSafetyRisks() {
-        console.log("🛡️ Loading safety risk data from real unsafe/FFI analysis...');
+    function loadSafetyRisksFromAnalysis() {
+        console.log("🛡️ Loading safety risk data from real unsafe/FFI analysis...");
         const unsafeTable = document.getElementById('unsafeTable');
         if (!unsafeTable) {
             console.warn('⚠️ unsafeTable not found');
@@ -3721,7 +3721,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
                     rawData: { base: { size: 512 } }
                 }
             ];
-            console.log("🛡️ Using fallback sample risk data for demonstration');
+            console.log("🛡️ Using fallback sample risk data for demonstration");
         }
         
         if (risks.length === 0) {
@@ -5429,7 +5429,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
 
     function initEnhancedLifecycleVisualization() {
       // Debug what's available
-      console.log("Checking data availability...');
+      console.log("Checking data availability...");
       console.log("window.analysisData exists:", !!window.analysisData);
       console.log("window.analysisData type:", typeof window.analysisData);
 
@@ -5456,7 +5456,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
           for (const [key, value] of Object.entries(window.analysisData)) {
             if (value && typeof value === 'object' && value.allocations && Array.isArray(value.allocations)) {
               allocations = value.allocations;
-              console.log("✅ Found allocations in", key + ':", allocations.length);
+              console.log(`✅ Found allocations in ${key}:`, allocations.length);
               break;
             }
           }
@@ -5464,7 +5464,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
       }
 
       if (!allocations || !Array.isArray(allocations) || allocations.length === 0) {
-        console.warn('No allocation data found in window.analysisData');
+        console.warn('No allocation data found in window.analysisData");
 
         // Fallback: Try to get data from other global variables that might be set by the dashboard
         if (typeof getAllocations === 'function') {
@@ -5488,7 +5488,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
         if (!allocations) {
           const existingTable = document.getElementById('allocTable');
           if (existingTable && existingTable.children.length > 1) {
-            console.log("Trying to extract data from existing table...');
+            console.log("Trying to extract data from existing table...");
             // This is a last resort - we'll create dummy data based on table rows
             const rows = existingTable.querySelectorAll('tbody tr');
             if (rows.length > 0) {
@@ -5515,7 +5515,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
       }
 
       if (allocations.length === 0) {
-        console.warn('No allocation data found');
+        console.warn('No allocation data found");
         return;
       }
 
@@ -5529,8 +5529,8 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
 
       allocations.forEach(alloc => {
         const type = inferAllocationType(alloc.type_name);
-        if (type === 'heap') heapCount++;
-        else if (type === 'stack') stackCount++;
+        if (type === 'heap") heapCount++;
+        else if (type === 'stack") stackCount++;
         else unknownCount++;
 
         // Check multiple possible lifetime fields and ensure they're valid numbers
@@ -5553,29 +5553,29 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
         safeUpdateElement('heapCountMini', heapCount);
         console.log("Updated heap-count-mini:", heapCount);
       } else {
-        console.warn('heap-count-mini element not found');
+        console.warn('heap-count-mini element not found");
       }
 
       if (stackCountMini) {
         safeUpdateElement('stackCountMini', stackCount);
         console.log("Updated stack-count-mini:", stackCount);
       } else {
-        console.warn('stack-count-mini element not found');
+        console.warn('stack-count-mini element not found");
       }
 
       // Create lifecycle visualization
-      console.log("Calling createLifecycleVisualization...');
+      console.log("Calling createLifecycleVisualization...");
       createLifecycleVisualization(allocations);
 
       // Update enhanced statistics
-      console.log("Calling updateEnhancedStatistics...');
+      console.log("Calling updateEnhancedStatistics...");
       updateEnhancedStatistics(allocations, heapCount, stackCount, validLifetimes, totalLifetime);
 
       // Setup filters
-      console.log("Calling setupLifecycleFilters...');
+      console.log("Calling setupLifecycleFilters...");
       setupLifecycleFilters(allocations);
 
-      console.log("✅ All enhanced features processing completed');
+      console.log("✅ All enhanced features processing completed");
     }
 
     function createLifecycleVisualization(allocations) {
@@ -5585,7 +5585,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
         console.error('❌ Lifecycle visualization container not found in DOM');
         return;
       }
-      console.log("✅ Found lifecycleVisualizationContainer, creating visualization...');
+      console.log("✅ Found lifecycleVisualizationContainer, creating visualization...");
       container.innerHTML = '';
 
       // Calculate timeline bounds
@@ -5734,7 +5734,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
     }
 
     function updateEnhancedStatistics(allocations, heapCount, stackCount, validLifetimes, totalLifetime) {
-      console.log("Updating enhanced statistics...');
+      console.log("Updating enhanced statistics...");
 
       // Update Enhanced Memory Statistics
       const totalAllocsEnhanced = document.getElementById('total-allocs-enhanced');
@@ -5788,7 +5788,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
 
       // Check if all buttons exist
       if (!heapBtn || !stackBtn || !allBtn) {
-        console.warn('Some filter buttons not found');
+        console.warn('Some filter buttons not found");
         return;
       }
 
@@ -5801,12 +5801,12 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
         // Update button states
         [heapBtn, stackBtn, allBtn].forEach(btn => btn.style.opacity = '0.6');
 
-        if (filter === 'heap') {
+        if (filter === 'heap") {
           heapBtn.style.opacity = '1';
           items.forEach(item => {
             item.style.display = item.getAttribute('data-type') === 'heap' ? 'block' : 'none';
           });
-        } else if (filter === 'stack') {
+        } else if (filter === 'stack") {
           stackBtn.style.opacity = '1';
           items.forEach(item => {
             item.style.display = item.getAttribute('data-type') === 'stack' ? 'block' : 'none';
@@ -5820,8 +5820,8 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
       }
 
       heapBtn.addEventListener("click", () => applyFilter('heap'));
-      stackBtn.addEventListener("click", () => applyFilter('stack'));
-      allBtn.addEventListener("click", () => applyFilter('all'));
+      stackBtn.addEventListener("click", () => applyFilter('stack"));
+      allBtn.addEventListener("click", () => applyFilter('all"));
 
       // Initialize
       applyFilter('all');
@@ -5846,7 +5846,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
       try {
         initEnhancedFeatures();
         enhancedInitialized = true;
-        console.log("✅ Enhanced features initialized successfully');
+        console.log("✅ Enhanced features initialized successfully");
       } catch (error) {
         console.warn('Enhanced features initialization failed:', error);
       }
@@ -5876,22 +5876,22 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
 
     // Manual initialization function for testing
     function manualInitialize() {
-      const statusEl = document.getElementById('init-status');
+      const statusEl = document.getElementById('init-status");
       safeUpdateElement('init-status', 'Initializing...');
 
-      console.log("🔄 Manual initialization triggered');
+      console.log("🔄 Manual initialization triggered");
       console.log("window.analysisData:", window.analysisData);
 
       if (window.analysisData && window.analysisData.memory_analysis && window.analysisData.memory_analysis.allocations) {
-        console.log("✅ Data found, calling initEnhancedLifecycleVisualization...');
+        console.log("✅ Data found, calling initEnhancedLifecycleVisualization...");
         initEnhancedLifecycleVisualization();
         safeUpdateElement('init-status', 'Initialized successfully!');
       } else {
-        console.warn('❌ No data found, trying to load...');
+        console.warn('❌ No data found, trying to load...");
         safeUpdateElement('init-status', 'Loading data...');
 
         // Try to load data manually
-        fetch('./large_scale_user_memory_analysis.json')
+        fetch('./large_scale_user_memory_analysis.json")
           .then(response => response.json())
           .then(memoryData => {
             console.log("✅ Manually loaded data:", memoryData);
@@ -5918,11 +5918,11 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
           
           // Auto-load Safety Risk Analysis when data is ready
           setTimeout(() => {
-            console.log("🛡️ Data ready - auto-loading Safety Risk Analysis...');
+            console.log("🛡️ Data ready - auto-loading Safety Risk Analysis...");
             try {
               initializeEnhancedUnsafeAnalysis();
               loadSafetyRisks();
-              console.log("✅ Safety Risk Analysis loaded automatically');
+              console.log("✅ Safety Risk Analysis loaded automatically");
             } catch (riskError) {
               console.error('❌ Error auto-loading safety risks:', riskError);
             }
@@ -5931,10 +5931,10 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
           // Initialize enhanced visualization features
           if (window.enhancedVisualizer) {
             setTimeout(() => {
-              console.log("Initializing enhanced visualizer...');
+              console.log("Initializing enhanced visualizer...");
               window.enhancedVisualizer.init();
               window.enhancedVisualizer.initializeWithData(window.analysisData);
-              console.log("Enhanced visualizer initialized');
+              console.log("Enhanced visualizer initialized");
               safeUpdateElement('data-status', 'Ready');
             }, 1000); // Give more time for DOM elements to be ready
           } else {
@@ -5952,7 +5952,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
 
     // Initialize enhanced features after everything loads
     document.addEventListener('DOMContentLoaded', function () {
-      console.log("🚀 Dashboard initialization started');
+      console.log("🚀 Dashboard initialization started");
       
       // Update status indicators
       safeUpdateElement('dashboard-status', 'Initializing');
@@ -5960,7 +5960,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
       
       try {
         // Setup manual initialize button
-        const manualBtn = document.getElementById('manual-init-btn');
+        const manualBtn = document.getElementById('manual-init-btn");
         if (manualBtn) {
           manualBtn.addEventListener("click", manualInitialize);
         }
@@ -5968,7 +5968,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
         // Load safety risks after initialization with longer delay
         setTimeout(function() {
           try {
-            console.log("🛡️ Auto-loading safety risks on dashboard initialization...');
+            console.log("🛡️ Auto-loading safety risks on dashboard initialization...");
             loadSafetyRisks();
             // Also ensure unsafe analysis is initialized
             if (window.analysisData) {
@@ -5983,7 +5983,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
         waitForDataAndInit();
         
         safeUpdateElement('dashboard-status', 'Ready');
-        console.log("✅ Dashboard initialization completed');
+        console.log("✅ Dashboard initialization completed");
         
       } catch (error) {
         console.error('❌ Dashboard initialization failed:', error);
@@ -6615,7 +6615,7 @@ const FFI_STYLE = 'svg';
 
 // Initialize all dashboard components - Clean layout
 function initCleanTemplate() {
-    console.log("🚀 Initializing MemScope Dashboard...');
+    console.log("🚀 Initializing MemScope Dashboard...");
     console.log("📊 Available data:", Object.keys(window.analysisData||{}));
     const data = window.analysisData || {};
 
@@ -6623,14 +6623,14 @@ function initCleanTemplate() {
     updateKPICards(data);
 
     // Memory by type (Chart.js)
-    const typeChartEl = document.getElementById('typeChart');
+    const typeChartEl = document.getElementById('typeChart");
     if (typeChartEl) {
         const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
         const byType = {};
         for (const a of allocs) { const t=a.type_name||'Unknown'; byType[t]=(byType[t]||0)+(a.size||0); }
         const top = Object.entries(byType).sort((a,b)=>b[1]-a[1]).slice(0,10);
         if (top.length>0) {
-            const ctx = typeChartEl.getContext('2d');
+            const ctx = typeChartEl.getContext('2d");
             if (window.chartInstances['clean-type']) window.chartInstances['clean-type'].destroy();
             window.chartInstances['clean-type'] = new Chart(ctx, {
                 type:'bar',
@@ -6643,7 +6643,7 @@ function initCleanTemplate() {
     }
 
     // Timeline (Chart.js)
-    const timelineEl = document.getElementById('timelineChart');
+    const timelineEl = document.getElementById('timelineChart");
     if (timelineEl) {
         const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
         const rawTimeline = (data.memory_analysis && data.memory_analysis.memory_timeline) || [];
@@ -6656,7 +6656,7 @@ function initCleanTemplate() {
             for(let i=0;i<sorted.length;i+=step){ cum += sorted[i].size||0; points.push({x:i, y:cum}); }
         }
         if (points.length>1) {
-            const ctx = timelineEl.getContext('2d');
+            const ctx = timelineEl.getContext('2d");
             if (window.chartInstances['clean-timeline']) window.chartInstances['clean-timeline'].destroy();
             window.chartInstances['clean-timeline'] = new Chart(ctx, {
                 type:'line',
@@ -6667,14 +6667,14 @@ function initCleanTemplate() {
     }
 
     // Treemap
-    const treemapEl = document.getElementById('treemap');
+    const treemapEl = document.getElementById('treemap");
     if (treemapEl) {
         const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
         treemapEl.innerHTML = createTreemapVisualization(allocs);
     }
 
     // Growth
-    const growthEl = document.getElementById('growth');
+    const growthEl = document.getElementById('growth");
     if (growthEl) {
         const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
         const total = allocs.reduce((s,a)=>s+(a.size||0),0);
@@ -6682,7 +6682,7 @@ function initCleanTemplate() {
     }
 
     // Lifetimes (top 10)
-    const lifetimesEl = document.getElementById('lifetimes');
+    const lifetimesEl = document.getElementById('lifetimes");
     if (lifetimesEl) {
         const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
         const top = allocs.filter(a=>a.var_name && a.var_name!=='unknown').sort((a,b)=>(b.size||0)-(a.size||0)).slice(0,10);
@@ -6705,7 +6705,7 @@ function initCleanTemplate() {
     initLifetimeVisualization(data);
 
     // Complex types
-    const complexSummary = document.getElementById('complexSummary');
+    const complexSummary = document.getElementById('complexSummary");
     if (complexSummary) {
         const ct = data.complex_types || {};
         const s = ct.summary || {};
@@ -6716,13 +6716,13 @@ function initCleanTemplate() {
             {label:'Generic Types', val: s.generic_types_count||s.generic_type_count||0},
         ];
         complexSummary.innerHTML = items.map(x=>`<div class="pill">${x.label}: ${x.val}</div>`).join('');
-        document.getElementById('complexSmart')?.replaceChildren();
-        document.getElementById('complexCollections')?.replaceChildren();
-        document.getElementById('complexGenerics')?.replaceChildren();
+        document.getElementById('complexSmart")?.replaceChildren();
+        document.getElementById('complexCollections")?.replaceChildren();
+        document.getElementById('complexGenerics")?.replaceChildren();
     }
 
     // Variable relationships
-    const graphEl = document.getElementById('graph');
+    const graphEl = document.getElementById('graph");
     if (graphEl) {
         // reuse our D3 relationship graph init but mount into #graph
         const container = document.createElement('div');
@@ -6734,7 +6734,7 @@ function initCleanTemplate() {
     }
 
     // Security violations
-    const secEl = document.getElementById('security');
+    const secEl = document.getElementById('security");
     if (secEl) {
         const root = data.unsafe_ffi || {};
         const list = root.security_hotspots || root.unsafe_reports || [];
@@ -6752,7 +6752,7 @@ function initCleanTemplate() {
     }
 }
 function initializeDashboard() {
-    console.log("🚀 Initializing MemScope dashboard...');
+    console.log("🚀 Initializing MemScope dashboard...");
     console.log("📊 Available data:", Object.keys(window.analysisData || {}));
 
     // Initialize theme system first
@@ -6784,7 +6784,7 @@ function initThemeToggle() {
     console.log("🎨 Initializing theme system, saved theme:", savedTheme);
 
     // Apply initial theme
-    applyTheme(savedTheme === 'dark');
+    applyTheme(savedTheme === 'dark");
 
     if (themeToggle) {
         themeToggle.addEventListener("click", () => {
@@ -6792,18 +6792,18 @@ function initThemeToggle() {
 
             if (isDark) {
                 applyTheme(false);
-                localStorage.setItem('memscope-theme', 'light');
-                console.log("🎨 Theme switched to: light mode');
+                localStorage.setItem('memscope-theme', 'light");
+                console.log("🎨 Theme switched to: light mode");
             } else {
                 applyTheme(true);
-                localStorage.setItem('memscope-theme', 'dark');
-                console.log("🎨 Theme switched to: dark mode');
+                localStorage.setItem('memscope-theme', 'dark");
+                console.log("🎨 Theme switched to: dark mode");
             }
         });
 
-        console.log("✅ Theme toggle initialized successfully');
+        console.log("✅ Theme toggle initialized successfully");
     } else {
-        console.warn('⚠️ Theme toggle button not found');
+        console.warn('⚠️ Theme toggle button not found");
     }
 }
 
@@ -6906,7 +6906,7 @@ function applyThemeToAllModules(isDark) {
 
 // Initialize summary statistics
 function initSummaryStats() {
-    console.log("📊 Initializing summary stats...');
+    console.log("📊 Initializing summary stats...");
 
     const data = window.analysisData;
 
@@ -6938,7 +6938,7 @@ function initSummaryStats() {
 
 // Initialize charts - simplified
 function initCharts() {
-    console.log("📊 Initializing charts...');
+    console.log("📊 Initializing charts...");
 
     // Initialize memory distribution chart
     initMemoryDistributionChart();
@@ -6951,7 +6951,7 @@ function initCharts() {
 
 // Initialize memory distribution chart
 function initMemoryDistributionChart() {
-    const ctx = document.getElementById('memory-distribution-chart');
+    const ctx = document.getElementById('memory-distribution-chart");
     if (!ctx) return;
 
     const allocations = window.analysisData.memory_analysis?.allocations || [];
@@ -7021,7 +7021,7 @@ function initMemoryDistributionChart() {
 
 // Initialize allocation size chart
 function initAllocationSizeChart() {
-    const ctx = document.getElementById('allocation-size-chart');
+    const ctx = document.getElementById('allocation-size-chart");
     if (!ctx) return;
 
     const allocations = window.analysisData.memory_analysis?.allocations || [];
@@ -7075,7 +7075,7 @@ function initAllocationSizeChart() {
 // Process memory analysis data with validation and fallback
 function processMemoryAnalysisData(rawData) {
     if (!rawData || !rawData.memory_analysis) {
-        console.warn('⚠️ No memory analysis data found, generating fallback data');
+        console.warn('⚠️ No memory analysis data found, generating fallback data");
         return generateFallbackMemoryData();
     }
 
@@ -7112,7 +7112,7 @@ function processMemoryAnalysisData(rawData) {
 
 // Generate fallback memory data when real data is unavailable
 function generateFallbackMemoryData() {
-    console.log("🔄 Generating fallback memory data');
+    console.log("🔄 Generating fallback memory data");
 
     return {
         stats: {
@@ -7175,7 +7175,7 @@ function calculateMemoryStatistics(allocations) {
 
 // Initialize memory usage analysis with enhanced SVG-style visualization
 function initMemoryUsageAnalysis() {
-    const container = document.getElementById('memory-usage-analysis');
+    const container = document.getElementById('memory-usage-analysis");
     if (!container) return;
 
     // Process memory data with validation
@@ -7261,14 +7261,14 @@ function createMemoryAnalysisSVG(stats, allocations, userMemory, systemMemory, t
             <div class="p-6">
                 <!-- Key Performance Metrics Grid -->
                 <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 mb-8">
-                    ${createAdvancedMetricCard('Active Memory', formatBytes(userMemory), Math.round(userPercentage), '#3498db', 'MEDIUM')}
-                    ${createAdvancedMetricCard('Peak Memory', formatBytes(totalMemory), 100, '#e74c3c', 'HIGH')}
-                    ${createAdvancedMetricCard('Active Allocs', allocations.length, 100, '#2ecc71', 'HIGH')}
-                    ${createAdvancedMetricCard('Reclamation', reclamationRate.toFixed(1) + '%', Math.round(reclamationRate), '#f39c12', reclamationRate > 70 ? 'OPTIMAL' : 'MEDIUM')}
-                    ${createAdvancedMetricCard('Efficiency', efficiency.toFixed(1) + '%', Math.round(efficiency), '#9b59b6', efficiency > 70 ? 'OPTIMAL' : 'MEDIUM')}
-                    ${createAdvancedMetricCard('Median Size', formatBytes(medianSize), Math.min(100, medianSize / 1024), '#1abc9c', medianSize < 100 ? 'OPTIMAL' : 'MEDIUM')}
-                    ${createAdvancedMetricCard('P95 Size', formatBytes(p95Size), Math.min(100, p95Size / 1024), '#e67e22', p95Size < 1024 ? 'OPTIMAL' : 'MEDIUM')}
-                    ${createAdvancedMetricCard('Fragmentation', fragmentation.toFixed(1) + '%', Math.round(fragmentation), '#95a5a6', fragmentation < 30 ? 'OPTIMAL' : 'MEDIUM')}
+                    ${createAdvancedMetricCard('Active Memory', formatBytes(userMemory), Math.round(userPercentage), '#3498db', 'MEDIUM")}
+                    ${createAdvancedMetricCard('Peak Memory', formatBytes(totalMemory), 100, '#e74c3c', 'HIGH")}
+                    ${createAdvancedMetricCard('Active Allocs', allocations.length, 100, '#2ecc71', 'HIGH")}
+                    ${createAdvancedMetricCard('Reclamation', reclamationRate.toFixed(1) + '%', Math.round(reclamationRate), '#f39c12', reclamationRate > 70 ? 'OPTIMAL' : 'MEDIUM")}
+                    ${createAdvancedMetricCard('Efficiency', efficiency.toFixed(1) + '%', Math.round(efficiency), '#9b59b6', efficiency > 70 ? 'OPTIMAL' : 'MEDIUM")}
+                    ${createAdvancedMetricCard('Median Size', formatBytes(medianSize), Math.min(100, medianSize / 1024), '#1abc9c', medianSize < 100 ? 'OPTIMAL' : 'MEDIUM")}
+                    ${createAdvancedMetricCard('P95 Size', formatBytes(p95Size), Math.min(100, p95Size / 1024), '#e67e22', p95Size < 1024 ? 'OPTIMAL' : 'MEDIUM")}
+                    ${createAdvancedMetricCard('Fragmentation', fragmentation.toFixed(1) + '%', Math.round(fragmentation), '#95a5a6', fragmentation < 30 ? 'OPTIMAL' : 'MEDIUM")}
                 </div>
 
 
@@ -7300,10 +7300,10 @@ function createMemoryAnalysisSVG(stats, allocations, userMemory, systemMemory, t
                     <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-6 border border-gray-200 dark:border-gray-600">
                         <h3 class="text-xl font-semibold mb-4 text-gray-800 dark:text-white text-center">Memory Fragmentation Analysis</h3>
                         <div class="space-y-4">
-                            ${createAdvancedFragmentationBar('Tiny (0-64B)', sizeDistribution.tiny, allocations.length, '#27ae60')}
-                            ${createAdvancedFragmentationBar('Small (65B-1KB)', sizeDistribution.small, allocations.length, '#f39c12')}
-                            ${createAdvancedFragmentationBar('Medium (1KB-64KB)', sizeDistribution.medium, allocations.length, '#e74c3c')}
-                            ${createAdvancedFragmentationBar('Large (>64KB)', sizeDistribution.large, allocations.length, '#8e44ad')}
+                            ${createAdvancedFragmentationBar('Tiny (0-64B)', sizeDistribution.tiny, allocations.length, '#27ae60")}
+                            ${createAdvancedFragmentationBar('Small (65B-1KB)', sizeDistribution.small, allocations.length, '#f39c12")}
+                            ${createAdvancedFragmentationBar('Medium (1KB-64KB)', sizeDistribution.medium, allocations.length, '#e74c3c")}
+                            ${createAdvancedFragmentationBar('Large (>64KB)', sizeDistribution.large, allocations.length, '#8e44ad")}
                         </div>
                     </div>
 
@@ -7403,17 +7403,17 @@ function createTimelineVisualization(allocations) {
         var sizeStr = formatBytes(alloc.size);
         
         var html = [];
-        html.push('<div class="absolute bottom-0 bg-opacity-80 rounded-t transition-all hover:bg-opacity-100" style="left:');
+        html.push('<div class="absolute bottom-0 bg-opacity-80 rounded-t transition-all hover:bg-opacity-100" style="left:");
         html.push(position);
-        html.push('%;width:4px;height:');
+        html.push('%;width:4px;height:");
         html.push(height);
-        html.push('%;background-color:');
+        html.push('%;background-color:");
         html.push(color);
-        html.push('" title="');
+        html.push('" title="");
         html.push(varName);
-        html.push(':');
+        html.push(':");
         html.push(sizeStr);
-        html.push('"></div>');
+        html.push('"></div>");
         return html.join('');
     }).join('');
 }
@@ -7575,7 +7575,7 @@ function createAdvancedTimelineVisualization(allocations, totalMemory) {
     // Group allocations by scope/type for better visualization
     const scopeGroups = {};
     sortedAllocs.forEach(alloc => {
-        const scope = alloc.scope_name || (alloc.var_name ? 'User Variables' : 'System');
+        const scope = alloc.scope_name || (alloc.var_name ? 'User Variables' : 'System");
         if (!scopeGroups[scope]) scopeGroups[scope] = [];
         scopeGroups[scope].push(alloc);
     });
@@ -7771,7 +7771,7 @@ function createCallStackAnalysis(allocations) {
                         ${alloc.var_name || 'System/Runtime allocations'}
                     </div>
                     <div class="text-xs text-gray-500 dark:text-gray-400">
-                        ${alloc.type_name || 'no type info'} • ${formatBytes(alloc.size || 0)}
+                        ${alloc.type_name || 'no type info'} - ${formatBytes(alloc.size || 0)}
                     </div>
                 </div>
             </div>
@@ -7804,7 +7804,7 @@ function createAdvancedGrowthTrendVisualization(allocations, totalMemory) {
             ${[20, 40, 60, 80].map(y => '
                 <div class="absolute w-full border-t border-gray-200 dark:border-gray-500 opacity-30" 
                      style="top: ${y}%"></div>
-            ').join("")}
+            ").join("")}
         </div>
         
         <!-- Growth Line -->
@@ -7815,7 +7815,7 @@ function createAdvancedGrowthTrendVisualization(allocations, totalMemory) {
                 stroke-width="3"
                 stroke-linecap="round"
                 stroke-linejoin="round"
-                points="${points.map(p => "${p.x},${p.y}").join(' ')}"
+                points="${points.map(p => `${p.x},${p.y}`).join(' ')}"
                 class="drop-shadow-sm "
             />
         </svg>
@@ -7840,7 +7840,7 @@ function createAdvancedGrowthTrendVisualization(allocations, totalMemory) {
 const CREATE_VARIABLE_ALLOCATION_TIMELINE_JS: &str = r#"
 // Create variable allocation timeline
 function createVariableAllocationTimeline(allocations) {
-    const userAllocs = allocations.filter(a => a.var_name && a.var_name !== "unknown")
+    const userAllocs = allocations.filter(a => a.var_name && a.var_name !== 'unknown')
         .sort((a, b) => (a.timestamp_alloc || 0) - (b.timestamp_alloc || 0))
         .slice(0, 10);
 
@@ -7855,10 +7855,10 @@ function createVariableAllocationTimeline(allocations) {
                         ${alloc.var_name}
                     </div>
                     <div class="text-xs text-gray-500 dark:text-gray-400">
-                        ${alloc.type_name || "unknown"} • ${formatBytes(alloc.size || 0)}
+                        ${alloc.type_name || "unknown"} - ${formatBytes(alloc.size || 0)}
                     </div>
                 </div>
-                <div class=\"text-xs text-gray-500 dark:text-gray-400\">
+                <div class='text-xs text-gray-500 dark:text-gray-400'>
                     ${new Date(alloc.timestamp_alloc / 1000000).toLocaleTimeString()}
                 </div>
             </div>
@@ -7873,14 +7873,14 @@ function getTypeCategory(type) {
     const typeLower = type.toLowerCase();
     
     // Collections
-    if (typeLower.includes("vec") || typeLower.includes("hash") || typeLower.includes("btree") || 
-        typeLower.includes("deque") || typeLower.includes("set") || typeLower.includes("map")) {
+    if (typeLower.includes('vec') || typeLower.includes('hash') || typeLower.includes('btree') || 
+        typeLower.includes('deque') || typeLower.includes('set') || typeLower.includes('map')) {
         return "collections";
     }
     
     // Smart Pointers
-    if (typeLower.includes("box") || typeLower.includes("rc") || typeLower.includes("arc") || 
-        typeLower.includes("refcell") || typeLower.includes("cell") || typeLower.includes("weak")) {
+    if (typeLower.includes('box') || typeLower.includes('rc') || typeLower.includes('arc') || 
+        typeLower.includes('refcell') || typeLower.includes('cell') || typeLower.includes('weak')) {
         return "smart_pointers";
     }
     
@@ -7902,8 +7902,8 @@ function getCategoryColor(category) {
 function initAllocationsTable() {
     console.log("📊 Initializing allocations table... ");
 
-    const tbody = document.getElementById("allocations-table ");
-    const toggleButton = document.getElementById("toggle-allocations ");
+    const tbody = document.getElementById('allocations-table');
+    const toggleButton = document.getElementById('toggle-allocations');
 
     if (!tbody) {
         console.warn("⚠️ Allocations table body not found ");
@@ -7928,21 +7928,21 @@ function initAllocationsTable() {
 
         const displayAllocations = showAll ? allocations : allocations.slice(0, maxInitialRows);
 
-        tbody.innerHTML = displayAllocations.map(alloc => "<tr class=\"hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors\">" +
-                "<td class=\"px-4 py-2 text-gray-900 dark:text-gray-100 font-mono\">0x${(alloc.ptr ? parseInt(alloc.ptr.toString().replace(\"0x\", \"\"), 16) : 0).toString(16).padStart(8, \"0\")}</td>" +
-                "<td class=\"px-4 py-2 text-gray-900 dark:text-gray-100\">${alloc.var_name || \"System Allocation\"}</td>" +
-                "<td class=\"px-4 py-2 text-gray-900 dark:text-gray-100\">${formatTypeName(alloc.type_name || \"System Allocation\")}</td>" +
-                "<td class=\"px-4 py-2 text-right text-gray-900 dark:text-gray-100\">${formatBytes(alloc.size || 0)}</td>" +
-                "<td class=\"px-4 py-2 text-right text-gray-900 dark:text-gray-100\">" +
-                    "<span class=\"px-2 py-1 text-xs rounded-full ${alloc.is_active ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'}\">" +
+        tbody.innerHTML = displayAllocations.map(alloc => "<tr class='hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors'>" +
+                "<td class='px-4 py-2 text-gray-900 dark:text-gray-100 font-mono'>0x${(alloc.ptr ? parseInt(alloc.ptr.toString().replace('0x', ''), 16) : 0).toString(16).padStart(8, '0')}</td>" +
+                "<td class='px-4 py-2 text-gray-900 dark:text-gray-100'>${alloc.var_name || 'System Allocation'}</td>" +
+                "<td class='px-4 py-2 text-gray-900 dark:text-gray-100'>${formatTypeName(alloc.type_name || 'System Allocation')}</td>" +
+                "<td class='px-4 py-2 text-right text-gray-900 dark:text-gray-100'>${formatBytes(alloc.size || 0)}</td>" +
+                "<td class='px-4 py-2 text-right text-gray-900 dark:text-gray-100'>" +
+                    "<span class='px-2 py-1 text-xs rounded-full ${alloc.is_active ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'}'>" +
                         "${alloc.is_active ? "Active" : 'Deallocated'}" +
                     "</span>" +
                 "</td>" +
             "</tr>").join("");
 
         if (!showAll && allocations.length > maxInitialRows) {
-            tbody.innerHTML += "<tr class=\"bg-gray-50 dark:bg-gray-700\">" +
-                    "<td colspan=\"5\" class=\"px-4 py-2 text-center text-gray-500 dark:text-gray-400 text-sm\">" +
+            tbody.innerHTML += "<tr class='bg-gray-50 dark:bg-gray-700'>" +
+                    "<td colspan='5' class='px-4 py-2 text-center text-gray-500 dark:text-gray-400 text-sm'>" +
                         "... and " + (allocations.length - maxInitialRows) + " more allocations" +
                     "</td>" +
                 "</tr>";
@@ -7958,7 +7958,7 @@ function initAllocationsTable() {
 
         // Clear any existing event listeners and add new one
         toggleButton.replaceWith(toggleButton.cloneNode(true));
-        const newToggleButton = document.getElementById("toggle-allocations");
+        const newToggleButton = document.getElementById('toggle-allocations");
 
         newToggleButton.addEventListener("click", function (e) {
             e.preventDefault();
@@ -7968,8 +7968,8 @@ function initAllocationsTable() {
             isExpanded = !isExpanded;
             renderTable(isExpanded);
 
-            const icon = newToggleButton.querySelector("i");
-            const text = newToggleButton.querySelector("span");
+            const icon = newToggleButton.querySelector('i');
+            const text = newToggleButton.querySelector('span');
 
             if (isExpanded) {
                 icon.className = "fa fa-chevron-up mr-1";
@@ -8126,8 +8126,8 @@ function groupVariablesByName(events) {
 function renderLifetimeVisualizationFromRustWithCollapse(variableGroups) {
     console.log("📊 Rendering ${variableGroups.length} Rust-preprocessed variable groups with collapse functionality");
 
-    const container = document.getElementById("lifetimeVisualization");
-    const toggleButton = document.getElementById("toggle-lifecycle");
+    const container = document.getElementById('lifetimeVisualization");
+    const toggleButton = document.getElementById('toggle-lifecycle");
     
     if (!container) return;
 
@@ -8173,7 +8173,7 @@ function renderLifetimeVisualizationFromRustWithCollapse(variableGroups) {
 
         // Render each variable with colorful progress bars
         displayGroups.forEach((group, index) => {
-            const varDiv = document.createElement("div");
+            const varDiv = document.createElement('div');
             varDiv.className = "flex items-center py-4 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors";
 
             // Get color from palette (cycle through colors)
@@ -8208,18 +8208,18 @@ function renderLifetimeVisualizationFromRustWithCollapse(variableGroups) {
             const gradientStyle = "background: linear-gradient(90deg, " + progressColor + ", " + progressColor + "dd);";
 
             varDiv.innerHTML = 
-                "<div class=\"w-48 flex-shrink-0 pr-4\">" +
-                    "<div class="text-sm font-semibold text-gray-800 dark:text-gray-200">" + group.var_name + "</div>" +
-                    "<div class="text-xs text-gray-500 dark:text-gray-400">" + displayTypeName + "</div>" +
+                "<div class='w-48 flex-shrink-0 pr-4'>" +
+                    "<div class='text-sm font-semibold text-gray-800 dark:text-gray-200'>" + group.var_name + "</div>" +
+                    "<div class='text-xs text-gray-500 dark:text-gray-400'>" + displayTypeName + "</div>" +
                 "</div>" +
-                "<div class=\"flex-grow relative bg-gray-200 dark:bg-gray-600 rounded-full h-6 overflow-hidden\">" +
-                    "<div class="absolute inset-0 rounded-full " " +
-                         "style=" + gradientStyle + " width: " + finalWidthPercent + "%; margin-left: " + finalStartPercent + "%; " +
+                "<div class='flex-grow relative bg-gray-200 dark:bg-gray-600 rounded-full h-6 overflow-hidden'>" +
+                    "<div class='absolute inset-0 rounded-full' " +
+                         "style='" + gradientStyle + " width: " + finalWidthPercent + "%; margin-left: " + finalStartPercent + "%; " +
                                 "box-shadow: 0 2px 4px rgba(0,0,0,0.1); " +
-                                "transition: all 0.3s ease;" " +
-                         "title="Variable: " + group.var_name + ", Type: " + displayTypeName + ">" +
-                        "<div class=\"absolute inset-0 flex items-center justify-center\">" +
-                            "<span class=\"text-xs font-bold text-white drop-shadow-sm\">" +
+                                "transition: all 0.3s ease;' " +
+                         "title=\"Variable: " + group.var_name + ", Type: " + displayTypeName + "\">" +
+                        "<div class='absolute inset-0 flex items-center justify-center'>" +
+                            "<span class='text-xs font-bold text-white drop-shadow-sm'>" +
                                 Math.round(finalWidthPercent) + '%' +
                             "</span>" +
                         "</div>"
@@ -8228,8 +8228,8 @@ function renderLifetimeVisualizationFromRustWithCollapse(variableGroups) {
                         "Duration: " + (firstEvent && firstEvent.lifetime_ms ? firstEvent.lifetime_ms + "ms" : "Active") +
                     "</div>" +
                 "</div>" +
-                "<div class=\"w-20 flex-shrink-0 pl-4 text-right\">" +
-                    "<div class=\"text-xs text-gray-600 dark:text-gray-400\">" +
+                "<div class='w-20 flex-shrink-0 pl-4 text-right'>" +
+                    "<div class='text-xs text-gray-600 dark:text-gray-400'>" +
                         formatBytes(group.size || (group.events && group.events[0] ? group.events[0].size : 0) || 0) +
                     "</div>" +
                 "</div>" +
@@ -8240,10 +8240,10 @@ function renderLifetimeVisualizationFromRustWithCollapse(variableGroups) {
 
         // Add "show more" indicator if collapsed
         if (!showAll && variableGroups.length > maxInitialRows) {
-            const moreDiv = document.createElement("div");
+            const moreDiv = document.createElement('div');
             moreDiv.className = "flex items-center py-4 bg-gray-50 dark:bg-gray-700 border-b border-gray-100 dark:border-gray-600";
             moreDiv.innerHTML = 
-                "<div class=\"w-full text-center text-gray-500 dark:text-gray-400 text-sm\">" +
+                "<div class='w-full text-center text-gray-500 dark:text-gray-400 text-sm'>" +
                     "... and " + (variableGroups.length - maxInitialRows) + " more variables" +
                 "</div>";
             container.appendChild(moreDiv);
@@ -8269,7 +8269,7 @@ function renderLifetimeVisualizationFromRustWithCollapse(variableGroups) {
             renderLifetimeRows(isExpanded);
 
             const icon = newToggleButton.querySelector('i');
-            const text = newToggleButton.querySelector("span");
+            const text = newToggleButton.querySelector('span');
 
             if (isExpanded) {
                 icon.className = "fa fa-chevron-up mr-1";
@@ -8294,8 +8294,8 @@ function renderLifetimeVisualizationFromRustWithCollapse(variableGroups) {
 
 // Render the lifetime visualization with collapsible functionality
 function renderLifetimeVisualizationWithCollapse(variableGroups) {
-    const container = document.getElementById("lifetimeVisualization");
-    const toggleButton = document.getElementById("toggle-lifecycle");
+    const container = document.getElementById('lifetimeVisualization");
+    const toggleButton = document.getElementById('toggle-lifecycle");
     
     if (!container) return;
 
@@ -8342,7 +8342,7 @@ function renderLifetimeVisualizationWithCollapse(variableGroups) {
 
         // Render each variable
         displayGroups.forEach((group) => {
-            const varDiv = document.createElement("div");
+            const varDiv = document.createElement('div');
             varDiv.className = "flex items-end py-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors";
 
             // Determine color based on type
@@ -8384,10 +8384,10 @@ function renderLifetimeVisualizationWithCollapse(variableGroups) {
             const displayTypeName = formatTypeName(group.type_name);
 
             varDiv.innerHTML = 
-                "<div class=\"w-40 flex-shrink-0 text-sm font-medium dark:text-gray-200\">" +
+                "<div class='w-40 flex-shrink-0 text-sm font-medium dark:text-gray-200'>" +
                     group.var_name + " (" + displayTypeName + ")" +
                 "</div>" +
-                "<div class=\"flex-grow relative\">" +
+                "<div class='flex-grow relative'>" +
                     "<div class=\"lifespan-indicator " + colors.bg + "\" " +
                          "style=\"width: " + finalWidthPercent + "%; margin-left: " + finalStartPercent + "%;\" " +
                          "title=\"Variable: " + group.var_name + ", Type: " + displayTypeName + "\">" +
@@ -8402,10 +8402,10 @@ function renderLifetimeVisualizationWithCollapse(variableGroups) {
 
         // Add "show more" indicator if collapsed
         if (!showAll && variableGroups.length > maxInitialRows) {
-            const moreDiv = document.createElement("div");
+            const moreDiv = document.createElement('div');
             moreDiv.className = "flex items-center py-3 bg-gray-50 dark:bg-gray-700 border-b border-gray-100 dark:border-gray-600";
             moreDiv.innerHTML = 
-                "<div class=\"w-full text-center text-gray-500 dark:text-gray-400 text-sm\">" +
+                "<div class='w-full text-center text-gray-500 dark:text-gray-400 text-sm'>" +
                     "... and " + (variableGroups.length - maxInitialRows) + " more variables" +
                 "</div>";
             container.appendChild(moreDiv);
@@ -8431,12 +8431,12 @@ function renderLifetimeVisualizationWithCollapse(variableGroups) {
             renderLifetimeRows(isExpanded);
 
             const icon = newToggleButton.querySelector('i');
-            const text = newToggleButton.querySelector("span");
+            const text = newToggleButton.querySelector('span');
 
             if (isExpanded) {
                 icon.className = "fa fa-chevron-up mr-1";
                 text.textContent = "Show Less";
-                console.log("📊 Expanded lifecycle to show all variables');
+                console.log("📊 Expanded lifecycle to show all variables");
             } else {
                 icon.className = "fa fa-chevron-down mr-1";
                 text.textContent = 'Show All';
@@ -8458,7 +8458,7 @@ function renderLifetimeVisualizationWithCollapse(variableGroups) {
 function initFFIVisualization() {
     console.log("🔄 Initializing FFI visualization...");
 
-    const container = document.getElementById('ffiVisualization');
+    const container = document.getElementById('ffiVisualization");
     if (!container) return;
 
     // Get FFI data from multiple sources with comprehensive field support
@@ -8487,7 +8487,7 @@ function initFFIVisualization() {
             unsafeReports = window.analysisData.unsafe_ffi.unsafe_reports || [];
             memoryPassports = window.analysisData.unsafe_ffi.memory_passports || [];
             ffiStatistics = window.analysisData.unsafe_ffi.ffi_statistics || {};
-            console.log("📊 Found unsafe_ffi data - allocations:", allocations.length, 'reports:", unsafeReports.length, 'passports:", memoryPassports.length);
+            console.log("📊 Found unsafe_ffi data - allocations:", allocations.length, 'reports:', unsafeReports.length, 'passports:', memoryPassports.length);
         }
         // Try complex_types structure (for large_scale_user files)
         else if (window.analysisData.complex_types && window.analysisData.complex_types.allocations) {
@@ -8556,11 +8556,11 @@ function initFFIVisualization() {
     
     // If we have allocations but no FFI-specific ones, still show the dashboard with all data
     const displayAllocations = ffiAllocations.length > 0 ? ffiAllocations : allocations.slice(0, 20);
-    console.log("🎯 Rendering FFI dashboard with:", displayAllocations.length, 'allocations,", unsafeReports.length, 'reports,", memoryPassports.length, 'passports');
+    console.log("🎯 Rendering FFI dashboard with:", displayAllocations.length, 'allocations,', unsafeReports.length, 'reports,', memoryPassports.length, 'passports');
 
     // Generate enhanced FFI analysis with improve.md fields
     try {
-        if (FFI_STYLE === 'svg') {
+        if (FFI_STYLE === 'svg") {
             const boundaryEvents = window.analysisData.unsafe_ffi?.boundary_events || [];
             const unsafeAllocs = displayAllocations.filter(a => (a.safety_violations || []).length > 0).length;
             const ffiAllocs = displayAllocations.filter(a => a.ffi_tracked).length;
@@ -8579,19 +8579,19 @@ function initFFIVisualization() {
                 boundaryEvents,
                 unsafeReports
             );
-            console.log("✅ FFI SVG-style dashboard rendered');
+            console.log("✅ FFI SVG-style dashboard rendered");
             return;
         }
-        console.log("🔄 Generating FFI analysis...');
+        console.log("🔄 Generating FFI analysis...");
         const ffiAnalysis = generateEnhancedFFIAnalysisWithImproveFields(displayAllocations, unsafeReports, memoryPassports, ffiStatistics);
         console.log("✅ FFI analysis generated:", ffiAnalysis);
         
-        console.log("🔄 Creating FFI dashboard...');
+        console.log("🔄 Creating FFI dashboard...");
         const dashboardHTML = createEnhancedFFIDashboardWithImproveFields(ffiAnalysis, displayAllocations, unsafeReports, memoryPassports);
         console.log("✅ Dashboard HTML created, length:", dashboardHTML.length);
         
         container.innerHTML = dashboardHTML;
-        console.log("✅ Dashboard rendered successfully!');
+        console.log("✅ Dashboard rendered successfully!");
     } catch (error) {
         console.error('❌ Error in FFI rendering:', error);
         container.innerHTML = `<div class="bg-red-100 p-4 rounded text-red-800">Error rendering FFI data: ${error.message}</div>`;
@@ -8833,7 +8833,7 @@ function createEnhancedFFIAllocationCard(alloc) {
             <div class="flex justify-between items-start mb-3">
                 <div>
                     <h4 class="font-semibold text-gray-900 dark:text-white">${alloc.var_name || 'Unknown Variable'}</h4>
-                    <p class="text-sm text-gray-600 dark:text-gray-300">${formatTypeName(alloc.type_name || 'Unknown Type')}</p>
+                    <p class="text-sm text-gray-600 dark:text-gray-300">${formatTypeName(alloc.type_name || 'Unknown Type")}</p>
                     ${alloc.isClone ? '<span class="inline-block px-2 py-1 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded-full mt-1">Clone</span>' : ''}
                 </div>
                 <div class="text-right">
@@ -9104,11 +9104,11 @@ function createFFIDashboardSVG(unsafeAllocs, ffiAllocs, boundaryCrossings, safet
 
             <!-- Key Metrics Row -->
             <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
-                ${createFFIMetricCard('Unsafe Allocations', unsafeAllocs, '#e74c3c', 'fa-exclamation-triangle')}
-                ${createFFIMetricCard('FFI Allocations', ffiAllocs, '#3498db', 'fa-exchange')}
-                ${createFFIMetricCard('Boundary Crossings', boundaryCrossings, '#f39c12', 'fa-arrows-h')}
-                ${createFFIMetricCard('Safety Violations', safetyViolations, '#e67e22', 'fa-warning')}
-                ${createFFIMetricCard('Unsafe Memory', formatBytes(unsafeMemory), '#9b59b6', 'fa-memory')}
+                ${createFFIMetricCard('Unsafe Allocations', unsafeAllocs, '#e74c3c', 'fa-exclamation-triangle")}
+                ${createFFIMetricCard('FFI Allocations', ffiAllocs, '#3498db', 'fa-exchange")}
+                ${createFFIMetricCard('Boundary Crossings', boundaryCrossings, '#f39c12', 'fa-arrows-h")}
+                ${createFFIMetricCard('Safety Violations', safetyViolations, '#e67e22', 'fa-warning")}
+                ${createFFIMetricCard('Unsafe Memory', formatBytes(unsafeMemory), '#9b59b6', 'fa-memory")}
             </div>
 
             <!-- Main Dashboard Content -->
@@ -9117,8 +9117,8 @@ function createFFIDashboardSVG(unsafeAllocs, ffiAllocs, boundaryCrossings, safet
                 <div class="bg-gray-700/50 rounded-lg p-4 backdrop-blur-sm">
                     <h3 class="text-lg font-semibold mb-4 text-white">Memory Allocation Sources</h3>
                     <div class="space-y-4">
-                        ${createAllocationSourceBar('Unsafe Rust', unsafeAllocs, Math.max(unsafeAllocs, ffiAllocs), '#e74c3c')}
-                        ${createAllocationSourceBar('FFI', ffiAllocs, Math.max(unsafeAllocs, ffiAllocs), '#3498db')}
+                        ${createAllocationSourceBar('Unsafe Rust', unsafeAllocs, Math.max(unsafeAllocs, ffiAllocs), '#e74c3c")}
+                        ${createAllocationSourceBar('FFI', ffiAllocs, Math.max(unsafeAllocs, ffiAllocs), '#3498db")}
                     </div>
                 </div>
 
@@ -9262,8 +9262,8 @@ function createMemoryHotspot(item) {
     return `
         <div class="flex flex-col items-center p-3 ${bgColor} border ${borderColor} rounded-lg backdrop-blur-sm hover:scale-105 transition-transform cursor-pointer"
              data-ptr="${item.ptr || ''}"
-             data-var="${(item.var_name || 'Unknown').toString().replace(/\"/g, '&quot;')}"
-             data-type="${(item.type_name || 'Unknown').toString().replace(/\"/g, '&quot;')}"
+             data-var="${(item.var_name || 'Unknown').toString().replace(/'/g, '&apos;')}"
+             data-type="${(item.type_name || 'Unknown').toString().replace(/'/g, '&apos;')}"
              data-size="${size}"
              data-violations="${(item.safety_violations || 0)}"
              onclick="window.showFFIDetailFromDataset && window.showFFIDetailFromDataset(this)">
@@ -9293,7 +9293,7 @@ function createMemoryHotspot(item) {
 // Simple detail panel for FFI hotspot items
 window.showFFIDetailFromDataset = function(el) {
     try {
-        const container = document.getElementById('ffiVisualization');
+        const container = document.getElementById('ffiVisualization");
         if (!container) return;
 
         // Remove existing panel
@@ -9330,7 +9330,7 @@ window.showFFIDetailFromDataset = function(el) {
                 <div style="margin-bottom:6px;"><strong>Name:</strong> ${name}</div>
                 <div style="margin-bottom:6px;"><strong>Type:</strong> ${type}</div>
                 <div style="margin-bottom:6px;"><strong>Size:</strong> ${formatBytes(size)}</div>
-                ${ptr ? `<div style=\"margin-bottom:6px;\"><strong>Pointer:</strong> <code>${ptr}</code></div>` : ''}
+                ${ptr ? `<div style='margin-bottom:6px;'><strong>Pointer:</strong> <code>${ptr}</code></div>` : ''}
                 <div style="margin-bottom:6px;"><strong>Safety Violations:</strong> ${violations}</div>
             </div>
         `;
@@ -9343,7 +9343,7 @@ window.showFFIDetailFromDataset = function(el) {
 
 // Initialize memory fragmentation analysis with enhanced SVG-style visualization
 function initMemoryFragmentation() {
-    const container = document.getElementById('memoryFragmentation');
+    const container = document.getElementById('memoryFragmentation");
     if (!container) return;
 
     const allocations = window.analysisData.memory_analysis?.allocations || [];
@@ -9421,10 +9421,10 @@ function createFragmentationAnalysisSVG(fragmentationRatio, gaps, maxGap, blockC
             
             <!-- Key Metrics Grid -->
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-                ${createFragmentationMetricCard('Fragmentation', fragmentationRatio.toFixed(1) + '%', fragmentationRatio, '#f39c12')}
-                ${createFragmentationMetricCard('Memory Gaps', gaps, 100, '#3498db')}
-                ${createFragmentationMetricCard('Largest Gap', formatBytes(maxGap), 100, '#27ae60')}
-                ${createFragmentationMetricCard('Memory Blocks', blockCount, 100, '#9b59b6')}
+                ${createFragmentationMetricCard('Fragmentation', fragmentationRatio.toFixed(1) + '%', fragmentationRatio, '#f39c12")}
+                ${createFragmentationMetricCard('Memory Gaps', gaps, 100, '#3498db")}
+                ${createFragmentationMetricCard('Largest Gap', formatBytes(maxGap), 100, '#27ae60")}
+                ${createFragmentationMetricCard('Memory Blocks', blockCount, 100, '#9b59b6")}
             </div>
 
             <!-- Main Analysis Content -->
@@ -9453,10 +9453,10 @@ function createFragmentationAnalysisSVG(fragmentationRatio, gaps, maxGap, blockC
                 <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
                     <h4 class="font-semibold mb-4 text-gray-800 dark:text-white">Size Distribution</h4>
                     <div class="space-y-3">
-                        ${createSizeDistributionBar('Tiny (0-64B)', sizeDistribution.tiny, blockCount, '#27ae60')}
-                        ${createSizeDistributionBar('Small (64B-1KB)', sizeDistribution.small, blockCount, '#f39c12')}
-                        ${createSizeDistributionBar('Medium (1KB-64KB)', sizeDistribution.medium, blockCount, '#e74c3c')}
-                        ${createSizeDistributionBar('Large (>64KB)', sizeDistribution.large, blockCount, '#8e44ad')}
+                        ${createSizeDistributionBar('Tiny (0-64B)', sizeDistribution.tiny, blockCount, '#27ae60")}
+                        ${createSizeDistributionBar('Small (64B-1KB)', sizeDistribution.small, blockCount, '#f39c12")}
+                        ${createSizeDistributionBar('Medium (1KB-64KB)', sizeDistribution.medium, blockCount, '#e74c3c")}
+                        ${createSizeDistributionBar('Large (>64KB)', sizeDistribution.large, blockCount, '#8e44ad")}
                     </div>
                 </div>
             </div>
@@ -9595,7 +9595,7 @@ function getFragmentationAssessment(ratio) {
 
 // Initialize memory growth trends with enhanced SVG-style visualization
 function initMemoryGrowthTrends() {
-    const container = document.getElementById('memoryGrowthTrends');
+    const container = document.getElementById('memoryGrowthTrends");
     if (!container) return;
 
     const allocations = window.analysisData.memory_analysis?.allocations || [];
@@ -9669,10 +9669,10 @@ function createMemoryGrowthTrendsSVG(peakMemory, averageMemory, growthRate, time
             
             <!-- Key Metrics Grid -->
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-                ${createGrowthMetricCard('Peak Memory', formatBytes(peakMemory), 100, '#e74c3c')}
-                ${createGrowthMetricCard('Average Memory', formatBytes(averageMemory), Math.round((averageMemory / peakMemory) * 100), '#3498db')}
-                ${createGrowthMetricCard('Growth Rate', (growthRate > 0 ? '+' : '') + growthRate.toFixed(1) + '%', Math.abs(growthRate), getGrowthRateColor(growthRate))}
-                ${createGrowthMetricCard('Total Allocations', totalAllocs, 100, '#9b59b6')}
+                ${createGrowthMetricCard('Peak Memory', formatBytes(peakMemory), 100, '#e74c3c")}
+                ${createGrowthMetricCard('Average Memory', formatBytes(averageMemory), Math.round((averageMemory / peakMemory) * 100), '#3498db")}
+                ${createGrowthMetricCard('Growth Rate', (growthRate > 0 ? '+' : '") + growthRate.toFixed(1) + '%', Math.abs(growthRate), getGrowthRateColor(growthRate))}
+                ${createGrowthMetricCard('Total Allocations', totalAllocs, 100, '#9b59b6")}
             </div>
 
             <!-- Main Growth Chart -->
@@ -9791,7 +9791,7 @@ function createMemoryGrowthChart(timePoints, peakMemory) {
         const x = (index / (timePoints.length - 1)) * 100;
         const y = 100 - ((point.memory / peakMemory) * 90);
         return `${x},${y}`;
-    }).join(' ')}"
+    }).join(' ")}"
                 class="drop-shadow-sm"
             />
         </svg>
@@ -9863,7 +9863,7 @@ class NodeDetailPanel {
         console.log("Panel created:", this.panel);
         this.positionPanel(position);
         this.container.appendChild(this.panel);
-        console.log("Panel added to container');
+        console.log("Panel added to container");
         this.currentNode = nodeData;
     }
 
@@ -9988,7 +9988,7 @@ class NodeDetailPanel {
 
 // Initialize variable relationship graph with enhanced D3.js force simulation
 function initVariableGraph() {
-    const container = document.getElementById('variable-graph-container');
+    const container = document.getElementById('variable-graph-container");
     if (!container) return;
 
     const allocations = window.analysisData.memory_analysis?.allocations || [];
@@ -10019,10 +10019,10 @@ function initVariableGraph() {
 
     // Create SVG
     const svg = d3.select(container)
-        .append('svg')
+        .append('svg")
         .attr('width', width)
         .attr('height', height)
-        .style('background', 'transparent');
+        .style('background', 'transparent");
 
     // Create zoom behavior
     const zoom = d3.zoom()
@@ -10034,7 +10034,7 @@ function initVariableGraph() {
     svg.call(zoom);
 
     // Create main group for zooming/panning
-    const g = svg.append('g');
+    const g = svg.append('g");
 
     // Prepare nodes data
     const nodes = userAllocations.map((alloc, index) => ({
@@ -10065,7 +10065,7 @@ function initVariableGraph() {
                 });
             }
             // Similar category relationship
-            else if (node1.category === node2.category && node1.category !== 'primitive') {
+            else if (node1.category === node2.category && node1.category !== 'primitive") {
                 links.push({
                     source: node1.id,
                     target: node2.id,
@@ -10108,24 +10108,24 @@ function initVariableGraph() {
         );
 
     // Create link elements
-    const link = g.append('g')
-        .attr('class', 'links')
-        .selectAll('line')
+    const link = g.append('g")
+        .attr('class', 'links")
+        .selectAll('line")
         .data(links)
-        .enter().append('line')
+        .enter().append('line")
         .attr('stroke', d => getLinkColor(d.type))
         .attr('stroke-opacity', d => 0.3 + d.strength * 0.4)
         .attr('stroke-width', d => 1 + d.strength * 2)
         .attr('stroke-dasharray', d => d.type === 'similar_category' ? '5,5' : null);
 
     // Create node groups
-    const node = g.append('g')
-        .attr('class', 'nodes')
-        .selectAll('g')
+    const node = g.append('g")
+        .attr('class', 'nodes")
+        .selectAll('g")
         .data(nodes)
-        .enter().append('g')
-        .attr('class', 'graph-node')
-        .style('cursor', 'pointer')
+        .enter().append('g")
+        .attr('class', 'graph-node")
+        .style('cursor', 'pointer")
         .call(d3.drag()
             .on('start', dragstarted)
             .on('drag', dragged)
@@ -10133,7 +10133,7 @@ function initVariableGraph() {
         );
 
     // Add circles to nodes - size based on memory usage
-    node.append('circle')
+    node.append('circle")
         .attr('r', d => {
             // Scale node size based on memory usage (larger memory = larger node)
             const minRadius = 15;
@@ -10143,16 +10143,16 @@ function initVariableGraph() {
             return minRadius + (sizeRatio * (maxRadius - minRadius));
         })
         .attr('fill', d => getEnhancedTypeColor(d.type, d.category))
-        .attr('stroke', '#fff')
+        .attr('stroke', '#fff")
         .attr('stroke-width', 2)
-        .style('filter', 'drop-shadow(0px 2px 4px rgba(0,0,0,0.2))')
+        .style('filter', 'drop-shadow(0px 2px 4px rgba(0,0,0,0.2))")
         .on('mouseover', function (event, d) {
-            const currentRadius = d3.select(this).attr('r');
+            const currentRadius = d3.select(this).attr('r");
             d3.select(this)
                 .transition()
                 .duration(200)
                 .attr('r', parseFloat(currentRadius) * 1.2)
-                .style('filter', 'drop-shadow(0px 4px 8px rgba(0,0,0,0.3))');
+                .style('filter', 'drop-shadow(0px 4px 8px rgba(0,0,0,0.3))");
 
             // Highlight connected links
             link.style('stroke-opacity', l =>
@@ -10170,17 +10170,17 @@ function initVariableGraph() {
                 .transition()
                 .duration(200)
                 .attr('r', originalRadius)
-                .style('filter', 'drop-shadow(0px 2px 4px rgba(0,0,0,0.2))');
+                .style('filter', 'drop-shadow(0px 2px 4px rgba(0,0,0,0.2))");
 
             // Reset link opacity
             link.style('stroke-opacity', l => 0.3 + l.strength * 0.4);
         });
 
     // Add complexity indicators (small circles with numbers)
-    const complexityGroup = node.append('g')
-        .attr('class', 'complexity-indicator');
+    const complexityGroup = node.append('g")
+        .attr('class', 'complexity-indicator");
 
-    complexityGroup.append('circle')
+    complexityGroup.append('circle")
         .attr('r', 8)
         .attr('cx', d => {
             const minRadius = 15;
@@ -10199,11 +10199,11 @@ function initVariableGraph() {
             return -nodeRadius - 8;
         })
         .attr('fill', d => getComplexityColor(d.complexity))
-        .attr('stroke', '#fff')
+        .attr('stroke', '#fff")
         .attr('stroke-width', 2);
 
     // Add complexity score text
-    complexityGroup.append('text')
+    complexityGroup.append('text")
         .text(d => d.complexity || 2)
         .attr('x', d => {
             const minRadius = 15;
@@ -10221,16 +10221,16 @@ function initVariableGraph() {
             const nodeRadius = minRadius + (sizeRatio * (maxRadius - minRadius));
             return -nodeRadius - 8 + 3;
         })
-        .attr('text-anchor', 'middle')
-        .style('font-size', '10px')
-        .style('font-weight', 'bold')
-        .style('fill', '#fff')
-        .style('pointer-events', 'none');
+        .attr('text-anchor', 'middle")
+        .style('font-size', '10px")
+        .style('font-weight', 'bold")
+        .style('fill', '#fff")
+        .style('pointer-events', 'none");
 
     // Add variable names
-    node.append('text')
+    node.append('text")
         .text(d => d.id)
-        .attr('text-anchor', 'middle')
+        .attr('text-anchor', 'middle")
         .attr('dy', d => {
             const minRadius = 15;
             const maxRadius = 50;
@@ -10239,15 +10239,15 @@ function initVariableGraph() {
             const nodeRadius = minRadius + (sizeRatio * (maxRadius - minRadius));
             return nodeRadius + 15;
         })
-        .style('font-size', '11px')
-        .style('font-weight', 'bold')
-        .style('fill', 'var(--text-primary)')
-        .style('pointer-events', 'none');
+        .style('font-size', '11px")
+        .style('font-weight', 'bold")
+        .style('fill', 'var(--text-primary)")
+        .style('pointer-events', 'none");
 
     // Add type labels
-    node.append('text')
+    node.append('text")
         .text(d => formatTypeName(d.type))
-        .attr('text-anchor', 'middle')
+        .attr('text-anchor', 'middle")
         .attr('dy', d => {
             const minRadius = 15;
             const maxRadius = 50;
@@ -10256,12 +10256,12 @@ function initVariableGraph() {
             const nodeRadius = minRadius + (sizeRatio * (maxRadius - minRadius));
             return nodeRadius + 28;
         })
-        .style('font-size', '9px')
-        .style('fill', 'var(--text-secondary)')
-        .style('pointer-events', 'none');
+        .style('font-size', '9px")
+        .style('fill', 'var(--text-secondary)")
+        .style('pointer-events', 'none");
 
     // Add click interaction
-    const detailPanel = new NodeDetailPanel('variable-graph-container');
+    const detailPanel = new NodeDetailPanel('variable-graph-container");
 
     node.on('click', function (event, d) {
         event.stopPropagation();
@@ -10294,12 +10294,12 @@ function initVariableGraph() {
 
     // Add control buttons
     const controls = d3.select(container)
-        .append('div')
-        .attr('class', 'absolute top-2 right-2 flex space-x-2');
+        .append('div")
+        .attr('class', 'absolute top-2 right-2 flex space-x-2");
 
-    controls.append('button')
-        .attr('class', 'px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded transition-colors')
-        .text('Reset View')
+    controls.append('button")
+        .attr('class', 'px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded transition-colors")
+        .text('Reset View")
         .on('click', () => {
             svg.transition().duration(750).call(
                 zoom.transform,
@@ -10307,9 +10307,9 @@ function initVariableGraph() {
             );
         });
 
-    controls.append('button')
-        .attr('class', 'px-3 py-1 bg-green-500 hover:bg-green-600 text-white text-xs rounded transition-colors')
-        .text('Reheat')
+    controls.append('button")
+        .attr('class', 'px-3 py-1 bg-green-500 hover:bg-green-600 text-white text-xs rounded transition-colors")
+        .text('Reheat")
         .on('click', () => {
             simulation.alpha(0.3).restart();
         });
@@ -10602,32 +10602,32 @@ function getComplexityExplanation(score) {
 function getTypeAnalysis(typeName, size) {
     const analysis = [];
 
-    if (typeName.includes('Vec')) {
-        analysis.push('• Dynamic array with heap allocation');
-        analysis.push('• Grows automatically as needed');
-        if (size > 1000) analysis.push('• Large allocation - consider capacity optimization');
-    } else if (typeName.includes('Box')) {
-        analysis.push('• Single heap allocation');
-        analysis.push('• Unique ownership semantics');
-    } else if (typeName.includes('Rc')) {
-        analysis.push('• Reference counted smart pointer');
-        analysis.push('• Shared ownership with runtime checks');
-    } else if (typeName.includes('Arc')) {
-        analysis.push('• Atomic reference counted pointer');
-        analysis.push('• Thread-safe shared ownership');
-    } else if (typeName.includes('String')) {
-        analysis.push('• Growable UTF-8 string');
-        analysis.push('• Heap allocated with capacity buffer');
+    if (typeName.includes('Vec")) {
+        analysis.push('- Dynamic array with heap allocation');
+        analysis.push('- Grows automatically as needed');
+        if (size > 1000) analysis.push('- Large allocation - consider capacity optimization');
+    } else if (typeName.includes('Box")) {
+        analysis.push('- Single heap allocation');
+        analysis.push('- Unique ownership semantics');
+    } else if (typeName.includes('Rc")) {
+        analysis.push('- Reference counted smart pointer');
+        analysis.push('- Shared ownership with runtime checks');
+    } else if (typeName.includes('Arc")) {
+        analysis.push('- Atomic reference counted pointer');
+        analysis.push('- Thread-safe shared ownership');
+    } else if (typeName.includes('String")) {
+        analysis.push('- Growable UTF-8 string');
+        analysis.push('- Heap allocated with capacity buffer');
     } else {
-        analysis.push('• Basic type allocation');
+        analysis.push('- Basic type allocation');
     }
 
     if (size === 0) {
-        analysis.push('• Zero-sized type (ZST)');
+        analysis.push('- Zero-sized type (ZST)');
     } else if (size < 64) {
-        analysis.push('• Small allocation - good for performance');
+        analysis.push('- Small allocation - good for performance');
     } else if (size > 1024) {
-        analysis.push('• Large allocation - monitor memory usage');
+        analysis.push('- Large allocation - monitor memory usage');
     }
 
     return analysis.join('<br>');
@@ -10635,7 +10635,7 @@ function getTypeAnalysis(typeName, size) {
 
 // Initialize generic types table
 function initGenericTypesTable() {
-    const tbody = document.getElementById('generic-types-table-body');
+    const tbody = document.getElementById('generic-types-table-body");
     if (!tbody) return;
 
     const genericTypes = window.analysisData.complex_types?.categorized_types?.generic_types || [];
@@ -10663,7 +10663,7 @@ function initGenericTypesTable() {
 
 // Initialize complex type analysis
 function initComplexTypeAnalysis() {
-    const tbody = document.getElementById('complex-type-analysis-table');
+    const tbody = document.getElementById('complex-type-analysis-table");
     if (!tbody) return;
 
     const complexTypeAnalysis = window.analysisData.complex_types?.complex_type_analysis || [];
@@ -10690,7 +10690,7 @@ function initComplexTypeAnalysis() {
             <td class="px-6 py-4 text-center text-gray-900 dark:text-gray-100">${formatBytes(analysis.total_size || 0)}</td>
             <td class="px-6 py-4 text-gray-700 dark:text-gray-300">
                 ${Array.isArray(analysis.optimization_suggestions) && analysis.optimization_suggestions.length > 0 
-                    ? analysis.optimization_suggestions.join(', ') 
+                    ? analysis.optimization_suggestions.join(', ") 
                     : '<span class="text-gray-400 italic">No optimization suggestions available</span>'}
             </td>
         </tr>
@@ -10699,7 +10699,7 @@ function initComplexTypeAnalysis() {
 
 // Initialize memory optimization recommendations
 function initMemoryOptimizationRecommendations() {
-    const container = document.getElementById('memory-optimization-recommendations');
+    const container = document.getElementById('memory-optimization-recommendations");
     if (!container) return;
 
     const recommendations = window.analysisData.complex_types?.optimization_recommendations || [];
@@ -10727,7 +10727,7 @@ function initFFIRiskChart() {
         }
     } catch (_) {}
 
-    const ctx = document.getElementById('ffi-risk-chart');
+    const ctx = document.getElementById('ffi-risk-chart");
     if (!ctx) return;
 
     const ffiData = window.analysisData.unsafe_ffi?.enhanced_ffi_data || [];
@@ -10782,7 +10782,7 @@ function initFFIRiskChart() {
 
 // Initialize complex type analysis chart
 function initComplexTypeAnalysisChart() {
-    const ctx = document.getElementById('complex-type-analysis-chart');
+    const ctx = document.getElementById('complex-type-analysis-chart");
     if (!ctx) return;
 
     const complexTypeAnalysis = window.analysisData.complex_types?.complex_type_analysis || [];
@@ -10908,7 +10908,7 @@ function formatTimestamp(timestamp, minTime) {
 
 // Enhanced summary statistics with comprehensive data analysis
 function initEnhancedSummaryStats() {
-    console.log("📊 Initializing enhanced summary statistics...');
+    console.log("📊 Initializing enhanced summary statistics...");
     
     try {
         // Get merged data from all sources
@@ -10932,7 +10932,7 @@ function initEnhancedSummaryStats() {
         updateElement('safety-score', `${stats.safetyScore}%`);
         updateElement('ffi-tracked', `${stats.ffiTracked} FFI`);
         
-        console.log("✅ Enhanced dashboard updated successfully');
+        console.log("✅ Enhanced dashboard updated successfully");
     } catch (error) {
         console.error('❌ Error initializing enhanced stats:', error);
     }
@@ -11037,7 +11037,7 @@ function formatBytes(bytes) {
 
 // Show empty state when no user variables found
 function showEmptyLifetimeState() {
-    const container = document.getElementById('lifetimeVisualization');
+    const container = document.getElementById('lifetimeVisualization");
     if (!container) return;
 
     container.innerHTML = `
@@ -11081,7 +11081,7 @@ function updateKPICards(data) {
     updateElement('total-allocations', allocs.length.toLocaleString());
     updateElement('active-variables', active.toLocaleString());
     updateElement('total-memory', formatBytes(total));
-    updateElement('safety-score', safetyScore + '%');
+    updateElement('safety-score', safetyScore + '%");
 }
 
 // Calculate Safety Score
@@ -11105,13 +11105,13 @@ function initThemeToggle() {
         const isDark = document.documentElement.classList.contains('dark');
         const newTheme = isDark ? 'light' : 'dark';
         
-        applyTheme(newTheme === 'dark');
+        applyTheme(newTheme === 'dark");
         localStorage.setItem('memscope-theme', newTheme);
         
         // Update button text
         const icon = toggleBtn.querySelector('i');
-        const text = toggleBtn.querySelector("span");
-        if (newTheme === 'dark') {
+        const text = toggleBtn.querySelector('span');
+        if (newTheme === 'dark") {
             icon.className = "fa fa-sun";
             text.textContent = 'Light Mode';
         } else {
@@ -11135,7 +11135,7 @@ function applyTheme(isDark) {
 
 // Update Memory Allocation Table
 function updateAllocationsTable(data) {
-    const allocTable = document.getElementById('allocTable');
+    const allocTable = document.getElementById('allocTable");
     if (!allocTable) return;
     
     const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
@@ -11143,11 +11143,11 @@ function updateAllocationsTable(data) {
     
     allocTable.innerHTML = top.map(a => {
         const status = a.is_leaked ? 'Leaked' : (a.timestamp_dealloc ? 'Freed' : "Active");
-        const statusClass = a.is_leaked ? 'status-leaked' : (a.timestamp_dealloc ? 'status-freed' : 'status-active');
+        const statusClass = a.is_leaked ? 'status-leaked' : (a.timestamp_dealloc ? 'status-freed' : 'status-active");
         
         return `<tr>
             <td>${a.var_name || 'Unknown'}</td>
-            <td>${formatTypeName(a.type_name || 'Unknown')}</td>
+            <td>${formatTypeName(a.type_name || 'Unknown")}</td>
             <td>${formatBytes(a.size || 0)}</td>
             <td><span class="status-badge ${statusClass}">${status}</span></td>
         </tr>`;
@@ -11156,7 +11156,7 @@ function updateAllocationsTable(data) {
 
 // Update Unsafe Risk Table
 function updateUnsafeTable(data) {
-    const unsafeTable = document.getElementById('unsafeTable');
+    const unsafeTable = document.getElementById('unsafeTable");
     if (!unsafeTable) return;
     
     const root = data.unsafe_ffi || {};
@@ -11164,10 +11164,10 @@ function updateUnsafeTable(data) {
     
     unsafeTable.innerHTML = (ops || []).slice(0, 50).map(op => {
         const riskLevel = op.risk_level || ((op.safety_violations||[]).length > 2 ? 'High' : 
-                         ((op.safety_violations||[]).length > 0 ? 'Medium' : 'Low'));
+                         ((op.safety_violations||[]).length > 0 ? 'Medium' : 'Low"));
         
-        const riskText = riskLevel === 'High' ? 'High Risk' : (riskLevel === 'Medium' ? 'Medium Risk' : 'Low Risk');
-        const riskClass = riskLevel === 'High' ? 'risk-high' : (riskLevel === 'Medium' ? 'risk-medium' : 'risk-low');
+        const riskText = riskLevel === 'High' ? 'High Risk' : (riskLevel === 'Medium' ? 'Medium Risk' : 'Low Risk");
+        const riskClass = riskLevel === 'High' ? 'risk-high' : (riskLevel === 'Medium' ? 'risk-medium' : 'risk-low");
         
         return `<tr>
             <td>${op.location || op.var_name || 'Unknown'}</td>
@@ -11179,7 +11179,7 @@ function updateUnsafeTable(data) {
 
 // Initialize Charts
 function initCharts(data) {
-    console.log("📊 Initializing charts...');
+    console.log("📊 Initializing charts...");
     
     // Memory type distribution chart
     initTypeChart(data);
@@ -11205,7 +11205,7 @@ function initCharts(data) {
 
 // Memory Type Distribution Chart
 function initTypeChart(data) {
-    const ctx = document.getElementById('typeChart');
+    const ctx = document.getElementById('typeChart");
     if (!ctx) return;
     
     const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
@@ -11265,7 +11265,7 @@ function initTypeChart(data) {
 
 // Memory Timeline Chart with optional Growth Rate (dual y-axes)
 function initTimelineChart(data) {
-    const ctx = document.getElementById('timelineChart');
+    const ctx = document.getElementById('timelineChart");
     if (!ctx || !window.Chart) return;
 
     // Comprehensive cleanup for timeline chart
@@ -11288,7 +11288,7 @@ function initTimelineChart(data) {
             delete window.chartInstances['timelineChart'];
         }
         
-        const context = ctx.getContext('2d');
+        const context = ctx.getContext('2d");
         context.clearRect(0, 0, ctx.width, ctx.height);
         
     } catch(e) {
@@ -11336,7 +11336,7 @@ function initTimelineChart(data) {
         }
 
         const labels = cumSeries.map(p=> new Date(p.x/1e6).toLocaleTimeString());
-        const showGrowthCheckbox = document.getElementById('toggleGrowthRate');
+        const showGrowthCheckbox = document.getElementById('toggleGrowthRate");
         const datasets = [
             {
                 type: 'line',
@@ -11393,7 +11393,7 @@ function initTimelineChart(data) {
 
         if (showGrowthCheckbox) {
             showGrowthCheckbox.onchange = () => {
-                const ds = chart.data.datasets.find(d => d.yAxisID === 'y1');
+                const ds = chart.data.datasets.find(d => d.yAxisID === 'y1");
                 if (!ds) return;
                 ds.hidden = !showGrowthCheckbox.checked;
                 chart.update();
@@ -11404,7 +11404,7 @@ function initTimelineChart(data) {
 
 // Enhanced type chart with better label handling for complex Rust types
 function initEnhancedTypeChart(data) {
-    const ctx = document.getElementById('typeChart');
+    const ctx = document.getElementById('typeChart");
     if (!ctx || !window.Chart) return;
 
     // Comprehensive cleanup for this specific chart
@@ -11431,7 +11431,7 @@ function initEnhancedTypeChart(data) {
         }
         
         // Clear canvas context
-        const context = ctx.getContext('2d');
+        const context = ctx.getContext('2d");
         context.clearRect(0, 0, ctx.width, ctx.height);
         
     } catch(e) {
@@ -11448,16 +11448,16 @@ function initEnhancedTypeChart(data) {
         const originalType = type;
         
         // Simplify complex Rust type names for better readability
-        type = type.replace(/alloc::sync::Arc/g, 'Arc');
-        type = type.replace(/alloc::rc::Rc/g, 'Rc');
-        type = type.replace(/alloc::string::String/g, 'String');
-        type = type.replace(/alloc::vec::Vec/g, 'Vec');
-        type = type.replace(/std::collections::hash::map::HashMap/g, 'HashMap');
-        type = type.replace(/std::collections::btree::map::BTreeMap/g, 'BTreeMap');
-        type = type.replace(/alloc::collections::\w+::\w+::/g, '');
+        type = type.replace(/alloc::sync::Arc/g, 'Arc");
+        type = type.replace(/alloc::rc::Rc/g, 'Rc");
+        type = type.replace(/alloc::string::String/g, 'String");
+        type = type.replace(/alloc::vec::Vec/g, 'Vec");
+        type = type.replace(/std::collections::hash::map::HashMap/g, 'HashMap");
+        type = type.replace(/std::collections::btree::map::BTreeMap/g, 'BTreeMap");
+        type = type.replace(/alloc::collections::\w+::\w+::/g, '");
         
         // Remove generic parameters for cleaner display
-        type = type.replace(/<[^>]+>/g, '<T>');
+        type = type.replace(/<[^>]+>/g, '<T>");
         
         // Truncate very long type names
         if (type.length > 25) {
@@ -11513,11 +11513,11 @@ function initEnhancedTypeChart(data) {
                                             case 'rc::Rc': return 'Rc';
                                             case 'string::String': return 'String';
                                             case 'vec::Vec': return 'Vec';
-                                            default: return p1.split('::').pop();
+                                            default: return p1.split('::").pop();
                                         }
                                     });
-                                    simplified = simplified.replace(/std::collections::hash::map::HashMap/g, 'HashMap');
-                                    simplified = simplified.replace(/std::collections::btree::map::BTreeMap/g, 'BTreeMap');
+                                    simplified = simplified.replace(/std::collections::hash::map::HashMap/g, 'HashMap");
+                                    simplified = simplified.replace(/std::collections::btree::map::BTreeMap/g, 'BTreeMap");
                                     if (simplified.length > 30) simplified = simplified.substring(0, 27) + '...';
                                     return simplified === context.label;
                                 })?.type_name || context.label;
@@ -11613,7 +11613,7 @@ function initTreemapChart(data) {
                     min-height: 80px;
                     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
                     transition: transform 0.2s ease;
-                " title="${type}: ${formatBytes(size)}" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                " title="${type}: ${formatBytes(size)}" onmouseover=\"this.style.transform=&apos;scale(1.05)&apos;\" onmouseout=\"this.style.transform=&apos;scale(1)&apos;\">
                     <div style="margin-bottom: 4px;">${formatTypeName(type)}</div>
                     <div style="font-size: 10px; opacity: 0.9;">${formatBytes(size)}</div>
                     <div style="font-size: 9px; opacity: 0.7;">${percentage.toFixed(1)}%</div>
@@ -11638,7 +11638,7 @@ function initFFIRiskChart(data) {
         }
     } catch (_) {}
 
-    const ctx = document.getElementById('ffi-risk-chart');
+    const ctx = document.getElementById('ffi-risk-chart");
     if (!ctx) return;
     
     const ffiData = data.unsafe_ffi?.enhanced_ffi_data || [];
@@ -11680,7 +11680,7 @@ function initFFIRiskChart(data) {
 
 // Add missing chart and graph functions
 function initGrowthTrends(data) {
-    const container = document.getElementById('growth');
+    const container = document.getElementById('growth");
     if (!container) return;
     
     const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
@@ -11720,7 +11720,7 @@ function initGrowthTrends(data) {
 }
 
 function initMemoryFragmentation(data) {
-    const container = document.getElementById('memoryFragmentation');
+    const container = document.getElementById('memoryFragmentation");
     if (!container) return;
     
     const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
@@ -11759,7 +11759,7 @@ function initMemoryFragmentation(data) {
 }
 
 function initVariableGraph(data) {
-    const container = document.getElementById('graph');
+    const container = document.getElementById('graph");
     if (!container) return;
     
     const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
@@ -11840,7 +11840,7 @@ function initVariableGraph(data) {
 
 // Initialize lifetime visualization
 function initLifetimeVisualization(data) {
-    const container = document.getElementById('lifetimes');
+    const container = document.getElementById('lifetimes");
     if (!container) return;
     
     const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
@@ -11884,7 +11884,7 @@ function initLifetimeVisualization(data) {
                 </div>
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <span style="font-size: 0.8rem; color: var(--text-secondary);">
-                        ${formatTypeName(alloc.type_name || 'Unknown')}
+                        ${formatTypeName(alloc.type_name || 'Unknown")}
                     </span>
                     <span style="
                         font-size: 0.8rem; 
@@ -11922,23 +11922,23 @@ function renderKpis() {
     updateElement('total-allocations', allocs.length.toLocaleString());
     updateElement('active-variables', active.toLocaleString());
     updateElement('total-memory', formatBytes(total));
-    updateElement('safety-score', safety + '%');
+    updateElement('safety-score', safety + '%");
 }
 
 function populateAllocationsTable() {
     const data = window.analysisData || {};
     const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
-    const allocTable = document.getElementById('allocTable');
+    const allocTable = document.getElementById('allocTable");
     if (!allocTable) return;
     
     const top = allocs.slice().sort((a,b)=>(b.size||0)-(a.size||0)).slice(0,50);
     allocTable.innerHTML = top.map(a => {
         const status = a.is_leaked ? 'Leaked' : (a.timestamp_dealloc ? 'Freed' : "Active");
-        const statusClass = a.is_leaked ? 'status-leaked' : (a.timestamp_dealloc ? 'status-freed' : 'status-active');
+        const statusClass = a.is_leaked ? 'status-leaked' : (a.timestamp_dealloc ? 'status-freed' : 'status-active");
         
         return `<tr>
             <td>${a.var_name || 'Unknown'}</td>
-            <td>${formatTypeName(a.type_name || 'Unknown')}</td>
+            <td>${formatTypeName(a.type_name || 'Unknown")}</td>
             <td>${formatBytes(a.size || 0)}</td>
             <td><span class="status-badge ${statusClass}">${status}</span></td>
         </tr>`;
@@ -11946,7 +11946,7 @@ function populateAllocationsTable() {
 }
 
 function renderTypeChart() {
-    const ctx = document.getElementById('typeChart');
+    const ctx = document.getElementById('typeChart");
     if (!ctx || !window.Chart) return;
     
     const data = window.analysisData || {};
@@ -11988,7 +11988,7 @@ function renderTypeChart() {
 }
 
 function renderTimelineChart() {
-    const ctx = document.getElementById('timelineChart');
+    const ctx = document.getElementById('timelineChart");
     if (!ctx || !window.Chart) return;
     
     const data = window.analysisData || {};
@@ -12071,7 +12071,7 @@ function renderTreemap() {
                     min-height: 80px;
                     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
                     transition: transform 0.2s ease;
-                " title="${type}: ${formatBytes(size)}" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                " title="${type}: ${formatBytes(size)}" onmouseover=\"this.style.transform=&apos;scale(1.05)&apos;\" onmouseout=\"this.style.transform=&apos;scale(1)&apos;\">
                     <div style="margin-bottom: 4px;">${formatTypeName(type)}</div>
                     <div style="font-size: 10px; opacity: 0.9;">${formatBytes(size)}</div>
                     <div style="font-size: 9px; opacity: 0.7;">${percentage.toFixed(1)}%</div>
@@ -12087,7 +12087,7 @@ function renderTreemap() {
 }
 
 function renderLifetimes() {
-    const container = document.getElementById('lifetimes');
+    const container = document.getElementById('lifetimes");
     if (!container) return;
     
     const data = window.analysisData || {};
@@ -12126,7 +12126,7 @@ function renderLifetimes() {
                 </div>
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <span style="font-size: 0.8rem; color: var(--text-secondary);">
-                        ${formatTypeName(alloc.type_name || 'Unknown')}
+                        ${formatTypeName(alloc.type_name || 'Unknown")}
                     </span>
                     <span style="
                         font-size: 0.8rem; 
@@ -12146,7 +12146,7 @@ function renderLifetimes() {
 
 function renderFFI() {
     // First try the chart container for simple chart
-    const chartContainer = document.getElementById('ffi-risk-chart');
+    const chartContainer = document.getElementById('ffi-risk-chart");
     if (chartContainer && window.Chart) {
         const data = window.analysisData || {};
         const ffiData = data.unsafe_ffi || data.unsafeFFI || {};
@@ -12205,7 +12205,7 @@ function renderFFI() {
     }
     
     // Main comprehensive FFI visualization based on project's actual SVG code
-    const container = document.getElementById('ffiVisualization');
+    const container = document.getElementById('ffiVisualization");
     if (!container) return;
     
     const data = window.analysisData || {};
@@ -12229,13 +12229,13 @@ function createProjectBasedUnsafeFFIDashboard(container, allocations, violations
     
     // Calculate key metrics exactly like the Rust code
     const unsafeCount = allocations.filter(a => 
-        (a.source && (a.source.UnsafeRust || a.source === 'UnsafeRust')) ||
-        (a.allocation_source === 'UnsafeRust')
+        (a.source && (a.source.UnsafeRust || a.source === 'UnsafeRust")) ||
+        (a.allocation_source === 'UnsafeRust")
     ).length;
     
     const ffiCount = allocations.filter(a => 
-        (a.source && (a.source.FfiC || a.source === 'FfiC')) ||
-        (a.allocation_source === 'FfiC')
+        (a.source && (a.source.FfiC || a.source === 'FfiC")) ||
+        (a.allocation_source === 'FfiC")
     ).length;
     
     const crossBoundaryEvents = allocations.reduce((sum, a) => 
@@ -12427,7 +12427,7 @@ function createMemorySafetyStatus(violations) {
             const y = 160 + i * 20;
             const description = getViolationDescription(violation);
             svg += `
-                <text x="30" y="${y}" font-size="12" fill="#e74c3c">• ${description}</text>
+                <text x="30" y="${y}" font-size="12" fill="#e74c3c">- ${description}</text>
             `;
         });
     }
@@ -12443,9 +12443,9 @@ function createBoundaryFlow(allocations) {
         if (allocation.cross_boundary_events) {
             allocation.cross_boundary_events.forEach(event => {
                 const eventType = event.event_type || event.type;
-                if (eventType === 'RustToFfi' || eventType === 'OwnershipTransfer') rustToFfi++;
-                else if (eventType === 'FfiToRust') ffiToRust++;
-                else if (eventType === 'SharedAccess') {
+                if (eventType === 'RustToFfi' || eventType === 'OwnershipTransfer") rustToFfi++;
+                else if (eventType === 'FfiToRust") ffiToRust++;
+                else if (eventType === 'SharedAccess") {
                     rustToFfi++;
                     ffiToRust++;
                 }
@@ -12585,7 +12585,7 @@ function addFFIInteractivity() {
 }
 
 function renderAllocationSourceChart(allocations) {
-    const container = document.getElementById('allocation-source-chart');
+    const container = document.getElementById('allocation-source-chart");
     if (!container) return;
     
     // Count allocations by source
@@ -12593,10 +12593,10 @@ function renderAllocationSourceChart(allocations) {
     
     allocations.forEach(allocation => {
         if (allocation.source) {
-            if (allocation.source.includes && allocation.source.includes('Safe')) safeCount++;
-            else if (allocation.source.includes && allocation.source.includes('Unsafe')) unsafeCount++;
-            else if (allocation.source.includes && allocation.source.includes('Ffi')) ffiCount++;
-            else if (allocation.source.includes && allocation.source.includes('Cross')) crossBoundaryCount++;
+            if (allocation.source.includes && allocation.source.includes('Safe")) safeCount++;
+            else if (allocation.source.includes && allocation.source.includes('Unsafe")) unsafeCount++;
+            else if (allocation.source.includes && allocation.source.includes('Ffi")) ffiCount++;
+            else if (allocation.source.includes && allocation.source.includes('Cross")) crossBoundaryCount++;
         }
     });
     
@@ -12633,7 +12633,7 @@ function renderAllocationSourceChart(allocations) {
 }
 
 function renderSafetyStatusPanel(violations) {
-    const container = document.getElementById('safety-status-panel');
+    const container = document.getElementById('safety-status-panel");
     if (!container) return;
     
     if (violations.length === 0) {
@@ -12653,7 +12653,7 @@ function renderSafetyStatusPanel(violations) {
         
         violations.slice(0, 5).forEach(violation => {
             const description = violation.type || 'Unknown Violation';
-            html += `<div style="font-size: 12px; color: #e74c3c; margin-bottom: 5px;">• ${description}</div>`;
+            html += `<div style="font-size: 12px; color: #e74c3c; margin-bottom: 5px;">- ${description}</div>`;
         });
         
         html += "</div>";
@@ -12662,7 +12662,7 @@ function renderSafetyStatusPanel(violations) {
 }
 
 function renderBoundaryFlowDiagram(allocations) {
-    const container = document.getElementById('boundary-flow-diagram');
+    const container = document.getElementById('boundary-flow-diagram");
     if (!container) return;
     
     // Count boundary events
@@ -12671,10 +12671,10 @@ function renderBoundaryFlowDiagram(allocations) {
     allocations.forEach(allocation => {
         if (allocation.cross_boundary_events) {
             allocation.cross_boundary_events.forEach(event => {
-                if (event.event_type === 'RustToFfi') rustToFfi++;
-                else if (event.event_type === 'FfiToRust') ffiToRust++;
-                else if (event.event_type === 'OwnershipTransfer') rustToFfi++;
-                else if (event.event_type === 'SharedAccess') {
+                if (event.event_type === 'RustToFfi") rustToFfi++;
+                else if (event.event_type === 'FfiToRust") ffiToRust++;
+                else if (event.event_type === 'OwnershipTransfer") rustToFfi++;
+                else if (event.event_type === 'SharedAccess") {
                     rustToFfi++;
                     ffiToRust++;
                 }
@@ -12722,7 +12722,7 @@ function renderMemoryUsageAnalysis() {
 }
 
 function renderMemoryFragmentation() {
-    const container = document.getElementById('memoryFragmentation');
+    const container = document.getElementById('memoryFragmentation");
     if (!container) return;
     
     const data = window.analysisData || {};
@@ -12786,7 +12786,7 @@ function renderMemoryFragmentation() {
                                      title="${alloc.var_name}: ${formatBytes(size)}"
                                      onmouseover="this.style.transform='scaleY(1.2)'; this.style.opacity='1'"
                                      onmouseout="this.style.transform='scaleY(1)'; this.style.opacity='0.8'"
-                                     onclick="showAllocationDetail('${alloc.ptr}')"></div>
+                                     onclick="showAllocationDetail('${alloc.ptr}")"></div>
                             `;
                         }).join('')}
                     </div>
@@ -12833,7 +12833,7 @@ function renderMemoryFragmentation() {
 }
 
 function renderMemoryGrowthTrends() {
-    const container = document.getElementById('growth');
+    const container = document.getElementById('growth");
     if (!container) return;
     
     const data = window.analysisData || {};
@@ -12914,15 +12914,15 @@ function populateUnsafeTable() {
     const data = window.analysisData || {};
     const root = data.unsafe_ffi || {};
     const ops = root.enhanced_ffi_data || root.unsafe_operations || root.allocations || [];
-    const unsafeTable = document.getElementById('unsafeTable');
+    const unsafeTable = document.getElementById('unsafeTable");
     if (!unsafeTable) return;
     
     unsafeTable.innerHTML = (ops || []).slice(0, 50).map(op => {
         const riskLevel = op.risk_level || ((op.safety_violations||[]).length > 2 ? 'High' : 
-                         ((op.safety_violations||[]).length > 0 ? 'Medium' : 'Low'));
+                         ((op.safety_violations||[]).length > 0 ? 'Medium' : 'Low"));
         
-        const riskText = riskLevel === 'High' ? 'High Risk' : (riskLevel === 'Medium' ? 'Medium Risk' : 'Low Risk');
-        const riskClass = riskLevel === 'High' ? 'risk-high' : (riskLevel === 'Medium' ? 'risk-medium' : 'risk-low');
+        const riskText = riskLevel === 'High' ? 'High Risk' : (riskLevel === 'Medium' ? 'Medium Risk' : 'Low Risk");
+        const riskClass = riskLevel === 'High' ? 'risk-high' : (riskLevel === 'Medium' ? 'risk-medium' : 'risk-low");
         
         return `<tr>
             <td>${op.location || op.var_name || 'Unknown'}</td>
@@ -12933,7 +12933,7 @@ function populateUnsafeTable() {
 }
 
 function renderVariableGraph() {
-    const container = document.getElementById('graph');
+    const container = document.getElementById('graph");
     if (!container) return;
     
     const data = window.analysisData || {};
@@ -12949,7 +12949,7 @@ function renderVariableGraph() {
         name: a.var_name || `var_${i}`,
         type: a.type_name || 'unknown',
         size: a.size || 0,
-        status: a.is_leaked ? 'leaked' : (a.timestamp_dealloc ? 'freed' : 'active'),
+        status: a.is_leaked ? 'leaked' : (a.timestamp_dealloc ? 'freed' : 'active"),
         ptr: a.ptr || 'unknown',
         timestamp_alloc: a.timestamp_alloc || 0,
         timestamp_dealloc: a.timestamp_dealloc || null,
@@ -13071,7 +13071,7 @@ function renderVariableGraph() {
         // Add relationship label for special types
         const midX = (source.x + target.x) / 2;
         const midY = (source.y + target.y) / 2;
-        if (link.type !== 'related') {
+        if (link.type !== 'related") {
             html += `
             <text x="${midX}" y="${midY - 5}" text-anchor="middle" font-size="8" 
                   fill="${link.color}" font-weight="bold" opacity="0.9">
@@ -13211,7 +13211,7 @@ function renderVariableGraph() {
 
 // Graph interaction functions
 function setupGraphInteractions() {
-    const svg = document.getElementById('graph-svg');
+    const svg = document.getElementById('graph-svg");
     const nodeElements = document.querySelectorAll('.graph-node');
     
     let draggedNode = null;
@@ -13327,9 +13327,9 @@ function updateConnectedLinks(nodeIndex, newX, newY) {
 }
 
 function showNodeDetails(nodeElement) {
-    const panel = document.getElementById('node-detail-panel');
-    const title = document.getElementById('detail-title');
-    const content = document.getElementById('detail-content');
+    const panel = document.getElementById('node-detail-panel");
+    const title = document.getElementById('detail-title");
+    const content = document.getElementById('detail-content");
     
     if (!panel || !title || !content) return;
     
@@ -13368,7 +13368,7 @@ function showNodeDetails(nodeElement) {
     
     // Position panel near the node
     const rect = nodeElement.getBoundingClientRect();
-    const containerRect = nodeElement.closest('#graph').getBoundingClientRect();
+    const containerRect = nodeElement.closest('#graph").getBoundingClientRect();
     
     panel.style.left = Math.min(rect.left - containerRect.left + 30, containerRect.width - 300) + 'px';
     panel.style.top = Math.max(rect.top - containerRect.top - 50, 10) + 'px';
@@ -13376,7 +13376,7 @@ function showNodeDetails(nodeElement) {
 }
 
 function hideNodeDetails() {
-    const panel = document.getElementById('node-detail-panel');
+    const panel = document.getElementById('node-detail-panel");
     if (panel) {
         panel.style.display = 'none';
     }
@@ -13384,11 +13384,11 @@ function hideNodeDetails() {
 
 // Pan and zoom functionality for the graph
 function setupPanZoom() {
-    const svg = document.getElementById('graph-svg');
-    const container = document.getElementById('graph-container');
-    const zoomInBtn = document.getElementById('zoom-in');
-    const zoomOutBtn = document.getElementById('zoom-out');
-    const resetBtn = document.getElementById('reset-view');
+    const svg = document.getElementById('graph-svg");
+    const container = document.getElementById('graph-container");
+    const zoomInBtn = document.getElementById('zoom-in");
+    const zoomOutBtn = document.getElementById('zoom-out");
+    const resetBtn = document.getElementById('reset-view");
     
     if (!svg || !container) return;
     
@@ -13480,21 +13480,21 @@ function setupPanZoom() {
 // Lifecycle toggle functionality
 function setupLifecycleToggle() {
     // Hard reset any previous click bindings by cloning the button
-    const oldBtn = document.getElementById('toggle-lifecycle');
+    const oldBtn = document.getElementById('toggle-lifecycle");
     if (oldBtn) {
         const cloned = oldBtn.cloneNode(true);
         oldBtn.parentNode.replaceChild(cloned, oldBtn);
     }
 
-    const toggleBtn = document.getElementById('toggle-lifecycle');
+    const toggleBtn = document.getElementById('toggle-lifecycle");
     if (!toggleBtn) return;
     
-    const lifeContainer = document.getElementById('lifetimeVisualization');
+    const lifeContainer = document.getElementById('lifetimeVisualization");
     
     let isExpanded = false;
     
     toggleBtn.addEventListener("click", function() {
-        const container = document.getElementById('lifetimeVisualization');
+        const container = document.getElementById('lifetimeVisualization");
         if (!container) return;
         
         const data = window.analysisData || {};
@@ -13506,7 +13506,7 @@ function setupLifecycleToggle() {
         }
         
         const icon = toggleBtn.querySelector('i');
-        const text = toggleBtn.querySelector("span");
+        const text = toggleBtn.querySelector('span');
         
         if (!isExpanded) {
             renderFullLifecycleTimeline(allocs);
@@ -13525,7 +13525,7 @@ function setupLifecycleToggle() {
 }
 
 function renderLimitedLifecycleTimeline(allocs) {
-    const container = document.getElementById('lifetimeVisualization');
+    const container = document.getElementById('lifetimeVisualization");
     if (!container) return;
     
     // Create timeline visualization (limited to 20)
@@ -13579,7 +13579,7 @@ function renderLimitedLifecycleTimeline(allocs) {
 }
 
 function renderFullLifecycleTimeline(allocs) {
-    const container = document.getElementById('lifetimeVisualization');
+    const container = document.getElementById('lifetimeVisualization");
     if (!container) return;
     
     // Create full timeline visualization
@@ -13631,7 +13631,7 @@ function renderFullLifecycleTimeline(allocs) {
                 <div style="display: flex; justify-content: space-between; margin-bottom: 3px; font-size: 0.75rem;">
                     <span style="font-weight: 600;">${alloc.var_name || `var_${index}`}</span>
                     <div style="display: flex; gap: 8px;">
-                        <span style="color: var(--text-secondary);">${formatTypeName(alloc.type_name || 'Unknown')}</span>
+                        <span style="color: var(--text-secondary);">${formatTypeName(alloc.type_name || 'Unknown")}</span>
                         <span style="color: var(--text-secondary);">${formatBytes(alloc.size || 0)}</span>
                     </div>
                 </div>
@@ -13644,7 +13644,7 @@ function renderFullLifecycleTimeline(allocs) {
                         background: ${barColor};
                         border-radius: 3px;
                         ${isActive ? 'animation: pulse 2s infinite;' : ''}
-                    " title="Lifetime: ${endTime - startTime}ms | Status: ${isLeaked ? 'Leaked' : isActive ? "Active" : 'Freed'}"></div>
+                    " title="Lifetime: ${endTime - startTime}ms | Status: ${isLeaked ? 'Leaked' : isActive ? 'Active' : 'Freed'}"></div>
                 </div>
             </div>
         `;
@@ -13666,7 +13666,7 @@ function renderFullLifecycleTimeline(allocs) {
 }
 
 function setupLifecycleVisualization() {
-    const container = document.getElementById('lifetimeVisualization');
+    const container = document.getElementById('lifetimeVisualization");
     if (!container) return;
     
     const data = window.analysisData || {};
@@ -13734,9 +13734,9 @@ function initFFIVisualization() {
 
 // Complete JSON Data Explorer
 function initCompleteJSONExplorer() {
-    const container = document.getElementById('jsonDataExplorer');
-    const expandBtn = document.getElementById('expand-all-json');
-    const collapseBtn = document.getElementById('collapse-all-json');
+    const container = document.getElementById('jsonDataExplorer");
+    const expandBtn = document.getElementById('expand-all-json");
+    const collapseBtn = document.getElementById('collapse-all-json");
     
     if (!container) return;
     
@@ -13763,7 +13763,7 @@ function initCompleteJSONExplorer() {
                     if (Array.isArray(value)) {
                         itemCount = value.length + ' items';
                         dataType = 'Array';
-                    } else if (value && typeof value === 'object') {
+                    } else if (value && typeof value === 'object") {
                         itemCount = Object.keys(value).length + ' properties';
                         dataType = 'Object';
                     }
@@ -13835,7 +13835,7 @@ function createJSONSection(key, value, index) {
     
     if (Array.isArray(value)) {
         html += createArrayView(value, key);
-    } else if (value && typeof value === 'object') {
+    } else if (value && typeof value === 'object") {
         html += createObjectView(value, key);
     } else {
         html += `<pre style="margin: 0; color: var(--text-primary); font-size: 0.9rem;">${JSON.stringify(value, null, 2)}</pre>`;
@@ -13915,16 +13915,16 @@ function getDataTypeInfo(value) {
     if (value === null) return 'null';
     if (value === undefined) return 'undefined';
     if (Array.isArray(value)) return `Array[${value.length}]`;
-    if (typeof value === 'object') return `Object{${Object.keys(value).length}}`;
-    if (typeof value === 'string') return `String(${value.length})`;
-    if (typeof value === 'number') return `Number(${value})`;
-    if (typeof value === 'boolean') return `Boolean(${value})`;
+    if (typeof value === 'object") return `Object{${Object.keys(value).length}}`;
+    if (typeof value === 'string") return `String(${value.length})`;
+    if (typeof value === 'number") return `Number(${value})`;
+    if (typeof value === 'boolean") return `Boolean(${value})`;
     return typeof value;
 }
 
 // Enhanced FFI Visualization with rich lifecycle data
 function initEnhancedFFIVisualization() {
-    const container = document.getElementById('ffiVisualization');
+    const container = document.getElementById('ffiVisualization");
     if (!container) return;
 
     const data = window.analysisData || {};
@@ -14022,7 +14022,7 @@ function initEnhancedFFIVisualization() {
                 ${createFFIDataFlow(allocs)}
             </div>
             <div style="margin-top: 8px; font-size: 11px; color: var(--text-secondary); text-align: center;">
-                🦀 Rust ↔ C Data Flow • ${ffiTracked} FFI-tracked allocations • Click nodes for details
+                🦀 Rust ↔ C Data Flow - ${ffiTracked} FFI-tracked allocations - Click nodes for details
             </div>
         </div>
 
@@ -14040,7 +14040,7 @@ function initEnhancedFFIVisualization() {
                     ${createAllocationTimeline(allocs, minTime, timeRange)}
                 </div>
                 <div style="margin-top: 8px; font-size: 11px; color: var(--text-secondary); text-align: center;">
-                    Timeline spans ${(timeRange / 1e6).toFixed(1)}ms • Click dots for details
+                    Timeline spans ${(timeRange / 1e6).toFixed(1)}ms - Click dots for details
                 </div>
             </div>
             
@@ -14059,7 +14059,7 @@ function initEnhancedFFIVisualization() {
                     ${createAllocationTable(allocs)}
                 </div>
                 <div style="margin-top: 8px; font-size: 11px; color: var(--text-secondary); text-align: center;">
-                    Click rows for detailed view • Use filter to narrow results
+                    Click rows for detailed view - Use filter to narrow results
                 </div>
             </div>
         </div>
@@ -14250,7 +14250,7 @@ function createAllocationTimeline(allocs, minTime, timeRange) {
                      onmouseover="this.style.transform='translateY(-50%) scale(1.2)'" 
                      onmouseout="this.style.transform='translateY(-50%) scale(1)'"
                      title="${alloc.var_name || 'unnamed'} | ${formatBytes(alloc.size || 0)} | ${new Date(alloc.timestamp_alloc / 1e6).toLocaleTimeString()}"
-                     onclick="showAllocationDetail('${alloc.ptr}')"></div>`;
+                     onclick="showAllocationDetail('${alloc.ptr}")"></div>`;
         } else {
             // Multiple allocations - create a cluster
             const totalSize = group.allocs.reduce((sum, a) => sum + (a.size || 0), 0);
@@ -14267,7 +14267,7 @@ function createAllocationTimeline(allocs, minTime, timeRange) {
                      onmouseover="this.style.transform='translateY(-50%) scale(1.2)'" 
                      onmouseout="this.style.transform='translateY(-50%) scale(1)'"
                      title="${group.allocs.length} allocations | Total: ${formatBytes(totalSize)} | Avg time: ${new Date(group.avgTime / 1e6).toLocaleTimeString()}"
-                     onclick="showClusterDetail(${JSON.stringify(group.allocs.map(a => a.ptr)).replace(/"/g, '&quot;')})">${group.allocs.length}</div>`;
+                     onclick="showClusterDetail('${group.allocs.map(a => a.ptr).join(',')}')">${group.allocs.length}</div>`;
         }
     });
     
@@ -14308,7 +14308,7 @@ function createAllocationTable(allocs) {
         
         html += `
             <tr style="border-bottom: 1px solid var(--border-light); cursor: pointer;" 
-                onclick="showAllocationDetail('${alloc.ptr}')" 
+                onclick="showAllocationDetail('${alloc.ptr}")" 
                 onmouseover="this.style.background='var(--bg-secondary)'" 
                 onmouseout="this.style.background='transparent'">
                 <td style="padding: 8px; color: var(--text-primary); font-weight: 500;">${alloc.var_name || 'unnamed'}</td>
@@ -14332,11 +14332,11 @@ function createAllocationTable(allocs) {
 // Setup FFI interactivity
 function setupFFIInteractivity(allocs, minTime, timeRange) {
     // Timeline toggle
-    const toggleBtn = document.getElementById('ffi-timeline-toggle');
+    const toggleBtn = document.getElementById('ffi-timeline-toggle");
     if (toggleBtn) {
         let expanded = false;
         toggleBtn.onclick = () => {
-            const container = document.getElementById('ffi-timeline-container');
+            const container = document.getElementById('ffi-timeline-container");
             if (!container) return;
             
             expanded = !expanded;
@@ -14355,7 +14355,7 @@ function setupFFIInteractivity(allocs, minTime, timeRange) {
     }
     
     // Table filter
-    const filterSelect = document.getElementById('ffi-filter');
+    const filterSelect = document.getElementById('ffi-filter");
     if (filterSelect) {
         filterSelect.onchange = () => {
             const filterValue = filterSelect.value;
@@ -14378,7 +14378,7 @@ function setupFFIInteractivity(allocs, minTime, timeRange) {
                     filteredAllocs = allocs;
             }
             
-            const tableContainer = document.getElementById('ffi-allocation-table');
+            const tableContainer = document.getElementById('ffi-allocation-table");
             if (tableContainer) {
                 tableContainer.innerHTML = createAllocationTable(filteredAllocs);
             }
@@ -14405,7 +14405,7 @@ window.showAllocationDetail = function(ptr) {
         <div style="background: var(--bg-primary); border-radius: 12px; padding: 24px; min-width: 400px; max-width: 600px; border: 1px solid var(--border-light);">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                 <h3 style="margin: 0; color: var(--text-primary);">Allocation Details</h3>
-                <button onclick="this.closest('div').parentNode.remove()" style="background: none; border: none; font-size: 20px; color: var(--text-secondary); cursor: pointer;">×</button>
+                <button onclick="this.closest('div").parentNode.remove()" style="background: none; border: none; font-size: 20px; color: var(--text-secondary); cursor: pointer;">×</button>
             </div>
             <div style="color: var(--text-primary); line-height: 1.6;">
                 <div style="margin-bottom: 12px;"><strong>Variable:</strong> ${alloc.var_name || 'unnamed'}</div>
@@ -14425,7 +14425,7 @@ window.showAllocationDetail = function(ptr) {
                     </span>
                 </div>
                 ${alloc.safety_violations && alloc.safety_violations.length > 0 ? 
-                    `<div style="margin-bottom: 12px; color: var(--primary-red);"><strong>Safety Violations:</strong> ${alloc.safety_violations.join(', ')}</div>` 
+                    `<div style="margin-bottom: 12px; color: var(--primary-red);"><strong>Safety Violations:</strong> ${alloc.safety_violations.join(', ")}</div>` 
                     : ''}
             </div>
         </div>
@@ -14459,7 +14459,7 @@ window.showClusterDetail = function(ptrs) {
         <div style="background: var(--bg-primary); border-radius: 12px; padding: 24px; min-width: 500px; max-width: 700px; max-height: 80vh; overflow-y: auto; border: 1px solid var(--border-light);">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                 <h3 style="margin: 0; color: var(--text-primary);">Allocation Cluster (${clusterAllocs.length} items)</h3>
-                <button onclick="this.closest('div').parentNode.remove()" style="background: none; border: none; font-size: 20px; color: var(--text-secondary); cursor: pointer;">×</button>
+                <button onclick="this.closest('div").parentNode.remove()" style="background: none; border: none; font-size: 20px; color: var(--text-secondary); cursor: pointer;">×</button>
             </div>
             <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px;">
                 <div style="text-align: center; padding: 12px; background: var(--bg-secondary); border-radius: 6px;">
@@ -14501,7 +14501,7 @@ window.showClusterDetail = function(ptrs) {
                                 const statusText = isLeaked ? 'LEAKED' : 'OK';
                                 
                                 return `
-                                    <tr style="border-bottom: 1px solid var(--border-light); cursor: pointer;" onclick="showAllocationDetail('${alloc.ptr}')">
+                                    <tr style="border-bottom: 1px solid var(--border-light); cursor: pointer;" onclick="showAllocationDetail('${alloc.ptr}")">
                                         <td style="padding: 8px; font-weight: 500;">${alloc.var_name || 'unnamed'}</td>
                                         <td style="padding: 8px; text-align: right; font-weight: 600;">${formatBytes(alloc.size || 0)}</td>
                                         <td style="padding: 8px; text-align: center; color: var(--primary-blue);">${totalBorrows}</td>
@@ -14556,14 +14556,14 @@ function renderEnhancedDataInsights() {
     // Update Timeline Insights
     document.getElementById('time-span').textContent = timeSpanMs.toFixed(2) + 'ms';
     document.getElementById('allocation-burst').textContent = allocationBurst + '/sec';
-    document.getElementById('peak-concurrency').textContent = Math.max(...allocs.map(a => (a.borrow_info?.max_concurrent_borrows || 0)));
+    document.getElementById('peak-concurrency").textContent = Math.max(...allocs.map(a => (a.borrow_info?.max_concurrent_borrows || 0)));
     document.getElementById('thread-activity').textContent = 'Single Thread';
     
     // Update Memory Operations
-    document.getElementById('borrow-ops').textContent = totalBorrows;
-    document.getElementById('clone-ops').textContent = totalClones;
+    document.getElementById('borrow-ops").textContent = totalBorrows;
+    document.getElementById('clone-ops").textContent = totalClones;
     document.getElementById('mut-ratio').textContent = totalImmutable > 0 ? (totalMutable / totalImmutable).toFixed(1) : '0';
-    document.getElementById('avg-borrows').textContent = (totalBorrows / allocs.length).toFixed(1);
+    document.getElementById('avg-borrows").textContent = (totalBorrows / allocs.length).toFixed(1);
     
     // Render charts with forced data refresh
     renderBorrowPatternChart(borrowPatterns);
@@ -14583,9 +14583,9 @@ function renderEnhancedDataInsights() {
     });
 }
 
-// Render borrow activity heatmap (新奇直观的可视化)
+// Render borrow activity heatmap
 function renderBorrowPatternChart(patterns) {
-    const container = document.getElementById('borrowPatternChart');
+    const container = document.getElementById('borrowPatternChart");
     if (!container) return;
     
     const data = window.analysisData || {};
@@ -14621,10 +14621,10 @@ function renderBorrowPatternChart(patterns) {
     Object.entries(borrowGroups).forEach(([groupName, groupAllocs], groupIndex) => {
         if (groupAllocs.length === 0) return;
         
-        const groupDiv = document.createElement('div');
+        const groupDiv = document.createElement('div");
         groupDiv.style.cssText = 'margin-bottom: 12px;';
         
-        const groupHeader = document.createElement('div');
+        const groupHeader = document.createElement('div");
         groupHeader.style.cssText = `
             font-size: 11px; font-weight: 600; margin-bottom: 6px; 
             color: var(--text-primary); display: flex; align-items: center; gap: 8px;
@@ -14641,7 +14641,7 @@ function renderBorrowPatternChart(patterns) {
             </span>
         `;
         
-        const bubbleContainer = document.createElement('div');
+        const bubbleContainer = document.createElement('div");
         bubbleContainer.style.cssText = `
             display: flex; flex-wrap: wrap; gap: 4px; padding: 12px; 
             background: var(--bg-secondary); border-radius: 6px; min-height: 60px;
@@ -14655,7 +14655,7 @@ function renderBorrowPatternChart(patterns) {
             const mut = bi.mutable_borrows || 0;
             const maxConcurrent = bi.max_concurrent_borrows || 0;
             
-            const bubble = document.createElement('div');
+            const bubble = document.createElement('div");
             const size = Math.max(16, Math.min(32, 12 + (immut + mut) * 2));
             
             bubble.style.cssText = `
@@ -14695,7 +14695,7 @@ function renderBorrowPatternChart(patterns) {
     });
     
     // Add summary stats at bottom
-    const summaryDiv = document.createElement('div');
+    const summaryDiv = document.createElement('div");
     summaryDiv.style.cssText = `
         margin-top: 8px; padding: 8px; background: var(--bg-secondary); 
         border-radius: 6px; font-size: 10px; color: var(--text-secondary);
@@ -14730,7 +14730,7 @@ function showBorrowDetail(alloc) {
         <div style="background: var(--bg-primary); border-radius: 12px; padding: 20px; min-width: 350px; border: 1px solid var(--border-light);">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                 <h3 style="margin: 0; color: var(--text-primary);">🔍 Borrow Analysis</h3>
-                <button onclick="this.closest('div').parentNode.remove()" style="background: none; border: none; font-size: 18px; color: var(--text-secondary); cursor: pointer;">×</button>
+                <button onclick="this.closest('div").parentNode.remove()" style="background: none; border: none; font-size: 18px; color: var(--text-secondary); cursor: pointer;">×</button>
             </div>
             <div style="color: var(--text-primary); line-height: 1.6;">
                 <div style="margin-bottom: 12px;"><strong>Variable:</strong> ${alloc.var_name}</div>
@@ -14751,7 +14751,7 @@ function showBorrowDetail(alloc) {
 
 // Render type memory distribution as interactive memory blocks
 function renderMemoryDistributionChart(allocs) {
-    const container = document.getElementById('memoryDistributionChart');
+    const container = document.getElementById('memoryDistributionChart");
     if (!container) return;
     
     // Create unique memory blocks visualization (not pie chart)
@@ -14820,7 +14820,7 @@ function renderMemoryDistributionChart(allocs) {
                     <div style="display: flex; align-items: center; gap: 12px; cursor: pointer; padding: 6px; border-radius: 6px; transition: all 0.2s;"
                          onmouseover="this.style.background='var(--bg-primary)'; this.style.transform='scale(1.02)'"
                          onmouseout="this.style.background='transparent'; this.style.transform='scale(1)'"
-                         onclick="showTypeDetail('${typeName}', ${JSON.stringify(data).replace(/"/g, '&quot;')})">
+                         onclick="showTypeDetail('${typeName}', '${JSON.stringify(data).replace(/'/g, '&apos;')}')">
                         
                         <!-- Memory Block -->
                         <div style="width: 40px; height: ${blockHeight}px; background: linear-gradient(135deg, ${color}, ${color}80); 
@@ -14837,7 +14837,7 @@ function renderMemoryDistributionChart(allocs) {
                                 ${typeName}
                             </div>
                             <div style="font-size: 11px; color: var(--text-secondary);">
-                                ${formatBytes(data.size)} • ${data.count} allocation${data.count > 1 ? 's' : ''}
+                                ${formatBytes(data.size)} - ${data.count} allocation${data.count > 1 ? 's' : ''}
                             </div>
                         </div>
                         
@@ -14881,7 +14881,7 @@ window.showTypeDetail = function(typeName, data) {
                     </div>
                     ${typeName} Memory Analysis
                 </h3>
-                <button onclick="this.closest('div').parentNode.remove()" style="background: none; border: none; font-size: 20px; color: var(--text-secondary); cursor: pointer;">×</button>
+                <button onclick="this.closest('div").parentNode.remove()" style="background: none; border: none; font-size: 20px; color: var(--text-secondary); cursor: pointer;">×</button>
             </div>
             
             <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px;">
@@ -14918,7 +14918,7 @@ window.showTypeDetail = function(typeName, data) {
                             const lifetime = alloc.lifetime_ms || "Active";
                             
                             return `
-                                <tr style="border-bottom: 1px solid var(--border-light); cursor: pointer;" onclick="showAllocationDetail('${alloc.ptr}')">
+                                <tr style="border-bottom: 1px solid var(--border-light); cursor: pointer;" onclick="showAllocationDetail('${alloc.ptr}")">
                                     <td style="padding: 8px; color: var(--text-primary); font-weight: 500;">${alloc.var_name || 'unnamed'}</td>
                                     <td style="padding: 8px; text-align: right; color: var(--text-primary); font-weight: 600;">${formatBytes(alloc.size || 0)}</td>
                                     <td style="padding: 8px; text-align: center;">
@@ -14942,7 +14942,7 @@ window.showTypeDetail = function(typeName, data) {
 
 // Render detailed allocation timeline with heap/stack and timing info
 function renderAllocationTimelineDetail() {
-    const container = document.getElementById('allocationTimelineDetail');
+    const container = document.getElementById('allocationTimelineDetail");
     if (!container) return;
     
     const data = window.analysisData || {};
@@ -14979,14 +14979,14 @@ function renderAllocationTimelineDetail() {
                 const dropTime = allocTime + (lifetime * 1_000_000); // Convert ms to ns
                 const relativeTime = ((allocTime - minTime) / 1_000_000).toFixed(2); // Convert to ms
                 
-                const classification = classifyAllocation(alloc.type_name || '');
+                const classification = classifyAllocation(alloc.type_name || '");
                 const typeName = (alloc.type_name || 'Unknown').split('::').pop().split('<')[0];
                 
                 return `
                     <div style="display: flex; align-items: center; gap: 8px; padding: 6px; border-radius: 4px; cursor: pointer; transition: all 0.2s;"
                          onmouseover="this.style.background='var(--bg-primary)'"
                          onmouseout="this.style.background='transparent'"
-                         onclick="showAllocationTimeDetail('${alloc.ptr}', ${allocTime}, ${dropTime}, '${classification.type}')">
+                         onclick="showAllocationTimeDetail('${alloc.ptr}', ${allocTime}, ${dropTime}, '${classification.type}")">
                         
                         <!-- Allocation Type Icon -->
                         <div style="width: 24px; height: 24px; background: ${classification.color}20; border: 1px solid ${classification.color}; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 12px;">
@@ -14999,7 +14999,7 @@ function renderAllocationTimelineDetail() {
                                 ${alloc.var_name || 'unnamed'} (${typeName})
                             </div>
                             <div style="font-size: 9px; color: var(--text-secondary);">
-                                ${formatBytes(alloc.size || 0)} • ${classification.type.toUpperCase()}
+                                ${formatBytes(alloc.size || 0)} - ${classification.type.toUpperCase()}
                             </div>
                         </div>
                         
@@ -15048,7 +15048,7 @@ window.showAllocationTimeDetail = function(ptr, allocTime, dropTime, allocationT
                     <span style="font-size: 24px;">${typeIcon}</span>
                     ${allocationType.toUpperCase()} Allocation Timeline
                 </h3>
-                <button onclick="this.closest('div').parentNode.remove()" style="background: none; border: none; font-size: 20px; color: var(--text-secondary); cursor: pointer;">×</button>
+                <button onclick="this.closest('div").parentNode.remove()" style="background: none; border: none; font-size: 20px; color: var(--text-secondary); cursor: pointer;">×</button>
             </div>
             
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
@@ -15113,9 +15113,9 @@ function updateLifecycleStatistics() {
     const avgLifetime = allocs.filter(a => a.lifetime_ms).reduce((sum, a) => sum + a.lifetime_ms, 0) / Math.max(1, allocs.filter(a => a.lifetime_ms).length);
     
     // Update statistics display
-    document.getElementById('active-vars').textContent = activeVars;
-    document.getElementById('freed-vars').textContent = freedVars;
-    document.getElementById('leaked-vars').textContent = leakedVars;
+    document.getElementById('active-vars").textContent = activeVars;
+    document.getElementById('freed-vars").textContent = freedVars;
+    document.getElementById('leaked-vars").textContent = leakedVars;
     document.getElementById('avg-lifetime-stat').textContent = avgLifetime.toFixed(2) + 'ms';
     
     // Render lifecycle distribution chart
@@ -15124,7 +15124,7 @@ function updateLifecycleStatistics() {
 
 // Render lifecycle distribution chart
 function renderLifecycleDistributionChart(allocs) {
-    const ctx = document.getElementById('lifecycleDistributionChart');
+    const ctx = document.getElementById('lifecycleDistributionChart");
     if (!ctx || !window.Chart) return;
     
     // Cleanup existing chart
@@ -15170,7 +15170,7 @@ function renderLifecycleDistributionChart(allocs) {
                     data: values,
                     backgroundColor: colors,
                     borderWidth: 1,
-                    borderColor: colors.map(c => c + '80')
+                    borderColor: colors.map(c => c + '80")
                 }]
             },
             options: {
@@ -15226,7 +15226,7 @@ function renderLifecycleDistributionChart(allocs) {
 
 // Render memory hotspots visualization
 function renderMemoryHotspots() {
-    const container = document.getElementById('memoryHotspots');
+    const container = document.getElementById('memoryHotspots");
     if (!container) return;
     
     const data = window.analysisData || {};
@@ -15249,7 +15249,7 @@ function renderMemoryHotspots() {
         const maxSize = sortedAllocs[0].size || 1;
         const intensity = (size / maxSize) * 100;
         
-        const hotspotDiv = document.createElement('div');
+        const hotspotDiv = document.createElement('div");
         hotspotDiv.style.cssText = `
             display: flex; align-items: center; padding: 8px; margin-bottom: 6px;
             background: linear-gradient(90deg, var(--bg-primary) 0%, var(--primary-red)${Math.floor(intensity/4)} ${intensity}%, var(--bg-primary) 100%);
@@ -15300,7 +15300,7 @@ function renderMemoryHotspots() {
     });
     
     // Add summary at bottom
-    const summaryDiv = document.createElement('div');
+    const summaryDiv = document.createElement('div");
     summaryDiv.style.cssText = `
         margin-top: 12px; padding: 8px; background: var(--bg-primary); 
         border-radius: 6px; font-size: 10px; color: var(--text-secondary);
@@ -15333,7 +15333,7 @@ function renderThreadAnalysis() {
 
 // Render thread timeline
 function renderThreadTimeline(allocs) {
-    const container = document.getElementById('threadTimeline');
+    const container = document.getElementById('threadTimeline");
     if (!container) return;
     
     container.innerHTML = '';
@@ -15358,7 +15358,7 @@ function renderThreadTimeline(allocs) {
     // Multi-thread visualization (if applicable)
     threads.forEach((threadId, index) => {
         const threadAllocs = allocs.filter(a => a.thread_id === threadId);
-        const threadDiv = document.createElement('div');
+        const threadDiv = document.createElement('div");
         threadDiv.style.cssText = `
             height: ${100/threads.length}%; display: flex; align-items: center; 
             padding: 0 8px; border-bottom: 1px solid var(--border-light);
@@ -15382,8 +15382,8 @@ function renderThreadTimeline(allocs) {
 
 // Update contention analysis
 function updateContentionAnalysis(allocs) {
-    const levelEl = document.getElementById('contention-level');
-    const detailsEl = document.getElementById('contention-details');
+    const levelEl = document.getElementById('contention-level");
+    const detailsEl = document.getElementById('contention-details");
     
     if (!levelEl || !detailsEl) return;
     
@@ -15431,10 +15431,10 @@ function updateEnhancedMetrics() {
     const fragmentation = Math.min(100, (Math.sqrt(variance) / avgSize) * 100);
 
     // Update Performance Metrics
-    const peakEl = document.getElementById('peak-memory');
-    const rateEl = document.getElementById('allocation-rate');
-    const lifetimeEl = document.getElementById('avg-lifetime');
-    const fragEl = document.getElementById('fragmentation');
+    const peakEl = document.getElementById('peak-memory");
+    const rateEl = document.getElementById('allocation-rate");
+    const lifetimeEl = document.getElementById('avg-lifetime");
+    const fragEl = document.getElementById('fragmentation");
     
     if (peakEl) peakEl.textContent = formatBytes(peakMemory);
     if (rateEl) rateEl.textContent = allocationRate.toFixed(1) + '/sec';
@@ -15450,9 +15450,9 @@ function updateEnhancedMetrics() {
     }).length;
 
     // Update Thread Safety Analysis
-    const arcEl = document.getElementById('arc-count');
-    const rcEl = document.getElementById('rc-count');
-    const collEl = document.getElementById('collections-count');
+    const arcEl = document.getElementById('arc-count");
+    const rcEl = document.getElementById('rc-count");
+    const collEl = document.getElementById('collections-count");
     
     if (arcEl) arcEl.textContent = arcCount;
     if (rcEl) rcEl.textContent = rcCount;
@@ -15500,11 +15500,11 @@ function renderEnhancedCharts() {
         const canvas = document.getElementById(canvasId);
         if (canvas && canvas.getContext) {
             try {
-                const ctx = canvas.getContext('2d');
+                const ctx = canvas.getContext('2d");
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                 // Remove Chart.js specific properties
                 delete canvas.chart;
-                canvas.removeAttribute('style');
+                canvas.removeAttribute('style");
             } catch(e) {
                 console.warn('Failed to clear canvas:', canvasId, e);
             }
@@ -15522,12 +15522,12 @@ function renderEnhancedCharts() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-    console.log("🚀 MemScope Dashboard Loaded');
+    console.log("🚀 MemScope Dashboard Loaded");
     
     // Initialize theme toggle
     try { 
         initThemeToggle(); 
-        console.log("✅ Theme toggle initialized');
+        console.log("✅ Theme toggle initialized");
     } catch(e) { 
         console.warn('⚠️ Theme toggle initialization failed:', e?.message); 
     }
@@ -15559,7 +15559,7 @@ document.addEventListener("DOMContentLoaded", () => {
         try { updateEmbeddedFFISVG && updateEmbeddedFFISVG(); } catch(_) {}
         try { updatePerformanceMetrics && updatePerformanceMetrics(); } catch(_) {}
         
-        console.log("✅ All dashboard components initialized');
+        console.log("✅ All dashboard components initialized");
     } catch(e) { 
         console.error('❌ Dashboard initialization failed:', e); 
     }
@@ -15642,7 +15642,7 @@ function showFFIFlowNodeDetail(ptr, size, allocs) {
             <div style="position: absolute; top: -50px; right: -50px; font-size: 120px; opacity: 0.1;">${icon}</div>
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; position: relative; z-index: 1;">
                 <h3 style="margin: 0; font-size: 18px;">${icon} ${title}</h3>
-                <button onclick="this.closest('div').parentNode.remove()" style="background: rgba(255,255,255,0.2); border: none; border-radius: 50%; width: 32px; height: 32px; color: white; cursor: pointer; font-size: 16px;">×</button>
+                <button onclick="this.closest('div").parentNode.remove()" style="background: rgba(255,255,255,0.2); border: none; border-radius: 50%; width: 32px; height: 32px; color: white; cursor: pointer; font-size: 16px;">×</button>
             </div>
             <div style="position: relative; z-index: 1; line-height: 1.8;">
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
@@ -15756,13 +15756,9 @@ pub fn generate_direct_html(json_data: &HashMap<String, Value>) -> Result<String
         .replace("{{JS_CONTENT}}", &js_content)
         .replace("{{DATA_PLACEHOLDER}}", &json_data_str)
         .replace(
-            "{{\n                {\n                CSS_CONTENT\n            }\n        }",
+            "{\n        {\n        CSS_CONTENT\n      }\n    }",
             &css_content,
-        ) // fix CSS format issues
-        .replace(
-            "{\n                {\n                CSS_CONTENT\n            }\n        }",
-            &css_content,
-        ); // alternative format
+        ); // fix CSS format issues - match exact template spacing
 
     // Inject safety risk data into the HTML
     html = inject_safety_risk_data_into_html(html, &safety_risk_data)?;
@@ -16929,7 +16925,7 @@ fn inject_safety_risk_data_into_html(
             let safety_function_injection = r#"
     // Safety Risk Data Management Function
     function loadSafetyRisks() {
-        console.log("🛡️ Loading safety risk data...');
+        console.log("🛡️ Loading safety risk data...");
         const unsafeTable = document.getElementById('unsafeTable');
         if (!unsafeTable) {
             console.warn('⚠️ unsafeTable not found');
