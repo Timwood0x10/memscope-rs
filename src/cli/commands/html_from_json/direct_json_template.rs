@@ -1907,7 +1907,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
         };
       }
 
-      getHeatmapColor(intensity, mode = 'density") {
+      getHeatmapColor(intensity, mode = 'density') {
         const scaledIntensity = Math.min(Math.max(intensity, 0), 1);
 
         // Different color schemes for different modes
@@ -2565,7 +2565,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
           block.style.cursor = 'pointer';
           block.style.transition = 'all 0.2s ease';
 
-          if (range.type === 'gap") {
+          if (range.type === 'gap') {
             block.style.background = 'linear-gradient(45deg, #dc2626, #ef4444)';
             block.style.border = '1px solid #b91c1c';
             block.title = `Memory Gap: ${this.formatBytes(range.size)}`;
@@ -2948,9 +2948,9 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
     window.safetyRisks = [];
     
     function getRiskAssessment(risk) {
-        if (risk.risk_level === 'High") {
+        if (risk.risk_level === 'High') {
             return 'Critical memory safety issue - immediate attention required';
-        } else if (risk.risk_level === 'Medium") {
+        } else if (risk.risk_level === 'Medium') {
             return 'Potential memory issue - review recommended';
         } else {
             return 'Low risk - monitoring suggested';
@@ -5464,7 +5464,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
       }
 
       if (!allocations || !Array.isArray(allocations) || allocations.length === 0) {
-        console.warn('No allocation data found in window.analysisData");
+        console.warn('No allocation data found in window.analysisData');
 
         // Fallback: Try to get data from other global variables that might be set by the dashboard
         if (typeof getAllocations === 'function') {
@@ -5515,7 +5515,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
       }
 
       if (allocations.length === 0) {
-        console.warn('No allocation data found");
+        console.warn('No allocation data found');
         return;
       }
 
@@ -5529,8 +5529,8 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
 
       allocations.forEach(alloc => {
         const type = inferAllocationType(alloc.type_name);
-        if (type === 'heap") heapCount++;
-        else if (type === 'stack") stackCount++;
+        if (type === 'heap') heapCount++;
+        else if (type === 'stack') stackCount++;
         else unknownCount++;
 
         // Check multiple possible lifetime fields and ensure they're valid numbers
@@ -5553,14 +5553,14 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
         safeUpdateElement('heapCountMini', heapCount);
         console.log("Updated heap-count-mini:", heapCount);
       } else {
-        console.warn('heap-count-mini element not found");
+        console.warn('heap-count-mini element not found');
       }
 
       if (stackCountMini) {
         safeUpdateElement('stackCountMini', stackCount);
         console.log("Updated stack-count-mini:", stackCount);
       } else {
-        console.warn('stack-count-mini element not found");
+        console.warn('stack-count-mini element not found');
       }
 
       // Create lifecycle visualization
@@ -5788,7 +5788,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
 
       // Check if all buttons exist
       if (!heapBtn || !stackBtn || !allBtn) {
-        console.warn('Some filter buttons not found");
+        console.warn('Some filter buttons not found');
         return;
       }
 
@@ -5801,15 +5801,15 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
         // Update button states
         [heapBtn, stackBtn, allBtn].forEach(btn => btn.style.opacity = '0.6');
 
-        if (filter === 'heap") {
+        if (filter === "heap") {
           heapBtn.style.opacity = '1';
           items.forEach(item => {
-            item.style.display = item.getAttribute('data-type') === 'heap' ? 'block' : 'none';
+            item.style.display = item.getAttribute('data-type') === "heap" ? 'block' : 'none';
           });
-        } else if (filter === 'stack") {
+        } else if (filter === "stack") {
           stackBtn.style.opacity = '1';
           items.forEach(item => {
-            item.style.display = item.getAttribute('data-type') === 'stack' ? 'block' : 'none';
+            item.style.display = item.getAttribute('data-type') === "stack" ? 'block' : 'none';
           });
         } else {
           allBtn.style.opacity = '1';
@@ -5887,7 +5887,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
         initEnhancedLifecycleVisualization();
         safeUpdateElement('init-status', 'Initialized successfully!');
       } else {
-        console.warn('❌ No data found, trying to load...");
+        console.warn('❌ No data found, trying to load...');
         safeUpdateElement('init-status', 'Loading data...');
 
         // Try to load data manually
@@ -6803,7 +6803,7 @@ function initThemeToggle() {
 
         console.log("✅ Theme toggle initialized successfully");
     } else {
-        console.warn('⚠️ Theme toggle button not found");
+        console.warn('⚠️ Theme toggle button not found');
     }
 }
 
@@ -7075,7 +7075,7 @@ function initAllocationSizeChart() {
 // Process memory analysis data with validation and fallback
 function processMemoryAnalysisData(rawData) {
     if (!rawData || !rawData.memory_analysis) {
-        console.warn('⚠️ No memory analysis data found, generating fallback data");
+        console.warn('⚠️ No memory analysis data found, generating fallback data');
         return generateFallbackMemoryData();
     }
 
@@ -7262,13 +7262,13 @@ function createMemoryAnalysisSVG(stats, allocations, userMemory, systemMemory, t
                 <!-- Key Performance Metrics Grid -->
                 <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 mb-8">
                     ${createAdvancedMetricCard('Active Memory', formatBytes(userMemory), Math.round(userPercentage), '#3498db', 'MEDIUM")}
-                    ${createAdvancedMetricCard('Peak Memory', formatBytes(totalMemory), 100, '#e74c3c', 'HIGH")}
-                    ${createAdvancedMetricCard('Active Allocs', allocations.length, 100, '#2ecc71', 'HIGH")}
-                    ${createAdvancedMetricCard('Reclamation', reclamationRate.toFixed(1) + '%', Math.round(reclamationRate), '#f39c12', reclamationRate > 70 ? 'OPTIMAL' : 'MEDIUM")}
+                    ${createAdvancedMetricCard('Peak Memory', formatBytes(totalMemory), 100, '#e74c3c', "HIGH")}
+                    ${createAdvancedMetricCard('Active Allocs', allocations.length, 100, '#2ecc71', "HIGH")}
+                    ${createAdvancedMetricCard('Reclamation', reclamationRate.toFixed(1) + '%', Math.round(reclamationRate), '#f39c12', reclamationRate > 70 ? 'OPTIMAL' : "MEDIUM")}
                     ${createAdvancedMetricCard('Efficiency', efficiency.toFixed(1) + '%', Math.round(efficiency), '#9b59b6', efficiency > 70 ? 'OPTIMAL' : 'MEDIUM")}
-                    ${createAdvancedMetricCard('Median Size', formatBytes(medianSize), Math.min(100, medianSize / 1024), '#1abc9c', medianSize < 100 ? 'OPTIMAL' : 'MEDIUM")}
+                    ${createAdvancedMetricCard('Median Size', formatBytes(medianSize), Math.min(100, medianSize / 1024), '#1abc9c', medianSize < 100 ? 'OPTIMAL' : "MEDIUM")}
                     ${createAdvancedMetricCard('P95 Size', formatBytes(p95Size), Math.min(100, p95Size / 1024), '#e67e22', p95Size < 1024 ? 'OPTIMAL' : 'MEDIUM")}
-                    ${createAdvancedMetricCard('Fragmentation', fragmentation.toFixed(1) + '%', Math.round(fragmentation), '#95a5a6', fragmentation < 30 ? 'OPTIMAL' : 'MEDIUM")}
+                    ${createAdvancedMetricCard('Fragmentation', fragmentation.toFixed(1) + '%', Math.round(fragmentation), '#95a5a6', fragmentation < 30 ? 'OPTIMAL' : "MEDIUM")}
                 </div>
 
 
