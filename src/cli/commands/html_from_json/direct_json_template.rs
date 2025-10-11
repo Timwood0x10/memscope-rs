@@ -3006,6 +3006,15 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
     let timelineZoomLevel = 1;
     let timelineOffset = 0;
 
+    // Utility function for formatting bytes (defined early for use in multiple places)
+    function formatBytes(bytes) {
+        if (bytes === 0 || bytes === undefined || bytes === null) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return (bytes / Math.pow(k, i)).toFixed(2) + ' ' + sizes[i];
+    }
+
     function initializeEnhancedUnsafeAnalysis() {
         console.log("🔧 Initializing Enhanced Unsafe Rust & FFI Memory Analysis...");
         
@@ -3125,10 +3134,20 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
         const leakCount = data.filter(d => d.base?.is_leaked).length;
         const boundaryCount = data.filter(d => d.has_boundary_events).length;
         
-        safeUpdateElement('unsafe-critical-count', criticalCount);
-        safeUpdateElement('unsafe-leak-count', leakCount);
-        safeUpdateElement('unsafe-boundary-count', boundaryCount);
-        safeUpdateElement('unsafe-total-count', data.length);
+        // Use safe update function if available, otherwise direct update
+        const updateElement = (id, value) => {
+            if (typeof safeUpdateElement === 'function') {
+                safeUpdateElement(id, value);
+            } else {
+                const el = document.getElementById(id);
+                if (el) el.textContent = value;
+            }
+        };
+        
+        updateElement('unsafe-critical-count', criticalCount);
+        updateElement('unsafe-leak-count', leakCount);
+        updateElement('unsafe-boundary-count', boundaryCount);
+        updateElement('unsafe-total-count', data.length);
     }
 
     function applyUnsafeAnalysisFilter(filterType, data) {
@@ -3524,7 +3543,7 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
             `;
             
             const label = document.createElement('div');
-            safeUpdateElement(label.id || 'timeline-label', new Date(time / 1000000).toLocaleTimeString());
+            label.textContent = new Date(time / 1000000).toLocaleTimeString();
             label.style.cssText = `
                 position: absolute;
                 left: ${percent}%;
@@ -7403,15 +7422,15 @@ function createTimelineVisualization(allocations) {
         var sizeStr = formatBytes(alloc.size);
         
         var html = [];
-        html.push('<div class="absolute bottom-0 bg-opacity-80 rounded-t transition-all hover:bg-opacity-100 style="left:" ');
+        html.push('<div class="absolute bottom-0 bg-opacity-80 rounded-t transition-all hover:bg-opacity-100" style="left:');
         html.push(position);
-        html.push("%;width:4px;height:");
+        html.push('%;width:4px;height:');
         html.push(height);
-        html.push("%;background-color:");
+        html.push('%;background-color:');
         html.push(color);
         html.push('" title="');
         html.push(varName);
-        html.push(":");
+        html.push(':');
         html.push(sizeStr);
         html.push('"></div>');
         return html.join('');
@@ -7440,13 +7459,16 @@ function createTreemapVisualization(allocations) {
     return sortedTypes.map(([type, data], index) => {
         const width = totalSize > 0 ? (data.size / totalSize) * 100 : 12.5;
         const color = getTypeColor(type, index);
+        const truncatedType = type.length > 10 ? type.substring(0, 8) + '...' : type;
+        const formattedSize = formatBytes(data.size);
+        const titleText = type + ': ' + formattedSize + ' (' + data.count + ' allocs)';
         const result = `
-            <div class="absolute h-full transition-all hover:brightness-110 cursor-pointer rounded " 
+            <div class="absolute h-full transition-all hover:brightness-110 cursor-pointer rounded" 
                  style="left: ${currentX}%; width: ${width}%; background-color: ${color};"
-                 title="${type}: ${formatBytes(data.size)} (${data.count} allocs)">
-                <div class="p-2 h-full flex flex-col justify-center text-white text-xs font-semibold text-center ">
-                    <div class="truncate">${type.length > 10 ? type.substring(0, 8) + '...' : type}</div>
-                    <div class="text-xs opacity-90">${formatBytes(data.size)}</div>
+                 title="${titleText}">
+                <div class="p-2 h-full flex flex-col justify-center text-white text-xs font-semibold text-center">
+                    <div class="truncate">${truncatedType}</div>
+                    <div class="text-xs opacity-90">${formattedSize}</div>
                 </div>
             </div>
         `;
@@ -7596,13 +7618,14 @@ function createAdvancedTimelineVisualization(allocations, totalMemory) {
                 ${allocs.slice(0, 20).map(alloc => {
             const position = ((alloc.timestamp_alloc - minTime) / timeRange) * 100;
             const width = Math.max(2, (alloc.size / totalMemory) * 100);
+            const varName = alloc.var_name || "System";
+            const sizeStr = formatBytes(alloc.size);
 
             return `
-                        <div class="absolute h-4 rounded opacity-80 hover:opacity-100 transition-opacity cursor-pointer " 
+                        <div class="absolute h-4 rounded opacity-80 hover:opacity-100 transition-opacity cursor-pointer" 
                              style="left: ${position}%; width: ${Math.max(4, width)}px; background-color: ${color};"
-                             title="${alloc.var_name || "System"}: ${formatBytes(alloc.size)}">
+                             title="${varName}: ${sizeStr}">
                         </div>`;
-                    `;
         }).join('')}
             </div>
         `;
@@ -7798,43 +7821,49 @@ function createAdvancedGrowthTrendVisualization(allocations, totalMemory) {
         }
     });
 
-    return '
+    const gridLines = [20, 40, 60, 80].map(y => `
+        <div class="absolute w-full border-t border-gray-200 dark:border-gray-500 opacity-30" 
+             style="top: ${y}%"></div>
+    `).join('');
+    
+    const dataPoints = points.map(point => `
+        <div class="absolute w-2 h-2 bg-green-500 rounded-full border border-white dark:border-gray-600 transform -translate-x-1/2 -translate-y-1/2 hover:scale-150 transition-transform cursor-pointer" 
+             style="left: ${point.x}%; top: ${point.y}%"
+             title="Memory: ${formatBytes(point.size)}">
+        </div>
+    `).join('');
+    
+    const polylinePoints = points.map(p => `${p.x},${p.y}`).join(' ');
+    
+    return `
         <!-- Background Grid -->
         <div class="absolute inset-0">
-            ${[20, 40, 60, 80].map(y => '
-                <div class="absolute w-full border-t border-gray-200 dark:border-gray-500 opacity-30" 
-                     style="top: ${y}%"></div>
-            ").join("")}
+            ${gridLines}
         </div>
         
         <!-- Growth Line -->
-        <svg class="absolute inset-0 w-full h-full ">
+        <svg class="absolute inset-0 w-full h-full">
             <polyline
                 fill="none"
                 stroke="#27ae60"
                 stroke-width="3"
                 stroke-linecap="round"
                 stroke-linejoin="round"
-                points="${points.map(p => `${p.x},${p.y}`).join(' ')}"
-                class="drop-shadow-sm "
+                points="${polylinePoints}"
+                class="drop-shadow-sm"
             />
         </svg>
         
         <!-- Data Points -->
-        ${points.map(point => "
-            <div class="absolute w-2 h-2 bg-green-500 rounded-full border border-white dark:border-gray-600 transform -translate-x-1/2 -translate-y-1/2 hover:scale-150 transition-transform cursor-pointer " 
-                 style="left: ${point.x}%; top: ${point.y}%"
-                 title="Memory: ${formatBytes(point.size)}">
-            </div>
-        ").join("")
+        ${dataPoints}
         
         <!-- Peak Memory Line -->
         <div class="absolute w-full border-t-2 border-red-500 border-dashed opacity-60" style="top: 20%">
-            <div class="absolute -top-1 right-0 text-xs text-red-500 bg-white dark:bg-gray-600 px-1 rounded ">
+            <div class="absolute -top-1 right-0 text-xs text-red-500 bg-white dark:bg-gray-600 px-1 rounded">
                 Peak: ${formatBytes(totalMemory)}
             </div>
         </div>
-    ';
+    `;
 }
 
 const CREATE_VARIABLE_ALLOCATION_TIMELINE_JS: &str = r#"
@@ -7942,7 +7971,7 @@ function initAllocationsTable() {
 
         if (!showAll && allocations.length > maxInitialRows) {
             tbody.innerHTML += "<tr class='bg-gray-50 dark:bg-gray-700'>" +
-                    "<td colspan='5' class='px-4 py-2 text-center text-gray-500 dark:text-gray-400 text-sm'>" +
+                    '<td colspan="5" class="px-4 py-2 text-center text-gray-500 dark:text-gray-400 text-sm">' +
                         "... and " + (allocations.length - maxInitialRows) + " more allocations" +
                     "</td>" +
                 "</tr>";
@@ -7958,7 +7987,7 @@ function initAllocationsTable() {
 
         // Clear any existing event listeners and add new one
         toggleButton.replaceWith(toggleButton.cloneNode(true));
-        const newToggleButton = document.getElementById('toggle-allocations");
+        const newToggleButton = document.getElementById("toggle-allocations");
 
         newToggleButton.addEventListener("click", function (e) {
             e.preventDefault();
@@ -9104,11 +9133,11 @@ function createFFIDashboardSVG(unsafeAllocs, ffiAllocs, boundaryCrossings, safet
 
             <!-- Key Metrics Row -->
             <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
-                ${createFFIMetricCard('Unsafe Allocations', unsafeAllocs, '#e74c3c', 'fa-exclamation-triangle")}
-                ${createFFIMetricCard('FFI Allocations', ffiAllocs, '#3498db', 'fa-exchange")}
-                ${createFFIMetricCard('Boundary Crossings', boundaryCrossings, '#f39c12', 'fa-arrows-h")}
-                ${createFFIMetricCard('Safety Violations', safetyViolations, '#e67e22', 'fa-warning")}
-                ${createFFIMetricCard('Unsafe Memory', formatBytes(unsafeMemory), '#9b59b6', 'fa-memory")}
+                ${createFFIMetricCard('Unsafe Allocations', unsafeAllocs, '#e74c3c', 'fa-exclamation-triangle')}
+                ${createFFIMetricCard('FFI Allocations', ffiAllocs, '#3498db', 'fa-exchange')}
+                ${createFFIMetricCard('Boundary Crossings', boundaryCrossings, '#f39c12', 'fa-arrows-h')}
+                ${createFFIMetricCard('Safety Violations', safetyViolations, '#e67e22', 'fa-warning')}
+                ${createFFIMetricCard('Unsafe Memory', formatBytes(unsafeMemory), '#9b59b6', 'fa-memory')}
             </div>
 
             <!-- Main Dashboard Content -->
@@ -9293,7 +9322,7 @@ function createMemoryHotspot(item) {
 // Simple detail panel for FFI hotspot items
 window.showFFIDetailFromDataset = function(el) {
     try {
-        const container = document.getElementById('ffiVisualization");
+        const container = document.getElementById('ffiVisualization');
         if (!container) return;
 
         // Remove existing panel
@@ -9343,7 +9372,7 @@ window.showFFIDetailFromDataset = function(el) {
 
 // Initialize memory fragmentation analysis with enhanced SVG-style visualization
 function initMemoryFragmentation() {
-    const container = document.getElementById('memoryFragmentation");
+    const container = document.getElementById('memoryFragmentation');
     if (!container) return;
 
     const allocations = window.analysisData.memory_analysis?.allocations || [];
@@ -9568,7 +9597,7 @@ function calculateSizeVariance(allocations) {
     const mean = sizes.reduce((sum, size) => sum + size, 0) / sizes.length;
     const variance = sizes.reduce((sum, size) => sum + Math.pow(size - mean, 2), 0) / sizes.length;
     
-    return Math.sqrt(variance); // 返回标准差
+    return Math.sqrt(variance);
 }
 
 // Helper functions for fragmentation analysis
@@ -11037,7 +11066,7 @@ function formatBytes(bytes) {
 
 // Show empty state when no user variables found
 function showEmptyLifetimeState() {
-    const container = document.getElementById('lifetimeVisualization");
+    const container = document.getElementById("lifetimeVisualization");
     if (!container) return;
 
     container.innerHTML = `
@@ -11147,7 +11176,7 @@ function updateAllocationsTable(data) {
         
         return `<tr>
             <td>${a.var_name || 'Unknown'}</td>
-            <td>${formatTypeName(a.type_name || 'Unknown")}</td>
+            <td>${formatTypeName(a.type_name || 'Unknown')}</td>
             <td>${formatBytes(a.size || 0)}</td>
             <td><span class="status-badge ${statusClass}">${status}</span></td>
         </tr>`;
@@ -11164,7 +11193,7 @@ function updateUnsafeTable(data) {
     
     unsafeTable.innerHTML = (ops || []).slice(0, 50).map(op => {
         const riskLevel = op.risk_level || ((op.safety_violations||[]).length > 2 ? 'High' : 
-                         ((op.safety_violations||[]).length > 0 ? 'Medium' : 'Low"));
+                         ((op.safety_violations||[]).length > 0 ? 'Medium' : 'Low'));
         
         const riskText = riskLevel === 'High' ? 'High Risk' : (riskLevel === 'Medium' ? 'Medium Risk' : 'Low Risk");
         const riskClass = riskLevel === 'High' ? 'risk-high' : (riskLevel === 'Medium' ? 'risk-medium' : 'risk-low");
@@ -11638,7 +11667,7 @@ function initFFIRiskChart(data) {
         }
     } catch (_) {}
 
-    const ctx = document.getElementById('ffi-risk-chart");
+    const ctx = document.getElementById('ffi-risk-chart');
     if (!ctx) return;
     
     const ffiData = data.unsafe_ffi?.enhanced_ffi_data || [];
@@ -11680,7 +11709,7 @@ function initFFIRiskChart(data) {
 
 // Add missing chart and graph functions
 function initGrowthTrends(data) {
-    const container = document.getElementById('growth");
+    const container = document.getElementById('growth');
     if (!container) return;
     
     const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
@@ -11720,7 +11749,7 @@ function initGrowthTrends(data) {
 }
 
 function initMemoryFragmentation(data) {
-    const container = document.getElementById('memoryFragmentation");
+    const container = document.getElementById('memoryFragmentation');
     if (!container) return;
     
     const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
@@ -11759,7 +11788,7 @@ function initMemoryFragmentation(data) {
 }
 
 function initVariableGraph(data) {
-    const container = document.getElementById('graph");
+    const container = document.getElementById('graph');
     if (!container) return;
     
     const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
@@ -11840,7 +11869,7 @@ function initVariableGraph(data) {
 
 // Initialize lifetime visualization
 function initLifetimeVisualization(data) {
-    const container = document.getElementById('lifetimes");
+    const container = document.getElementById('lifetimes');
     if (!container) return;
     
     const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
@@ -11884,7 +11913,7 @@ function initLifetimeVisualization(data) {
                 </div>
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <span style="font-size: 0.8rem; color: var(--text-secondary);">
-                        ${formatTypeName(alloc.type_name || 'Unknown")}
+                        ${formatTypeName(alloc.type_name || 'Unknown')}
                     </span>
                     <span style="
                         font-size: 0.8rem; 
@@ -11938,7 +11967,7 @@ function populateAllocationsTable() {
         
         return `<tr>
             <td>${a.var_name || 'Unknown'}</td>
-            <td>${formatTypeName(a.type_name || 'Unknown")}</td>
+            <td>${formatTypeName(a.type_name || 'Unknown')}</td>
             <td>${formatBytes(a.size || 0)}</td>
             <td><span class="status-badge ${statusClass}">${status}</span></td>
         </tr>`;
@@ -12126,7 +12155,7 @@ function renderLifetimes() {
                 </div>
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <span style="font-size: 0.8rem; color: var(--text-secondary);">
-                        ${formatTypeName(alloc.type_name || 'Unknown")}
+                        ${formatTypeName(alloc.type_name || 'Unknown')}
                     </span>
                     <span style="
                         font-size: 0.8rem; 
@@ -12205,7 +12234,7 @@ function renderFFI() {
     }
     
     // Main comprehensive FFI visualization based on project's actual SVG code
-    const container = document.getElementById('ffiVisualization");
+    const container = document.getElementById('ffiVisualization');
     if (!container) return;
     
     const data = window.analysisData || {};
@@ -12722,7 +12751,7 @@ function renderMemoryUsageAnalysis() {
 }
 
 function renderMemoryFragmentation() {
-    const container = document.getElementById('memoryFragmentation");
+    const container = document.getElementById('memoryFragmentation');
     if (!container) return;
     
     const data = window.analysisData || {};
@@ -13211,7 +13240,7 @@ function renderVariableGraph() {
 
 // Graph interaction functions
 function setupGraphInteractions() {
-    const svg = document.getElementById('graph-svg");
+    const svg = document.getElementById('graph-svg');
     const nodeElements = document.querySelectorAll('.graph-node');
     
     let draggedNode = null;
@@ -13327,9 +13356,9 @@ function updateConnectedLinks(nodeIndex, newX, newY) {
 }
 
 function showNodeDetails(nodeElement) {
-    const panel = document.getElementById('node-detail-panel");
-    const title = document.getElementById('detail-title");
-    const content = document.getElementById('detail-content");
+    const panel = document.getElementById('node-detail-panel');
+    const title = document.getElementById('detail-title');
+    const content = document.getElementById('detail-content');
     
     if (!panel || !title || !content) return;
     
@@ -13368,7 +13397,7 @@ function showNodeDetails(nodeElement) {
     
     // Position panel near the node
     const rect = nodeElement.getBoundingClientRect();
-    const containerRect = nodeElement.closest('#graph").getBoundingClientRect();
+    const containerRect = nodeElement.closest('#graph').getBoundingClientRect();
     
     panel.style.left = Math.min(rect.left - containerRect.left + 30, containerRect.width - 300) + 'px';
     panel.style.top = Math.max(rect.top - containerRect.top - 50, 10) + 'px';
@@ -13376,7 +13405,7 @@ function showNodeDetails(nodeElement) {
 }
 
 function hideNodeDetails() {
-    const panel = document.getElementById('node-detail-panel");
+    const panel = document.getElementById('node-detail-panel');
     if (panel) {
         panel.style.display = 'none';
     }
@@ -13384,11 +13413,11 @@ function hideNodeDetails() {
 
 // Pan and zoom functionality for the graph
 function setupPanZoom() {
-    const svg = document.getElementById('graph-svg");
-    const container = document.getElementById('graph-container");
-    const zoomInBtn = document.getElementById('zoom-in");
-    const zoomOutBtn = document.getElementById('zoom-out");
-    const resetBtn = document.getElementById('reset-view");
+    const svg = document.getElementById('graph-svg');
+    const container = document.getElementById('graph-container');
+    const zoomInBtn = document.getElementById('zoom-in');
+    const zoomOutBtn = document.getElementById('zoom-out');
+    const resetBtn = document.getElementById('reset-view');
     
     if (!svg || !container) return;
     
@@ -13486,15 +13515,15 @@ function setupLifecycleToggle() {
         oldBtn.parentNode.replaceChild(cloned, oldBtn);
     }
 
-    const toggleBtn = document.getElementById('toggle-lifecycle");
+    const toggleBtn = document.getElementById('toggle-lifecycle');
     if (!toggleBtn) return;
     
-    const lifeContainer = document.getElementById('lifetimeVisualization");
+    const lifeContainer = document.getElementById('lifetimeVisualization');
     
     let isExpanded = false;
     
     toggleBtn.addEventListener("click", function() {
-        const container = document.getElementById('lifetimeVisualization");
+        const container = document.getElementById('lifetimeVisualization');
         if (!container) return;
         
         const data = window.analysisData || {};
@@ -13525,7 +13554,7 @@ function setupLifecycleToggle() {
 }
 
 function renderLimitedLifecycleTimeline(allocs) {
-    const container = document.getElementById('lifetimeVisualization");
+    const container = document.getElementById('lifetimeVisualization');
     if (!container) return;
     
     // Create timeline visualization (limited to 20)
@@ -13579,7 +13608,7 @@ function renderLimitedLifecycleTimeline(allocs) {
 }
 
 function renderFullLifecycleTimeline(allocs) {
-    const container = document.getElementById('lifetimeVisualization");
+    const container = document.getElementById('lifetimeVisualization');
     if (!container) return;
     
     // Create full timeline visualization
@@ -13631,7 +13660,7 @@ function renderFullLifecycleTimeline(allocs) {
                 <div style="display: flex; justify-content: space-between; margin-bottom: 3px; font-size: 0.75rem;">
                     <span style="font-weight: 600;">${alloc.var_name || `var_${index}`}</span>
                     <div style="display: flex; gap: 8px;">
-                        <span style="color: var(--text-secondary);">${formatTypeName(alloc.type_name || 'Unknown")}</span>
+                        <span style="color: var(--text-secondary);">${formatTypeName(alloc.type_name || 'Unknown')}</span>
                         <span style="color: var(--text-secondary);">${formatBytes(alloc.size || 0)}</span>
                     </div>
                 </div>
@@ -13666,7 +13695,7 @@ function renderFullLifecycleTimeline(allocs) {
 }
 
 function setupLifecycleVisualization() {
-    const container = document.getElementById('lifetimeVisualization");
+    const container = document.getElementById('lifetimeVisualization');
     if (!container) return;
     
     const data = window.analysisData || {};
@@ -13734,9 +13763,9 @@ function initFFIVisualization() {
 
 // Complete JSON Data Explorer
 function initCompleteJSONExplorer() {
-    const container = document.getElementById('jsonDataExplorer");
-    const expandBtn = document.getElementById('expand-all-json");
-    const collapseBtn = document.getElementById('collapse-all-json");
+    const container = document.getElementById('jsonDataExplorer');
+    const expandBtn = document.getElementById('expand-all-json');
+    const collapseBtn = document.getElementById('collapse-all-json');
     
     if (!container) return;
     
@@ -13763,7 +13792,7 @@ function initCompleteJSONExplorer() {
                     if (Array.isArray(value)) {
                         itemCount = value.length + ' items';
                         dataType = 'Array';
-                    } else if (value && typeof value === 'object") {
+                    } else if (value && typeof value === 'object') {
                         itemCount = Object.keys(value).length + ' properties';
                         dataType = 'Object';
                     }
@@ -13835,7 +13864,7 @@ function createJSONSection(key, value, index) {
     
     if (Array.isArray(value)) {
         html += createArrayView(value, key);
-    } else if (value && typeof value === 'object") {
+    } else if (value && typeof value === 'object') {
         html += createObjectView(value, key);
     } else {
         html += `<pre style="margin: 0; color: var(--text-primary); font-size: 0.9rem;">${JSON.stringify(value, null, 2)}</pre>`;
@@ -13915,16 +13944,16 @@ function getDataTypeInfo(value) {
     if (value === null) return 'null';
     if (value === undefined) return 'undefined';
     if (Array.isArray(value)) return `Array[${value.length}]`;
-    if (typeof value === 'object") return `Object{${Object.keys(value).length}}`;
-    if (typeof value === 'string") return `String(${value.length})`;
-    if (typeof value === 'number") return `Number(${value})`;
-    if (typeof value === 'boolean") return `Boolean(${value})`;
+    if (typeof value === 'object') return `Object{${Object.keys(value).length}}`;
+    if (typeof value === 'string') return `String(${value.length})`;
+    if (typeof value === 'number') return `Number(${value})`;
+    if (typeof value === 'boolean') return `Boolean(${value})`;
     return typeof value;
 }
 
 // Enhanced FFI Visualization with rich lifecycle data
 function initEnhancedFFIVisualization() {
-    const container = document.getElementById('ffiVisualization");
+    const container = document.getElementById('ffiVisualization');
     if (!container) return;
 
     const data = window.analysisData || {};
@@ -14556,14 +14585,14 @@ function renderEnhancedDataInsights() {
     // Update Timeline Insights
     document.getElementById('time-span').textContent = timeSpanMs.toFixed(2) + 'ms';
     document.getElementById('allocation-burst').textContent = allocationBurst + '/sec';
-    document.getElementById('peak-concurrency").textContent = Math.max(...allocs.map(a => (a.borrow_info?.max_concurrent_borrows || 0)));
+    document.getElementById('peak-concurrency').textContent = Math.max(...allocs.map(a => (a.borrow_info?.max_concurrent_borrows || 0)));
     document.getElementById('thread-activity').textContent = 'Single Thread';
     
     // Update Memory Operations
-    document.getElementById('borrow-ops").textContent = totalBorrows;
-    document.getElementById('clone-ops").textContent = totalClones;
+    document.getElementById('borrow-ops').textContent = totalBorrows;
+    document.getElementById('clone-ops').textContent = totalClones;
     document.getElementById('mut-ratio').textContent = totalImmutable > 0 ? (totalMutable / totalImmutable).toFixed(1) : '0';
-    document.getElementById('avg-borrows").textContent = (totalBorrows / allocs.length).toFixed(1);
+    document.getElementById('avg-borrows').textContent = (totalBorrows / allocs.length).toFixed(1);
     
     // Render charts with forced data refresh
     renderBorrowPatternChart(borrowPatterns);
@@ -14585,7 +14614,7 @@ function renderEnhancedDataInsights() {
 
 // Render borrow activity heatmap
 function renderBorrowPatternChart(patterns) {
-    const container = document.getElementById('borrowPatternChart");
+    const container = document.getElementById('borrowPatternChart');
     if (!container) return;
     
     const data = window.analysisData || {};
@@ -14621,10 +14650,10 @@ function renderBorrowPatternChart(patterns) {
     Object.entries(borrowGroups).forEach(([groupName, groupAllocs], groupIndex) => {
         if (groupAllocs.length === 0) return;
         
-        const groupDiv = document.createElement('div");
+        const groupDiv = document.createElement('div');
         groupDiv.style.cssText = 'margin-bottom: 12px;';
         
-        const groupHeader = document.createElement('div");
+        const groupHeader = document.createElement('div');
         groupHeader.style.cssText = `
             font-size: 11px; font-weight: 600; margin-bottom: 6px; 
             color: var(--text-primary); display: flex; align-items: center; gap: 8px;
@@ -14641,7 +14670,7 @@ function renderBorrowPatternChart(patterns) {
             </span>
         `;
         
-        const bubbleContainer = document.createElement('div");
+        const bubbleContainer = document.createElement('div');
         bubbleContainer.style.cssText = `
             display: flex; flex-wrap: wrap; gap: 4px; padding: 12px; 
             background: var(--bg-secondary); border-radius: 6px; min-height: 60px;
@@ -14655,7 +14684,7 @@ function renderBorrowPatternChart(patterns) {
             const mut = bi.mutable_borrows || 0;
             const maxConcurrent = bi.max_concurrent_borrows || 0;
             
-            const bubble = document.createElement('div");
+            const bubble = document.createElement('div');
             const size = Math.max(16, Math.min(32, 12 + (immut + mut) * 2));
             
             bubble.style.cssText = `
@@ -14695,7 +14724,7 @@ function renderBorrowPatternChart(patterns) {
     });
     
     // Add summary stats at bottom
-    const summaryDiv = document.createElement('div");
+    const summaryDiv = document.createElement('div');
     summaryDiv.style.cssText = `
         margin-top: 8px; padding: 8px; background: var(--bg-secondary); 
         border-radius: 6px; font-size: 10px; color: var(--text-secondary);
@@ -14751,7 +14780,7 @@ function showBorrowDetail(alloc) {
 
 // Render type memory distribution as interactive memory blocks
 function renderMemoryDistributionChart(allocs) {
-    const container = document.getElementById('memoryDistributionChart");
+    const container = document.getElementById('memoryDistributionChart');
     if (!container) return;
     
     // Create unique memory blocks visualization (not pie chart)
