@@ -7866,7 +7866,7 @@ function createAdvancedGrowthTrendVisualization(allocations, totalMemory) {
     `;
 }
 
-const CREATE_VARIABLE_ALLOCATION_TIMELINE_JS: &str = r#"
+
 // Create variable allocation timeline
 function createVariableAllocationTimeline(allocations) {
     const userAllocs = allocations.filter(a => a.var_name && a.var_name !== 'unknown')
@@ -7875,24 +7875,27 @@ function createVariableAllocationTimeline(allocations) {
 
     return userAllocs.map((alloc, index) => {
         const color = getTypeColor(alloc.type_name || "", index);
+        const typeName = alloc.type_name || "unknown";
+        const sizeStr = formatBytes(alloc.size || 0);
+        const timeStr = new Date(alloc.timestamp_alloc / 1000000).toLocaleTimeString();
 
-        return "
-            <div class="flex items-center space-x-3 p-2 bg-white dark:bg-gray-600 rounded border ">
-                <div class="w-3 h-3 rounded-full " style="background-color: ${color}"></div>
+        return `
+            <div class="flex items-center space-x-3 p-2 bg-white dark:bg-gray-600 rounded border">
+                <div class="w-3 h-3 rounded-full" style="background-color: ${color}"></div>
                 <div class="flex-1 min-w-0">
                     <div class="text-sm font-medium text-gray-900 dark:text-gray-100">
                         ${alloc.var_name}
                     </div>
                     <div class="text-xs text-gray-500 dark:text-gray-400">
-                        ${alloc.type_name || "unknown"} - ${formatBytes(alloc.size || 0)}
+                        ${typeName} - ${sizeStr}
                     </div>
                 </div>
-                <div class='text-xs text-gray-500 dark:text-gray-400'>
-                    ${new Date(alloc.timestamp_alloc / 1000000).toLocaleTimeString()}
+                <div class="text-xs text-gray-500 dark:text-gray-400">
+                    ${timeStr}
                 </div>
             </div>
-        ";
-    }).join("")
+        `;
+    }).join('')
 }
 
 // Helper functions for type categorization
@@ -7942,7 +7945,7 @@ function initAllocationsTable() {
     const allocations = window.analysisData.memory_analysis?.allocations || [];
 
     if (allocations.length === 0) {
-        tbody.innerHTML = "<tr><td colspan= / "5" class=/"px-4 py-8 text-center text-gray-500 dark:text-gray-400 ">No allocations found</td></tr>";
+        tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">No allocations found</td></tr>';
         if (toggleButton) {
             toggleButton.style.display = "none";
         }
