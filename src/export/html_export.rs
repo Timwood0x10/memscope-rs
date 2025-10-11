@@ -11,8 +11,7 @@ use std::io::Write;
 use std::path::Path;
 
 // Embed CSS and JS content at compile time
-const CSS_CONTENT: &str = include_str!("../../templates/styles.css");
-const JS_CONTENT: &str = include_str!("../../templates/script.js");
+use crate::cli::commands::html_from_json::{html::EMBEDDED_STYLES_CSS, js::EMBEDDED_SCRIPT_JS};
 
 /// Export comprehensive interactive HTML report
 pub fn export_interactive_html<P: AsRef<Path>>(
@@ -332,7 +331,7 @@ fn generate_html_template(
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MemScope-RS Interactive Memory Analysis</title>
     <style>
-        {CSS_CONTENT}
+        {EMBEDDED_STYLES_CSS}
     </style>
 </head>
 <body>
@@ -446,7 +445,7 @@ fn generate_html_template(
         
         // Initialization functions will be defined in JS file
         
-        {JS_CONTENT}
+        {EMBEDDED_SCRIPT_JS}
         
         // Initialize after page load
         document.addEventListener('DOMContentLoaded', function() {{
