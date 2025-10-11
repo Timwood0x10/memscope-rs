@@ -6716,9 +6716,9 @@ function initCleanTemplate() {
             {label:'Generic Types', val: s.generic_types_count||s.generic_type_count||0},
         ];
         complexSummary.innerHTML = items.map(x=>`<div class="pill">${x.label}: ${x.val}</div>`).join('');
-        document.getElementById('complexSmart")?.replaceChildren();
-        document.getElementById('complexCollections")?.replaceChildren();
-        document.getElementById('complexGenerics")?.replaceChildren();
+        document.getElementById("complexSmart")?.replaceChildren();
+        document.getElementById("complexCollections")?.replaceChildren();
+        document.getElementById("complexGenerics")?.replaceChildren();
     }
 
     // Variable relationships
@@ -7261,13 +7261,13 @@ function createMemoryAnalysisSVG(stats, allocations, userMemory, systemMemory, t
             <div class="p-6">
                 <!-- Key Performance Metrics Grid -->
                 <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 mb-8">
-                    ${createAdvancedMetricCard('Active Memory', formatBytes(userMemory), Math.round(userPercentage), '#3498db', 'MEDIUM")}
+                    ${createAdvancedMetricCard('Active Memory', formatBytes(userMemory), Math.round(userPercentage), '#3498db', "MEDIUM")}
                     ${createAdvancedMetricCard('Peak Memory', formatBytes(totalMemory), 100, '#e74c3c', "HIGH")}
                     ${createAdvancedMetricCard('Active Allocs', allocations.length, 100, '#2ecc71', "HIGH")}
                     ${createAdvancedMetricCard('Reclamation', reclamationRate.toFixed(1) + '%', Math.round(reclamationRate), '#f39c12', reclamationRate > 70 ? 'OPTIMAL' : "MEDIUM")}
-                    ${createAdvancedMetricCard('Efficiency', efficiency.toFixed(1) + '%', Math.round(efficiency), '#9b59b6', efficiency > 70 ? 'OPTIMAL' : 'MEDIUM")}
+                    ${createAdvancedMetricCard('Efficiency', efficiency.toFixed(1) + '%', Math.round(efficiency), '#9b59b6', efficiency > 70 ? 'OPTIMAL' : 'MEDIUM')}
                     ${createAdvancedMetricCard('Median Size', formatBytes(medianSize), Math.min(100, medianSize / 1024), '#1abc9c', medianSize < 100 ? 'OPTIMAL' : "MEDIUM")}
-                    ${createAdvancedMetricCard('P95 Size', formatBytes(p95Size), Math.min(100, p95Size / 1024), '#e67e22', p95Size < 1024 ? 'OPTIMAL' : 'MEDIUM")}
+                    ${createAdvancedMetricCard('P95 Size', formatBytes(p95Size), Math.min(100, p95Size / 1024), '#e67e22', p95Size < 1024 ? 'OPTIMAL' : 'MEDIUM')}
                     ${createAdvancedMetricCard('Fragmentation', fragmentation.toFixed(1) + '%', Math.round(fragmentation), '#95a5a6', fragmentation < 30 ? 'OPTIMAL' : "MEDIUM")}
                 </div>
 
@@ -7300,10 +7300,10 @@ function createMemoryAnalysisSVG(stats, allocations, userMemory, systemMemory, t
                     <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-6 border border-gray-200 dark:border-gray-600">
                         <h3 class="text-xl font-semibold mb-4 text-gray-800 dark:text-white text-center">Memory Fragmentation Analysis</h3>
                         <div class="space-y-4">
-                            ${createAdvancedFragmentationBar('Tiny (0-64B)', sizeDistribution.tiny, allocations.length, '#27ae60")}
-                            ${createAdvancedFragmentationBar('Small (65B-1KB)', sizeDistribution.small, allocations.length, '#f39c12")}
-                            ${createAdvancedFragmentationBar('Medium (1KB-64KB)', sizeDistribution.medium, allocations.length, '#e74c3c")}
-                            ${createAdvancedFragmentationBar('Large (>64KB)', sizeDistribution.large, allocations.length, '#8e44ad")}
+                            ${createAdvancedFragmentationBar('Tiny (0-64B)', sizeDistribution.tiny, allocations.length, "#27ae60")}
+                            ${createAdvancedFragmentationBar('Small (65B-1KB)', sizeDistribution.small, allocations.length, "#f39c12")}
+                            ${createAdvancedFragmentationBar('Medium (1KB-64KB)', sizeDistribution.medium, allocations.length, "#e74c3c")}
+                            ${createAdvancedFragmentationBar('Large (>64KB)', sizeDistribution.large, allocations.length, "#8e44ad")}
                         </div>
                     </div>
 
@@ -7403,17 +7403,17 @@ function createTimelineVisualization(allocations) {
         var sizeStr = formatBytes(alloc.size);
         
         var html = [];
-        html.push('<div class="absolute bottom-0 bg-opacity-80 rounded-t transition-all hover:bg-opacity-100" style="left:");
+        html.push('<div class="absolute bottom-0 bg-opacity-80 rounded-t transition-all hover:bg-opacity-100' style="left:");
         html.push(position);
-        html.push('%;width:4px;height:");
+        html.push("%;width:4px;height:");
         html.push(height);
-        html.push('%;background-color:");
+        html.push("%;background-color:");
         html.push(color);
-        html.push('" title="");
+        html.push('" title="');
         html.push(varName);
-        html.push(':");
+        html.push(":");
         html.push(sizeStr);
-        html.push('"></div>");
+        html.push('"></div>');
         return html.join('');
     }).join('');
 }
@@ -8294,8 +8294,8 @@ function renderLifetimeVisualizationFromRustWithCollapse(variableGroups) {
 
 // Render the lifetime visualization with collapsible functionality
 function renderLifetimeVisualizationWithCollapse(variableGroups) {
-    const container = document.getElementById('lifetimeVisualization");
-    const toggleButton = document.getElementById('toggle-lifecycle");
+    const container = document.getElementById("lifetimeVisualization");
+    const toggleButton = document.getElementById("toggle-lifecycle");
     
     if (!container) return;
 
@@ -11081,7 +11081,7 @@ function updateKPICards(data) {
     updateElement('total-allocations', allocs.length.toLocaleString());
     updateElement('active-variables', active.toLocaleString());
     updateElement('total-memory', formatBytes(total));
-    updateElement('safety-score', safetyScore + '%");
+    updateElement('safety-score', safetyScore + "%");
 }
 
 // Calculate Safety Score
@@ -11105,13 +11105,13 @@ function initThemeToggle() {
         const isDark = document.documentElement.classList.contains('dark');
         const newTheme = isDark ? 'light' : 'dark';
         
-        applyTheme(newTheme === 'dark");
+        applyTheme(newTheme === 'dark');
         localStorage.setItem('memscope-theme', newTheme);
         
         // Update button text
         const icon = toggleBtn.querySelector('i');
         const text = toggleBtn.querySelector('span');
-        if (newTheme === 'dark") {
+        if (newTheme === 'dark') {
             icon.className = "fa fa-sun";
             text.textContent = 'Light Mode';
         } else {
@@ -11123,7 +11123,7 @@ function initThemeToggle() {
     });
 }
 
-// 应用主题
+
 function applyTheme(isDark) {
     const html = document.documentElement;
     if (isDark) {
@@ -11135,7 +11135,7 @@ function applyTheme(isDark) {
 
 // Update Memory Allocation Table
 function updateAllocationsTable(data) {
-    const allocTable = document.getElementById('allocTable");
+    const allocTable = document.getElementById("allocTable");
     if (!allocTable) return;
     
     const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
@@ -11156,7 +11156,7 @@ function updateAllocationsTable(data) {
 
 // Update Unsafe Risk Table
 function updateUnsafeTable(data) {
-    const unsafeTable = document.getElementById('unsafeTable");
+    const unsafeTable = document.getElementById("unsafeTable");
     if (!unsafeTable) return;
     
     const root = data.unsafe_ffi || {};
@@ -11205,7 +11205,7 @@ function initCharts(data) {
 
 // Memory Type Distribution Chart
 function initTypeChart(data) {
-    const ctx = document.getElementById('typeChart");
+    const ctx = document.getElementById("typeChart");
     if (!ctx) return;
     
     const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
@@ -11265,7 +11265,7 @@ function initTypeChart(data) {
 
 // Memory Timeline Chart with optional Growth Rate (dual y-axes)
 function initTimelineChart(data) {
-    const ctx = document.getElementById('timelineChart");
+    const ctx = document.getElementById("timelineChart");
     if (!ctx || !window.Chart) return;
 
     // Comprehensive cleanup for timeline chart
@@ -11288,7 +11288,7 @@ function initTimelineChart(data) {
             delete window.chartInstances['timelineChart'];
         }
         
-        const context = ctx.getContext('2d");
+        const context = ctx.getContext("2d");
         context.clearRect(0, 0, ctx.width, ctx.height);
         
     } catch(e) {
@@ -11336,7 +11336,7 @@ function initTimelineChart(data) {
         }
 
         const labels = cumSeries.map(p=> new Date(p.x/1e6).toLocaleTimeString());
-        const showGrowthCheckbox = document.getElementById('toggleGrowthRate");
+        const showGrowthCheckbox = document.getElementById("toggleGrowthRate");
         const datasets = [
             {
                 type: 'line',
@@ -11393,7 +11393,7 @@ function initTimelineChart(data) {
 
         if (showGrowthCheckbox) {
             showGrowthCheckbox.onchange = () => {
-                const ds = chart.data.datasets.find(d => d.yAxisID === 'y1");
+                const ds = chart.data.datasets.find(d => d.yAxisID === 'y1');
                 if (!ds) return;
                 ds.hidden = !showGrowthCheckbox.checked;
                 chart.update();
@@ -11404,7 +11404,7 @@ function initTimelineChart(data) {
 
 // Enhanced type chart with better label handling for complex Rust types
 function initEnhancedTypeChart(data) {
-    const ctx = document.getElementById('typeChart");
+    const ctx = document.getElementById("typeChart");
     if (!ctx || !window.Chart) return;
 
     // Comprehensive cleanup for this specific chart
@@ -11431,7 +11431,7 @@ function initEnhancedTypeChart(data) {
         }
         
         // Clear canvas context
-        const context = ctx.getContext('2d");
+        const context = ctx.getContext("2d");
         context.clearRect(0, 0, ctx.width, ctx.height);
         
     } catch(e) {
@@ -11448,16 +11448,16 @@ function initEnhancedTypeChart(data) {
         const originalType = type;
         
         // Simplify complex Rust type names for better readability
-        type = type.replace(/alloc::sync::Arc/g, 'Arc");
-        type = type.replace(/alloc::rc::Rc/g, 'Rc");
-        type = type.replace(/alloc::string::String/g, 'String");
-        type = type.replace(/alloc::vec::Vec/g, 'Vec");
-        type = type.replace(/std::collections::hash::map::HashMap/g, 'HashMap");
-        type = type.replace(/std::collections::btree::map::BTreeMap/g, 'BTreeMap");
-        type = type.replace(/alloc::collections::\w+::\w+::/g, '");
+        type = type.replace(/alloc::sync::Arc/g, 'Arc');
+        type = type.replace(/alloc::rc::Rc/g, 'Rc');
+        type = type.replace(/alloc::string::String/g, 'String');
+        type = type.replace(/alloc::vec::Vec/g, 'Vec');
+        type = type.replace(/std::collections::hash::map::HashMap/g, 'HashMap');
+        type = type.replace(/std::collections::btree::map::BTreeMap/g, 'BTreeMap');
+        type = type.replace(/alloc::collections::\w+::\w+::/g, '');
         
         // Remove generic parameters for cleaner display
-        type = type.replace(/<[^>]+>/g, '<T>");
+        type = type.replace(/<[^>]+>/g, '<T>');
         
         // Truncate very long type names
         if (type.length > 25) {
@@ -11513,11 +11513,11 @@ function initEnhancedTypeChart(data) {
                                             case 'rc::Rc': return 'Rc';
                                             case 'string::String': return 'String';
                                             case 'vec::Vec': return 'Vec';
-                                            default: return p1.split('::").pop();
+                                            default: return p1.split('::').pop();
                                         }
                                     });
-                                    simplified = simplified.replace(/std::collections::hash::map::HashMap/g, 'HashMap");
-                                    simplified = simplified.replace(/std::collections::btree::map::BTreeMap/g, 'BTreeMap");
+                                    simplified = simplified.replace(/std::collections::hash::map::HashMap/g, 'HashMap');
+                                    simplified = simplified.replace(/std::collections::btree::map::BTreeMap/g, 'BTreeMap');
                                     if (simplified.length > 30) simplified = simplified.substring(0, 27) + '...';
                                     return simplified === context.label;
                                 })?.type_name || context.label;
@@ -11946,7 +11946,7 @@ function populateAllocationsTable() {
 }
 
 function renderTypeChart() {
-    const ctx = document.getElementById('typeChart");
+    const ctx = document.getElementById("typeChart");
     if (!ctx || !window.Chart) return;
     
     const data = window.analysisData || {};
@@ -11988,7 +11988,7 @@ function renderTypeChart() {
 }
 
 function renderTimelineChart() {
-    const ctx = document.getElementById('timelineChart");
+    const ctx = document.getElementById("timelineChart");
     if (!ctx || !window.Chart) return;
     
     const data = window.analysisData || {};
@@ -12921,8 +12921,8 @@ function populateUnsafeTable() {
         const riskLevel = op.risk_level || ((op.safety_violations||[]).length > 2 ? 'High' : 
                          ((op.safety_violations||[]).length > 0 ? 'Medium' : 'Low"));
         
-        const riskText = riskLevel === 'High' ? 'High Risk' : (riskLevel === 'Medium' ? 'Medium Risk' : 'Low Risk");
-        const riskClass = riskLevel === 'High' ? 'risk-high' : (riskLevel === 'Medium' ? 'risk-medium' : 'risk-low");
+        const riskText = riskLevel === 'High' ? 'High Risk' : (riskLevel === 'Medium' ? 'Medium Risk' : "Low Risk");
+        const riskClass = riskLevel === 'High' ? 'risk-high' : (riskLevel === 'Medium' ? 'risk-medium' : "risk-low");
         
         return `<tr>
             <td>${op.location || op.var_name || 'Unknown'}</td>
@@ -15500,11 +15500,11 @@ function renderEnhancedCharts() {
         const canvas = document.getElementById(canvasId);
         if (canvas && canvas.getContext) {
             try {
-                const ctx = canvas.getContext('2d");
+                const ctx = canvas.getContext("2d");
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                 // Remove Chart.js specific properties
                 delete canvas.chart;
-                canvas.removeAttribute('style");
+                canvas.removeAttribute("style");
             } catch(e) {
                 console.warn('Failed to clear canvas:', canvasId, e);
             }
