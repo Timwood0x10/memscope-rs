@@ -5819,12 +5819,12 @@ const EMBEDDED_CLEAN_DASHBOARD_TEMPLATE: &str = r#"<!DOCTYPE html>
         }
       }
 
-      heapBtn.addEventListener("click", () => applyFilter('heap'));
-      stackBtn.addEventListener("click", () => applyFilter('stack"));
-      allBtn.addEventListener("click", () => applyFilter('all"));
+      heapBtn.addEventListener("click", () => applyFilter("heap"));
+      stackBtn.addEventListener("click", () => applyFilter("stack"));
+      allBtn.addEventListener("click", () => applyFilter("all"));
 
       // Initialize
-      applyFilter('all');
+      applyFilter("all");
     }
 
     // Initialize enhanced features when DOM is loaded
@@ -6619,18 +6619,18 @@ function initCleanTemplate() {
     console.log("📊 Available data:", Object.keys(window.analysisData||{}));
     const data = window.analysisData || {};
 
-    // KPI 关键指标
+    // KPI
     updateKPICards(data);
 
     // Memory by type (Chart.js)
-    const typeChartEl = document.getElementById('typeChart");
+    const typeChartEl = document.getElementById("typeChart");
     if (typeChartEl) {
         const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
         const byType = {};
         for (const a of allocs) { const t=a.type_name||'Unknown'; byType[t]=(byType[t]||0)+(a.size||0); }
         const top = Object.entries(byType).sort((a,b)=>b[1]-a[1]).slice(0,10);
         if (top.length>0) {
-            const ctx = typeChartEl.getContext('2d");
+            const ctx = typeChartEl.getContext("2d");
             if (window.chartInstances['clean-type']) window.chartInstances['clean-type'].destroy();
             window.chartInstances['clean-type'] = new Chart(ctx, {
                 type:'bar',
@@ -6643,7 +6643,7 @@ function initCleanTemplate() {
     }
 
     // Timeline (Chart.js)
-    const timelineEl = document.getElementById('timelineChart");
+    const timelineEl = document.getElementById("timelineChart");
     if (timelineEl) {
         const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
         const rawTimeline = (data.memory_analysis && data.memory_analysis.memory_timeline) || [];
@@ -6656,7 +6656,7 @@ function initCleanTemplate() {
             for(let i=0;i<sorted.length;i+=step){ cum += sorted[i].size||0; points.push({x:i, y:cum}); }
         }
         if (points.length>1) {
-            const ctx = timelineEl.getContext('2d");
+            const ctx = timelineEl.getContext("2d");
             if (window.chartInstances['clean-timeline']) window.chartInstances['clean-timeline'].destroy();
             window.chartInstances['clean-timeline'] = new Chart(ctx, {
                 type:'line',
@@ -6667,14 +6667,14 @@ function initCleanTemplate() {
     }
 
     // Treemap
-    const treemapEl = document.getElementById('treemap");
+    const treemapEl = document.getElementById("treemap");
     if (treemapEl) {
         const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
         treemapEl.innerHTML = createTreemapVisualization(allocs);
     }
 
     // Growth
-    const growthEl = document.getElementById('growth");
+    const growthEl = document.getElementById("growth");
     if (growthEl) {
         const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
         const total = allocs.reduce((s,a)=>s+(a.size||0),0);
@@ -6682,7 +6682,7 @@ function initCleanTemplate() {
     }
 
     // Lifetimes (top 10)
-    const lifetimesEl = document.getElementById('lifetimes");
+    const lifetimesEl = document.getElementById("lifetimes");
     if (lifetimesEl) {
         const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
         const top = allocs.filter(a=>a.var_name && a.var_name!=='unknown').sort((a,b)=>(b.size||0)-(a.size||0)).slice(0,10);
@@ -6705,7 +6705,7 @@ function initCleanTemplate() {
     initLifetimeVisualization(data);
 
     // Complex types
-    const complexSummary = document.getElementById('complexSummary");
+    const complexSummary = document.getElementById("complexSummary");
     if (complexSummary) {
         const ct = data.complex_types || {};
         const s = ct.summary || {};
@@ -6722,7 +6722,7 @@ function initCleanTemplate() {
     }
 
     // Variable relationships
-    const graphEl = document.getElementById('graph");
+    const graphEl = document.getElementById("graph");
     if (graphEl) {
         // reuse our D3 relationship graph init but mount into #graph
         const container = document.createElement('div');
@@ -6734,7 +6734,7 @@ function initCleanTemplate() {
     }
 
     // Security violations
-    const secEl = document.getElementById('security");
+    const secEl = document.getElementById("security");
     if (secEl) {
         const root = data.unsafe_ffi || {};
         const list = root.security_hotspots || root.unsafe_reports || [];
@@ -6784,7 +6784,7 @@ function initThemeToggle() {
     console.log("🎨 Initializing theme system, saved theme:", savedTheme);
 
     // Apply initial theme
-    applyTheme(savedTheme === 'dark");
+    applyTheme(savedTheme === "dark");
 
     if (themeToggle) {
         themeToggle.addEventListener("click", () => {
@@ -6792,11 +6792,11 @@ function initThemeToggle() {
 
             if (isDark) {
                 applyTheme(false);
-                localStorage.setItem('memscope-theme', 'light");
+                localStorage.setItem('memscope-theme', 'light');
                 console.log("🎨 Theme switched to: light mode");
             } else {
                 applyTheme(true);
-                localStorage.setItem('memscope-theme', 'dark");
+                localStorage.setItem('memscope-theme', "dark");
                 console.log("🎨 Theme switched to: dark mode");
             }
         });
@@ -6951,7 +6951,7 @@ function initCharts() {
 
 // Initialize memory distribution chart
 function initMemoryDistributionChart() {
-    const ctx = document.getElementById('memory-distribution-chart");
+    const ctx = document.getElementById("memory-distribution-chart");
     if (!ctx) return;
 
     const allocations = window.analysisData.memory_analysis?.allocations || [];
@@ -7021,7 +7021,7 @@ function initMemoryDistributionChart() {
 
 // Initialize allocation size chart
 function initAllocationSizeChart() {
-    const ctx = document.getElementById('allocation-size-chart");
+    const ctx = document.getElementById("allocation-size-chart");
     if (!ctx) return;
 
     const allocations = window.analysisData.memory_analysis?.allocations || [];
@@ -7175,7 +7175,7 @@ function calculateMemoryStatistics(allocations) {
 
 // Initialize memory usage analysis with enhanced SVG-style visualization
 function initMemoryUsageAnalysis() {
-    const container = document.getElementById('memory-usage-analysis");
+    const container = document.getElementById("memory-usage-analysis");
     if (!container) return;
 
     // Process memory data with validation
@@ -7575,7 +7575,7 @@ function createAdvancedTimelineVisualization(allocations, totalMemory) {
     // Group allocations by scope/type for better visualization
     const scopeGroups = {};
     sortedAllocs.forEach(alloc => {
-        const scope = alloc.scope_name || (alloc.var_name ? 'User Variables' : 'System");
+        const scope = alloc.scope_name || (alloc.var_name ? 'User Variables' : "System");
         if (!scopeGroups[scope]) scopeGroups[scope] = [];
         scopeGroups[scope].push(alloc);
     });
@@ -8126,8 +8126,8 @@ function groupVariablesByName(events) {
 function renderLifetimeVisualizationFromRustWithCollapse(variableGroups) {
     console.log("📊 Rendering ${variableGroups.length} Rust-preprocessed variable groups with collapse functionality");
 
-    const container = document.getElementById('lifetimeVisualization");
-    const toggleButton = document.getElementById('toggle-lifecycle");
+    const container = document.getElementById("lifetimeVisualization");
+    const toggleButton = document.getElementById("toggle-lifecycle");
     
     if (!container) return;
 
@@ -8458,7 +8458,7 @@ function renderLifetimeVisualizationWithCollapse(variableGroups) {
 function initFFIVisualization() {
     console.log("🔄 Initializing FFI visualization...");
 
-    const container = document.getElementById('ffiVisualization");
+    const container = document.getElementById("ffiVisualization");
     if (!container) return;
 
     // Get FFI data from multiple sources with comprehensive field support
@@ -8560,7 +8560,7 @@ function initFFIVisualization() {
 
     // Generate enhanced FFI analysis with improve.md fields
     try {
-        if (FFI_STYLE === 'svg") {
+        if (FFI_STYLE === "svg") {
             const boundaryEvents = window.analysisData.unsafe_ffi?.boundary_events || [];
             const unsafeAllocs = displayAllocations.filter(a => (a.safety_violations || []).length > 0).length;
             const ffiAllocs = displayAllocations.filter(a => a.ffi_tracked).length;
