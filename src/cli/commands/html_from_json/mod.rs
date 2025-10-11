@@ -27,6 +27,9 @@ use error_handler::{ErrorRecoveryContext, HtmlErrorHandler};
 use json_file_discovery::{JsonFileConfig, JsonFileDiscovery};
 use large_file_optimizer::{LargeFileConfig, LargeFileOptimizer};
 
+mod html;
+mod js;
+
 pub mod direct_json_template;
 
 /// Run the HTML from JSON generation command
