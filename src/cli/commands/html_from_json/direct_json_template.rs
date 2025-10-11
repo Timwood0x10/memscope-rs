@@ -7403,7 +7403,7 @@ function createTimelineVisualization(allocations) {
         var sizeStr = formatBytes(alloc.size);
         
         var html = [];
-        html.push('<div class="absolute bottom-0 bg-opacity-80 rounded-t transition-all hover:bg-opacity-100' style="left:");
+        html.push('<div class="absolute bottom-0 bg-opacity-80 rounded-t transition-all hover:bg-opacity-100 style="left:" ');
         html.push(position);
         html.push("%;width:4px;height:");
         html.push(height);
