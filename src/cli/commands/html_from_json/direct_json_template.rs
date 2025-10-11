@@ -8257,8 +8257,8 @@ function renderLifetimeVisualizationFromRustWithCollapse(variableGroups) {
                         "</div>" +
                     "</div> " +
                     '<div class="absolute -top-8 left-0 text-xs bg-gray-700 text-white px-2 py-1 rounded opacity-0 hover:opacity-100 transition-opacity whitespace-nowrap">' +
-                      'Duration: ' + (firstEvent && firstEvent.lifetime_ms ? firstEvent.lifetime_ms + "ms" : "Active")' +
-                    "</div>" +
+                      'Duration: ' + (firstEvent && firstEvent.lifetime_ms ? firstEvent.lifetime_ms + 'ms' : 'Active') +
+                    '</div>' +
                 "</div>" +
                 "<div class='w-20 flex-shrink-0 pl-4 text-right'>" +
                     "<div class='text-xs text-gray-600 dark:text-gray-400'>" +
@@ -8865,7 +8865,7 @@ function createEnhancedFFIAllocationCard(alloc) {
             <div class="flex justify-between items-start mb-3">
                 <div>
                     <h4 class="font-semibold text-gray-900 dark:text-white">${alloc.var_name || 'Unknown Variable'}</h4>
-                    <p class="text-sm text-gray-600 dark:text-gray-300">${formatTypeName(alloc.type_name || 'Unknown Type")}</p>
+                    <p class="text-sm text-gray-600 dark:text-gray-300">${formatTypeName(alloc.type_name || 'Unknown Type')}</p>
                     ${alloc.isClone ? '<span class="inline-block px-2 py-1 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded-full mt-1">Clone</span>' : ''}
                 </div>
                 <div class="text-right">
@@ -9149,8 +9149,8 @@ function createFFIDashboardSVG(unsafeAllocs, ffiAllocs, boundaryCrossings, safet
                 <div class="bg-gray-700/50 rounded-lg p-4 backdrop-blur-sm">
                     <h3 class="text-lg font-semibold mb-4 text-white">Memory Allocation Sources</h3>
                     <div class="space-y-4">
-                        ${createAllocationSourceBar('Unsafe Rust', unsafeAllocs, Math.max(unsafeAllocs, ffiAllocs), '#e74c3c")}
-                        ${createAllocationSourceBar('FFI', ffiAllocs, Math.max(unsafeAllocs, ffiAllocs), '#3498db")}
+                        ${createAllocationSourceBar('Unsafe Rust', unsafeAllocs, Math.max(unsafeAllocs, ffiAllocs), '#e74c3c')}
+                        ${createAllocationSourceBar('FFI', ffiAllocs, Math.max(unsafeAllocs, ffiAllocs), '#3498db')}
                     </div>
                 </div>
 
@@ -9453,10 +9453,10 @@ function createFragmentationAnalysisSVG(fragmentationRatio, gaps, maxGap, blockC
             
             <!-- Key Metrics Grid -->
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-                ${createFragmentationMetricCard('Fragmentation', fragmentationRatio.toFixed(1) + '%', fragmentationRatio, '#f39c12")}
-                ${createFragmentationMetricCard('Memory Gaps', gaps, 100, '#3498db")}
-                ${createFragmentationMetricCard('Largest Gap', formatBytes(maxGap), 100, '#27ae60")}
-                ${createFragmentationMetricCard('Memory Blocks', blockCount, 100, '#9b59b6")}
+                ${createFragmentationMetricCard('Fragmentation', fragmentationRatio.toFixed(1) + '%', fragmentationRatio, '#f39c12')}
+                ${createFragmentationMetricCard('Memory Gaps', gaps, 100, '#3498db')}
+                ${createFragmentationMetricCard('Largest Gap', formatBytes(maxGap), 100, '#27ae60')}
+                ${createFragmentationMetricCard('Memory Blocks', blockCount, 100, '#9b59b6')}
             </div>
 
             <!-- Main Analysis Content -->
@@ -9485,10 +9485,10 @@ function createFragmentationAnalysisSVG(fragmentationRatio, gaps, maxGap, blockC
                 <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
                     <h4 class="font-semibold mb-4 text-gray-800 dark:text-white">Size Distribution</h4>
                     <div class="space-y-3">
-                        ${createSizeDistributionBar('Tiny (0-64B)', sizeDistribution.tiny, blockCount, '#27ae60")}
-                        ${createSizeDistributionBar('Small (64B-1KB)', sizeDistribution.small, blockCount, '#f39c12")}
-                        ${createSizeDistributionBar('Medium (1KB-64KB)', sizeDistribution.medium, blockCount, '#e74c3c")}
-                        ${createSizeDistributionBar('Large (>64KB)', sizeDistribution.large, blockCount, '#8e44ad")}
+                        ${createSizeDistributionBar('Tiny (0-64B)', sizeDistribution.tiny, blockCount, '#27ae60')}
+                        ${createSizeDistributionBar('Small (64B-1KB)', sizeDistribution.small, blockCount, '#f39c12')}
+                        ${createSizeDistributionBar('Medium (1KB-64KB)', sizeDistribution.medium, blockCount, '#e74c3c')}
+                        ${createSizeDistributionBar('Large (>64KB)', sizeDistribution.large, blockCount, '#8e44ad')}
                     </div>
                 </div>
             </div>
@@ -9701,10 +9701,10 @@ function createMemoryGrowthTrendsSVG(peakMemory, averageMemory, growthRate, time
             
             <!-- Key Metrics Grid -->
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-                ${createGrowthMetricCard('Peak Memory', formatBytes(peakMemory), 100, '#e74c3c")}
-                ${createGrowthMetricCard('Average Memory', formatBytes(averageMemory), Math.round((averageMemory / peakMemory) * 100), '#3498db")}
+                ${createGrowthMetricCard('Peak Memory', formatBytes(peakMemory), 100, '#e74c3c')}
+                ${createGrowthMetricCard('Average Memory', formatBytes(averageMemory), Math.round((averageMemory / peakMemory) * 100), '#3498db')}
                 ${createGrowthMetricCard('Growth Rate', (growthRate > 0 ? '+' : '") + growthRate.toFixed(1) + '%', Math.abs(growthRate), getGrowthRateColor(growthRate))}
-                ${createGrowthMetricCard('Total Allocations', totalAllocs, 100, '#9b59b6")}
+                ${createGrowthMetricCard('Total Allocations', totalAllocs, 100, '#9b59b6')}
             </div>
 
             <!-- Main Growth Chart -->
