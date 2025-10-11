@@ -7967,7 +7967,7 @@ function initAllocationsTable() {
                 "<td class='px-4 py-2 text-right text-gray-900 dark:text-gray-100'>${formatBytes(alloc.size || 0)}</td>" +
                 "<td class='px-4 py-2 text-right text-gray-900 dark:text-gray-100'>" +
                     "<span class='px-2 py-1 text-xs rounded-full ${alloc.is_active ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'}'>" +
-                        "${alloc.is_active ? "Active" : 'Deallocated'}" +
+                        '${alloc.is_active ? "Active" : "Deallocated"}' +
                     "</span>" +
                 "</td>" +
             "</tr>").join("");
@@ -8254,10 +8254,10 @@ function renderLifetimeVisualizationFromRustWithCollapse(variableGroups) {
                             "<span class='text-xs font-bold text-white drop-shadow-sm'>" +
                                 Math.round(finalWidthPercent) + '%' +
                             "</span>" +
-                        "</div>"
-                    </div>
-                    <div class="absolute -top-8 left-0 text-xs bg-gray-700 text-white px-2 py-1 rounded opacity-0 hover:opacity-100 transition-opacity whitespace-nowrap">
-                        "Duration: " + (firstEvent && firstEvent.lifetime_ms ? firstEvent.lifetime_ms + "ms" : "Active") +
+                        "</div>" +
+                    "</div> " +
+                    '<div class="absolute -top-8 left-0 text-xs bg-gray-700 text-white px-2 py-1 rounded opacity-0 hover:opacity-100 transition-opacity whitespace-nowrap">' +
+                      'Duration: ' + (firstEvent && firstEvent.lifetime_ms ? firstEvent.lifetime_ms + "ms" : "Active")' +
                     "</div>" +
                 "</div>" +
                 "<div class='w-20 flex-shrink-0 pl-4 text-right'>" +
