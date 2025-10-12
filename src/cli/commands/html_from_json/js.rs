@@ -1,3203 +1,25 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MemScope Memory Analysis Dashboard</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet" />
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
-  <script src="https://d3js.org/d3.v7.min.js"></script>
-
-  <style>
-    /* CSS Variables for theming */
-:root {
-    /* Graph and detail panel variables */
-    --graph-node-bg: #ffffff;
-    --graph-node-border: #e5e7eb;
-    --graph-link-color: #6b7280;
-    --detail-panel-bg: #ffffff;
-    --detail-panel-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-    
-    /* Text colors */
-    --text-primary: #374151;
-    --text-secondary: #6b7280;
-    --text-muted: #9ca3af;
-    --text-heading: #111827;
-    
-    /* Background colors */
-    --bg-primary: #ffffff;
-    --bg-secondary: #f9fafb;
-    --bg-tertiary: #f3f4f6;
-    --module-bg-secondary: #f9fafb;
-    --module-border-secondary: #e5e7eb;
-    
-    /* Card colors */
-    --card-bg: #ffffff;
-    --card-border: #e5e7eb;
-    --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    
-    /* Status colors - light mode */
-    --status-blue-bg: #eff6ff;
-    --status-blue-text: #1e40af;
-    --status-blue-accent: #3b82f6;
-    --status-green-bg: #f0fdf4;
-    --status-green-text: #166534;
-    --status-green-accent: #22c55e;
-    --status-orange-bg: #fff7ed;
-    --status-orange-text: #c2410c;
-    --status-orange-accent: #f97316;
-    --status-red-bg: #fef2f2;
-    --status-red-text: #dc2626;
-    --status-red-accent: #ef4444;
-}
-
-.dark {
-    /* Dark mode overrides */
-    --graph-node-bg: #374151;
-    --graph-node-border: #4b5563;
-    --graph-link-color: #9ca3af;
-    --detail-panel-bg: #1f2937;
-    --detail-panel-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
-    
-    /* Text colors */
-    --text-primary: #f9fafb;
-    --text-secondary: #d1d5db;
-    --text-muted: #9ca3af;
-    --text-heading: #ffffff;
-    
-    /* Background colors */
-    --bg-primary: #1f2937;
-    --bg-secondary: #374151;
-    --bg-tertiary: #4b5563;
-    --module-bg-secondary: #1f2937;
-    --module-border-secondary: #374151;
-    
-    /* Card colors */
-    --card-bg: #1f2937;
-    --card-border: #374151;
-    --card-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-    
-    /* Status colors - dark mode */
-    --status-blue-bg: rgba(59, 130, 246, 0.1);
-    --status-blue-text: #93c5fd;
-    --status-blue-accent: #60a5fa;
-    --status-green-bg: rgba(34, 197, 94, 0.1);
-    --status-green-text: #86efac;
-    --status-green-accent: #4ade80;
-    --status-orange-bg: rgba(249, 115, 22, 0.1);
-    --status-orange-text: #fdba74;
-    --status-orange-accent: #fb923c;
-    --status-red-bg: rgba(239, 68, 68, 0.1);
-    --status-red-text: #fca5a5;
-    --status-red-accent: #f87171;
-}
-
-/* Unsafe/FFI Cross-Boundary Swimlane Styles */
-.unsafe-ffi-swimlane-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-end;
-    gap: 2rem;
-    margin-bottom: 1.5rem;
-}
-
-.unsafe-ffi-filter-controls {
-    display: flex;
-    align-items: center;
-}
-
-.unsafe-ffi-filter-tabs {
-    display: flex;
-    gap: 0.25rem;
-    background: var(--bg-secondary);
-    padding: 0.25rem;
-    border-radius: 8px;
-    border: 1px solid var(--card-border);
-}
-
-.unsafe-ffi-filter-tab {
-    padding: 0.4rem 0.8rem;
-    border: none;
-    background: transparent;
-    color: var(--text-secondary);
-    font-size: 0.8rem;
-    font-weight: 500;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    white-space: nowrap;
-    user-select: none;
-}
-
-.unsafe-ffi-filter-tab:hover {
-    background: var(--bg-tertiary);
-    color: var(--text-primary);
-}
-
-.unsafe-ffi-filter-tab.active {
-    background: var(--status-blue-accent);
-    color: white;
-    box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
-}
-
-.unsafe-ffi-filter-tab span {
-    font-weight: 700;
-}
-
-.unsafe-ffi-territories {
-    background: var(--bg-secondary);
-    border-radius: 12px;
-    border: 1px solid var(--card-border);
-    overflow: hidden;
-}
-
-.unsafe-ffi-territory {
-    position: relative;
-    height: 60px;
-    display: flex;
-    align-items: center;
-    padding: 0 1.5rem;
-    border-bottom: 1px solid var(--card-border);
-}
-
-.unsafe-ffi-territory::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 4px;
-    height: 100%;
-}
-
-.rust-territory {
-    background: linear-gradient(135deg, rgba(255, 107, 71, 0.1) 0%, rgba(255, 107, 71, 0.05) 100%);
-}
-
-.rust-territory::before {
-    background: #ff6b47;
-    box-shadow: 0 0 10px rgba(255, 107, 71, 0.3);
-}
-
-.ffi-territory {
-    background: linear-gradient(135deg, rgba(74, 158, 255, 0.1) 0%, rgba(74, 158, 255, 0.05) 100%);
-}
-
-.ffi-territory::before {
-    background: #4a9eff;
-    box-shadow: 0 0 10px rgba(74, 158, 255, 0.3);
-}
-
-.unsafe-ffi-territory-label {
-    font-size: 1.1rem;
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    color: var(--text-primary);
-}
-
-.unsafe-ffi-territory-icon {
-    font-size: 1.5rem;
-    filter: drop-shadow(0 0 6px currentColor);
-}
-
-.unsafe-ffi-timeline-container {
-    height: 300px;
-    position: relative;
-    background: var(--bg-primary);
-    border-top: 1px solid var(--card-border);
-    border-bottom: 1px solid var(--card-border);
-}
-
-.unsafe-ffi-timeline-svg {
-    width: 100%;
-    height: 100%;
-}
-
-.unsafe-ffi-legend {
-    padding: 1rem 1.5rem;
-    background: var(--card-bg);
-    display: flex;
-    justify-content: center;
-    gap: 2rem;
-    flex-wrap: wrap;
-}
-
-.unsafe-ffi-legend-item {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-}
-
-.unsafe-ffi-legend-symbol {
-    font-size: 1rem;
-    font-weight: bold;
-    filter: drop-shadow(0 0 3px currentColor);
-}
-
-/* Unsafe/FFI Timeline Elements */
-.unsafe-ffi-grid-line {
-    stroke: var(--card-border);
-    stroke-width: 1;
-    opacity: 0.3;
-}
-
-.unsafe-ffi-time-axis {
-    font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
-    font-size: 10px;
-    fill: var(--text-secondary);
-}
-
-.unsafe-ffi-event-node {
-    cursor: pointer;
-    transition: filter 0.2s ease;
-    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2));
-    pointer-events: all;
-    user-select: none;
-}
-
-.unsafe-ffi-event-node:hover {
-    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)) drop-shadow(0 0 4px currentColor);
-}
-
-.unsafe-ffi-lifecycle-path {
-    fill: none;
-    transition: all 0.3s ease;
-    cursor: pointer;
-}
-
-.unsafe-ffi-lifecycle-path:hover {
-    filter: drop-shadow(0 0 6px currentColor);
-}
-
-/* Memory Passport for Unsafe/FFI */
-.unsafe-ffi-memory-passport {
-    position: fixed;
-    background: var(--detail-panel-bg);
-    box-shadow: var(--detail-panel-shadow);
-    border: 1px solid var(--card-border);
-    border-radius: 12px;
-    padding: 0;
-    max-width: 500px;
-    max-height: 70vh;
-    overflow: hidden;
-    z-index: 1000;
-    animation: passportSlideIn 0.3s ease-out;
-}
-
-@keyframes passportSlideIn {
-    from {
-        opacity: 0;
-        transform: translateY(-10px) scale(0.95);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-    }
-}
-
-.unsafe-ffi-passport-header {
-    background: var(--card-bg);
-    padding: 1rem 1.5rem;
-    border-bottom: 1px solid var(--card-border);
-    font-size: 1.1rem;
-    font-weight: 600;
-    position: relative;
-    cursor: move;
-    user-select: none;
-}
-
-.unsafe-ffi-passport-close {
-    position: absolute;
-    top: 0.75rem;
-    right: 1rem;
-    background: none;
-    border: none;
-    font-size: 1.5rem;
-    cursor: pointer;
-    color: var(--text-secondary);
-    transition: color 0.2s ease;
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.unsafe-ffi-passport-close:hover {
-    color: var(--status-red-accent);
-    background: var(--status-red-bg);
-}
-
-.unsafe-ffi-passport-section {
-    padding: 1rem 1.5rem;
-    border-bottom: 1px solid var(--card-border);
-}
-
-.unsafe-ffi-passport-section:last-child {
-    border-bottom: none;
-}
-
-.unsafe-ffi-passport-section h4 {
-    color: var(--text-secondary);
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 0.75rem;
-    font-weight: 600;
-}
-
-.unsafe-ffi-info-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.5rem;
-    font-size: 0.85rem;
-    line-height: 1.4;
-}
-
-.unsafe-ffi-lifecycle-event {
-    background: var(--bg-secondary);
-    padding: 0.75rem;
-    margin: 0.5rem 0;
-    border-radius: 6px;
-    border-left: 3px solid var(--status-blue-accent);
-    font-size: 0.85rem;
-    line-height: 1.5;
-    transition: all 0.2s ease;
-}
-
-.unsafe-ffi-lifecycle-event:hover {
-    background: var(--bg-tertiary);
-    transform: translateX(2px);
-}
-
-.unsafe-ffi-event-allocation { border-left-color: #ff6b47; }
-.unsafe-ffi-event-boundary { border-left-color: #00d4aa; }
-.unsafe-ffi-event-dealloc { border-left-color: #00d4aa; }
-.unsafe-ffi-event-risk { border-left-color: #ff4757; }
-
-/* Detail Panel Styles */
-.node-detail-panel {
-    background: var(--detail-panel-bg);
-    box-shadow: var(--detail-panel-shadow);
-    border: 1px solid var(--module-border-secondary);
-    border-radius: 0.5rem;
-    padding: 1rem;
-    z-index: 50;
-    min-width: 16rem;
-    max-width: 20rem;
-    position: absolute;
-}
-
-.node-detail-panel h3 {
-    color: var(--text-primary);
-    margin-bottom: 0.75rem;
-    font-size: 1.125rem;
-    font-weight: 600;
-}
-
-.node-detail-panel label {
-    color: var(--text-secondary);
-    font-size: 0.875rem;
-    font-weight: 500;
-}
-
-.node-detail-panel p {
-    color: var(--text-primary);
-    margin-bottom: 0.75rem;
-}
-
-.node-detail-panel .close-button {
-    color: var(--text-secondary);
-    transition: color 0.2s;
-}
-
-.node-detail-panel .close-button:hover {
-    color: var(--text-primary);
-}
-
-/* Graph Node Styles */
-.graph-node {
-    cursor: pointer;
-    transition: opacity 0.2s ease;
-}
-
-.graph-node:hover {
-    opacity: 1 !important;
-}
-
-.graph-node {
-    pointer-events: all;
-}
-
-.graph-node:hover {
-    animation: none !important;
-}
-
-.graph-node circle {
-    /* Don't set fill here - let D3.js control the color */
-    stroke: var(--graph-node-border);
-    transition: all 0.2s ease;
-}
-
-.graph-node:hover circle {
-    stroke-width: 3;
-    filter: brightness(1.1);
-    animation: none !important;
-}
-
-.graph-node text {
-    fill: var(--text-primary);
-    pointer-events: none;
-}
-
-/* Memory Analysis Statistics Grid */
-.memory-stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 1rem;
-    margin-bottom: 1.5rem;
-}
-
-.memory-stat-card {
-    padding: 0.75rem;
-    border-radius: 0.5rem;
-    text-align: center;
-    transition: transform 0.2s ease;
-}
-
-.memory-stat-card:hover {
-    transform: translateY(-2px);
-}
-
-.memory-stat-value {
-    font-size: 1.5rem;
-    font-weight: 700;
-    line-height: 1.2;
-}
-
-.memory-stat-label {
-    font-size: 0.75rem;
-    margin-top: 0.25rem;
-}
-
-/* Progress Bars */
-.memory-progress-bar {
-    width: 100%;
-    height: 0.75rem;
-    background-color: var(--module-bg-secondary);
-    border-radius: 9999px;
-    overflow: hidden;
-}
-
-.memory-progress-fill {
-    height: 100%;
-    border-radius: 9999px;
-    transition: width 0.5s ease;
-}
-
-/* Dark mode specific adjustments */
-.dark .memory-stats-grid .bg-blue-50 {
-    background-color: rgba(59, 130, 246, 0.1);
-}
-
-.dark .memory-stats-grid .bg-green-50 {
-    background-color: rgba(34, 197, 94, 0.1);
-}
-
-.dark .memory-stats-grid .bg-purple-50 {
-    background-color: rgba(168, 85, 247, 0.1);
-}
-
-.dark .memory-stats-grid .bg-orange-50 {
-    background-color: rgba(249, 115, 22, 0.1);
-}
-
-/* Responsive design for detail panels */
-@media (max-width: 768px) {
-    .node-detail-panel {
-        min-width: 12rem;
-        max-width: 16rem;
-        font-size: 0.875rem;
-    }
-    
-    .memory-stats-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
-}
-
-/* Unified text color classes */
-.text-primary {
-    color: var(--text-primary);
-}
-
-.text-secondary {
-    color: var(--text-secondary);
-}
-
-.text-muted {
-    color: var(--text-muted);
-}
-
-.text-heading {
-    color: var(--text-heading);
-}
-
-/* Unified background classes */
-.bg-primary {
-    background-color: var(--bg-primary);
-}
-
-.bg-secondary {
-    background-color: var(--bg-secondary);
-}
-
-.bg-tertiary {
-    background-color: var(--bg-tertiary);
-}
-
-/* Unified card classes */
-.card-bg {
-    background-color: var(--card-bg);
-}
-
-.card-border {
-    border-color: var(--card-border);
-}
-
-.card-shadow {
-    box-shadow: var(--card-shadow);
-}
-
-/* Status card classes */
-.status-card-blue {
-    background-color: var(--status-blue-bg);
-    border-left: 4px solid var(--status-blue-accent);
-}
-
-.status-card-blue .status-title {
-    color: var(--status-blue-text);
-}
-
-.status-card-blue .status-value {
-    color: var(--status-blue-accent);
-}
-
-.status-card-green {
-    background-color: var(--status-green-bg);
-    border-left: 4px solid var(--status-green-accent);
-}
-
-.status-card-green .status-title {
-    color: var(--status-green-text);
-}
-
-.status-card-green .status-value {
-    color: var(--status-green-accent);
-}
-
-.status-card-orange {
-    background-color: var(--status-orange-bg);
-    border-left: 4px solid var(--status-orange-accent);
-}
-
-.status-card-orange .status-title {
-    color: var(--status-orange-text);
-}
-
-.status-card-orange .status-value {
-    color: var(--status-orange-accent);
-}
-
-.status-card-red {
-    background-color: var(--status-red-bg);
-    border-left: 4px solid var(--status-red-accent);
-}
-
-.status-card-red .status-title {
-    color: var(--status-red-text);
-}
-
-.status-card-red .status-value {
-    color: var(--status-red-accent);
-}
-
-/* Legend and small text classes */
-.legend-text {
-    color: var(--text-secondary);
-    font-size: 0.75rem;
-}
-
-.legend-bg {
-    background-color: var(--bg-secondary);
-}
-
-/* Animation for theme transitions */
-* {
-    transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
-}
-
-/* Ensure proper contrast in dark mode */
-.dark table {
-    color: var(--text-primary);
-}
-
-.dark table th {
-    color: var(--text-secondary);
-    border-color: var(--module-border-secondary);
-}
-
-.dark table td {
-    border-color: var(--module-border-secondary);
-}
-
-.dark .card-shadow {
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
-}
-
-/* Basic CSS styles for MemScope dashboard */
-body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    margin: 0;
-    padding: 20px;
-    background-color: #f5f5f5;
-    color: #333;
-}
-
-.container {
-    max-width: 1200px;
-    margin: 0 auto;
-    background: white;
-    border-radius: 8px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    padding: 20px;
-}
-
-.header {
-    text-align: center;
-    margin-bottom: 30px;
-    padding-bottom: 20px;
-    border-bottom: 2px solid #eee;
-}
-
-.header h1 {
-    color: #2c3e50;
-    margin: 0;
-    font-size: 2.5em;
-}
-
-.stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 20px;
-    margin: 20px 0;
-}
-
-.stat-card {
-    background: #f8f9fa;
-    padding: 20px;
-    border-radius: 8px;
-    text-align: center;
-    border-left: 4px solid #3498db;
-}
-
-.stat-value {
-    font-size: 2em;
-    font-weight: bold;
-    color: #2c3e50;
-    display: block;
-}
-
-.stat-label {
-    color: #7f8c8d;
-    font-size: 0.9em;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-}
-
-.loading {
-    text-align: center;
-    padding: 40px;
-    color: #7f8c8d;
-}
-
-.error {
-    background: #e74c3c;
-    color: white;
-    padding: 15px;
-    border-radius: 5px;
-    margin: 10px 0;
-}
-
-.success {
-    background: #27ae60;
-    color: white;
-    padding: 15px;
-    border-radius: 5px;
-    margin: 10px 0;
-}
-
-.data-section {
-    margin: 30px 0;
-    padding: 20px;
-    background: #f8f9fa;
-    border-radius: 8px;
-}
-
-.data-section h2 {
-    color: #2c3e50;
-    margin-top: 0;
-}
-
-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin: 20px 0;
-}
-
-th, td {
-    padding: 12px;
-    text-align: left;
-    border-bottom: 1px solid #ddd;
-}
-
-th {
-    background-color: #3498db;
-    color: white;
-    font-weight: 600;
-}
-
-tr:hover {
-    background-color: #f5f5f5;
-}
-
-.btn {
-    background: #3498db;
-    color: white;
-    border: none;
-    padding: 10px 20px;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 14px;
-}
-
-.btn:hover {
-    background: #2980b9;
-}
-
-.progress-bar {
-    width: 100%;
-    height: 20px;
-    background: #ecf0f1;
-    border-radius: 10px;
-    overflow: hidden;
-    margin: 10px 0;
-}
-
-.progress-fill {
-    height: 100%;
-    background: #3498db;
-    transition: width 0.3s ease;
-}
-/* Mode
-rn Variable Graph Styles */
-.graph-container {
-    position: relative;
-    overflow: hidden;
-}
-
-#variable-graph-container {
-    width: 100%;
-    height: 100%;
-}
-
-#node-details {
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(0, 0, 0, 0.1);
-}
-
-.node {
-    transition: all 0.3s ease;
-}
-
-.node:hover circle {
-    stroke-width: 3;
-    filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2));
-    animation: none !important;
-}
-
-/* Unsafe FFI Dashboard Styles */
-.ffi-dashboard {
-    background: linear-gradient(135deg, #2c3e50 0%, #34495e 50%, #2c3e50 100%);
-}
-
-.metric-card {
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.metric-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-}
-
-.hotspot-circle {
-    transition: all 0.3s ease;
-}
-
-.hotspot-circle:hover {
-    transform: scale(1.1);
-    filter: brightness(1.2);
-}
-
-/* Graph Legend Styles */
-.legend-item {
-    display: flex;
-    align-items: center;
-    margin-bottom: 8px;
-}
-
-.legend-color {
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    margin-right: 8px;
-}
-
-.legend-line {
-    height: 2px;
-    margin-right: 8px;
-}
-
-/* Responsive adjustments */
-@media (max-width: 768px) {
-    #node-details {
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        width: 90%;
-        max-width: 300px;
-        z-index: 1000;
-    }
-    
-    .stats-grid {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 10px;
-    }
-    
-    .metric-card {
-        padding: 12px;
-    }
-}
-
-/* Animation classes */
-.fade-in {
-    animation: fadeIn 0.5s ease-in;
-}
-
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(20px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-/* 移除pulse动画以修复闪烁问题 */
-.pulse {
-    /* /* animation: pulse 2s infinite; */ box-shadow: 0 0 8px rgba(5, 150, 105, 0.4); */
-    transition: all 0.3s ease;
-}
-
-/* /* @keyframes pulse {
-    0% { opacity: 1; }
-    50% { opacity: 0.7; }
-    100% { opacity: 1; }
-} */
-    
-    /* Clean, high-contrast layout variables */
-    :root {
-      --primary-blue: #2563eb;
-      --primary-green: #059669;
-      --primary-red: #dc2626;
-      --primary-orange: #ea580c;
-      --text-primary: #1f2937;
-      --text-secondary: #6b7280;
-      --bg-primary: #ffffff;
-      --bg-secondary: #f8fafc;
-      --border-light: #e5e7eb;
-      --shadow-light: 0 1px 3px 0 rgb(0 0 0 / 0.1);
-    }
-    
-    .dark {
-      --text-primary: #f9fafb;
-      --text-secondary: #d1d5db;
-      --bg-primary: #111827;
-      --bg-secondary: #1f2937;
-      --border-light: #374151;
-      --shadow-light: 0 4px 6px -1px rgb(0 0 0 / 0.3);
-    }
-    
-    body {
-      font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: var(--bg-secondary);
-      color: var(--text-primary);
-      transition: all 0.3s ease;
-      line-height: 1.6;
-      margin: 0;
-      padding: 0;
-    }
-    
-    .dashboard-container {
-      max-width: 1400px;
-      margin: 0 auto;
-      padding: 24px;
-      min-height: 100vh;
-    }
-    
-    /* 顶部标题栏 */
-    .header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 32px;
-      padding: 20px 0;
-      border-bottom: 1px solid var(--border-light);
-    }
-    
-    .header h1 {
-      font-size: 2rem;
-      font-weight: 700;
-      color: var(--text-primary);
-      margin: 0;
-    }
-    
-    .header .subtitle {
-      color: var(--text-secondary);
-      font-size: 0.9rem;
-      margin-top: 4px;
-    }
-    
-    /* 主题切换按钮 */
-    .theme-toggle {
-      background: var(--primary-blue);
-      color: white;
-      border: none;
-      padding: 10px 16px;
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 14px;
-      font-weight: 500;
-      transition: all 0.2s ease;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    
-    .theme-toggle:hover {
-      background: #1d4ed8;
-      transform: translateY(-1px);
-    }
-    
-    /* 卡片样式 */
-    .card {
-      background: var(--bg-primary);
-      border: 1px solid var(--border-light);
-      border-radius: 12px;
-      padding: 24px;
-      box-shadow: var(--shadow-light);
-      transition: all 0.3s ease;
-    }
-    
-    .card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 25px -5px rgb(0 0 0 / 0.1);
-    }
-    
-    .card h2 {
-      font-size: 1.25rem;
-      font-weight: 600;
-      color: var(--text-primary);
-      margin: 0 0 16px 0;
-      border-bottom: 2px solid var(--primary-blue);
-      padding-bottom: 8px;
-    }
-    
-    /* 网格布局 */
-    .grid {
-      display: grid;
-      gap: 24px;
-      margin-bottom: 32px;
-    }
-    
-    .grid-2 { grid-template-columns: 1fr 1fr; }
-    .grid-3 { grid-template-columns: repeat(3, 1fr); }
-    .grid-4 { grid-template-columns: repeat(4, 1fr); }
-    
-    /* KPI 指标卡片 */
-    .kpi-card {
-      text-align: center;
-      padding: 20px;
-      background: linear-gradient(135deg, var(--primary-blue) 0%, #3b82f6 100%);
-      color: white;
-      border-radius: 12px;
-      border: none;
-      box-shadow: var(--shadow-light);
-    }
-    
-    .kpi-value {
-      font-size: 2rem;
-      font-weight: 700;
-      margin-bottom: 4px;
-    }
-    
-    .kpi-label {
-      font-size: 0.875rem;
-      opacity: 0.9;
-      font-weight: 500;
-    }
-    
-    /* 图表容器 */
-    .chart-container {
-      height: 300px;
-      background: var(--bg-primary);
-      border-radius: 8px;
-      position: relative;
-      padding: 16px;
-    }
-    
-    /* 表格样式 */
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 16px;
-    }
-    
-    th, td {
-      padding: 12px;
-      text-align: left;
-      border-bottom: 1px solid var(--border-light);
-    }
-    
-    th {
-      background: var(--bg-secondary);
-      font-weight: 600;
-      color: var(--text-primary);
-    }
-    
-    tr:hover {
-      background: var(--bg-secondary);
-    }
-    
-    @media (max-width: 768px) {
-      .grid-2, .grid-3, .grid-4 {
-        grid-template-columns: 1fr;
-      }
-      
-      .dashboard-container {
-        padding: 16px;
-      }
-      
-      .header {
-        flex-direction: column;
-        gap: 16px;
-        text-align: center;
-      }
-    }
-    
-    .scroll {
-      max-height: 400px;
-      overflow: auto;
-    }
-    
-    .scroll::-webkit-scrollbar {
-      width: 6px;
-    }
-    
-    .scroll::-webkit-scrollbar-track {
-      background: var(--bg-secondary);
-    }
-    
-    .scroll::-webkit-scrollbar-thumb {
-      background: var(--border-light);
-      border-radius: 3px;
-    }
-    
-    .status-badge {
-      padding: 4px 8px;
-      border-radius: 4px;
-      font-size: 0.75rem;
-      font-weight: 500;
-    }
-    
-    .status-active { background: #dcfce7; color: #166534; }
-    .status-leaked { background: #fee2e2; color: #dc2626; }
-    .status-freed { background: #e5e7eb; color: #374151; }
-    
-    .dark .status-active { background: #064e3b; color: #34d399; }
-    .dark .status-leaked { background: #7f1d1d; color: #fca5a5; }
-    .dark .status-freed { background: #374151; color: #d1d5db; }
-    
-    .risk-low { background: #dcfce7; color: #166534; }
-    .risk-medium { background: #fef3c7; color: #92400e; }
-    .risk-high { background: #fee2e2; color: #dc2626; }
-    
-    .dark .risk-low { background: #064e3b; color: #34d399; }
-    .dark .risk-medium { background: #78350f; color: #fbbf24; }
-    .dark .risk-high { background: #7f1d1d; color: #fca5a5; }
-    
-    /* Enhanced Lifecycle Visualization Styles */
-    .allocation-type {
-      padding: 3px 6px;
-      border-radius: 3px;
-      font-size: 0.7rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      display: inline-block;
-    }
-
-    .type-heap { 
-      background: #fef3c7; 
-      color: #92400e; 
-      border: 1px solid #f59e0b;
-    }
-    
-    .type-stack { 
-      background: #dbeafe; 
-      color: #1e40af; 
-      border: 1px solid #3b82f6;
-    }
-    
-    .type-unknown { 
-      background: #f3f4f6; 
-      color: #6b7280; 
-      border: 1px solid #9ca3af;
-    }
-
-    .dark .type-heap { 
-      background: #78350f; 
-      color: #fbbf24; 
-    }
-    
-    .dark .type-stack { 
-      background: #1e3a8a; 
-      color: #60a5fa; 
-    }
-    
-    .dark .type-unknown { 
-      background: #374151; 
-      color: #d1d5db; 
-    }
-
-    /* Enhanced progress bar animations */
-    @keyframes shine {
-      0% { left: -100%; }
-      50% { left: 100%; }
-      100% { left: 100%; }
-    }
-
-    /* 移除pulse动画以修复FFI节点闪烁问题 */
-    /* /* @keyframes pulse {
-      0%, 100% { opacity: 1; } */
-      50% { opacity: 0.7; }
-    } */
-
-    /* Enhanced lifecycle item styles */
-    .lifecycle-item.heap {
-      border-left-color: #ff6b35 !important;
-    }
-
-    .lifecycle-item.stack {
-      border-left-color: #4dabf7 !important;
-    }
-
-    .lifecycle-item:hover {
-      /* 移除闪烁动画 */
-      /* animation: pulse 1s ease-in-out; */
-      transform: translateX(4px);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    }
-
-    .lifecycle-bar {
-      height: 16px;
-      background: var(--bg-secondary);
-      border-radius: 8px;
-      position: relative;
-      overflow: hidden;
-      margin: 6px 0;
-      border: 1px solid var(--border-light);
-    }
-
-    .lifecycle-progress {
-      height: 100%;
-      background: linear-gradient(90deg, var(--primary-green), var(--primary-blue));
-      border-radius: 7px;
-      position: relative;
-      transition: width 0.3s ease;
-    }
-
-    .lifecycle-item {
-      margin: 8px 0;
-      padding: 12px;
-      background: var(--bg-secondary);
-      border-radius: 8px;
-      border-left: 4px solid var(--primary-blue);
-      transition: all 0.2s ease;
-    }
-
-    .lifecycle-item:hover {
-      background: var(--bg-primary);
-      box-shadow: var(--shadow-light);
-    }
-
-    .lifecycle-item.heap {
-      border-left-color: var(--primary-orange);
-    }
-
-    .lifecycle-item.stack {
-      border-left-color: var(--primary-blue);
-    }
-
-    .time-info {
-      font-size: 0.75rem;
-      color: var(--text-secondary);
-      margin-top: 6px;
-      font-family: 'Courier New', monospace;
-    }
-
-    .time-badge {
-      display: inline-block;
-      padding: 2px 6px;
-      background: var(--bg-primary);
-      border-radius: 3px;
-      margin-right: 8px;
-      border: 1px solid var(--border-light);
-    }
-  </style>
-  <script>
-    // Data injection placeholder - will be replaced by build tool
-    window.analysisData = {"complex_types":{"categorized_types":{"collections":[],"generic_types":[{"complexity_score":14,"normalized_type":"alloc::rc::Rc<T>","ptr":"0x50000003","size":40,"type_name":"alloc::rc::Rc<alloc::vec::Vec<i32>>","var_name":"rc_data"},{"complexity_score":14,"normalized_type":"alloc::rc::Rc<T>","ptr":"0x50000005","size":40,"type_name":"alloc::rc::Rc<alloc::vec::Vec<i32>>","var_name":"rc_data_clone"},{"complexity_score":6,"normalized_type":"alloc::vec::Vec<T>","ptr":"0x159f0ecf0","size":20,"type_name":"alloc::vec::Vec<i32>","var_name":"numbers_vec"},{"complexity_score":8,"normalized_type":"alloc::boxed::Box<T>","ptr":"0x70000002","size":4,"type_name":"alloc::boxed::Box<i32>","var_name":"boxed_value2"},{"complexity_score":8,"normalized_type":"alloc::boxed::Box<T>","ptr":"0x70000001","size":4,"type_name":"alloc::boxed::Box<i32>","var_name":"boxed_value"},{"complexity_score":10,"normalized_type":"alloc::sync::Arc<T>","ptr":"0x60000004","size":40,"type_name":"alloc::sync::Arc<alloc::string::String>","var_name":"arc_data"}],"smart_pointers":[],"trait_objects":[]},"complex_type_analysis":[{"allocation_count":2,"average_size":40,"category":"Generic","complexity_score":14,"max_size":40,"memory_efficiency":80,"optimization_suggestions":["High complexity type - consider simplifying or using type aliases"],"total_size":80,"type_name":"alloc::rc::Rc<T>"},{"allocation_count":1,"average_size":40,"category":"Generic","complexity_score":10,"max_size":40,"memory_efficiency":80,"optimization_suggestions":[],"total_size":40,"type_name":"alloc::sync::Arc<T>"},{"allocation_count":2,"average_size":4,"category":"Generic","complexity_score":8,"max_size":4,"memory_efficiency":90,"optimization_suggestions":[],"total_size":8,"type_name":"alloc::boxed::Box<T>"},{"allocation_count":1,"average_size":20,"category":"Generic","complexity_score":6,"max_size":20,"memory_efficiency":60,"optimization_suggestions":[],"total_size":20,"type_name":"alloc::vec::Vec<T>"},{"allocation_count":1,"average_size":19,"category":"Simple","complexity_score":1,"max_size":19,"memory_efficiency":85,"optimization_suggestions":[],"total_size":19,"type_name":"String"}],"metadata":{"analysis_type":"complex_types_analysis_optimized","export_version":"2.0","optimization_level":"high","processing_mode":"sequential","timestamp":1755571584,"total_allocations_analyzed":7,"unique_complex_types":5},"optimization_recommendations":["Use 'cargo clippy' to identify additional optimization opportunities","Consider profiling with 'perf' or 'valgrind' for detailed performance analysis"],"summary":{"collection_count":0,"complexity_distribution":{"high_complexity":3,"low_complexity":1,"medium_complexity":1,"very_high_complexity":0},"generic_type_count":6,"smart_pointer_count":0,"total_complex_types":5,"trait_object_count":0}},"lifetime":{"lifecycle_events":[{"event":"allocation","ptr":"0x50000003","scope":"global","size":40,"timestamp":1755571584308329000,"type_name":"alloc::rc::Rc<alloc::vec::Vec<i32>>","var_name":"rc_data"},{"event":"allocation","ptr":"0x159f07d90","scope":"global","size":19,"timestamp":1755571584308214000,"type_name":"String","var_name":"text_string"},{"event":"allocation","ptr":"0x50000005","scope":"global","size":40,"timestamp":1755571584308379000,"type_name":"alloc::rc::Rc<alloc::vec::Vec<i32>>","var_name":"rc_data_clone"},{"event":"allocation","ptr":"0x159f0ecf0","scope":"global","size":20,"timestamp":1755571584308115000,"type_name":"alloc::vec::Vec<i32>","var_name":"numbers_vec"},{"event":"allocation","ptr":"0x70000002","scope":"global","size":4,"timestamp":1755571584308302000,"type_name":"alloc::boxed::Box<i32>","var_name":"boxed_value2"},{"event":"allocation","ptr":"0x70000001","scope":"global","size":4,"timestamp":1755571584308233000,"type_name":"alloc::boxed::Box<i32>","var_name":"boxed_value"},{"event":"allocation","ptr":"0x60000004","scope":"global","size":40,"timestamp":1755571584308355000,"type_name":"alloc::sync::Arc<alloc::string::String>","var_name":"arc_data"}],"metadata":{"analysis_type":"integrated_lifetime_analysis","export_version":"2.0","optimization_level":"High","pipeline_features":{"batch_processing":false,"lifecycle_tracking":true},"timestamp":1755571584,"total_scopes":1},"scope_analysis":[{"allocation_count":7,"average_size":23,"max_size":40,"min_size":4,"scope_name":"global","total_size":167}],"summary":{"total_allocations":7,"total_events":7,"unique_scopes":1},"user_variables_count":7,"variable_groups":[{"color":"#4ecdc4","color_index":1,"events":[{"event":"allocation","ptr":"0x159f07d90","scope":"global","size":19,"timestamp":1755571584308214000,"type_name":"String","var_name":"text_string"}],"type_name":"String","var_name":"text_string"},{"color":"#96ceb4","color_index":3,"events":[{"event":"allocation","ptr":"0x159f0ecf0","scope":"global","size":20,"timestamp":1755571584308115000,"type_name":"alloc::vec::Vec<i32>","var_name":"numbers_vec"}],"type_name":"alloc::vec::Vec<i32>","var_name":"numbers_vec"},{"color":"#feca57","color_index":4,"events":[{"event":"allocation","ptr":"0x70000002","scope":"global","size":4,"timestamp":1755571584308302000,"type_name":"alloc::boxed::Box<i32>","var_name":"boxed_value2"}],"type_name":"alloc::boxed::Box<i32>","var_name":"boxed_value2"},{"color":"#ff9ff3","color_index":5,"events":[{"event":"allocation","ptr":"0x70000001","scope":"global","size":4,"timestamp":1755571584308233000,"type_name":"alloc::boxed::Box<i32>","var_name":"boxed_value"}],"type_name":"alloc::boxed::Box<i32>","var_name":"boxed_value"},{"color":"#45b7d1","color_index":2,"events":[{"event":"allocation","ptr":"0x50000005","scope":"global","size":40,"timestamp":1755571584308379000,"type_name":"alloc::rc::Rc<alloc::vec::Vec<i32>>","var_name":"rc_data_clone"}],"type_name":"alloc::rc::Rc<alloc::vec::Vec<i32>>","var_name":"rc_data_clone"},{"color":"#ff6b6b","color_index":0,"events":[{"event":"allocation","ptr":"0x50000003","scope":"global","size":40,"timestamp":1755571584308329000,"type_name":"alloc::rc::Rc<alloc::vec::Vec<i32>>","var_name":"rc_data"}],"type_name":"alloc::rc::Rc<alloc::vec::Vec<i32>>","var_name":"rc_data"},{"color":"#54a0ff","color_index":6,"events":[{"event":"allocation","ptr":"0x60000004","scope":"global","size":40,"timestamp":1755571584308355000,"type_name":"alloc::sync::Arc<alloc::string::String>","var_name":"arc_data"}],"type_name":"alloc::sync::Arc<alloc::string::String>","var_name":"arc_data"}],"visualization_ready":true},"memory_analysis":{"allocations":[{"ptr":"0x50000003","scope_name":null,"size":40,"timestamp_alloc":1755571584308329000,"timestamp_dealloc":null,"type_name":"alloc::rc::Rc<alloc::vec::Vec<i32>>","var_name":"rc_data"},{"ptr":"0x159f07d90","scope_name":null,"size":19,"timestamp_alloc":1755571584308214000,"timestamp_dealloc":null,"type_name":"String","var_name":"text_string"},{"ptr":"0x50000005","scope_name":null,"size":40,"timestamp_alloc":1755571584308379000,"timestamp_dealloc":null,"type_name":"alloc::rc::Rc<alloc::vec::Vec<i32>>","var_name":"rc_data_clone"},{"ptr":"0x159f0ecf0","scope_name":null,"size":20,"timestamp_alloc":1755571584308115000,"timestamp_dealloc":null,"type_name":"alloc::vec::Vec<i32>","var_name":"numbers_vec"},{"ptr":"0x70000002","scope_name":null,"size":4,"timestamp_alloc":1755571584308302000,"timestamp_dealloc":null,"type_name":"alloc::boxed::Box<i32>","var_name":"boxed_value2"},{"ptr":"0x70000001","scope_name":null,"size":4,"timestamp_alloc":1755571584308233000,"timestamp_dealloc":null,"type_name":"alloc::boxed::Box<i32>","var_name":"boxed_value"},{"ptr":"0x60000004","scope_name":null,"size":40,"timestamp_alloc":1755571584308355000,"timestamp_dealloc":null,"type_name":"alloc::sync::Arc<alloc::string::String>","var_name":"arc_data"}],"fragmentation_analysis":{"analysis":"High fragmentation detected. Memory layout optimization recommended.","fragmentation_score":99,"gaps":4,"largest_block":40,"total_blocks":7,"total_gap_size":4461751427},"growth_trends":{"allocation_rate":0,"analysis":"High memory growth detected - investigate for memory leaks.","current_memory":167,"growth_rate":735,"peak_memory":167,"time_points":[{"index":0,"memory":20,"timestamp":1755571584308115000},{"index":1,"memory":39,"timestamp":1755571584308214000},{"index":2,"memory":43,"timestamp":1755571584308233000},{"index":3,"memory":47,"timestamp":1755571584308302000},{"index":4,"memory":87,"timestamp":1755571584308329000},{"index":5,"memory":127,"timestamp":1755571584308355000},{"index":6,"memory":167,"timestamp":1755571584308379000}]},"memory_stats":{"active_memory":1938308,"peak_memory":1938308,"total_allocated":1938308,"total_allocations":6906},"metadata":{"analysis_type":"integrated_memory_analysis","export_version":"2.0","optimization_level":"High","pipeline_features":{"batch_processing":false,"boundary_events":true,"enhanced_ffi":true,"memory_passports":true},"timestamp":1755571584,"total_allocations":7},"visualization_ready":true},"performance":{"allocation_distribution":{"tiny":7},"export_performance":{"allocations_processed":7,"processing_rate":{"allocations_per_second":7000.0,"performance_class":"good"},"total_processing_time_ms":2},"memory_performance":{"active_memory":1938308,"memory_efficiency":100,"peak_memory":1938308,"total_allocated":1938308},"metadata":{"analysis_type":"integrated_performance_analysis","export_version":"2.0","optimization_level":"High","timestamp":1755571584},"optimization_status":{"batch_size":1000,"buffer_size_kb":256,"parallel_processing":true,"schema_validation":false,"streaming_enabled":true,"type_caching":true},"pipeline_metrics":{"batch_processor":{"batch_size":1000,"enabled":false,"estimated_batches":1},"enhanced_features":{"boundary_events":true,"ffi_analysis":true,"memory_passports":true},"schema_validator":{"enabled":false},"streaming_writer":{"buffer_size_kb":256,"enabled":true}}},"security_violations":{"metadata":{"total_violations":0},"security_summary":{"security_analysis_summary":{"severity_breakdown":{"critical":0,"high":0,"info":0,"low":0,"medium":0},"total_violations":0}},"violation_reports":[]},"unsafe_ffi":{"boundary_events":[],"enhanced_ffi_data":[],"ffi_patterns":[],"metadata":{"analysis_type":"integrated_unsafe_ffi_analysis","export_version":"2.0","optimization_level":"High","pipeline_features":{"boundary_event_processing":true,"enhanced_ffi_analysis":true,"memory_passport_tracking":true},"timestamp":1755571584,"total_allocations_analyzed":7},"safety_violations":[],"summary":{"boundary_events":0,"enhanced_entries":0,"ffi_count":0,"risk_assessment":"low","safety_violations":0,"total_risk_items":0,"unsafe_count":0},"unsafe_indicators":[]}};
-    
-    // Emergency fallback: Load data directly from JSON files if injection failed
-    if (!window.analysisData || Object.keys(window.analysisData).length === 0 || 
-        !window.analysisData.memory_analysis || !window.analysisData.memory_analysis.allocations) {
-      
-      console.warn('Data injection failed, attempting to load from JSON files...');
-      
-      // Try to fetch the JSON data directly
-      fetch('./large_scale_user_memory_analysis.json')
-        .then(response => response.json())
-        .then(memoryData => {
-          console.log('✅ Loaded memory analysis data:', memoryData);
-          
-          // Construct the expected data structure
-          window.analysisData = {
-            memory_analysis: memoryData,
-            lifetime: {},
-            complex_types: {},
-            unsafe_ffi: {},
-            performance: {}
-          };
-          
-          // Try to load other JSON files
-          Promise.all([
-            fetch('./large_scale_user_lifetime.json').then(r => r.json()).catch(() => ({})),
-            fetch('./large_scale_user_complex_types.json').then(r => r.json()).catch(() => ({})),
-            fetch('./large_scale_user_unsafe_ffi.json').then(r => r.json()).catch(() => ({})),
-            fetch('./large_scale_user_performance.json').then(r => r.json()).catch(() => ({}))
-          ]).then(([lifetime, complexTypes, unsafeFfi, performance]) => {
-            window.analysisData.lifetime = lifetime;
-            window.analysisData.complex_types = complexTypes;
-            window.analysisData.unsafe_ffi = unsafeFfi;
-            window.analysisData.performance = performance;
-            
-            console.log('✅ All data loaded, initializing enhanced features...');
-            
-            // Trigger enhanced features initialization
-            console.log('🚀 Triggering enhanced features initialization...');
-            if (typeof initEnhancedLifecycleVisualization === 'function') {
-              setTimeout(() => {
-                console.log('🔄 Calling initEnhancedLifecycleVisualization...');
-                initEnhancedLifecycleVisualization();
-              }, 100);
-            } else {
-              console.error('❌ initEnhancedLifecycleVisualization function not found');
+use std::fs;
+use std::sync::OnceLock;
+
+static SCRIPT_JS_CACHE: OnceLock<String> = OnceLock::new();
+
+pub fn get_embedded_script_js() -> &'static str {
+    SCRIPT_JS_CACHE.get_or_init(|| {
+        // Try to load from external file first
+        if let Ok(external_path) = std::env::var("MEMSCOPE_JS_TEMPLATE") {
+            if let Ok(content) = fs::read_to_string(&external_path) {
+                println!("📁 Loaded external JS template: {}", external_path);
+                return content;
             }
-            
-            // Also trigger the main dashboard initialization if needed
-            if (typeof initDashboard === 'function') {
-              setTimeout(() => {
-                console.log('🔄 Calling initDashboard...');
-                initDashboard();
-              }, 200);
-            }
-          });
-        })
-        .catch(error => {
-          console.error('❌ Failed to load JSON data:', error);
-          
-          // Last resort: Create dummy data for testing
-          window.analysisData = {
-            memory_analysis: {
-              allocations: [
-                {
-                  var_name: 'test_var_1',
-                  type_name: 'Arc<String>',
-                  size: 1024,
-                  timestamp_alloc: Date.now() * 1000000,
-                  lifetime_ms: 100.5,
-                  is_leaked: false
-                },
-                {
-                  var_name: 'test_var_2', 
-                  type_name: 'Vec<i32>',
-                  size: 2048,
-                  timestamp_alloc: Date.now() * 1000000 + 1000000,
-                  lifetime_ms: 250.0,
-                  is_leaked: true
-                }
-              ]
-            }
-          };
-          console.log('⚠️ Using dummy data for testing');
-        });
-    } else {
-      console.log('✅ Data injection successful');
-    }
-    
-    console.log('Final analysisData:', window.analysisData);
-    console.log('Allocations available:', window.analysisData?.memory_analysis?.allocations?.length || 0);
-
-    // Unsafe/FFI Cross-Boundary Analysis
-    let unsafeFfiCurrentFilter = 'problems';
-    let unsafeFfiAllData = [];
-
-    function initializeUnsafeFfiVisualization() {
-        // Extract unsafe/FFI data from analysisData
-        const allocations = window.analysisData?.memory_analysis?.allocations || [];
-        
-        // Transform data for unsafe/FFI analysis
-        unsafeFfiAllData = allocations.map(alloc => ({
-            ptr: alloc.ptr,
-            size: alloc.size,
-            var_name: alloc.var_name,
-            type_name: alloc.type_name,
-            timestamp_alloc: alloc.timestamp_alloc || Date.now() * 1000000,
-            timestamp_dealloc: alloc.timestamp_dealloc,
-            is_leaked: !alloc.timestamp_dealloc && alloc.lifetime_ms === null,
-            ffi_tracked: alloc.type_name && (alloc.type_name.includes('*') || alloc.type_name.includes('ffi')),
-            thread_id: `ThreadId(${Math.floor(Math.random() * 4) + 1})`,
-            source: detectSource(alloc),
-            cross_boundary_events: generateBoundaryEvents(alloc)
-        }));
-
-        updateUnsafeFfiStats(unsafeFfiAllData);
-        setupUnsafeFfiFilterControls();
-        
-        const filteredData = applyUnsafeFfiFilter(unsafeFfiCurrentFilter, unsafeFfiAllData);
-        renderUnsafeFfiTimeline(filteredData);
-    }
-
-    function detectSource(alloc) {
-        if (alloc.type_name && alloc.type_name.includes('*')) {
-            return Math.random() < 0.3 ? 'UnsafeRust' : 'FfiC';
-        }
-        return null;
-    }
-
-    function generateBoundaryEvents(alloc) {
-        if (Math.random() < 0.2) { // 20% have boundary events
-            return [{
-                event_type: Math.random() < 0.5 ? 'FfiToRust' : 'RustToFfi',
-                timestamp: (alloc.timestamp_alloc + 500000) / 1000000,
-                from_context: 'context_a',
-                to_context: 'context_b'
-            }];
-        }
-        return null;
-    }
-
-    function updateUnsafeFfiStats(data) {
-        const problemCount = data.filter(d => {
-            return d.is_leaked || 
-                   (d.source === 'UnsafeRust') || 
-                   (!d.timestamp_dealloc) ||
-                   (d.cross_boundary_events && d.cross_boundary_events.length > 0);
-        }).length;
-        
-        const ffiCount = data.filter(d => d.ffi_tracked).length;
-        
-        document.getElementById('unsafe-problem-count').textContent = problemCount;
-        document.getElementById('unsafe-ffi-count').textContent = ffiCount;
-        document.getElementById('unsafe-total-count').textContent = data.length;
-    }
-
-    function applyUnsafeFfiFilter(filterType, data) {
-        switch(filterType) {
-            case 'problems':
-                return data.filter(d => {
-                    return d.is_leaked || 
-                           (d.source === 'UnsafeRust') || 
-                           (!d.timestamp_dealloc) ||
-                           (d.cross_boundary_events && d.cross_boundary_events.length > 0);
-                });
-            case 'ffi':
-                return data.filter(d => d.ffi_tracked);
-            case 'unsafe':
-                return data.filter(d => d.source === 'UnsafeRust');
-            case 'ffi-c':
-                return data.filter(d => d.source === 'FfiC');
-            case 'all':
-            default:
-                return data;
-        }
-    }
-
-    function setupUnsafeFfiFilterControls() {
-        const filterTabs = document.querySelectorAll('.unsafe-ffi-filter-tab');
-        
-        filterTabs.forEach(tab => {
-            tab.addEventListener('click', () => {
-                filterTabs.forEach(t => t.classList.remove('active'));
-                tab.classList.add('active');
-                
-                unsafeFfiCurrentFilter = tab.dataset.filter;
-                
-                const filteredData = applyUnsafeFfiFilter(unsafeFfiCurrentFilter, unsafeFfiAllData);
-                renderUnsafeFfiTimeline(filteredData);
-            });
-        });
-    }
-
-    function renderUnsafeFfiTimeline(data) {
-        const svg = d3.select('#unsafeFfiTimelineSvg');
-        const container = document.querySelector('.unsafe-ffi-timeline-container');
-        if (!container) return;
-        
-        const rect = container.getBoundingClientRect();
-        const width = rect.width;
-        const height = rect.height;
-        
-        svg.attr('viewBox', `0 0 ${width} ${height}`);
-        svg.selectAll('*').remove();
-        
-        if (data.length === 0) {
-            svg.append('text')
-                .attr('x', width / 2)
-                .attr('y', height / 2)
-                .attr('text-anchor', 'middle')
-                .attr('fill', 'var(--text-secondary)')
-                .text('No unsafe/FFI data available');
-            return;
         }
 
-        // Calculate time range
-        const allTimestamps = [];
-        data.forEach(d => {
-            allTimestamps.push(d.timestamp_alloc);
-            if (d.timestamp_dealloc) {
-                allTimestamps.push(d.timestamp_dealloc);
-            }
-            if (d.cross_boundary_events) {
-                d.cross_boundary_events.forEach(e => {
-                    allTimestamps.push(e.timestamp * 1000000);
-                });
-            }
-        });
-        
-        const timeExtent = d3.extent(allTimestamps);
-        const timeScale = d3.scaleLinear()
-            .domain(timeExtent)
-            .range([60, width - 60]);
-        
-        // Y positions
-        const rustY = height * 0.2;
-        const centerY = height * 0.5;
-        const ffiY = height * 0.8;
-        
-        // Draw time axis
-        const timeAxis = d3.axisBottom(timeScale)
-            .ticks(6)
-            .tickFormat(d => {
-                const date = new Date(d / 1000000);
-                return date.toLocaleTimeString().slice(0, 5);
-            });
-        
-        svg.append('g')
-            .attr('class', 'unsafe-ffi-time-axis')
-            .attr('transform', `translate(0, ${height - 20})`)
-            .call(timeAxis);
-        
-        // Render memory lifecycles
-        data.forEach((memBlock, index) => {
-            renderUnsafeFfiMemoryLifecycle(svg, memBlock, timeScale, rustY, centerY, ffiY, index);
-        });
-        
-        // Show aggregation info
-        if (unsafeFfiCurrentFilter !== 'all' && data.length < unsafeFfiAllData.length) {
-            const hiddenCount = unsafeFfiAllData.length - data.length;
-            svg.append('text')
-                .attr('x', width - 200)
-                .attr('y', height - 5)
-                .attr('fill', 'var(--text-secondary)')
-                .attr('font-size', '11px')
-                .style('cursor', 'pointer')
-                .text(`${hiddenCount} more items hidden, click "Show All"`)
-                .on('click', () => {
-                    document.querySelector('[data-filter="all"]').click();
-                });
-        }
-    }
+        // Fall back to embedded JS
+        EMBEDDED_SCRIPT_JS.to_string()
+    })
+}
 
-    function renderUnsafeFfiMemoryLifecycle(svg, memBlock, timeScale, rustY, centerY, ffiY, index) {
-        const events = [];
-        
-        // Determine allocation position
-        let allocY = rustY; // Default to Rust domain
-        if (memBlock.source === 'FfiC') {
-            allocY = ffiY; // FFI domain
-        }
-        
-        // Allocation event
-        events.push({
-            type: 'allocation',
-            timestamp: memBlock.timestamp_alloc,
-            x: timeScale(memBlock.timestamp_alloc),
-            y: allocY,
-            sourceType: memBlock.source || 'Rust',
-            data: memBlock
-        });
-        
-        // Boundary events
-        if (memBlock.cross_boundary_events) {
-            memBlock.cross_boundary_events.forEach(event => {
-                events.push({
-                    type: 'boundary',
-                    timestamp: event.timestamp * 1000000,
-                    x: timeScale(event.timestamp * 1000000),
-                    y: centerY,
-                    boundaryType: event.event_type,
-                    boundaryData: event,
-                    data: memBlock
-                });
-            });
-        }
-        
-        // Deallocation event
-        if (memBlock.timestamp_dealloc) {
-            events.push({
-                type: 'deallocation',
-                timestamp: memBlock.timestamp_dealloc,
-                x: timeScale(memBlock.timestamp_dealloc),
-                y: allocY,
-                data: memBlock
-            });
-        }
-        
-        // Sort by time
-        events.sort((a, b) => a.timestamp - b.timestamp);
-        
-        // Draw lifecycle path
-        if (events.length > 1) {
-            const pathData = events.map(e => [e.x, e.y]);
-            const line = d3.line().curve(d3.curveMonotoneX);
-            
-            let pathColor;
-            if (!memBlock.timestamp_dealloc || memBlock.is_leaked) {
-                pathColor = '#ff4757'; // Red: leaked
-            } else if (memBlock.source === 'UnsafeRust' || (memBlock.cross_boundary_events && memBlock.cross_boundary_events.length > 0)) {
-                pathColor = '#ffb800'; // Yellow: risk
-            } else {
-                pathColor = '#00d4aa'; // Green: normal
-            }
-            
-            svg.append('path')
-                .datum(pathData)
-                .attr('class', 'unsafe-ffi-lifecycle-path')
-                .attr('d', line)
-                .attr('stroke', pathColor)
-                .attr('stroke-width', 3)
-                .attr('fill', 'none')
-                .attr('data-ptr', memBlock.ptr)
-                .on('click', function(mouseEvent) {
-                    showUnsafeFfiMemoryPassport(events[0], memBlock, mouseEvent);
-                });
-        }
-        
-        // Draw event nodes
-        events.forEach(event => {
-            let symbol, color;
-            
-            switch(event.type) {
-                case 'allocation':
-                    symbol = '●';
-                    color = event.sourceType === 'UnsafeRust' || event.sourceType === 'Rust' ? '#ff6b47' : '#4a9eff';
-                    break;
-                case 'boundary':
-                    symbol = event.boundaryType === 'FfiToRust' ? '▲' : '▼';
-                    color = event.boundaryType === 'FfiToRust' ? '#00d4aa' : '#ff4757';
-                    break;
-                case 'deallocation':
-                    symbol = '✕';
-                    color = '#a0a0a0';
-                    break;
-            }
-            
-            svg.append('text')
-                .attr('class', 'unsafe-ffi-event-node')
-                .attr('x', event.x)
-                .attr('y', event.y)
-                .attr('text-anchor', 'middle')
-                .attr('dominant-baseline', 'middle')
-                .style('font-size', '14px')
-                .style('font-weight', 'bold')
-                .style('fill', color)
-                .style('cursor', 'pointer')
-                .text(symbol)
-                .attr('data-ptr', memBlock.ptr)
-                .on('click', function(mouseEvent) {
-                    showUnsafeFfiMemoryPassport(event, memBlock, mouseEvent);
-                });
-        });
-    }
-
-    function showUnsafeFfiMemoryPassport(event, memBlock, mouseEvent) {
-        // Remove existing passport
-        const existingPassport = document.getElementById('unsafeFfiMemoryPassport');
-        if (existingPassport) {
-            existingPassport.remove();
-        }
-        
-        const passport = document.createElement('div');
-        passport.id = 'unsafeFfiMemoryPassport';
-        passport.className = 'unsafe-ffi-memory-passport';
-        passport.innerHTML = generateUnsafeFfiPassportContent(memBlock, event);
-        
-        document.body.appendChild(passport);
-        
-        // Position passport
-        const rect = mouseEvent.target.getBoundingClientRect();
-        passport.style.left = Math.min(rect.left + 20, window.innerWidth - 520) + 'px';
-        passport.style.top = Math.min(rect.top - 10, window.innerHeight - 300) + 'px';
-        
-        // Add close functionality
-        passport.querySelector('.unsafe-ffi-passport-close').onclick = () => passport.remove();
-        
-        // Make draggable
-        makeUnsafeFfiPassportDraggable(passport);
-    }
-
-    function generateUnsafeFfiPassportContent(memBlock, event) {
-        const ptr = memBlock.ptr;
-        const isLeaked = !memBlock.timestamp_dealloc;
-        
-        let status = isLeaked ? 
-            '<span style="color: #ff4757; font-weight: bold;">⚠️ Potentially Leaked</span>' :
-            '<span style="color: #00d4aa; font-weight: bold;">✅ Deallocated</span>';
-
-        let lifecycleEvents = '';
-        
-        // Allocation event
-        lifecycleEvents += `
-            <div class="unsafe-ffi-lifecycle-event unsafe-ffi-event-allocation">
-                <strong>[${memBlock.source === 'FfiC' ? 'C/FFI Domain' : 'Rust Domain'}] ${memBlock.source === 'FfiC' ? '🔵' : '🟠'} Memory Allocation</strong><br>
-                <strong>Time:</strong> ${new Date(memBlock.timestamp_alloc / 1000000).toLocaleString()}<br>
-                <strong>Size:</strong> ${memBlock.size} bytes<br>
-                <strong>Type:</strong> ${memBlock.type_name || 'Unknown'}<br>
-                <strong>Variable:</strong> ${memBlock.var_name || 'Unknown'}
-            </div>
-        `;
-
-        // Boundary events
-        if (memBlock.cross_boundary_events) {
-            memBlock.cross_boundary_events.forEach(boundaryEvent => {
-                const symbol = boundaryEvent.event_type === 'FfiToRust' ? '🔼' : '🔽';
-                const direction = boundaryEvent.event_type === 'FfiToRust' ? 'Enter Rust' : 'Pass to FFI';
-                
-                lifecycleEvents += `
-                    <div class="unsafe-ffi-lifecycle-event unsafe-ffi-event-boundary">
-                        <strong>[Cross Boundary] ${symbol} ${direction}</strong><br>
-                        <strong>Time:</strong> ${new Date(boundaryEvent.timestamp * 1000).toLocaleString()}<br>
-                        <strong>From:</strong> ${boundaryEvent.from_context}<br>
-                        <strong>To:</strong> ${boundaryEvent.to_context}<br>
-                        <strong>Ownership:</strong> ${boundaryEvent.event_type === 'FfiToRust' ? 
-                            'May transfer to Rust' : 
-                            'May transfer to FFI'}
-                    </div>
-                `;
-            });
-        }
-
-        // Deallocation event
-        if (memBlock.timestamp_dealloc) {
-            lifecycleEvents += `
-                <div class="unsafe-ffi-lifecycle-event unsafe-ffi-event-dealloc">
-                    <strong>[Deallocation] ✅ Memory Released</strong><br>
-                    <strong>Time:</strong> ${new Date(memBlock.timestamp_dealloc / 1000000).toLocaleString()}<br>
-                    <strong>Lifetime:</strong> ${((memBlock.timestamp_dealloc - memBlock.timestamp_alloc) / 1000000).toFixed(2)} ms
-                </div>
-            `;
-        } else {
-            lifecycleEvents += `
-                <div class="unsafe-ffi-lifecycle-event unsafe-ffi-event-risk">
-                    <strong>[Warning] ⚠️ No deallocation detected</strong><br>
-                    <strong>Risk:</strong> Memory may be leaked<br>
-                    <strong>Suggestion:</strong> Check memory management logic
-                </div>
-            `;
-        }
-
-        return `
-            <div class="unsafe-ffi-passport-header">
-                Memory Passport: ${ptr}
-            </div>
-            <button class="unsafe-ffi-passport-close">×</button>
-            
-            <div class="unsafe-ffi-passport-section">
-                <h4>Base Information</h4>
-                <div class="unsafe-ffi-info-grid">
-                    <div><strong>Pointer:</strong> ${ptr}</div>
-                    <div><strong>Size:</strong> ${memBlock.size} Bytes</div>
-                    <div><strong>Status:</strong> ${status}</div>
-                    <div><strong>FFI Tracked:</strong> ${memBlock.ffi_tracked ? '✅ Yes' : '❌ No'}</div>
-                    <div><strong>Thread:</strong> ${memBlock.thread_id || 'Unknown'}</div>
-                    <div><strong>Type:</strong> ${memBlock.type_name || 'Unknown'}</div>
-                </div>
-            </div>
-            
-            <div class="unsafe-ffi-passport-section">
-                <h4>Lifecycle Log</h4>
-                ${lifecycleEvents}
-            </div>
-        `;
-    }
-
-    function makeUnsafeFfiPassportDraggable(passport) {
-        const header = passport.querySelector('.unsafe-ffi-passport-header');
-        let isDragging = false;
-        let startX, startY, initialX, initialY;
-        
-        header.addEventListener('mousedown', startDrag);
-        document.addEventListener('mousemove', drag);
-        document.addEventListener('mouseup', stopDrag);
-        
-        function startDrag(e) {
-            if (e.target.classList.contains('unsafe-ffi-passport-close')) return;
-            
-            isDragging = true;
-            startX = e.clientX;
-            startY = e.clientY;
-            
-            const rect = passport.getBoundingClientRect();
-            initialX = rect.left;
-            initialY = rect.top;
-            
-            e.preventDefault();
-        }
-        
-        function drag(e) {
-            if (!isDragging) return;
-            
-            const deltaX = e.clientX - startX;
-            const deltaY = e.clientY - startY;
-            
-            let newX = initialX + deltaX;
-            let newY = initialY + deltaY;
-            
-            // Boundary check
-            const passportRect = passport.getBoundingClientRect();
-            const minX = -passportRect.width + 100;
-            const maxX = window.innerWidth - 100;
-            const minY = 0;
-            const maxY = window.innerHeight - 100;
-            
-            newX = Math.max(minX, Math.min(maxX, newX));
-            newY = Math.max(minY, Math.min(maxY, newY));
-            
-            passport.style.left = newX + 'px';
-            passport.style.top = newY + 'px';
-        }
-        
-        function stopDrag() {
-            isDragging = false;
-        }
-    }
-
-    // Initialize unsafe/FFI visualization when data is available
-    if (window.analysisData) {
-        setTimeout(initializeUnsafeFfiVisualization, 1000);
-    }
-  </script>
-</head>
-<body>
-  <div class="dashboard-container">
-    <!-- Header -->
-    <header class="header">
-      <div>
-        <h1>MemScope Memory Analysis Dashboard</h1>
-        <div class="subtitle">Real-time Rust Memory Usage Monitoring</div>
-      </div>
-      <button id="theme-toggle" class="theme-toggle">
-        <i class="fa fa-moon"></i>
-        <span>Toggle Theme</span>
-      </button>
-    </header>
-
-    <!-- KPI Metrics -->
-    <section class="grid grid-4">
-      <div class="kpi-card">
-        <div class="kpi-value" id="total-allocations">-</div>
-        <div class="kpi-label">Total Allocations</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-value" id="active-variables">-</div>
-        <div class="kpi-label">Active Variables</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-value" id="total-memory">-</div>
-        <div class="kpi-label">Total Memory</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-value" id="safety-score">-</div>
-        <div class="kpi-label">Safety Score</div>
-      </div>
-    </section>
-
-    <!-- Key Performance Metrics (high priority position) -->
-    <section class="grid grid-2">
-      <div class="card">
-        <h2><i class="fa fa-tachometer-alt"></i> Performance Metrics</h2>
-        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
-          <div style="text-align: center; padding: 12px; background: var(--bg-secondary); border-radius: 8px;">
-            <div style="font-size: 1.5rem; font-weight: 700; color: var(--primary-blue);" id="peak-memory">0B</div>
-            <div style="font-size: 0.8rem; color: var(--text-secondary);">Peak Memory</div>
-          </div>
-          <div style="text-align: center; padding: 12px; background: var(--bg-secondary); border-radius: 8px;">
-            <div style="font-size: 1.5rem; font-weight: 700; color: var(--primary-green);" id="allocation-rate">0/sec</div>
-            <div style="font-size: 0.8rem; color: var(--text-secondary);">Allocation Rate</div>
-          </div>
-          <div style="text-align: center; padding: 12px; background: var(--bg-secondary); border-radius: 8px;">
-            <div style="font-size: 1.5rem; font-weight: 700; color: var(--primary-orange);" id="avg-lifetime">0ms</div>
-            <div style="font-size: 0.8rem; color: var(--text-secondary);">Avg Lifetime</div>
-          </div>
-          <div style="text-align: center; padding: 12px; background: var(--bg-secondary); border-radius: 8px;">
-            <div style="font-size: 1.5rem; font-weight: 700; color: var(--primary-red);" id="fragmentation">0%</div>
-            <div style="font-size: 0.8rem; color: var(--text-secondary);">Fragmentation</div>
-          </div>
-        </div>
-      </div>
-      <div class="card">
-        <h2><i class="fa fa-shield-alt"></i> Thread Safety Analysis</h2>
-        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
-          <div style="text-align: center; padding: 12px; background: var(--bg-secondary); border-radius: 8px;">
-            <div style="font-size: 1.2rem; font-weight: 600; color: var(--primary-blue);" id="arc-count">0</div>
-            <div style="font-size: 0.7rem; color: var(--text-secondary);">Arc</div>
-          </div>
-          <div style="text-align: center; padding: 12px; background: var(--bg-secondary); border-radius: 8px;">
-            <div style="font-size: 1.2rem; font-weight: 600; color: var(--primary-green);" id="rc-count">0</div>
-            <div style="font-size: 0.7rem; color: var(--text-secondary);">Rc</div>
-          </div>
-          <div style="text-align: center; padding: 12px; background: var(--bg-secondary); border-radius: 8px;">
-            <div style="font-size: 1.2rem; font-weight: 600; color: var(--primary-orange);" id="collections-count">0</div>
-            <div style="font-size: 0.7rem; color: var(--text-secondary);">Collections</div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Main Charts -->
-    <section class="grid grid-2">
-      <div class="card">
-        <h2>Memory by Type</h2>
-        <div class="chart-container">
-          <canvas id="typeChart"></canvas>
-        </div>
-      </div>
-      <div class="card">
-        <h2>Memory Over Time</h2>
-        <div class="chart-container">
-          <canvas id="timelineChart"></canvas>
-        </div>
-        <div style="margin-top:8px; font-size:12px; color: var(--text-secondary); display:flex; gap:8px; align-items:center;">
-          <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
-            <input id="toggleGrowthRate" type="checkbox" style="accent-color: var(--primary-green)" onchange="handleGrowthRateToggle(this.checked)">
-            <span>Show Growth Rate</span>
-          </label>
-          <span style="opacity:0.8">Left Y: Cumulative memory, Right Y: Growth rate</span>
-          <button id="refreshTimelineChart" style="margin-left: auto; background: var(--primary-blue); color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 10px; cursor: pointer;" onclick="refreshMemoryTimeline()">
-            <i class="fa fa-refresh"></i> Refresh
-          </button>
-        </div>
-      </div>
-    </section>
-
-    <!-- Unsafe/FFI Cross-Boundary Swimlane Diagram (Full Width) -->
-    <section class="card">
-      <div class="unsafe-ffi-swimlane-header">
-        <div>
-          <h2><i class="fa fa-shield"></i> Unsafe/FFI Cross-Boundary Analysis</h2>
-          <p style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 4px;">
-            Track memory lifecycle across Rust safety and C/FFI boundaries
-          </p>
-        </div>
-        <!-- Interactive Filter Controls -->
-        <div class="unsafe-ffi-filter-controls">
-          <div class="unsafe-ffi-filter-tabs">
-            <button class="unsafe-ffi-filter-tab active" data-filter="problems">
-              ❗ Leaks & Risks (<span id="unsafe-problem-count">0</span>)
-            </button>
-            <button class="unsafe-ffi-filter-tab" data-filter="ffi">
-              🔗 FFI Tracked (<span id="unsafe-ffi-count">0</span>)
-            </button>
-            <button class="unsafe-ffi-filter-tab" data-filter="unsafe">
-              🦀 Unsafe Rust
-            </button>
-            <button class="unsafe-ffi-filter-tab" data-filter="ffi-c">
-              ⚙️ FFI C Alloc
-            </button>
-            <button class="unsafe-ffi-filter-tab" data-filter="all">
-              ✨ Show All (<span id="unsafe-total-count">0</span>)
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div class="unsafe-ffi-territories">
-        <div class="unsafe-ffi-territory rust-territory">
-          <div class="unsafe-ffi-territory-label">
-            <span class="unsafe-ffi-territory-icon">🦀</span>
-            <span>Rust Safety Domain</span>
-          </div>
-        </div>
-
-        <div class="unsafe-ffi-timeline-container">
-          <svg class="unsafe-ffi-timeline-svg" id="unsafeFfiTimelineSvg"></svg>
-        </div>
-
-        <div class="unsafe-ffi-territory ffi-territory">
-          <div class="unsafe-ffi-territory-label">
-            <span class="unsafe-ffi-territory-icon">⚡</span>
-            <span>C/FFI Domain</span>
-          </div>
-        </div>
-
-        <div class="unsafe-ffi-legend">
-          <div class="unsafe-ffi-legend-item">
-            <span class="unsafe-ffi-legend-symbol" style="color: #ff6b47;">●</span>
-            <span>Rust Allocation</span>
-          </div>
-          <div class="unsafe-ffi-legend-item">
-            <span class="unsafe-ffi-legend-symbol" style="color: #4a9eff;">●</span>
-            <span>FFI C Allocation</span>
-          </div>
-          <div class="unsafe-ffi-legend-item">
-            <span class="unsafe-ffi-legend-symbol" style="color: #00d4aa;">▲</span>
-            <span>FFI to Rust</span>
-          </div>
-          <div class="unsafe-ffi-legend-item">
-            <span class="unsafe-ffi-legend-symbol" style="color: #ff4757;">▼</span>
-            <span>Rust to FFI</span>
-          </div>
-          <div class="unsafe-ffi-legend-item">
-            <span class="unsafe-ffi-legend-symbol" style="color: #a0a0a0;">✕</span>
-            <span>Deallocation</span>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Memory Analysis (wider layout) -->
-    <section class="grid grid-2">
-      <div class="card">
-        <h2>Type Treemap</h2>
-        <div id="treemap" class="chart-container" style="height: 360px; padding: 0; background: var(--bg-secondary); border: 1px solid var(--border-light); border-radius: 8px; overflow: hidden;"></div>
-      </div>
-      <div class="card">
-        <h2><i class="fa fa-timeline"></i> Variable Lifecycle Visualization</h2>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <div style="display: flex; gap: 6px;">
-            <button id="filter-heap" class="theme-toggle" style="background: var(--primary-orange); font-size: 10px; padding: 3px 6px;">
-              <span>Heap</span>
-            </button>
-            <button id="filter-stack" class="theme-toggle" style="background: var(--primary-blue); font-size: 10px; padding: 3px 6px;">
-              <span>Stack</span>
-            </button>
-            <button id="toggle-lifecycle" class="theme-toggle" style="background: var(--primary-green); font-size: 10px; padding: 3px 6px;">
-              <span>All</span>
-            </button>
-          </div>
-          <div style="display: flex; gap: 12px; font-size: 0.75rem; color: var(--text-secondary);">
-            <span>Heap: <span id="heap-count-mini" style="color: var(--primary-orange); font-weight: 600;">-</span></span>
-            <span>Stack: <span id="stack-count-mini" style="color: var(--primary-blue); font-weight: 600;">-</span></span>
-          </div>
-        </div>
-        <div style="margin-bottom: 8px;">
-          <button id="manual-init-btn" style="background: var(--primary-red); color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 0.8rem; cursor: pointer;">
-            🔄 Manual Initialize
-          </button>
-          <span id="init-status" style="margin-left: 8px; font-size: 0.8rem; color: var(--text-secondary);">Waiting for data...</span>
-        </div>
-        <div id="lifecycleVisualizationContainer" class="scroll" style="max-height: 320px; padding: 8px;">
-          <!-- Variable lifecycle items will be inserted here -->
-        </div>
-      </div>
-    </section>
-
-    <!-- Advanced Analysis -->
-    <section class="grid grid-2">
-      <div class="card">
-        <h2>Memory Fragmentation</h2>
-        <div id="memoryFragmentation"></div>
-      </div>
-      <div class="card">
-        <h2><i class="fa fa-fire"></i> Borrow Activity Heatmap</h2>
-        <div id="borrowPatternChart" style="height: 200px;"></div>
-      </div>
-    </section>
-
-    <!-- Allocation Timeline (Full Width) -->
-    <section class="card">
-      <h2><i class="fa fa-history"></i> Allocation Timeline</h2>
-      <div id="allocationTimelineDetail" style="height: 200px; padding: 8px; background: var(--bg-secondary); border-radius: 8px; overflow-y: auto;">
-        <div style="text-align: center; color: var(--text-secondary); margin-top: 80px;">Loading timeline...</div>
-      </div>
-    </section>
-
-    <!-- Timeline Insights & Memory Operations (2x2 Grid) -->
-    <section class="grid grid-2">
-      <div class="card">
-        <h2><i class="fa fa-clock-o"></i> Timeline Insights</h2>
-        <div id="timelineInsights" style="padding: 16px; background: var(--bg-secondary); border-radius: 8px;">
-          <div style="margin-bottom: 12px;">
-            <span style="color: var(--text-secondary); font-size: 0.9rem;">Time Span:</span>
-            <span id="time-span" style="color: var(--text-primary); font-weight: 600; margin-left: 8px;">-</span>
-          </div>
-          <div style="margin-bottom: 12px;">
-            <span style="color: var(--text-secondary); font-size: 0.9rem;">Allocation Burst:</span>
-            <span id="allocation-burst" style="color: var(--text-primary); font-weight: 600; margin-left: 8px;">-</span>
-          </div>
-          <div style="margin-bottom: 12px;">
-            <span style="color: var(--text-secondary); font-size: 0.9rem;">Peak Concurrency:</span>
-            <span id="peak-concurrency" style="color: var(--text-primary); font-weight: 600; margin-left: 8px;">-</span>
-          </div>
-          <div>
-            <span style="color: var(--text-secondary); font-size: 0.9rem;">Thread Activity:</span>
-            <div id="thread-activity" style="color: var(--text-primary); font-weight: 600; margin-left: 8px; padding: 12px; background: #f8f9fa; border-radius: 8px; margin: 8px 0; border-left: 4px solid #007bff;">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                <span style="font-weight: 600; color: #495057;">Main Thread</span>
-                <span style="padding: 4px 10px; background: #28a745; color: white; border-radius: 12px; font-size: 0.8em;">Active</span>
-              </div>
-              <div style="font-size: 0.85em; color: #6c757d;">
-                <div>ID: main | Status: Running</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      <div class="card">
-        <h2><i class="fa fa-exchange"></i> Memory Operations</h2>
-        <div id="memoryOperations" style="padding: 16px; background: var(--bg-secondary); border-radius: 8px;">
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-            <div style="text-align: center; padding: 12px; background: var(--bg-primary); border-radius: 6px;">
-              <div id="borrow-ops" style="font-size: 1.4rem; font-weight: 700; color: var(--primary-blue);">-</div>
-              <div style="font-size: 0.7rem; color: var(--text-secondary);">Borrow Ops</div>
-            </div>
-            <div style="text-align: center; padding: 12px; background: var(--bg-primary); border-radius: 6px;">
-              <div id="clone-ops" style="font-size: 1.4rem; font-weight: 700; color: var(--primary-orange);">-</div>
-              <div style="font-size: 0.7rem; color: var(--text-secondary);">Clone Ops</div>
-            </div>
-            <div style="text-align: center; padding: 12px; background: var(--bg-primary); border-radius: 6px;">
-              <div id="mut-ratio" style="font-size: 1.4rem; font-weight: 700; color: var(--primary-red);">-</div>
-              <div style="font-size: 0.7rem; color: var(--text-secondary);">Mut/Immut</div>
-            </div>
-            <div style="text-align: center; padding: 12px; background: var(--bg-primary); border-radius: 6px;">
-              <div id="avg-borrows" style="font-size: 1.4rem; font-weight: 700; color: var(--primary-green);">-</div>
-              <div style="font-size: 0.7rem; color: var(--text-secondary);">Avg/Alloc</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Type Memory Blocks & Enhanced Statistics -->
-    <section class="grid grid-2">
-      <div class="card">
-        <h2><i class="fa fa-cubes"></i> Type Memory Blocks</h2>
-        <div id="memoryDistributionChart" style="height: 200px; overflow-y: auto;"></div>
-      </div>
-      
-      <div class="card">
-        <h2><i class="fa fa-info-circle"></i> Enhanced Memory Statistics</h2>
-        <div style="padding: 16px; background: var(--bg-secondary); border-radius: 8px;">
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-            <div style="text-align: center; padding: 12px; background: var(--bg-primary); border-radius: 6px;">
-              <div id="total-allocs-enhanced" style="font-size: 1.2rem; font-weight: 700; color: var(--primary-blue);">-</div>
-              <div style="font-size: 0.7rem; color: var(--text-secondary);">Total Allocs</div>
-            </div>
-            <div style="text-align: center; padding: 12px; background: var(--bg-primary); border-radius: 6px;">
-              <div id="heap-stack-ratio" style="font-size: 1.2rem; font-weight: 700; color: var(--primary-orange);">-</div>
-              <div style="font-size: 0.7rem; color: var(--text-secondary);">Heap/Stack</div>
-            </div>
-            <div style="text-align: center; padding: 12px; background: var(--bg-primary); border-radius: 6px;">
-              <div id="avg-lifetime-enhanced" style="font-size: 1.2rem; font-weight: 700; color: var(--primary-green);">-</div>
-              <div style="font-size: 0.7rem; color: var(--text-secondary);">Avg Lifetime</div>
-            </div>
-            <div style="text-align: center; padding: 12px; background: var(--bg-primary); border-radius: 6px;">
-              <div id="memory-efficiency" style="font-size: 1.2rem; font-weight: 700; color: var(--primary-purple);">-</div>
-              <div style="font-size: 0.7rem; color: var(--text-secondary);">Efficiency</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Variable Relationships Graph -->
-    <section class="card">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-        <h2 style="margin: 0;">Variable Relationships</h2>
-        <div>
-          <button id="reset-zoom" class="theme-toggle" style="background: var(--primary-orange); font-size: 12px; padding: 6px 12px; margin-right: 8px;">
-            <i class="fa fa-expand"></i>
-            <span>Reset View</span>
-          </button>
-          <button id="auto-layout" class="theme-toggle" style="background: var(--primary-green); font-size: 12px; padding: 6px 12px;">
-            <i class="fa fa-magic"></i>
-            <span>Auto Layout</span>
-          </button>
-        </div>
-      </div>
-      <div id="graph" style="height: 400px; background: var(--bg-secondary); border: 1px solid var(--border-light); border-radius: 8px; position: relative; overflow: hidden;"></div>
-    </section>
-
-    <!-- Memory Hotspots & Thread Analysis -->
-    <section class="grid grid-2">
-      <div class="card">
-        <h2><i class="fa fa-bolt"></i> Memory Hotspots</h2>
-        <div id="memoryHotspots" style="min-height: 200px; padding: 16px; background: var(--bg-secondary); border-radius: 8px; overflow-y: auto;">
-          <!-- Memory Hotspots Content -->
-          <div style="display: flex; flex-direction: column; gap: 12px;">
-            
-            <!-- Top Memory Consumers -->
-            <div style="background: var(--bg-primary); padding: 14px; border-radius: 6px; border-left: 4px solid #ef4444;">
-              <h4 style="margin: 0 0 10px 0; color: #ef4444; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px;">
-                <i class="fa fa-fire"></i> Top Memory Consumers
-              </h4>
-              <div style="display: flex; flex-direction: column; gap: 6px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; background: rgba(239, 68, 68, 0.15); border-radius: 4px; border: 1px solid rgba(239, 68, 68, 0.3);">
-                  <span style="font-size: 11px; color: var(--text-primary); font-weight: 500;">Vec&lt;u8&gt; allocations</span>
-                  <span style="font-size: 10px; padding: 2px 6px; background: #ef4444; color: white; border-radius: 8px; font-weight: 600;">2.4 MB</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; background: rgba(239, 68, 68, 0.15); border-radius: 4px; border: 1px solid rgba(239, 68, 68, 0.3);">
-                  <span style="font-size: 11px; color: var(--text-primary); font-weight: 500;">String buffers</span>
-                  <span style="font-size: 10px; padding: 2px 6px; background: #ef4444; color: white; border-radius: 8px; font-weight: 600;">1.8 MB</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; background: rgba(239, 68, 68, 0.15); border-radius: 4px; border: 1px solid rgba(239, 68, 68, 0.3);">
-                  <span style="font-size: 11px; color: var(--text-primary); font-weight: 500;">HashMap entries</span>
-                  <span style="font-size: 10px; padding: 2px 6px; background: #ef4444; color: white; border-radius: 8px; font-weight: 600;">1.2 MB</span>
-                </div>
-              </div>
-            </div>
-            
-            <!-- Frequent Allocators -->
-            <div style="background: var(--bg-primary); padding: 14px; border-radius: 6px; border-left: 4px solid #f59e0b;">
-              <h4 style="margin: 0 0 10px 0; color: #f59e0b; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px;">
-                <i class="fa fa-repeat"></i> Frequent Allocators
-              </h4>
-              <div style="display: flex; flex-direction: column; gap: 6px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; background: rgba(245, 158, 11, 0.15); border-radius: 4px; border: 1px solid rgba(245, 158, 11, 0.3);">
-                  <span style="font-size: 11px; color: var(--text-primary); font-weight: 500;">main.rs:42</span>
-                  <span style="font-size: 10px; padding: 2px 6px; background: #f59e0b; color: white; border-radius: 8px; font-weight: 600;">1,247 allocs</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; background: rgba(245, 158, 11, 0.15); border-radius: 4px; border: 1px solid rgba(245, 158, 11, 0.3);">
-                  <span style="font-size: 11px; color: var(--text-primary); font-weight: 500;">buffer.rs:128</span>
-                  <span style="font-size: 10px; padding: 2px 6px; background: #f59e0b; color: white; border-radius: 8px; font-weight: 600;">892 allocs</span>
-                </div>
-              </div>
-            </div>
-            
-            <!-- Memory Growth Rate -->
-            <div style="background: var(--bg-primary); padding: 14px; border-radius: 6px; border-left: 4px solid #10b981;">
-              <h4 style="margin: 0 0 10px 0; color: #10b981; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px;">
-                <i class="fa fa-chart-line"></i> Growth Rate
-              </h4>
-              <div style="text-align: center; padding: 8px;">
-                <div style="font-size: 1.5rem; font-weight: 700; color: #10b981; margin-bottom: 4px;">+12.3%</div>
-                <div style="font-size: 0.7rem; color: var(--text-secondary);">Memory usage increase over last period</div>
-              </div>
-            </div>
-            
-          </div>
-        </div>
-      </div>
-      
-      <div class="card">
-        <h2><i class="fa fa-users"></i> Thread & Concurrency</h2>
-        <div id="threadAnalysis" style="padding: 16px; background: var(--bg-secondary); border-radius: 8px; min-height: 300px;">
-          <div style="display: flex; flex-direction: column; gap: 16px;">
-            <!-- Thread Activity - 优化布局，解决拥挤问题 -->
-            <div style="background: var(--bg-primary); padding: 16px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-              <h4 style="margin: 0 0 12px 0; color: var(--text-primary); font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
-                <i class="fa fa-clock-o" style="color: var(--primary-blue);"></i> Thread Activity
-              </h4>
-              <div id="threadTimeline" style="min-height: 70px; position: relative; border: 2px solid var(--border-light); border-radius: 6px; background: linear-gradient(135deg, var(--bg-secondary) 0%, rgba(255,255,255,0.1) 100%); padding: 10px;">
-                <!-- 改进的线程活动显示 - 紧凑但清晰的布局 -->
-                <div style="display: flex; flex-direction: column; gap: 8px;">
-                  <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; background: rgba(40, 167, 69, 0.15); border-radius: 4px; border-left: 3px solid #28a745; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
-                    <span style="font-size: 11px; font-weight: 600; color: #2d3748;">Main Thread</span>
-                    <span style="font-size: 10px; padding: 3px 6px; background: #28a745; color: white; border-radius: 10px; font-weight: 500;">Active</span>
-                  </div>
-                  <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 10px;">
-                    <div style="display: flex; gap: 12px;">
-                      <div style="display: flex; align-items: center; gap: 4px;">
-                        <div style="width: 6px; height: 6px; background: #3b82f6; border-radius: 50%;"></div>
-                        <span style="font-size: 10px; color: #4a5568; font-weight: 500;">CPU: Normal</span>
-                      </div>
-                      <div style="display: flex; align-items: center; gap: 4px;">
-                        <div style="width: 6px; height: 6px; background: #10b981; border-radius: 50%;"></div>
-                        <span style="font-size: 10px; color: #4a5568; font-weight: 500;">Memory: Active</span>
-                      </div>
-                    </div>
-                    <span style="font-size: 9px; color: #718096; background: rgba(113, 128, 150, 0.1); padding: 1px 4px; border-radius: 3px;">ID: 1</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            <!-- Memory Contention - 紧凑布局 -->
-            <div style="background: var(--bg-primary); padding: 16px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-              <h4 style="margin: 0 0 12px 0; color: var(--text-primary); font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
-                <i class="fa fa-warning" style="color: var(--primary-orange);"></i> Memory Contention
-              </h4>
-              <div style="display: flex; align-items: center; justify-content: center; min-height: 60px; border: 2px solid var(--border-light); border-radius: 6px; background: linear-gradient(135deg, var(--bg-secondary) 0%, rgba(255,255,255,0.1) 100%); padding: 12px;">
-                <div style="text-align: center;">
-                  <div id="contention-level" style="font-size: 1.5rem; font-weight: 700; color: var(--primary-green); margin-bottom: 6px;">LOW</div>
-                  <div style="font-size: 0.7rem; color: var(--text-secondary); background: rgba(16, 185, 129, 0.1); padding: 3px 6px; border-radius: 10px; display: inline-block; margin-bottom: 4px;" id="contention-details">Single-threaded execution</div>
-                  <div style="font-size: 0.65rem; color: #718096;">
-                    <span style="margin-right: 8px;">Locks: 0</span>
-                    <span>Conflicts: 0</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-
-    <!-- Data Tables -->
-    <section class="grid grid-2">
-      <div class="card">
-        <h2>Memory Allocation Details</h2>
-        <div class="scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Variable</th>
-                <th>Type</th>
-                <th>Size</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody id="allocTable"></tbody>
-          </table>
-        </div>
-      </div>
-      <div class="card">
-        <h2><i class="fa fa-shield"></i> Safety Risk Items</h2>
-        <div id="safetyRisks" style="min-height: 300px; padding: 16px; background: var(--bg-secondary); border-radius: 8px; overflow-y: auto;">
-          <!-- Safety Risk Categories -->
-          <div style="display: flex; flex-direction: column; gap: 12px;">
-            
-            <!-- Memory Safety Risks -->
-            <div style="background: var(--bg-primary); padding: 14px; border-radius: 6px; border-left: 4px solid #ef4444;">
-              <h4 style="margin: 0 0 10px 0; color: #ef4444; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px;">
-                <i class="fa fa-exclamation-triangle"></i> Memory Safety Risks
-              </h4>
-              <div style="display: flex; flex-direction: column; gap: 6px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; background: rgba(239, 68, 68, 0.15); border-radius: 4px; border: 1px solid rgba(239, 68, 68, 0.3);">
-                  <span style="font-size: 11px; color: var(--text-primary); font-weight: 500;">Use After Free</span>
-                  <span style="font-size: 10px; padding: 2px 6px; background: #ef4444; color: white; border-radius: 8px; font-weight: 600;">0</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; background: rgba(239, 68, 68, 0.15); border-radius: 4px; border: 1px solid rgba(239, 68, 68, 0.3);">
-                  <span style="font-size: 11px; color: var(--text-primary); font-weight: 500;">Double Free</span>
-                  <span style="font-size: 10px; padding: 2px 6px; background: #ef4444; color: white; border-radius: 8px; font-weight: 600;">0</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; background: rgba(239, 68, 68, 0.15); border-radius: 4px; border: 1px solid rgba(239, 68, 68, 0.3);">
-                  <span style="font-size: 11px; color: var(--text-primary); font-weight: 500;">Buffer Overflow</span>
-                  <span style="font-size: 10px; padding: 2px 6px; background: #ef4444; color: white; border-radius: 8px; font-weight: 600;">0</span>
-                </div>
-              </div>
-            </div>
-            
-            <!-- Concurrency Risks -->
-            <div style="background: var(--bg-primary); padding: 14px; border-radius: 6px; border-left: 4px solid #f59e0b;">
-              <h4 style="margin: 0 0 10px 0; color: #f59e0b; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px;">
-                <i class="fa fa-clock-o"></i> Concurrency Risks
-              </h4>
-              <div style="display: flex; flex-direction: column; gap: 6px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; background: rgba(245, 158, 11, 0.15); border-radius: 4px; border: 1px solid rgba(245, 158, 11, 0.3);">
-                  <span style="font-size: 11px; color: var(--text-primary); font-weight: 500;">Data Race</span>
-                  <span style="font-size: 10px; padding: 2px 6px; background: #f59e0b; color: white; border-radius: 8px; font-weight: 600;">0</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; background: rgba(245, 158, 11, 0.15); border-radius: 4px; border: 1px solid rgba(245, 158, 11, 0.3);">
-                  <span style="font-size: 11px; color: var(--text-primary); font-weight: 500;">Deadlock Risk</span>
-                  <span style="font-size: 10px; padding: 2px 6px; background: #f59e0b; color: white; border-radius: 8px; font-weight: 600;">0</span>
-                </div>
-              </div>
-            </div>
-            
-            <!-- FFI Safety Risks -->
-            <div style="background: var(--bg-primary); padding: 14px; border-radius: 6px; border-left: 4px solid #8b5cf6;">
-              <h4 style="margin: 0 0 10px 0; color: #8b5cf6; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px;">
-                <i class="fa fa-link"></i> FFI Safety Risks
-              </h4>
-              <div style="display: flex; flex-direction: column; gap: 6px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; background: rgba(139, 92, 246, 0.15); border-radius: 4px; border: 1px solid rgba(139, 92, 246, 0.3);">
-                  <span style="font-size: 11px; color: var(--text-primary); font-weight: 500;">Unsafe FFI Calls</span>
-                  <span style="font-size: 10px; padding: 2px 6px; background: #8b5cf6; color: white; border-radius: 8px; font-weight: 600;">0</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; background: rgba(139, 92, 246, 0.15); border-radius: 4px; border: 1px solid rgba(139, 92, 246, 0.3);">
-                  <span style="font-size: 11px; color: var(--text-primary); font-weight: 500;">Null Pointer Deref</span>
-                  <span style="font-size: 10px; padding: 2px 6px; background: #8b5cf6; color: white; border-radius: 8px; font-weight: 600;">0</span>
-                </div>
-              </div>
-            </div>
-            
-            <!-- Overall Safety Score -->
-            <div style="background: var(--bg-primary); padding: 14px; border-radius: 6px; border-left: 4px solid #10b981; margin-top: 8px;">
-              <h4 style="margin: 0 0 10px 0; color: #10b981; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px;">
-                <i class="fa fa-check-circle"></i> Safety Score
-              </h4>
-              <div style="text-align: center; padding: 8px;">
-                <div style="font-size: 2rem; font-weight: 700; color: #10b981; margin-bottom: 4px;">100%</div>
-                <div style="font-size: 0.7rem; color: var(--text-secondary); background: rgba(16, 185, 129, 0.1); padding: 3px 8px; border-radius: 10px; display: inline-block;">No safety violations detected</div>
-              </div>
-            </div>
-            
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Unsafe/FFI Analysis (Dynamic Layout Container) -->
-    <section style="background: var(--bg-secondary); padding: 20px; border-radius: 12px; border: 1px solid var(--border-light); min-height: 400px;">
-      <h2 style="margin: 0 0 16px 0; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
-        <i class="fa fa-warning" style="color: var(--primary-orange);"></i>
-        Unsafe Rust & FFI Memory Analysis
-      </h2>
-      
-      <!-- Dynamic Content Grid -->
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; min-height: 300px;">
-        
-        <!-- FFI Memory Tracking -->
-        <div style="background: var(--bg-primary); padding: 16px; border-radius: 8px; border-left: 4px solid #8b5cf6;">
-          <h4 style="margin: 0 0 12px 0; color: #8b5cf6; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
-            <i class="fa fa-link"></i> FFI Memory Tracking
-          </h4>
-          <div style="display: flex; flex-direction: column; gap: 8px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; background: rgba(139, 92, 246, 0.15); border-radius: 4px; border: 1px solid rgba(139, 92, 246, 0.3);">
-              <span style="font-size: 11px; color: var(--text-primary); font-weight: 500;">C Library Allocations</span>
-              <span style="font-size: 10px; padding: 2px 6px; background: #8b5cf6; color: white; border-radius: 8px; font-weight: 600;">0 bytes</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; background: rgba(139, 92, 246, 0.15); border-radius: 4px; border: 1px solid rgba(139, 92, 246, 0.3);">
-              <span style="font-size: 11px; color: var(--text-primary); font-weight: 500;">FFI Function Calls</span>
-              <span style="font-size: 10px; padding: 2px 6px; background: #8b5cf6; color: white; border-radius: 8px; font-weight: 600;">0</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; background: rgba(139, 92, 246, 0.15); border-radius: 4px; border: 1px solid rgba(139, 92, 246, 0.3);">
-              <span style="font-size: 11px; color: var(--text-primary); font-weight: 500;">Memory Leaks</span>
-              <span style="font-size: 10px; padding: 2px 6px; background: #10b981; color: white; border-radius: 8px; font-weight: 600;">0</span>
-            </div>
-            <div style="text-align: center; padding: 8px; margin-top: 8px; border-top: 1px solid rgba(139, 92, 246, 0.2);">
-              <div style="font-size: 1.2rem; font-weight: 700; color: #10b981; margin-bottom: 4px;">SAFE</div>
-              <div style="font-size: 0.7rem; color: var(--text-secondary);">No FFI issues detected</div>
-            </div>
-          </div>
-        </div>
-        
-        <!-- Unsafe Operations -->
-        <div style="background: var(--bg-primary); padding: 16px; border-radius: 8px; border-left: 4px solid #f59e0b;">
-          <h4 style="margin: 0 0 12px 0; color: #f59e0b; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
-            <i class="fa fa-exclamation-triangle"></i> Unsafe Operations
-          </h4>
-          <div style="display: flex; flex-direction: column; gap: 8px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; background: rgba(245, 158, 11, 0.15); border-radius: 4px; border: 1px solid rgba(245, 158, 11, 0.3);">
-              <span style="font-size: 11px; color: var(--text-primary); font-weight: 500;">Raw Pointer Dereferences</span>
-              <span style="font-size: 10px; padding: 2px 6px; background: #f59e0b; color: white; border-radius: 8px; font-weight: 600;">0</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; background: rgba(245, 158, 11, 0.15); border-radius: 4px; border: 1px solid rgba(245, 158, 11, 0.3);">
-              <span style="font-size: 11px; color: var(--text-primary); font-weight: 500;">Unsafe Transmutes</span>
-              <span style="font-size: 10px; padding: 2px 6px; background: #f59e0b; color: white; border-radius: 8px; font-weight: 600;">0</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; background: rgba(245, 158, 11, 0.15); border-radius: 4px; border: 1px solid rgba(245, 158, 11, 0.3);">
-              <span style="font-size: 11px; color: var(--text-primary); font-weight: 500;">Unsafe Block Count</span>
-              <span style="font-size: 10px; padding: 2px 6px; background: #f59e0b; color: white; border-radius: 8px; font-weight: 600;">0</span>
-            </div>
-            <div style="text-align: center; padding: 8px; margin-top: 8px; border-top: 1px solid rgba(245, 158, 11, 0.2);">
-              <div id="unsafe-count" style="font-size: 1.2rem; font-weight: 700; color: #10b981; margin-bottom: 4px;">SAFE</div>
-              <div style="font-size: 0.7rem; color: var(--text-secondary);" id="unsafe-details">No unsafe operations detected</div>
-            </div>
-          </div>
-        </div>
-        
-      </div>
-      
-      <!-- Unsafe/FFI Cross-Boundary Swimlane Diagram -->
-      <div style="margin-top: 16px; background: var(--bg-primary); padding: 16px; border-radius: 8px; border-left: 4px solid #06b6d4;">
-        <div class="unsafe-ffi-swimlane-header" style="display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; margin-bottom: 1rem;">
-          <div>
-            <h4 style="margin: 0 0 4px 0; color: #06b6d4; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
-              <i class="fa fa-shield"></i> Unsafe/FFI Cross-Boundary Analysis
-            </h4>
-            <p style="color: var(--text-secondary); font-size: 0.8rem; margin: 0;">
-              Track memory lifecycle across Rust safety and C/FFI boundaries
-            </p>
-          </div>
-          <!-- Interactive Filter Controls -->
-          <div class="unsafe-ffi-filter-controls">
-            <div class="unsafe-ffi-filter-tabs" style="display: flex; gap: 0.2rem; background: var(--bg-secondary); padding: 0.2rem; border-radius: 6px; border: 1px solid var(--card-border);">
-              <button class="unsafe-ffi-filter-tab active" data-filter="problems" style="padding: 0.3rem 0.6rem; border: none; background: transparent; color: var(--text-secondary); font-size: 0.75rem; font-weight: 500; border-radius: 4px; cursor: pointer; transition: all 0.2s ease; white-space: nowrap;">
-                ❗ Leaks & Risks (<span id="unsafe-problem-count">0</span>)
-              </button>
-              <button class="unsafe-ffi-filter-tab" data-filter="ffi" style="padding: 0.3rem 0.6rem; border: none; background: transparent; color: var(--text-secondary); font-size: 0.75rem; font-weight: 500; border-radius: 4px; cursor: pointer; transition: all 0.2s ease; white-space: nowrap;">
-                🔗 FFI Tracked (<span id="unsafe-ffi-count">0</span>)
-              </button>
-              <button class="unsafe-ffi-filter-tab" data-filter="all" style="padding: 0.3rem 0.6rem; border: none; background: transparent; color: var(--text-secondary); font-size: 0.75rem; font-weight: 500; border-radius: 4px; cursor: pointer; transition: all 0.2s ease; white-space: nowrap;">
-                ✨ Show All (<span id="unsafe-total-count">0</span>)
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div class="unsafe-ffi-territories" style="background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--card-border); overflow: hidden;">
-          <div class="unsafe-ffi-territory rust-territory" style="position: relative; height: 45px; display: flex; align-items: center; padding: 0 1rem; border-bottom: 1px solid var(--card-border); background: linear-gradient(135deg, rgba(255, 107, 71, 0.1) 0%, rgba(255, 107, 71, 0.05) 100%);">
-            <div class="unsafe-ffi-territory-label" style="font-size: 0.9rem; font-weight: 600; display: flex; align-items: center; gap: 0.5rem; color: var(--text-primary);">
-              <span class="unsafe-ffi-territory-icon">🦀</span>
-              <span>Rust Safety Domain</span>
-            </div>
-          </div>
-
-          <div class="unsafe-ffi-timeline-container" style="height: 200px; position: relative; background: var(--bg-primary); border-top: 1px solid var(--card-border); border-bottom: 1px solid var(--card-border);">
-            <svg class="unsafe-ffi-timeline-svg" id="unsafeFfiTimelineSvg" style="width: 100%; height: 100%;"></svg>
-          </div>
-
-          <div class="unsafe-ffi-territory ffi-territory" style="position: relative; height: 45px; display: flex; align-items: center; padding: 0 1rem; background: linear-gradient(135deg, rgba(74, 158, 255, 0.1) 0%, rgba(74, 158, 255, 0.05) 100%);">
-            <div class="unsafe-ffi-territory-label" style="font-size: 0.9rem; font-weight: 600; display: flex; align-items: center; gap: 0.5rem; color: var(--text-primary);">
-              <span class="unsafe-ffi-territory-icon">⚡</span>
-              <span>C/FFI Domain</span>
-            </div>
-          </div>
-
-          <div class="unsafe-ffi-legend" style="padding: 0.8rem 1rem; background: var(--card-bg); display: flex; justify-content: center; gap: 1.5rem; flex-wrap: wrap;">
-            <div class="unsafe-ffi-legend-item" style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; color: var(--text-secondary);">
-              <span class="unsafe-ffi-legend-symbol" style="color: #ff6b47; font-size: 0.9rem; font-weight: bold;">●</span>
-              <span>Rust Allocation</span>
-            </div>
-            <div class="unsafe-ffi-legend-item" style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; color: var(--text-secondary);">
-              <span class="unsafe-ffi-legend-symbol" style="color: #4a9eff; font-size: 0.9rem; font-weight: bold;">●</span>
-              <span>FFI C Allocation</span>
-            </div>
-            <div class="unsafe-ffi-legend-item" style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; color: var(--text-secondary);">
-              <span class="unsafe-ffi-legend-symbol" style="color: #00d4aa; font-size: 0.9rem; font-weight: bold;">▲</span>
-              <span>FFI to Rust</span>
-            </div>
-            <div class="unsafe-ffi-legend-item" style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; color: var(--text-secondary);">
-              <span class="unsafe-ffi-legend-symbol" style="color: #ff4757; font-size: 0.9rem; font-weight: bold;">▼</span>
-              <span>Rust to FFI</span>
-            </div>
-            <div class="unsafe-ffi-legend-item" style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; color: var(--text-secondary);">
-              <span class="unsafe-ffi-legend-symbol" style="color: #a0a0a0; font-size: 0.9rem; font-weight: bold;">✕</span>
-              <span>Deallocation</span>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-    </section>
-
-  </div>
-
-  <script>
-    // Enhanced Lifecycle Visualization Functions
-    function inferAllocationType(typeName) {
-      if (!typeName) return 'unknown';
-      
-      const heapTypes = ['Box', 'Vec', 'String', 'HashMap', 'BTreeMap', 'Arc', 'Rc', 'alloc::', 'std::collections'];
-      const stackTypes = ['i32', 'i64', 'f32', 'f64', 'bool', 'char', 'usize', 'isize', 'u8', 'u16', 'u32', 'u64'];
-      
-      for (const heapType of heapTypes) {
-        if (typeName.includes(heapType)) return 'heap';
-      }
-      
-      for (const stackType of stackTypes) {
-        if (typeName.includes(stackType)) return 'stack';
-      }
-      
-      if (typeName.includes('*') || typeName.includes('&')) return 'heap';
-      
-      return 'unknown';
-    }
-
-    function formatTimestamp(timestamp) {
-      if (!timestamp || isNaN(timestamp) || !isFinite(timestamp)) return 'N/A';
-      const date = new Date(timestamp / 1000000); // Convert nanoseconds to milliseconds
-      if (isNaN(date.getTime())) return 'N/A';
-      return date.toLocaleTimeString() + '.' + String(date.getMilliseconds()).padStart(3, '0');
-    }
-
-    function calculateDropTime(allocTime, lifetimeMs) {
-      if (!allocTime || lifetimeMs === undefined || isNaN(allocTime) || isNaN(lifetimeMs)) return null;
-      return allocTime + (lifetimeMs * 1000000); // Convert ms to nanoseconds and add
-    }
-
-    function formatLifetime(lifetimeMs) {
-      if (lifetimeMs === undefined || lifetimeMs === null) return 'N/A';
-      if (lifetimeMs < 1) return `${(lifetimeMs * 1000).toFixed(1)}μs`;
-      if (lifetimeMs < 1000) return `${lifetimeMs.toFixed(1)}ms`;
-      return `${(lifetimeMs / 1000).toFixed(2)}s`;
-    }
-
-    function formatBytes(bytes) {
-      if (bytes === 0) return '0 B';
-      const k = 1024;
-      const sizes = ['B', 'KB', 'MB', 'GB'];
-      const i = Math.floor(Math.log(bytes) / Math.log(k));
-      return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-    }
-
-    function initEnhancedLifecycleVisualization() {
-      // Debug what's available
-      console.log('Checking data availability...');
-      console.log('window.analysisData exists:', !!window.analysisData);
-      console.log('window.analysisData type:', typeof window.analysisData);
-      
-      if (window.analysisData) {
-        console.log('window.analysisData keys:', Object.keys(window.analysisData));
-      }
-      
-      // Try multiple data structure paths
-      let allocations = null;
-      
-      if (window.analysisData) {
-        // Method 1: Direct allocations (old structure)
-        if (window.analysisData.allocations && Array.isArray(window.analysisData.allocations)) {
-          allocations = window.analysisData.allocations;
-          console.log('✅ Found allocations directly:', allocations.length);
-        }
-        // Method 2: Memory analysis structure (new structure)
-        else if (window.analysisData.memory_analysis && window.analysisData.memory_analysis.allocations) {
-          allocations = window.analysisData.memory_analysis.allocations;
-          console.log('✅ Found allocations in memory_analysis:', allocations.length);
-        }
-        // Method 3: Check all keys for allocations
-        else {
-          for (const [key, value] of Object.entries(window.analysisData)) {
-            if (value && typeof value === 'object' && value.allocations && Array.isArray(value.allocations)) {
-              allocations = value.allocations;
-              console.log('✅ Found allocations in', key + ':', allocations.length);
-              break;
-            }
-          }
-        }
-      }
-      
-      if (!allocations || !Array.isArray(allocations) || allocations.length === 0) {
-        console.warn('No allocation data found in window.analysisData');
-        
-        // Fallback: Try to get data from other global variables that might be set by the dashboard
-        if (typeof getAllocations === 'function') {
-          try {
-            allocations = getAllocations();
-            console.log('✅ Got allocations from getAllocations():', allocations.length);
-          } catch (e) {
-            console.warn('getAllocations() failed:', e);
-          }
-        }
-        
-        // Another fallback: Check if data is in a different global variable
-        if (!allocations && window.memoryAnalysisData) {
-          if (window.memoryAnalysisData.allocations) {
-            allocations = window.memoryAnalysisData.allocations;
-            console.log('✅ Got allocations from memoryAnalysisData:', allocations.length);
-          }
-        }
-        
-        // Final fallback: Try to extract from existing DOM elements
-        if (!allocations) {
-          const existingTable = document.getElementById('allocTable');
-          if (existingTable && existingTable.children.length > 1) {
-            console.log('Trying to extract data from existing table...');
-            // This is a last resort - we'll create dummy data based on table rows
-            const rows = existingTable.querySelectorAll('tbody tr');
-            if (rows.length > 0) {
-              allocations = Array.from(rows).map((row, index) => {
-                const cells = row.querySelectorAll('td');
-                return {
-                  var_name: cells[0]?.textContent || `var_${index}`,
-                  type_name: cells[1]?.textContent || 'unknown',
-                  size: parseInt(cells[2]?.textContent) || 0,
-                  timestamp_alloc: Date.now() * 1000000 + index * 1000000,
-                  lifetime_ms: parseFloat(cells[3]?.textContent) || 1.0,
-                  is_leaked: cells[4]?.textContent?.includes('Yes') || false
-                };
-              });
-              console.log('✅ Extracted', allocations.length, 'allocations from existing table');
-            }
-          }
-        }
-        
-        if (!allocations || allocations.length === 0) {
-          console.error('❌ No allocation data available from any source');
-          return;
-        }
-      }
-      
-      if (allocations.length === 0) {
-        console.warn('No allocation data found');
-        return;
-      }
-
-      console.log('✅ Found', allocations.length, 'allocations for enhanced visualization');
-      console.log('Sample allocation:', allocations[0]);
-      
-      // Statistics
-      let heapCount = 0, stackCount = 0, unknownCount = 0;
-      let totalLifetime = 0, validLifetimes = 0;
-      let totalMemory = 0;
-
-      allocations.forEach(alloc => {
-        const type = inferAllocationType(alloc.type_name);
-        if (type === 'heap') heapCount++;
-        else if (type === 'stack') stackCount++;
-        else unknownCount++;
-
-        if (alloc.lifetime_ms !== undefined && alloc.lifetime_ms !== null) {
-          totalLifetime += alloc.lifetime_ms;
-          validLifetimes++;
-        }
-
-        totalMemory += alloc.size || 0;
-      });
-
-      console.log('Statistics calculated:', { heapCount, stackCount, totalLifetime, validLifetimes });
-
-      // Update mini counters
-      const heapCountMini = document.getElementById('heap-count-mini');
-      const stackCountMini = document.getElementById('stack-count-mini');
-      
-      if (heapCountMini) {
-        heapCountMini.textContent = heapCount;
-        console.log('Updated heap-count-mini:', heapCount);
-      } else {
-        console.warn('heap-count-mini element not found');
-      }
-      
-      if (stackCountMini) {
-        stackCountMini.textContent = stackCount;
-        console.log('Updated stack-count-mini:', stackCount);
-      } else {
-        console.warn('stack-count-mini element not found');
-      }
-      
-      // Create lifecycle visualization
-      console.log('Calling createLifecycleVisualization...');
-      createLifecycleVisualization(allocations);
-      
-      // Update enhanced statistics
-      console.log('Calling updateEnhancedStatistics...');
-      updateEnhancedStatistics(allocations, heapCount, stackCount, validLifetimes, totalLifetime);
-      
-      // Setup filters
-      console.log('Calling setupLifecycleFilters...');
-      setupLifecycleFilters(allocations);
-      
-      console.log('✅ All enhanced features processing completed');
-    }
-
-    function createLifecycleVisualization(allocations) {
-      console.log('createLifecycleVisualization called with', allocations.length, 'allocations');
-      const container = document.getElementById('lifecycleVisualizationContainer');
-      if (!container) {
-        console.error('❌ Lifecycle visualization container not found in DOM');
-        return;
-      }
-      console.log('✅ Found lifecycleVisualizationContainer, creating visualization...');
-      container.innerHTML = '';
-
-      // Calculate timeline bounds
-      const timestamps = allocations.map(a => a.timestamp_alloc).filter(t => t);
-      const minTime = Math.min(...timestamps);
-      const maxTime = Math.max(...timestamps);
-      const timeRange = maxTime - minTime || 1;
-
-      allocations.forEach((alloc, index) => {
-        const allocType = inferAllocationType(alloc.type_name);
-        const startTime = alloc.timestamp_alloc || alloc.timestamp || Date.now() * 1000000;
-        const lifetime = alloc.lifetime_ms || alloc.lifetime || 0;
-        const endTime = startTime + (lifetime * 1000000); // Convert ms to nanoseconds
-        
-        // Debug and validate time data
-        console.log('Debug allocation:', {
-          var_name: alloc.var_name,
-          timestamp_alloc: alloc.timestamp_alloc,
-          timestamp: alloc.timestamp,
-          lifetime_ms: alloc.lifetime_ms,
-          startTime: startTime,
-          endTime: endTime,
-          isValidStart: !isNaN(startTime) && isFinite(startTime) && startTime >= 0,
-          isValidEnd: !isNaN(endTime) && isFinite(endTime) && endTime >= 0
-        });
-        
-        // If timestamps are invalid, use relative positioning
-        if (isNaN(startTime) || startTime <= 0) {
-          startTime = minTime + (index * (timeRange / allocations.length));
-        }
-        if (isNaN(endTime) || endTime <= 0) {
-          endTime = startTime + (lifetime * 1000000) || startTime + (timeRange * 0.1);
-        }
-        
-        // Calculate positions and widths with bounds checking
-        let startPercent = ((startTime - minTime) / timeRange) * 100;
-        let endPercent = ((endTime - minTime) / timeRange) * 100;
-        
-        // Ensure values are within bounds
-        startPercent = Math.max(0, Math.min(startPercent, 100));
-        endPercent = Math.max(startPercent, Math.min(endPercent, 100));
-        
-        let width = endPercent - startPercent;
-        width = Math.max(width, 2); // Minimum 2% width
-        width = Math.min(width, 100 - startPercent); // Don't exceed container
-        
-        // Create lifecycle item
-        const item = document.createElement('div');
-        item.className = `lifecycle-item ${allocType}`;
-        item.setAttribute('data-type', allocType);
-        
-        // Enhanced solid colors for better visibility
-        const barColor = allocType === 'heap' ? '#ff6b35' : 
-                        allocType === 'stack' ? '#4dabf7' : '#868e96';
-        const barGradient = allocType === 'heap' ? '#ff6b35' : 
-                           allocType === 'stack' ? '#4dabf7' : 
-                           '#868e96';
-        
-        item.innerHTML = `
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <span style="font-weight: 600; font-size: 0.9rem; min-width: 120px;">${alloc.var_name || 'unnamed'}</span>
-              <span class="allocation-type type-${allocType}">${allocType}</span>
-            </div>
-            <div style="display: flex; align-items: center; gap: 8px; font-size: 0.75rem; color: var(--text-secondary);">
-              <span>${formatBytes(alloc.size || 0)}</span>
-              <span>${formatLifetime(lifetime)}</span>
-            </div>
-          </div>
-          
-          <!-- Enhanced Timeline Progress Bar - 更明显的变量作用时间 -->
-          <div style="position: relative; height: 32px; background: linear-gradient(90deg, #f1f3f4, #e8eaed); border-radius: 16px; margin: 12px 0; border: 2px solid #ddd; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);">
-            
-            <!-- Timeline markers for better visibility -->
-            <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center;">
-              <div style="position: absolute; left: 0%; width: 2px; height: 60%; background: #666; opacity: 0.3;"></div>
-              <div style="position: absolute; left: 25%; width: 1px; height: 40%; background: #999; opacity: 0.2;"></div>
-              <div style="position: absolute; left: 50%; width: 1px; height: 40%; background: #999; opacity: 0.2;"></div>
-              <div style="position: absolute; left: 75%; width: 1px; height: 40%; background: #999; opacity: 0.2;"></div>
-              <div style="position: absolute; right: 0%; width: 2px; height: 60%; background: #666; opacity: 0.3;"></div>
-            </div>
-            
-            <!-- Variable active period with enhanced gradient and better visibility -->
-            <div style="position: absolute; top: 2px; left: ${startPercent}%; width: ${width}%; height: calc(100% - 4px); 
-                        background: linear-gradient(45deg, ${barGradient}, ${barGradient}dd); 
-                        border-radius: 14px; 
-                        box-shadow: 0 3px 12px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.4);
-                        transition: all 0.3s ease;
-                        position: relative;
-                        overflow: hidden;
-                        border: 1px solid rgba(255,255,255,0.3);">
-              
-              <!-- Animated shine effect -->
-              <div style="position: absolute; top: 0; left: -100%; width: 100%; height: 100%; 
-                          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent);
-                          animation: shine 3s infinite;"></div>
-              
-              <!-- Duration indicator -->
-              <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-                          color: white; font-size: 9px; font-weight: bold; text-shadow: 0 1px 2px rgba(0,0,0,0.5);
-                          white-space: nowrap;">${formatLifetime(lifetime)}</div>
-            </div>
-            
-            ${alloc.is_leaked ? `
-              <!-- Leaked indicator -->
-              <div style="position: absolute; top: -3px; right: 2px; width: 20px; height: 30px; 
-                          background: linear-gradient(45deg, #ff4757, #ff3742); 
-                          border-radius: 2px; 
-                          box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-                          display: flex; align-items: center; justify-content: center;
-                          font-size: 10px; color: white; font-weight: bold;">⚠</div>
-            ` : ''}
-          </div>
-          
-          <!-- Time info -->
-          <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-secondary); font-family: monospace;">
-            <span>Start: ${formatTimestamp(isFinite(startTime) ? startTime : 0)}</span>
-            <span>${alloc.is_leaked ? 'LEAKED' : (formatTimestamp(endTime) !== 'N/A' && isFinite(endTime) ? 'End: ' + formatTimestamp(endTime) : 'Active')}</span>
-          </div>
-        `;
-        
-        // Enhanced hover effect and styling
-        item.style.cssText += `
-          margin-bottom: 18px;
-          padding: 16px;
-          background: linear-gradient(135deg, var(--bg-primary), #fafbfc);
-          border-radius: 12px;
-          border-left: 5px solid ${barColor};
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-          cursor: pointer;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        `;
-        
-        item.addEventListener('mouseenter', () => {
-          item.style.transform = 'translateX(8px) translateY(-2px)';
-          item.style.boxShadow = '0 8px 25px rgba(0,0,0,0.15)';
-          item.style.background = `linear-gradient(135deg, var(--bg-primary), ${barColor}08)`;
-        });
-        
-        item.addEventListener('mouseleave', () => {
-          item.style.transform = 'translateX(0) translateY(0)';
-          item.style.boxShadow = '0 2px 4px rgba(0,0,0,0.05)';
-          item.style.background = 'linear-gradient(135deg, var(--bg-primary), #fafbfc)';
-        });
-        
-        container.appendChild(item);
-      });
-    }
-
-    function updateEnhancedStatistics(allocations, heapCount, stackCount, validLifetimes, totalLifetime) {
-      console.log('Updating enhanced statistics...');
-      
-      // Update Enhanced Memory Statistics
-      const totalAllocsEnhanced = document.getElementById('total-allocs-enhanced');
-      const heapStackRatio = document.getElementById('heap-stack-ratio');
-      const avgLifetimeEnhanced = document.getElementById('avg-lifetime-enhanced');
-      const memoryEfficiency = document.getElementById('memory-efficiency');
-      
-      if (totalAllocsEnhanced) {
-        totalAllocsEnhanced.textContent = allocations.length;
-        console.log('Updated total-allocs-enhanced:', allocations.length);
-      }
-      
-      if (heapStackRatio) {
-        const ratio = stackCount > 0 ? (heapCount / stackCount).toFixed(1) : heapCount;
-        heapStackRatio.textContent = ratio + ':1';
-        console.log('Updated heap-stack-ratio:', ratio + ':1');
-      }
-      
-      if (avgLifetimeEnhanced) {
-        const avgLifetime = validLifetimes > 0 ? formatLifetime(totalLifetime / validLifetimes) : 'N/A';
-        avgLifetimeEnhanced.textContent = avgLifetime;
-        console.log('Updated avg-lifetime-enhanced:', avgLifetime);
-      }
-      
-      if (memoryEfficiency) {
-        const efficiency = allocations.length > 0 ? ((allocations.length - allocations.filter(a => a.is_leaked).length) / allocations.length * 100).toFixed(0) : 0;
-        memoryEfficiency.textContent = efficiency + '%';
-        console.log('Updated memory-efficiency:', efficiency + '%');
-      }
-    }
-
-
-    function setupLifecycleFilters(allocations) {
-      const heapBtn = document.getElementById('filter-heap');
-      const stackBtn = document.getElementById('filter-stack');
-      const allBtn = document.getElementById('toggle-lifecycle');
-      
-      // Check if all buttons exist
-      if (!heapBtn || !stackBtn || !allBtn) {
-        console.warn('Some filter buttons not found');
-        return;
-      }
-      
-      let currentFilter = 'all';
-      
-      function applyFilter(filter) {
-        currentFilter = filter;
-        const items = document.querySelectorAll('.lifecycle-item');
-        
-        // Update button states
-        [heapBtn, stackBtn, allBtn].forEach(btn => btn.style.opacity = '0.6');
-        
-        if (filter === 'heap') {
-          heapBtn.style.opacity = '1';
-          items.forEach(item => {
-            item.style.display = item.getAttribute('data-type') === 'heap' ? 'block' : 'none';
-          });
-        } else if (filter === 'stack') {
-          stackBtn.style.opacity = '1';
-          items.forEach(item => {
-            item.style.display = item.getAttribute('data-type') === 'stack' ? 'block' : 'none';
-          });
-        } else {
-          allBtn.style.opacity = '1';
-          items.forEach(item => {
-            item.style.display = 'block';
-          });
-        }
-      }
-      
-      heapBtn.addEventListener('click', () => applyFilter('heap'));
-      stackBtn.addEventListener('click', () => applyFilter('stack'));
-      allBtn.addEventListener('click', () => applyFilter('all'));
-      
-      // Initialize
-      applyFilter('all');
-    }
-
-    // Initialize enhanced features when DOM is loaded
-    function initEnhancedFeatures() {
-      try {
-        initEnhancedLifecycleVisualization();
-      } catch (error) {
-        console.error('Error initializing enhanced lifecycle visualization:', error);
-      }
-    }
-
-    // Safe initialization wrapper with duplicate prevention
-    let enhancedInitialized = false;
-    function safeInitEnhanced() {
-      if (enhancedInitialized) {
-        return; // Already initialized
-      }
-      
-      try {
-        initEnhancedFeatures();
-        enhancedInitialized = true;
-        console.log('✅ Enhanced features initialized successfully');
-      } catch (error) {
-        console.warn('Enhanced features initialization failed:', error);
-      }
-    }
-
-    // 修复Memory Over Time的Growth Rate功能
-    function handleGrowthRateToggle(showGrowthRate) {
-      console.log('Growth Rate toggle:', showGrowthRate);
-      
-      // 获取现有的timeline图表
-      const existingChart = window.chartInstances['clean-timeline'] || window.chartInstances['timeline'];
-      
-      if (existingChart) {
-        // 如果图表存在，直接修改数据而不是重新创建
-        if (showGrowthRate) {
-          addGrowthRateToChart();
-        } else {
-          // 移除增长率数据集
-          existingChart.data.datasets = existingChart.data.datasets.filter(ds => ds.label !== 'Growth Rate (%)');
-          delete existingChart.options.scales.y1;
-          existingChart.update();
-        }
-      } else {
-        // 如果图表不存在，先确保没有遗留的图表实例
-        const timelineEl = document.getElementById('timelineChart');
-        if (timelineEl) {
-          // 强制清理Canvas上的任何Chart.js实例
-          const existingChartOnCanvas = Chart.getChart(timelineEl);
-          if (existingChartOnCanvas) {
-            console.log('Found existing chart on canvas, destroying it');
-            existingChartOnCanvas.destroy();
-          }
-        }
-        
-        // 重新创建图表
-        setTimeout(() => {
-          refreshMemoryTimeline();
-          if (showGrowthRate) {
-            setTimeout(() => {
-              addGrowthRateToChart();
-            }, 300);
-          }
-        }, 100);
-      }
-    }
-    
-    // 添加增长率到现有图表的函数
-    function addGrowthRateToChart() {
-      const timelineChart = window.chartInstances['clean-timeline'] || window.chartInstances['timeline'];
-      if (!timelineChart) return;
-      
-      const data = window.analysisData || {};
-      const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
-      
-      if (allocs.length === 0) return;
-      
-      // 计算增长率数据
-      const sorted = allocs.slice().sort((a,b) => (a.timestamp_alloc||0) - (b.timestamp_alloc||0));
-      let cumulative = 0;
-      const points = [];
-      const growthRates = [];
-      
-      for (let i = 0; i < sorted.length; i++) {
-        cumulative += sorted[i].size || 0;
-        points.push({x: i, y: cumulative});
-        
-        // 计算增长率
-        if (i > 0) {
-          const prevCum = points[i-1].y;
-          const growthRate = prevCum > 0 ? ((cumulative - prevCum) / prevCum) * 100 : 0;
-          growthRates.push({x: i, y: growthRate});
-        } else {
-          growthRates.push({x: i, y: 0});
-        }
-      }
-      
-      // 添加增长率数据集
-      timelineChart.data.datasets.push({
-        label: 'Growth Rate (%)',
-        data: growthRates.map(p => p.y),
-        borderColor: '#10b981',
-        backgroundColor: 'rgba(16, 185, 129, 0.1)',
-        fill: false,
-        tension: 0.25,
-        yAxisID: 'y1'
-      });
-      
-      // 添加右侧Y轴
-      timelineChart.options.scales.y1 = {
-        type: 'linear',
-        display: true,
-        position: 'right',
-        beginAtZero: true,
-        title: {
-          display: true,
-          text: 'Growth Rate (%)'
-        },
-        grid: {
-          drawOnChartArea: false,
-        },
-      };
-      
-      timelineChart.update();
-    }
-    
-    // 刷新Memory Timeline图表
-    function refreshMemoryTimeline() {
-      console.log('Refreshing memory timeline...');
-      const data = window.analysisData || {};
-      const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
-      
-      const timelineEl = document.getElementById('timelineChart');
-      if (!timelineEl) {
-        console.warn('Timeline chart element not found');
-        return;
-      }
-      
-      // 检查是否已有图表实例，避免重复创建
-      const existingChart = window.chartInstances['clean-timeline'] || window.chartInstances['timeline'];
-      if (existingChart) {
-        console.log('Timeline chart already exists, skipping recreation');
-        return;
-      }
-      
-      // 额外检查Canvas上是否有遗留的Chart.js实例
-      const existingChartOnCanvas = Chart.getChart(timelineEl);
-      if (existingChartOnCanvas) {
-        console.log('Found orphaned chart on canvas, destroying it');
-        existingChartOnCanvas.destroy();
-      }
-      
-      // 重新计算数据点，确保有明显的曲线变化
-      const sorted = allocs.slice().sort((a,b) => (a.timestamp_alloc||0) - (b.timestamp_alloc||0));
-      let cumulative = 0;
-      const points = [];
-      
-      // 如果没有真实数据，创建模拟数据来显示曲线
-      if (sorted.length === 0) {
-        // 创建模拟内存增长数据
-        for (let i = 0; i < 20; i++) {
-          const baseMemory = 1024 * (i + 1); // 从1KB开始
-          const variation = Math.sin(i * 0.5) * 512 + Math.random() * 256; // 添加变化
-          cumulative = baseMemory + variation;
-          points.push({x: i, y: Math.max(cumulative, 0)});
-        }
-      } else {
-        // 使用真实数据，但确保有足够的数据点
-        const step = Math.max(1, Math.floor(sorted.length / 30));
-        
-        for (let i = 0; i < sorted.length; i += step) {
-          cumulative += sorted[i].size || 0;
-          points.push({x: Math.floor(i/step), y: cumulative});
-        }
-        
-        // 如果累积内存太小，进行缩放以显示明显变化
-        const maxMemory = Math.max(...points.map(p => p.y));
-        if (maxMemory < 1024) {
-          points.forEach(p => p.y *= 1000);
-        }
-        
-        // 确保至少有一些变化，如果数据太平坦，添加一些变化
-        if (points.length > 1) {
-          const firstValue = points[0].y;
-          const lastValue = points[points.length - 1].y;
-          if (Math.abs(lastValue - firstValue) < firstValue * 0.1) {
-            // 数据变化太小，人工增加一些变化
-            points.forEach((p, i) => {
-              p.y += Math.sin(i * 0.3) * firstValue * 0.2 + i * firstValue * 0.05;
-            });
-          }
-        }
-      }
-      
-      // 确保起点不在0
-      if (points.length > 0 && points[0].y === 0) {
-        points[0].y = 1024; // 起始1KB
-      }
-      
-      if (points.length > 1) {
-        const ctx = timelineEl.getContext('2d');
-        window.chartInstances['clean-timeline'] = new Chart(ctx, {
-          type: 'line',
-          data: {
-            labels: points.map(p => p.x),
-            datasets: [{
-              label: 'Cumulative Memory',
-              data: points.map(p => p.y),
-              borderColor: '#ef4444',
-              backgroundColor: 'rgba(239,68,68,0.1)',
-              fill: true,
-              tension: 0.25,
-              pointRadius: 3,
-              pointHoverRadius: 5
-            }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: { display: true }
-            },
-            scales: {
-              y: {
-                beginAtZero: false, // 不从0开始，让曲线更明显
-                title: {
-                  display: true,
-                  text: 'Memory Usage'
-                }
-              },
-              x: {
-                title: {
-                  display: true,
-                  text: 'Time Points'
-                }
-              }
-            }
-          }
-        });
-        
-        console.log('✅ Memory timeline refreshed with', points.length, 'data points');
-      }
-    }
-
-    // MemScope Dashboard JavaScript - Clean rendering for clean_dashboard.html
+pub const EMBEDDED_SCRIPT_JS: &str = r#"
+// MemScope Dashboard JavaScript - Clean rendering for clean_dashboard.html
 // This file contains comprehensive functions for memory analysis dashboard
 
 // Global data store - will be populated by HTML template
@@ -3212,7 +34,7 @@ function initCleanTemplate() {
     console.log('📊 Available data:', Object.keys(window.analysisData||{}));
     const data = window.analysisData || {};
 
-    // KPI 关键指标
+    // KPI
     updateKPICards(data);
 
     // Memory by type (Chart.js)
@@ -3245,22 +67,8 @@ function initCleanTemplate() {
             points = rawTimeline.map((p,i)=>({ x:i, y:(p.memory_usage||0) }));
         } else {
             const sorted = allocs.slice().sort((a,b)=>(a.timestamp_alloc||0)-(b.timestamp_alloc||0));
-            let cum=0; 
-            const step=Math.max(1, Math.floor(sorted.length/50));
-            for(let i=0;i<sorted.length;i+=step){ 
-                cum += sorted[i].size||0; 
-                points.push({x:Math.floor(i/step), y:cum}); 
-            }
-            // 确保至少有一些数据点
-            if (points.length === 0 && allocs.length > 0) {
-                let runningTotal = 0;
-                allocs.forEach((alloc, index) => {
-                    runningTotal += alloc.size || 0;
-                    if (index % Math.max(1, Math.floor(allocs.length/20)) === 0) {
-                        points.push({x: index, y: runningTotal});
-                    }
-                });
-            }
+            let cum=0; const step=Math.max(1, Math.floor(sorted.length/50));
+            for(let i=0;i<sorted.length;i+=step){ cum += sorted[i].size||0; points.push({x:i, y:cum}); }
         }
         if (points.length>1) {
             const ctx = timelineEl.getContext('2d');
@@ -3979,10 +787,10 @@ function createMetricCard(title, value, percentage, color, status) {
                 </div>
                 <div class="relative w-12 h-12">
                     <svg class="w-12 h-12 transform -rotate-90" viewBox="0 0 60 60">
-                        <circle cx="30" cy="30" r="25" stroke="#e5e7eb" stroke-width="6" fill="none" class="dark:stroke-gray-600"/>
-                        <circle cx="30" cy="30" r="25" stroke="${color}" stroke-width="6" fill="none" 
-                                stroke-dasharray="${strokeDasharray}" stroke-dashoffset="${strokeDashoffset}"
-                                stroke-linecap="round" class="transition-all duration-500"/>
+                        <circle cx='30' cy='30' r='25' stroke='#e5e7eb' stroke-width='6' fill='none' class='dark:stroke-gray-600'/>
+                        <circle cx='30' cy='30' r='25' stroke='${color}' stroke-width='6' fill='none' 
+                                stroke-dasharray='${strokeDasharray}' stroke-dashoffset='${strokeDashoffset}'
+                                stroke-linecap='round' class='transition-all duration-500'/>
                     </svg>
                     <div class="absolute inset-0 flex items-center justify-center">
                         <span class="text-xs font-bold" style="color: ${color}">${Math.round(percentage)}%</span>
@@ -4141,10 +949,10 @@ function createAdvancedMetricCard(title, value, percentage, color, status) {
             <div class="flex flex-col items-center">
                 <div class="relative w-10 h-10 mb-2">
                     <svg class="w-10 h-10 transform -rotate-90" viewBox="0 0 50 50">
-                        <circle cx="25" cy="25" r="20" stroke="#e5e7eb" stroke-width="4" fill="none" class="dark:stroke-gray-600"/>
-                        <circle cx="25" cy="25" r="20" stroke="${color}" stroke-width="4" fill="none" 
-                                stroke-dasharray="${strokeDasharray}" stroke-dashoffset="${strokeDashoffset}"
-                                stroke-linecap="round" class="transition-all duration-500"/>
+                        <circle cx='25' cy='25' r='20' stroke='#e5e7eb' stroke-width='4' fill='none' class='dark:stroke-gray-600'/>
+                        <circle cx='25' cy='25' r='20' stroke='${color}' stroke-width='4' fill='none' 
+                                stroke-dasharray='${strokeDasharray}' stroke-dashoffset='${strokeDashoffset}'
+                                stroke-linecap='round' class='transition-all duration-500'/>
                     </svg>
                     <div class="absolute inset-0 flex items-center justify-center">
                         <span class="text-xs font-bold" style="color: ${color}">${Math.round(percentage)}%</span>
@@ -4329,7 +1137,7 @@ function createAdvancedFragmentationBar(label, count, total, color) {
     const barHeight = Math.max(8, (count / total) * 60);
 
     return `
-        <div class="flex items-center justify-between">
+        <div class="flex items-center justify-between ">
             <div class="flex items-center w-32">
                 <div class="w-4 rounded mr-3 border border-gray-300 dark:border-gray-500" 
                      style="height: ${barHeight}px; background-color: ${color}"></div>
@@ -4341,7 +1149,7 @@ function createAdvancedFragmentationBar(label, count, total, color) {
                          style="width: ${percentage}%; background-color: ${color}"></div>
                 </div>
             </div>
-            <span class="text-sm font-bold text-gray-900 dark:text-white w-12 text-right">${count}</span>
+            <span class="text-sm font-bold text-gray-900 dark:text-white w-12 text-right ">${count}</span>
         </div>
     `;
 }
@@ -4361,14 +1169,14 @@ function createCallStackAnalysis(allocations) {
         const radius = Math.min(8, Math.max(3, Math.sqrt((alloc.size || 0) / 100)));
 
         return `
-            <div class="flex items-center space-x-3 p-2 bg-white dark:bg-gray-600 rounded border">
+            <div class="flex items-center space-x-3 p-2 bg-white dark:bg-gray-600 rounded border ">
                 <div class="w-4 h-4 rounded-full border-2 border-gray-300 dark:border-gray-500" 
                      style="background-color: ${color}"></div>
                 <div class="flex-1 min-w-0">
-                    <div class="text-sm font-medium text-gray-900 dark:text-white truncate">
+                    <div class="text-sm font-medium text-gray-900 dark:text-white truncate ">
                         ${alloc.var_name || 'System/Runtime allocations'}
                     </div>
-                    <div class="text-xs text-gray-500 dark:text-gray-400">
+                    <div class="text-xs text-gray-500 dark:text-gray-400 ">
                         ${alloc.type_name || 'no type info'} • ${formatBytes(alloc.size || 0)}
                     </div>
                 </div>
@@ -4379,7 +1187,7 @@ function createCallStackAnalysis(allocations) {
 
 // Create advanced growth trend visualization
 function createAdvancedGrowthTrendVisualization(allocations, totalMemory) {
-    if (allocations.length < 2) return '<div class="flex items-center justify-center h-full text-gray-400">Insufficient data</div>';
+    if (allocations.length < 2) return '<div class="flex items-center justify-center h-full text-gray-400 ">Insufficient data</div>';
 
     const sortedAllocs = allocations.sort((a, b) => (a.timestamp_alloc || 0) - (b.timestamp_alloc || 0));
     const points = [];
@@ -4406,21 +1214,21 @@ function createAdvancedGrowthTrendVisualization(allocations, totalMemory) {
         </div>
         
         <!-- Growth Line -->
-        <svg class="absolute inset-0 w-full h-full">
+        <svg class="absolute inset-0 w-full h-full ">
             <polyline
                 fill="none"
-                stroke="#27ae60"
+                stroke='#27ae60'
                 stroke-width="3"
                 stroke-linecap="round"
                 stroke-linejoin="round"
                 points="${points.map(p => `${p.x},${p.y}`).join(' ')}"
-                class="drop-shadow-sm"
+                class="drop-shadow-sm "
             />
         </svg>
         
         <!-- Data Points -->
         ${points.map(point => `
-            <div class="absolute w-2 h-2 bg-green-500 rounded-full border border-white dark:border-gray-600 transform -translate-x-1/2 -translate-y-1/2 hover:scale-150 transition-transform cursor-pointer" 
+            <div class="absolute w-2 h-2 bg-green-500 rounded-full border border-white dark:border-gray-600 transform -translate-x-1/2 -translate-y-1/2 hover:scale-150 transition-transform cursor-pointer " 
                  style="left: ${point.x}%; top: ${point.y}%"
                  title="Memory: ${formatBytes(point.size)}">
             </div>
@@ -4428,7 +1236,7 @@ function createAdvancedGrowthTrendVisualization(allocations, totalMemory) {
         
         <!-- Peak Memory Line -->
         <div class="absolute w-full border-t-2 border-red-500 border-dashed opacity-60" style="top: 20%">
-            <div class="absolute -top-1 right-0 text-xs text-red-500 bg-white dark:bg-gray-600 px-1 rounded">
+            <div class="absolute -top-1 right-0 text-xs text-red-500 bg-white dark:bg-gray-600 px-1 rounded ">
                 Peak: ${formatBytes(totalMemory)}
             </div>
         </div>
@@ -4445,10 +1253,10 @@ function createVariableAllocationTimeline(allocations) {
         const color = getTypeColor(alloc.type_name || '', index);
 
         return `
-            <div class="flex items-center space-x-3 p-2 bg-white dark:bg-gray-600 rounded border">
+            <div class="flex items-center space-x-3 p-2 bg-white dark:bg-gray-600 rounded border ">
                 <div class="w-3 h-3 rounded-full" style="background-color: ${color}"></div>
                 <div class="flex-1 min-w-0">
-                    <div class="text-sm font-medium text-gray-900 dark:text-white">
+                    <div class="text-sm font-medium text-gray-900 dark:text-white ">
                         ${alloc.var_name}
                     </div>
                     <div class="text-xs text-gray-500 dark:text-gray-400">
@@ -4526,13 +1334,13 @@ function initAllocationsTable() {
         const displayAllocations = showAll ? allocations : allocations.slice(0, maxInitialRows);
 
         tbody.innerHTML = displayAllocations.map(alloc => `
-            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                <td class="px-4 py-2 text-gray-900 dark:text-gray-100 font-mono">0x${(alloc.ptr ? parseInt(alloc.ptr.toString().replace('0x', ''), 16) : 0).toString(16).padStart(8, '0')}</td>
+            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ">
+                <td class="px-4 py-2 text-gray-900 dark:text-gray-100 font-mono ">0x${(alloc.ptr ? parseInt(alloc.ptr.toString().replace('0x', ''), 16) : 0).toString(16).padStart(8, '0')}</td>
                 <td class="px-4 py-2 text-gray-900 dark:text-gray-100">${alloc.var_name || 'System Allocation'}</td>
                 <td class="px-4 py-2 text-gray-900 dark:text-gray-100">${formatTypeName(alloc.type_name || 'System Allocation')}</td>
                 <td class="px-4 py-2 text-right text-gray-900 dark:text-gray-100">${formatBytes(alloc.size || 0)}</td>
                 <td class="px-4 py-2 text-right text-gray-900 dark:text-gray-100">
-                    <span class="px-2 py-1 text-xs rounded-full ${alloc.is_active ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'}">
+                    <span class="px-2 py-1 text-xs rounded-full ${alloc.is_active ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 '} ">
                         ${alloc.is_active ? 'Active' : 'Deallocated'}
                     </span>
                 </td>
@@ -6117,10 +2925,10 @@ function createFragmentationMetricCard(title, value, percentage, color) {
                 </div>
                 <div class="relative w-10 h-10">
                     <svg class="w-10 h-10 transform -rotate-90" viewBox="0 0 50 50">
-                        <circle cx="25" cy="25" r="20" stroke="#e5e7eb" stroke-width="4" fill="none" class="dark:stroke-gray-600"/>
-                        <circle cx="25" cy="25" r="20" stroke="${color}" stroke-width="4" fill="none" 
-                                stroke-dasharray="${circumference}" stroke-dashoffset="${strokeDashoffset}"
-                                stroke-linecap="round" class="transition-all duration-500"/>
+                        <circle cx="25" cy="25" r="20" stroke='#e5e7eb' stroke-width='4' fill='none' class='dark:stroke-gray-600'/>
+                        <circle cx='25' cy='25' r='20' stroke='${color}' stroke-width='4' fill='none' 
+                                stroke-dasharray='${circumference}' stroke-dashoffset='${strokeDashoffset}'
+                                stroke-linecap='round' class='transition-all duration-500'/>
                     </svg>
                 </div>
             </div>
@@ -6387,16 +3195,16 @@ function createMemoryGrowthChart(timePoints, peakMemory) {
         <svg class="absolute inset-0 w-full h-full" preserveAspectRatio="none">
             <polyline
                 fill="none"
-                stroke="#27ae60"
+                stroke='#27ae60'
                 stroke-width="3"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                points="${timePoints.map((point, index) => {
+                stroke-linecap='round'
+                stroke-linejoin='round'
+                points='${timePoints.map((point, index) => {
         const x = (index / (timePoints.length - 1)) * 100;
         const y = 100 - ((point.memory / peakMemory) * 90);
         return `${x},${y}`;
-    }).join(' ')}"
-                class="drop-shadow-sm"
+    }).join(' ')}'
+                class='drop-shadow-sm'
             />
         </svg>
         
@@ -7506,9 +4314,7 @@ function formatTypeName(typeName) {
 
 // Format timestamp relative to start time
 function formatTimestamp(timestamp, minTime) {
-    if (!isFinite(timestamp) || isNaN(timestamp)) return '0ms';
-    if (minTime !== undefined && (!isFinite(minTime) || isNaN(minTime))) minTime = 0;
-    const relativeMs = Math.round((timestamp - (minTime || 0)) / 1000000); // Convert nanoseconds to milliseconds
+    const relativeMs = Math.round((timestamp - minTime) / 1000000); // Convert nanoseconds to milliseconds
     return `${relativeMs}ms`;
 }
 
@@ -7530,8 +4336,7 @@ function initEnhancedSummaryStats() {
         
         // Update enhanced dashboard
         updateElement('total-allocations', stats.totalAllocations);
-        const rate = isFinite(stats.allocationRate) && !isNaN(stats.allocationRate) ? stats.allocationRate : 0;
-        updateElement('allocation-rate', `${rate.toFixed(1)}/sec`);
+        updateElement('allocation-rate', `${stats.allocationRate.toFixed(1)}/ms`);
         updateElement('active-variables', stats.activeVariables);
         updateElement('variable-types', `${stats.uniqueTypes} types`);
         updateElement('borrow-operations', stats.totalBorrows);
@@ -7594,8 +4399,8 @@ function calculateComprehensiveStats(allData) {
     
     // Time-based calculations
     const timestamps = validData.map(d => d.timestamp_alloc).filter(t => t);
-    const timeRangeMs = timestamps.length > 0 ? Math.max(1, (Math.max(...timestamps) - Math.min(...timestamps)) / 1000000) : 1; // Minimum 1ms
-    const allocationRate = totalAllocations / timeRangeMs;
+    const timeRange = timestamps.length > 0 ? (Math.max(...timestamps) - Math.min(...timestamps)) / 1000000 : 1;
+    const allocationRate = totalAllocations / Math.max(timeRange, 1);
     
     // Borrow analysis
     let totalBorrows = 0;
@@ -7966,7 +4771,7 @@ function initTimelineChart(data) {
             backgroundColor: 'rgba(234, 179, 8, 0.15)',
             fill: true,
             tension: 0.2,
-            hidden: false,
+            hidden: showGrowthCheckbox ? !showGrowthCheckbox.checked : true,
             yAxisID: 'y1'
         });
 
@@ -7999,13 +4804,12 @@ function initTimelineChart(data) {
         window.chartInstances['timelineChart'] = chart;
 
         if (showGrowthCheckbox) {
-            showGrowthCheckbox.addEventListener('change', () => {
+            showGrowthCheckbox.onchange = () => {
                 const ds = chart.data.datasets.find(d => d.yAxisID === 'y1');
                 if (!ds) return;
                 ds.hidden = !showGrowthCheckbox.checked;
                 chart.update();
-                console.log('Growth rate toggled:', showGrowthCheckbox.checked);
-            });
+            };
         }
     }
 }
@@ -8861,7 +5665,7 @@ function createProjectBasedUnsafeFFIDashboard(container, allocations, violations
                 <!-- SVG Definitions -->
                 <defs>
                     <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-                        <polygon points="0 0, 10 3.5, 0 7" fill="#e74c3c"/>
+                        <polygon points="0 0, 10 3.5, 0 7" fill='#e74c3c'/>
                     </marker>
                     <filter id="glow">
                         <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
@@ -8873,7 +5677,7 @@ function createProjectBasedUnsafeFFIDashboard(container, allocations, violations
                 </defs>
                 
                 <!-- Main Title -->
-                <text x="${width/2}" y="40" text-anchor="middle" font-size="24" font-weight="bold" fill="#ecf0f1">
+                <text x="${width/2}" y="40" text-anchor="middle" font-size="24" font-weight="bold" fill='#ecf0f1'>
                     Unsafe Rust &amp; FFI Memory Analysis Dashboard
                 </text>
                 
@@ -8935,7 +5739,7 @@ function createMetricsCards(unsafeCount, ffiCount, crossBoundaryEvents, violatio
         </text>
         
         <!-- Label -->
-        <text x="${metric.x}" y="95" text-anchor="middle" font-size="10" fill="#bdc3c7">
+        <text x="${metric.x}" y="95" text-anchor="middle" font-size="10" fill='#bdc3c7'>
             ${metric.label}
         </text>
     `).join('');
@@ -8955,7 +5759,7 @@ function createAllocationSourceBreakdown(allocations) {
     
     const total = safeCount + unsafeCount + ffiCount + crossBoundaryCount;
     if (total === 0) {
-        return `<text x="300" y="150" text-anchor="middle" font-size="14" fill="#95a5a6">No allocation data available</text>`;
+        return `<text x="300" y="150" text-anchor="middle" font-size="14" fill='#95a5a6'>No allocation data available</text>`;
     }
     
     const sources = [
@@ -8968,10 +5772,10 @@ function createAllocationSourceBreakdown(allocations) {
     let svg = `
         <!-- Section background -->
         <rect x="0" y="0" width="600" height="300" fill="rgba(52, 73, 94, 0.3)" 
-              stroke="#34495e" stroke-width="2" rx="10"/>
+              stroke='#34495e' stroke-width="2" rx="10"/>
         
         <!-- Section title -->
-        <text x="300" y="-10" text-anchor="middle" font-size="18" font-weight="bold" fill="#ecf0f1">
+        <text x="300" y="-10" text-anchor="middle" font-size="18" font-weight="bold" fill='#ecf0f1'>
             Memory Allocation Sources
         </text>
     `;
@@ -8990,7 +5794,7 @@ function createAllocationSourceBreakdown(allocations) {
                 </text>
                 
                 <!-- Label -->
-                <text x="${source.x + 20}" y="220" text-anchor="middle" font-size="10" fill="#ecf0f1">
+                <text x="${source.x + 20}" y="220" text-anchor="middle" font-size="10" fill='#ecf0f1'>
                     ${source.label}
                 </text>
             `;
@@ -9010,23 +5814,23 @@ function createMemorySafetyStatus(violations) {
               stroke="${bgColor}" stroke-width="2" rx="10"/>
         
         <!-- Section title -->
-        <text x="300" y="-10" text-anchor="middle" font-size="18" font-weight="bold" fill="#ecf0f1">
+        <text x="300" y="-10" text-anchor="middle" font-size="18" font-weight="bold" fill='#ecf0f1'>
             Memory Safety Status
         </text>
     `;
     
     if (violations.length === 0) {
         svg += `
-            <text x="300" y="150" text-anchor="middle" font-size="16" font-weight="bold" fill="#27ae60">
+            <text x="300" y="150" text-anchor="middle" font-size="16" font-weight="bold" fill='#27ae60'>
                 No Safety Violations Detected
             </text>
-            <text x="300" y="180" text-anchor="middle" font-size="12" fill="#2ecc71">
+            <text x="300" y="180" text-anchor="middle" font-size="12" fill='#2ecc71'>
                 All unsafe operations and FFI calls appear to be memory-safe
             </text>
         `;
     } else {
         svg += `
-            <text x="300" y="120" text-anchor="middle" font-size="16" font-weight="bold" fill="#e74c3c">
+            <text x="300" y="120" text-anchor="middle" font-size="16" font-weight="bold" fill='#e74c3c'>
                 ${violations.length} Safety Violations Detected
             </text>
         `;
@@ -9035,7 +5839,7 @@ function createMemorySafetyStatus(violations) {
             const y = 160 + i * 20;
             const description = getViolationDescription(violation);
             svg += `
-                <text x="30" y="${y}" font-size="12" fill="#e74c3c">• ${description}</text>
+                <text x="30" y="${y}" font-size="12" fill='#e74c3c'>• ${description}</text>
             `;
         });
     }
@@ -9064,38 +5868,38 @@ function createBoundaryFlow(allocations) {
     return `
         <!-- Section background -->
         <rect x="0" y="0" width="600" height="200" fill="rgba(52, 73, 94, 0.3)" 
-              stroke="#34495e" stroke-width="2" rx="10"/>
+              stroke='#34495e' stroke-width="2" rx="10"/>
         
         <!-- Section title -->
-        <text x="300" y="-10" text-anchor="middle" font-size="18" font-weight="bold" fill="#ecf0f1">
+        <text x="300" y="-10" text-anchor="middle" font-size="18" font-weight="bold" fill='#ecf0f1'>
             Cross-Language Memory Flow
         </text>
         
         <!-- Rust territory -->
-        <rect x="50" y="50" width="200" height="100" fill="#2ecc71" fill-opacity="0.2" 
-              stroke="#2ecc71" stroke-width="2" rx="8"/>
-        <text x="150" y="110" text-anchor="middle" font-size="14" font-weight="bold" fill="#2ecc71">
+        <rect x="50" y="50" width="200" height="100" fill='#2ecc71' fill-opacity="0.2" 
+              stroke='#2ecc71' stroke-width="2" rx="8"/>
+        <text x="150" y="110" text-anchor="middle" font-size="14" font-weight="bold" fill='#2ecc71'>
             RUST
         </text>
         
         <!-- FFI territory -->
-        <rect x="350" y="50" width="200" height="100" fill="#3498db" fill-opacity="0.2" 
-              stroke="#3498db" stroke-width="2" rx="8"/>
-        <text x="450" y="110" text-anchor="middle" font-size="14" font-weight="bold" fill="#3498db">
+        <rect x="350" y="50" width="200" height="100" fill='#3498db' fill-opacity="0.2" 
+              stroke='#3498db' stroke-width="2" rx="8"/>
+        <text x="450" y="110" text-anchor="middle" font-size="14" font-weight="bold" fill='#3498db'>
             FFI / C
         </text>
         
         ${rustToFfi > 0 ? `
             <!-- Rust to FFI arrow -->
-            <line x1="250" y1="80" x2="350" y2="80" stroke="#e74c3c" stroke-width="3" marker-end="url(#arrowhead)"/>
-            <text x="300" y="75" text-anchor="middle" font-size="12" font-weight="bold" fill="#e74c3c">
+            <line x1="250" y1="80" x2="350" y2="80" stroke='#e74c3c' stroke-width="3" marker-end="url(#arrowhead)"/>
+            <text x="300" y="75" text-anchor="middle" font-size="12" font-weight="bold" fill='#e74c3c'>
                 ${rustToFfi}
             </text>
         ` : ''}
         
         ${ffiToRust > 0 ? `
             <!-- FFI to Rust indicator -->
-            <text x="300" y="135" text-anchor="middle" font-size="12" font-weight="bold" fill="#f39c12">
+            <text x="300" y="135" text-anchor="middle" font-size="12" font-weight="bold" fill='#f39c12'>
                 ← ${ffiToRust}
             </text>
         ` : ''}
@@ -9111,11 +5915,11 @@ function createUnsafeHotspots(allocations) {
     if (unsafeAllocations.length === 0) {
         return `
             <rect x="0" y="0" width="600" height="200" fill="rgba(52, 73, 94, 0.3)" 
-                  stroke="#34495e" stroke-width="2" rx="10"/>
-            <text x="300" y="-10" text-anchor="middle" font-size="18" font-weight="bold" fill="#ecf0f1">
+                  stroke='#34495e' stroke-width="2" rx="10"/>
+            <text x="300" y="-10" text-anchor="middle" font-size="18" font-weight="bold" fill='#ecf0f1'>
                 Unsafe Memory Hotspots
             </text>
-            <text x="300" y="100" text-anchor="middle" font-size="14" fill="#2ecc71">
+            <text x="300" y="100" text-anchor="middle" font-size="14" fill='#2ecc71'>
                 No unsafe memory allocations detected
             </text>
         `;
@@ -9123,8 +5927,8 @@ function createUnsafeHotspots(allocations) {
     
     let svg = `
         <rect x="0" y="0" width="600" height="200" fill="rgba(52, 73, 94, 0.3)" 
-              stroke="#34495e" stroke-width="2" rx="10"/>
-        <text x="300" y="-10" text-anchor="middle" font-size="18" font-weight="bold" fill="#ecf0f1">
+              stroke='#34495e' stroke-width="2" rx="10"/>
+        <text x="300" y="-10" text-anchor="middle" font-size="18" font-weight="bold" fill='#ecf0f1'>
             Unsafe Memory Hotspots
         </text>
     `;
@@ -9156,7 +5960,7 @@ function createUnsafeHotspots(allocations) {
                     stroke="${color}" stroke-width="2" filter="url(#glow)"/>
             
             <!-- Size label -->
-            <text x="${x}" y="${y + 4}" text-anchor="middle" font-size="8" font-weight="bold" fill="#ffffff">
+            <text x="${x}" y="${y + 4}" text-anchor="middle" font-size="8" font-weight="bold" fill='#ffffff'>
                 ${formatBytes(size)}
             </text>
             
@@ -9622,25 +6426,25 @@ function renderVariableGraph() {
                 <div style="font-weight: bold; margin-bottom: 8px; color: var(--text-primary); font-size: 12px;">Variable Relationships</div>
                 <div style="display: flex; align-items: center; margin-bottom: 4px;">
                     <svg width="20" height="3" style="margin-right: 8px;">
-                        <line x1="0" y1="1.5" x2="20" y2="1.5" stroke="#06b6d4" stroke-width="2"/>
+                        <line x1="0" y1="1.5" x2="20" y2="1.5" stroke='#06b6d4' stroke-width="2"/>
                     </svg>
                     <span style="color: var(--text-secondary);">Copy</span>
                 </div>
                 <div style="display: flex; align-items: center; margin-bottom: 4px;">
                     <svg width="20" height="3" style="margin-right: 8px;">
-                        <line x1="0" y1="1.5" x2="20" y2="1.5" stroke="#f59e0b" stroke-width="3" stroke-dasharray="5,5"/>
+                        <line x1="0" y1="1.5" x2="20" y2="1.5" stroke='#f59e0b' stroke-width="3" stroke-dasharray="5,5"/>
                     </svg>
                     <span style="color: var(--text-secondary);">Clone</span>
                 </div>
                 <div style="display: flex; align-items: center; margin-bottom: 4px;">
                     <svg width="20" height="3" style="margin-right: 8px;">
-                        <line x1="0" y1="1.5" x2="20" y2="1.5" stroke="#8b5cf6" stroke-width="2" stroke-dasharray="10,5"/>
+                        <line x1="0" y1="1.5" x2="20" y2="1.5" stroke='#8b5cf6' stroke-width="2" stroke-dasharray="10,5"/>
                     </svg>
                     <span style="color: var(--text-secondary);">Move</span>
                 </div>
                 <div style="display: flex; align-items: center;">
                     <svg width="20" height="3" style="margin-right: 8px;">
-                        <line x1="0" y1="1.5" x2="20" y2="1.5" stroke="#64748b" stroke-width="1"/>
+                        <line x1="0" y1="1.5" x2="20" y2="1.5" stroke='#64748b' stroke-width="1"/>
                     </svg>
                     <span style="color: var(--text-secondary);">Related</span>
                 </div>
@@ -10164,7 +6968,7 @@ function renderLimitedLifecycleTimeline(allocs) {
                         height: 100%;
                         background: ${isActive ? 'linear-gradient(to right, #059669, #34d399)' : 'linear-gradient(to right, #2563eb, #60a5fa)'};
                         border-radius: 4px;
-                        ${isActive ? '/* animation: pulse 2s infinite; */ box-shadow: 0 0 8px rgba(5, 150, 105, 0.4);' : ''}
+                        ${isActive ? 'animation: pulse 2s infinite;' : ''}
                     " title="Lifetime: ${endTime - startTime}ms"></div>
                 </div>
             </div>
@@ -10176,8 +6980,8 @@ function renderLimitedLifecycleTimeline(allocs) {
     // Add CSS for pulse animation
     html += `
         <style>
-            /* @keyframes pulse {
-                0%, 100% { opacity: 1; } */
+            @keyframes pulse {
+                0%, 100% { opacity: 1; }
                 50% { opacity: 0.7; }
             }
         </style>
@@ -10251,7 +7055,7 @@ function renderFullLifecycleTimeline(allocs) {
                         height: 100%;
                         background: ${barColor};
                         border-radius: 3px;
-                        ${isActive ? '/* /* animation: pulse 2s infinite; */ box-shadow: 0 0 8px rgba(5, 150, 105, 0.4); */ box-shadow: 0 0 6px rgba(5, 150, 105, 0.3);' : ''}
+                        ${isActive ? 'animation: pulse 2s infinite;' : ''}
                     " title="Lifetime: ${endTime - startTime}ms | Status: ${isLeaked ? 'Leaked' : isActive ? 'Active' : 'Freed'}"></div>
                 </div>
             </div>
@@ -10263,8 +7067,8 @@ function renderFullLifecycleTimeline(allocs) {
     // Add CSS for pulse animation
     html += `
         <style>
-            /* @keyframes pulse {
-                0%, 100% { opacity: 1; } */
+            @keyframes pulse {
+                0%, 100% { opacity: 1; }
                 50% { opacity: 0.7; }
             }
         </style>
@@ -10313,7 +7117,7 @@ function setupLifecycleVisualization() {
                         height: 100%;
                         background: ${isActive ? 'linear-gradient(to right, #059669, #34d399)' : 'linear-gradient(to right, #2563eb, #60a5fa)'};
                         border-radius: 4px;
-                        ${isActive ? '/* animation: pulse 2s infinite; */ box-shadow: 0 0 8px rgba(5, 150, 105, 0.4);' : ''}
+                        ${isActive ? 'animation: pulse 2s infinite;' : ''}
                     " title="Lifetime: ${endTime - startTime}ms"></div>
                 </div>
             </div>
@@ -10325,8 +7129,8 @@ function setupLifecycleVisualization() {
     // Add CSS for pulse animation
     html += `
         <style>
-            /* @keyframes pulse {
-                0%, 100% { opacity: 1; } */
+            @keyframes pulse {
+                0%, 100% { opacity: 1; }
                 50% { opacity: 0.7; }
             }
         </style>
@@ -10689,7 +7493,7 @@ function createFFIDataFlow(allocs) {
             <!-- Background grid pattern -->
             <defs>
                 <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
-                    <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#334155" stroke-width="0.5" opacity="0.3"/>
+                    <path d="M 20 0 L 0 0 0 20" fill="none" stroke='#334155' stroke-width="0.5" opacity="0.3"/>
                 </pattern>
                 <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
                     <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
@@ -10712,11 +7516,11 @@ function createFFIDataFlow(allocs) {
             
             <!-- Rust Side (Left) -->
             <g id="rust-side">
-                <rect x="50" y="40" width="200" height="120" rx="15" fill="url(#rustGradient)" opacity="0.2" stroke="#f97316" stroke-width="2"/>
-                <text x="150" y="30" text-anchor="middle" font-size="16" font-weight="bold" fill="#f97316" filter="url(#glow)">
+                <rect x="50" y="40" width="200" height="120" rx="15" fill="url(#rustGradient)" opacity="0.2" stroke='#f97316' stroke-width="2"/>
+                <text x="150" y="30" text-anchor="middle" font-size="16" font-weight="bold" fill='#f97316' filter="url(#glow)">
                     🦀 RUST
                 </text>
-                <text x="150" y="190" text-anchor="middle" font-size="12" fill="#f97316">
+                <text x="150" y="190" text-anchor="middle" font-size="12" fill='#f97316'>
                     ${rustAllocs.length} allocations
                 </text>
                 
@@ -10726,8 +7530,8 @@ function createFFIDataFlow(allocs) {
                     const y = 60 + Math.floor(i / 4) * 35;
                     const size = Math.max(8, Math.min(16, Math.sqrt((alloc.size || 0) / 1000)));
                     return `
-                        <circle cx="${x}" cy="${y}" r="${size}" fill="#f97316" opacity="0.8" 
-                                stroke="#fff" stroke-width="2" class="rust-node" 
+                        <circle cx="${x}" cy="${y}" r="${size}" fill='#f97316' opacity="0.8" 
+                                stroke='#fff' stroke-width="2" class='rust-node '
                                 data-ptr="${alloc.ptr}" data-size="${alloc.size || 0}"
                                 style="cursor: pointer; transition: all 0.3s;">
                             <animate attributeName="opacity" values="0.8;1;0.8" dur="2s" repeatCount="indefinite"/>
@@ -10738,11 +7542,11 @@ function createFFIDataFlow(allocs) {
             
             <!-- C/FFI Side (Right) -->
             <g id="c-side">
-                <rect x="550" y="40" width="200" height="120" rx="15" fill="url(#cGradient)" opacity="0.2" stroke="#3b82f6" stroke-width="2"/>
-                <text x="650" y="30" text-anchor="middle" font-size="16" font-weight="bold" fill="#3b82f6" filter="url(#glow)">
+                <rect x="550" y="40" width="200" height="120" rx="15" fill="url(#cGradient)" opacity="0.2" stroke='#3b82f6' stroke-width="2"/>
+                <text x="650" y="30" text-anchor="middle" font-size="16" font-weight="bold" fill='#3b82f6' filter="url(#glow)">
                     ⚙️ C/FFI
                 </text>
-                <text x="650" y="190" text-anchor="middle" font-size="12" fill="#3b82f6">
+                <text x="650" y="190" text-anchor="middle" font-size="12" fill='#3b82f6'>
                     ${ffiAllocs.length} FFI allocations
                 </text>
                 
@@ -10752,8 +7556,8 @@ function createFFIDataFlow(allocs) {
                     const y = 60 + Math.floor(i / 4) * 35;
                     const size = Math.max(8, Math.min(16, Math.sqrt((alloc.size || 0) / 1000)));
                     return `
-                        <circle cx="${x}" cy="${y}" r="${size}" fill="#3b82f6" opacity="0.9" 
-                                stroke="#fff" stroke-width="2" class="ffi-node"
+                        <circle cx="${x}" cy="${y}" r="${size}" fill='#3b82f6' opacity="0.9" 
+                                stroke='#fff' stroke-width="2" class='ffi-node '
                                 data-ptr="${alloc.ptr}" data-size="${alloc.size || 0}"
                                 style="cursor: pointer;">
                         </circle>
@@ -10764,32 +7568,32 @@ function createFFIDataFlow(allocs) {
             <!-- Data Flow Arrows -->
             <g id="data-flows">
                 <!-- Rust to C flow -->
-                <path d="M 250 80 Q 400 60 550 80" stroke="#10b981" stroke-width="3" fill="none" opacity="0.7">
-                    <animate attributeName="stroke-dasharray" values="0,1000;1000,0" dur="3s" repeatCount="indefinite"/>
+                <path d="M 250 80 Q 400 60 550 80" stroke='#10b981' stroke-width="3" fill="none" opacity="0.7">
+                    <animate attributeName="stroke-dasharray " values="0,1000;1000,0" dur="3s" repeatCount="indefinite "/>
                 </path>
-                <text x="400" y="55" text-anchor="middle" font-size="10" fill="#10b981" font-weight="bold">
+                <text x="400" y="55" text-anchor="middle" font-size="10" fill='#10b981' font-weight="bold">
                     Rust → C
                 </text>
                 
                 <!-- C to Rust flow -->
-                <path d="M 550 120 Q 400 140 250 120" stroke="#ec4899" stroke-width="3" fill="none" opacity="0.7">
+                <path d="M 550 120 Q 400 140 250 120" stroke='#ec4899' stroke-width="3" fill="none" opacity="0.7">
                     <animate attributeName="stroke-dasharray" values="0,1000;1000,0" dur="3.5s" repeatCount="indefinite"/>
                 </path>
-                <text x="400" y="155" text-anchor="middle" font-size="10" fill="#ec4899" font-weight="bold">
+                <text x="400" y="155" text-anchor="middle" font-size="10" fill='#ec4899' font-weight="bold">
                     C → Rust
                 </text>
                 
                 <!-- Central processing hub -->
-                <circle cx="400" cy="100" r="20" fill="#8b5cf6" opacity="0.3" stroke="#8b5cf6" stroke-width="2">
+                <circle cx="400" cy="100" r="20" fill='#8b5cf6' opacity="0.3" stroke='#8b5cf6' stroke-width="2">
                     <animate attributeName="r" values="20;25;20" dur="2s" repeatCount="indefinite"/>
                 </circle>
-                <text x="400" y="105" text-anchor="middle" font-size="10" fill="#8b5cf6" font-weight="bold">FFI</text>
+                <text x="400" y="105" text-anchor="middle" font-size="10" fill='#8b5cf6' font-weight="bold">FFI</text>
             </g>
             
             <!-- Memory flow particles -->
             <g id="flow-particles">
                 ${Array.from({length: 6}, (_, i) => `
-                    <circle r="3" fill="#fbbf24" opacity="0.8">
+                    <circle r="3" fill='#fbbf24' opacity="0.8">
                         <animateMotion dur="${3 + i * 0.5}s" repeatCount="indefinite">
                             <path d="M 250 80 Q 400 60 550 80"/>
                         </animateMotion>
@@ -10798,7 +7602,7 @@ function createFFIDataFlow(allocs) {
                 `).join('')}
                 
                 ${Array.from({length: 4}, (_, i) => `
-                    <circle r="3" fill="#06d6a0" opacity="0.8">
+                    <circle r="3" fill='#06d6a0' opacity="0.8">
                         <animateMotion dur="${3.5 + i * 0.7}s" repeatCount="indefinite">
                             <path d="M 550 120 Q 400 140 250 120"/>
                         </animateMotion>
@@ -11165,24 +7969,7 @@ function renderEnhancedDataInsights() {
     document.getElementById('time-span').textContent = timeSpanMs.toFixed(2) + 'ms';
     document.getElementById('allocation-burst').textContent = allocationBurst + '/sec';
     document.getElementById('peak-concurrency').textContent = Math.max(...allocs.map(a => (a.borrow_info?.max_concurrent_borrows || 0)));
-    // 强制更新Thread Activity显示
-    const threadActivityEl = document.getElementById('thread-activity');
-    if (threadActivityEl) {
-        threadActivityEl.outerHTML = `
-            <div id="thread-activity" style="padding: 15px; background: #f8f9fa; border-radius: 8px; margin: 10px 0; border-left: 4px solid #007bff; min-height: 80px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                    <span style="font-weight: 600; color: #495057; font-size: 1.1em;">Main Thread</span>
-                    <span style="padding: 6px 12px; background: #28a745; color: white; border-radius: 15px; font-size: 0.85em; font-weight: 500;">Active</span>
-                </div>
-                <div style="font-size: 0.9em; color: #6c757d; line-height: 1.4;">
-                    <div style="margin: 4px 0;">Thread ID: main</div>
-                    <div style="margin: 4px 0;">Status: Running</div>
-                    <div style="margin: 4px 0;">CPU Usage: Normal</div>
-                    <div style="margin: 4px 0;">Memory: ${formatBytes(data?.memory_analysis?.peak_memory || 0)}</div>
-                </div>
-            </div>
-        `;
-    }
+    document.getElementById('thread-activity').textContent = 'Single Thread';
     
     // Update Memory Operations
     document.getElementById('borrow-ops').textContent = totalBorrows;
@@ -12046,7 +8833,7 @@ function updateEnhancedMetrics() {
     const totalMemory = allocs.reduce((sum, a) => sum + (a.size || 0), 0);
     const peakMemory = Math.max(...allocs.map(a => a.size || 0));
     const timestamps = allocs.map(a => a.timestamp_alloc).filter(t => t).sort((a, b) => a - b);
-    const timeRangeNs = timestamps.length > 1 ? Math.max(1e6, timestamps[timestamps.length - 1] - timestamps[0]) : 1e9; // Minimum 1ms range
+    const timeRangeNs = timestamps.length > 1 ? timestamps[timestamps.length - 1] - timestamps[0] : 1e9;
     const allocationRate = allocs.length / (timeRangeNs / 1e9); // allocations per second
     const avgLifetime = allocs.filter(a => a.lifetime_ms).reduce((sum, a) => sum + a.lifetime_ms, 0) / Math.max(1, allocs.filter(a => a.lifetime_ms).length);
     
@@ -12306,81 +9093,4 @@ function showFFIFlowNodeDetail(ptr, size, allocs) {
     modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
 }
 
-
-    // Override problematic functions AFTER JS_CONTENT loads
-    window.updateLifecycleStatistics = function() {
-      // Safe override - prevent errors from missing DOM elements
-      try {
-        // Try to find and update elements safely
-        const elements = ['active-vars', 'freed-vars', 'leaked-vars', 'avg-lifetime-stat'];
-        elements.forEach(id => {
-          const el = document.getElementById(id);
-          if (el) el.textContent = '-';
-        });
-      } catch (e) {
-        // Silently ignore errors
-      }
-    };
-
-    // Override other potential problem functions
-    window.updateKPIMetrics = function() { return; };
-    window.populateLifetimeTable = function() { return; };
-    window.updateMemoryStats = function() { return; };
-
-    // Manual initialization function for testing
-    function manualInitialize() {
-      const statusEl = document.getElementById('init-status');
-      if (statusEl) statusEl.textContent = 'Initializing...';
-      
-      console.log('🔄 Manual initialization triggered');
-      console.log('window.analysisData:', window.analysisData);
-      
-      if (window.analysisData && window.analysisData.memory_analysis && window.analysisData.memory_analysis.allocations) {
-        console.log('✅ Data found, calling initEnhancedLifecycleVisualization...');
-        initEnhancedLifecycleVisualization();
-        if (statusEl) statusEl.textContent = 'Initialized successfully!';
-      } else {
-        console.warn('❌ No data found, trying to load...');
-        if (statusEl) statusEl.textContent = 'Loading data...';
-        
-        // Try to load data manually
-        fetch('./large_scale_user_memory_analysis.json')
-          .then(response => response.json())
-          .then(memoryData => {
-            console.log('✅ Manually loaded data:', memoryData);
-            window.analysisData = {
-              memory_analysis: memoryData
-            };
-            initEnhancedLifecycleVisualization();
-            if (statusEl) statusEl.textContent = 'Data loaded and initialized!';
-          })
-          .catch(error => {
-            console.error('❌ Failed to load data:', error);
-            if (statusEl) statusEl.textContent = 'Failed to load data';
-          });
-      }
-    }
-
-    // Wait for all scripts to load, then initialize
-    function waitForDataAndInit() {
-      if (window.analysisData && window.analysisData.memory_analysis && window.analysisData.memory_analysis.allocations) {
-        safeInitEnhanced();
-      } else {
-        setTimeout(waitForDataAndInit, 200);
-      }
-    }
-    
-    // Initialize enhanced features after everything loads
-    document.addEventListener('DOMContentLoaded', function() {
-      // Setup manual initialize button
-      const manualBtn = document.getElementById('manual-init-btn');
-      if (manualBtn) {
-        manualBtn.addEventListener('click', manualInitialize);
-      }
-      
-      // Start checking for data immediately
-      waitForDataAndInit();
-    });
-  </script>
-</body>
-</html>
+"#;

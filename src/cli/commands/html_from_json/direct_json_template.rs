@@ -1,8 +1,9 @@
-//! Direct JSON template generator that uses raw JSON data without complex processing
-
 use serde_json::Value;
 use std::collections::HashMap;
 use std::error::Error;
+
+use super::html::{get_embedded_styles_css, get_html_template};
+use super::js::get_embedded_script_js;
 
 /// Generate HTML directly from raw JSON data
 pub fn generate_direct_html(json_data: &HashMap<String, Value>) -> Result<String, Box<dyn Error>> {
@@ -56,44 +57,15 @@ pub fn generate_direct_html(json_data: &HashMap<String, Value>) -> Result<String
     }
 
     // Try multiple possible paths for the template files - prioritize the original dashboard.html
-    let template_paths = [
-        // Primary: Use the new clean dashboard template
-        "templates/clean_dashboard.html",
-        "./templates/clean_dashboard.html",
-        "../templates/clean_dashboard.html",
-        "../../templates/clean_dashboard.html",
-    ];
 
-    let css_paths = [
-        "templates/styles.css",
-        "./templates/styles.css",
-        "../templates/styles.css",
-        "../../templates/styles.css",
-    ];
+    // Use embedded template to avoid external file dependency
+    let template_content = get_html_template().to_string();
 
-    let js_paths = [
-        "templates/script.js",
-        "./templates/script.js",
-        "../templates/script.js",
-        "../../templates/script.js",
-    ];
+    // Use embedded CSS to avoid external file dependency
+    let css_content = get_embedded_styles_css().to_string();
 
-    let template_content = template_paths
-        .iter()
-        .find_map(|path| std::fs::read_to_string(path).ok())
-        .ok_or("Failed to find dashboard template file in any expected location")?;
-
-    // Load CSS content
-    let css_content = css_paths
-        .iter()
-        .find_map(|path| std::fs::read_to_string(path).ok())
-        .ok_or("Failed to find CSS template file in any expected location")?;
-
-    // Load JavaScript content
-    let js_content = js_paths
-        .iter()
-        .find_map(|path| std::fs::read_to_string(path).ok())
-        .ok_or("Failed to find JavaScript template file in any expected location")?;
+    // Use embedded JavaScript to avoid external file dependency
+    let js_content = get_embedded_script_js().to_string();
 
     // Replace placeholders in the template with proper escaping
     let mut html = template_content
@@ -103,13 +75,9 @@ pub fn generate_direct_html(json_data: &HashMap<String, Value>) -> Result<String
         .replace("{{JS_CONTENT}}", &js_content)
         .replace("{{DATA_PLACEHOLDER}}", &json_data_str)
         .replace(
-            "{{\n                {\n                CSS_CONTENT\n            }\n        }",
+            "{\n        {\n        CSS_CONTENT\n      }\n    }",
             &css_content,
-        ) // fix CSS format issues
-        .replace(
-            "{\n                {\n                CSS_CONTENT\n            }\n        }",
-            &css_content,
-        ); // alternative format
+        ); // fix CSS format issues - match exact template spacing
 
     // Inject safety risk data into the HTML
     html = inject_safety_risk_data_into_html(html, &safety_risk_data)?;
@@ -1276,7 +1244,7 @@ fn inject_safety_risk_data_into_html(
             let safety_function_injection = r#"
     // Safety Risk Data Management Function
     function loadSafetyRisks() {
-        console.log('🛡️ Loading safety risk data...');
+        console.log("🛡️ Loading safety risk data...");
         const unsafeTable = document.getElementById('unsafeTable');
         if (!unsafeTable) {
             console.warn('⚠️ unsafeTable not found');
@@ -1292,7 +1260,7 @@ fn inject_safety_risk_data_into_html(
         unsafeTable.innerHTML = '';
         risks.forEach((risk, index) => {
             const row = document.createElement('tr');
-            row.className = 'hover:bg-gray-50 dark:hover:bg-gray-700';
+            row.className = "hover:bg-gray-50 dark:hover:bg-gray-700";
             
             const riskLevelClass = risk.risk_level === 'High' ? 'text-red-600 font-bold' : 
                                  risk.risk_level === 'Medium' ? 'text-yellow-600 font-semibold' : 
@@ -1306,7 +1274,7 @@ fn inject_safety_risk_data_into_html(
             unsafeTable.appendChild(row);
         });
         
-        console.log('✅ Safety risks loaded:', risks.length, 'items');
+        console.log("✅ Safety risks loaded:", risks.length, 'items');
     }
     
     "#;

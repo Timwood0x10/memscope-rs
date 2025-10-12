@@ -19,6 +19,10 @@ pub struct VariableInfo {
     pub timestamp: u64,
     /// Estimated size of the variable
     pub size: usize,
+    /// Thread ID that created this variable
+    pub thread_id: usize,
+    /// Memory usage of this variable
+    pub memory_usage: u64,
 }
 
 /// Global variable registry using HashMap for fast lookups
@@ -43,6 +47,27 @@ impl VariableRegistry {
         type_name: String,
         size: usize,
     ) -> TrackingResult<()> {
+        let thread_id = {
+            // Use a simple atomic counter for thread IDs instead of hash
+            static THREAD_COUNTER: std::sync::atomic::AtomicUsize =
+                std::sync::atomic::AtomicUsize::new(1);
+            static THREAD_ID_MAP: std::sync::OnceLock<
+                std::sync::Mutex<std::collections::HashMap<std::thread::ThreadId, usize>>,
+            > = std::sync::OnceLock::new();
+
+            let map = THREAD_ID_MAP
+                .get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()));
+            let current_thread_id = std::thread::current().id();
+
+            if let Ok(mut map) = map.try_lock() {
+                *map.entry(current_thread_id).or_insert_with(|| {
+                    THREAD_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+                })
+            } else {
+                // Fallback if we can't get the lock
+                1
+            }
+        };
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
@@ -53,6 +78,8 @@ impl VariableRegistry {
             type_name,
             timestamp,
             size,
+            thread_id,
+            memory_usage: size as u64,
         };
 
         if let Ok(mut registry) = get_global_registry().try_lock() {
@@ -963,6 +990,8 @@ mod tests {
         assert_eq!(info.type_name, type_name);
         assert_eq!(info.size, size);
         assert!(info.timestamp > 0);
+        assert!(info.thread_id > 0);
+        assert_eq!(info.memory_usage, size as u64);
     }
 
     #[test]
@@ -1443,6 +1472,8 @@ mod tests {
                 type_name: "i32".to_string(),
                 timestamp: 1000,
                 size: 4,
+                thread_id: 1,
+                memory_usage: 4,
             },
         );
         registry.insert(
@@ -1452,6 +1483,8 @@ mod tests {
                 type_name: "String".to_string(),
                 timestamp: 2000,
                 size: 24,
+                thread_id: 2,
+                memory_usage: 24,
             },
         );
 

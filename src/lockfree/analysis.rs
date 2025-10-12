@@ -213,7 +213,7 @@ impl LockfreeAnalysis {
         for stats in self.thread_stats.values() {
             total_allocations += stats.total_allocations;
             total_deallocations += stats.total_deallocations;
-            peak_memory = peak_memory.max(stats.peak_memory);
+            peak_memory += stats.peak_memory; // 修复：累加所有线程的峰值内存
             total_allocated += stats.total_allocated;
 
             for &call_stack_hash in stats.allocation_frequency.keys() {
@@ -356,7 +356,7 @@ mod tests {
         assert_eq!(analysis.summary.total_threads, 1);
         assert_eq!(analysis.summary.total_allocations, 100);
         assert_eq!(analysis.summary.total_deallocations, 99);
-        assert_eq!(analysis.summary.peak_memory_usage, 8192);
+        assert_eq!(analysis.summary.peak_memory_usage, 8192); // Single thread
         assert_eq!(analysis.summary.total_memory_allocated, 8192);
         assert_eq!(analysis.summary.unique_call_stacks, 2); // Two call stacks in test data
                                                             // assert!(analysis.summary.analysis_duration_ms >= 0); // Always true for u64
@@ -383,7 +383,7 @@ mod tests {
         assert_eq!(analysis.summary.total_threads, 3);
         assert_eq!(analysis.summary.total_allocations, 350); // 100 + 50 + 200
         assert_eq!(analysis.summary.total_deallocations, 347); // 99 + 49 + 199
-        assert_eq!(analysis.summary.peak_memory_usage, 8192); // Max of all threads
+        assert_eq!(analysis.summary.peak_memory_usage, 14336); // Sum of all threads: 4096+2048+8192
         assert_eq!(analysis.summary.total_memory_allocated, 14336); // Sum of all threads
         assert_eq!(analysis.summary.unique_call_stacks, 2); // Same call stacks used by all
     }
