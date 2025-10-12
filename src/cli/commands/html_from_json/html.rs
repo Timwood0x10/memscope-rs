@@ -1,4 +1,24 @@
-pub const HTML_TEMPLATE: &str = r#"
+use std::fs;
+use std::sync::OnceLock;
+
+static HTML_TEMPLATE_CACHE: OnceLock<String> = OnceLock::new();
+
+pub fn get_html_template() -> &'static str {
+    HTML_TEMPLATE_CACHE.get_or_init(|| {
+        // Try to load from external file first
+        if let Ok(external_path) = std::env::var("MEMSCOPE_HTML_TEMPLATE") {
+            if let Ok(content) = fs::read_to_string(&external_path) {
+                println!("📁 Loaded external HTML template: {}", external_path);
+                return content;
+            }
+        }
+
+        // Fall back to embedded template
+        EMBEDDED_HTML_TEMPLATE.to_string()
+    })
+}
+
+const EMBEDDED_HTML_TEMPLATE: &str = r#"
 <!DOCTYPE html>
 <html lang="en">
 
@@ -5990,6 +6010,23 @@ pub const HTML_TEMPLATE: &str = r#"
 
 </html>
 "#;
+
+static STYLES_CSS_CACHE: OnceLock<String> = OnceLock::new();
+
+pub fn get_embedded_styles_css() -> &'static str {
+    STYLES_CSS_CACHE.get_or_init(|| {
+        // Try to load from external file first
+        if let Ok(external_path) = std::env::var("MEMSCOPE_CSS_TEMPLATE") {
+            if let Ok(content) = fs::read_to_string(&external_path) {
+                println!("📁 Loaded external CSS template: {}", external_path);
+                return content;
+            }
+        }
+
+        // Fall back to embedded CSS
+        EMBEDDED_STYLES_CSS.to_string()
+    })
+}
 
 pub const EMBEDDED_STYLES_CSS: &str = r#"/* CSS Variables for theming */
 :root {

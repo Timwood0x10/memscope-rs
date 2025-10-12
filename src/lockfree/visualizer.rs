@@ -1,5 +1,25 @@
 //! Clean HTML Visualizer implementation based on API-Template mapping
 
+use std::fs;
+use std::sync::OnceLock;
+
+static MULTITHREAD_TEMPLATE: OnceLock<String> = OnceLock::new();
+
+fn get_multithread_template() -> &'static str {
+    MULTITHREAD_TEMPLATE.get_or_init(|| {
+        // Try to load from external file first
+        if let Ok(external_path) = std::env::var("MEMSCOPE_MULTITHREAD_TEMPLATE") {
+            if let Ok(content) = fs::read_to_string(&external_path) {
+                println!("📁 Loaded external multithread template: {}", external_path);
+                return content;
+            }
+        }
+
+        // Fall back to embedded template
+        EMBEDDED_MULTITHREAD_TEMPLATE.to_string()
+    })
+}
+
 // Embedded multithread_template.html template - 1:1 copy with all placeholders preserved
 const EMBEDDED_MULTITHREAD_TEMPLATE: &str = r#"<!DOCTYPE html>
 <html lang="en">
@@ -2883,8 +2903,7 @@ fn render_template_with_data(
     use handlebars::Handlebars;
 
     // Read template
-    // 🔥 使用内嵌的multithread模板，避免外部文件依赖
-    let template_content = EMBEDDED_MULTITHREAD_TEMPLATE.to_string();
+    let template_content = get_multithread_template().to_string();
 
     // Create Handlebars engine
     let mut handlebars = Handlebars::new();

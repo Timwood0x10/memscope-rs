@@ -4,6 +4,26 @@
 use crate::async_memory::visualization::VisualizationConfig;
 use crate::lockfree::LockfreeAnalysis;
 use std::collections::HashMap;
+use std::fs;
+use std::sync::OnceLock;
+
+static HYBRID_DASHBOARD_TEMPLATE: OnceLock<String> = OnceLock::new();
+
+fn get_hybrid_dashboard_template() -> &'static str {
+    HYBRID_DASHBOARD_TEMPLATE.get_or_init(|| {
+        // Try to load from external file first
+        if let Ok(external_path) = std::env::var("MEMSCOPE_HYBRID_TEMPLATE") {
+            if let Ok(content) = fs::read_to_string(&external_path) {
+                println!("📁 Loaded external hybrid template: {}", external_path);
+                return content;
+            }
+        }
+
+        // Fall back to embedded template
+        EMBEDDED_HYBRID_DASHBOARD_TEMPLATE.to_string()
+    })
+}
+
 // Embedded templates - 1:1 copy with all placeholders preserved
 const EMBEDDED_HYBRID_DASHBOARD_TEMPLATE: &str = r#"
 <!DOCTYPE html>
@@ -8941,7 +8961,7 @@ impl FixedHybridTemplate {
     ) -> Result<String, Box<dyn std::error::Error>> {
         // Load external template
         // Use embedded template to avoid external file dependency
-        let template_content = EMBEDDED_HYBRID_DASHBOARD_TEMPLATE
+        let template_content = get_hybrid_dashboard_template()
             .replace("{JS}", JS)
             .replace("{ENHANCED_DIAGNOSTICS}", ENHANCED_DIAGNOSTICS);
 

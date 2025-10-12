@@ -2,8 +2,8 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::error::Error;
 
-use super::html::{EMBEDDED_STYLES_CSS, HTML_TEMPLATE};
-use super::js::EMBEDDED_SCRIPT_JS;
+use super::html::{get_embedded_styles_css, get_html_template};
+use super::js::get_embedded_script_js;
 
 /// Generate HTML directly from raw JSON data
 pub fn generate_direct_html(json_data: &HashMap<String, Value>) -> Result<String, Box<dyn Error>> {
@@ -59,13 +59,13 @@ pub fn generate_direct_html(json_data: &HashMap<String, Value>) -> Result<String
     // Try multiple possible paths for the template files - prioritize the original dashboard.html
 
     // Use embedded template to avoid external file dependency
-    let template_content = HTML_TEMPLATE.to_string();
+    let template_content = get_html_template().to_string();
 
     // Use embedded CSS to avoid external file dependency
-    let css_content = EMBEDDED_STYLES_CSS.to_string();
+    let css_content = get_embedded_styles_css().to_string();
 
     // Use embedded JavaScript to avoid external file dependency
-    let js_content = EMBEDDED_SCRIPT_JS.to_string();
+    let js_content = get_embedded_script_js().to_string();
 
     // Replace placeholders in the template with proper escaping
     let mut html = template_content

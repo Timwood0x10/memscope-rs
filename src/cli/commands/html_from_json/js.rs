@@ -1,3 +1,23 @@
+use std::fs;
+use std::sync::OnceLock;
+
+static SCRIPT_JS_CACHE: OnceLock<String> = OnceLock::new();
+
+pub fn get_embedded_script_js() -> &'static str {
+    SCRIPT_JS_CACHE.get_or_init(|| {
+        // Try to load from external file first
+        if let Ok(external_path) = std::env::var("MEMSCOPE_JS_TEMPLATE") {
+            if let Ok(content) = fs::read_to_string(&external_path) {
+                println!("📁 Loaded external JS template: {}", external_path);
+                return content;
+            }
+        }
+
+        // Fall back to embedded JS
+        EMBEDDED_SCRIPT_JS.to_string()
+    })
+}
+
 pub const EMBEDDED_SCRIPT_JS: &str = r#"
 // MemScope Dashboard JavaScript - Clean rendering for clean_dashboard.html
 // This file contains comprehensive functions for memory analysis dashboard
