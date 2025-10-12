@@ -227,15 +227,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security & Safety Enhancements
 
-- **FFI Safety Analysis**: Advanced unsafe code security evaluation
-- **Memory Passport System**: Cross-boundary memory lifecycle tracking
+- 
+- **FFI Safety Analysis**: Advanced unsafe code security evaluation**Memory Passport System**: Cross-boundary memory lifecycle tracking
 - **Unsafe Report Generation**: Comprehensive risk assessment for unsafe blocks
 - **Deadlock Prevention**: Intelligent deadlock detection and prevention
 - **Resource Leak Detection**: Automatic detection of memory and resource leaks
 
-## [Planned Features]
 
-- Configuration options for production use
-- Memory usage limits and cleanup policies
-- Integration with profiling tools
-- Real-time monitoring capabilities
+## [0.1.7~0.1.9]-2025-10-12
+
+- Fixed an issue with inaccurate HTML data generation and display in  **mixed mode** .
+- Replaced the previous external HTML template with an **embedded** template.
