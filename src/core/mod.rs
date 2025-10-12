@@ -29,7 +29,9 @@ pub mod optimized_locks;
 pub mod optimized_tracker;
 pub mod optimized_types;
 pub mod ownership_history;
+pub mod performance_optimizer;
 pub mod safe_operations;
+pub mod sampling_tracker;
 pub mod scope_tracker;
 pub mod sharded_locks;
 pub mod shared_types;
@@ -42,6 +44,7 @@ pub mod test_optimized_locks;
 pub mod thread_registry;
 pub mod threshold_batch_processor;
 pub mod tracker;
+pub mod ultra_fast_tracker;
 
 /// Type definitions
 pub mod types;
@@ -163,6 +166,20 @@ pub use lifecycle_summary::{
 pub use call_stack_normalizer::{
     get_global_call_stack_normalizer, initialize_global_call_stack_normalizer, CallStackId,
     CallStackNormalizer, CallStackRef, NormalizedCallStack, NormalizerConfig, NormalizerStats,
+};
+
+// Re-export ultra-fast tracking functionality
+pub use ultra_fast_tracker::{SamplingStats, UltraFastSamplingConfig, UltraFastTracker};
+
+// Re-export performance optimization functionality
+pub use performance_optimizer::{
+    AllocationPattern, OptimizationAction, OptimizationRecommendations, 
+    PerformanceOptimizer, PerformanceMetrics as OptimizerPerformanceMetrics,
+};
+
+// Re-export sampling tracker functionality
+pub use sampling_tracker::{
+    get_sampling_tracker, init_sampling_tracker, SamplingConfig, SamplingTracker, ThreadStats,
 };
 
 #[cfg(test)]
