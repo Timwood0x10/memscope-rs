@@ -173,8 +173,8 @@ pub use ultra_fast_tracker::{SamplingStats, UltraFastSamplingConfig, UltraFastTr
 
 // Re-export performance optimization functionality
 pub use performance_optimizer::{
-    AllocationPattern, OptimizationAction, OptimizationRecommendations, 
-    PerformanceOptimizer, PerformanceMetrics as OptimizerPerformanceMetrics,
+    AllocationPattern, OptimizationAction, OptimizationRecommendations,
+    PerformanceMetrics as OptimizerPerformanceMetrics, PerformanceOptimizer,
 };
 
 // Re-export sampling tracker functionality

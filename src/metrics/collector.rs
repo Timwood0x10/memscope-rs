@@ -428,6 +428,12 @@ impl HistogramData {
     }
 }
 
+impl Default for HistogramData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TimerData {
     /// Create new timer data
     pub fn new() -> Self {
@@ -463,6 +469,11 @@ impl TimerData {
         }
     }
 }
+impl Default for TimerData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl RateData {
     /// Create new rate data
@@ -487,6 +498,11 @@ impl RateData {
 
         // Calculate current rate
         self.current_rate = self.event_times.len() as f64 / self.window_duration.as_secs_f64();
+    }
+}
+impl Default for RateData {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

@@ -264,27 +264,22 @@ impl PlatformSymbolResolver {
             std::sync::atomic::Ordering::Relaxed,
         );
 
-        match &result {
-            Ok(symbol) => {
-                self.stats
-                    .successful_resolutions
-                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        if let Ok(symbol) = &result {
+            self.stats
+                .successful_resolutions
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
-                // Cache successful resolution
-                if self.config.enable_caching
-                    && self.symbol_cache.len() < self.config.max_cache_size
-                {
-                    self.symbol_cache.insert(
-                        address,
-                        CachedSymbol {
-                            symbol: symbol.clone(),
-                            cached_at: Instant::now(),
-                            access_count: 1,
-                        },
-                    );
-                }
+            // Cache successful resolution
+            if self.config.enable_caching && self.symbol_cache.len() < self.config.max_cache_size {
+                self.symbol_cache.insert(
+                    address,
+                    CachedSymbol {
+                        symbol: symbol.clone(),
+                        cached_at: Instant::now(),
+                        access_count: 1,
+                    },
+                );
             }
-            Err(_) => {}
         }
 
         result

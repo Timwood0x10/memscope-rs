@@ -116,9 +116,8 @@ impl ThreadLocalData {
 
         if let Some(ref mut file) = self.file_handle {
             // Serialize events to binary format using bincode
-            let serialized =
-                serde_json::to_vec(&self.event_buffer)
-                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+            let serialized = serde_json::to_vec(&self.event_buffer)
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
 
             // Write length prefix for easier parsing
             let len = serialized.len() as u32;

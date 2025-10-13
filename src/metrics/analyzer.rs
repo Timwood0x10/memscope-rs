@@ -506,7 +506,6 @@ impl Default for PerformanceAnalyzer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::metrics::MetricsCollector;
 
     #[test]
     fn test_performance_analyzer_creation() {

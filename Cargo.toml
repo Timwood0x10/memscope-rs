@@ -92,6 +92,10 @@ harness = false
 name = "performance_comparison"
 harness = false
 
+[[bench]]
+name = "comprehensive_benchmarks"
+harness = false
+
 
 [profile.release]
 lto = true

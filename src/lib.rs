@@ -15,6 +15,8 @@ pub mod advanced_types;
 /// Advanced memory analysis functionality
 pub mod analysis;
 pub mod async_memory;
+/// Type classification system
+pub mod classification;
 /// Command-line interface functionality
 pub mod cli;
 /// Core memory tracking functionality
@@ -39,6 +41,8 @@ pub mod lockfree;
 pub mod memory;
 /// Performance monitoring and metrics collection
 pub mod metrics;
+/// Performance monitoring and profiling
+pub mod performance;
 /// Platform-specific implementations for memory tracking
 pub mod platform;
 /// Code quality assurance and validation system

@@ -59,7 +59,7 @@ pub enum FallbackStrategy {
 }
 
 /// Levels of functionality degradation
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub enum DegradationLevel {
     /// Minimal impact, reduce precision
     Minimal,
@@ -294,7 +294,7 @@ impl RecoveryStrategy {
         self.retry_config.default_initial_delay
     }
 
-    fn execute_fallback(&self, strategy: &FallbackStrategy) -> Result<(), MemScopeError> {
+    fn execute_fallback(&self, strategy: &FallbackStrategy) -> Result<(), Box<MemScopeError>> {
         match strategy {
             FallbackStrategy::UseCache => {
                 // Implementation would check cache availability
@@ -344,6 +344,12 @@ pub enum RecoveryResult {
     CircuitOpen,
     /// Recovery failed
     Failed(String),
+}
+
+impl Default for CircuitBreaker {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl CircuitBreaker {
@@ -422,6 +428,12 @@ impl CircuitBreaker {
     }
 }
 
+impl Default for FallbackRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl FallbackRegistry {
     pub fn new() -> Self {
         Self {
@@ -436,14 +448,14 @@ impl FallbackRegistry {
         self.strategies.insert(name, Box::new(strategy));
     }
 
-    pub fn execute(&self, name: &str) -> Result<(), MemScopeError> {
+    pub fn execute(&self, name: &str) -> Result<(), Box<MemScopeError>> {
         if let Some(strategy) = self.strategies.get(name) {
-            strategy()
+            strategy().map_err(Box::new)
         } else {
-            Err(MemScopeError::new(
+            Err(Box::new(MemScopeError::new(
                 ErrorKind::ConfigurationError,
                 &format!("Fallback strategy '{}' not found", name),
-            ))
+            )))
         }
     }
 }
@@ -521,7 +533,7 @@ mod tests {
 
     #[test]
     fn test_degradation_levels() {
-        let levels = vec![
+        let levels = [
             DegradationLevel::Minimal,
             DegradationLevel::Moderate,
             DegradationLevel::Significant,

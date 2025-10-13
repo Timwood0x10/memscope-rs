@@ -184,8 +184,8 @@ impl ThreadLocalBuffer {
 }
 
 thread_local! {
-    static THREAD_BUFFER: UnsafeCell<Option<ThreadLocalBuffer>> = UnsafeCell::new(None);
-    static THREAD_ID: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+    static THREAD_BUFFER: UnsafeCell<Option<ThreadLocalBuffer>> = const { UnsafeCell::new(None) };
+    static THREAD_ID: std::sync::atomic::AtomicU32 = const { std::sync::atomic::AtomicU32::new(0) };
 }
 
 /// Ultra-fast memory tracker with minimal overhead
@@ -554,10 +554,16 @@ mod tests {
     #[test]
     fn test_compact_allocation_record() {
         let record = CompactAllocationRecord::new(0x1000, 1024, 0x12345678, 1);
-        assert_eq!(record.ptr, 0x1000);
-        assert_eq!(record.size, 1024);
-        assert_eq!(record.type_hash, 0x12345678);
-        assert_eq!(record.thread_id, 1);
+        // Use temporary variables to avoid packed field references
+        let ptr = record.ptr;
+        let size = record.size;
+        let type_hash = record.type_hash;
+        let thread_id = record.thread_id;
+
+        assert_eq!(ptr, 0x1000);
+        assert_eq!(size, 1024);
+        assert_eq!(type_hash, 0x12345678);
+        assert_eq!(thread_id, 1);
     }
 
     #[test]
@@ -624,7 +630,7 @@ mod tests {
         let mut buffer = ThreadLocalBuffer::new(100, 1);
 
         let record = CompactAllocationRecord::new(0x1000, 1024, 0x12345678, 1);
-        let index = buffer.add_record(record).unwrap();
+        let _index = buffer.add_record(record).unwrap();
 
         assert_eq!(buffer.write_pos, 1);
         assert_eq!(buffer.operation_count, 1);

@@ -3,6 +3,9 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
+/// Type alias for error handler function
+type ErrorHandlerFn = Box<dyn Fn(&MemScopeError) + Send + Sync>;
+
 /// Central error handling and reporting system
 pub struct ErrorHandler {
     /// Error statistics by kind
@@ -24,7 +27,7 @@ pub struct ErrorReporter {
     /// Minimum severity level to report
     min_severity: ErrorSeverity,
     /// Custom error handlers by severity
-    custom_handlers: HashMap<ErrorSeverity, Box<dyn Fn(&MemScopeError) + Send + Sync>>,
+    custom_handlers: HashMap<ErrorSeverity, ErrorHandlerFn>,
 }
 
 impl ErrorHandler {
@@ -333,7 +336,6 @@ impl Default for ErrorReporter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::error::types::ErrorContext;
 
     #[test]
     fn test_error_handler_basic() {

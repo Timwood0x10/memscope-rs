@@ -1,11 +1,11 @@
-//! 内存管理模块
+//! Memory Management Module
 //!
-//! 提供智能的内存管理功能，包括：
-//! - 有界历史记录器
-//! - 内存使用监控
-//! - 配置化的内存策略
+//! Provides intelligent memory management features, including:
+//! - Bounded history recorder
+//! - Memory usage monitoring
+//! - Configurable memory policies
 //!
-//! # 示例
+//! # Examples
 //!
 //! ```rust
 //! use memscope_rs::memory::{BoundedHistory, MemoryConfig};
@@ -22,5 +22,7 @@
 pub mod bounded_history;
 pub mod config;
 
-pub use bounded_history::{BoundedHistory, MemoryUsageStats};
+pub use bounded_history::{
+    BoundedHistory, BoundedHistoryConfig, BoundedHistoryStats, TimestampedEntry,
+};
 pub use config::MemoryConfig;

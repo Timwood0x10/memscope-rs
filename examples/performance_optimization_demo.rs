@@ -57,7 +57,7 @@ impl Workload {
         }
 
         // Processing chunks
-        for i in 0..200 {
+        for _i in 0..200 {
             allocations.push((64 * 1024, "ProcessingChunk"));
         }
 
@@ -242,9 +242,9 @@ fn benchmark_performance_optimizer(workload: &Workload) -> BenchmarkResults {
     }
 
     let total_time = start_time.elapsed();
-    let stats = optimizer.get_stats().unwrap();
+    let _stats = optimizer.get_stats().unwrap();
     let metrics = optimizer.get_performance_metrics();
-    let sampling_stats = optimizer.get_sampling_stats();
+    let _sampling_stats = optimizer.get_sampling_stats();
 
     BenchmarkResults {
         tracker_name: "Adaptive".to_string(),
@@ -310,7 +310,7 @@ fn print_summary(results: &[BenchmarkResults]) {
     for result in results {
         workload_groups
             .entry(result.workload_name.clone())
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(result);
     }
 

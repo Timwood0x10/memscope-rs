@@ -1,26 +1,26 @@
 use std::time::Duration;
 
-/// 内存管理配置
+/// Memory management configuration
 ///
-/// 定义内存跟踪的各种限制和策略，确保长期运行时
-/// 内存使用可控且性能良好。
+/// Defines various limits and policies for memory tracking, ensuring
+/// controlled memory usage and good performance during long-term operation.
 #[derive(Debug, Clone)]
 pub struct MemoryConfig {
-    /// 最大分配记录数量
+    /// Maximum number of allocation records
     pub max_allocations: usize,
-    /// 历史记录最大保存时间
+    /// Maximum retention time for historical records
     pub max_history_age: Duration,
-    /// 内存使用限制（MB）
+    /// Memory usage limit (MB)
     pub memory_limit_mb: usize,
-    /// 是否启用内存警告
+    /// Whether to enable memory warnings
     pub enable_warnings: bool,
-    /// 内存清理触发阈值（0.0-1.0）
+    /// Memory cleanup trigger threshold (0.0-1.0)
     pub cleanup_threshold: f64,
-    /// 批量清理大小
+    /// Batch cleanup size
     pub batch_cleanup_size: usize,
-    /// 是否启用自动压缩
+    /// Whether to enable automatic compaction
     pub enable_auto_compaction: bool,
-    /// 压缩触发间隔
+    /// Compaction trigger interval
     pub compaction_interval: Duration,
 }
 
@@ -28,70 +28,70 @@ impl Default for MemoryConfig {
     fn default() -> Self {
         Self {
             max_allocations: 100_000,
-            max_history_age: Duration::from_secs(3600), // 1小时
+            max_history_age: Duration::from_secs(3600), // 1 hour
             memory_limit_mb: 512,                       // 512MB
             enable_warnings: true,
-            cleanup_threshold: 0.8,   // 80%内存使用时开始清理
-            batch_cleanup_size: 1000, // 每次清理1000个条目
+            cleanup_threshold: 0.8,   // Start cleanup at 80% memory usage
+            batch_cleanup_size: 1000, // Clean 1000 entries per batch
             enable_auto_compaction: true,
-            compaction_interval: Duration::from_secs(300), // 5分钟
+            compaction_interval: Duration::from_secs(300), // 5 minutes
         }
     }
 }
 
 impl MemoryConfig {
-    /// 创建用于开发环境的配置（较宽松的限制）
+    /// Create configuration for development environment (relaxed limits)
     pub fn development() -> Self {
         Self {
             max_allocations: 1_000_000,
-            max_history_age: Duration::from_secs(7200), // 2小时
+            max_history_age: Duration::from_secs(7200), // 2 hours
             memory_limit_mb: 1024,                      // 1GB
             enable_warnings: true,
             cleanup_threshold: 0.9,
             batch_cleanup_size: 10000,
             enable_auto_compaction: true,
-            compaction_interval: Duration::from_secs(600), // 10分钟
+            compaction_interval: Duration::from_secs(600), // 10 minutes
         }
     }
 
-    /// 创建用于生产环境的配置（严格的限制）
+    /// Create configuration for production environment (strict limits)
     pub fn production() -> Self {
         Self {
             max_allocations: 50_000,
-            max_history_age: Duration::from_secs(1800), // 30分钟
+            max_history_age: Duration::from_secs(1800), // 30 minutes
             memory_limit_mb: 256,                       // 256MB
             enable_warnings: true,
             cleanup_threshold: 0.7,
             batch_cleanup_size: 500,
             enable_auto_compaction: true,
-            compaction_interval: Duration::from_secs(120), // 2分钟
+            compaction_interval: Duration::from_secs(120), // 2 minutes
         }
     }
 
-    /// 创建用于测试环境的配置（最小化的限制）
+    /// Create configuration for testing environment (minimal limits)
     pub fn testing() -> Self {
         Self {
             max_allocations: 1000,
-            max_history_age: Duration::from_secs(60), // 1分钟
+            max_history_age: Duration::from_secs(60), // 1 minute
             memory_limit_mb: 32,                      // 32MB
-            enable_warnings: false,                   // 测试时不打印警告
+            enable_warnings: false,                   // No warnings during testing
             cleanup_threshold: 0.8,
             batch_cleanup_size: 100,
-            enable_auto_compaction: false, // 测试时禁用自动压缩
+            enable_auto_compaction: false, // Disable auto compaction during testing
             compaction_interval: Duration::from_secs(30),
         }
     }
 
-    /// 创建高性能配置（优化延迟）
+    /// Create high-performance configuration (optimized for latency)
     pub fn high_performance() -> Self {
         Self {
             max_allocations: 200_000,
-            max_history_age: Duration::from_secs(900), // 15分钟
+            max_history_age: Duration::from_secs(900), // 15 minutes
             memory_limit_mb: 512,
-            enable_warnings: false, // 减少I/O开销
+            enable_warnings: false, // Reduce I/O overhead
             cleanup_threshold: 0.85,
-            batch_cleanup_size: 2000,      // 较大的批处理减少清理频率
-            enable_auto_compaction: false, // 禁用可能影响性能的压缩
+            batch_cleanup_size: 2000, // Larger batches reduce cleanup frequency
+            enable_auto_compaction: false, // Disable compaction that might affect performance
             compaction_interval: Duration::from_secs(3600),
         }
     }
@@ -193,10 +193,10 @@ impl MemoryConfig {
         Ok(config)
     }
 
-    /// 估算配置下的内存使用
+    /// Estimate memory usage under this configuration
     pub fn estimate_memory_usage(&self) -> MemoryEstimate {
-        // 每个分配记录的估算大小
-        let avg_allocation_size = 128; // 字节
+        // Estimated size per allocation record
+        let avg_allocation_size = 128; // bytes
         let max_memory_usage = self.max_allocations * avg_allocation_size;
         let configured_limit = self.memory_limit_mb * 1024 * 1024;
 
@@ -211,7 +211,7 @@ impl MemoryConfig {
     }
 }
 
-/// 配置错误类型
+/// Configuration error types
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigError {
     #[error("Invalid configuration value: {0}")]
@@ -224,30 +224,30 @@ pub enum ConfigError {
     InsufficientResources,
 }
 
-/// 内存使用估算
+/// Memory usage estimation
 #[derive(Debug, Clone)]
 pub struct MemoryEstimate {
-    /// 最大条目数
+    /// Maximum number of entries
     pub max_entries: usize,
-    /// 估算的最大内存使用（MB）
+    /// Estimated maximum memory usage (MB)
     pub estimated_max_usage_mb: f64,
-    /// 配置的内存限制（MB）
+    /// Configured memory limit (MB)
     pub configured_limit_mb: f64,
-    /// 实际生效的限制（MB）
+    /// Effective memory limit (MB)
     pub effective_limit_mb: f64,
-    /// 清理触发阈值（MB）
+    /// Cleanup trigger threshold (MB)
     pub cleanup_trigger_mb: f64,
 }
 
 impl MemoryEstimate {
-    /// 检查配置是否合理
+    /// Check if the configuration is reasonable
     pub fn is_reasonable(&self) -> bool {
-        self.effective_limit_mb >= 32.0 && // 至少32MB
-        self.cleanup_trigger_mb < self.effective_limit_mb && // 清理阈值小于限制
-        self.max_entries >= 1000 // 至少能存储1000个条目
+        self.effective_limit_mb >= 32.0 && // At least 32MB
+        self.cleanup_trigger_mb < self.effective_limit_mb && // Cleanup threshold less than limit
+        self.max_entries >= 1000 // At least able to store 1000 entries
     }
 
-    /// 获取配置建议
+    /// Get configuration recommendations
     pub fn get_recommendations(&self) -> Vec<String> {
         let mut recommendations = Vec::new();
 
@@ -300,19 +300,25 @@ mod tests {
 
     #[test]
     fn test_invalid_configs() {
-        let mut config = MemoryConfig::default();
-
-        // 测试无效的max_allocations
-        config.max_allocations = 0;
+        // test zero max_allocations
+        let config = MemoryConfig {
+            max_allocations: 0,
+            ..Default::default()
+        };
         assert!(config.validate().is_err());
 
-        // 测试无效的cleanup_threshold
-        config = MemoryConfig::default();
-        config.cleanup_threshold = 1.5;
-        assert!(config.validate().is_err());
+        // test failed cleanup_threshold
+        let config2 = MemoryConfig {
+            cleanup_threshold: 1.5,
+            ..Default::default()
+        };
+        assert!(config2.validate().is_err());
 
-        config.cleanup_threshold = -0.1;
-        assert!(config.validate().is_err());
+        let config3 = MemoryConfig {
+            cleanup_threshold: -0.1,
+            ..Default::default()
+        };
+        assert!(config3.validate().is_err());
     }
 
     #[test]
@@ -327,11 +333,10 @@ mod tests {
 
     #[test]
     fn test_recommendations() {
-        // 创建一个需要建议的配置
         let config = MemoryConfig {
-            max_allocations: 500,    // 很小
-            memory_limit_mb: 16,     // 很小
-            cleanup_threshold: 0.95, // 很高
+            max_allocations: 500,    // low
+            memory_limit_mb: 16,     // low
+            cleanup_threshold: 0.95, // high
             ..Default::default()
         };
 
@@ -339,19 +344,19 @@ mod tests {
         let recommendations = estimate.get_recommendations();
 
         assert!(!recommendations.is_empty());
-        assert!(recommendations.len() >= 2); // 应该有多个建议
+        assert!(recommendations.len() >= 2); // maybe more than one suggestion
     }
 
     #[test]
     fn test_system_config_creation() {
-        // 这个测试可能因平台而异
+        // This test may fail on unsupported platforms
         match MemoryConfig::for_current_system() {
             Ok(config) => {
                 assert!(config.validate().is_ok());
                 assert!(config.memory_limit_mb >= 64);
             }
             Err(_) => {
-                // 在某些环境下可能失败，这是可以接受的
+                // may fail on unsupported platforms
             }
         }
     }

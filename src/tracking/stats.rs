@@ -166,7 +166,6 @@ impl DetailedStats {
 mod tests {
     use super::*;
     use std::thread;
-    use std::time::Duration;
 
     #[test]
     fn test_tracking_stats_basic() {
@@ -271,7 +270,7 @@ mod tests {
     fn thread_local_random() -> usize {
         use std::cell::Cell;
         thread_local! {
-            static RNG: Cell<usize> = Cell::new(1);
+            static RNG: Cell<usize> = const { Cell::new(1) };
         }
 
         RNG.with(|rng| {

@@ -17,6 +17,7 @@ use std::time::Instant;
 
 /// Real-world allocation patterns based on actual application data
 #[derive(Clone)]
+#[allow(dead_code)]
 struct RealWorldWorkload {
     name: &'static str,
     allocations: Vec<(usize, &'static str)>, // (size, type_name)
@@ -291,7 +292,7 @@ fn benchmark_concurrent_performance(c: &mut Criterion) {
                         let handle = thread::spawn(move || {
                             for i in 0..1000 {
                                 let size = 1024 + (i % 100) * 8;
-                                let ptr = (thread_id * 10000 + i) as usize;
+                                let ptr = thread_id * 10000 + i;
 
                                 tracker_clone.track_allocation(ptr, size).unwrap();
                                 tracker_clone
@@ -330,7 +331,7 @@ fn benchmark_concurrent_performance(c: &mut Criterion) {
                         let handle = thread::spawn(move || {
                             for i in 0..1000 {
                                 let size = 1024 + (i % 100) * 8;
-                                let ptr = (thread_id * 10000 + i) as usize;
+                                let ptr = thread_id * 10000 + i;
 
                                 tracker_clone
                                     .track_allocation(ptr, size, "TestType")

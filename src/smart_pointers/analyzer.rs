@@ -300,8 +300,8 @@ impl SmartPointerAnalyzer {
     pub fn generate_report(&self, result: &AnalysisResult) -> String {
         let mut report = String::new();
 
-        report.push_str(&format!("Smart Pointer Analysis Report\n"));
-        report.push_str(&format!("============================\n\n"));
+        report.push_str("Smart Pointer Analysis Report\n");
+        report.push_str("============================\n\n");
 
         report.push_str(&format!(
             "Total Active Pointers: {}\n",

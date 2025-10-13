@@ -258,13 +258,13 @@ impl ResolvedFrame {
 
     pub fn is_rust_symbol(&self) -> bool {
         self.symbol_name.starts_with("_ZN")
-            || self.demangled_name.as_ref().map_or(false, |name| {
+            || self.demangled_name.as_ref().is_some_and(|name| {
                 name.contains("::") || name.starts_with("std::") || name.starts_with("core::")
             })
     }
 
     pub fn is_system_symbol(&self) -> bool {
-        self.module_name.as_ref().map_or(false, |module| {
+        self.module_name.as_ref().is_some_and(|module| {
             module.contains("libc") || module.contains("libpthread") || module.contains("ld-")
         })
     }

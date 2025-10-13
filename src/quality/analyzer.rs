@@ -122,7 +122,7 @@ pub struct QualityAssessment {
 }
 
 /// Quality grade classifications
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub enum QualityGrade {
     /// Excellent quality (90-100%)
     A,
@@ -480,42 +480,38 @@ impl CodeAnalyzer {
     }
 
     fn calculate_quality_metrics(&self, context: &AnalysisContext) -> Vec<QualityMetric> {
-        let mut metrics = Vec::new();
-
-        // Performance metrics
-        metrics.push(QualityMetric {
-            name: "allocation_efficiency".to_string(),
-            category: MetricCategory::Performance,
-            value: context.performance_data.allocation_efficiency,
-            target: 0.95,
-            meets_target: context.performance_data.allocation_efficiency >= 0.95,
-            weight: 0.3,
-            trend: TrendDirection::Unknown,
-        });
-
-        // Reliability metrics
-        metrics.push(QualityMetric {
-            name: "error_rate".to_string(),
-            category: MetricCategory::Reliability,
-            value: context.reliability_data.error_rate,
-            target: 0.01, // 1% max error rate
-            meets_target: context.reliability_data.error_rate <= 0.01,
-            weight: 0.25,
-            trend: TrendDirection::Unknown,
-        });
-
-        // Memory efficiency
-        metrics.push(QualityMetric {
-            name: "memory_efficiency".to_string(),
-            category: MetricCategory::Efficiency,
-            value: context.memory_data.efficiency_ratio,
-            target: 0.9,
-            meets_target: context.memory_data.efficiency_ratio >= 0.9,
-            weight: 0.2,
-            trend: TrendDirection::Unknown,
-        });
-
-        metrics
+        vec![
+            // Performance metrics
+            QualityMetric {
+                name: "allocation_efficiency".to_string(),
+                category: MetricCategory::Performance,
+                value: context.performance_data.allocation_efficiency,
+                target: 0.95,
+                meets_target: context.performance_data.allocation_efficiency >= 0.95,
+                weight: 0.3,
+                trend: TrendDirection::Unknown,
+            },
+            // Reliability metrics
+            QualityMetric {
+                name: "error_rate".to_string(),
+                category: MetricCategory::Reliability,
+                value: context.reliability_data.error_rate,
+                target: 0.01, // 1% max error rate
+                meets_target: context.reliability_data.error_rate <= 0.01,
+                weight: 0.25,
+                trend: TrendDirection::Unknown,
+            },
+            // Memory efficiency
+            QualityMetric {
+                name: "memory_efficiency".to_string(),
+                category: MetricCategory::Efficiency,
+                value: context.memory_data.efficiency_ratio,
+                target: 0.9,
+                meets_target: context.memory_data.efficiency_ratio >= 0.9,
+                weight: 0.2,
+                trend: TrendDirection::Unknown,
+            },
+        ]
     }
 
     fn detect_quality_issues(&self, context: &AnalysisContext) -> Vec<QualityIssue> {
