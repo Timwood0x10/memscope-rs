@@ -362,7 +362,7 @@ impl LockfreeTestSuite {
         #[cfg(target_os = "macos")]
         {
             if let Ok(output) = std::process::Command::new("ps")
-                .args(&["-o", "rss=", "-p"])
+                .args(["-o", "rss=", "-p"])
                 .arg(std::process::id().to_string())
                 .output()
             {

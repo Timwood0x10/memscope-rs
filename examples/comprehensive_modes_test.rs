@@ -213,7 +213,7 @@ impl SingleThreadedTestSuite {
             // On macOS, try to read memory info
             // Simplified approach without libc dependency
             if let Ok(output) = std::process::Command::new("ps")
-                .args(&["-o", "rss=", "-p"])
+                .args(["-o", "rss=", "-p"])
                 .arg(std::process::id().to_string())
                 .output()
             {
@@ -251,7 +251,7 @@ impl SingleThreadedTestSuite {
         ];
 
         for (scenario_name, config) in scenarios.iter() {
-            println!("\n📋 Scenario: {}", scenario_name);
+            println!("\n📋 Scenario: {scenario_name}");
             println!("{}", "-".repeat(40));
 
             let suite = SingleThreadedTestSuite::new(config.clone());

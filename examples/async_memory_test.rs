@@ -471,7 +471,7 @@ struct MixedWorkloadData {
     memory_chunk: Vec<u32>,
 }
 
-/// Generate comprehensive reports like comprehensive_async_showcase
+/// Generate comprehensive reports using async_memory visualization module
 async fn generate_comprehensive_reports(
     monitor: &Arc<Mutex<AsyncResourceMonitor>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -484,14 +484,14 @@ async fn generate_comprehensive_reports(
     let json_output = serde_json::to_string_pretty(&profiles)?;
     tokio::fs::write("async_test_analysis.json", json_output).await?;
 
-    // Generate HTML dashboard using built-in template
+    // Generate HTML dashboard using async_memory's built-in VisualizationGenerator
     let viz_generator = VisualizationGenerator::new();
     let html_content = viz_generator.generate_html_report(&profiles)?;
     tokio::fs::write("async_test_dashboard.html", html_content).await?;
 
     println!("📄 Generated comprehensive reports:");
     println!("   📊 JSON: async_test_analysis.json");
-    println!("   🌐 HTML: async_test_dashboard.html");
+    println!("   🌐 HTML: async_test_dashboard.html (using async_memory template)");
 
     Ok(())
 }
@@ -532,38 +532,33 @@ fn get_process_memory_usage() -> usize {
     60 * 1024 * 1024 // 60MB
 }
 
-/// Generate a single combined HTML report for all async scenarios
+/// Generate a single combined HTML report using async_memory's VisualizationGenerator
 async fn generate_combined_async_html_report(
     all_results: &[(String, AsyncResults)],
     output_path: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    // For the combined report, we'll create a simple summary since VisualizationGenerator
+    // expects TaskResourceProfile data, not our test results
     let mut html_content = String::new();
 
     html_content.push_str("<!DOCTYPE html>\n<html>\n<head>\n");
-    html_content.push_str("<title>Async Memory Tracking Comprehensive Report</title>\n");
+    html_content.push_str("<title>Async Memory Tracking Test Results</title>\n");
     html_content.push_str("<style>\n");
-    html_content
-        .push_str("body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }\n");
+    html_content.push_str("body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }\n");
     html_content.push_str(".container { max-width: 1200px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }\n");
     html_content.push_str("h1 { color: #2c3e50; text-align: center; margin-bottom: 30px; }\n");
-    html_content.push_str(
-        "h2 { color: #34495e; border-bottom: 2px solid #e74c3c; padding-bottom: 10px; }\n",
-    );
+    html_content.push_str("h2 { color: #34495e; border-bottom: 2px solid #e74c3c; padding-bottom: 10px; }\n");
     html_content.push_str(".scenario { margin: 30px 0; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }\n");
     html_content.push_str(".metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin: 20px 0; }\n");
-    html_content.push_str(
-        ".metric { background: #ecf0f1; padding: 15px; border-radius: 5px; text-align: center; }\n",
-    );
-    html_content
-        .push_str(".metric-value { font-size: 24px; font-weight: bold; color: #e74c3c; }\n");
+    html_content.push_str(".metric { background: #ecf0f1; padding: 15px; border-radius: 5px; text-align: center; }\n");
+    html_content.push_str(".metric-value { font-size: 24px; font-weight: bold; color: #e74c3c; }\n");
     html_content.push_str(".metric-label { color: #7f8c8d; margin-top: 5px; }\n");
-    html_content.push_str(
-        ".summary { background: #ffeaa7; padding: 20px; border-radius: 5px; margin-top: 30px; }\n",
-    );
+    html_content.push_str(".summary { background: #ffeaa7; padding: 20px; border-radius: 5px; margin-top: 30px; }\n");
+    html_content.push_str(".note { background: #e8f4fd; padding: 15px; border-radius: 5px; margin-top: 20px; border-left: 4px solid #2196F3; }\n");
     html_content.push_str("</style>\n</head>\n<body>\n");
 
     html_content.push_str("<div class='container'>\n");
-    html_content.push_str("<h1>⚡ Async Memory Tracking - Comprehensive Report</h1>\n");
+    html_content.push_str("<h1>⚡ Async Memory Tracking Test Results</h1>\n");
 
     // Summary section
     let total_tasks: usize = all_results.iter().map(|(_, r)| r.num_tasks).sum();
@@ -613,6 +608,17 @@ async fn generate_combined_async_html_report(
 
         html_content.push_str("</div>\n");
     }
+
+    // Add note about detailed reports
+    html_content.push_str("<div class='note'>\n");
+    html_content.push_str("<h3>📝 Note</h3>\n");
+    html_content.push_str("<p>For detailed task-by-task analysis with interactive visualizations, please refer to the individual scenario reports:</p>\n");
+    html_content.push_str("<ul>\n");
+    html_content.push_str("<li>📊 <strong>async_test_analysis.json</strong> - Raw performance data</li>\n");
+    html_content.push_str("<li>🌐 <strong>async_test_dashboard.html</strong> - Interactive dashboard with async_memory template</li>\n");
+    html_content.push_str("</ul>\n");
+    html_content.push_str("<p>These reports use the async_memory module's built-in VisualizationGenerator for comprehensive analysis.</p>\n");
+    html_content.push_str("</div>\n");
 
     html_content.push_str("</div>\n</body>\n</html>");
 
