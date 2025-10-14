@@ -130,16 +130,18 @@ impl PerformanceTestSuite {
             if i % 10_000 == 0 {
                 let current_stats = self.bounded_history.get_memory_usage_stats();
                 let entry_count = self.bounded_history.len();
-                
+
                 // Analyze some recent allocations using their fields
                 let recent_allocations = self.bounded_history.entries();
-                let large_allocations = recent_allocations.iter()
+                let large_allocations = recent_allocations
+                    .iter()
                     .filter(|alloc| alloc.is_large_allocation())
                     .count();
-                let thread_0_allocations = recent_allocations.iter()
+                let thread_0_allocations = recent_allocations
+                    .iter()
                     .filter(|alloc| alloc.is_from_thread(0))
                     .count();
-                
+
                 println!(
                     "  After {} allocations: {} entries, {:.1} MB memory, {} large allocs, {} from thread 0",
                     i + 1,
@@ -259,7 +261,7 @@ impl PerformanceTestSuite {
 
         // Use the suite's estimator and pre-warm it with some data
         let mut estimator = SmartSizeEstimator::new();
-        
+
         // Pre-warm with the suite's estimator knowledge
         if let Some(estimated) = self.size_estimator.estimate_size("String") {
             estimator.learn_from_real_allocation("String", estimated);
@@ -267,7 +269,7 @@ impl PerformanceTestSuite {
         if let Some(estimated) = self.size_estimator.estimate_size("Vec<u8>") {
             estimator.learn_from_real_allocation("Vec<u8>", estimated);
         }
-        
+
         let start = Instant::now();
 
         // Test types with known sizes
@@ -328,27 +330,32 @@ impl PerformanceTestSuite {
         let allocations = self.bounded_history.entries();
         let mut estimation_accuracy_sum = 0.0;
         let mut estimation_count = 0;
-        
-        for alloc in allocations.iter().take(50) { // Test first 50 allocations
+
+        for alloc in allocations.iter().take(50) {
+            // Test first 50 allocations
             if let Some(estimated_size) = estimator.estimate_size(&alloc.type_name) {
-                let accuracy = 1.0 - ((alloc.size as f64 - estimated_size as f64).abs() / alloc.size as f64);
+                let accuracy =
+                    1.0 - ((alloc.size as f64 - estimated_size as f64).abs() / alloc.size as f64);
                 estimation_accuracy_sum += accuracy;
                 estimation_count += 1;
-                
+
                 // Learn from this real allocation for future estimates
                 estimator.learn_from_real_allocation(&alloc.type_name, alloc.size);
-                
+
                 if estimation_count <= 5 {
                     println!("    Real alloc {} at 0x{:x}: {} bytes ({:.2} MB), estimated {} bytes, accuracy {:.1}%, age: {:.2?}", 
                              alloc.type_name, alloc.ptr, alloc.size, alloc.size_mb(), estimated_size, accuracy * 100.0, alloc.age());
                 }
             }
         }
-        
+
         if estimation_count > 0 {
             let avg_accuracy = estimation_accuracy_sum / estimation_count as f64;
-            println!("    Average accuracy on real data: {:.1}% ({} samples)", 
-                     avg_accuracy * 100.0, estimation_count);
+            println!(
+                "    Average accuracy on real data: {:.1}% ({} samples)",
+                avg_accuracy * 100.0,
+                estimation_count
+            );
         }
 
         let duration = start.elapsed();

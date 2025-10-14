@@ -1,10 +1,10 @@
 //! Clean Template Renderer - Only data injection, no embedded HTML
 //! All HTML and JS code moved to external templates
 
+use super::fixed_html::{get_hybrid_dashboard_template, ENHANCED_DIAGNOSTICS, JS};
 use crate::async_memory::visualization::VisualizationConfig;
 use crate::lockfree::LockfreeAnalysis;
 use std::collections::HashMap;
-use super::fixed_html::{get_hybrid_dashboard_template, JS, ENHANCED_DIAGNOSTICS};
 
 /// Combined analysis data from multiple sources
 #[derive(Debug)]

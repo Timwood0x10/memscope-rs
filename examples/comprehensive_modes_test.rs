@@ -50,7 +50,6 @@ struct TestConfig {
     allocation_size_range: (usize, usize),
     num_threads: usize,
     async_tasks: usize,
-    test_duration_ms: u64,
 }
 
 impl TestConfig {
@@ -60,7 +59,6 @@ impl TestConfig {
             allocation_size_range: (64, 1024),
             num_threads: 4,
             async_tasks: 100,
-            test_duration_ms: 1000,
         }
     }
 
@@ -70,7 +68,6 @@ impl TestConfig {
             allocation_size_range: (32, 4096),
             num_threads: 8,
             async_tasks: 500,
-            test_duration_ms: 5000,
         }
     }
 
@@ -80,7 +77,6 @@ impl TestConfig {
             allocation_size_range: (16, 8192),
             num_threads: 16,
             async_tasks: 1000,
-            test_duration_ms: 10000,
         }
     }
 }
@@ -94,7 +90,6 @@ struct TestResults {
     throughput: f64,
     memory_usage_mb: f64,
     completeness_rate: f64,
-    classification_accuracy: f64,
     smart_pointers_tracked: usize,
 }
 
@@ -107,7 +102,6 @@ impl TestResults {
             throughput: 0.0,
             memory_usage_mb: 0.0,
             completeness_rate: 0.0,
-            classification_accuracy: 0.0,
             smart_pointers_tracked: 0,
         }
     }
@@ -737,14 +731,12 @@ impl ComprehensiveTestSuite {
         println!("🚀 Starting Comprehensive Modes Performance Test");
         println!("Configuration: {:?}\n", self.config);
 
-        let mut all_results = Vec::new();
-
-        // Test all four modes
-        all_results.push(self.test_single_threaded());
-        all_results.push(self.test_multi_threaded());
-        all_results.push(self.test_async_mode());
-        all_results.push(self.test_hybrid_mode());
-
+        let all_results = vec![
+            self.test_single_threaded(),
+            self.test_multi_threaded(),
+            self.test_async_mode(),
+            self.test_hybrid_mode(),
+        ];
         all_results
     }
 }
