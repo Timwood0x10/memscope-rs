@@ -41,8 +41,6 @@ pub mod lockfree;
 pub mod memory;
 /// Performance monitoring and metrics collection
 pub mod metrics;
-/// Performance monitoring and profiling
-pub mod performance;
 /// Platform-specific implementations for memory tracking
 pub mod platform;
 /// Code quality assurance and validation system
