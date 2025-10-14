@@ -1,88 +1,51 @@
-/*!
-Comprehensive Modes Performance Test
+//! Single-threaded Memory Tracking Test
+//!
+//! This example demonstrates the performance and capabilities of track_var! macro
+//! for single-threaded memory analysis. It provides real data without any simulation
+//! or fake tracking statistics.
+//!
+//! Tests different load scenarios (light, medium, heavy) to evaluate:
+//! - Real data completeness from track_var! macro
+//! - Actual throughput performance
+//! - True memory usage from process RSS
+//! - Real variable tracking capabilities
 
-This example demonstrates and benchmarks all four execution modes of the enhanced
-MemScope-RS memory analysis tool:
+use memscope_rs::track_var;
 
-1. **Single-threaded Mode**: Traditional sequential execution
-2. **Multi-threaded Mode**: Concurrent execution with thread safety
-3. **Async Mode**: Asynchronous execution with tokio runtime
-4. **Hybrid Mode**: Mixed async + multi-threaded execution
+use std::time::{Duration, Instant};
 
-Each mode is tested with the enhanced features:
-- Bounded history management
-- Smart type classification
-- Intelligent size estimation
-- Smart pointer tracking
-- Loss tracking statistics
-
-Usage:
-```bash
-cargo run --example comprehensive_modes_test --release
-```
-
-Performance comparison shows the effectiveness of each mode under different scenarios.
-*/
-
-use memscope_rs::{
-    classification::TypeClassifier,
-    core::types::AllocationInfo,
-    estimation::{size_estimator::SmartSizeEstimator, SizeEstimator},
-    memory::{
-        bounded_history::{BoundedHistory, BoundedHistoryConfig},
-        config::MemoryConfig,
-    },
-    smart_pointers::tracker::{PointerType, SmartPointerTracker},
-    tracking::stats::TrackingStats,
-};
-
-use std::{
-    sync::{Arc, Mutex},
-    thread,
-    time::{Duration, Instant},
-};
-use tokio::{runtime::Runtime, task, time::sleep};
-
-/// Test configuration for different modes
+/// Test configuration for different load scenarios
 #[derive(Debug, Clone)]
 struct TestConfig {
     num_allocations: usize,
     allocation_size_range: (usize, usize),
-    num_threads: usize,
-    async_tasks: usize,
 }
 
 impl TestConfig {
-    fn light() -> Self {
+    fn light_load() -> Self {
         Self {
             num_allocations: 10_000,
             allocation_size_range: (64, 1024),
-            num_threads: 4,
-            async_tasks: 100,
         }
     }
 
-    fn medium() -> Self {
+    fn medium_load() -> Self {
         Self {
             num_allocations: 50_000,
-            allocation_size_range: (32, 4096),
-            num_threads: 8,
-            async_tasks: 500,
+            allocation_size_range: (128, 2048),
         }
     }
 
-    fn heavy() -> Self {
+    fn heavy_load() -> Self {
         Self {
             num_allocations: 100_000,
-            allocation_size_range: (16, 8192),
-            num_threads: 16,
-            async_tasks: 1000,
+            allocation_size_range: (256, 4096),
         }
     }
 }
 
-/// Test results for performance comparison
-#[derive(Debug, Clone)]
+/// Test results structure
+#[derive(Debug)]
 struct TestResults {
     mode: String,
     duration: Duration,
@@ -97,7 +60,7 @@ impl TestResults {
     fn new(mode: &str) -> Self {
         Self {
             mode: mode.to_string(),
-            duration: Duration::ZERO,
+            duration: Duration::default(),
             allocations_tracked: 0,
             throughput: 0.0,
             memory_usage_mb: 0.0,
@@ -106,17 +69,9 @@ impl TestResults {
         }
     }
 
-    fn calculate_metrics(&mut self, stats: &TrackingStats, memory_usage: usize) {
-        let detailed_stats = stats.get_detailed_stats();
-        self.allocations_tracked = detailed_stats.successful_tracks;
-        self.throughput = self.allocations_tracked as f64 / self.duration.as_secs_f64();
-        self.memory_usage_mb = memory_usage as f64 / (1024.0 * 1024.0);
-        self.completeness_rate = stats.get_completeness();
-    }
-
-    fn display(&self) {
+    fn print_results(&self) {
         println!("📊 {} Results:", self.mode);
-        println!("  Duration: {:.2?}", self.duration);
+        println!("  Duration: {:.2}s", self.duration.as_secs_f64());
         println!("  Allocations Tracked: {}", self.allocations_tracked);
         println!("  Throughput: {:.0} allocs/sec", self.throughput);
         println!("  Memory Usage: {:.1} MB", self.memory_usage_mb);
@@ -126,715 +81,209 @@ impl TestResults {
     }
 }
 
-/// Comprehensive test suite for all modes
-struct ComprehensiveTestSuite {
+/// Single-threaded test suite - REAL track_var! macro testing only
+///
+/// No simulation, no fake tracking. Only real single-threaded variable tracking.
+struct SingleThreadedTestSuite {
     config: TestConfig,
-    bounded_history: Arc<Mutex<BoundedHistory<AllocationInfo>>>,
-    smart_pointer_tracker: Arc<Mutex<SmartPointerTracker>>,
-    size_estimator: Arc<Mutex<SmartSizeEstimator>>,
-    type_classifier: &'static TypeClassifier,
-    global_stats: Arc<TrackingStats>,
 }
 
-impl ComprehensiveTestSuite {
+impl SingleThreadedTestSuite {
+    /// Create new test suite - no fake resources needed
     fn new(config: TestConfig) -> Self {
-        // Initialize enhanced components
-        let memory_config = MemoryConfig::production();
-        let bounded_config = BoundedHistoryConfig {
-            max_entries: memory_config.max_allocations,
-            max_age: memory_config.max_history_age,
-            total_memory_limit: memory_config.memory_limit_mb * 1024 * 1024,
-            cleanup_threshold: memory_config.cleanup_threshold as f32,
-        };
-
-        Self {
-            config,
-            bounded_history: Arc::new(Mutex::new(BoundedHistory::with_config(bounded_config))),
-            smart_pointer_tracker: Arc::new(Mutex::new(SmartPointerTracker::new())),
-            size_estimator: Arc::new(Mutex::new(SmartSizeEstimator::new())),
-            type_classifier: TypeClassifier::global(),
-            global_stats: Arc::new(TrackingStats::new()),
-        }
+        Self { config }
     }
 
-    /// Test 1: Single-threaded Mode
+    /// Test 1: Single-threaded Mode - Using track_var! macro
+    ///
+    /// Uses ONLY track_var! macro for real variable tracking with actual memory allocations.
+    /// No simulation, no fake data - only real heap-allocated variables.
     fn test_single_threaded(&self) -> TestResults {
-        println!("🧵 Testing Single-threaded Mode");
+        println!("🧵 Testing Single-threaded Mode (track_var! macro)");
         let mut results = TestResults::new("Single-threaded");
 
         let start = Instant::now();
 
-        // Sequential allocation simulation
+        // Real allocation tracking using track_var! macro ONLY
         for i in 0..self.config.num_allocations {
-            let addr = 0x1000 + i * 8;
             let size = self.config.allocation_size_range.0
                 + (i % (self.config.allocation_size_range.1 - self.config.allocation_size_range.0));
-            let type_name = self.generate_type_name(i);
 
-            // Track allocation with enhanced features
-            self.track_allocation_enhanced(addr, size, &type_name, 0);
-
-            // Periodic smart pointer simulation
-            if i % 10 == 0 {
-                self.simulate_smart_pointer_allocation(addr + 0x10000, size, &type_name);
+            // Create REAL data structures and track them with track_var! - no simulation
+            match i % 10 {
+                0 => {
+                    let numbers_vec: Vec<u64> =
+                        (0..size / 8).map(|x| x as u64 + i as u64).collect();
+                    track_var!(numbers_vec);
+                }
+                1 => {
+                    let text_string = format!("data_{}_", i).repeat(size.min(100));
+                    track_var!(text_string);
+                }
+                2 => {
+                    let boxed_data = Box::new(vec![i as u8; size.min(1000)]);
+                    track_var!(boxed_data);
+                }
+                3 => {
+                    let rc_data = std::rc::Rc::new(format!("rc_data_{}", i));
+                    track_var!(rc_data);
+                }
+                4 => {
+                    let arc_data = std::sync::Arc::new(vec![i; size.min(500)]);
+                    track_var!(arc_data);
+                }
+                5 => {
+                    let hash_map: std::collections::HashMap<usize, String> = (0..size.min(100))
+                        .map(|x| (x, format!("value_{}", x)))
+                        .collect();
+                    track_var!(hash_map);
+                }
+                6 => {
+                    let btree_set: std::collections::BTreeSet<usize> = (0..size.min(200)).collect();
+                    track_var!(btree_set);
+                }
+                7 => {
+                    let vec_deque: std::collections::VecDeque<String> =
+                        (0..size.min(150)).map(|x| format!("item_{}", x)).collect();
+                    track_var!(vec_deque);
+                }
+                8 => {
+                    let binary_heap: std::collections::BinaryHeap<usize> =
+                        (0..size.min(100)).collect();
+                    track_var!(binary_heap);
+                }
+                _ => {
+                    let byte_buffer = vec![0u8; size.min(2000)];
+                    track_var!(byte_buffer);
+                }
             }
         }
 
         results.duration = start.elapsed();
-        self.finalize_results(&mut results);
+        self.finalize_results_st(&mut results);
         results
     }
 
-    /// Test 2: Multi-threaded Mode
-    fn test_multi_threaded(&self) -> TestResults {
-        println!("🔀 Testing Multi-threaded Mode");
-        let mut results = TestResults::new("Multi-threaded");
+    /// Finalize single-threaded test results - get data from REAL tracking system
+    fn finalize_results_st(&self, results: &mut TestResults) {
+        // Get REAL statistics from track_var! macro's global tracking system
+        let tracker = memscope_rs::core::tracker::get_tracker();
+        let allocations = tracker.get_active_allocations();
 
-        let start = Instant::now();
-        let allocations_per_thread = self.config.num_allocations / self.config.num_threads;
-        let mut handles = Vec::new();
+        // Real data from actual tracking
+        results.allocations_tracked = match allocations {
+            Ok(allocs) => allocs.len(),
+            Err(_) => 0,
+        };
+        results.memory_usage_mb = self.get_process_memory_usage() as f64 / (1024.0 * 1024.0);
+        results.throughput = results.allocations_tracked as f64 / results.duration.as_secs_f64();
 
-        // Spawn worker threads
-        for thread_id in 0..self.config.num_threads {
-            let config = self.config.clone();
-            let bounded_history = Arc::clone(&self.bounded_history);
-            let smart_pointer_tracker = Arc::clone(&self.smart_pointer_tracker);
-            let size_estimator = Arc::clone(&self.size_estimator);
-            let _ = &size_estimator; // Suppress unused warning
-            let stats = Arc::clone(&self.global_stats);
-            let type_classifier = self.type_classifier;
+        // Calculate REAL completeness based on actual tracked vs expected allocations
+        let expected = self.config.num_allocations;
+        results.completeness_rate = if expected > 0 {
+            (results.allocations_tracked as f64 / expected as f64).min(1.0)
+        } else {
+            0.0
+        };
 
-            let handle = thread::spawn(move || {
-                let base_addr = 0x1000 + thread_id * 0x100000;
+        // No fake smart pointer counting
+        results.smart_pointers_tracked = 0;
+    }
 
-                for i in 0..allocations_per_thread {
-                    let addr = base_addr + i * 8;
-                    let size = config.allocation_size_range.0
-                        + (i % (config.allocation_size_range.1 - config.allocation_size_range.0));
-                    let type_name = format!("ThreadType{}_{}", thread_id, i % 20);
-
-                    // Enhanced tracking with thread safety
-                    stats.record_attempt();
-
-                    let allocation_info = AllocationInfo {
-                        ptr: addr,
-                        size,
-                        var_name: None,
-                        type_name: Some(type_name.clone()),
-                        scope_name: None,
-                        timestamp_alloc: std::time::SystemTime::now()
-                            .duration_since(std::time::UNIX_EPOCH)
-                            .unwrap_or_default()
-                            .as_millis() as u64,
-                        timestamp_dealloc: None,
-                        thread_id: format!("thread_{}", thread_id),
-                        borrow_count: 0,
-                        stack_trace: None,
-                        is_leaked: false,
-                        lifetime_ms: None,
-                        borrow_info: None,
-                        clone_info: None,
-                        ownership_history_available: false,
-                        smart_pointer_info: None,
-                        memory_layout: None,
-                        generic_info: None,
-                        dynamic_type_info: None,
-                        runtime_state: None,
-                        stack_allocation: None,
-                        temporary_object: None,
-                        fragmentation_analysis: None,
-                        generic_instantiation: None,
-                        access_tracking: None,
-                        drop_chain_analysis: None,
-                        function_call_tracking: None,
-                        lifecycle_tracking: None,
-                        type_relationships: None,
-                        type_usage: None,
-                    };
-
-                    // Bounded history tracking
-                    if let Ok(history) = bounded_history.try_lock() {
-                        history.push(allocation_info);
-                        stats.record_success();
-                    } else {
-                        stats.record_miss();
-                    }
-
-                    // Type classification
-                    let _category = type_classifier.classify(&type_name);
-
-                    // Size estimation with learning
-                    if let Ok(mut estimator) = size_estimator.try_lock() {
-                        estimator.learn_from_real_allocation(&type_name, size);
-                    }
-
-                    // Smart pointer tracking
-                    if i % 15 == 0 {
-                        if let Ok(mut sp_tracker) = smart_pointer_tracker.try_lock() {
-                            let ptr_type = match i % 3 {
-                                0 => PointerType::Box,
-                                1 => PointerType::Arc,
-                                _ => PointerType::Rc,
-                            };
-                            sp_tracker.track_allocation(
-                                addr + 0x20000,
-                                ptr_type,
-                                size,
-                                type_name.clone(),
-                                Some(1),
-                            );
+    /// Get current process memory usage using system APIs
+    fn get_process_memory_usage(&self) -> usize {
+        #[cfg(target_os = "linux")]
+        {
+            // On Linux, read from /proc/self/status
+            if let Ok(status) = std::fs::read_to_string("/proc/self/status") {
+                for line in status.lines() {
+                    if line.starts_with("VmRSS:") {
+                        if let Some(kb_str) = line.split_whitespace().nth(1) {
+                            if let Ok(kb) = kb_str.parse::<usize>() {
+                                return kb * 1024; // Convert KB to bytes
+                            }
                         }
                     }
                 }
-            });
-
-            handles.push(handle);
+            }
         }
 
-        // Wait for all threads to complete
-        for handle in handles {
-            handle.join().unwrap();
-        }
-
-        results.duration = start.elapsed();
-        self.finalize_results(&mut results);
-        results
-    }
-
-    /// Test 3: Async Mode
-    fn test_async_mode(&self) -> TestResults {
-        println!("⚡ Testing Async Mode");
-        let mut results = TestResults::new("Async");
-
-        let rt = Runtime::new().unwrap();
-        let start = Instant::now();
-
-        rt.block_on(async {
-            let allocations_per_task = self.config.num_allocations / self.config.async_tasks;
-            let mut tasks = Vec::new();
-
-            // Spawn async tasks
-            for task_id in 0..self.config.async_tasks {
-                let config = self.config.clone();
-                let bounded_history = Arc::clone(&self.bounded_history);
-                let smart_pointer_tracker = Arc::clone(&self.smart_pointer_tracker);
-                let size_estimator = Arc::clone(&self.size_estimator);
-                let _ = &size_estimator; // Suppress unused warning
-                let stats = Arc::clone(&self.global_stats);
-                let type_classifier = self.type_classifier;
-
-                // Suppress unused warning - size_estimator is used below
-                let _ = &size_estimator;
-
-                let task = task::spawn(async move {
-                    let base_addr = 0x2000 + task_id * 0x100000;
-
-                    for i in 0..allocations_per_task {
-                        let addr = base_addr + i * 8;
-                        let size = config.allocation_size_range.0
-                            + (i % (config.allocation_size_range.1
-                                - config.allocation_size_range.0));
-                        let type_name = format!("AsyncType{}_{}", task_id, i % 25);
-
-                        // Async-friendly enhanced tracking
-                        stats.record_attempt();
-
-                        let allocation_info = AllocationInfo {
-                            ptr: addr,
-                            size,
-                            var_name: None,
-                            type_name: Some(type_name.clone()),
-                            scope_name: None,
-                            timestamp_alloc: std::time::SystemTime::now()
-                                .duration_since(std::time::UNIX_EPOCH)
-                                .unwrap_or_default()
-                                .as_millis() as u64,
-                            timestamp_dealloc: None,
-                            thread_id: format!("async_task_{}", task_id),
-                            borrow_count: 0,
-                            stack_trace: None,
-                            is_leaked: false,
-                            lifetime_ms: None,
-                            borrow_info: None,
-                            clone_info: None,
-                            ownership_history_available: false,
-                            smart_pointer_info: None,
-                            memory_layout: None,
-                            generic_info: None,
-                            dynamic_type_info: None,
-                            runtime_state: None,
-                            stack_allocation: None,
-                            temporary_object: None,
-                            fragmentation_analysis: None,
-                            generic_instantiation: None,
-                            access_tracking: None,
-                            drop_chain_analysis: None,
-                            function_call_tracking: None,
-                            lifecycle_tracking: None,
-                            type_relationships: None,
-                            type_usage: None,
-                        };
-
-                        // Non-blocking bounded history
-                        if let Ok(history) = bounded_history.try_lock() {
-                            history.push(allocation_info);
-                            stats.record_success();
-                        } else {
-                            stats.record_miss();
-                        }
-
-                        // Type classification (lock-free)
-                        let _category = type_classifier.classify(&type_name);
-
-                        // Async yield point
-                        if i % 100 == 0 {
-                            sleep(Duration::from_micros(1)).await;
-                        }
-
-                        // Smart pointer tracking
-                        if i % 20 == 0 {
-                            if let Ok(mut sp_tracker) = smart_pointer_tracker.try_lock() {
-                                sp_tracker.track_allocation(
-                                    addr + 0x30000,
-                                    PointerType::Arc, // Async commonly uses Arc
-                                    size,
-                                    type_name.clone(),
-                                    Some(1),
-                                );
-                            }
-                        }
+        #[cfg(target_os = "macos")]
+        {
+            // On macOS, try to read memory info
+            // Simplified approach without libc dependency
+            if let Ok(output) = std::process::Command::new("ps")
+                .args(&["-o", "rss=", "-p"])
+                .arg(std::process::id().to_string())
+                .output()
+            {
+                if let Ok(rss_str) = String::from_utf8(output.stdout) {
+                    if let Ok(rss_kb) = rss_str.trim().parse::<usize>() {
+                        return rss_kb * 1024; // Convert KB to bytes
                     }
-                });
-
-                tasks.push(task);
+                }
             }
-
-            // Await all tasks
-            for task in tasks {
-                task.await.unwrap();
-            }
-        });
-
-        results.duration = start.elapsed();
-        self.finalize_results(&mut results);
-        results
-    }
-
-    /// Test 4: Hybrid Mode (Async + Multi-threaded)
-    fn test_hybrid_mode(&self) -> TestResults {
-        println!("🌀 Testing Hybrid Mode (Async + Multi-threaded)");
-        let mut results = TestResults::new("Hybrid");
-
-        let rt = Runtime::new().unwrap();
-        let start = Instant::now();
-
-        rt.block_on(async {
-            let mut async_handles = Vec::new();
-            let allocations_per_mode = self.config.num_allocations / 2;
-
-            // Part 1: Async tasks
-            for task_id in 0..self.config.async_tasks / 2 {
-                let config = self.config.clone();
-                let bounded_history = Arc::clone(&self.bounded_history);
-                let smart_pointer_tracker = Arc::clone(&self.smart_pointer_tracker);
-                let _ = &smart_pointer_tracker; // Suppress unused warning
-                let stats = Arc::clone(&self.global_stats);
-
-                let async_handle = task::spawn(async move {
-                    let base_addr = 0x4000 + task_id * 0x50000;
-                    let allocations_per_async_task =
-                        allocations_per_mode / (config.async_tasks / 2);
-
-                    for i in 0..allocations_per_async_task {
-                        let addr = base_addr + i * 8;
-                        let size = config.allocation_size_range.0 + (i % 512);
-                        let type_name = format!("HybridAsync{}_{}", task_id, i % 30);
-
-                        stats.record_attempt();
-
-                        let allocation_info = AllocationInfo {
-                            ptr: addr,
-                            size,
-                            var_name: None,
-                            type_name: Some(type_name.clone()),
-                            scope_name: None,
-                            timestamp_alloc: std::time::SystemTime::now()
-                                .duration_since(std::time::UNIX_EPOCH)
-                                .unwrap_or_default()
-                                .as_millis() as u64,
-                            timestamp_dealloc: None,
-                            thread_id: format!("hybrid_async_{}", task_id),
-                            borrow_count: 0,
-                            stack_trace: None,
-                            is_leaked: false,
-                            lifetime_ms: None,
-                            borrow_info: None,
-                            clone_info: None,
-                            ownership_history_available: false,
-                            smart_pointer_info: None,
-                            memory_layout: None,
-                            generic_info: None,
-                            dynamic_type_info: None,
-                            runtime_state: None,
-                            stack_allocation: None,
-                            temporary_object: None,
-                            fragmentation_analysis: None,
-                            generic_instantiation: None,
-                            access_tracking: None,
-                            drop_chain_analysis: None,
-                            function_call_tracking: None,
-                            lifecycle_tracking: None,
-                            type_relationships: None,
-                            type_usage: None,
-                        };
-
-                        if let Ok(history) = bounded_history.try_lock() {
-                            history.push(allocation_info);
-                            stats.record_success();
-                        } else {
-                            stats.record_miss();
-                        }
-
-                        // Simulate async I/O
-                        if i % 200 == 0 {
-                            sleep(Duration::from_micros(10)).await;
-                        }
-                    }
-                });
-
-                async_handles.push(async_handle);
-            }
-
-            // Part 2: Traditional threads (spawn them from async context)
-            let thread_handles = Arc::new(Mutex::new(Vec::new()));
-
-            for thread_id in 0..self.config.num_threads / 2 {
-                let config = self.config.clone();
-                let bounded_history = Arc::clone(&self.bounded_history);
-                let smart_pointer_tracker = Arc::clone(&self.smart_pointer_tracker);
-                let stats = Arc::clone(&self.global_stats);
-                let handles_ref = Arc::clone(&thread_handles);
-
-                let handle = thread::spawn(move || {
-                    let base_addr = 0x8000 + thread_id * 0x50000;
-                    let allocations_per_thread = allocations_per_mode / (config.num_threads / 2);
-
-                    for i in 0..allocations_per_thread {
-                        let addr = base_addr + i * 8;
-                        let size = config.allocation_size_range.1 - (i % 1024);
-                        let type_name = format!("HybridThread{}_{}", thread_id, i % 35);
-
-                        stats.record_attempt();
-
-                        let allocation_info = AllocationInfo {
-                            ptr: addr,
-                            size,
-                            var_name: None,
-                            type_name: Some(type_name.clone()),
-                            scope_name: None,
-                            timestamp_alloc: std::time::SystemTime::now()
-                                .duration_since(std::time::UNIX_EPOCH)
-                                .unwrap_or_default()
-                                .as_millis() as u64,
-                            timestamp_dealloc: None,
-                            thread_id: format!("hybrid_thread_{}", thread_id),
-                            borrow_count: 0,
-                            stack_trace: None,
-                            is_leaked: false,
-                            lifetime_ms: None,
-                            borrow_info: None,
-                            clone_info: None,
-                            ownership_history_available: false,
-                            smart_pointer_info: None,
-                            memory_layout: None,
-                            generic_info: None,
-                            dynamic_type_info: None,
-                            runtime_state: None,
-                            stack_allocation: None,
-                            temporary_object: None,
-                            fragmentation_analysis: None,
-                            generic_instantiation: None,
-                            access_tracking: None,
-                            drop_chain_analysis: None,
-                            function_call_tracking: None,
-                            lifecycle_tracking: None,
-                            type_relationships: None,
-                            type_usage: None,
-                        };
-
-                        if let Ok(history) = bounded_history.try_lock() {
-                            history.push(allocation_info);
-                            stats.record_success();
-                        } else {
-                            stats.record_miss();
-                        }
-
-                        // High-frequency smart pointer allocation in threads
-                        if i % 5 == 0 {
-                            if let Ok(mut sp_tracker) = smart_pointer_tracker.try_lock() {
-                                sp_tracker.track_allocation(
-                                    addr + 0x40000,
-                                    PointerType::Box,
-                                    size,
-                                    type_name,
-                                    None,
-                                );
-                            }
-                        }
-                    }
-                });
-
-                if let Ok(mut handles) = handles_ref.try_lock() {
-                    handles.push(handle);
-                };
-            }
-
-            // Wait for async tasks
-            for handle in async_handles {
-                handle.await.unwrap();
-            }
-
-            // Note: In a real implementation, you would properly join the threads
-            // This is simplified for the demo
-        });
-
-        results.duration = start.elapsed();
-        self.finalize_results(&mut results);
-        results
-    }
-
-    /// Helper: Enhanced allocation tracking
-    fn track_allocation_enhanced(&self, addr: usize, size: usize, type_name: &str, thread_id: u32) {
-        self.global_stats.record_attempt();
-
-        // Bounded history tracking
-        let allocation_info = AllocationInfo {
-            ptr: addr,
-            size,
-            var_name: None,
-            type_name: Some(type_name.to_string()),
-            scope_name: None,
-            timestamp_alloc: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_millis() as u64,
-            timestamp_dealloc: None,
-            thread_id: format!("thread_{}", thread_id),
-            borrow_count: 0,
-            stack_trace: None,
-            is_leaked: false,
-            lifetime_ms: None,
-            borrow_info: None,
-            clone_info: None,
-            ownership_history_available: false,
-            smart_pointer_info: None,
-            memory_layout: None,
-            generic_info: None,
-            dynamic_type_info: None,
-            runtime_state: None,
-            stack_allocation: None,
-            temporary_object: None,
-            fragmentation_analysis: None,
-            generic_instantiation: None,
-            access_tracking: None,
-            drop_chain_analysis: None,
-            function_call_tracking: None,
-            lifecycle_tracking: None,
-            type_relationships: None,
-            type_usage: None,
-        };
-
-        if let Ok(history) = self.bounded_history.try_lock() {
-            history.push(allocation_info);
-            self.global_stats.record_success();
-        } else {
-            self.global_stats.record_miss();
         }
 
-        // Type classification
-        let _category = self.type_classifier.classify(type_name);
-
-        // Size estimation learning
-        if let Ok(mut estimator) = self.size_estimator.try_lock() {
-            estimator.learn_from_real_allocation(type_name, size);
+        #[cfg(target_os = "windows")]
+        {
+            // On Windows, use a simpler approach or fallback
+            // For now, use fallback since we don't have proper Windows API bindings
         }
+
+        // Fallback: use a basic estimation if system APIs are unavailable
+        let basic_estimate = self.config.num_allocations
+            * ((self.config.allocation_size_range.0 + self.config.allocation_size_range.1) / 2);
+
+        println!("Warning: Could not get real memory usage, using basic estimation");
+        basic_estimate
     }
 
-    /// Helper: Smart pointer allocation simulation
-    fn simulate_smart_pointer_allocation(&self, addr: usize, size: usize, type_name: &str) {
-        if let Ok(mut tracker) = self.smart_pointer_tracker.try_lock() {
-            let ptr_type = match addr % 3 {
-                0 => PointerType::Box,
-                1 => PointerType::Arc,
-                _ => PointerType::Rc,
-            };
+    /// Run single-threaded test suite across different load scenarios
+    pub fn run_all_tests() {
+        println!("🚀 Starting Single-threaded MemScope-RS Test Suite");
+        println!("{}", "=".repeat(60));
 
-            let ref_count = if ptr_type != PointerType::Box {
-                Some(1)
-            } else {
-                None
-            };
-            tracker.track_allocation(addr, ptr_type, size, type_name.to_string(), ref_count);
-        }
-    }
-
-    /// Helper: Generate realistic type names
-    fn generate_type_name(&self, index: usize) -> String {
-        let types = [
-            "String",
-            "Vec<u8>",
-            "HashMap<String, i32>",
-            "Arc<Mutex<Data>>",
-            "Box<dyn Trait>",
-            "Rc<RefCell<Node>>",
-            "BTreeMap<u64, String>",
-            "Option<Result<T, E>>",
-            "Future<Output = ()>",
-            "Channel<Message>",
+        let scenarios = [
+            ("Light Load", TestConfig::light_load()),
+            ("Medium Load", TestConfig::medium_load()),
+            ("Heavy Load", TestConfig::heavy_load()),
         ];
-        types[index % types.len()].to_string()
-    }
 
-    /// Helper: Finalize test results
-    fn finalize_results(&self, results: &mut TestResults) {
-        // Get memory usage
-        let memory_usage = if let Ok(history) = self.bounded_history.try_lock() {
-            let stats = history.get_memory_usage_stats();
-            stats.current_memory_usage
-        } else {
-            0
-        };
+        for (scenario_name, config) in scenarios.iter() {
+            println!("\n📋 Scenario: {}", scenario_name);
+            println!("{}", "-".repeat(40));
 
-        // Calculate metrics
-        results.calculate_metrics(&self.global_stats, memory_usage);
+            let suite = SingleThreadedTestSuite::new(config.clone());
 
-        // Count smart pointers
-        results.smart_pointers_tracked =
-            if let Ok(sp_tracker) = self.smart_pointer_tracker.try_lock() {
-                let box_stats = sp_tracker.get_type_stats(&PointerType::Box);
-                let arc_stats = sp_tracker.get_type_stats(&PointerType::Arc);
-                let rc_stats = sp_tracker.get_type_stats(&PointerType::Rc);
+            // Test single-threaded mode only
+            let st_results = suite.test_single_threaded();
 
-                box_stats.map(|s| s.total_count).unwrap_or(0)
-                    + arc_stats.map(|s| s.total_count).unwrap_or(0)
-                    + rc_stats.map(|s| s.total_count).unwrap_or(0)
-            } else {
-                0
-            };
+            // Print results
+            st_results.print_results();
 
-        // Reset stats for next test
-        self.global_stats.reset();
-    }
+            println!("\n📊 {} Summary:", scenario_name);
+            println!(
+                "  Real Allocations Tracked: {}",
+                st_results.allocations_tracked
+            );
+            println!(
+                "  Real Completeness: {:.1}%",
+                st_results.completeness_rate * 100.0
+            );
+            println!("  Real Memory Usage: {:.1} MB", st_results.memory_usage_mb);
+            println!("  Smart Pointers: {}", st_results.smart_pointers_tracked);
+        }
 
-    /// Run comprehensive performance comparison
-    fn run_comprehensive_test(&self) -> Vec<TestResults> {
-        println!("🚀 Starting Comprehensive Modes Performance Test");
-        println!("Configuration: {:?}\n", self.config);
-
-        let all_results = vec![
-            self.test_single_threaded(),
-            self.test_multi_threaded(),
-            self.test_async_mode(),
-            self.test_hybrid_mode(),
-        ];
-        all_results
+        println!("\n✅ Single-threaded test suite completed!");
+        println!("💡 For multi-threaded tests, run: cargo run --example lockfree_test");
+        println!("💡 For async tests, run: cargo run --example async_memory_test");
     }
 }
 
-/// Performance comparison and analysis
-fn analyze_results(results: &[TestResults]) {
-    println!("📈 Performance Analysis & Comparison");
-    println!("=====================================");
+fn main() {
+    // Initialize MemScope-RS (note: init() returns () so no expect needed)
+    memscope_rs::init();
 
-    // Display individual results
-    for result in results {
-        result.display();
-    }
-
-    // Find best performers
-    let fastest = results
-        .iter()
-        .max_by(|a, b| a.throughput.partial_cmp(&b.throughput).unwrap())
-        .unwrap();
-    let most_complete = results
-        .iter()
-        .max_by(|a, b| {
-            a.completeness_rate
-                .partial_cmp(&b.completeness_rate)
-                .unwrap()
-        })
-        .unwrap();
-    let most_memory_efficient = results
-        .iter()
-        .min_by(|a, b| a.memory_usage_mb.partial_cmp(&b.memory_usage_mb).unwrap())
-        .unwrap();
-
-    println!("🏆 Performance Leaders:");
-    println!(
-        "  Highest Throughput: {} ({:.0} allocs/sec)",
-        fastest.mode, fastest.throughput
-    );
-    println!(
-        "  Best Completeness: {} ({:.1}%)",
-        most_complete.mode,
-        most_complete.completeness_rate * 100.0
-    );
-    println!(
-        "  Most Memory Efficient: {} ({:.1} MB)",
-        most_memory_efficient.mode, most_memory_efficient.memory_usage_mb
-    );
-
-    // Mode recommendations
-    println!("\n💡 Mode Recommendations:");
-    println!("  • Single-threaded: Best for simple, sequential analysis");
-    println!("  • Multi-threaded: Optimal for CPU-intensive parallel workloads");
-    println!("  • Async: Ideal for I/O-heavy or event-driven applications");
-    println!("  • Hybrid: Perfect for complex real-world applications");
-
-    // Enhanced features validation
-    println!("\n✅ Enhanced Features Validation:");
-    let avg_completeness =
-        results.iter().map(|r| r.completeness_rate).sum::<f64>() / results.len() as f64;
-    let total_smart_pointers = results
-        .iter()
-        .map(|r| r.smart_pointers_tracked)
-        .sum::<usize>();
-
-    println!(
-        "  Average Completeness: {:.1}% (Target: >95%)",
-        avg_completeness * 100.0
-    );
-    println!(
-        "  Smart Pointers Tracked: {} across all modes",
-        total_smart_pointers
-    );
-    println!("  Memory Growth: Bounded (all modes maintained <10MB)");
-    println!("  Type Classification: 100% accurate across all modes");
-}
-
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("🎯 MemScope-RS Comprehensive Modes Performance Test\n");
-
-    // Test different load scenarios
-    let scenarios = [
-        ("Light Load", TestConfig::light()),
-        ("Medium Load", TestConfig::medium()),
-        ("Heavy Load", TestConfig::heavy()),
-    ];
-
-    for (scenario_name, config) in scenarios {
-        println!("📊 Testing Scenario: {}", scenario_name);
-        println!("====================================");
-
-        let test_suite = ComprehensiveTestSuite::new(config);
-        let results = test_suite.run_comprehensive_test();
-        analyze_results(&results);
-
-        println!("\n{}\n", "=".repeat(80));
-    }
-
-    println!("✨ Comprehensive modes test completed successfully!");
-    println!("The enhanced MemScope-RS performs excellently across all execution modes!");
-
-    Ok(())
+    SingleThreadedTestSuite::run_all_tests();
 }
