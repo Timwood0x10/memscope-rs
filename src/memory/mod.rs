@@ -9,14 +9,9 @@
 //!
 //! ```rust
 //! use memscope_rs::memory::{BoundedHistory, MemoryConfig};
-//! use std::time::Duration;
 //!
 //! let config = MemoryConfig::default();
-//! let mut history = BoundedHistory::new(
-//!     config.max_allocations,
-//!     config.max_history_age,
-//!     config.memory_limit_mb
-//! );
+//! let mut history: BoundedHistory<String> = BoundedHistory::new();
 //! ```
 
 pub mod bounded_history;

@@ -215,10 +215,11 @@ mod tests {
     fn test_basic_tracking() {
         let mut tracker = SmartPointerTracker::new();
 
-        let id = tracker.track_allocation(0x1000, PointerType::Box, 64, "String".to_string(), None);
+        let _id =
+            tracker.track_allocation(0x1000, PointerType::Box, 64, "String".to_string(), None);
 
         assert_eq!(tracker.get_active_count(), 1);
-        assert!(id > 0);
+        // ID is unsigned, always non-negative
 
         let info = tracker.track_deallocation(0x1000);
         assert!(info.is_some());

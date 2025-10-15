@@ -8,10 +8,11 @@
 //! # Examples
 //!
 //! ```rust
-//! use memscope_rs::tracking::{TrackingStats, BoundedHistory};
+//! use memscope_rs::tracking::TrackingStats;
+//! use memscope_rs::memory::BoundedHistory;
 //!
 //! let stats = TrackingStats::new();
-//! let history = BoundedHistory::new(100_000, Duration::from_secs(3600), 512);
+//! let history: BoundedHistory<String> = BoundedHistory::new();
 //! ```
 
 pub mod stats;

@@ -122,7 +122,7 @@ pub struct QualityAssessment {
 }
 
 /// Quality grade classifications
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum QualityGrade {
     /// Excellent quality (90-100%)
     A,
@@ -135,6 +135,34 @@ pub enum QualityGrade {
     /// Failing quality (<60%)
     F,
 }
+
+impl PartialOrd for QualityGrade {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for QualityGrade {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        let self_score = match self {
+            QualityGrade::A => 5,
+            QualityGrade::B => 4,
+            QualityGrade::C => 3,
+            QualityGrade::D => 2,
+            QualityGrade::F => 1,
+        };
+        let other_score = match other {
+            QualityGrade::A => 5,
+            QualityGrade::B => 4,
+            QualityGrade::C => 3,
+            QualityGrade::D => 2,
+            QualityGrade::F => 1,
+        };
+        self_score.cmp(&other_score)
+    }
+}
+
+impl Eq for QualityGrade {}
 
 /// Individual quality metric
 #[derive(Debug, Clone)]
