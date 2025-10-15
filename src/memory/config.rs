@@ -172,14 +172,13 @@ impl MemoryConfig {
 
         #[cfg(target_os = "windows")]
         {
-            return Ok(8192);
+            Ok(8192)
         }
-
         #[cfg(target_os = "macos")]
         {
             Ok(8192)
         }
-        #[cfg(not(target_os = "macos"))]
+        #[cfg(not(any(target_os = "windows", target_os = "macos")))]
         {
             Ok(4096)
         }

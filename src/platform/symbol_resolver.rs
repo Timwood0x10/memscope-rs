@@ -71,6 +71,7 @@ struct WindowsResolverContext {
     /// Whether PDB files are loaded
     pdb_loaded: bool,
     /// Symbol search paths
+    #[allow(dead_code)]
     symbol_paths: Vec<PathBuf>,
 }
 
