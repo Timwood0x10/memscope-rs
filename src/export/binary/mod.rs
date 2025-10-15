@@ -21,6 +21,7 @@ mod filter_engine;
 pub mod format;
 pub mod html_converter;
 pub mod html_export;
+pub mod html_template;
 mod index;
 mod index_builder;
 #[cfg(test)]

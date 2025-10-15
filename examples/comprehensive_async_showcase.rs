@@ -460,8 +460,8 @@ async fn execute_streaming_task(
     };
 
     println!(
-        "📡 Starting streaming task: {} items/batch for {}s",
-        batch_size, config.duration_secs
+        "📡 Starting streaming task: {batch_size} items/batch for {duration} seconds",
+        duration = config.duration_secs
     );
 
     let start_time = std::time::Instant::now();
@@ -615,8 +615,7 @@ async fn execute_gpu_compute_task(
     }
 
     Ok(format!(
-        "GPU compute task completed {} operations, result: {:.6}",
-        compute_iterations, compute_result
+        "GPU compute task completed {compute_iterations} operations, result: {compute_result:.6}",
     ))
 }
 

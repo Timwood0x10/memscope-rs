@@ -15,14 +15,42 @@ pub mod advanced_types;
 /// Advanced memory analysis functionality
 pub mod analysis;
 pub mod async_memory;
+/// Type classification system
+pub mod classification;
 /// Command-line interface functionality
 pub mod cli;
 /// Core memory tracking functionality
 pub mod core;
+
+// Re-export optimized components for easy access
+pub use crate::core::performance_optimizer::{
+    OptimizationRecommendations, PerformanceMetrics, PerformanceOptimizer,
+};
+pub use crate::core::ultra_fast_tracker::{
+    SamplingStats, UltraFastSamplingConfig, UltraFastTracker,
+};
+/// Unified error handling and recovery system
+pub mod error;
+/// Smart size estimation and type classification
+pub mod estimation;
 /// Export and visualization functionality
 pub mod export;
 /// Lock-free multi-threaded memory tracking
 pub mod lockfree;
+/// Memory management and bounded history tracking
+pub mod memory;
+/// Performance monitoring and metrics collection
+pub mod metrics;
+/// Platform-specific implementations for memory tracking
+pub mod platform;
+/// Code quality assurance and validation system
+pub mod quality;
+/// Smart pointer tracking and analysis
+pub mod smart_pointers;
+/// Enhanced stack trace capture and analysis
+pub mod stack_trace;
+/// Memory allocation tracking statistics and monitoring
+pub mod tracking;
 /// Unified backend for intelligent memory tracking
 pub mod unified;
 /// Utility functions

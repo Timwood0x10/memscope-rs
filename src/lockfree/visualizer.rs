@@ -297,7 +297,7 @@ const EMBEDDED_MULTITHREAD_TEMPLATE: &str = r#"<!DOCTYPE html>
             transform: translateY(-2px);
         }
         
-        /* 确保选中状态不影响页面背景 */
+        /* Ensure selected state doesn't affect page background */
         body.has-selected-thread {
             background: linear-gradient(135deg, var(--dark-bg) 0%, #0f0c29 100%) !important;
         }
@@ -1433,7 +1433,7 @@ const EMBEDDED_MULTITHREAD_TEMPLATE: &str = r#"<!DOCTYPE html>
         function selectThread(threadId) {
             selectedThreadId = threadId;
             
-            // 确保页面背景不受影响
+            // Ensure page background is not affected
             document.body.style.background = 'linear-gradient(135deg, #1a1a2e 0%, #0f0c29 100%)';
             document.body.style.color = '#eee';
             

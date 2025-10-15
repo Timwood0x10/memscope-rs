@@ -113,11 +113,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             Ok(Err(e)) => {
                 error_count += 1;
-                println!("❌ Thread {} error: {}", i, e);
+                println!("❌ Thread {i} error: {e}");
             }
             Err(_) => {
                 error_count += 1;
-                println!("💥 Thread {} panicked", i);
+                println!("💥 Thread {i} panicked");
             }
         }
     }
@@ -539,6 +539,7 @@ fn execute_batch_processing_workload(
 
     Ok(())
 }
+
 /// Stream Processing Workload: Continuous small allocations
 fn execute_stream_processing_workload(
     thread_id: usize,
@@ -665,9 +666,9 @@ fn print_execution_summary(
         "⏱️  Total execution time: {:.2} seconds",
         total_time.as_secs_f64()
     );
-    println!("✅ Successful threads: {}", success_count);
-    println!("❌ Failed threads: {}", error_count);
-    println!("🔄 Total operations: {}", total_operations);
+    println!("✅ Successful threads: {success_count}");
+    println!("❌ Failed threads: {error_count}");
+    println!("🔄 Total operations: {total_operations}");
     println!(
         "📈 Operations per second: {:.1}",
         total_operations as f64 / total_time.as_secs_f64()
@@ -688,25 +689,21 @@ fn print_execution_summary(
         }
 
         for (workload_type, (count, allocs, memory, time, ops)) in workload_summary {
-            println!("🔹 {}: {} threads", workload_type, count);
+            println!("🔹 {workload_type}: {count} threads");
             println!(
-                "   └─ Allocations: {} ({:.1} avg)",
-                allocs,
+                "   └─ Allocations: {allocs} ({:.1} avg)",
                 allocs as f64 / count as f64
             );
             println!(
-                "   └─ Peak Memory: {:.1} MB ({:.1} MB avg)",
-                memory,
+                "   └─ Peak Memory: {memory:.1} MB ({:.1} MB avg)",
                 memory / count as f64
             );
             println!(
-                "   └─ Execution: {:.1} ms ({:.1} ms avg)",
-                time,
+                "   └─ Execution: {time:.1} ms ({:.1} ms avg)",
                 time / count as f64
             );
             println!(
-                "   └─ Operations: {} ({:.1} avg)",
-                ops,
+                "   └─ Operations: {ops} ({:.1} avg)",
                 ops as f64 / count as f64
             );
         }

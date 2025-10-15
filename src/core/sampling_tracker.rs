@@ -7,13 +7,13 @@
 //! - Batch writing for optimal performance
 
 use crate::core::types::TrackingResult;
-use std::collections::HashMap;
+use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
-use serde::{Serialize, Deserialize};
 
 /// Core event data structure optimized for binary serialization
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -113,12 +113,12 @@ impl ThreadLocalData {
         }
 
         self.ensure_file_handle()?;
-        
+
         if let Some(ref mut file) = self.file_handle {
             // Serialize events to binary format using bincode
-            let serialized = bincode::encode_to_vec(&self.event_buffer, bincode::config::standard())
+            let serialized = serde_json::to_vec(&self.event_buffer)
                 .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-            
+
             // Write length prefix for easier parsing
             let len = serialized.len() as u32;
             file.write_all(&len.to_le_bytes())?;
@@ -138,23 +138,24 @@ impl ThreadLocalData {
 
         self.ensure_file_handle()?;
 
-        let freq_data: Vec<FrequencyData> = self.call_stack_frequencies
+        let freq_data: Vec<FrequencyData> = self
+            .call_stack_frequencies
             .iter()
-            .map(|(&hash, &(freq, total_size, ref var_name, ref type_name))| {
-                FrequencyData {
+            .map(
+                |(&hash, &(freq, total_size, ref var_name, ref type_name))| FrequencyData {
                     call_stack_hash: hash,
                     frequency: freq,
                     total_size,
                     sample_var_name: var_name.clone(),
                     sample_type_name: type_name.clone(),
-                }
-            })
+                },
+            )
             .collect();
 
         if let Some(ref mut file) = self.file_handle {
-            let serialized = bincode::encode_to_vec(&freq_data, bincode::config::standard())
+            let serialized = serde_json::to_vec(&freq_data)
                 .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-            
+
             // Write marker for frequency data
             let marker = 0xFEEDFACEu32;
             file.write_all(&marker.to_le_bytes())?;
@@ -168,7 +169,7 @@ impl ThreadLocalData {
     }
 }
 
-/// Thread-local storage for tracking data
+// Thread-local storage for tracking data
 thread_local! {
     static THREAD_DATA: RefCell<ThreadLocalData> = RefCell::new(ThreadLocalData::new());
 }
@@ -197,11 +198,11 @@ pub struct SamplingConfig {
 impl Default for SamplingConfig {
     fn default() -> Self {
         Self {
-            large_size_threshold: 10 * 1024,    // 10KB - always sample
-            medium_size_threshold: 1024,        // 1KB - 10% sample rate
-            medium_sample_rate: 0.1,            // 10%
-            small_sample_rate: 0.01,            // 1%
-            buffer_size: 1000,                  // Flush after 1000 events
+            large_size_threshold: 10 * 1024, // 10KB - always sample
+            medium_size_threshold: 1024,     // 1KB - 10% sample rate
+            medium_sample_rate: 0.1,         // 10%
+            small_sample_rate: 0.01,         // 1%
+            buffer_size: 1000,               // Flush after 1000 events
         }
     }
 }
@@ -220,18 +221,27 @@ impl SamplingTracker {
     }
 
     /// Track a variable allocation with intelligent sampling
-    pub fn track_variable(&self, ptr: usize, size: usize, var_name: String, type_name: String) -> TrackingResult<()> {
+    pub fn track_variable(
+        &self,
+        ptr: usize,
+        size: usize,
+        var_name: String,
+        type_name: String,
+    ) -> TrackingResult<()> {
         let call_stack_hash = self.calculate_call_stack_hash(&var_name, &type_name);
-        
+
         THREAD_DATA.with(|data| {
             let mut data = data.borrow_mut();
             data.total_operations += 1;
-            
+
             // Update frequency tracking (always track frequency, even if we don't sample the event)
-            let entry = data.call_stack_frequencies.entry(call_stack_hash).or_insert((0, 0, var_name.clone(), type_name.clone()));
+            let entry = data
+                .call_stack_frequencies
+                .entry(call_stack_hash)
+                .or_insert((0, 0, var_name.clone(), type_name.clone()));
             entry.0 += 1; // Increment frequency
             entry.1 += size; // Add to total size
-            
+
             // Intelligent sampling decision
             if self.should_sample(size, &mut data) {
                 let event = Event {
@@ -243,20 +253,22 @@ impl SamplingTracker {
                     var_name: Some(var_name),
                     type_name: Some(type_name),
                 };
-                
+
                 data.event_buffer.push(event);
-                
+
                 // Flush if buffer is full
                 if data.event_buffer.len() >= self.config.buffer_size {
-                    data.flush_events().map_err(|e| crate::core::types::TrackingError::IoError(e.to_string()))?;
+                    data.flush_events()
+                        .map_err(|e| crate::core::types::TrackingError::IoError(e.to_string()))?;
                 }
             }
-            
+
             // Periodically flush frequency data
             if data.total_operations % 10000 == 0 {
-                data.flush_frequencies().map_err(|e| crate::core::types::TrackingError::IoError(e.to_string()))?;
+                data.flush_frequencies()
+                    .map_err(|e| crate::core::types::TrackingError::IoError(e.to_string()))?;
             }
-            
+
             Ok(())
         })
     }
@@ -281,26 +293,27 @@ impl SamplingTracker {
         THREAD_DATA.with(|data| {
             let mut data = data.borrow_mut();
             data.sample_counter += 1;
-            
+
             // Sample operations less frequently than allocations
             if data.sample_counter % 10 == 0 || matches!(event_type, EventType::Drop) {
                 let event = Event {
                     timestamp: get_timestamp(),
                     ptr,
-                    size: 0, // Operations don't have size
+                    size: 0,                     // Operations don't have size
                     call_stack_hash: ptr as u64, // Use ptr as a simple hash for operations
                     event_type,
                     var_name: None,
                     type_name: None,
                 };
-                
+
                 data.event_buffer.push(event);
-                
+
                 if data.event_buffer.len() >= self.config.buffer_size {
-                    data.flush_events().map_err(|e| crate::core::types::TrackingError::IoError(e.to_string()))?;
+                    data.flush_events()
+                        .map_err(|e| crate::core::types::TrackingError::IoError(e.to_string()))?;
                 }
             }
-            
+
             Ok(())
         })
     }
@@ -311,28 +324,28 @@ impl SamplingTracker {
         if size >= self.config.large_size_threshold {
             return true;
         }
-        
+
         // Medium-sized allocations: probabilistic sampling
         if size >= self.config.medium_size_threshold {
-            return fastrand::f64() < self.config.medium_sample_rate;
+            return rand::random::<f64>() < self.config.medium_sample_rate;
         }
-        
+
         // Small allocations: very low probability, but frequency-aware
         data.sample_counter += 1;
         if data.sample_counter % 100 == 0 {
             // Every 100th small allocation gets sampled
             return true;
         }
-        
+
         // Otherwise, use configured small sample rate
-        fastrand::f64() < self.config.small_sample_rate
+        rand::random::<f64>() < self.config.small_sample_rate
     }
 
     /// Calculate a simple call stack hash for frequency tracking
     fn calculate_call_stack_hash(&self, var_name: &str, type_name: &str) -> u64 {
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
-        
+
         let mut hasher = DefaultHasher::new();
         var_name.hash(&mut hasher);
         type_name.hash(&mut hasher);
@@ -344,8 +357,10 @@ impl SamplingTracker {
     pub fn flush_current_thread(&self) -> TrackingResult<()> {
         THREAD_DATA.with(|data| {
             let mut data = data.borrow_mut();
-            data.flush_events().map_err(|e| crate::core::types::TrackingError::IoError(e.to_string()))?;
-            data.flush_frequencies().map_err(|e| crate::core::types::TrackingError::IoError(e.to_string()))?;
+            data.flush_events()
+                .map_err(|e| crate::core::types::TrackingError::IoError(e.to_string()))?;
+            data.flush_frequencies()
+                .map_err(|e| crate::core::types::TrackingError::IoError(e.to_string()))?;
             Ok(())
         })
     }
@@ -397,34 +412,34 @@ pub fn get_sampling_tracker() -> &'static SamplingTracker {
 
 /// Initialize the sampling tracker with custom configuration
 pub fn init_sampling_tracker(config: SamplingConfig) {
-    GLOBAL_SAMPLING_TRACKER.set(SamplingTracker::with_config(config)).ok();
+    GLOBAL_SAMPLING_TRACKER
+        .set(SamplingTracker::with_config(config))
+        .ok();
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::thread;
     use std::sync::Arc;
+    use std::thread;
 
     #[test]
     fn test_basic_sampling_tracker() {
         let tracker = SamplingTracker::new();
-        
+
         // Test variable tracking
-        tracker.track_variable(
-            0x1000, 1024, 
-            "test_var".to_string(), 
-            "Vec<i32>".to_string()
-        ).unwrap();
-        
+        tracker
+            .track_variable(0x1000, 1024, "test_var".to_string(), "Vec<i32>".to_string())
+            .unwrap();
+
         // Test operations
         tracker.track_access(0x1000).unwrap();
         tracker.track_modify(0x1000).unwrap();
         tracker.track_drop(0x1000).unwrap();
-        
+
         let stats = tracker.get_current_thread_stats();
         assert!(stats.total_operations > 0);
-        
+
         // Flush data
         tracker.flush_current_thread().unwrap();
     }
@@ -438,23 +453,19 @@ mod tests {
             small_sample_rate: 0.0,  // 0% for testing
             buffer_size: 10,
         };
-        
+
         let tracker = SamplingTracker::with_config(config);
-        
+
         // Large allocation should always be sampled
-        tracker.track_variable(
-            0x1000, 200, 
-            "large_var".to_string(), 
-            "Vec<u8>".to_string()
-        ).unwrap();
-        
+        tracker
+            .track_variable(0x1000, 200, "large_var".to_string(), "Vec<u8>".to_string())
+            .unwrap();
+
         // Medium allocation should be sampled (100% rate)
-        tracker.track_variable(
-            0x2000, 75, 
-            "medium_var".to_string(), 
-            "String".to_string()
-        ).unwrap();
-        
+        tracker
+            .track_variable(0x2000, 75, "medium_var".to_string(), "String".to_string())
+            .unwrap();
+
         let stats = tracker.get_current_thread_stats();
         assert_eq!(stats.total_operations, 2);
     }
@@ -463,42 +474,46 @@ mod tests {
     fn test_multithread_sampling() {
         let tracker = Arc::new(SamplingTracker::new());
         let mut handles = vec![];
-        
+
         // Test with multiple threads
         for i in 0..5 {
             let tracker_clone = tracker.clone();
             let handle = thread::spawn(move || {
                 for j in 0..10 {
                     let ptr = (i * 1000 + j) as usize;
-                    tracker_clone.track_variable(
-                        ptr, 64,
-                        format!("thread_{}_var_{}", i, j),
-                        "TestType".to_string()
-                    ).unwrap();
+                    tracker_clone
+                        .track_variable(
+                            ptr,
+                            64,
+                            format!("thread_{}_var_{}", i, j),
+                            "TestType".to_string(),
+                        )
+                        .unwrap();
                 }
-                
+
                 tracker_clone.flush_current_thread().unwrap();
             });
             handles.push(handle);
         }
-        
+
         // Wait for all threads
         for handle in handles {
             handle.join().unwrap();
         }
-        
+
         // Verify files were created
         let files = std::fs::read_dir(".")
             .unwrap()
             .filter_map(|entry| entry.ok())
             .filter(|entry| {
-                entry.file_name()
+                entry
+                    .file_name()
                     .to_str()
                     .map(|name| name.starts_with("memscope_thread_"))
                     .unwrap_or(false)
             })
             .count();
-        
+
         assert!(files >= 5); // At least 5 thread files should be created
     }
 }
