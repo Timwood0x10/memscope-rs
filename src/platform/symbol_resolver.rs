@@ -103,6 +103,7 @@ struct LibraryInfo {
 
 /// Framework information (macOS)
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct FrameworkInfo {
     /// Framework name
     #[allow(dead_code)]
