@@ -58,6 +58,7 @@ struct LinuxResolverContext {
     /// Whether DWARF debug info is loaded
     dwarf_loaded: bool,
     /// Loaded shared libraries
+    #[allow(dead_code)]
     loaded_libraries: Vec<LibraryInfo>,
 }
 
