@@ -96,7 +96,7 @@ impl MemoryConfig {
         }
     }
 
-    /// 验证配置的有效性
+    /// Validate configuration validity
     pub fn validate(&self) -> Result<(), ConfigError> {
         if self.max_allocations == 0 {
             return Err(ConfigError::InvalidValue(
@@ -131,25 +131,25 @@ impl MemoryConfig {
         Ok(())
     }
 
-    /// 根据可用系统内存自动调整配置
+    /// Auto-adjust configuration based on available system memory
     pub fn auto_adjust_for_system(&mut self) -> Result<(), ConfigError> {
-        // 获取系统内存信息（简化实现）
+        // Get system memory info (simplified implementation)
         let system_memory_mb = self.get_system_memory_mb()?;
 
-        // 限制内存使用不超过系统内存的10%
+        // Limit memory usage to no more than 10% of system memory
         let max_allowed_mb = (system_memory_mb as f64 * 0.1) as usize;
         if self.memory_limit_mb > max_allowed_mb {
-            self.memory_limit_mb = max_allowed_mb.max(64); // 最少64MB
+            self.memory_limit_mb = max_allowed_mb.max(64); // minimum 64MB
         }
 
-        // 根据内存限制调整其他参数
+        // Adjust other parameters based on memory limit
         self.max_allocations = (self.memory_limit_mb * 1024 * 1024 / 512).min(self.max_allocations);
         self.batch_cleanup_size = (self.max_allocations / 100).max(100);
 
         Ok(())
     }
 
-    /// 获取系统内存大小（MB）
+    /// Get system memory size (MB)
     fn get_system_memory_mb(&self) -> Result<usize, ConfigError> {
         #[cfg(target_os = "linux")]
         {
@@ -164,7 +164,7 @@ impl MemoryConfig {
                         let kb: usize = parts[1]
                             .parse()
                             .map_err(|_| ConfigError::SystemInfoUnavailable)?;
-                        return Ok(kb / 1024); // 转换为MB
+                        return Ok(kb / 1024); // convert to MB
                     }
                 }
             }
@@ -185,7 +185,7 @@ impl MemoryConfig {
         }
     }
 
-    /// 创建适合当前系统的配置
+    /// Create configuration suitable for current system
     pub fn for_current_system() -> Result<Self, ConfigError> {
         let mut config = Self::default();
         config.auto_adjust_for_system()?;

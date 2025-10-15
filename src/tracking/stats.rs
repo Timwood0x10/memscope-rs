@@ -211,7 +211,7 @@ mod tests {
     fn test_quality_grades() {
         let stats = TrackingStats::new();
 
-        // 测试不同质量等级
+        // Test different quality levels
         let test_cases = vec![
             (100, 100, "Excellent"),
             (100, 96, "Good"),
@@ -240,7 +240,7 @@ mod tests {
         let stats = std::sync::Arc::new(TrackingStats::new());
         let mut handles = vec![];
 
-        // 启动多个线程并发访问
+        // Start multiple threads for concurrent access
         for _ in 0..4 {
             let stats_clone = stats.clone();
             let handle = thread::spawn(move || {
@@ -256,14 +256,14 @@ mod tests {
             handles.push(handle);
         }
 
-        // 等待所有线程完成
+        // Wait for all threads to complete
         for handle in handles {
             handle.join().unwrap();
         }
 
         let detailed = stats.get_detailed_stats();
         assert_eq!(detailed.total_attempts, 4000);
-        assert!(detailed.successful_tracks >= 3000); // 大约90%成功率
+        assert!(detailed.successful_tracks >= 3000); // approximately 90% success rate
         assert!(detailed.completeness >= 0.8);
     }
 

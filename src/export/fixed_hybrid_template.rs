@@ -149,13 +149,13 @@ impl FixedHybridTemplate {
         html
     }
 
-    /// Calculate total memory usage - 使用与comprehensive_export一致的计算方法
+    /// Calculate total memory usage - use calculation method consistent with comprehensive_export
     fn calculate_total_memory(&self, data: &HybridAnalysisData) -> f64 {
-        // 使用lockfree_analysis的peak_memory数据，与comprehensive_export保持一致
+        // Use peak_memory data from lockfree_analysis, consistent with comprehensive_export
         if let Some(analysis) = &data.lockfree_analysis {
             analysis.summary.peak_memory_usage as f64 / 1024.0 / 1024.0
         } else {
-            // 降级到variable_registry计算
+            // Fallback to variable_registry calculation
             data.variable_registry
                 .values()
                 .map(|v| v.memory_usage as f64 / 1024.0 / 1024.0)

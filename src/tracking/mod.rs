@@ -1,11 +1,11 @@
-//! 内存跟踪模块
+//! Memory tracking module
 //!
-//! 提供高性能、可靠的内存分配跟踪功能，包括：
-//! - 跟踪统计和质量监控
-//! - 有界内存管理
-//! - 智能大小估算
+//! Provides high-performance, reliable memory allocation tracking features, including:
+//! - Tracking statistics and quality monitoring
+//! - Bounded memory management
+//! - Intelligent size estimation
 //!
-//! # 示例
+//! # Examples
 //!
 //! ```rust
 //! use memscope_rs::tracking::{TrackingStats, BoundedHistory};
