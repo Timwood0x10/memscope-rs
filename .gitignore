@@ -27,6 +27,8 @@ Thumbs.db
 *.json
 
 *.memscope
+*.bin
+
 # Ignore all SVG files
 *.svg
 
