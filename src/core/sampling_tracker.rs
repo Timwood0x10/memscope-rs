@@ -157,7 +157,7 @@ impl ThreadLocalData {
                 .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
 
             // Write marker for frequency data
-            let marker = 0xFEEDFACEu32;
+            let marker = 0xFEED_FACE_u32;
             file.write_all(&marker.to_le_bytes())?;
             file.write_all(&(serialized.len() as u32).to_le_bytes())?;
             file.write_all(&serialized)?;

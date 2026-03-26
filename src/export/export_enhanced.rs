@@ -25,7 +25,7 @@ fn calculate_allocation_percentiles(allocations: &[AllocationInfo]) -> (usize, u
     };
 
     // Calculate P95 (95th percentile)
-    let p95_index = ((len as f64) * 0.95) as usize;
+    let p95_index = len * 95 / 100;
     let p95 = if p95_index >= len {
         sizes[len - 1]
     } else {
@@ -125,6 +125,7 @@ pub fn enhance_type_information(
 }
 
 /// Enhanced type analysis with detailed subcategory detection
+#[allow(clippy::too_many_lines)]
 fn analyze_type_with_detailed_subcategory(type_name: &str) -> (String, String, String) {
     let clean_type = type_name.trim();
 
@@ -400,6 +401,10 @@ fn extract_inner_primitive_types_enhanced(type_name: &str) -> Vec<String> {
 }
 
 /// Categorize allocations for better visualization
+///
+/// # Panics
+///
+/// This function does not panic under normal conditions.
 #[must_use]
 pub fn categorize_allocations(allocations: &[AllocationInfo]) -> Vec<AllocationCategory> {
     let mut categories: HashMap<String, AllocationCategory> = HashMap::new();
@@ -560,11 +565,11 @@ pub fn export_enhanced_svg<P: AsRef<Path>>(tracker: &MemoryTracker, path: P) -> 
 
     // Only show TOP 3 type chart (y: 60-350)
     if !enhanced_memory_by_type.is_empty() {
-        document = add_compact_type_chart(document, &enhanced_memory_by_type)?;
+        document = add_compact_type_chart(document, &enhanced_memory_by_type);
     }
 
     // Compact summary (y: 350-400)
-    document = add_compact_summary(document, &stats, &active_allocations)?;
+    document = add_compact_summary(document, &stats, &active_allocations);
 
     // Write SVG to file
     let mut file = File::create(path)?;
@@ -667,15 +672,16 @@ fn add_compact_type_chart(
         document = document.add(vars_label);
     }
 
-    Ok(document)
+    document
 }
 
 /// Add compact summary
+#[must_use]
 fn add_compact_summary(
     mut document: Document,
     stats: &MemoryStats,
     allocations: &[AllocationInfo],
-) -> TrackingResult<Document> {
+) -> Document {
     let tracked_vars = allocations.iter().filter(|a| a.var_name.is_some()).count();
 
     let summary_text = format!(
@@ -693,7 +699,7 @@ fn add_compact_summary(
         .set("fill", "#ECF0F1");
     document = document.add(summary);
 
-    Ok(document)
+    document
 }
 
 /// Add enhanced header with 8 core metrics - Modern Dashboard Style

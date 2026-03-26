@@ -210,7 +210,7 @@ pub fn run_html_from_json(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
 
         // Write HTML file
         fs::write(&output_path, &html_content)?;
-        logger.end_timing(&write_timing);
+        let _ = logger.end_timing(&write_timing);
 
         logger.log_file_operation("written", &output_path, Some(html_content.len()));
 

@@ -574,7 +574,7 @@ impl BinaryReader {
         self.reader.read_exact(&mut length_bytes)?;
         let length = u32::from_le_bytes(length_bytes);
 
-        if length == 0xFFFFFFFE {
+        if length == 0xFF_FFF_FFE {
             // None marker
             Ok(None)
         } else if length == 0xFFFF {

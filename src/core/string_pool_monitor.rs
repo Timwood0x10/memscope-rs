@@ -362,7 +362,7 @@ impl StringPoolMonitor {
         }
 
         // Pool size recommendations
-        if pool_stats.unique_strings > 100000 {
+        if pool_stats.unique_strings > 100_000 {
             recommendations.push(OptimizationRecommendation {
                 recommendation_type: RecommendationType::IncreasePoolSize,
                 description: "String pool is getting large. Consider implementing LRU eviction or pool size limits.".to_string(),

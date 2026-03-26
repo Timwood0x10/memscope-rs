@@ -56,9 +56,9 @@ pub mod feature_flags {
     /// Enhanced lifetime analysis enabled
     pub const ENHANCED_LIFETIME_ANALYSIS: u8 = 0b00010000;
     /// Reserved for future use
-    pub const RESERVED_1: u8 = 0b00100000;
-    pub const RESERVED_2: u8 = 0b01000000;
-    pub const RESERVED_3: u8 = 0b10000000;
+    pub const RESERVED_1: u8 = 0b00_100_000;
+    pub const RESERVED_2: u8 = 0b01_000_000;
+    pub const RESERVED_3: u8 = 0b10_000_000;
 }
 
 /// Enhanced file header structure (32 bytes fixed size)

@@ -350,6 +350,7 @@ impl MemoryTracker {
         if allocation.lifetime_ms.is_none() {
             if let Some(dealloc_time) = allocation.timestamp_dealloc {
                 // For deallocated objects, calculate exact lifetime
+                #[allow(clippy::similar_names)]
                 let lifetime_ns = dealloc_time.saturating_sub(allocation.timestamp_alloc);
                 let lifetime_ms = lifetime_ns / 1_000_000; // Convert to milliseconds
                 tracing::debug!(
@@ -364,6 +365,7 @@ impl MemoryTracker {
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap_or_default()
                     .as_nanos() as u64;
+                #[allow(clippy::similar_names)]
                 let lifetime_ns = current_time.saturating_sub(allocation.timestamp_alloc);
                 let lifetime_ms = lifetime_ns / 1_000_000; // Convert to milliseconds
                 tracing::debug!(

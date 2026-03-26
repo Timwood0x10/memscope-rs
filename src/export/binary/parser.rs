@@ -2066,7 +2066,7 @@ impl BinaryParser {
         buffer.push_str(r#","actual_size":"#);
         Self::append_number_to_string(buffer, allocation.size as u64);
         buffer.push_str(r#","alignment":8,"allocator_info":"libc malloc","protection_flags":{"readable":true,"writable":true,"executable":false,"shared":false}},"hook_overhead_ns":100}}},"call_stack":[{"function_name":"current_function","file_name":"src/unsafe_ffi_tracker.rs","line_number":42,"is_unsafe":true}],"cross_boundary_events":[{"event_type":"FfiToRust","timestamp":"#);
-        Self::append_number_to_string(buffer, allocation.timestamp_alloc / 1000000); // Convert to ms
+        Self::append_number_to_string(buffer, allocation.timestamp_alloc / 1_000_000); // Convert to ms
         buffer.push_str(r#","from_context":"libc","to_context":"rust_main","stack":[{"function_name":"current_function","file_name":"src/unsafe_ffi_tracker.rs","line_number":42,"is_unsafe":true}]}],"safety_violations":[],"ffi_tracked":true,"memory_passport":null,"ownership_history":null}"#);
     }
 

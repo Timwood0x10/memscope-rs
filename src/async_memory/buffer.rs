@@ -147,8 +147,8 @@ impl EventBuffer {
         // Use UnsafeCell to get mutable access
         unsafe {
             let events_ptr = self.events.get();
-            let event_ptr = (*events_ptr).as_mut_ptr().add(write_pos);
-            std::ptr::write_volatile(event_ptr, event);
+            let write_event_ptr = (*events_ptr).as_mut_ptr().add(write_pos);
+            std::ptr::write_volatile(write_event_ptr, event);
         }
 
         // Publish write with release ordering
@@ -171,8 +171,8 @@ impl EventBuffer {
         // Safe read - only this thread reads from this position
         let event = unsafe {
             let events_ptr = self.events.get();
-            let event_ptr = (*events_ptr).as_ptr().add(read_pos);
-            std::ptr::read_volatile(event_ptr)
+            let read_event_ptr = (*events_ptr).as_ptr().add(read_pos);
+            std::ptr::read_volatile(read_event_ptr)
         };
 
         // Advance read position

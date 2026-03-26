@@ -275,9 +275,9 @@ impl BinaryTemplateEngine {
                 "allocation_distribution": {
                     "tiny": data.allocations.iter().filter(|a| a.size < 100).count(),
                     "small": data.allocations.iter().filter(|a| a.size >= 100 && a.size < 1024).count(),
-                    "medium": data.allocations.iter().filter(|a| a.size >= 1024 && a.size < 10240).count(),
-                    "large": data.allocations.iter().filter(|a| a.size >= 10240 && a.size < 102400).count(),
-                    "massive": data.allocations.iter().filter(|a| a.size >= 102400).count()
+                    "medium": data.allocations.iter().filter(|a| a.size >= 1_024 && a.size < 10_240).count(),
+                    "large": data.allocations.iter().filter(|a| a.size >= 10_240 && a.size < 102_400).count(),
+                    "massive": data.allocations.iter().filter(|a| a.size >= 102_400).count()
                 }
             }
         });
@@ -603,10 +603,10 @@ impl BinaryTemplateEngine {
         // Create simple linear progression
         vec![
             json!({"timestamp": 0, "memory_usage": 0, "allocation_count": 0}),
-            json!({"timestamp": 250000, "memory_usage": total_memory / 4, "allocation_count": len / 4}),
-            json!({"timestamp": 500000, "memory_usage": total_memory / 2, "allocation_count": len / 2}),
-            json!({"timestamp": 750000, "memory_usage": total_memory * 3 / 4, "allocation_count": len * 3 / 4}),
-            json!({"timestamp": 1000000, "memory_usage": total_memory, "allocation_count": len}),
+            json!({"timestamp": 250_000, "memory_usage": total_memory / 4, "allocation_count": len / 4}),
+            json!({"timestamp": 500_000, "memory_usage": total_memory / 2, "allocation_count": len / 2}),
+            json!({"timestamp": 750_000, "memory_usage": total_memory * 3 / 4, "allocation_count": len * 3 / 4}),
+            json!({"timestamp": 1_000_000, "memory_usage": total_memory, "allocation_count": len}),
         ]
     }
 
@@ -631,8 +631,8 @@ impl BinaryTemplateEngine {
         for alloc in allocations.iter().take(sample_size) {
             match alloc.size {
                 0..=1024 => small += 1,
-                1025..=102400 => medium += 1,
-                102401..=1048576 => large += 1,
+                1025..=102_400 => medium += 1,
+                102401..=1_048_576 => large += 1,
                 _ => huge += 1,
             }
         }
@@ -642,9 +642,9 @@ impl BinaryTemplateEngine {
 
         vec![
             json!({"size_range": "0-1KB", "count": small * scale_factor, "total_size": small * scale_factor * 512}),
-            json!({"size_range": "1-100KB", "count": medium * scale_factor, "total_size": medium * scale_factor * 50000}),
-            json!({"size_range": "100KB-1MB", "count": large * scale_factor, "total_size": large * scale_factor * 500000}),
-            json!({"size_range": ">1MB", "count": huge * scale_factor, "total_size": huge * scale_factor * 2000000}),
+            json!({"size_range": "1-100KB", "count": medium * scale_factor, "total_size": medium * scale_factor * 50_000}),
+            json!({"size_range": "100KB-1MB", "count": large * scale_factor, "total_size": large * scale_factor * 500_000}),
+            json!({"size_range": ">1MB", "count": huge * scale_factor, "total_size": huge * scale_factor * 2_000_000}),
         ]
     }
 

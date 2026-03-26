@@ -274,7 +274,7 @@ impl DataIntegrator {
                 0..=63 => "tiny",
                 64..=1023 => "small",
                 1024..=65535 => "medium",
-                65536..=1048575 => "large",
+                65536..=1_048_575 => "large",
                 _ => "massive",
             };
 
@@ -534,7 +534,7 @@ impl DataIntegrator {
                 0..=63 => "tiny",
                 64..=1023 => "small",
                 1024..=65535 => "medium",
-                65536..=1048575 => "large",
+                65536..=1_048_575 => "large",
                 _ => "massive",
             };
             *size_distribution.entry(size_category).or_insert(0) += 1;

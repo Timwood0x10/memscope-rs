@@ -420,7 +420,7 @@ impl PlatformStackWalker {
                 ip: 0x100_000_000 + i * 0x1000, // Mock addresses
                 fp: Some(0x7fff_5fc0_0000 + i * 0x100),
                 sp: Some(0x7fff_5fc0_0000 + i * 0x100 - 8),
-                module_base: Some(0x100000000),
+                module_base: Some(0x100_000_000),
                 module_offset: Some(i * 0x1000),
                 symbol_info: Some(FrameSymbolInfo {
                     name: format!("function_{i}"),

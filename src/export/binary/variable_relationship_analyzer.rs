@@ -907,11 +907,11 @@ impl VariableRelationshipAnalyzer {
     }
 
     /// Check if one node could be owned by another
-    fn could_be_owned_by(&self, owner: &GraphNode, owned: &GraphNode) -> bool {
+    fn could_be_owned_by(&self, potential_owner: &GraphNode, target_owned: &GraphNode) -> bool {
         // Simple heuristic: smart pointers could own heap allocations
-        matches!(owner.category, NodeCategory::SmartPointer)
-            && matches!(owned.category, NodeCategory::Heap | NodeCategory::Custom)
-            && owner.scope == owned.scope
+        matches!(potential_owner.category, NodeCategory::SmartPointer)
+            && matches!(target_owned.category, NodeCategory::Heap | NodeCategory::Custom)
+            && potential_owner.scope == target_owned.scope
     }
 
     /// Create an edge between two nodes

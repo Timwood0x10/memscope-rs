@@ -2928,7 +2928,7 @@ fn extract_template_data(
 
     // Calculate system metrics from real data
     let (avg_cpu, max_cpu, cpu_cores_count) = calculate_cpu_metrics(resource_timeline);
-    let avg_gpu = calculate_gpu_metrics(resource_timeline);
+    let avg_gpu_usage = calculate_gpu_metrics(resource_timeline);
 
     // Build threads data from analysis.thread_stats
     let threads_data = build_threads_data(&analysis.thread_stats);
@@ -2956,8 +2956,8 @@ fn extract_template_data(
         cpu_usage: avg_cpu,
         cpu_peak: max_cpu,
         cpu_cores: cpu_cores_count,
-        gpu_usage: avg_gpu,
-        gpu_status: if avg_gpu > 0.0 {
+        gpu_usage: avg_gpu_usage,
+        gpu_status: if avg_gpu_usage > 0.0 {
             "Active".to_string()
         } else {
             "Idle/Not Available".to_string()

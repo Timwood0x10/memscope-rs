@@ -486,7 +486,7 @@ impl SystemResourceMonitor {
     }
 
     fn get_gpu_compute_ops(&self, task_id: TaskId) -> u64 {
-        task_id as u64 * 1000000 + self.start_time.elapsed().as_micros() as u64 * 100
+        task_id as u64 * 1_000_000 + self.start_time.elapsed().as_micros() as u64 * 100
     }
 
     fn get_gpu_memory_bandwidth(&self, task_id: TaskId) -> f64 {

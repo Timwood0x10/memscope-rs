@@ -214,13 +214,13 @@ impl IntegrationValidator {
         let resolver = get_global_enhanced_ffi_resolver();
 
         // Test function resolution
-        let resolved = resolver.resolve_function("malloc", Some("libc"))?;
-        if resolved.function_name != "malloc" {
+        let resolved_func = resolver.resolve_function("malloc", Some("libc"))?;
+        if resolved_func.function_name != "malloc" {
             tracing::error!("FFI function resolution failed: wrong function name");
             return Ok(false);
         }
 
-        if resolved.library_name != "libc" {
+        if resolved_func.library_name != "libc" {
             tracing::error!("FFI function resolution failed: wrong library name");
             return Ok(false);
         }
