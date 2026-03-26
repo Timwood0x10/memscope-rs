@@ -1,7 +1,7 @@
 //! FFI Function Name Resolution System
 //!
 //! This module provides enhanced FFI function name resolution to replace
-//! vague "potential_ffi_target" with specific function and library information.
+//! vague "`potential_ffi_target`" with specific function and library information.
 
 use crate::core::types::{TrackingError, TrackingResult};
 use serde::{Deserialize, Serialize};
@@ -11,9 +11,9 @@ use std::sync::{Arc, Mutex};
 /// Resolved FFI function information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResolvedFfiFunction {
-    /// Library name (e.g., "libc", "libssl", "user_library")
+    /// Library name (e.g., "libc", "libssl", "`user_library`")
     pub library_name: String,
-    /// Function name (e.g., "malloc", "free", "SSL_new")
+    /// Function name (e.g., "malloc", "free", "`SSL_new`")
     pub function_name: String,
     /// Function signature if available
     pub signature: Option<String>,
@@ -191,6 +191,7 @@ impl FfiFunctionResolver {
     }
 
     /// Resolve multiple functions in batch
+    #[must_use]
     pub fn resolve_functions_batch(
         &self,
         function_names: &[String],

@@ -101,6 +101,7 @@ pub enum BufferType {
 
 impl AsyncError {
     /// Create an initialization error
+    #[must_use]
     pub fn initialization(component: &str, message: &str, recoverable: bool) -> Self {
         Self::Initialization {
             component: Arc::from(component),
@@ -110,6 +111,7 @@ impl AsyncError {
     }
 
     /// Create a task tracking error
+    #[must_use]
     pub fn task_tracking(
         operation: TaskOperation,
         message: &str,
@@ -123,6 +125,7 @@ impl AsyncError {
     }
 
     /// Create an allocation tracking error
+    #[must_use]
     pub fn allocation_tracking(
         event_type: AllocationEventType,
         message: &str,
@@ -136,6 +139,7 @@ impl AsyncError {
     }
 
     /// Create a buffer management error
+    #[must_use]
     pub fn buffer_management(
         buffer_type: BufferType,
         message: &str,
@@ -149,6 +153,7 @@ impl AsyncError {
     }
 
     /// Create a data aggregation error
+    #[must_use]
     pub fn data_aggregation(aggregator: &str, message: &str, partial_data: bool) -> Self {
         Self::DataAggregation {
             aggregator: Arc::from(aggregator),
@@ -158,6 +163,7 @@ impl AsyncError {
     }
 
     /// Create an integration error
+    #[must_use]
     pub fn integration(component: &str, message: &str, fallback_available: bool) -> Self {
         Self::Integration {
             component: Arc::from(component),
@@ -176,6 +182,7 @@ impl AsyncError {
     }
 
     /// Check if this error is recoverable
+    #[must_use]
     pub fn is_recoverable(&self) -> bool {
         match self {
             Self::Initialization { recoverable, .. } => *recoverable,
@@ -194,6 +201,7 @@ impl AsyncError {
     }
 
     /// Get the primary component affected by this error
+    #[must_use]
     pub fn component(&self) -> &str {
         match self {
             Self::Initialization { component, .. } => component,
@@ -207,6 +215,7 @@ impl AsyncError {
     }
 
     /// Get the error message
+    #[must_use]
     pub fn message(&self) -> &str {
         match self {
             Self::Initialization { message, .. }
@@ -244,11 +253,10 @@ impl fmt::Display for AsyncError {
                 if let Some(id) = task_id {
                     write!(
                         f,
-                        "Task tracking error during {:?} for task {}: {}",
-                        operation, id, message
+                        "Task tracking error during {operation:?} for task {id}: {message}"
                     )
                 } else {
-                    write!(f, "Task tracking error during {:?}: {}", operation, message)
+                    write!(f, "Task tracking error during {operation:?}: {message}")
                 }
             }
             Self::AllocationTracking {
@@ -259,14 +267,12 @@ impl fmt::Display for AsyncError {
                 if let Some(size) = allocation_size {
                     write!(
                         f,
-                        "Allocation tracking error during {:?} ({}B): {}",
-                        event_type, size, message
+                        "Allocation tracking error during {event_type:?} ({size}B): {message}"
                     )
                 } else {
                     write!(
                         f,
-                        "Allocation tracking error during {:?}: {}",
-                        event_type, message
+                        "Allocation tracking error during {event_type:?}: {message}"
                     )
                 }
             }
@@ -278,15 +284,10 @@ impl fmt::Display for AsyncError {
                 if let Some(lost) = events_lost {
                     write!(
                         f,
-                        "Buffer management error in {:?} ({} events lost): {}",
-                        buffer_type, lost, message
+                        "Buffer management error in {buffer_type:?} ({lost} events lost): {message}"
                     )
                 } else {
-                    write!(
-                        f,
-                        "Buffer management error in {:?}: {}",
-                        buffer_type, message
-                    )
+                    write!(f, "Buffer management error in {buffer_type:?}: {message}")
                 }
             }
             Self::DataAggregation {
@@ -296,8 +297,7 @@ impl fmt::Display for AsyncError {
             } => {
                 write!(
                     f,
-                    "Data aggregation error in {}: {} (partial data: {})",
-                    aggregator, message, partial_data_available
+                    "Data aggregation error in {aggregator}: {message} (partial data: {partial_data_available})"
                 )
             }
             Self::Integration {
@@ -325,11 +325,10 @@ impl fmt::Display for AsyncError {
                 if let Some(source) = source_error {
                     write!(
                         f,
-                        "System error during {}: {} (source: {})",
-                        operation, message, source
+                        "System error during {operation}: {message} (source: {source})"
                     )
                 } else {
-                    write!(f, "System error during {}: {}", operation, message)
+                    write!(f, "System error during {operation}: {message}")
                 }
             }
         }

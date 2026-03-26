@@ -50,8 +50,7 @@ pub fn run_html_from_json(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
     };
     let base_name = matches
         .get_one::<String>("base-name")
-        .map(|s| s.as_str())
-        .unwrap_or("snapshot");
+        .map_or("snapshot", std::string::String::as_str);
 
     // Configure debug logging based on command line options
     let verbose = matches.get_flag("verbose");
@@ -199,7 +198,7 @@ pub fn run_html_from_json(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
         // Determine output path - if output is just a filename, put it in the input directory
         let output_path = if Path::new(output_file).is_absolute() || output_file.contains('/') {
             // Use the provided path as-is
-            output_file.to_string()
+            output_file.clone()
         } else {
             // Put the HTML file in the input directory
             format!("{}/{}", input_dir.trim_end_matches('/'), output_file)
@@ -328,7 +327,7 @@ fn load_json_files_with_logging(
             }
         }
     };
-    logger.end_timing(&discovery_timing);
+    let _ = logger.end_timing(&discovery_timing);
 
     // Convert discovered files to the format expected by the loader
     let mut valid_files = Vec::new();
@@ -473,7 +472,7 @@ fn load_files_parallel_with_logging(
             logger.log_file_operation("loading", file_path, Some(*file_size));
             let result = load_single_file_with_recovery(config, file_path, *file_size);
 
-            logger.end_timing(&timing_id);
+            let _ = logger.end_timing(&timing_id);
             result
         })
         .collect();
@@ -506,7 +505,7 @@ fn load_files_sequential_with_logging(
         logger.log_file_operation("loading", file_path, Some(*file_size));
         let result = load_single_file_with_recovery(config, file_path, *file_size);
 
-        logger.end_timing(&timing_id);
+        let _ = logger.end_timing(&timing_id);
         results.push(result);
 
         // Update progress

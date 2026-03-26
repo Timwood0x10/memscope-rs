@@ -20,19 +20,19 @@ pub fn export_comprehensive_analysis(
     // Export detailed JSON with CPU/GPU rankings
     export_comprehensive_json(
         analysis,
-        &output_dir.join(format!("{}_comprehensive.json", base_name)),
+        &output_dir.join(format!("{base_name}_comprehensive.json")),
     )?;
 
     // Export enhanced HTML dashboard
     generate_comprehensive_html_report(
         analysis,
-        &output_dir.join(format!("{}_dashboard.html", base_name)),
+        &output_dir.join(format!("{base_name}_dashboard.html")),
     )?;
 
     // Export CPU/GPU specific analysis
     export_resource_rankings_json(
         analysis,
-        &output_dir.join(format!("{}_resource_rankings.json", base_name)),
+        &output_dir.join(format!("{base_name}_resource_rankings.json")),
     )?;
 
     info!("📊 Comprehensive analysis exported to:");
@@ -107,7 +107,16 @@ fn compute_comprehensive_analytics(
     let timeline = &analysis.resource_timeline;
 
     // CPU Analytics
-    let cpu_analytics = if !timeline.is_empty() {
+    let cpu_analytics = if timeline.is_empty() {
+        json!({
+            "average_usage": 0.0,
+            "peak_usage": 0.0,
+            "minimum_usage": 0.0,
+            "usage_trend": "no_data",
+            "cores_detected": 0,
+            "load_average_final": [0.0, 0.0, 0.0]
+        })
+    } else {
         let cpu_usages: Vec<f32> = timeline
             .iter()
             .map(|r| r.cpu_metrics.overall_usage_percent)
@@ -140,17 +149,8 @@ fn compute_comprehensive_analytics(
             "peak_usage": max_cpu,
             "minimum_usage": min_cpu,
             "usage_trend": cpu_trend,
-            "cores_detected": timeline.first().map(|r| r.cpu_metrics.per_core_usage.len()).unwrap_or(0),
-            "load_average_final": timeline.last().map(|r| r.cpu_metrics.load_average).unwrap_or((0.0, 0.0, 0.0))
-        })
-    } else {
-        json!({
-            "average_usage": 0.0,
-            "peak_usage": 0.0,
-            "minimum_usage": 0.0,
-            "usage_trend": "no_data",
-            "cores_detected": 0,
-            "load_average_final": [0.0, 0.0, 0.0]
+            "cores_detected": timeline.first().map_or(0, |r| r.cpu_metrics.per_core_usage.len()),
+            "load_average_final": timeline.last().map_or((0.0, 0.0, 0.0), |r| r.cpu_metrics.load_average)
         })
     };
 
@@ -161,7 +161,12 @@ fn compute_comprehensive_analytics(
             .filter_map(|r| r.gpu_metrics.as_ref())
             .collect();
 
-        if !gpu_samples.is_empty() {
+        if gpu_samples.is_empty() {
+            json!({
+                "available": false,
+                "reason": "no_gpu_detected_or_unsupported_platform"
+            })
+        } else {
             let compute_usages: Vec<f32> = gpu_samples
                 .iter()
                 .map(|g| g.compute_usage_percent)
@@ -177,19 +182,14 @@ fn compute_comprehensive_analytics(
 
             json!({
                 "available": true,
-                "device_name": gpu_samples.first().map(|g| &g.device_name).unwrap_or(&"Unknown".to_string()),
-                "vendor": gpu_samples.first().map(|g| &g.vendor).unwrap_or(&super::platform_resources::GpuVendor::Unknown),
+                "device_name": gpu_samples.first().map_or(&"Unknown".to_string(), |g| &g.device_name),
+                "vendor": gpu_samples.first().map_or(&super::platform_resources::GpuVendor::Unknown, |g| &g.vendor),
                 "average_compute_usage": avg_compute,
                 "average_memory_usage": avg_memory,
                 "average_temperature": avg_temp,
                 "peak_compute_usage": compute_usages.iter().fold(0.0f32, |a, &b| a.max(b)),
                 "peak_memory_usage": memory_usages.iter().fold(0.0f32, |a, &b| a.max(b)),
                 "total_samples": gpu_samples.len()
-            })
-        } else {
-            json!({
-                "available": false,
-                "reason": "no_gpu_detected_or_unsupported_platform"
             })
         }
     };
@@ -207,7 +207,16 @@ fn compute_comprehensive_analytics(
     });
 
     // I/O Analytics
-    let io_analytics = if !timeline.is_empty() {
+    let io_analytics = if timeline.is_empty() {
+        json!({
+            "total_disk_read_mb": 0.0,
+            "total_disk_write_mb": 0.0,
+            "total_network_rx_mb": 0.0,
+            "total_network_tx_mb": 0.0,
+            "avg_disk_throughput_mbps": 0.0,
+            "avg_network_throughput_mbps": 0.0
+        })
+    } else {
         let total_disk_read: u64 = timeline
             .iter()
             .map(|r| r.io_metrics.disk_read_bytes_per_sec)
@@ -232,15 +241,6 @@ fn compute_comprehensive_analytics(
             "total_network_tx_mb": total_network_tx as f64 / 1024.0 / 1024.0,
             "avg_disk_throughput_mbps": (total_disk_read + total_disk_write) as f64 / timeline.len() as f64 / 1024.0 / 1024.0,
             "avg_network_throughput_mbps": (total_network_rx + total_network_tx) as f64 / timeline.len() as f64 / 1024.0 / 1024.0
-        })
-    } else {
-        json!({
-            "total_disk_read_mb": 0.0,
-            "total_disk_write_mb": 0.0,
-            "total_network_rx_mb": 0.0,
-            "total_network_tx_mb": 0.0,
-            "avg_disk_throughput_mbps": 0.0,
-            "avg_network_throughput_mbps": 0.0
         })
     };
 
@@ -387,11 +387,11 @@ fn compute_detailed_resource_rankings(
             "top_performers": cpu_top_performers,
             "summary": {
                 "total_samples": analysis.resource_timeline.len(),
-                "average_usage": if !analysis.resource_timeline.is_empty() {
+                "average_usage": if analysis.resource_timeline.is_empty() { 0.0 } else {
                     analysis.resource_timeline.iter()
                         .map(|r| r.cpu_metrics.overall_usage_percent)
                         .sum::<f32>() / analysis.resource_timeline.len() as f32
-                } else { 0.0 }
+                }
             }
         },
         "gpu_rankings": {

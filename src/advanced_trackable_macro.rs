@@ -94,10 +94,10 @@ macro_rules! impl_advanced_trackable {
                     var_name: None,
                     type_name: Some(type_name.to_string()),
                     scope_name: None,
-                    timestamp_alloc: std::time::SystemTime::now()
+                    timestamp_alloc: u64::try_from(std::time::SystemTime::now()
                         .duration_since(std::time::UNIX_EPOCH)
                         .unwrap_or_default()
-                        .as_nanos() as u64,
+                        .as_nanos()).unwrap_or(0),
                     timestamp_dealloc: None,
                     thread_id: format!("{:?}", std::thread::current().id()),
                     borrow_count: 0,

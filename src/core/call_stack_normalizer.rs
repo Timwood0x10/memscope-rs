@@ -292,6 +292,7 @@ impl CallStackNormalizer {
     }
 
     /// Get registry size
+    #[must_use]
     pub fn get_registry_size(&self) -> usize {
         self.stack_registry.lock().map(|r| r.len()).unwrap_or(0)
     }
@@ -452,6 +453,7 @@ pub struct CallStackRef {
 
 impl CallStackRef {
     /// Create new call stack reference
+    #[must_use]
     pub fn new(id: CallStackId, depth: Option<usize>) -> Self {
         Self {
             id,
@@ -471,12 +473,11 @@ impl CallStackRef {
 
     /// Get call stack depth (cached or calculated)
     pub fn get_depth(&self) -> TrackingResult<usize> {
-        match self.depth {
-            Some(depth) => Ok(depth),
-            None => {
-                let frames = self.get_frames()?;
-                Ok(frames.len())
-            }
+        if let Some(depth) = self.depth {
+            Ok(depth)
+        } else {
+            let frames = self.get_frames()?;
+            Ok(frames.len())
         }
     }
 }

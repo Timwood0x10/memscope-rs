@@ -233,6 +233,7 @@ pub struct RuleStats {
 
 impl QualityValidator {
     /// Create new validator with default rules
+    #[must_use]
     pub fn new() -> Self {
         let mut validator = Self {
             rules: Vec::new(),
@@ -245,6 +246,7 @@ impl QualityValidator {
     }
 
     /// Create validator with custom configuration
+    #[must_use]
     pub fn with_config(config: ValidationConfig) -> Self {
         let mut validator = Self {
             rules: Vec::new(),
@@ -340,6 +342,7 @@ impl QualityValidator {
     }
 
     /// Get statistics for all rules
+    #[must_use]
     pub fn get_rule_statistics(&self) -> &HashMap<String, RuleStats> {
         &self.rule_stats
     }

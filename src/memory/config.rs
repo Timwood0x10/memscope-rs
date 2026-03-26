@@ -41,6 +41,7 @@ impl Default for MemoryConfig {
 
 impl MemoryConfig {
     /// Create configuration for development environment (relaxed limits)
+    #[must_use]
     pub fn development() -> Self {
         Self {
             max_allocations: 1_000_000,
@@ -55,6 +56,7 @@ impl MemoryConfig {
     }
 
     /// Create configuration for production environment (strict limits)
+    #[must_use]
     pub fn production() -> Self {
         Self {
             max_allocations: 50_000,
@@ -69,6 +71,7 @@ impl MemoryConfig {
     }
 
     /// Create configuration for testing environment (minimal limits)
+    #[must_use]
     pub fn testing() -> Self {
         Self {
             max_allocations: 1000,
@@ -83,6 +86,7 @@ impl MemoryConfig {
     }
 
     /// Create high-performance configuration (optimized for latency)
+    #[must_use]
     pub fn high_performance() -> Self {
         Self {
             max_allocations: 200_000,
@@ -193,6 +197,7 @@ impl MemoryConfig {
     }
 
     /// Estimate memory usage under this configuration
+    #[must_use]
     pub fn estimate_memory_usage(&self) -> MemoryEstimate {
         // Estimated size per allocation record
         let avg_allocation_size = 128; // bytes
@@ -240,6 +245,7 @@ pub struct MemoryEstimate {
 
 impl MemoryEstimate {
     /// Check if the configuration is reasonable
+    #[must_use]
     pub fn is_reasonable(&self) -> bool {
         self.effective_limit_mb >= 1.0 && // At least 1MB (very flexible)
         self.cleanup_trigger_mb < self.effective_limit_mb && // Cleanup threshold less than limit
@@ -247,6 +253,7 @@ impl MemoryEstimate {
     }
 
     /// Get configuration recommendations
+    #[must_use]
     pub fn get_recommendations(&self) -> Vec<String> {
         let mut recommendations = Vec::new();
 

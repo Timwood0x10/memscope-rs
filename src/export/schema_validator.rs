@@ -115,7 +115,7 @@ pub struct SchemaValidatorConfig {
 pub struct CustomValidationRule {
     /// Rule name
     pub name: String,
-    /// JSONPath pattern to match
+    /// `JSONPath` pattern to match
     pub path_pattern: String,
     /// Validation function
     pub validator: fn(&Value) -> Result<(), String>,
@@ -145,11 +145,13 @@ pub struct SchemaValidator {
 
 impl SchemaValidator {
     /// Create a new schema validator with default configuration
+    #[must_use]
     pub fn new() -> Self {
         Self::with_config(SchemaValidatorConfig::default())
     }
 
     /// Create a new schema validator with custom configuration
+    #[must_use]
     pub fn with_config(config: SchemaValidatorConfig) -> Self {
         let mut validator = Self {
             config,
@@ -314,6 +316,7 @@ impl SchemaValidator {
     }
 
     /// Get supported schema versions
+    #[must_use]
     pub fn get_supported_versions(&self) -> &HashMap<String, SchemaVersion> {
         &self.supported_versions
     }
@@ -656,7 +659,7 @@ impl SchemaValidator {
         Ok(())
     }
 
-    /// Get value by simple path (simplified JSONPath)
+    /// Get value by simple path (simplified `JSONPath`)
     fn get_value_by_path<'a>(&self, data: &'a Value, path: &str) -> Option<&'a Value> {
         let parts: Vec<&str> = path.split('.').collect();
         let mut current = data;
@@ -672,7 +675,7 @@ impl SchemaValidator {
     fn simple_hash(&self, data: &str) -> u64 {
         let mut hash = 0u64;
         for byte in data.bytes() {
-            hash = hash.wrapping_mul(31).wrapping_add(byte as u64);
+            hash = hash.wrapping_mul(31).wrapping_add(u64::from(byte));
         }
         hash
     }
@@ -698,6 +701,7 @@ pub struct ValidationMetrics {
 /// Convenience functions for common validation tasks
 impl SchemaValidator {
     /// Create a validator with strict mode enabled
+    #[must_use]
     pub fn strict() -> Self {
         Self::with_config(SchemaValidatorConfig {
             strict_mode: true,
@@ -706,6 +710,7 @@ impl SchemaValidator {
     }
 
     /// Create a validator with integrity checking disabled
+    #[must_use]
     pub fn without_integrity_check() -> Self {
         Self::with_config(SchemaValidatorConfig {
             enable_integrity_check: false,
@@ -721,6 +726,7 @@ pub struct SchemaValidatorConfigBuilder {
 
 impl SchemaValidatorConfigBuilder {
     /// Create a new configuration builder
+    #[must_use]
     pub fn new() -> Self {
         Self {
             config: SchemaValidatorConfig::default(),
@@ -728,36 +734,42 @@ impl SchemaValidatorConfigBuilder {
     }
 
     /// Enable strict mode
+    #[must_use]
     pub fn strict_mode(mut self, enabled: bool) -> Self {
         self.config.strict_mode = enabled;
         self
     }
 
     /// Enable integrity checking
+    #[must_use]
     pub fn integrity_check(mut self, enabled: bool) -> Self {
         self.config.enable_integrity_check = enabled;
         self
     }
 
     /// Enable backward compatibility checking
+    #[must_use]
     pub fn backward_compatibility(mut self, enabled: bool) -> Self {
         self.config.enable_backward_compatibility = enabled;
         self
     }
 
     /// Set maximum allowed schema version
+    #[must_use]
     pub fn max_schema_version(mut self, version: String) -> Self {
         self.config.max_schema_version = version;
         self
     }
 
     /// Add a custom validation rule
+    #[must_use]
     pub fn add_custom_rule(mut self, rule: CustomValidationRule) -> Self {
         self.config.custom_rules.push(rule);
         self
     }
 
     /// Build the configuration
+    #[must_use]
     pub fn build(self) -> SchemaValidatorConfig {
         self.config
     }

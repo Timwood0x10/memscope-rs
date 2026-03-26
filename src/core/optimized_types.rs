@@ -16,7 +16,7 @@ use std::sync::Arc;
 
 /// Optimized allocation information using `Arc<str>` for string fields
 ///
-/// This structure is a drop-in replacement for AllocationInfo that uses
+/// This structure is a drop-in replacement for `AllocationInfo` that uses
 /// `Arc<str>` for all string fields to reduce memory usage through string
 /// interning. All string fields are automatically interned using the
 /// global string pool.
@@ -80,6 +80,7 @@ pub struct OptimizedAllocationInfo {
 
 impl OptimizedAllocationInfo {
     /// Create a new optimized allocation info
+    #[must_use]
     pub fn new(ptr: usize, size: usize) -> Self {
         Self {
             ptr,
@@ -113,6 +114,7 @@ impl OptimizedAllocationInfo {
     }
 
     /// Set variable information using string interning
+    #[must_use]
     pub fn with_var_info(mut self, var_name: &str, type_name: &str) -> Self {
         self.var_name = Some(intern_string(var_name));
         self.type_name = Some(intern_string(type_name));
@@ -120,12 +122,14 @@ impl OptimizedAllocationInfo {
     }
 
     /// Set scope information using string interning
+    #[must_use]
     pub fn with_scope(mut self, scope_name: &str) -> Self {
         self.scope_name = Some(intern_string(scope_name));
         self
     }
 
     /// Set stack trace using string interning for all frames
+    #[must_use]
     pub fn with_stack_trace(mut self, stack_trace: Vec<String>) -> Self {
         let interned_trace: Vec<Arc<str>> = stack_trace
             .iter()
@@ -143,47 +147,55 @@ impl OptimizedAllocationInfo {
     }
 
     /// Get the lifetime duration in nanoseconds if deallocated
+    #[must_use]
     pub fn lifetime_duration_nanos(&self) -> Option<u64> {
         self.timestamp_dealloc
             .map(|dealloc| dealloc - self.timestamp_alloc)
     }
 
     /// Get the lifetime duration in milliseconds if deallocated
+    #[must_use]
     pub fn lifetime_duration_ms(&self) -> Option<u64> {
         self.lifetime_duration_nanos()
             .map(|nanos| nanos / 1_000_000)
     }
 
     /// Check if this allocation is currently active (not deallocated)
+    #[must_use]
     pub fn is_active(&self) -> bool {
         self.timestamp_dealloc.is_none()
     }
 
     /// Get variable name as &str for compatibility
+    #[must_use]
     pub fn var_name_str(&self) -> Option<&str> {
-        self.var_name.as_ref().map(|s| s.as_ref())
+        self.var_name.as_ref().map(std::convert::AsRef::as_ref)
     }
 
     /// Get type name as &str for compatibility
+    #[must_use]
     pub fn type_name_str(&self) -> Option<&str> {
-        self.type_name.as_ref().map(|s| s.as_ref())
+        self.type_name.as_ref().map(std::convert::AsRef::as_ref)
     }
 
     /// Get scope name as &str for compatibility
+    #[must_use]
     pub fn scope_name_str(&self) -> Option<&str> {
-        self.scope_name.as_ref().map(|s| s.as_ref())
+        self.scope_name.as_ref().map(std::convert::AsRef::as_ref)
     }
 
     /// Get thread ID as &str for compatibility
+    #[must_use]
     pub fn thread_id_str(&self) -> &str {
         self.thread_id.as_ref()
     }
 
     /// Get stack trace as Vec<&str> for compatibility
+    #[must_use]
     pub fn stack_trace_strs(&self) -> Option<Vec<&str>> {
         self.stack_trace
             .as_ref()
-            .map(|trace| trace.iter().map(|frame| frame.as_ref()).collect())
+            .map(|trace| trace.iter().map(std::convert::AsRef::as_ref).collect())
     }
 }
 
@@ -198,9 +210,18 @@ impl Serialize for OptimizedAllocationInfo {
         let mut state = serializer.serialize_struct("OptimizedAllocationInfo", 24)?;
         state.serialize_field("ptr", &self.ptr)?;
         state.serialize_field("size", &self.size)?;
-        state.serialize_field("var_name", &self.var_name.as_ref().map(|s| s.as_ref()))?;
-        state.serialize_field("type_name", &self.type_name.as_ref().map(|s| s.as_ref()))?;
-        state.serialize_field("scope_name", &self.scope_name.as_ref().map(|s| s.as_ref()))?;
+        state.serialize_field(
+            "var_name",
+            &self.var_name.as_ref().map(std::convert::AsRef::as_ref),
+        )?;
+        state.serialize_field(
+            "type_name",
+            &self.type_name.as_ref().map(std::convert::AsRef::as_ref),
+        )?;
+        state.serialize_field(
+            "scope_name",
+            &self.scope_name.as_ref().map(std::convert::AsRef::as_ref),
+        )?;
         state.serialize_field("timestamp_alloc", &self.timestamp_alloc)?;
         state.serialize_field("timestamp_dealloc", &self.timestamp_dealloc)?;
         state.serialize_field("borrow_count", &self.borrow_count)?;
@@ -209,7 +230,7 @@ impl Serialize for OptimizedAllocationInfo {
         let stack_trace_strs = self.stack_trace.as_ref().map(|trace| {
             trace
                 .iter()
-                .map(|frame| frame.as_ref())
+                .map(std::convert::AsRef::as_ref)
                 .collect::<Vec<&str>>()
         });
         state.serialize_field("stack_trace", &stack_trace_strs)?;
@@ -312,7 +333,7 @@ impl<'de> Deserialize<'de> for OptimizedAllocationInfo {
     }
 }
 
-/// Conversion from original AllocationInfo to optimized version
+/// Conversion from original `AllocationInfo` to optimized version
 impl From<crate::core::types::AllocationInfo> for OptimizedAllocationInfo {
     fn from(original: crate::core::types::AllocationInfo) -> Self {
         Self {
@@ -354,7 +375,7 @@ impl From<crate::core::types::AllocationInfo> for OptimizedAllocationInfo {
     }
 }
 
-/// Conversion from optimized version back to original AllocationInfo
+/// Conversion from optimized version back to original `AllocationInfo`
 impl From<OptimizedAllocationInfo> for crate::core::types::AllocationInfo {
     fn from(optimized: OptimizedAllocationInfo) -> Self {
         Self {
@@ -369,7 +390,7 @@ impl From<OptimizedAllocationInfo> for crate::core::types::AllocationInfo {
             borrow_count: optimized.borrow_count,
             stack_trace: optimized
                 .stack_trace
-                .map(|trace| trace.iter().map(|frame| frame.to_string()).collect()),
+                .map(|trace| trace.iter().map(std::string::ToString::to_string).collect()),
             is_leaked: optimized.is_leaked,
             lifetime_ms: optimized.lifetime_ms,
             borrow_info: None,

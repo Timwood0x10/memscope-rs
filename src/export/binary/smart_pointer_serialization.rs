@@ -93,9 +93,9 @@ impl BinarySerializable for SmartPointerInfo {
         };
 
         // Write boolean flags
-        size += primitives::write_u8(writer, if self.is_weak_reference { 1 } else { 0 })?;
-        size += primitives::write_u8(writer, if self.is_data_owner { 1 } else { 0 })?;
-        size += primitives::write_u8(writer, if self.is_implicitly_deallocated { 1 } else { 0 })?;
+        size += primitives::write_u8(writer, u8::from(self.is_weak_reference))?;
+        size += primitives::write_u8(writer, u8::from(self.is_data_owner))?;
+        size += primitives::write_u8(writer, u8::from(self.is_implicitly_deallocated))?;
 
         // Write pointer_type
         size += self.pointer_type.write_binary(writer)?;

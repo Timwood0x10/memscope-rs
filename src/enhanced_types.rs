@@ -44,6 +44,7 @@ pub struct StackBoundaries {
 
 impl StackBoundaries {
     /// Detect stack boundaries
+    #[must_use]
     pub fn detect() -> Self {
         // Detect stack boundaries using platform-specific methods
         // This is a simplified implementation
@@ -58,11 +59,13 @@ impl StackBoundaries {
     }
 
     /// Check if a pointer is within the stack boundaries
+    #[must_use]
     pub fn contains(&self, ptr: usize) -> bool {
         ptr >= self.stack_base && ptr < self.stack_top
     }
 
     /// Get the base address of a stack frame
+    #[must_use]
     pub fn get_frame_base(&self, frame_id: u64) -> usize {
         // Estimate frame base from frame ID
         self.stack_base + (frame_id as usize * 4096)
@@ -80,6 +83,7 @@ pub struct HeapSegment {
 
 impl HeapSegment {
     /// Check if a pointer is within this heap segment
+    #[must_use]
     pub fn contains(&self, ptr: usize) -> bool {
         ptr >= self.start && ptr < self.end
     }
@@ -254,7 +258,8 @@ pub struct RealTimeMetrics {
 }
 
 impl RealTimeMetrics {
-    /// Create a new instance of RealTimeMetrics
+    /// Create a new instance of `RealTimeMetrics`
+    #[must_use]
     pub fn new() -> Self {
         Self {
             current_fragmentation: 0.0,

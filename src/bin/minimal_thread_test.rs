@@ -13,10 +13,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let counter = Arc::new(AtomicUsize::new(0));
     let thread_count = 200; // Test with high thread count
 
-    println!(
-        "Spawning {} threads with minimal operations...",
-        thread_count
-    );
+    println!("Spawning {thread_count} threads with minimal operations...");
 
     // Test pure thread spawning without any memscope operations
     let handles: Vec<_> = (0..thread_count)
@@ -29,7 +26,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let _dummy = thread_idx * 1000 + i;
                     counter.fetch_add(1, Ordering::Relaxed);
                 }
-                println!("Thread {} completed", thread_idx);
+                println!("Thread {thread_idx} completed");
             })
         })
         .collect();
@@ -44,8 +41,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let total_ops = counter.load(Ordering::Relaxed);
     println!("Test completed:");
-    println!("  - Threads completed: {}/{}", completed, thread_count);
-    println!("  - Total operations: {}", total_ops);
+    println!("  - Threads completed: {completed}/{thread_count}");
+    println!("  - Total operations: {total_ops}");
 
     if completed == thread_count {
         println!("✅ Pure threading works - issue is in memscope components");

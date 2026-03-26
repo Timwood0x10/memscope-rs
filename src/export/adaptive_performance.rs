@@ -64,6 +64,7 @@ pub struct AdaptiveBatchController {
 
 impl AdaptiveBatchController {
     /// Create a new adaptive batch controller
+    #[must_use]
     pub fn new(initial_batch_size: usize) -> Self {
         Self {
             current_batch_size: initial_batch_size,
@@ -76,6 +77,7 @@ impl AdaptiveBatchController {
     }
 
     /// Get the current optimal batch size
+    #[must_use]
     pub fn get_optimal_batch_size(&self) -> usize {
         self.current_batch_size
     }
@@ -147,6 +149,7 @@ impl AdaptiveBatchController {
     }
 
     /// Get performance trend analysis
+    #[must_use]
     pub fn get_performance_trend(&self) -> Option<String> {
         if self.performance_history.len() < 5 {
             return None;
@@ -225,6 +228,7 @@ struct CacheStats {
 
 impl TypeInfoCache {
     /// Create a new type info cache
+    #[must_use]
     pub fn new(max_size: usize) -> Self {
         Self {
             cache: Arc::new(RwLock::new(HashMap::new())),
@@ -234,6 +238,7 @@ impl TypeInfoCache {
     }
 
     /// Get cached type information
+    #[must_use]
     pub fn get(&self, type_name: &str) -> Option<serde_json::Value> {
         // First, try to get the cached value
         let cached_value = {
@@ -318,6 +323,7 @@ impl TypeInfoCache {
     }
 
     /// Get cache statistics
+    #[must_use]
     pub fn get_stats(&self) -> (u64, u64, f64) {
         if let Ok(stats) = self.cache_stats.lock() {
             let total_requests = stats.hits + stats.misses;
@@ -362,6 +368,7 @@ impl Default for MemoryUsageMonitor {
 
 impl MemoryUsageMonitor {
     /// Create a new memory usage monitor
+    #[must_use]
     pub fn new() -> Self {
         Self {
             peak_usage_mb: 0,
@@ -401,6 +408,7 @@ impl MemoryUsageMonitor {
     }
 
     /// Get current memory pressure level
+    #[must_use]
     pub fn get_memory_pressure(&self) -> MemoryPressureLevel {
         if self.current_usage_mb > self.critical_threshold_mb {
             MemoryPressureLevel::Critical
@@ -414,6 +422,7 @@ impl MemoryUsageMonitor {
     }
 
     /// Get memory usage trend
+    #[must_use]
     pub fn get_usage_trend(&self) -> Option<MemoryTrend> {
         if self.usage_history.len() < 10 {
             return None;
@@ -507,6 +516,7 @@ impl AdaptivePerformanceOptimizer {
     }
 
     /// Get optimal batch size for current conditions
+    #[must_use]
     pub fn get_optimal_batch_size(&self) -> usize {
         if !self.optimization_enabled {
             return 1000; // Default fallback
@@ -559,6 +569,7 @@ impl AdaptivePerformanceOptimizer {
     }
 
     /// Get or compute cached type information
+    #[must_use]
     pub fn get_cached_type_info(&self, type_name: &str) -> Option<serde_json::Value> {
         if !self.optimization_enabled {
             return None;
@@ -575,6 +586,7 @@ impl AdaptivePerformanceOptimizer {
     }
 
     /// Get comprehensive performance report
+    #[must_use]
     pub fn get_performance_report(&self) -> serde_json::Value {
         let (cache_hits, cache_misses, cache_hit_ratio) = self.type_cache.get_stats();
         let memory_pressure = self.memory_monitor.get_memory_pressure();
@@ -596,7 +608,7 @@ impl AdaptivePerformanceOptimizer {
                     "current_usage_mb": self.memory_monitor.current_usage_mb,
                     "peak_usage_mb": self.memory_monitor.peak_usage_mb,
                     "pressure_level": format!("{:?}", memory_pressure),
-                    "trend": memory_trend.map(|t| format!("{t:?}")).unwrap_or_else(|| "Unknown".to_string())
+                    "trend": memory_trend.map_or_else(|| "Unknown".to_string(), |t| format!("{t:?}"))
                 },
                 "performance_trend": performance_trend.unwrap_or_else(|| "Insufficient data".to_string()),
                 "optimization_recommendations": self.get_optimization_recommendations()

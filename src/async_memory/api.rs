@@ -26,7 +26,7 @@ pub fn initialize() -> AsyncResult<()> {
 
 /// Create a tracked future wrapper
 ///
-/// Wraps the provided future in a TrackedFuture that automatically
+/// Wraps the provided future in a `TrackedFuture` that automatically
 /// attributes memory allocations to the task.
 ///
 /// Note: Use with your preferred async runtime (tokio, async-std, etc.)
@@ -115,16 +115,19 @@ pub struct AsyncMemorySnapshot {
 
 impl AsyncMemorySnapshot {
     /// Get the number of active tasks
+    #[must_use]
     pub fn active_task_count(&self) -> usize {
         self.active_task_count
     }
 
     /// Get total allocated memory in bytes
+    #[must_use]
     pub fn total_allocated(&self) -> u64 {
         self.total_allocated_bytes
     }
 
     /// Check if data quality is good (< 5% events dropped)
+    #[must_use]
     pub fn has_good_data_quality(&self) -> bool {
         if self.allocation_events == 0 {
             return true;
@@ -134,12 +137,12 @@ impl AsyncMemorySnapshot {
     }
 
     /// Get data quality warning if applicable
+    #[must_use]
     pub fn data_quality_warning(&self) -> Option<String> {
         if !self.has_good_data_quality() && self.allocation_events > 0 {
             let drop_rate = (self.events_dropped as f64 / self.allocation_events as f64) * 100.0;
             Some(format!(
-                "Poor data quality: {:.1}% of events dropped. Consider increasing buffer size.",
-                drop_rate
+                "Poor data quality: {drop_rate:.1}% of events dropped. Consider increasing buffer size."
             ))
         } else {
             None
@@ -152,16 +155,13 @@ impl AsyncMemorySnapshot {
 /// Returns statistics about async task memory usage.
 /// This is a simplified implementation - production version would
 /// aggregate data from all threads and the background aggregator.
+#[must_use]
 pub fn get_memory_snapshot() -> AsyncMemorySnapshot {
     let buffer_stats = get_buffer_stats();
 
     // Simplified snapshot - real implementation would aggregate from all sources
     AsyncMemorySnapshot {
-        active_task_count: if buffer_stats.current_events > 0 {
-            1
-        } else {
-            0
-        },
+        active_task_count: usize::from(buffer_stats.current_events > 0),
         total_allocated_bytes: buffer_stats.current_events as u64 * 1024, // Rough estimate
         allocation_events: buffer_stats.current_events as u64,
         events_dropped: buffer_stats.events_dropped as u64,
@@ -170,13 +170,14 @@ pub fn get_memory_snapshot() -> AsyncMemorySnapshot {
 }
 
 /// Check if async memory tracking is currently active
+#[must_use]
 pub fn is_tracking_active() -> bool {
     crate::async_memory::allocator::is_tracking_enabled()
 }
 
 /// Spawn a tracked async task
 ///
-/// This is a convenience function that wraps the provided future in a TrackedFuture.
+/// This is a convenience function that wraps the provided future in a `TrackedFuture`.
 /// Use with your preferred async runtime (tokio, async-std, etc.)
 ///
 /// Example with tokio:

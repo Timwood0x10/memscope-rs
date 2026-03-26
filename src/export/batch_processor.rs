@@ -372,11 +372,13 @@ pub struct BatchProcessor {
 
 impl BatchProcessor {
     /// Create a new batch processor with default configuration
+    #[must_use]
     pub fn new() -> Self {
         Self::with_config(BatchProcessorConfig::default())
     }
 
     /// Create a new batch processor with custom configuration
+    #[must_use]
     pub fn with_config(config: BatchProcessorConfig) -> Self {
         let thread_pool = config.max_threads.map(|max_threads| {
             rayon::ThreadPoolBuilder::new()
@@ -416,10 +418,10 @@ impl BatchProcessor {
             metrics.total_items = allocations.len();
             metrics.parallel_processing_used = use_parallel;
             metrics.threads_used = if use_parallel {
-                self.thread_pool
-                    .as_ref()
-                    .map(|p| p.current_num_threads())
-                    .unwrap_or_else(rayon::current_num_threads)
+                self.thread_pool.as_ref().map_or_else(
+                    rayon::current_num_threads,
+                    rayon::ThreadPool::current_num_threads,
+                )
             } else {
                 1
             };
@@ -618,8 +620,8 @@ impl BatchProcessor {
                         .collect(),
                     risk_assessment: risk_assessment.clone(),
                     lifetime_info: LifetimeInfo {
-                        allocated_at: allocation.base.timestamp_alloc as u128,
-                        deallocated_at: allocation.base.timestamp_dealloc.map(|t| t as u128),
+                        allocated_at: u128::from(allocation.base.timestamp_alloc),
+                        deallocated_at: allocation.base.timestamp_dealloc.map(u128::from),
                         lifetime_ns: allocation
                             .base
                             .timestamp_dealloc
@@ -696,7 +698,7 @@ impl BatchProcessor {
                     ownership_info: OwnershipInfo {
                         owner_context: "FFI".to_string(),
                         owner_function: resolved_function.function_name.clone(),
-                        transfer_timestamp: allocation.base.timestamp_alloc as u128,
+                        transfer_timestamp: u128::from(allocation.base.timestamp_alloc),
                         expected_lifetime: None,
                     },
                     interop_metadata: InteropMetadata {
@@ -934,7 +936,7 @@ impl BatchProcessor {
         }
 
         let avg_overhead_ns = if overhead_count > 0 {
-            total_overhead / overhead_count as f64
+            total_overhead / f64::from(overhead_count)
         } else {
             0.0
         };

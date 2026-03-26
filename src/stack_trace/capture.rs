@@ -57,6 +57,7 @@ pub struct StackTraceCapture {
 
 impl StackTraceCapture {
     /// Create new stack trace capture instance with given configuration
+    #[must_use]
     pub fn new(config: CaptureConfig) -> Self {
         Self {
             config,
@@ -228,7 +229,7 @@ impl StackTraceCapture {
             1 => Some("allocation_function".to_string()),
             2 => Some("process_data".to_string()),
             3 => Some("handle_request".to_string()),
-            _ => Some(format!("function_{:x}", ip)),
+            _ => Some(format!("function_{ip:x}")),
         }
     }
 
@@ -254,6 +255,7 @@ impl Default for StackTraceCapture {
 }
 
 impl StackFrame {
+    #[must_use]
     pub fn new(ip: usize) -> Self {
         Self {
             instruction_pointer: ip,
@@ -264,6 +266,7 @@ impl StackFrame {
         }
     }
 
+    #[must_use]
     pub fn with_symbols(
         ip: usize,
         function_name: Option<String>,
@@ -279,16 +282,18 @@ impl StackFrame {
         }
     }
 
+    #[must_use]
     pub fn is_resolved(&self) -> bool {
         self.function_name.is_some() || self.filename.is_some()
     }
 
+    #[must_use]
     pub fn display_name(&self) -> String {
         if let Some(func) = &self.function_name {
             if let (Some(file), Some(line)) = (&self.filename, self.line_number) {
-                format!("{}() at {}:{}", func, file, line)
+                format!("{func}() at {file}:{line}")
             } else {
-                format!("{}()", func)
+                format!("{func}()")
             }
         } else {
             format!("0x{:x}", self.instruction_pointer)

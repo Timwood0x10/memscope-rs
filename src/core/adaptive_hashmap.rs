@@ -1,7 +1,7 @@
-//! Adaptive HashMap that switches between simple and sharded modes based on contention
+//! Adaptive `HashMap` that switches between simple and sharded modes based on contention
 //!
 //! This module provides an adaptive data structure that starts with a simple mutex-protected
-//! HashMap and upgrades to a sharded version when contention is detected.
+//! `HashMap` and upgrades to a sharded version when contention is detected.
 
 use crate::core::safe_operations::SafeLock;
 use crate::core::sharded_locks::ShardedRwLock;
@@ -10,7 +10,7 @@ use std::hash::Hash;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Mutex;
 
-/// Simplified adaptive HashMap that chooses mode at creation time
+/// Simplified adaptive `HashMap` that chooses mode at creation time
 /// This avoids runtime switching complexity while providing the benefits
 pub struct AdaptiveHashMap<K, V>
 where
@@ -29,7 +29,8 @@ where
     K: Hash + Eq + Clone,
     V: Clone,
 {
-    /// Create new adaptive HashMap starting in simple mode
+    /// Create new adaptive `HashMap` starting in simple mode
+    #[must_use]
     pub fn new() -> Self {
         Self {
             simple_map: Mutex::new(HashMap::new()),
@@ -41,6 +42,7 @@ where
     }
 
     /// Create with initial capacity
+    #[must_use]
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             simple_map: Mutex::new(HashMap::with_capacity(capacity)),
@@ -52,6 +54,7 @@ where
     }
 
     /// Create in sharded mode for high contention scenarios
+    #[must_use]
     pub fn new_sharded() -> Self {
         Self {
             simple_map: Mutex::new(HashMap::new()),
@@ -73,18 +76,17 @@ where
         }
 
         // Use simple map
-        match self.simple_map.try_lock() {
-            Ok(mut map) => map.insert(key, value),
-            Err(_) => {
-                self.contention_counter.fetch_add(1, Ordering::Relaxed);
-                self.check_upgrade_to_sharded();
-                // Fall back to blocking lock
-                let mut map = self
-                    .simple_map
-                    .safe_lock()
-                    .expect("Failed to acquire lock on simple_map");
-                map.insert(key, value)
-            }
+        if let Ok(mut map) = self.simple_map.try_lock() {
+            map.insert(key, value)
+        } else {
+            self.contention_counter.fetch_add(1, Ordering::Relaxed);
+            self.check_upgrade_to_sharded();
+            // Fall back to blocking lock
+            let mut map = self
+                .simple_map
+                .safe_lock()
+                .expect("Failed to acquire lock on simple_map");
+            map.insert(key, value)
         }
     }
 
@@ -99,18 +101,17 @@ where
         }
 
         // Use simple map
-        match self.simple_map.try_lock() {
-            Ok(map) => map.get(key).cloned(),
-            Err(_) => {
-                self.contention_counter.fetch_add(1, Ordering::Relaxed);
-                self.check_upgrade_to_sharded();
-                // Fall back to blocking lock
-                let map = self
-                    .simple_map
-                    .safe_lock()
-                    .expect("Failed to acquire lock on simple_map");
-                map.get(key).cloned()
-            }
+        if let Ok(map) = self.simple_map.try_lock() {
+            map.get(key).cloned()
+        } else {
+            self.contention_counter.fetch_add(1, Ordering::Relaxed);
+            self.check_upgrade_to_sharded();
+            // Fall back to blocking lock
+            let map = self
+                .simple_map
+                .safe_lock()
+                .expect("Failed to acquire lock on simple_map");
+            map.get(key).cloned()
         }
     }
 
@@ -125,18 +126,17 @@ where
         }
 
         // Use simple map
-        match self.simple_map.try_lock() {
-            Ok(mut map) => map.remove(key),
-            Err(_) => {
-                self.contention_counter.fetch_add(1, Ordering::Relaxed);
-                self.check_upgrade_to_sharded();
-                // Fall back to blocking lock
-                let mut map = self
-                    .simple_map
-                    .safe_lock()
-                    .expect("Failed to acquire lock on simple_map");
-                map.remove(key)
-            }
+        if let Ok(mut map) = self.simple_map.try_lock() {
+            map.remove(key)
+        } else {
+            self.contention_counter.fetch_add(1, Ordering::Relaxed);
+            self.check_upgrade_to_sharded();
+            // Fall back to blocking lock
+            let mut map = self
+                .simple_map
+                .safe_lock()
+                .expect("Failed to acquire lock on simple_map");
+            map.remove(key)
         }
     }
 

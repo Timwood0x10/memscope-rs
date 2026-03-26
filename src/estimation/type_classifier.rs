@@ -15,6 +15,7 @@ pub struct TypeClassifier {
 }
 
 impl TypeClassifier {
+    #[must_use]
     pub fn new() -> Self {
         let mut classifier = Self {
             category_map: HashMap::new(),
@@ -49,6 +50,7 @@ impl TypeClassifier {
         }
     }
 
+    #[must_use]
     pub fn classify(&self, type_name: &str) -> TypeCategory {
         if let Some(category) = self.category_map.get(type_name) {
             return category.clone();
@@ -71,10 +73,12 @@ impl TypeClassifier {
         TypeCategory::UserDefined
     }
 
+    #[must_use]
     pub fn is_container(&self, type_name: &str) -> bool {
         matches!(self.classify(type_name), TypeCategory::Collection)
     }
 
+    #[must_use]
     pub fn is_smart_pointer(&self, type_name: &str) -> bool {
         matches!(self.classify(type_name), TypeCategory::SmartPointer)
     }

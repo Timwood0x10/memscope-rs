@@ -12,17 +12,17 @@ use std::collections::HashMap;
 /// Categories of advanced Rust types based on their memory and concurrency characteristics
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum AdvancedTypeCategory {
-    /// Interior mutability types (Cell, RefCell, UnsafeCell)
+    /// Interior mutability types (Cell, `RefCell`, `UnsafeCell`)
     InteriorMutability,
-    /// Synchronization primitives (Mutex, RwLock, Condvar)
+    /// Synchronization primitives (Mutex, `RwLock`, Condvar)
     Synchronization,
     /// Channel types (Sender, Receiver, mpsc, etc.)
     Channel,
-    /// Atomic types (AtomicBool, AtomicUsize, etc.)
+    /// Atomic types (`AtomicBool`, `AtomicUsize`, etc.)
     Atomic,
-    /// Thread-local storage (ThreadLocal, LocalKey)
+    /// Thread-local storage (`ThreadLocal`, `LocalKey`)
     ThreadLocal,
-    /// Memory management (ManuallyDrop, MaybeUninit, Pin)
+    /// Memory management (`ManuallyDrop`, `MaybeUninit`, Pin)
     MemoryManagement,
     /// Async primitives (Future, Waker, Context)
     Async,
@@ -168,6 +168,7 @@ pub struct GenericAdvancedTypeAnalyzer;
 
 impl GenericAdvancedTypeAnalyzer {
     /// Analyze a type by its name and characteristics
+    #[must_use]
     pub fn analyze_by_type_name(type_name: &str, allocation: &AllocationInfo) -> AdvancedTypeInfo {
         let category = Self::categorize_type(type_name);
         let behavior = Self::analyze_behavior_pattern(type_name, &category);
@@ -454,6 +455,7 @@ pub struct AdvancedTypeStatistics {
 }
 
 /// Analyze all advanced types in a set of allocations
+#[must_use]
 pub fn analyze_advanced_types(allocations: &[AllocationInfo]) -> AdvancedTypeAnalysisReport {
     let mut by_category: HashMap<String, Vec<AdvancedTypeInfo>> = HashMap::new();
     let mut all_issues = Vec::new();
@@ -501,12 +503,11 @@ pub fn analyze_advanced_types(allocations: &[AllocationInfo]) -> AdvancedTypeAna
         PerformanceSummary {
             total_overhead_factor: total_overhead_factor / total_count as f64,
             total_memory_overhead,
-            lock_free_percentage: (lock_free_count as f64 / total_count as f64) * 100.0,
+            lock_free_percentage: (f64::from(lock_free_count) / total_count as f64) * 100.0,
             dominant_latency_category: latency_counts
                 .iter()
                 .max_by_key(|(_, count)| *count)
-                .map(|(category, _)| category.clone())
-                .unwrap_or(LatencyCategory::Fast),
+                .map_or(LatencyCategory::Fast, |(category, _)| category.clone()),
         }
     } else {
         PerformanceSummary {
@@ -530,6 +531,7 @@ pub fn analyze_advanced_types(allocations: &[AllocationInfo]) -> AdvancedTypeAna
 }
 
 /// Check if a type name represents an advanced type we should analyze
+#[must_use]
 pub fn is_advanced_type(type_name: &str) -> bool {
     type_name.contains("Cell")
         || type_name.contains("Mutex")
@@ -556,6 +558,7 @@ pub fn is_advanced_type(type_name: &str) -> bool {
 }
 
 /// Analyze a type and return its category
+#[must_use]
 pub fn get_type_category(type_name: &str) -> Option<AdvancedTypeCategory> {
     if type_name.contains("Cell<")
         || type_name.contains("RefCell<")
@@ -593,6 +596,7 @@ pub fn get_type_category(type_name: &str) -> Option<AdvancedTypeCategory> {
 }
 
 /// Create behavior pattern for a type
+#[must_use]
 pub fn create_behavior_pattern(type_name: &str) -> TypeBehaviorPattern {
     let category = get_type_category(type_name);
 
@@ -672,7 +676,8 @@ pub fn create_behavior_pattern(type_name: &str) -> TypeBehaviorPattern {
     }
 }
 
-/// Analyze a type and create AdvancedTypeInfo
+/// Analyze a type and create `AdvancedTypeInfo`
+#[must_use]
 pub fn analyze_type(allocation: &AllocationInfo) -> Option<AdvancedTypeInfo> {
     let type_name = allocation.type_name.as_ref()?;
 
@@ -790,6 +795,7 @@ fn generate_advanced_type_statistics(
 // ===== Enhanced Interior Mutability Detection =====
 
 /// Enhanced interior mutability detection for Cell/RefCell types
+#[must_use]
 pub fn detect_interior_mutability_patterns(
     allocations: &[AllocationInfo],
 ) -> InteriorMutabilityReport {
@@ -856,6 +862,7 @@ pub fn detect_interior_mutability_patterns(
 }
 
 /// Enhanced concurrency primitive monitoring for Mutex/RwLock types
+#[must_use]
 pub fn monitor_concurrency_primitives(
     allocations: &[AllocationInfo],
 ) -> ConcurrencyPrimitiveReport {
@@ -943,9 +950,9 @@ fn calculate_deadlock_potential_by_count(mutex_count: usize, rwlock_count: usize
 pub struct InteriorMutabilityReport {
     /// Cell instances
     pub cell_instances: Vec<CellInstance>,
-    /// RefCell instances
+    /// `RefCell` instances
     pub refcell_instances: Vec<RefCellInstance>,
-    /// UnsafeCell instances
+    /// `UnsafeCell` instances
     pub unsafe_cell_instances: Vec<UnsafeCellInstance>,
     /// Runtime borrow violations
     pub runtime_borrow_violations: Vec<BorrowViolation>,
@@ -970,7 +977,7 @@ pub struct CellInstance {
     pub zero_cost: bool,
 }
 
-/// RefCell instance
+/// `RefCell` instance
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RefCellInstance {
     /// Pointer to the instance
@@ -987,7 +994,7 @@ pub struct RefCellInstance {
     pub runtime_check_overhead: bool,
 }
 
-/// UnsafeCell instance
+/// `UnsafeCell` instance
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UnsafeCellInstance {
     /// Pointer to the instance
@@ -1029,7 +1036,7 @@ pub enum BorrowViolationType {
 pub struct ConcurrencyPrimitiveReport {
     /// Mutex instances
     pub mutex_instances: Vec<MutexInstance>,
-    /// RwLock instances
+    /// `RwLock` instances
     pub rwlock_instances: Vec<RwLockInstance>,
     /// Condvar instances
     pub condvar_instances: Vec<CondvarInstance>,
@@ -1062,7 +1069,7 @@ pub struct MutexInstance {
     pub total_wait_time_ns: u64,
 }
 
-/// RwLock instance
+/// `RwLock` instance
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RwLockInstance {
     /// Pointer to the instance
@@ -1120,9 +1127,9 @@ pub struct LockContention {
 pub enum ContentionType {
     /// Mutex contention
     MutexContention,
-    /// RwLock read contention
+    /// `RwLock` read contention
     RwLockReadContention,
-    /// RwLock write contention
+    /// `RwLock` write contention
     RwLockWriteContention,
 }
 

@@ -122,7 +122,7 @@ impl IntegratedProfilingSession {
 
                     let elapsed = start.elapsed();
                     if elapsed < collection_interval {
-                        thread::sleep(collection_interval - elapsed);
+                        thread::sleep(collection_interval.checked_sub(elapsed).unwrap());
                     }
                 }
             })?;
@@ -522,7 +522,7 @@ impl IntegratedProfilingSession {
             let resource_usage_score = self.calculate_thread_resource_score(*thread_id);
 
             // Overall efficiency score combining allocation patterns and resource usage
-            let efficiency_score = (allocation_efficiency + resource_usage_score) / 2.0;
+            let efficiency_score = f32::midpoint(allocation_efficiency, resource_usage_score);
 
             // Try to get thread name from resource timeline
             let thread_name = self.get_thread_name(*thread_id);

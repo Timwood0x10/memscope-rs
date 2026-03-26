@@ -25,12 +25,14 @@ impl<K, V> ShardedRwLock<K, V>
 where
     K: Hash + Eq,
 {
-    /// Create a new sharded RwLock with default shard count
+    /// Create a new sharded `RwLock` with default shard count
+    #[must_use]
     pub fn new() -> Self {
         Self::with_shard_count(DEFAULT_SHARD_COUNT)
     }
 
-    /// Create a new sharded RwLock with specified shard count
+    /// Create a new sharded `RwLock` with specified shard count
+    #[must_use]
     pub fn with_shard_count(shard_count: usize) -> Self {
         let mut shards = Vec::with_capacity(shard_count);
         for _ in 0..shard_count {
@@ -95,11 +97,13 @@ where
     }
 
     /// Get the total number of entries across all shards
+    #[must_use]
     pub fn len(&self) -> usize {
         self.shards.iter().map(|shard| shard.read().len()).sum()
     }
 
     /// Check if the sharded map is empty
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.shards.iter().all(|shard| shard.read().is_empty())
     }
@@ -136,6 +140,7 @@ where
     }
 
     /// Get statistics about shard distribution
+    #[must_use]
     pub fn shard_stats(&self) -> ShardStats {
         let shard_sizes: Vec<usize> = self.shards.iter().map(|shard| shard.read().len()).collect();
 
@@ -181,6 +186,7 @@ pub struct ShardStats {
 
 impl ShardStats {
     /// Calculate load balance ratio (0.0 = perfectly balanced, 1.0 = completely unbalanced)
+    #[must_use]
     pub fn load_balance_ratio(&self) -> f64 {
         if self.total_entries == 0 || self.avg_shard_size == 0.0 {
             return 0.0;
@@ -216,11 +222,13 @@ where
     K: Hash + Eq,
 {
     /// Create a new sharded Mutex with default shard count
+    #[must_use]
     pub fn new() -> Self {
         Self::with_shard_count(DEFAULT_SHARD_COUNT)
     }
 
     /// Create a new sharded Mutex with specified shard count
+    #[must_use]
     pub fn with_shard_count(shard_count: usize) -> Self {
         let mut shards = Vec::with_capacity(shard_count);
         for _ in 0..shard_count {
@@ -286,11 +294,13 @@ where
     }
 
     /// Get the total number of entries across all shards
+    #[must_use]
     pub fn len(&self) -> usize {
         self.shards.iter().map(|shard| shard.lock().len()).sum()
     }
 
     /// Check if the sharded map is empty
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.shards.iter().all(|shard| shard.lock().is_empty())
     }

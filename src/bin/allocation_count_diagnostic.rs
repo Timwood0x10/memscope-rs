@@ -89,7 +89,7 @@ fn test_traditional_export(output_dir: &Path, stats: &memscope_rs::core::types::
     let tracker = get_tracker();
 
     match tracker.export_to_json(&output_path) {
-        Ok(_) => {
+        Ok(()) => {
             if let Ok(metadata) = fs::metadata(&output_path) {
                 let file_size = metadata.len();
                 tracing::info!(

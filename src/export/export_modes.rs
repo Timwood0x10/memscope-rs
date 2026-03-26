@@ -102,6 +102,7 @@ pub struct ExportCoordinator {
 
 impl ExportCoordinator {
     /// Create new export coordinator with configuration
+    #[must_use]
     pub fn new(config: ExportConfig) -> Self {
         Self {
             config,
@@ -110,21 +111,25 @@ impl ExportCoordinator {
     }
 
     /// Create coordinator with fast mode configuration
+    #[must_use]
     pub fn new_fast() -> Self {
         Self::new(ExportConfig::fast())
     }
 
     /// Create coordinator with slow mode configuration  
+    #[must_use]
     pub fn new_slow() -> Self {
         Self::new(ExportConfig::slow())
     }
 
     /// Create coordinator with auto mode configuration
+    #[must_use]
     pub fn new_auto() -> Self {
         Self::new(ExportConfig::auto())
     }
 
     /// Create coordinator with automatic configuration based on data size
+    #[must_use]
     pub fn new_auto_sized(data_size: usize) -> Self {
         let mode_manager = ExportModeManager::new();
         let config = mode_manager.create_auto_config(data_size);
@@ -153,6 +158,7 @@ impl ExportCoordinator {
     }
 
     /// Get current configuration
+    #[must_use]
     pub fn config(&self) -> &ExportConfig {
         &self.config
     }
@@ -177,6 +183,7 @@ impl ExportCoordinator {
     }
 
     /// Get mode manager for advanced configuration
+    #[must_use]
     pub fn mode_manager(&self) -> &ExportModeManager {
         &self.mode_manager
     }

@@ -115,10 +115,10 @@ pub struct CircularReferenceStatistics {
 /// Graph representation for circular reference detection
 #[derive(Debug)]
 struct ReferenceGraph {
-    /// Adjacency list: ptr -> list of data_ptrs it references
+    /// Adjacency list: ptr -> list of `data_ptrs` it references
     adjacency: HashMap<usize, Vec<usize>>,
 
-    /// Reverse mapping: data_ptr -> list of ptrs that reference it
+    /// Reverse mapping: `data_ptr` -> list of ptrs that reference it
     reverse_refs: HashMap<usize, Vec<usize>>,
 
     /// Smart pointer information by ptr
@@ -233,6 +233,7 @@ impl ReferenceGraph {
 }
 
 /// Detect circular references in smart pointer allocations
+#[must_use]
 pub fn detect_circular_references(allocations: &[AllocationInfo]) -> CircularReferenceAnalysis {
     let graph = ReferenceGraph::new(allocations);
     let raw_cycles = graph.detect_cycles();
@@ -269,7 +270,7 @@ pub fn detect_circular_references(allocations: &[AllocationInfo]) -> CircularRef
     }
 }
 
-/// Analyze a single cycle to create a CircularReference
+/// Analyze a single cycle to create a `CircularReference`
 fn analyze_cycle(cycle_path: &[usize], graph: &ReferenceGraph) -> CircularReference {
     let mut nodes = Vec::new();
     let mut total_memory = 0;
@@ -287,8 +288,7 @@ fn analyze_cycle(cycle_path: &[usize], graph: &ReferenceGraph) -> CircularRefere
                 pointer_type: smart_info.pointer_type.clone(),
                 ref_count: smart_info
                     .latest_ref_counts()
-                    .map(|snapshot| snapshot.strong_count)
-                    .unwrap_or(1),
+                    .map_or(1, |snapshot| snapshot.strong_count),
             };
 
             total_memory += allocation.size;

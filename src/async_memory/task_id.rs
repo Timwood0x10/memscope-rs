@@ -24,11 +24,11 @@ pub type TaskId = u128;
 
 /// Extended task information stored in thread-local storage
 ///
-/// Supports dual-track approach: precise TrackedFuture identification
-/// plus tracing::Subscriber integration for broader ecosystem coverage.
+/// Supports dual-track approach: precise `TrackedFuture` identification
+/// plus `tracing::Subscriber` integration for broader ecosystem coverage.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct TaskInfo {
-    /// Primary task ID from TrackedFuture (high precision)
+    /// Primary task ID from `TrackedFuture` (high precision)
     pub waker_id: TaskId,
     /// Secondary span ID from tracing ecosystem (broader coverage)
     pub span_id: Option<u64>,
@@ -38,6 +38,7 @@ pub struct TaskInfo {
 
 impl TaskInfo {
     /// Create new task info with current timestamp
+    #[must_use]
     pub fn new(waker_id: TaskId, span_id: Option<u64>) -> Self {
         Self {
             waker_id,
@@ -47,17 +48,19 @@ impl TaskInfo {
     }
 
     /// Check if any tracking ID is available
+    #[must_use]
     pub fn has_tracking_id(&self) -> bool {
         self.waker_id != 0 || self.span_id.is_some()
     }
 
-    /// Get the primary tracking ID (waker_id preferred, fallback to span_id)
+    /// Get the primary tracking ID (`waker_id` preferred, fallback to `span_id`)
+    #[must_use]
     pub fn primary_id(&self) -> TaskId {
         if self.waker_id != 0 {
             self.waker_id
         } else {
             // Convert span_id to TaskId format if waker_id unavailable
-            self.span_id.map(|id| id as TaskId).unwrap_or(0)
+            self.span_id.map_or(0, TaskId::from)
         }
     }
 }
@@ -82,13 +85,13 @@ thread_local! {
 pub fn generate_task_id(cx: &Context<'_>) -> AsyncResult<TaskId> {
     // Extract waker vtable address as unique identifier
     // Use waker pointer address as identifier (stable within task lifetime)
-    let waker_addr = cx.waker() as *const _ as u64;
+    let waker_addr = std::ptr::from_ref(cx.waker()) as u64;
 
     // Get monotonic epoch counter
     let epoch = TASK_EPOCH.fetch_add(1, Ordering::Relaxed);
 
     // Combine epoch (high 64 bits) with waker address (low 64 bits)
-    let task_id = ((epoch as u128) << 64) | (waker_addr as u128);
+    let task_id = (u128::from(epoch) << 64) | u128::from(waker_addr);
 
     // Validate non-zero result
     if task_id == 0 {
@@ -104,7 +107,7 @@ pub fn generate_task_id(cx: &Context<'_>) -> AsyncResult<TaskId> {
 
 /// Set current task information in thread-local storage
 ///
-/// Called by TrackedFuture during poll operations to establish task context
+/// Called by `TrackedFuture` during poll operations to establish task context
 /// for allocation tracking.
 #[inline(always)]
 pub fn set_current_task(task_info: TaskInfo) {
@@ -116,13 +119,14 @@ pub fn set_current_task(task_info: TaskInfo) {
 /// Returns the task context for the currently executing async task.
 /// Used by the global allocator hook to attribute memory allocations.
 #[inline(always)]
+#[must_use]
 pub fn get_current_task() -> TaskInfo {
-    CURRENT_TASK.with(|current| current.get())
+    CURRENT_TASK.with(std::cell::Cell::get)
 }
 
 /// Update span ID for tracing integration
 ///
-/// Called by MemScopeSubscriber when entering/exiting tracing spans
+/// Called by `MemScopeSubscriber` when entering/exiting tracing spans
 /// to provide fallback task identification.
 #[inline(always)]
 pub fn update_span_id(span_id: Option<u64>) -> AsyncResult<()> {
@@ -145,7 +149,7 @@ pub fn clear_current_task() {
 
 /// Get current timestamp using efficient method
 ///
-/// Uses TSC (Time Stamp Counter) on x86_64 for minimal overhead,
+/// Uses TSC (Time Stamp Counter) on `x86_64` for minimal overhead,
 /// falls back to system time on other architectures.
 #[inline(always)]
 fn current_timestamp() -> u64 {

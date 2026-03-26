@@ -333,6 +333,7 @@ pub struct SafetyConfig {
 
 impl PerformanceChecker {
     /// Create performance checker with default thresholds
+    #[must_use]
     pub fn new() -> Self {
         Self {
             benchmarks: HashMap::new(),
@@ -348,6 +349,7 @@ impl PerformanceChecker {
     }
 
     /// Check operation performance against benchmarks
+    #[must_use]
     pub fn check_performance(
         &self,
         operation: &str,
@@ -499,6 +501,7 @@ impl PerformanceChecker {
 
 impl MemoryLeakChecker {
     /// Create memory leak checker
+    #[must_use]
     pub fn new() -> Self {
         Self {
             baseline_measurements: HashMap::new(),
@@ -520,6 +523,7 @@ impl MemoryLeakChecker {
     }
 
     /// Check for memory leaks
+    #[must_use]
     pub fn check_for_leaks(&self, operation: &str, current: &MemorySnapshot) -> LeakCheckResult {
         if let Some(baseline) = self.baseline_measurements.get(operation) {
             let growth_rate = self.calculate_growth_rate(baseline, current);

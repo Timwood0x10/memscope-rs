@@ -50,6 +50,7 @@ impl BinaryIndex {
     pub const INDEX_VERSION: u32 = 1;
 
     /// Create a new binary index
+    #[must_use]
     pub fn new(file_path: PathBuf, file_hash: u64, file_size: u64, header: FileHeader) -> Self {
         Self {
             version: Self::INDEX_VERSION,
@@ -65,31 +66,36 @@ impl BinaryIndex {
     }
 
     /// Check if this index is valid for the given file
+    #[must_use]
     pub fn is_valid_for_file(&self, file_path: &std::path::Path, file_hash: u64) -> bool {
         self.file_path == file_path && self.file_hash == file_hash
     }
 
     /// Get the number of allocation records
+    #[must_use]
     pub fn record_count(&self) -> u32 {
         self.allocations.count
     }
 
     /// Get the file offset for a specific record index
+    #[must_use]
     pub fn get_record_offset(&self, record_index: usize) -> Option<u64> {
         if record_index >= self.allocations.count as usize {
             return None;
         }
 
         let relative_offset = self.allocations.relative_offsets.get(record_index)?;
-        Some(self.allocations.records_start_offset + *relative_offset as u64)
+        Some(self.allocations.records_start_offset + u64::from(*relative_offset))
     }
 
     /// Get the record size for a specific record index
+    #[must_use]
     pub fn get_record_size(&self, record_index: usize) -> Option<u16> {
         self.allocations.record_sizes.get(record_index).copied()
     }
 
     /// Check if quick filtering data is available
+    #[must_use]
     pub fn has_quick_filter_data(&self) -> bool {
         self.allocations.quick_filter_data.is_some()
     }
@@ -120,7 +126,7 @@ pub struct CompactAllocationIndex {
     /// Absolute offset where allocation records start
     pub records_start_offset: u64,
 
-    /// Relative offsets from records_start_offset (saves memory)
+    /// Relative offsets from `records_start_offset` (saves memory)
     pub relative_offsets: Vec<u32>,
 
     /// Size of each record in bytes (most records are < 64KB)
@@ -132,6 +138,7 @@ pub struct CompactAllocationIndex {
 
 impl CompactAllocationIndex {
     /// Create a new compact allocation index
+    #[must_use]
     pub fn new(records_start_offset: u64) -> Self {
         Self {
             count: 0,
@@ -151,7 +158,7 @@ impl CompactAllocationIndex {
         }
 
         let relative_offset = absolute_offset - self.records_start_offset;
-        if relative_offset > u32::MAX as u64 {
+        if relative_offset > u64::from(u32::MAX) {
             return Err(BinaryExportError::CorruptedData(
                 "Record offset too large for relative addressing".to_string(),
             ));
@@ -171,6 +178,7 @@ impl CompactAllocationIndex {
     }
 
     /// Get memory usage of this index in bytes
+    #[must_use]
     pub fn memory_usage(&self) -> usize {
         std::mem::size_of::<Self>()
             + self.relative_offsets.capacity() * std::mem::size_of::<u32>()
@@ -178,7 +186,7 @@ impl CompactAllocationIndex {
             + self
                 .quick_filter_data
                 .as_ref()
-                .map_or(0, |qfd| qfd.memory_usage())
+                .map_or(0, QuickFilterData::memory_usage)
     }
 }
 
@@ -209,6 +217,7 @@ pub struct QuickFilterData {
 
 impl QuickFilterData {
     /// Create new quick filter data with the specified batch size
+    #[must_use]
     pub fn new(batch_size: usize) -> Self {
         Self {
             batch_size,
@@ -222,6 +231,7 @@ impl QuickFilterData {
     }
 
     /// Get memory usage of this quick filter data in bytes
+    #[must_use]
     pub fn memory_usage(&self) -> usize {
         std::mem::size_of::<Self>()
             + self.ptr_ranges.capacity() * std::mem::size_of::<(usize, usize)>()
@@ -232,6 +242,7 @@ impl QuickFilterData {
     }
 
     /// Check if a pointer value might be in the specified batch
+    #[must_use]
     pub fn ptr_might_be_in_batch(&self, batch_index: usize, ptr: usize) -> bool {
         if let Some(&(min, max)) = self.ptr_ranges.get(batch_index) {
             ptr >= min && ptr <= max
@@ -241,6 +252,7 @@ impl QuickFilterData {
     }
 
     /// Check if a size value might be in the specified batch
+    #[must_use]
     pub fn size_might_be_in_batch(&self, batch_index: usize, size: usize) -> bool {
         if let Some(&(min, max)) = self.size_ranges.get(batch_index) {
             size >= min && size <= max
@@ -250,6 +262,7 @@ impl QuickFilterData {
     }
 
     /// Check if a timestamp might be in the specified batch
+    #[must_use]
     pub fn timestamp_might_be_in_batch(&self, batch_index: usize, timestamp: u64) -> bool {
         if let Some(&(min, max)) = self.timestamp_ranges.get(batch_index) {
             timestamp >= min && timestamp <= max
@@ -336,6 +349,7 @@ pub struct RecordMetadata {
 
 impl RecordMetadata {
     /// Create new record metadata
+    #[must_use]
     pub fn new(ptr: usize, size: usize, timestamp: u64) -> Self {
         Self {
             ptr,
@@ -347,12 +361,14 @@ impl RecordMetadata {
     }
 
     /// Set thread ID
+    #[must_use]
     pub fn with_thread_id(mut self, thread_id: String) -> Self {
         self.thread_id = Some(thread_id);
         self
     }
 
     /// Set type name
+    #[must_use]
     pub fn with_type_name(mut self, type_name: String) -> Self {
         self.type_name = Some(type_name);
         self

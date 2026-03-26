@@ -1,22 +1,22 @@
 //! Error adapter for backward compatibility
 //!
 //! This module provides adapters to maintain compatibility with existing code
-//! that uses the old TrackingError type while internally using the new
-//! unified MemScopeError system.
+//! that uses the old `TrackingError` type while internally using the new
+//! unified `MemScopeError` system.
 
 use crate::core::error::{MemScopeError, MemoryOperation, SystemErrorType};
 use crate::core::types::TrackingError;
 
 /// Adapter trait for converting between old and new error types
 pub trait ErrorAdapter {
-    /// Convert from old TrackingError to new MemScopeError
+    /// Convert from old `TrackingError` to new `MemScopeError`
     fn from_tracking_error(error: TrackingError) -> MemScopeError;
 
-    /// Convert from new MemScopeError to old TrackingError for compatibility
+    /// Convert from new `MemScopeError` to old `TrackingError` for compatibility
     fn to_tracking_error(error: &MemScopeError) -> TrackingError;
 }
 
-/// Default implementation of ErrorAdapter
+/// Default implementation of `ErrorAdapter`
 pub struct DefaultErrorAdapter;
 
 impl ErrorAdapter for DefaultErrorAdapter {
@@ -156,10 +156,12 @@ impl ErrorAdapter for DefaultErrorAdapter {
 }
 
 /// Convenience functions for error conversion
+#[must_use]
 pub fn from_tracking_error(error: TrackingError) -> MemScopeError {
     DefaultErrorAdapter::from_tracking_error(error)
 }
 
+#[must_use]
 pub fn to_tracking_error(error: &MemScopeError) -> TrackingError {
     DefaultErrorAdapter::to_tracking_error(error)
 }
@@ -175,12 +177,12 @@ macro_rules! convert_error {
 /// Result type adapter for backward compatibility
 pub type AdaptedResult<T> = Result<T, MemScopeError>;
 
-/// Convert old TrackingResult to new Result type
+/// Convert old `TrackingResult` to new Result type
 pub fn adapt_result<T>(result: crate::core::types::TrackingResult<T>) -> AdaptedResult<T> {
     result.map_err(from_tracking_error)
 }
 
-/// Convert new Result to old TrackingResult for compatibility
+/// Convert new Result to old `TrackingResult` for compatibility
 pub fn to_tracking_result<T>(result: AdaptedResult<T>) -> crate::core::types::TrackingResult<T> {
     result.map_err(|e| to_tracking_error(&e))
 }

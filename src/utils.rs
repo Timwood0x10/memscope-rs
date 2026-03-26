@@ -3,6 +3,7 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Get current timestamp in nanoseconds since Unix epoch
+#[must_use]
 pub fn current_timestamp_nanos() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -11,6 +12,7 @@ pub fn current_timestamp_nanos() -> u64 {
 }
 
 /// Format bytes in a human-readable format
+#[must_use]
 pub fn format_bytes(bytes: usize) -> String {
     if bytes < 1024 {
         format!("{bytes}B")
@@ -22,6 +24,7 @@ pub fn format_bytes(bytes: usize) -> String {
 }
 
 /// Simplify Rust type names for better readability - Enhanced Unknown Type identification
+#[must_use]
 pub fn simplify_type_name(type_name: &str) -> (String, String) {
     // Handle empty or explicitly unknown types first
     if type_name.is_empty() || type_name == "Unknown" {
@@ -99,9 +102,9 @@ pub fn simplify_type_name(type_name: &str) -> (String, String) {
     {
         let primitive = clean_type.split("::").last().unwrap_or(clean_type);
         (primitive.to_string(), "Basic Types".to_string())
-    } else if clean_type.contains("[") && clean_type.contains("]") {
+    } else if clean_type.contains('[') && clean_type.contains(']') {
         ("Array".to_string(), "Arrays".to_string())
-    } else if clean_type.starts_with("(") && clean_type.ends_with(")") {
+    } else if clean_type.starts_with('(') && clean_type.ends_with(')') {
         ("Tuple".to_string(), "Tuples".to_string())
     } else if clean_type.contains("Option<") {
         ("Option<T>".to_string(), "Optionals".to_string())
@@ -167,7 +170,7 @@ pub fn simplify_type_name(type_name: &str) -> (String, String) {
                 "Configuration"
             } else if clean_type.ends_with("Builder") || clean_type.ends_with("Factory") {
                 "Builders"
-            } else if clean_type.chars().next().is_some_and(|c| c.is_uppercase()) {
+            } else if clean_type.chars().next().is_some_and(char::is_uppercase) {
                 // Starts with uppercase, likely a struct/enum
                 "Custom Types"
             } else {
@@ -179,15 +182,16 @@ pub fn simplify_type_name(type_name: &str) -> (String, String) {
         }
     } else {
         // For simple type names without namespace
-        if !clean_type.is_empty() {
-            (clean_type.to_string(), "Custom Types".to_string())
-        } else {
+        if clean_type.is_empty() {
             ("Unknown Type".to_string(), "Unknown".to_string())
+        } else {
+            (clean_type.to_string(), "Custom Types".to_string())
         }
     }
 }
 
 /// Extract generic type parameter for display
+#[must_use]
 pub fn extract_generic_type(type_name: &str, container: &str) -> String {
     if let Some(start) = type_name.find(&format!("{container}<")) {
         let start = start + container.len() + 1;
@@ -201,6 +205,7 @@ pub fn extract_generic_type(type_name: &str, container: &str) -> String {
 }
 
 /// Get a simplified type name for display
+#[must_use]
 pub fn get_simple_type(type_name: &str) -> String {
     if type_name.contains("String") {
         "String".to_string()
@@ -224,6 +229,7 @@ pub fn get_simple_type(type_name: &str) -> String {
 }
 
 /// Get color for category - Enhanced with new categories
+#[must_use]
 pub fn get_category_color(category: &str) -> String {
     match category {
         "Collections" => "#3498db".to_string(),               // Blue
@@ -252,6 +258,7 @@ pub fn get_category_color(category: &str) -> String {
 }
 
 /// Get type-specific gradient colors for enhanced visualization
+#[must_use]
 pub fn get_type_gradient_colors(type_name: &str) -> (&'static str, &'static str) {
     match type_name {
         "String" => ("#00BCD4", "#00ACC1"),  // Teal gradient
@@ -265,6 +272,7 @@ pub fn get_type_gradient_colors(type_name: &str) -> (&'static str, &'static str)
 }
 
 /// Get color based on type for consistent visualization
+#[must_use]
 pub fn get_type_color(type_name: &str) -> &'static str {
     match type_name {
         "String" => "#2ecc71",
@@ -284,13 +292,14 @@ pub struct TypeHierarchy {
     pub major_category: String,
     /// Sub category: Maps, Sequences, Owned, Shared, etc.
     pub sub_category: String,
-    /// Specific type: HashMap, Vec, Box, etc.
+    /// Specific type: `HashMap`, Vec, Box, etc.
     pub specific_type: String,
-    /// Full type name: HashMap<String, i32>
+    /// Full type name: `HashMap`<String, i32>
     pub full_type: String,
 }
 
 /// Get comprehensive type hierarchy for treemap visualization
+#[must_use]
 pub fn get_type_category_hierarchy(type_name: &str) -> TypeHierarchy {
     // Handle empty or unknown types first
     if type_name.is_empty() || type_name == "Unknown" {
@@ -365,14 +374,14 @@ pub fn get_type_category_hierarchy(type_name: &str) -> TypeHierarchy {
         }
     }
     // Strings
-    else if type_name.contains("String") && !type_name.contains("<") {
+    else if type_name.contains("String") && !type_name.contains('<') {
         TypeHierarchy {
             major_category: "Strings".to_string(),
             sub_category: "Owned".to_string(),
             specific_type: "String".to_string(),
             full_type: "String".to_string(),
         }
-    } else if type_name.contains("&str") || (type_name.contains("str") && type_name.contains("&")) {
+    } else if type_name.contains("&str") || (type_name.contains("str") && type_name.contains('&')) {
         TypeHierarchy {
             major_category: "Strings".to_string(),
             sub_category: "Borrowed".to_string(),
@@ -421,9 +430,9 @@ pub fn get_type_category_hierarchy(type_name: &str) -> TypeHierarchy {
     // Primitives
     else if is_primitive_type(type_name) {
         let clean_type = type_name.split("::").last().unwrap_or(type_name);
-        let sub_cat = if clean_type.contains("i") || clean_type.contains("u") {
+        let sub_cat = if clean_type.contains('i') || clean_type.contains('u') {
             "Integers"
-        } else if clean_type.contains("f") {
+        } else if clean_type.contains('f') {
             "Floats"
         } else if clean_type == "bool" {
             "Boolean"
@@ -450,6 +459,7 @@ pub fn get_type_category_hierarchy(type_name: &str) -> TypeHierarchy {
 }
 
 /// Extract generic parameters from type names (enhanced version)
+#[must_use]
 pub fn extract_generic_params(type_name: &str, container: &str) -> String {
     if let Some(start) = type_name.find(&format!("{container}<")) {
         let start = start + container.len() + 1;
@@ -486,6 +496,7 @@ fn find_matching_bracket(s: &str, start: usize) -> Option<usize> {
 }
 
 /// Check if a type is a primitive type
+#[must_use]
 pub fn is_primitive_type(type_name: &str) -> bool {
     let clean_type = type_name.split("::").last().unwrap_or(type_name);
     matches!(
@@ -509,6 +520,7 @@ pub fn is_primitive_type(type_name: &str) -> bool {
 }
 
 /// Extract array information for display
+#[must_use]
 pub fn extract_array_info(type_name: &str) -> String {
     if let Some(start) = type_name.find('[') {
         if let Some(end) = type_name.find(']') {
@@ -519,6 +531,7 @@ pub fn extract_array_info(type_name: &str) -> String {
 }
 
 /// Extract standard library module name
+#[must_use]
 pub fn extract_std_module(type_name: &str) -> String {
     let parts: Vec<&str> = type_name.split("::").collect();
     if parts.len() >= 2 {
@@ -547,7 +560,7 @@ use std::sync::{
 use std::thread;
 use std::time::Duration;
 
-/// Extension trait for JoinHandle to add timeout functionality
+/// Extension trait for `JoinHandle` to add timeout functionality
 pub trait JoinHandleExt<T> {
     /// Join with a timeout, returning an error if the timeout is exceeded
     fn join_timeout(self, timeout: Duration) -> Result<T, Box<dyn std::any::Any + Send + 'static>>;

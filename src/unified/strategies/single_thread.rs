@@ -322,7 +322,7 @@ impl SingleThreadStrategy {
         // Create JSON structure compatible with existing format
         let mut allocations = Vec::new();
 
-        for record in records.iter() {
+        for record in &records {
             let mut allocation = serde_json::Map::new();
 
             allocation.insert(

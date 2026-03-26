@@ -32,7 +32,7 @@ pub struct BinaryExportConfig {
     pub source_analysis: bool,
     /// Enable lifecycle timeline analysis
     pub lifecycle_timeline: bool,
-    /// Enable container structure analysis (Vec, HashMap, etc.)
+    /// Enable container structure analysis (Vec, `HashMap`, etc.)
     pub container_analysis: bool,
     /// Enable memory fragmentation analysis
     pub fragmentation_analysis: bool,
@@ -58,11 +58,13 @@ impl Default for BinaryExportConfig {
 
 impl BinaryExportConfig {
     /// Create new configuration with default settings
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Performance-first configuration (minimal overhead)
+    #[must_use]
     pub fn performance_first() -> Self {
         Self {
             // Basic settings
@@ -86,6 +88,7 @@ impl BinaryExportConfig {
     }
 
     /// Debug/development configuration (comprehensive analysis)
+    #[must_use]
     pub fn debug_comprehensive() -> Self {
         Self {
             // Basic settings
@@ -109,6 +112,7 @@ impl BinaryExportConfig {
     }
 
     /// Minimal configuration (fastest export, basic data only)
+    #[must_use]
     pub fn minimal() -> Self {
         Self {
             // Basic settings
@@ -209,6 +213,7 @@ impl BinaryExportConfig {
     }
 
     /// Check if any advanced metrics are enabled
+    #[must_use]
     pub fn has_advanced_metrics(&self) -> bool {
         self.advanced_metrics_level != AdvancedMetricsLevel::None
             || self.source_analysis
@@ -224,6 +229,7 @@ impl BinaryExportConfig {
     }
 
     /// Get estimated performance impact (0.0 = no impact, 1.0 = significant impact)
+    #[must_use]
     pub fn estimated_performance_impact(&self) -> f64 {
         let mut impact = 0.0;
 
@@ -255,19 +261,20 @@ impl BinaryExportConfig {
         }
 
         // Compression impact
-        impact += self.compression_level as f64 * 0.02;
+        impact += f64::from(self.compression_level) * 0.02;
 
         impact.min(1.0) // Cap at 1.0
     }
 }
 
-/// Builder pattern for BinaryExportConfig
+/// Builder pattern for `BinaryExportConfig`
 pub struct BinaryExportConfigBuilder {
     config: BinaryExportConfig,
 }
 
 impl BinaryExportConfigBuilder {
     /// Create new config builder with performance-first defaults
+    #[must_use]
     pub fn new() -> Self {
         Self {
             config: BinaryExportConfig::performance_first(),
@@ -275,83 +282,97 @@ impl BinaryExportConfigBuilder {
     }
 
     /// Create builder from existing config
+    #[must_use]
     pub fn from_config(config: BinaryExportConfig) -> Self {
         Self { config }
     }
 
     /// Set buffer size
+    #[must_use]
     pub fn buffer_size(mut self, size: usize) -> Self {
         self.config.buffer_size = size;
         self
     }
 
     /// Set compression level
+    #[must_use]
     pub fn compression_level(mut self, level: u8) -> Self {
         self.config.compression_level = level;
         self
     }
 
     /// Set advanced metrics level
+    #[must_use]
     pub fn advanced_metrics_level(mut self, level: AdvancedMetricsLevel) -> Self {
         self.config.advanced_metrics_level = level;
         self
     }
 
     /// Enable/disable source analysis
+    #[must_use]
     pub fn source_analysis(mut self, enable: bool) -> Self {
         self.config.source_analysis = enable;
         self
     }
 
     /// Enable/disable lifecycle timeline
+    #[must_use]
     pub fn lifecycle_timeline(mut self, enable: bool) -> Self {
         self.config.lifecycle_timeline = enable;
         self
     }
 
     /// Enable/disable container analysis
+    #[must_use]
     pub fn container_analysis(mut self, enable: bool) -> Self {
         self.config.container_analysis = enable;
         self
     }
 
     /// Enable/disable fragmentation analysis
+    #[must_use]
     pub fn fragmentation_analysis(mut self, enable: bool) -> Self {
         self.config.fragmentation_analysis = enable;
         self
     }
 
     /// Enable/disable thread context tracking
+    #[must_use]
     pub fn thread_context_tracking(mut self, enable: bool) -> Self {
         self.config.thread_context_tracking = enable;
         self
     }
 
     /// Enable/disable Drop chain analysis
+    #[must_use]
     pub fn drop_chain_analysis(mut self, enable: bool) -> Self {
         self.config.drop_chain_analysis = enable;
         self
     }
 
     /// Enable/disable ZST analysis
+    #[must_use]
     pub fn zst_analysis(mut self, enable: bool) -> Self {
         self.config.zst_analysis = enable;
         self
     }
 
     /// Enable/disable health scoring
+    #[must_use]
     pub fn health_scoring(mut self, enable: bool) -> Self {
         self.config.health_scoring = enable;
         self
     }
 
     /// Enable/disable performance benchmarking
+    #[must_use]
     pub fn performance_benchmarking(mut self, enable: bool) -> Self {
         self.config.performance_benchmarking = enable;
         self
     }
 
     /// Enable/disable string table optimization
+    #[must_use]
     pub fn string_table_optimization(mut self, enable: bool) -> Self {
         self.config.string_table_optimization = enable;
         self
@@ -487,9 +508,9 @@ pub enum DashboardFormat {
 /// Data scope for export
 #[derive(Debug, Clone, PartialEq, Default)]
 pub enum DataScope {
-    /// Only user allocations (with var_name)
+    /// Only user allocations (with `var_name`)
     UserOnly,
-    /// Only system allocations (without var_name)
+    /// Only system allocations (without `var_name`)
     SystemOnly,
     /// Both user and system allocations
     #[default]
@@ -536,23 +557,27 @@ pub struct DashboardOptions {
 
 impl DashboardOptions {
     /// Create new dashboard options with default settings
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Set the export format
+    #[must_use]
     pub fn format(mut self, format: DashboardFormat) -> Self {
         self.format = format;
         self
     }
 
     /// Set the data scope
+    #[must_use]
     pub fn scope(mut self, scope: DataScope) -> Self {
         self.scope = scope;
         self
     }
 
     /// Set the performance mode
+    #[must_use]
     pub fn performance(mut self, performance: PerformanceMode) -> Self {
         self.performance = performance;
         self
@@ -565,30 +590,35 @@ impl DashboardOptions {
     }
 
     /// Set underlying binary export config
+    #[must_use]
     pub fn binary_config(mut self, config: BinaryExportConfig) -> Self {
         self.binary_config = config;
         self
     }
 
     /// Enable parallel processing
+    #[must_use]
     pub fn parallel_processing(self, _enabled: bool) -> Self {
         // Parallel processing configuration for BinaryExportConfig
         self
     }
 
     /// Set batch size
+    #[must_use]
     pub fn batch_size(self, _size: usize) -> Self {
         // Batch size configuration for optimal processing performance
         self
     }
 
     /// Set buffer size
+    #[must_use]
     pub fn buffer_size(mut self, size: usize) -> Self {
         self.binary_config.buffer_size = size;
         self
     }
 
     /// Quick preset for fast export (minimal analysis)
+    #[must_use]
     pub fn fast_preset() -> Self {
         Self {
             format: DashboardFormat::Lightweight,
@@ -600,6 +630,7 @@ impl DashboardOptions {
     }
 
     /// Quick preset for complete analysis
+    #[must_use]
     pub fn complete_preset() -> Self {
         Self {
             format: DashboardFormat::Progressive,
@@ -611,6 +642,7 @@ impl DashboardOptions {
     }
 
     /// Quick preset for backward compatibility (embedded format)
+    #[must_use]
     pub fn embedded_preset() -> Self {
         Self {
             format: DashboardFormat::Embedded,

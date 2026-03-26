@@ -85,7 +85,7 @@ pub struct GraphMetadata {
     pub node_count: usize,
     /// Total number of edges
     pub edge_count: usize,
-    /// Graph density (edges / max_possible_edges)
+    /// Graph density (edges / `max_possible_edges`)
     pub density: f64,
     /// Clustering coefficient
     pub clustering_coefficient: f64,
@@ -110,7 +110,7 @@ pub enum NodeCategory {
     Reference,
     /// Raw pointer (*const T, *mut T)
     RawPointer,
-    /// Collection (Vec, HashMap, etc.)
+    /// Collection (Vec, `HashMap`, etc.)
     Collection,
     /// Primitive type
     Primitive,
@@ -525,6 +525,7 @@ struct GraphOptimizer {}
 
 impl VariableRelationshipAnalyzer {
     /// Create a new variable relationship analyzer
+    #[must_use]
     pub fn new() -> Self {
         Self {
             nodes: HashMap::new(),
@@ -642,7 +643,7 @@ impl VariableRelationshipAnalyzer {
             || type_name.starts_with("Arc<")
         {
             NodeCategory::SmartPointer
-        } else if type_name.starts_with("&") {
+        } else if type_name.starts_with('&') {
             NodeCategory::Reference
         } else if type_name.starts_with("*const") || type_name.starts_with("*mut") {
             NodeCategory::RawPointer
@@ -690,7 +691,7 @@ impl VariableRelationshipAnalyzer {
         if let Some(ref type_name) = allocation.type_name {
             if type_name.starts_with("&mut") {
                 OwnershipStatus::BorrowedMutable
-            } else if type_name.starts_with("&") {
+            } else if type_name.starts_with('&') {
                 OwnershipStatus::BorrowedImmutable
             } else if type_name.starts_with("Rc<") || type_name.starts_with("Arc<") {
                 OwnershipStatus::Shared

@@ -17,7 +17,7 @@ pub trait BinarySerializable: Sized {
 
 /// Helper functions for writing primitive types
 pub mod primitives {
-    use super::*;
+    use super::{BinaryExportError, BinarySerializable, Read, Write};
 
     /// Write a u8 value
     pub fn write_u8<W: Write>(writer: &mut W, value: u8) -> Result<usize, BinaryExportError> {
@@ -802,7 +802,7 @@ mod tests {
     }
 }
 
-/// Binary serializable wrapper for UnsafeReport
+/// Binary serializable wrapper for `UnsafeReport`
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[allow(dead_code)]
 pub struct BinaryUnsafeReport {
@@ -859,7 +859,7 @@ impl BinarySerializable for BinaryUnsafeReport {
     }
 }
 
-/// Binary serializable wrapper for MemoryPassport
+/// Binary serializable wrapper for `MemoryPassport`
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[allow(dead_code)]
 pub struct BinaryMemoryPassport {
@@ -908,7 +908,7 @@ impl BinarySerializable for BinaryMemoryPassport {
     }
 }
 
-/// Binary serializable wrapper for CallStackRef
+/// Binary serializable wrapper for `CallStackRef`
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[allow(dead_code)]
 pub struct BinaryCallStackRef {
@@ -939,7 +939,7 @@ impl BinarySerializable for BinaryCallStackRef {
     }
 }
 
-/// Binary serializable wrapper for BorrowInfo
+/// Binary serializable wrapper for `BorrowInfo`
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[allow(dead_code)]
 pub struct BinaryBorrowInfo {
@@ -995,7 +995,7 @@ impl BinarySerializable for BinaryBorrowInfo {
     }
 }
 
-/// Binary serializable wrapper for CloneInfo
+/// Binary serializable wrapper for `CloneInfo`
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[allow(dead_code)]
 pub struct BinaryCloneInfo {
@@ -1008,7 +1008,7 @@ impl BinarySerializable for BinaryCloneInfo {
     fn write_binary<W: Write>(&self, writer: &mut W) -> Result<usize, BinaryExportError> {
         let mut bytes_written = 0;
         bytes_written += primitives::write_u32(writer, self.clone_count)?;
-        bytes_written += primitives::write_u8(writer, if self.is_clone { 1 } else { 0 })?;
+        bytes_written += primitives::write_u8(writer, u8::from(self.is_clone))?;
         bytes_written += match self.original_ptr {
             Some(ptr) => primitives::write_u8(writer, 1)? + primitives::write_u64(writer, ptr)?,
             None => primitives::write_u8(writer, 0)?,
@@ -1038,7 +1038,7 @@ impl BinarySerializable for BinaryCloneInfo {
     }
 }
 
-/// Binary serializable wrapper for OwnershipEvent
+/// Binary serializable wrapper for `OwnershipEvent`
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[allow(dead_code)]
 pub struct BinaryOwnershipEvent {
@@ -1107,7 +1107,7 @@ impl BinarySerializable for BinaryOwnershipEvent {
     }
 }
 
-/// Binary serializable wrapper for ResolvedFfiFunction
+/// Binary serializable wrapper for `ResolvedFfiFunction`
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[allow(dead_code)]
 pub struct BinaryResolvedFfiFunction {

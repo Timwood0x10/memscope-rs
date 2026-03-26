@@ -151,16 +151,19 @@ pub struct ExportMetadata {
 
 impl LifecycleSummaryGenerator {
     /// Create a new lifecycle summary generator
+    #[must_use]
     pub fn new() -> Self {
         Self::with_config(SummaryConfig::default())
     }
 
     /// Create a new lifecycle summary generator with custom configuration
+    #[must_use]
     pub fn with_config(config: SummaryConfig) -> Self {
         Self { config }
     }
 
     /// Generate complete lifecycle export data
+    #[must_use]
     pub fn generate_lifecycle_export(
         &self,
         ownership_history: &OwnershipHistoryRecorder,
@@ -181,8 +184,7 @@ impl LifecycleSummaryGenerator {
                 event
                     .var_name
                     .as_ref()
-                    .map(|name| self.is_user_variable(name))
-                    .unwrap_or(false)
+                    .is_some_and(|name| self.is_user_variable(name))
             })
             .count();
 
@@ -372,8 +374,7 @@ impl LifecycleSummaryGenerator {
         if allocation
             .var_name
             .as_ref()
-            .map(|name| self.is_user_variable(name))
-            .unwrap_or(false)
+            .is_some_and(|name| self.is_user_variable(name))
         {
             score += 0.1;
         }
@@ -436,7 +437,9 @@ impl LifecycleSummaryGenerator {
 
                 let total_memory: usize = events.iter().map(|e| e.size).sum();
 
-                let average_lifetime_ms = if !events.is_empty() {
+                let average_lifetime_ms = if events.is_empty() {
+                    0.0
+                } else {
                     let total_lifetime: u64 = events.iter().filter_map(|e| e.lifetime_ms).sum();
                     let count = events.iter().filter(|e| e.lifetime_ms.is_some()).count();
                     if count > 0 {
@@ -444,8 +447,6 @@ impl LifecycleSummaryGenerator {
                     } else {
                         0.0
                     }
-                } else {
-                    0.0
                 };
 
                 VariableGroup {

@@ -37,6 +37,7 @@ pub struct LifecycleAnalyzer {
 
 impl LifecycleAnalyzer {
     /// Create a new lifecycle analyzer
+    #[must_use]
     pub fn new() -> Self {
         Self {
             drop_events: Mutex::new(Arc::new(Vec::new())),
@@ -189,7 +190,7 @@ impl LifecycleAnalyzer {
             Some(name) if name.contains("impl ") => ScopeType::Method,
             Some(name) if name.contains("for ") || name.contains("while ") => ScopeType::Loop,
             Some(name) if name.contains("if ") || name.contains("match ") => ScopeType::Conditional,
-            Some(name) if name.contains("{") => ScopeType::Block,
+            Some(name) if name.contains('{') => ScopeType::Block,
             _ => ScopeType::Unknown,
         }
     }
@@ -198,8 +199,7 @@ impl LifecycleAnalyzer {
     fn calculate_nesting_level(&self, scope_name: &Option<String>) -> usize {
         scope_name
             .as_ref()
-            .map(|name| name.matches('{').count())
-            .unwrap_or(0)
+            .map_or(0, |name| name.matches('{').count())
     }
 
     /// Check if type is exception safe
@@ -248,29 +248,25 @@ impl LifecycleAnalyzer {
         let drop_events = self
             .drop_events
             .safe_lock()
-            .map(|events| Arc::clone(&events))
-            .unwrap_or_else(|_| Arc::new(Vec::new()));
+            .map_or_else(|_| Arc::new(Vec::new()), |events| Arc::clone(&events));
         let raii_patterns = self
             .raii_patterns
             .safe_lock()
-            .map(|patterns| Arc::clone(&patterns))
-            .unwrap_or_else(|_| Arc::new(Vec::new()));
-        let borrow_analysis = self
-            .borrow_tracker
-            .safe_lock()
-            .map(|tracker| tracker.get_analysis())
-            .unwrap_or_else(|_| BorrowAnalysis {
+            .map_or_else(|_| Arc::new(Vec::new()), |patterns| Arc::clone(&patterns));
+        let borrow_analysis = self.borrow_tracker.safe_lock().map_or_else(
+            |_| BorrowAnalysis {
                 conflicts: Vec::new(),
                 active_borrows: 0,
                 borrow_patterns: Vec::new(),
                 long_lived_borrows: Vec::new(),
                 total_borrows: 0,
-            });
+            },
+            |tracker| tracker.get_analysis(),
+        );
         let closure_captures = self
             .closure_captures
             .safe_lock()
-            .map(|captures| Arc::clone(&captures))
-            .unwrap_or_else(|_| Arc::new(Vec::new()));
+            .map_or_else(|_| Arc::new(Vec::new()), |captures| Arc::clone(&captures));
 
         LifecycleAnalysisReport {
             drop_events: (*drop_events).clone(),
@@ -416,6 +412,7 @@ impl Default for BorrowTracker {
 
 impl BorrowTracker {
     /// Create a new borrow tracker
+    #[must_use]
     pub fn new() -> Self {
         Self {
             active_borrows: HashMap::new(),
@@ -473,6 +470,7 @@ impl BorrowTracker {
     }
 
     /// Get comprehensive borrow analysis report
+    #[must_use]
     pub fn get_analysis(&self) -> BorrowAnalysis {
         let mut conflicts = Vec::new();
         let mut long_lived_borrows = Vec::new();

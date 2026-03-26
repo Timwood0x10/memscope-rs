@@ -10,7 +10,7 @@ fn get_multithread_template() -> &'static str {
         // Try to load from external file first
         if let Ok(external_path) = std::env::var("MEMSCOPE_MULTITHREAD_TEMPLATE") {
             if let Ok(content) = fs::read_to_string(&external_path) {
-                println!("📁 Loaded external multithread template: {}", external_path);
+                println!("📁 Loaded external multithread template: {external_path}");
                 return content;
             }
         }
@@ -2762,7 +2762,7 @@ use super::resource_integration::ComprehensiveAnalysis;
 use serde::Serialize;
 use std::path::Path;
 
-/// Main template data structure matching all placeholders in multithread_template.html
+/// Main template data structure matching all placeholders in `multithread_template.html`
 #[derive(Serialize, Debug)]
 struct DashboardData {
     // System Metrics
@@ -2968,9 +2968,10 @@ fn extract_template_data(
             analysis.summary.peak_memory_usage as f32 / 1024.0 / 1024.0
         ),
         memory_efficiency: performance_insights.memory_efficiency_score,
-        system_efficiency: (performance_insights.cpu_efficiency_score
-            + performance_insights.memory_efficiency_score)
-            / 2.0,
+        system_efficiency: f32::midpoint(
+            performance_insights.cpu_efficiency_score,
+            performance_insights.memory_efficiency_score,
+        ),
         bottleneck_type: format!("{:?}", performance_insights.primary_bottleneck),
 
         // Thread Data
@@ -2980,10 +2981,10 @@ fn extract_template_data(
             "{:.1}",
             analysis.summary.peak_memory_usage as f32 / 1024.0 / 1024.0
         ),
-        avg_allocations_per_thread: if !threads_data.is_empty() {
-            analysis.summary.total_allocations / threads_data.len() as u64
-        } else {
+        avg_allocations_per_thread: if threads_data.is_empty() {
             0
+        } else {
+            analysis.summary.total_allocations / threads_data.len() as u64
         },
         threads: threads_data.clone(),
 
@@ -3038,12 +3039,11 @@ fn calculate_cpu_metrics(resource_timeline: &[PlatformResourceMetrics]) -> (f32,
     let max_cpu = resource_timeline
         .iter()
         .map(|r| r.cpu_metrics.overall_usage_percent)
-        .fold(0.0f32, |a, b| a.max(b));
+        .fold(0.0f32, f32::max);
 
     let cpu_cores_count = resource_timeline
         .first()
-        .map(|r| r.cpu_metrics.per_core_usage.len())
-        .unwrap_or(8);
+        .map_or(8, |r| r.cpu_metrics.per_core_usage.len());
 
     (avg_cpu, max_cpu, cpu_cores_count)
 }
@@ -3119,7 +3119,18 @@ fn build_threads_data(
 }
 
 fn build_resource_samples(resource_timeline: &[PlatformResourceMetrics]) -> Vec<ResourceSample> {
-    if !resource_timeline.is_empty() {
+    if resource_timeline.is_empty() {
+        (0..31)
+            .map(|i| ResourceSample {
+                sample_id: i + 1,
+                timestamp: format!("T+{:.1}s", i as f32 * 0.1),
+                memory_usage: 100.0 + i as f32 * 5.0,
+                cpu_usage: 20.0 + (i as f32 * 2.0) % 15.0,
+                gpu_usage: 0.0,
+                io_operations: 1000 + i * 22,
+            })
+            .collect()
+    } else {
         resource_timeline
             .iter()
             .enumerate()
@@ -3131,19 +3142,7 @@ fn build_resource_samples(resource_timeline: &[PlatformResourceMetrics]) -> Vec<
                 gpu_usage: sample
                     .gpu_metrics
                     .as_ref()
-                    .map(|g| g.compute_usage_percent)
-                    .unwrap_or(0.0),
-                io_operations: 1000 + i * 22,
-            })
-            .collect()
-    } else {
-        (0..31)
-            .map(|i| ResourceSample {
-                sample_id: i + 1,
-                timestamp: format!("T+{:.1}s", i as f32 * 0.1),
-                memory_usage: 100.0 + i as f32 * 5.0,
-                cpu_usage: 20.0 + (i as f32 * 2.0) % 15.0,
-                gpu_usage: 0.0,
+                    .map_or(0.0, |g| g.compute_usage_percent),
                 io_operations: 1000 + i * 22,
             })
             .collect()
@@ -3163,7 +3162,7 @@ fn build_cpu_cores_data(
             .map(|(i, &usage)| CpuCoreData {
                 core_id: i,
                 usage: (usage * 100.0).round() / 100.0,
-                usage_formatted: format!("{:.1}", usage),
+                usage_formatted: format!("{usage:.1}"),
             })
             .collect()
     } else {

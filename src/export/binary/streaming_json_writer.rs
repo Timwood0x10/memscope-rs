@@ -132,6 +132,7 @@ pub struct StreamingJsonStats {
 
 impl StreamingJsonStats {
     /// Calculate write throughput (allocations per second)
+    #[must_use]
     pub fn write_throughput(&self) -> f64 {
         if self.total_write_time_us == 0 {
             0.0
@@ -141,6 +142,7 @@ impl StreamingJsonStats {
     }
 
     /// Calculate field optimization efficiency (percentage of fields skipped)
+    #[must_use]
     pub fn field_optimization_efficiency(&self) -> f64 {
         let total_potential_fields = self.allocations_written * 20; // Approximate field count per allocation
         if total_potential_fields == 0 {
@@ -151,6 +153,7 @@ impl StreamingJsonStats {
     }
 
     /// Calculate buffer reuse efficiency
+    #[must_use]
     pub fn buffer_reuse_efficiency(&self) -> f64 {
         if self.allocations_written == 0 {
             0.0
@@ -160,6 +163,7 @@ impl StreamingJsonStats {
     }
 
     /// Calculate batch processing efficiency
+    #[must_use]
     pub fn batch_processing_efficiency(&self) -> f64 {
         if self.batch_processing_time_us == 0 || self.total_write_time_us == 0 {
             0.0
@@ -228,7 +232,7 @@ impl IntelligentBuffer {
         self.writes_since_flush += 1;
 
         // Update average write size
-        let total_writes = self.writes_since_flush as f64;
+        let total_writes = f64::from(self.writes_since_flush);
         self.avg_write_size =
             (self.avg_write_size * (total_writes - 1.0) + size as f64) / total_writes;
     }
@@ -374,10 +378,10 @@ impl<W: Write> StreamingJsonWriter<W> {
         let write_start = Instant::now();
 
         // Add comma if not the first item
-        if !self.is_first_array_item {
-            self.write_raw(",\n")?;
-        } else {
+        if self.is_first_array_item {
             self.is_first_array_item = false;
+        } else {
+            self.write_raw(",\n")?;
         }
 
         self.write_indent()?;
@@ -677,7 +681,7 @@ impl<W: Write> StreamingJsonWriter<W> {
         self.write_allocation_selective(&partial, &all_fields)
     }
 
-    /// Write allocation in memory_analysis.json format
+    /// Write allocation in `memory_analysis.json` format
     pub fn write_memory_analysis_allocation(
         &mut self,
         allocation: &PartialAllocationInfo,
@@ -724,7 +728,7 @@ impl<W: Write> StreamingJsonWriter<W> {
         )
     }
 
-    /// Write allocation in unsafe_ffi.json format
+    /// Write allocation in `unsafe_ffi.json` format
     pub fn write_unsafe_ffi_allocation(
         &mut self,
         allocation: &PartialAllocationInfo,
@@ -749,7 +753,7 @@ impl<W: Write> StreamingJsonWriter<W> {
         )
     }
 
-    /// Write allocation in complex_types.json format
+    /// Write allocation in `complex_types.json` format
     pub fn write_complex_types_allocation(
         &mut self,
         allocation: &PartialAllocationInfo,
@@ -788,10 +792,10 @@ impl<W: Write> StreamingJsonWriter<W> {
         let write_start = Instant::now();
 
         // Add comma if not the first item
-        if !self.is_first_array_item {
-            self.write_raw(",\n")?;
-        } else {
+        if self.is_first_array_item {
             self.is_first_array_item = false;
+        } else {
+            self.write_raw(",\n")?;
         }
 
         self.write_indent()?;
@@ -834,50 +838,48 @@ impl<W: Write> StreamingJsonWriter<W> {
 
         if let Some(ref type_name) = allocation.type_name {
             self.write_raw(",\n")?;
-            let value = match type_name {
-                Some(name) => format!(
+            let value = if let Some(name) = type_name {
+                format!(
                     "\"{}\"",
                     self.escape_json_string_optimized(
                         name,
                         &SelectiveSerializationOptions::default()
                     )
-                ),
-                None => {
-                    // For full-binary mode, infer type from allocation size and context
-                    let inferred_type = self.infer_type_from_allocation(allocation);
-                    format!(
-                        "\"{}\"",
-                        self.escape_json_string_optimized(
-                            &inferred_type,
-                            &SelectiveSerializationOptions::default()
-                        )
+                )
+            } else {
+                // For full-binary mode, infer type from allocation size and context
+                let inferred_type = self.infer_type_from_allocation(allocation);
+                format!(
+                    "\"{}\"",
+                    self.escape_json_string_optimized(
+                        &inferred_type,
+                        &SelectiveSerializationOptions::default()
                     )
-                }
+                )
             };
             self.write_field("type_name", &value)?;
         }
 
         if let Some(ref var_name) = allocation.var_name {
             self.write_raw(",\n")?;
-            let value = match var_name {
-                Some(name) => format!(
+            let value = if let Some(name) = var_name {
+                format!(
                     "\"{}\"",
                     self.escape_json_string_optimized(
                         name,
                         &SelectiveSerializationOptions::default()
                     )
-                ),
-                None => {
-                    // For full-binary mode, generate descriptive variable name from context
-                    let inferred_var = self.infer_variable_name_from_allocation(allocation);
-                    format!(
-                        "\"{}\"",
-                        self.escape_json_string_optimized(
-                            &inferred_var,
-                            &SelectiveSerializationOptions::default()
-                        )
+                )
+            } else {
+                // For full-binary mode, generate descriptive variable name from context
+                let inferred_var = self.infer_variable_name_from_allocation(allocation);
+                format!(
+                    "\"{}\"",
+                    self.escape_json_string_optimized(
+                        &inferred_var,
+                        &SelectiveSerializationOptions::default()
                     )
-                }
+                )
             };
             self.write_field("var_name", &value)?;
         }
@@ -1243,7 +1245,7 @@ impl<W: Write> StreamingJsonWriter<W> {
         Ok(())
     }
 
-    /// Infer type name from allocation context when type_name is None
+    /// Infer type name from allocation context when `type_name` is None
     /// This eliminates "unknown" type names in full-binary mode
     fn infer_type_from_allocation(&self, allocation: &PartialAllocationInfo) -> String {
         // Try to infer type from allocation size and patterns
@@ -1263,7 +1265,7 @@ impl<W: Write> StreamingJsonWriter<W> {
         }
     }
 
-    /// Infer variable name from allocation context when var_name is None
+    /// Infer variable name from allocation context when `var_name` is None
     /// This eliminates "unknown" variable names in full-binary mode
     fn infer_variable_name_from_allocation(&self, allocation: &PartialAllocationInfo) -> String {
         // Generate descriptive variable name based on allocation characteristics
@@ -1292,6 +1294,7 @@ pub struct StreamingJsonWriterConfigBuilder {
 
 impl StreamingJsonWriterConfigBuilder {
     /// Create a new configuration builder
+    #[must_use]
     pub fn new() -> Self {
         Self {
             config: StreamingJsonWriterConfig::default(),
@@ -1299,48 +1302,56 @@ impl StreamingJsonWriterConfigBuilder {
     }
 
     /// Set buffer size
+    #[must_use]
     pub fn buffer_size(mut self, size: usize) -> Self {
         self.config.buffer_size = size;
         self
     }
 
     /// Enable pretty printing
+    #[must_use]
     pub fn pretty_print(mut self, enabled: bool) -> Self {
         self.config.pretty_print = enabled;
         self
     }
 
     /// Set maximum memory before flush
+    #[must_use]
     pub fn max_memory_before_flush(mut self, size: usize) -> Self {
         self.config.max_memory_before_flush = size;
         self
     }
 
     /// Set array chunk size
+    #[must_use]
     pub fn array_chunk_size(mut self, size: usize) -> Self {
         self.config.array_chunk_size = size;
         self
     }
 
     /// Enable field optimization
+    #[must_use]
     pub fn field_optimization(mut self, enabled: bool) -> Self {
         self.config.enable_field_optimization = enabled;
         self
     }
 
     /// Enable buffer reuse
+    #[must_use]
     pub fn buffer_reuse(mut self, enabled: bool) -> Self {
         self.config.enable_buffer_reuse = enabled;
         self
     }
 
     /// Set indent size
+    #[must_use]
     pub fn indent_size(mut self, size: usize) -> Self {
         self.config.indent_size = size;
         self
     }
 
     /// Build the configuration
+    #[must_use]
     pub fn build(self) -> StreamingJsonWriterConfig {
         self.config
     }

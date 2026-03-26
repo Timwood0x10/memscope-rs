@@ -329,7 +329,10 @@ impl DataIntegrator {
         // Match lifecycle events with allocations by timestamp
         for event in &unified_data.lifecycle.lifecycle_events {
             if let Some(event_obj) = event.as_object() {
-                if let Some(timestamp) = event_obj.get("timestamp").and_then(|t| t.as_u64()) {
+                if let Some(timestamp) = event_obj
+                    .get("timestamp")
+                    .and_then(handlebars::JsonValue::as_u64)
+                {
                     // Find allocations with similar timestamps (within 1ms)
                     for (&alloc_timestamp, allocation_indices) in
                         &data_index.timestamp_to_allocation

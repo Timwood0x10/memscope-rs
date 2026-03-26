@@ -41,6 +41,7 @@ impl Default for AsyncAnalyzer {
 
 impl AsyncAnalyzer {
     /// Create a new async analyzer
+    #[must_use]
     pub fn new() -> Self {
         Self {
             active_futures: Mutex::new(HashMap::new()),
@@ -222,10 +223,10 @@ impl AsyncAnalyzer {
             })
             .collect();
 
-        let avg_completion_time = if !completion_times.is_empty() {
-            completion_times.iter().sum::<u64>() / completion_times.len() as u64
-        } else {
+        let avg_completion_time = if completion_times.is_empty() {
             0
+        } else {
+            completion_times.iter().sum::<u64>() / completion_times.len() as u64
         };
 
         // Calculate await statistics
@@ -234,10 +235,10 @@ impl AsyncAnalyzer {
 
         let await_durations: Vec<u64> = awaits.iter().filter_map(|a| a.duration).collect();
 
-        let avg_await_duration = if !await_durations.is_empty() {
-            await_durations.iter().sum::<u64>() / await_durations.len() as u64
-        } else {
+        let avg_await_duration = if await_durations.is_empty() {
             0
+        } else {
+            await_durations.iter().sum::<u64>() / await_durations.len() as u64
         };
 
         // Count by future type

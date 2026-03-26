@@ -39,6 +39,7 @@ impl Default for GenericAnalyzer {
 
 impl GenericAnalyzer {
     /// Create a new generic analyzer
+    #[must_use]
     pub fn new() -> Self {
         Self {
             generic_instances: Mutex::new(HashMap::new()),
@@ -191,7 +192,7 @@ impl GenericAnalyzer {
             .safe_lock()
             .expect("Failed to acquire lock on constraint_violations");
 
-        let total_instances: usize = instances.values().map(|v| v.len()).sum();
+        let total_instances: usize = instances.values().map(std::vec::Vec::len).sum();
         let unique_base_types = instances.len();
         let total_instantiations = events.len();
         let constraint_violations = violations.len();
@@ -366,11 +367,11 @@ impl GenericAnalyzer {
 /// Generic type instance information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GenericInstance {
-    /// Variable name or alias (e.g., "MyA", "my_vec")
+    /// Variable name or alias (e.g., "`MyA`", "`my_vec`")
     pub name: String,
-    /// Base generic type (e.g., "Vec", "HashMap")
+    /// Base generic type (e.g., "Vec", "`HashMap`")
     pub base_type: String,
-    /// Underlying resolved type (e.g., `Vec<i32>` for type MyA = `Vec<i32>`)
+    /// Underlying resolved type (e.g., `Vec<i32>` for type `MyA` = `Vec<i32>`)
     pub underlying_type: String,
     /// Actual type parameters (e.g., ["i32"], ["String", "usize"])
     pub type_parameters: Vec<String>,
@@ -469,7 +470,7 @@ pub struct GenericStatistics {
 /// Type alias information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TypeAliasInfo {
-    /// Alias name (e.g., "MyA")
+    /// Alias name (e.g., "`MyA`")
     pub alias_name: String,
     /// Underlying type (e.g., `Vec<i32>`)
     pub underlying_type: String,
@@ -603,6 +604,7 @@ fn current_timestamp() -> u64 {
 }
 
 /// Parse generic type parameters from a type name
+#[must_use]
 pub fn parse_generic_parameters(type_name: &str) -> (String, Vec<String>) {
     if let Some(start) = type_name.find('<') {
         if let Some(end) = type_name.rfind('>') {

@@ -23,6 +23,7 @@ pub struct OptimizedMemoryTracker {
 
 impl OptimizedMemoryTracker {
     /// Create a new optimized memory tracker
+    #[must_use]
     pub fn new() -> Self {
         Self {
             active_allocations: Mutex::new(HashMap::new()),

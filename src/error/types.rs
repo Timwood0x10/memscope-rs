@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::fmt;
 
-/// Primary error type for all MemScope operations
+/// Primary error type for all `MemScope` operations
 #[derive(Debug)]
 pub struct MemScopeError {
     /// Error classification
@@ -78,6 +78,7 @@ pub struct ErrorContext {
 
 impl MemScopeError {
     /// Create new error with minimal information
+    #[must_use]
     pub fn new(kind: ErrorKind, message: &str) -> Self {
         Self {
             kind,
@@ -93,6 +94,7 @@ impl MemScopeError {
     }
 
     /// Create error with full context
+    #[must_use]
     pub fn with_context(
         kind: ErrorKind,
         severity: ErrorSeverity,
@@ -132,11 +134,13 @@ impl MemScopeError {
     }
 
     /// Check if error is recoverable
+    #[must_use]
     pub fn is_recoverable(&self) -> bool {
         matches!(self.severity, ErrorSeverity::Warning | ErrorSeverity::Error)
     }
 
     /// Check if error requires immediate attention
+    #[must_use]
     pub fn is_critical(&self) -> bool {
         matches!(
             self.severity,
@@ -145,6 +149,7 @@ impl MemScopeError {
     }
 
     /// Get human-readable error description
+    #[must_use]
     pub fn description(&self) -> String {
         format!(
             "[{}:{}] {} in {} ({})",
@@ -157,6 +162,7 @@ impl MemScopeError {
     }
 
     /// Get error age since occurrence
+    #[must_use]
     pub fn age(&self) -> std::time::Duration {
         self.context.timestamp.elapsed()
     }
@@ -205,7 +211,7 @@ impl fmt::Display for MemScopeError {
                 if i > 0 {
                     write!(f, ", ")?;
                 }
-                write!(f, "{}={}", key, value)?;
+                write!(f, "{key}={value}")?;
             }
             write!(f, "]")?;
         }

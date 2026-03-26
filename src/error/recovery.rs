@@ -123,6 +123,7 @@ pub enum CircuitState {
 
 impl RecoveryStrategy {
     /// Create new recovery strategy with default configuration
+    #[must_use]
     pub fn new() -> Self {
         let mut strategy = Self {
             action_map: HashMap::new(),
@@ -172,6 +173,7 @@ impl RecoveryStrategy {
     }
 
     /// Get circuit breaker status
+    #[must_use]
     pub fn get_circuit_status(&self) -> CircuitState {
         self.circuit_breaker.state.clone()
     }
@@ -354,6 +356,7 @@ impl Default for CircuitBreaker {
 
 impl CircuitBreaker {
     /// Create new circuit breaker with default configuration
+    #[must_use]
     pub fn new() -> Self {
         Self {
             state: CircuitState::Closed,
@@ -435,6 +438,7 @@ impl Default for FallbackRegistry {
 }
 
 impl FallbackRegistry {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             strategies: HashMap::new(),
@@ -454,7 +458,7 @@ impl FallbackRegistry {
         } else {
             Err(Box::new(MemScopeError::new(
                 ErrorKind::ConfigurationError,
-                &format!("Fallback strategy '{}' not found", name),
+                &format!("Fallback strategy '{name}' not found"),
             )))
         }
     }

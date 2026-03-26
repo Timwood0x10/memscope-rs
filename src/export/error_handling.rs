@@ -410,6 +410,7 @@ pub struct ErrorStatistics {
 
 impl PerformanceLogger {
     /// Create new performance logger
+    #[must_use]
     pub fn new(log_level: LogLevel) -> Self {
         Self {
             log_level,
@@ -554,6 +555,7 @@ impl PerformanceLogger {
     }
 
     /// generate performance report
+    #[must_use]
     pub fn generate_performance_report(&self) -> PerformanceReport {
         let total_time = self.start_time.elapsed();
         let total_ops = self
@@ -864,6 +866,7 @@ pub struct ResourceMonitor {
 
 impl ResourceMonitor {
     /// create new resource monitor
+    #[must_use]
     pub fn new(memory_limit_mb: usize, disk_limit_mb: usize, cpu_limit_percent: f64) -> Self {
         Self {
             memory_limit: memory_limit_mb * 1024 * 1024,
@@ -959,6 +962,7 @@ pub struct ResourceUsage {
 
 impl ResourceUsage {
     /// get memory usage percentage
+    #[must_use]
     pub fn memory_usage_percentage(&self) -> f64 {
         if self.memory_limit > 0 {
             (self.memory_usage as f64 / self.memory_limit as f64) * 100.0
@@ -968,6 +972,7 @@ impl ResourceUsage {
     }
 
     /// get disk usage percentage
+    #[must_use]
     pub fn disk_usage_percentage(&self) -> f64 {
         if self.disk_limit > 0 {
             (self.disk_usage as f64 / self.disk_limit as f64) * 100.0
@@ -977,6 +982,7 @@ impl ResourceUsage {
     }
 
     /// get CPU usage percentage
+    #[must_use]
     pub fn cpu_usage_percentage(&self) -> f64 {
         self.cpu_usage * 100.0
     }

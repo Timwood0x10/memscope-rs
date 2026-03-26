@@ -40,6 +40,7 @@ impl Default for ExportConfig {
 
 impl ExportConfig {
     /// Create config for user variables only (recommended)
+    #[must_use]
     pub fn user_variables_only() -> Self {
         Self {
             include_system_allocations: false,
@@ -48,6 +49,7 @@ impl ExportConfig {
     }
 
     /// Create config for all allocations (system + user)
+    #[must_use]
     pub fn all_allocations() -> Self {
         Self {
             include_system_allocations: true,
@@ -56,6 +58,7 @@ impl ExportConfig {
     }
 
     /// Create config optimized for performance
+    #[must_use]
     pub fn fast_export() -> Self {
         Self {
             include_system_allocations: false,
@@ -67,6 +70,7 @@ impl ExportConfig {
     }
 
     /// Create config for comprehensive analysis
+    #[must_use]
     pub fn comprehensive() -> Self {
         Self {
             include_system_allocations: true,
@@ -105,6 +109,7 @@ pub struct Exporter {
 
 impl Exporter {
     /// Create new exporter with allocation data
+    #[must_use]
     pub fn new(allocations: Vec<AllocationInfo>, stats: MemoryStats, config: ExportConfig) -> Self {
         Self {
             allocations: Arc::new(allocations),

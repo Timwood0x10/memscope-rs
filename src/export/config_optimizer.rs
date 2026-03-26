@@ -126,6 +126,7 @@ impl ConfigOptimizer {
     }
 
     /// get optimization history
+    #[must_use]
     pub fn get_optimization_history(&self) -> &[OptimizationRecord] {
         &self.optimization_history
     }

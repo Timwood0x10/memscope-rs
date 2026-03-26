@@ -33,6 +33,7 @@ pub struct ClosureAnalyzer {
 
 impl ClosureAnalyzer {
     /// Create a new closure analyzer
+    #[must_use]
     pub fn new() -> Self {
         Self {
             closures: Mutex::new(HashMap::new()),
@@ -534,9 +535,9 @@ pub struct DetectedClosure {
 pub enum ClosureType {
     /// Fn closure
     Fn,
-    /// FnMut closure
+    /// `FnMut` closure
     FnMut,
-    /// FnOnce closure
+    /// `FnOnce` closure
     FnOnce,
     /// Unknown closure type
     Unknown,
@@ -639,6 +640,7 @@ impl Default for LifetimeGraph {
 
 impl LifetimeGraph {
     /// Create a new lifetime graph
+    #[must_use]
     pub fn new() -> Self {
         Self {
             relationships: HashMap::new(),
@@ -673,6 +675,7 @@ impl LifetimeGraph {
     }
 
     /// Analyze lifetime relationships
+    #[must_use]
     pub fn analyze_lifetimes(&self) -> LifetimeAnalysis {
         let mut potential_issues = Vec::new();
         let mut lifetime_patterns = Vec::new();

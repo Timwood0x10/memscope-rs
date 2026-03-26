@@ -4,8 +4,8 @@
 //! to optimize memory usage and improve performance. Fully compliant with requirement.md:
 //! - No locks, unwrap, or clone violations
 //! - Uses Arc for shared ownership
-//! - Uses safe_operations for lock handling
-//! - Uses unwrap_safe for error handling
+//! - Uses `safe_operations` for lock handling
+//! - Uses `unwrap_safe` for error handling
 
 use crate::analysis::unsafe_ffi_tracker::StackFrame;
 use crate::core::safe_operations::SafeLock;
@@ -108,7 +108,7 @@ pub struct ComprehensiveDataDeduplicator {
     stack_storage: DashMap<u64, Arc<Vec<StackFrame>>>,
     /// Stack trace reference tracking
     stack_refs: DashMap<u64, DeduplicatedStackTrace>,
-    /// Metadata storage (hash -> Arc<HashMap<String, String>>)
+    /// Metadata storage (hash -> Arc<`HashMap`<String, String>>)
     metadata_storage: DashMap<u64, Arc<HashMap<String, String>>>,
     /// Metadata reference tracking
     metadata_refs: DashMap<u64, DeduplicatedMetadata>,
@@ -652,9 +652,10 @@ pub fn initialize_global_data_deduplicator(
     config: DeduplicationConfig,
 ) -> Arc<ComprehensiveDataDeduplicator> {
     let deduplicator = Arc::new(ComprehensiveDataDeduplicator::new(config));
-    match GLOBAL_DATA_DEDUPLICATOR.set(deduplicator.clone()) {
-        Ok(_) => tracing::info!("🔄 Global comprehensive data deduplicator initialized"),
-        Err(_) => tracing::warn!("🔄 Global comprehensive data deduplicator already initialized"),
+    if let Ok(()) = GLOBAL_DATA_DEDUPLICATOR.set(deduplicator.clone()) {
+        tracing::info!("🔄 Global comprehensive data deduplicator initialized")
+    } else {
+        tracing::warn!("🔄 Global comprehensive data deduplicator already initialized")
     }
     deduplicator
 }

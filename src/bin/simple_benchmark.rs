@@ -79,7 +79,7 @@ fn run_benchmark_tests(output_dir: &Path) {
         let export_time = start_time.elapsed();
 
         match result {
-            Ok(_) => {
+            Ok(()) => {
                 traditional_times.push(export_time.as_millis() as u64);
                 tracing::info!("    ⏱️  time: {}ms", export_time.as_millis());
             }
@@ -111,7 +111,7 @@ fn run_benchmark_tests(output_dir: &Path) {
         let export_time = start_time.elapsed();
 
         match result {
-            Ok(_) => {
+            Ok(()) => {
                 fast_times.push(export_time.as_millis() as u64);
                 tracing::info!("    ⚡ time: {}ms", export_time.as_millis());
             }
@@ -223,7 +223,7 @@ fn generate_simple_report(
     let avg_fast = fast_times.iter().sum::<u64>() as f64 / fast_times.len() as f64;
 
     let report = format!(
-        r#"# large project export optimization - simple benchmark report
+        r"# large project export optimization - simple benchmark report
 
 **test time**: {}
 
@@ -252,7 +252,7 @@ fn generate_simple_report(
 - traditional_export_run_*.json - traditional export results
 - fast_export_run_*.json - fast export results
 - simple_benchmark_report.md - this report
-"#,
+",
         chrono::Utc::now().to_rfc3339(),
         avg_traditional,
         avg_fast,

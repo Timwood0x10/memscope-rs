@@ -32,6 +32,7 @@ pub struct ErrorReporter {
 
 impl ErrorHandler {
     /// Create new error handler with default configuration
+    #[must_use]
     pub fn new() -> Self {
         Self {
             error_counts: HashMap::new(),
@@ -42,6 +43,7 @@ impl ErrorHandler {
     }
 
     /// Create error handler with custom configuration
+    #[must_use]
     pub fn with_config(max_recent_errors: usize, reporter: ErrorReporter) -> Self {
         Self {
             error_counts: HashMap::new(),
@@ -75,6 +77,7 @@ impl ErrorHandler {
     }
 
     /// Get error statistics by kind
+    #[must_use]
     pub fn get_error_counts(&self) -> HashMap<ErrorKind, usize> {
         self.error_counts
             .iter()
@@ -83,6 +86,7 @@ impl ErrorHandler {
     }
 
     /// Get recent errors for analysis
+    #[must_use]
     pub fn get_recent_errors(&self) -> Vec<MemScopeError> {
         self.recent_errors
             .lock()
@@ -102,6 +106,7 @@ impl ErrorHandler {
     }
 
     /// Get error frequency analysis
+    #[must_use]
     pub fn get_error_frequency(&self) -> ErrorFrequencyAnalysis {
         let counts = self.get_error_counts();
         let total_errors: usize = counts.values().sum();
@@ -179,8 +184,7 @@ impl ErrorHandler {
     fn is_frequent_error(&self, kind: &ErrorKind) -> bool {
         self.error_counts
             .get(kind)
-            .map(|count| count.load(Ordering::Relaxed) > 10)
-            .unwrap_or(false)
+            .is_some_and(|count| count.load(Ordering::Relaxed) > 10)
     }
 
     fn log_response(&self, error: &MemScopeError, response: &ErrorResponse) {
@@ -196,6 +200,7 @@ impl ErrorHandler {
 
 impl ErrorReporter {
     /// Create new reporter with default settings
+    #[must_use]
     pub fn new() -> Self {
         Self {
             log_to_stderr: true,
@@ -206,18 +211,21 @@ impl ErrorReporter {
     }
 
     /// Configure error logging
+    #[must_use]
     pub fn with_logging(mut self, enabled: bool) -> Self {
         self.log_to_stderr = enabled;
         self
     }
 
     /// Configure error storage
+    #[must_use]
     pub fn with_storage(mut self, enabled: bool) -> Self {
         self.store_errors = enabled;
         self
     }
 
     /// Set minimum severity level for reporting
+    #[must_use]
     pub fn with_min_severity(mut self, severity: ErrorSeverity) -> Self {
         self.min_severity = severity;
         self
@@ -233,6 +241,7 @@ impl ErrorReporter {
     }
 
     /// Report error if it meets severity threshold
+    #[must_use]
     pub fn report_error(&self, error: &MemScopeError) -> bool {
         if error.severity < self.min_severity {
             return false;
@@ -245,7 +254,7 @@ impl ErrorReporter {
 
         // Log to stderr if configured
         if self.log_to_stderr {
-            eprintln!("MemScope Error: {}", error);
+            eprintln!("MemScope Error: {error}");
         }
 
         true
@@ -269,16 +278,19 @@ pub enum ErrorResponse {
 
 impl ErrorResponse {
     /// Check if response should be logged
+    #[must_use]
     pub fn should_log(&self) -> bool {
         !matches!(self, ErrorResponse::Continue)
     }
 
     /// Check if operation should be retried
+    #[must_use]
     pub fn should_retry(&self) -> bool {
         matches!(self, ErrorResponse::Retry)
     }
 
     /// Check if operation should be aborted
+    #[must_use]
     pub fn should_abort(&self) -> bool {
         matches!(self, ErrorResponse::Abort)
     }
@@ -299,11 +311,13 @@ pub struct ErrorFrequencyAnalysis {
 
 impl ErrorFrequencyAnalysis {
     /// Check if error rate is concerning
+    #[must_use]
     pub fn is_error_rate_high(&self) -> bool {
         self.errors_per_second > 1.0 || self.total_errors > 100
     }
 
     /// Get the most problematic error type
+    #[must_use]
     pub fn get_primary_concern(&self) -> Option<ErrorKind> {
         self.most_common_error
             .as_ref()
@@ -311,6 +325,7 @@ impl ErrorFrequencyAnalysis {
     }
 
     /// Generate summary report
+    #[must_use]
     pub fn summary(&self) -> String {
         format!(
             "Error Analysis: {} total errors, {:.2} errors/sec, primary concern: {:?}",

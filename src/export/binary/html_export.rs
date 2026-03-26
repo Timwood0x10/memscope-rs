@@ -51,11 +51,13 @@ impl Default for BinaryExportConfig {
 
 impl BinaryExportConfig {
     /// Create a new configuration with default settings
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Create a configuration optimized for speed (minimal features)
+    #[must_use]
     pub fn fast() -> Self {
         Self {
             enable_parallel_processing: true,
@@ -67,6 +69,7 @@ impl BinaryExportConfig {
     }
 
     /// Create a configuration optimized for large files
+    #[must_use]
     pub fn large_files() -> Self {
         Self {
             enable_parallel_processing: true,
@@ -78,30 +81,35 @@ impl BinaryExportConfig {
     }
 
     /// Enable or disable parallel processing
+    #[must_use]
     pub fn parallel_processing(mut self, enabled: bool) -> Self {
         self.enable_parallel_processing = enabled;
         self
     }
 
     /// Set buffer size for I/O operations
+    #[must_use]
     pub fn buffer_size(mut self, size: usize) -> Self {
         self.buffer_size = size;
         self
     }
 
     /// Set batch size for processing allocations
+    #[must_use]
     pub fn batch_size(mut self, size: usize) -> Self {
         self.batch_size = size;
         self
     }
 
     /// Enable or disable streaming processing
+    #[must_use]
     pub fn streaming(mut self, enabled: bool) -> Self {
         self.enable_streaming = enabled;
         self
     }
 
     /// Set thread count for parallel processing (None for auto-detect)
+    #[must_use]
     pub fn thread_count(mut self, count: Option<usize>) -> Self {
         self.thread_count = count;
         self
@@ -114,7 +122,7 @@ impl BinaryExportConfig {
 /// **[UNIFIED ENTRY POINT]** Ultra-fast binary export with format selection and parallel processing
 ///
 /// This is the main unified entry point that supports JSON, HTML, or both formats with optimized performance.
-/// Uses parallel processing and streaming for large datasets, inspired by optimized_json_export.rs.
+/// Uses parallel processing and streaming for large datasets, inspired by `optimized_json_export.rs`.
 /// Designed to match or exceed full-binary → JSON performance while adding HTML support.
 ///
 /// # Arguments
@@ -255,7 +263,7 @@ pub fn export_binary_with_format<P: AsRef<Path>>(
 
 /// **[ULTRA-FAST JSON EXPORT]** Use existing JSON generation without modifications
 /// This preserves the performance of the existing binary-to-JSON pipeline
-/// References the same optimized approach used in parse_full_binary_to_json
+/// References the same optimized approach used in `parse_full_binary_to_json`
 fn export_json_optimized<P: AsRef<Path>>(
     binary_path: P,
     base_name: &str,
@@ -509,7 +517,7 @@ fn export_html_filtered<P: AsRef<Path>>(
 
 /// **[ULTRA-FAST PARALLEL EXPORT]** Generate both JSON and HTML in parallel with shared data optimization
 ///
-/// This implementation uses the same ultra-fast approach as parse_full_binary_to_json but extends it
+/// This implementation uses the same ultra-fast approach as `parse_full_binary_to_json` but extends it
 /// to support parallel HTML generation. Key optimizations:
 /// - Shared data loading (single binary read)
 /// - Parallel JSON and HTML generation
@@ -662,7 +670,7 @@ fn provide_performance_feedback(
 
 /// **[CONVENIENCE FUNCTIONS]** Easy-to-use wrapper functions with ultra-fast performance
 /// **[MAIN API]** Export to JSON only (preserves existing ultra-fast performance)
-/// Uses the same optimized approach as parse_full_binary_to_json
+/// Uses the same optimized approach as `parse_full_binary_to_json`
 pub fn export_binary_to_json<P: AsRef<Path>>(
     binary_path: P,
     base_name: &str,
@@ -749,7 +757,7 @@ pub fn export_binary_to_html<P: AsRef<Path>>(
 }
 
 /// **[MAIN API]** Export to HTML with system data only
-/// Generates HTML dashboard with system allocations (no var_name)
+/// Generates HTML dashboard with system allocations (no `var_name`)
 pub fn export_binary_to_html_system<P: AsRef<Path>>(
     binary_path: P,
     base_name: &str,
@@ -841,7 +849,7 @@ pub fn show_export_options() {
 }
 
 /// **[ULTRA-FAST JSON GENERATION]** Generate 5 JSON files in parallel using shared data
-/// This replicates the same ultra-fast approach used in parse_full_binary_to_json
+/// This replicates the same ultra-fast approach used in `parse_full_binary_to_json`
 fn generate_json_files_parallel(
     allocations: &[crate::core::types::AllocationInfo],
     base_name: &str,
@@ -982,7 +990,7 @@ fn export_html_with_shared_data_filtered(
     Ok(())
 }
 
-/// Convert AllocationInfo to BinaryAllocationData for template processing
+/// Convert `AllocationInfo` to `BinaryAllocationData` for template processing
 fn convert_allocation_to_binary_data(
     allocation: &crate::core::types::AllocationInfo,
     _index: usize,

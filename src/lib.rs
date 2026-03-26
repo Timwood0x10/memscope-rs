@@ -122,7 +122,7 @@ pub trait Trackable {
         1
     }
 
-    /// Get the data pointer for grouping related instances (default: same as heap_ptr)
+    /// Get the data pointer for grouping related instances (default: same as `heap_ptr`)
     fn get_data_ptr(&self) -> usize {
         self.get_heap_ptr().unwrap_or(0)
     }
@@ -235,7 +235,7 @@ impl Trackable for String {
 
 impl<T> Trackable for Box<T> {
     fn get_heap_ptr(&self) -> Option<usize> {
-        Some(self.as_ref() as *const T as usize)
+        Some(std::ptr::from_ref::<T>(self.as_ref()) as usize)
     }
 
     fn get_type_name(&self) -> &'static str {
@@ -251,7 +251,7 @@ impl<T> Trackable for std::rc::Rc<T> {
     fn get_heap_ptr(&self) -> Option<usize> {
         // For Rc, we create a truly unique identifier by using the Rc instance address
         // This ensures each TrackedVariable<Rc<T>> gets a completely unique identifier
-        let instance_ptr = self as *const _ as usize;
+        let instance_ptr = std::ptr::from_ref(self) as usize;
 
         // Use the instance pointer directly, but ensure it's in a safe range for JSON
         // Add an offset to distinguish from regular heap pointers
@@ -306,7 +306,7 @@ impl<T> Trackable for std::sync::Arc<T> {
     fn get_heap_ptr(&self) -> Option<usize> {
         // For Arc, we create a truly unique identifier by using the Arc instance address
         // This ensures each TrackedVariable<Arc<T>> gets a completely unique identifier
-        let instance_ptr = self as *const _ as usize;
+        let instance_ptr = std::ptr::from_ref(self) as usize;
 
         // Use the instance pointer directly, but ensure it's in a safe range for JSON
         // Add an offset to distinguish from regular heap pointers and Rc
@@ -364,7 +364,7 @@ impl<K, V, S> Trackable for std::collections::HashMap<K, V, S> {
     fn get_heap_ptr(&self) -> Option<usize> {
         // HashMap has internal heap allocations for buckets
         // We'll use the HashMap's address as a proxy
-        Some(self as *const _ as usize)
+        Some(std::ptr::from_ref(self) as usize)
     }
 
     fn get_type_name(&self) -> &'static str {
@@ -382,7 +382,7 @@ impl<K, V> Trackable for std::collections::BTreeMap<K, V> {
         if self.is_empty() {
             None
         } else {
-            Some(self as *const _ as usize)
+            Some(std::ptr::from_ref(self) as usize)
         }
     }
 
@@ -401,7 +401,7 @@ impl<T> Trackable for std::collections::HashSet<T> {
         if self.is_empty() {
             None
         } else {
-            Some(self as *const _ as usize)
+            Some(std::ptr::from_ref(self) as usize)
         }
     }
 
@@ -419,7 +419,7 @@ impl<T> Trackable for std::collections::BTreeSet<T> {
         if self.is_empty() {
             None
         } else {
-            Some(self as *const _ as usize)
+            Some(std::ptr::from_ref(self) as usize)
         }
     }
 
@@ -455,7 +455,7 @@ impl<T> Trackable for std::collections::LinkedList<T> {
         if self.is_empty() {
             None
         } else {
-            Some(self as *const _ as usize)
+            Some(std::ptr::from_ref(self) as usize)
         }
     }
 
@@ -472,7 +472,7 @@ impl<T> Trackable for std::collections::LinkedList<T> {
 impl<T> Trackable for std::collections::BinaryHeap<T> {
     fn get_heap_ptr(&self) -> Option<usize> {
         if self.capacity() > 0 {
-            Some(self as *const _ as usize)
+            Some(std::ptr::from_ref(self) as usize)
         } else {
             None
         }
@@ -490,7 +490,7 @@ impl<T> Trackable for std::collections::BinaryHeap<T> {
 impl<T> Trackable for std::rc::Weak<T> {
     fn get_heap_ptr(&self) -> Option<usize> {
         // Weak pointers don't own the data, but we can track the weak reference itself
-        let instance_ptr = self as *const _ as usize;
+        let instance_ptr = std::ptr::from_ref(self) as usize;
         Some(0x7000_0000 + (instance_ptr % 0x0FFF_FFFF))
     }
 
@@ -519,7 +519,7 @@ impl<T> Trackable for std::rc::Weak<T> {
 impl<T> Trackable for std::sync::Weak<T> {
     fn get_heap_ptr(&self) -> Option<usize> {
         // Weak pointers don't own the data, but we can track the weak reference itself
-        let instance_ptr = self as *const _ as usize;
+        let instance_ptr = std::ptr::from_ref(self) as usize;
         Some(0x8000_0000 + (instance_ptr % 0x0FFF_FFFF))
     }
 
@@ -579,7 +579,7 @@ macro_rules! impl_primitive_trackable {
         impl Trackable for $type {
             fn get_heap_ptr(&self) -> Option<usize> {
                 // Primitives don't have heap allocations, use stack address with offset
-                Some($base_ptr + (self as *const _ as usize % 0x0FFF_FFFF))
+                Some($base_ptr + (std::ptr::from_ref(self) as usize % 0x0FFF_FFFF))
             }
 
             fn get_type_name(&self) -> &'static str {
@@ -623,7 +623,7 @@ impl<T1: Trackable, T2: Trackable, T3: Trackable> Trackable for (T1, T2, T3) {
             Some(0xF500_0000 + (ptr3 % 0x0FFF_FFFF))
         } else {
             // If no heap pointers, use stack address
-            Some(0xF500_0000 + (self as *const _ as usize % 0x0FFF_FFFF))
+            Some(0xF500_0000 + (std::ptr::from_ref(self) as usize % 0x0FFF_FFFF))
         }
     }
 
@@ -736,7 +736,7 @@ macro_rules! track_var {
 /// - You want to measure exact variable lifetimes
 /// - You're doing advanced memory analysis or debugging
 /// - You're tracking variables that will be consumed/moved anyway
-/// - You need the wrapper's additional methods (get(), get_mut(), into_inner())
+/// - You need the wrapper's additional methods (`get()`, `get_mut()`, `into_inner()`)
 /// - You're working with smart pointers (Rc, Arc, Box) that need special handling
 ///
 /// ## ❌ Don't use this when:
@@ -826,17 +826,18 @@ pub mod smart_pointer_utils {
     /// Smart pointer type information
     #[derive(Debug, Clone, PartialEq)]
     pub enum SmartPointerType {
-        /// Reference counted pointer (std::rc::Rc)
+        /// Reference counted pointer (`std::rc::Rc)
         Rc,
-        /// Atomically reference counted pointer (std::sync::Arc)
+        /// Atomically reference counted pointer (`std::sync::Arc``)
         Arc,
-        /// Heap allocated box (std::boxed::Box)
+        /// Heap allocated box (`std::boxed::Box`)
         Box,
         /// Not a smart pointer
         None,
     }
 
     /// Detect smart pointer type from type name
+    #[must_use]
     pub fn detect_smart_pointer_type(type_name: &str) -> SmartPointerType {
         if type_name.contains("::Rc<") || type_name.contains("std::rc::Rc<") {
             SmartPointerType::Rc
@@ -850,11 +851,13 @@ pub mod smart_pointer_utils {
     }
 
     /// Check if a type is a smart pointer
+    #[must_use]
     pub fn is_smart_pointer(type_name: &str) -> bool {
         detect_smart_pointer_type(type_name) != SmartPointerType::None
     }
 
     /// Generate unique synthetic pointer for smart pointer tracking
+    #[must_use]
     pub fn generate_synthetic_pointer(
         smart_pointer_type: SmartPointerType,
         unique_id: usize,
@@ -1060,7 +1063,7 @@ impl<T: Trackable> TrackedVariable<T> {
 
         // Safe ownership transfer
         // SAFETY: We're taking ownership of the inner value and preventing Drop from running
-        unsafe { std::ptr::read(&manual_drop_self.inner) }
+        unsafe { std::ptr::read(&raw const manual_drop_self.inner) }
     }
 
     /// Internal method to track variable destruction.
@@ -1481,7 +1484,7 @@ pub fn _smart_track_var_impl<T: Trackable + 'static>(var: T, var_name: &str) -> 
 /// Initialize the memory tracking system.
 ///
 /// This function sets up the tracing subscriber and prepares the global tracker.
-/// Call this early in your application, typically in main().
+/// Call this early in your application, typically in `main()`.
 ///
 /// # Example
 /// ```text

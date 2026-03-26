@@ -289,12 +289,10 @@ fn run_unified_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::er
 
     let export_format = matches
         .get_one::<String>("export")
-        .map(|s| s.as_str())
-        .unwrap_or("html");
+        .map_or("html", std::string::String::as_str);
     let output_path = matches
         .get_one::<String>("output")
-        .map(|s| s.as_str())
-        .unwrap_or("unified_analysis");
+        .map_or("unified_analysis", std::string::String::as_str);
 
     tracing::info!("🚀 Starting unified memory tracking...");
     tracing::info!("Command: {:?}", command_args);
@@ -352,12 +350,12 @@ fn run_unified_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::er
     // Export data in requested format
     match export_format {
         "json" => {
-            let json_path = format!("{}.json", output_path);
+            let json_path = format!("{output_path}.json");
             std::fs::write(&json_path, &tracking_data)?;
             tracing::info!("✅ JSON export completed: {}", json_path);
         }
         "html" => {
-            let html_path = format!("{}.html", output_path);
+            let html_path = format!("{output_path}.html");
             // Convert binary data to HTML (simplified for now)
             let html_content = format!(
                 "<html><body><h1>Unified Memory Analysis</h1><p>Data size: {} bytes</p><p>Exit code: {}</p></body></html>",
@@ -372,7 +370,7 @@ fn run_unified_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::er
                 "Unsupported export format: {}, defaulting to JSON",
                 export_format
             );
-            let json_path = format!("{}.json", output_path);
+            let json_path = format!("{output_path}.json");
             std::fs::write(&json_path, &tracking_data)?;
         }
     }

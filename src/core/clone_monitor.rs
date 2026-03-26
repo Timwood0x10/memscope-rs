@@ -182,11 +182,13 @@ pub fn record_avoided_clone(type_name: &str, memory_saved: usize) {
 }
 
 /// Get clone monitoring statistics
+#[must_use]
 pub fn get_clone_stats() -> CloneMonitorStats {
     get_clone_monitor().get_stats()
 }
 
 /// Get optimization recommendations
+#[must_use]
 pub fn get_optimization_recommendations() -> Vec<String> {
     // Simple recommendations based on current stats
     let stats = get_clone_stats();

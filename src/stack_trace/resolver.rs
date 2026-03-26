@@ -39,6 +39,7 @@ pub struct SymbolResolver {
 
 impl SymbolResolver {
     /// Create new symbol resolver with default settings
+    #[must_use]
     pub fn new() -> Self {
         Self {
             symbol_cache: HashMap::new(),
@@ -50,6 +51,7 @@ impl SymbolResolver {
     }
 
     /// Create symbol resolver with custom options
+    #[must_use]
     pub fn with_options(enable_demangling: bool, enable_line_info: bool) -> Self {
         Self {
             symbol_cache: HashMap::new(),
@@ -170,7 +172,7 @@ impl SymbolResolver {
             3 => Some("_ZN3std6thread6spawn17habcdef1234567890E".to_string()),
             4 => Some("handle_request".to_string()),
             5 => Some("_ZN4core3ptr8drop_in_place17h1111222233334444E".to_string()),
-            _ => Some(format!("unknown_symbol_{:x}", address)),
+            _ => Some(format!("unknown_symbol_{address:x}")),
         }
     }
 
@@ -187,7 +189,7 @@ impl SymbolResolver {
             } else if mangled.contains("drop_in_place") {
                 Some("core::ptr::drop_in_place".to_string())
             } else {
-                Some(format!("demangled({})", mangled))
+                Some(format!("demangled({mangled})"))
             }
         } else {
             None
@@ -231,20 +233,22 @@ impl Default for SymbolResolver {
 }
 
 impl ResolvedFrame {
+    #[must_use]
     pub fn display_name(&self) -> String {
         let name = self.demangled_name.as_ref().unwrap_or(&self.symbol_name);
 
         if let (Some(file), Some(line)) = (&self.filename, self.line_number) {
             if let Some(col) = self.column {
-                format!("{} at {}:{}:{}", name, file, line, col)
+                format!("{name} at {file}:{line}:{col}")
             } else {
-                format!("{} at {}:{}", name, file, line)
+                format!("{name} at {file}:{line}")
             }
         } else {
             name.clone()
         }
     }
 
+    #[must_use]
     pub fn short_display(&self) -> String {
         self.demangled_name
             .as_ref()
@@ -252,10 +256,12 @@ impl ResolvedFrame {
             .clone()
     }
 
+    #[must_use]
     pub fn has_line_info(&self) -> bool {
         self.filename.is_some() && self.line_number.is_some()
     }
 
+    #[must_use]
     pub fn is_rust_symbol(&self) -> bool {
         self.symbol_name.starts_with("_ZN")
             || self.demangled_name.as_ref().is_some_and(|name| {
@@ -263,6 +269,7 @@ impl ResolvedFrame {
             })
     }
 
+    #[must_use]
     pub fn is_system_symbol(&self) -> bool {
         self.module_name.as_ref().is_some_and(|module| {
             module.contains("libc") || module.contains("libpthread") || module.contains("ld-")

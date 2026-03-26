@@ -84,7 +84,7 @@ fn run_performance_only_tests(output_dir: &Path) {
         let export_time = start_time.elapsed();
 
         match result {
-            Ok(_) => {
+            Ok(()) => {
                 traditional_times.push(export_time.as_millis() as u64);
                 tracing::info!("    ⏱️  time: {}ms", export_time.as_millis());
             }
@@ -118,7 +118,7 @@ fn run_performance_only_tests(output_dir: &Path) {
         let export_time = start_time.elapsed();
 
         match result {
-            Ok(_) => {
+            Ok(()) => {
                 fast_times.push(export_time.as_millis() as u64);
                 tracing::info!("    ⚡ time: {}ms", export_time.as_millis());
             }
@@ -241,7 +241,7 @@ fn generate_performance_report(
     let avg_fast = fast_times.iter().sum::<u64>() as f64 / fast_times.len() as f64;
 
     let report = format!(
-        r#"# Large Project Export Optimization - Pure Performance Benchmark Report
+        r"# Large Project Export Optimization - Pure Performance Benchmark Report
 
 **Test Time**: {}
 **Test Description**: This test disables all quality validation, security analysis, FFI analysis, and focuses on testing core export performance.
@@ -286,7 +286,7 @@ this indicates that the fast export system's core algorithm needs further optimi
 - traditional_export_run_*.json - traditional export results (no validation)
 - fast_export_run_*.json - fast export results (no validation)
 - pure_performance_report.md - this report
-"#,
+",
         chrono::Utc::now().to_rfc3339(),
         avg_traditional,
         avg_fast,

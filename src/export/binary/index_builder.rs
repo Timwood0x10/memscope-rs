@@ -30,6 +30,7 @@ pub struct BinaryIndexBuilder {
 
 impl BinaryIndexBuilder {
     /// Create a new index builder with default settings
+    #[must_use]
     pub fn new() -> Self {
         Self {
             quick_filter_threshold: 1000,
@@ -39,18 +40,21 @@ impl BinaryIndexBuilder {
     }
 
     /// Set the threshold for enabling quick filter data
+    #[must_use]
     pub fn with_quick_filter_threshold(mut self, threshold: u32) -> Self {
         self.quick_filter_threshold = threshold;
         self
     }
 
     /// Set the batch size for quick filter data
+    #[must_use]
     pub fn with_quick_filter_batch_size(mut self, batch_size: usize) -> Self {
         self.quick_filter_batch_size = batch_size;
         self
     }
 
     /// Set bloom filter parameters
+    #[must_use]
     pub fn with_bloom_filter_params(mut self, params: BloomFilterParams) -> Self {
         self.bloom_filter_params = params;
         self
@@ -160,11 +164,11 @@ impl BinaryIndexBuilder {
             let string_count = primitives::read_u32(reader)?;
 
             // Skip the actual string data
-            reader.seek(SeekFrom::Current(table_size as i64 - 9))?; // 9 = 4 + 1 + 4 (size + compression + count)
+            reader.seek(SeekFrom::Current(i64::from(table_size) - 9))?; // 9 = 4 + 1 + 4 (size + compression + count)
 
             Ok(StringTableIndex {
                 offset: table_start_offset,
-                size: table_size as u64 + 8, // Include marker and size fields
+                size: u64::from(table_size) + 8, // Include marker and size fields
                 string_count,
                 uses_compression,
             })
@@ -241,7 +245,7 @@ impl BinaryIndexBuilder {
 
             // Validate record size is reasonable
             let record_size_u64 = record_end_offset - record_start_offset;
-            if record_size_u64 > u16::MAX as u64 {
+            if record_size_u64 > u64::from(u16::MAX) {
                 tracing::warn!(
                     "Record {} has unusually large size: {} bytes, skipping",
                     i + 1,
@@ -356,7 +360,7 @@ impl BinaryIndexBuilder {
         // Skip the rest of the record safely
         if remaining_bytes > 0 {
             reader
-                .seek(SeekFrom::Current(remaining_bytes as i64))
+                .seek(SeekFrom::Current(i64::from(remaining_bytes)))
                 .map_err(|e| {
                     BinaryExportError::CorruptedData(format!(
                         "Failed to skip {remaining_bytes} remaining bytes at position {}: {e:?}",
@@ -482,7 +486,8 @@ impl QuickFilterBuilder {
 
             // Set multiple bits based on hash functions
             for i in 0..self.bloom_filter_params.hash_functions {
-                let bit_index = ((hash.wrapping_add(i as u64)) % (filter_size * 8) as u64) as usize;
+                let bit_index =
+                    ((hash.wrapping_add(u64::from(i))) % (filter_size * 8) as u64) as usize;
                 let byte_index = bit_index / 8;
                 let bit_offset = bit_index % 8;
 

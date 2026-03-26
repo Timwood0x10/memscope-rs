@@ -76,7 +76,7 @@ pub fn start_full_system_profiling<P: AsRef<Path>>(
     println!("   🎮 GPU Monitoring: Active");
     println!("   💾 I/O Monitoring: Active");
     println!("   🌐 Network Monitoring: Active");
-    println!("   ⏱️  Sample Interval: {:?}", sample_interval);
+    println!("   ⏱️  Sample Interval: {sample_interval:?}");
     println!("   📁 Output: {}", output_path.display());
 
     Ok(())
@@ -147,7 +147,7 @@ pub fn is_enhanced_profiling_active() -> bool {
 /// This provides much more comprehensive data than traditional memory profiling.
 ///
 /// # Returns
-/// SystemResourceSnapshot containing all current system metrics
+/// `SystemResourceSnapshot` containing all current system metrics
 ///
 /// # Example
 /// ```rust
@@ -316,10 +316,10 @@ fn generate_system_correlation_report(
             "network_activity_correlation": calculate_network_correlation(memory_analysis, system_snapshots)
         },
         "resource_summary": {
-            "avg_cpu_usage": system_snapshots.iter().map(|s| s.cpu_metrics.overall_usage as f64).sum::<f64>() / system_snapshots.len().max(1) as f64,
+            "avg_cpu_usage": system_snapshots.iter().map(|s| f64::from(s.cpu_metrics.overall_usage)).sum::<f64>() / system_snapshots.len().max(1) as f64,
             "peak_memory_gb": memory_analysis.summary.peak_memory_usage as f64 / (1024.0 * 1024.0 * 1024.0),
             "avg_gpu_usage": system_snapshots.iter()
-                .filter_map(|s| s.gpu_metrics.as_ref().map(|g| g.gpu_usage as f64))
+                .filter_map(|s| s.gpu_metrics.as_ref().map(|g| f64::from(g.gpu_usage)))
                 .sum::<f64>() / system_snapshots.iter().filter(|s| s.gpu_metrics.is_some()).count().max(1) as f64,
             "total_io_gb": system_snapshots.iter()
                 .map(|s| (s.io_metrics.disk_read_bps + s.io_metrics.disk_write_bps) as f64)
@@ -409,7 +409,7 @@ fn calculate_memory_cpu_correlation(
     // Simple correlation calculation - in real implementation would use proper statistical methods
     let avg_cpu = system_snapshots
         .iter()
-        .map(|s| s.cpu_metrics.overall_usage as f64)
+        .map(|s| f64::from(s.cpu_metrics.overall_usage))
         .sum::<f64>()
         / system_snapshots.len() as f64;
 

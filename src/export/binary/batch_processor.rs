@@ -107,6 +107,7 @@ pub struct BatchProcessorStats {
 
 impl BatchProcessorStats {
     /// Calculate cache hit rate as percentage
+    #[must_use]
     pub fn cache_hit_rate(&self) -> f64 {
         let total_requests = self.cache_hits + self.cache_misses;
         if total_requests == 0 {
@@ -117,6 +118,7 @@ impl BatchProcessorStats {
     }
 
     /// Calculate average records per batch
+    #[must_use]
     pub fn avg_records_per_batch(&self) -> f64 {
         if self.batches_processed == 0 {
             0.0
@@ -126,6 +128,7 @@ impl BatchProcessorStats {
     }
 
     /// Calculate processing throughput (records per second)
+    #[must_use]
     pub fn processing_throughput(&self) -> f64 {
         if self.total_processing_time_us == 0 {
             0.0
@@ -135,6 +138,7 @@ impl BatchProcessorStats {
     }
 
     /// Calculate I/O efficiency (bytes per microsecond)
+    #[must_use]
     pub fn io_efficiency(&self) -> f64 {
         if self.io_time_us == 0 {
             0.0
@@ -191,11 +195,13 @@ pub struct BatchMetadata {
 
 impl BatchProcessor {
     /// Create a new batch processor with default configuration
+    #[must_use]
     pub fn new() -> Self {
         Self::with_config(BatchProcessorConfig::default())
     }
 
     /// Create a new batch processor with custom configuration
+    #[must_use]
     pub fn with_config(config: BatchProcessorConfig) -> Self {
         Self {
             field_parser: FieldParser::new(),
@@ -307,6 +313,7 @@ impl BatchProcessor {
     }
 
     /// Get processing statistics
+    #[must_use]
     pub fn get_stats(&self) -> &BatchProcessorStats {
         &self.stats
     }
@@ -322,6 +329,7 @@ impl BatchProcessor {
     }
 
     /// Get cache size
+    #[must_use]
     pub fn cache_size(&self) -> usize {
         self.record_cache.len()
     }
@@ -482,13 +490,14 @@ impl Default for BatchProcessor {
     }
 }
 
-/// Builder for creating BatchProcessor with custom configuration
+/// Builder for creating `BatchProcessor` with custom configuration
 pub struct BatchProcessorBuilder {
     config: BatchProcessorConfig,
 }
 
 impl BatchProcessorBuilder {
     /// Create a new batch processor builder
+    #[must_use]
     pub fn new() -> Self {
         Self {
             config: BatchProcessorConfig::default(),
@@ -496,54 +505,63 @@ impl BatchProcessorBuilder {
     }
 
     /// Set the batch size
+    #[must_use]
     pub fn batch_size(mut self, size: usize) -> Self {
         self.config.batch_size = size;
         self
     }
 
     /// Set the buffer size
+    #[must_use]
     pub fn buffer_size(mut self, size: usize) -> Self {
         self.config.buffer_size = size;
         self
     }
 
     /// Enable or disable prefetching
+    #[must_use]
     pub fn prefetching(mut self, enabled: bool) -> Self {
         self.config.enable_prefetching = enabled;
         self
     }
 
     /// Set the prefetch count
+    #[must_use]
     pub fn prefetch_count(mut self, count: usize) -> Self {
         self.config.prefetch_count = count;
         self
     }
 
     /// Enable or disable record caching
+    #[must_use]
     pub fn caching(mut self, enabled: bool) -> Self {
         self.config.enable_record_caching = enabled;
         self
     }
 
     /// Set the maximum cache size
+    #[must_use]
     pub fn max_cache_size(mut self, size: usize) -> Self {
         self.config.max_cache_size = size;
         self
     }
 
     /// Enable or disable CPU cache optimization
+    #[must_use]
     pub fn cpu_cache_optimization(mut self, enabled: bool) -> Self {
         self.config.optimize_cpu_cache = enabled;
         self
     }
 
     /// Enable or disable memory mapping
+    #[must_use]
     pub fn memory_mapping(mut self, enabled: bool) -> Self {
         self.config.use_memory_mapping = enabled;
         self
     }
 
     /// Build the batch processor
+    #[must_use]
     pub fn build(self) -> BatchProcessor {
         BatchProcessor::with_config(self.config)
     }

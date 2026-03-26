@@ -1,6 +1,6 @@
 //! Safe unwrap utilities for memscope-rs
 //!
-//! This module provides safe, panic-free alternatives to unwrap() calls.
+//! This module provides safe, panic-free alternatives to `unwrap()` calls.
 //! It includes comprehensive error tracking and recovery mechanisms.
 
 use crate::core::error::{MemScopeError, MemoryOperation, SystemErrorType};
@@ -172,20 +172,17 @@ pub trait UnwrapSafe<T> {
 
 impl<T> UnwrapSafe<T> for Option<T> {
     fn try_unwrap(self, context: &'static str) -> Result<T, UnwrapError> {
-        match self {
-            Some(value) => {
-                tracing::trace!("Unwrap succeeded: {}", context);
-                Ok(value)
-            }
-            None => {
-                let error = UnwrapError::NoneValue {
-                    context,
-                    location: None,
-                    backtrace: Backtrace::capture(),
-                };
-                tracing::error!("Unwrap failed: {}", error);
-                Err(error)
-            }
+        if let Some(value) = self {
+            tracing::trace!("Unwrap succeeded: {}", context);
+            Ok(value)
+        } else {
+            let error = UnwrapError::NoneValue {
+                context,
+                location: None,
+                backtrace: Backtrace::capture(),
+            };
+            tracing::error!("Unwrap failed: {}", error);
+            Err(error)
         }
     }
 
@@ -352,6 +349,7 @@ pub struct UnwrapStats {
 }
 
 impl UnwrapStats {
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -372,6 +370,7 @@ impl UnwrapStats {
         self.panic_preservations += 1;
     }
 
+    #[must_use]
     pub fn total_operations(&self) -> u64 {
         self.successful_unwraps
             + self.failed_unwraps
@@ -379,6 +378,7 @@ impl UnwrapStats {
             + self.panic_preservations
     }
 
+    #[must_use]
     pub fn success_rate(&self) -> f64 {
         let total = self.total_operations();
         if total == 0 {

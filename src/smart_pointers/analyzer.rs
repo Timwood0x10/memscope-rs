@@ -44,12 +44,14 @@ impl Default for LeakThresholds {
 }
 
 impl SmartPointerAnalyzer {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             leak_thresholds: LeakThresholds::default(),
         }
     }
 
+    #[must_use]
     pub fn with_thresholds(
         long_lived_secs: u64,
         high_ref_count: usize,
@@ -297,6 +299,7 @@ impl SmartPointerAnalyzer {
         (1.0 - penalty).max(0.0)
     }
 
+    #[must_use]
     pub fn generate_report(&self, result: &AnalysisResult) -> String {
         let mut report = String::new();
 
@@ -314,7 +317,7 @@ impl SmartPointerAnalyzer {
 
         report.push_str("Memory Usage by Type:\n");
         for (ptr_type, usage) in &result.memory_usage_by_type {
-            report.push_str(&format!("  {:?}: {} bytes\n", ptr_type, usage));
+            report.push_str(&format!("  {ptr_type:?}: {usage} bytes\n"));
         }
 
         if !result.detected_patterns.is_empty() {
@@ -342,26 +345,29 @@ impl Default for SmartPointerAnalyzer {
 }
 
 impl AnalysisResult {
+    #[must_use]
     pub fn is_healthy(&self) -> bool {
         self.health_score >= 0.8
     }
 
+    #[must_use]
     pub fn has_critical_issues(&self) -> bool {
         self.detected_patterns.iter().any(|(pattern, ids)| {
             matches!(pattern, LeakPattern::CircularReference) && !ids.is_empty()
         })
     }
 
+    #[must_use]
     pub fn total_memory_usage(&self) -> usize {
         self.memory_usage_by_type.values().sum()
     }
 
+    #[must_use]
     pub fn pattern_count(&self, pattern: &LeakPattern) -> usize {
         self.detected_patterns
             .iter()
             .find(|(p, _)| std::mem::discriminant(p) == std::mem::discriminant(pattern))
-            .map(|(_, ids)| ids.len())
-            .unwrap_or(0)
+            .map_or(0, |(_, ids)| ids.len())
     }
 }
 

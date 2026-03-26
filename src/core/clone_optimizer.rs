@@ -1,6 +1,6 @@
-//! Clone optimization system for reducing unnecessary clone() calls
+//! Clone optimization system for reducing unnecessary `clone()` calls
 //!
-//! This module provides tools to analyze and optimize clone() calls throughout
+//! This module provides tools to analyze and optimize `clone()` calls throughout
 //! the codebase by replacing them with Arc-based sharing where appropriate.
 
 use serde::{Deserialize, Serialize};
@@ -23,7 +23,7 @@ pub struct CloneStats {
 /// Information about a specific clone operation
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CloneInfo {
-    /// Location where clone occurs (file:line)
+    /// Location where clone occurs (<file:line>)
     pub location: String,
     /// Type being cloned
     pub type_name: String,
@@ -45,6 +45,7 @@ pub struct CloneOptimizer {
 
 impl CloneOptimizer {
     /// Create a new clone optimizer
+    #[must_use]
     pub fn new() -> Self {
         Self {
             stats: CloneStats {
@@ -138,11 +139,13 @@ impl CloneOptimizer {
     }
 
     /// Get current statistics
+    #[must_use]
     pub fn get_stats(&self) -> &CloneStats {
         &self.stats
     }
 
     /// Get clone information
+    #[must_use]
     pub fn get_clone_info(&self) -> &[CloneInfo] {
         &self.clone_info
     }
@@ -172,6 +175,7 @@ impl Default for CloneOptimizer {
 }
 
 /// Check if a type should use Arc sharing based on common patterns
+#[must_use]
 pub fn should_use_arc(type_name: &str) -> bool {
     type_name.contains("AllocationInfo")
         || type_name.contains("Config")

@@ -173,6 +173,7 @@ pub struct SystemProfiler {
 
 impl SystemProfiler {
     /// Create new system profiler with specified sampling interval
+    #[must_use]
     pub fn new(sample_interval: Duration) -> Self {
         Self {
             start_time: Instant::now(),
@@ -480,6 +481,7 @@ pub struct ContinuousProfiler {
 
 impl ContinuousProfiler {
     /// Start continuous profiling in background
+    #[must_use]
     pub fn start_background_profiling(interval: Duration) -> Self {
         let profiler = SystemProfiler::new(interval);
         let is_running = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
@@ -492,6 +494,7 @@ impl ContinuousProfiler {
     }
 
     /// Stop profiling and return collected data
+    #[must_use]
     pub fn stop_and_collect(self) -> Vec<SystemResourceSnapshot> {
         self.is_running
             .store(false, std::sync::atomic::Ordering::SeqCst);

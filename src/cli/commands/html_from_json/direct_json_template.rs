@@ -497,12 +497,12 @@ fn analyze_memory_growth_trends(allocations: &[Value]) -> Value {
     let time_span = if time_points.len() > 1 {
         let start_time = time_points[0]
             .get("timestamp")
-            .and_then(|t| t.as_u64())
+            .and_then(handlebars::JsonValue::as_u64)
             .unwrap_or(0);
         let end_time = time_points
             .last()
             .and_then(|p| p.get("timestamp"))
-            .and_then(|t| t.as_u64())
+            .and_then(handlebars::JsonValue::as_u64)
             .unwrap_or(0);
         if end_time > start_time {
             (end_time - start_time) / 1_000_000_000 // Convert to seconds
@@ -538,7 +538,7 @@ fn calculate_ffi_statistics_from_allocations(
         .iter()
         .filter(|item| {
             item.get("ffi_tracked")
-                .and_then(|f| f.as_bool())
+                .and_then(handlebars::JsonValue::as_bool)
                 .unwrap_or(false)
         })
         .count();
@@ -553,8 +553,7 @@ fn calculate_ffi_statistics_from_allocations(
         .map(|item| {
             item.get("safety_violations")
                 .and_then(|s| s.as_array())
-                .map(|arr| arr.len() as u64)
-                .unwrap_or(0)
+                .map_or(0, |arr| arr.len() as u64)
         })
         .sum::<u64>();
 
@@ -565,11 +564,11 @@ fn calculate_ffi_statistics_from_allocations(
             if let Some(borrow_info) = item.get("borrow_info") {
                 let immutable = borrow_info
                     .get("immutable_borrows")
-                    .and_then(|v| v.as_u64())
+                    .and_then(handlebars::JsonValue::as_u64)
                     .unwrap_or(0);
                 let mutable = borrow_info
                     .get("mutable_borrows")
-                    .and_then(|v| v.as_u64())
+                    .and_then(handlebars::JsonValue::as_u64)
                     .unwrap_or(0);
                 immutable > 0 && mutable > 0
             } else {
@@ -584,14 +583,18 @@ fn calculate_ffi_statistics_from_allocations(
         .map(|item| {
             item.get("clone_info")
                 .and_then(|c| c.get("clone_count"))
-                .and_then(|cc| cc.as_u64())
+                .and_then(handlebars::JsonValue::as_u64)
                 .unwrap_or(0)
         })
         .sum::<u64>();
 
     let total_memory = allocations
         .iter()
-        .map(|item| item.get("size").and_then(|s| s.as_u64()).unwrap_or(0))
+        .map(|item| {
+            item.get("size")
+                .and_then(handlebars::JsonValue::as_u64)
+                .unwrap_or(0)
+        })
         .sum::<u64>();
 
     serde_json::json!({
@@ -641,8 +644,7 @@ fn analyze_safety_metrics_from_allocations(allocations: &[Value]) -> Value {
             // Check if safety_violations array is empty
             item.get("safety_violations")
                 .and_then(|s| s.as_array())
-                .map(|arr| arr.is_empty())
-                .unwrap_or(true)
+                .is_none_or(std::vec::Vec::is_empty)
         })
         .count();
 
@@ -660,7 +662,7 @@ fn analyze_safety_metrics_from_allocations(allocations: &[Value]) -> Value {
         .iter()
         .filter(|item| {
             item.get("ownership_history_available")
-                .and_then(|o| o.as_bool())
+                .and_then(handlebars::JsonValue::as_bool)
                 .unwrap_or(false)
         })
         .count();
@@ -670,7 +672,7 @@ fn analyze_safety_metrics_from_allocations(allocations: &[Value]) -> Value {
         .iter()
         .filter(|item| {
             item.get("is_leaked")
-                .and_then(|l| l.as_bool())
+                .and_then(handlebars::JsonValue::as_bool)
                 .unwrap_or(false)
         })
         .count();
@@ -760,8 +762,7 @@ fn create_ffi_dashboard_metrics(allocations: &[Value], boundary_events: &[Value]
         .filter(|item| {
             item.get("safety_violations")
                 .and_then(|s| s.as_array())
-                .map(|arr| !arr.is_empty())
-                .unwrap_or(false)
+                .is_some_and(|arr| !arr.is_empty())
         })
         .count();
 
@@ -770,7 +771,7 @@ fn create_ffi_dashboard_metrics(allocations: &[Value], boundary_events: &[Value]
         .iter()
         .filter(|item| {
             item.get("ffi_tracked")
-                .and_then(|f| f.as_bool())
+                .and_then(handlebars::JsonValue::as_bool)
                 .unwrap_or(false)
         })
         .count();
@@ -784,8 +785,7 @@ fn create_ffi_dashboard_metrics(allocations: &[Value], boundary_events: &[Value]
         .map(|item| {
             item.get("safety_violations")
                 .and_then(|s| s.as_array())
-                .map(|arr| arr.len())
-                .unwrap_or(0)
+                .map_or(0, std::vec::Vec::len)
         })
         .sum::<usize>();
 
@@ -795,10 +795,13 @@ fn create_ffi_dashboard_metrics(allocations: &[Value], boundary_events: &[Value]
         .filter(|item| {
             item.get("safety_violations")
                 .and_then(|s| s.as_array())
-                .map(|arr| !arr.is_empty())
-                .unwrap_or(false)
+                .is_some_and(|arr| !arr.is_empty())
         })
-        .map(|item| item.get("size").and_then(|s| s.as_u64()).unwrap_or(0))
+        .map(|item| {
+            item.get("size")
+                .and_then(handlebars::JsonValue::as_u64)
+                .unwrap_or(0)
+        })
         .sum();
 
     // Calculate safety score
@@ -870,18 +873,18 @@ fn analyze_borrow_checker_metrics(allocations: &[Value]) -> Value {
         if let Some(borrow_info) = allocation.get("borrow_info") {
             if let Some(max_concurrent_borrows) = borrow_info
                 .get("max_concurrent_borrows")
-                .and_then(|m| m.as_u64())
+                .and_then(handlebars::JsonValue::as_u64)
             {
                 max_concurrent = max_concurrent.max(max_concurrent_borrows);
             }
 
             let immutable = borrow_info
                 .get("immutable_borrows")
-                .and_then(|i| i.as_u64())
+                .and_then(handlebars::JsonValue::as_u64)
                 .unwrap_or(0);
             let mutable = borrow_info
                 .get("mutable_borrows")
-                .and_then(|m| m.as_u64())
+                .and_then(handlebars::JsonValue::as_u64)
                 .unwrap_or(0);
 
             total_borrows += immutable + mutable;
@@ -906,19 +909,20 @@ fn analyze_memory_hotspots(allocations: &[Value]) -> Value {
 
     for allocation in allocations {
         if let (Some(size), Some(ptr), Some(type_name)) = (
-            allocation.get("size").and_then(|s| s.as_u64()),
+            allocation
+                .get("size")
+                .and_then(handlebars::JsonValue::as_u64),
             allocation.get("ptr").and_then(|p| p.as_str()),
             allocation.get("type_name").and_then(|t| t.as_str()),
         ) {
             let is_unsafe = allocation
                 .get("safety_violations")
                 .and_then(|s| s.as_array())
-                .map(|arr| !arr.is_empty())
-                .unwrap_or(false);
+                .is_some_and(|arr| !arr.is_empty());
 
             let is_ffi = allocation
                 .get("ffi_tracked")
-                .and_then(|f| f.as_bool())
+                .and_then(handlebars::JsonValue::as_bool)
                 .unwrap_or(false);
 
             hotspots.push(serde_json::json!({
@@ -936,8 +940,14 @@ fn analyze_memory_hotspots(allocations: &[Value]) -> Value {
 
     // Sort by size descending
     hotspots.sort_by(|a, b| {
-        let size_a = a.get("size").and_then(|s| s.as_u64()).unwrap_or(0);
-        let size_b = b.get("size").and_then(|s| s.as_u64()).unwrap_or(0);
+        let size_a = a
+            .get("size")
+            .and_then(handlebars::JsonValue::as_u64)
+            .unwrap_or(0);
+        let size_b = b
+            .get("size")
+            .and_then(handlebars::JsonValue::as_u64)
+            .unwrap_or(0);
         size_b.cmp(&size_a)
     });
 
@@ -951,7 +961,7 @@ fn analyze_cross_language_memory_flow(allocations: &[Value], boundary_events: &[
         .filter(|item| {
             !item
                 .get("ffi_tracked")
-                .and_then(|f| f.as_bool())
+                .and_then(handlebars::JsonValue::as_bool)
                 .unwrap_or(false)
         })
         .count();
@@ -968,8 +978,8 @@ fn analyze_cross_language_memory_flow(allocations: &[Value], boundary_events: &[
             event.get("to_context").and_then(|t| t.as_str()),
         ) {
             match (from, to) {
-                ("rust", "ffi") | ("rust", "c") => rust_to_ffi += 1,
-                ("ffi", "rust") | ("c", "rust") => ffi_to_rust += 1,
+                ("rust", "ffi" | "c") => rust_to_ffi += 1,
+                ("ffi" | "c", "rust") => ffi_to_rust += 1,
                 _ => {}
             }
         }
@@ -1013,11 +1023,11 @@ fn create_ffi_risk_assessment(allocations: &[Value]) -> Value {
         if let Some(borrow_info) = allocation.get("borrow_info") {
             let immutable = borrow_info
                 .get("immutable_borrows")
-                .and_then(|v| v.as_u64())
+                .and_then(handlebars::JsonValue::as_u64)
                 .unwrap_or(0);
             let mutable = borrow_info
                 .get("mutable_borrows")
-                .and_then(|v| v.as_u64())
+                .and_then(handlebars::JsonValue::as_u64)
                 .unwrap_or(0);
 
             if immutable > 0 && mutable > 0 {
@@ -1089,7 +1099,10 @@ fn generate_safety_risk_data_from_json(
                 // Check for potential unsafe operations based on allocation patterns
 
                 // 1. Large allocations that might indicate unsafe buffer operations
-                if let Some(size) = allocation.get("size").and_then(|s| s.as_u64()) {
+                if let Some(size) = allocation
+                    .get("size")
+                    .and_then(handlebars::JsonValue::as_u64)
+                {
                     if size > 1024 * 1024 {
                         // > 1MB
                         safety_risks.push(serde_json::json!({
@@ -1104,7 +1117,10 @@ fn generate_safety_risk_data_from_json(
                 }
 
                 // 2. Leaked memory indicates potential unsafe operations
-                if let Some(is_leaked) = allocation.get("is_leaked").and_then(|l| l.as_bool()) {
+                if let Some(is_leaked) = allocation
+                    .get("is_leaked")
+                    .and_then(handlebars::JsonValue::as_bool)
+                {
                     if is_leaked {
                         safety_risks.push(serde_json::json!({
                             "location": format!("{}::{}",
@@ -1118,7 +1134,9 @@ fn generate_safety_risk_data_from_json(
                 }
 
                 // 3. High borrow count might indicate unsafe sharing
-                if let Some(borrow_count) = allocation.get("borrow_count").and_then(|b| b.as_u64())
+                if let Some(borrow_count) = allocation
+                    .get("borrow_count")
+                    .and_then(handlebars::JsonValue::as_u64)
                 {
                     if borrow_count > 10 {
                         safety_risks.push(serde_json::json!({
@@ -1163,7 +1181,10 @@ fn generate_safety_risk_data_from_json(
                 }
 
                 // 6. Very short-lived allocations might indicate unsafe temporary operations
-                if let Some(lifetime_ms) = allocation.get("lifetime_ms").and_then(|l| l.as_u64()) {
+                if let Some(lifetime_ms) = allocation
+                    .get("lifetime_ms")
+                    .and_then(handlebars::JsonValue::as_u64)
+                {
                     if lifetime_ms < 1 {
                         // Less than 1ms
                         safety_risks.push(serde_json::json!({

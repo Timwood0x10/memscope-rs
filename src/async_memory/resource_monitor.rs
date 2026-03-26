@@ -234,6 +234,7 @@ pub struct AsyncResourceMonitor {
 }
 
 impl AsyncResourceMonitor {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             profiles: HashMap::new(),
@@ -664,9 +665,9 @@ impl AsyncResourceMonitor {
         let total_bytes =
             profile.network_metrics.bytes_sent + profile.network_metrics.bytes_received;
         let bytes_per_connection =
-            total_bytes as f64 / profile.network_metrics.connections_active as f64;
-        let error_rate = profile.network_metrics.connection_errors as f64
-            / profile.network_metrics.connections_established.max(1) as f64;
+            total_bytes as f64 / f64::from(profile.network_metrics.connections_active);
+        let error_rate = f64::from(profile.network_metrics.connection_errors)
+            / f64::from(profile.network_metrics.connections_established.max(1));
         let throughput_score = (bytes_per_connection / 1_048_576.0).min(1.0); // 1MB per connection
         throughput_score * (1.0 - error_rate)
     }
@@ -726,12 +727,12 @@ impl AsyncResourceMonitor {
     // Enhanced feature generators
     fn create_default_source_location(&self, task_name: &str) -> SourceLocation {
         SourceLocation {
-            file_path: format!("examples/{}.rs", task_name.to_lowercase().replace(" ", "_")),
+            file_path: format!("examples/{}.rs", task_name.to_lowercase().replace(' ', "_")),
             line_number: 42 + (task_name.len() as u32 * 3) % 100,
-            function_name: format!("execute_{}", task_name.to_lowercase().replace(" ", "_")),
+            function_name: format!("execute_{}", task_name.to_lowercase().replace(' ', "_")),
             module_path: format!(
                 "memscope_rs::examples::{}",
-                task_name.to_lowercase().replace(" ", "_")
+                task_name.to_lowercase().replace(' ', "_")
             ),
             crate_name: "memscope_rs".to_string(),
         }
@@ -761,7 +762,7 @@ impl AsyncResourceMonitor {
                 CpuHotspot {
                     function_name: format!(
                         "{}_core_computation",
-                        task_name.to_lowercase().replace(" ", "_")
+                        task_name.to_lowercase().replace(' ', "_")
                     ),
                     cpu_time_ms: elapsed * 650.0,
                     percentage_of_total: 65.0,
@@ -836,7 +837,7 @@ impl AsyncResourceMonitor {
                 MemoryHotspot {
                     allocation_site: format!(
                         "{}::large_buffer_allocation",
-                        task_name.replace(" ", "_")
+                        task_name.replace(' ', "_")
                     ),
                     bytes_allocated: (elapsed * 50_000_000.0) as u64,
                     allocation_count: (elapsed * 10.0) as u64,
@@ -880,7 +881,7 @@ impl AsyncResourceMonitor {
                     operation_type: "Sequential Read".to_string(),
                     file_path: format!(
                         "/tmp/{}_data.dat",
-                        task_name.to_lowercase().replace(" ", "_")
+                        task_name.to_lowercase().replace(' ', "_")
                     ),
                     bytes_processed: (elapsed * 50_000_000.0) as u64,
                     operation_count: (elapsed * 1000.0) as u64,
@@ -891,7 +892,7 @@ impl AsyncResourceMonitor {
                     operation_type: "Random Write".to_string(),
                     file_path: format!(
                         "/tmp/{}_output.dat",
-                        task_name.to_lowercase().replace(" ", "_")
+                        task_name.to_lowercase().replace(' ', "_")
                     ),
                     bytes_processed: (elapsed * 20_000_000.0) as u64,
                     operation_count: (elapsed * 500.0) as u64,
@@ -934,7 +935,7 @@ impl AsyncResourceMonitor {
                 },
             ],
             _ => vec![NetworkHotspot {
-                endpoint: format!("internal://{}", task_name.to_lowercase().replace(" ", "_")),
+                endpoint: format!("internal://{}", task_name.to_lowercase().replace(' ', "_")),
                 request_count: (elapsed * 5.0) as u64,
                 bytes_transferred: (elapsed * 100_000.0) as u64,
                 avg_response_time_ms: 25.0,

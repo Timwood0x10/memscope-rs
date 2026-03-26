@@ -17,22 +17,18 @@ pub fn run_analyze(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
         .collect();
     let export_format = matches
         .get_one::<String>("export")
-        .map(|s| s.as_str())
-        .unwrap_or("html");
+        .map_or("html", std::string::String::as_str);
     let output_path = matches
         .get_one::<String>("output")
-        .map(|s| s.as_str())
-        .unwrap_or("memory_analysis");
+        .map_or("memory_analysis", std::string::String::as_str);
 
     // Extract unified backend options
     let tracking_mode = matches
         .get_one::<String>("mode")
-        .map(|s| s.as_str())
-        .unwrap_or("auto");
+        .map_or("auto", std::string::String::as_str);
     let strategy = matches
         .get_one::<String>("strategy")
-        .map(|s| s.as_str())
-        .unwrap_or("auto");
+        .map_or("auto", std::string::String::as_str);
     let sample_rate = matches
         .get_one::<f64>("sample-rate")
         .copied()
@@ -77,7 +73,7 @@ pub fn run_analyze(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
             }
         }
         _ => {
-            return Err(format!("Unsupported tracking mode: {}", tracking_mode).into());
+            return Err(format!("Unsupported tracking mode: {tracking_mode}").into());
         }
     }
 
@@ -245,19 +241,19 @@ fn export_unified_results(
 ) -> Result<(), Box<dyn Error>> {
     match export_format {
         "json" => {
-            let json_path = format!("{}.json", output_path);
+            let json_path = format!("{output_path}.json");
             std::fs::write(&json_path, tracking_data)?;
             tracing::info!("✅ JSON export completed: {}", json_path);
         }
         "html" => {
-            let html_path = format!("{}.html", output_path);
+            let html_path = format!("{output_path}.html");
             // Enhanced HTML generation with unified backend data
             let html_content = generate_unified_html_report(tracking_data)?;
             std::fs::write(&html_path, html_content)?;
             tracing::info!("✅ HTML export completed: {}", html_path);
         }
         "svg" => {
-            let svg_path = format!("{}.svg", output_path);
+            let svg_path = format!("{output_path}.svg");
             // Generate SVG visualization (placeholder)
             let svg_content = generate_unified_svg_visualization(tracking_data)?;
             std::fs::write(&svg_path, svg_content)?;
@@ -268,7 +264,7 @@ fn export_unified_results(
                 "Unsupported export format: {}, defaulting to JSON",
                 export_format
             );
-            let json_path = format!("{}.json", output_path);
+            let json_path = format!("{output_path}.json");
             std::fs::write(&json_path, tracking_data)?;
         }
     }

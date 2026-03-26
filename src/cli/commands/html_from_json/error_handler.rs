@@ -27,7 +27,7 @@ pub enum HtmlGenerationError {
     FileLoadingError {
         /// Path to the file that failed
         file_path: PathBuf,
-        /// File type (e.g., "memory_analysis")
+        /// File type (e.g., "`memory_analysis`")
         file_type: String,
         /// File size in bytes
         file_size: usize,
@@ -387,6 +387,7 @@ pub struct HtmlErrorHandler {
 
 impl HtmlErrorHandler {
     /// Create a new error handler with default settings
+    #[must_use]
     pub fn new() -> Self {
         Self {
             recovery_context: ErrorRecoveryContext::default(),
@@ -396,6 +397,7 @@ impl HtmlErrorHandler {
     }
 
     /// Create error handler with custom recovery context
+    #[must_use]
     pub fn with_context(context: ErrorRecoveryContext) -> Self {
         Self {
             recovery_context: context,
@@ -565,6 +567,7 @@ impl HtmlErrorHandler {
     }
 
     /// Get error recovery statistics
+    #[must_use]
     pub fn get_stats(&self) -> &ErrorRecoveryStats {
         &self.stats
     }

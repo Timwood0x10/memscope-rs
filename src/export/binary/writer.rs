@@ -178,7 +178,7 @@ impl BinaryWriter {
         self.writer
             .write_all(&(alloc.borrow_count as u32).to_le_bytes())?;
         self.writer
-            .write_all(&(alloc.is_leaked as u8).to_le_bytes())?;
+            .write_all(&u8::from(alloc.is_leaked).to_le_bytes())?;
 
         // Write optional lifetime_ms
         match alloc.lifetime_ms {
@@ -223,7 +223,7 @@ impl BinaryWriter {
                 self.writer
                     .write_all(&(clone_info.clone_count as u32).to_le_bytes())?;
                 self.writer
-                    .write_all(&(clone_info.is_clone as u8).to_le_bytes())?;
+                    .write_all(&u8::from(clone_info.is_clone).to_le_bytes())?;
                 match clone_info.original_ptr {
                     Some(ptr) => {
                         self.writer.write_all(&1u8.to_le_bytes())?; // has original_ptr
@@ -241,7 +241,7 @@ impl BinaryWriter {
 
         // Write improve.md extensions: ownership_history_available
         self.writer
-            .write_all(&(alloc.ownership_history_available as u8).to_le_bytes())?;
+            .write_all(&u8::from(alloc.ownership_history_available).to_le_bytes())?;
 
         // Write complex fields using binary serialization
         self.write_optional_binary_field(&alloc.smart_pointer_info)?;
@@ -741,7 +741,7 @@ impl BinaryWriter {
         Ok(())
     }
 
-    /// Write optional binary field using BinarySerializable trait
+    /// Write optional binary field using `BinarySerializable` trait
     fn write_optional_binary_field<T: BinarySerializable>(
         &mut self,
         field: &Option<T>,

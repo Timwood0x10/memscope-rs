@@ -63,7 +63,7 @@ struct WindowsContext {
 #[cfg(target_os = "macos")]
 #[derive(Debug)]
 struct MacOSContext {
-    /// Whether backtrace() is available
+    /// Whether `backtrace()` is available
     backtrace_available: bool,
     /// Whether dSYM files are accessible
     dsym_available: bool,
@@ -146,6 +146,7 @@ pub enum WalkError {
 
 impl PlatformStackWalker {
     /// Create new platform stack walker
+    #[must_use]
     pub fn new() -> Self {
         Self {
             config: StackWalkConfig::default(),
@@ -416,14 +417,14 @@ impl PlatformStackWalker {
             }
 
             frames.push(StackFrame {
-                ip: 0x100000000 + i * 0x1000, // Mock addresses
-                fp: Some(0x7fff5fc00000 + i * 0x100),
-                sp: Some(0x7fff5fc00000 + i * 0x100 - 8),
+                ip: 0x100_000_000 + i * 0x1000, // Mock addresses
+                fp: Some(0x7fff_5fc0_0000 + i * 0x100),
+                sp: Some(0x7fff_5fc0_0000 + i * 0x100 - 8),
                 module_base: Some(0x100000000),
                 module_offset: Some(i * 0x1000),
                 symbol_info: Some(FrameSymbolInfo {
-                    name: format!("function_{}", i),
-                    demangled_name: Some(format!("MyClass::function_{}", i)),
+                    name: format!("function_{i}"),
+                    demangled_name: Some(format!("MyClass::function_{i}")),
                     file_name: Some("main.mm".to_string()),
                     line_number: Some((i * 10 + 100) as u32),
                 }),
@@ -554,7 +555,7 @@ impl std::fmt::Display for WalkError {
             WalkError::CorruptedStack => write!(f, "Stack appears to be corrupted"),
             WalkError::Timeout => write!(f, "Stack walk timed out"),
             WalkError::MemoryError => write!(f, "Memory access error during stack walk"),
-            WalkError::Unknown(msg) => write!(f, "Unknown error: {}", msg),
+            WalkError::Unknown(msg) => write!(f, "Unknown error: {msg}"),
         }
     }
 }

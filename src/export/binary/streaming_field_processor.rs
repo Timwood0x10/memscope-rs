@@ -85,6 +85,7 @@ pub struct StreamingFieldProcessorStats {
 
 impl StreamingFieldProcessorStats {
     /// Calculate cache hit rate as percentage
+    #[must_use]
     pub fn cache_hit_rate(&self) -> f64 {
         let total_requests = self.cache_hits + self.cache_misses;
         if total_requests == 0 {
@@ -95,6 +96,7 @@ impl StreamingFieldProcessorStats {
     }
 
     /// Calculate processing throughput (records per second)
+    #[must_use]
     pub fn processing_throughput(&self) -> f64 {
         if self.total_processing_time_us == 0 {
             0.0
@@ -104,6 +106,7 @@ impl StreamingFieldProcessorStats {
     }
 
     /// Calculate field processing efficiency
+    #[must_use]
     pub fn field_processing_efficiency(&self) -> f64 {
         if self.fields_processed == 0 {
             0.0
@@ -113,6 +116,7 @@ impl StreamingFieldProcessorStats {
     }
 
     /// Calculate memory efficiency (bytes per record)
+    #[must_use]
     pub fn memory_efficiency(&self) -> f64 {
         if self.records_processed == 0 {
             0.0
@@ -174,6 +178,7 @@ pub struct OptimizedRecord {
 
 impl OptimizedRecord {
     /// Create a new optimized record
+    #[must_use]
     pub fn new(allocation: PartialAllocationInfo) -> Self {
         let mut record = Self {
             allocation,
@@ -200,6 +205,7 @@ impl OptimizedRecord {
     }
 
     /// Get a formatted field value (from cache or format on demand)
+    #[must_use]
     pub fn get_formatted_field(&self, field: &AllocationField) -> Option<String> {
         // Check preformatted fields first
         if let Some(cached) = self.preformatted_fields.get(field) {
@@ -327,11 +333,13 @@ pub struct StreamingFieldProcessor {
 
 impl StreamingFieldProcessor {
     /// Create a new streaming field processor
+    #[must_use]
     pub fn new() -> Self {
         Self::with_config(StreamingFieldProcessorConfig::default())
     }
 
     /// Create a new streaming field processor with custom configuration
+    #[must_use]
     pub fn with_config(config: StreamingFieldProcessorConfig) -> Self {
         Self {
             config,
@@ -455,6 +463,7 @@ impl StreamingFieldProcessor {
     }
 
     /// Get current statistics
+    #[must_use]
     pub fn get_stats(&self) -> &StreamingFieldProcessorStats {
         &self.stats
     }
@@ -471,11 +480,13 @@ impl StreamingFieldProcessor {
     }
 
     /// Get current cache size
+    #[must_use]
     pub fn cache_size(&self) -> usize {
         self.field_cache.len()
     }
 
     /// Get current memory usage
+    #[must_use]
     pub fn memory_usage(&self) -> usize {
         self.current_memory_usage
     }
@@ -534,6 +545,7 @@ pub struct StreamingFieldProcessorConfigBuilder {
 
 impl StreamingFieldProcessorConfigBuilder {
     /// Create a new configuration builder
+    #[must_use]
     pub fn new() -> Self {
         Self {
             config: StreamingFieldProcessorConfig::default(),
@@ -541,42 +553,49 @@ impl StreamingFieldProcessorConfigBuilder {
     }
 
     /// Set maximum cache size
+    #[must_use]
     pub fn max_cache_size(mut self, size: usize) -> Self {
         self.config.max_cache_size = size;
         self
     }
 
     /// Enable or disable field caching
+    #[must_use]
     pub fn field_caching(mut self, enabled: bool) -> Self {
         self.config.enable_field_caching = enabled;
         self
     }
 
     /// Enable or disable preformatted fields
+    #[must_use]
     pub fn preformatted_fields(mut self, enabled: bool) -> Self {
         self.config.enable_preformatted_fields = enabled;
         self
     }
 
     /// Set maximum memory usage
+    #[must_use]
     pub fn max_memory_usage(mut self, bytes: usize) -> Self {
         self.config.max_memory_usage = bytes;
         self
     }
 
     /// Enable or disable statistics collection
+    #[must_use]
     pub fn statistics(mut self, enabled: bool) -> Self {
         self.config.enable_statistics = enabled;
         self
     }
 
     /// Set batch size
+    #[must_use]
     pub fn batch_size(mut self, size: usize) -> Self {
         self.config.batch_size = size;
         self
     }
 
     /// Build the configuration
+    #[must_use]
     pub fn build(self) -> StreamingFieldProcessorConfig {
         self.config
     }

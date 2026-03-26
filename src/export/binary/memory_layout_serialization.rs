@@ -252,7 +252,7 @@ impl BinarySerializable for FieldLayoutInfo {
         size += primitives::write_usize(writer, self.offset)?;
         size += primitives::write_usize(writer, self.size)?;
         size += primitives::write_usize(writer, self.alignment)?;
-        size += primitives::write_u8(writer, if self.is_padding { 1 } else { 0 })?;
+        size += primitives::write_u8(writer, u8::from(self.is_padding))?;
         Ok(size)
     }
 

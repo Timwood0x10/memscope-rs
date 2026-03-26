@@ -80,6 +80,7 @@ pub struct FileHeader {
 
 impl FileHeader {
     /// Create a new file header with enhanced information
+    #[must_use]
     pub fn new(
         total_count: u32,
         export_mode: BinaryExportMode,
@@ -102,6 +103,7 @@ impl FileHeader {
     }
 
     /// Create a legacy header for backward compatibility
+    #[must_use]
     pub fn new_legacy(count: u32) -> Self {
         Self {
             magic: *MAGIC_BYTES,
@@ -117,49 +119,59 @@ impl FileHeader {
         }
     }
 
+    #[must_use]
     pub fn is_valid_magic(&self) -> bool {
         self.magic == *MAGIC_BYTES
     }
 
+    #[must_use]
     pub fn is_compatible_version(&self) -> bool {
         // Support backward compatibility: can read older versions
         self.version <= FORMAT_VERSION && self.version >= 1
     }
 
+    #[must_use]
     pub fn get_version(&self) -> u32 {
         self.version
     }
 
+    #[must_use]
     pub fn is_legacy_version(&self) -> bool {
         self.version < FORMAT_VERSION
     }
 
     /// Get the export mode from the header
+    #[must_use]
     pub fn get_export_mode(&self) -> BinaryExportMode {
         BinaryExportMode::from(self.export_mode)
     }
 
     /// Check if this is a user-only binary
+    #[must_use]
     pub fn is_user_only(&self) -> bool {
         self.get_export_mode() == BinaryExportMode::UserOnly
     }
 
     /// Check if this is a full binary
+    #[must_use]
     pub fn is_full_binary(&self) -> bool {
         self.get_export_mode() == BinaryExportMode::Full
     }
 
     /// Get allocation count information
+    #[must_use]
     pub fn get_allocation_counts(&self) -> (u32, u16, u16) {
         (self.total_count, self.user_count, self.system_count)
     }
 
     /// Validate allocation count consistency
+    #[must_use]
     pub fn is_count_consistent(&self) -> bool {
-        self.total_count == (self.user_count as u32 + self.system_count as u32)
+        self.total_count == (u32::from(self.user_count) + u32::from(self.system_count))
     }
 
     /// Convert header to bytes using Little Endian format
+    #[must_use]
     pub fn to_bytes(&self) -> [u8; HEADER_SIZE] {
         let mut bytes = [0u8; HEADER_SIZE];
 
@@ -178,6 +190,7 @@ impl FileHeader {
     }
 
     /// Create header from bytes using Little Endian format
+    #[must_use]
     pub fn from_bytes(bytes: &[u8; HEADER_SIZE]) -> Self {
         let mut magic = [0u8; 8];
         magic.copy_from_slice(&bytes[0..8]);
@@ -188,7 +201,7 @@ impl FileHeader {
         let user_count = u16::from_le_bytes([bytes[17], bytes[18]]);
         let system_count = u16::from_le_bytes([bytes[19], bytes[20]]);
         let features_enabled = bytes[21];
-        let unsafe_report_count = u16::from_le_bytes([bytes[22], bytes[23]]) as u32;
+        let unsafe_report_count = u32::from(u16::from_le_bytes([bytes[22], bytes[23]]));
         let passport_count = u32::from_le_bytes([bytes[24], bytes[25], bytes[26], bytes[27]]);
         let reserved = u16::from_le_bytes([bytes[28], bytes[29]]);
 
@@ -226,6 +239,7 @@ pub struct AllocationRecord {
 impl AllocationRecord {
     /// Calculate serialized size in bytes with improve.md extensions
     #[allow(dead_code)]
+    #[must_use]
     pub fn serialized_size(&self) -> usize {
         let mut size = 1 + 4; // Type + Length
         size += 8 + 8 + 8; // ptr + size + timestamp
@@ -270,6 +284,7 @@ pub struct AdvancedMetricsHeader {
 }
 
 impl AdvancedMetricsHeader {
+    #[must_use]
     pub fn new(segment_size: u32, metrics_bitmap: u32) -> Self {
         Self {
             magic: *ADVANCED_METRICS_MAGIC,
@@ -279,11 +294,13 @@ impl AdvancedMetricsHeader {
         }
     }
 
+    #[must_use]
     pub fn is_valid_magic(&self) -> bool {
         self.magic == *ADVANCED_METRICS_MAGIC
     }
 
     /// Convert header to bytes using Little Endian format
+    #[must_use]
     pub fn to_bytes(&self) -> [u8; 16] {
         let mut bytes = [0u8; 16];
 
@@ -296,6 +313,7 @@ impl AdvancedMetricsHeader {
     }
 
     /// Create header from bytes using Little Endian format
+    #[must_use]
     pub fn from_bytes(bytes: &[u8; 16]) -> Self {
         let mut magic = [0u8; 4];
         magic.copy_from_slice(&bytes[0..4]);
@@ -332,17 +350,20 @@ pub enum MetricsBitmapFlags {
 
 impl MetricsBitmapFlags {
     /// Check if a specific metric is enabled in the bitmap
+    #[must_use]
     pub fn is_enabled(bitmap: u32, flag: MetricsBitmapFlags) -> bool {
         (bitmap & flag as u32) != 0
     }
 
     /// Enable a specific metric in the bitmap
+    #[must_use]
     pub fn enable(bitmap: u32, flag: MetricsBitmapFlags) -> u32 {
         bitmap | (flag as u32)
     }
 
     /// Disable a specific metric in the bitmap
     #[allow(dead_code)]
+    #[must_use]
     pub fn disable(bitmap: u32, flag: MetricsBitmapFlags) -> u32 {
         bitmap & !(flag as u32)
     }
@@ -351,21 +372,25 @@ impl MetricsBitmapFlags {
 /// Endian conversion utilities
 pub mod endian {
     #[allow(dead_code)]
+    #[must_use]
     pub fn u32_to_le_bytes(value: u32) -> [u8; 4] {
         value.to_le_bytes()
     }
 
     #[allow(dead_code)]
+    #[must_use]
     pub fn u32_from_le_bytes(bytes: [u8; 4]) -> u32 {
         u32::from_le_bytes(bytes)
     }
 
     #[allow(dead_code)]
+    #[must_use]
     pub fn u64_to_le_bytes(value: u64) -> [u8; 8] {
         value.to_le_bytes()
     }
 
     #[allow(dead_code)]
+    #[must_use]
     pub fn u64_from_le_bytes(bytes: [u8; 8]) -> u64 {
         u64::from_le_bytes(bytes)
     }

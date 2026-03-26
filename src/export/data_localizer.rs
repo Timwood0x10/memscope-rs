@@ -70,6 +70,7 @@ pub struct DataGatheringStats {
 
 impl DataLocalizer {
     /// create new data localizer
+    #[must_use]
     pub fn new() -> Self {
         Self {
             cached_allocations: None,
@@ -83,6 +84,7 @@ impl DataLocalizer {
     }
 
     /// create data localizer with custom cache ttl
+    #[must_use]
     pub fn with_cache_ttl(cache_ttl: Duration) -> Self {
         Self {
             cached_allocations: None,
@@ -277,6 +279,7 @@ impl DataLocalizer {
     }
 
     /// get cache stats
+    #[must_use]
     pub fn get_cache_stats(&self) -> CacheStats {
         CacheStats {
             is_cached: self.is_cache_valid(),
@@ -285,14 +288,12 @@ impl DataLocalizer {
             cached_allocation_count: self
                 .cached_allocations
                 .as_ref()
-                .map(|v| v.len())
-                .unwrap_or(0),
-            cached_ffi_count: self.cached_ffi_data.as_ref().map(|v| v.len()).unwrap_or(0),
+                .map_or(0, std::vec::Vec::len),
+            cached_ffi_count: self.cached_ffi_data.as_ref().map_or(0, std::vec::Vec::len),
             cached_scope_count: self
                 .cached_scope_info
                 .as_ref()
-                .map(|v| v.len())
-                .unwrap_or(0),
+                .map_or(0, std::vec::Vec::len),
         }
     }
 
@@ -450,21 +451,25 @@ impl Default for DataLocalizer {
 
 impl LocalizedExportData {
     /// get data age
+    #[must_use]
     pub fn age(&self) -> Duration {
         self.timestamp.elapsed()
     }
 
     /// check if data is still fresh
+    #[must_use]
     pub fn is_fresh(&self, max_age: Duration) -> bool {
         self.age() < max_age
     }
 
     /// get total allocation count (basic + ffi)
+    #[must_use]
     pub fn total_allocation_count(&self) -> usize {
         self.allocations.len() + self.enhanced_allocations.len()
     }
 
     /// get data summary
+    #[must_use]
     pub fn get_summary(&self) -> String {
         format!(
             "LocalizedExportData {{ allocations: {}, ffi_allocations: {}, scopes: {}, age: {:?} }}",

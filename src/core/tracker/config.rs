@@ -39,6 +39,7 @@ impl Default for ExportOptions {
 
 impl ExportOptions {
     /// Create new export options with default settings (fast mode)
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -54,24 +55,28 @@ impl ExportOptions {
     /// let options = ExportOptions::new().include_system_allocations(true);
     /// tracker.export_to_json_with_options("debug_output", options)?;
     /// ```
+    #[must_use]
     pub fn include_system_allocations(mut self, include: bool) -> Self {
         self.include_system_allocations = include;
         self
     }
 
     /// Enable verbose logging during export
+    #[must_use]
     pub fn verbose_logging(mut self, verbose: bool) -> Self {
         self.verbose_logging = verbose;
         self
     }
 
     /// Set custom buffer size for file I/O
+    #[must_use]
     pub fn buffer_size(mut self, size: usize) -> Self {
         self.buffer_size = size;
         self
     }
 
     /// Enable output compression (experimental)
+    #[must_use]
     pub fn compress_output(mut self, compress: bool) -> Self {
         self.compress_output = compress;
         self

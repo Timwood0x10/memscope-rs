@@ -57,7 +57,7 @@ pub enum VariableCategory {
     SystemAllocation,
     /// Smart pointer (Rc, Arc, Box)
     SmartPointer,
-    /// Collection (Vec, HashMap, etc.)
+    /// Collection (Vec, `HashMap`, etc.)
     Collection,
 }
 
@@ -173,6 +173,7 @@ pub struct VariableRelationshipBuilder {
 
 impl VariableRelationshipBuilder {
     /// Create a new relationship builder
+    #[must_use]
     pub fn new() -> Self {
         Self {
             nodes: HashMap::new(),
@@ -182,6 +183,7 @@ impl VariableRelationshipBuilder {
     }
 
     /// Add allocations to the graph
+    #[must_use]
     pub fn add_allocations(
         mut self,
         allocations: &[AllocationInfo],
@@ -195,6 +197,7 @@ impl VariableRelationshipBuilder {
     }
 
     /// Detect reference relationships between variables
+    #[must_use]
     pub fn detect_references(mut self) -> Self {
         // Look for smart pointer relationships
         let nodes: Vec<_> = self.nodes.values().cloned().collect();
@@ -251,6 +254,7 @@ impl VariableRelationshipBuilder {
     }
 
     /// Detect scope-based relationships
+    #[must_use]
     pub fn detect_scope_relationships(mut self) -> Self {
         // Group variables by scope
         let mut scope_groups: HashMap<String, Vec<String>> = HashMap::new();
@@ -307,6 +311,7 @@ impl VariableRelationshipBuilder {
     }
 
     /// Detect circular references
+    #[must_use]
     pub fn detect_circular_references(mut self) -> Self {
         // Use existing circular reference detection logic
         let allocations: Vec<AllocationInfo> = self
@@ -322,8 +327,14 @@ impl VariableRelationshipBuilder {
         for cycle in &circular_analysis.circular_references {
             for window in cycle.cycle_path.windows(2) {
                 if let (Some(source), Some(target)) = (window.first(), window.last()) {
-                    let source_id = format!("0x{:p}", source as *const CircularReferenceNode);
-                    let target_id = format!("0x{:p}", target as *const CircularReferenceNode);
+                    let source_id = format!(
+                        "0x{:p}",
+                        std::ptr::from_ref::<CircularReferenceNode>(source)
+                    );
+                    let target_id = format!(
+                        "0x{:p}",
+                        std::ptr::from_ref::<CircularReferenceNode>(target)
+                    );
 
                     if self.nodes.contains_key(&source_id) && self.nodes.contains_key(&target_id) {
                         self.relationships.push(VariableRelationship {
@@ -356,6 +367,7 @@ impl VariableRelationshipBuilder {
     }
 
     /// Build the final relationship graph
+    #[must_use]
     pub fn build_graph(self) -> VariableRelationshipGraph {
         let statistics = self.calculate_statistics();
 
@@ -442,12 +454,7 @@ impl VariableRelationshipBuilder {
                 .as_ref()
                 .map(|info| SmartPointerInfo {
                     pointer_type: format!("{:?}", info.pointer_type),
-                    ref_count: Some(
-                        info.ref_count_history
-                            .last()
-                            .map(|s| s.strong_count)
-                            .unwrap_or(0),
-                    ),
+                    ref_count: Some(info.ref_count_history.last().map_or(0, |s| s.strong_count)),
                     data_ptr: Some(info.data_ptr),
                     clones: info.clones.clone(),
                     cloned_from: info.cloned_from,
@@ -476,7 +483,7 @@ impl VariableRelationshipBuilder {
             .filter(|rel| {
                 rel.metadata
                     .get("circular_reference")
-                    .and_then(|v| v.as_bool())
+                    .and_then(handlebars::JsonValue::as_bool)
                     .unwrap_or(false)
             })
             .count();

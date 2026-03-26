@@ -58,24 +58,28 @@ impl Default for SelectiveReadOptions {
 }
 
 impl SelectiveReadOptions {
-    /// Create a new SelectiveReadOptions with default settings
+    /// Create a new `SelectiveReadOptions` with default settings
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Set the fields to include in the read operation
+    #[must_use]
     pub fn with_fields(mut self, fields: HashSet<AllocationField>) -> Self {
         self.include_fields = fields;
         self
     }
 
     /// Add a single field to include
+    #[must_use]
     pub fn include_field(mut self, field: AllocationField) -> Self {
         self.include_fields.insert(field);
         self
     }
 
     /// Add multiple fields to include
+    #[must_use]
     pub fn include_fields(mut self, fields: &[AllocationField]) -> Self {
         for field in fields {
             self.include_fields.insert(*field);
@@ -84,30 +88,35 @@ impl SelectiveReadOptions {
     }
 
     /// Set filters to apply during reading
+    #[must_use]
     pub fn with_filters(mut self, filters: Vec<AllocationFilter>) -> Self {
         self.filters = filters;
         self
     }
 
     /// Add a single filter
+    #[must_use]
     pub fn add_filter(mut self, filter: AllocationFilter) -> Self {
         self.filters.push(filter);
         self
     }
 
     /// Set the maximum number of records to read
+    #[must_use]
     pub fn with_limit(mut self, limit: usize) -> Self {
         self.limit = Some(limit);
         self
     }
 
     /// Set the number of records to skip
+    #[must_use]
     pub fn with_offset(mut self, offset: usize) -> Self {
         self.offset = Some(offset);
         self
     }
 
     /// Set the field to sort by
+    #[must_use]
     pub fn sort_by(mut self, field: SortField, order: SortOrder) -> Self {
         self.sort_by = Some(field);
         self.sort_order = order;
@@ -115,6 +124,7 @@ impl SelectiveReadOptions {
     }
 
     /// Enable or disable batch processing
+    #[must_use]
     pub fn with_batch_processing(mut self, enabled: bool, batch_size: Option<usize>) -> Self {
         self.enable_batch_processing = enabled;
         if let Some(size) = batch_size {
@@ -144,11 +154,13 @@ impl SelectiveReadOptions {
     }
 
     /// Check if a specific field is included
+    #[must_use]
     pub fn includes_field(&self, field: &AllocationField) -> bool {
         self.include_fields.contains(field)
     }
 
     /// Get the effective limit considering offset
+    #[must_use]
     pub fn effective_limit(&self) -> Option<usize> {
         match (self.limit, self.offset) {
             (Some(limit), Some(offset)) => Some(limit + offset),
@@ -204,6 +216,7 @@ pub enum AllocationField {
 
 impl AllocationField {
     /// Get all basic fields that are commonly needed
+    #[must_use]
     pub fn all_basic_fields() -> HashSet<Self> {
         [
             Self::Ptr,
@@ -219,6 +232,7 @@ impl AllocationField {
     }
 
     /// Get all available fields
+    #[must_use]
     pub fn all_fields() -> HashSet<Self> {
         [
             Self::Ptr,
@@ -258,6 +272,7 @@ impl AllocationField {
     }
 
     /// Get fields needed for memory analysis
+    #[must_use]
     pub fn memory_analysis_fields() -> HashSet<Self> {
         [
             Self::Ptr,
@@ -279,6 +294,7 @@ impl AllocationField {
     }
 
     /// Get fields needed for lifetime analysis
+    #[must_use]
     pub fn lifetime_analysis_fields() -> HashSet<Self> {
         [
             Self::Ptr,
@@ -293,6 +309,7 @@ impl AllocationField {
     }
 
     /// Get fields needed for performance analysis
+    #[must_use]
     pub fn performance_analysis_fields() -> HashSet<Self> {
         [
             Self::Ptr,
@@ -307,6 +324,7 @@ impl AllocationField {
     }
 
     /// Get fields needed for complex types analysis
+    #[must_use]
     pub fn complex_types_fields() -> HashSet<Self> {
         [
             Self::Ptr,
@@ -323,6 +341,7 @@ impl AllocationField {
     }
 
     /// Get fields needed for unsafe FFI analysis
+    #[must_use]
     pub fn unsafe_ffi_fields() -> HashSet<Self> {
         [
             Self::Ptr,
@@ -337,6 +356,7 @@ impl AllocationField {
     }
 
     /// Check if this field is always available in binary files
+    #[must_use]
     pub fn is_basic_field(&self) -> bool {
         matches!(
             self,
@@ -345,6 +365,7 @@ impl AllocationField {
     }
 
     /// Check if this field requires advanced metrics to be enabled
+    #[must_use]
     pub fn requires_advanced_metrics(&self) -> bool {
         matches!(
             self,
@@ -421,6 +442,7 @@ pub enum AllocationFilter {
 
 impl AllocationFilter {
     /// Check if this filter can be applied using index pre-filtering
+    #[must_use]
     pub fn supports_index_prefiltering(&self) -> bool {
         matches!(
             self,
@@ -435,6 +457,7 @@ impl AllocationFilter {
     }
 
     /// Apply this filter to an allocation record
+    #[must_use]
     pub fn matches(&self, allocation: &AllocationInfo) -> bool {
         match self {
             Self::PtrRange(min, max) => allocation.ptr >= *min && allocation.ptr <= *max,
@@ -491,13 +514,14 @@ pub enum SortOrder {
     Descending,
 }
 
-/// Builder for creating SelectiveReadOptions with a fluent API
+/// Builder for creating `SelectiveReadOptions` with a fluent API
 pub struct SelectiveReadOptionsBuilder {
     options: SelectiveReadOptions,
 }
 
 impl SelectiveReadOptionsBuilder {
     /// Create a new builder with default options
+    #[must_use]
     pub fn new() -> Self {
         Self {
             options: SelectiveReadOptions::default(),
@@ -505,6 +529,7 @@ impl SelectiveReadOptionsBuilder {
     }
 
     /// Create a builder for memory analysis
+    #[must_use]
     pub fn for_memory_analysis() -> Self {
         Self {
             options: SelectiveReadOptions {
@@ -515,6 +540,7 @@ impl SelectiveReadOptionsBuilder {
     }
 
     /// Create a builder for lifetime analysis
+    #[must_use]
     pub fn for_lifetime_analysis() -> Self {
         Self {
             options: SelectiveReadOptions {
@@ -525,6 +551,7 @@ impl SelectiveReadOptionsBuilder {
     }
 
     /// Create a builder for performance analysis
+    #[must_use]
     pub fn for_performance_analysis() -> Self {
         Self {
             options: SelectiveReadOptions {
@@ -535,6 +562,7 @@ impl SelectiveReadOptionsBuilder {
     }
 
     /// Create a builder for complex types analysis
+    #[must_use]
     pub fn for_complex_types_analysis() -> Self {
         Self {
             options: SelectiveReadOptions {
@@ -545,6 +573,7 @@ impl SelectiveReadOptionsBuilder {
     }
 
     /// Create a builder for unsafe FFI analysis
+    #[must_use]
     pub fn for_unsafe_ffi_analysis() -> Self {
         Self {
             options: SelectiveReadOptions {
@@ -555,12 +584,14 @@ impl SelectiveReadOptionsBuilder {
     }
 
     /// Add a field to include
+    #[must_use]
     pub fn include_field(mut self, field: AllocationField) -> Self {
         self.options.include_fields.insert(field);
         self
     }
 
     /// Add multiple fields to include
+    #[must_use]
     pub fn include_fields(mut self, fields: &[AllocationField]) -> Self {
         for field in fields {
             self.options.include_fields.insert(*field);
@@ -569,36 +600,42 @@ impl SelectiveReadOptionsBuilder {
     }
 
     /// Set all fields to include
+    #[must_use]
     pub fn with_fields(mut self, fields: HashSet<AllocationField>) -> Self {
         self.options.include_fields = fields;
         self
     }
 
     /// Add a filter
+    #[must_use]
     pub fn filter(mut self, filter: AllocationFilter) -> Self {
         self.options.filters.push(filter);
         self
     }
 
     /// Add multiple filters
+    #[must_use]
     pub fn filters(mut self, filters: Vec<AllocationFilter>) -> Self {
         self.options.filters.extend(filters);
         self
     }
 
     /// Set the limit
+    #[must_use]
     pub fn limit(mut self, limit: usize) -> Self {
         self.options.limit = Some(limit);
         self
     }
 
     /// Set the offset
+    #[must_use]
     pub fn offset(mut self, offset: usize) -> Self {
         self.options.offset = Some(offset);
         self
     }
 
     /// Set sorting
+    #[must_use]
     pub fn sort_by(mut self, field: SortField, order: SortOrder) -> Self {
         self.options.sort_by = Some(field);
         self.options.sort_order = order;
@@ -606,6 +643,7 @@ impl SelectiveReadOptionsBuilder {
     }
 
     /// Configure batch processing
+    #[must_use]
     pub fn batch_processing(mut self, enabled: bool, batch_size: Option<usize>) -> Self {
         self.options.enable_batch_processing = enabled;
         if let Some(size) = batch_size {
@@ -614,7 +652,7 @@ impl SelectiveReadOptionsBuilder {
         self
     }
 
-    /// Build the final SelectiveReadOptions
+    /// Build the final `SelectiveReadOptions`
     pub fn build(self) -> Result<SelectiveReadOptions, BinaryExportError> {
         self.options.validate()?;
         Ok(self.options)
@@ -975,7 +1013,7 @@ impl SelectiveBinaryReader {
     pub fn read_next_allocation(&mut self) -> Result<Option<AllocationInfo>, BinaryExportError> {
         // This is a simplified implementation for streaming
         // In a full implementation, this would maintain state for sequential reading
-        if self.current_position >= self.index.record_count() as u64 {
+        if self.current_position >= u64::from(self.index.record_count()) {
             return Ok(None);
         }
 

@@ -35,7 +35,7 @@ impl<T> SafeLock<T> for Mutex<T> {
     }
 }
 
-/// Safe RwLock operations
+/// Safe `RwLock` operations
 pub trait SafeRwLock<T> {
     /// Safely acquire read lock
     fn safe_read(&self) -> TrackingResult<std::sync::RwLockReadGuard<'_, T>>;

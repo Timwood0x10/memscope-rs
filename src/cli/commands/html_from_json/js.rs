@@ -8,7 +8,7 @@ pub fn get_embedded_script_js() -> &'static str {
         // Try to load from external file first
         if let Ok(external_path) = std::env::var("MEMSCOPE_JS_TEMPLATE") {
             if let Ok(content) = fs::read_to_string(&external_path) {
-                println!("📁 Loaded external JS template: {}", external_path);
+                println!("📁 Loaded external JS template: {external_path}");
                 return content;
             }
         }

@@ -53,6 +53,7 @@ pub struct FilterStats {
 
 impl FilterStats {
     /// Calculate the efficiency of index pre-filtering
+    #[must_use]
     pub fn index_filter_efficiency(&self) -> f64 {
         if self.total_operations == 0 {
             0.0
@@ -62,6 +63,7 @@ impl FilterStats {
     }
 
     /// Calculate the efficiency of bloom filtering
+    #[must_use]
     pub fn bloom_filter_efficiency(&self) -> f64 {
         if self.total_operations == 0 {
             0.0
@@ -71,6 +73,7 @@ impl FilterStats {
     }
 
     /// Calculate the overall filtering efficiency
+    #[must_use]
     pub fn overall_efficiency(&self) -> f64 {
         if self.total_operations == 0 {
             0.0
@@ -82,6 +85,7 @@ impl FilterStats {
     }
 
     /// Get average time per filter operation (in microseconds)
+    #[must_use]
     pub fn avg_filter_time_us(&self) -> f64 {
         if self.total_operations == 0 {
             0.0
@@ -93,6 +97,7 @@ impl FilterStats {
 
 impl FilterEngine {
     /// Create a new filter engine with the given index
+    #[must_use]
     pub fn new(index: Arc<BinaryIndex>) -> Self {
         Self {
             index,
@@ -158,6 +163,7 @@ impl FilterEngine {
     }
 
     /// Check if an allocation matches all filters
+    #[must_use]
     pub fn matches_all_filters(
         &self,
         allocation: &AllocationInfo,
@@ -167,6 +173,7 @@ impl FilterEngine {
     }
 
     /// Get filtering statistics
+    #[must_use]
     pub fn get_stats(&self) -> &FilterStats {
         &self.stats
     }
@@ -353,8 +360,7 @@ impl FilterEngine {
             .allocations
             .quick_filter_data
             .as_ref()
-            .map(|qf| qf.bloom_filter_params.hash_functions)
-            .unwrap_or(3);
+            .map_or(3, |qf| qf.bloom_filter_params.hash_functions);
 
         let filter_size_bits = bloom_filter.len() * 8;
 
@@ -381,18 +387,20 @@ impl FilterEngine {
     }
 }
 
-/// Builder for creating FilterEngine with custom configuration
+/// Builder for creating `FilterEngine` with custom configuration
 pub struct FilterEngineBuilder {
     index: Option<Arc<BinaryIndex>>,
 }
 
 impl FilterEngineBuilder {
     /// Create a new filter engine builder
+    #[must_use]
     pub fn new() -> Self {
         Self { index: None }
     }
 
     /// Set the binary index to use
+    #[must_use]
     pub fn with_index(mut self, index: Arc<BinaryIndex>) -> Self {
         self.index = Some(index);
         self
@@ -419,6 +427,7 @@ pub struct FilterOptimizer;
 
 impl FilterOptimizer {
     /// Optimize a list of filters for better performance
+    #[must_use]
     pub fn optimize_filters(filters: &[AllocationFilter]) -> Vec<AllocationFilter> {
         let mut optimized = filters.to_vec();
 

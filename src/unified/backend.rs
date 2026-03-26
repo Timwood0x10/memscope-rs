@@ -219,7 +219,7 @@ impl UnifiedBackend {
 
         // Count available threads
         let thread_count = std::thread::available_parallelism()
-            .map(|p| p.get())
+            .map(std::num::NonZero::get)
             .unwrap_or(1);
 
         // Determine environment type based on detection results
@@ -304,7 +304,7 @@ impl UnifiedBackend {
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .map_err(|e| BackendError::TrackingInitializationFailed {
-                    reason: format!("Failed to generate session ID: {}", e),
+                    reason: format!("Failed to generate session ID: {e}"),
                 })?
                 .as_millis()
         );
@@ -445,11 +445,13 @@ impl Clone for UnifiedBackend {
 
 impl TrackingSession {
     /// Get session identifier
+    #[must_use]
     pub fn session_id(&self) -> &str {
         &self.session_id
     }
 
     /// Get elapsed time since session start
+    #[must_use]
     pub fn elapsed_time(&self) -> std::time::Duration {
         self.start_time.elapsed()
     }

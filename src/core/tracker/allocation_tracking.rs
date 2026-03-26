@@ -1,7 +1,7 @@
 //! Memory allocation tracking implementation with bounded memory stats.
 //!
 //! This module contains the core allocation and deallocation tracking logic
-//! for the MemoryTracker, using BoundedMemoryStats to prevent infinite growth.
+//! for the `MemoryTracker`, using `BoundedMemoryStats` to prevent infinite growth.
 
 use super::memory_tracker::MemoryTracker;
 use crate::core::ownership_history::OwnershipEventType;
@@ -28,17 +28,16 @@ impl MemoryTracker {
         self.calculate_and_analyze_lifetime(&mut allocation);
 
         // Use blocking locks in fast mode for accurate tracking
-        match (self.active_allocations.lock(), self.bounded_stats.lock()) {
-            (Ok(mut active), Ok(mut bounded_stats)) => {
-                active.insert(ptr, allocation.clone());
-                bounded_stats.add_allocation(&allocation);
-                Ok(())
-            }
-            _ => {
-                // Fallback: still track the allocation even if locks fail
-                tracing::warn!("Failed to acquire locks in fast_track_allocation");
-                Ok(())
-            }
+        if let (Ok(mut active), Ok(mut bounded_stats)) =
+            (self.active_allocations.lock(), self.bounded_stats.lock())
+        {
+            active.insert(ptr, allocation.clone());
+            bounded_stats.add_allocation(&allocation);
+            Ok(())
+        } else {
+            // Fallback: still track the allocation even if locks fail
+            tracing::warn!("Failed to acquire locks in fast_track_allocation");
+            Ok(())
         }
     }
 
@@ -193,25 +192,21 @@ impl MemoryTracker {
         const MAX_RETRIES: u32 = 10;
 
         while retry_count < MAX_RETRIES {
-            match (
+            if let (Ok(mut active), Ok(mut bounded_stats)) = (
                 self.active_allocations.try_lock(),
                 self.bounded_stats.try_lock(),
             ) {
-                (Ok(mut active), Ok(mut bounded_stats)) => {
-                    // Insert allocation into active tracking
-                    active.insert(ptr, allocation.clone());
+                // Insert allocation into active tracking
+                active.insert(ptr, allocation.clone());
 
-                    // Update bounded statistics (automatically handles bounds)
-                    bounded_stats.add_allocation(&allocation);
+                // Update bounded statistics (automatically handles bounds)
+                bounded_stats.add_allocation(&allocation);
 
-                    return Ok(());
-                }
-                _ => {
-                    retry_count += 1;
-                    if retry_count < MAX_RETRIES {
-                        std::thread::yield_now();
-                    }
-                }
+                return Ok(());
+            }
+            retry_count += 1;
+            if retry_count < MAX_RETRIES {
+                std::thread::yield_now();
             }
         }
 
@@ -232,30 +227,26 @@ impl MemoryTracker {
         const MAX_RETRIES: u32 = 10;
 
         while retry_count < MAX_RETRIES {
-            match (
+            if let (Ok(mut active), Ok(mut bounded_stats)) = (
                 self.active_allocations.try_lock(),
                 self.bounded_stats.try_lock(),
             ) {
-                (Ok(mut active), Ok(mut bounded_stats)) => {
-                    // Insert allocation into active tracking
-                    active.insert(ptr, allocation.clone());
+                // Insert allocation into active tracking
+                active.insert(ptr, allocation.clone());
 
-                    // Update bounded statistics (automatically handles bounds)
-                    bounded_stats.add_allocation(&allocation);
+                // Update bounded statistics (automatically handles bounds)
+                bounded_stats.add_allocation(&allocation);
 
-                    // Try to add to history manager if possible
-                    if let Ok(mut history_manager) = self.history_manager.try_lock() {
-                        history_manager.add_allocation(allocation);
-                    }
-
-                    return Ok(());
+                // Try to add to history manager if possible
+                if let Ok(mut history_manager) = self.history_manager.try_lock() {
+                    history_manager.add_allocation(allocation);
                 }
-                _ => {
-                    retry_count += 1;
-                    if retry_count < MAX_RETRIES {
-                        std::thread::yield_now();
-                    }
-                }
+
+                return Ok(());
+            }
+            retry_count += 1;
+            if retry_count < MAX_RETRIES {
+                std::thread::yield_now();
             }
         }
 
@@ -315,38 +306,34 @@ impl MemoryTracker {
         const MAX_RETRIES: u32 = 10;
 
         while retry_count < MAX_RETRIES {
-            match (
+            if let (Ok(mut active), Ok(mut bounded_stats)) = (
                 self.active_allocations.try_lock(),
                 self.bounded_stats.try_lock(),
             ) {
-                (Ok(mut active), Ok(mut bounded_stats)) => {
-                    if let Some(mut allocation) = active.remove(&ptr) {
-                        // Set deallocation timestamp
-                        allocation.timestamp_dealloc = Some(dealloc_timestamp);
+                if let Some(mut allocation) = active.remove(&ptr) {
+                    // Set deallocation timestamp
+                    allocation.timestamp_dealloc = Some(dealloc_timestamp);
 
-                        // Apply Task 4 enhancement: calculate lifetime for deallocated allocation
-                        self.calculate_and_analyze_lifetime(&mut allocation);
+                    // Apply Task 4 enhancement: calculate lifetime for deallocated allocation
+                    self.calculate_and_analyze_lifetime(&mut allocation);
 
-                        // Update bounded statistics
-                        bounded_stats.record_deallocation(ptr, allocation.size);
+                    // Update bounded statistics
+                    bounded_stats.record_deallocation(ptr, allocation.size);
 
-                        // Release locks before updating history
-                        drop(bounded_stats);
-                        drop(active);
+                    // Release locks before updating history
+                    drop(bounded_stats);
+                    drop(active);
 
-                        // Update allocation history with deallocation timestamp
-                        if let Ok(mut history_manager) = self.history_manager.try_lock() {
-                            history_manager.add_allocation(allocation);
-                        }
-                    }
-                    return Ok(());
-                }
-                _ => {
-                    retry_count += 1;
-                    if retry_count < MAX_RETRIES {
-                        std::thread::yield_now();
+                    // Update allocation history with deallocation timestamp
+                    if let Ok(mut history_manager) = self.history_manager.try_lock() {
+                        history_manager.add_allocation(allocation);
                     }
                 }
+                return Ok(());
+            }
+            retry_count += 1;
+            if retry_count < MAX_RETRIES {
+                std::thread::yield_now();
             }
         }
 
@@ -357,7 +344,7 @@ impl MemoryTracker {
     }
 
     /// Enhanced lifetime calculation and analysis for Task 4
-    /// This method fills the lifetime_ms field with precise calculations and adds lifecycle analysis
+    /// This method fills the `lifetime_ms` field with precise calculations and adds lifecycle analysis
     fn calculate_and_analyze_lifetime(&self, allocation: &mut AllocationInfo) {
         // 1. Calculate precise lifetime based on timestamps
         if allocation.lifetime_ms.is_none() {
@@ -400,7 +387,7 @@ impl MemoryTracker {
         // For now, it's a placeholder to maintain compatibility
     }
 
-    /// Create synthetic allocation with proper var_name and type_name
+    /// Create synthetic allocation with proper `var_name` and `type_name`
     pub fn create_synthetic_allocation(
         &self,
         ptr: usize,
@@ -417,32 +404,29 @@ impl MemoryTracker {
         allocation.enhance_with_type_info(&type_name);
 
         // Store the allocation and update stats
-        match self.active_allocations.try_lock() {
-            Ok(mut active) => {
-                active.insert(ptr, allocation.clone());
-                drop(active); // Release active lock before acquiring bounded_stats lock
+        if let Ok(mut active) = self.active_allocations.try_lock() {
+            active.insert(ptr, allocation.clone());
+            drop(active); // Release active lock before acquiring bounded_stats lock
 
-                // CRITICAL FIX: Update bounded stats for synthetic allocations
-                if let Ok(mut bounded_stats) = self.bounded_stats.try_lock() {
-                    bounded_stats.add_allocation(&allocation);
-                }
+            // CRITICAL FIX: Update bounded stats for synthetic allocations
+            if let Ok(mut bounded_stats) = self.bounded_stats.try_lock() {
+                bounded_stats.add_allocation(&allocation);
+            }
 
-                tracing::debug!(
-                    "Created synthetic allocation for '{}' ({}): ptr=0x{:x}, size={}",
-                    var_name,
-                    type_name,
-                    ptr,
-                    size
-                );
-                Ok(())
-            }
-            Err(_) => {
-                tracing::debug!(
-                    "Could not acquire lock for synthetic allocation: {}",
-                    var_name
-                );
-                Ok(())
-            }
+            tracing::debug!(
+                "Created synthetic allocation for '{}' ({}): ptr=0x{:x}, size={}",
+                var_name,
+                type_name,
+                ptr,
+                size
+            );
+            Ok(())
+        } else {
+            tracing::debug!(
+                "Could not acquire lock for synthetic allocation: {}",
+                var_name
+            );
+            Ok(())
         }
     }
 
@@ -541,55 +525,51 @@ impl MemoryTracker {
         const MAX_RETRIES: u32 = 10;
 
         while retry_count < MAX_RETRIES {
-            match self.active_allocations.try_lock() {
-                Ok(mut active) => {
-                    if let Some(allocation) = active.get_mut(&ptr) {
-                        allocation.var_name = Some(var_name.clone());
-                        allocation.type_name = Some(type_name.clone());
+            if let Ok(mut active) = self.active_allocations.try_lock() {
+                if let Some(allocation) = active.get_mut(&ptr) {
+                    allocation.var_name = Some(var_name.clone());
+                    allocation.type_name = Some(type_name.clone());
 
-                        // Apply improve.md field enhancements based on type
-                        allocation.enhance_with_type_info(&type_name);
+                    // Apply improve.md field enhancements based on type
+                    allocation.enhance_with_type_info(&type_name);
 
-                        tracing::debug!(
-                            "Associated variable '{}' with existing allocation at {:x}",
-                            var_name,
-                            ptr
-                        );
-                        return Ok(());
-                    } else {
-                        // For smart pointers and other complex types, create a synthetic allocation entry
-                        let mut synthetic_allocation = AllocationInfo::new(ptr, 0);
-                        synthetic_allocation.var_name = Some(var_name.clone());
-                        synthetic_allocation.type_name = Some(type_name.clone());
+                    tracing::debug!(
+                        "Associated variable '{}' with existing allocation at {:x}",
+                        var_name,
+                        ptr
+                    );
+                    return Ok(());
+                } else {
+                    // For smart pointers and other complex types, create a synthetic allocation entry
+                    let mut synthetic_allocation = AllocationInfo::new(ptr, 0);
+                    synthetic_allocation.var_name = Some(var_name.clone());
+                    synthetic_allocation.type_name = Some(type_name.clone());
 
-                        // Estimate size based on type
-                        let estimated_size = self.estimate_type_size(&type_name);
-                        synthetic_allocation.size = estimated_size;
+                    // Estimate size based on type
+                    let estimated_size = self.estimate_type_size(&type_name);
+                    synthetic_allocation.size = estimated_size;
 
-                        // Apply improve.md field enhancements based on type
-                        synthetic_allocation.enhance_with_type_info(&type_name);
+                    // Apply improve.md field enhancements based on type
+                    synthetic_allocation.enhance_with_type_info(&type_name);
 
-                        // Add to active allocations for tracking
-                        active.insert(ptr, synthetic_allocation.clone());
+                    // Add to active allocations for tracking
+                    active.insert(ptr, synthetic_allocation.clone());
 
-                        // Release active lock before acquiring bounded_stats lock
-                        drop(active);
+                    // Release active lock before acquiring bounded_stats lock
+                    drop(active);
 
-                        if let Ok(mut bounded_stats) = self.bounded_stats.try_lock() {
-                            bounded_stats.add_allocation(&synthetic_allocation);
-                        }
-
-                        tracing::debug!("Created synthetic allocation for variable '{}' at {:x} (estimated size: {})", 
-                                       var_name, ptr, estimated_size);
-                        return Ok(());
+                    if let Ok(mut bounded_stats) = self.bounded_stats.try_lock() {
+                        bounded_stats.add_allocation(&synthetic_allocation);
                     }
+
+                    tracing::debug!("Created synthetic allocation for variable '{}' at {:x} (estimated size: {})", 
+                                   var_name, ptr, estimated_size);
+                    return Ok(());
                 }
-                Err(_) => {
-                    retry_count += 1;
-                    if retry_count < MAX_RETRIES {
-                        std::thread::yield_now();
-                    }
-                }
+            }
+            retry_count += 1;
+            if retry_count < MAX_RETRIES {
+                std::thread::yield_now();
             }
         }
 
@@ -771,81 +751,78 @@ impl MemoryTracker {
         self.enhance_allocation_info(&mut allocation);
 
         // Use try_lock to avoid blocking
-        match (
+        if let (Ok(mut active), Ok(mut bounded_stats)) = (
             self.active_allocations.try_lock(),
             self.bounded_stats.try_lock(),
         ) {
-            (Ok(mut active), Ok(mut bounded_stats)) => {
-                // Add to active allocations
-                active.insert(ptr, allocation.clone());
+            // Add to active allocations
+            active.insert(ptr, allocation.clone());
 
-                // Update bounded statistics
-                bounded_stats.add_allocation(&allocation);
+            // Update bounded statistics
+            bounded_stats.add_allocation(&allocation);
 
-                // Release locks before updating history
-                drop(bounded_stats);
-                drop(active);
+            // Release locks before updating history
+            drop(bounded_stats);
+            drop(active);
 
-                // Add to allocation history (only if needed for analysis and not in fast mode)
-                if !self.is_fast_mode() && std::env::var("MEMSCOPE_FULL_HISTORY").is_ok() {
-                    if let Ok(mut history_manager) = self.history_manager.try_lock() {
-                        history_manager.add_allocation(allocation);
-                    }
+            // Add to allocation history (only if needed for analysis and not in fast mode)
+            if !self.is_fast_mode() && std::env::var("MEMSCOPE_FULL_HISTORY").is_ok() {
+                if let Ok(mut history_manager) = self.history_manager.try_lock() {
+                    history_manager.add_allocation(allocation);
                 }
-
-                tracing::debug!(
-                    "🎯 Created smart pointer allocation for '{}' ({}): ptr=0x{:x}, size={}, ref_count={}, data_ptr=0x{:x}",
-                    var_name,
-                    type_name,
-                    ptr,
-                    size,
-                    ref_count,
-                    data_ptr
-                );
-
-                Ok(())
             }
-            _ => {
-                // Use a brief retry strategy instead of immediate failure
-                for attempt in 0..3 {
-                    std::thread::sleep(std::time::Duration::from_nanos(100 * (attempt + 1)));
-                    if let (Ok(mut active), Ok(mut bounded_stats)) = (
-                        self.active_allocations.try_lock(),
-                        self.bounded_stats.try_lock(),
-                    ) {
-                        active.insert(ptr, allocation.clone());
-                        bounded_stats.add_allocation(&allocation);
-                        drop(bounded_stats);
-                        drop(active);
 
-                        // Add to allocation history (only if needed for analysis)
-                        if std::env::var("MEMSCOPE_FULL_HISTORY").is_ok() {
-                            if let Ok(mut history_manager) = self.history_manager.try_lock() {
-                                history_manager.add_allocation(allocation.clone());
-                            }
+            tracing::debug!(
+                "🎯 Created smart pointer allocation for '{}' ({}): ptr=0x{:x}, size={}, ref_count={}, data_ptr=0x{:x}",
+                var_name,
+                type_name,
+                ptr,
+                size,
+                ref_count,
+                data_ptr
+            );
+
+            Ok(())
+        } else {
+            // Use a brief retry strategy instead of immediate failure
+            for attempt in 0..3 {
+                std::thread::sleep(std::time::Duration::from_nanos(100 * (attempt + 1)));
+                if let (Ok(mut active), Ok(mut bounded_stats)) = (
+                    self.active_allocations.try_lock(),
+                    self.bounded_stats.try_lock(),
+                ) {
+                    active.insert(ptr, allocation.clone());
+                    bounded_stats.add_allocation(&allocation);
+                    drop(bounded_stats);
+                    drop(active);
+
+                    // Add to allocation history (only if needed for analysis)
+                    if std::env::var("MEMSCOPE_FULL_HISTORY").is_ok() {
+                        if let Ok(mut history_manager) = self.history_manager.try_lock() {
+                            history_manager.add_allocation(allocation.clone());
                         }
-
-                        tracing::debug!(
-                            "🎯 Created smart pointer allocation for '{}' ({}): ptr=0x{:x}, size={}, ref_count={}, data_ptr=0x{:x} (attempt {})",
-                            var_name,
-                            type_name,
-                            ptr,
-                            size,
-                            ref_count,
-                            data_ptr,
-                            attempt + 1
-                        );
-                        return Ok(());
                     }
-                }
 
-                // Only debug log after all retries failed
-                tracing::debug!(
-                    "⚠️ Failed to create smart pointer allocation for '{}' after retries",
-                    var_name
-                );
-                Ok(())
+                    tracing::debug!(
+                        "🎯 Created smart pointer allocation for '{}' ({}): ptr=0x{:x}, size={}, ref_count={}, data_ptr=0x{:x} (attempt {})",
+                        var_name,
+                        type_name,
+                        ptr,
+                        size,
+                        ref_count,
+                        data_ptr,
+                        attempt + 1
+                    );
+                    return Ok(());
+                }
             }
+
+            // Only debug log after all retries failed
+            tracing::debug!(
+                "⚠️ Failed to create smart pointer allocation for '{}' after retries",
+                var_name
+            );
+            Ok(())
         }
     }
 

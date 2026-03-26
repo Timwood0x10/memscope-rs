@@ -143,11 +143,13 @@ impl Default for ErrorRecoveryManager {
 
 impl ErrorRecoveryManager {
     /// Create a new error recovery manager
+    #[must_use]
     pub fn new() -> Self {
         Self::with_config(RecoveryConfig::default())
     }
 
     /// Create a new error recovery manager with custom configuration
+    #[must_use]
     pub fn with_config(config: RecoveryConfig) -> Self {
         Self {
             error_stats: ErrorStatistics::default(),
@@ -320,6 +322,7 @@ impl ErrorRecoveryManager {
     }
 
     /// Get error statistics
+    #[must_use]
     pub fn get_error_stats(&self) -> &ErrorStatistics {
         &self.error_stats
     }
@@ -336,6 +339,7 @@ impl ErrorRecoveryManager {
     }
 
     /// Generate error report
+    #[must_use]
     pub fn generate_error_report(&self) -> ErrorReport {
         let total_operations =
             self.error_stats.successful_recoveries + self.error_stats.failed_recoveries;
@@ -457,6 +461,7 @@ pub struct ErrorReport {
 
 impl ErrorStatistics {
     /// Calculate recovery success rate
+    #[must_use]
     pub fn recovery_success_rate(&self) -> f64 {
         let total = self.successful_recoveries + self.failed_recoveries;
         if total > 0 {
@@ -467,6 +472,7 @@ impl ErrorStatistics {
     }
 
     /// Get error trend (increasing/decreasing)
+    #[must_use]
     pub fn error_trend(&self) -> ErrorTrend {
         // Simplified trend analysis based on recent error rate
         if self.error_rate > 10.0 {

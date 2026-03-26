@@ -1,7 +1,7 @@
 //! Enhanced memory tracking for unsafe Rust and FFI operations
 //!
 //! This module extends the basic memory tracking to handle:
-//! - Unsafe Rust memory operations (std::alloc::alloc, raw pointers)
+//! - Unsafe Rust memory operations (`std::alloc::alloc`, raw pointers)
 //! - FFI memory operations (malloc, free from C libraries)
 //! - Cross-boundary memory transfers
 //! - Safety violation detection
@@ -32,7 +32,7 @@ pub enum AllocationSource {
         resolved_function: ResolvedFfiFunction,
         /// Call stack at the time of allocation
         call_stack: CallStackRef,
-        /// LibC hook information
+        /// `LibC` hook information
         libc_hook_info: LibCHookInfo,
     },
     /// Cross-boundary memory transfer
@@ -164,7 +164,7 @@ pub enum RiskFactorType {
     DataRace,
 }
 
-/// Information about LibC function hooks
+/// Information about `LibC` function hooks
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LibCHookInfo {
     /// Method used to hook the function
@@ -179,10 +179,10 @@ pub struct LibCHookInfo {
     pub hook_overhead_ns: Option<u64>,
 }
 
-/// Methods for hooking LibC functions
+/// Methods for hooking `LibC` functions
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum HookMethod {
-    /// LD_PRELOAD mechanism (Linux/macOS)
+    /// `LD_PRELOAD` mechanism (Linux/macOS)
     LdPreload,
     /// Dynamic linker interposition
     DynamicLinker,
@@ -192,7 +192,7 @@ pub enum HookMethod {
     RuntimePatching,
 }
 
-/// Metadata about memory allocations from LibC
+/// Metadata about memory allocations from `LibC`
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AllocationMetadata {
     /// Size requested by the caller
@@ -601,7 +601,7 @@ pub struct UnsafeFFITracker {
     violations: Mutex<Vec<SafetyViolation>>,
     /// C library tracking registry
     c_libraries: Mutex<HashMap<String, CLibraryInfo>>,
-    /// Enhanced LibC hook registry
+    /// Enhanced `LibC` hook registry
     libc_hooks: Mutex<HashMap<String, EnhancedLibCHookInfo>>,
     /// Memory passport registry
     memory_passports: Mutex<HashMap<usize, MemoryPassport>>,
@@ -609,6 +609,7 @@ pub struct UnsafeFFITracker {
 
 impl UnsafeFFITracker {
     /// Create a new enhanced tracker
+    #[must_use]
     pub fn new() -> Self {
         Self {
             enhanced_allocations: Mutex::new(HashMap::new()),
@@ -646,7 +647,7 @@ impl UnsafeFFITracker {
         }
     }
 
-    /// Create a default LibC hook info for FFI operations
+    /// Create a default `LibC` hook info for FFI operations
     fn create_default_libc_hook_info(&self, function_name: &str, size: usize) -> LibCHookInfo {
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -1018,12 +1019,12 @@ impl UnsafeFFITracker {
 
         if let Ok(allocations) = self.enhanced_allocations.lock() {
             for allocation in allocations.values() {
-                let alloc_time = allocation.base.timestamp_alloc as u128;
+                let alloc_time = u128::from(allocation.base.timestamp_alloc);
                 let age = current_time.saturating_sub(alloc_time);
                 if age > threshold_ms && allocation.base.is_active() {
                     leaks.push(SafetyViolation::PotentialLeak {
                         allocation_stack: allocation.call_stack.clone(),
-                        allocation_timestamp: allocation.base.timestamp_alloc as u128,
+                        allocation_timestamp: u128::from(allocation.base.timestamp_alloc),
                         leak_detection_timestamp: current_time,
                     });
                 }
@@ -1182,7 +1183,7 @@ pub struct FunctionPerformanceMetrics {
 /// Library metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LibraryMetadata {
-    /// Architecture (x86_64, arm64, etc.)
+    /// Architecture (`x86_64`, arm64, etc.)
     pub architecture: String,
     /// Operating system
     pub operating_system: String,
@@ -1194,7 +1195,7 @@ pub struct LibraryMetadata {
     pub security_features: Vec<String>,
 }
 
-/// Enhanced LibC hook information with detailed tracking
+/// Enhanced `LibC` hook information with detailed tracking
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EnhancedLibCHookInfo {
     /// Base hook information
@@ -1547,7 +1548,7 @@ impl UnsafeFFITracker {
         Ok(())
     }
 
-    /// Install an enhanced LibC hook
+    /// Install an enhanced `LibC` hook
     pub fn install_enhanced_libc_hook(
         &self,
         function_name: String,
@@ -1795,7 +1796,7 @@ impl UnsafeFFITracker {
             .map_err(|e| TrackingError::LockError(e.to_string()))
     }
 
-    /// Get LibC hook information
+    /// Get `LibC` hook information
     pub fn get_libc_hook_info(&self) -> TrackingResult<HashMap<String, EnhancedLibCHookInfo>> {
         self.libc_hooks
             .lock()
@@ -2295,11 +2296,11 @@ impl UnsafeFFITracker {
         let allocations = self
             .enhanced_allocations
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let violations = self
             .violations
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
 
         let mut stats = UnsafeFFIStats::default();
 
@@ -2370,7 +2371,7 @@ impl UnsafeFFITracker {
                 operation_type: op_type,
                 location: "unknown".to_string(), // Could be enhanced with actual location
                 risk_level,
-                timestamp: allocation.base.timestamp_alloc as u128,
+                timestamp: u128::from(allocation.base.timestamp_alloc),
                 description,
             });
         }
@@ -2381,7 +2382,7 @@ impl UnsafeFFITracker {
         stats
     }
 
-    /// Integrate with SafetyAnalyzer for enhanced reporting
+    /// Integrate with `SafetyAnalyzer` for enhanced reporting
     pub fn integrate_with_safety_analyzer(
         &self,
         safety_analyzer: &crate::analysis::SafetyAnalyzer,
@@ -2447,7 +2448,7 @@ impl UnsafeFFITracker {
         Ok(())
     }
 
-    /// Integrate with MemoryPassportTracker for FFI boundary tracking
+    /// Integrate with `MemoryPassportTracker` for FFI boundary tracking
     pub fn integrate_with_passport_tracker(
         &self,
         passport_tracker: &crate::analysis::MemoryPassportTracker,

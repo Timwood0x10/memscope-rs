@@ -16,6 +16,7 @@ static _TYPE_INFERENCE_ENGINE: std::sync::LazyLock<Mutex<TypeInferenceEngine>> =
 
 impl TrackingAllocator {
     /// Create a new tracking allocator instance.
+    #[must_use]
     pub const fn new() -> Self {
         Self
     }

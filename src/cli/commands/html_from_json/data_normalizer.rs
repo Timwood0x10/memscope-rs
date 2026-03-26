@@ -330,6 +330,7 @@ pub struct DataNormalizer {
 
 impl DataNormalizer {
     /// Create a new data normalizer
+    #[must_use]
     pub fn new() -> Self {
         Self {
             validation_enabled: true,
@@ -338,6 +339,7 @@ impl DataNormalizer {
     }
 
     /// Create normalizer with validation disabled
+    #[must_use]
     pub fn without_validation() -> Self {
         Self {
             validation_enabled: false,
@@ -445,8 +447,7 @@ impl DataNormalizer {
         memory_data
             .and_then(|data| data.get("allocations"))
             .and_then(|allocs| allocs.as_array())
-            .map(|arr| arr.len())
-            .unwrap_or(0)
+            .map_or(0, std::vec::Vec::len)
     }
 
     /// Normalize allocations data
@@ -498,7 +499,7 @@ impl DataNormalizer {
                     .and_then(|sv| sv.as_array())
                     .map(|arr| {
                         arr.iter()
-                            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                            .filter_map(|v| v.as_str().map(std::string::ToString::to_string))
                             .collect()
                     });
 
@@ -645,7 +646,7 @@ impl DataNormalizer {
                 .and_then(|recs| recs.as_array())
                 .map(|arr| {
                     arr.iter()
-                        .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                        .filter_map(|v| v.as_str().map(std::string::ToString::to_string))
                         .collect()
                 })
                 .unwrap_or_default(),
@@ -828,7 +829,10 @@ impl DataNormalizer {
     }
 
     fn extract_string(&self, data: Option<&Value>, field: &str) -> Option<String> {
-        data?.get(field)?.as_str().map(|s| s.to_string())
+        data?
+            .get(field)?
+            .as_str()
+            .map(std::string::ToString::to_string)
     }
 
     fn extract_string_array(&self, data: Option<&Value>, field: &str) -> Option<Vec<String>> {
@@ -836,7 +840,7 @@ impl DataNormalizer {
             .get(field)?
             .as_array()?
             .iter()
-            .map(|v| v.as_str().map(|s| s.to_string()))
+            .map(|v| v.as_str().map(std::string::ToString::to_string))
             .collect()
     }
 

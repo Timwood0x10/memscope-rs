@@ -74,7 +74,7 @@ impl From<std::io::Error> for BinaryExportError {
     }
 }
 
-/// Convert to TrackingError for compatibility with existing error handling
+/// Convert to `TrackingError` for compatibility with existing error handling
 impl From<BinaryExportError> for crate::core::types::TrackingError {
     fn from(err: BinaryExportError) -> Self {
         crate::core::types::TrackingError::ExportError(err.to_string())

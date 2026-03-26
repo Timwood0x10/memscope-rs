@@ -106,6 +106,7 @@ pub type DeallocationHook = fn(*mut u8, usize) -> bool;
 
 impl PlatformAllocator {
     /// Create new platform allocator
+    #[must_use]
     pub fn new() -> Self {
         Self {
             original_alloc: AtomicPtr::new(std::ptr::null_mut()),
@@ -386,7 +387,7 @@ impl std::fmt::Display for HookError {
             HookError::PermissionDenied => write!(f, "Permission denied for hook installation"),
             HookError::AlreadyInstalled => write!(f, "Allocation hooks already installed"),
             HookError::NotInstalled => write!(f, "Allocation hooks not installed"),
-            HookError::SystemError(msg) => write!(f, "System error: {}", msg),
+            HookError::SystemError(msg) => write!(f, "System error: {msg}"),
         }
     }
 }

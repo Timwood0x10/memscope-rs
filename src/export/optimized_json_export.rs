@@ -25,17 +25,17 @@ use std::{
 /// Json file types
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JsonFileType {
-    /// memory_analysis.json
+    /// `memory_analysis.json`
     MemoryAnalysis,
     /// lifetime.json
     Lifetime,
-    /// unsafe_ffi.json
+    /// `unsafe_ffi.json`
     UnsafeFfi,
     /// performance.json
     Performance,
-    /// complex_types.json
+    /// `complex_types.json`
     ComplexTypes,
-    /// security_violations.json
+    /// `security_violations.json`
     SecurityViolations,
     // AsyncAnalysis,    // asnyc analysis
     // ThreadSafety,     // Threadsafety
@@ -45,6 +45,7 @@ pub enum JsonFileType {
 
 impl JsonFileType {
     /// get standard four files
+    #[must_use]
     pub fn standard_four() -> Vec<JsonFileType> {
         vec![
             JsonFileType::MemoryAnalysis,
@@ -55,6 +56,7 @@ impl JsonFileType {
     }
 
     /// get standard five files
+    #[must_use]
     pub fn standard_five() -> Vec<JsonFileType> {
         vec![
             JsonFileType::MemoryAnalysis,
@@ -66,6 +68,7 @@ impl JsonFileType {
     }
 
     /// get file suffix
+    #[must_use]
     pub fn file_suffix(&self) -> &'static str {
         match self {
             JsonFileType::MemoryAnalysis => "memory_analysis",
@@ -173,6 +176,7 @@ impl Default for OptimizedExportOptions {
 
 impl OptimizedExportOptions {
     /// Create new options with specified optimization level
+    #[must_use]
     pub fn with_optimization_level(level: OptimizationLevel) -> Self {
         let mut options = OptimizedExportOptions {
             optimization_level: level,
@@ -211,78 +215,91 @@ impl OptimizedExportOptions {
     }
 
     /// Enable or disable parallel processing
+    #[must_use]
     pub fn parallel_processing(mut self, enabled: bool) -> Self {
         self.parallel_processing = enabled;
         self
     }
 
     /// Set buffer size for I/O operations
+    #[must_use]
     pub fn buffer_size(mut self, size: usize) -> Self {
         self.buffer_size = size;
         self
     }
 
     /// Set batch size for processing
+    #[must_use]
     pub fn batch_size(mut self, size: usize) -> Self {
         self.batch_size = size;
         self
     }
 
     /// Enable or disable streaming writer
+    #[must_use]
     pub fn streaming_writer(mut self, enabled: bool) -> Self {
         self.use_streaming_writer = enabled;
         self
     }
 
     /// Enable or disable schema validation
+    #[must_use]
     pub fn schema_validation(mut self, enabled: bool) -> Self {
         self.enable_schema_validation = enabled;
         self
     }
 
     /// Enable or disable adaptive optimization
+    #[must_use]
     pub fn adaptive_optimization(mut self, enabled: bool) -> Self {
         self.enable_adaptive_optimization = enabled;
         self
     }
 
     /// Set maximum cache size
+    #[must_use]
     pub fn max_cache_size(mut self, size: usize) -> Self {
         self.max_cache_size = size;
         self
     }
 
     /// Enable or disable security violation analysis
+    #[must_use]
     pub fn security_analysis(mut self, enabled: bool) -> Self {
         self.enable_security_analysis = enabled;
         self
     }
 
     /// Include low severity violations in reports
+    #[must_use]
     pub fn include_low_severity(mut self, include: bool) -> Self {
         self.include_low_severity_violations = include;
         self
     }
 
     /// Enable or disable integrity hash generation
+    #[must_use]
     pub fn integrity_hashes(mut self, enabled: bool) -> Self {
         self.generate_integrity_hashes = enabled;
         self
     }
 
     /// Enable or disable fast export mode
+    #[must_use]
     pub fn fast_export_mode(mut self, enabled: bool) -> Self {
         self.enable_fast_export_mode = enabled;
         self
     }
 
     /// Set auto fast export threshold (None to disable auto mode)
+    #[must_use]
     pub fn auto_fast_export_threshold(mut self, threshold: Option<usize>) -> Self {
         self.auto_fast_export_threshold = threshold;
         self
     }
 
     /// Set thread count for parallel processing (None for auto-detect)
+    #[must_use]
     pub fn thread_count(mut self, count: Option<usize>) -> Self {
         self.thread_count = count;
         self
@@ -471,9 +488,10 @@ fn write_json_optimized<P: AsRef<Path>>(
         let buffered_file = BufWriter::with_capacity(options.buffer_size * 2, file);
         let mut streaming_writer = StreamingJsonWriter::new(buffered_file);
 
-        match use_compact {
-            true => streaming_writer.write_complete_json(data)?,
-            false => streaming_writer.write_pretty_json(data)?,
+        if use_compact {
+            streaming_writer.write_complete_json(data)?
+        } else {
+            streaming_writer.write_pretty_json(data)?
         }
 
         streaming_writer.finalize()?;
@@ -509,7 +527,7 @@ fn estimate_json_size(data: &serde_json::Value) -> usize {
     }
 }
 
-/// Convert legacy ExportOptions to OptimizedExportOptions for backward compatibility
+/// Convert legacy `ExportOptions` to `OptimizedExportOptions` for backward compatibility
 #[allow(dead_code)]
 fn convert_legacy_options_to_optimized(
     legacy: crate::core::tracker::ExportOptions,
@@ -563,7 +581,7 @@ fn convert_legacy_options_to_optimized(
 
 /// Ultra-fast export implementation (legacy methods for backward compatibility)
 impl MemoryTracker {
-    /// Optimized export to standard 4 JSON files (replaces export_separated_json_simple)
+    /// Optimized export to standard 4 JSON files (replaces `export_separated_json_simple`)
     pub fn export_optimized_json_files<P: AsRef<Path>>(&self, base_path: P) -> TrackingResult<()> {
         let options = OptimizedExportOptions::default();
         self.export_optimized_json_files_with_options(base_path, options)
@@ -1952,10 +1970,10 @@ fn create_fast_allocation_summary(
 ) -> TrackingResult<serde_json::Value> {
     // Quick summary without heavy processing
     let total_size: usize = allocations.iter().map(|a| a.size).sum();
-    let avg_size = if !allocations.is_empty() {
-        total_size / allocations.len()
-    } else {
+    let avg_size = if allocations.is_empty() {
         0
+    } else {
+        total_size / allocations.len()
     };
 
     // Size distribution (fast calculation)

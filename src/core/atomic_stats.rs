@@ -36,6 +36,7 @@ pub struct SimpleMemoryStats {
 
 impl SimpleMemoryStats {
     /// Create new simple memory statistics
+    #[must_use]
     pub fn new() -> Self {
         Self {
             allocation_count: AtomicU64::new(0),
@@ -167,6 +168,7 @@ pub struct AtomicMemoryStats {
 
 impl AtomicMemoryStats {
     /// Create new atomic memory statistics
+    #[must_use]
     pub fn new() -> Self {
         Self {
             total_allocations: AtomicU64::new(0),
@@ -314,6 +316,7 @@ pub struct AtomicPerformanceCounters {
 
 impl AtomicPerformanceCounters {
     /// Create new performance counters
+    #[must_use]
     pub fn new() -> Self {
         Self {
             clone_count: AtomicU64::new(0),
@@ -384,6 +387,7 @@ pub struct PerformanceSnapshot {
 
 impl PerformanceSnapshot {
     /// Calculate cache hit ratio
+    #[must_use]
     pub fn cache_hit_ratio(&self) -> f64 {
         let total = self.cache_hits + self.cache_misses;
         if total > 0 {
@@ -394,6 +398,7 @@ impl PerformanceSnapshot {
     }
 
     /// Calculate average lock wait time
+    #[must_use]
     pub fn avg_lock_wait_time_ns(&self) -> f64 {
         if self.lock_acquisitions > 0 {
             self.lock_wait_time_ns as f64 / self.lock_acquisitions as f64
@@ -403,6 +408,7 @@ impl PerformanceSnapshot {
     }
 
     /// Calculate lock contention ratio
+    #[must_use]
     pub fn lock_contention_ratio(&self) -> f64 {
         if self.lock_acquisitions > 0 {
             self.lock_contentions as f64 / self.lock_acquisitions as f64

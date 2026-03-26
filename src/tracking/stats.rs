@@ -19,6 +19,7 @@ pub struct TrackingStats {
 
 impl TrackingStats {
     /// Create new tracking statistics instance
+    #[must_use]
     pub fn new() -> Self {
         Self {
             total_attempts: AtomicUsize::new(0),
@@ -146,11 +147,13 @@ pub struct DetailedStats {
 
 impl DetailedStats {
     /// Check if tracking quality is healthy
+    #[must_use]
     pub fn is_healthy(&self) -> bool {
         self.completeness >= 0.95 && self.contention_rate <= 0.05
     }
 
     /// Get quality grade description
+    #[must_use]
     pub fn quality_grade(&self) -> &'static str {
         match self.completeness {
             x if x >= 0.98 => "Excellent",

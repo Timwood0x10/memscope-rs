@@ -130,7 +130,7 @@ pub struct CallGraphNode {
     pub id: String,
     /// Function or module name
     pub name: String,
-    /// Node type (rust_function, ffi_function, external_library)
+    /// Node type (`rust_function`, `ffi_function`, `external_library`)
     pub node_type: NodeType,
     /// Number of allocations from this node
     pub allocation_count: usize,
@@ -153,7 +153,7 @@ pub struct CallGraphEdge {
     pub call_count: usize,
     /// Total memory transferred
     pub memory_transferred: usize,
-    /// Edge type (safe_call, unsafe_call, ffi_boundary)
+    /// Edge type (`safe_call`, `unsafe_call`, `ffi_boundary`)
     pub edge_type: EdgeType,
 }
 
@@ -280,6 +280,7 @@ struct RiskTracker {
 
 impl FfiSafetyAnalyzer {
     /// Create a new FFI safety analyzer
+    #[must_use]
     pub fn new() -> Self {
         Self {
             unsafe_operations: Vec::new(),

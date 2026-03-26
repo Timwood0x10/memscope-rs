@@ -86,7 +86,7 @@ fn run_core_performance_tests(output_dir: &Path) {
         let export_time = start_time.elapsed();
 
         match result {
-            Ok(_) => {
+            Ok(()) => {
                 traditional_core_times.push(export_time.as_millis() as u64);
                 tracing::info!("    ⏱️  core time: {}ms", export_time.as_millis());
             }
@@ -309,7 +309,7 @@ fn generate_core_performance_report(
     let avg_fast = fast_times.iter().sum::<u64>() as f64 / fast_times.len() as f64;
 
     let report = format!(
-        r#"# Large Project Export Optimization - Core Performance Benchmark Report
+        r"# Large Project Export Optimization - Core Performance Benchmark Report
 
 **Test Time**: {}
 **Test Description**: This test specifically tests the performance of the core algorithm in the fast export coordinator, excluding quality validation, progress monitoring, and other additional functions.
@@ -371,7 +371,7 @@ The fast export system uses pre-allocated buffers and batch writing to reduce I/
 - traditional_core_run_*.json - traditional export core results
 - fast_core_run_* - fast export core results
 - core_performance_report.md - this report
-"#,
+",
         chrono::Utc::now().to_rfc3339(),
         avg_traditional,
         avg_fast,

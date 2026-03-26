@@ -21,6 +21,7 @@ pub enum TypeCategory {
 
 impl TypeCategory {
     /// Get display name for the category
+    #[must_use]
     pub fn display_name(&self) -> &str {
         match self {
             TypeCategory::Primitive => "Primitive Types",
@@ -39,6 +40,7 @@ impl TypeCategory {
     }
 
     /// Get CSS class for visualization
+    #[must_use]
     pub fn css_class(&self) -> &str {
         match self {
             TypeCategory::Primitive => "type-primitive",
@@ -57,6 +59,7 @@ impl TypeCategory {
     }
 
     /// Get color for visualization
+    #[must_use]
     pub fn color(&self) -> &str {
         match self {
             TypeCategory::Primitive => "#4CAF50",    // Green
@@ -98,18 +101,22 @@ impl ClassificationRule {
         })
     }
 
+    #[must_use]
     pub fn matches(&self, type_name: &str) -> bool {
         self.pattern.is_match(type_name)
     }
 
+    #[must_use]
     pub fn category(&self) -> &TypeCategory {
         &self.category
     }
 
+    #[must_use]
     pub fn priority(&self) -> u8 {
         self.priority
     }
 
+    #[must_use]
     pub fn description(&self) -> &str {
         &self.description
     }
@@ -327,8 +334,7 @@ impl TypeClassifier {
 
         let category = matched_rules
             .first()
-            .map(|rule| rule.category().clone())
-            .unwrap_or(TypeCategory::UserDefined);
+            .map_or(TypeCategory::UserDefined, |rule| rule.category().clone());
 
         // Cache the result
         if let Ok(mut cache) = self.cache.lock() {
@@ -383,6 +389,7 @@ pub struct ClassificationStats {
 
 impl ClassificationStats {
     /// Generate a human-readable report
+    #[must_use]
     pub fn report(&self) -> String {
         let mut report = "Type Classification Statistics:\n".to_string();
         report.push_str(&format!(

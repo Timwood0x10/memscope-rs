@@ -17,6 +17,7 @@ pub struct BatchConfig {
 
 impl BatchConfig {
     /// Low frequency configuration (100 ops/sec threshold)
+    #[must_use]
     pub fn low_frequency() -> Self {
         Self {
             batch_size: 10,
@@ -26,6 +27,7 @@ impl BatchConfig {
     }
 
     /// Medium frequency configuration (500 ops/sec threshold)
+    #[must_use]
     pub fn medium_frequency() -> Self {
         Self {
             batch_size: 25,
@@ -35,6 +37,7 @@ impl BatchConfig {
     }
 
     /// High frequency configuration (1000 ops/sec threshold)
+    #[must_use]
     pub fn high_frequency() -> Self {
         Self {
             batch_size: 50,
@@ -44,6 +47,7 @@ impl BatchConfig {
     }
 
     /// Create custom configuration
+    #[must_use]
     pub fn custom(
         batch_size: usize,
         frequency_threshold: u64,

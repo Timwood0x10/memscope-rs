@@ -11,8 +11,7 @@ use std::error::Error;
 pub fn run_test(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
     let output_path = matches
         .get_one::<String>("output")
-        .map(|s| s.as_str())
-        .unwrap_or("enhanced_memory_test");
+        .map_or("enhanced_memory_test", std::string::String::as_str);
 
     tracing::info!("🧪 Running enhanced memory tests...");
     tracing::info!("Output path: {}", output_path);

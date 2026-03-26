@@ -114,19 +114,19 @@ impl TemplateResourceManager {
 
         // Load and embed resources
         if config.embed_css {
-            let css_content = if !data.css_content.is_empty() {
-                data.css_content.clone()
-            } else {
+            let css_content = if data.css_content.is_empty() {
                 self.load_css_resources(config)?
+            } else {
+                data.css_content.clone()
             };
             template_content = template_content.replace("{{CSS_CONTENT}}", &css_content);
         }
 
         if config.embed_js {
-            let js_content = if !data.js_content.is_empty() {
-                data.js_content.clone()
-            } else {
+            let js_content = if data.js_content.is_empty() {
                 self.load_js_resources(config)?
+            } else {
+                data.js_content.clone()
             };
             template_content = template_content.replace("{{JS_CONTENT}}", &js_content);
         }
@@ -320,7 +320,7 @@ impl TemplateResourceManager {
     /// Simple CSS minification (removes comments and extra whitespace)
     fn minify_css(&self, css: &str) -> String {
         css.lines()
-            .map(|line| line.trim())
+            .map(str::trim)
             .filter(|line| !line.is_empty() && !line.starts_with("/*"))
             .collect::<Vec<_>>()
             .join(" ")
@@ -330,7 +330,7 @@ impl TemplateResourceManager {
     /// Simple JavaScript minification (removes comments and extra whitespace)
     fn minify_js(&self, js: &str) -> String {
         js.lines()
-            .map(|line| line.trim())
+            .map(str::trim)
             .filter(|line| !line.is_empty() && !line.starts_with("//"))
             .collect::<Vec<_>>()
             .join(" ")
@@ -410,6 +410,7 @@ impl PlaceholderProcessor for RelationshipProcessor {
 }
 
 /// Utility function to create template data from binary analysis results
+#[must_use]
 pub fn create_template_data(
     project_name: &str,
     binary_data_json: &str,

@@ -46,6 +46,7 @@ impl SamplingConfig {
     ///
     /// Higher sampling rates for more complete data capture at the cost
     /// of increased performance overhead.
+    #[must_use]
     pub fn high_precision() -> Self {
         Self {
             large_allocation_rate: 1.0,
@@ -61,6 +62,7 @@ impl SamplingConfig {
     ///
     /// Minimal sampling to reduce overhead while still capturing
     /// the most critical allocation patterns.
+    #[must_use]
     pub fn performance_optimized() -> Self {
         Self {
             large_allocation_rate: 1.0,
@@ -76,6 +78,7 @@ impl SamplingConfig {
     ///
     /// Optimized to catch large allocations and allocation patterns
     /// that might indicate memory leaks.
+    #[must_use]
     pub fn leak_detection() -> Self {
         Self {
             large_allocation_rate: 1.0,
@@ -91,6 +94,7 @@ impl SamplingConfig {
     ///
     /// Maximum sampling rates to ensure all data is visible in demos and tests.
     /// Not suitable for production due to very high performance overhead.
+    #[must_use]
     pub fn demo() -> Self {
         Self {
             large_allocation_rate: 1.0,  // 100% - all large allocations
@@ -127,6 +131,7 @@ impl SamplingConfig {
     /// Calculates expected sampling rate for given allocation size
     ///
     /// Returns the base sampling rate before frequency adjustments.
+    #[must_use]
     pub fn base_sampling_rate(&self, size: usize) -> f64 {
         if size >= self.large_threshold {
             self.large_allocation_rate
@@ -141,6 +146,7 @@ impl SamplingConfig {
     ///
     /// High-frequency allocations get increased sampling rates to identify
     /// performance hotspots.
+    #[must_use]
     pub fn frequency_multiplier(&self, frequency: u64) -> f64 {
         if frequency > self.frequency_threshold {
             // Logarithmic boost to prevent excessive sampling

@@ -36,6 +36,7 @@ pub struct CacheEntry {
 
 impl CacheEntry {
     /// Create a new cache entry
+    #[must_use]
     pub fn new(
         file_path: PathBuf,
         file_hash: u64,
@@ -151,6 +152,7 @@ pub struct CacheStats {
 
 impl CacheStats {
     /// Calculate cache hit rate as a percentage
+    #[must_use]
     pub fn hit_rate(&self) -> f64 {
         if self.total_requests == 0 {
             0.0
@@ -245,10 +247,9 @@ impl IndexCache {
                 self.stats.record_hit(load_time);
 
                 return Ok(index);
-            } else {
-                // Cache entry is invalid - remove it
-                self.remove_cache_entry(&cache_key)?;
             }
+            // Cache entry is invalid - remove it
+            self.remove_cache_entry(&cache_key)?;
         }
 
         // Cache miss - build new index
@@ -264,6 +265,7 @@ impl IndexCache {
     }
 
     /// Get cache statistics
+    #[must_use]
     pub fn get_stats(&self) -> &CacheStats {
         &self.stats
     }

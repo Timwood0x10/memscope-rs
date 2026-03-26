@@ -1,9 +1,9 @@
 //! Enhanced JSON Exporter - Generates JSON files according to improve.md specifications
 //!
 //! This module creates the exact JSON format specified in improve.md:
-//! 1. memory_analysis.json - Main memory analysis with extended fields
+//! 1. `memory_analysis.json` - Main memory analysis with extended fields
 //! 2. lifetime.json - Ownership history and lifecycle events  
-//! 3. unsafe_ffi.json - FFI safety analysis and memory passports
+//! 3. `unsafe_ffi.json` - FFI safety analysis and memory passports
 
 use crate::analysis::unsafe_ffi_tracker::MemoryPassport;
 use crate::core::types::{
@@ -21,7 +21,7 @@ use std::path::Path;
 pub struct OwnershipEvent {
     /// Event timestamp in nanoseconds
     pub timestamp: u64,
-    /// Event type: Allocated, Cloned, Dropped, OwnershipTransferred, Borrowed, MutablyBorrowed
+    /// Event type: Allocated, Cloned, Dropped, `OwnershipTransferred`, Borrowed, `MutablyBorrowed`
     pub event_type: String,
     /// ID pointing to the call stack that triggered this event
     pub source_stack_id: u32,
@@ -32,7 +32,7 @@ pub struct OwnershipEvent {
 /// Lifetime data for a specific allocation as specified in improve.md
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LifetimeData {
-    /// Allocation pointer that links to memory_analysis.json
+    /// Allocation pointer that links to `memory_analysis.json`
     pub allocation_ptr: usize,
     /// Array of ownership events for this allocation
     pub ownership_history: Vec<OwnershipEvent>,
@@ -86,7 +86,7 @@ pub struct ExportConfig {
     pub include_stack_traces: bool,
     /// Generate separate lifetime.json file
     pub generate_lifetime_file: bool,
-    /// Generate separate unsafe_ffi.json file
+    /// Generate separate `unsafe_ffi.json` file
     pub generate_unsafe_ffi_file: bool,
     /// Maximum number of ownership events per allocation
     pub max_ownership_events: usize,
@@ -106,6 +106,7 @@ impl Default for ExportConfig {
 
 impl EnhancedJsonExporter {
     /// Create new enhanced JSON exporter
+    #[must_use]
     pub fn new(config: ExportConfig) -> Self {
         Self { config }
     }
@@ -277,7 +278,7 @@ impl EnhancedJsonExporter {
         Ok(())
     }
 
-    /// Convert AllocationInfo to EnhancedAllocationInfo with improve.md fields
+    /// Convert `AllocationInfo` to `EnhancedAllocationInfo` with improve.md fields
     fn convert_to_enhanced_allocation(&self, alloc: &AllocationInfo) -> EnhancedAllocationInfo {
         EnhancedAllocationInfo {
             ptr: alloc.ptr,

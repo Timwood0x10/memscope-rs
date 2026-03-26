@@ -35,6 +35,7 @@ struct DetailedStatsData {
 }
 
 impl FastStatsCollector {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             memory_stats: SimpleMemoryStats::new(),
@@ -108,10 +109,10 @@ impl FastStatsCollector {
             self.detailed_data.try_lock().map(|data| DetailedStats {
                 basic,
                 peak_memory: data.peak_memory,
-                avg_allocation_size: if !data.allocation_sizes.is_empty() {
-                    data.allocation_sizes.iter().sum::<usize>() / data.allocation_sizes.len()
-                } else {
+                avg_allocation_size: if data.allocation_sizes.is_empty() {
                     0
+                } else {
+                    data.allocation_sizes.iter().sum::<usize>() / data.allocation_sizes.len()
                 },
                 allocation_count_by_size: data.allocation_histogram.clone(),
             })
@@ -230,6 +231,7 @@ impl<T> BatchProcessor<T> {
 }
 
 /// Performance-aware string handling
+#[must_use]
 pub fn efficient_string_concat(parts: &[&str]) -> String {
     if parts.is_empty() {
         return String::new();

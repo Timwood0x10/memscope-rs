@@ -8,7 +8,7 @@ pub fn get_binary_dashboard_template() -> &'static str {
         // Try to load from external file first
         if let Ok(external_path) = std::env::var("MEMSCOPE_BINARY_TEMPLATE") {
             if let Ok(content) = fs::read_to_string(&external_path) {
-                println!("📁 Loaded external binary template: {}", external_path);
+                println!("📁 Loaded external binary template: {external_path}");
                 return content;
             }
         }
@@ -19,6 +19,7 @@ pub fn get_binary_dashboard_template() -> &'static str {
 }
 
 /// Generate comprehensive dashboard JavaScript code
+#[must_use]
 pub fn generate_dashboard_javascript() -> String {
     r#"
 // Dashboard initialization and chart rendering functions

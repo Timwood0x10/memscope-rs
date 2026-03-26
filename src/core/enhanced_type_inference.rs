@@ -76,6 +76,7 @@ pub struct AllocationContext {
 
 impl TypeInferenceEngine {
     /// Create a new type inference engine
+    #[must_use]
     pub fn new() -> Self {
         let mut engine = Self {
             type_cache: HashMap::new(),
@@ -410,6 +411,7 @@ impl TypeInferenceEngine {
     }
 
     /// Get inference statistics
+    #[must_use]
     pub fn get_statistics(&self) -> InferenceStatistics {
         let mut method_counts = HashMap::new();
         let mut confidence_counts = HashMap::new();

@@ -4,8 +4,8 @@
 //! while maintaining performance. Fully compliant with requirement.md:
 //! - No locks, unwrap, or clone violations
 //! - Uses Arc for shared ownership
-//! - Uses safe_operations for lock handling
-//! - Uses unwrap_safe for error handling
+//! - Uses `safe_operations` for lock handling
+//! - Uses `unwrap_safe` for error handling
 
 use crate::core::safe_operations::SafeLock;
 use crate::core::types::TrackingResult;
@@ -198,7 +198,7 @@ impl EnhancedFfiFunctionResolver {
         start_time: std::time::Instant,
     ) -> TrackingResult<EnhancedResolvedFfiFunction> {
         // Check for timeout
-        if start_time.elapsed().as_millis() > self.config.resolution_timeout_ms as u128 {
+        if start_time.elapsed().as_millis() > u128::from(self.config.resolution_timeout_ms) {
             self.update_stats_timeout();
             return Err(crate::core::types::TrackingError::PerformanceError(
                 format!("Function resolution timeout for: {function_name}"),
@@ -405,7 +405,7 @@ impl EnhancedFfiFunctionResolver {
             // High risk functions
             (name, _) if name.contains("malloc") || name.contains("free") => FfiRiskLevel::High,
             (name, _) if name.contains("memcpy") || name.contains("strcpy") => FfiRiskLevel::High,
-            (_name, "libssl") | (_name, "libcrypto") => FfiRiskLevel::High,
+            (_name, "libssl" | "libcrypto") => FfiRiskLevel::High,
 
             // Medium risk functions
             (name, _) if name.contains("thread") || name.contains("mutex") => FfiRiskLevel::Medium,
@@ -669,7 +669,10 @@ impl EnhancedFfiFunctionResolver {
         for (lib_name, funcs) in patterns {
             self.library_patterns.insert(
                 lib_name.to_string(),
-                funcs.into_iter().map(|s| s.to_string()).collect(),
+                funcs
+                    .into_iter()
+                    .map(std::string::ToString::to_string)
+                    .collect(),
             );
         }
 
@@ -794,9 +797,10 @@ pub fn initialize_global_enhanced_ffi_resolver(
     config: EnhancedResolverConfig,
 ) -> Arc<EnhancedFfiFunctionResolver> {
     let resolver = Arc::new(EnhancedFfiFunctionResolver::new(config));
-    match GLOBAL_ENHANCED_FFI_RESOLVER.set(resolver.clone()) {
-        Ok(_) => tracing::info!("🔍 Global enhanced FFI function resolver initialized"),
-        Err(_) => tracing::warn!("🔍 Global enhanced FFI function resolver already initialized"),
+    if let Ok(()) = GLOBAL_ENHANCED_FFI_RESOLVER.set(resolver.clone()) {
+        tracing::info!("🔍 Global enhanced FFI function resolver initialized")
+    } else {
+        tracing::warn!("🔍 Global enhanced FFI function resolver already initialized")
     }
     resolver
 }

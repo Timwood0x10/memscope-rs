@@ -301,11 +301,13 @@ impl BinaryWriter {
 
 impl UltraFastTracker {
     /// Create new ultra-fast tracker
+    #[must_use]
     pub fn new() -> Self {
         Self::with_config(UltraFastSamplingConfig::default())
     }
 
     /// Create with custom configuration
+    #[must_use]
     pub fn with_config(config: UltraFastSamplingConfig) -> Self {
         Self {
             config,
@@ -363,7 +365,7 @@ impl UltraFastTracker {
         let should_sample_by_frequency = THREAD_BUFFER.with(|buffer_cell| unsafe {
             let buffer_ref = &mut *buffer_cell.get();
             if let Some(ref mut buffer) = buffer_ref {
-                buffer.operation_count % self.config.frequency_sample_interval as u64 == 0
+                buffer.operation_count % u64::from(self.config.frequency_sample_interval) == 0
             } else {
                 false
             }
@@ -503,7 +505,7 @@ fn calculate_fast_hash(s: &str) -> u32 {
 
     let mut hash = FNV_OFFSET_BASIS;
     for byte in s.bytes() {
-        hash ^= byte as u32;
+        hash ^= u32::from(byte);
         hash = hash.wrapping_mul(FNV_PRIME);
     }
     hash
@@ -521,7 +523,7 @@ fn get_current_timestamp() -> u64 {
 fn get_timestamp_delta() -> u32 {
     // In a real implementation, this would calculate delta from a base timestamp
     // For now, we use a simplified version
-    (get_current_timestamp() % (u32::MAX as u64)) as u32
+    (get_current_timestamp() % u64::from(u32::MAX)) as u32
 }
 
 /// SIMD-optimized data processing functions
@@ -543,7 +545,7 @@ fn process_records_scalar(records: &[CompactAllocationRecord]) -> u64 {
     records
         .iter()
         .filter(|r| r.is_active())
-        .map(|r| r.size as u64)
+        .map(|r| u64::from(r.size))
         .sum()
 }
 

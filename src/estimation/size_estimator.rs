@@ -19,6 +19,7 @@ pub struct SmartSizeEstimator {
 }
 
 impl SmartSizeEstimator {
+    #[must_use]
     pub fn new() -> Self {
         let mut estimator = Self {
             known_sizes: HashMap::new(),

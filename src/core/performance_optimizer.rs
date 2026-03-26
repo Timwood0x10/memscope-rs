@@ -119,6 +119,7 @@ pub struct PerformanceOptimizer {
 
 impl PerformanceOptimizer {
     /// Create new performance optimizer
+    #[must_use]
     pub fn new() -> Self {
         let config = UltraFastSamplingConfig::default();
         let tracker = Arc::new(UltraFastTracker::with_config(config.clone()));
@@ -344,10 +345,10 @@ impl PatternAnalyzer {
     }
 
     fn get_current_pattern(&self) -> AllocationPattern {
-        let avg_size = if !self.recent_sizes.is_empty() {
-            self.recent_sizes.iter().sum::<usize>() as f64 / self.recent_sizes.len() as f64
-        } else {
+        let avg_size = if self.recent_sizes.is_empty() {
             0.0
+        } else {
+            self.recent_sizes.iter().sum::<usize>() as f64 / self.recent_sizes.len() as f64
         };
 
         let size_variance = if self.recent_sizes.len() > 1 {
@@ -400,10 +401,10 @@ impl PatternAnalyzer {
 
     fn calculate_memory_pressure(&self) -> f64 {
         // Simple heuristic based on allocation frequency and size
-        let avg_size = if !self.recent_sizes.is_empty() {
-            self.recent_sizes.iter().sum::<usize>() as f64 / self.recent_sizes.len() as f64
-        } else {
+        let avg_size = if self.recent_sizes.is_empty() {
             0.0
+        } else {
+            self.recent_sizes.iter().sum::<usize>() as f64 / self.recent_sizes.len() as f64
         };
 
         let frequency = self.allocation_times.len() as f64;
@@ -461,10 +462,10 @@ impl MetricsCollector {
 
     fn get_current_metrics(&self) -> PerformanceMetrics {
         let avg_latency = if let Ok(latencies) = self.operation_latencies.read() {
-            if !latencies.is_empty() {
-                latencies.iter().sum::<u64>() / latencies.len() as u64
-            } else {
+            if latencies.is_empty() {
                 0
+            } else {
+                latencies.iter().sum::<u64>() / latencies.len() as u64
             }
         } else {
             0

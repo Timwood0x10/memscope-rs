@@ -2,7 +2,7 @@
 //!
 //! This module contains the implementation of various CLI commands:
 //! - analyze: Memory analysis command
-//! - generate_report: Report generation command
+//! - `generate_report`: Report generation command
 //! - test: Testing utilities
 
 pub mod analyze;

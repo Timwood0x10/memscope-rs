@@ -112,6 +112,7 @@ impl PlatformResourceCollector {
     }
 
     /// Get collection frequency recommendation
+    #[must_use]
     pub fn get_optimal_collection_interval(&self) -> Duration {
         Duration::from_millis(100) // 10Hz default
     }

@@ -180,7 +180,7 @@ pub struct MemorySnapshot {
 /// Returns real-time memory statistics without interrupting tracking.
 ///
 /// # Returns
-/// MemorySnapshot containing current memory usage data
+/// `MemorySnapshot` containing current memory usage data
 ///
 /// # Example
 /// ```rust
@@ -200,11 +200,7 @@ pub fn memory_snapshot() -> MemorySnapshot {
         peak_mb: 0.0,
         allocations: 0,
         deallocations: 0,
-        active_threads: if TRACKING_ENABLED.load(Ordering::SeqCst) {
-            1
-        } else {
-            0
-        },
+        active_threads: usize::from(TRACKING_ENABLED.load(Ordering::SeqCst)),
     }
 }
 
@@ -286,7 +282,7 @@ where
 /// Generate comprehensive analysis reports
 ///
 /// Creates HTML and JSON reports from collected tracking data.
-/// Called automatically by stop_tracing().
+/// Called automatically by `stop_tracing()`.
 ///
 /// # Arguments
 /// * `output_dir` - Directory containing tracking data and where reports will be saved
@@ -359,7 +355,7 @@ fn print_analysis_summary(analysis: &super::analysis::LockfreeAnalysis) {
         let efficiency = analysis.summary.total_deallocations as f64
             / analysis.summary.total_allocations as f64
             * 100.0;
-        println!("   ⚡ Memory efficiency: {:.1}%", efficiency);
+        println!("   ⚡ Memory efficiency: {efficiency:.1}%");
     }
 }
 

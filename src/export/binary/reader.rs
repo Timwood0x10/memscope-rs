@@ -414,16 +414,15 @@ impl BinaryReader {
                         return Err(BinaryExportError::CorruptedData(
                             "No advanced metrics segment".to_string(),
                         ));
-                    } else {
-                        // Partial read, file is truncated
-                        tracing::warn!(
-                            "File appears to be truncated, only read {} of 16 header bytes",
-                            bytes_read
-                        );
-                        return Err(BinaryExportError::CorruptedData(
-                            "Truncated advanced metrics header".to_string(),
-                        ));
                     }
+                    // Partial read, file is truncated
+                    tracing::warn!(
+                        "File appears to be truncated, only read {} of 16 header bytes",
+                        bytes_read
+                    );
+                    return Err(BinaryExportError::CorruptedData(
+                        "Truncated advanced metrics header".to_string(),
+                    ));
                 }
                 Ok(n) => bytes_read += n,
                 Err(e) => {
@@ -550,6 +549,7 @@ impl BinaryReader {
     }
 
     /// Get advanced metrics data if available
+    #[must_use]
     pub fn get_advanced_metrics(&self) -> Option<&AdvancedMetricsData> {
         self.advanced_metrics.as_ref()
     }
@@ -662,7 +662,7 @@ impl BinaryReader {
         Ok(buffer[0])
     }
 
-    /// Read optional binary field using BinarySerializable trait
+    /// Read optional binary field using `BinarySerializable` trait
     fn read_optional_binary_field<T: BinarySerializable>(
         &mut self,
     ) -> Result<Option<T>, BinaryExportError> {

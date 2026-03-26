@@ -42,6 +42,7 @@ pub enum MatchType {
 
 impl PatternMatcher {
     /// Create a new pattern matcher
+    #[must_use]
     pub fn new() -> Self {
         Self {
             patterns: Vec::new(),
@@ -256,21 +257,10 @@ impl PatternMatcher {
     fn clean_pattern_for_fuzzy(&self, pattern: &str) -> String {
         // Remove common regex special characters
         pattern
-            .replace("^", "")
-            .replace("$", "")
-            .replace("\\", "")
+            .replace(['^', '$', '\\'], "")
             .replace(".*", "")
             .replace(".+", "")
-            .replace("?", "")
-            .replace("*", "")
-            .replace("+", "")
-            .replace("(", "")
-            .replace(")", "")
-            .replace("[", "")
-            .replace("]", "")
-            .replace("{", "")
-            .replace("}", "")
-            .replace("|", "")
+            .replace(['?', '*', '+', '(', ')', '[', ']', '{', '}', '|'], "")
     }
 
     /// Calculate string similarity using Levenshtein distance
@@ -301,11 +291,7 @@ impl PatternMatcher {
         // Fill the matrix
         for i in 1..=len1 {
             for j in 1..=len2 {
-                let cost = if s1_chars[i - 1] == s2_chars[j - 1] {
-                    0
-                } else {
-                    1
-                };
+                let cost = usize::from(s1_chars[i - 1] != s2_chars[j - 1]);
                 matrix[i][j] = std::cmp::min(
                     std::cmp::min(
                         matrix[i - 1][j] + 1, // deletion
@@ -416,6 +402,7 @@ pub struct PatternMatcherBuilder {
 }
 
 impl PatternMatcherBuilder {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             matcher: PatternMatcher::new(),

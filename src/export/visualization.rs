@@ -27,7 +27,7 @@ pub fn export_memory_analysis<P: AsRef<Path>>(
     }
 
     // Check if already in SVG export mode to prevent nested exports
-    let already_exporting = SVG_EXPORT_MODE.with(|mode| mode.get());
+    let already_exporting = SVG_EXPORT_MODE.with(std::cell::Cell::get);
     if already_exporting {
         return Ok(()); // Skip nested export to prevent recursion
     }
@@ -193,14 +193,14 @@ fn create_lifecycle_timeline_svg(
 
     // Add interactive styles
     let styles = Style::new(
-        r#"
+        r"
         .timeline-bar { transition: all 0.3s ease; cursor: pointer; }
         .timeline-bar:hover { stroke: #FFFFFF; stroke-width: 3; filter: drop-shadow(0 0 12px rgba(255,255,255,0.8)); }
         .variable-label { fill: #FFFFFF; font-size: 13px; font-weight: 600; text-shadow: 1px 1px 2px rgba(0,0,0,0.5); }
         .memory-label { fill: #E2E8F0; font-size: 11px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5); }
         .section-title { fill: #FFFFFF; font-size: 20px; font-weight: 700; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); }
         .section-bg { fill: rgba(255,255,255,0.1); stroke: rgba(255,255,255,0.2); stroke-width: 1; rx: 12; }
-    "#,
+    ",
     );
     document = document.add(styles);
 
@@ -825,7 +825,7 @@ fn export_scope_analysis_json(
         );
         scope_data.insert(
             "priority".to_string(),
-            Value::Number((calculate_scope_priority(scope_name, vars) as u64).into()),
+            Value::Number(u64::from(calculate_scope_priority(scope_name, vars)).into()),
         );
 
         // Variables in this scope
@@ -896,9 +896,12 @@ fn get_duration_color(ratio: f64, is_global: bool) -> String {
         // Use smooth gradient function
         let smooth_ratio = ratio.powf(0.7); // Make gradient smoother
 
-        let r = (base_r as f64 + (target_r as f64 - base_r as f64) * smooth_ratio) as u8;
-        let g = (base_g as f64 + (target_g as f64 - base_g as f64) * smooth_ratio) as u8;
-        let b = (base_b as f64 + (target_b as f64 - base_b as f64) * smooth_ratio) as u8;
+        let r =
+            (f64::from(base_r) + (f64::from(target_r) - f64::from(base_r)) * smooth_ratio) as u8;
+        let g =
+            (f64::from(base_g) + (f64::from(target_g) - f64::from(base_g)) * smooth_ratio) as u8;
+        let b =
+            (f64::from(base_b) + (f64::from(target_b) - f64::from(base_b)) * smooth_ratio) as u8;
 
         format!("#{r:02X}{g:02X}{b:02X}")
     }
@@ -932,12 +935,12 @@ fn add_matrix_layout_section(
     let max_duration = selected_scopes
         .iter()
         .map(|(_, vars)| {
-            if !vars.is_empty() {
+            if vars.is_empty() {
+                0
+            } else {
                 let start = vars.iter().map(|v| v.timestamp_alloc).min().unwrap_or(0);
                 let end = vars.iter().map(|v| v.timestamp_alloc).max().unwrap_or(0);
                 end - start
-            } else {
-                0
             }
         })
         .max()
@@ -1049,10 +1052,10 @@ fn render_scope_matrix_fixed(
         .set("stroke-width", 3)
         .set(
             "stroke-dasharray",
-            if scope_name != "Global" {
-                "8,4"
-            } else {
+            if scope_name == "Global" {
                 "none"
+            } else {
+                "8,4"
             },
         )
         .set("rx", 12);
@@ -1129,7 +1132,7 @@ fn render_scope_matrix_fixed(
 
         // DYNAMIC PROGRESS BAR - Responsive to matrix width
         let available_width = card_width - 40; // Leave margins
-        let progress_bar_width = (available_width as f64 * 0.5) as i32; // 50% of available width
+        let progress_bar_width = (f64::from(available_width) * 0.5) as i32; // 50% of available width
         let progress_x = 20; // Fixed left margin
 
         let progress_bg = Rectangle::new()
@@ -1146,7 +1149,7 @@ fn render_scope_matrix_fixed(
 
         // ENHANCED GRADIENT PROGRESS BAR with type-specific colors
         let (start_color, _) = get_type_gradient_colors(&type_name);
-        let progress_fill_width = (progress_ratio * progress_bar_width as f64) as i32;
+        let progress_fill_width = (progress_ratio * f64::from(progress_bar_width)) as i32;
         let progress_fill = Rectangle::new()
             .set("x", progress_x)
             .set("y", var_y + 15)
@@ -1252,7 +1255,7 @@ fn estimate_variable_duration(var: &AllocationInfo) -> u64 {
         1.0
     };
 
-    (base_duration as f64 * type_multiplier) as u64
+    (f64::from(base_duration) * type_multiplier) as u64
 }
 
 // ============================================================================
@@ -1264,6 +1267,7 @@ use crate::core::types::TypeMemoryUsage;
 // Using EnhancedTypeInfo from export_enhanced module
 
 /// Enhanced type information processing with variable names and inner type extraction
+#[must_use]
 pub fn enhance_type_information(
     memory_by_type: &[TypeMemoryUsage],
     allocations: &[AllocationInfo],
@@ -1377,7 +1381,8 @@ fn analyze_type_with_detailed_subcategory(type_name: &str) -> (String, String, S
     )
 }
 
-/// Categorize enhanced allocations by type category - delegate to export_enhanced
+/// Categorize enhanced allocations by type category - delegate to `export_enhanced`
+#[must_use]
 pub fn categorize_enhanced_allocations(
     enhanced_types: &[crate::export::export_enhanced::EnhancedTypeInfo],
 ) -> Vec<crate::export::export_enhanced::AllocationCategory> {

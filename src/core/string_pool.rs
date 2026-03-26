@@ -2,7 +2,7 @@
 //!
 //! This module provides a global string interning system to reduce memory usage
 //! by sharing common strings across the application. All string fields in
-//! AllocationInfo and related structures use `Arc<str>` backed by this pool.
+//! `AllocationInfo` and related structures use `Arc<str>` backed by this pool.
 
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
@@ -419,7 +419,7 @@ fn get_global_pool() -> &'static StringPool {
 
 /// Intern a string using the global string pool
 ///
-/// This is the main API for string interning. All string fields in AllocationInfo
+/// This is the main API for string interning. All string fields in `AllocationInfo`
 /// and related structures should use this function to intern their strings.
 ///
 /// # Example
@@ -433,6 +433,7 @@ fn get_global_pool() -> &'static StringPool {
 /// // Both Arc<str> point to the same memory
 /// assert!(Arc::ptr_eq(&s1, &s2));
 /// ```
+#[must_use]
 pub fn intern_string(s: &str) -> Arc<str> {
     let start_time = std::time::Instant::now();
     let result = get_global_pool().intern(s);
@@ -445,6 +446,7 @@ pub fn intern_string(s: &str) -> Arc<str> {
 }
 
 /// Get statistics about the global string pool
+#[must_use]
 pub fn get_string_pool_stats() -> StringPoolStats {
     get_global_pool().get_stats()
 }

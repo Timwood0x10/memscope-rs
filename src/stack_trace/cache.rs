@@ -30,6 +30,7 @@ pub struct StackTraceCache<T> {
 
 impl<T> StackTraceCache<T> {
     /// Create new cache with specified maximum size
+    #[must_use]
     pub fn new(max_size: usize) -> Self {
         Self {
             cache: HashMap::new(),
@@ -114,11 +115,13 @@ impl<T> Default for StackTraceCache<T> {
 
 impl CacheStats {
     /// Check if cache performance is good
+    #[must_use]
     pub fn is_performing_well(&self) -> bool {
         self.hit_ratio >= 0.8 && self.total_lookups > 10
     }
 
     /// Get cache efficiency description
+    #[must_use]
     pub fn efficiency_description(&self) -> &'static str {
         match self.hit_ratio {
             x if x >= 0.9 => "Excellent",

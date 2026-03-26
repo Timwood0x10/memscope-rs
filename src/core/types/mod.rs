@@ -29,7 +29,7 @@ pub struct CloneInfo {
     pub clone_count: usize,
     /// Whether this allocation itself is a result of a clone
     pub is_clone: bool,
-    /// If is_clone is true, points to the original object's pointer
+    /// If `is_clone` is true, points to the original object's pointer
     pub original_ptr: Option<usize>,
 }
 
@@ -239,9 +239,9 @@ pub enum SmartPointerType {
     Rc,
     /// Arc smart pointer
     Arc,
-    /// RcWeak smart pointer
+    /// `RcWeak` smart pointer
     RcWeak,
-    /// ArcWeak smart pointer
+    /// `ArcWeak` smart pointer
     ArcWeak,
     /// Box smart pointer
     Box,
@@ -249,6 +249,7 @@ pub enum SmartPointerType {
 
 impl SmartPointerInfo {
     /// Create new smart pointer info for Rc/Arc
+    #[must_use]
     pub fn new_rc_arc(
         data_ptr: usize,
         pointer_type: SmartPointerType,
@@ -278,6 +279,7 @@ impl SmartPointerInfo {
     }
 
     /// Create new smart pointer info for Weak references
+    #[must_use]
     pub fn new_weak(data_ptr: usize, pointer_type: SmartPointerType, weak_count: usize) -> Self {
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -332,6 +334,7 @@ impl SmartPointerInfo {
     }
 
     /// Get the latest reference counts
+    #[must_use]
     pub fn latest_ref_counts(&self) -> Option<&RefCountSnapshot> {
         self.ref_count_history.last()
     }
@@ -464,7 +467,8 @@ impl<'de> serde::Deserialize<'de> for AllocationInfo {
 }
 
 impl AllocationInfo {
-    /// Create a new AllocationInfo instance with improve.md field enhancements
+    /// Create a new `AllocationInfo` instance with improve.md field enhancements
+    #[must_use]
     pub fn new(ptr: usize, size: usize) -> Self {
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -529,6 +533,7 @@ impl AllocationInfo {
     }
 
     /// Check if this allocation is still active (not deallocated)
+    #[must_use]
     pub fn is_active(&self) -> bool {
         self.timestamp_dealloc.is_none()
     }
@@ -629,7 +634,8 @@ pub struct MemoryStats {
 }
 
 impl MemoryStats {
-    /// Create a new empty MemoryStats
+    /// Create a new empty `MemoryStats`
+    #[must_use]
     pub fn new() -> Self {
         Self {
             total_allocations: 0,
@@ -1274,7 +1280,7 @@ pub struct MemoryLayoutInfo {
     pub padding_info: PaddingAnalysis,
     /// Memory layout efficiency analysis
     pub layout_efficiency: LayoutEfficiency,
-    /// Container-specific analysis (Vec, HashMap, Box, etc.)
+    /// Container-specific analysis (Vec, `HashMap`, Box, etc.)
     pub container_analysis: Option<ContainerAnalysis>,
 }
 
@@ -1372,10 +1378,10 @@ pub enum OptimizationPotential {
     },
 }
 
-/// Container-specific analysis for Vec, HashMap, Box, etc.
+/// Container-specific analysis for Vec, `HashMap`, Box, etc.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ContainerAnalysis {
-    /// Type of container (Vec, HashMap, Box, etc.)
+    /// Type of container (Vec, `HashMap`, Box, etc.)
     pub container_type: ContainerType,
     /// Capacity utilization analysis
     pub capacity_utilization: CapacityUtilization,
@@ -1395,7 +1401,7 @@ pub enum ContainerType {
         /// Element size in bytes
         element_size: usize,
     },
-    /// HashMap<K, V> container
+    /// `HashMap`<K, V> container
     HashMap {
         /// Key type
         key_type: String,
@@ -1429,7 +1435,7 @@ pub enum ContainerType {
         /// Referenced type size in bytes
         referenced_size: usize,
     },
-    /// BTreeMap<K, V> container
+    /// `BTreeMap`<K, V> container
     BTreeMap {
         /// Key type
         key_type: String,
@@ -1657,11 +1663,11 @@ pub struct DynamicTypeInfo {
 /// Virtual function table information
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct VTableInfo {
-    /// VTable size
+    /// `VTable` size
     pub vtable_size: usize,
     /// Number of methods
     pub method_count: usize,
-    /// VTable pointer offset
+    /// `VTable` pointer offset
     pub vtable_ptr_offset: usize,
     /// Method list
     pub methods: Vec<VTableMethod>,
@@ -3173,7 +3179,7 @@ pub enum BandwidthBottleneckLocation {
     MainMemory,
     /// Memory controller bottleneck
     SystemBus,
-    /// PCIe bottleneck
+    /// `PCIe` bottleneck
     PCIe,
     /// Network bottleneck
     Network,
@@ -3326,7 +3332,7 @@ pub enum DropImplementationType {
     Custom,
     /// Smart pointer drop (Box, Rc, Arc)
     SmartPointer,
-    /// Collection drop (Vec, HashMap, etc.)
+    /// Collection drop (Vec, `HashMap`, etc.)
     Collection,
     /// Resource handle drop (File, Socket, etc.)
     ResourceHandle,
@@ -3535,9 +3541,9 @@ pub struct WeakReferenceInfo {
 /// Types of weak references
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum WeakReferenceType {
-    /// std::rc::Weak
+    /// `std::rc::Weak`
     RcWeak,
-    /// std::sync::Weak
+    /// `std::sync::Weak`
     ArcWeak,
     /// Custom weak reference
     Custom,
@@ -3584,7 +3590,7 @@ pub struct ResourceLeakAnalysis {
     pub prevention_recommendations: Vec<LeakPreventionRecommendation>,
 }
 
-/// Enhanced potential resource leak (extends existing PotentialLeak)
+/// Enhanced potential resource leak (extends existing `PotentialLeak`)
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EnhancedPotentialLeak {
     /// Object that may be leaking

@@ -4,8 +4,8 @@
 //! by creating a registry system with ID-based references. Fully compliant with requirement.md:
 //! - No locks, unwrap, or clone violations
 //! - Uses Arc for shared ownership
-//! - Uses safe_operations for lock handling
-//! - Uses unwrap_safe for error handling
+//! - Uses `safe_operations` for lock handling
+//! - Uses `unwrap_safe` for error handling
 
 use crate::analysis::unsafe_ffi_tracker::StackFrame;
 use crate::core::safe_operations::SafeLock;
@@ -25,7 +25,7 @@ pub struct NormalizerConfig {
     pub max_cache_size: usize,
     /// Enable automatic cleanup of unused call stacks
     pub enable_cleanup: bool,
-    /// Cleanup threshold (remove stacks with ref_count <= threshold)
+    /// Cleanup threshold (remove stacks with `ref_count` <= threshold)
     pub cleanup_threshold: u32,
     /// Enable statistics collection
     pub enable_stats: bool,
@@ -161,7 +161,7 @@ impl EnhancedCallStackNormalizer {
         }
 
         // Find the stack by scanning (since we store by hash, not ID)
-        for entry in self.stack_registry.iter() {
+        for entry in &self.stack_registry {
             if entry.value().id == id {
                 return Ok(Arc::clone(&entry.value().frames));
             }
@@ -420,9 +420,10 @@ pub fn initialize_global_enhanced_call_stack_normalizer(
     config: NormalizerConfig,
 ) -> Arc<EnhancedCallStackNormalizer> {
     let normalizer = Arc::new(EnhancedCallStackNormalizer::new(config));
-    match GLOBAL_ENHANCED_NORMALIZER.set(normalizer.clone()) {
-        Ok(_) => tracing::info!("📋 Global enhanced call stack normalizer initialized"),
-        Err(_) => tracing::warn!("📋 Global enhanced call stack normalizer already initialized"),
+    if let Ok(()) = GLOBAL_ENHANCED_NORMALIZER.set(normalizer.clone()) {
+        tracing::info!("📋 Global enhanced call stack normalizer initialized")
+    } else {
+        tracing::warn!("📋 Global enhanced call stack normalizer already initialized")
     }
     normalizer
 }
@@ -440,6 +441,7 @@ pub struct EnhancedCallStackRef {
 
 impl EnhancedCallStackRef {
     /// Create new enhanced call stack reference
+    #[must_use]
     pub fn new(id: CallStackId, depth: Option<usize>) -> Self {
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -454,6 +456,7 @@ impl EnhancedCallStackRef {
     }
 
     /// Create empty call stack reference
+    #[must_use]
     pub fn empty() -> Self {
         Self {
             id: 0,
@@ -463,6 +466,7 @@ impl EnhancedCallStackRef {
     }
 
     /// Check if this is an empty reference
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.id == 0
     }
@@ -479,12 +483,11 @@ impl EnhancedCallStackRef {
 
     /// Get call stack depth
     pub fn get_depth(&self) -> TrackingResult<usize> {
-        match self.depth {
-            Some(depth) => Ok(depth),
-            None => {
-                let frames = self.get_frames()?;
-                Ok(frames.len())
-            }
+        if let Some(depth) = self.depth {
+            Ok(depth)
+        } else {
+            let frames = self.get_frames()?;
+            Ok(frames.len())
         }
     }
 

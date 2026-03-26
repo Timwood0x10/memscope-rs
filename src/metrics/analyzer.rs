@@ -14,7 +14,7 @@ pub struct PerformanceAnalyzer {
 /// Performance benchmark for memory analysis operations
 #[derive(Debug, Clone)]
 pub struct Benchmark {
-    /// Operation name (e.g., "allocation_tracking", "symbol_resolution")
+    /// Operation name (e.g., "`allocation_tracking`", "`symbol_resolution`")
     pub operation: String,
     /// Average execution time
     pub avg_duration: Duration,
@@ -112,6 +112,7 @@ pub struct MemoryEfficiency {
 
 impl PerformanceAnalyzer {
     /// Create analyzer with default thresholds
+    #[must_use]
     pub fn new() -> Self {
         Self {
             baselines: HashMap::new(),
@@ -120,6 +121,7 @@ impl PerformanceAnalyzer {
     }
 
     /// Create analyzer with custom thresholds
+    #[must_use]
     pub fn with_thresholds(thresholds: AnalysisThresholds) -> Self {
         Self {
             baselines: HashMap::new(),
@@ -128,6 +130,7 @@ impl PerformanceAnalyzer {
     }
 
     /// Analyze current performance metrics
+    #[must_use]
     pub fn analyze_performance(&self, collector: &MetricsCollector) -> PerformanceReport {
         let tracking_perf = self.analyze_tracking_performance(collector);
         let symbol_perf = self.analyze_symbol_performance(collector);
@@ -160,6 +163,7 @@ impl PerformanceAnalyzer {
     }
 
     /// Compare current performance against baseline
+    #[must_use]
     pub fn compare_to_baseline(
         &self,
         operation: &str,

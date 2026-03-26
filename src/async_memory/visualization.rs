@@ -93,6 +93,7 @@ pub struct VisualizationGenerator {
 
 impl VisualizationGenerator {
     /// Create a new visualization generator with default config
+    #[must_use]
     pub fn new() -> Self {
         Self {
             config: VisualizationConfig::default(),
@@ -100,6 +101,7 @@ impl VisualizationGenerator {
     }
 
     /// Create a new visualization generator with custom config
+    #[must_use]
     pub fn with_config(config: VisualizationConfig) -> Self {
         Self { config }
     }
@@ -1895,7 +1897,7 @@ impl VisualizationGenerator {
         handlebars
             .register_template_string("async_dashboard", template_content)
             .map_err(|e| {
-                VisualizationError::TemplateError(format!("Failed to register template: {}", e))
+                VisualizationError::TemplateError(format!("Failed to register template: {e}"))
             })?;
 
         // Build template data
@@ -1905,7 +1907,7 @@ impl VisualizationGenerator {
         let rendered = handlebars
             .render("async_dashboard", &template_data)
             .map_err(|e| {
-                VisualizationError::TemplateError(format!("Failed to render template: {}", e))
+                VisualizationError::TemplateError(format!("Failed to render template: {e}"))
             })?;
 
         Ok(rendered)
@@ -2046,10 +2048,10 @@ impl VisualizationGenerator {
 
     /// Compare a value to its baseline
     fn compare_to_baseline(&self, value: f64, baseline: f64) -> PerformanceComparison {
-        let difference_percent = if baseline != 0.0 {
-            ((value - baseline) / baseline) * 100.0
-        } else {
+        let difference_percent = if baseline == 0.0 {
             0.0
+        } else {
+            ((value - baseline) / baseline) * 100.0
         };
 
         let comparison_type = if difference_percent.abs() < 5.0 {
@@ -2223,10 +2225,10 @@ impl VisualizationGenerator {
         }
 
         html.push_str(
-            r#"
+            r"
             </div>
         </div>
-"#,
+",
         );
 
         Ok(html)
@@ -2467,9 +2469,9 @@ impl VisualizationGenerator {
         html.push_str(&chart_html);
 
         html.push_str(
-            r#"
+            r"
         </div>
-"#,
+",
         );
 
         Ok(html)
@@ -2494,7 +2496,7 @@ impl VisualizationGenerator {
         let cpu_usage_peak = profiles
             .values()
             .map(|p| p.cpu_metrics.usage_percent)
-            .fold(0.0f64, |a, b| a.max(b));
+            .fold(0.0f64, f64::max);
         let total_memory_mb = profiles
             .values()
             .map(|p| p.memory_metrics.allocated_bytes as f64 / 1024.0 / 1024.0)
@@ -2502,7 +2504,7 @@ impl VisualizationGenerator {
         let peak_memory_mb = profiles
             .values()
             .map(|p| p.memory_metrics.peak_bytes as f64 / 1024.0 / 1024.0)
-            .fold(0.0f64, |a, b| a.max(b));
+            .fold(0.0f64, f64::max);
 
         // Enhanced async-specific metrics
         let total_context_switches = profiles
@@ -2597,7 +2599,7 @@ impl VisualizationGenerator {
             "title".to_string(),
             serde_json::Value::String("Rust Async Performance Analysis".to_string()),
         );
-        template_data.insert("subtitle".to_string(), serde_json::Value::String(format!("Advanced analysis of {} Rust async tasks with detailed performance metrics and Future polling insights", total_tasks)));
+        template_data.insert("subtitle".to_string(), serde_json::Value::String(format!("Advanced analysis of {total_tasks} Rust async tasks with detailed performance metrics and Future polling insights")));
 
         // Core metrics
         template_data.insert(
@@ -2620,11 +2622,11 @@ impl VisualizationGenerator {
         // CPU metrics
         template_data.insert(
             "cpu_usage_avg".to_string(),
-            serde_json::Value::String(format!("{:.1}", cpu_usage_avg)),
+            serde_json::Value::String(format!("{cpu_usage_avg:.1}")),
         );
         template_data.insert(
             "cpu_usage_peak".to_string(),
-            serde_json::Value::String(format!("{:.1}", cpu_usage_peak)),
+            serde_json::Value::String(format!("{cpu_usage_peak:.1}")),
         );
         template_data.insert(
             "cpu_cores".to_string(),
@@ -2638,11 +2640,11 @@ impl VisualizationGenerator {
         // Memory metrics
         template_data.insert(
             "total_memory_mb".to_string(),
-            serde_json::Value::String(format!("{:.1}", total_memory_mb)),
+            serde_json::Value::String(format!("{total_memory_mb:.1}")),
         );
         template_data.insert(
             "peak_memory_mb".to_string(),
-            serde_json::Value::String(format!("{:.1}", peak_memory_mb)),
+            serde_json::Value::String(format!("{peak_memory_mb:.1}")),
         );
         template_data.insert(
             "total_allocations".to_string(),
@@ -2656,15 +2658,15 @@ impl VisualizationGenerator {
         // I/O metrics
         template_data.insert(
             "io_throughput".to_string(),
-            serde_json::Value::String(format!("{:.1}", io_throughput)),
+            serde_json::Value::String(format!("{io_throughput:.1}")),
         );
         template_data.insert(
             "total_read_mb".to_string(),
-            serde_json::Value::String(format!("{:.1}", total_read_mb)),
+            serde_json::Value::String(format!("{total_read_mb:.1}")),
         );
         template_data.insert(
             "total_write_mb".to_string(),
-            serde_json::Value::String(format!("{:.1}", total_write_mb)),
+            serde_json::Value::String(format!("{total_write_mb:.1}")),
         );
         template_data.insert(
             "total_io_ops".to_string(),
@@ -2674,19 +2676,19 @@ impl VisualizationGenerator {
         // Network metrics
         template_data.insert(
             "network_throughput".to_string(),
-            serde_json::Value::String(format!("{:.1}", network_throughput)),
+            serde_json::Value::String(format!("{network_throughput:.1}")),
         );
         template_data.insert(
             "total_sent_mb".to_string(),
-            serde_json::Value::String(format!("{:.1}", total_sent_mb)),
+            serde_json::Value::String(format!("{total_sent_mb:.1}")),
         );
         template_data.insert(
             "total_received_mb".to_string(),
-            serde_json::Value::String(format!("{:.1}", total_received_mb)),
+            serde_json::Value::String(format!("{total_received_mb:.1}")),
         );
         template_data.insert(
             "avg_latency".to_string(),
-            serde_json::Value::String(format!("{:.1}", avg_latency)),
+            serde_json::Value::String(format!("{avg_latency:.1}")),
         );
 
         // Overall efficiency
@@ -2708,7 +2710,7 @@ impl VisualizationGenerator {
         );
         template_data.insert(
             "resource_balance".to_string(),
-            serde_json::Value::String(format!("{:.1}", resource_balance)),
+            serde_json::Value::String(format!("{resource_balance:.1}")),
         );
         template_data.insert(
             "bottleneck_count".to_string(),
@@ -2730,11 +2732,11 @@ impl VisualizationGenerator {
         );
         template_data.insert(
             "avg_poll_time".to_string(),
-            serde_json::Value::String(format!("{:.1}", avg_poll_time)),
+            serde_json::Value::String(format!("{avg_poll_time:.1}")),
         );
         template_data.insert(
             "ready_rate".to_string(),
-            serde_json::Value::String(format!("{:.1}", ready_rate)),
+            serde_json::Value::String(format!("{ready_rate:.1}")),
         );
 
         // Task type counts and efficiency
@@ -2803,7 +2805,7 @@ impl VisualizationGenerator {
 
         template_data.insert(
             "avg_poll_duration".to_string(),
-            serde_json::Value::String(format!("{:.1}", avg_poll_time)),
+            serde_json::Value::String(format!("{avg_poll_time:.1}")),
         );
         template_data.insert(
             "immediate_ready_percent".to_string(),
@@ -2819,7 +2821,7 @@ impl VisualizationGenerator {
         );
         template_data.insert(
             "avg_fragmentation".to_string(),
-            serde_json::Value::String(format!("{:.1}", avg_fragmentation)),
+            serde_json::Value::String(format!("{avg_fragmentation:.1}")),
         );
         template_data.insert(
             "gc_pressure".to_string(),
@@ -3203,40 +3205,39 @@ impl VisualizationGenerator {
             <div class="simple-chart">
                 <h4>CPU Usage Distribution</h4>
                 <div class="chart-bars">
-                    {}
+                    {cpu_bars}
                 </div>
             </div>
             <div class="simple-chart">
                 <h4>Memory Usage Distribution</h4>
                 <div class="chart-bars">
-                    {}
+                    {memory_bars}
                 </div>
             </div>
             <div class="simple-chart">
                 <h4>Network Throughput Distribution</h4>
                 <div class="chart-bars">
-                    {}
+                    {network_bars}
                 </div>
             </div>
         </div>
-"#,
-            cpu_bars, memory_bars, network_bars
+"#
         ))
     }
 
     /// Generate HTML footer
     fn generate_html_footer(&self) -> String {
-        r#"
+        r"
     </div>
 </body>
 </html>
-"#
+"
         .to_string()
     }
 
     /// Get dark theme CSS styles
     fn get_dark_theme_styles(&self) -> &'static str {
-        r#"
+        r"
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             margin: 0;
@@ -3668,12 +3669,12 @@ impl VisualizationGenerator {
                 grid-template-columns: 1fr;
             }
         }
-        "#
+        "
     }
 
     /// Get light theme CSS styles
     fn get_light_theme_styles(&self) -> &'static str {
-        r#"
+        r"
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             margin: 0;
@@ -3730,7 +3731,7 @@ impl VisualizationGenerator {
         }
         
         /* Add more light theme styles as needed */
-        "#
+        "
     }
 }
 

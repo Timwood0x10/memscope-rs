@@ -16,53 +16,64 @@ pub struct SharedAllocationInfo {
 
 impl SharedAllocationInfo {
     /// Create a new shared allocation info
+    #[must_use]
     pub fn new(info: OptimizedAllocationInfo) -> Self {
         Self {
             inner: Arc::new(info),
         }
     }
 
-    /// Create from regular AllocationInfo
+    /// Create from regular `AllocationInfo`
+    #[must_use]
     pub fn from_allocation_info(info: AllocationInfo) -> Self {
         Self::new(OptimizedAllocationInfo::from(info))
     }
 
     /// Get a reference to the inner data
+    #[must_use]
     pub fn inner(&self) -> &OptimizedAllocationInfo {
         &self.inner
     }
 
     /// Get the Arc for sharing
+    #[must_use]
     pub fn arc(&self) -> Arc<OptimizedAllocationInfo> {
         self.inner.clone()
     }
 
-    /// Convert back to regular AllocationInfo
+    /// Convert back to regular `AllocationInfo`
+    #[must_use]
     pub fn to_allocation_info(&self) -> AllocationInfo {
         (*self.inner).clone().into()
     }
 
     // Delegate common methods to inner
+    #[must_use]
     pub fn ptr(&self) -> usize {
         self.inner.ptr
     }
 
+    #[must_use]
     pub fn size(&self) -> usize {
         self.inner.size
     }
 
+    #[must_use]
     pub fn var_name_str(&self) -> Option<&str> {
         self.inner.var_name_str()
     }
 
+    #[must_use]
     pub fn type_name_str(&self) -> Option<&str> {
         self.inner.type_name_str()
     }
 
+    #[must_use]
     pub fn is_active(&self) -> bool {
         self.inner.is_active()
     }
 
+    #[must_use]
     pub fn lifetime_duration_ms(&self) -> Option<u64> {
         self.inner.lifetime_duration_ms()
     }
@@ -77,13 +88,14 @@ pub struct SharedAllocationCollection {
 
 impl SharedAllocationCollection {
     /// Create a new shared collection
+    #[must_use]
     pub fn new(allocations: Vec<SharedAllocationInfo>) -> Self {
         Self {
             allocations: Arc::new(allocations),
         }
     }
 
-    /// Create from regular AllocationInfo vector
+    /// Create from regular `AllocationInfo` vector
     pub fn from_allocation_infos(infos: Vec<AllocationInfo>) -> Self {
         let shared_infos = infos
             .into_iter()
@@ -93,11 +105,13 @@ impl SharedAllocationCollection {
     }
 
     /// Get the number of allocations
+    #[must_use]
     pub fn len(&self) -> usize {
         self.allocations.len()
     }
 
     /// Check if empty
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.allocations.is_empty()
     }
@@ -108,20 +122,23 @@ impl SharedAllocationCollection {
     }
 
     /// Get a specific allocation by index
+    #[must_use]
     pub fn get(&self, index: usize) -> Option<&SharedAllocationInfo> {
         self.allocations.get(index)
     }
 
     /// Get the Arc for sharing the entire collection
+    #[must_use]
     pub fn arc(&self) -> Arc<Vec<SharedAllocationInfo>> {
         self.allocations.clone()
     }
 
-    /// Convert back to regular AllocationInfo vector
+    /// Convert back to regular `AllocationInfo` vector
+    #[must_use]
     pub fn to_allocation_infos(&self) -> Vec<AllocationInfo> {
         self.allocations
             .iter()
-            .map(|shared| shared.to_allocation_info())
+            .map(SharedAllocationInfo::to_allocation_info)
             .collect()
     }
 
@@ -140,13 +157,18 @@ impl SharedAllocationCollection {
     }
 
     /// Get total memory usage
+    #[must_use]
     pub fn total_memory(&self) -> usize {
-        self.allocations.iter().map(|info| info.size()).sum()
+        self.allocations
+            .iter()
+            .map(SharedAllocationInfo::size)
+            .sum()
     }
 
     /// Get active allocations
+    #[must_use]
     pub fn active_allocations(&self) -> SharedAllocationCollection {
-        self.filter(|info| info.is_active())
+        self.filter(SharedAllocationInfo::is_active)
     }
 }
 
@@ -166,11 +188,13 @@ impl<T> SharedConfig<T> {
     }
 
     /// Get a reference to the inner config
+    #[must_use]
     pub fn inner(&self) -> &T {
         &self.inner
     }
 
     /// Get the Arc for sharing
+    #[must_use]
     pub fn arc(&self) -> Arc<T> {
         self.inner.clone()
     }
@@ -178,6 +202,7 @@ impl<T> SharedConfig<T> {
 
 impl<T: Clone> SharedConfig<T> {
     /// Get a cloned copy of the inner config
+    #[must_use]
     pub fn to_owned(&self) -> T {
         (*self.inner).clone()
     }

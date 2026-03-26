@@ -70,11 +70,11 @@ pub struct PassportEvent {
 pub enum PassportEventType {
     /// Memory allocated in Rust
     AllocatedInRust,
-    /// Memory handed over to FFI (HandoverToFfi)
+    /// Memory handed over to FFI (`HandoverToFfi`)
     HandoverToFfi,
-    /// Memory freed by foreign code (FreedByForeign)
+    /// Memory freed by foreign code (`FreedByForeign`)
     FreedByForeign,
-    /// Memory reclaimed by Rust (ReclaimedByRust)
+    /// Memory reclaimed by Rust (`ReclaimedByRust`)
     ReclaimedByRust,
     /// Memory accessed across boundary
     BoundaryAccess,
@@ -267,7 +267,7 @@ impl MemoryPassportTracker {
         Ok(passport_id)
     }
 
-    /// Record HandoverToFfi event
+    /// Record `HandoverToFfi` event
     pub fn record_handover_to_ffi(
         &self,
         allocation_ptr: usize,
@@ -285,7 +285,7 @@ impl MemoryPassportTracker {
         )
     }
 
-    /// Record FreedByForeign event
+    /// Record `FreedByForeign` event
     pub fn record_freed_by_foreign(
         &self,
         allocation_ptr: usize,
@@ -303,7 +303,7 @@ impl MemoryPassportTracker {
         )
     }
 
-    /// Record ReclaimedByRust event
+    /// Record `ReclaimedByRust` event
     pub fn record_reclaimed_by_rust(
         &self,
         allocation_ptr: usize,
@@ -378,7 +378,7 @@ impl MemoryPassportTracker {
         Ok(())
     }
 
-    /// Detect InForeignCustody status and memory leaks at program shutdown
+    /// Detect `InForeignCustody` status and memory leaks at program shutdown
     pub fn detect_leaks_at_shutdown(&self) -> LeakDetectionResult {
         if !self.config.enable_leak_detection {
             return LeakDetectionResult {
@@ -411,12 +411,10 @@ impl MemoryPassportTracker {
 
                     // Create leak detail
                     let last_event = passport.lifecycle_events.last();
-                    let last_context = last_event
-                        .map(|e| e.context.clone())
-                        .unwrap_or_else(|| "unknown".to_string());
-                    let time_since_last = last_event
-                        .map(|e| current_time.saturating_sub(e.timestamp))
-                        .unwrap_or(0);
+                    let last_context =
+                        last_event.map_or_else(|| "unknown".to_string(), |e| e.context.clone());
+                    let time_since_last =
+                        last_event.map_or(0, |e| current_time.saturating_sub(e.timestamp));
 
                     let lifecycle_summary =
                         self.create_lifecycle_summary(&passport.lifecycle_events);
@@ -465,11 +463,13 @@ impl MemoryPassportTracker {
     }
 
     /// Get passport by allocation pointer
+    #[must_use]
     pub fn get_passport(&self, allocation_ptr: usize) -> Option<MemoryPassport> {
         self.passports.lock().ok()?.get(&allocation_ptr).cloned()
     }
 
     /// Get all passports
+    #[must_use]
     pub fn get_all_passports(&self) -> HashMap<usize, MemoryPassport> {
         self.passports
             .lock()
@@ -481,6 +481,7 @@ impl MemoryPassportTracker {
     }
 
     /// Get passports by status
+    #[must_use]
     pub fn get_passports_by_status(&self, status: PassportStatus) -> Vec<MemoryPassport> {
         if let Ok(passports) = self.passports.lock() {
             passports
@@ -494,6 +495,7 @@ impl MemoryPassportTracker {
     }
 
     /// Get tracker statistics
+    #[must_use]
     pub fn get_stats(&self) -> PassportTrackerStats {
         self.stats
             .lock()
@@ -582,7 +584,7 @@ impl MemoryPassportTracker {
             "passport_{:x}_{:08x}_{}",
             allocation_ptr,
             sequence,
-            timestamp % 1000000
+            timestamp % 1_000_000
         ))
     }
 

@@ -1,6 +1,6 @@
 //! Core memory tracking functionality.
 //!
-//! This module contains the main MemoryTracker struct and its basic methods
+//! This module contains the main `MemoryTracker` struct and its basic methods
 //! for creating, configuring, and managing the memory tracking system.
 
 use crate::core::bounded_memory_stats::{
@@ -24,13 +24,13 @@ pub enum BinaryExportMode {
     /// Export only user-defined variables (strict filtering)
     /// Results in smaller binary files (few KB) with faster processing
     UserOnly,
-    /// Export all allocations including system allocations (loose filtering)  
+    /// Export all allocations including system allocations (loose filtering)\
     /// Results in larger binary files (hundreds of KB) with complete data
     Full,
 }
 
 impl Default for BinaryExportMode {
-    /// Default to UserOnly mode for backward compatibility
+    /// Default to `UserOnly` mode for backward compatibility
     fn default() -> Self {
         BinaryExportMode::UserOnly
     }
@@ -92,7 +92,7 @@ pub fn get_tracker() -> Arc<MemoryTracker> {
         STRATEGY_GLOBAL_SINGLETON => GLOBAL_TRACKER
             .get_or_init(|| Arc::new(MemoryTracker::new()))
             .clone(),
-        STRATEGY_THREAD_LOCAL => THREAD_LOCAL_TRACKER.with(|tracker| tracker.clone()),
+        STRATEGY_THREAD_LOCAL => THREAD_LOCAL_TRACKER.with(std::clone::Clone::clone),
         _ => {
             // Fallback to global singleton for unknown strategy
             tracing::warn!("Unknown tracking strategy, falling back to global singleton");
@@ -105,16 +105,17 @@ pub fn get_tracker() -> Arc<MemoryTracker> {
 
 /// Get the global memory tracker instance (legacy compatibility).
 ///
-/// This function is preserved for backward compatibility but now delegates to get_tracker().
-/// New code should use get_tracker() directly for dual-mode support.
+/// This function is preserved for backward compatibility but now delegates to `get_tracker()`.
+/// New code should use `get_tracker()` directly for dual-mode support.
 #[deprecated(note = "Use get_tracker() instead for dual-mode support")]
+#[must_use]
 pub fn get_global_tracker() -> Arc<MemoryTracker> {
     get_tracker()
 }
 
 /// Core memory tracking functionality.
 ///
-/// The MemoryTracker maintains records of all memory allocations and deallocations,
+/// The `MemoryTracker` maintains records of all memory allocations and deallocations,
 /// provides statistics, and supports exporting data in various formats.
 pub struct MemoryTracker {
     /// Active allocations (ptr -> allocation info)
@@ -125,7 +126,7 @@ pub struct MemoryTracker {
     pub(crate) history_manager: Mutex<AllocationHistoryManager>,
     /// Ownership history recorder for detailed lifecycle tracking
     pub(crate) ownership_history: Mutex<OwnershipHistoryRecorder>,
-    /// Legacy stats for compatibility (derived from bounded_stats)
+    /// Legacy stats for compatibility (derived from `bounded_stats`)
     pub(crate) stats: Mutex<MemoryStats>,
     /// Fast mode flag for testing (reduces overhead)
     pub(crate) fast_mode: std::sync::atomic::AtomicBool,
@@ -133,6 +134,7 @@ pub struct MemoryTracker {
 
 impl MemoryTracker {
     /// Create a new memory tracker.
+    #[must_use]
     pub fn new() -> Self {
         let fast_mode =
             std::env::var("MEMSCOPE_TEST_MODE").is_ok() || cfg!(test) || cfg!(feature = "test");
@@ -176,18 +178,16 @@ impl MemoryTracker {
     /// Get current memory statistics with advanced analysis.
     pub fn get_stats(&self) -> TrackingResult<MemoryStats> {
         // Get bounded stats using safe operations
-        let bounded_stats = self
-            .bounded_stats
-            .safe_lock()
-            .map(|stats| stats.clone())
-            .unwrap_or_else(|_| crate::core::bounded_memory_stats::BoundedMemoryStats::default());
+        let bounded_stats = self.bounded_stats.safe_lock().map_or_else(
+            |_| crate::core::bounded_memory_stats::BoundedMemoryStats::default(),
+            |stats| stats.clone(),
+        );
 
         // Get history for compatibility using safe operations
         let _history = self
             .history_manager
             .safe_lock()
-            .map(|manager| manager.get_history_vec())
-            .unwrap_or_else(|_| Vec::new());
+            .map_or_else(|_| Vec::new(), |manager| manager.get_history_vec());
 
         // Convert bounded stats to legacy MemoryStats for compatibility
         let legacy_stats = MemoryStats {
@@ -251,10 +251,10 @@ impl MemoryTracker {
     }
 
     /// Export memory analysis visualization to SVG file.
-    /// All output files are automatically placed in the MemoryAnalysis/ directory.
+    /// All output files are automatically placed in the `MemoryAnalysis`/ directory.
     ///
     /// # Arguments
-    /// * `path` - Output filename for the memory analysis SVG file (recommended: "program_name_memory_analysis.svg")
+    /// * `path` - Output filename for the memory analysis SVG file (recommended: "`program_name_memory_analysis.svg`")
     pub fn export_memory_analysis<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
         let output_path = self.ensure_memory_analysis_path(path);
         crate::export::visualization::export_memory_analysis(self, output_path)
@@ -277,7 +277,7 @@ impl MemoryTracker {
     }
 
     /// Export memory tracking data to binary format (.memscope file).
-    /// All output files are automatically placed in the MemoryAnalysis/ directory.
+    /// All output files are automatically placed in the `MemoryAnalysis`/ directory.
     /// This method exports user-defined variables only (default behavior for compatibility).
     ///
     /// # Arguments
@@ -295,12 +295,12 @@ impl MemoryTracker {
     }
 
     /// Export memory tracking data to binary format with specified mode.
-    /// All output files are automatically placed in the MemoryAnalysis/ directory.
+    /// All output files are automatically placed in the `MemoryAnalysis`/ directory.
     /// This method provides flexible export options for different use cases.
     ///
     /// # Arguments
     /// * `path` - Base filename for the binary export (extension .memscope will be added automatically)
-    /// * `mode` - Export mode (UserOnly for small files, Full for complete data)
+    /// * `mode` - Export mode (`UserOnly` for small files, Full for complete data)
     ///
     /// # Example
     /// ```text
@@ -413,7 +413,7 @@ impl MemoryTracker {
         Ok(())
     }
 
-    /// Ensure path uses .memscope extension and is in MemoryAnalysis directory
+    /// Ensure path uses .memscope extension and is in `MemoryAnalysis` directory
     fn ensure_memscope_path<P: AsRef<std::path::Path>>(&self, path: P) -> std::path::PathBuf {
         let mut output_path = self.ensure_memory_analysis_path(path);
 
@@ -430,7 +430,7 @@ impl MemoryTracker {
     /// Convert binary file to standard JSON format (4 separate files)
     ///
     /// This method reads a .memscope binary file and generates the standard
-    /// 4-file JSON output format used by export_to_json.
+    /// 4-file JSON output format used by `export_to_json`.
     ///
     /// # Arguments
     ///
@@ -488,7 +488,7 @@ impl MemoryTracker {
             .map_err(|e| crate::core::types::TrackingError::ExportError(e.to_string()))
     }
 
-    /// Alias for parse_binary_to_html for backward compatibility
+    /// Alias for `parse_binary_to_html` for backward compatibility
     pub fn export_binary_to_html<P: AsRef<std::path::Path>>(
         binary_path: P,
         html_path: P,
@@ -498,10 +498,10 @@ impl MemoryTracker {
 
     /// Export interactive lifecycle timeline showing variable lifecycles and relationships.
     /// This creates an advanced timeline with variable birth, life, death, and cross-section interactivity.
-    /// All output files are automatically placed in the MemoryAnalysis/ directory.
+    /// All output files are automatically placed in the `MemoryAnalysis`/ directory.
     ///
     /// # Arguments
-    /// * `path` - Output filename for the lifecycle timeline SVG file (recommended: "program_name_lifecycle.svg")
+    /// * `path` - Output filename for the lifecycle timeline SVG file (recommended: "`program_name_lifecycle.svg`")
     pub fn export_lifecycle_timeline<P: AsRef<std::path::Path>>(
         &self,
         path: P,
@@ -634,8 +634,8 @@ impl MemoryTracker {
                 | "char"
                 | "&str"
                 | "&[u8]"
-        ) || type_name.starts_with("&")
-            || type_name.starts_with("*")
+        ) || type_name.starts_with('&')
+            || type_name.starts_with('*')
     }
 
     /// Check if a type has a custom Drop implementation
@@ -992,11 +992,11 @@ impl MemoryTracker {
             OwnershipType::SharedSingleThreaded
         } else if type_name.starts_with("Arc<") {
             OwnershipType::SharedMultiThreaded
-        } else if type_name.starts_with("&") {
+        } else if type_name.starts_with('&') {
             OwnershipType::Borrowed
         } else if type_name.contains("Weak") {
             OwnershipType::Weak
-        } else if type_name.starts_with("*") {
+        } else if type_name.starts_with('*') {
             OwnershipType::Raw
         } else {
             OwnershipType::Unique
@@ -1166,14 +1166,14 @@ impl MemoryTracker {
         use crate::core::types::{DropBottleneckType, DropPerformanceBottleneck, ImpactLevel};
 
         let mut bottlenecks = Vec::new();
-        let avg_time = if !drop_sequence.is_empty() {
+        let avg_time = if drop_sequence.is_empty() {
+            0
+        } else {
             drop_sequence
                 .iter()
                 .map(|node| node.drop_duration_ns)
                 .sum::<u64>()
                 / drop_sequence.len() as u64
-        } else {
-            0
         };
 
         for node in drop_sequence {

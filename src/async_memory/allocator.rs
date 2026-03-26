@@ -120,7 +120,7 @@ impl TaskTrackingAllocator {
 /// Get current timestamp with minimal overhead
 ///
 /// Uses platform-specific optimizations for timestamp generation.
-/// Prefers TSC on x86_64 for sub-nanosecond precision and minimal overhead.
+/// Prefers TSC on `x86_64` for sub-nanosecond precision and minimal overhead.
 #[inline(always)]
 fn current_timestamp() -> u64 {
     #[cfg(target_arch = "x86_64")]
@@ -163,6 +163,7 @@ macro_rules! set_task_tracking_allocator {
 ///
 /// Returns true if allocations are being tracked, false otherwise.
 /// Useful for conditional behavior in libraries.
+#[must_use]
 pub fn is_tracking_enabled() -> bool {
     // Simple heuristic: check if we have any task context
     get_current_task().has_tracking_id()
@@ -186,6 +187,7 @@ pub struct AllocationStats {
 
 impl AllocationStats {
     /// Calculate tracking efficiency ratio
+    #[must_use]
     pub fn efficiency_ratio(&self) -> f64 {
         let total_events = self.allocations_recorded + self.deallocations_recorded;
         if total_events == 0 {
@@ -196,6 +198,7 @@ impl AllocationStats {
     }
 
     /// Check if tracking performance is acceptable
+    #[must_use]
     pub fn is_performance_acceptable(&self) -> bool {
         // Consider acceptable if overhead < 10ns per allocation and efficiency > 95%
         self.overhead_per_allocation_ns < 10.0 && self.efficiency_ratio() > 0.95
@@ -206,6 +209,7 @@ impl AllocationStats {
 ///
 /// This is a simplified implementation - production version would
 /// maintain global counters and calculate actual overhead.
+#[must_use]
 pub fn get_allocation_stats() -> AllocationStats {
     // Simplified implementation for now
     AllocationStats {

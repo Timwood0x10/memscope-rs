@@ -245,9 +245,9 @@ struct WindowsMemoryContext {
 #[cfg(target_os = "macos")]
 #[derive(Debug)]
 struct MacOSMemoryContext {
-    /// Whether vm_stat is available
+    /// Whether `vm_stat` is available
     vm_stat_available: bool,
-    /// Whether task_info is available
+    /// Whether `task_info` is available
     task_info_available: bool,
     /// Whether mach APIs are available
     mach_api_available: bool,
@@ -255,6 +255,7 @@ struct MacOSMemoryContext {
 
 impl PlatformMemoryInfo {
     /// Create new memory info collector
+    #[must_use]
     pub fn new() -> Self {
         Self {
             last_stats: None,
@@ -336,6 +337,7 @@ impl PlatformMemoryInfo {
     }
 
     /// Get last collected statistics
+    #[must_use]
     pub fn get_last_stats(&self) -> Option<&MemoryStats> {
         self.last_stats.as_ref()
     }
@@ -636,7 +638,7 @@ impl PlatformMemoryInfo {
             cpu_cores: 12,
             cpu_cache: CpuCacheInfo {
                 l1_cache_size: 65536,   // 64KB
-                l2_cache_size: 4194304, // 4MB
+                l2_cache_size: 4_194_304, // 4MB
                 l3_cache_size: None,    // Unified memory architecture
                 cache_line_size: 128,
             },
@@ -709,9 +711,9 @@ impl std::fmt::Display for MemoryError {
             }
             MemoryError::NotInitialized => write!(f, "Memory info collector not initialized"),
             MemoryError::PermissionDenied => write!(f, "Permission denied for memory info access"),
-            MemoryError::SystemError(msg) => write!(f, "System error: {}", msg),
-            MemoryError::ParseError(msg) => write!(f, "Parse error: {}", msg),
-            MemoryError::IoError(msg) => write!(f, "I/O error: {}", msg),
+            MemoryError::SystemError(msg) => write!(f, "System error: {msg}"),
+            MemoryError::ParseError(msg) => write!(f, "Parse error: {msg}"),
+            MemoryError::IoError(msg) => write!(f, "I/O error: {msg}"),
         }
     }
 }

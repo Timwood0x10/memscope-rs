@@ -227,7 +227,7 @@ impl ThreadLocalTracker {
     /// Result containing the configured tracker or IO error
     pub fn new(output_dir: &std::path::Path, config: SamplingConfig) -> std::io::Result<Self> {
         let thread_id = get_thread_id();
-        let file_path = output_dir.join(format!("memscope_thread_{}.bin", thread_id));
+        let file_path = output_dir.join(format!("memscope_thread_{thread_id}.bin"));
 
         // Ensure output directory exists before creating tracker
         if let Some(parent) = file_path.parent() {
@@ -238,7 +238,9 @@ impl ThreadLocalTracker {
         let event_buffer = Vec::with_capacity(1000);
 
         // Try to get thread name
-        let thread_name = std::thread::current().name().map(|s| s.to_string());
+        let thread_name = std::thread::current()
+            .name()
+            .map(std::string::ToString::to_string);
 
         Ok(Self {
             thread_id,
@@ -501,7 +503,7 @@ impl ThreadLocalTracker {
         }
 
         // Fast linear congruential generator for sampling decision
-        self.rng_state = self.rng_state.wrapping_mul(1103515245).wrapping_add(12345);
+        self.rng_state = self.rng_state.wrapping_mul(1_103_515_245).wrapping_add(12345);
         let random_value = (self.rng_state >> 16) as f64 / 65536.0;
 
         // For demo purposes, be much more generous with sampling
@@ -862,6 +864,7 @@ fn get_memory_stats() -> MemoryStats {
 }
 
 /// Calculate hash for call stack (simplified for now)
+#[must_use]
 pub fn calculate_call_stack_hash(call_stack: &[usize]) -> u64 {
     let mut hasher = DefaultHasher::new();
     call_stack.hash(&mut hasher);

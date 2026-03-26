@@ -187,7 +187,7 @@ impl AsyncStrategy {
         }));
 
         serde_json::to_string_pretty(&output).map_err(|e| TrackerError::DataCollectionFailed {
-            reason: format!("JSON serialization failed: {}", e),
+            reason: format!("JSON serialization failed: {e}"),
         })
     }
 }

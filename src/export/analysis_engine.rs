@@ -152,6 +152,7 @@ pub struct StandardAnalysisEngine {
 
 impl StandardAnalysisEngine {
     /// Create a new standard analysis engine with default configuration
+    #[must_use]
     pub fn new() -> Self {
         Self {
             config: AnalysisConfig::default(),
@@ -159,6 +160,7 @@ impl StandardAnalysisEngine {
     }
 
     /// Create a new standard analysis engine with custom configuration
+    #[must_use]
     pub fn with_config(config: AnalysisConfig) -> Self {
         Self { config }
     }
@@ -178,10 +180,10 @@ impl AnalysisEngine for StandardAnalysisEngine {
         // Create a simple memory analysis since we can't access the private functions
         // This will be improved once we refactor the optimized_json_export module
         let total_size: usize = allocations.iter().map(|a| a.size).sum();
-        let avg_size = if !allocations.is_empty() {
-            total_size / allocations.len()
-        } else {
+        let avg_size = if allocations.is_empty() {
             0
+        } else {
+            total_size / allocations.len()
         };
         let max_size = allocations.iter().map(|a| a.size).max().unwrap_or(0);
         let min_size = allocations.iter().map(|a| a.size).min().unwrap_or(0);
@@ -201,7 +203,7 @@ impl AnalysisEngine for StandardAnalysisEngine {
                     "is_leaked": alloc.is_leaked,
                     "borrow_count": alloc.borrow_count,
                     "lifetime_ms": alloc.lifetime_ms.unwrap_or(0),
-                    "stack_trace": alloc.stack_trace.as_ref().map(|st| st.join(" -> ")).unwrap_or_else(|| "no_stack_trace".to_string())
+                    "stack_trace": alloc.stack_trace.as_ref().map_or_else(|| "no_stack_trace".to_string(), |st| st.join(" -> "))
                 })
             })
             .collect();
@@ -351,10 +353,10 @@ impl AnalysisEngine for StandardAnalysisEngine {
     ) -> Result<AnalysisData, AnalysisError> {
         // Calculate performance metrics
         let total_size: usize = allocations.iter().map(|a| a.size).sum();
-        let avg_size = if !allocations.is_empty() {
-            total_size / allocations.len()
-        } else {
+        let avg_size = if allocations.is_empty() {
             0
+        } else {
+            total_size / allocations.len()
         };
         let max_size = allocations.iter().map(|a| a.size).max().unwrap_or(0);
         let min_size = allocations.iter().map(|a| a.size).min().unwrap_or(0);
@@ -535,7 +537,7 @@ impl AnalysisEngine for StandardAnalysisEngine {
             );
             json_obj.insert(
                 "type_name".to_string(),
-                serde_json::Value::String(type_name.to_string()),
+                serde_json::Value::String(type_name.clone()),
             );
 
             // Serialize complex fields with default values instead of null
@@ -645,7 +647,7 @@ impl AnalysisEngine for StandardAnalysisEngine {
 
             // Track generic types separately
             if category == "generic" {
-                let entry = generic_types.entry(type_name.to_string()).or_insert((0, 0));
+                let entry = generic_types.entry(type_name.clone()).or_insert((0, 0));
                 entry.0 += 1; // count
                 entry.1 += alloc.size; // total size
             }
@@ -687,9 +689,9 @@ impl AnalysisEngine for StandardAnalysisEngine {
                 "total_allocations": allocations.len(),
                 "type_categories": categorized_types.len(),
                 "generic_types": generic_stats.len(),
-                "complex_type_ratio": if !allocations.is_empty() {
-                    (categorized_types.get("generic").map(|v| v.len()).unwrap_or(0) as f64 / allocations.len() as f64) * 100.0
-                } else { 0.0 }
+                "complex_type_ratio": if allocations.is_empty() { 0.0 } else {
+                    (categorized_types.get("generic").map_or(0, std::vec::Vec::len) as f64 / allocations.len() as f64) * 100.0
+                }
             }
         });
 
@@ -713,7 +715,7 @@ impl AnalysisEngine for StandardAnalysisEngine {
 }
 
 impl StandardAnalysisEngine {
-    /// Convert our analysis config to the existing OptimizedExportOptions
+    /// Convert our analysis config to the existing `OptimizedExportOptions`
     #[allow(dead_code)]
     fn convert_to_export_options(
         &self,
@@ -734,7 +736,7 @@ impl StandardAnalysisEngine {
             .batch_size(self.config.batch_size)
     }
 
-    /// Infer type name from allocation when type_name is None
+    /// Infer type name from allocation when `type_name` is None
     /// This eliminates "unknown" type names in full-binary mode
     fn infer_type_name(&self, alloc: &AllocationInfo) -> String {
         match alloc.type_name.as_deref() {
@@ -758,25 +760,24 @@ impl StandardAnalysisEngine {
         }
     }
 
-    /// Infer variable name from allocation when var_name is None
+    /// Infer variable name from allocation when `var_name` is None
     /// This eliminates "unknown" variable names in full-binary mode
     fn infer_var_name(&self, alloc: &AllocationInfo) -> String {
-        match alloc.var_name.as_deref() {
-            Some(name) => name.to_string(),
-            None => {
-                // Generate descriptive variable name based on allocation characteristics
-                let type_hint = match alloc.size {
-                    0 => "zero_sized_var",
-                    1..=8 => "primitive_var",
-                    9..=32 => "small_struct_var",
-                    33..=256 => "medium_struct_var",
-                    257..=1024 => "large_struct_var",
-                    _ => "heap_allocated_var",
-                };
+        if let Some(name) = alloc.var_name.as_deref() {
+            name.to_string()
+        } else {
+            // Generate descriptive variable name based on allocation characteristics
+            let type_hint = match alloc.size {
+                0 => "zero_sized_var",
+                1..=8 => "primitive_var",
+                9..=32 => "small_struct_var",
+                33..=256 => "medium_struct_var",
+                257..=1024 => "large_struct_var",
+                _ => "heap_allocated_var",
+            };
 
-                // Include pointer address for uniqueness
-                format!("{}_{:x}", type_hint, alloc.ptr)
-            }
+            // Include pointer address for uniqueness
+            format!("{}_{:x}", type_hint, alloc.ptr)
         }
     }
 }

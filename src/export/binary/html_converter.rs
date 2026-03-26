@@ -1,5 +1,5 @@
 //! Binary to HTML conversion functionality
-//! Converts binary memscope files to HTML reports using clean_dashboard.html template
+//! Converts binary memscope files to HTML reports using `clean_dashboard.html` template
 
 use super::html_template::{generate_dashboard_javascript, get_binary_dashboard_template};
 use crate::core::types::{AllocationInfo, MemoryStats};
@@ -270,13 +270,13 @@ fn generate_html_content(
         let before = &html[..after_manual_init];
         let after = &html[after_manual_init..];
 
-        let safety_call_injection = r#"
+        let safety_call_injection = r"
       
       // Load safety risks after manual initialization
       setTimeout(function() {
         loadSafetyRisks();
       }, 100);
-"#;
+";
 
         html = format!("{before}{safety_call_injection}{after}");
     }
@@ -296,7 +296,7 @@ fn generate_html_content(
     Ok(html)
 }
 
-/// Prepare allocation data for JavaScript in binary_dashboard.html format
+/// Prepare allocation data for JavaScript in `binary_dashboard.html` format
 fn prepare_allocation_data(allocations: &[AllocationInfo]) -> Result<String, BinaryExportError> {
     let mut allocation_data = Vec::new();
 
@@ -610,7 +610,7 @@ fn generate_ownership_transfer_points(allocation: &serde_json::Value) -> Vec<ser
     if let Some(clone_info) = allocation.get("clone_info") {
         if clone_info
             .get("is_clone")
-            .and_then(|v| v.as_bool())
+            .and_then(handlebars::JsonValue::as_bool)
             .unwrap_or(false)
         {
             transfer_points.push(json!({
@@ -622,7 +622,7 @@ fn generate_ownership_transfer_points(allocation: &serde_json::Value) -> Vec<ser
 
         let clone_count = clone_info
             .get("clone_count")
-            .and_then(|v| v.as_u64())
+            .and_then(handlebars::JsonValue::as_u64)
             .unwrap_or(0);
         if clone_count > 0 {
             transfer_points.push(json!({

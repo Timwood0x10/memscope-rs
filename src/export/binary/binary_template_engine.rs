@@ -1,6 +1,6 @@
 //! Binary template engine for processing binary-specific HTML templates
 //!
-//! This module provides a specialized template engine that processes the binary_dashboard.html
+//! This module provides a specialized template engine that processes the `binary_dashboard.html`
 //! template with data directly from binary sources, independent of the JSON → HTML workflow.
 
 use crate::export::binary::binary_html_writer::BinaryTemplateData;
@@ -397,14 +397,14 @@ impl BinaryTemplateEngine {
                     "thread_id": alloc.thread_id,
                     "stack_trace": ["no_stack_trace_available"],
                     "runtime_state": {"status": "not_analyzed"},
-                    "ffi_tracked": alloc.type_name.contains("libc") || alloc.type_name.contains("*"),
+                    "ffi_tracked": alloc.type_name.contains("libc") || alloc.type_name.contains('*'),
                     "safety_violations": if alloc.size > 10*1024*1024 { 3 }
                                         else if alloc.size > 1024*1024 { 2 }
                                         else { 1 }
                 }));
 
                 // Add boundary events for FFI-related allocations
-                if alloc.type_name.contains("libc") || alloc.type_name.contains("*") {
+                if alloc.type_name.contains("libc") || alloc.type_name.contains('*') {
                     boundary_events.push(json!({
                         "event_type": if alloc.type_name.contains("libc") { "FfiToRust" } else { "RustToFfi" },
                         "timestamp": alloc.timestamp_alloc,
@@ -800,7 +800,7 @@ impl BinaryTemplateEngine {
 
     /// Get embedded CSS content
     fn _get_embedded_css(&self) -> String {
-        r#"
+        r"
         /* Binary Dashboard Specific Styles */
         .binary-performance-indicator {
             background: linear-gradient(45deg, #3b82f6, #1d4ed8);
@@ -892,7 +892,7 @@ impl BinaryTemplateEngine {
                 padding: 0.75rem;
             }
         }
-        "#
+        "
         .to_string()
     }
 
@@ -1188,10 +1188,10 @@ impl BinaryTemplateEngine {
         "#;
 
         // Combine script.js content with embedded JS
-        if !script_js_content.is_empty() {
-            format!("{script_js_content}\n\n// === EMBEDDED SAFE OVERRIDES ===\n{embedded_js}")
-        } else {
+        if script_js_content.is_empty() {
             embedded_js.to_string()
+        } else {
+            format!("{script_js_content}\n\n// === EMBEDDED SAFE OVERRIDES ===\n{embedded_js}")
         }
     }
 
@@ -1218,6 +1218,7 @@ impl BinaryTemplateEngine {
     }
 
     /// Get last render time in milliseconds
+    #[must_use]
     pub fn last_render_time(&self) -> u64 {
         self.last_render_time_ms
     }

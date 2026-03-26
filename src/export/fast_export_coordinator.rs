@@ -109,7 +109,7 @@ pub struct CompleteExportStats {
     pub total_output_size_bytes: usize,
     /// Overall throughput in allocations per second
     pub overall_throughput_allocations_per_sec: f64,
-    /// Overall write speed in MBps
+    /// Overall write speed in `MBps`
     pub overall_write_speed_mbps: f64,
 
     /// Percentage of time spent in each stage
@@ -149,6 +149,7 @@ pub struct FastExportCoordinator {
 
 impl FastExportCoordinator {
     /// Create a new fast export coordinator
+    #[must_use]
     pub fn new(config: FastExportConfig) -> Self {
         // Create data localizer based on configuration
         let data_localizer = if config.enable_data_localization {
@@ -208,6 +209,7 @@ impl FastExportCoordinator {
     }
 
     /// Create a new fast export coordinator for fast mode (no validation)
+    #[must_use]
     pub fn new_fast_mode() -> Self {
         let mut config = FastExportConfig::default();
         // Fast mode: disable validation for maximum performance
@@ -219,6 +221,7 @@ impl FastExportCoordinator {
     }
 
     /// Create a new fast export coordinator for normal mode (with validation capability)
+    #[must_use]
     pub fn new_normal_mode() -> Self {
         let mut config = FastExportConfig::default();
         // Normal mode: maintain validation capability, but don't execute during export
@@ -230,6 +233,7 @@ impl FastExportCoordinator {
     }
 
     /// Create a new fast export coordinator with export mode configuration
+    #[must_use]
     pub fn new_with_export_config(export_config: ExportConfig) -> Self {
         let verbose_logging = match export_config.mode {
             ExportMode::Fast => false,
@@ -331,8 +335,7 @@ impl FastExportCoordinator {
                 let stats = self.export_with_inline_validation(path).await?;
                 Ok((stats, None))
             }
-            (ExportMode::Slow, ValidationTiming::Deferred)
-            | (ExportMode::Auto, ValidationTiming::Deferred) => {
+            (ExportMode::Slow | ExportMode::Auto, ValidationTiming::Deferred) => {
                 // Slow/Auto mode with deferred validation: export first, then validate
                 let stats = self.export_without_validation(path).await?;
                 let deferred_validation = self
@@ -1172,6 +1175,7 @@ pub struct FastExportConfigBuilder {
 
 impl FastExportConfigBuilder {
     /// Create new config builder
+    #[must_use]
     pub fn new() -> Self {
         Self {
             config: FastExportConfig::default(),
@@ -1179,102 +1183,119 @@ impl FastExportConfigBuilder {
     }
 
     /// Enable or disable data localization
+    #[must_use]
     pub fn data_localization(mut self, enabled: bool) -> Self {
         self.config.enable_data_localization = enabled;
         self
     }
 
     /// Set data cache ttl in ms
+    #[must_use]
     pub fn cache_ttl_ms(mut self, ttl_ms: u64) -> Self {
         self.config.data_cache_ttl_ms = ttl_ms;
         self
     }
 
     /// sSet shard size
+    #[must_use]
     pub fn shard_size(mut self, size: usize) -> Self {
         self.config.shard_config.shard_size = size;
         self
     }
 
     /// Set parallel threshold
+    #[must_use]
     pub fn parallel_threshold(mut self, threshold: usize) -> Self {
         self.config.shard_config.parallel_threshold = threshold;
         self
     }
 
     /// Set max threads
+    #[must_use]
     pub fn max_threads(mut self, threads: Option<usize>) -> Self {
         self.config.shard_config.max_threads = threads;
         self
     }
 
     /// Set buffer size
+    #[must_use]
     pub fn buffer_size(mut self, size: usize) -> Self {
         self.config.writer_config.buffer_size = size;
         self
     }
 
     /// Enable or disable performance monitoring
+    #[must_use]
     pub fn performance_monitoring(mut self, enabled: bool) -> Self {
         self.config.enable_performance_monitoring = enabled;
         self
     }
 
     /// Enable or disable verbose logging
+    #[must_use]
     pub fn verbose_logging(mut self, enabled: bool) -> Self {
         self.config.verbose_logging = enabled;
         self
     }
 
     /// Set progress config
+    #[must_use]
     pub fn progress_config(mut self, config: ProgressConfig) -> Self {
         self.config.progress_config = config;
         self
     }
 
     /// Enable or disable progress monitoring
+    #[must_use]
     pub fn progress_monitoring(mut self, enabled: bool) -> Self {
         self.config.progress_config.enabled = enabled;
         self
     }
 
     /// Set error recovery config
+    #[must_use]
     pub fn error_recovery_config(mut self, config: RecoveryConfig) -> Self {
         self.config.error_recovery_config = config;
         self
     }
 
     /// Set validation config
+    #[must_use]
     pub fn validation_config(mut self, config: ValidationConfig) -> Self {
         self.config.validation_config = config;
         self
     }
 
     /// Enable or disable resource monitoring
+    #[must_use]
     pub fn resource_monitoring(mut self, enabled: bool) -> Self {
         self.config.enable_resource_monitoring = enabled;
         self
     }
 
     /// Set memory limit in MB
+    #[must_use]
     pub fn memory_limit_mb(mut self, limit: usize) -> Self {
         self.config.memory_limit_mb = limit;
         self
     }
 
     /// Set disk limit in MB
+    #[must_use]
     pub fn disk_limit_mb(mut self, limit: usize) -> Self {
         self.config.disk_limit_mb = limit;
         self
     }
 
     /// Set CPU limit in percent
+    #[must_use]
     pub fn cpu_limit_percent(mut self, limit: f64) -> Self {
         self.config.cpu_limit_percent = limit;
         self
     }
 
     /// Build config
+    #[must_use]
     pub fn build(self) -> FastExportConfig {
         self.config
     }

@@ -1,7 +1,7 @@
-//! JSON file discovery module for MemScope HTML generation
+//! JSON file discovery module for `MemScope` HTML generation
 //!
 //! This module provides functionality to discover and validate JSON files
-//! in the MemoryAnalysis directory structure for HTML report generation.
+//! in the `MemoryAnalysis` directory structure for HTML report generation.
 
 use std::error::Error;
 use std::fmt;
@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 /// Configuration for a specific type of JSON file
 #[derive(Debug, Clone)]
 pub struct JsonFileConfig {
-    /// File suffix used to identify the file type (e.g., "memory_analysis")
+    /// File suffix used to identify the file type (e.g., "`memory_analysis`")
     pub suffix: &'static str,
     /// Human-readable description of the file type
     pub description: &'static str,
@@ -23,6 +23,7 @@ pub struct JsonFileConfig {
 
 impl JsonFileConfig {
     /// Create a new JSON file configuration
+    #[must_use]
     pub fn new(suffix: &'static str, description: &'static str) -> Self {
         Self {
             suffix,
@@ -33,12 +34,14 @@ impl JsonFileConfig {
     }
 
     /// Mark this file type as required
+    #[must_use]
     pub fn required(mut self) -> Self {
         self.required = true;
         self
     }
 
     /// Set maximum file size limit in megabytes
+    #[must_use]
     pub fn max_size_mb(mut self, size: usize) -> Self {
         self.max_size_mb = Some(size);
         self
@@ -117,6 +120,7 @@ pub struct JsonFileDiscovery {
 
 impl JsonFileDiscovery {
     /// Create a new JSON file discovery instance
+    #[must_use]
     pub fn new(input_dir: String, base_name: String) -> Self {
         Self {
             input_dir,
@@ -124,7 +128,8 @@ impl JsonFileDiscovery {
         }
     }
 
-    /// Get the default file configurations for MemScope analysis
+    /// Get the default file configurations for `MemScope` analysis
+    #[must_use]
     pub fn get_default_file_configs() -> Vec<JsonFileConfig> {
         vec![
             JsonFileConfig::new("memory_analysis", "Memory Analysis").required(),

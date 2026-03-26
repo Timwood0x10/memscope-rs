@@ -126,6 +126,7 @@ pub struct MemoryMonitor {
 
 impl MemoryMonitor {
     /// Create a new memory monitor
+    #[must_use]
     pub fn new(memory_limit: usize, enabled: bool) -> Self {
         Self {
             current_usage: Arc::new(AtomicUsize::new(0)),
@@ -176,6 +177,7 @@ impl MemoryMonitor {
     }
 
     /// Get current memory statistics
+    #[must_use]
     pub fn get_stats(&self) -> MemoryStats {
         let current = self.current_usage.load(Ordering::Relaxed);
         let peak = self.peak_usage.load(Ordering::Relaxed);
@@ -203,6 +205,7 @@ pub struct LargeFileOptimizer {
 
 impl LargeFileOptimizer {
     /// Create a new large file optimizer
+    #[must_use]
     pub fn new(config: LargeFileConfig) -> Self {
         let memory_monitor =
             MemoryMonitor::new(config.max_memory_bytes, config.enable_memory_monitoring);
@@ -214,6 +217,7 @@ impl LargeFileOptimizer {
     }
 
     /// Create optimizer with default configuration
+    #[must_use]
     pub fn new_default() -> Self {
         Self::new(LargeFileConfig::default())
     }
@@ -462,6 +466,7 @@ impl LargeFileOptimizer {
     }
 
     /// Get current memory usage statistics
+    #[must_use]
     pub fn get_memory_stats(&self) -> MemoryStats {
         self.memory_monitor.get_stats()
     }

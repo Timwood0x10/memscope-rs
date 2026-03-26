@@ -13,7 +13,7 @@ use std::time::{Duration, Instant};
 pub enum SmartMutex<T> {
     /// Use standard mutex for low-contention scenarios
     Standard(std::sync::Mutex<T>),
-    /// Use parking_lot for high-contention scenarios
+    /// Use `parking_lot` for high-contention scenarios
     ParkingLot(parking_lot::Mutex<T>),
 }
 
@@ -57,7 +57,7 @@ pub enum SmartMutexGuard<'a, T> {
     ParkingLot(parking_lot::MutexGuard<'a, T>),
 }
 
-impl<'a, T> std::ops::Deref for SmartMutexGuard<'a, T> {
+impl<T> std::ops::Deref for SmartMutexGuard<'_, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -68,7 +68,7 @@ impl<'a, T> std::ops::Deref for SmartMutexGuard<'a, T> {
     }
 }
 
-impl<'a, T> std::ops::DerefMut for SmartMutexGuard<'a, T> {
+impl<T> std::ops::DerefMut for SmartMutexGuard<'_, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         match self {
             SmartMutexGuard::Standard(guard) => guard,
@@ -127,12 +127,11 @@ impl<T> SafeUnwrap<T> for Option<T> {
     }
 
     fn safe_unwrap_or_log(self, context: &str, fallback: T) -> T {
-        match self {
-            Some(value) => value,
-            None => {
-                tracing::warn!("safe_unwrap_or_log failed in context: {}", context);
-                fallback
-            }
+        if let Some(value) = self {
+            value
+        } else {
+            tracing::warn!("safe_unwrap_or_log failed in context: {}", context);
+            fallback
         }
     }
 }
@@ -186,7 +185,7 @@ impl<T: Clone> SmartClone<[T]> for Vec<T> {
     }
 }
 
-/// Macro for smart unwrapping (removed - use safe_operations instead)
+/// Macro for smart unwrapping (removed - use `safe_operations` instead)
 /// Performance-aware statistics that use the right tool for the job
 pub struct SmartStats {
     // Use atomics for high-frequency simple counters
@@ -205,6 +204,7 @@ pub struct DetailedStats {
 }
 
 impl SmartStats {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             allocation_count: AtomicU64::new(0),

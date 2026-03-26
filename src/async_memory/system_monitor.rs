@@ -160,6 +160,7 @@ struct MonitoringCounters {
 
 impl SystemResourceMonitor {
     /// Create new system resource monitor
+    #[must_use]
     pub fn new() -> Self {
         Self {
             task_metrics: HashMap::new(),
@@ -316,17 +317,17 @@ impl SystemResourceMonitor {
 
     fn get_system_cpu_time(&self) -> Result<u64, std::io::Error> {
         // Read from /proc/stat or equivalent
-        Ok(1000000) // Simulated value
+        Ok(1_000_000) // Simulated value
     }
 
     fn get_system_io_bytes(&self) -> Result<u64, std::io::Error> {
         // Read from /proc/diskstats or equivalent
-        Ok(50000000) // Simulated value
+        Ok(50_000_000) // Simulated value
     }
 
     fn get_system_network_bytes(&self) -> Result<u64, std::io::Error> {
         // Read from /proc/net/dev or equivalent
-        Ok(25000000) // Simulated value
+        Ok(25_000_000) // Simulated value
     }
 
     fn get_task_cpu_time(&self, task_id: TaskId) -> u64 {
@@ -363,7 +364,7 @@ impl SystemResourceMonitor {
     }
 
     fn get_instructions(&self, task_id: TaskId) -> Option<u64> {
-        Some(task_id as u64 * 1000000 + self.start_time.elapsed().as_micros() as u64 * 10)
+        Some(task_id as u64 * 1_000_000 + self.start_time.elapsed().as_micros() as u64 * 10)
     }
 
     fn get_bytes_read(&self, task_id: TaskId) -> u64 {

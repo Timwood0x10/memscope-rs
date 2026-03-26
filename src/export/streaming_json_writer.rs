@@ -487,6 +487,7 @@ impl<W: Write> StreamingJsonWriter<W> {
 /// Utility functions for creating export metadata
 impl ExportMetadata {
     /// Create metadata for unsafe/FFI analysis export
+    #[must_use]
     pub fn for_unsafe_ffi_analysis(optimization_level: &str, processing_mode: &str) -> Self {
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -511,6 +512,7 @@ impl ExportMetadata {
     }
 
     /// Update export config in metadata
+    #[must_use]
     pub fn with_config(mut self, config: &StreamingWriterConfig) -> Self {
         self.export_config = ExportConfig {
             buffer_size: config.buffer_size,
@@ -534,6 +536,7 @@ pub struct StreamingWriterConfigBuilder {
 
 impl StreamingWriterConfigBuilder {
     /// Create a new configuration builder
+    #[must_use]
     pub fn new() -> Self {
         Self {
             config: StreamingWriterConfig::default(),
@@ -541,12 +544,14 @@ impl StreamingWriterConfigBuilder {
     }
 
     /// Set buffer size
+    #[must_use]
     pub fn buffer_size(mut self, size: usize) -> Self {
         self.config.buffer_size = size;
         self
     }
 
     /// Enable compression with specified level
+    #[must_use]
     pub fn with_compression(mut self, level: u32) -> Self {
         self.config.enable_compression = true;
         self.config.compression_level = level;
@@ -554,30 +559,35 @@ impl StreamingWriterConfigBuilder {
     }
 
     /// Enable pretty printing
+    #[must_use]
     pub fn pretty_print(mut self) -> Self {
         self.config.pretty_print = true;
         self
     }
 
     /// Set maximum memory before flush
+    #[must_use]
     pub fn max_memory_before_flush(mut self, size: usize) -> Self {
         self.config.max_memory_before_flush = size;
         self
     }
 
     /// Set array chunk size
+    #[must_use]
     pub fn array_chunk_size(mut self, size: usize) -> Self {
         self.config.array_chunk_size = size;
         self
     }
 
     /// Enable or disable non-blocking writes
+    #[must_use]
     pub fn non_blocking(mut self, enabled: bool) -> Self {
         self.config.non_blocking = enabled;
         self
     }
 
     /// Build the configuration
+    #[must_use]
     pub fn build(self) -> StreamingWriterConfig {
         self.config
     }

@@ -228,7 +228,7 @@ impl BinaryParser {
     pub fn to_html<P: AsRef<Path>>(binary_path: P, html_path: P) -> Result<(), BinaryExportError> {
         let allocations = Self::load_allocations(binary_path)?;
         let html_content = format!(
-            r#"<!DOCTYPE html>
+            r"<!DOCTYPE html>
 <html>
 <head><title>Memory Analysis</title></head>
 <body>
@@ -236,7 +236,7 @@ impl BinaryParser {
 <p>Total allocations: {}</p>
 <pre>{}</pre>
 </body>
-</html>"#,
+</html>",
             allocations.len(),
             serde_json::to_string_pretty(&allocations).map_err(|e| {
                 BinaryExportError::SerializationError(format!("JSON serialization failed: {e}"))
@@ -246,8 +246,8 @@ impl BinaryParser {
         Ok(())
     }
 
-    /// Parse user binary to JSON using BinaryReader for consistency and performance
-    /// Now uses the same BinaryReader approach as full binary parsing for consistent performance
+    /// Parse user binary to JSON using `BinaryReader` for consistency and performance
+    /// Now uses the same `BinaryReader` approach as full binary parsing for consistent performance
     pub fn parse_user_binary_to_json<P: AsRef<Path>>(
         binary_path: P,
         base_name: &str,
@@ -278,11 +278,11 @@ impl BinaryParser {
 
     /// Parse full binary to JSON using ultra-fast direct approach
     ///
-    /// **One-Stop Solution**: Directly use the optimized generate_*_json method to avoid SelectiveJsonExporter's I/O errors.
+    /// **One-Stop Solution**: Directly use the optimized generate_*_json method to avoid `SelectiveJsonExporter`'s I/O errors.
     ///
     /// Core Optimizations:
-    /// - Use load_allocations with improved error handling
-    /// - Directly call optimized generate_*_json method (avoid complex SelectiveJsonExporter)
+    /// - Use `load_allocations` with improved error handling
+    /// - Directly call optimized generate_*_json method (avoid complex `SelectiveJsonExporter`)
     /// - Parallel generate 5 JSON files
     /// - aim: <300ms, no null fields, JSON format consistent
     pub fn parse_full_binary_to_json<P: AsRef<Path>>(
@@ -832,7 +832,7 @@ impl BinaryParser {
                     }
                     Self::append_memory_record_optimized(&mut buffer, alloc);
                 }
-                buffer.push_str("]}}")
+                buffer.push_str("]}}");
             }
             "lifetime" => {
                 buffer.push_str(r#"{"lifecycle_events":["#);
@@ -842,7 +842,7 @@ impl BinaryParser {
                     }
                     Self::append_lifetime_record_optimized(&mut buffer, alloc);
                 }
-                buffer.push_str("]}")
+                buffer.push_str("]}");
             }
             "performance" => {
                 buffer.push_str(r#"{"data":{"allocations":["#);
@@ -852,7 +852,7 @@ impl BinaryParser {
                     }
                     Self::append_performance_record_optimized(&mut buffer, alloc);
                 }
-                buffer.push_str("]}}")
+                buffer.push_str("]}}");
             }
             "unsafe_ffi" => {
                 buffer.push_str(r#"{"boundary_events":[],"enhanced_ffi_data":["#);
@@ -862,7 +862,7 @@ impl BinaryParser {
                     }
                     Self::append_ffi_record_optimized(&mut buffer, alloc);
                 }
-                buffer.push_str("]}")
+                buffer.push_str("]}");
             }
             "complex_types" => {
                 buffer.push_str(r#"{"categorized_types":{"primitive":["#);
@@ -872,7 +872,7 @@ impl BinaryParser {
                     }
                     Self::append_complex_record_optimized(&mut buffer, alloc);
                 }
-                buffer.push_str("]}}")
+                buffer.push_str("]}}");
             }
             _ => {
                 return Err(BinaryExportError::CorruptedData(format!(
@@ -1036,7 +1036,7 @@ impl BinaryParser {
     }
 
     /// Task 7.4: Ultra-fast memory record generation - eliminated inference calls
-    /// Performance optimization: Removed infer_type_name and infer_variable_name calls
+    /// Performance optimization: Removed `infer_type_name` and `infer_variable_name` calls
     /// Requirement 21: Full-binary mode guarantees no null fields, direct access is safe
     #[inline]
     fn append_memory_record_optimized(buffer: &mut String, alloc: &AllocationInfo) {
@@ -1267,9 +1267,9 @@ impl BinaryParser {
         Ok(())
     }
 
-    /// **[New Interface]** Parse binary to JSON using BinaryIndex for maximum performance
+    /// **[New Interface]** Parse binary to JSON using `BinaryIndex` for maximum performance
     ///
-    /// This is the core high-performance interface that uses BinaryIndex for direct data access,
+    /// This is the core high-performance interface that uses `BinaryIndex` for direct data access,
     /// avoiding the overhead of loading all allocations into memory.
     pub fn parse_binary_to_json_with_index<P: AsRef<Path>>(
         binary_path: P,
@@ -1341,7 +1341,7 @@ impl BinaryParser {
         Ok(())
     }
 
-    /// Generate JSON file using BinaryReader for streaming access
+    /// Generate JSON file using `BinaryReader` for streaming access
     fn generate_json_with_reader(
         binary_path: &std::path::Path,
         output_path: &std::path::Path,
@@ -1388,11 +1388,11 @@ impl BinaryParser {
                 "memory" => Self::append_unified_record(&mut buffer, &allocation, "memory"),
                 "lifetime" => Self::append_unified_record(&mut buffer, &allocation, "lifetime"),
                 "performance" => {
-                    Self::append_unified_record(&mut buffer, &allocation, "performance")
+                    Self::append_unified_record(&mut buffer, &allocation, "performance");
                 }
                 "unsafe_ffi" => Self::append_unified_record(&mut buffer, &allocation, "unsafe_ffi"),
                 "complex_types" => {
-                    Self::append_unified_record(&mut buffer, &allocation, "complex_types")
+                    Self::append_unified_record(&mut buffer, &allocation, "complex_types");
                 }
                 _ => unreachable!(),
             }
@@ -1438,7 +1438,7 @@ impl BinaryParser {
         Ok(())
     }
 
-    /// Convert using FastExportCoordinator for large datasets
+    /// Convert using `FastExportCoordinator` for large datasets
     fn convert_using_fast_coordinator(
         allocations: &[AllocationInfo],
         base_name: &str,
@@ -1456,7 +1456,7 @@ impl BinaryParser {
             .parallel_threshold(500) // Lower threshold for parallel processing
             .max_threads(Some(
                 std::thread::available_parallelism()
-                    .map(|p| p.get())
+                    .map(std::num::NonZero::get)
                     .unwrap_or(4),
             ))
             .performance_monitoring(true)
@@ -1503,7 +1503,7 @@ impl BinaryParser {
         Ok(())
     }
 
-    /// Convert using OptimizedJsonExport for smaller datasets
+    /// Convert using `OptimizedJsonExport` for smaller datasets
     fn convert_using_optimized_json_export(
         allocations: &[AllocationInfo],
         base_name: &str,
@@ -1526,7 +1526,7 @@ impl BinaryParser {
 
         // Use the optimized export method
         match tracker.export_to_json_with_options(base_name, options) {
-            Ok(_) => {
+            Ok(()) => {
                 tracing::info!("✅ OptimizedJsonExport completed successfully");
             }
             Err(e) => {
@@ -2018,7 +2018,7 @@ impl BinaryParser {
         buffer.push_str(r#","fragmentation_analysis":{"status":"not_analyzed"}}"#);
     }
 
-    /// Generate FFI analysis record compatible with snapshot_unsafe_ffi.json format
+    /// Generate FFI analysis record compatible with `snapshot_unsafe_ffi.json` format
     #[inline]
     fn append_ffi_record_compatible(buffer: &mut String, allocation: &AllocationInfo) {
         buffer.push_str(r#"{"base":{"ptr":"#);

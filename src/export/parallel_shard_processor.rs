@@ -83,6 +83,7 @@ pub struct ParallelShardProcessor {
 
 impl ParallelShardProcessor {
     /// Create a new parallel shard processor
+    #[must_use]
     pub fn new(config: ParallelShardConfig) -> Self {
         // If a maximum thread count is specified, set the rayon thread pool
         if let Some(max_threads) = config.max_threads {
@@ -225,14 +226,14 @@ impl ParallelShardProcessor {
         used_parallel: bool,
     ) -> ParallelProcessingStats {
         let total_output_size: usize = shards.iter().map(|s| s.data.len()).sum();
-        let avg_shard_time: f64 = if !shards.is_empty() {
+        let avg_shard_time: f64 = if shards.is_empty() {
+            0.0
+        } else {
             shards
                 .iter()
                 .map(|s| s.processing_time_ms as f64)
                 .sum::<f64>()
                 / shards.len() as f64
-        } else {
-            0.0
         };
 
         let throughput = if total_time_ms > 0 {

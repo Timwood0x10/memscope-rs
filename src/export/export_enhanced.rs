@@ -5,7 +5,7 @@ use crate::core::types::{AllocationInfo, MemoryStats, TrackingResult, TypeMemory
 use crate::utils::{format_bytes, get_category_color, simplify_type_name};
 
 /// Calculate real median and P95 percentiles from allocation sizes
-/// Returns (median_size, p95_size)
+/// Returns (`median_size`, `p95_size`)
 fn calculate_allocation_percentiles(allocations: &[AllocationInfo]) -> (usize, usize) {
     if allocations.is_empty() {
         return (0, 0);
@@ -19,7 +19,7 @@ fn calculate_allocation_percentiles(allocations: &[AllocationInfo]) -> (usize, u
 
     // Calculate median (50th percentile)
     let median = if len % 2 == 0 {
-        (sizes[len / 2 - 1] + sizes[len / 2]) / 2
+        usize::midpoint(sizes[len / 2 - 1], sizes[len / 2])
     } else {
         sizes[len / 2]
     };
@@ -42,6 +42,7 @@ use svg::node::element::{Circle, Rectangle, Text as SvgText};
 use svg::Document;
 
 /// Enhanced type information processing with variable names and inner type extraction
+#[must_use]
 pub fn enhance_type_information(
     memory_by_type: &[TypeMemoryUsage],
     allocations: &[AllocationInfo],
@@ -68,7 +69,7 @@ pub fn enhance_type_information(
                     let (alloc_simplified, _, _) =
                         analyze_type_with_detailed_subcategory(type_name);
                     if alloc_simplified == simplified_name {
-                        Some(var_name.to_string())
+                        Some(var_name.clone())
                     } else {
                         None
                     }
@@ -399,6 +400,7 @@ fn extract_inner_primitive_types_enhanced(type_name: &str) -> Vec<String> {
 }
 
 /// Categorize allocations for better visualization
+#[must_use]
 pub fn categorize_allocations(allocations: &[AllocationInfo]) -> Vec<AllocationCategory> {
     let mut categories: HashMap<String, AllocationCategory> = HashMap::new();
 
@@ -438,6 +440,7 @@ pub fn categorize_allocations(allocations: &[AllocationInfo]) -> Vec<AllocationC
 
 /// Categorize enhanced type information for consistent visualization
 /// This ensures "Tracked Variables by Category" uses the same data as "Memory Usage by Type"
+#[must_use]
 pub fn categorize_enhanced_allocations(
     enhanced_types: &[EnhancedTypeInfo],
 ) -> Vec<AllocationCategory> {
@@ -451,14 +454,15 @@ pub fn categorize_enhanced_allocations(
 
         let category_name = &enhanced_type.category;
 
-        let category = categories
-            .entry(category_name.to_string())
-            .or_insert_with(|| AllocationCategory {
-                name: category_name.to_string(),
-                allocations: Vec::new(),
-                total_size: 0,
-                color: get_category_color(category_name),
-            });
+        let category =
+            categories
+                .entry(category_name.clone())
+                .or_insert_with(|| AllocationCategory {
+                    name: category_name.clone(),
+                    allocations: Vec::new(),
+                    total_size: 0,
+                    color: get_category_color(category_name),
+                });
 
         // Create synthetic allocation info for display
         let mut synthetic_allocation = AllocationInfo::new(0, enhanced_type.total_size);
@@ -505,6 +509,15 @@ pub struct AllocationCategory {
 }
 
 /// Enhanced SVG export with comprehensive visualization
+///
+/// # Errors
+///
+/// This function will return an error if:
+/// - Creating parent directories fails
+/// - Retrieving active allocations fails
+/// - Retrieving memory by type fails
+/// - Retrieving memory stats fails
+/// - Writing to the file fails
 pub fn export_enhanced_svg<P: AsRef<Path>>(tracker: &MemoryTracker, path: P) -> TrackingResult<()> {
     let path = path.as_ref();
 
@@ -561,10 +574,11 @@ pub fn export_enhanced_svg<P: AsRef<Path>>(tracker: &MemoryTracker, path: P) -> 
 }
 
 /// Add compact type chart - TOP 3 ONLY with progress bars
+#[must_use]
 fn add_compact_type_chart(
     mut document: Document,
     types: &[EnhancedTypeInfo],
-) -> TrackingResult<Document> {
+) -> Document {
     let chart_x = 100;
     let chart_y = 60;
     let chart_width = 1200;
@@ -577,7 +591,7 @@ fn add_compact_type_chart(
             .set("font-size", 16)
             .set("fill", "#E74C3C");
         document = document.add(no_data);
-        return Ok(document);
+        return document;
     }
 
     let max_size = types.iter().map(|t| t.total_size).max().unwrap_or(1);
@@ -683,11 +697,12 @@ fn add_compact_summary(
 }
 
 /// Add enhanced header with 8 core metrics - Modern Dashboard Style
+#[must_use]
 pub fn add_enhanced_header(
     mut document: Document,
     stats: &MemoryStats,
     allocations: &[AllocationInfo],
-) -> TrackingResult<Document> {
+) -> Document {
     // Main title with modern styling
     let title = SvgText::new("Rust Memory Usage Analysis")
         .set("x", 900)
@@ -841,7 +856,7 @@ pub fn add_enhanced_header(
         document = document.add(ring_bg);
 
         // Progress ring foreground
-        let circumference = 2.0 * std::f64::consts::PI * ring_radius as f64;
+        let circumference = 2.0 * std::f64::consts::PI * f64::from(ring_radius);
         let progress_offset = circumference * (1.0 - percentage / 100.0);
 
         let progress_ring = Circle::new()
@@ -926,7 +941,7 @@ pub fn add_enhanced_header(
         document = document.add(status_label);
     }
 
-    Ok(document)
+    document
 }
 
 /// Add enhanced treemap chart with real data
@@ -953,7 +968,7 @@ pub fn add_enhanced_type_chart(
 
     // Add treemap styles
     let styles = svg::node::element::Style::new(
-        r#"
+        r"
         .integrated-treemap-rect { 
             transition: all 0.3s ease; 
             cursor: pointer; 
@@ -981,16 +996,16 @@ pub fn add_enhanced_type_chart(
             pointer-events: none;
             text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
         }
-    "#,
+    ",
     );
     document = document.add(styles);
 
     // Create integrated treemap layout
     let treemap_area = IntegratedTreemapArea {
-        x: chart_x as f64,
-        y: chart_y as f64,
-        width: chart_width as f64,
-        height: chart_height as f64,
+        x: f64::from(chart_x),
+        y: f64::from(chart_y),
+        width: f64::from(chart_width),
+        height: f64::from(chart_height),
     };
 
     // Build and render real data treemap
@@ -1350,7 +1365,7 @@ fn build_collections_node(
         ("Other", "#95a5a6"),
     ]
     .iter()
-    .cloned()
+    .copied()
     .collect::<std::collections::HashMap<&str, &str>>();
 
     for (subcategory, types) in subcategory_groups {
@@ -1440,7 +1455,7 @@ fn build_basic_types_node(basic_types: &[&EnhancedTypeInfo], total_memory: usize
         ("Other", "#95a5a6"),
     ]
     .iter()
-    .cloned()
+    .copied()
     .collect::<std::collections::HashMap<&str, &str>>();
 
     for (subcategory, types) in subcategory_groups {
@@ -1592,7 +1607,7 @@ fn render_adaptive_treemap(
     render_squarified_treemap(document, area, treemap_data)
 }
 
-/// Render intelligent horizontal-band treemap layout (like basic_usage_graph.svg)
+/// Render intelligent horizontal-band treemap layout (like `basic_usage_graph.svg`)
 fn render_squarified_treemap(
     mut document: Document,
     area: IntegratedTreemapArea,
@@ -1639,8 +1654,8 @@ fn render_squarified_treemap(
         let band_height = (node.size as f64 / total_size as f64) * available_height;
 
         // Render the band based on whether it has children
-        if !node.children.is_empty() {
-            document = render_smart_horizontal_band(
+        if node.children.is_empty() {
+            document = render_simple_horizontal_band(
                 document,
                 area.x + padding,
                 current_y,
@@ -1649,7 +1664,7 @@ fn render_squarified_treemap(
                 node,
             )?;
         } else {
-            document = render_simple_horizontal_band(
+            document = render_smart_horizontal_band(
                 document,
                 area.x + padding,
                 current_y,
@@ -1907,7 +1922,7 @@ pub fn add_categorized_allocations(
     for (i, category) in categories.iter().take(8).enumerate() {
         let y = chart_y + 30 + i * bar_height;
         let bar_width =
-            ((category.total_size as f64 / max_size as f64) * (chart_width - 200) as f64) as i32;
+            ((category.total_size as f64 / max_size as f64) * f64::from(chart_width - 200)) as i32;
 
         // Bar with rounded corners
         let bar = Rectangle::new()
@@ -1944,7 +1959,7 @@ pub fn add_categorized_allocations(
                     let short_var = if var_name.len() > 12 {
                         format!("{}...", &var_name[..9])
                     } else {
-                        var_name.to_string()
+                        var_name.clone()
                     };
                     Some(format!("{short_var}({simplified_type})"))
                 } else {
@@ -2101,7 +2116,7 @@ pub fn add_memory_timeline(
         } else {
             0.5 // Center if no time range
         };
-        let x = chart_x + 30 + (time_ratio * timeline_width as f64) as i32;
+        let x = chart_x + 30 + (time_ratio * f64::from(timeline_width)) as i32;
         let y = chart_y + 40 + (i as i32 * row_height);
 
         // Ensure x position stays within timeline bounds
@@ -2152,7 +2167,7 @@ pub fn add_memory_timeline(
             let truncated_var_name = if var_name.len() > max_var_name_length {
                 format!("{}...", &var_name[..max_var_name_length - 3])
             } else {
-                var_name.to_string()
+                var_name.clone()
             };
 
             let truncated_type = if simplified_type.len() > max_type_length {
@@ -2286,7 +2301,7 @@ pub fn add_fragmentation_analysis(
     for (i, (&(_, _, label), &count)) in size_buckets.iter().zip(bucket_counts.iter()).enumerate() {
         let x = chart_x + 50 + i * bar_width;
         let bar_height = if max_count > 0 {
-            (count as f64 / max_count as f64 * (chart_height - 80) as f64) as i32
+            (f64::from(count) / f64::from(max_count) * f64::from(chart_height - 80)) as i32
         } else {
             0
         };
@@ -2433,10 +2448,7 @@ pub fn add_callstack_analysis(
     let mut sorted_sources: Vec<_> = source_stats.iter().collect();
     sorted_sources.sort_by(|a, b| b.1 .1.cmp(&a.1 .1));
 
-    let max_size = sorted_sources
-        .first()
-        .map(|(_, (_, size))| *size)
-        .unwrap_or(1);
+    let max_size = sorted_sources.first().map_or(1, |(_, (_, size))| *size);
 
     // Draw tree-like visualization
     for (i, (source, (count, total_size))) in sorted_sources.iter().take(10).enumerate() {
@@ -2529,7 +2541,7 @@ pub fn add_memory_growth_trends(
         let simulated_memory = stats.active_memory / time_points * (i + 1);
         let y = chart_y + chart_height
             - 50
-            - ((simulated_memory as f64 / stats.peak_memory as f64) * (chart_height - 100) as f64)
+            - ((simulated_memory as f64 / stats.peak_memory as f64) * f64::from(chart_height - 100))
                 as i32;
 
         // Draw data points
@@ -2549,7 +2561,7 @@ pub fn add_memory_growth_trends(
             let prev_memory = stats.active_memory / time_points * i;
             let prev_y = chart_y + chart_height
                 - 50
-                - ((prev_memory as f64 / stats.peak_memory as f64) * (chart_height - 100) as f64)
+                - ((prev_memory as f64 / stats.peak_memory as f64) * f64::from(chart_height - 100))
                     as i32;
 
             let line = svg::node::element::Line::new()
@@ -2696,10 +2708,10 @@ pub fn add_comprehensive_summary(
 
     // Calculate summary metrics
     let tracked_vars = allocations.iter().filter(|a| a.var_name.is_some()).count();
-    let avg_size = if !allocations.is_empty() {
-        allocations.iter().map(|a| a.size).sum::<usize>() / allocations.len()
-    } else {
+    let avg_size = if allocations.is_empty() {
         0
+    } else {
+        allocations.iter().map(|a| a.size).sum::<usize>() / allocations.len()
     };
 
     let summary_items = [
@@ -2830,7 +2842,7 @@ pub fn add_enhanced_timeline_dashboard(
         document = document.add(bg_circle);
 
         // Progress circle
-        let circumference = 2.0 * std::f64::consts::PI * radius as f64;
+        let circumference = 2.0 * std::f64::consts::PI * f64::from(radius);
         let progress = circumference * (percentage / 100.0);
         let dash_array = format!("{} {}", progress, circumference - progress);
 
@@ -2972,7 +2984,7 @@ pub fn add_enhanced_timeline_dashboard(
     let plot_width = chart_width - 350; // Space for names and legend
     let plot_height = chart_height - 100;
 
-    let row_height = (plot_height as f64 / sorted_scopes.len().max(1) as f64).clamp(25.0, 40.0);
+    let row_height = (f64::from(plot_height) / sorted_scopes.len().max(1) as f64).clamp(25.0, 40.0);
 
     // Time axis (horizontal)
     let time_axis = svg::node::element::Line::new()
@@ -3031,17 +3043,17 @@ pub fn add_enhanced_timeline_dashboard(
         (16384, "16KB"),
     ];
 
-    for (size, label) in scale_markers.iter() {
+    for (size, label) in &scale_markers {
         // Skip size filtering for now - just show all scale markers
         {
-            let log_size = (*size as f64).ln();
+            let log_size = f64::from(*size).ln();
             let log_min = 1.0_f64.ln();
             let log_max = 16384.0_f64.ln();
             let log_range = log_max - log_min;
 
             if log_range > 0.0 {
                 let y_pos = plot_y + plot_height
-                    - ((log_size - log_min) / log_range * plot_height as f64) as i32;
+                    - ((log_size - log_min) / log_range * f64::from(plot_height)) as i32;
 
                 // Scale marker line
                 let marker_line = svg::node::element::Line::new()
@@ -3114,11 +3126,11 @@ pub fn add_enhanced_timeline_dashboard(
         .filter(|&s| s > 0)
         .collect();
     sizes.sort_unstable();
-    let _p95_threshold = if !sizes.is_empty() {
+    let _p95_threshold = if sizes.is_empty() {
+        0
+    } else {
         let p95_index = (sizes.len() as f64 * 0.95) as usize;
         sizes[p95_index.min(sizes.len() - 1)]
-    } else {
-        0
     };
 
     // Draw scope-based Gantt chart - move scopes up slightly
@@ -3356,7 +3368,7 @@ fn extract_scope_name(var_name: &str) -> String {
         "Graph Nodes".to_string()
     } else if var_name.contains("mutable") {
         "Mutable Data".to_string()
-    } else if var_name.contains("_") {
+    } else if var_name.contains('_') {
         // Use prefix before first underscore as scope
         let prefix = var_name.split('_').next().unwrap_or("Unknown");
         format!("{} Scope", prefix.to_ascii_uppercase())

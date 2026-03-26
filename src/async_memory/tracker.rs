@@ -14,7 +14,7 @@ use crate::async_memory::error::{AsyncError, AsyncResult};
 use crate::async_memory::profile::{AggregatedTaskStats, TaskMemoryProfile};
 use crate::async_memory::TaskId;
 
-/// Re-export TrackedFuture from api module
+/// Re-export `TrackedFuture` from api module
 pub use crate::async_memory::api::TrackedFuture;
 
 /// Central task memory tracker
@@ -34,6 +34,7 @@ pub struct TaskMemoryTracker {
 
 impl TaskMemoryTracker {
     /// Create new task memory tracker
+    #[must_use]
     pub fn new() -> Self {
         Self {
             profiles: HashMap::new(),
@@ -125,16 +126,19 @@ impl TaskMemoryTracker {
     }
 
     /// Get task profile by ID
+    #[must_use]
     pub fn get_task_profile(&self, task_id: TaskId) -> Option<&TaskMemoryProfile> {
         self.profiles.get(&task_id)
     }
 
     /// Get all task profiles
+    #[must_use]
     pub fn get_all_profiles(&self) -> &HashMap<TaskId, TaskMemoryProfile> {
         &self.profiles
     }
 
     /// Get aggregated statistics
+    #[must_use]
     pub fn get_aggregated_stats(&self) -> &AggregatedTaskStats {
         &self.aggregated_stats
     }

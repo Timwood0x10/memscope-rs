@@ -63,6 +63,7 @@ pub struct MatchDetails {
 
 impl RuleEngine {
     /// Create a new rule engine
+    #[must_use]
     pub fn new() -> Self {
         Self {
             rules: Vec::new(),
@@ -111,6 +112,7 @@ impl RuleEngine {
     }
 
     /// Get all matching rules for a type name
+    #[must_use]
     pub fn find_matches(&self, type_name: &str) -> Vec<MatchResult> {
         let mut matches = Vec::new();
 
@@ -137,6 +139,7 @@ impl RuleEngine {
     }
 
     /// Get the best match for a type name
+    #[must_use]
     pub fn classify(&self, type_name: &str) -> Option<TypeCategory> {
         self.find_matches(type_name)
             .first()
@@ -152,7 +155,7 @@ impl RuleEngine {
         let mut conditions_met = Vec::new();
         for condition in &rule.conditions {
             if self.test_condition(condition, type_name) {
-                conditions_met.push(format!("{:?}", condition));
+                conditions_met.push(format!("{condition:?}"));
             } else {
                 return None; // All conditions must be met
             }
@@ -205,7 +208,7 @@ impl RuleEngine {
         confidence += (rule.conditions.len() as f64 * 0.1).min(0.2);
 
         // Adjust based on priority (higher priority = higher confidence)
-        confidence += (10 - rule.priority as i32).max(0) as f64 * 0.01;
+        confidence += f64::from((10 - i32::from(rule.priority)).max(0)) * 0.01;
 
         confidence.min(1.0)
     }
@@ -239,6 +242,7 @@ impl RuleEngine {
     }
 
     /// Get statistics about the rule engine
+    #[must_use]
     pub fn get_stats(&self) -> RuleEngineStats {
         let enabled_rules = self.rules.iter().filter(|r| r.enabled).count();
         let disabled_rules = self.rules.len() - enabled_rules;
@@ -260,16 +264,19 @@ impl RuleEngine {
     }
 
     /// Get all rule IDs
+    #[must_use]
     pub fn get_rule_ids(&self) -> Vec<String> {
         self.rules.iter().map(|r| r.id.clone()).collect()
     }
 
     /// Get rule by ID
+    #[must_use]
     pub fn get_rule(&self, rule_id: &str) -> Option<&Rule> {
         self.rules.iter().find(|r| r.id == rule_id)
     }
 
     /// Get rule metadata
+    #[must_use]
     pub fn get_metadata(&self, rule_id: &str) -> Option<&RuleMetadata> {
         self.metadata.get(rule_id)
     }
@@ -318,6 +325,7 @@ pub struct RuleBuilder {
 }
 
 impl RuleBuilder {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             id: None,
@@ -329,31 +337,37 @@ impl RuleBuilder {
         }
     }
 
+    #[must_use]
     pub fn id(mut self, id: &str) -> Self {
         self.id = Some(id.to_string());
         self
     }
 
+    #[must_use]
     pub fn pattern(mut self, pattern: &str) -> Self {
         self.pattern = Some(pattern.to_string());
         self
     }
 
+    #[must_use]
     pub fn category(mut self, category: TypeCategory) -> Self {
         self.category = Some(category);
         self
     }
 
+    #[must_use]
     pub fn priority(mut self, priority: u8) -> Self {
         self.priority = priority;
         self
     }
 
+    #[must_use]
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
     }
 
+    #[must_use]
     pub fn condition(mut self, condition: Condition) -> Self {
         self.conditions.push(condition);
         self

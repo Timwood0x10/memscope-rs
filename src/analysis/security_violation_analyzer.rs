@@ -31,6 +31,7 @@ pub enum ViolationSeverity {
 
 impl ViolationSeverity {
     /// Get numeric score for severity (higher = more severe)
+    #[must_use]
     pub fn score(&self) -> u32 {
         match self {
             ViolationSeverity::Critical => 100,
@@ -334,7 +335,11 @@ impl SecurityViolationAnalyzer {
             SafetyViolation::CrossBoundaryRisk { .. } => "CBR",
         };
 
-        format!("SEC-{violation_type}-{:X}-{}", address, timestamp % 1000000)
+        format!(
+            "SEC-{violation_type}-{:X}-{}",
+            address,
+            timestamp % 1_000_000
+        )
     }
 
     /// Assess violation severity
@@ -432,7 +437,7 @@ impl SecurityViolationAnalyzer {
 
         // Same type
         if let Some(type_name) = &alloc.type_name {
-            if type_name.contains("*") || type_name.contains("Box") || type_name.contains("Vec") {
+            if type_name.contains('*') || type_name.contains("Box") || type_name.contains("Vec") {
                 return Some(AllocationRelationship::SameType);
             }
         }
@@ -646,11 +651,13 @@ impl SecurityViolationAnalyzer {
     }
 
     /// Get all violation reports
+    #[must_use]
     pub fn get_all_reports(&self) -> &HashMap<String, SecurityViolationReport> {
         &self.violation_reports
     }
 
     /// Get reports by severity
+    #[must_use]
     pub fn get_reports_by_severity(
         &self,
         min_severity: ViolationSeverity,
@@ -676,6 +683,7 @@ impl SecurityViolationAnalyzer {
     }
 
     /// Generate comprehensive security analysis summary
+    #[must_use]
     pub fn generate_security_summary(&self) -> serde_json::Value {
         let total_violations = self.violation_reports.len();
         let mut severity_counts = HashMap::new();

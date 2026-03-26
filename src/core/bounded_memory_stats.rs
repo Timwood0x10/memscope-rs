@@ -111,11 +111,13 @@ pub struct HistoricalSummary {
 
 impl BoundedMemoryStats {
     /// Create new bounded memory statistics with default configuration
+    #[must_use]
     pub fn new() -> Self {
         Self::with_config(BoundedStatsConfig::default())
     }
 
     /// Create new bounded memory statistics with custom configuration
+    #[must_use]
     pub fn with_config(config: BoundedStatsConfig) -> Self {
         Self {
             config,
@@ -198,8 +200,8 @@ impl BoundedMemoryStats {
         }
     }
 
-    /// Update the status of an active allocation, especially its var_name status.
-    /// This is used when a var_name is associated with an already tracked allocation.
+    /// Update the status of an active allocation, especially its `var_name` status.
+    /// This is used when a `var_name` is associated with an already tracked allocation.
     pub fn update_active_allocation_status(
         &mut self,
         alloc: &AllocationInfo,
@@ -375,6 +377,7 @@ impl BoundedMemoryStats {
     }
 
     /// Get memory usage statistics for this stats instance
+    #[must_use]
     pub fn get_memory_usage(&self) -> MemoryUsageStats {
         let recent_allocations_size =
             self.recent_allocations.len() * std::mem::size_of::<AllocationSummary>();
@@ -401,6 +404,7 @@ impl BoundedMemoryStats {
     }
 
     /// Get all allocations as a Vec (for compatibility with existing code)
+    #[must_use]
     pub fn get_all_allocations(&self) -> Vec<AllocationInfo> {
         self.recent_allocations
             .iter()
@@ -474,11 +478,13 @@ pub struct AllocationHistoryManager {
 
 impl AllocationHistoryManager {
     /// Create new history manager
+    #[must_use]
     pub fn new() -> Self {
         Self::with_config(BoundedStatsConfig::default())
     }
 
     /// Create new history manager with custom configuration
+    #[must_use]
     pub fn with_config(config: BoundedStatsConfig) -> Self {
         Self {
             config,
@@ -509,11 +515,13 @@ impl AllocationHistoryManager {
     }
 
     /// Get all history entries
+    #[must_use]
     pub fn get_history(&self) -> &VecDeque<AllocationInfo> {
         &self.history
     }
 
     /// Get history as Vec for compatibility
+    #[must_use]
     pub fn get_history_vec(&self) -> Vec<AllocationInfo> {
         self.history.iter().cloned().collect()
     }
@@ -524,6 +532,7 @@ impl AllocationHistoryManager {
     }
 
     /// Get memory usage of this history manager
+    #[must_use]
     pub fn get_memory_usage(&self) -> usize {
         std::mem::size_of::<Self>() + self.history.len() * std::mem::size_of::<AllocationInfo>()
     }

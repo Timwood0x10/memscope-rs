@@ -8,7 +8,7 @@ pub fn get_html_template() -> &'static str {
         // Try to load from external file first
         if let Ok(external_path) = std::env::var("MEMSCOPE_HTML_TEMPLATE") {
             if let Ok(content) = fs::read_to_string(&external_path) {
-                println!("📁 Loaded external HTML template: {}", external_path);
+                println!("📁 Loaded external HTML template: {external_path}");
                 return content;
             }
         }
@@ -6018,7 +6018,7 @@ pub fn get_embedded_styles_css() -> &'static str {
         // Try to load from external file first
         if let Ok(external_path) = std::env::var("MEMSCOPE_CSS_TEMPLATE") {
             if let Ok(content) = fs::read_to_string(&external_path) {
-                println!("📁 Loaded external CSS template: {}", external_path);
+                println!("📁 Loaded external CSS template: {external_path}");
                 return content;
             }
         }
@@ -6028,7 +6028,7 @@ pub fn get_embedded_styles_css() -> &'static str {
     })
 }
 
-pub const EMBEDDED_STYLES_CSS: &str = r#"/* CSS Variables for theming */
+pub const EMBEDDED_STYLES_CSS: &str = r"/* CSS Variables for theming */
 :root {
     /* Graph and detail panel variables */
     --graph-node-bg: #ffffff;
@@ -6634,4 +6634,4 @@ rn Variable Graph Styles */
     0% { opacity: 1; }
     50% { opacity: 0.7; }
     100% { opacity: 1; }
-}"#;
+}";

@@ -91,7 +91,7 @@ struct ThreadLocalRecord {
 }
 
 /// Thread-local tracking data
-/// Stored in thread_local! storage for each participating thread
+/// Stored in `thread_local`! storage for each participating thread
 #[derive(Debug)]
 struct ThreadLocalData {
     /// Thread-specific allocation records
@@ -189,7 +189,9 @@ impl ThreadLocalStrategy {
     /// Must be called from each thread that will participate in tracking
     pub fn register_current_thread(&self) -> Result<(), TrackerError> {
         let thread_id = Self::get_current_thread_id();
-        let thread_name = thread::current().name().map(|s| s.to_string());
+        let thread_name = thread::current()
+            .name()
+            .map(std::string::ToString::to_string);
 
         debug!(
             "Registering thread for tracking: id={}, name={:?}",
@@ -272,7 +274,9 @@ impl ThreadLocalStrategy {
                 timestamp_alloc: Self::get_timestamp_ns(),
                 timestamp_dealloc: None,
                 thread_id,
-                thread_name: thread::current().name().map(|s| s.to_string()),
+                thread_name: thread::current()
+                    .name()
+                    .map(std::string::ToString::to_string),
             };
 
             // Store in thread-local storage
@@ -389,7 +393,7 @@ impl ThreadLocalStrategy {
         // Create JSON structure compatible with existing format
         let mut allocations = Vec::new();
 
-        for record in records.iter() {
+        for record in &records {
             let mut allocation = serde_json::Map::new();
 
             allocation.insert(
@@ -460,7 +464,7 @@ impl ThreadLocalStrategy {
         }));
 
         serde_json::to_string_pretty(&output).map_err(|e| TrackerError::DataCollectionFailed {
-            reason: format!("JSON serialization failed: {}", e),
+            reason: format!("JSON serialization failed: {e}"),
         })
     }
 

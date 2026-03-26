@@ -61,7 +61,9 @@ impl StringTable {
 
     /// Get a string by its index
     pub fn get_string(&self, index: u16) -> Option<&str> {
-        self.strings.get(index as usize).map(|s| s.as_str())
+        self.strings
+            .get(index as usize)
+            .map(std::string::String::as_str)
     }
 
     /// Get the index of a string if it exists in the table
@@ -106,11 +108,11 @@ impl StringTable {
 
         if first_byte < 0x80 {
             // Single byte format (0-127)
-            Ok(first_byte as u16)
+            Ok(u16::from(first_byte))
         } else if first_byte < 0xC0 {
             // Two byte format (128-16383)
             let second_byte = primitives::read_u8(reader)?;
-            let index = (((first_byte & 0x3F) as u16) << 8) | (second_byte as u16);
+            let index = (u16::from(first_byte & 0x3F) << 8) | u16::from(second_byte);
             Ok(index)
         } else {
             // Three byte format (16384-65535)
@@ -124,7 +126,7 @@ impl StringTable {
         let mut size = 0;
 
         // Write compression flag
-        size += primitives::write_u8(writer, if self.use_compressed_indices { 1 } else { 0 })?;
+        size += primitives::write_u8(writer, u8::from(self.use_compressed_indices))?;
 
         // Write count of strings
         size += primitives::write_u32(writer, self.strings.len() as u32)?;
@@ -238,7 +240,7 @@ pub struct CompressionStats {
     pub table_size: usize,
     /// Number of string references
     pub reference_count: usize,
-    /// Compression ratio (compressed_size / original_size)
+    /// Compression ratio (`compressed_size` / `original_size`)
     pub compression_ratio: f64,
 }
 
@@ -450,7 +452,7 @@ impl StringTableBuilder {
         s.contains("drop") ||                 // Drop functions
         s.ends_with("_new") ||                // Constructor patterns
         s.ends_with("_init") ||               // Initialization patterns
-        s.starts_with("_") ||                 // Internal functions
+        s.starts_with('_') ||                 // Internal functions
         (s.len() > 3 && s.chars().all(|c| c.is_ascii_lowercase() || c == '_')) // snake_case
     }
 

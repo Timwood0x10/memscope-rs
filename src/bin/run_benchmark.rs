@@ -1,6 +1,6 @@
 //! performance benchmark main progamming
 //!
-//! this program runs complex_lifecycle_showcase.rs performance benchmark,
+//! this program runs `complex_lifecycle_showcase.rs` performance benchmark,
 //! comparing the performance of traditional export system and fast export system.
 
 // use memscope_rs::export::performance_benchmark::{BenchmarkConfig, PerformanceBenchmark}; // Removed - test code

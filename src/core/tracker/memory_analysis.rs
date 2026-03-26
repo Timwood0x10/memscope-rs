@@ -44,7 +44,10 @@ impl MemoryTracker {
 
     /// Analyze memory fragmentation
     pub fn analyze_memory_fragmentation(&self) -> EnhancedFragmentationAnalysis {
-        let stats = self.stats.lock().unwrap_or_else(|e| e.into_inner());
+        let stats = self
+            .stats
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
 
         // Calculate basic fragmentation metrics
         let total_allocated = stats.total_allocated;
@@ -100,7 +103,7 @@ impl MemoryTracker {
             1
         } else if type_name.contains("usize")
             || type_name.contains("isize")
-            || type_name.contains("*")
+            || type_name.contains('*')
         {
             std::mem::size_of::<usize>()
         } else {
@@ -189,7 +192,7 @@ impl MemoryTracker {
         fields
     }
 
-    /// Analyze container structure for Vec, HashMap, Box, etc.
+    /// Analyze container structure for Vec, `HashMap`, Box, etc.
     fn analyze_container_structure(&self, type_name: &str, size: usize) -> ContainerAnalysis {
         let container_type = self.classify_container_type(type_name);
         let capacity_utilization = self.analyze_capacity_utilization(&container_type, size);
@@ -225,7 +228,7 @@ impl MemoryTracker {
         let container_efficiency = self.calculate_container_specific_efficiency(type_name, size);
 
         // Calculate overall efficiency score
-        let overall_score = (memory_utilization + container_efficiency) / 2.0;
+        let overall_score = f64::midpoint(memory_utilization, container_efficiency);
 
         LayoutEfficiency {
             memory_utilization,
@@ -752,7 +755,10 @@ impl MemoryTracker {
 
     /// Assess memory pressure
     fn assess_memory_pressure(&self) -> MemoryPressureInfo {
-        let stats = self.stats.lock().unwrap_or_else(|e| e.into_inner());
+        let stats = self
+            .stats
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let pressure_level = if stats.active_memory > 1024 * 1024 * 100 {
             // > 100MB
             crate::core::types::MemoryPressureLevel::High
@@ -1157,7 +1163,7 @@ impl MemoryTracker {
                             cpu_usage: 0.0, // Would need system profiling
                             memory_usage: memory_usage as f64,
                             cache_hit_rate: 0.95, // Estimated
-                            throughput: usage_count as f64,
+                            throughput: f64::from(usage_count),
                         },
                     });
                 }
@@ -1282,7 +1288,7 @@ impl MemoryTracker {
         if let Some(start) = type_name.find('<') {
             if let Some(end) = type_name.rfind('>') {
                 let params_str = &type_name[start + 1..end];
-                let param_names: Vec<&str> = params_str.split(',').map(|s| s.trim()).collect();
+                let param_names: Vec<&str> = params_str.split(',').map(str::trim).collect();
 
                 for (i, param_name) in param_names.iter().enumerate() {
                     let estimated_size = self.estimate_type_parameter_size(
@@ -1440,7 +1446,10 @@ impl MemoryTracker {
 
     /// Analyze allocator state
     fn analyze_allocator_state(&self) -> AllocatorStateInfo {
-        let stats = self.stats.lock().unwrap_or_else(|e| e.into_inner());
+        let stats = self
+            .stats
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
 
         AllocatorStateInfo {
             allocator_type: "System".to_string(),

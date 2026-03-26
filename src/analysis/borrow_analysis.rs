@@ -39,6 +39,7 @@ impl Default for BorrowAnalyzer {
 
 impl BorrowAnalyzer {
     /// Create a new borrow analyzer
+    #[must_use]
     pub fn new() -> Self {
         Self {
             active_borrows: Mutex::new(HashMap::new()),
@@ -210,13 +211,13 @@ impl BorrowAnalyzer {
                 Ok(a) => a,
                 Err(_) => return BorrowStatistics::default(),
             };
-            active.values().map(|v| v.len()).sum()
+            active.values().map(std::vec::Vec::len).sum()
         };
 
-        let avg_borrow_duration = if !durations.is_empty() {
-            durations.iter().sum::<u64>() / durations.len() as u64
-        } else {
+        let avg_borrow_duration = if durations.is_empty() {
             0
+        } else {
+            durations.iter().sum::<u64>() / durations.len() as u64
         };
 
         let max_borrow_duration = durations.iter().max().copied().unwrap_or(0);
@@ -312,7 +313,7 @@ impl BorrowAnalyzer {
     fn calculate_max_concurrent_borrows(&self) -> usize {
         self.active_borrows
             .safe_lock()
-            .map(|active| active.values().map(|v| v.len()).max().unwrap_or(0))
+            .map(|active| active.values().map(std::vec::Vec::len).max().unwrap_or(0))
             .unwrap_or(0)
     }
 }

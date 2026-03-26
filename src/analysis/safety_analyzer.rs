@@ -1,7 +1,7 @@
 //! Enhanced Safety Analysis for Unsafe Code and FFI Operations
 //!
 //! This module implements comprehensive safety analysis including:
-//! - UnsafeReport generation with risk assessment
+//! - `UnsafeReport` generation with risk assessment
 //! - Risk factor detection and classification
 //! - Confidence scoring for safety violations
 //! - Memory passport tracking for FFI boundaries
@@ -341,6 +341,7 @@ pub struct RiskAssessmentEngine {
 
 impl RiskAssessmentEngine {
     /// Create new risk assessment engine
+    #[must_use]
     pub fn new() -> Self {
         let mut risk_weights = HashMap::new();
         risk_weights.insert(RiskFactorType::RawPointerDereference, 8.5);
@@ -360,6 +361,7 @@ impl RiskAssessmentEngine {
     }
 
     /// Assess risk for unsafe operation
+    #[must_use]
     pub fn assess_risk(
         &self,
         source: &UnsafeSource,
@@ -446,7 +448,7 @@ impl RiskAssessmentEngine {
         let mut factors = Vec::new();
 
         // Check for raw pointer operations
-        if location.contains("*") || location.contains("ptr::") {
+        if location.contains('*') || location.contains("ptr::") {
             factors.push(RiskFactor {
                 factor_type: RiskFactorType::RawPointerDereference,
                 severity: 7.5,
@@ -537,7 +539,7 @@ impl RiskAssessmentEngine {
     ) -> Vec<RiskFactor> {
         let mut factors = Vec::new();
 
-        let severity = if from_type.contains("*") || to_type.contains("*") {
+        let severity = if from_type.contains('*') || to_type.contains('*') {
             9.0 // Pointer transmutes are very risky
         } else {
             7.0 // Regular transmutes are moderately risky
@@ -891,6 +893,7 @@ impl SafetyAnalyzer {
     }
 
     /// Get all unsafe reports
+    #[must_use]
     pub fn get_unsafe_reports(&self) -> HashMap<String, UnsafeReport> {
         self.unsafe_reports
             .lock()
@@ -902,6 +905,7 @@ impl SafetyAnalyzer {
     }
 
     /// Get all memory passports
+    #[must_use]
     pub fn get_memory_passports(&self) -> HashMap<usize, MemoryPassport> {
         self.memory_passports
             .lock()
@@ -913,6 +917,7 @@ impl SafetyAnalyzer {
     }
 
     /// Get analysis statistics
+    #[must_use]
     pub fn get_stats(&self) -> SafetyAnalysisStats {
         self.stats
             .lock()
@@ -938,7 +943,7 @@ impl SafetyAnalyzer {
             UnsafeSource::Transmute { .. } => "TX",
         };
 
-        format!("UNSAFE-{}-{}", source_type, timestamp % 1000000)
+        format!("UNSAFE-{}-{}", source_type, timestamp % 1_000_000)
     }
 
     fn create_memory_context(&self, allocations: &[AllocationInfo]) -> MemoryContext {

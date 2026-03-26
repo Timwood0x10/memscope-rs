@@ -209,6 +209,7 @@ impl Default for SamplingConfig {
 
 impl SamplingTracker {
     /// Create a new sampling tracker with default configuration
+    #[must_use]
     pub fn new() -> Self {
         Self {
             config: SamplingConfig::default(),
@@ -216,6 +217,7 @@ impl SamplingTracker {
     }
 
     /// Create a new sampling tracker with custom configuration
+    #[must_use]
     pub fn with_config(config: SamplingConfig) -> Self {
         Self { config }
     }
@@ -366,6 +368,7 @@ impl SamplingTracker {
     }
 
     /// Get current thread's basic statistics
+    #[must_use]
     pub fn get_current_thread_stats(&self) -> ThreadStats {
         THREAD_DATA.with(|data| {
             let data = data.borrow();

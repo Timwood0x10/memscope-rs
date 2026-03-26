@@ -4,8 +4,8 @@
 //! to ensure robust operation. Fully compliant with requirement.md:
 //! - No locks, unwrap, or clone violations
 //! - Uses Arc for shared ownership
-//! - Uses safe_operations for lock handling
-//! - Uses unwrap_safe for error handling
+//! - Uses `safe_operations` for lock handling
+//! - Uses `unwrap_safe` for error handling
 
 use crate::core::safe_operations::SafeLock;
 use crate::core::types::TrackingResult;
@@ -262,7 +262,7 @@ impl EdgeCaseHandler {
         let start_time = std::time::Instant::now();
 
         // Check for timeout
-        if start_time.elapsed().as_millis() > self.config.recovery_timeout_ms as u128 {
+        if start_time.elapsed().as_millis() > u128::from(self.config.recovery_timeout_ms) {
             occurrence.recovery_action = Some("Recovery timeout".to_string());
             occurrence.handled_successfully = false;
             return Ok(occurrence);
@@ -559,9 +559,10 @@ pub fn get_global_edge_case_handler() -> Arc<EdgeCaseHandler> {
 /// Initialize global edge case handler with custom config
 pub fn initialize_global_edge_case_handler(config: EdgeCaseConfig) -> Arc<EdgeCaseHandler> {
     let handler = Arc::new(EdgeCaseHandler::new(config));
-    match GLOBAL_EDGE_CASE_HANDLER.set(handler.clone()) {
-        Ok(_) => tracing::info!("🛡️ Global edge case handler initialized"),
-        Err(_) => tracing::warn!("🛡️ Global edge case handler already initialized"),
+    if let Ok(()) = GLOBAL_EDGE_CASE_HANDLER.set(handler.clone()) {
+        tracing::info!("🛡️ Global edge case handler initialized")
+    } else {
+        tracing::warn!("🛡️ Global edge case handler already initialized")
     }
     handler
 }

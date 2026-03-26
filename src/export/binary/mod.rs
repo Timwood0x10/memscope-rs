@@ -144,7 +144,7 @@ pub fn export_to_binary<P: AsRef<Path>>(
 /// Export allocation information to binary format with enhanced header
 ///
 /// This function properly filters allocations based on the export mode:
-/// - UserOnly: Only exports allocations with var_name (user allocations)
+/// - `UserOnly`: Only exports allocations with `var_name` (user allocations)
 /// - Full: Exports all allocations (user + system)
 ///
 /// # Arguments
@@ -275,9 +275,9 @@ pub struct BinaryFileInfo {
     pub export_mode: BinaryExportMode,
     /// Total allocation count
     pub total_count: u32,
-    /// User allocation count (var_name.is_some())
+    /// User allocation count (`var_name.is_some()`)
     pub user_count: u16,
-    /// System allocation count (var_name.is_none())
+    /// System allocation count (`var_name.is_none()`)
     pub system_count: u16,
     /// Binary format version
     pub version: u32,
@@ -289,16 +289,19 @@ pub struct BinaryFileInfo {
 
 impl BinaryFileInfo {
     /// Check if this is a user-only binary
+    #[must_use]
     pub fn is_user_only(&self) -> bool {
         self.export_mode == BinaryExportMode::UserOnly
     }
 
     /// Check if this is a full binary
+    #[must_use]
     pub fn is_full_binary(&self) -> bool {
         self.export_mode == BinaryExportMode::Full
     }
 
     /// Get a human-readable description of the binary type
+    #[must_use]
     pub fn type_description(&self) -> String {
         match self.export_mode {
             BinaryExportMode::UserOnly => format!(
@@ -317,6 +320,7 @@ impl BinaryFileInfo {
     }
 
     /// Get recommended processing strategy
+    #[must_use]
     pub fn recommended_strategy(&self) -> &'static str {
         match self.export_mode {
             BinaryExportMode::UserOnly => "Simple processing (small file, user data only)",

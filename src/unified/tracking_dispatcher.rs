@@ -7,7 +7,7 @@ use crate::unified::backend::{BackendError, RuntimeEnvironment, TrackingStrategy
 use std::collections::HashMap;
 use std::sync::Arc;
 use thiserror::Error;
-use tracing::{debug, error, info};
+use tracing::{debug, info};
 
 /// Central dispatcher that routes tracking operations to appropriate implementations
 /// Maintains active tracking strategies and coordinates data collection
@@ -222,7 +222,7 @@ impl TrackerRegistry {
         tracker
             .as_mut()
             .ok_or_else(|| BackendError::TrackingInitializationFailed {
-                reason: format!("Failed to create {:?} tracker", tracker_type),
+                reason: format!("Failed to create {tracker_type:?} tracker"),
             })
     }
 
@@ -330,7 +330,7 @@ impl TrackingDispatcher {
         let tracker_config = TrackerConfig::default();
         tracker.initialize(tracker_config).map_err(|e| {
             BackendError::TrackingInitializationFailed {
-                reason: format!("Tracker initialization failed: {}", e),
+                reason: format!("Tracker initialization failed: {e}"),
             }
         })?;
 
@@ -338,7 +338,7 @@ impl TrackingDispatcher {
         tracker
             .start_tracking()
             .map_err(|e| BackendError::TrackingInitializationFailed {
-                reason: format!("Failed to start tracking: {}", e),
+                reason: format!("Failed to start tracking: {e}"),
             })?;
 
         self.active_strategy = Some(strategy);
@@ -390,7 +390,7 @@ impl TrackingDispatcher {
                 if !tracker.is_active() {
                     tracker.start_tracking().map_err(|e| {
                         BackendError::TrackingInitializationFailed {
-                            reason: format!("Failed to start tracking: {}", e),
+                            reason: format!("Failed to start tracking: {e}"),
                         }
                     })?;
                 }
@@ -401,7 +401,7 @@ impl TrackingDispatcher {
                         tracker
                             .stop_tracking()
                             .map_err(|e| BackendError::DataCollectionError {
-                                reason: format!("Failed to stop tracking: {}", e),
+                                reason: format!("Failed to stop tracking: {e}"),
                             })?;
                     // Data would be processed here
                 }
@@ -448,7 +448,7 @@ impl TrackingDispatcher {
                     tracker
                         .stop_tracking()
                         .map_err(|e| BackendError::DataCollectionError {
-                            reason: format!("Single thread tracker data collection failed: {}", e),
+                            reason: format!("Single thread tracker data collection failed: {e}"),
                         })?;
                 all_data.extend(data);
             }
@@ -460,7 +460,7 @@ impl TrackingDispatcher {
                     tracker
                         .stop_tracking()
                         .map_err(|e| BackendError::DataCollectionError {
-                            reason: format!("Multi thread tracker data collection failed: {}", e),
+                            reason: format!("Multi thread tracker data collection failed: {e}"),
                         })?;
                 all_data.extend(data);
             }
@@ -472,7 +472,7 @@ impl TrackingDispatcher {
                     tracker
                         .stop_tracking()
                         .map_err(|e| BackendError::DataCollectionError {
-                            reason: format!("Async tracker data collection failed: {}", e),
+                            reason: format!("Async tracker data collection failed: {e}"),
                         })?;
                 all_data.extend(data);
             }
@@ -484,7 +484,7 @@ impl TrackingDispatcher {
                     tracker
                         .stop_tracking()
                         .map_err(|e| BackendError::DataCollectionError {
-                            reason: format!("Hybrid tracker data collection failed: {}", e),
+                            reason: format!("Hybrid tracker data collection failed: {e}"),
                         })?;
                 all_data.extend(data);
             }
@@ -495,6 +495,7 @@ impl TrackingDispatcher {
     }
 
     /// Get current dispatcher metrics
+    #[must_use]
     pub fn get_metrics(&self) -> &DispatcherMetrics {
         &self.metrics
     }

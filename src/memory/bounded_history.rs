@@ -17,7 +17,7 @@ pub struct BoundedHistoryConfig {
     pub max_age: Duration,
     /// Total memory limit in bytes
     pub total_memory_limit: usize,
-    /// Cleanup threshold (percentage of max_entries)
+    /// Cleanup threshold (percentage of `max_entries`)
     pub cleanup_threshold: f32,
 }
 
@@ -110,11 +110,13 @@ where
     T: Clone + Send + Sync + 'static,
 {
     /// Create a new bounded history with default configuration
+    #[must_use]
     pub fn new() -> Self {
         Self::with_config(BoundedHistoryConfig::default())
     }
 
     /// Create a new bounded history with custom configuration
+    #[must_use]
     pub fn with_config(config: BoundedHistoryConfig) -> Self {
         Self {
             config,
@@ -163,6 +165,7 @@ where
         }
     }
 
+    #[must_use]
     pub fn entries(&self) -> Vec<T> {
         if let Ok(entries) = self.entries.lock() {
             entries.iter().map(|entry| entry.data.clone()).collect()
@@ -180,14 +183,17 @@ where
         }
     }
 
+    #[must_use]
     pub fn len(&self) -> usize {
         self.entries.lock().map(|e| e.len()).unwrap_or(0)
     }
 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.entries.lock().map(|e| e.is_empty()).unwrap_or(true)
     }
 
+    #[must_use]
     pub fn get_memory_usage_stats(&self) -> BoundedHistoryStats {
         if let (Ok(entries), Ok(usage)) = (self.entries.lock(), self.current_memory_usage.lock()) {
             let _memory_usage_mb = *usage as f64 / (1024.0 * 1024.0);
@@ -210,8 +216,9 @@ where
         }
     }
 
+    #[must_use]
     pub fn cleanup_expired(&self) -> usize {
-        let cutoff = Instant::now() - self.config.max_age;
+        let cutoff = Instant::now().checked_sub(self.config.max_age).unwrap();
         let mut removed_count = 0;
 
         if let (Ok(mut entries), Ok(mut usage)) =

@@ -75,6 +75,7 @@ pub struct FieldParserStats {
 
 impl FieldParserStats {
     /// Calculate cache hit rate as percentage
+    #[must_use]
     pub fn cache_hit_rate(&self) -> f64 {
         let total_requests = self.cache_hits + self.cache_misses;
         if total_requests == 0 {
@@ -85,6 +86,7 @@ impl FieldParserStats {
     }
 
     /// Calculate parsing efficiency (fields skipped / total fields)
+    #[must_use]
     pub fn parsing_efficiency(&self) -> f64 {
         let total_fields = self.total_fields_parsed + self.fields_skipped;
         if total_fields == 0 {
@@ -95,6 +97,7 @@ impl FieldParserStats {
     }
 
     /// Get average parse time per field (in microseconds)
+    #[must_use]
     pub fn avg_parse_time_per_field_us(&self) -> f64 {
         if self.total_fields_parsed == 0 {
             0.0
@@ -134,11 +137,13 @@ pub enum FieldData {
 
 impl FieldParser {
     /// Create a new field parser with default configuration
+    #[must_use]
     pub fn new() -> Self {
         Self::with_config(FieldParserConfig::default())
     }
 
     /// Create a new field parser with custom configuration
+    #[must_use]
     pub fn with_config(config: FieldParserConfig) -> Self {
         Self {
             field_cache: HashMap::new(),
@@ -195,6 +200,7 @@ impl FieldParser {
     }
 
     /// Get parsing statistics
+    #[must_use]
     pub fn get_stats(&self) -> &FieldParserStats {
         &self.stats
     }
@@ -210,6 +216,7 @@ impl FieldParser {
     }
 
     /// Get cache size
+    #[must_use]
     pub fn cache_size(&self) -> usize {
         self.field_cache.len()
     }
@@ -355,7 +362,7 @@ impl FieldParser {
         // Calculate how much we've read so far
         let current_pos = reader.stream_position()?;
         let bytes_read = current_pos - record_start_pos;
-        let remaining_bytes = record_length as u64 - bytes_read;
+        let remaining_bytes = u64::from(record_length) - bytes_read;
 
         if remaining_bytes == 0 {
             return Ok(()); // No advanced fields
@@ -498,11 +505,13 @@ pub struct PartialAllocationInfo {
 
 impl PartialAllocationInfo {
     /// Create a new empty partial allocation info
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Convert to a full AllocationInfo (filling missing fields with defaults)
+    /// Convert to a full `AllocationInfo` (filling missing fields with defaults)
+    #[must_use]
     pub fn to_full_allocation(self) -> AllocationInfo {
         AllocationInfo {
             ptr: self.ptr.unwrap_or(0),
@@ -539,6 +548,7 @@ impl PartialAllocationInfo {
     }
 
     /// Check if a specific field is present
+    #[must_use]
     pub fn has_field(&self, field: &AllocationField) -> bool {
         match field {
             AllocationField::Ptr => self.ptr.is_some(),
@@ -558,6 +568,7 @@ impl PartialAllocationInfo {
     }
 
     /// Get the number of fields that are present
+    #[must_use]
     pub fn field_count(&self) -> usize {
         let mut count = 0;
         if self.ptr.is_some() {

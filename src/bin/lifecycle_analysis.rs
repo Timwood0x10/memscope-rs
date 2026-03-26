@@ -1,6 +1,6 @@
 //! lifecycle analysis program
 //!
-//! analyze why most allocations in complex_lifecycle_showcase are released
+//! analyze why most allocations in `complex_lifecycle_showcase` are released
 
 use memscope_rs::{get_tracker, init, track_var};
 use std::collections::HashMap;

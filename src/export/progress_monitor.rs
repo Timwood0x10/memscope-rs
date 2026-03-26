@@ -52,6 +52,7 @@ pub enum ExportStage {
 
 impl ExportStage {
     /// Get stage weight (used for calculating overall progress)
+    #[must_use]
     pub fn weight(&self) -> f64 {
         match self {
             ExportStage::Initializing => 0.05,
@@ -65,6 +66,7 @@ impl ExportStage {
     }
 
     /// Get stage description
+    #[must_use]
     pub fn description(&self) -> &str {
         match self {
             ExportStage::Initializing => "Initializing export environment",
@@ -89,6 +91,7 @@ pub struct CancellationToken {
 
 impl CancellationToken {
     /// Create new cancellation token
+    #[must_use]
     pub fn new() -> Self {
         Self {
             cancelled: Arc::new(AtomicBool::new(false)),
@@ -101,6 +104,7 @@ impl CancellationToken {
     }
 
     /// Check if cancelled
+    #[must_use]
     pub fn is_cancelled(&self) -> bool {
         self.cancelled.load(Ordering::SeqCst)
     }
@@ -151,6 +155,7 @@ pub struct ProgressMonitor {
 
 impl ProgressMonitor {
     /// Create new progress monitor
+    #[must_use]
     pub fn new(total_allocations: usize) -> Self {
         Self {
             start_time: Instant::now(),
@@ -172,6 +177,7 @@ impl ProgressMonitor {
     }
 
     /// Get cancellation token
+    #[must_use]
     pub fn cancellation_token(&self) -> CancellationToken {
         self.cancellation_token.clone()
     }
@@ -239,9 +245,8 @@ impl ProgressMonitor {
                 overall_progress += weight * stage_progress;
                 found_current = true;
                 break;
-            } else {
-                overall_progress += weight;
             }
+            overall_progress += weight;
         }
 
         if !found_current {
@@ -332,11 +337,13 @@ impl ProgressMonitor {
     }
 
     /// Check if should cancel
+    #[must_use]
     pub fn should_cancel(&self) -> bool {
         self.cancellation_token.is_cancelled()
     }
 
     /// Get current progress snapshot
+    #[must_use]
     pub fn get_progress_snapshot(&self) -> ExportProgress {
         let processed = self.processed_allocations.load(Ordering::SeqCst);
         self.calculate_progress(0.0, processed)
@@ -377,6 +384,7 @@ pub struct ConsoleProgressDisplay {
 
 impl ConsoleProgressDisplay {
     /// Create new console progress display
+    #[must_use]
     pub fn new() -> Self {
         Self {
             last_line_length: 0,

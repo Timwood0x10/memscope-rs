@@ -205,6 +205,7 @@ pub enum ResolveError {
 
 impl PlatformSymbolResolver {
     /// Create new symbol resolver
+    #[must_use]
     pub fn new() -> Self {
         Self {
             config: ResolverConfig::default(),
@@ -447,8 +448,8 @@ impl PlatformSymbolResolver {
         // macOS symbol resolution using atos, dSYM files
         // This is a simplified mock implementation
         Ok(SymbolInfo {
-            name: format!("macos_function_{:x}", address),
-            demangled_name: Some(format!("MyClass::macos_function_{:x}", address)),
+            name: format!("macos_function_{address:x}"),
+            demangled_name: Some(format!("MyClass::macos_function_{address:x}")),
             file_path: Some(PathBuf::from("/Users/dev/src/main.mm")),
             line_number: Some((address % 1000) as u32 + 1),
             column_number: Some((address % 80) as u32 + 1),
@@ -464,7 +465,7 @@ impl PlatformSymbolResolver {
         let module = ModuleInfo {
             name: "unknown_module".to_string(),
             base_address: address & !0xfffff, // Align to 1MB boundary
-            size: 0x100000,                   // 1MB default
+            size: 0x100_000,                   // 1MB default
             file_path: PathBuf::from("unknown"),
             has_symbols: true,
             symbol_file: None,
@@ -563,11 +564,11 @@ impl std::fmt::Display for ResolveError {
             }
             ResolveError::SymbolNotFound => write!(f, "Symbol not found"),
             ResolveError::NoDebugInfo => write!(f, "Debug information not available"),
-            ResolveError::FileAccessError(msg) => write!(f, "File access error: {}", msg),
-            ResolveError::ParseError(msg) => write!(f, "Parse error: {}", msg),
+            ResolveError::FileAccessError(msg) => write!(f, "File access error: {msg}"),
+            ResolveError::ParseError(msg) => write!(f, "Parse error: {msg}"),
             ResolveError::Timeout => write!(f, "Symbol resolution timed out"),
             ResolveError::MemoryError => write!(f, "Memory error during symbol resolution"),
-            ResolveError::Unknown(msg) => write!(f, "Unknown error: {}", msg),
+            ResolveError::Unknown(msg) => write!(f, "Unknown error: {msg}"),
         }
     }
 }

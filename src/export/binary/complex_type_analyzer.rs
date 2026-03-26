@@ -47,7 +47,7 @@ pub struct ComplexTypeSummary {
 pub struct CategorizedTypes {
     /// Primitive types (i32, f64, bool, etc.)
     pub primitives: Vec<TypeInfo>,
-    /// Collection types (Vec, HashMap, etc.)
+    /// Collection types (Vec, `HashMap`, etc.)
     pub collections: Vec<TypeInfo>,
     /// Smart pointer types (Box, Rc, Arc, etc.)
     pub smart_pointers: Vec<TypeInfo>,
@@ -148,6 +148,7 @@ struct GenericStats {
 
 impl ComplexTypeAnalyzer {
     /// Create a new complex type analyzer
+    #[must_use]
     pub fn new() -> Self {
         Self {
             type_stats: HashMap::new(),
@@ -285,7 +286,7 @@ impl ComplexTypeAnalyzer {
             || type_name.starts_with("String")
             || type_name == "&str"
             || type_name.starts_with("&[")
-            || type_name.starts_with("[")
+            || type_name.starts_with('[')
     }
 
     /// Extract generic type parameters from a type name
@@ -512,7 +513,7 @@ impl ComplexTypeAnalyzer {
         // Generate summary
         let total_types = self.type_stats.len();
         let average_complexity = if total_types > 0 {
-            total_complexity as f64 / total_types as f64
+            f64::from(total_complexity) / total_types as f64
         } else {
             0.0
         };
@@ -550,10 +551,10 @@ impl ComplexTypeAnalyzer {
             total_instantiations += stats.instantiations.len();
 
             // Calculate average complexity for this generic type
-            let avg_complexity = if !stats.complexity_scores.is_empty() {
-                stats.complexity_scores.iter().sum::<u32>() / stats.complexity_scores.len() as u32
-            } else {
+            let avg_complexity = if stats.complexity_scores.is_empty() {
                 0
+            } else {
+                stats.complexity_scores.iter().sum::<u32>() / stats.complexity_scores.len() as u32
             };
 
             complexity_distribution.insert(base_type.clone(), avg_complexity);

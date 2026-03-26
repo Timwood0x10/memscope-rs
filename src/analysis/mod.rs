@@ -59,7 +59,9 @@ pub use safety_analyzer::{
 };
 pub use unsafe_ffi_tracker::ComprehensiveSafetyReport;
 
-use crate::core::types::*;
+use crate::core::types::{
+    AllocationInfo, ConcurrencyAnalysis, FragmentationAnalysis, MemoryStats, SystemLibraryStats,
+};
 use std::sync::Arc;
 
 /// Main analysis interface - consolidates all analysis functionality
@@ -69,23 +71,27 @@ pub struct AnalysisManager {
 
 impl AnalysisManager {
     /// Create a new analysis manager instance
+    #[must_use]
     pub fn new() -> Self {
         Self {}
     }
 
     /// Analyze memory fragmentation
+    #[must_use]
     pub fn analyze_fragmentation(&self, _allocations: &[AllocationInfo]) -> FragmentationAnalysis {
         // Simple implementation for now
         FragmentationAnalysis::default()
     }
 
     /// Analyze system library usage
+    #[must_use]
     pub fn analyze_system_libraries(&self, _allocations: &[AllocationInfo]) -> SystemLibraryStats {
         // Simple implementation for now
         SystemLibraryStats::default()
     }
 
     /// Analyze concurrency safety
+    #[must_use]
     pub fn analyze_concurrency_safety(
         &self,
         _allocations: &[AllocationInfo],
@@ -95,18 +101,21 @@ impl AnalysisManager {
     }
 
     /// Get unsafe/FFI tracker instance
+    #[must_use]
     pub fn get_unsafe_ffi_tracker(&self) -> Arc<crate::unsafe_ffi_tracker::UnsafeFFITracker> {
         // Delegate to existing global tracker
         crate::unsafe_ffi_tracker::get_global_unsafe_ffi_tracker()
     }
 
     /// Get unsafe/FFI statistics
+    #[must_use]
     pub fn get_unsafe_ffi_stats(&self) -> crate::unsafe_ffi_tracker::UnsafeFFIStats {
         // Get stats from the global tracker
         self.get_unsafe_ffi_tracker().get_stats()
     }
 
     /// Analyze circular references in smart pointers
+    #[must_use]
     pub fn analyze_circular_references(
         &self,
         allocations: &[AllocationInfo],
@@ -114,7 +123,8 @@ impl AnalysisManager {
         crate::circular_reference::detect_circular_references(allocations)
     }
 
-    /// Analyze advanced types (Cell, RefCell, Mutex, etc.)
+    /// Analyze advanced types (Cell, `RefCell`, Mutex, etc.)
+    #[must_use]
     pub fn analyze_advanced_types(
         &self,
         allocations: &[AllocationInfo],
@@ -123,6 +133,7 @@ impl AnalysisManager {
     }
 
     /// Analyze borrow checker integration and lifetime tracking
+    #[must_use]
     pub fn analyze_borrow_patterns(
         &self,
         _allocations: &[AllocationInfo],
@@ -132,6 +143,7 @@ impl AnalysisManager {
     }
 
     /// Analyze generic type usage and constraints
+    #[must_use]
     pub fn analyze_generic_types(&self, _allocations: &[AllocationInfo]) -> GenericStatistics {
         // Create a new analyzer instance to avoid global state pollution in tests
         let analyzer = GenericAnalyzer::new();
@@ -139,12 +151,14 @@ impl AnalysisManager {
     }
 
     /// Analyze async types and Future state machines
+    #[must_use]
     pub fn analyze_async_patterns(&self, _allocations: &[AllocationInfo]) -> AsyncPatternAnalysis {
         let analyzer = get_global_async_analyzer();
         analyzer.analyze_async_patterns()
     }
 
     /// Analyze closure captures and lifetime relationships
+    #[must_use]
     pub fn analyze_closure_patterns(
         &self,
         allocations: &[AllocationInfo],
@@ -154,6 +168,7 @@ impl AnalysisManager {
     }
 
     /// Analyze lifecycle patterns including Drop trait and RAII
+    #[must_use]
     pub fn analyze_lifecycle_patterns(
         &self,
         _allocations: &[AllocationInfo],
@@ -163,6 +178,7 @@ impl AnalysisManager {
     }
 
     /// Perform comprehensive analysis
+    #[must_use]
     pub fn perform_comprehensive_analysis(
         &self,
         allocations: &[AllocationInfo],
@@ -222,7 +238,7 @@ pub struct ComprehensiveAnalysisReport {
     pub unsafe_ffi_stats: crate::unsafe_ffi_tracker::UnsafeFFIStats,
     /// Circular reference analysis for smart pointers
     pub circular_reference_analysis: crate::circular_reference::CircularReferenceAnalysis,
-    /// Advanced type analysis (Cell, RefCell, Mutex, etc.)
+    /// Advanced type analysis (Cell, `RefCell`, Mutex, etc.)
     pub advanced_type_analysis: crate::advanced_types::AdvancedTypeAnalysisReport,
     /// Borrow checker integration and lifetime tracking
     pub borrow_analysis: BorrowPatternAnalysis,
@@ -244,35 +260,41 @@ pub struct ComprehensiveAnalysisReport {
 // This ensures that existing code continues to work without changes
 
 /// Analyze memory fragmentation - backward compatibility function
+#[must_use]
 pub fn analyze_fragmentation(allocations: &[AllocationInfo]) -> FragmentationAnalysis {
     let manager = AnalysisManager::new();
     manager.analyze_fragmentation(allocations)
 }
 
 /// Analyze system library usage - backward compatibility function
+#[must_use]
 pub fn analyze_system_libraries(allocations: &[AllocationInfo]) -> SystemLibraryStats {
     let manager = AnalysisManager::new();
     manager.analyze_system_libraries(allocations)
 }
 
 /// Analyze concurrency safety - backward compatibility function
+#[must_use]
 pub fn analyze_concurrency_safety(allocations: &[AllocationInfo]) -> ConcurrencyAnalysis {
     let manager = AnalysisManager::new();
     manager.analyze_concurrency_safety(allocations)
 }
 
 /// Get global unsafe/FFI tracker - backward compatibility function
+#[must_use]
 pub fn get_global_unsafe_ffi_tracker() -> Arc<crate::unsafe_ffi_tracker::UnsafeFFITracker> {
     crate::unsafe_ffi_tracker::get_global_unsafe_ffi_tracker()
 }
 
 /// Get unsafe/FFI statistics - convenience function
+#[must_use]
 pub fn get_unsafe_ffi_stats() -> crate::unsafe_ffi_tracker::UnsafeFFIStats {
     let manager = AnalysisManager::new();
     manager.get_unsafe_ffi_stats()
 }
 
 /// Perform comprehensive analysis - convenience function
+#[must_use]
 pub fn perform_comprehensive_analysis(
     allocations: &[AllocationInfo],
     stats: &MemoryStats,

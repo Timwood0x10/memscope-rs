@@ -66,6 +66,7 @@ pub enum AlertSeverity {
 
 impl MetricsReporter {
     /// Create new reporter with plain text format
+    #[must_use]
     pub fn new() -> Self {
         Self {
             format: ReportFormat::PlainText,
@@ -75,6 +76,7 @@ impl MetricsReporter {
     }
 
     /// Create reporter with specific format
+    #[must_use]
     pub fn with_format(format: ReportFormat) -> Self {
         Self {
             format,
@@ -84,18 +86,21 @@ impl MetricsReporter {
     }
 
     /// Set whether to include detailed breakdowns
+    #[must_use]
     pub fn with_details(mut self, include_details: bool) -> Self {
         self.include_details = include_details;
         self
     }
 
     /// Add custom alert threshold
+    #[must_use]
     pub fn add_alert_threshold(mut self, threshold: AlertThreshold) -> Self {
         self.alert_thresholds.push(threshold);
         self
     }
 
     /// Generate comprehensive performance report
+    #[must_use]
     pub fn generate_report(&self, report: &PerformanceReport) -> String {
         match self.format {
             ReportFormat::PlainText => self.generate_text_report(report),
@@ -106,6 +111,7 @@ impl MetricsReporter {
     }
 
     /// Generate metrics summary
+    #[must_use]
     pub fn generate_metrics_summary(&self, collector: &MetricsCollector) -> String {
         let summary = collector.get_summary();
 
@@ -147,6 +153,7 @@ impl MetricsReporter {
     }
 
     /// Check for performance alerts
+    #[must_use]
     pub fn check_alerts(&self, collector: &MetricsCollector) -> Vec<TriggeredAlert> {
         let mut alerts = Vec::new();
 
@@ -473,7 +480,7 @@ impl MetricsReporter {
             writeln!(output, "## Recommendations").expect("Write failed");
             writeln!(output).expect("Write failed");
             for rec in &report.recommendations {
-                writeln!(output, "- {}", rec).expect("Write failed");
+                writeln!(output, "- {rec}").expect("Write failed");
             }
         }
 

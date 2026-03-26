@@ -106,6 +106,7 @@ pub struct LifecycleExporter {
 }
 
 impl LifecycleExporter {
+    #[must_use]
     pub fn new(config: LifecycleExportConfig) -> Self {
         Self {
             config,

@@ -277,11 +277,13 @@ impl HighSpeedBufferedWriter {
     }
 
     /// Get current statistics
+    #[must_use]
     pub fn get_stats(&self) -> &WritePerformanceStats {
         &self.stats
     }
 
     /// Get configuration
+    #[must_use]
     pub fn get_config(&self) -> &HighSpeedWriterConfig {
         &self.config
     }

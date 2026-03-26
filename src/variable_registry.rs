@@ -25,7 +25,7 @@ pub struct VariableInfo {
     pub memory_usage: u64,
 }
 
-/// Global variable registry using HashMap for fast lookups
+/// Global variable registry using `HashMap` for fast lookups
 static GLOBAL_VARIABLE_REGISTRY: OnceLock<Arc<Mutex<HashMap<usize, VariableInfo>>>> =
     OnceLock::new();
 
@@ -90,6 +90,7 @@ impl VariableRegistry {
     }
 
     /// Get variable information by address
+    #[must_use]
     pub fn get_variable_info(address: usize) -> Option<VariableInfo> {
         if let Ok(registry) = get_global_registry().try_lock() {
             registry.get(&address).cloned()
@@ -111,6 +112,7 @@ impl VariableRegistry {
     }
 
     /// Get all variable mappings
+    #[must_use]
     pub fn get_all_variables() -> HashMap<usize, VariableInfo> {
         if let Ok(registry) = get_global_registry().try_lock() {
             registry.clone()
@@ -367,7 +369,7 @@ impl VariableRegistry {
             if let Some(end) = line[start + 2..].find("::") {
                 let func_name = &line[start + 2..start + 2 + end];
                 // Filter out common system functions
-                if !func_name.starts_with("_")
+                if !func_name.starts_with('_')
                     && !func_name.contains("alloc")
                     && !func_name.contains("std")
                     && !func_name.contains("core")
@@ -448,7 +450,7 @@ impl VariableRegistry {
         serde_json::json!(scope_counts)
     }
 
-    /// Analyze lifecycle statistics for lifetime_ms patterns
+    /// Analyze lifecycle statistics for `lifetime_ms` patterns
     fn analyze_lifecycle_statistics(
         user_active: &[serde_json::Value],
         user_history: &[serde_json::Value],
@@ -500,9 +502,9 @@ impl VariableRegistry {
                 "deallocated_count": user_deallocated_count,
                 "leaked_count": user_active_count, // active = potentially leaked
                 "lifetime_stats": Self::calculate_lifetime_stats(&user_lifetimes),
-                "average_lifetime_ms": if !user_lifetimes.is_empty() {
+                "average_lifetime_ms": if user_lifetimes.is_empty() { 0 } else {
                     user_lifetimes.iter().sum::<u64>() / user_lifetimes.len() as u64
-                } else { 0 },
+                },
                 "max_lifetime_ms": user_lifetimes.iter().max().copied().unwrap_or(0),
                 "min_lifetime_ms": user_lifetimes.iter().min().copied().unwrap_or(0)
             },
@@ -512,9 +514,9 @@ impl VariableRegistry {
                 "deallocated_count": system_deallocated_count,
                 "leaked_count": system_active_count,
                 "lifetime_stats": Self::calculate_lifetime_stats(&system_lifetimes),
-                "average_lifetime_ms": if !system_lifetimes.is_empty() {
+                "average_lifetime_ms": if system_lifetimes.is_empty() { 0 } else {
                     system_lifetimes.iter().sum::<u64>() / system_lifetimes.len() as u64
-                } else { 0 },
+                },
                 "max_lifetime_ms": system_lifetimes.iter().max().copied().unwrap_or(0),
                 "min_lifetime_ms": system_lifetimes.iter().min().copied().unwrap_or(0)
             },
@@ -530,7 +532,7 @@ impl VariableRegistry {
         })
     }
 
-    /// Analyze deallocation patterns for timestamp_dealloc
+    /// Analyze deallocation patterns for `timestamp_dealloc`
     fn analyze_deallocation_patterns(
         user_active: &[serde_json::Value],
         user_history: &[serde_json::Value],
@@ -568,9 +570,9 @@ impl VariableRegistry {
             "user_deallocations": {
                 "total_deallocated": user_dealloc_times.len(),
                 "still_active": user_null_dealloc,
-                "deallocation_rate": if !all_user.is_empty() {
+                "deallocation_rate": if all_user.is_empty() { 0.0 } else {
                     user_dealloc_times.len() as f64 / all_user.len() as f64 * 100.0
-                } else { 0.0 },
+                },
                 "earliest_dealloc": user_dealloc_times.iter().min().copied(),
                 "latest_dealloc": user_dealloc_times.iter().max().copied(),
                 "deallocation_timespan_ms": if user_dealloc_times.len() > 1 {
@@ -581,9 +583,9 @@ impl VariableRegistry {
             "system_deallocations": {
                 "total_deallocated": system_dealloc_times.len(),
                 "still_active": system_null_dealloc,
-                "deallocation_rate": if !all_system.is_empty() {
+                "deallocation_rate": if all_system.is_empty() { 0.0 } else {
                     system_dealloc_times.len() as f64 / all_system.len() as f64 * 100.0
-                } else { 0.0 },
+                },
                 "earliest_dealloc": system_dealloc_times.iter().min().copied(),
                 "latest_dealloc": system_dealloc_times.iter().max().copied(),
                 "deallocation_timespan_ms": if system_dealloc_times.len() > 1 {
@@ -595,12 +597,12 @@ impl VariableRegistry {
                 "user_potential_leaks": user_null_dealloc,
                 "system_potential_leaks": system_null_dealloc,
                 "total_potential_leaks": user_null_dealloc + system_null_dealloc,
-                "user_leak_percentage": if !all_user.is_empty() {
+                "user_leak_percentage": if all_user.is_empty() { 0.0 } else {
                     user_null_dealloc as f64 / all_user.len() as f64 * 100.0
-                } else { 0.0 },
-                "system_leak_percentage": if !all_system.is_empty() {
+                },
+                "system_leak_percentage": if all_system.is_empty() { 0.0 } else {
                     system_null_dealloc as f64 / all_system.len() as f64 * 100.0
-                } else { 0.0 }
+                }
             }
         })
     }
@@ -668,6 +670,7 @@ impl VariableRegistry {
     }
 
     /// Smart inference with caching for better performance
+    #[must_use]
     pub fn infer_allocation_info_cached(
         alloc: &crate::core::types::AllocationInfo,
     ) -> (String, String) {
@@ -697,6 +700,7 @@ impl VariableRegistry {
     }
 
     /// Smart inference for system allocations based on size patterns and common allocations
+    #[must_use]
     pub fn infer_allocation_info(alloc: &crate::core::types::AllocationInfo) -> (String, String) {
         let size = alloc.size;
 
@@ -901,6 +905,7 @@ impl VariableRegistry {
     }
 
     /// Get registry statistics
+    #[must_use]
     pub fn get_stats() -> (usize, usize) {
         if let Ok(registry) = get_global_registry().try_lock() {
             let total = registry.len();

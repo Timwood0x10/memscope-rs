@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 /// Unified error type for the entire memscope-rs system
 ///
-/// This replaces the complex TrackingError with a simpler, more efficient design
+/// This replaces the complex `TrackingError` with a simpler, more efficient design
 /// while maintaining all existing error information and backward compatibility.
 #[derive(Debug, Clone)]
 pub enum MemScopeError {
@@ -187,6 +187,7 @@ impl MemScopeError {
     }
 
     /// Check if this error is recoverable
+    #[must_use]
     pub fn is_recoverable(&self) -> bool {
         match self {
             Self::Memory { .. } => true,
@@ -204,6 +205,7 @@ impl MemScopeError {
     }
 
     /// Get error severity level
+    #[must_use]
     pub fn severity(&self) -> ErrorSeverity {
         match self {
             Self::Memory { .. } => ErrorSeverity::Medium,
@@ -223,6 +225,7 @@ impl MemScopeError {
     }
 
     /// Get a user-friendly error message
+    #[must_use]
     pub fn user_message(&self) -> &str {
         match self {
             Self::Memory { message, .. } => message,
@@ -235,6 +238,7 @@ impl MemScopeError {
     }
 
     /// Get error category for logging/metrics
+    #[must_use]
     pub fn category(&self) -> &'static str {
         match self {
             Self::Memory { .. } => "memory",
@@ -432,6 +436,7 @@ pub struct DefaultErrorRecovery {
 }
 
 impl DefaultErrorRecovery {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             max_retries: 3,
@@ -439,6 +444,7 @@ impl DefaultErrorRecovery {
         }
     }
 
+    #[must_use]
     pub fn with_config(max_retries: u32, retry_delay_ms: u64) -> Self {
         Self {
             max_retries,

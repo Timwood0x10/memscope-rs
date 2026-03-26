@@ -7,7 +7,7 @@
 //! Key features:
 //! - Zero-overhead task identification using Context waker addresses
 //! - Lock-free event buffering with quality monitoring
-//! - Dual-track approach: TrackedFuture + tracing::Subscriber integration
+//! - Dual-track approach: `TrackedFuture` + `tracing::Subscriber` integration
 //! - Production-grade reliability with data integrity monitoring
 //!
 //! Performance characteristics:

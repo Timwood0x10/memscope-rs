@@ -224,7 +224,8 @@ impl Default for UnknownMemoryAnalyzer {
 }
 
 impl UnknownMemoryAnalyzer {
-    /// Creates a new instance of UnknownMemoryAnalyzer with empty collections
+    /// Creates a new instance of `UnknownMemoryAnalyzer` with empty collections
+    #[must_use]
     pub fn new() -> Self {
         Self {
             known_system_regions: HashMap::new(),
@@ -607,7 +608,7 @@ impl UnknownMemoryAnalyzer {
         // Try to guess which library an allocation belongs to
         for (name, info) in &self.library_mappings {
             if info.contains_address(allocation.ptr) {
-                return Some(name.to_string());
+                return Some(name.clone());
             }
         }
         None
@@ -658,6 +659,7 @@ pub struct LibraryMappingInfo {
 
 impl LibraryMappingInfo {
     /// Checks if the given address is within this library's memory mapping
+    #[must_use]
     pub fn contains_address(&self, addr: usize) -> bool {
         addr >= self.start_address && addr < self.end_address
     }

@@ -33,6 +33,7 @@ pub struct TaskMemoryProfile {
 
 impl TaskMemoryProfile {
     /// Create new task profile
+    #[must_use]
     pub fn new(task_id: TaskId) -> Self {
         Self {
             task_id,
@@ -74,6 +75,7 @@ impl TaskMemoryProfile {
     }
 
     /// Check if task is completed
+    #[must_use]
     pub fn is_completed(&self) -> bool {
         self.completed_at.is_some()
     }
@@ -85,6 +87,7 @@ impl TaskMemoryProfile {
     }
 
     /// Calculate memory efficiency (deallocated / allocated)
+    #[must_use]
     pub fn memory_efficiency(&self) -> f64 {
         if self.total_allocated == 0 {
             1.0
@@ -95,6 +98,7 @@ impl TaskMemoryProfile {
     }
 
     /// Check if task has potential memory leak
+    #[must_use]
     pub fn has_potential_leak(&self) -> bool {
         self.is_completed() && self.current_usage > 0
     }
@@ -117,6 +121,7 @@ pub struct TaskPerformanceMetrics {
 
 impl TaskPerformanceMetrics {
     /// Create metrics from task profile
+    #[must_use]
     pub fn from_profile(profile: &TaskMemoryProfile) -> Self {
         let lifetime = profile.lifetime();
         let lifetime_secs = lifetime.as_secs_f64();
@@ -137,6 +142,7 @@ impl TaskPerformanceMetrics {
     }
 
     /// Get performance rating (0.0 to 1.0, higher is better)
+    #[must_use]
     pub fn performance_rating(&self) -> f64 {
         // Combine multiple factors for overall rating
         let efficiency_score = self.efficiency_ratio;
@@ -174,6 +180,7 @@ pub struct AggregatedTaskStats {
 
 impl AggregatedTaskStats {
     /// Create empty statistics
+    #[must_use]
     pub fn new() -> Self {
         Self {
             total_tasks: 0,
@@ -218,6 +225,7 @@ impl AggregatedTaskStats {
     }
 
     /// Get memory usage summary
+    #[must_use]
     pub fn memory_summary(&self) -> String {
         format!(
             "Tasks: {} ({}% complete), Memory: {:.1}MB allocated, {:.1}MB current, {:.1}% efficiency",

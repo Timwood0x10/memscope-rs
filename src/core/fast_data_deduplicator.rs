@@ -30,6 +30,7 @@ pub struct SimpleDataDeduplicator {
 }
 
 impl SimpleDataDeduplicator {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             strings: HashMap::new(),

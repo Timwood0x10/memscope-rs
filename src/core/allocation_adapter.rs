@@ -1,15 +1,15 @@
-//! Compatibility adapter for AllocationInfo migration
+//! Compatibility adapter for `AllocationInfo` migration
 //!
 //! This module provides a compatibility layer that allows existing code
-//! to continue working with the original AllocationInfo interface while
-//! internally using the optimized OptimizedAllocationInfo with string interning.
+//! to continue working with the original `AllocationInfo` interface while
+//! internally using the optimized `OptimizedAllocationInfo` with string interning.
 
 use crate::core::optimized_types::OptimizedAllocationInfo;
 use crate::core::string_pool::intern_string;
 use crate::core::types::AllocationInfo;
 use std::sync::Arc;
 
-/// Adapter that provides AllocationInfo interface backed by OptimizedAllocationInfo
+/// Adapter that provides `AllocationInfo` interface backed by `OptimizedAllocationInfo`
 ///
 /// This allows existing code to continue working unchanged while benefiting
 /// from string interning optimizations under the hood.
@@ -18,12 +18,14 @@ pub struct AllocationInfoAdapter {
 }
 
 impl AllocationInfoAdapter {
-    /// Create a new adapter from an OptimizedAllocationInfo
+    /// Create a new adapter from an `OptimizedAllocationInfo`
+    #[must_use]
     pub fn new(optimized: OptimizedAllocationInfo) -> Self {
         Self { inner: optimized }
     }
 
     /// Create a new adapter with basic allocation info
+    #[must_use]
     pub fn from_allocation(ptr: usize, size: usize) -> Self {
         Self {
             inner: OptimizedAllocationInfo::new(ptr, size),
@@ -31,6 +33,7 @@ impl AllocationInfoAdapter {
     }
 
     /// Get the underlying optimized allocation info
+    #[must_use]
     pub fn inner(&self) -> &OptimizedAllocationInfo {
         &self.inner
     }
@@ -40,12 +43,14 @@ impl AllocationInfoAdapter {
         &mut self.inner
     }
 
-    /// Convert to the original AllocationInfo format
+    /// Convert to the original `AllocationInfo` format
+    #[must_use]
     pub fn to_allocation_info(&self) -> AllocationInfo {
         self.inner.clone().into()
     }
 
-    /// Convert from the original AllocationInfo format
+    /// Convert from the original `AllocationInfo` format
+    #[must_use]
     pub fn from_allocation_info(info: AllocationInfo) -> Self {
         Self {
             inner: OptimizedAllocationInfo::from(info),
@@ -54,42 +59,58 @@ impl AllocationInfoAdapter {
 
     // Provide AllocationInfo-compatible interface methods
 
+    #[must_use]
     pub fn ptr(&self) -> usize {
         self.inner.ptr
     }
 
+    #[must_use]
     pub fn size(&self) -> usize {
         self.inner.size
     }
 
+    #[must_use]
     pub fn var_name(&self) -> Option<String> {
-        self.inner.var_name.as_ref().map(|s| s.to_string())
+        self.inner
+            .var_name
+            .as_ref()
+            .map(std::string::ToString::to_string)
     }
 
     pub fn set_var_name(&mut self, name: Option<String>) {
         self.inner.var_name = name.map(|s| intern_string(&s));
     }
 
+    #[must_use]
     pub fn type_name(&self) -> Option<String> {
-        self.inner.type_name.as_ref().map(|s| s.to_string())
+        self.inner
+            .type_name
+            .as_ref()
+            .map(std::string::ToString::to_string)
     }
 
     pub fn set_type_name(&mut self, name: Option<String>) {
         self.inner.type_name = name.map(|s| intern_string(&s));
     }
 
+    #[must_use]
     pub fn scope_name(&self) -> Option<String> {
-        self.inner.scope_name.as_ref().map(|s| s.to_string())
+        self.inner
+            .scope_name
+            .as_ref()
+            .map(std::string::ToString::to_string)
     }
 
     pub fn set_scope_name(&mut self, name: Option<String>) {
         self.inner.scope_name = name.map(|s| intern_string(&s));
     }
 
+    #[must_use]
     pub fn timestamp_alloc(&self) -> u64 {
         self.inner.timestamp_alloc
     }
 
+    #[must_use]
     pub fn timestamp_dealloc(&self) -> Option<u64> {
         self.inner.timestamp_dealloc
     }
@@ -101,6 +122,7 @@ impl AllocationInfoAdapter {
         }
     }
 
+    #[must_use]
     pub fn thread_id(&self) -> String {
         self.inner.thread_id.to_string()
     }
@@ -109,6 +131,7 @@ impl AllocationInfoAdapter {
         self.inner.thread_id = intern_string(&id);
     }
 
+    #[must_use]
     pub fn borrow_count(&self) -> usize {
         self.inner.borrow_count
     }
@@ -117,11 +140,12 @@ impl AllocationInfoAdapter {
         self.inner.borrow_count = count;
     }
 
+    #[must_use]
     pub fn stack_trace(&self) -> Option<Vec<String>> {
         self.inner
             .stack_trace
             .as_ref()
-            .map(|trace| trace.iter().map(|frame| frame.to_string()).collect())
+            .map(|trace| trace.iter().map(std::string::ToString::to_string).collect())
     }
 
     pub fn set_stack_trace(&mut self, trace: Option<Vec<String>>) {
@@ -129,6 +153,7 @@ impl AllocationInfoAdapter {
             trace.map(|t| Arc::new(t.into_iter().map(|frame| intern_string(&frame)).collect()));
     }
 
+    #[must_use]
     pub fn is_leaked(&self) -> bool {
         self.inner.is_leaked
     }
@@ -137,10 +162,12 @@ impl AllocationInfoAdapter {
         self.inner.is_leaked = leaked;
     }
 
+    #[must_use]
     pub fn lifetime_ms(&self) -> Option<u64> {
         self.inner.lifetime_ms
     }
 
+    #[must_use]
     pub fn is_active(&self) -> bool {
         self.inner.is_active()
     }
@@ -203,20 +230,21 @@ pub struct AllocationCollection {
 
 impl AllocationCollection {
     /// Create a new empty collection
+    #[must_use]
     pub fn new() -> Self {
         Self {
             allocations: Vec::new(),
         }
     }
 
-    /// Create a collection from a vector of AllocationInfo
+    /// Create a collection from a vector of `AllocationInfo`
     pub fn from_allocation_infos(infos: Vec<AllocationInfo>) -> Self {
         Self {
             allocations: infos.into_iter().map(AllocationInfoAdapter::from).collect(),
         }
     }
 
-    /// Create a collection from a vector of OptimizedAllocationInfo
+    /// Create a collection from a vector of `OptimizedAllocationInfo`
     pub fn from_optimized_infos(infos: Vec<OptimizedAllocationInfo>) -> Self {
         Self {
             allocations: infos.into_iter().map(AllocationInfoAdapter::from).collect(),
@@ -229,11 +257,13 @@ impl AllocationCollection {
     }
 
     /// Get the number of allocations in the collection
+    #[must_use]
     pub fn len(&self) -> usize {
         self.allocations.len()
     }
 
     /// Check if the collection is empty
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.allocations.is_empty()
     }
@@ -248,22 +278,29 @@ impl AllocationCollection {
         self.allocations.iter_mut()
     }
 
-    /// Convert to a vector of AllocationInfo (for compatibility)
+    /// Convert to a vector of `AllocationInfo` (for compatibility)
+    #[must_use]
     pub fn to_allocation_infos(&self) -> Vec<AllocationInfo> {
         self.allocations
             .iter()
-            .map(|a| a.to_allocation_info())
+            .map(AllocationInfoAdapter::to_allocation_info)
             .collect()
     }
 
-    /// Convert to a vector of OptimizedAllocationInfo (for performance)
+    /// Convert to a vector of `OptimizedAllocationInfo` (for performance)
+    #[must_use]
     pub fn to_optimized_infos(&self) -> Vec<OptimizedAllocationInfo> {
         self.allocations.iter().map(|a| a.inner.clone()).collect()
     }
 
     /// Get memory usage statistics for the collection
+    #[must_use]
     pub fn memory_stats(&self) -> CollectionMemoryStats {
-        let total_size: usize = self.allocations.iter().map(|a| a.size()).sum();
+        let total_size: usize = self
+            .allocations
+            .iter()
+            .map(AllocationInfoAdapter::size)
+            .sum();
         let active_count = self.allocations.iter().filter(|a| a.is_active()).count();
         let leaked_count = self.allocations.iter().filter(|a| a.is_leaked()).count();
 

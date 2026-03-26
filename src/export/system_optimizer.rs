@@ -315,6 +315,7 @@ impl SystemOptimizer {
     }
 
     /// Generate configuration recommendations
+    #[must_use]
     pub fn generate_configuration_recommendation(
         &self,
         target: OptimizationTarget,
@@ -577,6 +578,7 @@ impl SystemOptimizer {
     }
 
     /// validate configuration
+    #[must_use]
     pub fn validate_configuration(
         &self,
         _config: &FastExportConfigBuilder,
@@ -671,6 +673,7 @@ impl SystemOptimizer {
     }
 
     /// diagnose performance issues
+    #[must_use]
     pub fn diagnose_performance(&self) -> PerformanceDiagnosis {
         let system_status = self.get_system_resource_status();
         let bottlenecks = self.identify_bottlenecks(&system_status);
@@ -884,6 +887,7 @@ impl SystemOptimizer {
     }
 
     /// get system resources
+    #[must_use]
     pub fn get_system_resources(&self) -> &SystemResources {
         &self.system_resources
     }
@@ -895,6 +899,7 @@ impl SystemOptimizer {
     }
 
     /// run performance test
+    #[must_use]
     pub fn run_performance_test(&self, _config: &FastExportConfig) -> PerformanceTestResult {
         // Simulate a performance test
         let start = std::time::Instant::now();

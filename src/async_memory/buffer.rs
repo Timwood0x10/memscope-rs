@@ -33,6 +33,7 @@ pub struct AllocationEvent {
 
 impl AllocationEvent {
     /// Create new allocation event
+    #[must_use]
     pub fn allocation(task_id: TaskId, ptr: usize, size: usize, timestamp: u64) -> Self {
         Self {
             task_id,
@@ -45,6 +46,7 @@ impl AllocationEvent {
     }
 
     /// Create new deallocation event
+    #[must_use]
     pub fn deallocation(task_id: TaskId, ptr: usize, size: usize, timestamp: u64) -> Self {
         Self {
             task_id,
@@ -57,11 +59,13 @@ impl AllocationEvent {
     }
 
     /// Check if this is an allocation event
+    #[must_use]
     pub fn is_allocation(&self) -> bool {
         self.event_type == 0
     }
 
     /// Check if this is a deallocation event
+    #[must_use]
     pub fn is_deallocation(&self) -> bool {
         self.event_type == 1
     }
@@ -73,7 +77,7 @@ impl AllocationEvent {
 /// (allocator hook) runs on the application thread and the consumer
 /// (aggregator) runs on a dedicated background thread.
 pub struct EventBuffer {
-    /// Pre-allocated ring buffer storage using UnsafeCell for interior mutability
+    /// Pre-allocated ring buffer storage using `UnsafeCell` for interior mutability
     events: UnsafeCell<Box<[AllocationEvent]>>,
     /// Write position (modified only by producer)
     write_pos: AtomicUsize,
@@ -87,6 +91,7 @@ pub struct EventBuffer {
 
 impl EventBuffer {
     /// Create new event buffer with default size
+    #[must_use]
     pub fn new() -> Self {
         Self::with_capacity(DEFAULT_BUFFER_SIZE)
     }
@@ -283,10 +288,11 @@ pub fn record_allocation_event(
 /// Called by aggregator to gather events for processing.
 /// This is a simplified version - production implementation would
 /// maintain a registry of all thread buffers.
+#[must_use]
 pub fn collect_all_events() -> Vec<AllocationEvent> {
     // In real implementation, this would iterate over all thread buffers
     // For now, just return events from current thread
-    with_thread_buffer(|buffer| buffer.drain())
+    with_thread_buffer(EventBuffer::drain)
 }
 
 /// Get buffer statistics for monitoring
@@ -304,6 +310,7 @@ pub struct BufferStats {
 
 impl BufferStats {
     /// Get utilization warning level
+    #[must_use]
     pub fn warning_level(&self) -> Option<&'static str> {
         match self.utilization {
             u if u >= 0.95 => Some("critical"),
@@ -315,6 +322,7 @@ impl BufferStats {
 }
 
 /// Get current thread buffer statistics
+#[must_use]
 pub fn get_buffer_stats() -> BufferStats {
     with_thread_buffer(|buffer| {
         let current_events = buffer.len();

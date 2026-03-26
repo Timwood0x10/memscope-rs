@@ -85,7 +85,7 @@ pub struct OwnershipEvent {
 pub struct OwnershipEventDetails {
     /// Optional clone source pointer (for Cloned events)
     pub clone_source_ptr: Option<usize>,
-    /// Optional target variable name (for OwnershipTransferred events)
+    /// Optional target variable name (for `OwnershipTransferred` events)
     pub transfer_target_var: Option<String>,
     /// Optional borrower scope (for borrow events)
     pub borrower_scope: Option<String>,
@@ -165,11 +165,13 @@ pub struct CloneInfo {
 
 impl OwnershipHistoryRecorder {
     /// Create a new ownership history recorder
+    #[must_use]
     pub fn new() -> Self {
         Self::with_config(HistoryConfig::default())
     }
 
     /// Create a new ownership history recorder with custom configuration
+    #[must_use]
     pub fn with_config(config: HistoryConfig) -> Self {
         Self {
             ownership_events: HashMap::new(),
@@ -358,16 +360,19 @@ impl OwnershipHistoryRecorder {
     }
 
     /// Get ownership events for a specific allocation
+    #[must_use]
     pub fn get_events(&self, ptr: usize) -> Option<&Vec<OwnershipEvent>> {
         self.ownership_events.get(&ptr)
     }
 
     /// Get ownership summary for a specific allocation
+    #[must_use]
     pub fn get_summary(&self, ptr: usize) -> Option<&OwnershipSummary> {
         self.ownership_summaries.get(&ptr)
     }
 
     /// Get all ownership summaries
+    #[must_use]
     pub fn get_all_summaries(&self) -> &HashMap<usize, OwnershipSummary> {
         &self.ownership_summaries
     }
@@ -391,13 +396,10 @@ impl OwnershipHistoryRecorder {
     }
 
     /// Get statistics about the ownership history
+    #[must_use]
     pub fn get_statistics(&self) -> OwnershipStatistics {
         let total_allocations = self.ownership_summaries.len();
-        let total_events = self
-            .ownership_events
-            .values()
-            .map(|events| events.len())
-            .sum();
+        let total_events = self.ownership_events.values().map(std::vec::Vec::len).sum();
 
         let mut event_type_counts = HashMap::new();
         for events in self.ownership_events.values() {

@@ -101,6 +101,7 @@ impl Default for StrategyPerformance {
 impl StrategyFactory {
     /// Create new strategy factory with default configurations
     /// Initializes templates optimized for different use cases
+    #[must_use]
     pub fn new() -> Self {
         let mut strategy_configs = HashMap::new();
 
@@ -286,6 +287,7 @@ impl StrategyFactory {
 
     /// Get performance history for analysis
     /// Provides read-only access to historical performance data
+    #[must_use]
     pub fn get_performance_history(&self) -> &PerformanceHistory {
         &self.performance_history
     }

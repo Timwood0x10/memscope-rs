@@ -39,6 +39,7 @@ pub struct TypeStats {
 }
 
 impl SmartPointerTracker {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             active_pointers: HashMap::new(),
@@ -158,14 +159,17 @@ impl Default for SmartPointerTracker {
 }
 
 impl PointerInfo {
+    #[must_use]
     pub fn age(&self) -> std::time::Duration {
         Instant::now().duration_since(self.created_at)
     }
 
+    #[must_use]
     pub fn age_secs(&self) -> f64 {
         self.age().as_secs_f64()
     }
 
+    #[must_use]
     pub fn is_reference_counted(&self) -> bool {
         matches!(
             self.ptr_type,
@@ -173,6 +177,7 @@ impl PointerInfo {
         )
     }
 
+    #[must_use]
     pub fn is_synchronized(&self) -> bool {
         matches!(
             self.ptr_type,
@@ -182,6 +187,7 @@ impl PointerInfo {
 }
 
 impl TypeStats {
+    #[must_use]
     pub fn average_size(&self) -> f64 {
         if self.total_count > 0 {
             self.total_size as f64 / self.total_count as f64
@@ -190,6 +196,7 @@ impl TypeStats {
         }
     }
 
+    #[must_use]
     pub fn current_average_size(&self) -> f64 {
         if self.current_count > 0 {
             self.current_size as f64 / self.current_count as f64
@@ -198,6 +205,7 @@ impl TypeStats {
         }
     }
 
+    #[must_use]
     pub fn allocation_rate(&self, duration_secs: f64) -> f64 {
         if duration_secs > 0.0 {
             self.total_count as f64 / duration_secs

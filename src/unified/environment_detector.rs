@@ -171,12 +171,13 @@ impl EnvironmentDetector {
         debug!("Performing static environment analysis");
 
         // Detect available parallelism
-        let logical_cores = std::thread::available_parallelism()
-            .map(|p| p.get())
-            .unwrap_or_else(|e| {
-                warnings.push(format!("Could not detect CPU cores: {}", e));
+        let logical_cores = std::thread::available_parallelism().map_or_else(
+            |e| {
+                warnings.push(format!("Could not detect CPU cores: {e}"));
                 1
-            });
+            },
+            std::num::NonZero::get,
+        );
 
         debug!("Detected {} logical CPU cores", logical_cores);
 
@@ -207,7 +208,7 @@ impl EnvironmentDetector {
                 }
             }
             (None, cores) => {
-                warnings.push(format!("Low core count {} but above single-thread", cores));
+                warnings.push(format!("Low core count {cores} but above single-thread"));
                 RuntimeEnvironment::SingleThreaded
             }
         };
@@ -244,7 +245,7 @@ impl EnvironmentDetector {
                     return Some(AsyncRuntimeType::AsyncStd);
                 }
                 other => {
-                    warnings.push(format!("Unknown async runtime specified: {}", other));
+                    warnings.push(format!("Unknown async runtime specified: {other}"));
                     return Some(AsyncRuntimeType::Custom);
                 }
             }
@@ -372,7 +373,7 @@ impl EnvironmentDetector {
 
         // For now, use available parallelism as baseline
         std::thread::available_parallelism()
-            .map(|p| p.get())
+            .map(std::num::NonZero::get)
             .unwrap_or(1)
     }
 
@@ -397,26 +398,23 @@ impl EnvironmentDetector {
         let mut alternatives = Vec::new();
         let _base_confidence = 0.7; // Base confidence
 
-        let (final_environment, mut confidence) = match dynamic_result {
-            Some(dynamic_env) => {
-                // Compare static and dynamic results
-                if std::mem::discriminant(&static_result) == std::mem::discriminant(&dynamic_env) {
-                    // Results agree - high confidence
-                    let confidence = 0.95;
-                    alternatives.push(static_result);
-                    (dynamic_env, confidence)
-                } else {
-                    // Results disagree - medium confidence, prefer dynamic
-                    let confidence = 0.75;
-                    alternatives.push(static_result);
-                    (dynamic_env, confidence)
-                }
+        let (final_environment, mut confidence) = if let Some(dynamic_env) = dynamic_result {
+            // Compare static and dynamic results
+            if std::mem::discriminant(&static_result) == std::mem::discriminant(&dynamic_env) {
+                // Results agree - high confidence
+                let confidence = 0.95;
+                alternatives.push(static_result);
+                (dynamic_env, confidence)
+            } else {
+                // Results disagree - medium confidence, prefer dynamic
+                let confidence = 0.75;
+                alternatives.push(static_result);
+                (dynamic_env, confidence)
             }
-            None => {
-                // Only static analysis available
-                let confidence = 0.80;
-                (static_result, confidence)
-            }
+        } else {
+            // Only static analysis available
+            let confidence = 0.80;
+            (static_result, confidence)
         };
 
         // Adjust confidence based on warnings
@@ -450,6 +448,7 @@ impl EnvironmentDetector {
     }
 
     /// Get current runtime statistics
+    #[must_use]
     pub fn runtime_statistics(&self) -> &RuntimeStatistics {
         &self.runtime_stats
     }

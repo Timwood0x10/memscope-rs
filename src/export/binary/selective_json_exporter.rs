@@ -102,6 +102,7 @@ pub struct SelectiveJsonExportStats {
 
 impl SelectiveJsonExportStats {
     /// Calculate overall cache hit rate
+    #[must_use]
     pub fn cache_hit_rate(&self) -> f64 {
         let total_requests = self.index_cache_hits + self.index_cache_misses;
         if total_requests == 0 {
@@ -112,15 +113,17 @@ impl SelectiveJsonExportStats {
     }
 
     /// Calculate export efficiency (files per second)
+    #[must_use]
     pub fn export_efficiency(&self) -> f64 {
         if self.total_export_time_us == 0 {
             0.0
         } else {
-            (self.files_processed as f64 * 1_000_000.0) / self.total_export_time_us as f64
+            (f64::from(self.files_processed) * 1_000_000.0) / self.total_export_time_us as f64
         }
     }
 
     /// Calculate compression ratio compared to full export
+    #[must_use]
     pub fn compression_ratio(&self) -> f64 {
         if self.total_allocations_exported == 0 {
             0.0
@@ -219,7 +222,7 @@ impl SelectiveJsonExporter {
         )?;
 
         // Start JSON document
-        json_writer.write_header(index.record_count() as u64)?;
+        json_writer.write_header(u64::from(index.record_count()))?;
 
         // Process records in batches
         let mut processed_count = 0;
@@ -358,7 +361,7 @@ impl SelectiveJsonExporter {
         Ok(results)
     }
 
-    /// Export to memory_analysis.json format (compatible with existing format)
+    /// Export to `memory_analysis.json` format (compatible with existing format)
     pub fn export_memory_analysis_json<P: AsRef<Path>, Q: AsRef<Path>>(
         &mut self,
         binary_path: P,
@@ -394,7 +397,7 @@ impl SelectiveJsonExporter {
 
         // Start JSON document with lifecycle_events array
         json_writer
-            .write_header_with_array_name(index.record_count() as u64, "lifecycle_events")?;
+            .write_header_with_array_name(u64::from(index.record_count()), "lifecycle_events")?;
 
         // Process records and write as lifecycle events
         let fields = [
@@ -470,7 +473,7 @@ impl SelectiveJsonExporter {
         self.export_to_json_selective(binary_path, json_path, &fields, &[])
     }
 
-    /// Export to unsafe_ffi.json format (compatible with existing format)
+    /// Export to `unsafe_ffi.json` format (compatible with existing format)
     pub fn export_unsafe_ffi_json<P: AsRef<Path>, Q: AsRef<Path>>(
         &mut self,
         binary_path: P,
@@ -555,7 +558,7 @@ impl SelectiveJsonExporter {
         Ok(self.stats.clone())
     }
 
-    /// Export to complex_types.json format (compatible with existing format)
+    /// Export to `complex_types.json` format (compatible with existing format)
     pub fn export_complex_types_json<P: AsRef<Path>, Q: AsRef<Path>>(
         &mut self,
         binary_path: P,
@@ -687,6 +690,7 @@ impl SelectiveJsonExporter {
     }
 
     /// Get current export statistics
+    #[must_use]
     pub fn get_stats(&self) -> &SelectiveJsonExportStats {
         &self.stats
     }
@@ -834,6 +838,7 @@ pub struct SelectiveJsonExportConfigBuilder {
 
 impl SelectiveJsonExportConfigBuilder {
     /// Create a new configuration builder
+    #[must_use]
     pub fn new() -> Self {
         Self {
             config: SelectiveJsonExportConfig::default(),
@@ -841,54 +846,63 @@ impl SelectiveJsonExportConfigBuilder {
     }
 
     /// Set JSON writer configuration
+    #[must_use]
     pub fn json_writer_config(mut self, config: StreamingJsonWriterConfig) -> Self {
         self.config.json_writer_config = config;
         self
     }
 
     /// Set batch processor configuration
+    #[must_use]
     pub fn batch_processor_config(mut self, config: BatchProcessorConfig) -> Self {
         self.config.batch_processor_config = config;
         self
     }
 
     /// Set index cache configuration
+    #[must_use]
     pub fn index_cache_config(mut self, config: IndexCacheConfig) -> Self {
         self.config.index_cache_config = config;
         self
     }
 
     /// Set serialization options
+    #[must_use]
     pub fn serialization_options(mut self, options: SelectiveSerializationOptions) -> Self {
         self.config.serialization_options = options;
         self
     }
 
     /// Enable or disable parallel processing
+    #[must_use]
     pub fn parallel_processing(mut self, enabled: bool) -> Self {
         self.config.enable_parallel_processing = enabled;
         self
     }
 
     /// Set maximum concurrent exports
+    #[must_use]
     pub fn max_concurrent_exports(mut self, max: usize) -> Self {
         self.config.max_concurrent_exports = max;
         self
     }
 
     /// Enable or disable error recovery
+    #[must_use]
     pub fn error_recovery(mut self, enabled: bool) -> Self {
         self.config.enable_error_recovery = enabled;
         self
     }
 
     /// Enable or disable performance monitoring
+    #[must_use]
     pub fn performance_monitoring(mut self, enabled: bool) -> Self {
         self.config.enable_performance_monitoring = enabled;
         self
     }
 
     /// Build the configuration
+    #[must_use]
     pub fn build(self) -> SelectiveJsonExportConfig {
         self.config
     }

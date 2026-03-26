@@ -1,7 +1,7 @@
-//! Optimized lock implementations using parking_lot
+//! Optimized lock implementations using `parking_lot`
 //!
 //! This module provides drop-in replacements for standard library locks
-//! using parking_lot for better performance and features.
+//! using `parking_lot` for better performance and features.
 
 use crate::core::atomic_stats::AtomicPerformanceCounters;
 use parking_lot::{Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
@@ -97,7 +97,7 @@ pub struct OptimizedMutexGuard<'a, T> {
     _counters: &'a AtomicPerformanceCounters,
 }
 
-impl<'a, T> std::ops::Deref for OptimizedMutexGuard<'a, T> {
+impl<T> std::ops::Deref for OptimizedMutexGuard<'_, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -105,13 +105,13 @@ impl<'a, T> std::ops::Deref for OptimizedMutexGuard<'a, T> {
     }
 }
 
-impl<'a, T> std::ops::DerefMut for OptimizedMutexGuard<'a, T> {
+impl<T> std::ops::DerefMut for OptimizedMutexGuard<'_, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.guard
     }
 }
 
-/// Optimized RwLock with performance monitoring
+/// Optimized `RwLock` with performance monitoring
 #[derive(Debug)]
 pub struct OptimizedRwLock<T> {
     inner: RwLock<T>,
@@ -119,7 +119,7 @@ pub struct OptimizedRwLock<T> {
 }
 
 impl<T> OptimizedRwLock<T> {
-    /// Create a new optimized RwLock
+    /// Create a new optimized `RwLock`
     pub fn new(data: T) -> Self {
         Self {
             inner: RwLock::new(data),
@@ -217,19 +217,19 @@ impl<T> OptimizedRwLock<T> {
         }
     }
 
-    /// Get performance statistics for this RwLock
+    /// Get performance statistics for this `RwLock`
     pub fn performance_stats(&self) -> crate::core::atomic_stats::PerformanceSnapshot {
         self.counters.snapshot()
     }
 }
 
-/// Read guard for optimized RwLock
+/// Read guard for optimized `RwLock`
 pub struct OptimizedRwLockReadGuard<'a, T> {
     guard: RwLockReadGuard<'a, T>,
     _counters: &'a AtomicPerformanceCounters,
 }
 
-impl<'a, T> std::ops::Deref for OptimizedRwLockReadGuard<'a, T> {
+impl<T> std::ops::Deref for OptimizedRwLockReadGuard<'_, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -237,13 +237,13 @@ impl<'a, T> std::ops::Deref for OptimizedRwLockReadGuard<'a, T> {
     }
 }
 
-/// Write guard for optimized RwLock
+/// Write guard for optimized `RwLock`
 pub struct OptimizedRwLockWriteGuard<'a, T> {
     guard: RwLockWriteGuard<'a, T>,
     _counters: &'a AtomicPerformanceCounters,
 }
 
-impl<'a, T> std::ops::Deref for OptimizedRwLockWriteGuard<'a, T> {
+impl<T> std::ops::Deref for OptimizedRwLockWriteGuard<'_, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -251,7 +251,7 @@ impl<'a, T> std::ops::Deref for OptimizedRwLockWriteGuard<'a, T> {
     }
 }
 
-impl<'a, T> std::ops::DerefMut for OptimizedRwLockWriteGuard<'a, T> {
+impl<T> std::ops::DerefMut for OptimizedRwLockWriteGuard<'_, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.guard
     }
@@ -265,6 +265,7 @@ pub struct LockFreeCounter {
 
 impl LockFreeCounter {
     /// Create a new lock-free counter
+    #[must_use]
     pub fn new(initial_value: u64) -> Self {
         Self {
             value: std::sync::atomic::AtomicU64::new(initial_value),

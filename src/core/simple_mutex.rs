@@ -107,7 +107,7 @@ impl<T> SimpleMutex<T> {
         })
     }
 
-    /// Safe try_lock that returns consistent Result for both parking-lot and std
+    /// Safe `try_lock` that returns consistent Result for both parking-lot and std
     #[cfg(feature = "parking-lot")]
     pub fn try_safe_lock(
         &self,

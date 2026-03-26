@@ -75,6 +75,7 @@ impl Default for ExportJsonOptions {
 
 impl ExportJsonOptions {
     /// Create new options with specified optimization level
+    #[must_use]
     pub fn with_optimization_level(level: OptimizationLevel) -> Self {
         match level {
             OptimizationLevel::Low => Self {
@@ -133,67 +134,79 @@ impl ExportJsonOptions {
     }
 
     // Builder pattern methods for options
+    #[must_use]
     pub fn parallel_processing(mut self, enabled: bool) -> Self {
         self.parallel_processing = enabled;
         self
     }
 
+    #[must_use]
     pub fn buffer_size(mut self, size: usize) -> Self {
         self.buffer_size = size;
         self
     }
 
+    #[must_use]
     pub fn fast_export_mode(mut self, enabled: bool) -> Self {
         self.fast_export_mode = enabled;
         self
     }
 
+    #[must_use]
     pub fn security_analysis(mut self, enabled: bool) -> Self {
         self.security_analysis = enabled;
         self
     }
 
     /// Enable or disable streaming writer
+    #[must_use]
     pub fn streaming_writer(mut self, enabled: bool) -> Self {
         self.streaming_writer = enabled;
         self
     }
 
+    #[must_use]
     pub fn schema_validation(mut self, enabled: bool) -> Self {
         self.schema_validation = enabled;
         self
     }
 
+    #[must_use]
     pub fn integrity_hashes(mut self, enabled: bool) -> Self {
         self.integrity_hashes = enabled;
         self
     }
 
     /// Set the batch size for processing allocations
+    #[must_use]
     pub fn batch_size(mut self, size: usize) -> Self {
         self.batch_size = size;
         self
     }
 
     /// Enable or disable adaptive optimization
+    #[must_use]
     pub fn adaptive_optimization(mut self, enabled: bool) -> Self {
         self.adaptive_optimization = enabled;
         self
     }
 
     /// Set maximum cache size
+    #[must_use]
     pub fn max_cache_size(mut self, size: usize) -> Self {
         self.max_cache_size = size;
         self
     }
 
     /// Include low severity violations in reports
+    #[must_use]
     pub fn include_low_severity(mut self, include: bool) -> Self {
         self.include_low_severity = include;
         self
     }
 
     /// Set thread count for parallel processing (None for auto-detect)
+    #[must_use]
     pub fn thread_count(mut self, count: Option<usize>) -> Self {
         self.thread_count = count;
         self
@@ -397,10 +410,10 @@ impl MemoryTracker {
     /// Export memory tracking data to 4 separate JSON files.
     ///
     /// This method exports data to 4 specialized files:
-    /// - {name}_memory_analysis.json: Memory allocation patterns and statistics
+    /// - {name}_`memory_analysis.json`: Memory allocation patterns and statistics
     /// - {name}_lifetime.json: Variable lifetime and scope analysis
-    /// - {name}_unsafe_ffi.json: Unsafe operations and FFI tracking
-    /// - {name}_variable_relationships.json: Variable dependency graph and relationships
+    /// - {name}_`unsafe_ffi.json`: Unsafe operations and FFI tracking
+    /// - {name}_`variable_relationships.json`: Variable dependency graph and relationships
     ///
     /// # Export Modes
     ///
@@ -437,7 +450,7 @@ impl MemoryTracker {
         }
 
         // Check if already in export mode to prevent nested exports
-        let already_exporting = EXPORT_MODE.with(|mode| mode.get());
+        let already_exporting = EXPORT_MODE.with(std::cell::Cell::get);
         if already_exporting {
             return Ok(()); // Skip nested export to prevent recursion
         }
@@ -622,12 +635,16 @@ impl MemoryTracker {
         for allocation in allocations {
             if let Some(ownership_available) = allocation.get("ownership_history_available") {
                 if ownership_available.as_bool().unwrap_or(false) {
-                    if let Some(ptr) = allocation.get("ptr").and_then(|p| p.as_u64()) {
+                    if let Some(ptr) = allocation
+                        .get("ptr")
+                        .and_then(handlebars::JsonValue::as_u64)
+                    {
                         let mut ownership_events = Vec::new();
 
                         // Generate Allocated event
-                        if let Some(timestamp) =
-                            allocation.get("timestamp_alloc").and_then(|t| t.as_u64())
+                        if let Some(timestamp) = allocation
+                            .get("timestamp_alloc")
+                            .and_then(handlebars::JsonValue::as_u64)
                         {
                             ownership_events.push(json!({
                                 "timestamp": timestamp,
@@ -640,12 +657,13 @@ impl MemoryTracker {
                         // Generate Clone events if clone_info is present
                         if let Some(clone_info) = allocation.get("clone_info") {
                             if !clone_info.is_null() {
-                                if let Some(clone_count) =
-                                    clone_info.get("clone_count").and_then(|c| c.as_u64())
+                                if let Some(clone_count) = clone_info
+                                    .get("clone_count")
+                                    .and_then(handlebars::JsonValue::as_u64)
                                 {
                                     for i in 0..clone_count.min(5) {
                                         ownership_events.push(json!({
-                                            "timestamp": allocation.get("timestamp_alloc").and_then(|t| t.as_u64()).unwrap_or(0) + 1000 * (i + 1),
+                                            "timestamp": allocation.get("timestamp_alloc").and_then(handlebars::JsonValue::as_u64).unwrap_or(0) + 1000 * (i + 1),
                                             "event_type": "Cloned",
                                             "source_stack_id": 2 + i,
                                             "details": {
@@ -662,11 +680,11 @@ impl MemoryTracker {
                             if !borrow_info.is_null() {
                                 if let Some(immutable_borrows) = borrow_info
                                     .get("immutable_borrows")
-                                    .and_then(|b| b.as_u64())
+                                    .and_then(handlebars::JsonValue::as_u64)
                                 {
                                     for i in 0..immutable_borrows.min(3) {
                                         ownership_events.push(json!({
-                                            "timestamp": allocation.get("timestamp_alloc").and_then(|t| t.as_u64()).unwrap_or(0) + 2000 * (i + 1),
+                                            "timestamp": allocation.get("timestamp_alloc").and_then(handlebars::JsonValue::as_u64).unwrap_or(0) + 2000 * (i + 1),
                                             "event_type": "Borrowed",
                                             "source_stack_id": 10 + i,
                                             "details": {
@@ -676,12 +694,13 @@ impl MemoryTracker {
                                         }));
                                     }
                                 }
-                                if let Some(mutable_borrows) =
-                                    borrow_info.get("mutable_borrows").and_then(|b| b.as_u64())
+                                if let Some(mutable_borrows) = borrow_info
+                                    .get("mutable_borrows")
+                                    .and_then(handlebars::JsonValue::as_u64)
                                 {
                                     for i in 0..mutable_borrows.min(2) {
                                         ownership_events.push(json!({
-                                            "timestamp": allocation.get("timestamp_alloc").and_then(|t| t.as_u64()).unwrap_or(0) + 3000 * (i + 1),
+                                            "timestamp": allocation.get("timestamp_alloc").and_then(handlebars::JsonValue::as_u64).unwrap_or(0) + 3000 * (i + 1),
                                             "event_type": "MutablyBorrowed",
                                             "source_stack_id": 20 + i,
                                             "details": {
@@ -695,8 +714,9 @@ impl MemoryTracker {
                         }
 
                         // Generate Dropped event if deallocated
-                        if let Some(dealloc_timestamp) =
-                            allocation.get("timestamp_dealloc").and_then(|t| t.as_u64())
+                        if let Some(dealloc_timestamp) = allocation
+                            .get("timestamp_dealloc")
+                            .and_then(handlebars::JsonValue::as_u64)
                         {
                             ownership_events.push(json!({
                                 "timestamp": dealloc_timestamp,
@@ -730,7 +750,7 @@ impl MemoryTracker {
         Ok(())
     }
 
-    /// Generate unsafe_ffi.json with FFI safety analysis
+    /// Generate `unsafe_ffi.json` with FFI safety analysis
     fn generate_unsafe_ffi_json<P: AsRef<Path>>(
         &self,
         output_path: P,
@@ -762,7 +782,7 @@ impl MemoryTracker {
         Ok(())
     }
 
-    /// Generate variable_relationships.json with dependency analysis
+    /// Generate `variable_relationships.json` with dependency analysis
     fn generate_variable_relationships_json<P: AsRef<Path>>(
         &self,
         output_path: P,
@@ -775,11 +795,18 @@ impl MemoryTracker {
         for allocation in allocations {
             if let Some(clone_info) = allocation.get("clone_info") {
                 if !clone_info.is_null() {
-                    if let Some(is_clone) = clone_info.get("is_clone").and_then(|c| c.as_bool()) {
+                    if let Some(is_clone) = clone_info
+                        .get("is_clone")
+                        .and_then(handlebars::JsonValue::as_bool)
+                    {
                         if is_clone {
                             if let (Some(ptr), Some(original_ptr)) = (
-                                allocation.get("ptr").and_then(|p| p.as_u64()),
-                                clone_info.get("original_ptr").and_then(|p| p.as_u64()),
+                                allocation
+                                    .get("ptr")
+                                    .and_then(handlebars::JsonValue::as_u64),
+                                clone_info
+                                    .get("original_ptr")
+                                    .and_then(handlebars::JsonValue::as_u64),
                             ) {
                                 relationships.push(json!({
                                     "relationship_type": "clone",
@@ -787,7 +814,7 @@ impl MemoryTracker {
                                     "target_ptr": ptr,
                                     "relationship_strength": 1.0,
                                     "details": {
-                                        "clone_count": clone_info.get("clone_count").and_then(|c| c.as_u64()).unwrap_or(0)
+                                        "clone_count": clone_info.get("clone_count").and_then(handlebars::JsonValue::as_u64).unwrap_or(0)
                                     }
                                 }));
                             }
@@ -812,7 +839,7 @@ impl MemoryTracker {
         Ok(())
     }
 
-    /// Generate type_analysis.json with type-based memory analysis
+    /// Generate `type_analysis.json` with type-based memory analysis
     fn generate_type_analysis_json<P: AsRef<Path>>(
         &self,
         output_path: P,
@@ -837,6 +864,7 @@ impl MemoryTracker {
 }
 
 /// Build unified dashboard JSON structure compatible with all frontend interfaces
+#[must_use]
 pub fn build_unified_dashboard_structure(
     active_allocations: &[AllocationInfo],
     allocation_history: &[AllocationInfo],
@@ -905,7 +933,7 @@ pub fn build_unified_dashboard_structure(
                 // Add borrow_info for lifetime analysis
                 allocation_data["borrow_info"] = serde_json::json!({
                     "immutable_borrows": alloc.borrow_count,
-                    "mutable_borrows": if alloc.borrow_count > 0 { 1 } else { 0 },
+                    "mutable_borrows": i32::from(alloc.borrow_count > 0),
                     "max_concurrent_borrows": alloc.borrow_count,
                     "last_borrow_timestamp": alloc.timestamp_alloc
                 });
@@ -1119,6 +1147,7 @@ fn identify_memory_hotspots(memory_by_type: &[TypeMemoryUsage]) -> Vec<serde_jso
 }
 
 /// Generate optimization recommendations based on memory statistics
+#[must_use]
 pub fn generate_optimization_recommendations(
     stats: &MemoryStats,
     memory_by_type: &[TypeMemoryUsage],

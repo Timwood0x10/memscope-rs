@@ -786,16 +786,19 @@ impl ErrorRecoveryManager {
     }
 
     /// get recovery stats
+    #[must_use]
     pub fn get_stats(&self) -> &RecoveryStats {
         &self.stats
     }
 
     /// get degradation state
+    #[must_use]
     pub fn get_degradation_state(&self) -> &DegradationState {
         &self.degradation_state
     }
 
     /// generate recovery report
+    #[must_use]
     pub fn generate_recovery_report(&self) -> RecoveryReport {
         let success_rate = if self.stats.total_errors > 0 {
             (self.stats.successful_recoveries as f64 / self.stats.total_errors as f64) * 100.0

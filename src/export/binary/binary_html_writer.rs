@@ -85,6 +85,7 @@ pub struct BinaryHtmlStats {
 
 impl BinaryHtmlStats {
     /// Calculate processing throughput
+    #[must_use]
     pub fn processing_throughput(&self) -> f64 {
         if self.total_processing_time_ms == 0 {
             0.0
@@ -94,6 +95,7 @@ impl BinaryHtmlStats {
     }
 
     /// Calculate memory efficiency ratio
+    #[must_use]
     pub fn memory_efficiency_ratio(&self) -> f64 {
         if self.peak_memory_usage == 0 {
             0.0
@@ -133,7 +135,7 @@ pub enum BinaryFieldValue {
 }
 
 impl BinaryAllocationData {
-    /// Create binary allocation data from AllocationInfo
+    /// Create binary allocation data from `AllocationInfo`
     pub fn from_allocation(
         allocation: &AllocationInfo,
         requested_fields: &HashSet<AllocationField>,
@@ -431,7 +433,9 @@ impl<W: Write> BinaryHtmlWriter<W> {
             .count();
 
         // Perform complex type analysis on collected allocations
-        let complex_types = if !self.all_allocations.is_empty() {
+        let complex_types = if self.all_allocations.is_empty() {
+            None
+        } else {
             match ComplexTypeAnalyzer::analyze_allocations(&self.all_allocations) {
                 Ok(analysis) => Some(analysis),
                 Err(e) => {
@@ -439,12 +443,12 @@ impl<W: Write> BinaryHtmlWriter<W> {
                     None
                 }
             }
-        } else {
-            None
         };
 
         // Perform FFI safety analysis on collected allocations
-        let unsafe_ffi = if !self.all_allocations.is_empty() {
+        let unsafe_ffi = if self.all_allocations.is_empty() {
+            None
+        } else {
             match FfiSafetyAnalyzer::analyze_allocations(&self.all_allocations) {
                 Ok(analysis) => Some(analysis),
                 Err(e) => {
@@ -452,12 +456,12 @@ impl<W: Write> BinaryHtmlWriter<W> {
                     None
                 }
             }
-        } else {
-            None
         };
 
         // Perform variable relationship analysis on collected allocations
-        let variable_relationships = if !self.all_allocations.is_empty() {
+        let variable_relationships = if self.all_allocations.is_empty() {
+            None
+        } else {
             match VariableRelationshipAnalyzer::analyze_allocations(&self.all_allocations) {
                 Ok(analysis) => Some(analysis),
                 Err(e) => {
@@ -465,8 +469,6 @@ impl<W: Write> BinaryHtmlWriter<W> {
                     None
                 }
             }
-        } else {
-            None
         };
 
         Ok(BinaryTemplateData {

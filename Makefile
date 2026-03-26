@@ -227,6 +227,11 @@ clippy-fix:
 	@echo "$(BLUE)Running clippy with automatic fixes...$(NC)"
 	$(CARGO) clippy --fix --all-targets --all-features
 
+
+.PHONY: clippy-all
+clippy-all:
+	$(CARGO) clippy -- -D clippy::all -D clippy::pedantic
+
 .PHONY: audit
 audit:
 	@echo "$(BLUE)Running security audit...$(NC)"

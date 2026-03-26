@@ -21,6 +21,7 @@ pub struct LockfreeAggregator {
 }
 
 impl LockfreeAggregator {
+    #[must_use]
     pub fn new(output_dir: std::path::PathBuf) -> Self {
         Self { output_dir }
     }
@@ -127,24 +128,21 @@ impl LockfreeAggregator {
             match std::fs::remove_file(file_path) {
                 Ok(()) => {
                     cleaned_count += 1;
-                    eprintln!("🗑️  Cleaned up temporary file: {:?}", file_path);
+                    eprintln!("🗑️  Cleaned up temporary file: {file_path:?}");
                 }
                 Err(e) => {
                     failed_count += 1;
-                    eprintln!("⚠️  Failed to clean up file {:?}: {}", file_path, e);
+                    eprintln!("⚠️  Failed to clean up file {file_path:?}: {e}");
                 }
             }
         }
 
         if cleaned_count > 0 {
-            eprintln!(
-                "✅ Successfully cleaned up {} temporary files",
-                cleaned_count
-            );
+            eprintln!("✅ Successfully cleaned up {cleaned_count} temporary files");
         }
 
         if failed_count > 0 {
-            eprintln!("⚠️  Failed to clean up {} files", failed_count);
+            eprintln!("⚠️  Failed to clean up {failed_count} files");
         }
 
         Ok(())
@@ -194,7 +192,7 @@ impl LockfreeAggregator {
         Ok(frequencies)
     }
 
-    /// Analyze single thread data and convert Event to AllocationEvent
+    /// Analyze single thread data and convert Event to `AllocationEvent`
     fn analyze_thread_data(
         &self,
         thread_id: u64,
@@ -229,10 +227,10 @@ impl LockfreeAggregator {
             }
         }
 
-        let avg_allocation_size = if !allocation_sizes.is_empty() {
-            allocation_sizes.iter().sum::<usize>() as f64 / allocation_sizes.len() as f64
-        } else {
+        let avg_allocation_size = if allocation_sizes.is_empty() {
             0.0
+        } else {
+            allocation_sizes.iter().sum::<usize>() as f64 / allocation_sizes.len() as f64
         };
 
         // Build frequency map from frequency data

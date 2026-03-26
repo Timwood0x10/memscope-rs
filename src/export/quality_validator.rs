@@ -58,6 +58,7 @@ pub struct ExportConfig {
 
 impl ExportConfig {
     /// Create new export configuration
+    #[must_use]
     pub fn new(mode: ExportMode, validation_timing: ValidationTiming) -> Self {
         let validation_config = match mode {
             ExportMode::Fast => ValidationConfig::for_fast_mode(),
@@ -73,16 +74,19 @@ impl ExportConfig {
     }
 
     /// Create configuration for fast mode
+    #[must_use]
     pub fn fast() -> Self {
         Self::new(ExportMode::Fast, ValidationTiming::Deferred)
     }
 
     /// Create configuration for slow mode
+    #[must_use]
     pub fn slow() -> Self {
         Self::new(ExportMode::Slow, ValidationTiming::Inline)
     }
 
     /// Create configuration with auto mode
+    #[must_use]
     pub fn auto() -> Self {
         Self::new(ExportMode::Auto, ValidationTiming::Deferred)
     }
@@ -154,6 +158,7 @@ pub struct ExportModeManager {
 
 impl ExportModeManager {
     /// Create new export mode manager
+    #[must_use]
     pub fn new() -> Self {
         Self {
             default_mode: ExportMode::Fast,
@@ -163,6 +168,7 @@ impl ExportModeManager {
     }
 
     /// Create export mode manager with custom settings
+    #[must_use]
     pub fn with_settings(
         default_mode: ExportMode,
         auto_threshold: usize,
@@ -176,6 +182,7 @@ impl ExportModeManager {
     }
 
     /// Determine optimal export mode based on data size
+    #[must_use]
     pub fn determine_optimal_mode(&self, data_size: usize) -> ExportMode {
         match self.default_mode {
             ExportMode::Auto => {
@@ -192,6 +199,7 @@ impl ExportModeManager {
     }
 
     /// Create export configuration for the given mode
+    #[must_use]
     pub fn create_config_for_mode(&self, mode: ExportMode) -> ExportConfig {
         match mode {
             ExportMode::Fast => ExportConfig::fast(),
@@ -204,12 +212,14 @@ impl ExportModeManager {
     }
 
     /// Create export configuration with automatic mode selection
+    #[must_use]
     pub fn create_auto_config(&self, data_size: usize) -> ExportConfig {
         let optimal_mode = self.determine_optimal_mode(data_size);
         self.create_config_for_mode(optimal_mode)
     }
 
     /// Validate and optimize configuration based on system constraints
+    #[must_use]
     pub fn optimize_config(
         &self,
         mut config: ExportConfig,
@@ -245,6 +255,7 @@ impl ExportModeManager {
     }
 
     /// Get current settings
+    #[must_use]
     pub fn get_settings(&self) -> (ExportMode, usize, u64) {
         (
             self.default_mode,
@@ -409,6 +420,7 @@ impl Default for ValidationConfig {
 
 impl ValidationConfig {
     /// Configuration optimized for fast mode - minimal validation
+    #[must_use]
     pub fn for_fast_mode() -> Self {
         Self {
             enable_json_validation: false,
@@ -424,6 +436,7 @@ impl ValidationConfig {
     }
 
     /// Configuration for slow mode - comprehensive validation
+    #[must_use]
     pub fn for_slow_mode() -> Self {
         Self {
             enable_json_validation: true,
@@ -439,6 +452,7 @@ impl ValidationConfig {
     }
 
     /// Create configuration with custom validation strategy
+    #[must_use]
     pub fn with_strategy(strategy: ValidationStrategy) -> Self {
         match strategy {
             ValidationStrategy::Minimal => Self::for_fast_mode(),
@@ -449,6 +463,7 @@ impl ValidationConfig {
     }
 
     /// Check if configuration conflicts with the given export mode
+    #[must_use]
     pub fn conflicts_with_mode(&self, mode: &ExportMode) -> Vec<String> {
         let mut conflicts = Vec::new();
 
@@ -656,6 +671,7 @@ pub enum IssueSeverity {
 
 impl QualityValidator {
     /// Create new quality validator
+    #[must_use]
     pub fn new(config: ValidationConfig) -> Self {
         Self {
             config,
@@ -664,6 +680,7 @@ impl QualityValidator {
     }
 
     /// Create quality validator with default configuration
+    #[must_use]
     pub fn new_default() -> Self {
         Self::new(ValidationConfig::default())
     }
@@ -811,16 +828,7 @@ impl QualityValidator {
         }
 
         // Check if file exists
-        if !std::path::Path::new(file_path).exists() {
-            issues.push(ValidationIssue {
-                issue_type: IssueType::MissingData,
-                description: "Output file does not exist".to_string(),
-                severity: IssueSeverity::Critical,
-                affected_data: file_path.to_string(),
-                suggested_fix: Some("Check file path and write permissions".to_string()),
-                auto_fixable: false,
-            });
-        } else {
+        if std::path::Path::new(file_path).exists() {
             // Validate file size
             if self.config.enable_size_validation {
                 self.validate_file_size(file_path, &mut issues)?;
@@ -835,6 +843,15 @@ impl QualityValidator {
             if self.config.enable_encoding_validation {
                 self.validate_file_encoding(file_path, &mut issues)?;
             }
+        } else {
+            issues.push(ValidationIssue {
+                issue_type: IssueType::MissingData,
+                description: "Output file does not exist".to_string(),
+                severity: IssueSeverity::Critical,
+                affected_data: file_path.to_string(),
+                suggested_fix: Some("Check file path and write permissions".to_string()),
+                auto_fixable: false,
+            });
         }
 
         let validation_time = start_time.elapsed().as_millis() as u64;
@@ -869,11 +886,13 @@ impl QualityValidator {
     }
 
     /// Get validation statistics
+    #[must_use]
     pub fn get_stats(&self) -> &ValidationStats {
         &self.stats
     }
 
     /// Generate validation report
+    #[must_use]
     pub fn generate_validation_report(&self) -> ValidationReport {
         let success_rate = if self.stats.total_validations > 0 {
             (self.stats.successful_validations as f64 / self.stats.total_validations as f64) * 100.0
@@ -1364,6 +1383,7 @@ impl QualityValidator {
 
 impl AsyncValidator {
     /// Create new async validator
+    #[must_use]
     pub fn new(config: ValidationConfig) -> Self {
         Self {
             config,
@@ -1372,6 +1392,7 @@ impl AsyncValidator {
     }
 
     /// Create async validator with default configuration
+    #[must_use]
     pub fn new_default() -> Self {
         Self::new(ValidationConfig::default())
     }
@@ -1390,16 +1411,7 @@ impl AsyncValidator {
         }
 
         // Check if file exists
-        if !path.exists() {
-            issues.push(ValidationIssue {
-                issue_type: IssueType::MissingData,
-                description: "Output file does not exist".to_string(),
-                severity: IssueSeverity::Critical,
-                affected_data: path.display().to_string(),
-                suggested_fix: Some("Check file path and write permissions".to_string()),
-                auto_fixable: false,
-            });
-        } else {
+        if path.exists() {
             // Validate file size (lightweight check)
             if self.config.enable_size_validation {
                 if let Err(e) = self.validate_file_size_async(path, &mut issues).await {
@@ -1413,6 +1425,15 @@ impl AsyncValidator {
                     tracing::info!("⚠️ Content stream validation failed: {}", e);
                 }
             }
+        } else {
+            issues.push(ValidationIssue {
+                issue_type: IssueType::MissingData,
+                description: "Output file does not exist".to_string(),
+                severity: IssueSeverity::Critical,
+                affected_data: path.display().to_string(),
+                suggested_fix: Some("Check file path and write permissions".to_string()),
+                auto_fixable: false,
+            });
         }
 
         let validation_time = start_time.elapsed().as_millis() as u64;
@@ -1638,6 +1659,7 @@ impl AsyncValidator {
     }
 
     /// Create enhanced streaming validator for large file validation
+    #[must_use]
     pub fn create_enhanced_streaming_validator(
         &self,
         streaming_config: StreamingValidationConfig,
@@ -1758,6 +1780,7 @@ impl DeferredValidation {
     }
 
     /// Check if validation is complete
+    #[must_use]
     pub fn is_complete(&self) -> bool {
         matches!(
             self.handle,
@@ -1769,11 +1792,13 @@ impl DeferredValidation {
     }
 
     /// Check if validation is running
+    #[must_use]
     pub fn is_running(&self) -> bool {
         matches!(self.handle, ValidationHandle::Running { .. })
     }
 
     /// Check if validation is pending
+    #[must_use]
     pub fn is_pending(&self) -> bool {
         matches!(self.handle, ValidationHandle::Pending { .. })
     }
@@ -1879,6 +1904,7 @@ impl DeferredValidation {
     }
 
     /// Get current validation status
+    #[must_use]
     pub fn get_status(&self) -> ValidationStatus {
         match &self.handle {
             ValidationHandle::Pending { .. } => ValidationStatus::Pending,
@@ -1891,6 +1917,7 @@ impl DeferredValidation {
     }
 
     /// Get file path being validated
+    #[must_use]
     pub fn get_file_path(&self) -> String {
         match &self.handle {
             ValidationHandle::Pending { file_path, .. } => file_path.clone(),
@@ -2014,7 +2041,7 @@ impl ExportArgs {
         Ok(())
     }
 
-    /// Convert CLI arguments to ExportConfig
+    /// Convert CLI arguments to `ExportConfig`
     pub fn to_export_config(&self) -> ExportConfig {
         let validation_timing = if self.disable_validation {
             ValidationTiming::Disabled
@@ -2040,6 +2067,7 @@ impl ExportArgs {
     }
 
     /// Get timeout duration
+    #[must_use]
     pub fn get_timeout_duration(&self) -> Duration {
         Duration::from_secs(self.timeout)
     }
@@ -2288,6 +2316,7 @@ pub struct EnhancedStreamingValidator {
 
 impl EnhancedStreamingValidator {
     /// Create new enhanced streaming validator
+    #[must_use]
     pub fn new(config: ValidationConfig, streaming_config: StreamingValidationConfig) -> Self {
         Self {
             config,
@@ -2314,11 +2343,13 @@ impl EnhancedStreamingValidator {
     }
 
     /// Check if validation was interrupted
+    #[must_use]
     pub fn is_interrupted(&self) -> bool {
         self.interrupted.load(std::sync::atomic::Ordering::Relaxed)
     }
 
     /// Get current validation progress
+    #[must_use]
     pub fn get_progress(&self) -> Option<&ValidationProgress> {
         self.progress.as_ref()
     }
@@ -2373,7 +2404,7 @@ impl EnhancedStreamingValidator {
         Ok(())
     }
 
-    /// Enhanced streaming validation with AsyncRead support
+    /// Enhanced streaming validation with `AsyncRead` support
     pub async fn validate_stream_async<R>(
         &mut self,
         mut reader: R,

@@ -19,6 +19,7 @@ pub struct TrackingManager {
 
 impl TrackingManager {
     /// Create a new tracking manager instance
+    #[must_use]
     pub fn new() -> Self {
         Self {
             memory_tracker: get_tracker(),
@@ -27,11 +28,13 @@ impl TrackingManager {
     }
 
     /// Get the memory tracker instance
+    #[must_use]
     pub fn memory_tracker(&self) -> &Arc<MemoryTracker> {
         &self.memory_tracker
     }
 
     /// Get the scope tracker instance
+    #[must_use]
     pub fn scope_tracker(&self) -> &Arc<crate::core::scope_tracker::ScopeTracker> {
         &self.scope_tracker
     }

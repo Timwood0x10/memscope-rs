@@ -94,6 +94,7 @@ pub enum ProcessingStrategy {
 
 impl BinaryHtmlExportStats {
     /// Calculate overall processing efficiency
+    #[must_use]
     pub fn processing_efficiency(&self) -> f64 {
         if self.total_export_time_ms == 0 {
             0.0
@@ -104,6 +105,7 @@ impl BinaryHtmlExportStats {
     }
 
     /// Get performance improvement over baseline
+    #[must_use]
     pub fn performance_improvement(&self) -> f64 {
         // Baseline: assume JSON → HTML takes ~800ms for similar data
         let baseline_time_ms = 800.0;

@@ -170,6 +170,7 @@ struct PerformanceTracker {
 
 impl StringPoolMonitor {
     /// Create a new string pool monitor
+    #[must_use]
     pub fn new() -> Self {
         Self {
             performance_tracker: Arc::new(Mutex::new(PerformanceTracker {
@@ -212,6 +213,7 @@ impl StringPoolMonitor {
     }
 
     /// Get comprehensive monitoring statistics
+    #[must_use]
     pub fn get_stats(&self) -> StringPoolMonitorStats {
         let pool_stats = get_string_pool_stats();
         let performance = self.get_performance_metrics();
@@ -409,6 +411,7 @@ pub fn record_intern_operation(duration_ns: u64) {
 }
 
 /// Get comprehensive string pool monitoring statistics
+#[must_use]
 pub fn get_string_pool_monitor_stats() -> StringPoolMonitorStats {
     get_string_pool_monitor().get_stats()
 }

@@ -270,7 +270,7 @@ impl MemoryTracker {
                 r#"<li class="type-item"><span class="type-name">{}</span><span class="type-size">{}</span></li>"#,
                 t.type_name,
                 self.format_bytes(t.total_size)
-            )).collect::<Vec<_>>().join(""),
+            )).collect::<String>(),
             self.generate_recommendations_html(stats, memory_by_type),
             env!("CARGO_PKG_VERSION"),
             active_allocations.len()
@@ -309,8 +309,7 @@ impl MemoryTracker {
         recommendations
             .iter()
             .map(|rec| format!("<li>{rec}</li>"))
-            .collect::<Vec<_>>()
-            .join("")
+            .collect::<String>()
     }
 }
 

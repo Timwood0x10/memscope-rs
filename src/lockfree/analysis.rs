@@ -182,6 +182,7 @@ pub struct AnalysisSummary {
 
 impl LockfreeAnalysis {
     /// Creates an empty analysis result
+    #[must_use]
     pub fn new() -> Self {
         Self {
             thread_stats: HashMap::new(),
@@ -239,6 +240,7 @@ impl LockfreeAnalysis {
     }
 
     /// Gets threads with highest allocation activity
+    #[must_use]
     pub fn get_most_active_threads(&self, limit: usize) -> Vec<(u64, u64)> {
         let mut thread_activity: Vec<_> = self
             .thread_stats
@@ -252,6 +254,7 @@ impl LockfreeAnalysis {
     }
 
     /// Gets threads with highest memory usage
+    #[must_use]
     pub fn get_highest_memory_threads(&self, limit: usize) -> Vec<(u64, usize)> {
         let mut thread_memory: Vec<_> = self
             .thread_stats
@@ -265,6 +268,7 @@ impl LockfreeAnalysis {
     }
 
     /// Gets most severe performance bottlenecks
+    #[must_use]
     pub fn get_critical_bottlenecks(&self, severity_threshold: f64) -> Vec<&PerformanceBottleneck> {
         self.performance_bottlenecks
             .iter()

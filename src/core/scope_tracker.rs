@@ -2,7 +2,9 @@
 
 use crate::core::optimized_locks::OptimizedMutex;
 use crate::core::sharded_locks::ShardedRwLock;
-use crate::core::types::*;
+use crate::core::types::{
+    ScopeAnalysis, ScopeHierarchy, ScopeInfo, ScopeLifecycleMetrics, TrackingError, TrackingResult,
+};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, OnceLock};
@@ -37,6 +39,7 @@ pub struct ScopeTracker {
 
 impl ScopeTracker {
     /// Create a new scope tracker
+    #[must_use]
     pub fn new() -> Self {
         Self {
             active_scopes: ShardedRwLock::new(),
@@ -342,6 +345,7 @@ impl ScopeGuard {
     }
 
     /// Get the scope ID
+    #[must_use]
     pub fn scope_id(&self) -> ScopeId {
         self.scope_id
     }
@@ -371,7 +375,7 @@ macro_rules! track_scope {
     }};
 }
 
-/// Enhanced track_var macro that also associates with current scope
+/// Enhanced `track_var` macro that also associates with current scope
 #[macro_export]
 macro_rules! track_var_with_scope {
     ($var:ident) => {{

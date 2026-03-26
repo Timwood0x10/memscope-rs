@@ -116,7 +116,7 @@ fn base64_encode(input: &[u8]) -> String {
             buf[i] = b;
         }
 
-        let b = ((buf[0] as u32) << 16) | ((buf[1] as u32) << 8) | (buf[2] as u32);
+        let b = (u32::from(buf[0]) << 16) | (u32::from(buf[1]) << 8) | u32::from(buf[2]);
 
         result.push(CHARS[((b >> 18) & 63) as usize] as char);
         result.push(CHARS[((b >> 12) & 63) as usize] as char);
@@ -543,10 +543,10 @@ fn precompute_performance_metrics(
     };
 
     let total_size: usize = allocations.iter().map(|a| a.size).sum();
-    let avg_size = if !allocations.is_empty() {
-        total_size / allocations.len()
-    } else {
+    let avg_size = if allocations.is_empty() {
         0
+    } else {
+        total_size / allocations.len()
     };
 
     let large_allocs = allocations.iter().filter(|a| a.size > 1024 * 1024).count();

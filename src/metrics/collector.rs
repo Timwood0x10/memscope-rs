@@ -109,6 +109,7 @@ pub struct RateData {
 
 impl MetricsCollector {
     /// Create new metrics collector
+    #[must_use]
     pub fn new() -> Self {
         Self {
             metrics: HashMap::new(),
@@ -119,6 +120,7 @@ impl MetricsCollector {
     }
 
     /// Create collector with custom sample rate
+    #[must_use]
     pub fn with_sample_rate(sample_rate: f64) -> Self {
         Self {
             metrics: HashMap::new(),
@@ -134,6 +136,7 @@ impl MetricsCollector {
     }
 
     /// Check if metrics collection is enabled
+    #[must_use]
     pub fn is_enabled(&self) -> bool {
         self.enabled
     }
@@ -229,16 +232,19 @@ impl MetricsCollector {
     }
 
     /// Get current value of a metric
+    #[must_use]
     pub fn get_metric(&self, name: &str) -> Option<&Metric> {
         self.metrics.get(name)
     }
 
     /// Get all metrics
+    #[must_use]
     pub fn get_all_metrics(&self) -> &HashMap<String, Metric> {
         &self.metrics
     }
 
     /// Get metrics summary
+    #[must_use]
     pub fn get_summary(&self) -> MetricsSummary {
         let total_metrics = self.metrics.len();
         let active_metrics = self
@@ -273,7 +279,7 @@ impl MetricsCollector {
 
     /// Clean up old metrics
     pub fn cleanup_old_metrics(&mut self, max_age: Duration) {
-        let cutoff_time = Instant::now() - max_age;
+        let cutoff_time = Instant::now().checked_sub(max_age).unwrap();
         self.metrics
             .retain(|_, metric| metric.last_updated > cutoff_time);
     }
@@ -295,6 +301,7 @@ impl MetricsCollector {
 
 impl Metric {
     /// Create new counter metric
+    #[must_use]
     pub fn new_counter(name: &str, description: &str) -> Self {
         Self {
             name: name.to_string(),
@@ -308,6 +315,7 @@ impl Metric {
     }
 
     /// Create new gauge metric
+    #[must_use]
     pub fn new_gauge(name: &str, unit: &str, description: &str) -> Self {
         Self {
             name: name.to_string(),
@@ -321,6 +329,7 @@ impl Metric {
     }
 
     /// Create new histogram metric
+    #[must_use]
     pub fn new_histogram(name: &str, description: &str) -> Self {
         Self {
             name: name.to_string(),
@@ -334,6 +343,7 @@ impl Metric {
     }
 
     /// Create new timer metric
+    #[must_use]
     pub fn new_timer(name: &str, description: &str) -> Self {
         Self {
             name: name.to_string(),
@@ -347,6 +357,7 @@ impl Metric {
     }
 
     /// Create new rate metric
+    #[must_use]
     pub fn new_rate(name: &str, description: &str) -> Self {
         Self {
             name: name.to_string(),
@@ -360,10 +371,11 @@ impl Metric {
     }
 
     /// Get current metric value as string
+    #[must_use]
     pub fn value_string(&self) -> String {
         match &self.value {
             MetricValue::Counter(counter) => counter.load(Ordering::Relaxed).to_string(),
-            MetricValue::Gauge(value) => format!("{:.2}", value),
+            MetricValue::Gauge(value) => format!("{value:.2}"),
             MetricValue::Histogram(hist) => {
                 format!("count={}, avg={:.2}", hist.count, hist.average())
             }
@@ -377,6 +389,7 @@ impl Metric {
 
 impl HistogramData {
     /// Create new histogram with default buckets
+    #[must_use]
     pub fn new() -> Self {
         let buckets = vec![
             (0.001, 0),
@@ -419,6 +432,7 @@ impl HistogramData {
     }
 
     /// Calculate average value
+    #[must_use]
     pub fn average(&self) -> f64 {
         if self.count > 0 {
             self.sum / self.count as f64
@@ -436,6 +450,7 @@ impl Default for HistogramData {
 
 impl TimerData {
     /// Create new timer data
+    #[must_use]
     pub fn new() -> Self {
         Self {
             total_duration: Duration::ZERO,
@@ -461,6 +476,7 @@ impl TimerData {
     }
 
     /// Calculate average duration
+    #[must_use]
     pub fn average_duration(&self) -> Duration {
         if self.count > 0 {
             self.total_duration / self.count as u32
@@ -477,6 +493,7 @@ impl Default for TimerData {
 
 impl RateData {
     /// Create new rate data
+    #[must_use]
     pub fn new() -> Self {
         Self {
             total_events: 0,
@@ -493,7 +510,7 @@ impl RateData {
         self.event_times.push(now);
 
         // Clean old events outside window
-        let cutoff = now - self.window_duration;
+        let cutoff = now.checked_sub(self.window_duration).unwrap();
         self.event_times.retain(|&time| time > cutoff);
 
         // Calculate current rate

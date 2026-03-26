@@ -15,8 +15,7 @@ pub fn run_generate_report(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
         .ok_or("Output file is required")?;
     let format = matches
         .get_one::<String>("format")
-        .map(|s| s.as_str())
-        .unwrap_or("html");
+        .map_or("html", std::string::String::as_str);
 
     tracing::info!("📊 Generating report...");
     tracing::info!("Input file: {}", input_file);

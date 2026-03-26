@@ -2,7 +2,7 @@
 //!
 //! This module provides a global registry that tracks all thread-local memory trackers
 //! for data aggregation purposes. It enables the unified tracking system to collect
-//! data from all tracking modes: track_var!, lockfree, and async_memory.
+//! data from all tracking modes: `track_var`!, lockfree, and `async_memory`.
 
 use crate::core::tracker::memory_tracker::MemoryTracker;
 use crate::core::types::MemoryStats;
@@ -190,7 +190,7 @@ pub struct AggregatedTrackingData {
     pub combined_stats: Vec<CombinedTrackerStats>,
 }
 
-/// Combined statistics from a single tracker (can be track_var!, lockfree, or async)
+/// Combined statistics from a single tracker (can be `track_var`!, lockfree, or async)
 #[derive(Debug, Clone)]
 pub struct CombinedTrackerStats {
     /// Thread ID where this tracker operates
@@ -230,9 +230,9 @@ pub fn register_current_thread_tracker(tracker: &Arc<MemoryTracker>) {
 /// Collect and aggregate data from all tracking modes.
 ///
 /// This is the main function for unified data collection that combines:
-/// - track_var! data from all threads
+/// - `track_var`! data from all threads
 /// - lockfree module data
-/// - async_memory module data
+/// - `async_memory` module data
 pub fn collect_unified_tracking_data() -> Result<AggregatedTrackingData, String> {
     let mut combined_stats = Vec::new();
     let mut total_allocations = 0u64;
@@ -366,6 +366,7 @@ pub fn cleanup_registry() {
 }
 
 /// Check if the registry has any active trackers.
+#[must_use]
 pub fn has_active_trackers() -> bool {
     match get_registry().lock() {
         Ok(registry) => !registry.trackers.is_empty(),

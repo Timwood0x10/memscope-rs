@@ -52,6 +52,7 @@ pub struct TimingInfo {
 
 impl TimingInfo {
     /// Create a new timing info for an operation
+    #[must_use]
     pub fn new(operation: String) -> Self {
         Self {
             operation,
@@ -76,6 +77,7 @@ impl TimingInfo {
     }
 
     /// Get duration in milliseconds
+    #[must_use]
     pub fn get_duration_ms(&self) -> Option<u64> {
         self.duration_ms
     }
@@ -100,6 +102,7 @@ pub struct ProgressInfo {
 
 impl ProgressInfo {
     /// Create new progress info
+    #[must_use]
     pub fn new(total_steps: usize, operation: String) -> Self {
         Self {
             current_step: 0,
@@ -126,6 +129,7 @@ impl ProgressInfo {
     }
 
     /// Get overall progress percentage
+    #[must_use]
     pub fn get_overall_progress(&self) -> f64 {
         if self.total_steps == 0 {
             return 100.0;
@@ -141,6 +145,7 @@ impl ProgressInfo {
     }
 
     /// Get current step progress percentage
+    #[must_use]
     pub fn get_step_progress(&self) -> f64 {
         if self.total_items == 0 {
             return 100.0;
@@ -214,6 +219,7 @@ pub struct PerformanceStats {
 
 impl PerformanceStats {
     /// Calculate throughput in MB/s
+    #[must_use]
     pub fn get_throughput_mb_per_sec(&self) -> f64 {
         if self.total_time_ms == 0 {
             return 0.0;
@@ -222,6 +228,7 @@ impl PerformanceStats {
     }
 
     /// Get processing efficiency score (0-100)
+    #[must_use]
     pub fn get_efficiency_score(&self) -> f64 {
         let base_score = 100.0;
         let error_penalty = (self.error_count as f64) * 10.0;
@@ -251,11 +258,13 @@ pub struct DebugLogger {
 
 impl DebugLogger {
     /// Create a new debug logger with default configuration
+    #[must_use]
     pub fn new() -> Self {
         Self::with_config(DebugConfig::default())
     }
 
     /// Create a new debug logger with custom configuration
+    #[must_use]
     pub fn with_config(config: DebugConfig) -> Self {
         Self {
             config,
@@ -322,6 +331,7 @@ impl DebugLogger {
     }
 
     /// Start timing an operation
+    #[must_use]
     pub fn start_timing(&self, operation: &str) -> String {
         if !self.config.enable_timing {
             return operation.to_string();
@@ -339,6 +349,7 @@ impl DebugLogger {
     }
 
     /// End timing an operation
+    #[must_use]
     pub fn end_timing(&self, timing_id: &str) -> Option<u64> {
         if !self.config.enable_timing {
             return None;
@@ -411,7 +422,7 @@ impl DebugLogger {
         let should_report = if let Ok(mut last_time) = self.last_progress_time.lock() {
             let now = Instant::now();
             let elapsed = now.duration_since(*last_time);
-            if elapsed.as_millis() >= self.config.progress_interval_ms as u128 {
+            if elapsed.as_millis() >= u128::from(self.config.progress_interval_ms) {
                 *last_time = now;
                 true
             } else {
@@ -479,6 +490,7 @@ impl DebugLogger {
     }
 
     /// Get current performance statistics
+    #[must_use]
     pub fn get_stats(&self) -> PerformanceStats {
         if let Ok(stats) = self.stats.lock() {
             stats.clone()

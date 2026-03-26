@@ -65,6 +65,7 @@ pub struct FixedHybridTemplate {
 }
 
 impl FixedHybridTemplate {
+    #[must_use]
     pub fn new(thread_count: usize, task_count: usize) -> Self {
         Self {
             output_path: "simple_hybrid_dashboard_variable_detailed.html".to_string(),
@@ -74,16 +75,19 @@ impl FixedHybridTemplate {
         }
     }
 
+    #[must_use]
     pub fn with_render_mode(mut self, mode: RenderMode) -> Self {
         self.render_mode = mode;
         self
     }
 
+    #[must_use]
     pub fn with_variable_details(self, _enable: bool) -> Self {
         // Variable details are always enabled in this simplified version
         self
     }
 
+    #[must_use]
     pub fn with_enhanced_insights(self, _enable: bool) -> Self {
         // Enhanced insights will be processed in render_with_template
         self
@@ -149,7 +153,7 @@ impl FixedHybridTemplate {
         html
     }
 
-    /// Calculate total memory usage - use calculation method consistent with comprehensive_export
+    /// Calculate total memory usage - use calculation method consistent with `comprehensive_export`
     fn calculate_total_memory(&self, data: &HybridAnalysisData) -> f64 {
         // Use peak_memory data from lockfree_analysis, consistent with comprehensive_export
         if let Some(analysis) = &data.lockfree_analysis {
@@ -167,7 +171,7 @@ impl FixedHybridTemplate {
     fn generate_variables_html(&self, variables: &[VariableDetail]) -> String {
         let mut html = String::new();
 
-        for variable in variables.iter() {
+        for variable in variables {
             let status_class = match variable.lifecycle_stage {
                 LifecycleStage::Active => "status-active",
                 LifecycleStage::Allocated => "status-allocated",
@@ -285,9 +289,8 @@ impl FixedHybridTemplate {
 
             html.push_str(&format!(
                 r#"<div class="memory-thread-block">
-                    <h4>Thread {} ({:.1}MB)</h4>
-                    <div class="thread-variables">"#,
-                thread_id, total_memory_mb
+                    <h4>Thread {thread_id} ({total_memory_mb:.1}MB)</h4>
+                    <div class="thread-variables">"#
             ));
 
             for variable in thread_vars.iter().take(10) {
@@ -311,7 +314,7 @@ impl FixedHybridTemplate {
     fn serialize_variables_for_js(&self, variables: &[VariableDetail]) -> String {
         let mut json_items = Vec::new();
 
-        for variable in variables.iter() {
+        for variable in variables {
             json_items.push(format!(
                 r#"{{"name":"{}","size":{},"thread":{},"state":"{}","allocs":{}}}"#,
                 variable.name,
@@ -346,8 +349,7 @@ impl FixedHybridTemplate {
         let mut json_items = Vec::new();
         for (thread_id, (memory_kb, count)) in thread_data {
             json_items.push(format!(
-                r#"{{"id":{},"memory":{},"variables":{}}}"#,
-                thread_id, memory_kb, count
+                r#"{{"id":{thread_id},"memory":{memory_kb},"variables":{count}}}"#
             ));
         }
 
@@ -372,8 +374,7 @@ impl FixedHybridTemplate {
         let mut json_items = Vec::new();
         for (task_id, (memory, count, thread_id)) in task_data {
             json_items.push(format!(
-                r#"{{"id":{},"memory":{},"variables":{},"thread":{}}}"#,
-                task_id, memory, count, thread_id
+                r#"{{"id":{task_id},"memory":{memory},"variables":{count},"thread":{thread_id}}}"#
             ));
         }
 
@@ -394,7 +395,7 @@ impl FixedHybridTemplate {
         html = html.replace("{{MAX_ALLOCATION_SIZE}}", &max_allocation_size.to_string());
         html = html.replace("{{HIGH_FREQUENCY}}", &high_frequency.to_string());
         html = html.replace("{{SMALL_ALLOC_COUNT}}", &small_alloc_count.to_string());
-        html = html.replace("{{SMALL_ALLOC_RATE}}", &format!("{}/sec", small_alloc_rate));
+        html = html.replace("{{SMALL_ALLOC_RATE}}", &format!("{small_alloc_rate}/sec"));
 
         // Replace leak detection variables
         let (leak_status_class, leak_icon, leak_status_title, leak_status_description) =
@@ -409,19 +410,16 @@ impl FixedHybridTemplate {
         let memory_overhead = self.calculate_memory_overhead(data);
         let potential_leaks = self.count_potential_leaks(data);
 
-        html = html.replace(
-            "{{MEMORY_EFFICIENCY}}",
-            &format!("{:.1}", memory_efficiency),
-        );
-        html = html.replace("{{MEMORY_OVERHEAD}}", &format!("{:.2}MB", memory_overhead));
+        html = html.replace("{{MEMORY_EFFICIENCY}}", &format!("{memory_efficiency:.1}"));
+        html = html.replace("{{MEMORY_OVERHEAD}}", &format!("{memory_overhead:.2}MB"));
         html = html.replace("{{POTENTIAL_LEAKS}}", &potential_leaks.to_string());
 
         // Replace performance variables
         html = html.replace("{{BOTTLENECK_THREAD}}", &bottleneck_thread.to_string());
-        html = html.replace("{{BOTTLENECK_RATE}}", &format!("{:.0}", bottleneck_rate));
+        html = html.replace("{{BOTTLENECK_RATE}}", &format!("{bottleneck_rate:.0}"));
         html = html.replace(
             "{{BOTTLENECK_PERCENT}}",
-            &format!("{:.0}", bottleneck_percent),
+            &format!("{bottleneck_percent:.0}"),
         );
         html = html.replace("{{BOTTLENECK_LOCATION}}", "execute_track_var_workload()");
 
@@ -433,12 +431,9 @@ impl FixedHybridTemplate {
 
         // Replace thread rate analysis
         let (thread_0_9_rate, thread_10_19_rate, thread_20_rate) = self.analyze_thread_rates(data);
-        html = html.replace("{{THREAD_0_9_RATE}}", &format!("{:.0}", thread_0_9_rate));
-        html = html.replace(
-            "{{THREAD_10_19_RATE}}",
-            &format!("{:.0}", thread_10_19_rate),
-        );
-        html = html.replace("{{THREAD_20_RATE}}", &format!("{:.0}", thread_20_rate));
+        html = html.replace("{{THREAD_0_9_RATE}}", &format!("{thread_0_9_rate:.0}"));
+        html = html.replace("{{THREAD_10_19_RATE}}", &format!("{thread_10_19_rate:.0}"));
+        html = html.replace("{{THREAD_20_RATE}}", &format!("{thread_20_rate:.0}"));
 
         // Replace scoring variables
         let (memory_score, allocation_score, thread_score, overall_score) =
@@ -526,8 +521,7 @@ impl FixedHybridTemplate {
         let max_thread = thread_loads
             .iter()
             .max_by_key(|(_, &count)| count)
-            .map(|(&thread_id, _)| thread_id)
-            .unwrap_or(0);
+            .map_or(0, |(&thread_id, _)| thread_id);
 
         let max_rate = thread_loads.values().max().unwrap_or(&0) * 10; // Simulated rate/sec
         let avg_rate = if thread_loads.is_empty() {
@@ -562,14 +556,14 @@ impl FixedHybridTemplate {
             (
                 "warning".to_string(),
                 "⚠️".to_string(),
-                format!("{} Potential Issues", potential_leaks),
+                format!("{potential_leaks} Potential Issues"),
                 "Some variables may not be properly deallocated".to_string(),
             )
         } else {
             (
                 "critical".to_string(),
                 "🚨".to_string(),
-                format!("{} Memory Leaks Found", potential_leaks),
+                format!("{potential_leaks} Memory Leaks Found"),
                 "Multiple variables are not being properly deallocated".to_string(),
             )
         }
@@ -614,10 +608,10 @@ impl FixedHybridTemplate {
             .map(|v| v.memory_usage / 1024)
             .collect::<Vec<_>>();
 
-        if !avg_vec_size.is_empty() {
-            (avg_vec_size.iter().sum::<u64>() / avg_vec_size.len() as u64) as usize
-        } else {
+        if avg_vec_size.is_empty() {
             1024
+        } else {
+            (avg_vec_size.iter().sum::<u64>() / avg_vec_size.len() as u64) as usize
         }
     }
 
@@ -629,10 +623,10 @@ impl FixedHybridTemplate {
             .map(|v| v.memory_usage)
             .collect::<Vec<_>>();
 
-        if !avg_string_size.is_empty() {
-            (avg_string_size.iter().sum::<u64>() / avg_string_size.len() as u64) as usize
-        } else {
+        if avg_string_size.is_empty() {
             256
+        } else {
+            (avg_string_size.iter().sum::<u64>() / avg_string_size.len() as u64) as usize
         }
     }
 
@@ -653,11 +647,11 @@ impl FixedHybridTemplate {
         let rates: Vec<f64> = thread_groups
             .iter()
             .map(|group| {
-                if !group.is_empty() {
-                    group.iter().sum::<u64>() as f64 / group.len() as f64 * 50.0
-                // Simulated rate
-                } else {
+                if group.is_empty() {
                     0.0
+                } else {
+                    group.iter().sum::<u64>() as f64 / group.len() as f64 * 50.0
+                    // Simulated rate
                 }
             })
             .collect();
@@ -714,11 +708,11 @@ impl FixedHybridTemplate {
         html = html.replace("{{CLONE_THREADS}}", &clone_threads.to_string());
         html = html.replace(
             "{{CLONE_MEMORY_IMPACT}}",
-            &format!("{:.1}", clone_memory_impact),
+            &format!("{clone_memory_impact:.1}"),
         );
         html = html.replace(
             "{{CLONE_PERFORMANCE_IMPACT}}",
-            &format!("{:.0}", clone_perf_impact),
+            &format!("{clone_perf_impact:.0}"),
         );
 
         // Clone thread distribution
@@ -749,9 +743,9 @@ impl FixedHybridTemplate {
 
         html = html.replace("{{SPIKE_FUNCTION}}", &spike_function);
         html = html.replace("{{SPIKE_TIME}}", &spike_time);
-        html = html.replace("{{SPIKE_SIZE}}", &format!("{:.1}", spike_size));
+        html = html.replace("{{SPIKE_SIZE}}", &format!("{spike_size:.1}"));
         html = html.replace("{{SPIKE_DURATION}}", &spike_duration.to_string());
-        html = html.replace("{{SPIKE_MEMORY}}", &format!("{:.1}", spike_memory));
+        html = html.replace("{{SPIKE_MEMORY}}", &format!("{spike_memory:.1}"));
         html = html.replace("{{SPIKE_GC_CYCLES}}", &spike_gc.to_string());
 
         // Spike-related variables
@@ -903,19 +897,10 @@ impl FixedHybridTemplate {
             .collect();
 
         (
-            largest_vars.first().map(|v| v.thread_id).unwrap_or(1),
-            largest_vars
-                .first()
-                .map(|v| v.memory_usage / 1024)
-                .unwrap_or(256), // KB
-            largest_vars
-                .get(1)
-                .map(|v| v.memory_usage / 1024)
-                .unwrap_or(128),
-            largest_vars
-                .get(2)
-                .map(|v| v.memory_usage / 1024)
-                .unwrap_or(64),
+            largest_vars.first().map_or(1, |v| v.thread_id),
+            largest_vars.first().map_or(256, |v| v.memory_usage / 1024), // KB
+            largest_vars.get(1).map_or(128, |v| v.memory_usage / 1024),
+            largest_vars.get(2).map_or(64, |v| v.memory_usage / 1024),
         )
     }
 
@@ -1009,29 +994,29 @@ impl FixedHybridTemplate {
         // Replace shared variable details
         for (i, var) in shared_vars_list.iter().enumerate() {
             let index = i + 1;
-            html = html.replace(&format!("{{{{SHARED_VAR_{}_NAME}}}}", index), &var.name);
+            html = html.replace(&format!("{{{{SHARED_VAR_{index}_NAME}}}}"), &var.name);
             html = html.replace(
-                &format!("{{{{SHARED_VAR_{}_ACCESS}}}}", index),
+                &format!("{{{{SHARED_VAR_{index}_ACCESS}}}}"),
                 &(var.allocation_count * 5).to_string(),
             );
             html = html.replace(
-                &format!("{{{{SHARED_VAR_{}_PROC_1}}}}", index),
+                &format!("{{{{SHARED_VAR_{index}_PROC_1}}}}"),
                 &var.thread_id.to_string(),
             );
             html = html.replace(
-                &format!("{{{{SHARED_VAR_{}_PROC_2}}}}", index),
+                &format!("{{{{SHARED_VAR_{index}_PROC_2}}}}"),
                 &((var.thread_id % 30) + 1).to_string(),
             );
             html = html.replace(
-                &format!("{{{{SHARED_VAR_{}_PROC_3}}}}", index),
+                &format!("{{{{SHARED_VAR_{index}_PROC_3}}}}"),
                 &((var.thread_id % 30) + 2).to_string(),
             );
             html = html.replace(
-                &format!("{{{{SHARED_VAR_{}_SIZE}}}}", index),
+                &format!("{{{{SHARED_VAR_{index}_SIZE}}}}"),
                 &format!("{:.1}", var.memory_usage as f64 / 1024.0),
             );
             html = html.replace(
-                &format!("{{{{SHARED_VAR_{}_RISK}}}}", index),
+                &format!("{{{{SHARED_VAR_{index}_RISK}}}}"),
                 &((var.allocation_count % 100) + 10).to_string(),
             );
         }
@@ -1039,28 +1024,28 @@ impl FixedHybridTemplate {
         // Fill remaining shared variable slots with defaults
         for i in shared_vars_list.len() + 1..=5 {
             html = html.replace(
-                &format!("{{{{SHARED_VAR_{}_NAME}}}}", i),
-                &format!("shared_data_{}", i),
+                &format!("{{{{SHARED_VAR_{i}_NAME}}}}"),
+                &format!("shared_data_{i}"),
             );
             html = html.replace(
-                &format!("{{{{SHARED_VAR_{}_ACCESS}}}}", i),
+                &format!("{{{{SHARED_VAR_{i}_ACCESS}}}}"),
                 &(50 + i * 10).to_string(),
             );
-            html = html.replace(&format!("{{{{SHARED_VAR_{}_PROC_1}}}}", i), &i.to_string());
+            html = html.replace(&format!("{{{{SHARED_VAR_{i}_PROC_1}}}}"), &i.to_string());
             html = html.replace(
-                &format!("{{{{SHARED_VAR_{}_PROC_2}}}}", i),
+                &format!("{{{{SHARED_VAR_{i}_PROC_2}}}}"),
                 &((i % 5) + 1).to_string(),
             );
             html = html.replace(
-                &format!("{{{{SHARED_VAR_{}_PROC_3}}}}", i),
+                &format!("{{{{SHARED_VAR_{i}_PROC_3}}}}"),
                 &((i % 7) + 1).to_string(),
             );
             html = html.replace(
-                &format!("{{{{SHARED_VAR_{}_SIZE}}}}", i),
+                &format!("{{{{SHARED_VAR_{i}_SIZE}}}}"),
                 &format!("{:.1}", (i as f64 * 0.5) + 1.0),
             );
             html = html.replace(
-                &format!("{{{{SHARED_VAR_{}_RISK}}}}", i),
+                &format!("{{{{SHARED_VAR_{i}_RISK}}}}"),
                 &(25 + i * 15).to_string(),
             );
         }
@@ -1208,13 +1193,15 @@ impl FixedHybridTemplate {
     }
 
     /// Generate detailed variable breakdown HTML
+    #[must_use]
     pub fn generate_variable_detailed_html(&self, data: &HybridAnalysisData) -> String {
         self.generate_hybrid_dashboard(data)
-            .unwrap_or_else(|e| format!("<html><body><h1>Error: {}</h1></body></html>", e))
+            .unwrap_or_else(|e| format!("<html><body><h1>Error: {e}</h1></body></html>"))
     }
 }
 
 /// Create real hybrid analysis data from actual tracking
+#[must_use]
 pub fn create_real_hybrid_data(thread_count: usize, task_count: usize) -> HybridAnalysisData {
     let mut variable_registry = HashMap::new();
 
@@ -1254,13 +1241,14 @@ pub fn create_real_hybrid_data(thread_count: usize, task_count: usize) -> Hybrid
             let var_index = i * 3 + thread_offset;
 
             let variable = VariableDetail {
-                name: format!("{}_t{}_v{}", name_pattern, thread_id, var_index),
+                name: format!("{name_pattern}_t{thread_id}_v{var_index}"),
                 type_info: type_info.to_string(),
                 thread_id,
                 task_id: Some(task_id),
-                allocation_count: (*base_allocs as f64 * (1.0 + (thread_offset as f64 * 0.3)))
+                allocation_count: (f64::from(*base_allocs) * (1.0 + (thread_offset as f64 * 0.3)))
                     as u64,
-                memory_usage: (*base_memory as f64 * (1.0 + (thread_offset as f64 * 0.2))) as u64,
+                memory_usage: (f64::from(*base_memory) * (1.0 + (thread_offset as f64 * 0.2)))
+                    as u64,
                 lifecycle_stage: match var_index % 4 {
                     0 => LifecycleStage::Active,
                     1 => LifecycleStage::Allocated,

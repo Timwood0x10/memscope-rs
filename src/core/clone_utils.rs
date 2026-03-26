@@ -8,7 +8,8 @@ use crate::core::optimized_types::OptimizedAllocationInfo;
 use crate::core::types::AllocationInfo;
 use std::sync::Arc;
 
-/// Create an Arc-shared version of AllocationInfo
+/// Create an Arc-shared version of `AllocationInfo`
+#[must_use]
 pub fn share_allocation_info(info: AllocationInfo) -> Arc<OptimizedAllocationInfo> {
     let optimized = OptimizedAllocationInfo::from(info);
     let size = std::mem::size_of::<OptimizedAllocationInfo>();
@@ -17,7 +18,8 @@ pub fn share_allocation_info(info: AllocationInfo) -> Arc<OptimizedAllocationInf
     Arc::new(optimized)
 }
 
-/// Clone an Arc-shared AllocationInfo (cheap operation)
+/// Clone an Arc-shared `AllocationInfo` (cheap operation)
+#[must_use]
 pub fn clone_shared_allocation(
     arc_info: &Arc<OptimizedAllocationInfo>,
 ) -> Arc<OptimizedAllocationInfo> {
@@ -26,7 +28,8 @@ pub fn clone_shared_allocation(
     Arc::clone(arc_info)
 }
 
-/// Convert Arc-shared back to regular AllocationInfo when needed
+/// Convert Arc-shared back to regular `AllocationInfo` when needed
+#[must_use]
 pub fn unshare_allocation_info(arc_info: Arc<OptimizedAllocationInfo>) -> AllocationInfo {
     // Try to avoid cloning if we're the only reference
     match Arc::try_unwrap(arc_info) {
@@ -46,6 +49,7 @@ pub fn share_allocation_vector(
 }
 
 /// Check if a type should use Arc sharing based on size and usage patterns
+#[must_use]
 pub fn should_use_arc_sharing(type_name: &str, size: usize) -> bool {
     // Use Arc for large objects or frequently cloned types
     size > 1024

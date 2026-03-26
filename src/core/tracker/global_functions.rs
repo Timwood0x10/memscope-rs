@@ -1,12 +1,13 @@
 //! Global convenience functions for memory tracking.
 //!
-//! This module provides global convenience functions that wrap the TrackingManager
+//! This module provides global convenience functions that wrap the `TrackingManager`
 //! functionality for easier use throughout the application.
 
 use super::tracking_manager::TrackingManager;
 use crate::core::types::TrackingResult;
 
 /// Get unified tracking manager - convenience function
+#[must_use]
 pub fn get_tracking_manager() -> TrackingManager {
     TrackingManager::new()
 }

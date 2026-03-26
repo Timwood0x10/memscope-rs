@@ -15,7 +15,24 @@ use crate::core::types::{
     LifecycleEfficiencyMetrics, MemoryAccessPattern, OptimizationRecommendation,
     PerformanceCharacteristics, PerformanceImpact::Minor, ResourceWasteAssessment, ScopeType,
 };
-use crate::enhanced_types::*;
+use crate::enhanced_types::{
+    AllocationStrategy, AllocatorInfo, AmbiguityReason, AmbiguousAllocation, BloatLevel,
+    BoundaryDetectionAccuracy, CacheOptimizationReport, CodeBloatAssessment,
+    EliminationFeasibility, EnhancedMemoryAnalysisReport, EnhancedStackFrame,
+    EnhancedTemporaryObjectInfo, EscapeAnalysis, FragmentationImpact, FragmentationMetrics,
+    FragmentationMitigationStrategy, FragmentationPrediction, FragmentationSeverity,
+    FragmentationTimePoint, FragmentationTrends, FragmentationVisualization,
+    GenericTypeAnalysisReport, HeapAllocationDetails, HeapRegionInfo, HeapRegionType, HeapSegment,
+    HotTemporaryPattern, ImpactLevel, ImplementationComplexity, ImplementationDifficulty,
+    MemoryAccessAnalysisReport, MemorySpaceCoverage, MitigationStrategyType,
+    ObjectLifecycleAnalysisReport, OptimizationCandidate, OptimizationCategory,
+    OptimizationSuggestion, OptimizationType, OverallOptimizationRecommendation, PatternStatistics,
+    PerformanceImpactAssessment, PerformanceImplication, PerformanceImplicationType, Priority,
+    RealTimeFragmentationAnalysis, RealTimeMetrics, ResourceWasteAnalysis, Severity,
+    StackAllocationDetails, StackBoundaries, StackHeapBoundaryAnalysis,
+    StackHeapInteractionAnalysis, StackScopeAnalysis, TemporaryLifetimeAnalysis,
+    TemporaryObjectAnalysisReport, TemporaryPatternClassification, TrendDirection,
+};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -94,6 +111,7 @@ pub struct CachePerformanceOptimizer {
 
 impl StackFrameTracker {
     /// Create a new stack frame tracker
+    #[must_use]
     pub fn new() -> Self {
         Self {
             stack_boundaries: StackBoundaries::detect(),
@@ -103,11 +121,13 @@ impl StackFrameTracker {
     }
 
     /// Detect if a pointer is on the stack
+    #[must_use]
     pub fn is_stack_pointer(&self, ptr: usize) -> bool {
         self.stack_boundaries.contains(ptr)
     }
 
     /// Get the frame for a stack pointer
+    #[must_use]
     pub fn get_frame_for_pointer(&self, ptr: usize) -> Option<&EnhancedStackFrame> {
         if !self.is_stack_pointer(ptr) {
             return None;
@@ -129,6 +149,7 @@ impl Default for StackFrameTracker {
 
 impl HeapBoundaryDetector {
     /// Create a new heap boundary detector
+    #[must_use]
     pub fn new() -> Self {
         // Initialize with default system heap segment
         let default_segment = HeapSegment {
@@ -147,6 +168,7 @@ impl HeapBoundaryDetector {
     }
 
     /// Detect if a pointer is on the heap
+    #[must_use]
     pub fn is_heap_pointer(&self, ptr: usize) -> bool {
         self.heap_segments
             .iter()
@@ -154,6 +176,7 @@ impl HeapBoundaryDetector {
     }
 
     /// Get heap segment for a pointer
+    #[must_use]
     pub fn get_segment_for_pointer(&self, ptr: usize) -> Option<&HeapSegment> {
         self.heap_segments
             .iter()
@@ -175,6 +198,7 @@ impl Default for TemporaryObjectAnalyzer {
 
 impl TemporaryObjectAnalyzer {
     /// Create a new temporary object analyzer  
+    #[must_use]
     pub fn new() -> Self {
         Self {
             _patterns: HashMap::new(),
@@ -204,16 +228,15 @@ impl TemporaryObjectAnalyzer {
             hot_path_involvement: Self::is_in_hot_path(allocation),
             elimination_feasibility: Self::assess_elimination_feasibility(&pattern),
             optimization_potential: Self::assess_optimization_potential(allocation),
-            creation_context: allocation
-                .temporary_object
-                .as_ref()
-                .map(|t| t.creation_context.clone())
-                .unwrap_or_else(|| CreationContext {
+            creation_context: allocation.temporary_object.as_ref().map_or_else(
+                || CreationContext {
                     function_name: "unknown".to_string(),
                     expression_type: crate::core::types::ExpressionType::FunctionCall,
                     source_location: None,
                     call_stack: Vec::new(),
-                }),
+                },
+                |t| t.creation_context.clone(),
+            ),
             lifetime_analysis: TemporaryLifetimeAnalysis {
                 creation_time: allocation.timestamp_alloc,
                 destruction_time: allocation.timestamp_dealloc,
@@ -248,7 +271,7 @@ impl TemporaryObjectAnalyzer {
     fn is_likely_temporary(allocation: &AllocationInfo) -> bool {
         if let Some(type_name) = &allocation.type_name {
             // Common patterns for temporary objects
-            type_name.contains("&") || 
+            type_name.contains('&') || 
             type_name.contains("Iterator") ||
             type_name.contains("Ref") ||
             type_name.starts_with("impl ") ||
@@ -278,7 +301,7 @@ impl TemporaryObjectAnalyzer {
                 TemporaryPatternClassification::ErrorHandling
             } else if type_name.contains("Serialize") || type_name.contains("Deserialize") {
                 TemporaryPatternClassification::SerializationDeserialization
-            } else if type_name.contains("<") && type_name.contains(">") {
+            } else if type_name.contains('<') && type_name.contains('>') {
                 TemporaryPatternClassification::GenericInstantiation
             } else if type_name.contains("dyn ") || type_name.contains("Box<") {
                 TemporaryPatternClassification::TraitObjectCreation
@@ -427,7 +450,7 @@ s.push_str(", world!");
                             "Pre-allocate vectors with capacity hint to avoid reallocations"
                                 .to_string(),
                         code_example: Some(
-                            r#"
+                            r"
 // Instead of:
 let mut v = Vec::new();
 for i in 0..1000 {
@@ -439,7 +462,7 @@ let mut v = Vec::with_capacity(1000);
 for i in 0..1000 {
     v.push(i);
 }
-                        "#
+                        "
                             .to_string(),
                         ),
                         expected_improvement: 0.2,
@@ -470,6 +493,7 @@ impl Default for FragmentationMonitor {
 
 impl FragmentationMonitor {
     /// Create a new fragmentation monitor
+    #[must_use]
     pub fn new() -> Self {
         Self {
             current_metrics: FragmentationMetrics {
@@ -650,6 +674,7 @@ impl Default for GenericInstantiationTracker {
 
 impl GenericInstantiationTracker {
     /// Create a new generic instantiation tracker
+    #[must_use]
     pub fn new() -> Self {
         Self {
             _instantiations: HashMap::new(),
@@ -671,6 +696,7 @@ impl Default for ObjectLifecycleManager {
 
 impl ObjectLifecycleManager {
     /// Create a new object lifecycle manager
+    #[must_use]
     pub fn new() -> Self {
         Self {
             _lifecycles: HashMap::new(),
@@ -692,6 +718,7 @@ impl Default for MemoryAccessPatternAnalyzer {
 
 impl MemoryAccessPatternAnalyzer {
     /// Create a new memory access pattern analyzer
+    #[must_use]
     pub fn new() -> Self {
         Self {
             _patterns: HashMap::new(),
@@ -710,6 +737,7 @@ impl Default for CachePerformanceOptimizer {
 
 impl CachePerformanceOptimizer {
     /// Create a new cache performance optimizer
+    #[must_use]
     pub fn new() -> Self {
         Self {
             cache_line_analysis: CacheLineAnalysis {
@@ -882,6 +910,7 @@ pub fn analyze_memory_with_enhanced_features() -> Result<String, Box<dyn std::er
 
 impl EnhancedMemoryAnalyzer {
     /// Create a new enhanced memory analyzer
+    #[must_use]
     pub fn new() -> Self {
         Self {
             stack_frame_tracker: Arc::new(RwLock::new(StackFrameTracker::new())),
@@ -896,6 +925,7 @@ impl EnhancedMemoryAnalyzer {
     }
 
     /// Perform comprehensive memory analysis
+    #[must_use]
     pub fn analyze_comprehensive(
         &self,
         allocations: &[AllocationInfo],
