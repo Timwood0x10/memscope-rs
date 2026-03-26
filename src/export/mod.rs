@@ -1,3 +1,6 @@
+// Core export system (Phase 4 refactoring)
+pub mod exporter;
+
 // Core export modules
 pub mod adaptive_performance;
 pub mod analysis_engine;
@@ -43,4 +46,11 @@ pub use api::{
     ExportConfig,
     ExportStats,
     Exporter,
+};
+
+// Re-export core export system (Phase 4 refactoring)
+pub use exporter::{
+    BinaryExporter, CompositeExporter, CsvExporter, ExportBackend,
+    ExportConfig as CoreExportConfig, ExportError, ExportFormat, ExportOptimization, ExportOutput,
+    ExportResult, HtmlGenerator, JsonExporter,
 };

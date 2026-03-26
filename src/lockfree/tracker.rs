@@ -11,6 +11,11 @@
 //! - Thread isolation: Complete elimination of shared state
 //! - Performance focused: Minimal overhead on target application
 
+#[deprecated(
+    since = "0.4.0",
+    note = "Please use the new unified tracking system in src/new/tracker/mod.rs \
+           with TrackingStrategy::ThreadLocal. All functionality is preserved."
+)]
 use bincode::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

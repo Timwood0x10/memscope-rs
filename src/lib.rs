@@ -8,6 +8,12 @@
 #![allow(missing_docs)]
 #![allow(clippy::manual_is_multiple_of)] // is_multiple_of is unstable in Rust 1.85
 
+/// Unified core types system (Phase 1 refactoring)
+pub mod types;
+
+/// Unified tracking system (Phase 2 refactoring)
+pub mod tracker;
+
 /// Macro for advanced type Trackable implementations
 pub mod advanced_trackable_macro;
 /// Advanced type analysis framework
@@ -21,6 +27,9 @@ pub mod classification;
 pub mod cli;
 /// Core memory tracking functionality
 pub mod core;
+
+/// New unified architecture (Phase 2 refactoring)
+pub mod new;
 
 // Re-export optimized components for easy access
 pub use crate::core::performance_optimizer::{
@@ -86,14 +95,32 @@ pub use export::{
     binary::BinaryParser,       // High-performance binary parsing
 };
 
-// Re-export main types for easier use
+/// Re-export main types for easier use
 pub use analysis::enhanced_memory_analysis::EnhancedMemoryAnalyzer;
 pub use analysis::unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, UnsafeFFITracker};
-pub use core::allocator::TrackingAllocator;
+pub use core::allocator::TrackingAllocator as CoreTrackingAllocator;
 pub use core::tracker::memory_tracker::BinaryExportMode;
 pub use core::tracker::{get_tracker, ExportOptions, MemoryTracker};
 pub use core::types::{AllocationInfo, TrackingError, TrackingResult};
 pub use utils::{format_bytes, get_simple_type, simplify_type_name};
+
+// Re-export new unified tracking system (Phase 2 refactoring)
+pub use tracker::backend::{
+    AllocationContext, AsyncBackend, HybridBackend, OverheadLimit, SamplingConfig,
+    SingleThreadBackend, ThreadLocalBackend, TrackingAllocator, TrackingBackend, TrackingConfig,
+    TrackingStrategy, UnifiedTracker,
+};
+pub use tracker::{
+    configure_tracking_strategy, get_global_tracker, initialize, initialize_with_config, snapshot,
+    track_allocation, track_deallocation, track_ffi_alloc, track_ffi_free, track_task_end,
+    track_task_spawn,
+};
+
+// Re-export unified types and tracking system (Phase 1 & 2 refactoring)
+pub use types::internal_types::{
+    Allocation, AllocationMeta, Event, MemoryPassport, MemoryPassportTracker, PassportStatus,
+    SmartPointerInfo, Snapshot, Stats, TrackingError as UnifiedTrackingError,
+};
 
 // Re-export the derive macro when the derive feature is enabled
 #[cfg(feature = "derive")]

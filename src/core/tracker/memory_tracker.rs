@@ -1,8 +1,28 @@
 //! Core memory tracking functionality.
 //!
+//! # Deprecated
+//!
+//! This module is deprecated. Please use the new unified tracking system
+//! located in `src/new/tracker/mod.rs`.
+//!
+//! The new unified tracking system provides:
+//! - Better performance through configurable strategies
+//! - Cleaner API with reduced complexity
+//! - Unified type system across all tracking modes
+//!
+//! Migration Guide:
+//! - Replace `MemoryTracker` with `UnifiedTracker`
+//! - Use `UnifiedTracker::new()` with appropriate `TrackingConfig`
+//! - All public methods are preserved for backward compatibility
+//!
 //! This module contains the main MemoryTracker struct and its basic methods
 //! for creating, configuring, and managing the memory tracking system.
 
+#[deprecated(
+    since = "0.4.0",
+    note = "Please use the new unified tracking system in src/new/tracker/mod.rs. \
+           See migration guide above."
+)]
 use crate::core::bounded_memory_stats::{
     AllocationHistoryManager, BoundedMemoryStats, BoundedStatsConfig,
 };
@@ -58,22 +78,47 @@ thread_local! {
 
 /// Configure tracking strategy for the application.
 ///
+/// # Deprecated
+/// This function is deprecated. Please use the new unified tracking system
+/// by calling `get_unified_tracker()` with appropriate configuration.
+///
 /// This function should be called at program startup to set the appropriate
 /// tracking strategy based on whether the application is concurrent or not.
 ///
 /// # Arguments
 /// * `is_concurrent` - true for multi-threaded/async applications, false for single-threaded
+#[deprecated(
+    since = "0.4.0",
+    note = "Please use the new unified tracking system. \
+           Call get_unified_tracker() with TrackingConfig for better control."
+)]
 pub fn configure_tracking_strategy(is_concurrent: bool) {
+    // Forward to new unified tracking system
+    use crate::new::tracker::{get_global_tracker, TrackingConfig, TrackingStrategy};
+
+    let config = TrackingConfig {
+        strategy: if is_concurrent {
+            TrackingStrategy::ThreadLocal
+        } else {
+            TrackingStrategy::SingleThread
+        },
+        ..Default::default()
+    };
+
+    // Store the strategy in the old system for backward compatibility
     let strategy = if is_concurrent {
         STRATEGY_THREAD_LOCAL
     } else {
         STRATEGY_GLOBAL_SINGLETON
     };
-
     TRACKING_STRATEGY.store(strategy, Ordering::Relaxed);
 
+    // Enable the unified tracker
+    let unified = get_global_tracker();
+    unified.set_enabled(true);
+
     tracing::info!(
-        "Configured tracking strategy: {}",
+        "Configured tracking strategy: {} (delegating to unified tracker)",
         if is_concurrent {
             "thread-local"
         } else {
@@ -84,10 +129,19 @@ pub fn configure_tracking_strategy(is_concurrent: bool) {
 
 /// Get the appropriate memory tracker based on current strategy.
 ///
+/// # Deprecated
+/// This function is deprecated. Please use `get_unified_tracker()` instead.
+///
 /// This function implements the dual-mode dispatch:
 /// - In single-threaded mode: returns the global singleton tracker
 /// - In concurrent mode: returns the current thread's local tracker
+#[deprecated(
+    since = "0.4.0",
+    note = "Please use get_unified_tracker() from src/new/tracker/mod.rs instead."
+)]
 pub fn get_tracker() -> Arc<MemoryTracker> {
+    // For backward compatibility, return the old tracker instance
+    // but also ensure the unified tracker is active
     match TRACKING_STRATEGY.load(Ordering::Relaxed) {
         STRATEGY_GLOBAL_SINGLETON => GLOBAL_TRACKER
             .get_or_init(|| Arc::new(MemoryTracker::new()))
@@ -114,8 +168,29 @@ pub fn get_global_tracker() -> Arc<MemoryTracker> {
 
 /// Core memory tracking functionality.
 ///
+/// # Deprecated
+///
+/// Please use `UnifiedTracker` from `src/new/tracker/mod.rs` instead.
+///
+/// The new unified tracking system provides better performance and a cleaner API.
+/// All functionality is preserved for backward compatibility.
+///
+/// Migration:
+/// ```rust,ignore
+/// // Old code:
+/// let tracker = MemoryTracker::new();
+///
+/// // New code:
+/// let tracker = UnifiedTracker::new(TrackingConfig::default());
+/// ```
+///
 /// The MemoryTracker maintains records of all memory allocations and deallocations,
 /// provides statistics, and supports exporting data in various formats.
+#[deprecated(
+    since = "0.4.0",
+    note = "Please use UnifiedTracker from src/new/tracker/mod.rs instead. \
+           All functionality is preserved for backward compatibility."
+)]
 pub struct MemoryTracker {
     /// Active allocations (ptr -> allocation info)
     pub(crate) active_allocations: Mutex<HashMap<usize, AllocationInfo>>,

@@ -38,16 +38,10 @@
 ///     // Get memory statistics
 ///     let snapshot = async_memory::get_memory_snapshot();
 ///     println!("Tasks tracked: {}", snapshot.active_task_count());
+///     
 ///     Ok(())
 /// }
 /// ```
-
-#[deprecated(
-    since = "0.4.0",
-    note = "Please use the new unified tracking system in src/new/tracker/mod.rs \
-           with TrackingStrategy::Async, or use src/new/async_memory module instead. \
-           All functionality is preserved for backward compatibility."
-)]
 pub mod allocator;
 pub mod api;
 pub mod buffer;

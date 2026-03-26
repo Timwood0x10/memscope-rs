@@ -6,6 +6,7 @@
 //! - Type definitions
 //! - Scope tracking
 
+// Legacy modules (to be migrated)
 pub mod adaptive_hashmap;
 pub mod allocation_adapter;
 pub mod allocator;

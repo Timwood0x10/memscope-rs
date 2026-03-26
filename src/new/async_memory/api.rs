@@ -17,24 +17,10 @@ use crate::async_memory::task_id::{generate_task_id, set_current_task, TaskInfo}
 ///
 /// Must be called before spawning any tracked tasks.
 /// Sets up background aggregation and monitoring.
-///
-/// # Implementation Note
-/// This function now delegates to the new unified tracking system
-/// with Async strategy enabled.
 pub fn initialize() -> AsyncResult<()> {
-    // Enable tracking in new unified tracking system with Async strategy
-    use crate::new::tracker::{get_global_tracker, TrackingConfig, TrackingStrategy};
-
-    let config = TrackingConfig {
-        strategy: TrackingStrategy::Async,
-        enable_lifecycle: true,
-        ..Default::default()
-    };
-
-    let unified = get_global_tracker();
-    unified.set_enabled(true);
-
-    tracing::info!("Async memory tracking system initialized (delegating to unified tracker)");
+    // For now, just verify the system is ready
+    // Future implementation would start background aggregator thread
+    tracing::info!("Async memory tracking system initialized");
     Ok(())
 }
 
@@ -167,20 +153,17 @@ impl AsyncMemorySnapshot {
 /// This is a simplified implementation - production version would
 /// aggregate data from all threads and the background aggregator.
 pub fn get_memory_snapshot() -> AsyncMemorySnapshot {
-    // Query the unified tracking system
-    use crate::new::tracker::get_global_tracker;
-
-    let unified = get_global_tracker();
-    let stats = unified.stats();
-
-    // Get buffer stats from old system
     let buffer_stats = get_buffer_stats();
 
-    // Combine data from both systems
+    // Simplified snapshot - real implementation would aggregate from all sources
     AsyncMemorySnapshot {
-        active_task_count: stats.active_allocations, // Use active allocations as proxy for tasks
-        total_allocated_bytes: stats.total_size as u64,
-        allocation_events: stats.total_allocations as u64,
+        active_task_count: if buffer_stats.current_events > 0 {
+            1
+        } else {
+            0
+        },
+        total_allocated_bytes: buffer_stats.current_events as u64 * 1024, // Rough estimate
+        allocation_events: buffer_stats.current_events as u64,
         events_dropped: buffer_stats.events_dropped as u64,
         buffer_utilization: buffer_stats.utilization,
     }
@@ -188,8 +171,6 @@ pub fn get_memory_snapshot() -> AsyncMemorySnapshot {
 
 /// Check if async memory tracking is currently active
 pub fn is_tracking_active() -> bool {
-    // For backward compatibility, only check the old system
-    // The new unified tracker may be enabled by default
     crate::async_memory::allocator::is_tracking_enabled()
 }
 

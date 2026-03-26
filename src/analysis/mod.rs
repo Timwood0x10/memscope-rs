@@ -5,6 +5,10 @@
 //! - Circular reference detection
 //! - Unsafe FFI tracking
 //! - Unknown memory region analysis
+//! - Unified analyzer system (Phase 3 refactoring)
+
+// Core analysis system (Phase 3 refactoring)
+pub mod analyzer;
 
 pub mod circular_reference;
 pub mod enhanced_memory_analysis;
@@ -45,8 +49,13 @@ pub use ffi_function_resolver::{
     FfiFunctionResolver, FfiRiskLevel, ResolutionStats, ResolvedFfiFunction, ResolverConfig,
 };
 pub use generic_analysis::{get_global_generic_analyzer, GenericAnalyzer, GenericStatistics};
-pub use lifecycle_analysis::{
-    get_global_lifecycle_analyzer, LifecycleAnalysisReport, LifecycleAnalyzer,
+pub use lifecycle_analysis::{get_global_lifecycle_analyzer, LifecycleAnalysisReport};
+
+// Re-export core analyzer system (Phase 3 refactoring)
+pub use analyzer::{
+    AnalysisReport, AnalysisResult, Analyzer, CompositeAnalyzer, FragmentationAnalyzer,
+    LeakAnalyzer, LeakAnalyzerConfig, LifecycleAnalyzer, SafetyAnalyzer, Severity,
+    SmartPointerAnalyzer,
 };
 pub use memory_passport_tracker::{
     get_global_passport_tracker, initialize_global_passport_tracker, LeakDetail,
@@ -55,7 +64,7 @@ pub use memory_passport_tracker::{
 };
 pub use safety_analyzer::{
     DynamicViolation, RiskAssessment, RiskFactor, RiskFactorType, SafetyAnalysisConfig,
-    SafetyAnalysisStats, SafetyAnalyzer, UnsafeReport, UnsafeSource,
+    SafetyAnalysisStats, UnsafeReport, UnsafeSource,
 };
 pub use unsafe_ffi_tracker::ComprehensiveSafetyReport;
 
