@@ -9,7 +9,7 @@ use std::path::Path;
 use std::sync::{Arc, RwLock};
 
 use crate::data::{ExportFormat, TrackingSnapshot, TrackingStrategy};
-use crate::error::types::{ErrorKind, ErrorSeverity, MemScopeError};
+use crate::error::types::{ErrorKind, MemScopeError};
 use crate::render::renderer::Renderer;
 use crate::render::{BinaryRenderer, HtmlRenderer, JsonRenderer};
 use crate::tracker::base::TrackBase;

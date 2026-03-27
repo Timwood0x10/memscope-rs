@@ -90,6 +90,7 @@ impl TrackBase for CoreTracker {
 
     fn track_alloc(&self, ptr: usize, size: usize) {
         let mut state = self.state.write().unwrap();
+
         if !state.enabled {
             return;
         }
@@ -99,11 +100,14 @@ impl TrackBase for CoreTracker {
             size,
             timestamp: Self::timestamp(),
             thread_id: Self::thread_id(),
-            stack_id: None,  // Optional: capture stack trace
-            var_name: None,  // Optional: capture variable name
+            stack_id: None, // Optional: capture stack trace
+            var_name: None, // Optional: capture variable name
             type_name: None, // Optional: capture type name
             is_active: true,
             dealloc_timestamp: None,
+            borrow_info: None,
+            clone_info: None,
+            ownership_history_available: false,
         };
 
         state.total_allocated += size;

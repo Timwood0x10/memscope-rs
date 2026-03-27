@@ -152,6 +152,9 @@ impl AsyncTracker {
             type_name: None,
             is_active: true,
             dealloc_timestamp: None,
+            borrow_info: None,
+            clone_info: None,
+            ownership_history_available: false,
         };
 
         state.total_allocated += size;
@@ -196,6 +199,9 @@ impl TrackBase for AsyncTracker {
             type_name: None,
             is_active: true,
             dealloc_timestamp: None,
+            borrow_info: None,
+            clone_info: None,
+            ownership_history_available: false,
         };
 
         state.total_allocated += size;

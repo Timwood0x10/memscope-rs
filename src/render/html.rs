@@ -1,14 +1,19 @@
 //! HTML rendering implementation
 //!
 //! Provides HTML rendering for all tracking strategies with
-//! strategy-specific dashboards.
+//! strategy-specific dashboards using templates from ./templates/.
 
 use super::renderer::Renderer;
 use crate::data::{RenderOutput, RenderResult, TrackingSnapshot, TrackingStrategy};
+use crate::error::types::{ErrorKind, MemScopeError};
+use serde_json::{json, Value};
+use std::collections::HashMap;
+use std::path::Path;
 
 /// HTML renderer
 ///
-/// Generates strategy-specific HTML dashboards for memory tracking data.
+/// Generates strategy-specific HTML dashboards for memory tracking data
+/// using templates from the templates directory.
 pub struct HtmlRenderer;
 
 impl HtmlRenderer {
@@ -17,839 +22,571 @@ impl HtmlRenderer {
         Self
     }
 
+    /// Load template from templates directory
+    ///
+    /// Template path resolution order:
+    /// 1. Environment variable `MEMSCOPE_TEMPLATES_DIR` if set
+    /// 2. `templates/` relative to current working directory
+    /// 3. `./templates/` relative to the executable
+    fn load_template(&self, template_name: &str) -> RenderResult<String> {
+        // Try environment variable first
+        if let Ok(custom_dir) = std::env::var("MEMSCOPE_TEMPLATES_DIR") {
+            let template_path = std::path::PathBuf::from(custom_dir).join(template_name);
+            if let Ok(content) = std::fs::read_to_string(&template_path) {
+                return Ok(content);
+            }
+        }
+
+        // Try current working directory
+        if let Ok(cwd) = std::env::current_dir() {
+            let template_path = cwd.join("templates").join(template_name);
+            if let Ok(content) = std::fs::read_to_string(&template_path) {
+                return Ok(content);
+            }
+        }
+
+        // Try relative to executable
+        if let Ok(exe_path) = std::env::current_exe() {
+            if let Some(exe_dir) = exe_path.parent() {
+                let template_path = exe_dir.join("templates").join(template_name);
+                if let Ok(content) = std::fs::read_to_string(&template_path) {
+                    return Ok(content);
+                }
+            }
+        }
+
+        // If all attempts failed, return a detailed error
+        let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+        let template_path = cwd.join("templates").join(template_name);
+        
+        let mut error_msg = format!("Failed to load template '{}'. Tried:\n", template_name);
+        error_msg.push_str(&format!("  1. Environment variable MEMSCOPE_TEMPLATES_DIR\n"));
+        error_msg.push_str(&format!("  2. {}/templates/\n", cwd.display()));
+        
+        if let Ok(exe_path) = std::env::current_exe() {
+            if let Some(exe_dir) = exe_path.parent() {
+                error_msg.push_str(&format!("  3. {}/templates/\n", exe_dir.display()));
+            }
+        }
+        
+        error_msg.push_str(&format!("\nExpected path: {}", template_path.display()));
+        
+        Err(MemScopeError::new(ErrorKind::InternalError, &error_msg))
+    }
+
+    /// Common template rendering logic
+    ///
+    /// This function handles the common pattern of:
+    /// 1. Loading a template
+    /// 2. Preparing analysis data
+    /// 3. Replacing placeholders
+    /// 4. Injecting data script
+    /// 5. Generating error page on failure (instead of complex fallback)
+    fn render_with_template(
+        &self,
+        template_name: &str,
+        strategy_name: &str,
+        snapshot: &TrackingSnapshot,
+    ) -> String {
+        // Load template
+        let template = match self.load_template(template_name) {
+            Ok(t) => t,
+            Err(e) => {
+                return self.generate_error_html(
+                    strategy_name,
+                    &format!("Failed to load template '{}': {}", template_name, e),
+                    snapshot,
+                );
+            }
+        };
+
+        // Prepare data for template
+        let analysis_data = match self.prepare_analysis_data(snapshot) {
+            Ok(data) => data,
+            Err(e) => {
+                return self.generate_error_html(
+                    strategy_name,
+                    &format!("Failed to prepare analysis data: {}", e),
+                    snapshot,
+                );
+            }
+        };
+
+        // Replace placeholders with actual data
+        let mut html = template.clone();
+        html = html.replace("{{BINARY_DATA}}", &analysis_data);
+        html = self.replace_placeholders(&html, snapshot);
+
+        // Ensure data injection
+        if !html.contains("window.analysisData") {
+            html = self.inject_analysis_data_script(&html, &analysis_data);
+        }
+
+        html
+    }
+
+    /// Prepare analysis data in the format expected by the templates
+    ///
+    /// This converts TrackingSnapshot to the complex JSON structure that
+    /// the JavaScript in the templates expects.
+    fn prepare_analysis_data(&self, snapshot: &TrackingSnapshot) -> Result<String, MemScopeError> {
+        // Convert allocations to the expected format
+        let allocations: Vec<Value> = snapshot
+            .allocations
+            .iter()
+            .map(|alloc| {
+                let lifetime_ms = alloc.lifetime_ms().unwrap_or(0) as f64;
+                let timestamp_dealloc = alloc.dealloc_timestamp.map(|t| t as i64);
+                
+                // Handle borrow_info
+                let borrow_info_json = if let Some(ref borrow_info) = alloc.borrow_info {
+                    json!({
+                        "immutable_borrows": borrow_info.immutable_borrows,
+                        "mutable_borrows": borrow_info.mutable_borrows,
+                        "max_concurrent_borrows": borrow_info.max_concurrent_borrows,
+                        "last_borrow_timestamp": borrow_info.last_borrow_timestamp
+                    })
+                } else {
+                    Value::Null
+                };
+
+                // Handle clone_info
+                let clone_info_json = if let Some(ref clone_info) = alloc.clone_info {
+                    json!({
+                        "clone_count": clone_info.clone_count,
+                        "is_clone": clone_info.is_clone,
+                        "original_ptr": clone_info.original_ptr.map(|p| format!("0x{:x}", p))
+                    })
+                } else {
+                    Value::Null
+                };
+
+                json!({
+                    "ptr": format!("0x{:x}", alloc.ptr),
+                    "size": alloc.size,
+                    "var_name": alloc.var_name.as_deref().unwrap_or("unknown"),
+                    "type_name": alloc.type_name.as_deref().unwrap_or("unknown"),
+                    "thread_id": alloc.thread_id,
+                    "timestamp_alloc": alloc.timestamp as i64,
+                    "timestamp_dealloc": timestamp_dealloc,
+                    "is_leaked": !alloc.is_active && timestamp_dealloc.is_none(),
+                    "is_active": alloc.is_active,
+                    "lifetime_ms": lifetime_ms,
+                    "borrow_count": alloc.borrow_info.as_ref()
+                        .map(|b| b.immutable_borrows + b.mutable_borrows)
+                        .unwrap_or(0),
+                    "borrow_info": borrow_info_json,
+                    "clone_info": clone_info_json,
+                    "ownership_history_available": alloc.ownership_history_available
+                })
+            })
+            .collect();
+
+        // Generate enhanced data sections
+        let (lifetime_data, complex_types, unsafe_ffi, performance_data) =
+            self.generate_enhanced_data(&allocations);
+
+        // Build the complete data structure expected by templates
+        let data_structure = json!({
+            "memory_analysis": {
+                "allocations": allocations.clone()
+            },
+            "allocations": allocations, // Direct access for compatibility
+            "lifetime": lifetime_data,
+            "complex_types": complex_types,
+            "unsafe_ffi": unsafe_ffi,
+            "performance": performance_data,
+            "metadata": {
+                "generation_time": format_timestamp(snapshot.timestamp),
+                "data_source": "unified_tracker",
+                "version": "2.0",
+                "strategy": format!("{:?}", snapshot.strategy)
+            }
+        });
+
+        serde_json::to_string(&data_structure).map_err(|e| {
+            MemScopeError::new(ErrorKind::InternalError, &e.to_string())
+        })
+    }
+
+    /// Generate enhanced data sections for the dashboard
+    fn generate_enhanced_data(&self, allocations: &[serde_json::Value]) -> (Value, Value, Value, Value) {
+        // Generate lifetime data
+        let lifetime_data = self.generate_lifetime_data(allocations);
+
+        // Generate complex types data
+        let complex_types = self.generate_complex_types_data(allocations);
+
+        // Generate unsafe FFI data
+        let unsafe_ffi = self.generate_unsafe_ffi_data(allocations);
+
+        // Generate performance data
+        let performance = self.generate_performance_data(allocations);
+
+        (lifetime_data, complex_types, unsafe_ffi, performance)
+    }
+
+    /// Generate lifetime analysis data
+    fn generate_lifetime_data(&self, allocations: &[serde_json::Value]) -> Value {
+        let mut total_lifetime = 0.0;
+        let mut allocation_count = 0;
+        let mut lifetime_buckets = HashMap::new();
+
+        for alloc in allocations {
+            if let Some(lifetime_ms) = alloc.get("lifetime_ms").and_then(|v| v.as_f64()) {
+                total_lifetime += lifetime_ms;
+                allocation_count += 1;
+
+                // Group by lifetime buckets
+                let bucket = self.get_lifetime_bucket(lifetime_ms);
+                *lifetime_buckets.entry(bucket).or_insert(0) += 1;
+            }
+        }
+
+        let avg_lifetime = if allocation_count > 0 {
+            total_lifetime / allocation_count as f64
+        } else {
+            0.0
+        };
+
+        json!({
+            "total_lifetime_avg": avg_lifetime,
+            "allocation_count": allocation_count,
+            "lifetime_distribution": lifetime_buckets
+        })
+    }
+
+    /// Get lifetime bucket for categorization
+    fn get_lifetime_bucket(&self, lifetime_ms: f64) -> String {
+        match lifetime_ms {
+            t if t < 1.0 => "sub-millisecond".to_string(),
+            t if t < 10.0 => "1-10ms".to_string(),
+            t if t < 100.0 => "10-100ms".to_string(),
+            t if t < 1000.0 => "100ms-1s".to_string(),
+            t if t < 10000.0 => "1s-10s".to_string(),
+            _ => "10s+".to_string(),
+        }
+    }
+
+    /// Generate complex types analysis data
+    fn generate_complex_types_data(&self, allocations: &[serde_json::Value]) -> Value {
+        let mut type_distribution: HashMap<String, usize> = HashMap::new();
+        let mut smart_pointer_usage = HashMap::new();
+
+        for alloc in allocations {
+            if let Some(type_name) = alloc.get("type_name").and_then(|v| v.as_str()) {
+                *type_distribution.entry(type_name.to_string()).or_insert(0) += 1;
+
+                // Detect smart pointers
+                if type_name.contains("Arc<") || type_name.contains("Rc<") {
+                    *smart_pointer_usage.entry("reference_counted".to_string()).or_insert(0) += 1;
+                }
+                if type_name.contains("Box<") {
+                    *smart_pointer_usage.entry("boxed".to_string()).or_insert(0) += 1;
+                }
+                if type_name.contains("Vec<") || type_name.contains("HashMap<") {
+                    *smart_pointer_usage.entry("collection".to_string()).or_insert(0) += 1;
+                }
+            }
+        }
+
+        json!({
+            "type_distribution": type_distribution,
+            "smart_pointer_usage": smart_pointer_usage
+        })
+    }
+
+    /// Generate unsafe FFI data
+    fn generate_unsafe_ffi_data(&self, allocations: &[serde_json::Value]) -> Value {
+        // Count allocations that might be from unsafe operations
+        let unsafe_allocations = allocations
+            .iter()
+            .filter(|alloc| {
+                alloc.get("type_name")
+                    .and_then(|v| v.as_str())
+                    .map(|t| t.contains("CString") || t.contains("CStr") || t.contains("*mut") || t.contains("*const"))
+                    .unwrap_or(false)
+            })
+            .count();
+
+        json!({
+            "unsafe_allocations": unsafe_allocations,
+            "ffi_calls": 0, // Would need additional tracking
+            "safety_violations": []
+        })
+    }
+
+    /// Generate performance metrics data
+    fn generate_performance_data(&self, allocations: &[serde_json::Value]) -> Value {
+        let allocation_count = allocations.len() as u64;
+        let total_memory: u64 = allocations
+            .iter()
+            .filter_map(|alloc| alloc.get("size").and_then(|v| v.as_u64()))
+            .sum();
+
+        // Calculate allocation rate (simplified)
+        let allocation_rate = if allocation_count > 0 {
+            allocation_count // Rate per second would need timestamp data
+        } else {
+            0
+        };
+
+        json!({
+            "allocation_rate": allocation_rate,
+            "deallocation_rate": 0, // Would need deallocation tracking
+            "peak_concurrency": allocation_count,
+            "efficiency_score": 100 // Placeholder calculation
+        })
+    }
+
+    /// Replace placeholders in template with actual data
+    fn replace_placeholders(&self, template: &str, snapshot: &TrackingSnapshot) -> String {
+        let allocations_json = serde_json::to_string(&snapshot.allocations).unwrap_or_default();
+        let events_json = serde_json::to_string(&snapshot.events).unwrap_or_default();
+        let tasks_json = serde_json::to_string(&snapshot.tasks).unwrap_or_default();
+        let stats_json = serde_json::to_string(&snapshot.stats).unwrap_or_default();
+        let snapshot_json = serde_json::to_string(snapshot).unwrap_or_default();
+
+        let mut html = template.to_string();
+
+        // Replace basic placeholders
+        html = html.replace("{{TITLE}}", &format!("Memory Analysis - {:?}", snapshot.strategy));
+        html = html.replace("{{title}}", &format!("Memory Analysis - {:?}", snapshot.strategy));
+        html = html.replace("{{timestamp}}", &format_timestamp(snapshot.timestamp));
+        html = html.replace("{{strategy}}", &format!("{:?}", snapshot.strategy));
+        html = html.replace("{{STRATEGY}}", &format!("{:?}", snapshot.strategy));
+
+        // Replace JSON data placeholders
+        html = html.replace("{{allocations_json}}", &allocations_json);
+        html = html.replace("{{ALLOCATIONS_DATA}}", &allocations_json);
+        html = html.replace("{{events_json}}", &events_json);
+        html = html.replace("{{EVENTS_DATA}}", &events_json);
+        html = html.replace("{{tasks_json}}", &tasks_json);
+        html = html.replace("{{TASKS_DATA}}", &tasks_json);
+        html = html.replace("{{stats_json}}", &stats_json);
+        html = html.replace("{{STATS_DATA}}", &stats_json);
+        html = html.replace("{{snapshot_json}}", &snapshot_json);
+
+        // Replace statistics placeholders
+        html = html.replace("{{total_allocations}}", &snapshot.stats.total_allocations.to_string());
+        html = html.replace("{{TOTAL_ALLOCATIONS}}", &snapshot.stats.total_allocations.to_string());
+        html = html.replace("{{total_deallocations}}", &snapshot.stats.total_deallocations.to_string());
+        html = html.replace("{{TOTAL_DEALLOCATIONS}}", &snapshot.stats.total_deallocations.to_string());
+        html = html.replace("{{peak_memory}}", &format_bytes(snapshot.stats.peak_memory as usize));
+        html = html.replace("{{PEAK_MEMORY}}", &format_bytes(snapshot.stats.peak_memory as usize));
+        html = html.replace("{{active_memory}}", &format_bytes(snapshot.stats.active_memory as usize));
+        html = html.replace("{{ACTIVE_MEMORY}}", &format_bytes(snapshot.stats.active_memory as usize));
+        html = html.replace("{{fragmentation}}", &format!("{:.2}", snapshot.stats.fragmentation));
+        html = html.replace("{{FRAGMENTATION}}", &format!("{:.2}", snapshot.stats.fragmentation));
+
+        // Replace memory placeholders (in MB)
+        html = html.replace("{{TOTAL_MEMORY}}", &format!("{:.1}MB", snapshot.stats.peak_memory as f64 / 1024.0 / 1024.0));
+        html = html.replace("{{totalMemory}}", &format!("{:.1}MB", snapshot.stats.peak_memory as f64 / 1024.0 / 1024.0));
+        html = html.replace("{{CURRENT_MEMORY}}", &format!("{:.1}MB", snapshot.stats.active_memory as f64 / 1024.0 / 1024.0));
+
+        // Replace allocation count placeholders
+        html = html.replace("{{TOTAL_VARIABLES}}", &snapshot.allocations.len().to_string());
+        html = html.replace("{{totalVariables}}", &snapshot.allocations.len().to_string());
+
+        // Replace thread count placeholder (for lockfree strategy)
+        html = html.replace("{{THREAD_COUNT}}", &format!("{}", snapshot.allocations.len()));
+        html = html.replace("{{threadCount}}", &format!("{}", snapshot.allocations.len()));
+
+        // Replace efficiency placeholder
+        html = html.replace("{{EFFICIENCY}}", &format!("{:.1}", 100.0 * (1.0 - snapshot.stats.fragmentation)));
+        html = html.replace("{{efficiency}}", &format!("{:.1}", 100.0 * (1.0 - snapshot.stats.fragmentation)));
+
+        html
+    }
+
+    /// Replace fallback placeholders for compatibility
+    fn replace_fallback_placeholders(&self, html: &mut String, snapshot: &TrackingSnapshot) {
+        // Handle various placeholder variations
+        let project_name = String::from("MemScope");
+        let generation_time = format_timestamp(snapshot.timestamp);
+        let title = format!("Memory Analysis - {:?}", snapshot.strategy);
+        
+        let placeholders = [
+            ("{{BINARY_DATA}}", &self.prepare_analysis_data(snapshot).unwrap_or_default()),
+            ("{{ json_data }}", &self.prepare_analysis_data(snapshot).unwrap_or_default()),
+            ("{{json_data}}", &self.prepare_analysis_data(snapshot).unwrap_or_default()),
+            ("{{ALLOCATION_DATA}}", &self.prepare_allocation_json(snapshot)),
+            ("{{PROJECT_NAME}}", &project_name),
+            ("{{TITLE}}", &title),
+            ("{{GENERATION_TIME}}", &generation_time),
+        ];
+
+        for (placeholder, value) in placeholders {
+            *html = html.replace(placeholder, value);
+        }
+
+        // Handle hardcoded window.analysisData assignments
+        if let Some(start) = html.find("window.analysisData = {") {
+            if let Some(end) = html[start..].find("};") {
+                let end_pos = start + end + 2;
+                let analysis_data = self.prepare_analysis_data(snapshot).unwrap_or_default();
+                let before = &html[..start];
+                let after = &html[end_pos..];
+                *html = format!("{}window.analysisData = {};{}", before, analysis_data, after);
+            }
+        }
+    }
+
+    /// Inject analysis data script into HTML
+    fn inject_analysis_data_script(&self, html: &str, data: &str) -> String {
+        let script = format!(
+            r#"
+    <script>
+    window.analysisData = {};
+    console.log('Data injection successful:', window.analysisData);
+    </script>
+    "#,
+            data
+        );
+
+        if let Some(head_end) = html.find("</head>") {
+            format!("{}{}{}", &html[..head_end], script, &html[head_end..])
+        } else {
+            format!("{}{}", html, script)
+        }
+    }
+
+    /// Prepare allocation JSON data
+    fn prepare_allocation_json(&self, snapshot: &TrackingSnapshot) -> String {
+        serde_json::to_string(&snapshot.allocations).unwrap_or_default()
+    }
+
     /// Generate Core strategy HTML
     fn render_core(&self, snapshot: &TrackingSnapshot) -> String {
-        let allocations_json = serde_json::to_string(&snapshot.allocations).unwrap_or_default();
-        let stats_json = serde_json::to_string(&snapshot.stats).unwrap_or_default();
+        self.render_with_template(
+            "clean_dashboard.html",
+            "Core",
+            snapshot,
+        )
+    }
 
-        let html_template = r#"<!DOCTYPE html>
-<html lang="zh-CN">
+    /// Generate simple error page (when template loading fails)
+    fn generate_error_html(&self, strategy_name: &str, error_msg: &str, snapshot: &TrackingSnapshot) -> String {
+        let timestamp = format_timestamp(snapshot.timestamp);
+        let data_json = serde_json::to_string(&snapshot).unwrap_or_default();
+        
+        format!(
+            r#"<!DOCTYPE html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Core Memory Tracking Dashboard</title>
+    <title>Memory Tracking Error - {}</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
             padding: 20px;
-        }
-        .container { 
-            max-width: 1400px; 
-            margin: 0 auto; 
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            padding: 40px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-        }
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 40px;
-            padding-bottom: 20px;
-            border-bottom: 2px solid #e0e0e0;
-        }
-        .header h1 {
-            font-size: 36px;
-            font-weight: 700;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-        .stats-grid { 
-            display: grid; 
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); 
-            gap: 20px; 
-            margin-bottom: 40px; 
-        }
-        .stat-card {
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-            padding: 25px;
-            border-radius: 15px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-        .stat-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-        }
-        .stat-label { 
-            font-size: 14px; 
-            color: #666; 
-            margin-bottom: 8px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        .stat-value { 
-            font-size: 32px; 
-            font-weight: 700; 
-            color: #333;
-        }
-        .stat-value.highlight {
-            color: #667eea;
-        }
-        .section {
-            margin-bottom: 40px;
-        }
-        .section h2 {
-            font-size: 24px;
-            font-weight: 600;
-            margin-bottom: 20px;
-            color: #333;
-        }
-        .allocation-table {
-            width: 100%;
-            border-collapse: collapse;
-            background: white;
-            border-radius: 10px;
-            overflow: hidden;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-        }
-        .allocation-table th {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 15px;
-            text-align: left;
-            font-weight: 600;
-        }
-        .allocation-table td {
-            padding: 12px 15px;
-            border-bottom: 1px solid #e0e0e0;
-        }
-        .allocation-table tr:hover {
             background: #f5f5f5;
-        }
+        }}
+        .error-container {{
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }}
+        h1 {{ color: #e74c3c; }}
+        .error-details {{
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }}
+        .stats-summary {{
+            margin-top: 20px;
+            padding: 15px;
+            background: #e8f5e9;
+            border-radius: 4px;
+        }}
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>Core Memory Tracking</h1>
-            <div style="color: #666; font-size: 14px;">TIMESTAMP</div>
+    <div class="error-container">
+        <h1>⚠️ Template Loading Failed</h1>
+        <p><strong>Strategy:</strong> {}</p>
+        <p><strong>Timestamp:</strong> {}</p>
+        
+        <div class="error-details">
+            <strong>Error:</strong>
+            {}
         </div>
-
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-label">Total Allocated</div>
-                <div class="stat-value">TOTAL_ALLOCATED</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Current Allocated</div>
-                <div class="stat-value highlight">CURRENT_ALLOCATED</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Peak Memory</div>
-                <div class="stat-value">PEAK_MEMORY</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Fragmentation</div>
-                <div class="stat-value">FRAGMENTATION%</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Average Size</div>
-                <div class="stat-value">AVERAGE_SIZE</div>
-            </div>
+        
+        <div class="stats-summary">
+            <h3>Statistics:</h3>
+            <ul>
+                <li>Total allocations: {}</li>
+                <li>Total deallocations: {}</li>
+                <li>Peak memory: {} bytes</li>
+                <li>Active memory: {} bytes</li>
+            </ul>
         </div>
-
-        <div class="section">
-            <h2>Active Allocations (ALLOCATIONS_COUNT)</h2>
-            <table class="allocation-table">
-                <thead>
-                    <tr>
-                        <th>Address</th>
-                        <th>Size</th>
-                        <th>Thread</th>
-                        <th>Timestamp</th>
-                    </tr>
-                </thead>
-                <tbody id="allocations-body">
-                </tbody>
-            </table>
+        
+        <p style="margin-top: 20px; font-size: 0.9em; color: #666;">
+            Raw data is available below for manual inspection.
+        </p>
+        
+        <div class="error-details">
+            <h3>Raw Data (JSON):</h3>
+            <pre>{}</pre>
         </div>
     </div>
-
-    <script>
-        const allocations = ALLOCATIONS_JSON;
-        const stats = STATS_JSON;
-
-        const allocationsBody = document.getElementById('allocations-body');
-        allocations.forEach((alloc) => {
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td>0x${alloc.ptr.toString(16).padStart(16, '0')}</td>
-                <td>${formatBytes(alloc.size)}</td>
-                <td>${alloc.thread_id}</td>
-                <td>${alloc.timestamp}</td>
-            `;
-            allocationsBody.appendChild(row);
-        });
-
-        function formatBytes(bytes) {
-            if (bytes === 0) return '0 B';
-            const k = 1024;
-            const sizes = ['B', 'KB', 'MB', 'GB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-        }
-    </script>
 </body>
-</html>"#;
+</html>"#,
+            strategy_name,
+            strategy_name,
+            timestamp,
+            error_msg,
+            snapshot.stats.total_allocations,
+            snapshot.stats.total_deallocations,
+            snapshot.stats.peak_memory,
+            snapshot.stats.active_memory,
+            data_json
+        )
+    }
 
-        html_template
-            .replace("TIMESTAMP", &format_timestamp(snapshot.timestamp))
-            .replace(
-                "TOTAL_ALLOCATED",
-                &format_bytes(snapshot.stats.total_allocated as usize),
-            )
-            .replace(
-                "CURRENT_ALLOCATED",
-                &format_bytes(snapshot.stats.current_allocated),
-            )
-            .replace(
-                "PEAK_MEMORY",
-                &format_bytes(snapshot.stats.peak_memory as usize),
-            )
-            .replace(
-                "FRAGMENTATION",
-                &format!("{:.2}", snapshot.stats.fragmentation),
-            )
-            .replace(
-                "AVERAGE_SIZE",
-                &format_bytes(snapshot.stats.average_allocation_size),
-            )
-            .replace("ALLOCATIONS_COUNT", &snapshot.allocations.len().to_string())
-            .replace("ALLOCATIONS_JSON", &allocations_json)
-            .replace("STATS_JSON", &stats_json)
+    /// Get strategy name for error messages
+    fn get_strategy_name(&self, strategy: TrackingStrategy) -> &'static str {
+        match strategy {
+            TrackingStrategy::Core => "Core",
+            TrackingStrategy::Lockfree => "Lockfree",
+            TrackingStrategy::Async => "Async",
+            TrackingStrategy::Unified => "Unified",
+        }
     }
 
     /// Generate Lockfree strategy HTML
     fn render_lockfree(&self, snapshot: &TrackingSnapshot) -> String {
-        let events_json = serde_json::to_string(&snapshot.events).unwrap_or_default();
-        let stats_json = serde_json::to_string(&snapshot.stats).unwrap_or_default();
-
-        let html_template = r#"<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lockfree Memory Tracking Dashboard</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-        .container { 
-            max-width: 1400px; 
-            margin: 0 auto; 
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            padding: 40px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-        }
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 40px;
-            padding-bottom: 20px;
-            border-bottom: 2px solid #e0e0e0;
-        }
-        .header h1 {
-            font-size: 36px;
-            font-weight: 700;
-            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-        .stats-grid { 
-            display: grid; 
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); 
-            gap: 20px; 
-            margin-bottom: 40px; 
-        }
-        .stat-card {
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-            padding: 25px;
-            border-radius: 15px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-        .stat-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-        }
-        .stat-label { 
-            font-size: 14px; 
-            color: #666; 
-            margin-bottom: 8px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        .stat-value { 
-            font-size: 32px; 
-            font-weight: 700; 
-            color: #333;
-        }
-        .section {
-            margin-bottom: 40px;
-        }
-        .section h2 {
-            font-size: 24px;
-            font-weight: 600;
-            margin-bottom: 20px;
-            color: #333;
-        }
-        .event-timeline {
-            position: relative;
-            padding-left: 30px;
-        }
-        .event-timeline::before {
-            content: '';
-            position: absolute;
-            left: 10px;
-            top: 0;
-            bottom: 0;
-            width: 2px;
-            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-        }
-        .event-item {
-            position: relative;
-            padding: 15px 20px;
-            margin-bottom: 15px;
-            background: white;
-            border-radius: 10px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-            transition: transform 0.3s ease;
-        }
-        .event-item:hover {
-            transform: translateX(5px);
-        }
-        .event-item::before {
-            content: '';
-            position: absolute;
-            left: -24px;
-            top: 50%;
-            transform: translateY(-50%);
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-        }
-        .event-type-alloc {
-            border-left: 4px solid #38ef7d;
-        }
-        .event-type-dealloc {
-            border-left: 4px solid #ff6b6b;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>Lockfree Memory Tracking</h1>
-            <div style="color: #666; font-size: 14px;">TIMESTAMP</div>
-        </div>
-
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-label">Total Allocations</div>
-                <div class="stat-value">TOTAL_ALLOCATIONS</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Total Deallocations</div>
-                <div class="stat-value">TOTAL_DEALLOCATIONS</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Active Memory</div>
-                <div class="stat-value">ACTIVE_MEMORY</div>
-            </div>
-        </div>
-
-        <div class="section">
-            <h2>Event Timeline</h2>
-            <div class="event-timeline" id="events-timeline">
-            </div>
-        </div>
-    </div>
-
-    <script>
-        const events = EVENTS_JSON;
-        const stats = STATS_JSON;
-
-        const eventsTimeline = document.getElementById('events-timeline');
-        events.forEach((event) => {
-            const item = document.createElement('div');
-            item.className = 'event-item event-type-' + event.event_type.toLowerCase();
-            item.innerHTML = `
-                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-                    <strong>${event.event_type}</strong>
-                    <span style="color: #666;">${event.timestamp}</span>
-                </div>
-                <div style="color: #666;">
-                    Thread: ${event.thread_id} | Size: ${formatBytes(event.size)}
-                </div>
-            `;
-            eventsTimeline.appendChild(item);
-        });
-
-        function formatBytes(bytes) {
-            if (bytes === 0) return '0 B';
-            const k = 1024;
-            const sizes = ['B', 'KB', 'MB', 'GB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-        }
-    </script>
-</body>
-</html>"#;
-
-        html_template
-            .replace("TIMESTAMP", &format_timestamp(snapshot.timestamp))
-            .replace(
-                "TOTAL_ALLOCATIONS",
-                &snapshot.stats.total_allocations.to_string(),
-            )
-            .replace(
-                "TOTAL_DEALLOCATIONS",
-                &snapshot.stats.total_deallocations.to_string(),
-            )
-            .replace(
-                "ACTIVE_MEMORY",
-                &format_bytes(snapshot.stats.current_allocated),
-            )
-            .replace("EVENTS_JSON", &events_json)
-            .replace("STATS_JSON", &stats_json)
+        self.render_with_template(
+            "multithread_template.html",
+            "Lockfree",
+            snapshot,
+        )
     }
 
     /// Generate Async strategy HTML
     fn render_async(&self, snapshot: &TrackingSnapshot) -> String {
-        let tasks_json = serde_json::to_string(&snapshot.tasks).unwrap_or_default();
-        let stats_json = serde_json::to_string(&snapshot.stats).unwrap_or_default();
-
-        let html_template = r#"<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Async Memory Tracking Dashboard</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-        .container { 
-            max-width: 1400px; 
-            margin: 0 auto; 
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            padding: 40px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-        }
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 40px;
-            padding-bottom: 20px;
-            border-bottom: 2px solid #e0e0e0;
-        }
-        .header h1 {
-            font-size: 36px;
-            font-weight: 700;
-            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-        .stats-grid { 
-            display: grid; 
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); 
-            gap: 20px; 
-            margin-bottom: 40px; 
-        }
-        .stat-card {
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-            padding: 25px;
-            border-radius: 15px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-        .stat-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-        }
-        .stat-label { 
-            font-size: 14px; 
-            color: #666; 
-            margin-bottom: 8px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        .stat-value { 
-            font-size: 32px; 
-            font-weight: 700; 
-            color: #333;
-        }
-        .stat-value.highlight {
-            color: #fa709a;
-        }
-        .section {
-            margin-bottom: 40px;
-        }
-        .section h2 {
-            font-size: 24px;
-            font-weight: 600;
-            margin-bottom: 20px;
-            color: #333;
-        }
-        .task-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-        }
-        .task-card {
-            background: white;
-            padding: 25px;
-            border-radius: 15px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-            transition: transform 0.3s ease;
-        }
-        .task-card:hover {
-            transform: translateY(-5px);
-        }
-        .task-card.running {
-            border-top: 4px solid #fa709a;
-        }
-        .task-card.completed {
-            border-top: 4px solid #38ef7d;
-        }
-        .task-card.leaking {
-            border-top: 4px solid #ff6b6b;
-        }
-        .task-name {
-            font-size: 20px;
-            font-weight: 600;
-            margin-bottom: 15px;
-            color: #333;
-        }
-        .task-stats {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
-        }
-        .task-stat {
-            display: flex;
-            flex-direction: column;
-        }
-        .task-stat-value {
-            font-size: 18px;
-            font-weight: 600;
-            color: #667eea;
-        }
-        .task-stat-label {
-            font-size: 12px;
-            color: #666;
-            margin-top: 5px;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>Async Memory Tracking</h1>
-            <div style="color: #666; font-size: 14px;">TIMESTAMP</div>
-        </div>
-
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-label">Total Tasks</div>
-                <div class="stat-value">TOTAL_TASKS</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Leaking Tasks</div>
-                <div class="stat-value highlight">LEAKING_TASKS</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Peak Memory</div>
-                <div class="stat-value">PEAK_MEMORY</div>
-            </div>
-        </div>
-
-        <div class="section">
-            <h2>Task Memory Usage</h2>
-            <div class="task-grid" id="tasks-grid">
-            </div>
-        </div>
-    </div>
-
-    <script>
-        const tasks = TASKS_JSON;
-        const stats = STATS_JSON;
-
-        const tasksGrid = document.getElementById('tasks-grid');
-        tasks.forEach((task) => {
-            const card = document.createElement('div');
-            card.className = 'task-card ' + task.status.toLowerCase();
-            if (task.has_leak && task.has_leak()) {
-                card.classList.add('leaking');
-            }
-            card.innerHTML = `
-                <div class="task-name">${task.task_name}</div>
-                <div class="task-stats">
-                    <div class="task-stat">
-                        <div class="task-stat-value">${formatBytes(task.memory_usage)}</div>
-                        <div class="task-stat-label">Memory Usage</div>
-                    </div>
-                    <div class="task-stat">
-                        <div class="task-stat-value">${task.allocation_count}</div>
-                        <div class="task-stat-label">Allocations</div>
-                    </div>
-                    <div class="task-stat">
-                        <div class="task-stat-value">${task.status}</div>
-                        <div class="task-stat-label">Status</div>
-                    </div>
-                    <div class="task-stat">
-                        <div class="task-stat-value">${(task.memory_efficiency() * 100).toFixed(1)}%</div>
-                        <div class="task-stat-label">Efficiency</div>
-                    </div>
-                </div>
-            `;
-            tasksGrid.appendChild(card);
-        });
-
-        function formatBytes(bytes) {
-            if (bytes === 0) return '0 B';
-            const k = 1024;
-            const sizes = ['B', 'KB', 'MB', 'GB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-        }
-    </script>
-</body>
-</html>"#;
-
-        html_template
-            .replace("TIMESTAMP", &format_timestamp(snapshot.timestamp))
-            .replace("TOTAL_TASKS", &snapshot.tasks.len().to_string())
-            .replace(
-                "LEAKING_TASKS",
-                &snapshot
-                    .tasks
-                    .iter()
-                    .filter(|t| t.has_leak())
-                    .count()
-                    .to_string(),
-            )
-            .replace(
-                "PEAK_MEMORY",
-                &format_bytes(snapshot.stats.peak_memory as usize),
-            )
-            .replace("TASKS_JSON", &tasks_json)
-            .replace("STATS_JSON", &stats_json)
+        self.render_with_template(
+            "async_template.html",
+            "Async",
+            snapshot,
+        )
     }
 
     /// Generate Unified strategy HTML
     fn render_unified(&self, snapshot: &TrackingSnapshot) -> String {
-        let allocations_json = serde_json::to_string(&snapshot.allocations).unwrap_or_default();
-        let events_json = serde_json::to_string(&snapshot.events).unwrap_or_default();
-        let tasks_json = serde_json::to_string(&snapshot.tasks).unwrap_or_default();
-        let stats_json = serde_json::to_string(&snapshot.stats).unwrap_or_default();
-
-        let html_template = r#"<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Unified Memory Tracking Dashboard</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-        .container { 
-            max-width: 1400px; 
-            margin: 0 auto; 
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            padding: 40px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-        }
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 40px;
-            padding-bottom: 20px;
-            border-bottom: 2px solid #e0e0e0;
-        }
-        .header h1 {
-            font-size: 36px;
-            font-weight: 700;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-        .stats-grid { 
-            display: grid; 
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); 
-            gap: 20px; 
-            margin-bottom: 40px; 
-        }
-        .stat-card {
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-            padding: 25px;
-            border-radius: 15px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-        .stat-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-        }
-        .stat-label { 
-            font-size: 14px; 
-            color: #666; 
-            margin-bottom: 8px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        .stat-value { 
-            font-size: 32px; 
-            font-weight: 700; 
-            color: #333;
-        }
-        .stat-value.highlight {
-            color: #667eea;
-        }
-        .section {
-            margin-bottom: 40px;
-        }
-        .section h2 {
-            font-size: 24px;
-            font-weight: 600;
-            margin-bottom: 20px;
-            color: #333;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>Unified Memory Tracking</h1>
-            <div style="color: #666; font-size: 14px;">TIMESTAMP</div>
-        </div>
-
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-label">Total Allocations</div>
-                <div class="stat-value">TOTAL_ALLOCATIONS</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Peak Memory</div>
-                <div class="stat-value">PEAK_MEMORY</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Active Memory</div>
-                <div class="stat-value">ACTIVE_MEMORY</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Leaked Allocations</div>
-                <div class="stat-value highlight">LEAKED_ALLOCATIONS</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Total Tasks</div>
-                <div class="stat-value">TOTAL_TASKS</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Active Allocations</div>
-                <div class="stat-value">ACTIVE_ALLOCATIONS</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Total Events</div>
-                <div class="stat-value">TOTAL_EVENTS</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Total Tasks</div>
-                <div class="stat-value">TOTAL_TASKS_2</div>
-            </div>
-        </div>
-
-        <div class="section">
-            <h2>Data Summary</h2>
-            <p>Tracking snapshot with allocations, events, and tasks</p>
-        </div>
-    </div>
-
-    <script>
-        const allocations = ALLOCATIONS_JSON;
-        const events = EVENTS_JSON;
-        const tasks = TASKS_JSON;
-        const stats = STATS_JSON;
-
-        function formatBytes(bytes) {
-            if (bytes === 0) return '0 B';
-            const k = 1024;
-            const sizes = ['B', 'KB', 'MB', 'GB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-        }
-    </script>
-</body>
-</html>"#;
-
-        html_template
-            .replace("TIMESTAMP", &format_timestamp(snapshot.timestamp))
-            .replace(
-                "TOTAL_ALLOCATIONS",
-                &snapshot.stats.total_allocations.to_string(),
-            )
-            .replace(
-                "PEAK_MEMORY",
-                &format_bytes(snapshot.stats.peak_memory as usize),
-            )
-            .replace(
-                "ACTIVE_MEMORY",
-                &format_bytes(snapshot.stats.current_allocated),
-            )
-            .replace(
-                "LEAKED_ALLOCATIONS",
-                &snapshot
-                    .allocations
-                    .iter()
-                    .filter(|a| a.is_active)
-                    .count()
-                    .to_string(),
-            )
-            .replace("TOTAL_TASKS", &snapshot.tasks.len().to_string())
-            .replace(
-                "ACTIVE_ALLOCATIONS",
-                &snapshot.allocations.len().to_string(),
-            )
-            .replace("TOTAL_EVENTS", &snapshot.events.len().to_string())
-            .replace("TOTAL_TASKS_2", &snapshot.tasks.len().to_string())
-            .replace("ALLOCATIONS_JSON", &allocations_json)
-            .replace("EVENTS_JSON", &events_json)
-            .replace("TASKS_JSON", &tasks_json)
-            .replace("STATS_JSON", &stats_json)
+        self.render_with_template(
+            "hybrid_dashboard.html",
+            "Unified",
+            snapshot,
+        )
     }
 }
 
@@ -928,7 +665,7 @@ mod tests {
         assert!(result.is_ok());
         let html = result.unwrap();
         if let RenderOutput::String(content) = html {
-            assert!(content.contains("Core Memory Tracking"));
+            assert!(content.contains("MemScope Memory Analysis Dashboard"));
             assert!(content.contains("<!DOCTYPE html>") || content.contains("<html"));
         } else {
             panic!("Expected String output");

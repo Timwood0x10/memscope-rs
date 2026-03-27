@@ -5,6 +5,143 @@
 use super::common::{current_thread_id, current_timestamp};
 use serde::{Deserialize, Serialize};
 
+/// Enhanced borrowing information for allocations
+///
+/// This structure tracks borrowing patterns for individual allocations,
+/// providing insights into how data is accessed and shared across the program.
+///
+/// # Fields
+///
+/// - `immutable_borrows`: Total count of immutable borrow operations (e.g., `&T`) during the allocation's lifetime.
+///   This helps identify frequently read data that might benefit from caching or immutability optimizations.
+///
+/// - `mutable_borrows`: Total count of mutable borrow operations (e.g., `&mut T`) during the allocation's lifetime.
+///   High mutable borrow counts may indicate contention or suggest refactoring opportunities.
+///
+/// - `max_concurrent_borrows`: Peak number of simultaneous borrows observed at any point in time.
+///   Calculated by tracking active borrows during each borrow/check operation.
+///   This metric helps identify hotspots with high contention.
+///
+/// - `last_borrow_timestamp`: Timestamp (in microseconds since Unix epoch) of the most recent borrow event.
+///   Useful for tracking "cold" allocations that haven't been accessed recently.
+///
+/// # Example
+///
+/// ```rust
+/// use memscope_rs::data::BorrowInfo;
+///
+/// let borrow_info = BorrowInfo {
+///     immutable_borrows: 150,  // 150 immutable references taken
+///     mutable_borrows: 5,      // 5 mutable references taken
+///     max_concurrent_borrows: 8,  // At most 8 borrows active simultaneously
+///     last_borrow_timestamp: Some(1234567890),  // Last borrow at this timestamp
+/// };
+/// ```
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct BorrowInfo {
+    /// Total number of immutable borrows during lifetime
+    pub immutable_borrows: usize,
+    /// Total number of mutable borrows during lifetime
+    pub mutable_borrows: usize,
+    /// Peak number of simultaneous borrows observed
+    pub max_concurrent_borrows: usize,
+    /// Timestamp of the last borrow event
+    pub last_borrow_timestamp: Option<u64>,
+}
+
+impl BorrowInfo {
+    /// Calculate total borrow count (immutable + mutable)
+    pub fn total_borrows(&self) -> usize {
+        self.immutable_borrows + self.mutable_borrows
+    }
+
+    /// Calculate borrow contention ratio (mutable / total)
+    pub fn contention_ratio(&self) -> f64 {
+        let total = self.total_borrows();
+        if total == 0 {
+            0.0
+        } else {
+            self.mutable_borrows as f64 / total as f64
+        }
+    }
+}
+
+/// Enhanced cloning information for allocations
+///
+/// This structure tracks cloning behavior for reference-counted types (Arc, Rc) and cloneable values,
+/// providing insights into data sharing patterns and potential performance optimizations.
+///
+/// # Fields
+///
+/// - `clone_count`: Total number of times this allocation was cloned.
+///   For `Arc<T>` or `Rc<T>`, this tracks `Arc::clone()` / `Rc::clone()` operations.
+///   High clone counts indicate data is heavily shared.
+///
+/// - `is_clone`: Whether this allocation itself is a result of a clone operation.
+///   When `true`, this allocation shares underlying data with another allocation.
+///   Useful for tracing the "origin" of shared data.
+///
+/// - `original_ptr`: Pointer to the original allocation if `is_clone` is `true`.
+///   Maintained during clone operations by recording the source pointer.
+///   Allows reconstruction of the clone chain/dependency graph.
+///
+/// # Example
+///
+/// ```rust
+/// use memscope_rs::data::CloneInfo;
+///
+/// // Original allocation
+/// let original_info = CloneInfo {
+///     clone_count: 0,
+///     is_clone: false,
+///     original_ptr: None,
+/// };
+///
+/// // Cloned allocation
+/// let cloned_info = CloneInfo {
+///     clone_count: 1,
+///     is_clone: true,
+///     original_ptr: Some(0x1000),  // Points to original
+/// };
+/// ```
+///
+/// # Original Pointer Maintenance
+///
+/// When a clone occurs:
+/// 1. The clone's `is_clone` is set to `true`
+/// 2. The source's pointer is stored in the clone's `original_ptr`
+/// 3. The source's `clone_count` is incremented
+/// This enables tracking the complete cloning history and identifying clone cycles.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct CloneInfo {
+    /// Number of times this object was cloned
+    pub clone_count: usize,
+    /// Whether this allocation itself is a result of a clone
+    pub is_clone: bool,
+    /// If is_clone is true, points to the original object's pointer
+    pub original_ptr: Option<usize>,
+}
+
+impl CloneInfo {
+    /// Create a new CloneInfo for an original allocation
+    pub fn new_original() -> Self {
+        CloneInfo {
+            clone_count: 0,
+            is_clone: false,
+            original_ptr: None,
+        }
+    }
+
+    /// Create a CloneInfo for a cloned allocation
+    pub fn new_clone(original_ptr: usize) -> Self {
+        CloneInfo {
+            clone_count: 1,
+            is_clone: true,
+            original_ptr: Some(original_ptr),
+        }
+    }
+}
+
 /// Memory allocation record
 ///
 /// Used by Core strategy to track detailed allocation information
@@ -28,6 +165,12 @@ pub struct AllocationRecord {
     pub is_active: bool,
     /// Deallocation timestamp (if deallocated)
     pub dealloc_timestamp: Option<u64>,
+    /// Enhanced borrowing information
+    pub borrow_info: Option<BorrowInfo>,
+    /// Enhanced cloning information
+    pub clone_info: Option<CloneInfo>,
+    /// Whether ownership history is available
+    pub ownership_history_available: bool,
 }
 
 impl AllocationRecord {
@@ -43,6 +186,9 @@ impl AllocationRecord {
             type_name: None,
             is_active: true,
             dealloc_timestamp: None,
+            borrow_info: None,
+            clone_info: None,
+            ownership_history_available: false,
         }
     }
 
@@ -73,6 +219,24 @@ impl AllocationRecord {
     /// Set stack trace ID
     pub fn with_stack_id(mut self, stack_id: u32) -> Self {
         self.stack_id = Some(stack_id);
+        self
+    }
+
+    /// Set borrow information
+    pub fn with_borrow_info(mut self, borrow_info: BorrowInfo) -> Self {
+        self.borrow_info = Some(borrow_info);
+        self
+    }
+
+    /// Set clone information
+    pub fn with_clone_info(mut self, clone_info: CloneInfo) -> Self {
+        self.clone_info = Some(clone_info);
+        self
+    }
+
+    /// Enable ownership history tracking
+    pub fn with_ownership_history(mut self) -> Self {
+        self.ownership_history_available = true;
         self
     }
 }
