@@ -94,16 +94,7 @@ thread_local! {
 )]
 pub fn configure_tracking_strategy(is_concurrent: bool) {
     // Forward to new unified tracking system
-    use crate::new::tracker::{get_global_tracker, TrackingConfig, TrackingStrategy};
-
-    let config = TrackingConfig {
-        strategy: if is_concurrent {
-            TrackingStrategy::ThreadLocal
-        } else {
-            TrackingStrategy::SingleThread
-        },
-        ..Default::default()
-    };
+    use crate::manager::get_global_tracker;
 
     // Store the strategy in the old system for backward compatibility
     let strategy = if is_concurrent {
@@ -114,8 +105,8 @@ pub fn configure_tracking_strategy(is_concurrent: bool) {
     TRACKING_STRATEGY.store(strategy, Ordering::Relaxed);
 
     // Enable the unified tracker
-    let unified = get_global_tracker();
-    unified.set_enabled(true);
+    let manager = get_global_tracker();
+    manager.set_enabled(true);
 
     tracing::info!(
         "Configured tracking strategy: {} (delegating to unified tracker)",
@@ -145,17 +136,15 @@ pub fn get_tracker() -> Arc<MemoryTracker> {
     match TRACKING_STRATEGY.load(Ordering::Relaxed) {
         STRATEGY_GLOBAL_SINGLETON => {
             // Try to use the unified tracker first
-            if let Ok(unified) = std::panic::catch_unwind(|| {
-                crate::new::tracker::get_global_tracker()
-            }) {
-                // Successfully got the unified tracker
+            if let Ok(manager) = std::panic::catch_unwind(|| crate::manager::get_global_tracker()) {
+                // Successfully got the new unified manager
                 // We'll still return a MemoryTracker for type compatibility,
-                // but it will delegate to the unified tracker internally
+                // but it will delegate to the unified manager internally
                 GLOBAL_TRACKER
                     .get_or_init(|| Arc::new(MemoryTracker::new()))
                     .clone()
             } else {
-                // Fallback to old tracker if unified tracker fails
+                // Fallback to old tracker if new unified manager fails
                 GLOBAL_TRACKER
                     .get_or_init(|| Arc::new(MemoryTracker::new()))
                     .clone()
@@ -1478,7 +1467,7 @@ mod tests {
 
     #[test]
     fn test_memscope_path_creation() {
-        let tracker = MemoryTracker::new();
+        let tracker = get_tracker();
 
         let path = tracker.ensure_memscope_path("test");
         assert!(path.to_string_lossy().contains("MemoryAnalysis"));
@@ -1514,7 +1503,7 @@ mod tests {
 
     #[test]
     fn test_drop_chain_analysis_basic() {
-        let tracker = MemoryTracker::new();
+        let tracker = get_tracker();
         tracker.enable_fast_mode();
 
         let analysis = tracker.analyze_drop_chain(0x1000, "Vec<i32>");

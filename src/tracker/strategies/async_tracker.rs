@@ -3,12 +3,12 @@
 //! AsyncTracker provides task-level async memory tracking that tracks
 //! memory usage across async tasks.
 
-use std::sync::{Arc, RwLock};
 use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::data::{
-    TrackingSnapshot, TrackingStrategy, TaskRecord, TaskStatus, AllocationRecord, TrackingStats
+    AllocationRecord, TaskRecord, TaskStatus, TrackingSnapshot, TrackingStats, TrackingStrategy,
 };
 use crate::tracker::base::TrackBase;
 
@@ -75,7 +75,11 @@ impl AsyncTracker {
 
     /// Get current thread ID
     fn thread_id() -> u32 {
-        std::thread::current().id().as_u64().get() as u32
+        use std::hash::{Hash, Hasher};
+        let thread_id = std::thread::current().id();
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        thread_id.hash(&mut hasher);
+        (hasher.finish() & 0xFFFFFFFF) as u32
     }
 
     /// Register a new task
@@ -99,6 +103,7 @@ impl AsyncTracker {
             memory_usage: 0,
             allocation_count: 0,
             deallocation_count: 0,
+            peak_memory: 0,
         };
 
         state.tasks.insert(task_id, task);
@@ -219,19 +224,30 @@ impl TrackBase for AsyncTracker {
         };
 
         let stats = TrackingStats {
-            total_allocated: state.total_allocated,
-            total_deallocated: state.total_deallocated,
-            current_allocated: current_memory,
-            peak_memory: state.peak_memory,
+            total_allocations: state.allocation_count,
+            total_deallocations: state.deallocation_count,
+            total_allocated: state.total_allocated as u64,
+            total_deallocated: state.total_deallocated as u64,
+            peak_memory: state.peak_memory as u64,
+            active_allocations: state.allocations.len() as u64,
+            active_memory: current_memory as u64,
+            leaked_allocations: state.allocations.iter().filter(|a| a.1.is_active).count() as u64,
+            leaked_memory: state
+                .allocations
+                .iter()
+                .filter(|a| a.1.is_active)
+                .map(|a| a.1.size as u64)
+                .sum(),
+            fragmentation_ratio: fragmentation,
             allocation_count: state.allocation_count,
             deallocation_count: state.deallocation_count,
-            active_allocations: state.allocations.len() as u64,
-            fragmentation,
             average_allocation_size: if state.allocation_count > 0 {
                 state.total_allocated / state.allocation_count as usize
             } else {
                 0
             },
+            current_allocated: current_memory,
+            fragmentation,
         };
 
         TrackingSnapshot {
@@ -331,7 +347,7 @@ mod tests {
         assert_eq!(snapshot.tasks.len(), 0);
 
         tracker.set_enabled(true);
-        let task_id = tracker.register_task(Some("TestTask2".to_string()));
+        let _task_id = tracker.register_task(Some("TestTask2".to_string()));
         tracker.track_alloc(0x2000, 2048);
 
         let snapshot = tracker.snapshot();

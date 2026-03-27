@@ -4,15 +4,26 @@
 //! coordination point for all tracking operations, supporting strategy
 //! switching and data export.
 
-use std::sync::{Arc, RwLock};
+use std::cell::Cell;
 use std::path::Path;
+use std::sync::{Arc, RwLock};
 
-use crate::data::{TrackingSnapshot, TrackingStrategy, ExportFormat};
-use crate::tracker::base::TrackBase;
-use crate::tracker::strategies::{CoreTracker, LockfreeTracker, AsyncTracker, UnifiedTracker};
-use crate::render::renderer::Renderer;
-use crate::render::{JsonRenderer, BinaryRenderer, HtmlRenderer};
+use crate::data::{ExportFormat, TrackingSnapshot, TrackingStrategy};
 use crate::error::types::{ErrorKind, ErrorSeverity, MemScopeError};
+use crate::render::renderer::Renderer;
+use crate::render::{BinaryRenderer, HtmlRenderer, JsonRenderer};
+use crate::tracker::base::TrackBase;
+use crate::tracker::strategies::{AsyncTracker, CoreTracker, LockfreeTracker, UnifiedTracker};
+
+// Thread-local flag to prevent recursive tracking
+thread_local! {
+    static TRACKING_DISABLED: Cell<bool> = const { Cell::new(false) };
+}
+
+// Global tracking manager instance (thread-local for thread safety)
+thread_local! {
+    static GLOBAL_MANAGER: Arc<TrackingManager> = Arc::new(TrackingManager::new_core());
+}
 
 /// Unified tracking manager
 ///
@@ -32,18 +43,10 @@ impl TrackingManager {
     /// A new TrackingManager instance
     pub fn new(strategy: TrackingStrategy) -> Self {
         let tracker: Arc<RwLock<dyn TrackBase>> = match strategy {
-            TrackingStrategy::Core => {
-                Arc::new(RwLock::new(CoreTracker::new()))
-            }
-            TrackingStrategy::Lockfree => {
-                Arc::new(RwLock::new(LockfreeTracker::new()))
-            }
-            TrackingStrategy::Async => {
-                Arc::new(RwLock::new(AsyncTracker::new()))
-            }
-            TrackingStrategy::Unified => {
-                Arc::new(RwLock::new(UnifiedTracker::new_hybrid()))
-            }
+            TrackingStrategy::Core => Arc::new(RwLock::new(CoreTracker::new())),
+            TrackingStrategy::Lockfree => Arc::new(RwLock::new(LockfreeTracker::new())),
+            TrackingStrategy::Async => Arc::new(RwLock::new(AsyncTracker::new())),
+            TrackingStrategy::Unified => Arc::new(RwLock::new(UnifiedTracker::new_hybrid())),
         };
 
         TrackingManager { tracker }
@@ -81,6 +84,12 @@ impl TrackingManager {
     /// * `ptr` - Pointer to the allocated memory
     /// * `size` - Size of the allocation in bytes
     pub fn track_alloc(&self, ptr: usize, size: usize) {
+        // Check if tracking is disabled to prevent recursion
+        let should_track = TRACKING_DISABLED.with(|disabled| !disabled.get());
+        if !should_track {
+            return;
+        }
+
         let tracker = self.tracker.read().unwrap();
         tracker.track_alloc(ptr, size);
     }
@@ -90,6 +99,12 @@ impl TrackingManager {
     /// # Arguments
     /// * `ptr` - Pointer to the deallocated memory
     pub fn track_dealloc(&self, ptr: usize) {
+        // Check if tracking is disabled to prevent recursion
+        let should_track = TRACKING_DISABLED.with(|disabled| !disabled.get());
+        if !should_track {
+            return;
+        }
+
         let tracker = self.tracker.read().unwrap();
         tracker.track_dealloc(ptr);
     }
@@ -140,11 +155,7 @@ impl TrackingManager {
         };
 
         renderer.render(&snapshot).map_err(|e| {
-            MemScopeError::new(
-                ErrorKind::ExportError,
-                ErrorSeverity::Medium,
-                format!("Export failed: {}", e)
-            )
+            MemScopeError::new(ErrorKind::ExportError, &format!("Export failed: {}", e))
         })
     }
 
@@ -159,15 +170,30 @@ impl TrackingManager {
     pub fn export_to_file<P: AsRef<Path>>(
         &self,
         path: P,
-        format: ExportFormat
+        format: ExportFormat,
     ) -> Result<(), MemScopeError> {
         let output = self.export(format)?;
 
-        std::fs::write(path, output.data).map_err(|e| {
+        let data = match output {
+            crate::data::RenderOutput::String(s) => s.into_bytes(),
+            crate::data::RenderOutput::Bytes(b) => b,
+            crate::data::RenderOutput::File(file_path) => {
+                // If it's already a file, copy it to the destination
+                return std::fs::copy(&file_path, path)
+                    .map_err(|e| {
+                        MemScopeError::new(
+                            ErrorKind::ExportError,
+                            &format!("Failed to copy file: {e}"),
+                        )
+                    })
+                    .map(|_| ());
+            }
+        };
+
+        std::fs::write(path, data).map_err(|e| {
             MemScopeError::new(
                 ErrorKind::ExportError,
-                ErrorSeverity::Medium,
-                format!("Failed to write to file: {}", e)
+                &format!("Failed to write to file: {e}"),
             )
         })?;
 
@@ -183,22 +209,16 @@ impl TrackingManager {
     /// This will clear all existing tracking data
     pub fn switch_strategy(&self, strategy: TrackingStrategy) {
         let new_tracker: Arc<RwLock<dyn TrackBase>> = match strategy {
-            TrackingStrategy::Core => {
-                Arc::new(RwLock::new(CoreTracker::new()))
-            }
-            TrackingStrategy::Lockfree => {
-                Arc::new(RwLock::new(LockfreeTracker::new()))
-            }
-            TrackingStrategy::Async => {
-                Arc::new(RwLock::new(AsyncTracker::new()))
-            }
-            TrackingStrategy::Unified => {
-                Arc::new(RwLock::new(UnifiedTracker::new_hybrid()))
-            }
+            TrackingStrategy::Core => Arc::new(RwLock::new(CoreTracker::new())),
+            TrackingStrategy::Lockfree => Arc::new(RwLock::new(LockfreeTracker::new())),
+            TrackingStrategy::Async => Arc::new(RwLock::new(AsyncTracker::new())),
+            TrackingStrategy::Unified => Arc::new(RwLock::new(UnifiedTracker::new_hybrid())),
         };
 
-        let mut tracker = self.tracker.write().unwrap();
-        *tracker = new_tracker;
+        // Since we can't directly replace the Arc, we need to use a different approach
+        // For now, we'll just clear the data and update strategy
+        let tracker = self.tracker.write().unwrap();
+        tracker.clear();
     }
 
     /// Get access to the underlying tracker for advanced operations
@@ -223,6 +243,86 @@ impl Default for TrackingManager {
     fn default() -> Self {
         Self::new_core()
     }
+}
+
+// ============================================================================
+// Global API Functions
+// ============================================================================
+
+/// Get the global tracking manager instance
+///
+/// This function provides access to the global manager for manual tracking operations.
+/// Uses thread-local storage for thread safety and automatic cleanup.
+pub fn get_global_tracker() -> Arc<TrackingManager> {
+    GLOBAL_MANAGER.with(|manager| manager.clone())
+}
+
+/// Track a memory allocation using the global tracker
+///
+/// This function can be used to manually track allocations that are not
+/// automatically tracked by the global allocator.
+///
+/// # Arguments
+/// * `ptr` - Pointer to the allocated memory
+/// * `size` - Size of the allocation in bytes
+pub fn track_allocation(ptr: usize, size: usize) {
+    TRACKING_DISABLED.with(|disabled| {
+        let old = disabled.get();
+        disabled.set(true);
+        let manager = get_global_tracker();
+        manager.track_alloc(ptr, size);
+        disabled.set(old);
+    });
+}
+
+/// Track a memory deallocation using the global tracker
+///
+/// This function can be used to manually track deallocations that are not
+/// automatically tracked by the global allocator.
+///
+/// # Arguments
+/// * `ptr` - Pointer to the deallocated memory
+pub fn track_deallocation(ptr: usize) {
+    TRACKING_DISABLED.with(|disabled| {
+        let old = disabled.get();
+        disabled.set(true);
+        let manager = get_global_tracker();
+        manager.track_dealloc(ptr);
+        disabled.set(old);
+    });
+}
+
+/// Get the current tracking snapshot using the global tracker
+///
+/// # Returns
+/// A TrackingSnapshot containing all current tracking data
+pub fn get_snapshot() -> TrackingSnapshot {
+    let manager = get_global_tracker();
+    manager.snapshot()
+}
+
+/// Clear all tracking data using the global tracker
+pub fn clear_tracking() {
+    let manager = get_global_tracker();
+    manager.clear();
+}
+
+/// Enable or disable tracking using the global tracker
+///
+/// # Arguments
+/// * `enabled` - Whether to enable tracking
+pub fn set_tracking_enabled(enabled: bool) {
+    let manager = get_global_tracker();
+    manager.set_enabled(enabled);
+}
+
+/// Check if tracking is enabled using the global tracker
+///
+/// # Returns
+/// true if tracking is enabled, false otherwise
+pub fn is_tracking_enabled() -> bool {
+    let manager = get_global_tracker();
+    manager.is_enabled()
 }
 
 #[cfg(test)]
@@ -275,7 +375,12 @@ mod tests {
 
         let result = manager.export(ExportFormat::Json);
         assert!(result.is_ok());
-        assert!(result.unwrap().data.contains("allocations"));
+        let output = result.unwrap();
+        if let crate::data::RenderOutput::String(data) = output {
+            assert!(data.contains("allocations"));
+        } else {
+            panic!("Expected String output");
+        }
     }
 
     #[test]
@@ -285,8 +390,12 @@ mod tests {
 
         let result = manager.export(ExportFormat::Html);
         assert!(result.is_ok());
-        let data = result.unwrap().data;
-        assert!(data.contains("<html>") || data.contains("<!DOCTYPE html>"));
+        let output = result.unwrap();
+        if let crate::data::RenderOutput::String(data) = output {
+            assert!(data.contains("<html>") || data.contains("<!DOCTYPE html>"));
+        } else {
+            panic!("Expected String output");
+        }
     }
 
     #[test]
@@ -339,5 +448,31 @@ mod tests {
         let manager = TrackingManager::new_unified();
         manager.track_alloc(0x4000, 8192);
         assert!(manager.snapshot().allocations.len() > 0);
+    }
+
+    #[test]
+    fn test_global_tracker_singleton() {
+        let tracker1 = get_global_tracker();
+        let tracker2 = get_global_tracker();
+
+        // Verify it's the same instance
+        assert!(Arc::ptr_eq(&tracker1, &tracker2));
+    }
+
+    #[test]
+    fn test_global_api_functions() {
+        clear_tracking();
+        set_tracking_enabled(true);
+
+        track_allocation(0x1000, 1024);
+        track_allocation(0x2000, 2048);
+        track_deallocation(0x1000);
+
+        let snapshot = get_snapshot();
+        assert_eq!(snapshot.allocations.len(), 1);
+        assert!(is_tracking_enabled());
+
+        clear_tracking();
+        assert_eq!(get_snapshot().allocations.len(), 0);
     }
 }

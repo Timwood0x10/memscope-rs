@@ -13,7 +13,7 @@ mod tests {
         get_registry_stats,
     };
     use crate::core::tracker::{configure_tracking_strategy, get_tracker};
-    use crate::track_var;
+
     use std::thread;
     use std::time::Duration;
 

@@ -9,10 +9,13 @@ use memscope_rs::export::exporter::{
     BinaryExporter, CompositeExporter, CsvExporter, ExportBackend, ExportOutput, HtmlGenerator,
     JsonExporter,
 };
+// TODO: Re-enable when unified backend is reimplemented
+
 use memscope_rs::tracker::backend::{
     AllocationContext, AsyncBackend, HybridBackend, SingleThreadBackend, ThreadLocalBackend,
     TrackingBackend, TrackingConfig, TrackingStrategy, UnifiedTracker,
 };
+
 use memscope_rs::types::internal_types::{
     Allocation, Event, MemoryPassport, MemorySource, PassportStatus, Snapshot,
 };

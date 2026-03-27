@@ -2438,11 +2438,10 @@ impl UnsafeFFITracker {
             };
 
             // Generate safety report using the new unified analyzer
-            if let Some(unified_tracker) = crate::tracker::get_global_tracker() {
-                let snapshot = unified_tracker.snapshot();
-                let safety_analyzer = crate::analysis::analyzer::SafetyAnalyzer::new();
-                let _safety_report = safety_analyzer.analyze(&snapshot);
-            }
+            let manager = crate::manager::get_global_tracker();
+            let _snapshot = manager.snapshot();
+            // let safety_analyzer = crate::analysis::analyzer::SafetyAnalyzer::new();
+            // let _safety_report = safety_analyzer.analyze(&snapshot);
         }
 
         tracing::info!(
@@ -2515,16 +2514,11 @@ impl UnsafeFFITracker {
         let leak_detection = passport_tracker.detect_leaks_at_shutdown();
 
         // Get reports and statistics using the new unified analyzer
-        let snapshot = if let Some(unified_tracker) = crate::tracker::get_global_tracker() {
-            unified_tracker.snapshot()
-        } else {
-            return Err(TrackingError::InternalError(
-                "Unified tracker not initialized".to_string(),
-            ));
-        };
+        let manager = crate::manager::get_global_tracker();
+        let _snapshot = manager.snapshot();
 
-        let new_safety_analyzer = crate::analysis::analyzer::SafetyAnalyzer::new();
-        let _safety_report = new_safety_analyzer.analyze(&snapshot);
+        // let new_safety_analyzer = crate::analysis::analyzer::SafetyAnalyzer::new();
+        // let _safety_report = new_safety_analyzer.analyze(&snapshot);
         let memory_passports = passport_tracker.get_all_passports();
         let _passport_stats = passport_tracker.get_stats();
 

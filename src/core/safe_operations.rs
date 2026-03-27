@@ -198,8 +198,6 @@ mod tests {
 
     #[test]
     fn test_safe_lock_macro() {
-        use crate::safe_lock;
-
         let mutex = Mutex::new(42);
 
         // Test the macro - this should compile and work

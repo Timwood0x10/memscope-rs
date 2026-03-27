@@ -6,13 +6,13 @@
 //! - AsyncTracker: Task-based async tracking
 //! - UnifiedTracker: Hybrid multi-strategy tracking
 
+pub mod async_tracker;
 pub mod core_tracker;
 pub mod lockfree_tracker;
-pub mod async_tracker;
 pub mod unified_tracker;
 
 // Re-export for convenience
+pub use async_tracker::AsyncTracker;
 pub use core_tracker::CoreTracker;
 pub use lockfree_tracker::LockfreeTracker;
-pub use async_tracker::AsyncTracker;
 pub use unified_tracker::UnifiedTracker;

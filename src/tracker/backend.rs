@@ -1113,7 +1113,7 @@ impl UnifiedTracker {
         let output_path = self.ensure_memory_analysis_path(path)?;
         let snapshot = self.snapshot();
         let json = serde_json::to_string_pretty(&snapshot).map_err(|e| e.to_string())?;
-        
+
         let html = format!(
             r#"<!DOCTYPE html>
 <html>
@@ -1131,7 +1131,7 @@ impl UnifiedTracker {
 </html>"#,
             json
         );
-        
+
         std::fs::write(output_path, html).map_err(|e| e.to_string())
     }
 

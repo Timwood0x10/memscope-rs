@@ -8,9 +8,10 @@ pub mod base;
 pub mod strategies;
 
 // Re-export commonly used types for convenience
-pub use base::TrackBase;
 pub use crate::data::TrackingStrategy;
+pub use base::TrackBase;
+pub use strategies::AsyncTracker;
 pub use strategies::CoreTracker;
 pub use strategies::LockfreeTracker;
-pub use strategies::AsyncTracker;
 pub use strategies::UnifiedTracker;
+pub mod backend;

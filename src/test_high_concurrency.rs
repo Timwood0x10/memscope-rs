@@ -9,7 +9,6 @@ mod tests {
         collect_unified_tracking_data, enable_precise_tracking, get_registry_stats,
     };
     use crate::core::tracker::get_tracker;
-    use crate::track_var;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
     use std::thread;

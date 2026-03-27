@@ -48,6 +48,8 @@ pub enum ErrorKind {
     ValidationError,
     /// Internal logic errors
     InternalError,
+    /// Export or rendering errors
+    ExportError,
 }
 
 /// Error severity levels for prioritization
@@ -57,6 +59,8 @@ pub enum ErrorSeverity {
     Warning,
     /// Moderate impact, degraded functionality
     Error,
+    /// Medium impact, some features affected
+    Medium,
     /// High impact, operation must stop
     Critical,
     /// System-level failure
@@ -167,6 +171,7 @@ impl MemScopeError {
             ErrorSeverity::Error => "ERROR",
             ErrorSeverity::Critical => "CRITICAL",
             ErrorSeverity::Fatal => "FATAL",
+            ErrorSeverity::Medium => "MEDIUM",
         }
     }
 
@@ -182,6 +187,7 @@ impl MemScopeError {
             ErrorKind::CacheError => "CACHE",
             ErrorKind::ValidationError => "VALIDATION",
             ErrorKind::InternalError => "INTERNAL",
+            ErrorKind::ExportError => "EXPORT",
         }
     }
 

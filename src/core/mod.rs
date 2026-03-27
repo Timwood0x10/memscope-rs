@@ -158,12 +158,12 @@ pub use tracker::configure_tracking_strategy;
 // Re-export unified backend system
 pub use crate::unified::{
     detect_environment, detect_environment_detailed, quick_start as unified_quick_start,
-    AsyncRuntimeType, BackendConfig, DetectionConfig,
-    DetectionMetadata, DetectionMethod, DispatcherConfig, DispatcherMetrics, EnvironmentAnalysis,
-    EnvironmentDetector, MemoryAnalysisData, MemoryStatistics,
-    MemoryTracker as UnifiedMemoryTracker, RuntimeEnvironment, SessionMetadata, TrackerConfig,
-    TrackerError, TrackerStatistics, TrackerType, TrackingDispatcher, TrackingOperation,
-    TrackingSession, TrackingStrategy, UnifiedBackend,
+    AsyncRuntimeType, BackendConfig, DetectionConfig, DetectionMetadata, DetectionMethod,
+    DispatcherConfig, DispatcherMetrics, EnvironmentAnalysis, EnvironmentDetector,
+    MemoryAnalysisData, MemoryStatistics, MemoryTracker as UnifiedMemoryTracker,
+    RuntimeEnvironment, SessionMetadata, TrackerConfig, TrackerError, TrackerStatistics,
+    TrackerType, TrackingDispatcher, TrackingOperation, TrackingSession, TrackingStrategy,
+    UnifiedBackend,
 };
 
 // Re-export ownership history functionality

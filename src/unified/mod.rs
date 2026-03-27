@@ -45,8 +45,8 @@ pub mod tracking_dispatcher;
 
 // Re-export main types for convenience
 pub use backend::{
-    AsyncRuntimeType, BackendConfig, MemoryAnalysisData, MemoryStatistics,
-    RuntimeEnvironment, SessionMetadata, TrackingSession, TrackingStrategy, UnifiedBackend,
+    AsyncRuntimeType, BackendConfig, MemoryAnalysisData, MemoryStatistics, RuntimeEnvironment,
+    SessionMetadata, TrackingSession, TrackingStrategy, UnifiedBackend,
 };
 
 pub use environment_detector::{
@@ -72,14 +72,18 @@ pub fn quick_start() -> Result<UnifiedBackend> {
 #[cfg(test)]
 pub fn test_unified_system() -> Result<()> {
     let backend = UnifiedBackend::initialize(BackendConfig::default())?;
-    
+
     // Test basic operations
     let ptr = 0x1000 as usize;
     backend.track_allocation(ptr, 1024)?;
     backend.track_deallocation(ptr)?;
-    
+
     let snapshot = backend.snapshot();
-    assert_eq!(snapshot.allocations.len(), 0, "Snapshot should be empty after dealloc");
-    
+    assert_eq!(
+        snapshot.allocations.len(),
+        0,
+        "Snapshot should be empty after dealloc"
+    );
+
     Ok(())
 }

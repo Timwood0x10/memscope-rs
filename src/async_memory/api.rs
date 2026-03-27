@@ -23,18 +23,12 @@ use crate::async_memory::task_id::{generate_task_id, set_current_task, TaskInfo}
 /// with Async strategy enabled.
 pub fn initialize() -> AsyncResult<()> {
     // Enable tracking in new unified tracking system with Async strategy
-    use crate::tracker::{get_global_tracker, TrackingConfig, TrackingStrategy};
+    use crate::manager::get_global_tracker;
 
-    let config = TrackingConfig {
-        strategy: TrackingStrategy::Async,
-        enable_lifecycle: true,
-        ..Default::default()
-    };
+    let manager = get_global_tracker();
+    manager.set_enabled(true);
 
-    let unified = get_global_tracker();
-    unified.set_enabled(true);
-
-    tracing::info!("Async memory tracking system initialized (delegating to unified tracker)");
+    tracing::info!("Async memory tracking system initialized (delegating to new unified manager)");
     Ok(())
 }
 
@@ -167,20 +161,18 @@ impl AsyncMemorySnapshot {
 /// This is a simplified implementation - production version would
 /// aggregate data from all threads and the background aggregator.
 pub fn get_memory_snapshot() -> AsyncMemorySnapshot {
-    // Query the unified tracking system
-    use crate::new::tracker::get_global_tracker;
-
-    let unified = get_global_tracker();
-    let stats = unified.stats();
+    // Query the new unified tracking manager
+    let manager = crate::manager::get_global_tracker();
+    let snapshot = manager.snapshot();
 
     // Get buffer stats from old system
     let buffer_stats = get_buffer_stats();
 
     // Combine data from both systems
     AsyncMemorySnapshot {
-        active_task_count: stats.active_allocations, // Use active allocations as proxy for tasks
-        total_allocated_bytes: stats.total_size as u64,
-        allocation_events: stats.total_allocations as u64,
+        active_task_count: snapshot.stats.active_allocations as usize, // Use active allocations as proxy for tasks
+        total_allocated_bytes: snapshot.stats.total_allocated as u64,
+        allocation_events: snapshot.stats.allocation_count as u64,
         events_dropped: buffer_stats.events_dropped as u64,
         buffer_utilization: buffer_stats.utilization,
     }

@@ -37,7 +37,6 @@ pub mod cli;
 /// Core memory tracking functionality
 pub mod core;
 
-
 // Re-export optimized components for easy access
 pub use crate::core::performance_optimizer::{
     OptimizationRecommendations, PerformanceMetrics, PerformanceOptimizer,
@@ -123,6 +122,13 @@ pub use utils::{format_bytes, get_simple_type, simplify_type_name};
 //     track_task_spawn,
 // };
 
+// Re-export new unified tracking system (Phase 3 refactoring - data-driven architecture)
+pub use manager::{
+    clear_tracking, get_global_tracker as get_global_tracking_manager, get_snapshot,
+    is_tracking_enabled, set_tracking_enabled, track_allocation as track_allocation_global,
+    track_deallocation as track_deallocation_global, TrackingManager,
+};
+
 // Re-export unified types and tracking system (Phase 1 & 2 refactoring)
 pub use types::internal_types::{
     Allocation, AllocationMeta, Event, MemoryPassport, MemoryPassportTracker, PassportStatus,
@@ -138,7 +144,7 @@ pub use memscope_derive::Trackable;
 /// For high-concurrency (30+ threads), use lockfree module instead.
 #[cfg(feature = "tracking-allocator")]
 #[global_allocator]
-pub static GLOBAL: TrackingAllocator = TrackingAllocator::new();
+pub static GLOBAL: CoreTrackingAllocator = CoreTrackingAllocator::new();
 
 /// Trait for types that can be tracked by the memory tracker.
 pub trait Trackable {

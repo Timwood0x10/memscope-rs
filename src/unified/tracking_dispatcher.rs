@@ -2,13 +2,16 @@
 // Intelligently routes memory tracking requests to optimal tracking implementations
 // Manages lifecycle of different tracking strategies and data aggregation
 
-use crate::core::error::{MemScopeError, Result, SystemErrorType};
+use crate::core::error::{MemScopeError, SystemErrorType};
 use crate::lockfree::aggregator::LockfreeAggregator;
 use crate::unified::backend::{RuntimeEnvironment, TrackingStrategy};
 use std::collections::HashMap;
 use std::sync::Arc;
 use thiserror::Error;
 use tracing::{debug, info};
+
+// Use full Result type to avoid conflict with crate::core::error::Result
+type Result<T> = std::result::Result<T, TrackerError>;
 
 /// Central dispatcher that routes tracking operations to appropriate implementations
 /// Maintains active tracking strategies and coordinates data collection
@@ -72,13 +75,13 @@ pub struct DispatcherMetrics {
 /// All tracking implementations must implement this trait for dispatcher compatibility
 pub trait MemoryTracker: Send + Sync {
     /// Initialize tracker with given configuration
-    fn initialize(&mut self, config: TrackerConfig) -> Result<(), TrackerError>;
+    fn initialize(&mut self, config: TrackerConfig) -> std::result::Result<(), TrackerError>;
 
     /// Start tracking memory operations
-    fn start_tracking(&mut self) -> Result<(), TrackerError>;
+    fn start_tracking(&mut self) -> std::result::Result<(), TrackerError>;
 
     /// Stop tracking and collect data
-    fn stop_tracking(&mut self) -> Result<Vec<u8>, TrackerError>;
+    fn stop_tracking(&mut self) -> std::result::Result<Vec<u8>, TrackerError>;
 
     /// Get current tracking statistics
     fn get_statistics(&self) -> TrackerStatistics;
@@ -154,6 +157,10 @@ pub enum TrackerError {
         #[from]
         source: serde_json::Error,
     },
+
+    /// Core error conversion
+    #[error("Core error: {0}")]
+    CoreError(#[from] MemScopeError),
 }
 
 impl Default for DispatcherConfig {
@@ -215,12 +222,12 @@ impl TrackerRegistry {
             *tracker = Some(Self::create_tracker(&tracker_type)?);
         }
 
-        tracker
-            .as_mut()
-            .ok_or_else(|| MemScopeError::config(
+        Ok(tracker.as_mut().ok_or_else(|| {
+            MemScopeError::config(
                 "tracking",
                 format!("Failed to create {:?} tracker", tracker_type),
-            ))
+            )
+        })?)
     }
 
     fn create_tracker(tracker_type: &TrackerType) -> Result<Box<dyn MemoryTracker>> {
@@ -320,18 +327,12 @@ impl TrackingDispatcher {
 
         let tracker_config = TrackerConfig::default();
         tracker.initialize(tracker_config).map_err(|e| {
-            MemScopeError::config(
-                "tracking",
-                format!("Tracker initialization failed: {}", e),
-            )
+            MemScopeError::config("tracking", format!("Tracker initialization failed: {}", e))
         })?;
 
-        tracker
-            .start_tracking()
-            .map_err(|e| MemScopeError::config(
-                "tracking",
-                format!("Failed to start tracking: {}", e),
-            ))?;
+        tracker.start_tracking().map_err(|e| {
+            MemScopeError::config("tracking", format!("Failed to start tracking: {}", e))
+        })?;
 
         self.active_strategy = Some(strategy);
         self.metrics.active_trackers = self.tracker_registry.count_active_trackers();
@@ -341,19 +342,13 @@ impl TrackingDispatcher {
         Ok(())
     }
 
-    pub fn dispatch_tracking_operation(
-        &mut self,
-        operation: TrackingOperation,
-    ) -> Result<()> {
+    pub fn dispatch_tracking_operation(&mut self, operation: TrackingOperation) -> Result<()> {
         let start_time = std::time::Instant::now();
 
         let strategy = self
             .active_strategy
             .as_ref()
-            .ok_or_else(|| MemScopeError::config(
-                "tracking",
-                "No active tracking strategy",
-            ))?
+            .ok_or_else(|| MemScopeError::config("tracking", "No active tracking strategy"))?
             .clone();
 
         let tracker_type = self.strategy_to_tracker_type(&strategy);
@@ -386,14 +381,13 @@ impl TrackingDispatcher {
             }
             TrackingOperation::StopTracking => {
                 if tracker.is_active() {
-                    let _data =
-                        tracker
-                            .stop_tracking()
-                            .map_err(|e| MemScopeError::system_with_source(
-                                SystemErrorType::Io,
-                                "Failed to stop tracking",
-                                e,
-                            ))?;
+                    let _data = tracker.stop_tracking().map_err(|e| {
+                        MemScopeError::system_with_source(
+                            SystemErrorType::Io,
+                            "Failed to stop tracking",
+                            e,
+                        )
+                    })?;
                 }
             }
             TrackingOperation::CollectData => {
@@ -429,56 +423,52 @@ impl TrackingDispatcher {
 
         if let Some(ref mut tracker) = self.tracker_registry.single_thread_tracker {
             if tracker.is_active() {
-                let data =
-                    tracker
-                        .stop_tracking()
-                        .map_err(|e| MemScopeError::system_with_source(
-                            SystemErrorType::Io,
-                            "Single thread tracker data collection failed",
-                            e,
-                        ))?;
+                let data = tracker.stop_tracking().map_err(|e| {
+                    MemScopeError::system_with_source(
+                        SystemErrorType::Io,
+                        "Single thread tracker data collection failed",
+                        e,
+                    )
+                })?;
                 all_data.extend(data);
             }
         }
 
         if let Some(ref mut tracker) = self.tracker_registry.multi_thread_tracker {
             if tracker.is_active() {
-                let data =
-                    tracker
-                        .stop_tracking()
-                        .map_err(|e| MemScopeError::system_with_source(
-                            SystemErrorType::Io,
-                            "Multi thread tracker data collection failed",
-                            e,
-                        ))?;
+                let data = tracker.stop_tracking().map_err(|e| {
+                    MemScopeError::system_with_source(
+                        SystemErrorType::Io,
+                        "Multi thread tracker data collection failed",
+                        e,
+                    )
+                })?;
                 all_data.extend(data);
             }
         }
 
         if let Some(ref mut tracker) = self.tracker_registry.async_tracker {
             if tracker.is_active() {
-                let data =
-                    tracker
-                        .stop_tracking()
-                        .map_err(|e| MemScopeError::system_with_source(
-                            SystemErrorType::Io,
-                            "Async tracker data collection failed",
-                            e,
-                        ))?;
+                let data = tracker.stop_tracking().map_err(|e| {
+                    MemScopeError::system_with_source(
+                        SystemErrorType::Io,
+                        "Async tracker data collection failed",
+                        e,
+                    )
+                })?;
                 all_data.extend(data);
             }
         }
 
         if let Some(ref mut tracker) = self.tracker_registry.hybrid_tracker {
             if tracker.is_active() {
-                let data =
-                    tracker
-                        .stop_tracking()
-                        .map_err(|e| MemScopeError::system_with_source(
-                            SystemErrorType::Io,
-                            "Hybrid tracker data collection failed",
-                            e,
-                        ))?;
+                let data = tracker.stop_tracking().map_err(|e| {
+                    MemScopeError::system_with_source(
+                        SystemErrorType::Io,
+                        "Hybrid tracker data collection failed",
+                        e,
+                    )
+                })?;
                 all_data.extend(data);
             }
         }
@@ -530,18 +520,18 @@ impl SingleThreadTracker {
 }
 
 impl MemoryTracker for SingleThreadTracker {
-    fn initialize(&mut self, _config: TrackerConfig) -> Result<(), TrackerError> {
+    fn initialize(&mut self, _config: TrackerConfig) -> std::result::Result<(), TrackerError> {
         debug!("Initializing single thread tracker");
         Ok(())
     }
 
-    fn start_tracking(&mut self) -> Result<(), TrackerError> {
+    fn start_tracking(&mut self) -> std::result::Result<(), TrackerError> {
         debug!("Starting single thread tracking");
         self.active = true;
         Ok(())
     }
 
-    fn stop_tracking(&mut self) -> Result<Vec<u8>, TrackerError> {
+    fn stop_tracking(&mut self) -> std::result::Result<Vec<u8>, TrackerError> {
         debug!("Stopping single thread tracking");
         self.active = false;
         Ok(vec![])
@@ -577,18 +567,18 @@ impl MultiThreadTracker {
 }
 
 impl MemoryTracker for MultiThreadTracker {
-    fn initialize(&mut self, _config: TrackerConfig) -> Result<(), TrackerError> {
+    fn initialize(&mut self, _config: TrackerConfig) -> std::result::Result<(), TrackerError> {
         debug!("Initializing multi thread tracker");
         Ok(())
     }
 
-    fn start_tracking(&mut self) -> Result<(), TrackerError> {
+    fn start_tracking(&mut self) -> std::result::Result<(), TrackerError> {
         debug!("Starting multi thread tracking");
         self.active = true;
         Ok(())
     }
 
-    fn stop_tracking(&mut self) -> Result<Vec<u8>, TrackerError> {
+    fn stop_tracking(&mut self) -> std::result::Result<Vec<u8>, TrackerError> {
         debug!("Stopping multi thread tracking");
         self.active = false;
         Ok(vec![])
@@ -624,21 +614,21 @@ impl AsyncTrackerWrapper {
 }
 
 impl MemoryTracker for AsyncTrackerWrapper {
-    fn initialize(&mut self, _config: TrackerConfig) -> Result<(), TrackerError> {
+    fn initialize(&mut self, _config: TrackerConfig) -> std::result::Result<(), TrackerError> {
         debug!("Initializing async tracker wrapper");
         Ok(())
     }
 
-    fn start_tracking(&mut self) -> Result<(), TrackerError> {
+    fn start_tracking(&mut self) -> std::result::Result<(), TrackerError> {
         debug!("Starting async tracking");
         self.active = true;
         Ok(())
     }
 
-    fn stop_tracking(&mut self) -> Result<Vec<u8>, TrackerError> {
+    fn stop_tracking(&mut self) -> std::result::Result<Vec<u8>, TrackerError> {
         debug!("Stopping async tracking");
         self.active = false;
-        Ok(vec![])
+        Ok(Vec::new())
     }
 
     fn get_statistics(&self) -> TrackerStatistics {
@@ -671,18 +661,18 @@ impl HybridTrackerImpl {
 }
 
 impl MemoryTracker for HybridTrackerImpl {
-    fn initialize(&mut self, _config: TrackerConfig) -> Result<(), TrackerError> {
+    fn initialize(&mut self, _config: TrackerConfig) -> std::result::Result<(), TrackerError> {
         debug!("Initializing hybrid tracker");
         Ok(())
     }
 
-    fn start_tracking(&mut self) -> Result<(), TrackerError> {
+    fn start_tracking(&mut self) -> std::result::Result<(), TrackerError> {
         debug!("Starting hybrid tracking");
         self.active = true;
         Ok(())
     }
 
-    fn stop_tracking(&mut self) -> Result<Vec<u8>, TrackerError> {
+    fn stop_tracking(&mut self) -> std::result::Result<Vec<u8>, TrackerError> {
         debug!("Stopping hybrid tracking");
         self.active = false;
         Ok(vec![])

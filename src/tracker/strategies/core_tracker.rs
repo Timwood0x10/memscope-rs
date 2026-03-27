@@ -3,15 +3,12 @@
 //! CoreTracker provides detailed single-threaded memory tracking with
 //! comprehensive allocation metadata.
 
-use std::sync::{Arc, RwLock};
 use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::data::{
-    TrackingSnapshot, TrackingStrategy, AllocationRecord, TrackingStats
-};
+use crate::data::{AllocationRecord, TrackingSnapshot, TrackingStats, TrackingStrategy};
 use crate::tracker::base::TrackBase;
-use crate::error::types::{ErrorKind, ErrorSeverity, MemScopeError};
 
 /// Core tracking state
 #[derive(Debug)]
@@ -72,7 +69,11 @@ impl CoreTracker {
 
     /// Get current thread ID
     fn thread_id() -> u32 {
-        std::thread::current().id().as_u64().get() as u32
+        use std::hash::{Hash, Hasher};
+        let thread_id = std::thread::current().id();
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        thread_id.hash(&mut hasher);
+        (hasher.finish() & 0xFFFFFFFF) as u32
     }
 }
 
@@ -98,8 +99,8 @@ impl TrackBase for CoreTracker {
             size,
             timestamp: Self::timestamp(),
             thread_id: Self::thread_id(),
-            stack_id: None, // Optional: capture stack trace
-            var_name: None, // Optional: capture variable name
+            stack_id: None,  // Optional: capture stack trace
+            var_name: None,  // Optional: capture variable name
             type_name: None, // Optional: capture type name
             is_active: true,
             dealloc_timestamp: None,
@@ -138,19 +139,30 @@ impl TrackBase for CoreTracker {
         };
 
         let stats = TrackingStats {
-            total_allocated: state.total_allocated,
-            total_deallocated: state.total_deallocated,
-            current_allocated: current_memory,
-            peak_memory: state.peak_memory,
+            total_allocations: state.allocation_count,
+            total_deallocations: state.deallocation_count,
+            total_allocated: state.total_allocated as u64,
+            total_deallocated: state.total_deallocated as u64,
+            peak_memory: state.peak_memory as u64,
+            active_allocations: state.allocations.len() as u64,
+            active_memory: current_memory as u64,
+            leaked_allocations: state.allocations.iter().filter(|a| a.1.is_active).count() as u64,
+            leaked_memory: state
+                .allocations
+                .iter()
+                .filter(|a| a.1.is_active)
+                .map(|a| a.1.size as u64)
+                .sum(),
+            fragmentation_ratio: fragmentation,
             allocation_count: state.allocation_count,
             deallocation_count: state.deallocation_count,
-            active_allocations: state.allocations.len() as u64,
-            fragmentation,
             average_allocation_size: if state.allocation_count > 0 {
                 state.total_allocated / state.allocation_count as usize
             } else {
                 0
             },
+            current_allocated: current_memory,
+            fragmentation,
         };
 
         TrackingSnapshot {

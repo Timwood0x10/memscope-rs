@@ -173,6 +173,7 @@ impl ErrorHandler {
             }
             ErrorSeverity::Critical => ErrorResponse::Fallback,
             ErrorSeverity::Fatal => ErrorResponse::Abort,
+            ErrorSeverity::Medium => ErrorResponse::Retry,
         }
     }
 

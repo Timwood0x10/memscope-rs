@@ -24,6 +24,8 @@ pub enum RecoveryAction {
         max_delay: Duration,
         backoff_multiplier: f64,
     },
+    /// Simple retry operation
+    Retry { attempts: u32 },
     /// Switch to alternative implementation
     Fallback {
         strategy: FallbackStrategy,
@@ -258,12 +260,17 @@ impl RecoveryStrategy {
                 timeout: Duration::from_secs(10),
             },
             ErrorSeverity::Fatal => RecoveryAction::Terminate,
+            ErrorSeverity::Medium => RecoveryAction::Retry { attempts: 3 },
         }
     }
 
     fn execute_action(&mut self, action: RecoveryAction, error: &MemScopeError) -> RecoveryResult {
         match action {
             RecoveryAction::RetryWithBackoff { .. } => RecoveryResult::Retry {
+                action,
+                delay: self.calculate_retry_delay(error),
+            },
+            RecoveryAction::Retry { .. } => RecoveryResult::Retry {
                 action,
                 delay: self.calculate_retry_delay(error),
             },

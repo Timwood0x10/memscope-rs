@@ -54,8 +54,6 @@ pub enum ExportFormat {
     Binary,
     /// HTML format
     Html,
-    /// CSV format
-    Csv,
 }
 
 impl std::fmt::Display for ExportFormat {
@@ -64,7 +62,6 @@ impl std::fmt::Display for ExportFormat {
             ExportFormat::Json => write!(f, "JSON"),
             ExportFormat::Binary => write!(f, "Binary"),
             ExportFormat::Html => write!(f, "HTML"),
-            ExportFormat::Csv => write!(f, "CSV"),
         }
     }
 }
@@ -118,7 +115,6 @@ mod tests {
         assert_eq!(ExportFormat::Json.to_string(), "JSON");
         assert_eq!(ExportFormat::Binary.to_string(), "Binary");
         assert_eq!(ExportFormat::Html.to_string(), "HTML");
-        assert_eq!(ExportFormat::Csv.to_string(), "CSV");
     }
 
     #[test]

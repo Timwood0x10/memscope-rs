@@ -2,8 +2,8 @@
 //!
 //! Used by Async strategy to track task-level memory usage
 
-use serde::{Deserialize, Serialize};
 use super::common::current_timestamp;
+use serde::{Deserialize, Serialize};
 
 /// Task status
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -38,8 +38,7 @@ pub struct TaskRecord {
     /// Deallocation count
     pub deallocation_count: u64,
     /// peak memory
-    pub peak_memory : u64,
-
+    pub peak_memory: u64,
 }
 
 impl TaskRecord {
@@ -54,7 +53,7 @@ impl TaskRecord {
             memory_usage: 0,
             allocation_count: 0,
             deallocation_count: 0,
-            peak_memory:0,
+            peak_memory: 0,
         }
     }
 
@@ -62,6 +61,9 @@ impl TaskRecord {
     pub fn record_allocation(&mut self, size: usize) {
         self.allocation_count += 1;
         self.memory_usage += size;
+        if self.memory_usage > self.peak_memory as usize {
+            self.peak_memory = self.memory_usage as u64;
+        }
     }
 
     /// Record a deallocation
@@ -84,8 +86,7 @@ impl TaskRecord {
 
     /// Get task lifetime in milliseconds
     pub fn lifetime_ms(&self) -> Option<u64> {
-        self.completed_at
-            .map(|end| (end - self.created_at) / 1_000)
+        self.completed_at.map(|end| (end - self.created_at) / 1_000)
     }
 
     /// Check if task has potential memory leak
@@ -122,10 +123,10 @@ mod tests {
     #[test]
     fn test_task_record_allocations() {
         let mut task = TaskRecord::new(1, "TestTask".to_string());
-        
+
         task.record_allocation(1024);
         task.record_allocation(2048);
-        
+
         assert_eq!(task.allocation_count, 2);
         assert_eq!(task.memory_usage, 3072);
     }
@@ -133,11 +134,11 @@ mod tests {
     #[test]
     fn test_task_record_deallocations() {
         let mut task = TaskRecord::new(1, "TestTask".to_string());
-        
+
         task.record_allocation(1024);
         task.record_allocation(2048);
         task.record_deallocation(1024);
-        
+
         assert_eq!(task.memory_usage, 2048);
         assert_eq!(task.deallocation_count, 1);
     }
@@ -145,12 +146,12 @@ mod tests {
     #[test]
     fn test_task_complete() {
         let mut task = TaskRecord::new(1, "TestTask".to_string());
-        
+
         task.record_allocation(1024);
         task.record_allocation(2048);
-        
+
         assert!(!task.has_leak());
-        
+
         task.complete();
         assert!(task.has_leak());
         assert_eq!(task.status, TaskStatus::Completed);
@@ -159,11 +160,11 @@ mod tests {
     #[test]
     fn test_task_memory_efficiency() {
         let mut task = TaskRecord::new(1, "TestTask".to_string());
-        
+
         task.record_allocation(1024);
         task.record_allocation(2048);
         task.record_deallocation(1024);
-        
+
         let efficiency = task.memory_efficiency();
         assert!(efficiency > 0.0 && efficiency <= 1.0);
     }
@@ -172,10 +173,10 @@ mod tests {
     fn test_task_lifetime() {
         let mut task = TaskRecord::new(1, "TestTask".to_string());
         assert!(task.lifetime_ms().is_none());
-        
+
         std::thread::sleep(std::time::Duration::from_millis(10));
         task.complete();
-        
+
         let lifetime = task.lifetime_ms();
         assert!(lifetime.is_some());
         assert!(lifetime.unwrap() >= 10);

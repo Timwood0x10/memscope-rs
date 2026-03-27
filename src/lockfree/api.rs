@@ -65,10 +65,7 @@ pub fn trace_all<P: AsRef<Path>>(output_dir: P) -> Result<(), Box<dyn std::error
     // let unified = get_global_tracker();
     // unified.set_enabled(true);
 
-    println!(
-        "🚀 Lockfree tracking started: {}",
-        output_path.display()
-    );
+    println!("🚀 Lockfree tracking started: {}", output_path.display());
 
     Ok(())
 }
@@ -226,29 +223,27 @@ pub struct MemorySnapshot {
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 pub fn memory_snapshot() -> MemorySnapshot {
-    // Query the unified tracking system
-    use crate::new::tracker::get_global_tracker;
-
-    let unified = get_global_tracker();
-    let stats = unified.stats();
+    // Query the new unified tracking manager
+    let manager = crate::manager::get_global_tracker();
+    let snapshot = manager.snapshot();
 
     // Convert to old snapshot format
-    // Use total_size as peak, active_allocations * average size as current
-    let avg_size = if stats.active_allocations > 0 {
-        stats.total_size / stats.active_allocations
+    // Use total_allocated as peak, active_allocations * average size as current
+    let avg_size = if snapshot.stats.active_allocations > 0 {
+        snapshot.stats.total_allocated / snapshot.stats.active_allocations
     } else {
         0
     };
-    let current_size = stats.active_allocations * avg_size;
+    let current_size = snapshot.stats.active_allocations as usize * (avg_size as usize);
 
     let current_mb = current_size as f64 / (1024.0 * 1024.0);
-    let peak_mb = stats.total_size as f64 / (1024.0 * 1024.0);
+    let peak_mb = snapshot.stats.peak_memory as f64 / (1024.0 * 1024.0);
 
     MemorySnapshot {
         current_mb,
         peak_mb,
-        allocations: stats.total_allocations as u64,
-        deallocations: (stats.total_allocations - stats.active_allocations) as u64,
+        allocations: snapshot.stats.total_allocations,
+        deallocations: snapshot.stats.total_deallocations,
         active_threads: 1, // Simplified
     }
 }

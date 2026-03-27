@@ -2,7 +2,7 @@
 // Provides intelligent routing between single-thread, multi-thread, and async tracking strategies
 // Maintains zero-lock architecture and preserves existing JSON export compatibility
 
-use crate::core::error::{MemScopeError, MemoryOperation, Result, SystemErrorType};
+use crate::core::error::{MemScopeError, Result, SystemErrorType};
 use crate::lockfree::aggregator::LockfreeAggregator;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -441,7 +441,10 @@ impl UnifiedBackend {
         self.total_allocations
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
-        debug!("Successfully tracked allocation: ptr={:x}, size={}", ptr, size);
+        debug!(
+            "Successfully tracked allocation: ptr={:x}, size={}",
+            ptr, size
+        );
         Ok(())
     }
 
@@ -503,7 +506,8 @@ impl UnifiedBackend {
         let snapshot_allocations: Vec<crate::types::internal_types::Allocation> = allocations
             .values()
             .map(|record| {
-                let mut alloc = crate::types::internal_types::Allocation::new(record.ptr, record.size);
+                let mut alloc =
+                    crate::types::internal_types::Allocation::new(record.ptr, record.size);
                 alloc.alloc_ts = record.timestamp_alloc;
                 alloc.free_ts = record.timestamp_dealloc;
                 alloc.thread = record.thread_id as u32;
@@ -619,10 +623,7 @@ mod tests {
             ..Default::default()
         };
         let result = UnifiedBackend::initialize(config);
-        assert!(matches!(
-            result,
-            Err(MemScopeError::Configuration { .. })
-        ));
+        assert!(matches!(result, Err(MemScopeError::Configuration { .. })));
     }
 
     #[test]

@@ -3,13 +3,12 @@
 /// Unified renderer trait
 ///
 /// 所有渲染器必须实现此 trait，提供一致的渲染接口
-/// 
+///
 /// **关键**：
 /// - 不需要知道具体策略
 /// - 只需要处理 TrackingSnapshot
 /// - 根据 snapshot 字段自动生成不同的 HTML
-
-use crate::data::{TrackingSnapshot, ExportFormat, RenderOutput, RenderResult};
+use crate::data::{ExportFormat, RenderOutput, RenderResult, TrackingSnapshot};
 
 /// Unified renderer trait
 ///
@@ -31,7 +30,6 @@ pub trait Renderer: Send + Sync {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::data::{TrackingSnapshot, TrackingStrategy};
 
     #[test]

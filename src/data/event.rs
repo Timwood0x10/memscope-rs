@@ -2,8 +2,8 @@
 //!
 //! Used by Lockfree strategy to track high-performance events
 
+use super::common::{current_thread_id, current_timestamp};
 use serde::{Deserialize, Serialize};
-use super::common::{current_timestamp, current_thread_id};
 
 /// Memory event record
 ///
@@ -24,6 +24,10 @@ pub struct MemoryEvent {
     pub stack_hash: Option<u64>,
     /// Optional CPU time (nanoseconds)
     pub cpu_time_ns: Option<u64>,
+    /// Optional duration for event
+    pub duration: Option<u64>,
+    /// Optional task ID for async tracking
+    pub task_id: Option<u64>,
 }
 
 impl MemoryEvent {
@@ -37,6 +41,8 @@ impl MemoryEvent {
             thread_id: current_thread_id(),
             stack_hash: None,
             cpu_time_ns: None,
+            duration: None,
+            task_id: None,
         }
     }
 
@@ -53,6 +59,25 @@ impl MemoryEvent {
     /// Create reallocation event
     pub fn realloc(old_ptr: usize, new_ptr: usize, size: usize) -> Self {
         Self::new(new_ptr, size, EventType::Realloc)
+    }
+
+    /// Create task spawn event
+    pub fn task_spawn(task_id: u64) -> Self {
+        let mut event = Self::new(0, 0, EventType::TaskSpawn);
+        event.task_id = Some(task_id);
+        event
+    }
+
+    /// Create task end event
+    pub fn task_end(task_id: u64) -> Self {
+        let mut event = Self::new(0, 0, EventType::TaskEnd);
+        event.task_id = Some(task_id);
+        event
+    }
+
+    /// Create FFI allocation event
+    pub fn ffi_alloc(ptr: usize, size: usize) -> Self {
+        Self::new(ptr, size, EventType::FfiAlloc)
     }
 
     /// Set call stack hash
@@ -125,7 +150,7 @@ mod tests {
         let event = MemoryEvent::alloc(0x1000, 1024)
             .with_stack_hash(123456)
             .with_cpu_time(1000);
-        
+
         assert_eq!(event.stack_hash, Some(123456));
         assert_eq!(event.cpu_time_ns, Some(1000));
     }

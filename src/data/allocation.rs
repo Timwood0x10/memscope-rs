@@ -2,8 +2,8 @@
 //!
 //! Used by Core strategy to track detailed allocation information
 
+use super::common::{current_thread_id, current_timestamp};
 use serde::{Deserialize, Serialize};
-use super::common::{current_timestamp, current_thread_id};
 
 /// Memory allocation record
 ///
@@ -94,7 +94,7 @@ mod tests {
     fn test_allocation_deallocate() {
         let mut record = AllocationRecord::new(0x1000, 1024);
         assert!(record.is_active);
-        
+
         record.deallocate();
         assert!(!record.is_active);
         assert!(record.dealloc_timestamp.is_some());
@@ -104,11 +104,11 @@ mod tests {
     fn test_allocation_lifetime() {
         let mut record = AllocationRecord::new(0x1000, 1024);
         assert!(record.lifetime_ms().is_none());
-        
+
         // Simulate deallocation after some time
         std::thread::sleep(std::time::Duration::from_millis(10));
         record.deallocate();
-        
+
         let lifetime = record.lifetime_ms();
         assert!(lifetime.is_some());
         assert!(lifetime.unwrap() >= 10);
@@ -120,7 +120,7 @@ mod tests {
             .with_var_name("my_var".to_string())
             .with_type_name("Vec<i32>".to_string())
             .with_stack_id(123);
-        
+
         assert_eq!(record.var_name, Some("my_var".to_string()));
         assert_eq!(record.type_name, Some("Vec<i32>".to_string()));
         assert_eq!(record.stack_id, Some(123));

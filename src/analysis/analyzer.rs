@@ -700,7 +700,7 @@ impl Analyzer for SafetyAnalyzer {
 
         // Check for unsafe access patterns
         let unsafe_count = 0;
-        let unsafe_pointers: Vec<usize> = Vec::new();
+        let _unsafe_pointers: Vec<usize> = Vec::new();
 
         // This would be populated by unsafe access tracking events
         // For now, provide placeholder analysis

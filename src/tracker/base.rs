@@ -4,7 +4,6 @@
 //! tracking system. All tracking strategies must implement TrackBase.
 
 use crate::data::{TrackingSnapshot, TrackingStrategy};
-use crate::error::types::{ErrorKind, ErrorSeverity, MemScopeError};
 
 /// Unified tracking base trait
 ///

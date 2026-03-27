@@ -4,7 +4,7 @@
 //! strategy-specific dashboards.
 
 use super::renderer::Renderer;
-use crate::data::{TrackingSnapshot, TrackingStrategy, RenderResult};
+use crate::data::{RenderOutput, RenderResult, TrackingSnapshot, TrackingStrategy};
 
 /// HTML renderer
 ///
@@ -21,7 +21,7 @@ impl HtmlRenderer {
     fn render_core(&self, snapshot: &TrackingSnapshot) -> String {
         let allocations_json = serde_json::to_string(&snapshot.allocations).unwrap_or_default();
         let stats_json = serde_json::to_string(&snapshot.stats).unwrap_or_default();
-        
+
         let html_template = r#"<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -202,11 +202,26 @@ impl HtmlRenderer {
 
         html_template
             .replace("TIMESTAMP", &format_timestamp(snapshot.timestamp))
-            .replace("TOTAL_ALLOCATED", &format_bytes(snapshot.stats.total_allocated))
-            .replace("CURRENT_ALLOCATED", &format_bytes(snapshot.stats.current_allocated))
-            .replace("PEAK_MEMORY", &format_bytes(snapshot.stats.peak_memory))
-            .replace("FRAGMENTATION", &format!("{:.2}", snapshot.stats.fragmentation))
-            .replace("AVERAGE_SIZE", &format_bytes(snapshot.stats.average_allocation_size))
+            .replace(
+                "TOTAL_ALLOCATED",
+                &format_bytes(snapshot.stats.total_allocated as usize),
+            )
+            .replace(
+                "CURRENT_ALLOCATED",
+                &format_bytes(snapshot.stats.current_allocated),
+            )
+            .replace(
+                "PEAK_MEMORY",
+                &format_bytes(snapshot.stats.peak_memory as usize),
+            )
+            .replace(
+                "FRAGMENTATION",
+                &format!("{:.2}", snapshot.stats.fragmentation),
+            )
+            .replace(
+                "AVERAGE_SIZE",
+                &format_bytes(snapshot.stats.average_allocation_size),
+            )
             .replace("ALLOCATIONS_COUNT", &snapshot.allocations.len().to_string())
             .replace("ALLOCATIONS_JSON", &allocations_json)
             .replace("STATS_JSON", &stats_json)
@@ -400,9 +415,18 @@ impl HtmlRenderer {
 
         html_template
             .replace("TIMESTAMP", &format_timestamp(snapshot.timestamp))
-            .replace("TOTAL_ALLOCATIONS", &snapshot.stats.allocation_count.to_string())
-            .replace("TOTAL_DEALLOCATIONS", &snapshot.stats.deallocation_count.to_string())
-            .replace("ACTIVE_MEMORY", &format_bytes(snapshot.stats.current_allocated))
+            .replace(
+                "TOTAL_ALLOCATIONS",
+                &snapshot.stats.total_allocations.to_string(),
+            )
+            .replace(
+                "TOTAL_DEALLOCATIONS",
+                &snapshot.stats.total_deallocations.to_string(),
+            )
+            .replace(
+                "ACTIVE_MEMORY",
+                &format_bytes(snapshot.stats.current_allocated),
+            )
             .replace("EVENTS_JSON", &events_json)
             .replace("STATS_JSON", &stats_json)
     }
@@ -621,8 +645,19 @@ impl HtmlRenderer {
         html_template
             .replace("TIMESTAMP", &format_timestamp(snapshot.timestamp))
             .replace("TOTAL_TASKS", &snapshot.tasks.len().to_string())
-            .replace("LEAKING_TASKS", &snapshot.tasks.iter().filter(|t| t.has_leak()).count().to_string())
-            .replace("PEAK_MEMORY", &format_bytes(snapshot.stats.peak_memory))
+            .replace(
+                "LEAKING_TASKS",
+                &snapshot
+                    .tasks
+                    .iter()
+                    .filter(|t| t.has_leak())
+                    .count()
+                    .to_string(),
+            )
+            .replace(
+                "PEAK_MEMORY",
+                &format_bytes(snapshot.stats.peak_memory as usize),
+            )
             .replace("TASKS_JSON", &tasks_json)
             .replace("STATS_JSON", &stats_json)
     }
@@ -783,12 +818,32 @@ impl HtmlRenderer {
 
         html_template
             .replace("TIMESTAMP", &format_timestamp(snapshot.timestamp))
-            .replace("TOTAL_ALLOCATIONS", &snapshot.stats.allocation_count.to_string())
-            .replace("PEAK_MEMORY", &format_bytes(snapshot.stats.peak_memory))
-            .replace("ACTIVE_MEMORY", &format_bytes(snapshot.stats.current_allocated))
-            .replace("LEAKED_ALLOCATIONS", &snapshot.allocations.iter().filter(|a| a.is_active).count().to_string())
+            .replace(
+                "TOTAL_ALLOCATIONS",
+                &snapshot.stats.total_allocations.to_string(),
+            )
+            .replace(
+                "PEAK_MEMORY",
+                &format_bytes(snapshot.stats.peak_memory as usize),
+            )
+            .replace(
+                "ACTIVE_MEMORY",
+                &format_bytes(snapshot.stats.current_allocated),
+            )
+            .replace(
+                "LEAKED_ALLOCATIONS",
+                &snapshot
+                    .allocations
+                    .iter()
+                    .filter(|a| a.is_active)
+                    .count()
+                    .to_string(),
+            )
             .replace("TOTAL_TASKS", &snapshot.tasks.len().to_string())
-            .replace("ACTIVE_ALLOCATIONS", &snapshot.allocations.len().to_string())
+            .replace(
+                "ACTIVE_ALLOCATIONS",
+                &snapshot.allocations.len().to_string(),
+            )
             .replace("TOTAL_EVENTS", &snapshot.events.len().to_string())
             .replace("TOTAL_TASKS_2", &snapshot.tasks.len().to_string())
             .replace("ALLOCATIONS_JSON", &allocations_json)
@@ -803,14 +858,14 @@ impl Renderer for HtmlRenderer {
         crate::data::ExportFormat::Html
     }
 
-    fn render(&self, snapshot: &TrackingSnapshot) -> RenderResult<String> {
+    fn render(&self, snapshot: &TrackingSnapshot) -> RenderResult<RenderOutput> {
         let html = match snapshot.strategy {
             TrackingStrategy::Core => self.render_core(snapshot),
             TrackingStrategy::Lockfree => self.render_lockfree(snapshot),
             TrackingStrategy::Async => self.render_async(snapshot),
             TrackingStrategy::Unified => self.render_unified(snapshot),
         };
-        Ok(html)
+        Ok(RenderOutput::String(html))
     }
 }
 
@@ -849,7 +904,7 @@ fn format_bytes(bytes: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::data::{TrackingStrategy, AllocationRecord, TrackingStats};
+    use crate::data::{TrackingStats, TrackingStrategy};
 
     #[test]
     fn test_html_renderer_creation() {
@@ -872,8 +927,12 @@ mod tests {
         let result = renderer.render(&snapshot);
         assert!(result.is_ok());
         let html = result.unwrap();
-        assert!(html.contains("Core Memory Tracking"));
-        assert!(html.contains("<html>"));
+        if let RenderOutput::String(content) = html {
+            assert!(content.contains("Core Memory Tracking"));
+            assert!(content.contains("<html>"));
+        } else {
+            panic!("Expected String output");
+        }
     }
 
     #[test]

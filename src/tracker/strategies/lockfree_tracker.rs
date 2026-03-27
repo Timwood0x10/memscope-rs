@@ -6,9 +6,7 @@
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::data::{
-    TrackingSnapshot, TrackingStrategy, MemoryEvent, EventType, TrackingStats
-};
+use crate::data::{EventType, MemoryEvent, TrackingSnapshot, TrackingStats, TrackingStrategy};
 use crate::tracker::base::TrackBase;
 
 /// Lockfree tracking state
@@ -35,15 +33,15 @@ impl LockfreeState {
     }
 
     fn update_peak_memory(&self) {
-        let current_memory = self.total_allocated.load(Ordering::Relaxed) -
-                           self.total_deallocated.load(Ordering::Relaxed);
+        let current_memory = self.total_allocated.load(Ordering::Relaxed)
+            - self.total_deallocated.load(Ordering::Relaxed);
         let mut peak = self.peak_memory.load(Ordering::Relaxed);
         while current_memory > peak {
             match self.peak_memory.compare_exchange_weak(
                 peak,
                 current_memory,
                 Ordering::Relaxed,
-                Ordering::Relaxed
+                Ordering::Relaxed,
             ) {
                 Ok(_) => break,
                 Err(new_peak) => peak = new_peak,
@@ -79,7 +77,11 @@ impl LockfreeTracker {
 
     /// Get current thread ID
     fn thread_id() -> u32 {
-        std::thread::current().id().as_u64().get() as u32
+        use std::hash::{Hash, Hasher};
+        let thread_id = std::thread::current().id();
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        thread_id.hash(&mut hasher);
+        (hasher.finish() & 0xFFFFFFFF) as u32
     }
 }
 
@@ -99,7 +101,9 @@ impl TrackBase for LockfreeTracker {
             return;
         }
 
-        self.state.total_allocated.fetch_add(size, Ordering::Relaxed);
+        self.state
+            .total_allocated
+            .fetch_add(size, Ordering::Relaxed);
         self.state.allocation_count.fetch_add(1, Ordering::Relaxed);
         self.state.update_peak_memory();
 
@@ -114,7 +118,9 @@ impl TrackBase for LockfreeTracker {
 
         // Note: In a real implementation, we'd need to track allocation sizes
         // to properly decrement total_deallocated. This is a simplified version.
-        self.state.deallocation_count.fetch_add(1, Ordering::Relaxed);
+        self.state
+            .deallocation_count
+            .fetch_add(1, Ordering::Relaxed);
     }
 
     fn snapshot(&self) -> TrackingSnapshot {
@@ -132,33 +138,39 @@ impl TrackBase for LockfreeTracker {
         };
 
         let stats = TrackingStats {
-            total_allocated,
-            total_deallocated,
-            current_allocated: current_memory,
-            peak_memory,
+            total_allocations: allocation_count,
+            total_deallocations: deallocation_count,
+            total_allocated: total_allocated as u64,
+            total_deallocated: total_deallocated as u64,
+            peak_memory: peak_memory as u64,
+            active_allocations: allocation_count - deallocation_count,
+            active_memory: current_memory as u64,
+            leaked_allocations: 0,
+            leaked_memory: 0,
+            fragmentation_ratio: fragmentation,
             allocation_count,
             deallocation_count,
-            active_allocations: allocation_count - deallocation_count,
-            fragmentation,
             average_allocation_size: if allocation_count > 0 {
                 total_allocated / allocation_count as usize
             } else {
                 0
             },
+            current_allocated: current_memory,
+            fragmentation,
         };
 
         // Generate event list for lockfree strategy
-        let events = vec![
-            MemoryEvent {
-                event_type: EventType::Alloc,
-                ptr: 0, // Simplified
-                size: 0,
-                timestamp: 0,
-                thread_id: Self::thread_id(),
-                duration: None,
-                task_id: None,
-            },
-        ];
+        let events = vec![MemoryEvent {
+            event_type: EventType::Alloc,
+            ptr: 0, // Simplified
+            size: 0,
+            timestamp: 0,
+            thread_id: Self::thread_id(),
+            stack_hash: None,
+            cpu_time_ns: None,
+            duration: None,
+            task_id: None,
+        }];
 
         TrackingSnapshot {
             strategy: TrackingStrategy::Lockfree,

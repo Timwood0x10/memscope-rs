@@ -165,10 +165,7 @@ impl EnvironmentDetector {
     }
 
     /// Perform static environment analysis based on available system information
-    fn perform_static_analysis(
-        &self,
-        warnings: &mut Vec<String>,
-    ) -> Result<RuntimeEnvironment> {
+    fn perform_static_analysis(&self, warnings: &mut Vec<String>) -> Result<RuntimeEnvironment> {
         debug!("Performing static environment analysis");
 
         // Detect available parallelism
@@ -474,9 +471,7 @@ pub fn detect_environment() -> Result<RuntimeEnvironment> {
 
 /// Advanced environment detection with custom configuration
 /// Provides detailed analysis results for advanced use cases
-pub fn detect_environment_detailed(
-    config: DetectionConfig,
-) -> Result<EnvironmentAnalysis> {
+pub fn detect_environment_detailed(config: DetectionConfig) -> Result<EnvironmentAnalysis> {
     let mut detector = EnvironmentDetector::new(config);
     detector.analyze_environment()
 }
