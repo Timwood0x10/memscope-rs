@@ -49,6 +49,8 @@ struct TrackingManagerState {
     borrow_tracking: HashMap<usize, BorrowTrackingData>,
     /// Clone relationships
     clone_relationships: HashMap<usize, CloneRelationship>,
+    /// Lifetime information
+    lifetime_info: HashMap<usize, LifetimeInfo>,
 }
 
 /// Smart pointer information
@@ -76,6 +78,14 @@ struct CloneRelationship {
     is_clone: bool,
 }
 
+/// Lifetime tracking information
+#[derive(Debug, Clone)]
+struct LifetimeInfo {
+    alloc_timestamp: u64,
+    dealloc_timestamp: Option<u64>,
+    lifetime_ms: Option<u64>,
+}
+
 impl TrackingManagerState {
     fn new() -> Self {
         Self {
@@ -84,6 +94,7 @@ impl TrackingManagerState {
             smart_pointer_info: HashMap::new(),
             borrow_tracking: HashMap::new(),
             clone_relationships: HashMap::new(),
+            lifetime_info: HashMap::new(),
         }
     }
 }
@@ -165,6 +176,67 @@ impl TrackingManager {
 
         let tracker = self.tracker.read().unwrap();
         tracker.track_dealloc(ptr);
+    }
+
+    /// Track a deallocation with lifetime information
+    ///
+    /// # Arguments
+    /// * `ptr` - Pointer to the deallocated memory
+    /// * `lifetime_ms` - Lifetime in milliseconds
+    ///
+    /// # Returns
+    /// Result indicating success or failure
+    pub fn track_dealloc_with_lifetime(&self, ptr: usize, lifetime_ms: u64) -> Result<(), MemScopeError> {
+        // Check if tracking is disabled to prevent recursion
+        let should_track = TRACKING_DISABLED.with(|disabled| !disabled.get());
+        if !should_track {
+            return Ok(());
+        }
+
+        // Use base tracking with error handling
+        let tracker = self.tracker.read()
+            .map_err(|e| MemScopeError::new(
+                ErrorKind::InternalError,
+                &format!("Failed to acquire tracker lock: {}", e)
+            ))?;
+        tracker.track_dealloc(ptr);
+
+        // Store lifetime information with error handling
+        let dealloc_timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u64;
+
+        // Calculate allocation timestamp with overflow check
+        let lifetime_ns = lifetime_ms.checked_mul(1_000_000)
+            .ok_or_else(|| MemScopeError::new(
+                ErrorKind::InternalError,
+                "Lifetime overflow in calculation"
+            ))?;
+
+        let alloc_timestamp = dealloc_timestamp.checked_sub(lifetime_ns)
+            .ok_or_else(|| MemScopeError::new(
+                ErrorKind::InternalError,
+                "Invalid lifetime: allocation timestamp would be negative"
+            ))?;
+
+        // Store lifetime information with lock error handling
+        let mut state = self.extended_state.lock()
+            .map_err(|e| MemScopeError::new(
+                ErrorKind::InternalError,
+                &format!("Failed to acquire state lock: {}", e)
+            ))?;
+
+        state.lifetime_info.insert(
+            ptr,
+            LifetimeInfo {
+                alloc_timestamp,
+                dealloc_timestamp: Some(dealloc_timestamp),
+                lifetime_ms: Some(lifetime_ms),
+            },
+        );
+
+        Ok(())
     }
 
     /// Track an allocation with metadata

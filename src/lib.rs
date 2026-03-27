@@ -1128,9 +1128,11 @@ impl<T: Trackable> TrackedVariable<T> {
             tracing::warn!("Failed to mark variable destroyed in registry: {}", e);
         }
 
-        // Track deallocation with precise lifetime in memory tracker
-        let tracker = crate::core::tracker::get_tracker();
-        tracker.track_deallocation_with_lifetime(ptr, lifetime_ms)?;
+        // Track deallocation with precise lifetime using new TrackingManager
+        let manager = crate::manager::get_global_tracker();
+        if let Err(e) = manager.track_dealloc_with_lifetime(ptr, lifetime_ms) {
+            tracing::warn!("Failed to track deallocation with lifetime: {}", e);
+        }
 
         tracing::debug!(
             "Destroyed tracked variable '{}' at ptr 0x{:x}, lifetime: {}ms",
@@ -1164,9 +1166,11 @@ impl<T: Trackable> TrackedVariable<T> {
             tracing::warn!("Failed to mark smart pointer destroyed in registry: {}", e);
         }
 
-        // Track smart pointer deallocation with enhanced metadata
-        let tracker = crate::core::tracker::get_tracker();
-        tracker.track_smart_pointer_deallocation(ptr, lifetime_ms, final_ref_count)?;
+        // Track smart pointer deallocation with enhanced metadata using new TrackingManager
+        let manager = crate::manager::get_global_tracker();
+        if let Err(e) = manager.track_dealloc_with_lifetime(ptr, lifetime_ms) {
+            tracing::warn!("Failed to track smart pointer deallocation with lifetime: {}", e);
+        }
 
         tracing::debug!(
             "Destroyed smart pointer '{}' at ptr 0x{:x}, lifetime: {}ms, final_ref_count: {}",
