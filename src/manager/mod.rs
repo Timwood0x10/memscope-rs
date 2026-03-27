@@ -498,8 +498,86 @@ impl TrackingManager {
         // In a real implementation, we'd use Any or similar mechanism
         None
     }
-}
+    // ============================================================================
+    // Smart Pointer Tracking Methods
+    // ============================================================================
 
+    /// Track smart pointer deallocation with enhanced metadata
+    ///
+    /// Handles smart pointer destruction with reference count information.
+    /// This method provides detailed tracking for Rc, Arc, and other smart pointers.
+    ///
+    /// # Arguments
+    /// * `ptr` - Pointer to the deallocated memory
+    /// * `lifetime_ms` - Lifetime in milliseconds
+    /// * `final_ref_count` - Final reference count at destruction time
+    ///
+    /// # Returns
+    /// Result indicating success or failure
+    pub fn track_smart_pointer_deallocation(
+        &self,
+        ptr: usize,
+        lifetime_ms: u64,
+        final_ref_count: u32,
+    ) -> Result<(), MemScopeError> {
+        // Check if tracking is disabled to prevent recursion
+        let should_track = TRACKING_DISABLED.with(|disabled| !disabled.get());
+        if !should_track {
+            return Ok(());
+        }
+
+        // Use base tracking with error handling
+        let tracker = self.tracker.read()
+            .map_err(|e| MemScopeError::new(
+                ErrorKind::InternalError,
+                &format!("Failed to acquire tracker lock: {}", e)
+            ))?;
+        tracker.track_dealloc(ptr);
+
+        // Store lifetime information with ref count
+        let dealloc_timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u64;
+
+        // Calculate allocation timestamp with overflow check
+        let lifetime_ns = lifetime_ms.checked_mul(1_000_000)
+            .ok_or_else(|| MemScopeError::new(
+                ErrorKind::InternalError,
+                "Lifetime overflow in calculation"
+            ))?;
+
+        let alloc_timestamp = dealloc_timestamp.checked_sub(lifetime_ns)
+            .ok_or_else(|| MemScopeError::new(
+                ErrorKind::InternalError,
+                "Invalid lifetime: allocation timestamp would be negative"
+            ))?;
+
+        // Update smart pointer info with final ref count
+        let mut state = self.extended_state.lock()
+            .map_err(|e| MemScopeError::new(
+                ErrorKind::InternalError,
+                &format!("Failed to acquire state lock: {}", e)
+            ))?;
+
+        // Update lifetime info
+        state.lifetime_info.insert(
+            ptr,
+            LifetimeInfo {
+                alloc_timestamp,
+                dealloc_timestamp: Some(dealloc_timestamp),
+                lifetime_ms: Some(lifetime_ms),
+            },
+        );
+
+        // Update smart pointer ref count if exists
+        if let Some(smart_ptr_info) = state.smart_pointer_info.get_mut(&ptr) {
+            smart_ptr_info.ref_count = final_ref_count;
+        }
+
+        Ok(())
+    }
+}
 impl Default for TrackingManager {
     fn default() -> Self {
         Self::new_core()

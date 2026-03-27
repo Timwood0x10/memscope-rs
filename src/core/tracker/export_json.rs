@@ -393,6 +393,7 @@ fn estimate_json_size(data: &serde_json::Value) -> usize {
     }
 }
 
+#[deprecated(since = "0.4.0", note = "Please use manager::TrackingManager instead. All functionality is preserved for backward compatibility.")]
 impl MemoryTracker {
     /// Export memory tracking data to 4 separate JSON files.
     ///

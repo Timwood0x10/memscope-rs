@@ -229,6 +229,38 @@ impl CoreAdapter {
             .map(|record| {
                 let var_name = state.variable_names.get(&record.ptr).cloned();
                 let type_name = state.type_names.get(&record.ptr).cloned();
+                let smart_ptr_info = state.smart_pointer_info.get(&record.ptr);
+
+                // Convert internal SmartPointerInfo to public SmartPointerInfo format
+                let public_smart_ptr_info = smart_ptr_info.map(|info| {
+                    crate::core::types::SmartPointerInfo {
+                        data_ptr: info.original_ptr.unwrap_or(record.ptr),
+                        cloned_from: state.clone_relationships.get(&record.ptr)
+                            .and_then(|r| r.original_ptr),
+                        clones: state.clone_relationships.iter()
+                            .filter(|(_, r)| r.original_ptr == Some(record.ptr))
+                            .map(|(ptr, _)| *ptr)
+                            .collect(),
+                        ref_count_history: vec![
+                            crate::core::types::RefCountSnapshot {
+                                timestamp: record.timestamp,
+                                strong_count: info.ref_count as usize,
+                                weak_count: 0,
+                            }
+                        ],
+                        weak_count: None,
+                        is_weak_reference: info.ptr_type == SmartPointerType::Weak,
+                        is_data_owner: info.ref_count > 0,
+                        is_implicitly_deallocated: info.ref_count == 0,
+                        pointer_type: match info.ptr_type {
+                            SmartPointerType::Rc => crate::core::types::SmartPointerType::Rc,
+                            SmartPointerType::Arc => crate::core::types::SmartPointerType::Arc,
+                            SmartPointerType::Box => crate::core::types::SmartPointerType::Box,
+                            SmartPointerType::Weak => crate::core::types::SmartPointerType::RcWeak, // Default to RcWeak
+                            SmartPointerType::None => crate::core::types::SmartPointerType::Rc, // Default
+                        },
+                    }
+                });
 
                 // Convert AllocationRecord to AllocationInfo (legacy format)
                 AllocationInfo {
@@ -250,7 +282,7 @@ impl CoreAdapter {
                     borrow_count: record.borrow_info.as_ref()
                         .map(|b| b.immutable_borrows + b.mutable_borrows)
                         .unwrap_or(0),
-                    smart_pointer_info: None,
+                    smart_pointer_info: public_smart_ptr_info,
                     memory_layout: None,
                     generic_info: None,
                     dynamic_type_info: None,
@@ -270,6 +302,42 @@ impl CoreAdapter {
             .collect();
 
         Ok(allocations)
+    }
+
+    /// Convert internal SmartPointerInfo to public SmartPointerInfo format
+    fn convert_smart_pointer_info(
+        internal_info: &SmartPointerInfo,
+        ptr: usize,
+        timestamp: u64,
+        clone_relationships: &HashMap<usize, CloneRelationship>,
+    ) -> crate::core::types::SmartPointerInfo {
+        crate::core::types::SmartPointerInfo {
+            data_ptr: internal_info.original_ptr.unwrap_or(ptr),
+            cloned_from: clone_relationships.get(&ptr)
+                .and_then(|r| r.original_ptr),
+            clones: clone_relationships.iter()
+                .filter(|(_, r)| r.original_ptr == Some(ptr))
+                .map(|(clone_ptr, _)| *clone_ptr)
+                .collect(),
+            ref_count_history: vec![
+                crate::core::types::RefCountSnapshot {
+                    timestamp,
+                    strong_count: internal_info.ref_count as usize,
+                    weak_count: 0,
+                }
+            ],
+            weak_count: None,
+            is_weak_reference: internal_info.ptr_type == SmartPointerType::Weak,
+            is_data_owner: internal_info.ref_count > 0,
+            is_implicitly_deallocated: internal_info.ref_count == 0,
+            pointer_type: match internal_info.ptr_type {
+                SmartPointerType::Rc => crate::core::types::SmartPointerType::Rc,
+                SmartPointerType::Arc => crate::core::types::SmartPointerType::Arc,
+                SmartPointerType::Box => crate::core::types::SmartPointerType::Box,
+                SmartPointerType::Weak => crate::core::types::SmartPointerType::RcWeak, // Default to RcWeak
+                SmartPointerType::None => crate::core::types::SmartPointerType::Rc, // Default
+            },
+        }
     }
 
     /// Convert new AllocationRecord to legacy AllocationInfo

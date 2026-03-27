@@ -69,7 +69,10 @@ pub mod unwrap_safe;
 
 // Re-export key types for easier access
 pub use allocator::TrackingAllocator;
-pub use tracker::{get_tracker, MemoryTracker};
+#[deprecated(since = "0.4.0", note = "Use manager::get_global_tracker() instead")]
+pub use tracker::get_tracker;
+#[deprecated(since = "0.4.0", note = "Use manager::TrackingManager instead")]
+pub use tracker::MemoryTracker;
 pub use types::{AllocationInfo, TrackingError, TrackingResult};
 
 // Re-export the new unified error system

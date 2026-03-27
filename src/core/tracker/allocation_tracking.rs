@@ -7,6 +7,7 @@ use super::memory_tracker::MemoryTracker;
 use crate::core::ownership_history::OwnershipEventType;
 use crate::core::types::{AllocationInfo, TrackingResult};
 
+#[deprecated(since = "0.4.0", note = "Please use manager::TrackingManager instead. All functionality is preserved for backward compatibility.")]
 impl MemoryTracker {
     /// Fast track allocation for testing (minimal overhead)
     pub fn fast_track_allocation(
@@ -897,9 +898,59 @@ impl MemoryTracker {
         &self,
         ptr: usize,
         lifetime_ms: u64,
-        _final_ref_count: usize,
+        final_ref_count: u32,
     ) -> TrackingResult<()> {
-        self.track_deallocation_with_lifetime(ptr, lifetime_ms)
+        let dealloc_timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u64;
+
+        // Use try_lock to avoid blocking during high deallocation activity
+        match (
+            self.active_allocations.try_lock(),
+            self.bounded_stats.try_lock(),
+        ) {
+            (Ok(mut active), Ok(mut bounded_stats)) => {
+                if let Some(mut allocation) = active.remove(&ptr) {
+                    // Update smart pointer reference count history if available
+                    if let Some(ref mut smart_info) = allocation.smart_pointer_info {
+                        // Add final reference count snapshot at deallocation time
+                        smart_info.ref_count_history.push(crate::core::types::RefCountSnapshot {
+                            timestamp: dealloc_timestamp,
+                            strong_count: final_ref_count as usize,
+                            weak_count: 0, // We don't track weak count in this context
+                        });
+
+                        // Update implicit deallocation status based on ref count
+                        smart_info.is_implicitly_deallocated = final_ref_count == 0;
+                    }
+
+                    // Set deallocation timestamp and lifetime
+                    allocation.timestamp_dealloc = Some(dealloc_timestamp);
+                    allocation.lifetime_ms = Some(lifetime_ms);
+
+                    // Update bounded statistics
+                    bounded_stats.record_deallocation(ptr, allocation.size);
+
+                    // Release locks before updating history
+                    drop(bounded_stats);
+                    drop(active);
+
+                    // Update allocation history with deallocation timestamp AND lifetime
+                    if let Ok(mut history_manager) = self.history_manager.try_lock() {
+                        history_manager.add_allocation(allocation);
+                    }
+                } else {
+                    // Allocation not found, but don't error
+                    drop(active);
+                    drop(bounded_stats);
+                }
+            }
+            _ => {
+                // Lock contention, skip to avoid deadlock
+            }
+        }
+        Ok(())
     }
 
     /// Enhance allocation info (placeholder implementation)

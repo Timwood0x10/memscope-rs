@@ -108,7 +108,11 @@ pub use export::{
 pub use analysis::enhanced_memory_analysis::EnhancedMemoryAnalyzer;
 pub use analysis::unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, UnsafeFFITracker};
 pub use core::allocator::TrackingAllocator as CoreTrackingAllocator;
-pub use core::tracker::{get_tracker, ExportOptions, MemoryTracker};
+#[deprecated(since = "0.4.0", note = "Use manager::get_global_tracker() instead")]
+pub use core::tracker::get_tracker;
+#[deprecated(since = "0.4.0", note = "Use manager::TrackingManager instead")]
+pub use core::tracker::MemoryTracker;
+pub use core::tracker::ExportOptions;
 pub use core::types::{AllocationInfo, TrackingError, TrackingResult};
 pub use utils::{format_bytes, get_simple_type, simplify_type_name};
 
@@ -1168,7 +1172,7 @@ impl<T: Trackable> TrackedVariable<T> {
 
         // Track smart pointer deallocation with enhanced metadata using new TrackingManager
         let manager = crate::manager::get_global_tracker();
-        if let Err(e) = manager.track_dealloc_with_lifetime(ptr, lifetime_ms) {
+        if let Err(e) = manager.track_smart_pointer_deallocation(ptr, lifetime_ms, final_ref_count as u32) {
             tracing::warn!("Failed to track smart pointer deallocation with lifetime: {}", e);
         }
 
