@@ -67,7 +67,8 @@ mod tests {
 
         if let Ok(RenderOutput::String(json)) = result {
             assert!(json.contains("1024"));
-            assert!(json.contains("0x1000"));
+            // ptr is serialized as decimal number (4096) not hex (0x1000)
+            assert!(json.contains("4096"));
         } else {
             panic!("Expected String output");
         }

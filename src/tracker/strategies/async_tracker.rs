@@ -88,9 +88,13 @@ impl AsyncTracker {
     /// * `task_name` - Optional name for the task
     ///
     /// # Returns
-    /// Task ID for the new task
+    /// Task ID for the new task, or 0 if tracking is disabled
     pub fn register_task(&self, task_name: Option<String>) -> u64 {
         let mut state = self.state.write().unwrap();
+        if !state.enabled {
+            return 0;
+        }
+
         let task_id = state.task_counter;
         state.task_counter += 1;
 
@@ -116,6 +120,10 @@ impl AsyncTracker {
     /// * `task_id` - ID of the task to complete
     pub fn complete_task(&self, task_id: u64) {
         let mut state = self.state.write().unwrap();
+        if !state.enabled {
+            return;
+        }
+
         if let Some(task) = state.tasks.get_mut(&task_id) {
             task.status = TaskStatus::Completed;
             task.completed_at = Some(Self::timestamp());

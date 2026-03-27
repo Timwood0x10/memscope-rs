@@ -267,7 +267,7 @@ pub fn memory_snapshot() -> MemorySnapshot {
 ///     // Your code to profile
 ///     vec![0u8; 1024 * 1024].len()
 /// });
-/// assert_eq!(result, 1_000_000);
+/// assert_eq!(result, 1024 * 1024);
 /// ```
 pub fn quick_trace<F, R>(f: F) -> R
 where

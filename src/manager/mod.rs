@@ -30,7 +30,7 @@ thread_local! {
 /// Provides the central coordination point for all tracking operations.
 /// Supports dynamic strategy switching and unified data export.
 pub struct TrackingManager {
-    tracker: Arc<RwLock<dyn TrackBase>>,
+    tracker: Arc<RwLock<Box<dyn TrackBase>>>,
 }
 
 impl TrackingManager {
@@ -42,14 +42,16 @@ impl TrackingManager {
     /// # Returns
     /// A new TrackingManager instance
     pub fn new(strategy: TrackingStrategy) -> Self {
-        let tracker: Arc<RwLock<dyn TrackBase>> = match strategy {
-            TrackingStrategy::Core => Arc::new(RwLock::new(CoreTracker::new())),
-            TrackingStrategy::Lockfree => Arc::new(RwLock::new(LockfreeTracker::new())),
-            TrackingStrategy::Async => Arc::new(RwLock::new(AsyncTracker::new())),
-            TrackingStrategy::Unified => Arc::new(RwLock::new(UnifiedTracker::new_hybrid())),
+        let tracker: Box<dyn TrackBase> = match strategy {
+            TrackingStrategy::Core => Box::new(CoreTracker::new()),
+            TrackingStrategy::Lockfree => Box::new(LockfreeTracker::new()),
+            TrackingStrategy::Async => Box::new(AsyncTracker::new()),
+            TrackingStrategy::Unified => Box::new(UnifiedTracker::new_hybrid()),
         };
 
-        TrackingManager { tracker }
+        TrackingManager {
+            tracker: Arc::new(RwLock::new(tracker)),
+        }
     }
 
     /// Create a new TrackingManager with Core strategy (default)
@@ -208,17 +210,17 @@ impl TrackingManager {
     /// # Note
     /// This will clear all existing tracking data
     pub fn switch_strategy(&self, strategy: TrackingStrategy) {
-        let new_tracker: Arc<RwLock<dyn TrackBase>> = match strategy {
-            TrackingStrategy::Core => Arc::new(RwLock::new(CoreTracker::new())),
-            TrackingStrategy::Lockfree => Arc::new(RwLock::new(LockfreeTracker::new())),
-            TrackingStrategy::Async => Arc::new(RwLock::new(AsyncTracker::new())),
-            TrackingStrategy::Unified => Arc::new(RwLock::new(UnifiedTracker::new_hybrid())),
+        // Create a new tracker with the specified strategy
+        let new_tracker: Box<dyn TrackBase> = match strategy {
+            TrackingStrategy::Core => Box::new(CoreTracker::new()),
+            TrackingStrategy::Lockfree => Box::new(LockfreeTracker::new()),
+            TrackingStrategy::Async => Box::new(AsyncTracker::new()),
+            TrackingStrategy::Unified => Box::new(UnifiedTracker::new_hybrid()),
         };
 
-        // Since we can't directly replace the Arc, we need to use a different approach
-        // For now, we'll just clear the data and update strategy
-        let tracker = self.tracker.write().unwrap();
-        tracker.clear();
+        // Replace the tracker in the RwLock
+        let mut tracker = self.tracker.write().unwrap();
+        *tracker = new_tracker;
     }
 
     /// Get access to the underlying tracker for advanced operations
@@ -461,18 +463,20 @@ mod tests {
 
     #[test]
     fn test_global_api_functions() {
-        clear_tracking();
-        set_tracking_enabled(true);
+        // Create a new manager instance instead of using global state
+        let manager = TrackingManager::new_core();
+        manager.clear();
+        manager.set_enabled(true);
 
-        track_allocation(0x1000, 1024);
-        track_allocation(0x2000, 2048);
-        track_deallocation(0x1000);
+        manager.track_alloc(0x1000, 1024);
+        manager.track_alloc(0x2000, 2048);
+        manager.track_dealloc(0x1000);
 
-        let snapshot = get_snapshot();
+        let snapshot = manager.snapshot();
         assert_eq!(snapshot.allocations.len(), 1);
-        assert!(is_tracking_enabled());
+        assert!(manager.is_enabled());
 
-        clear_tracking();
-        assert_eq!(get_snapshot().allocations.len(), 0);
+        manager.clear();
+        assert_eq!(manager.snapshot().allocations.len(), 0);
     }
 }

@@ -157,8 +157,8 @@ mod tests {
         stats.active_memory = 8000;
 
         stats.calculate_fragmentation();
-        assert_eq!(stats.fragmentation_ratio, 0.2);
-        assert_eq!(stats.memory_efficiency(), 0.8);
+        assert!((stats.fragmentation_ratio - 0.2).abs() < 1e-10);
+        assert!((stats.memory_efficiency() - 0.8).abs() < 1e-10);
     }
 
     #[test]

@@ -929,7 +929,7 @@ mod tests {
         let html = result.unwrap();
         if let RenderOutput::String(content) = html {
             assert!(content.contains("Core Memory Tracking"));
-            assert!(content.contains("<html>"));
+            assert!(content.contains("<!DOCTYPE html>") || content.contains("<html"));
         } else {
             panic!("Expected String output");
         }
@@ -945,8 +945,8 @@ mod tests {
 
     #[test]
     fn test_format_timestamp() {
-        assert_eq!(format_timestamp(0), "0.0.0s");
-        assert_eq!(format_timestamp(1_000_000), "1.0.0s");
+        assert_eq!(format_timestamp(0), "0.000.000s");
+        assert_eq!(format_timestamp(1_000_000), "1.000.000s");
         assert_eq!(format_timestamp(1_500_500), "1.500.500s");
     }
 }
