@@ -3,6 +3,7 @@
 //! Used by Core strategy to track detailed allocation information
 
 use super::common::{current_thread_id, current_timestamp};
+use crate::core::types::SmartPointerType;
 use serde::{Deserialize, Serialize};
 
 /// Enhanced borrowing information for allocations
@@ -142,6 +143,94 @@ impl CloneInfo {
     }
 }
 
+/// Smart pointer information for allocations
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct SmartPointerInfo {
+    /// Type of smart pointer
+    pub ptr_type: SmartPointerType,
+    /// Current reference count
+    pub ref_count: u32,
+    /// Original pointer (if this is a clone or wrapper)
+    pub original_ptr: Option<usize>,
+}
+
+impl SmartPointerInfo {
+    /// Create new smart pointer info
+    pub fn new(ptr_type: SmartPointerType, ref_count: u32) -> Self {
+        SmartPointerInfo {
+            ptr_type,
+            ref_count,
+            original_ptr: None,
+        }
+    }
+}
+
+/// Simplified generic type information
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct GenericTypeInfo {
+    /// Generic base type name (e.g., "Vec", "HashMap")
+    pub base_type: String,
+    /// Type parameters (e.g., ["i32", "String"])
+    pub type_parameters: Vec<String>,
+    /// Monomorphization instance count
+    pub instance_count: usize,
+}
+
+impl GenericTypeInfo {
+    pub fn new(base_type: String, type_parameters: Vec<String>) -> Self {
+        GenericTypeInfo {
+            base_type,
+            type_parameters,
+            instance_count: 1,
+        }
+    }
+}
+
+/// Simplified dynamic type information for trait objects
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct DynamicTypeInfo {
+    /// Trait name (e.g., "Display", "Iterator")
+    pub trait_name: String,
+    /// Concrete type name if determinable
+    pub concrete_type: Option<String>,
+    /// Size of the trait object
+    pub size: usize,
+}
+
+impl DynamicTypeInfo {
+    pub fn new(trait_name: String, size: usize) -> Self {
+        DynamicTypeInfo {
+            trait_name,
+            concrete_type: None,
+            size,
+        }
+    }
+}
+
+/// Simplified memory layout information
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct MemoryLayoutInfo {
+    /// Total size in bytes
+    pub total_size: usize,
+    /// Alignment requirement
+    pub alignment: usize,
+    /// Padding bytes count
+    pub padding_bytes: usize,
+    /// Memory utilization ratio (0.0-1.0)
+    pub utilization: f64,
+}
+
+impl MemoryLayoutInfo {
+    pub fn new(total_size: usize, alignment: usize) -> Self {
+        MemoryLayoutInfo {
+            total_size,
+            alignment,
+            padding_bytes: 0,
+            utilization: 1.0,
+        }
+    }
+}
+
 /// Memory allocation record
 ///
 /// Used by Core strategy to track detailed allocation information
@@ -161,16 +250,32 @@ pub struct AllocationRecord {
     pub var_name: Option<String>,
     /// Optional type name
     pub type_name: Option<String>,
+    /// Optional scope name where the allocation occurred
+    pub scope_name: Option<String>,
     /// Whether this allocation is still active
     pub is_active: bool,
     /// Deallocation timestamp (if deallocated)
     pub dealloc_timestamp: Option<u64>,
     /// Whether this allocation is marked as leaked
     pub is_leaked: bool,
+    /// Number of active borrows for this allocation
+    pub borrow_count: usize,
+    /// Optional stack trace at the time of allocation (full trace)
+    pub stack_trace: Option<Vec<String>>,
+    /// Precise lifetime in milliseconds
+    pub lifetime_ms: Option<u64>,
     /// Enhanced borrowing information
     pub borrow_info: Option<BorrowInfo>,
     /// Enhanced cloning information
     pub clone_info: Option<CloneInfo>,
+    /// Smart pointer specific information
+    pub smart_pointer_info: Option<SmartPointerInfo>,
+    /// Generic type information
+    pub generic_info: Option<GenericTypeInfo>,
+    /// Dynamic type information (trait objects)
+    pub dynamic_type_info: Option<DynamicTypeInfo>,
+    /// Memory layout information
+    pub memory_layout: Option<MemoryLayoutInfo>,
     /// Whether ownership history is available
     pub ownership_history_available: bool,
 }
@@ -186,25 +291,38 @@ impl AllocationRecord {
             stack_id: None,
             var_name: None,
             type_name: None,
+            scope_name: None,
             is_active: true,
             dealloc_timestamp: None,
             is_leaked: false,
+            borrow_count: 0,
+            stack_trace: None,
+            lifetime_ms: None,
             borrow_info: None,
             clone_info: None,
+            smart_pointer_info: None,
+            generic_info: None,
+            dynamic_type_info: None,
+            memory_layout: None,
             ownership_history_available: false,
         }
     }
 
     /// Get allocation lifetime in milliseconds
     pub fn lifetime_ms(&self) -> Option<u64> {
-        self.dealloc_timestamp
-            .map(|end| (end - self.timestamp) / 1_000_000)
+        if let Some(cached) = self.lifetime_ms {
+            Some(cached)
+        } else {
+            self.dealloc_timestamp
+                .map(|end| (end - self.timestamp) / 1_000_000)
+        }
     }
 
     /// Mark as deallocated
     pub fn deallocate(&mut self) {
         self.is_active = false;
         self.dealloc_timestamp = Some(current_timestamp());
+        self.lifetime_ms = None; // Clear cache to ensure lifetime is recalculated
     }
 
     /// Set variable name
@@ -216,6 +334,18 @@ impl AllocationRecord {
     /// Set type name
     pub fn with_type_name(mut self, name: String) -> Self {
         self.type_name = Some(name);
+        self
+    }
+
+    /// Set scope name
+    pub fn with_scope_name(mut self, name: String) -> Self {
+        self.scope_name = Some(name);
+        self
+    }
+
+    /// Set stack trace
+    pub fn with_stack_trace(mut self, trace: Vec<String>) -> Self {
+        self.stack_trace = Some(trace);
         self
     }
 

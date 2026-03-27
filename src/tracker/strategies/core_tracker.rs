@@ -103,11 +103,19 @@ impl TrackBase for CoreTracker {
             stack_id: None, // Optional: capture stack trace
             var_name: None, // Optional: capture variable name
             type_name: None, // Optional: capture type name
+            scope_name: None,
             is_active: true,
             dealloc_timestamp: None,
             is_leaked: false,
+            borrow_count: 0,
+            stack_trace: None,
+            lifetime_ms: None,
             borrow_info: None,
             clone_info: None,
+            smart_pointer_info: None,
+            generic_info: None,
+            dynamic_type_info: None,
+            memory_layout: None,
             ownership_history_available: false,
         };
 

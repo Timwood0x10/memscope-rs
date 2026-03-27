@@ -41,9 +41,11 @@ pub mod cli;
 pub mod core;
 
 // Re-export optimized components for easy access
+#[deprecated(since = "0.5.0", note = "Use manager::TrackingManager for performance optimization")]
 pub use crate::core::performance_optimizer::{
     OptimizationRecommendations, PerformanceMetrics, PerformanceOptimizer,
 };
+#[deprecated(since = "0.5.0", note = "Use lockfree tracker for high-performance tracking")]
 pub use crate::core::ultra_fast_tracker::{
     SamplingStats, UltraFastSamplingConfig, UltraFastTracker,
 };
@@ -110,13 +112,18 @@ pub use analysis::enhanced_memory_analysis::EnhancedMemoryAnalyzer;
 pub use analysis::unsafe_ffi_tracker::get_global_unsafe_ffi_tracker;
 #[deprecated(since = "0.4.0", note = "Use manager::TrackingManager instead")]
 pub use analysis::unsafe_ffi_tracker::UnsafeFFITracker;
+#[deprecated(since = "0.5.0", note = "Use TrackingManager for allocator tracking")]
 pub use core::allocator::TrackingAllocator as CoreTrackingAllocator;
 #[deprecated(since = "0.4.0", note = "Use manager::get_global_tracker() instead")]
 pub use core::tracker::get_tracker;
 #[deprecated(since = "0.4.0", note = "Use manager::TrackingManager instead")]
 pub use core::tracker::MemoryTracker;
+#[deprecated(since = "0.5.0", note = "Use TrackingManager export functionality")]
 pub use core::tracker::ExportOptions;
-pub use core::types::{AllocationInfo, TrackingError, TrackingResult};
+#[deprecated(since = "0.5.0", note = "Use data::AllocationRecord instead")]
+pub use core::types::AllocationInfo;
+#[deprecated(since = "0.5.0", note = "Use error::MemScopeError instead")]
+pub use core::types::{TrackingError, TrackingResult};
 pub use utils::{format_bytes, get_simple_type, simplify_type_name};
 
 // Re-export new unified tracking system (Phase 2 refactoring)

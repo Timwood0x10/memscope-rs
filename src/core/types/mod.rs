@@ -247,6 +247,12 @@ pub enum SmartPointerType {
     Box,
 }
 
+impl Default for SmartPointerType {
+    fn default() -> Self {
+        SmartPointerType::Box
+    }
+}
+
 impl SmartPointerInfo {
     /// Create new smart pointer info for Rc/Arc
     pub fn new_rc_arc(
