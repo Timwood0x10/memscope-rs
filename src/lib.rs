@@ -23,6 +23,9 @@ pub mod render;
 /// Unified tracking manager (Phase 4 refactoring - centralized coordination)
 pub mod manager;
 
+/// Adapter layer for bridging old and new tracking systems (Phase 5 refactoring)
+pub mod adapters;
+
 /// Macro for advanced type Trackable implementations
 pub mod advanced_trackable_macro;
 /// Advanced type analysis framework
@@ -1265,6 +1268,7 @@ impl<T: Trackable + Clone> Clone for TrackedVariable<T> {
 /// Enhanced with log-based variable name persistence for lifecycle-independent tracking.
 #[doc(hidden)]
 pub fn _track_var_impl<T: Trackable>(var: &T, var_name: &str) -> TrackingResult<()> {
+    // Use new unified tracking system directly
     let tracker = crate::core::tracker::get_tracker();
 
     // Fast path for testing mode
@@ -1317,6 +1321,10 @@ pub fn _track_var_impl<T: Trackable>(var: &T, var_name: &str) -> TrackingResult<
         // 2. Associate variable with current scope
         let scope_tracker = crate::core::scope_tracker::get_global_scope_tracker();
         let _ = scope_tracker.associate_variable(var_name.to_string(), var.get_size_estimate());
+
+        // 2.5. Use new unified tracking system for core tracking
+        let manager = crate::manager::get_global_tracker();
+        manager.track_alloc(ptr_val, var.get_size_estimate());
 
         // 3. Create appropriate allocation based on type
         if is_smart_pointer {

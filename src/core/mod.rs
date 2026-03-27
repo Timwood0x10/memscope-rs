@@ -11,8 +11,8 @@
 //! - Unified type system across all tracking modes
 //!
 //! Migration Guide:
-//! - Replace `crate::core::tracker::get_tracker()` with `crate::new::tracker::get_global_tracker()`
-//! - Replace `crate::core::tracker::MemoryTracker` with `crate::new::tracker::UnifiedTracker`
+//! - Replace `crate::core::tracker::get_tracker()` with `crate::manager::get_global_tracker()`
+//! - Replace `crate::core::tracker::MemoryTracker` with `crate::manager::TrackingManager`
 //! - Use `TrackingConfig` for more flexible configuration
 //! - All functionality is preserved for backward compatibility
 //!
