@@ -14,6 +14,15 @@ pub mod types;
 /// Unified tracking system (Phase 2 refactoring)
 pub mod tracker;
 
+/// Unified data layer (Phase 3 refactoring - data-driven architecture)
+pub mod data;
+
+/// Unified render layer (Phase 3 refactoring - data-driven export)
+pub mod render;
+
+/// Unified tracking manager (Phase 4 refactoring - centralized coordination)
+pub mod manager;
+
 /// Macro for advanced type Trackable implementations
 pub mod advanced_trackable_macro;
 /// Advanced type analysis framework
@@ -28,8 +37,6 @@ pub mod cli;
 /// Core memory tracking functionality
 pub mod core;
 
-/// New unified architecture (Phase 2 refactoring)
-pub mod new;
 
 // Re-export optimized components for easy access
 pub use crate::core::performance_optimizer::{
@@ -104,16 +111,17 @@ pub use core::types::{AllocationInfo, TrackingError, TrackingResult};
 pub use utils::{format_bytes, get_simple_type, simplify_type_name};
 
 // Re-export new unified tracking system (Phase 2 refactoring)
-pub use tracker::backend::{
-    AllocationContext, AsyncBackend, BinaryExportMode, HybridBackend, OverheadLimit,
-    SamplingConfig, SingleThreadBackend, ThreadLocalBackend, TrackingAllocator, TrackingBackend,
-    TrackingConfig, TrackingStrategy, UnifiedTracker,
-};
-pub use tracker::{
-    configure_tracking_strategy, get_global_tracker, initialize, initialize_with_config, snapshot,
-    track_allocation, track_deallocation, track_ffi_alloc, track_ffi_free, track_task_end,
-    track_task_spawn,
-};
+// TODO: Re-enable after implementing backend module
+// pub use core::backend::{
+//     AllocationContext, AsyncBackend, BinaryExportMode, HybridBackend, OverheadLimit,
+//     SamplingConfig, SingleThreadBackend, ThreadLocalBackend, TrackingAllocator, TrackingBackend,
+//     TrackingConfig, TrackingStrategy, UnifiedTracker,
+// };
+// pub use core::tracker::{
+//     configure_tracking_strategy, get_global_tracker, initialize, initialize_with_config, snapshot,
+//     track_allocation, track_deallocation, track_ffi_alloc, track_ffi_free, track_task_end,
+//     track_task_spawn,
+// };
 
 // Re-export unified types and tracking system (Phase 1 & 2 refactoring)
 pub use types::internal_types::{

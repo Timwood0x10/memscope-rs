@@ -3,17 +3,11 @@
 //! Provides simple, high-level interfaces for lockfree memory tracking.
 //! Designed for minimal friction and maximum usability.
 
-use tracing::info;
-
-use super::aggregator::LockfreeAggregator;
 use super::tracker::{finalize_thread_tracker, init_thread_tracker, SamplingConfig};
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use super::comprehensive_export::export_comprehensive_analysis;
-use super::resource_integration::{
-    BottleneckType, ComprehensiveAnalysis, CorrelationMetrics, PerformanceInsights,
-};
 
 #[deprecated(
     since = "0.4.0",
@@ -59,19 +53,20 @@ pub fn trace_all<P: AsRef<Path>>(output_dir: P) -> Result<(), Box<dyn std::error
     // Enable global tracking in old system (for backward compatibility)
     TRACKING_ENABLED.store(true, Ordering::SeqCst);
 
-    // Enable tracking in new unified tracking system
-    use crate::new::tracker::{get_global_tracker, TrackingConfig, TrackingStrategy};
+    // TODO: Re-enable after implementing new unified tracking system
+    // // Enable tracking in new unified tracking system
+    // use crate::new::tracker::{get_global_tracker, TrackingConfig, TrackingStrategy};
 
-    let config = TrackingConfig {
-        strategy: TrackingStrategy::ThreadLocal, // lockfree maps to ThreadLocal strategy
-        ..Default::default()
-    };
+    // let config = TrackingConfig {
+    //     strategy: TrackingStrategy::ThreadLocal, // lockfree maps to ThreadLocal strategy
+    //     ..Default::default()
+    // };
 
-    let unified = get_global_tracker();
-    unified.set_enabled(true);
+    // let unified = get_global_tracker();
+    // unified.set_enabled(true);
 
     println!(
-        "🚀 Lockfree tracking started: {} (delegating to unified tracker)",
+        "🚀 Lockfree tracking started: {}",
         output_path.display()
     );
 
@@ -111,16 +106,17 @@ pub fn trace_thread<P: AsRef<Path>>(output_dir: P) -> Result<(), Box<dyn std::er
     // Initialize tracking for current thread with high precision (old system)
     let _ = init_thread_tracker(&output_path, Some(SamplingConfig::demo()));
 
-    // Enable tracking in new unified tracking system
-    use crate::new::tracker::{get_global_tracker, TrackingConfig, TrackingStrategy};
+    // TODO: Re-enable after implementing new unified tracking system
+    // // Enable tracking in new unified tracking system
+    // use crate::new::tracker::{get_global_tracker, TrackingConfig, TrackingStrategy};
 
-    let config = TrackingConfig {
-        strategy: TrackingStrategy::ThreadLocal,
-        ..Default::default()
-    };
+    // let config = TrackingConfig {
+    //     strategy: TrackingStrategy::ThreadLocal,
+    //     ..Default::default()
+    // };
 
-    let unified = get_global_tracker();
-    unified.set_enabled(true);
+    // let unified = get_global_tracker();
+    // unified.set_enabled(true);
 
     Ok(())
 }
@@ -153,11 +149,12 @@ pub fn stop_tracing() -> Result<(), Box<dyn std::error::Error>> {
     // Disable global tracking in old system
     TRACKING_ENABLED.store(false, Ordering::SeqCst);
 
-    // Disable tracking in new unified tracking system
-    use crate::new::tracker::get_global_tracker;
+    // TODO: Re-enable after implementing new unified tracking system
+    // // Disable tracking in new unified tracking system
+    // use crate::new::tracker::get_global_tracker;
 
-    let unified = get_global_tracker();
-    unified.set_enabled(false);
+    // let unified = get_global_tracker();
+    // unified.set_enabled(false);
 
     // Generate comprehensive analysis
     if let Some(output_dir) = OUTPUT_DIRECTORY.get() {
@@ -165,7 +162,7 @@ pub fn stop_tracing() -> Result<(), Box<dyn std::error::Error>> {
         generate_reports(&output_dir)?;
 
         println!(
-            "🎉 Tracking complete: {}/memory_report.html (delegating to unified tracker)",
+            "🎉 Tracking complete: {}/memory_report.html",
             output_dir.display()
         );
     }

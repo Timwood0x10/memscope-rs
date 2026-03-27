@@ -23,7 +23,7 @@ use crate::async_memory::task_id::{generate_task_id, set_current_task, TaskInfo}
 /// with Async strategy enabled.
 pub fn initialize() -> AsyncResult<()> {
     // Enable tracking in new unified tracking system with Async strategy
-    use crate::new::tracker::{get_global_tracker, TrackingConfig, TrackingStrategy};
+    use crate::tracker::{get_global_tracker, TrackingConfig, TrackingStrategy};
 
     let config = TrackingConfig {
         strategy: TrackingStrategy::Async,
