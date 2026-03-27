@@ -51,6 +51,8 @@ struct TrackingManagerState {
     clone_relationships: HashMap<usize, CloneRelationship>,
     /// Lifetime information
     lifetime_info: HashMap<usize, LifetimeInfo>,
+    /// FFI allocation tracking
+    ffi_allocations: HashMap<usize, FfiAllocationInfo>,
 }
 
 /// Smart pointer information
@@ -86,6 +88,15 @@ struct LifetimeInfo {
     lifetime_ms: Option<u64>,
 }
 
+/// FFI allocation tracking information
+#[derive(Debug, Clone)]
+struct FfiAllocationInfo {
+    library_name: String,
+    function_name: String,
+    alloc_timestamp: u64,
+    dealloc_timestamp: Option<u64>,
+}
+
 impl TrackingManagerState {
     fn new() -> Self {
         Self {
@@ -95,6 +106,7 @@ impl TrackingManagerState {
             borrow_tracking: HashMap::new(),
             clone_relationships: HashMap::new(),
             lifetime_info: HashMap::new(),
+            ffi_allocations: HashMap::new(),
         }
     }
 }
@@ -573,6 +585,112 @@ impl TrackingManager {
         // Update smart pointer ref count if exists
         if let Some(smart_ptr_info) = state.smart_pointer_info.get_mut(&ptr) {
             smart_ptr_info.ref_count = final_ref_count;
+        }
+
+        Ok(())
+    }
+
+    /// Track FFI allocation from external library
+    ///
+    /// This method tracks memory allocations made by external FFI functions,
+    /// providing information about the library and function that made the allocation.
+    ///
+    /// # Arguments
+    /// * `ptr` - Pointer to the allocated memory
+    /// * `size` - Size of the allocation in bytes
+    /// * `library_name` - Name of the external library
+    /// * `function_name` - Name of the function that performed the allocation
+    pub fn track_ffi_allocation(
+        &self,
+        ptr: usize,
+        size: usize,
+        library_name: String,
+        function_name: String,
+    ) -> Result<(), MemScopeError> {
+        // Check if tracking is disabled to prevent recursion
+        let should_track = TRACKING_DISABLED.with(|disabled| !disabled.get());
+        if !should_track {
+            return Ok(());
+        }
+
+        // Use base tracking
+        self.track_alloc(ptr, size);
+
+        // Store FFI allocation info
+        let alloc_timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u64;
+
+        // Log before moving ownership
+        tracing::debug!(
+            "Tracked FFI allocation at 0x{:x} from {}::{} (size: {})",
+            ptr, library_name, function_name, size
+        );
+
+        let mut state = self.extended_state.lock()
+            .map_err(|e| MemScopeError::new(
+                ErrorKind::InternalError,
+                &format!("Failed to acquire state lock: {}", e)
+            ))?;
+
+        state.ffi_allocations.insert(
+            ptr,
+            FfiAllocationInfo {
+                library_name,
+                function_name,
+                alloc_timestamp,
+                dealloc_timestamp: None,
+            },
+        );
+
+        Ok(())
+    }
+
+    /// Track FFI deallocation from external library
+    ///
+    /// This method tracks memory deallocations made by external FFI functions,
+    /// completing the lifecycle tracking for FFI allocations.
+    ///
+    /// # Arguments
+    /// * `ptr` - Pointer to the deallocated memory
+    /// * `library_name` - Name of the external library
+    /// * `function_name` - Name of the function that performed the deallocation
+    pub fn track_ffi_free(
+        &self,
+        ptr: usize,
+        library_name: String,
+        function_name: String,
+    ) -> Result<(), MemScopeError> {
+        // Check if tracking is disabled to prevent recursion
+        let should_track = TRACKING_DISABLED.with(|disabled| !disabled.get());
+        if !should_track {
+            return Ok(());
+        }
+
+        // Use base tracking
+        self.track_dealloc(ptr);
+
+        // Update FFI allocation info
+        let dealloc_timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u64;
+
+        // Log before acquiring lock
+        tracing::debug!(
+            "Tracked FFI deallocation at 0x{:x} from {}::{}",
+            ptr, library_name, function_name
+        );
+
+        let mut state = self.extended_state.lock()
+            .map_err(|e| MemScopeError::new(
+                ErrorKind::InternalError,
+                &format!("Failed to acquire state lock: {}", e)
+            ))?;
+
+        if let Some(ffi_info) = state.ffi_allocations.get_mut(&ptr) {
+            ffi_info.dealloc_timestamp = Some(dealloc_timestamp);
         }
 
         Ok(())

@@ -593,6 +593,7 @@ pub struct BoundaryEventStatistics {
 }
 
 /// Enhanced memory tracker for unsafe/FFI operations
+#[deprecated(since = "0.4.0", note = "Please use manager::TrackingManager instead. All functionality is preserved for backward compatibility.")]
 pub struct UnsafeFFITracker {
     /// Enhanced allocations with source tracking
     enhanced_allocations: Mutex<HashMap<usize, EnhancedAllocationInfo>>,
@@ -741,6 +742,7 @@ impl UnsafeFFITracker {
     }
 
     /// Track an FFI allocation
+    #[deprecated(since = "0.4.0", note = "Use TrackingManager::track_ffi_allocation instead")]
     pub fn track_ffi_allocation(
         &self,
         ptr: usize,
@@ -1046,6 +1048,7 @@ static GLOBAL_UNSAFE_FFI_TRACKER: std::sync::OnceLock<std::sync::Arc<UnsafeFFITr
     std::sync::OnceLock::new();
 
 /// Get the global unsafe/FFI tracker instance
+#[deprecated(since = "0.4.0", note = "Use manager::get_global_tracker() instead")]
 pub fn get_global_unsafe_ffi_tracker() -> std::sync::Arc<UnsafeFFITracker> {
     GLOBAL_UNSAFE_FFI_TRACKER
         .get_or_init(|| std::sync::Arc::new(UnsafeFFITracker::new()))

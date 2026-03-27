@@ -106,7 +106,10 @@ pub use export::{
 
 /// Re-export main types for easier use
 pub use analysis::enhanced_memory_analysis::EnhancedMemoryAnalyzer;
-pub use analysis::unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, UnsafeFFITracker};
+#[deprecated(since = "0.4.0", note = "Use manager::get_global_tracker() instead")]
+pub use analysis::unsafe_ffi_tracker::get_global_unsafe_ffi_tracker;
+#[deprecated(since = "0.4.0", note = "Use manager::TrackingManager instead")]
+pub use analysis::unsafe_ffi_tracker::UnsafeFFITracker;
 pub use core::allocator::TrackingAllocator as CoreTrackingAllocator;
 #[deprecated(since = "0.4.0", note = "Use manager::get_global_tracker() instead")]
 pub use core::tracker::get_tracker;
