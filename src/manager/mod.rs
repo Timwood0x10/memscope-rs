@@ -5,8 +5,9 @@
 //! switching and data export.
 
 use std::cell::Cell;
+use std::collections::HashMap;
 use std::path::Path;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
 use crate::data::{ExportFormat, TrackingSnapshot, TrackingStrategy};
 use crate::error::types::{ErrorKind, MemScopeError};
@@ -31,6 +32,60 @@ thread_local! {
 /// Supports dynamic strategy switching and unified data export.
 pub struct TrackingManager {
     tracker: Arc<RwLock<Box<dyn TrackBase>>>,
+    /// Extended state for advanced features (variable names, type names, etc.)
+    extended_state: Arc<Mutex<TrackingManagerState>>,
+}
+
+/// Extended state for advanced tracking features
+#[derive(Debug)]
+struct TrackingManagerState {
+    /// Variable name mapping (ptr -> var_name)
+    variable_names: HashMap<usize, String>,
+    /// Type name mapping (ptr -> type_name)
+    type_names: HashMap<usize, String>,
+    /// Smart pointer relationships
+    smart_pointer_info: HashMap<usize, SmartPointerInfo>,
+    /// Borrow tracking data
+    borrow_tracking: HashMap<usize, BorrowTrackingData>,
+    /// Clone relationships
+    clone_relationships: HashMap<usize, CloneRelationship>,
+}
+
+/// Smart pointer information
+#[derive(Debug, Clone)]
+struct SmartPointerInfo {
+    ptr_type: crate::smart_pointer_utils::SmartPointerType,
+    ref_count: u32,
+    original_ptr: Option<usize>,
+}
+
+/// Borrow tracking data
+#[derive(Debug, Clone)]
+struct BorrowTrackingData {
+    immutable_borrows: usize,
+    mutable_borrows: usize,
+    max_concurrent: usize,
+    last_borrow_timestamp: Option<u64>,
+}
+
+/// Clone relationship information
+#[derive(Debug, Clone)]
+struct CloneRelationship {
+    clone_count: usize,
+    original_ptr: Option<usize>,
+    is_clone: bool,
+}
+
+impl TrackingManagerState {
+    fn new() -> Self {
+        Self {
+            variable_names: HashMap::new(),
+            type_names: HashMap::new(),
+            smart_pointer_info: HashMap::new(),
+            borrow_tracking: HashMap::new(),
+            clone_relationships: HashMap::new(),
+        }
+    }
 }
 
 impl TrackingManager {
@@ -51,6 +106,7 @@ impl TrackingManager {
 
         TrackingManager {
             tracker: Arc::new(RwLock::new(tracker)),
+            extended_state: Arc::new(Mutex::new(TrackingManagerState::new())),
         }
     }
 
@@ -109,6 +165,137 @@ impl TrackingManager {
 
         let tracker = self.tracker.read().unwrap();
         tracker.track_dealloc(ptr);
+    }
+
+    /// Track an allocation with metadata
+    ///
+    /// # Arguments
+    /// * `ptr` - Pointer to the allocated memory
+    /// * `size` - Size of the allocation in bytes
+    /// * `var_name` - Optional variable name
+    /// * `type_name` - Optional type name
+    pub fn track_alloc_with_metadata(
+        &self,
+        ptr: usize,
+        size: usize,
+        var_name: Option<String>,
+        type_name: Option<String>,
+    ) {
+        // Use base tracking
+        self.track_alloc(ptr, size);
+
+        // Store extended metadata
+        let mut state = self.extended_state.lock().unwrap();
+        if let Some(name) = var_name {
+            state.variable_names.insert(ptr, name);
+        }
+        if let Some(name) = type_name {
+            state.type_names.insert(ptr, name);
+        }
+    }
+
+    /// Associate a variable with a memory allocation
+    ///
+    /// # Arguments
+    /// * `ptr` - Pointer to the allocated memory
+    /// * `var_name` - Variable name
+    /// * `type_name` - Type name
+    pub fn associate_var(&self, ptr: usize, var_name: String, type_name: String) {
+        let mut state = self.extended_state.lock().unwrap();
+        state.variable_names.insert(ptr, var_name);
+        state.type_names.insert(ptr, type_name);
+    }
+
+    /// Track smart pointer allocation
+    ///
+    /// # Arguments
+    /// * `ptr` - Pointer to the allocated memory
+    /// * `size` - Size of the allocation in bytes
+    /// * `var_name` - Variable name
+    /// * `type_name` - Type name
+    /// * `ref_count` - Reference count
+    /// * `data_ptr` - Optional pointer to the actual data
+    pub fn track_smart_pointer_allocation(
+        &self,
+        ptr: usize,
+        size: usize,
+        var_name: String,
+        type_name: String,
+        ref_count: u32,
+        data_ptr: Option<usize>,
+    ) {
+        // Use base tracking
+        self.track_alloc(ptr, size);
+
+        // Store smart pointer info
+        let mut state = self.extended_state.lock().unwrap();
+        state.variable_names.insert(ptr, var_name);
+        state.type_names.insert(ptr, type_name.clone());
+
+        // Detect smart pointer type from type name using public function
+        let ptr_type = crate::smart_pointer_utils::detect_smart_pointer_type(&type_name);
+
+        state.smart_pointer_info.insert(
+            ptr,
+            SmartPointerInfo {
+                ptr_type,
+                ref_count,
+                original_ptr: data_ptr,
+            },
+        );
+    }
+
+    /// Track smart pointer clone operation
+    ///
+    /// # Arguments
+    /// * `original_ptr` - Original pointer
+    /// * `new_ptr` - New cloned pointer
+    pub fn track_smart_pointer_clone(&self, original_ptr: usize, new_ptr: usize) {
+        let mut state = self.extended_state.lock().unwrap();
+        state.clone_relationships.insert(
+            new_ptr,
+            CloneRelationship {
+                clone_count: 1,
+                original_ptr: Some(original_ptr),
+                is_clone: true,
+            },
+        );
+
+        // Increment clone count for original
+        if let Some(rel) = state.clone_relationships.get_mut(&original_ptr) {
+            rel.clone_count += 1;
+        }
+    }
+
+    /// Track borrow operation
+    ///
+    /// # Arguments
+    /// * `ptr` - Pointer to the memory being borrowed
+    /// * `is_mutable` - Whether the borrow is mutable
+    pub fn track_borrow(&self, ptr: usize, is_mutable: bool) {
+        let mut state = self.extended_state.lock().unwrap();
+        let borrow_data = state.borrow_tracking.entry(ptr).or_insert(BorrowTrackingData {
+            immutable_borrows: 0,
+            mutable_borrows: 0,
+            max_concurrent: 0,
+            last_borrow_timestamp: None,
+        });
+
+        if is_mutable {
+            borrow_data.mutable_borrows += 1;
+        } else {
+            borrow_data.immutable_borrows += 1;
+        }
+
+        let current_borrows = borrow_data.immutable_borrows + borrow_data.mutable_borrows;
+        if current_borrows > borrow_data.max_concurrent {
+            borrow_data.max_concurrent = current_borrows;
+        }
+
+        borrow_data.last_borrow_timestamp = Some(std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u64);
     }
 
     /// Get current tracking snapshot

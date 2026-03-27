@@ -875,6 +875,8 @@ pub mod smart_pointer_utils {
         Arc,
         /// Heap allocated box (std::boxed::Box)
         Box,
+        /// Weak reference pointer (std::rc::Weak or std::sync::Weak)
+        Weak,
         /// Not a smart pointer
         None,
     }
@@ -887,6 +889,8 @@ pub mod smart_pointer_utils {
             SmartPointerType::Arc
         } else if type_name.contains("::Box<") || type_name.contains("std::boxed::Box<") {
             SmartPointerType::Box
+        } else if type_name.contains("::Weak") || type_name.contains("std::rc::Weak") || type_name.contains("std::sync::Weak") {
+            SmartPointerType::Weak
         } else {
             SmartPointerType::None
         }
@@ -906,6 +910,7 @@ pub mod smart_pointer_utils {
             SmartPointerType::Rc => 0x5000_0000 + unique_id,
             SmartPointerType::Arc => 0x6000_0000 + unique_id,
             SmartPointerType::Box => 0x7000_0000 + unique_id,
+            SmartPointerType::Weak => 0x8000_0000 + unique_id,
             SmartPointerType::None => unique_id, // Fallback, shouldn't be used
         }
     }
@@ -1268,19 +1273,8 @@ impl<T: Trackable + Clone> Clone for TrackedVariable<T> {
 /// Enhanced with log-based variable name persistence for lifecycle-independent tracking.
 #[doc(hidden)]
 pub fn _track_var_impl<T: Trackable>(var: &T, var_name: &str) -> TrackingResult<()> {
-    // Use new unified tracking system directly
-    let tracker = crate::core::tracker::get_tracker();
-
-    // Fast path for testing mode
-    if tracker.is_fast_mode() {
-        let unique_id = TRACKED_VARIABLE_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        let synthetic_ptr = 0x8000_0000 + unique_id;
-        return tracker.fast_track_allocation(
-            synthetic_ptr,
-            var.get_size_estimate(),
-            var_name.to_string(),
-        );
-    }
+    // Use new unified tracking system
+    let manager = crate::manager::get_global_tracker();
 
     let type_name = var.get_type_name().to_string();
     let smart_pointer_type = smart_pointer_utils::detect_smart_pointer_type(&type_name);
@@ -1305,11 +1299,6 @@ pub fn _track_var_impl<T: Trackable>(var: &T, var_name: &str) -> TrackingResult<
     };
 
     if let Some(ptr_val) = ptr {
-        let creation_time = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_nanos() as u64;
-
         // 1. Register variable in HashMap registry (lightweight and fast)
         let _ = crate::variable_registry::VariableRegistry::register_variable(
             ptr_val,
@@ -1322,24 +1311,19 @@ pub fn _track_var_impl<T: Trackable>(var: &T, var_name: &str) -> TrackingResult<
         let scope_tracker = crate::core::scope_tracker::get_global_scope_tracker();
         let _ = scope_tracker.associate_variable(var_name.to_string(), var.get_size_estimate());
 
-        // 2.5. Use new unified tracking system for core tracking
-        let manager = crate::manager::get_global_tracker();
-        manager.track_alloc(ptr_val, var.get_size_estimate());
-
-        // 3. Create appropriate allocation based on type
+        // 3. Use new unified tracking system with advanced features
         if is_smart_pointer {
-            // For smart pointers, create specialized allocation
+            // For smart pointers, use specialized tracking
             let ref_count = var.get_ref_count();
             let data_ptr = var.get_data_ptr();
 
-            let _ = tracker.create_smart_pointer_allocation(
+            manager.track_smart_pointer_allocation(
                 ptr_val,
                 var.get_size_estimate(),
                 var_name.to_string(),
                 type_name.clone(),
-                creation_time,
-                ref_count,
-                data_ptr,
+                ref_count as u32,
+                Some(data_ptr),
             );
             tracing::debug!(
                 "🎯 Created smart pointer tracking for '{}' at ptr 0x{:x}, ref_count={}",
@@ -1348,16 +1332,13 @@ pub fn _track_var_impl<T: Trackable>(var: &T, var_name: &str) -> TrackingResult<
                 ref_count
             );
         } else if ptr_val >= 0x8000_0000 {
-            // For synthetic pointers, create synthetic allocation
-            // Create synthetic allocation with proper var_name and type_name
-            let _ = tracker.create_synthetic_allocation(
+            // For synthetic pointers, use metadata tracking
+            manager.track_alloc_with_metadata(
                 ptr_val,
                 var.get_size_estimate(),
-                var_name.to_string(),
-                type_name.clone(),
-                creation_time,
+                Some(var_name.to_string()),
+                Some(type_name.clone()),
             );
-
             tracing::debug!(
                 "🎯 Created synthetic tracking for '{}' at ptr 0x{:x}",
                 var_name,
@@ -1365,8 +1346,13 @@ pub fn _track_var_impl<T: Trackable>(var: &T, var_name: &str) -> TrackingResult<
             );
         } else {
             // For real heap pointers, use association
-            tracker.associate_var(ptr_val, var_name.to_string(), type_name.clone())?;
-
+            manager.track_alloc_with_metadata(
+                ptr_val,
+                var.get_size_estimate(),
+                Some(var_name.to_string()),
+                Some(type_name.clone()),
+            );
+            manager.associate_var(ptr_val, var_name.to_string(), type_name.clone());
             tracing::debug!(
                 "🎯 Associated variable '{}' of type '{}' at ptr 0x{:x}",
                 var_name,
@@ -1902,6 +1888,14 @@ mod tests {
         assert_eq!(
             detect_smart_pointer_type("std::boxed::Box<Vec<i32>>"),
             SmartPointerType::Box
+        );
+        assert_eq!(
+            detect_smart_pointer_type("std::rc::Weak<i32>"),
+            SmartPointerType::Weak
+        );
+        assert_eq!(
+            detect_smart_pointer_type("std::sync::Weak<String>"),
+            SmartPointerType::Weak
         );
         assert_eq!(
             detect_smart_pointer_type("Vec<i32>"),
