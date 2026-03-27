@@ -50,11 +50,47 @@ impl LockfreeState {
     }
 }
 
-/// Lockfree tracking strategy
+/// Lockfree tracking strategy optimized for high-performance scenarios
 ///
-/// Provides event-based high-performance memory tracking using lockfree
-/// data structures. Focuses on allocation/deallocation events without
-/// detailed allocation metadata.
+/// This tracker provides lockfree, atomic-based memory tracking with minimal overhead.
+/// It prioritizes performance over detailed allocation metadata, making it ideal for
+/// high-frequency allocation/deallocation scenarios.
+///
+/// # Design Principles
+/// - **Performance First**: Uses atomic operations instead of locks
+/// - **Minimal Overhead**: Only tracks aggregate statistics, not individual allocations
+/// - **Thread-Safe**: Fully concurrent without blocking
+///
+/// # Limitations
+/// - Does not track detailed allocation information (no `AllocationRecord` storage)
+/// - `leaked_allocations` will always return `0` (cannot detect leaks without detailed records)
+/// - `leaked_memory` will always return `0`
+/// - Cannot provide allocation-level insights (stack traces, variable names, etc.)
+///
+/// # When to Use
+/// - High-frequency allocation/deallocation patterns
+/// - Performance-critical code paths where lock contention is unacceptable
+/// - Temporary/performance testing scenarios
+/// - When you only need aggregate statistics (total allocations, peak memory, etc.)
+///
+/// # When NOT to Use
+/// - When you need leak detection or detailed allocation analysis
+/// - When you need stack traces or variable name tracking
+/// - When you need smart pointer or FFI allocation tracking
+///
+/// # Alternative Strategies
+/// - Use `CoreTracker` for single-threaded detailed tracking
+/// - Use `AsyncTracker` for async runtime integration with detailed tracking
+/// - Use `UnifiedTracker` for comprehensive tracking with all features
+///
+/// # Example
+/// ```ignore
+/// let tracker = LockfreeTracker::new();
+/// tracker.track_alloc(0x1000, 1024);
+/// tracker.track_dealloc(0x1000);
+/// let snapshot = tracker.snapshot();
+/// // snapshot.stats.leaked_allocations will be 0 (limitation)
+/// ```
 pub struct LockfreeTracker {
     state: LockfreeState,
 }
@@ -145,6 +181,8 @@ impl TrackBase for LockfreeTracker {
             peak_memory: peak_memory as u64,
             active_allocations: allocation_count - deallocation_count,
             active_memory: current_memory as u64,
+            // LockfreeTracker doesn't track individual allocations, so it cannot detect leaks
+            // This is a known limitation - use CoreTracker or UnifiedTracker for leak detection
             leaked_allocations: 0,
             leaked_memory: 0,
             fragmentation_ratio: fragmentation,

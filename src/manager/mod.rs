@@ -53,6 +53,8 @@ struct TrackingManagerState {
     lifetime_info: HashMap<usize, LifetimeInfo>,
     /// FFI allocation tracking
     ffi_allocations: HashMap<usize, FfiAllocationInfo>,
+    /// Leaked allocation tracking
+    leaked_allocations: std::collections::HashSet<usize>,
 }
 
 /// Smart pointer information
@@ -107,6 +109,7 @@ impl TrackingManagerState {
             clone_relationships: HashMap::new(),
             lifetime_info: HashMap::new(),
             ffi_allocations: HashMap::new(),
+            leaked_allocations: std::collections::HashSet::new(),
         }
     }
 }
@@ -694,6 +697,116 @@ impl TrackingManager {
         }
 
         Ok(())
+    }
+
+    /// Mark an allocation as leaked
+    ///
+    /// This method explicitly marks an allocation as leaked, which can be used
+    /// for manual leak detection or when automatic detection is not sufficient.
+    ///
+    /// # Note on Data Consistency
+    /// This method only updates the extended_state because the underlying TrackBase
+    /// trait doesn't provide a way to modify AllocationRecord. The get_leaked_allocations()
+    /// method merges data from both sources (extended_state and AllocationRecord.is_leaked)
+    /// to ensure consistency.
+    ///
+    /// # Arguments
+    /// * `ptr` - Pointer to the allocation to mark as leaked
+    pub fn mark_leaked(&self, ptr: usize) -> Result<(), MemScopeError> {
+        // Track this in extended state
+        let mut state = self.extended_state.lock()
+            .map_err(|e| MemScopeError::new(
+                ErrorKind::InternalError,
+                &format!("Failed to acquire state lock: {}", e)
+            ))?;
+
+        // Mark the allocation as leaked in extended state
+        state.leaked_allocations.insert(ptr);
+
+        tracing::debug!(
+            "Marked allocation at 0x{:x} as leaked",
+            ptr
+        );
+
+        Ok(())
+    }
+
+    /// Unmark an allocation as leaked
+    ///
+    /// This method removes the leaked status from an allocation, allowing it
+    /// to be tracked normally again.
+    ///
+    /// # Note on Data Consistency
+    /// This method only updates the extended_state because the underlying TrackBase
+    /// trait doesn't provide a way to modify AllocationRecord. The get_leaked_allocations()
+    /// method merges data from both sources (extended_state and AllocationRecord.is_leaked)
+    /// to ensure consistency.
+    ///
+    /// # Arguments
+    /// * `ptr` - Pointer to the allocation to unmark as leaked
+    pub fn unmark_leaked(&self, ptr: usize) -> Result<(), MemScopeError> {
+        // Track this in extended state
+        let mut state = self.extended_state.lock()
+            .map_err(|e| MemScopeError::new(
+                ErrorKind::InternalError,
+                &format!("Failed to acquire state lock: {}", e)
+            ))?;
+
+        // Remove the leak marking from extended state
+        state.leaked_allocations.remove(&ptr);
+
+        tracing::debug!(
+            "Unmarked allocation at 0x{:x} as leaked",
+            ptr
+        );
+
+        Ok(())
+    }
+
+    /// Get all allocations marked as leaked
+    ///
+    /// This method returns allocations that are marked as leaked from two sources:
+    /// 1. Explicitly marked via `mark_leaked()` in extended_state
+    /// 2. Marked as leaked in the underlying AllocationRecord
+    ///
+    /// The results are merged and deduplicated to ensure consistency.
+    ///
+    /// # Returns
+    /// A vector of pointers to allocations that are marked as leaked
+    pub fn get_leaked_allocations(&self) -> Result<Vec<usize>, MemScopeError> {
+        let snapshot = self.snapshot();
+        let state = self.extended_state.lock()
+            .map_err(|e| MemScopeError::new(
+                ErrorKind::InternalError,
+                &format!("Failed to acquire state lock: {}", e)
+            ))?;
+
+        // Collect leaked allocations from both sources
+        let mut leaked_set: std::collections::HashSet<usize> = std::collections::HashSet::new();
+
+        // 1. Add explicitly marked allocations from extended_state
+        // Only include allocations that are still active (not freed)
+        let active_ptrs: std::collections::HashSet<usize> = snapshot.allocations
+            .iter()
+            .filter(|r| r.is_active)
+            .map(|r| r.ptr)
+            .collect();
+        
+        for ptr in state.leaked_allocations.iter() {
+            if active_ptrs.contains(ptr) {
+                leaked_set.insert(*ptr);
+            }
+        }
+
+        // 2. Add allocations marked as leaked in AllocationRecord
+        // Only consider active allocations (released allocations are not leaks)
+        for record in snapshot.allocations {
+            if record.is_active && record.is_leaked {
+                leaked_set.insert(record.ptr);
+            }
+        }
+
+        Ok(leaked_set.into_iter().collect())
     }
 }
 impl Default for TrackingManager {

@@ -189,6 +189,7 @@ impl UnifiedTracker {
             type_name: None,
             is_active: true,
             dealloc_timestamp: None,
+            is_leaked: false,
             borrow_info: None,
             clone_info: None,
             ownership_history_available: false,
@@ -315,10 +316,10 @@ impl TrackBase for UnifiedTracker {
             peak_memory: state.peak_memory as u64,
             active_allocations: allocations.iter().filter(|a| a.is_active).count() as u64,
             active_memory: current_memory as u64,
-            leaked_allocations: allocations.iter().filter(|a| a.is_active).count() as u64,
+            leaked_allocations: allocations.iter().filter(|a| a.is_leaked).count() as u64,
             leaked_memory: allocations
                 .iter()
-                .filter(|a| a.is_active)
+                .filter(|a| a.is_leaked)
                 .map(|a| a.size as u64)
                 .sum(),
             fragmentation_ratio: fragmentation,

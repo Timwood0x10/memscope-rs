@@ -165,6 +165,8 @@ pub struct AllocationRecord {
     pub is_active: bool,
     /// Deallocation timestamp (if deallocated)
     pub dealloc_timestamp: Option<u64>,
+    /// Whether this allocation is marked as leaked
+    pub is_leaked: bool,
     /// Enhanced borrowing information
     pub borrow_info: Option<BorrowInfo>,
     /// Enhanced cloning information
@@ -186,6 +188,7 @@ impl AllocationRecord {
             type_name: None,
             is_active: true,
             dealloc_timestamp: None,
+            is_leaked: false,
             borrow_info: None,
             clone_info: None,
             ownership_history_available: false,

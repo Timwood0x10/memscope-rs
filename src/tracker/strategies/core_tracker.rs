@@ -105,6 +105,7 @@ impl TrackBase for CoreTracker {
             type_name: None, // Optional: capture type name
             is_active: true,
             dealloc_timestamp: None,
+            is_leaked: false,
             borrow_info: None,
             clone_info: None,
             ownership_history_available: false,
@@ -150,11 +151,11 @@ impl TrackBase for CoreTracker {
             peak_memory: state.peak_memory as u64,
             active_allocations: state.allocations.len() as u64,
             active_memory: current_memory as u64,
-            leaked_allocations: state.allocations.iter().filter(|a| a.1.is_active).count() as u64,
+            leaked_allocations: state.allocations.iter().filter(|a| a.1.is_leaked).count() as u64,
             leaked_memory: state
                 .allocations
                 .iter()
-                .filter(|a| a.1.is_active)
+                .filter(|a| a.1.is_leaked)
                 .map(|a| a.1.size as u64)
                 .sum(),
             fragmentation_ratio: fragmentation,

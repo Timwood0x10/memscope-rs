@@ -133,6 +133,7 @@ impl AllocationInfoAdapter {
         self.inner.is_leaked
     }
 
+    #[deprecated(since = "0.4.0", note = "Use TrackingManager::mark_leaked or TrackingManager::unmark_leaked instead")]
     pub fn set_is_leaked(&mut self, leaked: bool) {
         self.inner.is_leaked = leaked;
     }
