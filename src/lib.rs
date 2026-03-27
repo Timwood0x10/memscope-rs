@@ -99,16 +99,15 @@ pub use export::{
 pub use analysis::enhanced_memory_analysis::EnhancedMemoryAnalyzer;
 pub use analysis::unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, UnsafeFFITracker};
 pub use core::allocator::TrackingAllocator as CoreTrackingAllocator;
-pub use core::tracker::memory_tracker::BinaryExportMode;
 pub use core::tracker::{get_tracker, ExportOptions, MemoryTracker};
 pub use core::types::{AllocationInfo, TrackingError, TrackingResult};
 pub use utils::{format_bytes, get_simple_type, simplify_type_name};
 
 // Re-export new unified tracking system (Phase 2 refactoring)
 pub use tracker::backend::{
-    AllocationContext, AsyncBackend, HybridBackend, OverheadLimit, SamplingConfig,
-    SingleThreadBackend, ThreadLocalBackend, TrackingAllocator, TrackingBackend, TrackingConfig,
-    TrackingStrategy, UnifiedTracker,
+    AllocationContext, AsyncBackend, BinaryExportMode, HybridBackend, OverheadLimit,
+    SamplingConfig, SingleThreadBackend, ThreadLocalBackend, TrackingAllocator, TrackingBackend,
+    TrackingConfig, TrackingStrategy, UnifiedTracker,
 };
 pub use tracker::{
     configure_tracking_strategy, get_global_tracker, initialize, initialize_with_config, snapshot,

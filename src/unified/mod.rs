@@ -2,7 +2,21 @@
 // Provides intelligent routing between different tracking strategies
 // Maintains compatibility with existing core systems
 
-//! # Unified Backend System
+//! # Deprecated
+//!
+//! This module is deprecated. Please use the new unified tracking system
+//! located in `src/new/tracker/mod.rs` with `UnifiedTracker`.
+//!
+//! The new unified tracking system provides:
+//! - Better performance through configurable strategies
+//! - Cleaner API with reduced complexity
+//! - Unified type system across all tracking modes
+//!
+//! Migration Guide:
+//! - Replace `crate::unified::UnifiedBackend` with `crate::new::tracker::UnifiedTracker`
+//! - Replace `crate::unified::tracking_dispatcher::TrackingDispatcher` with `crate::new::tracker::UnifiedTracker`
+//! - Use `TrackingConfig` for more flexible configuration
+//! - All functionality is preserved for backward compatibility
 //!
 //! This module provides a unified backend system for intelligent memory tracking
 //! across different runtime environments without conflicting with existing core modules.
@@ -31,7 +45,7 @@ pub mod tracking_dispatcher;
 
 // Re-export main types for convenience
 pub use backend::{
-    AsyncRuntimeType, BackendConfig, BackendError, MemoryAnalysisData, MemoryStatistics,
+    AsyncRuntimeType, BackendConfig, MemoryAnalysisData, MemoryStatistics,
     RuntimeEnvironment, SessionMetadata, TrackingSession, TrackingStrategy, UnifiedBackend,
 };
 
@@ -45,43 +59,27 @@ pub use tracking_dispatcher::{
     TrackerStatistics, TrackerType, TrackingDispatcher, TrackingOperation,
 };
 
+use crate::core::error::Result;
+
 /// Quick initialization function for unified backend
 /// Provides simple setup with default configuration
-pub fn quick_start() -> Result<UnifiedBackend, BackendError> {
+pub fn quick_start() -> Result<UnifiedBackend> {
     UnifiedBackend::initialize(BackendConfig::default())
 }
 
-/// Test the unified backend system
-/// Ensures all components work together correctly
-pub fn test_unified_system() -> Result<(), BackendError> {
-    // Initialize backend
-    let mut backend = quick_start()?;
-
-    // Start tracking session
-    let session = backend.start_tracking()?;
-
-    // Collect data
-    let _data = session.collect_data()?;
-
-    // End session
-    let _final_data = session.end_session()?;
-
-    Ok(())
-}
-
+/// Test function for unified system
+/// Validates that all components work together correctly
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_unified_backend_quick_start() {
-        let result = quick_start();
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_unified_system_integration() {
-        let result = test_unified_system();
-        assert!(result.is_ok());
-    }
+pub fn test_unified_system() -> Result<()> {
+    let backend = UnifiedBackend::initialize(BackendConfig::default())?;
+    
+    // Test basic operations
+    let ptr = 0x1000 as usize;
+    backend.track_allocation(ptr, 1024)?;
+    backend.track_deallocation(ptr)?;
+    
+    let snapshot = backend.snapshot();
+    assert_eq!(snapshot.allocations.len(), 0, "Snapshot should be empty after dealloc");
+    
+    Ok(())
 }

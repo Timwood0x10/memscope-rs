@@ -1090,6 +1090,116 @@ impl UnifiedTracker {
             leak_detection,
         })
     }
+
+    /// Ensure the memory analysis path exists and return the full path
+    pub fn ensure_memory_analysis_path<P: AsRef<std::path::Path>>(
+        &self,
+        path: P,
+    ) -> Result<std::path::PathBuf, String> {
+        let path = path.as_ref();
+        let memory_analysis_dir = std::path::Path::new("MemoryAnalysis");
+
+        std::fs::create_dir_all(memory_analysis_dir)
+            .map_err(|e| format!("Failed to create MemoryAnalysis directory: {}", e))?;
+
+        Ok(memory_analysis_dir.join(path))
+    }
+
+    /// Export lifecycle timeline (migrated from MemoryTracker::export_lifecycle_timeline)
+    pub fn export_lifecycle_timeline<P: AsRef<std::path::Path>>(
+        &self,
+        path: P,
+    ) -> Result<(), String> {
+        let output_path = self.ensure_memory_analysis_path(path)?;
+        let snapshot = self.snapshot();
+        let json = serde_json::to_string_pretty(&snapshot).map_err(|e| e.to_string())?;
+        
+        let html = format!(
+            r#"<!DOCTYPE html>
+<html>
+<head>
+    <title>Lifecycle Timeline</title>
+    <style>
+        body {{ font-family: Arial, sans-serif; margin: 20px; }}
+        pre {{ background: #f5f5f5; padding: 15px; border-radius: 5px; overflow-x: auto; }}
+    </style>
+</head>
+<body>
+    <h1>Memory Lifecycle Timeline</h1>
+    <pre>{}</pre>
+</body>
+</html>"#,
+            json
+        );
+        
+        std::fs::write(output_path, html).map_err(|e| e.to_string())
+    }
+
+    /// Export user-only binary (migrated from MemoryTracker::export_user_binary)
+    pub fn export_user_binary<P: AsRef<std::path::Path>>(&self, path: P) -> Result<(), String> {
+        let output_path = self.ensure_memory_analysis_path(path)?;
+        let snapshot = self.snapshot();
+
+        let user_allocations: Vec<_> = snapshot
+            .allocations
+            .into_iter()
+            .filter(|allocation| allocation.meta.var_name.is_some())
+            .collect();
+
+        tracing::info!(
+            "Exporting {} user allocations to binary format",
+            user_allocations.len()
+        );
+
+        let user_snapshot = Snapshot {
+            allocations: user_allocations,
+            ..snapshot
+        };
+
+        let json = serde_json::to_string_pretty(&user_snapshot).map_err(|e| e.to_string())?;
+        std::fs::write(output_path, json).map_err(|e| e.to_string())
+    }
+
+    /// Export full binary (migrated from MemoryTracker::export_full_binary)
+    pub fn export_full_binary<P: AsRef<std::path::Path>>(&self, path: P) -> Result<(), String> {
+        let output_path = self.ensure_memory_analysis_path(path)?;
+        let snapshot = self.snapshot();
+
+        tracing::info!(
+            "Exporting {} total allocations (user + system) to binary format",
+            snapshot.allocations.len()
+        );
+
+        let json = serde_json::to_string_pretty(&snapshot).map_err(|e| e.to_string())?;
+        std::fs::write(output_path, json).map_err(|e| e.to_string())
+    }
+
+    /// Export to binary with mode (migrated from MemoryTracker::export_to_binary_with_mode)
+    pub fn export_to_binary_with_mode<P: AsRef<std::path::Path>>(
+        &self,
+        path: P,
+        mode: BinaryExportMode,
+    ) -> Result<(), String> {
+        match mode {
+            BinaryExportMode::UserOnly => self.export_user_binary(path),
+            BinaryExportMode::Full => self.export_full_binary(path),
+        }
+    }
+}
+
+/// Binary export mode enumeration
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BinaryExportMode {
+    /// Export only user-defined variables
+    UserOnly,
+    /// Export all allocations
+    Full,
+}
+
+impl Default for BinaryExportMode {
+    fn default() -> Self {
+        BinaryExportMode::UserOnly
+    }
 }
 
 impl Default for UnifiedTracker {

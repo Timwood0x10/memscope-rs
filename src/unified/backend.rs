@@ -2,10 +2,23 @@
 // Provides intelligent routing between single-thread, multi-thread, and async tracking strategies
 // Maintains zero-lock architecture and preserves existing JSON export compatibility
 
+use crate::core::error::{MemScopeError, MemoryOperation, Result, SystemErrorType};
 use crate::lockfree::aggregator::LockfreeAggregator;
-use std::sync::Arc;
-use thiserror::Error;
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, RwLock};
 use tracing::{debug, info, warn};
+
+#[derive(Debug, Clone)]
+struct AllocationRecord {
+    ptr: usize,
+    size: usize,
+    timestamp_alloc: u64,
+    timestamp_dealloc: Option<u64>,
+    thread_id: u64,
+    var_name: Option<String>,
+    type_name: Option<String>,
+}
 
 /// Main unified backend that orchestrates all memory tracking strategies
 /// Acts as the central hub for routing tracking requests to appropriate handlers
@@ -18,6 +31,10 @@ pub struct UnifiedBackend {
     config: BackendConfig,
     /// Aggregator for collecting data from all tracking sources
     aggregator: Arc<LockfreeAggregator>,
+    /// Internal allocation storage
+    allocations: Arc<RwLock<HashMap<usize, AllocationRecord>>>,
+    /// Total allocations count
+    total_allocations: Arc<std::sync::atomic::AtomicU64>,
 }
 
 /// Detected runtime environment characteristics
@@ -123,30 +140,6 @@ pub struct SessionMetadata {
     pub overhead_percent: f64,
 }
 
-/// Backend operation errors
-#[derive(Error, Debug)]
-pub enum BackendError {
-    /// Environment detection failed
-    #[error("Failed to detect runtime environment: {reason}")]
-    EnvironmentDetectionFailed { reason: String },
-
-    /// Strategy selection failed
-    #[error("Cannot select appropriate tracking strategy for environment: {environment:?}")]
-    StrategySelectionFailed { environment: RuntimeEnvironment },
-
-    /// Tracking initialization failed
-    #[error("Failed to initialize tracking session: {reason}")]
-    TrackingInitializationFailed { reason: String },
-
-    /// Data collection error
-    #[error("Error collecting tracking data: {reason}")]
-    DataCollectionError { reason: String },
-
-    /// Configuration validation error
-    #[error("Invalid backend configuration: {reason}")]
-    ConfigurationError { reason: String },
-}
-
 impl Default for BackendConfig {
     /// Default configuration optimized for most use cases
     fn default() -> Self {
@@ -162,32 +155,31 @@ impl Default for BackendConfig {
 impl UnifiedBackend {
     /// Initialize unified backend with configuration
     /// Performs environment detection and strategy selection
-    pub fn initialize(config: BackendConfig) -> Result<Self, BackendError> {
-        // Validate configuration parameters
+    pub fn initialize(config: BackendConfig) -> Result<Self> {
         if config.sample_rate < 0.0 || config.sample_rate > 1.0 {
-            return Err(BackendError::ConfigurationError {
-                reason: "Sample rate must be between 0.0 and 1.0".to_string(),
-            });
+            return Err(MemScopeError::config(
+                "backend",
+                "Sample rate must be between 0.0 and 1.0",
+            ));
         }
 
         if config.max_overhead_percent < 0.0 || config.max_overhead_percent > 100.0 {
-            return Err(BackendError::ConfigurationError {
-                reason: "Max overhead percent must be between 0.0 and 100.0".to_string(),
-            });
+            return Err(MemScopeError::config(
+                "backend",
+                "Max overhead percent must be between 0.0 and 100.0",
+            ));
         }
 
         info!("Initializing unified backend with config: {:?}", config);
 
-        // Detect runtime environment
         let environment = if config.auto_detect {
             Self::detect_environment()?
         } else {
-            RuntimeEnvironment::SingleThreaded // Default fallback
+            RuntimeEnvironment::SingleThreaded
         };
 
         debug!("Detected environment: {:?}", environment);
 
-        // Select optimal tracking strategy
         let active_strategy = if let Some(forced) = config.force_strategy.clone() {
             warn!("Using forced strategy: {:?}", forced);
             forced
@@ -197,7 +189,6 @@ impl UnifiedBackend {
 
         info!("Selected tracking strategy: {:?}", active_strategy);
 
-        // Initialize aggregator for data collection
         let output_dir = std::env::temp_dir().join("memscope_unified");
         let aggregator = Arc::new(LockfreeAggregator::new(output_dir));
 
@@ -206,12 +197,14 @@ impl UnifiedBackend {
             active_strategy,
             config,
             aggregator,
+            allocations: Arc::new(RwLock::new(HashMap::new())),
+            total_allocations: Arc::new(std::sync::atomic::AtomicU64::new(0)),
         })
     }
 
     /// Detect current runtime environment characteristics
     /// Analyzes thread count, async runtime presence, and execution patterns
-    pub fn detect_environment() -> Result<RuntimeEnvironment, BackendError> {
+    pub fn detect_environment() -> Result<RuntimeEnvironment> {
         debug!("Starting environment detection");
 
         // Check for async runtime presence
@@ -281,7 +274,7 @@ impl UnifiedBackend {
     }
 
     /// Select optimal tracking strategy based on environment
-    fn select_strategy(environment: &RuntimeEnvironment) -> Result<TrackingStrategy, BackendError> {
+    fn select_strategy(environment: &RuntimeEnvironment) -> Result<TrackingStrategy> {
         let strategy = match environment {
             RuntimeEnvironment::SingleThreaded => TrackingStrategy::GlobalDirect,
             RuntimeEnvironment::MultiThreaded { .. } => TrackingStrategy::ThreadLocal,
@@ -298,20 +291,22 @@ impl UnifiedBackend {
 
     /// Start active memory tracking session
     /// Returns session handle for controlling tracking lifecycle
-    pub fn start_tracking(&mut self) -> Result<TrackingSession, BackendError> {
+    pub fn start_tracking(&mut self) -> Result<TrackingSession> {
         let session_id = format!(
             "session_{}",
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .map_err(|e| BackendError::TrackingInitializationFailed {
-                    reason: format!("Failed to generate session ID: {}", e),
+                .map_err(|e| {
+                    MemScopeError::config(
+                        "session",
+                        format!("Failed to generate session ID: {}", e),
+                    )
                 })?
                 .as_millis()
         );
 
         info!("Starting tracking session: {}", session_id);
 
-        // Initialize tracking based on selected strategy
         match self.active_strategy {
             TrackingStrategy::GlobalDirect => {
                 self.initialize_global_tracking()?;
@@ -338,36 +333,32 @@ impl UnifiedBackend {
     }
 
     /// Initialize global direct tracking for single-threaded applications
-    fn initialize_global_tracking(&mut self) -> Result<(), BackendError> {
+    fn initialize_global_tracking(&mut self) -> Result<()> {
         debug!("Initializing global direct tracking");
-        // Implementation will integrate with existing lockfree aggregator
         Ok(())
     }
 
     /// Initialize thread-local tracking for multi-threaded applications
-    fn initialize_thread_local_tracking(&mut self) -> Result<(), BackendError> {
+    fn initialize_thread_local_tracking(&mut self) -> Result<()> {
         debug!("Initializing thread-local tracking");
-        // Implementation will use thread_local! storage
         Ok(())
     }
 
     /// Initialize task-local tracking for async applications
-    fn initialize_task_local_tracking(&mut self) -> Result<(), BackendError> {
+    fn initialize_task_local_tracking(&mut self) -> Result<()> {
         debug!("Initializing task-local tracking");
-        // Implementation will integrate with AsyncMemoryTracker
         Ok(())
     }
 
     /// Initialize hybrid tracking for complex applications
-    fn initialize_hybrid_tracking(&mut self) -> Result<(), BackendError> {
+    fn initialize_hybrid_tracking(&mut self) -> Result<()> {
         debug!("Initializing hybrid tracking");
-        // Implementation will combine multiple strategies
         Ok(())
     }
 
     /// Collect all tracking data from active session
     /// Aggregates data from all tracking sources into unified format
-    pub fn collect_data(&self) -> Result<MemoryAnalysisData, BackendError> {
+    pub fn collect_data(&self) -> Result<MemoryAnalysisData> {
         debug!("Collecting tracking data");
 
         // Collect raw data from aggregator (placeholder for now)
@@ -401,9 +392,7 @@ impl UnifiedBackend {
     }
 
     /// Calculate statistical summary from raw tracking data
-    fn calculate_statistics(&self, _raw_data: &[u8]) -> Result<MemoryStatistics, BackendError> {
-        // This would parse the raw data and calculate actual statistics
-        // For now, return placeholder statistics
+    fn calculate_statistics(&self, _raw_data: &[u8]) -> Result<MemoryStatistics> {
         Ok(MemoryStatistics {
             total_allocations: 0,
             peak_memory_bytes: 0,
@@ -414,13 +403,132 @@ impl UnifiedBackend {
 
     /// Measure current tracking overhead percentage
     fn measure_overhead(&self) -> f64 {
-        // Implementation would measure actual performance impact
-        // Return configured max overhead as placeholder
         self.config.max_overhead_percent
     }
 
+    /// Track a memory allocation
+    pub fn track_allocation(&self, ptr: usize, size: usize) -> Result<()> {
+        debug!("Tracking allocation: ptr={:?}, size={}", ptr, size);
+
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u64;
+
+        let thread_id = get_thread_id();
+
+        let record = AllocationRecord {
+            ptr,
+            size,
+            timestamp_alloc: timestamp,
+            timestamp_dealloc: None,
+            thread_id,
+            var_name: None,
+            type_name: None,
+        };
+
+        {
+            let mut allocations = self.allocations.write().map_err(|e| {
+                MemScopeError::system_with_source(
+                    SystemErrorType::Locking,
+                    "Failed to acquire write lock on allocations",
+                    e,
+                )
+            })?;
+            allocations.insert(ptr, record);
+        }
+
+        self.total_allocations
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
+        debug!("Successfully tracked allocation: ptr={:x}, size={}", ptr, size);
+        Ok(())
+    }
+
+    /// Track a memory deallocation
+    pub fn track_deallocation(&self, ptr: usize) -> Result<()> {
+        debug!("Tracking deallocation: ptr={:?}", ptr);
+
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u64;
+
+        {
+            let mut allocations = self.allocations.write().map_err(|e| {
+                MemScopeError::system_with_source(
+                    SystemErrorType::Locking,
+                    "Failed to acquire write lock on allocations",
+                    e,
+                )
+            })?;
+
+            if let Some(record) = allocations.get_mut(&ptr) {
+                record.timestamp_dealloc = Some(timestamp);
+                debug!(
+                    "Successfully tracked deallocation: ptr={:x}, allocated at {}",
+                    ptr, record.timestamp_alloc
+                );
+            } else {
+                warn!("Deallocation tracked for unknown pointer: {:x}", ptr);
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Get a snapshot of current allocations
+    pub fn snapshot(&self) -> crate::types::internal_types::Snapshot {
+        debug!("Taking snapshot");
+
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u64;
+
+        let allocations = match self.allocations.read() {
+            Ok(allocs) => allocs,
+            Err(e) => {
+                warn!("Failed to acquire read lock on allocations: {}", e);
+                return crate::types::internal_types::Snapshot {
+                    timestamp,
+                    allocations: Vec::new(),
+                    tasks: Vec::new(),
+                    threads: Vec::new(),
+                    passports: Vec::new(),
+                    stats: crate::types::internal_types::Stats::default(),
+                };
+            }
+        };
+        let snapshot_allocations: Vec<crate::types::internal_types::Allocation> = allocations
+            .values()
+            .map(|record| {
+                let mut alloc = crate::types::internal_types::Allocation::new(record.ptr, record.size);
+                alloc.alloc_ts = record.timestamp_alloc;
+                alloc.free_ts = record.timestamp_dealloc;
+                alloc.thread = record.thread_id as u32;
+                if let Some(ref var_name) = record.var_name {
+                    alloc.meta.var_name = Some(var_name.clone());
+                }
+                if let Some(ref type_name) = record.type_name {
+                    alloc.meta.type_name = Some(type_name.clone());
+                }
+                alloc
+            })
+            .collect();
+
+        crate::types::internal_types::Snapshot {
+            timestamp,
+            allocations: snapshot_allocations,
+            tasks: Vec::new(),
+            threads: Vec::new(),
+            passports: Vec::new(),
+            stats: crate::types::internal_types::Stats::default(),
+        }
+    }
+
     /// Shutdown backend and finalize all tracking
-    pub fn shutdown(self) -> Result<MemoryAnalysisData, BackendError> {
+    pub fn shutdown(self) -> Result<MemoryAnalysisData> {
         info!("Shutting down unified backend");
 
         // Collect final data before shutdown
@@ -439,6 +547,8 @@ impl Clone for UnifiedBackend {
             active_strategy: self.active_strategy.clone(),
             config: self.config.clone(),
             aggregator: Arc::clone(&self.aggregator),
+            allocations: Arc::clone(&self.allocations),
+            total_allocations: Arc::clone(&self.total_allocations),
         }
     }
 }
@@ -455,12 +565,12 @@ impl TrackingSession {
     }
 
     /// Collect current tracking data without ending session
-    pub fn collect_data(&self) -> Result<MemoryAnalysisData, BackendError> {
+    pub fn collect_data(&self) -> Result<MemoryAnalysisData> {
         self.backend.collect_data()
     }
 
     /// End tracking session and collect final data
-    pub fn end_session(self) -> Result<MemoryAnalysisData, BackendError> {
+    pub fn end_session(self) -> Result<MemoryAnalysisData> {
         info!("Ending tracking session: {}", self.session_id);
 
         let final_data = self.backend.collect_data()?;
@@ -473,6 +583,16 @@ impl TrackingSession {
 
         Ok(final_data)
     }
+}
+
+fn get_thread_id() -> u64 {
+    static THREAD_COUNTER: AtomicU64 = AtomicU64::new(1);
+
+    std::thread_local! {
+        static THREAD_ID: u64 = THREAD_COUNTER.fetch_add(1, Ordering::SeqCst);
+    }
+
+    THREAD_ID.with(|&id| id)
 }
 
 #[cfg(test)]
@@ -495,13 +615,13 @@ mod tests {
     #[test]
     fn test_invalid_config_sample_rate() {
         let config = BackendConfig {
-            sample_rate: 1.5, // Invalid: > 1.0
+            sample_rate: 1.5,
             ..Default::default()
         };
         let result = UnifiedBackend::initialize(config);
         assert!(matches!(
             result,
-            Err(BackendError::ConfigurationError { .. })
+            Err(MemScopeError::Configuration { .. })
         ));
     }
 

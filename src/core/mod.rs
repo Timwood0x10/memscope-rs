@@ -1,5 +1,21 @@
 //! Core memory tracking functionality
 //!
+//! # Deprecated
+//!
+//! This module is deprecated. Please use the new unified tracking system
+//! located in `src/new/tracker/mod.rs` with `UnifiedTracker`.
+//!
+//! The new unified tracking system provides:
+//! - Better performance through configurable strategies
+//! - Cleaner API with reduced complexity
+//! - Unified type system across all tracking modes
+//!
+//! Migration Guide:
+//! - Replace `crate::core::tracker::get_tracker()` with `crate::new::tracker::get_global_tracker()`
+//! - Replace `crate::core::tracker::MemoryTracker` with `crate::new::tracker::UnifiedTracker`
+//! - Use `TrackingConfig` for more flexible configuration
+//! - All functionality is preserved for backward compatibility
+//!
 //! This module contains the fundamental components for memory tracking:
 //! - Memory tracker implementation
 //! - Custom allocator
@@ -142,7 +158,7 @@ pub use tracker::configure_tracking_strategy;
 // Re-export unified backend system
 pub use crate::unified::{
     detect_environment, detect_environment_detailed, quick_start as unified_quick_start,
-    test_unified_system, AsyncRuntimeType, BackendConfig, BackendError, DetectionConfig,
+    AsyncRuntimeType, BackendConfig, DetectionConfig,
     DetectionMetadata, DetectionMethod, DispatcherConfig, DispatcherMetrics, EnvironmentAnalysis,
     EnvironmentDetector, MemoryAnalysisData, MemoryStatistics,
     MemoryTracker as UnifiedMemoryTracker, RuntimeEnvironment, SessionMetadata, TrackerConfig,

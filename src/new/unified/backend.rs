@@ -2,9 +2,12 @@
 // Provides intelligent routing between single-thread, multi-thread, and async tracking strategies
 // Maintains zero-lock architecture and preserves existing JSON export compatibility
 
-use crate::lockfree::aggregator::LockfreeAggregator;
+use crate::{
+    core::error::{MemScopeError, Result},
+    lockfree::aggregator::LockfreeAggregator,
+};
+
 use std::sync::Arc;
-use thiserror::Error;
 use tracing::{debug, info, warn};
 
 /// Main unified backend that orchestrates all memory tracking strategies
@@ -123,32 +126,7 @@ pub struct SessionMetadata {
     pub overhead_percent: f64,
 }
 
-/// Backend operation errors
-#[derive(Error, Debug)]
-pub enum BackendError {
-    /// Environment detection failed
-    #[error("Failed to detect runtime environment: {reason}")]
-    EnvironmentDetectionFailed { reason: String },
-
-    /// Strategy selection failed
-    #[error("Cannot select appropriate tracking strategy for environment: {environment:?}")]
-    StrategySelectionFailed { environment: RuntimeEnvironment },
-
-    /// Tracking initialization failed
-    #[error("Failed to initialize tracking session: {reason}")]
-    TrackingInitializationFailed { reason: String },
-
-    /// Data collection error
-    #[error("Error collecting tracking data: {reason}")]
-    DataCollectionError { reason: String },
-
-    /// Configuration validation error
-    #[error("Invalid backend configuration: {reason}")]
-    ConfigurationError { reason: String },
-}
-
 impl Default for BackendConfig {
-    /// Default configuration optimized for most use cases
     fn default() -> Self {
         Self {
             auto_detect: true,
@@ -162,32 +140,31 @@ impl Default for BackendConfig {
 impl UnifiedBackend {
     /// Initialize unified backend with configuration
     /// Performs environment detection and strategy selection
-    pub fn initialize(config: BackendConfig) -> Result<Self, BackendError> {
-        // Validate configuration parameters
+    pub fn initialize(config: BackendConfig) -> Result<Self> {
         if config.sample_rate < 0.0 || config.sample_rate > 1.0 {
-            return Err(BackendError::ConfigurationError {
-                reason: "Sample rate must be between 0.0 and 1.0".to_string(),
-            });
+            return Err(MemScopeError::config(
+                "backend",
+                "Sample rate must be between 0.0 and 1.0",
+            ));
         }
 
         if config.max_overhead_percent < 0.0 || config.max_overhead_percent > 100.0 {
-            return Err(BackendError::ConfigurationError {
-                reason: "Max overhead percent must be between 0.0 and 100.0".to_string(),
-            });
+            return Err(MemScopeError::config(
+                "backend",
+                "Max overhead percent must be between 0.0 and 100.0",
+            ));
         }
 
         info!("Initializing unified backend with config: {:?}", config);
 
-        // Detect runtime environment
         let environment = if config.auto_detect {
             Self::detect_environment()?
         } else {
-            RuntimeEnvironment::SingleThreaded // Default fallback
+            RuntimeEnvironment::SingleThreaded
         };
 
         debug!("Detected environment: {:?}", environment);
 
-        // Select optimal tracking strategy
         let active_strategy = if let Some(forced) = config.force_strategy.clone() {
             warn!("Using forced strategy: {:?}", forced);
             forced
@@ -197,7 +174,6 @@ impl UnifiedBackend {
 
         info!("Selected tracking strategy: {:?}", active_strategy);
 
-        // Initialize aggregator for data collection
         let output_dir = std::env::temp_dir().join("memscope_unified");
         let aggregator = Arc::new(LockfreeAggregator::new(output_dir));
 
@@ -211,28 +187,24 @@ impl UnifiedBackend {
 
     /// Detect current runtime environment characteristics
     /// Analyzes thread count, async runtime presence, and execution patterns
-    pub fn detect_environment() -> Result<RuntimeEnvironment, BackendError> {
+    pub fn detect_environment() -> Result<RuntimeEnvironment> {
         debug!("Starting environment detection");
 
-        // Check for async runtime presence
         let async_runtime = Self::detect_async_runtime();
 
-        // Count available threads
         let thread_count = std::thread::available_parallelism()
             .map(|p| p.get())
             .unwrap_or(1);
 
-        // Determine environment type based on detection results
         let environment = match (async_runtime, thread_count) {
             (Some(runtime_type), 0) => {
-                // Edge case: async runtime detected but no threads available
                 RuntimeEnvironment::AsyncRuntime { runtime_type }
             }
             (Some(runtime_type), 1) => RuntimeEnvironment::AsyncRuntime { runtime_type },
             (Some(_runtime_type), threads) => {
                 RuntimeEnvironment::Hybrid {
                     thread_count: threads,
-                    async_task_count: 0, // Will be detected during runtime
+                    async_task_count: 0,
                 }
             }
             (None, 1) => RuntimeEnvironment::SingleThreaded,
@@ -248,40 +220,32 @@ impl UnifiedBackend {
     /// Detect presence and type of async runtime
     /// Returns None if no async runtime is detected
     fn detect_async_runtime() -> Option<AsyncRuntimeType> {
-        // Check for Tokio runtime
         if Self::is_tokio_present() {
             debug!("Tokio runtime detected");
             return Some(AsyncRuntimeType::Tokio);
         }
 
-        // Check for async-std runtime
         if Self::is_async_std_present() {
             debug!("async-std runtime detected");
             return Some(AsyncRuntimeType::AsyncStd);
         }
 
-        // No known async runtime detected
         debug!("No async runtime detected");
         None
     }
 
     /// Check if Tokio runtime is currently active
     fn is_tokio_present() -> bool {
-        // Use feature detection or runtime introspection
-        // This is a simplified implementation - real detection would be more sophisticated
         std::env::var("TOKIO_WORKER_THREADS").is_ok()
-        // Note: tokio::runtime::Handle::try_current() requires tokio dependency
     }
 
     /// Check if async-std runtime is active
     fn is_async_std_present() -> bool {
-        // async-std detection logic would go here
-        // This is a placeholder for actual implementation
         false
     }
 
     /// Select optimal tracking strategy based on environment
-    fn select_strategy(environment: &RuntimeEnvironment) -> Result<TrackingStrategy, BackendError> {
+    fn select_strategy(environment: &RuntimeEnvironment) -> Result<TrackingStrategy> {
         let strategy = match environment {
             RuntimeEnvironment::SingleThreaded => TrackingStrategy::GlobalDirect,
             RuntimeEnvironment::MultiThreaded { .. } => TrackingStrategy::ThreadLocal,
@@ -298,20 +262,22 @@ impl UnifiedBackend {
 
     /// Start active memory tracking session
     /// Returns session handle for controlling tracking lifecycle
-    pub fn start_tracking(&mut self) -> Result<TrackingSession, BackendError> {
+    pub fn start_tracking(&mut self) -> Result<TrackingSession> {
         let session_id = format!(
             "session_{}",
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .map_err(|e| BackendError::TrackingInitializationFailed {
-                    reason: format!("Failed to generate session ID: {}", e),
+                .map_err(|e| {
+                    MemScopeError::config(
+                        "session",
+                        format!("Failed to generate session ID: {}", e),
+                    )
                 })?
                 .as_millis()
         );
 
         info!("Starting tracking session: {}", session_id);
 
-        // Initialize tracking based on selected strategy
         match self.active_strategy {
             TrackingStrategy::GlobalDirect => {
                 self.initialize_global_tracking()?;
@@ -338,48 +304,40 @@ impl UnifiedBackend {
     }
 
     /// Initialize global direct tracking for single-threaded applications
-    fn initialize_global_tracking(&mut self) -> Result<(), BackendError> {
+    fn initialize_global_tracking(&mut self) -> Result<()> {
         debug!("Initializing global direct tracking");
-        // Implementation will integrate with existing lockfree aggregator
         Ok(())
     }
 
     /// Initialize thread-local tracking for multi-threaded applications
-    fn initialize_thread_local_tracking(&mut self) -> Result<(), BackendError> {
+    fn initialize_thread_local_tracking(&mut self) -> Result<()> {
         debug!("Initializing thread-local tracking");
-        // Implementation will use thread_local! storage
         Ok(())
     }
 
     /// Initialize task-local tracking for async applications
-    fn initialize_task_local_tracking(&mut self) -> Result<(), BackendError> {
+    fn initialize_task_local_tracking(&mut self) -> Result<()> {
         debug!("Initializing task-local tracking");
-        // Implementation will integrate with AsyncMemoryTracker
         Ok(())
     }
 
     /// Initialize hybrid tracking for complex applications
-    fn initialize_hybrid_tracking(&mut self) -> Result<(), BackendError> {
+    fn initialize_hybrid_tracking(&mut self) -> Result<()> {
         debug!("Initializing hybrid tracking");
-        // Implementation will combine multiple strategies
         Ok(())
     }
 
     /// Collect all tracking data from active session
     /// Aggregates data from all tracking sources into unified format
-    pub fn collect_data(&self) -> Result<MemoryAnalysisData, BackendError> {
+    pub fn collect_data(&self) -> Result<MemoryAnalysisData> {
         debug!("Collecting tracking data");
 
-        // Collect raw data from aggregator (placeholder for now)
-        // TODO: Implement proper aggregator data collection
         let raw_data = vec![];
 
-        // Calculate statistics
         let statistics = self.calculate_statistics(&raw_data)?;
 
-        // Create session metadata
         let session_metadata = SessionMetadata {
-            session_id: "current_session".to_string(), // Will be proper session ID
+            session_id: "current_session".to_string(),
             detected_environment: self.environment.clone(),
             strategy_used: self.active_strategy.clone(),
             overhead_percent: self.measure_overhead(),
@@ -401,9 +359,7 @@ impl UnifiedBackend {
     }
 
     /// Calculate statistical summary from raw tracking data
-    fn calculate_statistics(&self, _raw_data: &[u8]) -> Result<MemoryStatistics, BackendError> {
-        // This would parse the raw data and calculate actual statistics
-        // For now, return placeholder statistics
+    fn calculate_statistics(&self, _raw_data: &[u8]) -> Result<MemoryStatistics> {
         Ok(MemoryStatistics {
             total_allocations: 0,
             peak_memory_bytes: 0,
@@ -414,16 +370,13 @@ impl UnifiedBackend {
 
     /// Measure current tracking overhead percentage
     fn measure_overhead(&self) -> f64 {
-        // Implementation would measure actual performance impact
-        // Return configured max overhead as placeholder
         self.config.max_overhead_percent
     }
 
     /// Shutdown backend and finalize all tracking
-    pub fn shutdown(self) -> Result<MemoryAnalysisData, BackendError> {
+    pub fn shutdown(self) -> Result<MemoryAnalysisData> {
         info!("Shutting down unified backend");
 
-        // Collect final data before shutdown
         let final_data = self.collect_data()?;
 
         debug!("Backend shutdown completed successfully");
@@ -431,7 +384,6 @@ impl UnifiedBackend {
     }
 }
 
-// Required for Arc usage in TrackingSession
 impl Clone for UnifiedBackend {
     fn clone(&self) -> Self {
         Self {
@@ -455,12 +407,12 @@ impl TrackingSession {
     }
 
     /// Collect current tracking data without ending session
-    pub fn collect_data(&self) -> Result<MemoryAnalysisData, BackendError> {
+    pub fn collect_data(&self) -> Result<MemoryAnalysisData> {
         self.backend.collect_data()
     }
 
     /// End tracking session and collect final data
-    pub fn end_session(self) -> Result<MemoryAnalysisData, BackendError> {
+    pub fn end_session(self) -> Result<MemoryAnalysisData> {
         info!("Ending tracking session: {}", self.session_id);
 
         let final_data = self.backend.collect_data()?;
@@ -495,13 +447,13 @@ mod tests {
     #[test]
     fn test_invalid_config_sample_rate() {
         let config = BackendConfig {
-            sample_rate: 1.5, // Invalid: > 1.0
+            sample_rate: 1.5,
             ..Default::default()
         };
         let result = UnifiedBackend::initialize(config);
         assert!(matches!(
             result,
-            Err(BackendError::ConfigurationError { .. })
+            Err(MemScopeError::Configuration { .. })
         ));
     }
 

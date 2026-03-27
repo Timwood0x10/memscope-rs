@@ -2,7 +2,8 @@
 // Intelligently detects execution context to optimize memory tracking strategy
 // Supports single-thread, multi-thread, async, and hybrid runtime detection
 
-use crate::unified::backend::{AsyncRuntimeType, BackendError, RuntimeEnvironment};
+use crate::core::error::{MemScopeError, Result, SystemErrorType};
+use crate::unified::backend::{AsyncRuntimeType, RuntimeEnvironment};
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 use tracing::{debug, info, warn};
@@ -118,7 +119,7 @@ impl EnvironmentDetector {
 
     /// Perform comprehensive environment detection and analysis
     /// Returns detailed analysis with confidence levels and alternatives
-    pub fn analyze_environment(&mut self) -> Result<EnvironmentAnalysis, BackendError> {
+    pub fn analyze_environment(&mut self) -> Result<EnvironmentAnalysis> {
         let start_time = std::time::Instant::now();
         info!("Starting comprehensive environment analysis");
 
@@ -167,7 +168,7 @@ impl EnvironmentDetector {
     fn perform_static_analysis(
         &self,
         warnings: &mut Vec<String>,
-    ) -> Result<RuntimeEnvironment, BackendError> {
+    ) -> Result<RuntimeEnvironment> {
         debug!("Performing static environment analysis");
 
         // Detect available parallelism
@@ -287,7 +288,7 @@ impl EnvironmentDetector {
     fn perform_dynamic_analysis(
         &mut self,
         warnings: &mut Vec<String>,
-    ) -> Result<RuntimeEnvironment, BackendError> {
+    ) -> Result<RuntimeEnvironment> {
         debug!("Performing dynamic runtime analysis");
 
         let analysis_start = std::time::Instant::now();
@@ -391,7 +392,7 @@ impl EnvironmentDetector {
         static_result: RuntimeEnvironment,
         dynamic_result: Option<RuntimeEnvironment>,
         warnings: &[String],
-    ) -> Result<(RuntimeEnvironment, f64, Vec<RuntimeEnvironment>), BackendError> {
+    ) -> Result<(RuntimeEnvironment, f64, Vec<RuntimeEnvironment>)> {
         debug!("Synthesizing analysis results");
 
         let mut alternatives = Vec::new();
@@ -457,7 +458,7 @@ impl EnvironmentDetector {
 
 /// Convenience function for quick environment detection
 /// Uses default configuration for most common use cases
-pub fn detect_environment() -> Result<RuntimeEnvironment, BackendError> {
+pub fn detect_environment() -> Result<RuntimeEnvironment> {
     let mut detector = EnvironmentDetector::new(DetectionConfig::default());
     let analysis = detector.analyze_environment()?;
 
@@ -475,7 +476,7 @@ pub fn detect_environment() -> Result<RuntimeEnvironment, BackendError> {
 /// Provides detailed analysis results for advanced use cases
 pub fn detect_environment_detailed(
     config: DetectionConfig,
-) -> Result<EnvironmentAnalysis, BackendError> {
+) -> Result<EnvironmentAnalysis> {
     let mut detector = EnvironmentDetector::new(config);
     detector.analyze_environment()
 }
