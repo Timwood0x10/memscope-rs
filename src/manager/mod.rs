@@ -34,6 +34,8 @@ pub struct TrackingManager {
     tracker: Arc<RwLock<Box<dyn TrackBase>>>,
     /// Extended state for advanced features (variable names, type names, etc.)
     extended_state: Arc<Mutex<TrackingManagerState>>,
+    /// Cached stack trace capture instance for performance
+    stack_trace_capture: Arc<Mutex<crate::stack_trace::capture::StackTraceCapture>>,
 }
 
 /// Extended state for advanced tracking features
@@ -55,6 +57,10 @@ struct TrackingManagerState {
     ffi_allocations: HashMap<usize, FfiAllocationInfo>,
     /// Leaked allocation tracking
     leaked_allocations: std::collections::HashSet<usize>,
+    /// Stack trace cache (ptr -> stack trace)
+    stack_traces: HashMap<usize, Vec<String>>,
+    /// Freed pointers for double-free detection
+    freed_pointers: HashMap<usize, (String, u64)>,
 }
 
 /// Smart pointer information
@@ -110,6 +116,8 @@ impl TrackingManagerState {
             lifetime_info: HashMap::new(),
             ffi_allocations: HashMap::new(),
             leaked_allocations: std::collections::HashSet::new(),
+            stack_traces: HashMap::new(),
+            freed_pointers: HashMap::new(),
         }
     }
 }
@@ -130,9 +138,18 @@ impl TrackingManager {
             TrackingStrategy::Unified => Box::new(UnifiedTracker::new_hybrid()),
         };
 
+        // Create cached stack trace capture instance
+        // Note: StackTraceCapture::new cannot fail (returns Self, not Result),
+        // so no error handling is needed here
+        let capture_config = crate::stack_trace::capture::CaptureConfig::default();
+        let stack_trace_capture = Arc::new(Mutex::new(
+            crate::stack_trace::capture::StackTraceCapture::new(capture_config)
+        ));
+
         TrackingManager {
             tracker: Arc::new(RwLock::new(tracker)),
             extended_state: Arc::new(Mutex::new(TrackingManagerState::new())),
+            stack_trace_capture,
         }
     }
 
@@ -212,7 +229,7 @@ impl TrackingManager {
         let tracker = self.tracker.read()
             .map_err(|e| MemScopeError::new(
                 ErrorKind::InternalError,
-                &format!("Failed to acquire tracker lock: {}", e)
+                &format!("Failed to acquire tracker lock: {e}")
             ))?;
         tracker.track_dealloc(ptr);
 
@@ -239,7 +256,7 @@ impl TrackingManager {
         let mut state = self.extended_state.lock()
             .map_err(|e| MemScopeError::new(
                 ErrorKind::InternalError,
-                &format!("Failed to acquire state lock: {}", e)
+                &format!("Failed to acquire state lock: {e}")
             ))?;
 
         state.lifetime_info.insert(
@@ -545,7 +562,7 @@ impl TrackingManager {
         let tracker = self.tracker.read()
             .map_err(|e| MemScopeError::new(
                 ErrorKind::InternalError,
-                &format!("Failed to acquire tracker lock: {}", e)
+                &format!("Failed to acquire tracker lock: {e}")
             ))?;
         tracker.track_dealloc(ptr);
 
@@ -572,7 +589,7 @@ impl TrackingManager {
         let mut state = self.extended_state.lock()
             .map_err(|e| MemScopeError::new(
                 ErrorKind::InternalError,
-                &format!("Failed to acquire state lock: {}", e)
+                &format!("Failed to acquire state lock: {e}")
             ))?;
 
         // Update lifetime info
@@ -634,7 +651,7 @@ impl TrackingManager {
         let mut state = self.extended_state.lock()
             .map_err(|e| MemScopeError::new(
                 ErrorKind::InternalError,
-                &format!("Failed to acquire state lock: {}", e)
+                &format!("Failed to acquire state lock: {e}")
             ))?;
 
         state.ffi_allocations.insert(
@@ -778,7 +795,7 @@ impl TrackingManager {
         let state = self.extended_state.lock()
             .map_err(|e| MemScopeError::new(
                 ErrorKind::InternalError,
-                &format!("Failed to acquire state lock: {}", e)
+                &format!("Failed to acquire state lock: {e}")
             ))?;
 
         // Collect leaked allocations from both sources
@@ -808,6 +825,394 @@ impl TrackingManager {
 
         Ok(leaked_set.into_iter().collect())
     }
+
+    /// Capture and store stack trace for an allocation
+    ///
+    /// This method captures the current call stack and associates it with
+    /// the specified allocation pointer for debugging purposes.
+    ///
+    /// # Note
+    /// Stack trace capture has performance overhead and should be used
+    /// selectively, typically only when debugging memory issues.
+    ///
+    /// # Performance
+    /// This method uses a cached `StackTraceCapture` instance to avoid
+    /// the overhead of creating a new instance on each call.
+    ///
+    /// # Arguments
+    /// * `ptr` - Pointer to the allocation to capture stack trace for
+    ///
+    /// # Returns
+    /// Result indicating success or failure
+    pub fn capture_stack_trace(&self, ptr: usize) -> Result<(), MemScopeError> {
+        // Use cached stack trace capture instance for performance
+        let mut capture = self.stack_trace_capture.lock()
+            .map_err(|e| MemScopeError::new(
+                ErrorKind::InternalError,
+                &format!("Failed to acquire stack trace capture lock: {e}")
+            ))?;
+        
+        match capture.capture() {
+            Some(frames) => {
+                let trace_strings: Vec<String> = frames
+                    .iter()
+                    .map(|frame| {
+                        frame.function_name
+                            .clone()
+                            .unwrap_or_else(|| format!("0x{:x}", frame.instruction_pointer))
+                    })
+                    .collect();
+                
+                let mut state = self.extended_state.lock()
+                    .map_err(|e| MemScopeError::new(
+                        ErrorKind::InternalError,
+                        &format!("Failed to acquire state lock: {e}")
+                    ))?;
+                
+                state.stack_traces.insert(ptr, trace_strings);
+                Ok(())
+            }
+            None => {
+                tracing::debug!("Stack trace capture disabled or failed for ptr 0x{:x}", ptr);
+                Ok(())
+            }
+        }
+    }
+
+    /// Get stack trace for an allocation
+    ///
+    /// # Arguments
+    /// * `ptr` - Pointer to the allocation to get stack trace for
+    ///
+    /// # Returns
+    /// Option containing the stack trace frames as strings, or None if not available
+    pub fn get_stack_trace(&self, ptr: usize) -> Result<Option<Vec<String>>, MemScopeError> {
+        let state = self.extended_state.lock()
+            .map_err(|e| MemScopeError::new(
+                ErrorKind::InternalError,
+                &format!("Failed to acquire state lock: {}", e)
+            ))?;
+        
+        Ok(state.stack_traces.get(&ptr).cloned())
+    }
+
+    /// Track allocation with stack trace
+    ///
+    /// This is a convenience method that combines basic allocation tracking
+    /// with stack trace capture in a single call.
+    ///
+    /// # Arguments
+    /// * `ptr` - Pointer to the allocated memory
+    /// * `size` - Size of the allocation in bytes
+    /// * `var_name` - Optional variable name
+    /// * `type_name` - Optional type name
+    /// * `capture_trace` - Whether to capture stack trace
+    ///
+    /// # Returns
+    /// Result indicating success or failure
+    pub fn track_alloc_with_trace(
+        &self,
+        ptr: usize,
+        size: usize,
+        var_name: Option<String>,
+        type_name: Option<String>,
+        capture_trace: bool,
+    ) -> Result<(), MemScopeError> {
+        // Track the basic allocation
+        // Note: track_alloc returns () and cannot fail (it only records allocation metadata)
+        self.track_alloc(ptr, size);
+
+        // Store all metadata in a single lock acquisition for efficiency
+        if var_name.is_some() || type_name.is_some() {
+            let mut state = self.extended_state.lock()
+                .map_err(|e| MemScopeError::new(
+                    ErrorKind::InternalError,
+                    &format!("Failed to acquire state lock: {}", e)
+                ))?;
+            
+            if let Some(name) = var_name {
+                state.variable_names.insert(ptr, name);
+            }
+            
+            if let Some(r#type) = type_name {
+                state.type_names.insert(ptr, r#type);
+            }
+        }
+
+        // Capture stack trace if requested
+        if capture_trace {
+            self.capture_stack_trace(ptr)?;
+        }
+
+        Ok(())
+    }
+
+    /// Check for double-free attempts
+    ///
+    /// This method checks if a pointer has already been freed and records
+    /// the double-free attempt for security analysis.
+    ///
+    /// # Arguments
+    /// * `ptr` - Pointer to check for double-free
+    ///
+    /// # Returns
+    /// Result containing true if this is a double-free attempt, false otherwise
+    pub fn check_double_free(&self, ptr: usize) -> Result<bool, MemScopeError> {
+        let mut state = self.extended_state.lock()
+            .map_err(|e| MemScopeError::new(
+                ErrorKind::InternalError,
+                &format!("Failed to acquire state lock: {}", e)
+            ))?;
+
+        if let Some((location, timestamp)) = state.freed_pointers.get(&ptr) {
+            tracing::warn!(
+                "Double-free detected: ptr 0x{:x} previously freed at {} (timestamp: {})",
+                ptr,
+                location,
+                timestamp
+            );
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
+    /// Record a pointer as freed
+    ///
+    /// This method records that a pointer has been freed for double-free detection.
+    ///
+    /// # Arguments
+    /// * `ptr` - Pointer that was freed
+    /// * `location` - Location where the free occurred
+    ///
+    /// # Returns
+    /// Result indicating success or failure
+    pub fn record_freed_pointer(&self, ptr: usize, location: String) -> Result<(), MemScopeError> {
+        let mut state = self.extended_state.lock()
+            .map_err(|e| MemScopeError::new(
+                ErrorKind::InternalError,
+                &format!("Failed to acquire state lock: {}", e)
+            ))?;
+
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u64;
+
+        state.freed_pointers.insert(ptr, (location, timestamp));
+        Ok(())
+    }
+
+    /// Track deallocation with double-free detection
+    ///
+    /// This enhanced method tracks deallocation and also checks for double-free attempts.
+    ///
+    /// # Arguments
+    /// * `ptr` - Pointer to the deallocated memory
+    /// * `location` - Location where the deallocation occurred (e.g., function name)
+    ///
+    /// # Returns
+    /// Result containing a tuple (success, is_double_free):
+    /// - success: true if deallocation succeeded, false if double-free detected
+    /// - is_double_free: true if this was a double-free attempt, false otherwise
+    ///
+    /// # Safety
+    /// This method prevents double-free by checking if the pointer has already been
+    /// freed before performing any deallocation operation.
+    pub fn track_dealloc_with_double_free_check(
+        &self,
+        ptr: usize,
+        location: String,
+    ) -> Result<(bool, bool), MemScopeError> {
+        // Check for double-free BEFORE any deallocation operation
+        let is_double_free = self.check_double_free(ptr)?;
+
+        // SAFETY: If double-free detected, abort immediately without deallocating
+        if is_double_free {
+            tracing::warn!(
+                "Double-free detected: ptr 0x{:x} at {}, aborting deallocation",
+                ptr,
+                location
+            );
+            // Return (success=false, is_double_free=true) without calling track_dealloc
+            return Ok((false, true));
+        }
+
+        // Only perform deallocation if not a double-free
+        // Note: track_dealloc returns () and cannot fail (it only records deallocation metadata)
+        self.track_dealloc(ptr);
+
+        // Record that this pointer has been freed for future double-free detection
+        self.record_freed_pointer(ptr, location)?;
+
+        Ok((true, false))
+    }
+
+    /// Get memory usage statistics grouped by type
+    ///
+    /// This method provides a breakdown of memory usage by data type,
+    /// which is useful for identifying memory hotspots.
+    ///
+    /// # Returns
+    /// Result containing a map of type name to memory usage (bytes)
+    pub fn get_memory_by_type(&self) -> Result<std::collections::HashMap<String, u64>, MemScopeError> {
+        let snapshot = self.snapshot();
+        let state = self.extended_state.lock()
+            .map_err(|e| MemScopeError::new(
+                ErrorKind::InternalError,
+                &format!("Failed to acquire state lock: {}", e)
+            ))?;
+
+        let mut type_usage: std::collections::HashMap<String, u64> = std::collections::HashMap::new();
+
+        for record in snapshot.allocations.iter() {
+            if record.is_active {
+                let type_name = state.type_names
+                    .get(&record.ptr)
+                    .cloned()
+                    .unwrap_or_else(|| "unknown".to_string());
+                
+                *type_usage.entry(type_name).or_insert(0) += record.size as u64;
+            }
+        }
+
+        Ok(type_usage)
+    }
+
+    /// Generate memory optimization recommendations
+    ///
+    /// This method analyzes current memory usage patterns and provides
+    /// recommendations for optimization.
+    ///
+    /// # Returns
+    /// Result containing a list of optimization recommendations
+    pub fn generate_optimization_recommendations(&self) -> Result<Vec<String>, MemScopeError> {
+        let snapshot = self.snapshot();
+        let mut recommendations = Vec::new();
+
+        // Get memory usage by type
+        let type_usage = self.get_memory_by_type()?;
+
+        // Identify top memory consumers
+        let mut sorted_types: Vec<_> = type_usage.iter().collect();
+        sorted_types.sort_by(|a, b| b.1.cmp(a.1));
+
+        if !sorted_types.is_empty() {
+            let top_consumer = sorted_types[0];
+            if *top_consumer.1 > 1024 * 1024 { // > 1MB
+                recommendations.push(format!(
+                    "Consider optimizing {} usage: {} MB allocated",
+                    top_consumer.0,
+                    top_consumer.1 / (1024 * 1024)
+                ));
+            }
+        }
+
+        // Check for potential memory leaks
+        let active_allocations = snapshot.allocations
+            .iter()
+            .filter(|r| r.is_active)
+            .count();
+
+        let leaked_count = snapshot.stats.leaked_allocations as usize;
+
+        if leaked_count > 0 {
+            recommendations.push(format!(
+                "Found {} potentially leaked allocations - review allocation patterns",
+                leaked_count
+            ));
+        }
+
+        // Fragmentation check
+        let fragmentation_ratio = snapshot.stats.fragmentation_ratio;
+        if fragmentation_ratio > 0.3 {
+            recommendations.push(format!(
+                "High memory fragmentation detected ({:.1}%) - consider pooling allocations",
+                fragmentation_ratio * 100.0
+            ));
+        }
+
+        // Smart pointer analysis
+        let state = self.extended_state.lock()
+            .map_err(|e| MemScopeError::new(
+                ErrorKind::InternalError,
+                &format!("Failed to acquire state lock: {}", e)
+            ))?;
+
+        let smart_pointer_count = state.smart_pointer_info.len();
+        if smart_pointer_count > 0 {
+            recommendations.push(format!(
+                "Tracking {} smart pointers - verify reference counts are correct",
+                smart_pointer_count
+            ));
+        }
+
+        if recommendations.is_empty() {
+            recommendations.push("Memory usage looks healthy - no major issues detected".to_string());
+        }
+
+        Ok(recommendations)
+    }
+
+    /// Get comprehensive memory statistics
+    ///
+    /// This method provides a detailed overview of current memory usage
+    /// including allocations, deallocations, and active memory.
+    ///
+    /// # Returns
+    /// Result containing detailed memory statistics
+    pub fn get_comprehensive_stats(&self) -> Result<MemoryStatistics, MemScopeError> {
+        let snapshot = self.snapshot();
+        let state = self.extended_state.lock()
+            .map_err(|e| MemScopeError::new(
+                ErrorKind::InternalError,
+                &format!("Failed to acquire state lock: {}", e)
+            ))?;
+
+        Ok(MemoryStatistics {
+            total_allocations: snapshot.stats.total_allocations as usize,
+            total_deallocations: snapshot.stats.total_deallocations as usize,
+            active_allocations: snapshot.stats.active_allocations as usize,
+            total_allocated_bytes: snapshot.stats.total_allocated as usize,
+            active_memory_bytes: snapshot.stats.active_memory as usize,
+            peak_memory_bytes: snapshot.stats.peak_memory as usize,
+            leaked_allocations: snapshot.stats.leaked_allocations as usize,
+            unique_variables: state.variable_names.len(),
+            unique_types: state.type_names.len(),
+            smart_pointers: state.smart_pointer_info.len(),
+            tracked_stack_traces: state.stack_traces.len(),
+            fragmentation_ratio: snapshot.stats.fragmentation_ratio,
+        })
+    }
+}
+
+/// Comprehensive memory statistics
+#[derive(Debug, Clone)]
+pub struct MemoryStatistics {
+    /// Total number of allocations
+    pub total_allocations: usize,
+    /// Total number of deallocations
+    pub total_deallocations: usize,
+    /// Currently active allocations
+    pub active_allocations: usize,
+    /// Total bytes allocated (cumulative)
+    pub total_allocated_bytes: usize,
+    /// Currently active memory in bytes
+    pub active_memory_bytes: usize,
+    /// Peak memory usage in bytes
+    pub peak_memory_bytes: usize,
+    /// Number of potentially leaked allocations
+    pub leaked_allocations: usize,
+    /// Number of unique variables tracked
+    pub unique_variables: usize,
+    /// Number of unique types tracked
+    pub unique_types: usize,
+    /// Number of smart pointers tracked
+    pub smart_pointers: usize,
+    /// Number of allocations with stack traces
+    pub tracked_stack_traces: usize,
+    /// Memory fragmentation ratio (0.0 to 1.0)
+    pub fragmentation_ratio: f64,
 }
 impl Default for TrackingManager {
     fn default() -> Self {
