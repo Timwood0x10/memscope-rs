@@ -22,6 +22,26 @@ pub mod cli;
 /// Core memory tracking functionality
 pub mod core;
 
+// === NEW ENGINE ARCHITECTURE ===
+/// Capture Engine - Event capture backend
+pub mod capture;
+/// Event Store Engine - Centralized event storage
+pub mod event_store;
+/// Metadata Engine - Centralized metadata management
+pub mod metadata;
+/// Snapshot Engine - Snapshot construction and aggregation
+pub mod snapshot;
+/// Query Engine - Unified query interface
+pub mod query;
+/// Analysis Engine - Memory analysis logic
+pub mod analysis_engine;
+/// Timeline Engine - Time-based memory analysis
+pub mod timeline;
+/// Render Engine - Output rendering
+pub mod render_engine;
+/// Facade API - Unified user interface
+pub mod facade;
+
 // Re-export optimized components for easy access
 pub use crate::core::performance_optimizer::{
     OptimizationRecommendations, PerformanceMetrics, PerformanceOptimizer,

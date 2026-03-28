@@ -7,7 +7,7 @@ use crate::unified::backend::{BackendError, RuntimeEnvironment, TrackingStrategy
 use std::collections::HashMap;
 use std::sync::Arc;
 use thiserror::Error;
-use tracing::{debug, error, info};
+use tracing::{debug, info};
 
 /// Central dispatcher that routes tracking operations to appropriate implementations
 /// Maintains active tracking strategies and coordinates data collection
