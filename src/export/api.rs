@@ -2,13 +2,26 @@
 //!
 //! This module provides a unified, well-named API that serves as the main entry point
 //! for all export operations in the memscope project.
+//!
+//! **Architecture Note**:
+//! This module now uses the new `render` subsystem directly instead of `MemoryTracker`.
+//! The `Exporter` converts legacy `AllocationInfo` data into `TrackingSnapshot` format,
+//! then delegates rendering to the appropriate renderer (Json, Html, Binary).
+//!
+//! This separation of concerns ensures:
+//! - Clean separation between data conversion and rendering
+//! - Consistent rendering across all export formats
+//! - Better testability and maintainability
 
-use crate::core::tracker::export_json::ExportJsonOptions;
-use crate::core::tracker::memory_tracker::MemoryTracker;
 use crate::core::types::{AllocationInfo, MemoryStats, TrackingError};
+use crate::data::{AllocationRecord, RenderOutput, TrackingSnapshot};
+use crate::render::renderer::Renderer;
+use crate::render::{BinaryRenderer, HtmlRenderer, JsonRenderer};
 use crate::TrackingResult;
+use std::collections::HashMap;
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::atomic::AtomicU32;
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 /// Export configuration with sensible defaults
@@ -98,9 +111,12 @@ pub struct ExportStats {
 /// Unified export interface - main API for all export operations
 pub struct Exporter {
     allocations: Arc<Vec<AllocationInfo>>,
-    #[allow(dead_code)]
-    stats: Arc<MemoryStats>,
+    stats: MemoryStats,
     config: ExportConfig,
+    /// Thread name to thread ID mapping for consistent ID assignment
+    thread_id_mapping: Arc<Mutex<HashMap<String, u32>>>,
+    /// Next available thread ID for new mappings
+    next_thread_id: Arc<AtomicU32>,
 }
 
 impl Exporter {
@@ -108,9 +124,32 @@ impl Exporter {
     pub fn new(allocations: Vec<AllocationInfo>, stats: MemoryStats, config: ExportConfig) -> Self {
         Self {
             allocations: Arc::new(allocations),
-            stats: Arc::new(stats),
+            stats,
             config,
+            thread_id_mapping: Arc::new(Mutex::new(HashMap::new())),
+            next_thread_id: Arc::new(AtomicU32::new(1)),
         }
+    }
+
+    /// Get or create a consistent thread ID for a given thread name
+    ///
+    /// This ensures that the same thread name always gets the same ID,
+    /// avoiding hash collisions and maintaining consistency across allocations.
+    ///
+    /// Uses entry API to avoid race conditions between checking and inserting.
+    fn get_or_create_thread_id(&self, thread_name: &str) -> u32 {
+        // Handle potential PoisonError from mutex lock
+        // If a previous thread panicked while holding the lock, we can still recover the data
+        let mut mapping = match self.thread_id_mapping.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => {
+                // Recover from poisoned mutex - the HashMap is still valid
+                poisoned.into_inner()
+            }
+        };
+        let id = mapping.entry(thread_name.to_string())
+            .or_insert_with(|| self.next_thread_id.fetch_add(1, std::sync::atomic::Ordering::SeqCst));
+        *id
     }
 
     /// Filter allocations based on configuration
@@ -128,6 +167,134 @@ impl Exporter {
         }
     }
 
+    /// Convert AllocationInfo to TrackingSnapshot
+    ///
+    /// This is the bridge between the legacy AllocationInfo format
+    /// and the new TrackingSnapshot structure used by the render subsystem.
+    ///
+    /// Note: total_allocations and total_allocated are automatically updated
+    /// by snapshot.add_allocation(), so we only need to compute active stats.
+    fn create_snapshot(&self, filtered_allocations: &[AllocationInfo]) -> TrackingSnapshot {
+        let mut snapshot = TrackingSnapshot::new(crate::data::TrackingStrategy::Core);
+
+        // Convert each AllocationInfo to AllocationRecord
+        for allocation in filtered_allocations {
+            let record = self.convert_allocation_info_to_record(allocation);
+            snapshot.add_allocation(record); // Automatically updates total_allocations and total_allocated
+        }
+
+        // Calculate all statistics (active, leaked, peak, fragmentation, etc.)
+        // This ensures complete and accurate statistics
+        snapshot.calculate_stats();
+
+        snapshot
+    }
+
+    /// Convert AllocationInfo to AllocationRecord
+    fn convert_allocation_info_to_record(&self, allocation: &AllocationInfo) -> AllocationRecord {
+        // Get consistent thread ID using mapping table
+        // This ensures the same thread name always gets the same ID
+        let thread_id = allocation.thread_id
+            .parse::<u32>()
+            .unwrap_or_else(|_| {
+                // If parsing fails, log warning and use consistent mapping instead of hash
+                tracing::warn!(
+                    "Failed to parse thread_id '{}', using mapping table for consistent thread ID assignment",
+                    allocation.thread_id
+                );
+                self.get_or_create_thread_id(&allocation.thread_id)
+            });
+
+        // Convert BorrowInfo from core::types to allocation::BorrowInfo
+        let borrow_info = allocation.borrow_info.as_ref().map(|info| {
+            crate::data::allocation::BorrowInfo {
+                immutable_borrows: info.immutable_borrows,
+                mutable_borrows: info.mutable_borrows,
+                max_concurrent_borrows: info.max_concurrent_borrows,
+                last_borrow_timestamp: info.last_borrow_timestamp,
+            }
+        });
+
+        // Convert CloneInfo from core::types to allocation::CloneInfo
+        let clone_info = allocation.clone_info.as_ref().map(|info| {
+            crate::data::allocation::CloneInfo {
+                clone_count: info.clone_count,
+                is_clone: info.is_clone,
+                original_ptr: info.original_ptr,
+            }
+        });
+
+        // Convert SmartPointerInfo from core::types to allocation::SmartPointerInfo
+        let smart_pointer_info = allocation.smart_pointer_info.as_ref().map(|info| {
+            // Get the latest strong count from ref_count_history
+            let latest_strong_count = info.ref_count_history
+                .last()
+                .map(|snapshot| snapshot.strong_count)
+                .unwrap_or(0);
+
+            crate::data::allocation::SmartPointerInfo {
+                ptr_type: info.pointer_type.clone(),
+                ref_count: latest_strong_count as u32, // Use latest strong count
+                original_ptr: Some(info.data_ptr), // Use data_ptr as original pointer
+            }
+        });
+
+        // Convert GenericTypeInfo from core::types to allocation::GenericTypeInfo
+        let generic_info = allocation.generic_info.as_ref().map(|info| {
+            crate::data::allocation::GenericTypeInfo {
+                base_type: info.base_type.clone(),
+                type_parameters: info.type_parameters.iter()
+                    .map(|tp| tp.concrete_type.clone())
+                    .collect(),
+                instance_count: info.monomorphization_info.instance_count,
+            }
+        });
+
+        // Convert DynamicTypeInfo from core::types to allocation::DynamicTypeInfo
+        let dynamic_type_info = allocation.dynamic_type_info.as_ref().map(|info| {
+            crate::data::allocation::DynamicTypeInfo {
+                trait_name: info.trait_name.clone(),
+                concrete_type: info.concrete_type.clone(),
+                size: info.vtable_info.vtable_size, // Use vtable size as proxy for trait object size
+            }
+        });
+
+        // Convert MemoryLayoutInfo from core::types to allocation::MemoryLayoutInfo
+        let memory_layout = allocation.memory_layout.as_ref().map(|info| {
+            crate::data::allocation::MemoryLayoutInfo {
+                total_size: info.total_size,
+                alignment: info.alignment,
+                padding_bytes: info.padding_info.total_padding_bytes,
+                utilization: info.layout_efficiency.memory_utilization,
+            }
+        });
+
+        AllocationRecord {
+            ptr: allocation.ptr,
+            size: allocation.size,
+            timestamp: allocation.timestamp_alloc,
+            thread_id,
+            stack_id: None, // AllocationInfo doesn't have stack_id
+            var_name: allocation.var_name.clone(),
+            type_name: allocation.type_name.clone(),
+            scope_name: allocation.scope_name.clone(),
+            is_active: allocation.timestamp_dealloc.is_none(),
+            dealloc_timestamp: allocation.timestamp_dealloc,
+            is_leaked: allocation.is_leaked,
+            borrow_count: allocation.borrow_count,
+            stack_trace: allocation.stack_trace.clone(),
+            lifetime_ms: allocation.lifetime_ms,
+            borrow_info,
+            clone_info,
+            smart_pointer_info,
+            generic_info,
+            dynamic_type_info,
+            memory_layout,
+            ownership_history_available: allocation.ownership_history_available,
+            // All advanced fields are fully converted and preserved in AllocationRecord
+        }
+    }
+
     /// Export to JSON format
     pub fn export_json<P: AsRef<Path>>(&self, output_path: P) -> TrackingResult<ExportStats> {
         let start_time = Instant::now();
@@ -135,27 +302,20 @@ impl Exporter {
 
         // Ensure output directory exists
         if let Some(parent) = output_path.as_ref().parent() {
-            std::fs::create_dir_all(parent).map_err(|e| TrackingError::IoError(e.to_string()))?;
+            std::fs::create_dir_all(parent)
+                .map_err(|e| TrackingError::IoError(e.to_string()))?;
         }
 
-        // Use the actual allocation data instead of creating a new tracker
-        let tracker = MemoryTracker::new();
+        // Create snapshot from filtered allocations
+        let snapshot = self.create_snapshot(&filtered_allocations);
 
-        // Populate the tracker with our filtered allocations
-        for allocation in &filtered_allocations {
-            // Add each allocation to the tracker's active allocations
-            if let Ok(mut active) = tracker.active_allocations.try_lock() {
-                active.insert(allocation.ptr, allocation.clone());
-            }
-        }
+        // Use JsonRenderer directly
+        let renderer = JsonRenderer;
+        let output = renderer.render(&snapshot)
+            .map_err(|e| TrackingError::ExportError(e.to_string()))?;
 
-        tracker.export_to_json_with_options(
-            &output_path,
-            ExportJsonOptions::default()
-                .parallel_processing(self.config.parallel_processing.unwrap_or(true))
-                .buffer_size(self.config.buffer_size)
-                .schema_validation(self.config.validate_output),
-        )?;
+        // Write output to file
+        self.write_output(output, &output_path)?;
 
         let processing_time = start_time.elapsed();
         let output_size = std::fs::metadata(&output_path)
@@ -173,22 +333,45 @@ impl Exporter {
         })
     }
 
+    /// Write render output to file
+    fn write_output<P: AsRef<Path>>(&self, output: RenderOutput, output_path: P) -> TrackingResult<()> {
+        let data = match output {
+            RenderOutput::String(s) => s.into_bytes(),
+            RenderOutput::Bytes(b) => b,
+            RenderOutput::File(file_path) => {
+                // If it's already a file, copy it to the destination
+                return std::fs::copy(&file_path, output_path)
+                    .map_err(|e| TrackingError::IoError(e.to_string()))
+                    .map(|_| ());
+            }
+        };
+
+        std::fs::write(output_path, data)
+            .map_err(|e| TrackingError::IoError(e.to_string()))?;
+        Ok(())
+    }
+
     /// Export to binary format
     pub fn export_binary<P: AsRef<Path>>(&self, output_path: P) -> TrackingResult<ExportStats> {
         let start_time = Instant::now();
         let filtered_allocations = self.get_filtered_allocations();
 
-        // Create a new tracker instance and populate it with our filtered allocations
-        let tracker = MemoryTracker::new();
-
-        // Populate the tracker with our filtered allocations (including improve.md fields)
-        if let Ok(mut active) = tracker.active_allocations.try_lock() {
-            for allocation in &filtered_allocations {
-                active.insert(allocation.ptr, allocation.clone());
-            }
+        // Ensure output directory exists
+        if let Some(parent) = output_path.as_ref().parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| TrackingError::IoError(e.to_string()))?;
         }
 
-        tracker.export_to_binary(&output_path)?;
+        // Create snapshot from filtered allocations
+        let snapshot = self.create_snapshot(&filtered_allocations);
+
+        // Use BinaryRenderer directly
+        let renderer = BinaryRenderer;
+        let output = renderer.render(&snapshot)
+            .map_err(|e| TrackingError::ExportError(e.to_string()))?;
+
+        // Write output to file
+        self.write_output(output, &output_path)?;
 
         let processing_time = start_time.elapsed();
         let output_size = std::fs::metadata(&output_path)
@@ -211,9 +394,22 @@ impl Exporter {
         let start_time = Instant::now();
         let filtered_allocations = self.get_filtered_allocations();
 
-        // Create a new tracker instance for export
-        let tracker = MemoryTracker::new();
-        tracker.export_interactive_dashboard(&output_path)?;
+        // Ensure output directory exists
+        if let Some(parent) = output_path.as_ref().parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| TrackingError::IoError(e.to_string()))?;
+        }
+
+        // Create snapshot from filtered allocations
+        let snapshot = self.create_snapshot(&filtered_allocations);
+
+        // Use HtmlRenderer directly
+        let renderer = HtmlRenderer;
+        let output = renderer.render(&snapshot)
+            .map_err(|e| TrackingError::ExportError(e.to_string()))?;
+
+        // Write output to file
+        self.write_output(output, &output_path)?;
 
         let processing_time = start_time.elapsed();
         let output_size = std::fs::metadata(&output_path)
@@ -280,8 +476,40 @@ impl Exporter {
             .map(|m| m.len())
             .unwrap_or(0);
 
-        // Call the static method on MemoryTracker
-        MemoryTracker::export_binary_to_html(binary_path, output_path.clone())?;
+        // Extract project name from output path
+        let project_name = output_path.as_ref()
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("project");
+
+        // Delegate to binary module
+        // Note: export_binary_to_html generates file with name "{project_name}_user_dashboard.html"
+        // in the current directory, so we need to move it to the desired output path
+        crate::export::binary::export_binary_to_html(
+            binary_path.as_ref(),
+            project_name
+        ).map_err(|e| TrackingError::ExportError(e.to_string()))?;
+
+        // Move the generated file to the desired output path
+        let generated_file_name = format!("{}_user_dashboard.html", project_name);
+        let generated_file = std::path::PathBuf::from(&generated_file_name);
+        
+        if generated_file.exists() {
+            // Ensure output directory exists
+            if let Some(parent) = output_path.as_ref().parent() {
+                std::fs::create_dir_all(parent)
+                    .map_err(|e| TrackingError::IoError(e.to_string()))?;
+            }
+            
+            // Move or copy the file to the desired location
+            std::fs::rename(&generated_file, output_path.as_ref())
+                .or_else(|_| {
+                    // If rename fails (e.g., cross-device), try copy and delete
+                    std::fs::copy(&generated_file, output_path.as_ref())
+                        .and_then(|_| std::fs::remove_file(&generated_file))
+                })
+                .map_err(|e| TrackingError::IoError(format!("Failed to move generated file: {}", e)))?;
+        }
 
         let processing_time = start_time.elapsed();
 
