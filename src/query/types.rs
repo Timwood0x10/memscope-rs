@@ -6,6 +6,27 @@ use crate::snapshot::types::{ActiveAllocation, ThreadMemoryStats};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+/// Query type enumeration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum Query {
+    /// Top allocations by size
+    TopAllocationsBySize { limit: usize },
+    /// Top allocations by count
+    TopAllocationsByCount { limit: usize },
+    /// Memory leaks
+    MemoryLeaks { min_age_ms: u64 },
+    /// Large allocations
+    LargeAllocations { min_size: usize },
+    /// Thread memory statistics
+    ThreadMemoryStats { thread_id: u64 },
+    /// Scope memory statistics
+    ScopeMemoryStats { scope_name: String },
+    /// Type memory statistics
+    TypeMemoryStats { type_name: String },
+    /// System summary
+    Summary,
+}
+
 /// Query result type
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum QueryResult {

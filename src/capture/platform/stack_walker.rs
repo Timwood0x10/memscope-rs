@@ -564,13 +564,13 @@ impl PlatformStackWalker {
             }
 
             frames.push(StackFrame {
-                ip: 0x100000000 + i * 0x1000, // Simulated addresses
+                ip: 0x100000000 + i * 0x1000, // Mock addresses
                 fp: Some(0x7fff5fc00000 + i * 0x100),
                 sp: Some(0x7fff5fc00000 + i * 0x100 - 8),
                 module_base: Some(0x100000000),
                 module_offset: Some(i * 0x1000),
                 symbol_info: Some(FrameSymbolInfo {
-                    name: format!("macos_function_{}", i),
+                    name: format!("function_{}", i),
                     demangled_name: Some(format!("MyClass::function_{}", i)),
                     file_name: Some("main.mm".to_string()),
                     line_number: Some((i * 10 + 100) as u32),

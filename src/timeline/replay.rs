@@ -1,0 +1,143 @@
+//! Timeline Replay - Time-based memory event replay
+//!
+//! This module provides functionality for replaying memory events
+//! in chronological order, enabling time-based analysis and
+//! visualization.
+
+use crate::event_store::event::{MemoryEvent, MemoryEventType};
+use crate::event_store::EventStore;
+use std::sync::Arc;
+
+/// Timeline replay controller
+///
+/// Provides functionality to replay memory events in chronological order,
+/// allowing for time-based analysis and visualization.
+pub struct TimelineReplay {
+    /// Reference to the event store
+    event_store: Arc<EventStore>,
+    /// Current replay position
+    position: usize,
+    /// All events sorted by timestamp
+    events: Vec<MemoryEvent>,
+}
+
+impl TimelineReplay {
+    /// Create a new timeline replay
+    pub fn new(event_store: Arc<EventStore>) -> Self {
+        let events = event_store.snapshot();
+        // Sort events by timestamp
+        let mut sorted_events = events;
+        sorted_events.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
+
+        Self {
+            event_store,
+            position: 0,
+            events: sorted_events,
+        }
+    }
+
+    /// Reset replay to the beginning
+    pub fn reset(&mut self) {
+        self.position = 0;
+    }
+
+    /// Get the next event in the timeline
+    ///
+    /// Returns None if there are no more events
+    pub fn next(&mut self) -> Option<MemoryEvent> {
+        if self.position < self.events.len() {
+            let event = self.events[self.position].clone();
+            self.position += 1;
+            Some(event)
+        } else {
+            None
+        }
+    }
+
+    /// Replay all events until a specific timestamp
+    ///
+    /// # Arguments
+    /// * `timestamp` - The timestamp to replay until
+    pub fn replay_until(&mut self, timestamp: u64) -> Vec<MemoryEvent> {
+        let mut result = Vec::new();
+        while let Some(event) = self.next() {
+            if event.timestamp > timestamp {
+                break;
+            }
+            result.push(event);
+        }
+        result
+    }
+
+    /// Get all events between two timestamps
+    ///
+    /// # Arguments
+    /// * `start` - Start timestamp (inclusive)
+    /// * `end` - End timestamp (exclusive)
+    pub fn get_events_between(&self, start: u64, end: u64) -> Vec<MemoryEvent> {
+        self.events
+            .iter()
+            .filter(|e| e.timestamp >= start && e.timestamp < end)
+            .cloned()
+            .collect()
+    }
+
+    /// Get the number of events in the timeline
+    pub fn len(&self) -> usize {
+        self.events.len()
+    }
+
+    /// Check if the timeline is empty
+    pub fn is_empty(&self) -> bool {
+        self.events.is_empty()
+    }
+
+    /// Get the current replay position
+    pub fn position(&self) -> usize {
+        self.position
+    }
+
+    /// Get the progress percentage (0.0 to 1.0)
+    pub fn progress(&self) -> f64 {
+        if self.events.is_empty() {
+            0.0
+        } else {
+            self.position as f64 / self.events.len() as f64
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_timeline_replay_creation() {
+        let event_store = Arc::new(EventStore::new());
+        let replay = TimelineReplay::new(event_store);
+        assert_eq!(replay.position(), 0);
+        assert!(replay.is_empty());
+    }
+
+    #[test]
+    fn test_timeline_replay_next() {
+        let event_store = Arc::new(EventStore::new());
+        let event = MemoryEvent::allocate(0x1000, 1024, 123);
+        event_store.record(event);
+        event_store.record(MemoryEvent::deallocate(0x1000, 1024, 456));
+
+        let mut replay = TimelineReplay::new(event_store);
+        assert_eq!(replay.len(), 2);
+
+        let first = replay.next();
+        assert!(first.is_some());
+        assert_eq!(first.unwrap().thread_id, 123);
+
+        let second = replay.next();
+        assert!(second.is_some());
+        assert_eq!(second.unwrap().thread_id, 456);
+
+        let third = replay.next();
+        assert!(third.is_none());
+    }
+}

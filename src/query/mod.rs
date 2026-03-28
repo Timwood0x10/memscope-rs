@@ -5,8 +5,10 @@
 
 pub mod engine;
 pub mod types;
+pub mod presets;
 
 pub use engine::{QueryEngine, SharedQueryEngine};
+pub use presets::QueryPresets;
 pub use types::{
-    AllocationQueryResult, QueryResult, SummaryQueryResult, ThreadQueryResult,
+    AllocationQueryResult, Query, QueryResult, SummaryQueryResult, ThreadQueryResult,
 };

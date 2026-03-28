@@ -8,5 +8,7 @@ pub mod engine;
 pub mod registry;
 pub mod scope;
 pub mod thread;
+pub mod smart_pointers;
+pub mod stack_trace;
 
 pub use engine::MetadataEngine;

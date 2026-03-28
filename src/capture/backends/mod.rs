@@ -3,6 +3,11 @@
 //! This module provides the CaptureBackend trait and implementations
 //! for different tracking strategies (core, lockfree, async, unified).
 
+pub mod async_tracker;
+pub mod core_tracker;
+pub mod lockfree_tracker;
+pub mod unified_tracker;
+
 use crate::event_store::{MemoryEvent, MemoryEventType};
 
 /// Capture Backend trait

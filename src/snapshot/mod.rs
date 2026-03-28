@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 pub mod engine;
 pub mod types;
+pub mod memory;
 
 pub use engine::SnapshotEngine;
 pub use types::{ActiveAllocation, MemorySnapshot, MemoryStats, ThreadMemoryStats};
