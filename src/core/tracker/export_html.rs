@@ -7,7 +7,10 @@ use super::memory_tracker::MemoryTracker;
 use crate::core::types::TrackingResult;
 use std::path::Path;
 
-#[deprecated(since = "0.4.0", note = "Please use manager::TrackingManager instead. All functionality is preserved for backward compatibility.")]
+#[deprecated(
+    since = "0.4.0",
+    note = "Please use manager::TrackingManager instead. All functionality is preserved for backward compatibility."
+)]
 impl MemoryTracker {
     /// Export interactive HTML dashboard with embedded SVG charts.
     ///

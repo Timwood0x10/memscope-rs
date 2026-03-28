@@ -16,11 +16,11 @@
 //! New Unified Tracking System
 //! ```
 
+pub mod async_adapter;
 pub mod core_adapter;
 pub mod lockfree_adapter;
-pub mod async_adapter;
 
 // Re-export public adapter APIs
+pub use async_adapter::AsyncAdapter;
 pub use core_adapter::CoreAdapter;
 pub use lockfree_adapter::LockfreeAdapter;
-pub use async_adapter::AsyncAdapter;

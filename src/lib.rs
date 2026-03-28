@@ -41,11 +41,17 @@ pub mod cli;
 pub mod core;
 
 // Re-export optimized components for easy access
-#[deprecated(since = "0.5.0", note = "Use manager::TrackingManager for performance optimization")]
+#[deprecated(
+    since = "0.5.0",
+    note = "Use manager::TrackingManager for performance optimization"
+)]
 pub use crate::core::performance_optimizer::{
     OptimizationRecommendations, PerformanceMetrics, PerformanceOptimizer,
 };
-#[deprecated(since = "0.5.0", note = "Use lockfree tracker for high-performance tracking")]
+#[deprecated(
+    since = "0.5.0",
+    note = "Use lockfree tracker for high-performance tracking"
+)]
 pub use crate::core::ultra_fast_tracker::{
     SamplingStats, UltraFastSamplingConfig, UltraFastTracker,
 };
@@ -116,10 +122,10 @@ pub use analysis::unsafe_ffi_tracker::UnsafeFFITracker;
 pub use core::allocator::TrackingAllocator as CoreTrackingAllocator;
 #[deprecated(since = "0.4.0", note = "Use manager::get_global_tracker() instead")]
 pub use core::tracker::get_tracker;
-#[deprecated(since = "0.4.0", note = "Use manager::TrackingManager instead")]
-pub use core::tracker::MemoryTracker;
 #[deprecated(since = "0.5.0", note = "Use TrackingManager export functionality")]
 pub use core::tracker::ExportOptions;
+#[deprecated(since = "0.4.0", note = "Use manager::TrackingManager instead")]
+pub use core::tracker::MemoryTracker;
 #[deprecated(since = "0.5.0", note = "Use data::AllocationRecord instead")]
 pub use core::types::AllocationInfo;
 #[deprecated(since = "0.5.0", note = "Use error::MemScopeError instead")]
@@ -334,28 +340,28 @@ impl<T> Trackable for std::rc::Rc<T> {
     }
 
     fn track_clone_relationship(&self, clone_ptr: usize, source_ptr: usize) {
-        let tracker = crate::core::tracker::get_tracker();
-        let _data_ptr = self.get_data_ptr();
-        let _strong_count = std::rc::Rc::strong_count(self);
-        let weak_count = std::rc::Rc::weak_count(self);
-
-        if let Err(e) = tracker.track_smart_pointer_clone(
-            clone_ptr, source_ptr, clone_ptr, // data_ptr - use clone_ptr as data pointer
-            1,         // new_ref_count - Rc clone increases ref count
-            weak_count,
-        ) {
-            tracing::warn!("Failed to track Rc clone relationship: {}", e);
-        }
+        let manager = crate::manager::get_global_tracker();
+        let ref_count = self.get_ref_count() as u32;
+        // 使用安全转换避免 usize 到 u32 的截断风险，并记录潜在的溢出情况
+        let weak_count = std::rc::Rc::weak_count(self).try_into().unwrap_or_else(|_| {
+            tracing::warn!("Weak count overflow for Rc (value exceeds u32::MAX), using u32::MAX");
+            u32::MAX
+        });
+        let data_ptr = self.get_data_ptr();
+        manager.track_smart_pointer_clone(
+            source_ptr,
+            clone_ptr,
+            Some(ref_count),
+            Some(weak_count),
+            Some(data_ptr),
+        );
     }
 
     fn update_ref_count_tracking(&self, ptr: usize) {
-        let tracker = crate::core::tracker::get_tracker();
-        let strong_count = std::rc::Rc::strong_count(self);
-        let weak_count = std::rc::Rc::weak_count(self);
-
-        if let Err(e) = tracker.update_smart_pointer_ref_count(ptr, strong_count, weak_count) {
-            tracing::warn!("Failed to update Rc ref count: {}", e);
-        }
+        let manager = crate::manager::get_global_tracker();
+        // New system tracks ref count in smart_pointer_info during allocation/deallocation
+        // This is a no-op for the simplified interface
+        let _ = ptr; // Suppress unused warning
     }
 }
 
@@ -390,30 +396,28 @@ impl<T> Trackable for std::sync::Arc<T> {
     }
 
     fn track_clone_relationship(&self, clone_ptr: usize, source_ptr: usize) {
-        let tracker = crate::core::tracker::get_tracker();
+        let manager = crate::manager::get_global_tracker();
+        let ref_count = self.get_ref_count() as u32;
+        // 使用安全转换避免 usize 到 u32 的截断风险，并记录潜在的溢出情况
+        let weak_count = std::sync::Arc::weak_count(self).try_into().unwrap_or_else(|_| {
+            tracing::warn!("Weak count overflow for Arc (value exceeds u32::MAX), using u32::MAX");
+            u32::MAX
+        });
         let data_ptr = self.get_data_ptr();
-        let strong_count = std::sync::Arc::strong_count(self);
-        let weak_count = std::sync::Arc::weak_count(self);
-
-        if let Err(e) = tracker.track_smart_pointer_clone(
-            clone_ptr,
+        manager.track_smart_pointer_clone(
             source_ptr,
-            data_ptr,
-            strong_count,
-            weak_count,
-        ) {
-            tracing::warn!("Failed to track Arc clone relationship: {}", e);
-        }
+            clone_ptr,
+            Some(ref_count),
+            Some(weak_count),
+            Some(data_ptr),
+        );
     }
 
     fn update_ref_count_tracking(&self, ptr: usize) {
-        let tracker = crate::core::tracker::get_tracker();
-        let strong_count = std::sync::Arc::strong_count(self);
-        let weak_count = std::sync::Arc::weak_count(self);
-
-        if let Err(e) = tracker.update_smart_pointer_ref_count(ptr, strong_count, weak_count) {
-            tracing::warn!("Failed to update Arc ref count: {}", e);
-        }
+        let manager = crate::manager::get_global_tracker();
+        // New system tracks ref count in smart_pointer_info during allocation/deallocation
+        // This is a no-op for the simplified interface
+        let _ = ptr; // Suppress unused warning
     }
 }
 
@@ -903,7 +907,10 @@ pub mod smart_pointer_utils {
             SmartPointerType::Arc
         } else if type_name.contains("::Box<") || type_name.contains("std::boxed::Box<") {
             SmartPointerType::Box
-        } else if type_name.contains("::Weak") || type_name.contains("std::rc::Weak") || type_name.contains("std::sync::Weak") {
+        } else if type_name.contains("::Weak")
+            || type_name.contains("std::rc::Weak")
+            || type_name.contains("std::sync::Weak")
+        {
             SmartPointerType::Weak
         } else {
             SmartPointerType::None
@@ -983,9 +990,9 @@ impl<T: Trackable> TrackedVariable<T> {
             })
         };
 
-        // Track creation using the same logic as _track_var_impl
+        // Track creation using the new TrackingManager
         if let Some(ptr_val) = ptr {
-            let tracker = crate::core::tracker::get_tracker();
+            let manager = crate::manager::get_global_tracker();
 
             // 1. Register variable in HashMap registry (lightweight and fast)
             let _ = crate::variable_registry::VariableRegistry::register_variable(
@@ -999,20 +1006,19 @@ impl<T: Trackable> TrackedVariable<T> {
             let scope_tracker = crate::core::scope_tracker::get_global_scope_tracker();
             let _ = scope_tracker.associate_variable(var_name.clone(), value.get_size_estimate());
 
-            // 3. Create appropriate allocation based on type (same as _track_var_impl)
+            // 3. Create appropriate allocation based on type
             if is_smart_pointer {
                 // For smart pointers, create specialized allocation
-                let ref_count = value.get_ref_count();
+                let ref_count = value.get_ref_count() as u32;
                 let data_ptr = value.get_data_ptr();
 
-                let _ = tracker.create_smart_pointer_allocation(
+                manager.track_smart_pointer_allocation(
                     ptr_val,
                     value.get_size_estimate(),
                     var_name.clone(),
                     type_name.clone(),
-                    creation_time,
                     ref_count,
-                    data_ptr,
+                    Some(data_ptr),
                 );
 
                 tracing::debug!(
@@ -1022,13 +1028,12 @@ impl<T: Trackable> TrackedVariable<T> {
                     ref_count
                 );
             } else if ptr_val >= 0x8000_0000 {
-                // For synthetic pointers, create synthetic allocation
-                let _ = tracker.create_synthetic_allocation(
+                // For synthetic pointers, use basic allocation tracking
+                manager.track_alloc_with_metadata(
                     ptr_val,
                     value.get_size_estimate(),
-                    var_name.clone(),
-                    type_name.clone(),
-                    creation_time,
+                    Some(var_name.clone()),
+                    Some(type_name.clone()),
                 );
 
                 tracing::debug!(
@@ -1038,7 +1043,7 @@ impl<T: Trackable> TrackedVariable<T> {
                 );
             } else {
                 // For real heap pointers, use association
-                let _ = tracker.associate_var(ptr_val, var_name.clone(), type_name.clone());
+                let _ = manager.associate_var(ptr_val, var_name.clone(), type_name.clone());
 
                 tracing::debug!(
                     "🎯 Associated variable '{}' of type '{}' at ptr 0x{:x}",
@@ -1182,8 +1187,13 @@ impl<T: Trackable> TrackedVariable<T> {
 
         // Track smart pointer deallocation with enhanced metadata using new TrackingManager
         let manager = crate::manager::get_global_tracker();
-        if let Err(e) = manager.track_smart_pointer_deallocation(ptr, lifetime_ms, final_ref_count as u32) {
-            tracing::warn!("Failed to track smart pointer deallocation with lifetime: {}", e);
+        if let Err(e) =
+            manager.track_smart_pointer_deallocation(ptr, lifetime_ms, final_ref_count as u32)
+        {
+            tracing::warn!(
+                "Failed to track smart pointer deallocation with lifetime: {}",
+                e
+            );
         }
 
         tracing::debug!(
@@ -1209,9 +1219,9 @@ impl<T: Trackable> Drop for TrackedVariable<T> {
             {
                 // Use catch_unwind to prevent panic in drop from affecting program termination
                 let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    // Skip expensive drop tracking in fast mode
-                    let tracker = crate::core::tracker::get_tracker();
-                    if tracker.is_fast_mode() {
+                    // Use new TrackingManager for drop tracking
+                    let manager = crate::manager::get_global_tracker();
+                    if !manager.is_enabled() {
                         return;
                     }
 
@@ -1594,9 +1604,9 @@ pub mod test_utils {
             super::init_for_testing();
         });
 
-        // Enable fast mode on the global tracker
-        let tracker = crate::core::tracker::get_tracker();
-        tracker.enable_fast_mode();
+        // Configure new TrackingManager for test mode
+        let manager = crate::manager::get_global_tracker();
+        manager.set_enabled(false); // Disable tracking for tests to reduce overhead
     }
 
     /// Reset global tracker state for clean tests

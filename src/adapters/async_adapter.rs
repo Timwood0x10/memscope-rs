@@ -3,8 +3,8 @@
 //! This adapter maintains backward compatibility with the old async tracking API
 //! while internally using the new unified tracking system.
 
-use crate::manager::TrackingManager;
 use crate::data::TaskRecord;
+use crate::manager::TrackingManager;
 use crate::tracker::base::TrackBase;
 use crate::tracker::strategies::AsyncTracker;
 use std::sync::Arc;
@@ -16,7 +16,7 @@ use std::sync::Arc;
 pub struct AsyncAdapter {
     /// New unified tracking manager
     manager: Arc<TrackingManager>,
-    
+
     /// Direct access to AsyncTracker for task-specific operations
     async_tracker: Arc<AsyncTracker>,
 }
@@ -25,7 +25,7 @@ impl AsyncAdapter {
     /// Create a new async adapter
     pub fn new() -> Self {
         let manager = Arc::new(TrackingManager::new_async());
-        
+
         // Get direct access to AsyncTracker for task operations
         // Note: This requires accessing the internal implementation
         // For now, we'll create a separate AsyncTracker instance
@@ -65,13 +65,13 @@ impl AsyncAdapter {
     /// Get current snapshot
     pub fn snapshot(&self) -> crate::data::TrackingSnapshot {
         let mut snapshot = self.manager.snapshot();
-        
+
         // Get task data from the internal async tracker
         let async_snapshot = self.async_tracker.snapshot();
-        
+
         // Merge task data into the snapshot
         snapshot.tasks = async_snapshot.tasks;
-        
+
         snapshot
     }
 }
@@ -96,7 +96,7 @@ mod tests {
     fn test_async_task_tracking() {
         let adapter = AsyncAdapter::new();
         let task_id = adapter.register_task(Some("test_task".to_string()));
-        
+
         adapter.track_task_alloc(0x1000, 1024, task_id);
         adapter.complete_task(task_id);
 

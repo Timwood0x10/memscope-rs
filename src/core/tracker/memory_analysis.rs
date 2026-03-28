@@ -15,7 +15,10 @@ use crate::core::types::{
     TypeUsageInfo, VTableInfo,
 };
 
-#[deprecated(since = "0.4.0", note = "Please use manager::TrackingManager instead. All functionality is preserved for backward compatibility.")]
+#[deprecated(
+    since = "0.4.0",
+    note = "Please use manager::TrackingManager instead. All functionality is preserved for backward compatibility."
+)]
 impl MemoryTracker {
     /// Analyze memory layout information with enhanced container analysis
     pub fn analyze_memory_layout(&self, type_name: &str, size: usize) -> Option<MemoryLayoutInfo> {

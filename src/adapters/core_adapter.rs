@@ -19,7 +19,7 @@ use std::sync::{Arc, Mutex, RwLock};
 pub struct CoreAdapter {
     /// New unified tracking manager
     manager: Arc<TrackingManager>,
-    
+
     /// Extended state for legacy features not yet migrated
     extended_state: Arc<Mutex<CoreAdapterState>>,
 }
@@ -29,16 +29,16 @@ pub struct CoreAdapter {
 struct CoreAdapterState {
     /// Variable name mapping (ptr -> var_name)
     variable_names: HashMap<usize, String>,
-    
+
     /// Type name mapping (ptr -> type_name)
     type_names: HashMap<usize, String>,
-    
+
     /// Smart pointer relationships
     smart_pointer_info: HashMap<usize, SmartPointerInfo>,
-    
+
     /// Borrow tracking data
     borrow_tracking: HashMap<usize, BorrowTrackingData>,
-    
+
     /// Clone relationships
     clone_relationships: HashMap<usize, CloneRelationship>,
 }
@@ -76,6 +76,9 @@ struct CloneRelationship {
     clone_count: usize,
     original_ptr: Option<usize>,
     is_clone: bool,
+    ref_count: Option<u32>,
+    weak_count: Option<u32>,
+    data_ptr: Option<usize>,
 }
 
 impl CoreAdapter {
@@ -157,11 +160,14 @@ impl CoreAdapter {
 
         // Store smart pointer info
         let mut state = self.extended_state.lock().unwrap();
-        state.smart_pointer_info.insert(ptr, SmartPointerInfo {
-            ptr_type,
-            ref_count,
-            original_ptr: None,
-        });
+        state.smart_pointer_info.insert(
+            ptr,
+            SmartPointerInfo {
+                ptr_type,
+                ref_count,
+                original_ptr: None,
+            },
+        );
 
         Ok(())
     }
@@ -172,17 +178,25 @@ impl CoreAdapter {
         source_ptr: usize,
         new_ptr: usize,
         ref_count: u32,
+        weak_count: u32,
+        data_ptr: usize,
     ) -> TrackingResult<()> {
         // Track the new allocation
         self.manager.track_alloc(new_ptr, 0); // Size 0 for smart pointer reference
 
         // Update clone relationships
         let mut state = self.extended_state.lock().unwrap();
-        state.clone_relationships.insert(new_ptr, CloneRelationship {
-            clone_count: 1,
-            original_ptr: Some(source_ptr),
-            is_clone: true,
-        });
+        state.clone_relationships.insert(
+            new_ptr,
+            CloneRelationship {
+                clone_count: 1,
+                original_ptr: Some(source_ptr),
+                is_clone: true,
+                ref_count: Some(ref_count),
+                weak_count: Some(weak_count),
+                data_ptr: Some(data_ptr),
+            },
+        );
 
         // Update ref count
         if let Some(info) = state.smart_pointer_info.get_mut(&source_ptr) {
@@ -195,12 +209,16 @@ impl CoreAdapter {
     /// Track borrow operation
     pub fn track_borrow(&self, ptr: usize, is_mutable: bool) -> TrackingResult<()> {
         let mut state = self.extended_state.lock().unwrap();
-        let tracking_data = state.borrow_tracking.entry(ptr).or_insert_with(|| BorrowTrackingData {
-            immutable_borrows: 0,
-            mutable_borrows: 0,
-            max_concurrent: 0,
-            last_borrow_timestamp: None,
-        });
+        let tracking_data =
+            state
+                .borrow_tracking
+                .entry(ptr)
+                .or_insert_with(|| BorrowTrackingData {
+                    immutable_borrows: 0,
+                    mutable_borrows: 0,
+                    max_concurrent: 0,
+                    last_borrow_timestamp: None,
+                });
 
         if is_mutable {
             tracking_data.mutable_borrows += 1;
@@ -235,19 +253,21 @@ impl CoreAdapter {
                 let public_smart_ptr_info = smart_ptr_info.map(|info| {
                     crate::core::types::SmartPointerInfo {
                         data_ptr: info.original_ptr.unwrap_or(record.ptr),
-                        cloned_from: state.clone_relationships.get(&record.ptr)
+                        cloned_from: state
+                            .clone_relationships
+                            .get(&record.ptr)
                             .and_then(|r| r.original_ptr),
-                        clones: state.clone_relationships.iter()
+                        clones: state
+                            .clone_relationships
+                            .iter()
                             .filter(|(_, r)| r.original_ptr == Some(record.ptr))
                             .map(|(ptr, _)| *ptr)
                             .collect(),
-                        ref_count_history: vec![
-                            crate::core::types::RefCountSnapshot {
-                                timestamp: record.timestamp,
-                                strong_count: info.ref_count as usize,
-                                weak_count: 0,
-                            }
-                        ],
+                        ref_count_history: vec![crate::core::types::RefCountSnapshot {
+                            timestamp: record.timestamp,
+                            strong_count: info.ref_count as usize,
+                            weak_count: 0,
+                        }],
                         weak_count: None,
                         is_weak_reference: info.ptr_type == SmartPointerType::Weak,
                         is_data_owner: info.ref_count > 0,
@@ -279,7 +299,9 @@ impl CoreAdapter {
                     stack_trace: None,
                     is_leaked: record.is_active,
                     lifetime_ms: record.lifetime_ms(),
-                    borrow_count: record.borrow_info.as_ref()
+                    borrow_count: record
+                        .borrow_info
+                        .as_ref()
                         .map(|b| b.immutable_borrows + b.mutable_borrows)
                         .unwrap_or(0),
                     smart_pointer_info: public_smart_ptr_info,
@@ -313,19 +335,17 @@ impl CoreAdapter {
     ) -> crate::core::types::SmartPointerInfo {
         crate::core::types::SmartPointerInfo {
             data_ptr: internal_info.original_ptr.unwrap_or(ptr),
-            cloned_from: clone_relationships.get(&ptr)
-                .and_then(|r| r.original_ptr),
-            clones: clone_relationships.iter()
+            cloned_from: clone_relationships.get(&ptr).and_then(|r| r.original_ptr),
+            clones: clone_relationships
+                .iter()
                 .filter(|(_, r)| r.original_ptr == Some(ptr))
                 .map(|(clone_ptr, _)| *clone_ptr)
                 .collect(),
-            ref_count_history: vec![
-                crate::core::types::RefCountSnapshot {
-                    timestamp,
-                    strong_count: internal_info.ref_count as usize,
-                    weak_count: 0,
-                }
-            ],
+            ref_count_history: vec![crate::core::types::RefCountSnapshot {
+                timestamp,
+                strong_count: internal_info.ref_count as usize,
+                weak_count: 0,
+            }],
             weak_count: None,
             is_weak_reference: internal_info.ptr_type == SmartPointerType::Weak,
             is_data_owner: internal_info.ref_count > 0,
@@ -335,7 +355,7 @@ impl CoreAdapter {
                 SmartPointerType::Arc => crate::core::types::SmartPointerType::Arc,
                 SmartPointerType::Box => crate::core::types::SmartPointerType::Box,
                 SmartPointerType::Weak => crate::core::types::SmartPointerType::RcWeak, // Default to RcWeak
-                SmartPointerType::None => crate::core::types::SmartPointerType::Rc, // Default
+                SmartPointerType::None => crate::core::types::SmartPointerType::Rc,     // Default
             },
         }
     }
@@ -355,7 +375,9 @@ impl CoreAdapter {
             borrow_info: record.borrow_info.as_ref().map(Self::convert_borrow_info),
             clone_info: record.clone_info.as_ref().map(Self::convert_clone_info),
             ownership_history_available: record.ownership_history_available,
-            borrow_count: record.borrow_info.as_ref()
+            borrow_count: record
+                .borrow_info
+                .as_ref()
                 .map(|b| b.immutable_borrows + b.mutable_borrows)
                 .unwrap_or(0),
             scope_name: None,
@@ -427,7 +449,7 @@ mod tests {
         let adapter = CoreAdapter::new();
         let ptr = 0x1000;
         adapter.track_alloc(ptr, 1024);
-        
+
         let result = adapter.associate_var(ptr, "test_var".to_string(), "Vec<i32>".to_string());
         assert!(result.is_ok());
     }
@@ -437,10 +459,10 @@ mod tests {
         let adapter = CoreAdapter::new();
         let ptr = 0x1000;
         adapter.track_alloc(ptr, 1024);
-        
+
         let result = adapter.track_borrow(ptr, false);
         assert!(result.is_ok());
-        
+
         let result = adapter.track_borrow(ptr, true);
         assert!(result.is_ok());
     }

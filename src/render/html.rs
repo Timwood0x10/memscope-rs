@@ -58,19 +58,21 @@ impl HtmlRenderer {
         // If all attempts failed, return a detailed error
         let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
         let template_path = cwd.join("templates").join(template_name);
-        
+
         let mut error_msg = format!("Failed to load template '{}'. Tried:\n", template_name);
-        error_msg.push_str(&format!("  1. Environment variable MEMSCOPE_TEMPLATES_DIR\n"));
+        error_msg.push_str(&format!(
+            "  1. Environment variable MEMSCOPE_TEMPLATES_DIR\n"
+        ));
         error_msg.push_str(&format!("  2. {}/templates/\n", cwd.display()));
-        
+
         if let Ok(exe_path) = std::env::current_exe() {
             if let Some(exe_dir) = exe_path.parent() {
                 error_msg.push_str(&format!("  3. {}/templates/\n", exe_dir.display()));
             }
         }
-        
+
         error_msg.push_str(&format!("\nExpected path: {}", template_path.display()));
-        
+
         Err(MemScopeError::new(ErrorKind::InternalError, &error_msg))
     }
 
@@ -137,7 +139,7 @@ impl HtmlRenderer {
             .map(|alloc| {
                 let lifetime_ms = alloc.lifetime_ms().unwrap_or(0) as f64;
                 let timestamp_dealloc = alloc.dealloc_timestamp.map(|t| t as i64);
-                
+
                 // Handle borrow_info
                 let borrow_info_json = if let Some(ref borrow_info) = alloc.borrow_info {
                     json!({
@@ -204,13 +206,15 @@ impl HtmlRenderer {
             }
         });
 
-        serde_json::to_string(&data_structure).map_err(|e| {
-            MemScopeError::new(ErrorKind::InternalError, &e.to_string())
-        })
+        serde_json::to_string(&data_structure)
+            .map_err(|e| MemScopeError::new(ErrorKind::InternalError, &e.to_string()))
     }
 
     /// Generate enhanced data sections for the dashboard
-    fn generate_enhanced_data(&self, allocations: &[serde_json::Value]) -> (Value, Value, Value, Value) {
+    fn generate_enhanced_data(
+        &self,
+        allocations: &[serde_json::Value],
+    ) -> (Value, Value, Value, Value) {
         // Generate lifetime data
         let lifetime_data = self.generate_lifetime_data(allocations);
 
@@ -279,13 +283,17 @@ impl HtmlRenderer {
 
                 // Detect smart pointers
                 if type_name.contains("Arc<") || type_name.contains("Rc<") {
-                    *smart_pointer_usage.entry("reference_counted".to_string()).or_insert(0) += 1;
+                    *smart_pointer_usage
+                        .entry("reference_counted".to_string())
+                        .or_insert(0) += 1;
                 }
                 if type_name.contains("Box<") {
                     *smart_pointer_usage.entry("boxed".to_string()).or_insert(0) += 1;
                 }
                 if type_name.contains("Vec<") || type_name.contains("HashMap<") {
-                    *smart_pointer_usage.entry("collection".to_string()).or_insert(0) += 1;
+                    *smart_pointer_usage
+                        .entry("collection".to_string())
+                        .or_insert(0) += 1;
                 }
             }
         }
@@ -302,9 +310,15 @@ impl HtmlRenderer {
         let unsafe_allocations = allocations
             .iter()
             .filter(|alloc| {
-                alloc.get("type_name")
+                alloc
+                    .get("type_name")
                     .and_then(|v| v.as_str())
-                    .map(|t| t.contains("CString") || t.contains("CStr") || t.contains("*mut") || t.contains("*const"))
+                    .map(|t| {
+                        t.contains("CString")
+                            || t.contains("CStr")
+                            || t.contains("*mut")
+                            || t.contains("*const")
+                    })
                     .unwrap_or(false)
             })
             .count();
@@ -350,8 +364,14 @@ impl HtmlRenderer {
         let mut html = template.to_string();
 
         // Replace basic placeholders
-        html = html.replace("{{TITLE}}", &format!("Memory Analysis - {:?}", snapshot.strategy));
-        html = html.replace("{{title}}", &format!("Memory Analysis - {:?}", snapshot.strategy));
+        html = html.replace(
+            "{{TITLE}}",
+            &format!("Memory Analysis - {:?}", snapshot.strategy),
+        );
+        html = html.replace(
+            "{{title}}",
+            &format!("Memory Analysis - {:?}", snapshot.strategy),
+        );
         html = html.replace("{{timestamp}}", &format_timestamp(snapshot.timestamp));
         html = html.replace("{{strategy}}", &format!("{:?}", snapshot.strategy));
         html = html.replace("{{STRATEGY}}", &format!("{:?}", snapshot.strategy));
@@ -368,33 +388,99 @@ impl HtmlRenderer {
         html = html.replace("{{snapshot_json}}", &snapshot_json);
 
         // Replace statistics placeholders
-        html = html.replace("{{total_allocations}}", &snapshot.stats.total_allocations.to_string());
-        html = html.replace("{{TOTAL_ALLOCATIONS}}", &snapshot.stats.total_allocations.to_string());
-        html = html.replace("{{total_deallocations}}", &snapshot.stats.total_deallocations.to_string());
-        html = html.replace("{{TOTAL_DEALLOCATIONS}}", &snapshot.stats.total_deallocations.to_string());
-        html = html.replace("{{peak_memory}}", &format_bytes(snapshot.stats.peak_memory as usize));
-        html = html.replace("{{PEAK_MEMORY}}", &format_bytes(snapshot.stats.peak_memory as usize));
-        html = html.replace("{{active_memory}}", &format_bytes(snapshot.stats.active_memory as usize));
-        html = html.replace("{{ACTIVE_MEMORY}}", &format_bytes(snapshot.stats.active_memory as usize));
-        html = html.replace("{{fragmentation}}", &format!("{:.2}", snapshot.stats.fragmentation));
-        html = html.replace("{{FRAGMENTATION}}", &format!("{:.2}", snapshot.stats.fragmentation));
+        html = html.replace(
+            "{{total_allocations}}",
+            &snapshot.stats.total_allocations.to_string(),
+        );
+        html = html.replace(
+            "{{TOTAL_ALLOCATIONS}}",
+            &snapshot.stats.total_allocations.to_string(),
+        );
+        html = html.replace(
+            "{{total_deallocations}}",
+            &snapshot.stats.total_deallocations.to_string(),
+        );
+        html = html.replace(
+            "{{TOTAL_DEALLOCATIONS}}",
+            &snapshot.stats.total_deallocations.to_string(),
+        );
+        html = html.replace(
+            "{{peak_memory}}",
+            &format_bytes(snapshot.stats.peak_memory as usize),
+        );
+        html = html.replace(
+            "{{PEAK_MEMORY}}",
+            &format_bytes(snapshot.stats.peak_memory as usize),
+        );
+        html = html.replace(
+            "{{active_memory}}",
+            &format_bytes(snapshot.stats.active_memory as usize),
+        );
+        html = html.replace(
+            "{{ACTIVE_MEMORY}}",
+            &format_bytes(snapshot.stats.active_memory as usize),
+        );
+        html = html.replace(
+            "{{fragmentation}}",
+            &format!("{:.2}", snapshot.stats.fragmentation),
+        );
+        html = html.replace(
+            "{{FRAGMENTATION}}",
+            &format!("{:.2}", snapshot.stats.fragmentation),
+        );
 
         // Replace memory placeholders (in MB)
-        html = html.replace("{{TOTAL_MEMORY}}", &format!("{:.1}MB", snapshot.stats.peak_memory as f64 / 1024.0 / 1024.0));
-        html = html.replace("{{totalMemory}}", &format!("{:.1}MB", snapshot.stats.peak_memory as f64 / 1024.0 / 1024.0));
-        html = html.replace("{{CURRENT_MEMORY}}", &format!("{:.1}MB", snapshot.stats.active_memory as f64 / 1024.0 / 1024.0));
+        html = html.replace(
+            "{{TOTAL_MEMORY}}",
+            &format!(
+                "{:.1}MB",
+                snapshot.stats.peak_memory as f64 / 1024.0 / 1024.0
+            ),
+        );
+        html = html.replace(
+            "{{totalMemory}}",
+            &format!(
+                "{:.1}MB",
+                snapshot.stats.peak_memory as f64 / 1024.0 / 1024.0
+            ),
+        );
+        html = html.replace(
+            "{{CURRENT_MEMORY}}",
+            &format!(
+                "{:.1}MB",
+                snapshot.stats.active_memory as f64 / 1024.0 / 1024.0
+            ),
+        );
 
         // Replace allocation count placeholders
-        html = html.replace("{{TOTAL_VARIABLES}}", &snapshot.allocations.len().to_string());
-        html = html.replace("{{totalVariables}}", &snapshot.allocations.len().to_string());
+        html = html.replace(
+            "{{TOTAL_VARIABLES}}",
+            &snapshot.allocations.len().to_string(),
+        );
+        html = html.replace(
+            "{{totalVariables}}",
+            &snapshot.allocations.len().to_string(),
+        );
 
         // Replace thread count placeholder (for lockfree strategy)
-        html = html.replace("{{THREAD_COUNT}}", &format!("{}", snapshot.allocations.len()));
-        html = html.replace("{{threadCount}}", &format!("{}", snapshot.allocations.len()));
+        html = html.replace(
+            "{{THREAD_COUNT}}",
+            &format!("{}", snapshot.allocations.len()),
+        );
+        html = html.replace(
+            "{{threadCount}}",
+            &format!("{}", snapshot.allocations.len()),
+        );
 
         // Replace efficiency placeholder
-        html = html.replace("{{EFFICIENCY}}", &format!("{:.1}", 100.0 * (1.0 - snapshot.stats.fragmentation)));
-        html = html.replace("{{efficiency}}", &format!("{:.1}", 100.0 * (1.0 - snapshot.stats.fragmentation)));
+        html = html.replace(
+            "{{EFFICIENCY}}",
+            &format!("{:.1}", 100.0 * (1.0 - snapshot.stats.fragmentation)),
+        );
+        html = html.replace(
+            "{{efficiency}}",
+            &format!("{:.1}", 100.0 * (1.0 - snapshot.stats.fragmentation)),
+        );
 
         html
     }
@@ -405,12 +491,24 @@ impl HtmlRenderer {
         let project_name = String::from("MemScope");
         let generation_time = format_timestamp(snapshot.timestamp);
         let title = format!("Memory Analysis - {:?}", snapshot.strategy);
-        
+
         let placeholders = [
-            ("{{BINARY_DATA}}", &self.prepare_analysis_data(snapshot).unwrap_or_default()),
-            ("{{ json_data }}", &self.prepare_analysis_data(snapshot).unwrap_or_default()),
-            ("{{json_data}}", &self.prepare_analysis_data(snapshot).unwrap_or_default()),
-            ("{{ALLOCATION_DATA}}", &self.prepare_allocation_json(snapshot)),
+            (
+                "{{BINARY_DATA}}",
+                &self.prepare_analysis_data(snapshot).unwrap_or_default(),
+            ),
+            (
+                "{{ json_data }}",
+                &self.prepare_analysis_data(snapshot).unwrap_or_default(),
+            ),
+            (
+                "{{json_data}}",
+                &self.prepare_analysis_data(snapshot).unwrap_or_default(),
+            ),
+            (
+                "{{ALLOCATION_DATA}}",
+                &self.prepare_allocation_json(snapshot),
+            ),
             ("{{PROJECT_NAME}}", &project_name),
             ("{{TITLE}}", &title),
             ("{{GENERATION_TIME}}", &generation_time),
@@ -427,7 +525,10 @@ impl HtmlRenderer {
                 let analysis_data = self.prepare_analysis_data(snapshot).unwrap_or_default();
                 let before = &html[..start];
                 let after = &html[end_pos..];
-                *html = format!("{}window.analysisData = {};{}", before, analysis_data, after);
+                *html = format!(
+                    "{}window.analysisData = {};{}",
+                    before, analysis_data, after
+                );
             }
         }
     }
@@ -458,18 +559,19 @@ impl HtmlRenderer {
 
     /// Generate Core strategy HTML
     fn render_core(&self, snapshot: &TrackingSnapshot) -> String {
-        self.render_with_template(
-            "clean_dashboard.html",
-            "Core",
-            snapshot,
-        )
+        self.render_with_template("clean_dashboard.html", "Core", snapshot)
     }
 
     /// Generate simple error page (when template loading fails)
-    fn generate_error_html(&self, strategy_name: &str, error_msg: &str, snapshot: &TrackingSnapshot) -> String {
+    fn generate_error_html(
+        &self,
+        strategy_name: &str,
+        error_msg: &str,
+        snapshot: &TrackingSnapshot,
+    ) -> String {
         let timestamp = format_timestamp(snapshot.timestamp);
         let data_json = serde_json::to_string(&snapshot).unwrap_or_default();
-        
+
         format!(
             r#"<!DOCTYPE html>
 <html lang="en">
@@ -564,29 +666,17 @@ impl HtmlRenderer {
 
     /// Generate Lockfree strategy HTML
     fn render_lockfree(&self, snapshot: &TrackingSnapshot) -> String {
-        self.render_with_template(
-            "multithread_template.html",
-            "Lockfree",
-            snapshot,
-        )
+        self.render_with_template("multithread_template.html", "Lockfree", snapshot)
     }
 
     /// Generate Async strategy HTML
     fn render_async(&self, snapshot: &TrackingSnapshot) -> String {
-        self.render_with_template(
-            "async_template.html",
-            "Async",
-            snapshot,
-        )
+        self.render_with_template("async_template.html", "Async", snapshot)
     }
 
     /// Generate Unified strategy HTML
     fn render_unified(&self, snapshot: &TrackingSnapshot) -> String {
-        self.render_with_template(
-            "hybrid_dashboard.html",
-            "Unified",
-            snapshot,
-        )
+        self.render_with_template("hybrid_dashboard.html", "Unified", snapshot)
     }
 }
 

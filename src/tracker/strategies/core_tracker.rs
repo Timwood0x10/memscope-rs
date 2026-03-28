@@ -100,8 +100,8 @@ impl TrackBase for CoreTracker {
             size,
             timestamp: Self::timestamp(),
             thread_id: Self::thread_id(),
-            stack_id: None, // Optional: capture stack trace
-            var_name: None, // Optional: capture variable name
+            stack_id: None,  // Optional: capture stack trace
+            var_name: None,  // Optional: capture variable name
             type_name: None, // Optional: capture type name
             scope_name: None,
             is_active: true,

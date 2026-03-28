@@ -593,7 +593,10 @@ pub struct BoundaryEventStatistics {
 }
 
 /// Enhanced memory tracker for unsafe/FFI operations
-#[deprecated(since = "0.4.0", note = "Please use manager::TrackingManager instead. All functionality is preserved for backward compatibility.")]
+#[deprecated(
+    since = "0.4.0",
+    note = "Please use manager::TrackingManager instead. All functionality is preserved for backward compatibility."
+)]
 pub struct UnsafeFFITracker {
     /// Enhanced allocations with source tracking
     enhanced_allocations: Mutex<HashMap<usize, EnhancedAllocationInfo>>,
@@ -742,7 +745,10 @@ impl UnsafeFFITracker {
     }
 
     /// Track an FFI allocation
-    #[deprecated(since = "0.4.0", note = "Use TrackingManager::track_ffi_allocation instead")]
+    #[deprecated(
+        since = "0.4.0",
+        note = "Use TrackingManager::track_ffi_allocation instead"
+    )]
     pub fn track_ffi_allocation(
         &self,
         ptr: usize,

@@ -596,7 +596,10 @@ mod tests {
         let start_result = start_full_system_profiling(&output_path, Duration::from_millis(100));
         if !start_result.is_ok() {
             // If start fails, we can't test stop
-            eprintln!("Warning: Failed to start system profiling: {:?}", start_result.err());
+            eprintln!(
+                "Warning: Failed to start system profiling: {:?}",
+                start_result.err()
+            );
             return; // Skip this test
         }
 
@@ -610,7 +613,10 @@ mod tests {
         // Accept both Ok and Err since concurrent tests might interfere
         // The important thing is that profiling state is properly cleaned up
         if result.is_err() {
-            eprintln!("Warning: stop_system_profiling returned error: {:?}", result.err());
+            eprintln!(
+                "Warning: stop_system_profiling returned error: {:?}",
+                result.err()
+            );
             // Force cleanup
             ENHANCED_PROFILING_ACTIVE.store(false, Ordering::SeqCst);
         } else {

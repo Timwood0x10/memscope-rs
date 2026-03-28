@@ -7,7 +7,10 @@ use super::memory_tracker::MemoryTracker;
 use crate::core::ownership_history::OwnershipEventType;
 use crate::core::types::{AllocationInfo, TrackingResult};
 
-#[deprecated(since = "0.4.0", note = "Please use manager::TrackingManager instead. All functionality is preserved for backward compatibility.")]
+#[deprecated(
+    since = "0.4.0",
+    note = "Please use manager::TrackingManager instead. All functionality is preserved for backward compatibility."
+)]
 impl MemoryTracker {
     /// Fast track allocation for testing (minimal overhead)
     pub fn fast_track_allocation(
@@ -915,11 +918,13 @@ impl MemoryTracker {
                     // Update smart pointer reference count history if available
                     if let Some(ref mut smart_info) = allocation.smart_pointer_info {
                         // Add final reference count snapshot at deallocation time
-                        smart_info.ref_count_history.push(crate::core::types::RefCountSnapshot {
-                            timestamp: dealloc_timestamp,
-                            strong_count: final_ref_count as usize,
-                            weak_count: 0, // We don't track weak count in this context
-                        });
+                        smart_info
+                            .ref_count_history
+                            .push(crate::core::types::RefCountSnapshot {
+                                timestamp: dealloc_timestamp,
+                                strong_count: final_ref_count as usize,
+                                weak_count: 0, // We don't track weak count in this context
+                            });
 
                         // Update implicit deallocation status based on ref count
                         smart_info.is_implicitly_deallocated = final_ref_count == 0;
