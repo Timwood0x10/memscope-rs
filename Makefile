@@ -133,7 +133,7 @@ check:
 	@echo "$(BLUE)Checking code formatting...$(NC)"
 	$(CARGO) fmt --all -- --check
 	@echo "$(BLUE)Running clippy linter...$(NC)"
-	$(CARGO) clippy --all-targets --all-features -- -D warnings
+	$(CARGO) clippy --all-targets --all-features -- -D warnings -A deprecated
 	@echo "$(BLUE)Running security audit...$(NC)"
 	@if command -v cargo-audit >/dev/null 2>&1; then \
 		$(CARGO) audit || echo "$(YELLOW)⚠️  Some audit warnings may be acceptable$(NC)"; \
@@ -220,7 +220,7 @@ fmt-check:
 .PHONY: clippy
 clippy:
 	@echo "$(BLUE)Running clippy linter...$(NC)"
-	$(CARGO) clippy --all-targets --all-features -- -D warnings
+	$(CARGO) clippy --all-targets --all-features -- -D warnings -A deprecated
 
 .PHONY: clippy-fix
 clippy-fix:

@@ -6,6 +6,8 @@
 //! - async_memory tracking
 //! - thread registry for data aggregation
 
+#![allow(deprecated)]
+
 #[cfg(test)]
 mod tests {
     use crate::core::thread_registry::{

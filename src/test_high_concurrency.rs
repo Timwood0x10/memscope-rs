@@ -3,6 +3,8 @@
 //! This test verifies that our three tracking modes work seamlessly
 //! under heavy concurrent load with precise tracking capabilities.
 
+#![allow(deprecated)]
+
 #[cfg(test)]
 mod tests {
     use crate::core::thread_registry::{

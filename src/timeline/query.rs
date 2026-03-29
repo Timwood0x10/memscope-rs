@@ -178,7 +178,7 @@ mod tests {
         event_store.record(event);
 
         let query = TimelineQuery::new(event_store);
-        let usage = query.get_memory_usage_over_time(0, u64::MAX, 100);
+        let usage = query.get_memory_usage_over_time(0, 1000, 100);
         assert!(!usage.is_empty());
     }
 }

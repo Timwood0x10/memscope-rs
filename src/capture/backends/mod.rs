@@ -44,7 +44,7 @@ pub use lockfree_tracker::{
     finalize_thread_tracker, get_current_tracker, init_thread_tracker, track_allocation_lockfree,
     track_deallocation_lockfree, ThreadLocalTracker,
 };
-pub use lockfree_types::{Event, EventType, MemoryStats};
+pub use lockfree_types::{AllocationCategory, Event, EventType, MemoryStats};
 
 // Re-export unified tracker types
 pub use unified_tracker::{

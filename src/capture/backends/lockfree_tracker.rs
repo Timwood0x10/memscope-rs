@@ -61,6 +61,11 @@ impl ThreadLocalTracker {
     /// * `size` - Memory size in bytes
     /// * `call_stack_hash` - Hash of the call stack
     pub fn track_allocation(&self, ptr: usize, size: usize, call_stack_hash: u64) {
+        // Update seen counter (always increment, regardless of sampling)
+        if let Ok(mut total_seen) = self.total_seen.try_lock() {
+            *total_seen += 1;
+        }
+
         // Check sampling rate
         if self.sample_rate < 1.0 {
             let sample_decision = rand::random::<f64>();
@@ -69,11 +74,7 @@ impl ThreadLocalTracker {
             }
         }
 
-        // Update counters
-        if let Ok(mut total_seen) = self.total_seen.try_lock() {
-            *total_seen += 1;
-        }
-
+        // Update tracked counter (only for sampled allocations)
         if let Ok(mut total_tracked) = self.total_tracked.try_lock() {
             *total_tracked += 1;
         }

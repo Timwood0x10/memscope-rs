@@ -14,12 +14,21 @@ pub mod advanced_trackable_macro;
 pub mod advanced_types;
 /// Advanced memory analysis functionality
 pub mod analysis;
+/// Async memory tracking functionality
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::async_tracker instead. This module will be removed in a future version."
+)]
 pub mod async_memory;
 /// Type classification system
 pub mod classification;
 /// Command-line interface functionality
 pub mod cli;
 /// Core memory tracking functionality
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
+)]
 pub mod core;
 
 // === NEW ENGINE ARCHITECTURE ===
@@ -56,6 +65,10 @@ pub mod estimation;
 /// Export and visualization functionality
 pub mod export;
 /// Lock-free multi-threaded memory tracking
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::lockfree_tracker instead. This module will be removed in a future version."
+)]
 pub mod lockfree;
 /// Memory management and bounded history tracking
 pub mod memory;
@@ -72,6 +85,10 @@ pub mod stack_trace;
 /// Memory allocation tracking statistics and monitoring
 pub mod tracking;
 /// Unified backend for intelligent memory tracking
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::unified_tracker instead. This module will be removed in a future version."
+)]
 pub mod unified;
 /// Utility functions
 pub mod utils;
@@ -118,10 +135,10 @@ pub use utils::{format_bytes, get_simple_type, simplify_type_name};
 // === CAPTURE ENGINE EXPORTS ===
 // Re-export capture engine types and backends
 pub use capture::backends::{
-    configure_tracking_strategy, get_tracker as get_capture_tracker, AsyncAllocation, AsyncBackend,
-    AsyncSnapshot, AsyncStats, AsyncTracker, CoreBackend, Event, EventType, LockfreeBackend,
-    MemoryStats, RuntimeEnvironment, TaskInfo, ThreadLocalTracker, TrackingStrategy,
-    UnifiedBackend,
+    configure_tracking_strategy, get_tracker as get_capture_tracker, AllocationCategory,
+    AsyncAllocation, AsyncBackend, AsyncSnapshot, AsyncStats, AsyncTracker, CoreBackend, Event,
+    EventType, LockfreeBackend, MemoryStats, RuntimeEnvironment, TaskInfo, ThreadLocalTracker,
+    TrackingStrategy, UnifiedBackend,
 };
 pub use capture::{CaptureBackend, CaptureBackendType, CaptureEngine};
 
