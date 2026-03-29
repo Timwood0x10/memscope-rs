@@ -5,6 +5,10 @@
 //! - Circular reference detection
 //! - Unsafe FFI tracking
 //! - Unknown memory region analysis
+//! - Type classification
+//! - Performance metrics
+//! - Quality assurance
+//! - Size estimation
 
 pub mod circular_reference;
 pub mod enhanced_memory_analysis;
@@ -23,6 +27,12 @@ pub mod lifecycle_analysis;
 pub mod memory_passport_tracker;
 pub mod safety_analyzer;
 pub mod security_violation_analyzer;
+
+// Integrated analysis submodules
+pub mod classification;
+pub mod estimation;
+pub mod metrics;
+pub mod quality;
 
 // Re-export key analysis functions
 pub use circular_reference::{CircularReference, CircularReferenceAnalysis, CircularReferenceNode};
@@ -58,6 +68,26 @@ pub use safety_analyzer::{
     SafetyAnalysisStats, SafetyAnalyzer, UnsafeReport, UnsafeSource,
 };
 pub use unsafe_ffi_tracker::ComprehensiveSafetyReport;
+
+// Re-export integrated submodules
+pub use classification::{
+    pattern_matcher::PatternMatcher,
+    rule_engine::{Rule as ClassificationRule, RuleEngine},
+    type_classifier::{TypeCategory, TypeClassifier},
+};
+pub use estimation::{
+    size_estimator::SizeEstimator, type_classifier::TypeClassifier as EstimationTypeClassifier,
+};
+pub use metrics::{
+    analyzer::{Benchmark, PerformanceAnalyzer, PerformanceReport},
+    collector::{Metric, MetricType, MetricValue, MetricsCollector},
+    reporter::{AlertThreshold, MetricsReporter, ReportFormat},
+};
+pub use quality::{
+    analyzer::{AnalysisReport, CodeAnalyzer, QualityMetric},
+    checker::{MemoryLeakChecker, PerformanceChecker, SafetyChecker},
+    validator::{QualityValidator, ValidationResult, ValidationRule},
+};
 
 use crate::core::types::*;
 use std::sync::Arc;

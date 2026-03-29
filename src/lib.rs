@@ -17,17 +17,21 @@ pub mod analysis;
 /// Async memory tracking functionality
 #[deprecated(
     since = "0.6.0",
-    note = "Use capture::backends::async_tracker instead. This module will be removed in a future version."
+    note = "Use capture::backends::async_tracker instead. Migration: `async_memory::AsyncTracker` → `capture::backends::AsyncTracker`. This module will be removed in a future version."
 )]
 pub mod async_memory;
 /// Type classification system
+#[deprecated(
+    since = "0.6.0",
+    note = "Use analysis::classification instead. Migration: `classification::TypeClassifier` → `analysis::classification::TypeClassifier`. This module will be removed in a future version."
+)]
 pub mod classification;
 /// Command-line interface functionality
 pub mod cli;
 /// Core memory tracking functionality
 #[deprecated(
     since = "0.6.0",
-    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
+    note = "Use capture::backends::core_tracker instead. Migration: `core::tracker::MemoryTracker` → `capture::backends::MemoryTracker`. This module will be removed in a future version."
 )]
 pub mod core;
 
@@ -61,33 +65,65 @@ pub use crate::core::ultra_fast_tracker::{
 /// Unified error handling and recovery system
 pub mod error;
 /// Smart size estimation and type classification
+#[deprecated(
+    since = "0.6.0",
+    note = "Use analysis::estimation instead. Migration: `estimation::SizeEstimator` → `analysis::estimation::SizeEstimator`. This module will be removed in a future version."
+)]
 pub mod estimation;
 /// Export and visualization functionality
+#[deprecated(
+    since = "0.6.0",
+    note = "Use render_engine::export instead. Migration: `export::export_user_variables_json` → `render_engine::export::export_user_variables_json`. This module will be removed in a future version."
+)]
 pub mod export;
 /// Lock-free multi-threaded memory tracking
 #[deprecated(
     since = "0.6.0",
-    note = "Use capture::backends::lockfree_tracker instead. This module will be removed in a future version."
+    note = "Use capture::backends::lockfree_tracker instead. Migration: `lockfree::ThreadLocalTracker` → `capture::backends::ThreadLocalTracker`. This module will be removed in a future version."
 )]
 pub mod lockfree;
 /// Memory management and bounded history tracking
+#[deprecated(
+    since = "0.6.0",
+    note = "Use snapshot::memory instead. Migration: `memory::BoundedHistory` → `snapshot::memory::BoundedHistory`. This module will be removed in a future version."
+)]
 pub mod memory;
 /// Performance monitoring and metrics collection
+#[deprecated(
+    since = "0.6.0",
+    note = "Use analysis::metrics instead. Migration: `metrics::MetricsCollector` → `analysis::metrics::MetricsCollector`. This module will be removed in a future version."
+)]
 pub mod metrics;
 /// Platform-specific implementations for memory tracking
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::platform instead. Migration: `platform::StackWalker` → `capture::platform::StackWalker`. This module will be removed in a future version."
+)]
 pub mod platform;
 /// Code quality assurance and validation system
+#[deprecated(
+    since = "0.6.0",
+    note = "Use analysis::quality instead. Migration: `quality::QualityChecker` → `analysis::quality::QualityChecker`. This module will be removed in a future version."
+)]
 pub mod quality;
 /// Smart pointer tracking and analysis
+#[deprecated(
+    since = "0.6.0",
+    note = "Use metadata::smart_pointers instead. Migration: `smart_pointers::SmartPointerTracker` → `metadata::smart_pointers::SmartPointerTracker`. This module will be removed in a future version."
+)]
 pub mod smart_pointers;
 /// Enhanced stack trace capture and analysis
+#[deprecated(
+    since = "0.6.0",
+    note = "Use metadata::stack_trace instead. Migration: `stack_trace::StackTraceCapture` → `metadata::stack_trace::StackTraceCapture`. This module will be removed in a future version."
+)]
 pub mod stack_trace;
 /// Memory allocation tracking statistics and monitoring
 pub mod tracking;
 /// Unified backend for intelligent memory tracking
 #[deprecated(
     since = "0.6.0",
-    note = "Use capture::backends::unified_tracker instead. This module will be removed in a future version."
+    note = "Use capture::backends::unified_tracker instead. Migration: `unified::UnifiedBackend` → `capture::backends::UnifiedBackend`. This module will be removed in a future version."
 )]
 pub mod unified;
 /// Utility functions
