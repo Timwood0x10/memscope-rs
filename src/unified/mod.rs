@@ -4,6 +4,8 @@
 
 //! # Unified Backend System
 //!
+//! **DEPRECATED**: Use `capture::backends::unified_tracker` instead.
+//!
 //! This module provides a unified backend system for intelligent memory tracking
 //! across different runtime environments without conflicting with existing core modules.
 //!
@@ -15,18 +17,35 @@
 //!
 //! ## Quick Start
 //!
-/// ```rust
-/// use memscope_rs::unified::{UnifiedBackend, BackendConfig};
-///
-/// fn main() -> Result<(), Box<dyn std::error::Error>> {
-///     // Initialize unified backend
-///     let backend = UnifiedBackend::initialize(BackendConfig::default())?;
-///     Ok(())
-/// }
-/// ```
+//! ```rust
+//! use memscope_rs::unified::{UnifiedBackend, BackendConfig};
+//!
+//! fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     // Initialize unified backend
+//!     let backend = UnifiedBackend::initialize(BackendConfig::default())?;
+//!     Ok(())
+//! }
+//! ```
+
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::unified_tracker instead. This module will be removed in a future version."
+)]
 pub mod backend;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::unified_tracker instead. This module will be removed in a future version."
+)]
 pub mod environment_detector;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::unified_tracker instead. This module will be removed in a future version."
+)]
 pub mod strategies;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::unified_tracker instead. This module will be removed in a future version."
+)]
 pub mod tracking_dispatcher;
 
 // Re-export main types for convenience
@@ -45,27 +64,23 @@ pub use tracking_dispatcher::{
     TrackerStatistics, TrackerType, TrackingDispatcher, TrackingOperation,
 };
 
-/// Quick initialization function for unified backend
-/// Provides simple setup with default configuration
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::unified_tracker instead. This module will be removed in a future version."
+)]
 pub fn quick_start() -> Result<UnifiedBackend, BackendError> {
     UnifiedBackend::initialize(BackendConfig::default())
 }
 
-/// Test the unified backend system
-/// Ensures all components work together correctly
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::unified_tracker instead. This module will be removed in a future version."
+)]
 pub fn test_unified_system() -> Result<(), BackendError> {
-    // Initialize backend
     let mut backend = quick_start()?;
-
-    // Start tracking session
     let session = backend.start_tracking()?;
-
-    // Collect data
     let _data = session.collect_data()?;
-
-    // End session
     let _final_data = session.end_session()?;
-
     Ok(())
 }
 

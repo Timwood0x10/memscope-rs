@@ -18,17 +18,63 @@
 //! - Single-threaded or low concurrency
 //! - Exact precision is required
 //! - Real-time analysis is needed
+//!
+//! **DEPRECATED**: Use `capture::backends::lockfree_tracker` instead.
 
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::lockfree_tracker instead. This module will be removed in a future version."
+)]
 pub mod aggregator;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::lockfree_tracker instead. This module will be removed in a future version."
+)]
 pub mod analysis;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::lockfree_tracker instead. This module will be removed in a future version."
+)]
 pub mod api;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::lockfree_tracker instead. This module will be removed in a future version."
+)]
 pub mod comprehensive_export;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::lockfree_tracker instead. This module will be removed in a future version."
+)]
 pub mod enhanced_api;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::lockfree_tracker instead. This module will be removed in a future version."
+)]
 pub mod platform_resources;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::lockfree_tracker instead. This module will be removed in a future version."
+)]
 pub mod resource_integration;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::lockfree_tracker instead. This module will be removed in a future version."
+)]
 pub mod sampling;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::lockfree_tracker instead. This module will be removed in a future version."
+)]
 pub mod system_profiler;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::lockfree_tracker instead. This module will be removed in a future version."
+)]
 pub mod tracker;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::lockfree_tracker instead. This module will be removed in a future version."
+)]
 pub mod visualizer;
 
 pub use tracker::{

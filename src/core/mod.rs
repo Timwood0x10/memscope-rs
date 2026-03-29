@@ -5,49 +5,215 @@
 //! - Custom allocator
 //! - Type definitions
 //! - Scope tracking
+//!
+//! **DEPRECATED**: Use `capture::backends::core_tracker` instead.
 
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
+)]
 pub mod adaptive_hashmap;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
+)]
 pub mod allocation_adapter;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
+)]
 pub mod allocator;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
+)]
 pub mod atomic_stats;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
+)]
 pub mod bounded_memory_stats;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
+)]
 pub mod call_stack_normalizer;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
+)]
 pub mod clone_monitor;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
+)]
 pub mod clone_optimizer;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
+)]
 pub mod clone_utils;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
+)]
 pub mod comprehensive_data_deduplicator;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
+)]
 pub mod edge_case_handler;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
+)]
 pub mod enhanced_call_stack_normalizer;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
+)]
 pub mod enhanced_pointer_extractor;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
+)]
 pub mod enhanced_type_inference;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
+)]
 pub mod error;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
+)]
 pub mod error_adapter;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
+)]
 pub mod fast_data_deduplicator;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
+)]
 pub mod integration_validator;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
+)]
 pub mod lifecycle_summary;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
+)]
 pub mod optimized_locks;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
+)]
 pub mod optimized_tracker;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
+)]
 pub mod optimized_types;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
+)]
 pub mod ownership_history;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
+)]
 pub mod performance_optimizer;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
+)]
 pub mod safe_operations;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
+)]
 pub mod sampling_tracker;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
+)]
 pub mod scope_tracker;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
+)]
 pub mod sharded_locks;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
+)]
 pub mod shared_types;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
+)]
 pub mod simple_mutex;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
+)]
 pub mod smart_optimization;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
+)]
 pub mod string_pool;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
+)]
 pub mod string_pool_monitor;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
+)]
 pub mod targeted_optimizations;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
+)]
 pub mod test_optimized_locks;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
+)]
 pub mod thread_registry;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
+)]
 pub mod threshold_batch_processor;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
+)]
 pub mod tracker;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
+)]
 pub mod ultra_fast_tracker;
 
 /// Type definitions
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
+)]
 pub mod types;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
+)]
 pub mod unwrap_safe;
 
 // Re-export key types for easier access

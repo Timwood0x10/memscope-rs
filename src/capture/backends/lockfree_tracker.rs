@@ -483,7 +483,21 @@ pub fn trace_all<P: AsRef<std::path::Path>>(
     let _ = OUTPUT_DIRECTORY.set(output_path.clone());
 
     if output_path.exists() {
-        std::fs::remove_dir_all(&output_path)?;
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let backup_name = format!(
+            "{}.backup.{}",
+            output_path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy(),
+            timestamp
+        );
+        let backup_path = output_path.with_file_name(backup_name);
+        std::fs::rename(&output_path, &backup_path)?;
+        tracing::info!("Existing directory backed up to: {}", backup_path.display());
     }
     std::fs::create_dir_all(&output_path)?;
 

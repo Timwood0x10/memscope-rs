@@ -16,6 +16,8 @@
 //! - < 1MB memory overhead per thread
 //! - Lock-free, unwrap-free, clone-free design
 //!
+//! **DEPRECATED**: Use `capture::backends::async_tracker` instead.
+
 /// Usage:
 /// ```rust,no_run
 /// use memscope_rs::async_memory;
@@ -42,15 +44,55 @@
 ///     Ok(())
 /// }
 /// ```
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::async_tracker instead. This module will be removed in a future version."
+)]
 pub mod allocator;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::async_tracker instead. This module will be removed in a future version."
+)]
 pub mod api;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::async_tracker instead. This module will be removed in a future version."
+)]
 pub mod buffer;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::async_tracker instead. This module will be removed in a future version."
+)]
 pub mod error;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::async_tracker instead. This module will be removed in a future version."
+)]
 pub mod profile;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::async_tracker instead. This module will be removed in a future version."
+)]
 pub mod resource_monitor;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::async_tracker instead. This module will be removed in a future version."
+)]
 pub mod system_monitor;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::async_tracker instead. This module will be removed in a future version."
+)]
 pub mod task_id;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::async_tracker instead. This module will be removed in a future version."
+)]
 pub mod tracker;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::async_tracker instead. This module will be removed in a future version."
+)]
 pub mod visualization;
 
 // Re-export main types and functions

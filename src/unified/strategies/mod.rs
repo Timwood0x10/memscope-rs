@@ -21,10 +21,28 @@
 //! - **Minimal overhead**: <3% performance impact target
 //! - **Data compatibility**: Consistent export formats
 //! - **Graceful fallback**: Error recovery without data loss
+//!
+//! **DEPRECATED**: Use `capture::backends::unified_tracker` instead.
 
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::unified_tracker instead. This module will be removed in a future version."
+)]
 pub mod async_strategy;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::unified_tracker instead. This module will be removed in a future version."
+)]
 pub mod hybrid_strategy;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::unified_tracker instead. This module will be removed in a future version."
+)]
 pub mod single_thread;
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::backends::unified_tracker instead. This module will be removed in a future version."
+)]
 pub mod thread_local;
 
 // Re-export strategy implementations
