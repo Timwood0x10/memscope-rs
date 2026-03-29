@@ -1,7 +1,29 @@
 //! Facade Macros - Convenient macros for memory tracking
 //!
 //! This module provides macros that simplify common memory tracking
-//! operations, making the API more ergonomic and reducing boilerplate.
+/// operations, making the API more ergonomic and reducing boilerplate.
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+use std::thread;
+
+/// Helper function to hash thread ID
+#[doc(hidden)]
+pub fn get_heap_ptr_if_trackable<T>(value: &T) -> Option<usize> {
+    // This function is a placeholder. In a real implementation,
+    // we would check if T implements Trackable and call get_heap_ptr()
+    // For now, we return None to indicate we should use stack address
+    None
+}
+
+/// Helper function to hash thread ID
+#[doc(hidden)]
+pub fn hash_thread_id() -> u64 {
+    let thread_id = thread::current().id();
+    let thread_id_str = format!("{:?}", thread_id);
+    let mut hasher = DefaultHasher::new();
+    thread_id_str.hash(&mut hasher);
+    hasher.finish()
+}
 
 /// Get a memory snapshot and display summary
 ///

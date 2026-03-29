@@ -54,6 +54,8 @@ pub mod render_engine;
 pub mod snapshot;
 /// Timeline Engine - Time-based memory analysis
 pub mod timeline;
+/// Unified Tracker API - Simple, unified interface for memory tracking
+pub mod tracker;
 
 // Re-export optimized components for easy access
 pub use crate::core::performance_optimizer::{
@@ -781,29 +783,33 @@ impl<T: Trackable, E: Trackable> Trackable for Result<T, E> {
     }
 }
 
-/// **\[RECOMMENDED\]** Track a variable's memory allocation without taking ownership.
+/// **\[DEPRECATED\]** Track a variable's memory allocation without taking ownership.
 ///
-/// This is the **default and recommended** tracking macro for most use cases.
-/// It performs zero-cost tracking by reference, allowing continued use of the original variable.
+/// **This macro is deprecated and will be removed in a future version.**
+/// Please use the new `memscope!` macro with the MemScope API instead.
 ///
-/// ## ✅ Use this when:
-/// - You want to track memory usage without changing your code
-/// - Performance is critical (zero overhead)
-/// - You need to continue using the variable after tracking
-/// - You're tracking many variables and don't want clone overhead
-/// - You're doing basic memory profiling and analysis
+/// This is the legacy tracking macro that uses the old tracker system.
+/// For new code, use `memscope::track!` with the new unified MemScope API.
 ///
-/// ## ❌ Don't use this when:
-/// - You need precise lifecycle tracking with automatic cleanup
-/// - You're tracking temporary variables that will be moved/consumed immediately
-///
-/// # Example
+/// # Migration Guide
+/// Old code:
 /// ```text
-/// use memscope_rs::track_var;
-///
-/// let my_vec = vec![1, 2, 3, 4, 5];
-/// track_var!(my_vec); // Zero-cost tracking
+/// let my_vec = vec![1, 2, 3];
+/// track_var!(my_vec);
 /// ```
+///
+/// New code:
+/// ```text
+/// use memscope_rs::facade::MemScope;
+///
+/// let memscope = MemScope::new();
+/// let my_vec = vec![1, 2, 3];
+/// memscope::track!(memscope, my_vec); // New unified API
+/// ```
+#[deprecated(
+    since = "0.7.0",
+    note = "Use `memscope::track!` with MemScope API instead. This macro will be removed in a future version."
+)]
 #[macro_export]
 macro_rules! track_var {
     ($var:expr) => {{

@@ -743,7 +743,7 @@ impl MemoryTracker {
             "metadata": {
                 "export_version": "2.0",
                 "export_timestamp": chrono::Utc::now().to_rfc3339(),
-                "specification": "improve.md unsafe FFI tracking",
+                "specification": "unsafe FFI tracking",
                 "total_unsafe_reports": 0,
                 "total_memory_passports": 0
             },

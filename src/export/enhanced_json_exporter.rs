@@ -259,7 +259,7 @@ impl EnhancedJsonExporter {
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap_or_default()
                     .as_secs(),
-                "specification": "improve.md unsafe FFI tracking",
+                "specification": "unsafe FFI tracking",
                 "total_unsafe_reports": unsafe_reports.len(),
                 "total_memory_passports": memory_passports.len()
             },
@@ -1027,7 +1027,7 @@ mod tests {
         assert_eq!(metadata["export_version"].as_str().unwrap(), "2.0");
         assert_eq!(
             metadata["specification"].as_str().unwrap(),
-            "improve.md unsafe FFI tracking"
+            "unsafe FFI tracking"
         );
         assert_eq!(metadata["total_unsafe_reports"].as_u64().unwrap(), 0);
         assert_eq!(metadata["total_memory_passports"].as_u64().unwrap(), 0);

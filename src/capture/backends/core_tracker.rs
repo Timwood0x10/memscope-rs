@@ -329,10 +329,10 @@ impl MemoryTracker {
     /// * `path` - Output filename for the memory analysis SVG file (recommended: "program_name_memory_analysis.svg")
     pub fn export_memory_analysis<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
         let output_path = self.ensure_memory_analysis_path(path);
-        // Simplified export - just create empty file for now
-        std::fs::File::create(output_path)
-            .map_err(|e| crate::core::types::TrackingError::ExportError(e.to_string()))?;
-        Ok(())
+        // Delegate to the old system's export logic for now
+        // This ensures data is properly exported until new export logic is implemented
+        let old_tracker = crate::core::tracker::get_tracker();
+        crate::export::visualization::export_memory_analysis(&old_tracker, output_path)
     }
 
     /// Export interactive lifecycle timeline showing variable lifecycles and relationships.
