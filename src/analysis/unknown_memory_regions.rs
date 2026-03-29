@@ -977,7 +977,7 @@ mod tests {
     #[test]
     fn test_unknown_memory_example_creation() {
         let analyzer = UnknownMemoryAnalyzer::new();
-        let allocations = vec![
+        let allocations = [
             create_test_allocation(0x7f00_0000_0000, 8192, 1000, None, None),
             create_test_allocation(0x7f00_0000_2000, 4096, 1100, None, None),
         ];

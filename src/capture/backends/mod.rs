@@ -1,14 +1,53 @@
-//! Capture backends for different tracking strategies
+//! Capture backends for different tracking strategies.
 //!
 //! This module provides the CaptureBackend trait and implementations
 //! for different tracking strategies (core, lockfree, async, unified).
+//!
+//! All files are maintained under 1000 lines per coding standards.
 
-pub mod async_tracker;
+// Core tracking modules (split for 1000-line limit)
 pub mod core_tracker;
+pub mod core_tracking;
+pub mod core_types;
+
+// Lockfree tracking modules (split for 1000-line limit)
 pub mod lockfree_tracker;
+pub mod lockfree_types;
+
+// Async tracking modules (split for 1000-line limit)
+pub mod async_tracker;
+pub mod async_types;
+
+// Unified tracking modules (split for 1000-line limit)
 pub mod unified_tracker;
 
 use crate::event_store::{MemoryEvent, MemoryEventType};
+
+// Re-export core tracker types
+pub use core_tracker::{
+    collect_all_trackers_local, configure_tracking_strategy, get_cached_thread_data_local,
+    get_registry_stats_local, get_tracker, MemoryTracker, ThreadRegistryStats,
+};
+
+// Re-export async tracker types
+pub use async_tracker::{
+    create_tracked, get_memory_snapshot, initialize, is_tracking_active, shutdown, spawn_tracked,
+    track_current_allocation, track_current_deallocation, AsyncTracker,
+};
+pub use async_types::{
+    AsyncAllocation, AsyncError, AsyncMemorySnapshot, AsyncResult, AsyncSnapshot, AsyncStats,
+    ExtendedTaskInfo, TaskId, TaskInfo, TaskMemoryProfile, TrackedFuture,
+};
+
+// Re-export lockfree tracker types
+pub use lockfree_tracker::{
+    finalize_thread_tracker, get_current_tracker, init_thread_tracker, track_allocation_lockfree,
+    track_deallocation_lockfree, ThreadLocalTracker,
+};
+pub use lockfree_types::{Event, EventType, MemoryStats};
+
+// Re-export unified tracker types
+pub use unified_tracker::{RuntimeEnvironment, TrackingStrategy};
 
 /// Capture Backend trait
 ///
@@ -31,7 +70,13 @@ pub trait CaptureBackend: Send + Sync {
     ) -> MemoryEvent;
 
     /// Capture a move event
-    fn capture_move(&self, _from_ptr: usize, to_ptr: usize, size: usize, thread_id: u64) -> MemoryEvent;
+    fn capture_move(
+        &self,
+        _from_ptr: usize,
+        to_ptr: usize,
+        size: usize,
+        thread_id: u64,
+    ) -> MemoryEvent;
 }
 
 /// Type of capture backend
@@ -84,7 +129,13 @@ impl CaptureBackend for CoreBackend {
         MemoryEvent::reallocate(ptr, old_size, new_size, thread_id)
     }
 
-    fn capture_move(&self, _from_ptr: usize, to_ptr: usize, size: usize, thread_id: u64) -> MemoryEvent {
+    fn capture_move(
+        &self,
+        _from_ptr: usize,
+        to_ptr: usize,
+        size: usize,
+        thread_id: u64,
+    ) -> MemoryEvent {
         MemoryEvent {
             timestamp: MemoryEvent::now(),
             event_type: MemoryEventType::Move,
@@ -108,13 +159,11 @@ pub struct LockfreeBackend;
 
 impl CaptureBackend for LockfreeBackend {
     fn capture_alloc(&self, ptr: usize, size: usize, thread_id: u64) -> MemoryEvent {
-        MemoryEvent::allocate(ptr, size, thread_id)
-            .with_call_stack_hash(self.hash_call_stack())
+        MemoryEvent::allocate(ptr, size, thread_id).with_call_stack_hash(self.hash_call_stack())
     }
 
     fn capture_dealloc(&self, ptr: usize, size: usize, thread_id: u64) -> MemoryEvent {
-        MemoryEvent::deallocate(ptr, size, thread_id)
-            .with_call_stack_hash(self.hash_call_stack())
+        MemoryEvent::deallocate(ptr, size, thread_id).with_call_stack_hash(self.hash_call_stack())
     }
 
     fn capture_realloc(
@@ -128,7 +177,13 @@ impl CaptureBackend for LockfreeBackend {
             .with_call_stack_hash(self.hash_call_stack())
     }
 
-    fn capture_move(&self, _from_ptr: usize, to_ptr: usize, size: usize, thread_id: u64) -> MemoryEvent {
+    fn capture_move(
+        &self,
+        _from_ptr: usize,
+        to_ptr: usize,
+        size: usize,
+        thread_id: u64,
+    ) -> MemoryEvent {
         MemoryEvent {
             timestamp: MemoryEvent::now(),
             event_type: MemoryEventType::Move,
@@ -188,7 +243,13 @@ impl CaptureBackend for AsyncBackend {
         MemoryEvent::reallocate(ptr, old_size, new_size, thread_id)
     }
 
-    fn capture_move(&self, _from_ptr: usize, to_ptr: usize, size: usize, thread_id: u64) -> MemoryEvent {
+    fn capture_move(
+        &self,
+        _from_ptr: usize,
+        to_ptr: usize,
+        size: usize,
+        thread_id: u64,
+    ) -> MemoryEvent {
         MemoryEvent {
             timestamp: MemoryEvent::now(),
             event_type: MemoryEventType::Move,
@@ -238,10 +299,17 @@ impl CaptureBackend for UnifiedBackend {
         new_size: usize,
         thread_id: u64,
     ) -> MemoryEvent {
-        self.inner.capture_realloc(ptr, old_size, new_size, thread_id)
+        self.inner
+            .capture_realloc(ptr, old_size, new_size, thread_id)
     }
 
-    fn capture_move(&self, from_ptr: usize, to_ptr: usize, size: usize, thread_id: u64) -> MemoryEvent {
+    fn capture_move(
+        &self,
+        from_ptr: usize,
+        to_ptr: usize,
+        size: usize,
+        thread_id: u64,
+    ) -> MemoryEvent {
         self.inner.capture_move(from_ptr, to_ptr, size, thread_id)
     }
 }

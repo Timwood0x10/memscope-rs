@@ -1521,7 +1521,7 @@ mod tests {
         let logger = PerformanceLogger::new(LogLevel::Error);
 
         // Test all error types to ensure statistics are updated correctly
-        let errors = vec![
+        let errors = [
             ExportError::ParallelProcessingError {
                 shard_index: 1,
                 thread_id: "thread-1".to_string(),

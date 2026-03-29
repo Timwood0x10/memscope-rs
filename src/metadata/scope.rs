@@ -124,14 +124,17 @@ impl ScopeTracker {
         };
 
         // Add to active scopes
-        self.active_scopes.lock().unwrap().insert(scope_id, scope_info.clone());
+        self.active_scopes
+            .lock()
+            .unwrap()
+            .insert(scope_id, scope_info.clone());
 
         // Push to scope stack
         self.scope_stack
             .lock()
             .unwrap()
             .entry(thread_id)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(scope_id);
 
         // Update hierarchy
@@ -141,7 +144,7 @@ impl ScopeTracker {
                 hierarchy
                     .scope_tree
                     .entry(parent_name.clone())
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push(name.clone());
             } else {
                 if !hierarchy.root_scopes.contains(&name) {
@@ -175,7 +178,7 @@ impl ScopeTracker {
         };
 
         if let Some(scope_id) = scope_id {
-            if let Some(mut scope) = self.active_scopes.lock().unwrap().get_mut(&scope_id) {
+            if let Some(scope) = self.active_scopes.lock().unwrap().get_mut(&scope_id) {
                 scope.lifetime_end = Some(timestamp);
                 scope.is_active = false;
             }
@@ -187,11 +190,7 @@ impl ScopeTracker {
 
     /// Get scope information by ID
     pub fn get_scope(&self, scope_id: ScopeId) -> Option<ScopeInfo> {
-        self.active_scopes
-            .lock()
-            .unwrap()
-            .get(&scope_id)
-            .cloned()
+        self.active_scopes.lock().unwrap().get(&scope_id).cloned()
     }
 
     /// Get all scopes

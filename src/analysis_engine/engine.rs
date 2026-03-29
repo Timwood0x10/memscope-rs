@@ -5,7 +5,6 @@
 
 use crate::analysis_engine::analyzer::{AnalysisResult, Analyzer};
 use crate::snapshot::{MemorySnapshot, SharedSnapshotEngine};
-use std::sync::Arc;
 
 /// Analysis Engine - Coordinates memory analysis
 ///
@@ -78,9 +77,11 @@ impl AnalysisEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::analysis_engine::analyzer::{AnalysisResult, Analyzer, Finding, Severity};
+    use crate::analysis_engine::analyzer::{AnalysisResult, Analyzer, Severity};
     use crate::event_store::EventStore;
     use crate::snapshot::SnapshotEngine;
+
+    use std::sync::Arc;
 
     struct TestAnalyzer {
         name: String,

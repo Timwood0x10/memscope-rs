@@ -96,8 +96,8 @@ impl CaptureEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Arc;
     use crate::event_store::EventStore;
+    use std::sync::Arc;
 
     #[test]
     fn test_capture_engine_creation() {

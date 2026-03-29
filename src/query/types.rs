@@ -4,7 +4,6 @@
 
 use crate::snapshot::types::{ActiveAllocation, ThreadMemoryStats};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 /// Query type enumeration
 #[derive(Debug, Clone, Serialize, Deserialize)]

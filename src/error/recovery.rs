@@ -522,6 +522,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::result_large_err)]
     fn test_fallback_registry() {
         let mut registry = FallbackRegistry::new();
 

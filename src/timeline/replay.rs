@@ -4,7 +4,7 @@
 //! in chronological order, enabling time-based analysis and
 //! visualization.
 
-use crate::event_store::event::{MemoryEvent, MemoryEventType};
+use crate::event_store::event::MemoryEvent;
 use crate::event_store::EventStore;
 use std::sync::Arc;
 
@@ -14,6 +14,7 @@ use std::sync::Arc;
 /// allowing for time-based analysis and visualization.
 pub struct TimelineReplay {
     /// Reference to the event store
+    #[allow(dead_code)]
     event_store: Arc<EventStore>,
     /// Current replay position
     position: usize,
@@ -41,26 +42,13 @@ impl TimelineReplay {
         self.position = 0;
     }
 
-    /// Get the next event in the timeline
-    ///
-    /// Returns None if there are no more events
-    pub fn next(&mut self) -> Option<MemoryEvent> {
-        if self.position < self.events.len() {
-            let event = self.events[self.position].clone();
-            self.position += 1;
-            Some(event)
-        } else {
-            None
-        }
-    }
-
     /// Replay all events until a specific timestamp
     ///
     /// # Arguments
     /// * `timestamp` - The timestamp to replay until
     pub fn replay_until(&mut self, timestamp: u64) -> Vec<MemoryEvent> {
         let mut result = Vec::new();
-        while let Some(event) = self.next() {
+        for event in self.by_ref() {
             if event.timestamp > timestamp {
                 break;
             }
@@ -103,6 +91,20 @@ impl TimelineReplay {
             0.0
         } else {
             self.position as f64 / self.events.len() as f64
+        }
+    }
+}
+
+impl Iterator for TimelineReplay {
+    type Item = MemoryEvent;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.position < self.events.len() {
+            let event = self.events[self.position].clone();
+            self.position += 1;
+            Some(event)
+        } else {
+            None
         }
     }
 }

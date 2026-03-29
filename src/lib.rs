@@ -23,24 +23,24 @@ pub mod cli;
 pub mod core;
 
 // === NEW ENGINE ARCHITECTURE ===
+/// Analysis Engine - Memory analysis logic
+pub mod analysis_engine;
 /// Capture Engine - Event capture backend
 pub mod capture;
 /// Event Store Engine - Centralized event storage
 pub mod event_store;
-/// Metadata Engine - Centralized metadata management
-pub mod metadata;
-/// Snapshot Engine - Snapshot construction and aggregation
-pub mod snapshot;
-/// Query Engine - Unified query interface
-pub mod query;
-/// Analysis Engine - Memory analysis logic
-pub mod analysis_engine;
-/// Timeline Engine - Time-based memory analysis
-pub mod timeline;
-/// Render Engine - Output rendering
-pub mod render_engine;
 /// Facade API - Unified user interface
 pub mod facade;
+/// Metadata Engine - Centralized metadata management
+pub mod metadata;
+/// Query Engine - Unified query interface
+pub mod query;
+/// Render Engine - Output rendering
+pub mod render_engine;
+/// Snapshot Engine - Snapshot construction and aggregation
+pub mod snapshot;
+/// Timeline Engine - Time-based memory analysis
+pub mod timeline;
 
 // Re-export optimized components for easy access
 pub use crate::core::performance_optimizer::{
@@ -114,6 +114,16 @@ pub use core::tracker::memory_tracker::BinaryExportMode;
 pub use core::tracker::{get_tracker, ExportOptions, MemoryTracker};
 pub use core::types::{AllocationInfo, TrackingError, TrackingResult};
 pub use utils::{format_bytes, get_simple_type, simplify_type_name};
+
+// === CAPTURE ENGINE EXPORTS ===
+// Re-export capture engine types and backends
+pub use capture::backends::{
+    configure_tracking_strategy, get_tracker as get_capture_tracker, AsyncAllocation, AsyncBackend,
+    AsyncSnapshot, AsyncStats, AsyncTracker, CoreBackend, Event, EventType, LockfreeBackend,
+    MemoryStats, RuntimeEnvironment, TaskInfo, ThreadLocalTracker, TrackingStrategy,
+    UnifiedBackend,
+};
+pub use capture::{CaptureBackend, CaptureBackendType, CaptureEngine};
 
 // Re-export the derive macro when the derive feature is enabled
 #[cfg(feature = "derive")]

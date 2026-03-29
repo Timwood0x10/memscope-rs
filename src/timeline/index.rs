@@ -40,28 +40,25 @@ impl TimelineIndex {
     /// * `event` - The event to index
     pub fn index_event(&mut self, event_index: usize, event: &MemoryEvent) {
         // Index by pointer
-        self.by_ptr
-            .entry(event.ptr)
-            .or_insert_with(Vec::new)
-            .push(event_index);
+        self.by_ptr.entry(event.ptr).or_default().push(event_index);
 
         // Index by thread
         self.by_thread
             .entry(event.thread_id)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(event_index);
 
         // Index by time
         self.by_time
             .entry(event.timestamp)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(event_index);
 
         // Index by variable name if available
         if let Some(ref var_name) = event.var_name {
             self.by_scope
                 .entry(var_name.clone())
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(event_index);
         }
     }
@@ -94,7 +91,7 @@ impl TimelineIndex {
     /// Get event indices by time range
     pub fn get_by_time_range(&self, start: u64, end: u64) -> Vec<usize> {
         let mut result = Vec::new();
-        for (&timestamp, indices) in self.by_time.range(start..=end) {
+        for (_timestamp, indices) in self.by_time.range(start..=end) {
             result.extend(indices);
         }
         result

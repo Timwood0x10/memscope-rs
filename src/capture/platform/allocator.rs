@@ -1,6 +1,5 @@
 use std::sync::atomic::{AtomicPtr, AtomicUsize, Ordering};
 use std::time::Instant;
-use rand::Rng;
 
 /// Platform-specific allocator hooking system
 pub struct PlatformAllocator {
@@ -191,7 +190,7 @@ impl PlatformAllocator {
     #[cfg(target_os = "linux")]
     fn install_linux_hooks(&mut self) -> Result<(), HookError> {
         // Linux-specific implementation using LD_PRELOAD or similar
-        // 
+        //
         // NOTE: This is a placeholder implementation. A full implementation would:
         // 1. Use LD_PRELOAD to intercept malloc/free calls
         // 2. Or use dlsym to hook into libc allocation functions
@@ -214,7 +213,7 @@ impl PlatformAllocator {
     #[cfg(target_os = "windows")]
     fn install_windows_hooks(&mut self) -> Result<(), HookError> {
         // Windows-specific implementation using detours or similar
-        // 
+        //
         // NOTE: This is a placeholder implementation. A full implementation would:
         // 1. Use Detours library to hook HeapAlloc/HeapFree
         // 2. Or use VirtualProtect to modify import address table
@@ -237,7 +236,7 @@ impl PlatformAllocator {
     #[cfg(target_os = "macos")]
     fn install_macos_hooks(&mut self) -> Result<(), HookError> {
         // macOS-specific implementation using interpose or similar
-        // 
+        //
         // NOTE: This is a placeholder implementation. A full implementation would:
         // 1. Use DYLD_INSERT_LIBRARIES to intercept malloc/free
         // 2. Or use interpose to hook into system allocation functions

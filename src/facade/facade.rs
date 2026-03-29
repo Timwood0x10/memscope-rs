@@ -8,7 +8,7 @@ use crate::capture::{CaptureBackendType, CaptureEngine};
 use crate::event_store::EventStore;
 use crate::metadata::MetadataEngine;
 use crate::query::QueryEngine;
-use crate::render_engine::{OutputFormat, RenderConfig, RenderEngine};
+use crate::render_engine::RenderEngine;
 use crate::snapshot::SnapshotEngine;
 use crate::timeline::TimelineEngine;
 use std::sync::{Arc, Mutex};

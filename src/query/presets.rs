@@ -4,7 +4,7 @@
 //! making it easy to get standard information without writing
 //! custom queries.
 
-use super::types::{Query, QueryResult};
+use super::types::Query;
 
 /// Preset query factory
 pub struct QueryPresets;

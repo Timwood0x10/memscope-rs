@@ -5,8 +5,8 @@
 
 pub mod engine;
 pub mod index;
-pub mod replay;
 pub mod query;
+pub mod replay;
 
 pub use engine::TimelineEngine;
 pub use index::TimelineIndex;

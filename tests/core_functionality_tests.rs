@@ -313,7 +313,7 @@ mod core_functionality_tests {
         // Test type inference for different allocation types
         let tracker = MemoryTracker::new();
 
-        let test_cases = vec![
+        let test_cases = [
             ("heap_var", "Box<i32>", "heap"),
             ("stack_var", "i32", "stack"),
             ("string_var", "String", "heap"),

@@ -83,7 +83,11 @@ pub trait Renderer: Send + Sync {
     ///
     /// # Returns
     /// Result containing the rendered data or an error
-    fn render(&self, snapshot: &MemorySnapshot, config: &RenderConfig) -> Result<RenderResult, String>;
+    fn render(
+        &self,
+        snapshot: &MemorySnapshot,
+        config: &RenderConfig,
+    ) -> Result<RenderResult, String>;
 }
 
 #[cfg(test)]

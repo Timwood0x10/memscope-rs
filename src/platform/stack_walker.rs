@@ -357,57 +357,64 @@ impl PlatformStackWalker {
     #[cfg(target_os = "linux")]
     fn walk_linux_stack(&self, frames: &mut Vec<StackFrame>) -> Result<(), WalkError> {
         // Linux-specific stack walking using libunwind or similar
-        // 
+        //
         // NOTE: This is a simplified implementation for demonstration.
         // A full implementation would:
         // 1. Use libunwind-ptrace or libunwind-generic for accurate stack walking
         // 2. Parse DWARF debug information for accurate symbol resolution
         // 3. Handle kernel space vs user space frames
         // 4. Support both 32-bit and 64-bit architectures
-        // 
+        //
         // Current implementation: Uses backtrace() from libc for basic stack walking
         // with simulated symbol information
-        
+
         // Try to use backtrace() if available
         #[cfg(feature = "backtrace")]
         {
             use backtrace::Backtrace;
             let bt = Backtrace::new();
-            
+
             for (i, frame) in bt.frames().iter().enumerate() {
                 if frames.len() >= self.config.max_depth {
                     break;
                 }
-                
+
                 if i < self.config.skip_frames {
                     continue;
                 }
-                
+
                 let ip = frame.ip() as usize;
-                
+
                 frames.push(StackFrame {
                     ip,
                     fp: None,
                     sp: None,
                     module_base: None,
                     module_offset: None,
-                    symbol_info: frame.symbol().map(|sym| FrameSymbolInfo {
-                        name: sym.name().map(|n| format!("{:?}", n)).unwrap_or_else(|| format!("unknown_symbol_{i}")),
-                        demangled_name: sym.name().map(|n| format!("{:?}", n)),
-                        file_name: sym.filename().map(|f| f.display().to_string()),
-                        line_number: sym.lineno(),
-                    }),
+                    symbol_info: frame.symbols().into_iter().next().map(
+                        |sym: &backtrace::BacktraceSymbol| FrameSymbolInfo {
+                            name: sym
+                                .name()
+                                .map(|n| format!("{:?}", n))
+                                .unwrap_or_else(|| format!("unknown_symbol_{i}")),
+                            demangled_name: sym.name().map(|n| format!("{:?}", n)),
+                            file_name: sym
+                                .filename()
+                                .map(|f: &std::path::Path| f.display().to_string()),
+                            line_number: sym.lineno(),
+                        },
+                    ),
                 });
             }
-            
+
             if !frames.is_empty() {
                 return Ok(());
             }
         }
-        
+
         // Fallback: Simulated implementation
         tracing::warn!("Using simulated stack walking on Linux. Consider enabling 'backtrace' feature for accurate results.");
-        
+
         for i in 0..self.config.max_depth.min(10) {
             if i < self.config.skip_frames {
                 continue;
@@ -433,56 +440,63 @@ impl PlatformStackWalker {
     #[cfg(target_os = "windows")]
     fn walk_windows_stack(&self, frames: &mut Vec<StackFrame>) -> Result<(), WalkError> {
         // Windows-specific stack walking using StackWalk64 or RtlCaptureStackBackTrace
-        // 
+        //
         // NOTE: This is a simplified implementation for demonstration.
         // A full implementation would:
         // 1. Use StackWalk64 API from DbgHelp.dll for accurate stack walking
         // 2. Use SymFromAddr and SymGetLineFromAddr64 for symbol resolution
         // 3. Handle both 32-bit and 64-bit architectures
         // 4. Support exception handling contexts
-        // 
+        //
         // Current implementation: Uses backtrace crate if available, otherwise simulated
-        
+
         // Try to use backtrace() if available
         #[cfg(feature = "backtrace")]
         {
             use backtrace::Backtrace;
             let bt = Backtrace::new();
-            
+
             for (i, frame) in bt.frames().iter().enumerate() {
                 if frames.len() >= self.config.max_depth {
                     break;
                 }
-                
+
                 if i < self.config.skip_frames {
                     continue;
                 }
-                
+
                 let ip = frame.ip() as usize;
-                
+
                 frames.push(StackFrame {
                     ip,
                     fp: None,
                     sp: None,
                     module_base: None,
                     module_offset: None,
-                    symbol_info: frame.symbol().map(|sym| FrameSymbolInfo {
-                        name: sym.name().map(|n| format!("{:?}", n)).unwrap_or_else(|| format!("unknown_symbol_{i}")),
-                        demangled_name: sym.name().map(|n| format!("{:?}", n)),
-                        file_name: sym.filename().map(|f| f.display().to_string()),
-                        line_number: sym.lineno(),
-                    }),
+                    symbol_info: frame.symbols().into_iter().next().map(
+                        |sym: &backtrace::BacktraceSymbol| FrameSymbolInfo {
+                            name: sym
+                                .name()
+                                .map(|n| format!("{:?}", n))
+                                .unwrap_or_else(|| format!("unknown_symbol_{i}")),
+                            demangled_name: sym.name().map(|n| format!("{:?}", n)),
+                            file_name: sym
+                                .filename()
+                                .map(|f: &std::path::Path| f.display().to_string()),
+                            line_number: sym.lineno(),
+                        },
+                    ),
                 });
             }
-            
+
             if !frames.is_empty() {
                 return Ok(());
             }
         }
-        
+
         // Fallback: Simulated implementation
         tracing::warn!("Using simulated stack walking on Windows. Consider enabling 'backtrace' feature for accurate results.");
-        
+
         for i in 0..self.config.max_depth.min(10) {
             if i < self.config.skip_frames {
                 continue;
@@ -508,56 +522,63 @@ impl PlatformStackWalker {
     #[cfg(target_os = "macos")]
     fn walk_macos_stack(&self, frames: &mut Vec<StackFrame>) -> Result<(), WalkError> {
         // macOS-specific stack walking using backtrace() or similar
-        // 
+        //
         // NOTE: This is a simplified implementation for demonstration.
         // A full implementation would:
         // 1. Use backtrace() from libexecinfo for stack walking
         // 2. Use dladdr() for symbol resolution
         // 3. Parse Mach-O binary format for module information
         // 4. Handle both Intel and Apple Silicon architectures
-        // 
+        //
         // Current implementation: Uses backtrace crate if available, otherwise simulated
-        
+
         // Try to use backtrace() if available
         #[cfg(feature = "backtrace")]
         {
             use backtrace::Backtrace;
             let bt = Backtrace::new();
-            
+
             for (i, frame) in bt.frames().iter().enumerate() {
                 if frames.len() >= self.config.max_depth {
                     break;
                 }
-                
+
                 if i < self.config.skip_frames {
                     continue;
                 }
-                
+
                 let ip = frame.ip() as usize;
-                
+
                 frames.push(StackFrame {
                     ip,
                     fp: None,
                     sp: None,
                     module_base: None,
                     module_offset: None,
-                    symbol_info: frame.symbol().map(|sym| FrameSymbolInfo {
-                        name: sym.name().map(|n| format!("{:?}", n)).unwrap_or_else(|| format!("unknown_symbol_{i}")),
-                        demangled_name: sym.name().map(|n| format!("{:?}", n)),
-                        file_name: sym.filename().map(|f| f.display().to_string()),
-                        line_number: sym.lineno(),
-                    }),
+                    symbol_info: frame.symbols().iter().next().map(
+                        |sym: &backtrace::BacktraceSymbol| FrameSymbolInfo {
+                            name: sym
+                                .name()
+                                .map(|n| format!("{:?}", n))
+                                .unwrap_or_else(|| format!("unknown_symbol_{i}")),
+                            demangled_name: sym.name().map(|n| format!("{:?}", n)),
+                            file_name: sym
+                                .filename()
+                                .map(|f: &std::path::Path| f.display().to_string()),
+                            line_number: sym.lineno(),
+                        },
+                    ),
                 });
             }
-            
+
             if !frames.is_empty() {
                 return Ok(());
             }
         }
-        
+
         // Fallback: Simulated implementation
         tracing::warn!("Using simulated stack walking on macOS. Consider enabling 'backtrace' feature for accurate results.");
-        
+
         for i in 0..self.config.max_depth.min(10) {
             if i < self.config.skip_frames {
                 continue;

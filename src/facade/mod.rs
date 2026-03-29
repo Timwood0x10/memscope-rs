@@ -4,6 +4,7 @@
 //! into a simple, easy-to-use interface.
 
 pub mod compat;
+#[allow(clippy::module_inception)]
 pub mod facade;
 pub mod macros;
 

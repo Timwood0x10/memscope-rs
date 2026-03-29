@@ -32,6 +32,7 @@ pub struct ThreadRegistry {
     /// Registered threads
     threads: Arc<Mutex<HashMap<u64, ThreadInfo>>>,
     /// Next available internal thread ID
+    #[allow(dead_code)]
     next_id: Arc<Mutex<u64>>,
 }
 
@@ -54,18 +55,15 @@ impl ThreadRegistry {
             .as_nanos() as u64;
 
         let mut threads = self.threads.lock().unwrap();
-        if !threads.contains_key(&hash) {
-            let thread_info = ThreadInfo {
-                thread_id: hash,
-                thread_name: Some(format!("{:?}", thread_id)),
-                created_at: timestamp,
-                allocation_count: 0,
-                total_allocated: 0,
-                peak_memory: 0,
-                is_active: true,
-            };
-            threads.insert(hash, thread_info);
-        }
+        threads.entry(hash).or_insert_with(|| ThreadInfo {
+            thread_id: hash,
+            thread_name: Some(format!("{:?}", thread_id)),
+            created_at: timestamp,
+            allocation_count: 0,
+            total_allocated: 0,
+            peak_memory: 0,
+            is_active: true,
+        });
         hash
     }
 
@@ -76,7 +74,7 @@ impl ThreadRegistry {
 
     /// Record an allocation for a thread
     pub fn record_allocation(&self, hash: u64, size: usize) {
-        if let Some(mut info) = self.threads.lock().unwrap().get_mut(&hash) {
+        if let Some(info) = self.threads.lock().unwrap().get_mut(&hash) {
             info.allocation_count += 1;
             info.total_allocated += size;
         }
@@ -84,7 +82,7 @@ impl ThreadRegistry {
 
     /// Update peak memory for a thread
     pub fn update_peak_memory(&self, hash: u64, current_memory: usize) {
-        if let Some(mut info) = self.threads.lock().unwrap().get_mut(&hash) {
+        if let Some(info) = self.threads.lock().unwrap().get_mut(&hash) {
             if current_memory > info.peak_memory {
                 info.peak_memory = current_memory;
             }
@@ -93,19 +91,14 @@ impl ThreadRegistry {
 
     /// Mark a thread as inactive
     pub fn mark_thread_inactive(&self, hash: u64) {
-        if let Some(mut info) = self.threads.lock().unwrap().get_mut(&hash) {
+        if let Some(info) = self.threads.lock().unwrap().get_mut(&hash) {
             info.is_active = false;
         }
     }
 
     /// Get all threads
     pub fn get_all_threads(&self) -> Vec<ThreadInfo> {
-        self.threads
-            .lock()
-            .unwrap()
-            .values()
-            .cloned()
-            .collect()
+        self.threads.lock().unwrap().values().cloned().collect()
     }
 
     /// Get active threads only
@@ -210,7 +203,7 @@ mod tests {
 
         // Simulate another thread by creating a new registry instance
         let registry2 = ThreadRegistry::new();
-        let hash2 = registry2.register_current_thread();
+        let _hash2 = registry2.register_current_thread();
 
         registry.mark_thread_inactive(hash1);
 

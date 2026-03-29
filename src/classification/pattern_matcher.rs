@@ -294,8 +294,8 @@ impl PatternMatcher {
         for (i, row) in matrix.iter_mut().enumerate().take(len1 + 1) {
             row[0] = i;
         }
-        for j in 0..=len2 {
-            matrix[0][j] = j;
+        for (j, row) in matrix[0].iter_mut().enumerate().take(len2 + 1) {
+            *row = j;
         }
 
         // Fill the matrix

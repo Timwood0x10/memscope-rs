@@ -5,7 +5,6 @@
 
 use crate::event_store::{MemoryEvent, SharedEventStore};
 use crate::timeline::index::TimelineIndex;
-use std::sync::Arc;
 
 /// Timeline Engine - Time-based memory analysis
 ///
@@ -131,6 +130,7 @@ impl TimelineEngine {
 mod tests {
     use super::*;
     use crate::event_store::EventStore;
+    use std::sync::Arc;
 
     #[test]
     fn test_timeline_engine_creation() {

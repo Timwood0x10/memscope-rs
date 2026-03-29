@@ -4,11 +4,9 @@
 //! querying snapshot data.
 
 pub mod engine;
-pub mod types;
 pub mod presets;
+pub mod types;
 
 pub use engine::{QueryEngine, SharedQueryEngine};
 pub use presets::QueryPresets;
-pub use types::{
-    AllocationQueryResult, Query, QueryResult, SummaryQueryResult, ThreadQueryResult,
-};
+pub use types::{AllocationQueryResult, Query, QueryResult, SummaryQueryResult, ThreadQueryResult};

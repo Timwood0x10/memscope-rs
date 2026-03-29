@@ -4,9 +4,8 @@
 //! building memory snapshots from event data.
 
 use crate::event_store::{MemoryEvent, MemoryEventType, SharedEventStore};
-use crate::snapshot::types::{ActiveAllocation, MemorySnapshot, MemoryStats, ThreadMemoryStats};
+use crate::snapshot::types::{ActiveAllocation, MemorySnapshot, ThreadMemoryStats};
 use std::collections::HashMap;
-use std::sync::Arc;
 
 /// Snapshot Engine - Builds memory snapshots from event data
 ///
@@ -69,15 +68,16 @@ impl SnapshotEngine {
                     current_memory += event.size;
 
                     // Update thread stats
-                    let thread_stat = thread_stats.entry(event.thread_id).or_insert_with(|| {
-                        ThreadMemoryStats {
-                            thread_id: event.thread_id,
-                            allocation_count: 0,
-                            total_allocated: 0,
-                            current_memory: 0,
-                            peak_memory: 0,
-                        }
-                    });
+                    let thread_stat =
+                        thread_stats
+                            .entry(event.thread_id)
+                            .or_insert_with(|| ThreadMemoryStats {
+                                thread_id: event.thread_id,
+                                allocation_count: 0,
+                                total_allocated: 0,
+                                current_memory: 0,
+                                peak_memory: 0,
+                            });
                     thread_stat.allocation_count += 1;
                     thread_stat.total_allocated += event.size;
                     thread_stat.current_memory += event.size;
@@ -131,6 +131,7 @@ impl SnapshotEngine {
 mod tests {
     use super::*;
     use crate::event_store::EventStore;
+    use std::sync::Arc;
 
     #[test]
     fn test_snapshot_engine_creation() {

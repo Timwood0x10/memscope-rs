@@ -2,11 +2,9 @@
 //!
 //! This module provides the RenderEngine which coordinates rendering
 /// of memory data in various formats.
-
 use crate::render_engine::renderer::{OutputFormat, RenderConfig, RenderResult, Renderer};
 use crate::snapshot::{MemorySnapshot, SharedSnapshotEngine};
 use serde_json;
-use std::sync::Arc;
 
 /// JSON Renderer
 struct JsonRenderer;
@@ -16,7 +14,11 @@ impl Renderer for JsonRenderer {
         OutputFormat::Json
     }
 
-    fn render(&self, snapshot: &MemorySnapshot, config: &RenderConfig) -> Result<RenderResult, String> {
+    fn render(
+        &self,
+        snapshot: &MemorySnapshot,
+        config: &RenderConfig,
+    ) -> Result<RenderResult, String> {
         let data = if config.verbose {
             serde_json::to_vec_pretty(&snapshot)
         } else {
@@ -92,7 +94,11 @@ impl RenderEngine {
     ///
     /// # Returns
     /// Result containing the rendered data or an error
-    pub fn render_snapshot(&self, snapshot: &MemorySnapshot, config: &RenderConfig) -> Result<RenderResult, String> {
+    pub fn render_snapshot(
+        &self,
+        snapshot: &MemorySnapshot,
+        config: &RenderConfig,
+    ) -> Result<RenderResult, String> {
         // Find a renderer for the requested format
         for renderer in &self.renderers {
             if renderer.format() == config.format {
@@ -104,7 +110,11 @@ impl RenderEngine {
     }
 
     /// Render to JSON format
-    pub fn render_json(&self, snapshot: &MemorySnapshot, verbose: bool) -> Result<RenderResult, String> {
+    pub fn render_json(
+        &self,
+        snapshot: &MemorySnapshot,
+        verbose: bool,
+    ) -> Result<RenderResult, String> {
         let config = RenderConfig {
             format: OutputFormat::Json,
             output_path: None,
@@ -133,6 +143,7 @@ mod tests {
     use super::*;
     use crate::event_store::EventStore;
     use crate::snapshot::SnapshotEngine;
+    use std::sync::Arc;
 
     #[test]
     fn test_render_engine_creation() {

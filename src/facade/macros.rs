@@ -1,7 +1,7 @@
 //! Facade Macros - Convenient macros for memory tracking
 //!
 //! This module provides macros that simplify common memory tracking
-/// operations, making the API more ergonomic and reducing boilerplate.
+//! operations, making the API more ergonomic and reducing boilerplate.
 
 /// Get a memory snapshot and display summary
 ///
@@ -84,6 +84,5 @@ mod tests {
     fn test_memscope_summary_macro_compiles() {
         // This test just ensures the macro compiles correctly
         // We don't actually run it to avoid printing to stdout during tests
-        assert!(true);
     }
 }

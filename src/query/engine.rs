@@ -43,11 +43,7 @@ impl QueryEngine {
     /// * `limit` - Maximum number of allocations to return
     pub fn top_allocations(&self, limit: usize) -> QueryResult {
         let snapshot = self.get_snapshot();
-        let mut allocations: Vec<_> = snapshot
-            .active_allocations
-            .values()
-            .cloned()
-            .collect();
+        let mut allocations: Vec<_> = snapshot.active_allocations.values().cloned().collect();
 
         // Sort by size descending
         allocations.sort_by(|a, b| b.size.cmp(&a.size));

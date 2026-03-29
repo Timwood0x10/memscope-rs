@@ -6,8 +6,8 @@
 //! it only captures and forwards them.
 
 pub mod backends;
-pub mod platform;
 pub mod engine;
+pub mod platform;
 
 pub use backends::{CaptureBackend, CaptureBackendType};
 pub use engine::CaptureEngine;

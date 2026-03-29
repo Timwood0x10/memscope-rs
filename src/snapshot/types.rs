@@ -24,7 +24,7 @@ pub struct ActiveAllocation {
 }
 
 /// Memory statistics for a snapshot
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct MemoryStats {
     /// Total number of allocations in the snapshot
     pub total_allocations: usize,
@@ -42,22 +42,8 @@ pub struct MemoryStats {
     pub peak_memory: usize,
 }
 
-impl Default for MemoryStats {
-    fn default() -> Self {
-        Self {
-            total_allocations: 0,
-            total_deallocations: 0,
-            active_allocations: 0,
-            total_allocated: 0,
-            total_deallocated: 0,
-            current_memory: 0,
-            peak_memory: 0,
-        }
-    }
-}
-
 /// Thread-specific memory statistics
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ThreadMemoryStats {
     /// Thread ID
     pub thread_id: u64,
@@ -72,7 +58,7 @@ pub struct ThreadMemoryStats {
 }
 
 /// Memory snapshot - a point-in-time view of memory usage
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct MemorySnapshot {
     /// Timestamp when this snapshot was taken
     pub timestamp: u64,
@@ -111,11 +97,5 @@ impl MemorySnapshot {
     /// Get the peak memory usage
     pub fn peak_memory(&self) -> usize {
         self.stats.peak_memory
-    }
-}
-
-impl Default for MemorySnapshot {
-    fn default() -> Self {
-        Self::new()
     }
 }
