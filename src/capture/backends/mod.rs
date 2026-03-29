@@ -41,10 +41,16 @@ pub use async_types::{
 
 // Re-export lockfree tracker types
 pub use lockfree_tracker::{
-    finalize_thread_tracker, get_current_tracker, init_thread_tracker, track_allocation_lockfree,
+    finalize_thread_tracker, get_current_tracker, init_thread_tracker, is_tracking,
+    memory_snapshot, quick_trace, stop_tracing, trace_all, trace_thread, track_allocation_lockfree,
     track_deallocation_lockfree, ThreadLocalTracker,
 };
-pub use lockfree_types::{AllocationCategory, Event, EventType, MemoryStats};
+pub use lockfree_types::{
+    AllocationCategory, AnalysisSummary, BottleneckType, Event, EventType, FrequencyData,
+    FrequencyPattern, HotCallStack, InteractionType, LockfreeAnalysis, MemoryPeak, MemorySnapshot,
+    MemoryStats, PerformanceBottleneck, SamplingConfig, SystemMetrics, ThreadInteraction,
+    ThreadStats,
+};
 
 // Re-export unified tracker types
 pub use unified_tracker::{

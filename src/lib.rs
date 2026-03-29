@@ -136,9 +136,15 @@ pub use utils::{format_bytes, get_simple_type, simplify_type_name};
 // Re-export capture engine types and backends
 pub use capture::backends::{
     configure_tracking_strategy, get_tracker as get_capture_tracker, AllocationCategory,
-    AsyncAllocation, AsyncBackend, AsyncSnapshot, AsyncStats, AsyncTracker, CoreBackend, Event,
-    EventType, LockfreeBackend, MemoryStats, RuntimeEnvironment, TaskInfo, ThreadLocalTracker,
+    AnalysisSummary, AsyncAllocation, AsyncBackend, AsyncMemorySnapshot, AsyncSnapshot, AsyncStats,
+    AsyncTracker, BottleneckType, CoreBackend, Event, EventType, FrequencyData, FrequencyPattern,
+    HotCallStack, InteractionType, LockfreeAnalysis, LockfreeBackend, MemoryPeak, MemorySnapshot,
+    MemoryStats, PerformanceBottleneck, RuntimeEnvironment, SamplingConfig, SystemMetrics,
+    TaskInfo, TaskMemoryProfile, ThreadInteraction, ThreadLocalTracker, ThreadStats, TrackedFuture,
     TrackingStrategy, UnifiedBackend,
+};
+pub use capture::backends::{
+    is_tracking, memory_snapshot, quick_trace, stop_tracing, trace_all, trace_thread,
 };
 pub use capture::{CaptureBackend, CaptureBackendType, CaptureEngine};
 

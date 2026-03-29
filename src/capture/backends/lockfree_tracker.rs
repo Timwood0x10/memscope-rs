@@ -2,14 +2,22 @@
 //!
 //! This module contains the ThreadLocalTracker for thread-local memory tracking.
 
-use std::collections::HashMap;
-use std::fs::File;
-use std::io::Write;
-use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
-use std::thread::ThreadId;
+use std::{
+    collections::HashMap,
+    fs::File,
+    io::Write,
+    path::PathBuf,
+    sync::{
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+        Arc, Mutex, OnceLock,
+    },
+    thread::ThreadId,
+};
 
 use super::lockfree_types::{Event, EventType, MemoryStats};
+
+static TRACKING_ENABLED: AtomicBool = AtomicBool::new(false);
+static OUTPUT_DIRECTORY: OnceLock<std::path::PathBuf> = OnceLock::new();
 
 /// Thread-local memory tracker for lock-free operation.
 ///
@@ -28,10 +36,10 @@ pub struct ThreadLocalTracker {
     output_file: PathBuf,
     /// Sampling rate (0.0 to 1.0)
     sample_rate: f64,
-    /// Total allocations seen
-    total_seen: Arc<Mutex<usize>>,
-    /// Number of allocations actually tracked
-    total_tracked: Arc<Mutex<usize>>,
+    /// Total allocations seen (atomic for lock-free counting)
+    total_seen: Arc<AtomicUsize>,
+    /// Number of allocations actually tracked (atomic for lock-free counting)
+    total_tracked: Arc<AtomicUsize>,
 }
 
 impl ThreadLocalTracker {
@@ -49,8 +57,8 @@ impl ThreadLocalTracker {
             stats: Arc::new(Mutex::new(MemoryStats::default())),
             output_file,
             sample_rate: sample_rate.clamp(0.0, 1.0),
-            total_seen: Arc::new(Mutex::new(0)),
-            total_tracked: Arc::new(Mutex::new(0)),
+            total_seen: Arc::new(AtomicUsize::new(0)),
+            total_tracked: Arc::new(AtomicUsize::new(0)),
         }
     }
 
@@ -61,10 +69,8 @@ impl ThreadLocalTracker {
     /// * `size` - Memory size in bytes
     /// * `call_stack_hash` - Hash of the call stack
     pub fn track_allocation(&self, ptr: usize, size: usize, call_stack_hash: u64) {
-        // Update seen counter (always increment, regardless of sampling)
-        if let Ok(mut total_seen) = self.total_seen.try_lock() {
-            *total_seen += 1;
-        }
+        // Update seen counter using atomic operation (always increment, regardless of sampling)
+        self.total_seen.fetch_add(1, Ordering::Relaxed);
 
         // Check sampling rate
         if self.sample_rate < 1.0 {
@@ -74,10 +80,8 @@ impl ThreadLocalTracker {
             }
         }
 
-        // Update tracked counter (only for sampled allocations)
-        if let Ok(mut total_tracked) = self.total_tracked.try_lock() {
-            *total_tracked += 1;
-        }
+        // Update tracked counter using atomic operation (only for sampled allocations)
+        self.total_tracked.fetch_add(1, Ordering::Relaxed);
 
         // Create allocation event
         let event = Event::allocation(ptr, size, call_stack_hash, self.thread_id);
@@ -144,18 +148,8 @@ impl ThreadLocalTracker {
 
     /// Get sampling statistics.
     pub fn get_sampling_stats(&self) -> (usize, usize) {
-        let seen = if let Ok(total_seen) = self.total_seen.try_lock() {
-            *total_seen
-        } else {
-            0
-        };
-
-        let tracked = if let Ok(total_tracked) = self.total_tracked.try_lock() {
-            *total_tracked
-        } else {
-            0
-        };
-
+        let seen = self.total_seen.load(Ordering::Relaxed);
+        let tracked = self.total_tracked.load(Ordering::Relaxed);
         (seen, tracked)
     }
 
@@ -455,9 +449,10 @@ pub fn finalize_thread_tracker() -> Result<(), Box<dyn std::error::Error>> {
 /// Get the current thread's tracker if initialized
 pub fn get_current_tracker() -> Option<ThreadLocalTracker> {
     THREAD_TRACKER.with(|thread_tracker| {
-        thread_tracker.borrow().as_ref().map(|tracker| {
-            // Create a clone of the key components
-            ThreadLocalTracker {
+        thread_tracker
+            .borrow()
+            .as_ref()
+            .map(|tracker| ThreadLocalTracker {
                 thread_id: tracker.thread_id,
                 events: Arc::clone(&tracker.events),
                 active_allocations: Arc::clone(&tracker.active_allocations),
@@ -466,9 +461,150 @@ pub fn get_current_tracker() -> Option<ThreadLocalTracker> {
                 sample_rate: tracker.sample_rate,
                 total_seen: Arc::clone(&tracker.total_seen),
                 total_tracked: Arc::clone(&tracker.total_tracked),
-            }
-        })
+            })
     })
+}
+
+/// Start tracking all threads with automatic initialization
+///
+/// This function enables memory tracking for all threads in your application.
+/// Call once at program start, tracking happens automatically afterward.
+///
+/// # Arguments
+/// * `output_dir` - Directory where tracking data will be stored
+///
+/// # Returns
+/// Result indicating success or error during initialization
+pub fn trace_all<P: AsRef<std::path::Path>>(
+    output_dir: &P,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let output_path = output_dir.as_ref().to_path_buf();
+
+    let _ = OUTPUT_DIRECTORY.set(output_path.clone());
+
+    if output_path.exists() {
+        std::fs::remove_dir_all(&output_path)?;
+    }
+    std::fs::create_dir_all(&output_path)?;
+
+    TRACKING_ENABLED.store(true, Ordering::SeqCst);
+
+    tracing::info!("Lockfree tracking started: {}", output_path.display());
+
+    Ok(())
+}
+
+/// Start tracking current thread only
+///
+/// Enables memory tracking for the calling thread only. Use this when you want
+/// to track specific threads rather than the entire application.
+///
+/// # Arguments
+/// * `output_dir` - Directory where tracking data will be stored
+///
+/// # Returns
+/// Result indicating success or error during thread tracker initialization
+pub fn trace_thread<P: AsRef<std::path::Path>>(
+    output_dir: &P,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let output_path = output_dir.as_ref().to_path_buf();
+
+    if !output_path.exists() {
+        std::fs::create_dir_all(&output_path)?;
+    }
+
+    init_thread_tracker(&output_path, Some(1.0))?;
+
+    Ok(())
+}
+
+/// Stop all memory tracking and generate reports
+///
+/// Finalizes memory tracking, processes all collected data, and generates
+/// reports for analysis.
+pub fn stop_tracing() -> Result<(), Box<dyn std::error::Error>> {
+    if !TRACKING_ENABLED.load(Ordering::SeqCst) {
+        return Ok(());
+    }
+
+    let _ = finalize_thread_tracker();
+
+    TRACKING_ENABLED.store(false, Ordering::SeqCst);
+
+    Ok(())
+}
+
+/// Check if lockfree tracking is currently active
+///
+/// # Returns
+/// Boolean indicating whether memory tracking is enabled
+pub fn is_tracking() -> bool {
+    TRACKING_ENABLED.load(Ordering::SeqCst)
+}
+
+/// Get current memory usage snapshot
+///
+/// Returns real-time memory statistics without interrupting tracking.
+///
+/// # Returns
+/// MemorySnapshot containing current memory usage data
+pub fn memory_snapshot() -> super::lockfree_types::MemorySnapshot {
+    use super::lockfree_types::MemorySnapshot;
+
+    let (current_mb, peak_mb, allocations, deallocations) = THREAD_TRACKER.with(|thread_tracker| {
+        if let Some(tracker) = thread_tracker.borrow().as_ref() {
+            let stats = tracker.get_stats();
+            (
+                stats.active_memory as f64 / (1024.0 * 1024.0),
+                stats.peak_memory as f64 / (1024.0 * 1024.0),
+                stats.total_allocations as u64,
+                stats.total_deallocations as u64,
+            )
+        } else {
+            (0.0, 0.0, 0, 0)
+        }
+    });
+
+    MemorySnapshot {
+        current_mb,
+        peak_mb,
+        allocations,
+        deallocations,
+        active_threads: if TRACKING_ENABLED.load(Ordering::SeqCst) {
+            1
+        } else {
+            0
+        },
+    }
+}
+
+/// Quick trace function for debugging and profiling
+///
+/// Runs the provided function with temporary memory tracking enabled.
+/// Results are stored in a temporary directory and basic statistics are printed.
+///
+/// # Arguments
+/// * `f` - Function to execute with tracking enabled
+///
+/// # Returns
+/// The return value of the provided function
+pub fn quick_trace<F, R>(f: F) -> R
+where
+    F: FnOnce() -> R,
+{
+    let temp_dir = std::env::temp_dir().join("memscope_lockfree_quick");
+
+    if trace_all(&temp_dir).is_err() {
+        return f();
+    }
+
+    let result = f();
+
+    let _ = stop_tracing();
+
+    tracing::info!("Quick trace completed - check {}", temp_dir.display());
+
+    result
 }
 
 #[cfg(test)]
