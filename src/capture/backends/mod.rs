@@ -47,7 +47,14 @@ pub use lockfree_tracker::{
 pub use lockfree_types::{Event, EventType, MemoryStats};
 
 // Re-export unified tracker types
-pub use unified_tracker::{RuntimeEnvironment, TrackingStrategy};
+pub use unified_tracker::{
+    detect_environment, get_backend, initialize as initialize_unified, AsyncRuntimeType,
+    BackendConfig, BackendError, DetectionConfig, DispatcherConfig, DispatcherMetrics,
+    EnvironmentDetection, EnvironmentDetector, MemoryAnalysisData, MemoryStatistics,
+    MemoryTracker as UnifiedMemoryTracker, RuntimeEnvironment, SessionMetadata, TrackerConfig,
+    TrackerError, TrackerStatistics, TrackerType, TrackingDispatcher, TrackingOperation,
+    TrackingSession, TrackingStrategy, UnifiedBackend,
+};
 
 /// Capture Backend trait
 ///
@@ -99,7 +106,7 @@ impl CaptureBackendType {
             CaptureBackendType::Core => Box::new(CoreBackend),
             CaptureBackendType::Lockfree => Box::new(LockfreeBackend),
             CaptureBackendType::Async => Box::new(AsyncBackend),
-            CaptureBackendType::Unified => Box::new(UnifiedBackend::default()),
+            CaptureBackendType::Unified => Box::new(UnifiedCaptureBackend::default()),
         }
     }
 }
@@ -264,26 +271,24 @@ impl CaptureBackend for AsyncBackend {
     }
 }
 
-/// Unified tracking backend
+/// Unified capture backend
 ///
 /// This backend automatically detects the best tracking strategy
-/// based on the runtime environment.
-pub struct UnifiedBackend {
+/// based on the runtime environment for capturing events.
+pub struct UnifiedCaptureBackend {
     /// The actual backend being used
     inner: Box<dyn CaptureBackend>,
 }
 
-impl Default for UnifiedBackend {
+impl Default for UnifiedCaptureBackend {
     fn default() -> Self {
-        // Auto-detect the best backend
-        // For now, default to Core backend
         Self {
             inner: Box::new(CoreBackend),
         }
     }
 }
 
-impl CaptureBackend for UnifiedBackend {
+impl CaptureBackend for UnifiedCaptureBackend {
     fn capture_alloc(&self, ptr: usize, size: usize, thread_id: u64) -> MemoryEvent {
         self.inner.capture_alloc(ptr, size, thread_id)
     }
@@ -347,7 +352,7 @@ mod tests {
 
     #[test]
     fn test_unified_backend() {
-        let backend = UnifiedBackend::default();
+        let backend = UnifiedCaptureBackend::default();
         let event = backend.capture_alloc(0x1000, 1024, 1);
         assert_eq!(event.ptr, 0x1000);
         assert_eq!(event.size, 1024);
