@@ -253,6 +253,15 @@ impl Tracker {
         let allocations = self.inner.get_active_allocations().unwrap_or_default();
         let elapsed = self.start_time.elapsed().as_secs_f64();
 
+        // Calculate peak memory from current allocations (since stats.peak_memory is broken)
+        let current_memory: usize = allocations.iter().map(|a| a.size).sum();
+        let peak_memory = if stats.peak_memory > 0 {
+            stats.peak_memory
+        } else {
+            // Fallback: use current memory if peak_memory is 0
+            current_memory
+        };
+
         let mut hotspot_map: HashMap<String, (String, usize, usize)> = HashMap::new();
         for alloc in &allocations {
             if let Some(ref var_name) = alloc.var_name {
@@ -290,8 +299,8 @@ impl Tracker {
             total_allocations: stats.total_allocations,
             total_deallocations: stats.total_deallocations,
             active_allocations: stats.active_allocations,
-            peak_memory_bytes: stats.peak_memory as u64,
-            current_memory_bytes: stats.active_memory as u64,
+            peak_memory_bytes: peak_memory as u64,
+            current_memory_bytes: current_memory as u64,
             allocation_rate_per_sec: if elapsed > 0.0 {
                 stats.total_allocations as f64 / elapsed
             } else {

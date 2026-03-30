@@ -204,43 +204,43 @@ fn create_task_configs() -> Vec<TaskConfig> {
             name: "Matrix Multiplication".to_string(),
             task_type: TaskType::CpuIntensive,
             intensity: IntensityLevel::Heavy,
-            duration_secs: 5,
+            duration_secs: 15,
         },
         TaskConfig {
             name: "Data Stream Processing".to_string(),
             task_type: TaskType::Streaming,
             intensity: IntensityLevel::Moderate,
-            duration_secs: 5,
+            duration_secs: 20,
         },
         TaskConfig {
             name: "File System Scanner".to_string(),
             task_type: TaskType::IoIntensive,
             intensity: IntensityLevel::Heavy,
-            duration_secs: 3,
+            duration_secs: 12,
         },
         TaskConfig {
             name: "Web Scraper".to_string(),
             task_type: TaskType::NetworkIntensive,
             intensity: IntensityLevel::Moderate,
-            duration_secs: 3,
+            duration_secs: 18,
         },
         TaskConfig {
             name: "Memory Cache Manager".to_string(),
             task_type: TaskType::MemoryIntensive,
             intensity: IntensityLevel::Extreme,
-            duration_secs: 2,
+            duration_secs: 10,
         },
         TaskConfig {
             name: "Background Maintenance".to_string(),
             task_type: TaskType::Background,
             intensity: IntensityLevel::Light,
-            duration_secs: 3,
+            duration_secs: 25,
         },
         TaskConfig {
             name: "Hybrid Workload".to_string(),
             task_type: TaskType::Mixed,
             intensity: IntensityLevel::Heavy,
-            duration_secs: 4,
+            duration_secs: 20,
         },
     ]
 }
@@ -291,10 +291,10 @@ async fn execute_cpu_intensive(
     allocations: &mut usize,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let iterations = match config.intensity {
-        IntensityLevel::Light => 100_000,
-        IntensityLevel::Moderate => 500_000,
-        IntensityLevel::Heavy => 1_000_000,
-        IntensityLevel::Extreme => 2_000_000,
+        IntensityLevel::Light => 1_000_000,
+        IntensityLevel::Moderate => 5_000_000,
+        IntensityLevel::Heavy => 15_000_000,
+        IntensityLevel::Extreme => 30_000_000,
     };
 
     let mut result = 0u64;
@@ -302,13 +302,6 @@ async fn execute_cpu_intensive(
         // Simulate CPU work
         let val = (i as f64).sqrt().sin().cos();
         result = result.wrapping_add((val * 1000.0) as u64);
-
-        // Track some allocations
-        if i % 10_000 == 0 {
-            let buffer = vec![i as u8; 1024];
-            track!(tracker, buffer);
-            *allocations += 1;
-        }
 
         // Yield periodically
         if i % 100_000 == 0 {
@@ -325,17 +318,32 @@ async fn execute_io_intensive(
     allocations: &mut usize,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let file_count = match config.intensity {
-        IntensityLevel::Light => 5,
-        IntensityLevel::Moderate => 10,
-        IntensityLevel::Heavy => 20,
-        IntensityLevel::Extreme => 50,
+        IntensityLevel::Light => 10,
+        IntensityLevel::Moderate => 50,
+        IntensityLevel::Heavy => 100,
+        IntensityLevel::Extreme => 200,
     };
+
+    let file_size = match config.intensity {
+        IntensityLevel::Light => 1024,      // 1KB
+        IntensityLevel::Moderate => 102400, // 100KB
+        IntensityLevel::Heavy => 1048576,   // 1MB
+        IntensityLevel::Extreme => 5242880, // 5MB
+    };
+
+    println!(
+        "💾 Starting IO intensive task: {} files of {}KB each",
+        file_count,
+        file_size / 1024
+    );
+
+    let mut total_bytes = 0u64;
 
     for i in 0..file_count {
         let filename = format!("tmp_async_io_{}.dat", i);
-        let data = vec![i as u8; 1024 * 1024]; // 1MB
 
-        // Track allocation
+        // Create test data
+        let data = vec![((i * 37) % 256) as u8; file_size];
         track!(tracker, data);
         *allocations += 1;
 
@@ -348,7 +356,9 @@ async fn execute_io_intensive(
         // Cleanup
         tokio::fs::remove_file(&filename).await.ok();
 
-        if i % 5 == 0 {
+        total_bytes += file_size as u64;
+
+        if i % 10 == 0 {
             tokio::task::yield_now().await;
         }
     }
@@ -362,20 +372,52 @@ async fn execute_network_intensive(
     allocations: &mut usize,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let request_count = match config.intensity {
-        IntensityLevel::Light => 5,
-        IntensityLevel::Moderate => 10,
-        IntensityLevel::Heavy => 20,
-        IntensityLevel::Extreme => 50,
+        IntensityLevel::Light => 10,
+        IntensityLevel::Moderate => 50,
+        IntensityLevel::Heavy => 100,
+        IntensityLevel::Extreme => 200,
     };
 
-    for i in 0..request_count {
-        // Simulate network request
-        sleep(Duration::from_millis(50)).await;
+    println!(
+        "🌐 Starting network intensive task: {} simulated requests",
+        request_count
+    );
 
-        // Simulate response data
-        let response_data = vec![i as u8; 1024 + i * 100];
-        track!(tracker, response_data);
-        *allocations += 1;
+    let mut total_bytes = 0u64;
+    let mut successful_requests = 0;
+
+    // Simulate concurrent HTTP requests
+    let mut handles = Vec::new();
+
+    for i in 0..request_count {
+        let handle = tokio::spawn(async move {
+            // Simulate network latency
+            let latency = Duration::from_millis(50 + (i % 100) as u64);
+            sleep(latency).await;
+
+            // Simulate response data
+            let response_size = 1024 + (i * 100) % 5000; // Variable response sizes
+            let response_data = vec![0u8; response_size];
+
+            Ok::<(usize, Vec<u8>), Box<dyn std::error::Error + Send + Sync>>((i, response_data))
+        });
+
+        handles.push(handle);
+
+        // Add some delay between request starts
+        if i % 10 == 0 {
+            sleep(Duration::from_millis(10)).await;
+        }
+    }
+
+    // Wait for all requests to complete
+    for handle in handles {
+        if let Ok(Ok((_, response_data))) = handle.await {
+            track!(tracker, response_data);
+            *allocations += 1;
+            total_bytes += response_data.len() as u64;
+            successful_requests += 1;
+        }
     }
 
     Ok(())
@@ -422,19 +464,38 @@ async fn execute_streaming(
     tracker: &memscope_rs::tracker::Tracker,
     allocations: &mut usize,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let batch_count = match config.intensity {
-        IntensityLevel::Light => 10,
-        IntensityLevel::Moderate => 20,
-        IntensityLevel::Heavy => 50,
-        IntensityLevel::Extreme => 100,
+    let stream_duration = Duration::from_secs(config.duration_secs);
+    let batch_size = match config.intensity {
+        IntensityLevel::Light => 100,
+        IntensityLevel::Moderate => 500,
+        IntensityLevel::Heavy => 1000,
+        IntensityLevel::Extreme => 2000,
     };
 
-    for batch in 0..batch_count {
-        let batch_data = vec![batch as u8; 1024 * 100]; // 100KB batch
-        track!(tracker, batch_data);
-        *allocations += 1;
+    println!(
+        "📡 Starting streaming task: {} items/batch for {} seconds",
+        batch_size,
+        config.duration_secs
+    );
 
-        // Simulate processing
+    let start_time = std::time::Instant::now();
+    let mut total_processed = 0;
+    let mut batch_count = 0;
+
+    while start_time.elapsed() < stream_duration {
+        // Simulate processing a batch of streaming data
+        let mut batch_data = Vec::with_capacity(batch_size);
+
+        for i in 0..batch_size {
+            let data_item = format!("stream_item_{}_{}", batch_count, i);
+            let processed_item = data_item.chars().rev().collect::<String>(); // Simple processing
+            batch_data.push(processed_item);
+        }
+
+        total_processed += batch_data.len();
+        batch_count += 1;
+
+        // Simulate backpressure handling
         sleep(Duration::from_millis(100)).await;
     }
 

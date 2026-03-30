@@ -1,6 +1,7 @@
 //! Async memory tracker implementation.
 //!
-//! This module contains async-specific memory tracking functionality.
+//! This module contains async-specific memory tracking functionality
+//! including task tracking, efficiency scoring, and bottleneck analysis.
 
 use std::collections::HashMap;
 use std::future::Future;
@@ -11,6 +12,53 @@ use super::async_types::{
     AsyncAllocation, AsyncError, AsyncMemorySnapshot, AsyncResult, AsyncSnapshot, AsyncStats,
     TaskInfo, TaskMemoryProfile, TrackedFuture,
 };
+
+use crate::system_monitor;
+
+/// Task types for classification
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum TaskType {
+    CpuIntensive,
+    IoIntensive,
+    NetworkIntensive,
+    MemoryIntensive,
+    Streaming,
+    Background,
+    Mixed,
+    GpuCompute,
+}
+
+impl Default for TaskType {
+    fn default() -> Self {
+        Self::Mixed
+    }
+}
+
+/// Task efficiency report
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct TaskReport {
+    pub task_name: String,
+    pub task_type: TaskType,
+    pub efficiency_score: f64,
+    pub cpu_efficiency: f64,
+    pub memory_efficiency: f64,
+    pub io_efficiency: f64,
+    pub bottleneck: String,
+    pub recommendations: Vec<String>,
+}
+
+/// Resource ranking entry
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ResourceRanking {
+    pub task_name: String,
+    pub task_type: TaskType,
+    pub cpu_usage: f64,
+    pub memory_usage_mb: f64,
+    pub io_usage_mb: f64,
+    pub network_usage_mb: f64,
+    pub gpu_usage: f64,
+    pub overall_score: f64,
+}
 
 /// Global async tracker instance
 static GLOBAL_TRACKER: Mutex<Option<Arc<AsyncTracker>>> = Mutex::new(None);
@@ -102,13 +150,35 @@ impl AsyncTracker {
     /// * `size` - Allocation size
     /// * `task_id` - Associated task ID
     pub fn track_allocation(&self, ptr: usize, size: usize, task_id: u64) {
+        self.track_allocation_with_location(ptr, size, task_id, None, None, None);
+    }
+
+    /// Track an allocation with source location.
+    ///
+    /// # Arguments
+    /// * `ptr` - Memory pointer
+    /// * `size` - Allocation size
+    /// * `task_id` - Associated task ID
+    /// * `var_name` - Variable name
+    /// * `type_name` - Type name
+    /// * `source_location` - Source code location
+    pub fn track_allocation_with_location(
+        &self,
+        ptr: usize,
+        size: usize,
+        task_id: u64,
+        var_name: Option<String>,
+        type_name: Option<String>,
+        source_location: Option<super::async_types::SourceLocation>,
+    ) {
         let allocation = AsyncAllocation {
             ptr,
             size,
             timestamp: Self::now(),
             task_id,
-            var_name: None,
-            type_name: None,
+            var_name,
+            type_name,
+            source_location,
         };
 
         // Store allocation - use blocking lock
@@ -131,7 +201,11 @@ impl AsyncTracker {
             let mut stats = self.stats.lock().unwrap();
             stats.total_allocations += 1;
             stats.total_memory += size;
-            stats.peak_memory = stats.peak_memory.max(stats.total_memory);
+            stats.active_memory += size;
+            // Peak memory is the maximum active memory we've ever seen
+            if stats.active_memory > stats.peak_memory {
+                stats.peak_memory = stats.active_memory;
+            }
         }
 
         // Update task profile
@@ -151,17 +225,26 @@ impl AsyncTracker {
     /// * `ptr` - Memory pointer
     pub fn track_deallocation(&self, ptr: usize) {
         // Get allocation info before removing - use blocking lock
-        let task_id = {
+        let (task_id, size) = {
             let mut allocations = self.allocations.lock().unwrap();
-            allocations.remove(&ptr).map(|alloc| alloc.task_id)
+            allocations
+                .remove(&ptr)
+                .map(|alloc| (alloc.task_id, alloc.size))
+                .unwrap_or((0, 0))
         };
 
         // Update task info - use blocking lock
-        if let Some(tid) = task_id {
+        if task_id != 0 {
             let mut tasks = self.tasks.lock().unwrap();
-            if let Some(task) = tasks.get_mut(&tid) {
+            if let Some(task) = tasks.get_mut(&task_id) {
                 task.active_allocations = task.active_allocations.saturating_sub(1);
             }
+        }
+
+        // Update active memory stats
+        if size > 0 {
+            let mut stats = self.stats.lock().unwrap();
+            stats.active_memory = stats.active_memory.saturating_sub(size);
         }
     }
 
@@ -213,6 +296,142 @@ impl AsyncTracker {
     /// Mark tracker as initialized
     pub fn set_initialized(&self) {
         *self.initialized.lock().unwrap() = true;
+    }
+
+    /// Generate task efficiency report
+    ///
+    /// Calculates efficiency scores based on task-specific metrics.
+    pub fn analyze_task(&self, task_id: u64, task_type: TaskType) -> Option<TaskReport> {
+        let profile = self.get_task_profile(task_id)?;
+
+        // Use task-specific metrics instead of global system metrics
+        let total_bytes = profile.total_bytes as f64;
+        let total_allocations = profile.total_allocations as f64;
+        let peak_memory = profile.peak_memory as f64;
+        let duration_ms = profile.duration_ns as f64 / 1_000_000.0;
+
+        // Calculate efficiency scores (0.0 - 1.0)
+
+        // Base efficiency for compute-intensive tasks (CPU, IO, GPU)
+        let compute_efficiency = if duration_ms > 0.0 {
+            (total_allocations / duration_ms * 1000.0).min(1.0)
+        } else {
+            0.0
+        };
+
+        let cpu_efficiency = match task_type {
+            TaskType::CpuIntensive | TaskType::IoIntensive | TaskType::GpuCompute => {
+                compute_efficiency
+            }
+            TaskType::MemoryIntensive => {
+                if total_bytes > 0.0 {
+                    (peak_memory / total_bytes).min(1.0)
+                } else {
+                    0.0
+                }
+            }
+            TaskType::NetworkIntensive => {
+                if total_bytes > 0.0 {
+                    (total_allocations / total_bytes * 1000.0).min(1.0)
+                } else {
+                    0.0
+                }
+            }
+            _ => compute_efficiency,
+        };
+
+        let memory_efficiency = if total_bytes > 0.0 {
+            (total_allocations / total_bytes * 1000.0).min(1.0)
+        } else {
+            0.0
+        };
+
+        let io_efficiency = if duration_ms > 0.0 {
+            (total_bytes / duration_ms / 1_048_576.0).min(1.0)
+        } else {
+            0.0
+        };
+
+        let efficiency_score = (cpu_efficiency + memory_efficiency + io_efficiency) / 3.0;
+
+        // Determine bottleneck based on task-specific metrics
+        let bottleneck = if duration_ms > 5000.0 {
+            "Execution Time".to_string()
+        } else if peak_memory > 100.0 * 1024.0 * 1024.0 {
+            "Memory".to_string()
+        } else if total_allocations > 10000.0 {
+            "Allocations".to_string()
+        } else {
+            "None".to_string()
+        };
+
+        // Generate recommendations based on task-specific metrics
+        let mut recommendations = Vec::new();
+        if duration_ms > 5000.0 {
+            recommendations.push("Consider optimizing task execution time".to_string());
+        }
+        if peak_memory > 100.0 * 1024.0 * 1024.0 {
+            recommendations.push("Reduce peak memory usage".to_string());
+        }
+        if total_allocations > 10000.0 {
+            recommendations.push("Reduce number of allocations".to_string());
+        }
+        if recommendations.is_empty() {
+            recommendations.push("Performance is good".to_string());
+        }
+
+        Some(TaskReport {
+            task_name: profile.task_name.clone(),
+            task_type,
+            efficiency_score,
+            cpu_efficiency,
+            memory_efficiency,
+            io_efficiency,
+            bottleneck,
+            recommendations,
+        })
+    }
+
+    /// Get resource rankings for all tasks
+    ///
+    /// Returns tasks sorted by overall resource consumption score.
+    /// Uses task-specific metrics (memory, allocation rate, duration) for ranking.
+    pub fn get_resource_rankings(&self) -> Vec<ResourceRanking> {
+        let profiles = self.get_all_profiles();
+
+        let mut rankings: Vec<ResourceRanking> = profiles
+            .into_iter()
+            .map(|profile| {
+                let memory_mb = profile.total_bytes as f64 / 1_048_576.0;
+                let peak_memory_mb = profile.peak_memory as f64 / 1_048_576.0;
+                let duration_ms = profile.duration_ns as f64 / 1_000_000.0;
+                let allocation_rate = profile.allocation_rate;
+
+                let overall_score = memory_mb * 0.3
+                    + peak_memory_mb * 0.2
+                    + allocation_rate * 0.0001
+                    + duration_ms * 0.0001;
+
+                ResourceRanking {
+                    task_name: profile.task_name.clone(),
+                    task_type: profile.task_type.clone(),
+                    cpu_usage: allocation_rate,
+                    memory_usage_mb: memory_mb,
+                    io_usage_mb: 0.0,
+                    network_usage_mb: 0.0,
+                    gpu_usage: 0.0,
+                    overall_score,
+                }
+            })
+            .collect();
+
+        rankings.sort_by(|a, b| {
+            b.overall_score
+                .partial_cmp(&a.overall_score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
+        rankings
     }
 
     /// Get current timestamp.

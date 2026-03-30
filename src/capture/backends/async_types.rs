@@ -10,6 +10,9 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::thread::ThreadId;
 
+// Re-export TaskType from async_tracker
+pub use super::async_tracker::TaskType;
+
 /// Unique identifier for async tasks
 pub type TaskId = u128;
 
@@ -81,6 +84,58 @@ pub struct AsyncAllocation {
     pub var_name: Option<String>,
     /// Optional type name
     pub type_name: Option<String>,
+    /// Optional source location
+    pub source_location: Option<SourceLocation>,
+}
+
+/// Source location for tracking where allocations occur
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SourceLocation {
+    /// File path
+    pub file: String,
+    /// Line number
+    pub line: u32,
+    /// Column number
+    pub column: u32,
+    /// Function name
+    pub function: String,
+    /// Module path
+    pub module_path: String,
+}
+
+impl SourceLocation {
+    /// Create a new source location
+    pub fn new(file: &str, line: u32, column: u32, function: &str, module_path: &str) -> Self {
+        Self {
+            file: file.to_string(),
+            line,
+            column,
+            function: function.to_string(),
+            module_path: module_path.to_string(),
+        }
+    }
+
+    /// Capture current source location using std::panic::Location
+    pub fn capture() -> Self {
+        let loc = std::panic::Location::caller();
+        Self {
+            file: loc.file().to_string(),
+            line: loc.line(),
+            column: loc.column(),
+            function: String::new(),
+            module_path: String::new(),
+        }
+    }
+}
+
+impl std::fmt::Display for SourceLocation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}:{}:{}:{}",
+            self.file, self.line, self.column, self.function
+        )
+    }
 }
 
 /// Async memory tracking statistics.
@@ -92,7 +147,9 @@ pub struct AsyncStats {
     pub total_allocations: usize,
     /// Total memory allocated
     pub total_memory: usize,
-    /// Peak memory usage
+    /// Current active memory (sum of all active allocations)
+    pub active_memory: usize,
+    /// Peak memory usage (maximum active memory observed)
     pub peak_memory: usize,
     /// Active tasks count
     pub active_tasks: usize,
@@ -257,6 +314,8 @@ pub struct TaskMemoryProfile {
     pub task_id: u64,
     /// Task name
     pub task_name: String,
+    /// Task type
+    pub task_type: TaskType,
     /// Total allocations
     pub total_allocations: u64,
     /// Total bytes allocated
@@ -279,6 +338,23 @@ impl TaskMemoryProfile {
         Self {
             task_id,
             task_name,
+            task_type: TaskType::default(),
+            total_allocations: 0,
+            total_bytes: 0,
+            peak_memory: 0,
+            size_distribution: Vec::new(),
+            avg_allocation_size: 0.0,
+            duration_ns: 0,
+            allocation_rate: 0.0,
+        }
+    }
+
+    /// Create a new task memory profile with task type
+    pub fn with_type(task_id: u64, task_name: String, task_type: TaskType) -> Self {
+        Self {
+            task_id,
+            task_name,
+            task_type,
             total_allocations: 0,
             total_bytes: 0,
             peak_memory: 0,
@@ -506,6 +582,7 @@ mod tests {
             task_id: 1,
             var_name: Some("test_var".to_string()),
             type_name: Some("Vec<u8>".to_string()),
+            source_location: None,
         };
 
         assert_eq!(alloc.ptr, 0x1000);
