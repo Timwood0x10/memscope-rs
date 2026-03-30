@@ -52,6 +52,8 @@ pub mod query;
 pub mod render_engine;
 /// Snapshot Engine - Snapshot construction and aggregation
 pub mod snapshot;
+/// System Monitor - Background thread for system metrics collection
+pub mod system_monitor;
 /// Timeline Engine - Time-based memory analysis
 pub mod timeline;
 /// Unified Tracker API - Simple, unified interface for memory tracking

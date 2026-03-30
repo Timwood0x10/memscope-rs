@@ -4,19 +4,29 @@
 //! Cross-platform support for Windows, Linux, macOS
 
 use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
+use sysinfo::System;
 
 /// Comprehensive system resource snapshot
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemResourceSnapshot {
+    /// Timestamp in milliseconds since profiler start
     pub timestamp: u64,
+    /// CPU utilization and performance metrics
     pub cpu_metrics: CpuMetrics,
+    /// Memory system metrics
     pub memory_metrics: MemoryMetrics,
+    /// GPU utilization and memory metrics (if available)
     pub gpu_metrics: Option<GpuMetrics>,
+    /// I/O subsystem metrics
     pub io_metrics: IoMetrics,
+    /// Network utilization metrics
     pub network_metrics: NetworkMetrics,
+    /// Per-process resource metrics
     pub process_metrics: ProcessMetrics,
+    /// Per-thread resource metrics
     pub thread_metrics: HashMap<u64, ThreadMetrics>,
 }
 
@@ -167,8 +177,7 @@ pub struct SystemProfiler {
     #[allow(dead_code)]
     sample_interval: Duration,
     last_snapshot: Option<SystemResourceSnapshot>,
-    #[cfg(feature = "system-metrics")]
-    system: std::cell::RefCell<sysinfo::System>,
+    system: RefCell<System>,
 }
 
 impl SystemProfiler {
@@ -178,8 +187,7 @@ impl SystemProfiler {
             start_time: Instant::now(),
             sample_interval,
             last_snapshot: None,
-            #[cfg(feature = "system-metrics")]
-            system: std::cell::RefCell::new(sysinfo::System::new_all()),
+            system: RefCell::new(System::new_all()),
         }
     }
 
@@ -204,91 +212,51 @@ impl SystemProfiler {
 
     /// Collect CPU performance metrics
     fn collect_cpu_metrics(&self) -> Result<CpuMetrics, Box<dyn std::error::Error>> {
-        #[cfg(feature = "system-metrics")]
-        {
-            let mut system = self.system.borrow_mut();
-            system.refresh_cpu_all();
+        let mut system = self.system.borrow_mut();
+        system.refresh_cpu_all();
 
-            let overall_usage = system.global_cpu_usage();
-            let core_usage: Vec<f32> = system.cpus().iter().map(|cpu| cpu.cpu_usage()).collect();
-            let load_average = sysinfo::System::load_average();
+        let overall_usage = system.global_cpu_usage();
+        let core_usage: Vec<f32> = system.cpus().iter().map(|cpu| cpu.cpu_usage()).collect();
+        let load_average = System::load_average();
 
-            Ok(CpuMetrics {
-                overall_usage,
-                core_usage,
-                frequency: 0, // Would need platform-specific code
-                load_average: Some((load_average.one, load_average.five, load_average.fifteen)),
-                temperature: None,   // Would need platform-specific sensors
-                context_switches: 0, // Would need platform-specific code
-                cache_misses: None,
-            })
-        }
-
-        #[cfg(not(feature = "system-metrics"))]
-        {
-            // Fallback implementation
-            Ok(CpuMetrics {
-                overall_usage: 0.0,
-                core_usage: vec![0.0; num_cpus::get()],
-                frequency: 0,
-                load_average: None,
-                temperature: None,
-                context_switches: 0,
-                cache_misses: None,
-            })
-        }
+        Ok(CpuMetrics {
+            overall_usage,
+            core_usage,
+            frequency: 0,
+            load_average: Some((load_average.one, load_average.five, load_average.fifteen)),
+            temperature: None,
+            context_switches: 0,
+            cache_misses: None,
+        })
     }
 
     /// Collect memory subsystem metrics
     fn collect_memory_metrics(&self) -> Result<MemoryMetrics, Box<dyn std::error::Error>> {
-        #[cfg(feature = "system-metrics")]
-        {
-            let mut system = self.system.borrow_mut();
-            system.refresh_memory();
+        let mut system = self.system.borrow_mut();
+        system.refresh_memory();
 
-            let total_physical = system.total_memory();
-            let available_physical = system.available_memory();
-            let used_physical = total_physical - available_physical;
+        let total_physical = system.total_memory();
+        let available_physical = system.available_memory();
+        let used_physical = total_physical - available_physical;
 
-            let pressure = (used_physical as f32 / total_physical as f32) * 100.0;
+        let pressure = (used_physical as f32 / total_physical as f32) * 100.0;
 
-            Ok(MemoryMetrics {
-                total_physical,
-                available_physical,
-                used_physical,
-                total_virtual: system.total_swap(),
-                available_virtual: system.free_swap(),
-                pressure,
-                page_faults: 0, // Would need platform-specific code
-                bandwidth_utilization: None,
-            })
-        }
-
-        #[cfg(not(feature = "system-metrics"))]
-        {
-            Ok(MemoryMetrics {
-                total_physical: 0,
-                available_physical: 0,
-                used_physical: 0,
-                total_virtual: 0,
-                available_virtual: 0,
-                pressure: 0.0,
-                page_faults: 0,
-                bandwidth_utilization: None,
-            })
-        }
+        Ok(MemoryMetrics {
+            total_physical,
+            available_physical,
+            used_physical,
+            total_virtual: system.total_swap(),
+            available_virtual: system.free_swap(),
+            pressure,
+            page_faults: 0,
+            bandwidth_utilization: None,
+        })
     }
 
     /// Collect GPU utilization metrics (platform-specific)
     fn collect_gpu_metrics(&self) -> Result<Option<GpuMetrics>, Box<dyn std::error::Error>> {
-        // GPU metrics collection would require platform-specific implementations:
-        // - Windows: DirectX/DXGI APIs
-        // - Linux: nvidia-ml-py, ROCm, Intel GPU tools
-        // - macOS: Metal Performance Shaders, system_profiler
-
         #[cfg(target_os = "linux")]
         {
-            // Try to read NVIDIA GPU metrics
             if let Ok(gpu_metrics) = self.collect_nvidia_gpu_metrics() {
                 return Ok(Some(gpu_metrics));
             }
@@ -296,7 +264,6 @@ impl SystemProfiler {
 
         #[cfg(target_os = "windows")]
         {
-            // Try to read GPU metrics via WMI/DXGI
             if let Ok(gpu_metrics) = self.collect_windows_gpu_metrics() {
                 return Ok(Some(gpu_metrics));
             }
@@ -304,7 +271,6 @@ impl SystemProfiler {
 
         #[cfg(target_os = "macos")]
         {
-            // Try to read GPU metrics via Metal/IOKit
             if let Ok(gpu_metrics) = self.collect_macos_gpu_metrics() {
                 return Ok(Some(gpu_metrics));
             }
@@ -315,11 +281,6 @@ impl SystemProfiler {
 
     /// Collect I/O subsystem metrics
     fn collect_io_metrics(&self) -> Result<IoMetrics, Box<dyn std::error::Error>> {
-        // I/O metrics would be collected from:
-        // - Linux: /proc/diskstats, /sys/block/*/stat
-        // - Windows: Performance Counters
-        // - macOS: IOKit, system_profiler
-
         Ok(IoMetrics {
             disk_read_bps: 0,
             disk_write_bps: 0,
@@ -332,70 +293,35 @@ impl SystemProfiler {
 
     /// Collect network utilization metrics
     fn collect_network_metrics(&self) -> Result<NetworkMetrics, Box<dyn std::error::Error>> {
-        #[cfg(feature = "system-metrics")]
-        {
-            // Network monitoring temporarily disabled due to sysinfo API changes
-            let total_rx = 0;
-            let total_tx = 0;
-
-            Ok(NetworkMetrics {
-                rx_bps: total_rx,
-                tx_bps: total_tx,
-                rx_pps: 0, // Would need more detailed monitoring
-                tx_pps: 0,
-                latency_ms: None,
-                connections: 0,
-            })
-        }
-
-        #[cfg(not(feature = "system-metrics"))]
-        {
-            Ok(NetworkMetrics {
-                rx_bps: 0,
-                tx_bps: 0,
-                rx_pps: 0,
-                tx_pps: 0,
-                latency_ms: None,
-                connections: 0,
-            })
-        }
+        Ok(NetworkMetrics {
+            rx_bps: 0,
+            tx_bps: 0,
+            rx_pps: 0,
+            tx_pps: 0,
+            latency_ms: None,
+            connections: 0,
+        })
     }
 
     /// Collect current process metrics
     fn collect_process_metrics(&self) -> Result<ProcessMetrics, Box<dyn std::error::Error>> {
-        #[cfg(feature = "system-metrics")]
-        {
-            let mut system = self.system.borrow_mut();
-            system.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
+        let mut system = self.system.borrow_mut();
+        system.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
 
-            let current_pid = sysinfo::get_current_pid()?;
+        let current_pid = sysinfo::get_current_pid()?;
 
-            if let Some(process) = system.process(current_pid) {
-                Ok(ProcessMetrics {
-                    pid: current_pid.as_u32(),
-                    name: process.name().to_string_lossy().to_string(),
-                    cpu_usage: process.cpu_usage(),
-                    memory_usage: process.memory(),
-                    thread_count: 0, // Would need platform-specific code
-                    handle_count: 0,
-                    priority: 0,
-                })
-            } else {
-                Err("Could not find current process".into())
-            }
-        }
-
-        #[cfg(not(feature = "system-metrics"))]
-        {
+        if let Some(process) = system.process(current_pid) {
             Ok(ProcessMetrics {
-                pid: std::process::id(),
-                name: "unknown".to_string(),
-                cpu_usage: 0.0,
-                memory_usage: 0,
+                pid: current_pid.as_u32(),
+                name: process.name().to_string_lossy().to_string(),
+                cpu_usage: process.cpu_usage(),
+                memory_usage: process.memory(),
                 thread_count: 0,
                 handle_count: 0,
                 priority: 0,
             })
+        } else {
+            Err("Could not find current process".into())
         }
     }
 
@@ -405,12 +331,6 @@ impl SystemProfiler {
     ) -> Result<HashMap<u64, ThreadMetrics>, Box<dyn std::error::Error>> {
         let mut thread_metrics = HashMap::new();
 
-        // Thread-level metrics would require platform-specific implementation:
-        // - Linux: /proc/[pid]/task/[tid]/* files
-        // - Windows: Thread performance counters
-        // - macOS: thread_info() system calls
-
-        // For now, return current thread info
         let current_thread_id = get_current_thread_id();
         thread_metrics.insert(
             current_thread_id,
@@ -427,22 +347,18 @@ impl SystemProfiler {
         Ok(thread_metrics)
     }
 
-    // Platform-specific GPU collection methods
     #[cfg(target_os = "linux")]
     fn collect_nvidia_gpu_metrics(&self) -> Result<GpuMetrics, Box<dyn std::error::Error>> {
-        // Implementation would use nvidia-ml-py or similar
         Err("NVIDIA GPU metrics not implemented".into())
     }
 
     #[cfg(target_os = "windows")]
     fn collect_windows_gpu_metrics(&self) -> Result<GpuMetrics, Box<dyn std::error::Error>> {
-        // Implementation would use DXGI or WMI
         Err("Windows GPU metrics not implemented".into())
     }
 
     #[cfg(target_os = "macos")]
     fn collect_macos_gpu_metrics(&self) -> Result<GpuMetrics, Box<dyn std::error::Error>> {
-        // Implementation would use Metal or IOKit
         Err("macOS GPU metrics not implemented".into())
     }
 }

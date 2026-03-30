@@ -46,7 +46,6 @@ pub struct Event {
     #[cfg(feature = "backtrace")]
     pub real_call_stack: Option<RealCallStack>,
     /// System performance metrics
-    #[cfg(feature = "system-metrics")]
     pub system_metrics: Option<SystemMetrics>,
     /// Advanced analysis data
     #[cfg(feature = "advanced-analysis")]
@@ -117,7 +116,6 @@ pub struct StackFrame {
 }
 
 /// System performance metrics
-#[cfg(feature = "system-metrics")]
 #[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode)]
 pub struct SystemMetrics {
     /// CPU usage percentage (0-100)
@@ -344,7 +342,6 @@ impl ThreadLocalTracker {
                     None
                 },
 
-                #[cfg(feature = "system-metrics")]
                 system_metrics: if _should_collect_enhanced {
                     collect_system_metrics()
                 } else {
@@ -431,7 +428,6 @@ impl ThreadLocalTracker {
                     None
                 },
 
-                #[cfg(feature = "system-metrics")]
                 system_metrics: if _should_collect_enhanced {
                     collect_system_metrics()
                 } else {
@@ -694,11 +690,9 @@ fn capture_real_call_stack() -> Option<RealCallStack> {
 }
 
 /// Collect system performance metrics
-#[cfg(feature = "system-metrics")]
 fn collect_system_metrics() -> Option<SystemMetrics> {
     use sysinfo::{Pid, System};
 
-    // Use thread-local system info to avoid repeated initialization
     thread_local! {
         static SYSTEM: std::cell::RefCell<System> = std::cell::RefCell::new(System::new_all());
     }
@@ -709,27 +703,22 @@ fn collect_system_metrics() -> Option<SystemMetrics> {
         system.refresh_memory();
         system.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
 
-        // Get CPU usage (sysinfo 0.30+ API)
         let cpu_usage = system.global_cpu_usage();
         let available_memory = system.available_memory();
         let total_memory = system.total_memory();
 
-        // Get load average using new API
         let load_avg = System::load_average();
 
-        // Count processes instead of threads (more reliable)
         let current_pid = sysinfo::get_current_pid().ok()?;
         let thread_count = if system
             .process(Pid::from_u32(current_pid.as_u32()))
             .is_some()
         {
-            // Estimate thread count as we can't access tasks directly
             num_cpus::get()
         } else {
             1
         };
 
-        // Calculate fragmentation ratio estimate
         let used_memory = total_memory - available_memory;
         let fragmentation_ratio = if total_memory > 0 {
             (used_memory as f32 / total_memory as f32).min(1.0)
