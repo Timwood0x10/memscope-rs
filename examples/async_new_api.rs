@@ -287,8 +287,8 @@ async fn execute_task(
 
 async fn execute_cpu_intensive(
     config: &TaskConfig,
-    tracker: &memscope_rs::tracker::Tracker,
-    allocations: &mut usize,
+    _tracker: &memscope_rs::tracker::Tracker,
+    _allocations: &mut usize,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let iterations = match config.intensity {
         IntensityLevel::Light => 1_000_000,
@@ -337,7 +337,7 @@ async fn execute_io_intensive(
         file_size / 1024
     );
 
-    let mut total_bytes = 0u64;
+    let mut _total_bytes = 0u64;
 
     for i in 0..file_count {
         let filename = format!("tmp_async_io_{}.dat", i);
@@ -356,7 +356,7 @@ async fn execute_io_intensive(
         // Cleanup
         tokio::fs::remove_file(&filename).await.ok();
 
-        total_bytes += file_size as u64;
+        _total_bytes += file_size as u64;
 
         if i % 10 == 0 {
             tokio::task::yield_now().await;
@@ -383,8 +383,8 @@ async fn execute_network_intensive(
         request_count
     );
 
-    let mut total_bytes = 0u64;
-    let mut successful_requests = 0;
+    let mut _total_bytes = 0u64;
+    let mut _successful_requests = 0;
 
     // Simulate concurrent HTTP requests
     let mut handles = Vec::new();
@@ -415,8 +415,8 @@ async fn execute_network_intensive(
         if let Ok(Ok((_, response_data))) = handle.await {
             track!(tracker, response_data);
             *allocations += 1;
-            total_bytes += response_data.len() as u64;
-            successful_requests += 1;
+            _total_bytes += response_data.len() as u64;
+            _successful_requests += 1;
         }
     }
 
@@ -461,8 +461,8 @@ async fn execute_memory_intensive(
 
 async fn execute_streaming(
     config: &TaskConfig,
-    tracker: &memscope_rs::tracker::Tracker,
-    allocations: &mut usize,
+    _tracker: &memscope_rs::tracker::Tracker,
+    _allocations: &mut usize,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let stream_duration = Duration::from_secs(config.duration_secs);
     let batch_size = match config.intensity {
@@ -478,7 +478,7 @@ async fn execute_streaming(
     );
 
     let start_time = std::time::Instant::now();
-    let mut total_processed = 0;
+    let mut _total_processed = 0;
     let mut batch_count = 0;
 
     while start_time.elapsed() < stream_duration {
@@ -491,7 +491,7 @@ async fn execute_streaming(
             batch_data.push(processed_item);
         }
 
-        total_processed += batch_data.len();
+        _total_processed += batch_data.len();
         batch_count += 1;
 
         // Simulate backpressure handling

@@ -36,6 +36,7 @@ enum WorkloadType {
 /// Thread execution statistics
 #[derive(Debug, Clone)]
 struct ThreadStats {
+    #[allow(dead_code)]
     thread_id: usize,
     workload_type: WorkloadType,
     total_allocations: usize,
@@ -320,10 +321,10 @@ fn execute_workload(
 
             for i in 0..iterations {
                 let key = i % 50;
-                if !cache.contains_key(&key) {
+                if let std::collections::hash_map::Entry::Vacant(e) = cache.entry(key) {
                     let data = vec![i as u8; 4096 + (key % 10) * 2048];
                     track!(tracker, data);
-                    cache.insert(key, data.clone());
+                    e.insert(data.clone());
 
                     allocation_count += 1;
                     peak_memory_bytes += data.len() as u64;

@@ -352,11 +352,12 @@ mod tests {
 
     #[test]
     fn test_component_scores_overall() {
-        let mut scores = ComponentScores::default();
-        scores.cpu_efficiency = 0.8;
-        scores.memory_efficiency = 0.6;
-        scores.io_efficiency = 0.4;
-        scores.network_efficiency = 0.2;
+        let scores = ComponentScores {
+            cpu_efficiency: 0.8,
+            memory_efficiency: 0.6,
+            io_efficiency: 0.4,
+            network_efficiency: 0.2,
+        };
 
         let overall = scores.overall();
         assert_eq!(overall, 0.5);

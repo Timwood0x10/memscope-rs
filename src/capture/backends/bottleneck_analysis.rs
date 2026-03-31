@@ -93,6 +93,30 @@ pub struct BottleneckMetrics {
     pub average_allocation_size: f64,
 }
 
+/// Task metrics for bottleneck analysis
+///
+/// This structure contains all performance metrics needed for bottleneck detection
+/// across CPU, memory, I/O, network, and allocation patterns.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaskMetrics {
+    /// Unique identifier for the task
+    pub task_id: u64,
+    /// Human-readable task name
+    pub task_name: String,
+    /// CPU usage percentage (0.0 to 100.0)
+    pub cpu_usage_percent: f64,
+    /// Memory usage percentage (0.0 to 100.0)
+    pub memory_usage_percent: f64,
+    /// Total I/O bytes processed
+    pub io_bytes_processed: u64,
+    /// Total network bytes transferred
+    pub network_bytes_transferred: u64,
+    /// Allocation frequency in allocations per second
+    pub allocation_frequency: f64,
+    /// Average allocation size in bytes
+    pub average_allocation_size: f64,
+}
+
 impl Default for BottleneckMetrics {
     fn default() -> Self {
         Self {
@@ -170,34 +194,26 @@ impl BottleneckAnalyzer {
     }
 
     /// Analyze task for bottlenecks
-    #[allow(clippy::too_many_arguments)]
-    pub fn analyze_task(
-        &self,
-        task_id: u64,
-        task_name: &str,
-        cpu_usage_percent: f64,
-        memory_usage_percent: f64,
-        io_bytes_processed: u64,
-        network_bytes_transferred: u64,
-        allocation_frequency: f64,
-        average_allocation_size: f64,
-    ) -> Vec<PerformanceIssue> {
+    pub fn analyze_task(&self, metrics: &TaskMetrics) -> Vec<PerformanceIssue> {
         let mut bottlenecks = Vec::new();
         let timestamp_ms = Self::current_timestamp_ms();
 
         if self.config.enable_cpu_detection {
-            if let Some(bottleneck) =
-                self.detect_cpu_bottleneck(task_id, task_name, cpu_usage_percent, timestamp_ms)
-            {
+            if let Some(bottleneck) = self.detect_cpu_bottleneck(
+                metrics.task_id,
+                &metrics.task_name,
+                metrics.cpu_usage_percent,
+                timestamp_ms,
+            ) {
                 bottlenecks.push(bottleneck);
             }
         }
 
         if self.config.enable_memory_detection {
             if let Some(bottleneck) = self.detect_memory_bottleneck(
-                task_id,
-                task_name,
-                memory_usage_percent,
+                metrics.task_id,
+                &metrics.task_name,
+                metrics.memory_usage_percent,
                 timestamp_ms,
             ) {
                 bottlenecks.push(bottleneck);
@@ -205,18 +221,21 @@ impl BottleneckAnalyzer {
         }
 
         if self.config.enable_io_detection {
-            if let Some(bottleneck) =
-                self.detect_io_bottleneck(task_id, task_name, io_bytes_processed, timestamp_ms)
-            {
+            if let Some(bottleneck) = self.detect_io_bottleneck(
+                metrics.task_id,
+                &metrics.task_name,
+                metrics.io_bytes_processed,
+                timestamp_ms,
+            ) {
                 bottlenecks.push(bottleneck);
             }
         }
 
         if self.config.enable_network_detection {
             if let Some(bottleneck) = self.detect_network_bottleneck(
-                task_id,
-                task_name,
-                network_bytes_transferred,
+                metrics.task_id,
+                &metrics.task_name,
+                metrics.network_bytes_transferred,
                 timestamp_ms,
             ) {
                 bottlenecks.push(bottleneck);
@@ -225,10 +244,10 @@ impl BottleneckAnalyzer {
 
         if self.config.enable_allocation_detection {
             if let Some(bottleneck) = self.detect_allocation_bottleneck(
-                task_id,
-                task_name,
-                allocation_frequency,
-                average_allocation_size,
+                metrics.task_id,
+                &metrics.task_name,
+                metrics.allocation_frequency,
+                metrics.average_allocation_size,
                 timestamp_ms,
             ) {
                 bottlenecks.push(bottleneck);
@@ -562,7 +581,17 @@ mod tests {
     #[test]
     fn test_cpu_bottleneck_detection() {
         let analyzer = BottleneckAnalyzer::new();
-        let bottlenecks = analyzer.analyze_task(1, "test_task", 90.0, 50.0, 0, 0, 0.0, 0.0);
+        let metrics = TaskMetrics {
+            task_id: 1,
+            task_name: "test_task".to_string(),
+            cpu_usage_percent: 90.0,
+            memory_usage_percent: 50.0,
+            io_bytes_processed: 0,
+            network_bytes_transferred: 0,
+            allocation_frequency: 0.0,
+            average_allocation_size: 0.0,
+        };
+        let bottlenecks = analyzer.analyze_task(&metrics);
 
         assert!(!bottlenecks.is_empty());
         assert_eq!(bottlenecks[0].bottleneck_type, BottleneckKind::Cpu);
@@ -572,7 +601,17 @@ mod tests {
     #[test]
     fn test_memory_bottleneck_detection() {
         let analyzer = BottleneckAnalyzer::new();
-        let bottlenecks = analyzer.analyze_task(1, "test_task", 50.0, 90.0, 0, 0, 0.0, 0.0);
+        let metrics = TaskMetrics {
+            task_id: 1,
+            task_name: "test_task".to_string(),
+            cpu_usage_percent: 50.0,
+            memory_usage_percent: 90.0,
+            io_bytes_processed: 0,
+            network_bytes_transferred: 0,
+            allocation_frequency: 0.0,
+            average_allocation_size: 0.0,
+        };
+        let bottlenecks = analyzer.analyze_task(&metrics);
 
         assert!(!bottlenecks.is_empty());
         assert_eq!(bottlenecks[0].bottleneck_type, BottleneckKind::Memory);
@@ -582,8 +621,17 @@ mod tests {
     #[test]
     fn test_io_bottleneck_detection() {
         let analyzer = BottleneckAnalyzer::new();
-        let bottlenecks =
-            analyzer.analyze_task(1, "test_task", 50.0, 50.0, 500_000_000, 0, 0.0, 0.0);
+        let metrics = TaskMetrics {
+            task_id: 1,
+            task_name: "test_task".to_string(),
+            cpu_usage_percent: 50.0,
+            memory_usage_percent: 50.0,
+            io_bytes_processed: 500_000_000,
+            network_bytes_transferred: 0,
+            allocation_frequency: 0.0,
+            average_allocation_size: 0.0,
+        };
+        let bottlenecks = analyzer.analyze_task(&metrics);
 
         assert!(!bottlenecks.is_empty());
         assert_eq!(bottlenecks[0].bottleneck_type, BottleneckKind::Io);
@@ -593,8 +641,17 @@ mod tests {
     #[test]
     fn test_network_bottleneck_detection() {
         let analyzer = BottleneckAnalyzer::new();
-        let bottlenecks =
-            analyzer.analyze_task(1, "test_task", 50.0, 50.0, 0, 100_000_000, 0.0, 0.0);
+        let metrics = TaskMetrics {
+            task_id: 1,
+            task_name: "test_task".to_string(),
+            cpu_usage_percent: 50.0,
+            memory_usage_percent: 50.0,
+            io_bytes_processed: 0,
+            network_bytes_transferred: 100_000_000,
+            allocation_frequency: 0.0,
+            average_allocation_size: 0.0,
+        };
+        let bottlenecks = analyzer.analyze_task(&metrics);
 
         assert!(!bottlenecks.is_empty());
         assert_eq!(bottlenecks[0].bottleneck_type, BottleneckKind::Network);
@@ -604,7 +661,17 @@ mod tests {
     #[test]
     fn test_allocation_bottleneck_detection() {
         let analyzer = BottleneckAnalyzer::new();
-        let bottlenecks = analyzer.analyze_task(1, "test_task", 50.0, 50.0, 0, 0, 2000.0, 512.0);
+        let metrics = TaskMetrics {
+            task_id: 1,
+            task_name: "test_task".to_string(),
+            cpu_usage_percent: 50.0,
+            memory_usage_percent: 50.0,
+            io_bytes_processed: 0,
+            network_bytes_transferred: 0,
+            allocation_frequency: 2000.0,
+            average_allocation_size: 512.0,
+        };
+        let bottlenecks = analyzer.analyze_task(&metrics);
 
         assert!(!bottlenecks.is_empty());
         assert_eq!(bottlenecks[0].bottleneck_type, BottleneckKind::Allocation);
@@ -614,18 +681,40 @@ mod tests {
     #[test]
     fn test_no_bottleneck_below_threshold() {
         let analyzer = BottleneckAnalyzer::new();
-        let bottlenecks = analyzer.analyze_task(1, "test_task", 50.0, 50.0, 0, 0, 0.0, 0.0);
+        let metrics = TaskMetrics {
+            task_id: 1,
+            task_name: "test_task".to_string(),
+            cpu_usage_percent: 50.0,
+            memory_usage_percent: 50.0,
+            io_bytes_processed: 0,
+            network_bytes_transferred: 0,
+            allocation_frequency: 0.0,
+            average_allocation_size: 0.0,
+        };
+        let bottlenecks = analyzer.analyze_task(&metrics);
 
         assert!(bottlenecks.is_empty());
     }
 
     #[test]
     fn test_custom_config() {
-        let mut config = BottleneckConfig::default();
-        config.min_severity_to_report = 0.9;
+        let config = BottleneckConfig {
+            min_severity_to_report: 0.9,
+            ..Default::default()
+        };
         let analyzer = BottleneckAnalyzer::with_config(config);
 
-        let bottlenecks = analyzer.analyze_task(1, "test_task", 85.0, 50.0, 0, 0, 0.0, 0.0);
+        let metrics = TaskMetrics {
+            task_id: 1,
+            task_name: "test_task".to_string(),
+            cpu_usage_percent: 85.0,
+            memory_usage_percent: 50.0,
+            io_bytes_processed: 0,
+            network_bytes_transferred: 0,
+            allocation_frequency: 0.0,
+            average_allocation_size: 0.0,
+        };
+        let bottlenecks = analyzer.analyze_task(&metrics);
 
         assert!(bottlenecks.is_empty());
     }

@@ -47,6 +47,40 @@ pub struct EfficiencyScores {
     pub gpu_efficiency: f64,
 }
 
+/// Task resource metrics for ranking analysis
+///
+/// This structure contains resource usage metrics for a task,
+/// used for calculating efficiency scores and generating optimization recommendations.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaskResourceMetrics {
+    /// Unique identifier for the task
+    pub task_id: u64,
+    /// Human-readable task name
+    pub task_name: String,
+    /// Task type categorization
+    ///
+    /// Supported values (matching TaskType enum):
+    /// - "CpuIntensive": CPU-bound tasks (matrix multiplication, data processing)
+    /// - "IoIntensive": I/O-bound tasks (file operations, database queries)
+    /// - "NetworkIntensive": Network-bound tasks (HTTP requests, RPC calls)
+    /// - "MemoryIntensive": Memory-bound tasks (large data structures, caching)
+    /// - "GpuCompute": GPU compute tasks (CUDA, OpenCL operations)
+    /// - "Mixed": Balanced workload across multiple resources
+    /// - "Streaming": Continuous data processing tasks
+    /// - "Background": Maintenance and cleanup tasks
+    pub task_type: String,
+    /// CPU usage percentage (0.0 to 100.0)
+    pub cpu_usage: f64,
+    /// Memory usage in megabytes
+    pub memory_usage_mb: f64,
+    /// I/O usage in megabytes
+    pub io_usage_mb: f64,
+    /// Network usage in megabytes
+    pub network_usage_mb: f64,
+    /// GPU usage percentage (0.0 to 100.0)
+    pub gpu_usage: f64,
+}
+
 impl EfficiencyScores {
     /// Create new efficiency scores
     pub fn new(cpu: f64, memory: f64, io: f64, network: f64, gpu: f64) -> Self {
@@ -60,20 +94,23 @@ impl EfficiencyScores {
     }
 
     /// Calculate overall efficiency score
-    pub fn overall_score(&self) -> f64 {
-        let scores = vec![
-            self.cpu_efficiency,
-            self.memory_efficiency,
-            self.io_efficiency,
-            self.network_efficiency,
-            self.gpu_efficiency,
-        ];
-        let valid_scores: Vec<f64> = scores.into_iter().filter(|&s| s > 0.0).collect();
+    pub fn overall_score(&self, config: &RankingConfig) -> f64 {
+        let weighted_sum = self.cpu_efficiency * config.cpu_weight
+            + self.memory_efficiency * config.memory_weight
+            + self.io_efficiency * config.io_weight
+            + self.network_efficiency * config.network_weight
+            + self.gpu_efficiency * config.gpu_weight;
 
-        if valid_scores.is_empty() {
+        let total_weight = config.cpu_weight
+            + config.memory_weight
+            + config.io_weight
+            + config.network_weight
+            + config.gpu_weight;
+
+        if total_weight <= 0.0 {
             0.0
         } else {
-            valid_scores.iter().sum::<f64>() / valid_scores.len() as f64
+            weighted_sum / total_weight
         }
     }
 }
@@ -135,57 +172,46 @@ impl ResourceRankingAnalyzer {
     }
 
     /// Analyze and rank resources for a task
-    #[allow(clippy::too_many_arguments)]
-    pub fn analyze_task(
-        &mut self,
-        task_id: u64,
-        task_name: &str,
-        task_type: &str,
-        cpu_usage: f64,
-        memory_usage_mb: f64,
-        io_usage_mb: f64,
-        network_usage_mb: f64,
-        gpu_usage: f64,
-    ) -> ResourceRanking {
+    pub fn analyze_task(&mut self, metrics: &TaskResourceMetrics) -> ResourceRanking {
         let efficiency_scores = EfficiencyScores::new(
-            self.calculate_cpu_efficiency(cpu_usage),
-            self.calculate_memory_efficiency(memory_usage_mb),
-            self.calculate_io_efficiency(io_usage_mb),
-            self.calculate_network_efficiency(network_usage_mb),
-            self.calculate_gpu_efficiency(gpu_usage),
+            self.calculate_cpu_efficiency(metrics.cpu_usage),
+            self.calculate_memory_efficiency(metrics.memory_usage_mb),
+            self.calculate_io_efficiency(metrics.io_usage_mb),
+            self.calculate_network_efficiency(metrics.network_usage_mb),
+            self.calculate_gpu_efficiency(metrics.gpu_usage),
         );
 
         let overall_score = self.calculate_overall_score(
-            cpu_usage,
-            memory_usage_mb,
-            io_usage_mb,
-            network_usage_mb,
-            gpu_usage,
+            metrics.cpu_usage,
+            metrics.memory_usage_mb,
+            metrics.io_usage_mb,
+            metrics.network_usage_mb,
+            metrics.gpu_usage,
         );
 
         let recommendations = if self.config.enable_recommendations {
             self.generate_recommendations(
                 &efficiency_scores,
                 overall_score,
-                cpu_usage,
-                memory_usage_mb,
-                io_usage_mb,
-                network_usage_mb,
-                gpu_usage,
+                metrics.cpu_usage,
+                metrics.memory_usage_mb,
+                metrics.io_usage_mb,
+                metrics.network_usage_mb,
+                metrics.gpu_usage,
             )
         } else {
             Vec::new()
         };
 
         let ranking = ResourceRanking {
-            task_id,
-            task_name: task_name.to_string(),
-            task_type: task_type.to_string(),
-            cpu_usage,
-            memory_usage_mb,
-            io_usage_mb,
-            network_usage_mb,
-            gpu_usage,
+            task_id: metrics.task_id,
+            task_name: metrics.task_name.clone(),
+            task_type: metrics.task_type.clone(),
+            cpu_usage: metrics.cpu_usage,
+            memory_usage_mb: metrics.memory_usage_mb,
+            io_usage_mb: metrics.io_usage_mb,
+            network_usage_mb: metrics.network_usage_mb,
+            gpu_usage: metrics.gpu_usage,
             overall_score,
             efficiency_scores,
             recommendations,
@@ -536,8 +562,10 @@ mod tests {
     #[test]
     fn test_efficiency_scores_overall() {
         let scores = EfficiencyScores::new(0.8, 0.7, 0.9, 0.6, 0.5);
-        let overall = scores.overall_score();
-        assert!((overall - 0.7).abs() < 0.01);
+        let config = RankingConfig::default();
+        let overall = scores.overall_score(&config);
+        let expected = (0.8 * 0.3 + 0.7 * 0.3 + 0.9 * 0.2 + 0.6 * 0.1 + 0.5 * 0.1) / 1.0;
+        assert!((overall - expected).abs() < 0.01);
     }
 
     #[test]
@@ -549,16 +577,17 @@ mod tests {
     #[test]
     fn test_analyze_task() {
         let mut analyzer = ResourceRankingAnalyzer::new();
-        let ranking = analyzer.analyze_task(
-            1,
-            "test_task",
-            "CpuIntensive",
-            60.0,
-            200.0,
-            50.0,
-            30.0,
-            40.0,
-        );
+        let metrics = TaskResourceMetrics {
+            task_id: 1,
+            task_name: "test_task".to_string(),
+            task_type: "CpuIntensive".to_string(),
+            cpu_usage: 60.0,
+            memory_usage_mb: 200.0,
+            io_usage_mb: 50.0,
+            network_usage_mb: 30.0,
+            gpu_usage: 40.0,
+        };
+        let ranking = analyzer.analyze_task(&metrics);
 
         assert_eq!(ranking.task_id, 1);
         assert_eq!(ranking.task_name, "test_task");
@@ -568,8 +597,28 @@ mod tests {
     #[test]
     fn test_get_rankings() {
         let mut analyzer = ResourceRankingAnalyzer::new();
-        analyzer.analyze_task(1, "task1", "CpuIntensive", 80.0, 200.0, 50.0, 30.0, 40.0);
-        analyzer.analyze_task(2, "task2", "CpuIntensive", 40.0, 100.0, 30.0, 20.0, 30.0);
+        let metrics1 = TaskResourceMetrics {
+            task_id: 1,
+            task_name: "task1".to_string(),
+            task_type: "CpuIntensive".to_string(),
+            cpu_usage: 80.0,
+            memory_usage_mb: 200.0,
+            io_usage_mb: 50.0,
+            network_usage_mb: 30.0,
+            gpu_usage: 40.0,
+        };
+        let metrics2 = TaskResourceMetrics {
+            task_id: 2,
+            task_name: "task2".to_string(),
+            task_type: "CpuIntensive".to_string(),
+            cpu_usage: 40.0,
+            memory_usage_mb: 100.0,
+            io_usage_mb: 30.0,
+            network_usage_mb: 20.0,
+            gpu_usage: 30.0,
+        };
+        analyzer.analyze_task(&metrics1);
+        analyzer.analyze_task(&metrics2);
 
         let rankings = analyzer.get_rankings();
         assert_eq!(rankings.len(), 2);
@@ -579,9 +628,39 @@ mod tests {
     #[test]
     fn test_get_top_rankings() {
         let mut analyzer = ResourceRankingAnalyzer::new();
-        analyzer.analyze_task(1, "task1", "CpuIntensive", 80.0, 200.0, 50.0, 30.0, 40.0);
-        analyzer.analyze_task(2, "task2", "CpuIntensive", 40.0, 100.0, 30.0, 20.0, 30.0);
-        analyzer.analyze_task(3, "task3", "CpuIntensive", 60.0, 150.0, 40.0, 25.0, 35.0);
+        let metrics1 = TaskResourceMetrics {
+            task_id: 1,
+            task_name: "task1".to_string(),
+            task_type: "CpuIntensive".to_string(),
+            cpu_usage: 80.0,
+            memory_usage_mb: 200.0,
+            io_usage_mb: 50.0,
+            network_usage_mb: 30.0,
+            gpu_usage: 40.0,
+        };
+        let metrics2 = TaskResourceMetrics {
+            task_id: 2,
+            task_name: "task2".to_string(),
+            task_type: "CpuIntensive".to_string(),
+            cpu_usage: 40.0,
+            memory_usage_mb: 100.0,
+            io_usage_mb: 30.0,
+            network_usage_mb: 20.0,
+            gpu_usage: 30.0,
+        };
+        let metrics3 = TaskResourceMetrics {
+            task_id: 3,
+            task_name: "task3".to_string(),
+            task_type: "CpuIntensive".to_string(),
+            cpu_usage: 60.0,
+            memory_usage_mb: 150.0,
+            io_usage_mb: 40.0,
+            network_usage_mb: 25.0,
+            gpu_usage: 35.0,
+        };
+        analyzer.analyze_task(&metrics1);
+        analyzer.analyze_task(&metrics2);
+        analyzer.analyze_task(&metrics3);
 
         let top = analyzer.get_top_rankings(2);
         assert_eq!(top.len(), 2);
@@ -590,8 +669,28 @@ mod tests {
     #[test]
     fn test_get_rankings_by_type() {
         let mut analyzer = ResourceRankingAnalyzer::new();
-        analyzer.analyze_task(1, "task1", "CpuIntensive", 60.0, 200.0, 50.0, 30.0, 40.0);
-        analyzer.analyze_task(2, "task2", "IoIntensive", 40.0, 100.0, 80.0, 20.0, 30.0);
+        let metrics1 = TaskResourceMetrics {
+            task_id: 1,
+            task_name: "task1".to_string(),
+            task_type: "CpuIntensive".to_string(),
+            cpu_usage: 60.0,
+            memory_usage_mb: 200.0,
+            io_usage_mb: 50.0,
+            network_usage_mb: 30.0,
+            gpu_usage: 40.0,
+        };
+        let metrics2 = TaskResourceMetrics {
+            task_id: 2,
+            task_name: "task2".to_string(),
+            task_type: "IoIntensive".to_string(),
+            cpu_usage: 40.0,
+            memory_usage_mb: 100.0,
+            io_usage_mb: 80.0,
+            network_usage_mb: 20.0,
+            gpu_usage: 30.0,
+        };
+        analyzer.analyze_task(&metrics1);
+        analyzer.analyze_task(&metrics2);
 
         let cpu_rankings = analyzer.get_rankings_by_type("CpuIntensive");
         assert_eq!(cpu_rankings.len(), 1);
@@ -616,7 +715,17 @@ mod tests {
     #[test]
     fn test_clear() {
         let mut analyzer = ResourceRankingAnalyzer::new();
-        analyzer.analyze_task(1, "task1", "CpuIntensive", 60.0, 200.0, 50.0, 30.0, 40.0);
+        let metrics = TaskResourceMetrics {
+            task_id: 1,
+            task_name: "task1".to_string(),
+            task_type: "CpuIntensive".to_string(),
+            cpu_usage: 60.0,
+            memory_usage_mb: 200.0,
+            io_usage_mb: 50.0,
+            network_usage_mb: 30.0,
+            gpu_usage: 40.0,
+        };
+        analyzer.analyze_task(&metrics);
         analyzer.clear();
 
         assert!(analyzer.rankings.is_empty());
@@ -625,8 +734,28 @@ mod tests {
     #[test]
     fn test_get_statistics() {
         let mut analyzer = ResourceRankingAnalyzer::new();
-        analyzer.analyze_task(1, "task1", "CpuIntensive", 60.0, 200.0, 50.0, 30.0, 40.0);
-        analyzer.analyze_task(2, "task2", "CpuIntensive", 40.0, 100.0, 30.0, 20.0, 30.0);
+        let metrics1 = TaskResourceMetrics {
+            task_id: 1,
+            task_name: "task1".to_string(),
+            task_type: "CpuIntensive".to_string(),
+            cpu_usage: 60.0,
+            memory_usage_mb: 200.0,
+            io_usage_mb: 50.0,
+            network_usage_mb: 30.0,
+            gpu_usage: 40.0,
+        };
+        let metrics2 = TaskResourceMetrics {
+            task_id: 2,
+            task_name: "task2".to_string(),
+            task_type: "CpuIntensive".to_string(),
+            cpu_usage: 40.0,
+            memory_usage_mb: 100.0,
+            io_usage_mb: 30.0,
+            network_usage_mb: 20.0,
+            gpu_usage: 30.0,
+        };
+        analyzer.analyze_task(&metrics1);
+        analyzer.analyze_task(&metrics2);
 
         let stats = analyzer.get_statistics();
         assert_eq!(stats.total_tasks, 2);
@@ -636,16 +765,17 @@ mod tests {
     #[test]
     fn test_recommendations_generation() {
         let mut analyzer = ResourceRankingAnalyzer::new();
-        let ranking = analyzer.analyze_task(
-            1,
-            "test_task",
-            "CpuIntensive",
-            95.0,
-            1200.0,
-            600.0,
-            600.0,
-            95.0,
-        );
+        let metrics = TaskResourceMetrics {
+            task_id: 1,
+            task_name: "test_task".to_string(),
+            task_type: "CpuIntensive".to_string(),
+            cpu_usage: 95.0,
+            memory_usage_mb: 1200.0,
+            io_usage_mb: 600.0,
+            network_usage_mb: 600.0,
+            gpu_usage: 95.0,
+        };
+        let ranking = analyzer.analyze_task(&metrics);
 
         assert!(!ranking.recommendations.is_empty());
     }

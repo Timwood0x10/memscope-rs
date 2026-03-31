@@ -68,6 +68,7 @@ pub use efficiency_scoring::{
 // Re-export bottleneck analysis types
 pub use bottleneck_analysis::{
     BottleneckAnalyzer, BottleneckConfig, BottleneckKind, BottleneckMetrics, PerformanceIssue,
+    TaskMetrics,
 };
 
 // Re-export hotspot analysis types
@@ -79,6 +80,7 @@ pub use hotspot_analysis::{
 // Re-export resource ranking types
 pub use resource_ranking::{
     EfficiencyScores, RankingConfig, RankingStatistics, ResourceRanking, ResourceRankingAnalyzer,
+    TaskResourceMetrics,
 };
 
 // Re-export unsafe/FFI tracking types
