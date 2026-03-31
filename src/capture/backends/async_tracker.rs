@@ -10,29 +10,9 @@ use std::thread::ThreadId;
 
 use super::async_types::{
     AsyncAllocation, AsyncError, AsyncMemorySnapshot, AsyncResult, AsyncSnapshot, AsyncStats,
-    TaskInfo, TaskMemoryProfile, TrackedFuture,
+    TaskInfo, TrackedFuture,
 };
-
-use crate::system_monitor;
-
-/// Task types for classification
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub enum TaskType {
-    CpuIntensive,
-    IoIntensive,
-    NetworkIntensive,
-    MemoryIntensive,
-    Streaming,
-    Background,
-    Mixed,
-    GpuCompute,
-}
-
-impl Default for TaskType {
-    fn default() -> Self {
-        Self::Mixed
-    }
-}
+use super::task_profile::{TaskMemoryProfile, TaskType};
 
 /// Task efficiency report
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -116,7 +96,10 @@ impl AsyncTracker {
 
         // Create task profile
         let mut profiles = self.profiles.lock().unwrap();
-        profiles.insert(task_id, TaskMemoryProfile::new(task_id, name));
+        profiles.insert(
+            task_id,
+            TaskMemoryProfile::new(task_id, name, TaskType::default()),
+        );
     }
 
     /// Track a task end.
@@ -131,11 +114,10 @@ impl AsyncTracker {
         };
 
         // Update task profile with duration
-        if let Some(task) = task_info {
+        if let Some(_task) = task_info {
             let mut profiles = self.profiles.lock().unwrap();
             if let Some(profile) = profiles.get_mut(&task_id) {
-                profile.duration_ns = Self::now().saturating_sub(task.created_at);
-                profile.calculate_allocation_rate();
+                profile.mark_completed();
             }
         }
 
@@ -214,7 +196,6 @@ impl AsyncTracker {
             if let Some(profile) = profiles.get_mut(&task_id) {
                 profile.total_allocations += 1;
                 profile.total_bytes += size as u64;
-                profile.calculate_avg_size();
             }
         }
     }

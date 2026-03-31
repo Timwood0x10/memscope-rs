@@ -8,7 +8,7 @@ use std::thread;
 
 /// Helper function to hash thread ID
 #[doc(hidden)]
-pub fn get_heap_ptr_if_trackable<T>(value: &T) -> Option<usize> {
+pub fn get_heap_ptr_if_trackable<T>(_value: &T) -> Option<usize> {
     // This function is a placeholder. In a real implementation,
     // we would check if T implements Trackable and call get_heap_ptr()
     // For now, we return None to indicate we should use stack address

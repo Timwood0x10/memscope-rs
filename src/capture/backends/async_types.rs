@@ -10,9 +10,6 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::thread::ThreadId;
 
-// Re-export TaskType from async_tracker
-pub use super::async_tracker::TaskType;
-
 /// Unique identifier for async tasks
 pub type TaskId = u128;
 
@@ -296,7 +293,7 @@ impl fmt::Display for AsyncError {
                 }
             }
             Self::System { operation, message } => {
-                write!(f, "System error during {}: {}", operation, message)
+                write!(f, "System error during {operation}: {message}")
             }
         }
     }
@@ -306,80 +303,6 @@ impl std::error::Error for AsyncError {}
 
 /// Result type for async memory tracking operations
 pub type AsyncResult<T> = Result<T, AsyncError>;
-
-/// Task memory profile with performance metrics
-#[derive(Debug, Clone)]
-pub struct TaskMemoryProfile {
-    /// Task ID
-    pub task_id: u64,
-    /// Task name
-    pub task_name: String,
-    /// Task type
-    pub task_type: TaskType,
-    /// Total allocations
-    pub total_allocations: u64,
-    /// Total bytes allocated
-    pub total_bytes: u64,
-    /// Peak memory usage
-    pub peak_memory: u64,
-    /// Allocation count by size
-    pub size_distribution: Vec<(usize, u64)>,
-    /// Average allocation size
-    pub avg_allocation_size: f64,
-    /// Task duration in nanoseconds
-    pub duration_ns: u64,
-    /// Allocation rate (allocations per second)
-    pub allocation_rate: f64,
-}
-
-impl TaskMemoryProfile {
-    /// Create a new task memory profile
-    pub fn new(task_id: u64, task_name: String) -> Self {
-        Self {
-            task_id,
-            task_name,
-            task_type: TaskType::default(),
-            total_allocations: 0,
-            total_bytes: 0,
-            peak_memory: 0,
-            size_distribution: Vec::new(),
-            avg_allocation_size: 0.0,
-            duration_ns: 0,
-            allocation_rate: 0.0,
-        }
-    }
-
-    /// Create a new task memory profile with task type
-    pub fn with_type(task_id: u64, task_name: String, task_type: TaskType) -> Self {
-        Self {
-            task_id,
-            task_name,
-            task_type,
-            total_allocations: 0,
-            total_bytes: 0,
-            peak_memory: 0,
-            size_distribution: Vec::new(),
-            avg_allocation_size: 0.0,
-            duration_ns: 0,
-            allocation_rate: 0.0,
-        }
-    }
-
-    /// Calculate average allocation size
-    pub fn calculate_avg_size(&mut self) {
-        if self.total_allocations > 0 {
-            self.avg_allocation_size = self.total_bytes as f64 / self.total_allocations as f64;
-        }
-    }
-
-    /// Calculate allocation rate
-    pub fn calculate_allocation_rate(&mut self) {
-        if self.duration_ns > 0 {
-            let seconds = self.duration_ns as f64 / 1_000_000_000.0;
-            self.allocation_rate = self.total_allocations as f64 / seconds;
-        }
-    }
-}
 
 /// Tracked future wrapper for task-level memory tracking
 pub struct TrackedFuture<F> {
@@ -611,15 +534,6 @@ mod tests {
         let error = AsyncError::initialization("tracker", "Failed to start", true);
         assert!(error.is_recoverable());
         assert_eq!(error.message(), "Failed to start");
-    }
-
-    #[test]
-    fn test_task_memory_profile() {
-        let mut profile = TaskMemoryProfile::new(1, "test".to_string());
-        profile.total_allocations = 100;
-        profile.total_bytes = 102400;
-        profile.calculate_avg_size();
-        assert_eq!(profile.avg_allocation_size, 1024.0);
     }
 
     #[test]

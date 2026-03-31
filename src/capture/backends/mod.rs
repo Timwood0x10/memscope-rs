@@ -18,6 +18,15 @@ pub mod lockfree_types;
 pub mod async_tracker;
 pub mod async_types;
 
+// Task profile modules (task-level memory profiling)
+pub mod task_profile;
+
+// Efficiency scoring modules
+pub mod efficiency_scoring;
+
+// Unsafe/FFI tracking modules
+pub mod unsafe_tracking;
+
 // Unified tracking modules (split for 1000-line limit)
 pub mod unified_tracker;
 
@@ -36,7 +45,22 @@ pub use async_tracker::{
 };
 pub use async_types::{
     AsyncAllocation, AsyncError, AsyncMemorySnapshot, AsyncResult, AsyncSnapshot, AsyncStats,
-    ExtendedTaskInfo, TaskId, TaskInfo, TaskMemoryProfile, TrackedFuture,
+    ExtendedTaskInfo, TaskId, TaskInfo, TrackedFuture,
+};
+
+// Re-export task profile types
+pub use task_profile::{AggregatedTaskStats, TaskMemoryProfile, TaskProfileManager, TaskType};
+
+// Re-export efficiency scoring types
+pub use efficiency_scoring::{
+    ComponentScores, EfficiencyConfig, EfficiencyScorer, EfficiencyWeights,
+};
+
+// Re-export unsafe/FFI tracking types
+pub use unsafe_tracking::{
+    AllocationInfo, AllocationOrigin, AllocationSource, MemoryPassport, OwnershipInfo,
+    PassportStamp, SafetyViolation, SecurityClearance, UnsafeTracker, UnsafeTrackingConfig,
+    UnsafeTrackingStats, ValidityStatus, ViolationSeverity,
 };
 
 // Re-export lockfree tracker types

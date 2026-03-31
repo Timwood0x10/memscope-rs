@@ -5,6 +5,32 @@
 //! - FFI memory operations (malloc, free from C libraries)
 //! - Cross-boundary memory transfers
 //! - Safety violation detection
+//!
+//! # Deprecated
+//!
+//! This module is **deprecated** and will be removed in a future version.
+//! Please use the new unified API in `crate::capture::backends::unsafe_tracking` instead.
+//!
+//! ## Migration Guide
+//!
+//! Old API:
+//! ```rust
+//! use memscope_rs::analysis::unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, UnsafeFFITracker};
+//! let tracker = get_global_unsafe_ffi_tracker();
+//! tracker.track_unsafe_allocation(ptr, size, location)?;
+//! ```
+//!
+//! New API:
+//! ```rust
+//! use memscope_rs::capture::backends::unsafe_tracking::UnsafeTracker;
+//! let tracker = UnsafeTracker::new();
+//! tracker.track_unsafe_allocation(ptr, size, location)?;
+//! ```
+
+#[deprecated(
+    since = "0.1.10",
+    note = "Use the new unified API in `crate::capture::backends::unsafe_tracking` instead"
+)]
 use crate::analysis::ffi_function_resolver::{get_global_ffi_resolver, ResolvedFfiFunction};
 use crate::core::types::{AllocationInfo, TrackingError, TrackingResult};
 use crate::core::{get_global_call_stack_normalizer, CallStackRef};

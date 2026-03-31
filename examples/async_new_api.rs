@@ -474,8 +474,7 @@ async fn execute_streaming(
 
     println!(
         "📡 Starting streaming task: {} items/batch for {} seconds",
-        batch_size,
-        config.duration_secs
+        batch_size, config.duration_secs
     );
 
     let start_time = std::time::Instant::now();

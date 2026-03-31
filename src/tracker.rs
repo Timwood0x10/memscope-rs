@@ -38,7 +38,6 @@
 
 use crate::core::tracker::MemoryTracker;
 use crate::system_monitor;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -161,14 +160,14 @@ impl Tracker {
         self
     }
 
-    pub fn with_sampling(mut self, config: SamplingConfig) -> Self {
+    pub fn with_sampling(self, config: SamplingConfig) -> Self {
         if let Ok(mut cfg) = self.config.lock() {
             cfg.sampling = config;
         }
         self
     }
 
-    pub fn with_auto_export(mut self, path: &str) -> Self {
+    pub fn with_auto_export(self, path: &str) -> Self {
         if let Ok(mut cfg) = self.config.lock() {
             cfg.auto_export_on_drop = true;
             cfg.export_path = Some(path.to_string());
@@ -502,7 +501,7 @@ mod tests {
         println!("CPU: {:.2}%", cpu);
         println!("Memory: {} / {} bytes", mem, total);
 
-        assert!(cpu >= 0.0 && cpu <= 100.0);
+        assert!((0.0..=100.0).contains(&cpu));
         assert!(total > 0);
     }
 

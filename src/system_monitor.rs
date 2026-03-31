@@ -56,13 +56,13 @@ impl SystemMonitor {
         let cpu_usage_clone = cpu_usage.clone();
         let memory_available_clone = memory_available.clone();
         let memory_total_clone = memory_total.clone();
-        let disk_read_bps_clone = disk_read_bps.clone();
-        let disk_write_bps_clone = disk_write_bps.clone();
-        let network_rx_bps_clone = network_rx_bps.clone();
-        let network_tx_bps_clone = network_tx_bps.clone();
-        let gpu_usage_clone = gpu_usage.clone();
-        let gpu_memory_used_clone = gpu_memory_used.clone();
-        let gpu_memory_total_clone = gpu_memory_total.clone();
+        let _disk_read_bps_clone = disk_read_bps.clone();
+        let _disk_write_bps_clone = disk_write_bps.clone();
+        let _network_rx_bps_clone = network_rx_bps.clone();
+        let _network_tx_bps_clone = network_tx_bps.clone();
+        let _gpu_usage_clone = gpu_usage.clone();
+        let _gpu_memory_used_clone = gpu_memory_used.clone();
+        let _gpu_memory_total_clone = gpu_memory_total.clone();
         let last_update_clone = last_update.clone();
         let running_clone = running.clone();
 
@@ -71,10 +71,10 @@ impl SystemMonitor {
             sys.refresh_all();
 
             let mut last_refresh = Instant::now();
-            let mut last_disk_read = 0u64;
-            let mut last_disk_write = 0u64;
-            let mut last_network_rx = 0u64;
-            let mut last_network_tx = 0u64;
+            let _last_disk_read = 0u64;
+            let _last_disk_write = 0u64;
+            let _last_network_rx = 0u64;
+            let _last_network_tx = 0u64;
 
             while running_clone.load(Ordering::Relaxed) {
                 let now = Instant::now();
