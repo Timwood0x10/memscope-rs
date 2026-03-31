@@ -545,6 +545,7 @@ impl Default for BottleneckAnalyzer {
     }
 }
 
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -626,7 +627,7 @@ mod tests {
             task_name: "test_task".to_string(),
             cpu_usage_percent: 50.0,
             memory_usage_percent: 50.0,
-            io_bytes_processed: 500_000_000,
+            io_bytes_processed: 750_000_000,
             network_bytes_transferred: 0,
             allocation_frequency: 0.0,
             average_allocation_size: 0.0,
@@ -647,7 +648,8 @@ mod tests {
             cpu_usage_percent: 50.0,
             memory_usage_percent: 50.0,
             io_bytes_processed: 0,
-            network_bytes_transferred: 100_000_000,
+            // Need at least ~35MB to trigger network bottleneck with default threshold (0.7)
+            network_bytes_transferred: 350_000_000, // 334MB
             allocation_frequency: 0.0,
             average_allocation_size: 0.0,
         };
@@ -668,7 +670,8 @@ mod tests {
             memory_usage_percent: 50.0,
             io_bytes_processed: 0,
             network_bytes_transferred: 0,
-            allocation_frequency: 2000.0,
+            // Need >= 8200 allocations/sec to trigger with default threshold (0.8)
+            allocation_frequency: 9000.0,
             average_allocation_size: 512.0,
         };
         let bottlenecks = analyzer.analyze_task(&metrics);
