@@ -481,7 +481,6 @@ pub struct OwnershipStatistics {
     pub average_events_per_allocation: f64,
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -523,18 +522,10 @@ mod tests {
         recorder.record_event(source_ptr, OwnershipEventType::Allocated, 512);
 
         // Record first clone
-        recorder.record_event(
-            clone1_ptr,
-            OwnershipEventType::Cloned { source_ptr },
-            256,
-        );
+        recorder.record_event(clone1_ptr, OwnershipEventType::Cloned { source_ptr }, 256);
 
         // Record second clone
-        recorder.record_event(
-            clone2_ptr,
-            OwnershipEventType::Cloned { source_ptr },
-            256,
-        );
+        recorder.record_event(clone2_ptr, OwnershipEventType::Cloned { source_ptr }, 256);
 
         let clone1_summary = recorder
             .get_summary(clone1_ptr)
@@ -699,11 +690,7 @@ mod tests {
         let ptr3 = 0x3000;
 
         recorder.record_event(ptr1, OwnershipEventType::Allocated, 512);
-        recorder.record_event(
-            ptr2,
-            OwnershipEventType::Cloned { source_ptr: ptr1 },
-            256,
-        );
+        recorder.record_event(ptr2, OwnershipEventType::Cloned { source_ptr: ptr1 }, 256);
         recorder.record_event(ptr3, OwnershipEventType::Allocated, 1024);
 
         let stats = recorder.get_statistics();

@@ -107,11 +107,9 @@ pub use runtime_state::{
 };
 pub use scope::{
     AllocationEventType, BorrowEvent, GrowthEvent, GrowthReason, MoveEvent, PotentialLeak,
-    RiskDistribution, ScopeEventType, ScopeHierarchy, ScopeInfo, TypeLifecyclePattern,
-    VariableRelationship,
+    RiskDistribution, ScopeAnalysis, ScopeEventType, ScopeHierarchy, ScopeInfo,
+    ScopeLifecycleMetrics, TypeLifecyclePattern, VariableRelationship,
 };
-// Re-export from core::types
-pub use crate::core::types::{ScopeAnalysis, ScopeLifecycleMetrics};
 pub use smart_pointer::{RefCountSnapshot, SmartPointerInfo, SmartPointerType};
 pub use stack::{ScopeType, StackAllocationInfo, StackScopeInfo};
 pub use stats::{

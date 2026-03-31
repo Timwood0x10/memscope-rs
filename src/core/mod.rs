@@ -206,8 +206,8 @@ pub mod ultra_fast_tracker;
 
 /// Type definitions
 #[deprecated(
-    since = "0.6.0",
-    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
+    since = "0.7.0",
+    note = "Use capture::types instead. This module will be removed in a future version. Migration guide: replace `core::types` with `capture::types`."
 )]
 pub mod types;
 #[deprecated(

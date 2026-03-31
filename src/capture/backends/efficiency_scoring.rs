@@ -235,8 +235,9 @@ impl EfficiencyScorer {
             return 0.0;
         }
 
-        let bytes_per_second = bytes_transferred as f64 / 1_048_576.0;
-        let efficiency = (bytes_per_second / 1_048_576.0).min(1.0);
+        // Optimal network throughput threshold (1 MB)
+        let optimal_throughput = 1_048_576.0;
+        let efficiency = (bytes_transferred as f64 / optimal_throughput).min(1.0);
 
         efficiency.clamp(0.0, 1.0)
     }
@@ -360,7 +361,11 @@ mod tests {
         };
 
         let overall = scores.overall();
-        assert_eq!(overall, 0.5);
+        assert!(
+            (overall - 0.5).abs() < f64::EPSILON,
+            "Expected overall score to be 0.5, got {}",
+            overall
+        );
     }
 
     #[test]
@@ -414,8 +419,8 @@ mod tests {
         let efficiency = scorer.calculate_network_efficiency(0);
         assert_eq!(efficiency, 0.0);
 
-        let efficiency = scorer.calculate_network_efficiency(1_048_576);
-        assert_eq!(efficiency, 1.0);
+        let efficiency = scorer.calculate_network_efficiency(1_048_576); // 1 MB
+        assert!((efficiency - 1.0).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -431,7 +436,7 @@ mod tests {
         };
 
         let weighted = scorer.calculate_weighted_efficiency(&task_type, &component_scores);
-        assert_eq!(weighted, 0.68);
+        assert!((weighted - 0.66).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -447,7 +452,9 @@ mod tests {
         };
 
         let weighted = scorer.calculate_weighted_efficiency(&task_type, &component_scores);
-        assert_eq!(weighted, 0.68);
+        // IOIntensive weights: cpu=0.2, memory=0.1, io=0.6, network=0.1
+        // 0.6*0.2 + 0.4*0.1 + 0.8*0.6 + 0.2*0.1 = 0.12 + 0.04 + 0.48 + 0.02 = 0.66
+        assert!((weighted - 0.66).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -463,7 +470,9 @@ mod tests {
         };
 
         let weighted = scorer.calculate_weighted_efficiency(&task_type, &component_scores);
-        assert_eq!(weighted, 0.68);
+        // MemoryIntensive weights: cpu=0.2, memory=0.6, io=0.1, network=0.1
+        // 0.6*0.2 + 0.8*0.6 + 0.4*0.1 + 0.2*0.1 = 0.12 + 0.48 + 0.04 + 0.02 = 0.66
+        assert!((weighted - 0.66).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -479,6 +488,8 @@ mod tests {
         };
 
         let weighted = scorer.calculate_weighted_efficiency(&task_type, &component_scores);
-        assert_eq!(weighted, 0.68);
+        // NetworkIntensive weights: cpu=0.2, memory=0.1, io=0.1, network=0.6
+        // 0.6*0.2 + 0.4*0.1 + 0.2*0.1 + 0.8*0.6 = 0.12 + 0.04 + 0.02 + 0.48 = 0.66
+        assert!((weighted - 0.66).abs() < f64::EPSILON);
     }
 }

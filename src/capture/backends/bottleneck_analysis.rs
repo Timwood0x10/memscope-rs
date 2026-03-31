@@ -545,7 +545,6 @@ impl Default for BottleneckAnalyzer {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

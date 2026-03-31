@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use super::allocation::AllocationInfo;
-use crate::core::types::ScopeLifecycleMetrics;
+use super::scope::ScopeLifecycleMetrics;
 
 /// Memory statistics.
 ///

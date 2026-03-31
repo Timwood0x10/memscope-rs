@@ -481,7 +481,6 @@ impl Default for LifecycleSummaryGenerator {
 }
 
 #[cfg(test)]
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -544,7 +543,7 @@ mod tests {
     #[test]
     fn test_json_export_with_events() {
         let generator = LifecycleSummaryGenerator::default();
-        
+
         let event_summary = LifecycleEventSummary {
             allocation_ptr: 0x1000,
             var_name: Some("test_var".to_string()),

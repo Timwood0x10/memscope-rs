@@ -202,6 +202,74 @@ pub struct PotentialLeak {
     pub severity: String,
 }
 
+/// Scope analysis results.
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct ScopeAnalysis {
+    /// Total scopes
+    pub total_scopes: usize,
+    /// Active scopes
+    pub active_scopes: usize,
+    /// Max depth
+    pub max_depth: usize,
+    /// Average lifetime in milliseconds
+    pub average_lifetime: f64,
+    /// Memory efficiency ratio
+    pub memory_efficiency: f64,
+    /// Scope information
+    pub scopes: Vec<ScopeInfo>,
+    /// Scope hierarchy
+    pub scope_hierarchy: ScopeHierarchy,
+    /// Cross scope references
+    pub cross_scope_references: Vec<String>,
+}
+
+/// Scope lifecycle metrics.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ScopeLifecycleMetrics {
+    /// Name of the scope
+    pub scope_name: String,
+    /// Number of variables in scope
+    pub variable_count: usize,
+    /// Average lifetime in milliseconds
+    pub average_lifetime_ms: f64,
+    /// Total memory used by scope
+    pub total_memory_usage: usize,
+    /// Peak memory usage in scope
+    pub peak_memory_usage: usize,
+    /// Frequency of allocations
+    pub allocation_frequency: f64,
+    /// Efficiency of deallocations
+    pub deallocation_efficiency: f64,
+    /// Number of completed allocations
+    pub completed_allocations: usize,
+    /// Number of memory growth events
+    pub memory_growth_events: usize,
+    /// Peak number of concurrent variables
+    pub peak_concurrent_variables: usize,
+    /// Memory efficiency ratio
+    pub memory_efficiency_ratio: f64,
+    /// Number of ownership transfers
+    pub ownership_transfer_events: usize,
+    /// Fragmentation score
+    pub fragmentation_score: f64,
+    /// Number of instant allocations
+    pub instant_allocations: usize,
+    /// Number of short-term allocations
+    pub short_term_allocations: usize,
+    /// Number of medium-term allocations
+    pub medium_term_allocations: usize,
+    /// Number of long-term allocations
+    pub long_term_allocations: usize,
+    /// Number of suspected memory leaks
+    pub suspected_leaks: usize,
+    /// Risk distribution analysis
+    pub risk_distribution: RiskDistribution,
+    /// Metrics for individual scopes
+    pub scope_metrics: Vec<ScopeLifecycleMetrics>,
+    /// Lifecycle patterns for types
+    pub type_lifecycle_patterns: Vec<TypeLifecyclePattern>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -177,16 +177,32 @@ pub use utils::{format_bytes, get_simple_type, simplify_type_name};
 pub use capture::backends::{
     configure_tracking_strategy, get_tracker as get_capture_tracker, AllocationCategory,
     AnalysisSummary, AsyncAllocation, AsyncBackend, AsyncMemorySnapshot, AsyncSnapshot, AsyncStats,
-    AsyncTracker, BottleneckType, CoreBackend, Event, EventType, FrequencyData, FrequencyPattern,
-    HotCallStack, InteractionType, LockfreeAnalysis, LockfreeBackend, MemoryPeak, MemorySnapshot,
-    MemoryStats, PerformanceBottleneck, RuntimeEnvironment, SamplingConfig, SystemMetrics,
-    TaskInfo, TaskMemoryProfile, ThreadInteraction, ThreadLocalTracker, ThreadStats, TrackedFuture,
-    TrackingStrategy, UnifiedBackend,
+    AsyncTracker, CoreBackend, Event, EventType, FrequencyData, FrequencyPattern, InteractionType,
+    LockfreeAnalysis, LockfreeBackend, MemorySnapshot, MemoryStats, RuntimeEnvironment,
+    SamplingConfig, SystemMetrics, TaskInfo, TaskMemoryProfile, ThreadInteraction,
+    ThreadLocalTracker, ThreadStats, TrackedFuture, TrackingStrategy, UnifiedBackend,
 };
+
+// Re-export new bottleneck and hotspot analysis types
+pub use capture::backends::bottleneck_analysis::{BottleneckKind, PerformanceIssue};
+pub use capture::backends::hotspot_analysis::{CallStackHotspot, MemoryUsagePeak};
+pub use capture::backends::lockfree_types::BottleneckType as LegacyBottleneckType;
+pub use capture::backends::lockfree_types::HotCallStack as LegacyHotCallStack;
+pub use capture::backends::lockfree_types::MemoryPeak as LegacyMemoryPeak;
+pub use capture::backends::lockfree_types::PerformanceBottleneck as LegacyPerformanceBottleneck;
 pub use capture::backends::{
     is_tracking, memory_snapshot, quick_trace, stop_tracing, trace_all, trace_thread,
 };
 pub use capture::{CaptureBackend, CaptureBackendType, CaptureEngine};
+
+// === CAPTURE TYPES EXPORTS (NEW SYSTEM) ===
+// Re-export capture types (new architecture) for easier use
+// These are the new types that replace core::types
+pub use capture::types::{
+    AllocationInfo as NewAllocationInfo, MemorySnapshot as NewMemorySnapshot,
+    MemoryStats as NewMemoryStats, SmartPointerInfo as NewSmartPointerInfo,
+    TrackingError as NewTrackingError, TrackingResult as NewTrackingResult,
+};
 
 // Re-export the derive macro when the derive feature is enabled
 #[cfg(feature = "derive")]
