@@ -537,7 +537,7 @@ mod tests {
 
         let cpu = monitor.cpu_usage();
         println!("CPU usage: {:.2}%", cpu);
-        assert!(cpu >= 0.0 && cpu <= 100.0);
+        assert!((0.0..=100.0).contains(&cpu));
 
         let mem = monitor.memory_used();
         println!("Memory used: {} bytes", mem);

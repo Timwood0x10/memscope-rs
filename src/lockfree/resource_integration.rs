@@ -43,6 +43,10 @@ pub struct PerformanceInsights {
 }
 
 /// Type of performance bottleneck identified
+#[deprecated(
+    since = "0.1.10",
+    note = "Use capture::backends::bottleneck_analysis::BottleneckKind instead. This module will be removed in a future version."
+)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum BottleneckType {
     CpuBound,

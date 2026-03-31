@@ -354,6 +354,10 @@ pub struct ThreadStats {
 }
 
 /// Hot call stack information
+#[deprecated(
+    since = "0.1.10",
+    note = "Use capture::backends::hotspot_analysis::CallStackHotspot instead. This module will be removed in a future version."
+)]
 #[derive(Debug, Clone)]
 pub struct HotCallStack {
     /// Hash of the call stack
@@ -395,6 +399,10 @@ pub struct ThreadInteraction {
 }
 
 /// Memory usage peak
+#[deprecated(
+    since = "0.1.10",
+    note = "Use capture::backends::hotspot_analysis::MemoryUsagePeak instead. This module will be removed in a future version."
+)]
 #[derive(Debug, Clone)]
 pub struct MemoryPeak {
     /// Timestamp of the peak
@@ -410,6 +418,10 @@ pub struct MemoryPeak {
 }
 
 /// Performance bottleneck type
+#[deprecated(
+    since = "0.1.10",
+    note = "Use capture::backends::bottleneck_analysis::BottleneckKind instead. This module will be removed in a future version."
+)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BottleneckType {
     /// High frequency small allocations
@@ -425,6 +437,10 @@ pub enum BottleneckType {
 }
 
 /// Performance bottleneck information
+#[deprecated(
+    since = "0.1.10",
+    note = "Use capture::backends::bottleneck_analysis::PerformanceIssue instead. This module will be removed in a future version."
+)]
 #[derive(Debug, Clone)]
 pub struct PerformanceBottleneck {
     /// Type of bottleneck detected

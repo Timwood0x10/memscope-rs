@@ -133,6 +133,7 @@ pub struct Tracker {
 #[derive(Debug, Clone)]
 struct TrackerConfig {
     sampling: SamplingConfig,
+    #[allow(dead_code)]
     track_thread_id: bool,
     auto_export_on_drop: bool,
     export_path: Option<String>,
@@ -200,7 +201,7 @@ impl Tracker {
         let ptr = var.get_heap_ptr().unwrap_or_else(|| {
             use std::cell::Cell;
             thread_local! {
-                static COUNTER: Cell<u64> = Cell::new(0x8000_0000);
+                static COUNTER: Cell<u64> = const { Cell::new(0x8000_0000) };
             }
             COUNTER.with(|counter| {
                 let val = counter.get();

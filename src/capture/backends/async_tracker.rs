@@ -395,7 +395,7 @@ impl AsyncTracker {
 
                 ResourceRanking {
                     task_name: profile.task_name.clone(),
-                    task_type: profile.task_type.clone(),
+                    task_type: profile.task_type,
                     cpu_usage: allocation_rate,
                     memory_usage_mb: memory_mb,
                     io_usage_mb: 0.0,

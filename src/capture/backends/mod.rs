@@ -24,6 +24,15 @@ pub mod task_profile;
 // Efficiency scoring modules
 pub mod efficiency_scoring;
 
+// Bottleneck analysis modules
+pub mod bottleneck_analysis;
+
+// Hotspot analysis modules
+pub mod hotspot_analysis;
+
+// Resource ranking modules
+pub mod resource_ranking;
+
 // Unsafe/FFI tracking modules
 pub mod unsafe_tracking;
 
@@ -54,6 +63,22 @@ pub use task_profile::{AggregatedTaskStats, TaskMemoryProfile, TaskProfileManage
 // Re-export efficiency scoring types
 pub use efficiency_scoring::{
     ComponentScores, EfficiencyConfig, EfficiencyScorer, EfficiencyWeights,
+};
+
+// Re-export bottleneck analysis types
+pub use bottleneck_analysis::{
+    BottleneckAnalyzer, BottleneckConfig, BottleneckKind, BottleneckMetrics, PerformanceIssue,
+};
+
+// Re-export hotspot analysis types
+pub use hotspot_analysis::{
+    AllocationFrequencyPattern, CallStackHotspot, FrequencyAnalysis, HotspotAnalyzer,
+    HotspotConfig, HotspotStatistics, MemoryUsagePeak,
+};
+
+// Re-export resource ranking types
+pub use resource_ranking::{
+    EfficiencyScores, RankingConfig, RankingStatistics, ResourceRanking, ResourceRankingAnalyzer,
 };
 
 // Re-export unsafe/FFI tracking types

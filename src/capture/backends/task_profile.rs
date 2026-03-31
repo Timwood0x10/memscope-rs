@@ -11,7 +11,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 /// Task type classification for categorizing different workloads
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 pub enum TaskType {
     /// CPU-intensive tasks (e.g., matrix multiplication, data processing)
     CpuIntensive,
@@ -24,17 +24,12 @@ pub enum TaskType {
     /// GPU compute tasks (e.g., CUDA, OpenCL operations)
     GpuCompute,
     /// Mixed workload with balanced resource usage
+    #[default]
     Mixed,
     /// Streaming data processing tasks
     Streaming,
     /// Background maintenance tasks
     Background,
-}
-
-impl Default for TaskType {
-    fn default() -> Self {
-        Self::Mixed
-    }
 }
 
 impl TaskType {
