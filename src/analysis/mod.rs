@@ -23,6 +23,7 @@ pub mod closure_analysis;
 pub mod enhanced_ffi_function_resolver;
 pub mod ffi_function_resolver;
 pub mod generic_analysis;
+pub mod lifecycle;
 pub mod lifecycle_analysis;
 pub mod memory_passport_tracker;
 pub mod safety_analyzer;
@@ -55,6 +56,17 @@ pub use ffi_function_resolver::{
     FfiFunctionResolver, FfiRiskLevel, ResolutionStats, ResolvedFfiFunction, ResolverConfig,
 };
 pub use generic_analysis::{get_global_generic_analyzer, GenericAnalyzer, GenericStatistics};
+pub use lifecycle::{
+    lifecycle_summary::{
+        AllocationLifecycleSummary, ExportMetadata, LifecycleEvent, LifecycleEventSummary,
+        LifecycleExportData, LifecyclePattern, LifecycleSummaryGenerator, SummaryConfig,
+        VariableGroup,
+    },
+    ownership_history::{
+        BorrowInfo, CloneInfo, OwnershipEvent, OwnershipEventType, OwnershipHistoryRecorder,
+        OwnershipStatistics, OwnershipSummary, RefCountInfo,
+    },
+};
 pub use lifecycle_analysis::{
     get_global_lifecycle_analyzer, LifecycleAnalysisReport, LifecycleAnalyzer,
 };
