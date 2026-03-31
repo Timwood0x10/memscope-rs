@@ -5,16 +5,15 @@
 //!
 //! All files are maintained under 1000 lines per coding standards.
 
-// Core tracking modules (split for 1000-line limit)
+// Core tracking modules
 pub mod core_tracker;
-pub mod core_tracking;
 pub mod core_types;
 
-// Lockfree tracking modules (split for 1000-line limit)
+// Lockfree tracking modules
 pub mod lockfree_tracker;
 pub mod lockfree_types;
 
-// Async tracking modules (split for 1000-line limit)
+// Async tracking modules
 pub mod async_tracker;
 pub mod async_types;
 
@@ -36,15 +35,15 @@ pub mod resource_ranking;
 // Unsafe/FFI tracking modules
 pub mod unsafe_tracking;
 
-// Unified tracking modules (split for 1000-line limit)
+// Unified tracking modules
 pub mod unified_tracker;
 
 use crate::event_store::{MemoryEvent, MemoryEventType};
 
 // Re-export core tracker types
 pub use core_tracker::{
-    collect_all_trackers_local, configure_tracking_strategy, get_cached_thread_data_local,
-    get_registry_stats_local, get_tracker, MemoryTracker, ThreadRegistryStats,
+    collect_all_trackers_local, configure_tracking_strategy, get_registry_stats_local, get_tracker,
+    MemoryTracker,
 };
 
 // Re-export async tracker types

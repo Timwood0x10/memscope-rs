@@ -1,160 +1,133 @@
-//! Core types for memory tracking.
+//! Core types for memory tracking (self-contained, no old system dependencies)
 //!
-//! This module contains type definitions used throughout the core tracking system.
+//! This module defines all types needed by core tracker without
+//! depending on crate::core::* modules.
 
-use std::sync::atomic::AtomicU8;
+use serde::{Deserialize, Serialize};
+use std::time::SystemTime;
 
-/// Binary export mode enumeration for selecting export strategy
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BinaryExportMode {
-    /// Export only user-defined variables (strict filtering)
-    /// Results in smaller binary files (few KB) with faster processing
-    UserOnly,
-    /// Export all allocations including system allocations (loose filtering)  
-    /// Results in larger binary files (hundreds of KB) with complete data
-    Full,
+/// Allocation information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AllocationInfo {
+    /// Memory pointer address
+    pub ptr: usize,
+    /// Allocation size in bytes
+    pub size: usize,
+    /// Variable name (if known)
+    pub var_name: Option<String>,
+    /// Type name (if known)
+    pub type_name: Option<String>,
+    /// Allocation timestamp (nanoseconds since epoch)
+    pub allocated_at_ns: u64,
+    /// Thread ID that performed allocation
+    pub thread_id: u64,
 }
 
-impl Default for BinaryExportMode {
-    /// Default to UserOnly mode for backward compatibility
-    fn default() -> Self {
-        BinaryExportMode::UserOnly
+impl AllocationInfo {
+    /// Create new allocation info
+    #[inline]
+    pub fn new(ptr: usize, size: usize) -> Self {
+        Self {
+            ptr,
+            size,
+            var_name: None,
+            type_name: None,
+            allocated_at_ns: Self::now_ns(),
+            thread_id: Self::current_thread_id(),
+        }
+    }
+
+    /// Get current timestamp in nanoseconds
+    #[inline]
+    pub fn now_ns() -> u64 {
+        SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u64
+    }
+
+    /// Get current thread ID (hashed)
+    #[inline]
+    pub fn current_thread_id() -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        std::thread::current().id().hash(&mut hasher);
+        hasher.finish()
     }
 }
 
-/// Tracking strategy constants for dual-mode architecture
-const STRATEGY_GLOBAL_SINGLETON: u8 = 0;
-#[allow(dead_code)]
-const STRATEGY_THREAD_LOCAL: u8 = 1;
-
-/// Global tracking strategy configuration
-pub static TRACKING_STRATEGY: AtomicU8 = AtomicU8::new(STRATEGY_GLOBAL_SINGLETON);
-
-/// Export options for JSON export - user-controllable settings
-#[derive(Debug, Clone)]
-pub struct ExportOptions {
-    /// Include system allocations in full enrichment (default: false)
-    ///
-    /// **⚠️ Performance Impact**: Setting this to `true` can make export 5-10x slower!
-    ///
-    /// - `false` (default): Only user-tracked variables get full enrichment (~2-5 seconds)
-    /// - `true`: ALL allocations including system internals get enrichment (~10-40 seconds)
-    pub include_system_allocations: bool,
-
-    /// Enable verbose logging during export (default: false)
-    pub verbose_logging: bool,
-
-    /// Buffer size for file I/O in bytes (default: 64KB)
-    pub buffer_size: usize,
-
-    /// Enable data compression (default: false)
-    pub compress_output: bool,
+/// Memory statistics
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct MemoryStats {
+    /// Total number of allocations
+    pub total_allocations: u64,
+    /// Total bytes allocated
+    pub total_allocated: u64,
+    /// Currently active allocations
+    pub active_allocations: usize,
+    /// Currently active memory (bytes)
+    pub active_memory: u64,
+    /// Peak allocations count
+    pub peak_allocations: usize,
+    /// Peak memory usage (bytes)
+    pub peak_memory: u64,
+    /// Total deallocations
+    pub total_deallocations: u64,
+    /// Total bytes deallocated
+    pub total_deallocated: u64,
+    /// Leaked allocations (allocated but not freed)
+    pub leaked_allocations: usize,
+    /// Leaked memory (bytes)
+    pub leaked_memory: u64,
 }
 
-impl Default for ExportOptions {
-    fn default() -> Self {
-        Self {
-            include_system_allocations: false, // Fast mode by default
-            verbose_logging: false,
-            buffer_size: 64 * 1024, // 64KB
-            compress_output: false,
+/// Type memory usage statistics
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TypeMemoryUsage {
+    /// Type name
+    pub type_name: String,
+    /// Total memory usage (bytes)
+    pub total_size: usize,
+    /// Allocation count
+    pub allocation_count: usize,
+}
+
+/// Tracking error types
+#[derive(Debug, Clone)]
+pub enum TrackingError {
+    /// Lock acquisition failed
+    LockError(String),
+    /// Invalid pointer
+    InvalidPointer(String),
+    /// Export error
+    ExportError(String),
+    /// Serialization error
+    SerializationError(String),
+}
+
+impl std::fmt::Display for TrackingError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::LockError(msg) => write!(f, "Lock error: {msg}"),
+            Self::InvalidPointer(msg) => write!(f, "Invalid pointer: {msg}"),
+            Self::ExportError(msg) => write!(f, "Export error: {msg}"),
+            Self::SerializationError(msg) => write!(f, "Serialization error: {msg}"),
         }
     }
 }
 
-impl ExportOptions {
-    /// Create new export options with default settings (fast mode)
-    pub fn new() -> Self {
-        Self::default()
-    }
+impl std::error::Error for TrackingError {}
 
-    /// Enable system allocation enrichment (⚠️ SLOW - 5-10x slower!)
-    ///
-    /// # Warning
-    /// This will significantly slow down the export process and generate much larger files.
-    /// Only use for deep debugging or system analysis.
-    ///
-    /// # Example
-    /// ```text
-    /// let options = ExportOptions::new().include_system_allocations(true);
-    /// tracker.export_to_json_with_options("debug_output", options)?;
-    /// ```
-    pub fn include_system_allocations(mut self, include: bool) -> Self {
-        self.include_system_allocations = include;
-        self
-    }
+/// Tracking result type
+pub type TrackingResult<T> = Result<T, TrackingError>;
 
-    /// Enable verbose logging during export
-    pub fn verbose_logging(mut self, verbose: bool) -> Self {
-        self.verbose_logging = verbose;
-        self
-    }
-
-    /// Set custom buffer size for file I/O
-    pub fn buffer_size(mut self, size: usize) -> Self {
-        self.buffer_size = size;
-        self
-    }
-
-    /// Enable output compression (experimental)
-    pub fn compress_output(mut self, compress: bool) -> Self {
-        self.compress_output = compress;
-        self
-    }
-}
-
-/// Internal export mode derived from options
-#[derive(Debug, Clone, Copy)]
-pub enum ExportMode {
-    /// Fast mode: Only enrich user-tracked variables
-    UserFocused,
-    /// Complete mode: Enrich all allocations including system data
-    Complete,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_binary_export_mode_default() {
-        let mode = BinaryExportMode::default();
-        assert_eq!(mode, BinaryExportMode::UserOnly);
-    }
-
-    #[test]
-    fn test_export_options_default() {
-        let options = ExportOptions::default();
-
-        assert!(!options.include_system_allocations);
-        assert!(!options.verbose_logging);
-        assert_eq!(options.buffer_size, 64 * 1024);
-        assert!(!options.compress_output);
-    }
-
-    #[test]
-    fn test_export_options_builder_pattern() {
-        let options = ExportOptions::new()
-            .include_system_allocations(true)
-            .verbose_logging(true)
-            .buffer_size(128 * 1024)
-            .compress_output(true);
-
-        assert!(options.include_system_allocations);
-        assert!(options.verbose_logging);
-        assert_eq!(options.buffer_size, 128 * 1024);
-        assert!(options.compress_output);
-    }
-
-    #[test]
-    fn test_export_mode_variants() {
-        let user_focused = ExportMode::UserFocused;
-        let complete = ExportMode::Complete;
-
-        let debug_user = format!("{user_focused:?}");
-        let debug_complete = format!("{complete:?}");
-
-        assert_eq!(debug_user, "UserFocused");
-        assert_eq!(debug_complete, "Complete");
-    }
+/// Thread registry statistics
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ThreadRegistryStats {
+    /// Total threads registered
+    pub total_threads_registered: usize,
+    /// Active threads
+    pub active_threads: usize,
+    /// Dead references cleaned up
+    pub dead_references: usize,
 }
