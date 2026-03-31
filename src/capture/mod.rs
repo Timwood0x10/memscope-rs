@@ -8,6 +8,13 @@
 pub mod backends;
 pub mod engine;
 pub mod platform;
+pub mod types;
 
 pub use backends::{CaptureBackend, CaptureBackendType};
 pub use engine::CaptureEngine;
+
+// Re-export common types for convenience
+pub use types::{
+    AllocationInfo, BorrowInfo, CloneInfo, MemoryStats, SmartPointerInfo, SmartPointerType,
+    TrackingError, TrackingResult,
+};
