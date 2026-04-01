@@ -1,5 +1,6 @@
 //! Enhanced memory tracking for unsafe Rust and FFI operations
 //!
+//!
 //! This module extends the basic memory tracking to handle:
 //! - Unsafe Rust memory operations (std::alloc::alloc, raw pointers)
 //! - FFI memory operations (malloc, free from C libraries)
@@ -13,22 +14,8 @@
 //!
 //! ## Migration Guide
 //!
-//! Old API:
-//! ```rust
-//! use memscope_rs::analysis::unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, UnsafeFFITracker};
-//! let tracker = get_global_unsafe_ffi_tracker();
-//! // Note: track_unsafe_allocation returns (), not Result, so we don't use ?
-//! // Call the function and ignore the result since it returns ()
-//! tracker.track_unsafe_allocation(0x1000, 1024, "test.rs:42".to_string());
-//! ```
+//! For migration to the new API, see the documentation in `crate::capture::backends::unsafe_tracking`.
 //!
-//! New API:
-//! ```rust
-//! use memscope_rs::capture::backends::unsafe_tracking::UnsafeTracker;
-//! let tracker = UnsafeTracker::new();
-//! // Note: track_unsafe_allocation returns (), not Result, so we don't use ?
-//! let _ = tracker.track_unsafe_allocation(ptr, size, location);
-//! ```
 
 #[deprecated(
     since = "0.1.10",
