@@ -17,14 +17,17 @@
 //! ```rust
 //! use memscope_rs::analysis::unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, UnsafeFFITracker};
 //! let tracker = get_global_unsafe_ffi_tracker();
-//! tracker.track_unsafe_allocation(ptr, size, location)?;
+//! // Note: track_unsafe_allocation returns (), not Result, so we don't use ?
+//! // Call the function and ignore the result since it returns ()
+//! tracker.track_unsafe_allocation(0x1000, 1024, "test.rs:42".to_string());
 //! ```
 //!
 //! New API:
 //! ```rust
 //! use memscope_rs::capture::backends::unsafe_tracking::UnsafeTracker;
 //! let tracker = UnsafeTracker::new();
-//! tracker.track_unsafe_allocation(ptr, size, location)?;
+//! // Note: track_unsafe_allocation returns (), not Result, so we don't use ?
+//! let _ = tracker.track_unsafe_allocation(ptr, size, location);
 //! ```
 
 #[deprecated(

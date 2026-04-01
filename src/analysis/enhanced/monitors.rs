@@ -18,7 +18,7 @@ pub struct FragmentationMonitor {
 /// Tracks generic type instantiations
 pub struct GenericInstantiationTracker {
     /// Generic instantiations by type
-    pub instantiations: HashMap<String, Vec<crate::core::types::GenericInstantiationInfo>>,
+    pub instantiations: HashMap<String, Vec<crate::capture::types::GenericInstantiationInfo>>,
     /// Code bloat assessment
     pub bloat_assessment: CodeBloatAssessment,
 }
@@ -26,7 +26,7 @@ pub struct GenericInstantiationTracker {
 /// Manages object lifecycle tracking
 pub struct ObjectLifecycleManager {
     /// Object lifecycle information by pointer
-    pub lifecycles: HashMap<usize, crate::core::types::ObjectLifecycleInfo>,
+    pub lifecycles: HashMap<usize, crate::capture::types::ObjectLifecycleInfo>,
     /// Resource waste analysis
     pub waste_analysis: ResourceWasteAnalysis,
 }

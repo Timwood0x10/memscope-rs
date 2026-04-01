@@ -326,3 +326,165 @@ mod tests {
         assert_eq!(impact.l1_impact_score, 0.0);
     }
 }
+
+// Implement From trait for converting from core::types to capture::types
+impl From<crate::core::types::GenericTypeInfo> for GenericTypeInfo {
+    fn from(old: crate::core::types::GenericTypeInfo) -> Self {
+        Self {
+            base_type: old.base_type,
+            type_parameters: old
+                .type_parameters
+                .into_iter()
+                .map(|p| TypeParameter {
+                    name: p.name,
+                    concrete_type: p.concrete_type,
+                    size: p.size,
+                    alignment: p.alignment,
+                    is_lifetime: p.is_lifetime,
+                })
+                .collect(),
+            monomorphization_info: MonomorphizationInfo {
+                instance_count: old.monomorphization_info.instance_count,
+                per_instance_memory: old.monomorphization_info.per_instance_memory,
+                total_memory_usage: old.monomorphization_info.total_memory_usage,
+                code_bloat_assessment: match old.monomorphization_info.code_bloat_assessment {
+                    crate::core::types::CodeBloatLevel::Low => CodeBloatLevel::Low,
+                    crate::core::types::CodeBloatLevel::Moderate => CodeBloatLevel::Moderate,
+                    crate::core::types::CodeBloatLevel::High => CodeBloatLevel::High,
+                    crate::core::types::CodeBloatLevel::Excessive => CodeBloatLevel::Excessive,
+                },
+            },
+            constraints: old
+                .constraints
+                .into_iter()
+                .map(|c| GenericConstraint {
+                    constraint_type: match c.constraint_type {
+                        crate::core::types::ConstraintType::Trait(s) => ConstraintType::Trait(s),
+                        crate::core::types::ConstraintType::Lifetime(s) => {
+                            ConstraintType::Lifetime(s)
+                        }
+                        crate::core::types::ConstraintType::Associated(s) => {
+                            ConstraintType::Associated(s)
+                        }
+                        crate::core::types::ConstraintType::Where(s) => ConstraintType::Where(s),
+                    },
+                    description: c.description,
+                    memory_impact: match c.memory_impact {
+                        crate::core::types::MemoryImpact::None => MemoryImpact::None,
+                        crate::core::types::MemoryImpact::SizeIncrease(s) => {
+                            MemoryImpact::SizeIncrease(s)
+                        }
+                        crate::core::types::MemoryImpact::AlignmentChange(s) => {
+                            MemoryImpact::AlignmentChange(s)
+                        }
+                        crate::core::types::MemoryImpact::LayoutChange(s) => {
+                            MemoryImpact::LayoutChange(s)
+                        }
+                    },
+                })
+                .collect(),
+        }
+    }
+}
+
+impl From<crate::core::types::GenericInstantiationInfo> for GenericInstantiationInfo {
+    fn from(old: crate::core::types::GenericInstantiationInfo) -> Self {
+        Self {
+            base_type: old.base_type,
+            concrete_parameters: old
+                .concrete_parameters
+                .into_iter()
+                .map(|p| ConcreteTypeParameter {
+                    name: p.name,
+                    concrete_type: p.concrete_type,
+                    complexity_score: p.complexity_score,
+                    memory_footprint: p.memory_footprint,
+                    alignment: p.alignment,
+                    trait_implementations: p.trait_implementations,
+                    type_category: match p.type_category {
+                        crate::core::types::TypeCategory::Primitive => TypeCategory::Primitive,
+                        crate::core::types::TypeCategory::Struct => TypeCategory::Struct,
+                        crate::core::types::TypeCategory::Enum => TypeCategory::Enum,
+                        crate::core::types::TypeCategory::Union => TypeCategory::Union,
+                        crate::core::types::TypeCategory::Tuple => TypeCategory::Tuple,
+                        crate::core::types::TypeCategory::Slice => TypeCategory::Slice,
+                        crate::core::types::TypeCategory::Array => TypeCategory::Array,
+                        crate::core::types::TypeCategory::Pointer => TypeCategory::Pointer,
+                        crate::core::types::TypeCategory::Reference => TypeCategory::Reference,
+                        crate::core::types::TypeCategory::Function => TypeCategory::Function,
+                        crate::core::types::TypeCategory::TraitObject => TypeCategory::TraitObject,
+                        crate::core::types::TypeCategory::Generic => TypeCategory::Generic,
+                        crate::core::types::TypeCategory::Associated => TypeCategory::Associated,
+                    },
+                })
+                .collect(),
+            instantiation_location: SourceLocation {
+                file: old.instantiation_location.file,
+                line: old.instantiation_location.line,
+                column: old.instantiation_location.column,
+            },
+            instantiation_count: old.instantiation_count,
+            memory_per_instance: old.memory_per_instance,
+            total_memory_usage: old.total_memory_usage,
+            compilation_impact: CompilationImpact {
+                compilation_time_ms: old.compilation_impact.compilation_time_ms,
+                code_size_increase: old.compilation_impact.code_size_increase,
+                ir_complexity_score: old.compilation_impact.ir_complexity_score,
+                optimization_difficulty: match old.compilation_impact.optimization_difficulty {
+                    crate::core::types::OptimizationDifficulty::Easy => {
+                        OptimizationDifficulty::Easy
+                    }
+                    crate::core::types::OptimizationDifficulty::Moderate => {
+                        OptimizationDifficulty::Moderate
+                    }
+                    crate::core::types::OptimizationDifficulty::Hard => {
+                        OptimizationDifficulty::Hard
+                    }
+                    crate::core::types::OptimizationDifficulty::VeryHard => {
+                        OptimizationDifficulty::VeryHard
+                    }
+                },
+            },
+            performance_characteristics: PerformanceCharacteristics {
+                avg_allocation_time_ns: old.performance_characteristics.avg_allocation_time_ns,
+                avg_deallocation_time_ns: old.performance_characteristics.avg_deallocation_time_ns,
+                access_pattern: match old.performance_characteristics.access_pattern {
+                    crate::core::types::MemoryAccessPattern::Sequential => {
+                        MemoryAccessPattern::Sequential
+                    }
+                    crate::core::types::MemoryAccessPattern::Random => MemoryAccessPattern::Random,
+                    crate::core::types::MemoryAccessPattern::Strided { stride } => {
+                        MemoryAccessPattern::Strided { stride }
+                    }
+                    crate::core::types::MemoryAccessPattern::Clustered => {
+                        MemoryAccessPattern::Clustered
+                    }
+                    crate::core::types::MemoryAccessPattern::Mixed => MemoryAccessPattern::Mixed,
+                },
+                cache_impact: CacheImpact {
+                    l1_impact_score: old.performance_characteristics.cache_impact.l1_impact_score,
+                    l2_impact_score: old.performance_characteristics.cache_impact.l2_impact_score,
+                    l3_impact_score: old.performance_characteristics.cache_impact.l3_impact_score,
+                    cache_line_efficiency: old
+                        .performance_characteristics
+                        .cache_impact
+                        .cache_line_efficiency,
+                },
+                branch_prediction_impact: BranchPredictionImpact {
+                    misprediction_rate: old
+                        .performance_characteristics
+                        .branch_prediction_impact
+                        .misprediction_rate,
+                    pipeline_stall_impact: old
+                        .performance_characteristics
+                        .branch_prediction_impact
+                        .pipeline_stall_impact,
+                    predictability_score: old
+                        .performance_characteristics
+                        .branch_prediction_impact
+                        .predictability_score,
+                },
+            },
+        }
+    }
+}

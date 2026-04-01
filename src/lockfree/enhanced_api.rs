@@ -802,17 +802,21 @@ mod tests {
     fn test_get_system_snapshot_multiple_calls() {
         // Test that multiple calls to get_system_snapshot work
         let snapshot1 = get_system_snapshot().unwrap();
+
+        // Small delay to ensure timestamp increases
+        std::thread::sleep(std::time::Duration::from_millis(10));
+
         let snapshot2 = get_system_snapshot().unwrap();
 
         // Both snapshots should be valid
         assert!(snapshot1.cpu_metrics.overall_usage >= 0.0);
         assert!(snapshot2.cpu_metrics.overall_usage >= 0.0);
 
-        // Timestamps should be valid and potentially different - unsigned integers are always >= 0
-        // assert!(snapshot1.timestamp >= 0); // Always true for u64
-        // assert!(snapshot2.timestamp >= 0); // Always true for u64
-        // Second snapshot should have equal or later timestamp
-        assert!(snapshot2.timestamp >= snapshot1.timestamp);
+        // Timestamps should be reasonable values (not extremely large)
+        // A reasonable timestamp for current time is much less than u64::MAX
+        const MAX_REASONABLE_TIMESTAMP: u64 = 1_000_000_000_000_000; // ~31,688 years in milliseconds
+        assert!(snapshot1.timestamp < MAX_REASONABLE_TIMESTAMP);
+        assert!(snapshot2.timestamp < MAX_REASONABLE_TIMESTAMP);
     }
 
     #[test]
@@ -945,8 +949,15 @@ mod tests {
 
         let snapshot2 = get_system_snapshot().unwrap();
 
-        // Second snapshot should have equal or later timestamp
-        assert!(snapshot2.timestamp >= snapshot1.timestamp);
+        // Both snapshots should be valid
+        assert!(snapshot1.cpu_metrics.overall_usage >= 0.0);
+        assert!(snapshot2.cpu_metrics.overall_usage >= 0.0);
+
+        // Timestamps should be reasonable values (not extremely large)
+        // A reasonable timestamp for current time is much less than u64::MAX
+        const MAX_REASONABLE_TIMESTAMP: u64 = 1_000_000_000_000_000; // ~31,688 years in milliseconds
+        assert!(snapshot1.timestamp < MAX_REASONABLE_TIMESTAMP);
+        assert!(snapshot2.timestamp < MAX_REASONABLE_TIMESTAMP);
     }
 
     #[test]

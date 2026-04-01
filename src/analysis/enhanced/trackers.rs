@@ -271,8 +271,8 @@ impl TemporaryObjectAnalyzer {
     /// Assess optimization potential
     fn assess_optimization_potential(
         _allocation: &AllocationInfo,
-    ) -> crate::capture::types::OptimizationPotential {
-        crate::capture::types::OptimizationPotential::Minor {
+    ) -> crate::capture::types::memory_layout::OptimizationPotential {
+        crate::capture::types::memory_layout::OptimizationPotential::Minor {
             potential_savings: 100,
         }
     }

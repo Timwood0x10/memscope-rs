@@ -5,7 +5,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::allocation::{BottleneckType, ImpactLevel};
+use super::allocation::{BottleneckType, ImpactLevel, PerformanceBottleneck};
 use super::generic::MemoryAccessPattern;
 use super::generic::SourceLocation;
 
@@ -145,7 +145,7 @@ pub struct FunctionPerformanceCharacteristics {
     /// Concurrency characteristics.
     pub concurrency_characteristics: ConcurrencyCharacteristics,
     /// Performance bottlenecks.
-    pub bottlenecks: Vec<super::allocation::PerformanceBottleneck>,
+    pub bottlenecks: Vec<PerformanceBottleneck>,
 }
 
 /// Function memory characteristics.
@@ -318,6 +318,254 @@ mod tests {
 
         for pattern in patterns {
             assert!(!format!("{pattern:?}").is_empty());
+        }
+    }
+}
+
+impl From<crate::core::types::FunctionCallTrackingInfo> for FunctionCallTrackingInfo {
+    fn from(old: crate::core::types::FunctionCallTrackingInfo) -> Self {
+        Self {
+            function_name: old.function_name,
+            module_path: old.module_path,
+            total_call_count: old.total_call_count,
+            call_frequency_per_sec: old.call_frequency_per_sec,
+            avg_execution_time_ns: old.avg_execution_time_ns,
+            total_execution_time_ns: old.total_execution_time_ns,
+            call_stack_info: CallStackInfo {
+                max_stack_depth: old.call_stack_info.max_stack_depth,
+                avg_stack_depth: old.call_stack_info.avg_stack_depth,
+                common_call_sequences: old
+                    .call_stack_info
+                    .common_call_sequences
+                    .into_iter()
+                    .map(|s| CallSequence {
+                        function_sequence: s.function_sequence,
+                        frequency: s.frequency,
+                        avg_execution_time_ns: s.avg_execution_time_ns,
+                        memory_usage_pattern: MemoryUsagePattern {
+                            peak_memory_usage: s.memory_usage_pattern.peak_memory_usage,
+                            avg_memory_usage: s.memory_usage_pattern.avg_memory_usage,
+                            allocation_frequency: s.memory_usage_pattern.allocation_frequency,
+                            deallocation_frequency: s.memory_usage_pattern.deallocation_frequency,
+                            leak_potential: match s.memory_usage_pattern.leak_potential {
+                                crate::core::types::LeakPotential::Low => LeakPotential::Low,
+                                crate::core::types::LeakPotential::Medium => LeakPotential::Medium,
+                                crate::core::types::LeakPotential::High => LeakPotential::High,
+                                crate::core::types::LeakPotential::Critical => {
+                                    LeakPotential::Critical
+                                }
+                            },
+                        },
+                    })
+                    .collect(),
+                recursive_calls: old
+                    .call_stack_info
+                    .recursive_calls
+                    .into_iter()
+                    .map(|r| RecursiveCallInfo {
+                        function_name: r.function_name,
+                        max_recursion_depth: r.max_recursion_depth,
+                        avg_recursion_depth: r.avg_recursion_depth,
+                        tail_recursion_potential: r.tail_recursion_potential,
+                        stack_usage_per_level: r.stack_usage_per_level,
+                        recursion_performance_impact: RecursionPerformanceImpact {
+                            stack_overhead_per_call: r
+                                .recursion_performance_impact
+                                .stack_overhead_per_call,
+                            call_overhead_ns: r.recursion_performance_impact.call_overhead_ns,
+                            cache_impact: r.recursion_performance_impact.cache_impact,
+                            optimization_recommendations: r
+                                .recursion_performance_impact
+                                .optimization_recommendations,
+                        },
+                    })
+                    .collect(),
+                stack_overflow_risk: match old.call_stack_info.stack_overflow_risk {
+                    crate::core::types::StackOverflowRisk::Low => StackOverflowRisk::Low,
+                    crate::core::types::StackOverflowRisk::Medium => StackOverflowRisk::Medium,
+                    crate::core::types::StackOverflowRisk::High => StackOverflowRisk::High,
+                    crate::core::types::StackOverflowRisk::Critical => StackOverflowRisk::Critical,
+                },
+            },
+            memory_allocations_per_call: old.memory_allocations_per_call,
+            performance_characteristics: FunctionPerformanceCharacteristics {
+                cpu_usage_percent: old.performance_characteristics.cpu_usage_percent,
+                memory_characteristics: FunctionMemoryCharacteristics {
+                    stack_memory_usage: old
+                        .performance_characteristics
+                        .memory_characteristics
+                        .stack_memory_usage,
+                    heap_allocations: old
+                        .performance_characteristics
+                        .memory_characteristics
+                        .heap_allocations,
+                    access_pattern: match old
+                        .performance_characteristics
+                        .memory_characteristics
+                        .access_pattern
+                    {
+                        crate::core::types::MemoryAccessPattern::Sequential => {
+                            MemoryAccessPattern::Sequential
+                        }
+                        crate::core::types::MemoryAccessPattern::Random => {
+                            MemoryAccessPattern::Random
+                        }
+                        crate::core::types::MemoryAccessPattern::Strided { stride } => {
+                            MemoryAccessPattern::Strided { stride }
+                        }
+                        crate::core::types::MemoryAccessPattern::Clustered => {
+                            MemoryAccessPattern::Clustered
+                        }
+                        crate::core::types::MemoryAccessPattern::Mixed => {
+                            MemoryAccessPattern::Mixed
+                        }
+                    },
+                    cache_efficiency: old
+                        .performance_characteristics
+                        .memory_characteristics
+                        .cache_efficiency,
+                    memory_bandwidth_utilization: old
+                        .performance_characteristics
+                        .memory_characteristics
+                        .memory_bandwidth_utilization,
+                },
+                io_characteristics: IOCharacteristics {
+                    file_io_operations: old
+                        .performance_characteristics
+                        .io_characteristics
+                        .file_io_operations,
+                    network_io_operations: old
+                        .performance_characteristics
+                        .io_characteristics
+                        .network_io_operations,
+                    avg_io_wait_time_ns: old
+                        .performance_characteristics
+                        .io_characteristics
+                        .avg_io_wait_time_ns,
+                    io_throughput_bytes_per_sec: old
+                        .performance_characteristics
+                        .io_characteristics
+                        .io_throughput_bytes_per_sec,
+                    io_efficiency_score: old
+                        .performance_characteristics
+                        .io_characteristics
+                        .io_efficiency_score,
+                },
+                concurrency_characteristics: ConcurrencyCharacteristics {
+                    thread_safety_level: match old
+                        .performance_characteristics
+                        .concurrency_characteristics
+                        .thread_safety_level
+                    {
+                        crate::core::types::ThreadSafetyLevel::ThreadSafe => {
+                            ThreadSafetyLevel::ThreadSafe
+                        }
+                        crate::core::types::ThreadSafetyLevel::ConditionallyThreadSafe => {
+                            ThreadSafetyLevel::ConditionallyThreadSafe
+                        }
+                        crate::core::types::ThreadSafetyLevel::NotThreadSafe => {
+                            ThreadSafetyLevel::NotThreadSafe
+                        }
+                        crate::core::types::ThreadSafetyLevel::Unknown => {
+                            ThreadSafetyLevel::Unknown
+                        }
+                    },
+                    lock_contention_frequency: old
+                        .performance_characteristics
+                        .concurrency_characteristics
+                        .lock_contention_frequency,
+                    parallel_execution_potential: old
+                        .performance_characteristics
+                        .concurrency_characteristics
+                        .parallel_execution_potential,
+                    synchronization_overhead_ns: old
+                        .performance_characteristics
+                        .concurrency_characteristics
+                        .synchronization_overhead_ns,
+                    deadlock_risk: match old
+                        .performance_characteristics
+                        .concurrency_characteristics
+                        .deadlock_risk
+                    {
+                        crate::core::types::DeadlockRisk::None => DeadlockRisk::None,
+                        crate::core::types::DeadlockRisk::Low => DeadlockRisk::Low,
+                        crate::core::types::DeadlockRisk::Medium => DeadlockRisk::Medium,
+                        crate::core::types::DeadlockRisk::High => DeadlockRisk::High,
+                    },
+                },
+                bottlenecks: old
+                    .performance_characteristics
+                    .bottlenecks
+                    .into_iter()
+                    .map(|b| PerformanceBottleneck {
+                        bottleneck_type: match b.bottleneck_type {
+                            crate::core::types::BottleneckType::MemoryAllocation => {
+                                BottleneckType::MemoryAllocation
+                            }
+                            crate::core::types::BottleneckType::MemoryDeallocation => {
+                                BottleneckType::MemoryDeallocation
+                            }
+                            crate::core::types::BottleneckType::CacheMiss => {
+                                BottleneckType::CacheMiss
+                            }
+                            crate::core::types::BottleneckType::BranchMisprediction => {
+                                BottleneckType::BranchMisprediction
+                            }
+                            crate::core::types::BottleneckType::FunctionCall => {
+                                BottleneckType::FunctionCall
+                            }
+                            crate::core::types::BottleneckType::DataMovement => {
+                                BottleneckType::DataMovement
+                            }
+                            crate::core::types::BottleneckType::Synchronization => {
+                                BottleneckType::Synchronization
+                            }
+                            crate::core::types::BottleneckType::IO => BottleneckType::IO,
+                        },
+                        location: b.location,
+                        severity: match b.severity {
+                            crate::core::types::ImpactLevel::Low => ImpactLevel::Low,
+                            crate::core::types::ImpactLevel::Medium => ImpactLevel::Medium,
+                            crate::core::types::ImpactLevel::High => ImpactLevel::High,
+                            crate::core::types::ImpactLevel::Critical => ImpactLevel::Critical,
+                        },
+                        description: b.description,
+                        optimization_suggestion: b.optimization_suggestion,
+                    })
+                    .collect(),
+            },
+            call_patterns: old
+                .call_patterns
+                .into_iter()
+                .map(|p| CallPattern {
+                    pattern_type: match p.pattern_type {
+                        crate::core::types::CallPatternType::Sequential => {
+                            CallPatternType::Sequential
+                        }
+                        crate::core::types::CallPatternType::Recursive => {
+                            CallPatternType::Recursive
+                        }
+                        crate::core::types::CallPatternType::Iterative => {
+                            CallPatternType::Iterative
+                        }
+                        crate::core::types::CallPatternType::Conditional => {
+                            CallPatternType::Conditional
+                        }
+                        crate::core::types::CallPatternType::Parallel => CallPatternType::Parallel,
+                        crate::core::types::CallPatternType::Asynchronous => {
+                            CallPatternType::Asynchronous
+                        }
+                        crate::core::types::CallPatternType::Callback => CallPatternType::Callback,
+                        crate::core::types::CallPatternType::EventDriven => {
+                            CallPatternType::EventDriven
+                        }
+                    },
+                    description: p.description,
+                    frequency: p.frequency,
+                    performance_impact: p.performance_impact,
+                    optimization_potential: p.optimization_potential,
+                })
+                .collect(),
         }
     }
 }

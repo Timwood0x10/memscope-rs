@@ -136,3 +136,72 @@ mod tests {
         ));
     }
 }
+
+// Implement From trait for converting from core::types to capture::types
+impl From<crate::core::types::EnhancedFragmentationAnalysis> for EnhancedFragmentationAnalysis {
+    fn from(old: crate::core::types::EnhancedFragmentationAnalysis) -> Self {
+        Self {
+            total_heap_size: old.total_heap_size,
+            used_heap_size: old.used_heap_size,
+            free_heap_size: old.free_heap_size,
+            free_block_count: old.free_block_count,
+            free_block_distribution: old
+                .free_block_distribution
+                .into_iter()
+                .map(|b| BlockSizeRange {
+                    min_size: b.min_size,
+                    max_size: b.max_size,
+                    block_count: b.block_count,
+                    total_size: b.total_size,
+                })
+                .collect(),
+            fragmentation_metrics: FragmentationMetrics {
+                external_fragmentation: old.fragmentation_metrics.external_fragmentation,
+                internal_fragmentation: old.fragmentation_metrics.internal_fragmentation,
+                largest_free_block: old.fragmentation_metrics.largest_free_block,
+                average_free_block_size: old.fragmentation_metrics.average_free_block_size,
+                severity_level: match old.fragmentation_metrics.severity_level {
+                    crate::core::types::FragmentationSeverity::Low => FragmentationSeverity::Low,
+                    crate::core::types::FragmentationSeverity::Moderate => {
+                        FragmentationSeverity::Moderate
+                    }
+                    crate::core::types::FragmentationSeverity::High => FragmentationSeverity::High,
+                    crate::core::types::FragmentationSeverity::Critical => {
+                        FragmentationSeverity::Critical
+                    }
+                },
+            },
+            fragmentation_causes: old
+                .fragmentation_causes
+                .into_iter()
+                .map(|c| FragmentationCause {
+                    cause_type: match c.cause_type {
+                        crate::core::types::FragmentationCauseType::MixedAllocationSizes => {
+                            FragmentationCauseType::MixedAllocationSizes
+                        }
+                        crate::core::types::FragmentationCauseType::FrequentAllocDealloc => {
+                            FragmentationCauseType::FrequentAllocDealloc
+                        }
+                        crate::core::types::FragmentationCauseType::LongLivedAllocations => {
+                            FragmentationCauseType::LongLivedAllocations
+                        }
+                        crate::core::types::FragmentationCauseType::PoorAllocationStrategy => {
+                            FragmentationCauseType::PoorAllocationStrategy
+                        }
+                        crate::core::types::FragmentationCauseType::MemoryLeaks => {
+                            FragmentationCauseType::MemoryLeaks
+                        }
+                    },
+                    description: c.description,
+                    impact_level: match c.impact_level {
+                        crate::core::types::ImpactLevel::Low => ImpactLevel::Low,
+                        crate::core::types::ImpactLevel::Medium => ImpactLevel::Medium,
+                        crate::core::types::ImpactLevel::High => ImpactLevel::High,
+                        crate::core::types::ImpactLevel::Critical => ImpactLevel::Critical,
+                    },
+                    mitigation_suggestion: c.mitigation_suggestion,
+                })
+                .collect(),
+        }
+    }
+}

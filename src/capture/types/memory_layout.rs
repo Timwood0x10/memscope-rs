@@ -335,3 +335,195 @@ mod tests {
         assert!(matches!(container, ContainerType::Vec { .. }));
     }
 }
+
+impl From<crate::core::types::MemoryLayoutInfo> for MemoryLayoutInfo {
+    fn from(old: crate::core::types::MemoryLayoutInfo) -> Self {
+        Self {
+            total_size: old.total_size,
+            alignment: old.alignment,
+            field_layout: old
+                .field_layout
+                .into_iter()
+                .map(|f| FieldLayoutInfo {
+                    field_name: f.field_name,
+                    field_type: f.field_type,
+                    offset: f.offset,
+                    size: f.size,
+                    alignment: f.alignment,
+                    is_padding: f.is_padding,
+                })
+                .collect(),
+            padding_info: PaddingAnalysis {
+                total_padding_bytes: old.padding_info.total_padding_bytes,
+                padding_locations: old
+                    .padding_info
+                    .padding_locations
+                    .into_iter()
+                    .map(|l| PaddingLocation {
+                        start_offset: l.start_offset,
+                        size: l.size,
+                        reason: match l.reason {
+                            crate::core::types::PaddingReason::FieldAlignment => {
+                                PaddingReason::FieldAlignment
+                            }
+                            crate::core::types::PaddingReason::StructAlignment => {
+                                PaddingReason::StructAlignment
+                            }
+                            crate::core::types::PaddingReason::EnumDiscriminant => {
+                                PaddingReason::EnumDiscriminant
+                            }
+                            crate::core::types::PaddingReason::Other(s) => PaddingReason::Other(s),
+                        },
+                    })
+                    .collect(),
+                padding_ratio: old.padding_info.padding_ratio,
+                optimization_suggestions: old.padding_info.optimization_suggestions,
+            },
+            layout_efficiency: LayoutEfficiency {
+                memory_utilization: old.layout_efficiency.memory_utilization,
+                cache_friendliness: old.layout_efficiency.cache_friendliness,
+                alignment_waste: old.layout_efficiency.alignment_waste,
+                optimization_potential: match old.layout_efficiency.optimization_potential {
+                    crate::core::types::OptimizationPotential::None => OptimizationPotential::None,
+                    crate::core::types::OptimizationPotential::Minor { potential_savings } => {
+                        OptimizationPotential::Minor { potential_savings }
+                    }
+                    crate::core::types::OptimizationPotential::Moderate {
+                        potential_savings,
+                        suggestions,
+                    } => OptimizationPotential::Moderate {
+                        potential_savings,
+                        suggestions,
+                    },
+                    crate::core::types::OptimizationPotential::Major {
+                        potential_savings,
+                        suggestions,
+                    } => OptimizationPotential::Major {
+                        potential_savings,
+                        suggestions,
+                    },
+                },
+            },
+            container_analysis: old.container_analysis.map(|c| ContainerAnalysis {
+                container_type: match c.container_type {
+                    crate::core::types::ContainerType::Vec {
+                        element_type,
+                        element_size,
+                    } => ContainerType::Vec {
+                        element_type,
+                        element_size,
+                    },
+                    crate::core::types::ContainerType::HashMap {
+                        key_type,
+                        value_type,
+                        key_size,
+                        value_size,
+                    } => ContainerType::HashMap {
+                        key_type,
+                        value_type,
+                        key_size,
+                        value_size,
+                    },
+                    crate::core::types::ContainerType::Box {
+                        boxed_type,
+                        boxed_size,
+                    } => ContainerType::Box {
+                        boxed_type,
+                        boxed_size,
+                    },
+                    crate::core::types::ContainerType::String => ContainerType::String,
+                    crate::core::types::ContainerType::Rc {
+                        referenced_type,
+                        referenced_size,
+                    } => ContainerType::Rc {
+                        referenced_type,
+                        referenced_size,
+                    },
+                    crate::core::types::ContainerType::Arc {
+                        referenced_type,
+                        referenced_size,
+                    } => ContainerType::Arc {
+                        referenced_type,
+                        referenced_size,
+                    },
+                    crate::core::types::ContainerType::BTreeMap {
+                        key_type,
+                        value_type,
+                        key_size,
+                        value_size,
+                    } => ContainerType::BTreeMap {
+                        key_type,
+                        value_type,
+                        key_size,
+                        value_size,
+                    },
+                    crate::core::types::ContainerType::Other { type_name } => {
+                        ContainerType::Other { type_name }
+                    }
+                },
+                capacity_utilization: CapacityUtilization {
+                    current_capacity: c.capacity_utilization.current_capacity,
+                    current_length: c.capacity_utilization.current_length,
+                    utilization_ratio: c.capacity_utilization.utilization_ratio,
+                    wasted_space: c.capacity_utilization.wasted_space,
+                    efficiency_assessment: match c.capacity_utilization.efficiency_assessment {
+                        crate::core::types::UtilizationEfficiency::Excellent => {
+                            UtilizationEfficiency::Excellent
+                        }
+                        crate::core::types::UtilizationEfficiency::Good => {
+                            UtilizationEfficiency::Good
+                        }
+                        crate::core::types::UtilizationEfficiency::Fair => {
+                            UtilizationEfficiency::Fair
+                        }
+                        crate::core::types::UtilizationEfficiency::Poor { suggestion } => {
+                            UtilizationEfficiency::Poor { suggestion }
+                        }
+                    },
+                },
+                reallocation_patterns: ReallocationPatterns {
+                    estimated_reallocations: c.reallocation_patterns.estimated_reallocations,
+                    growth_pattern: match c.reallocation_patterns.growth_pattern {
+                        crate::core::types::GrowthPattern::Exponential => {
+                            GrowthPattern::Exponential
+                        }
+                        crate::core::types::GrowthPattern::Linear => GrowthPattern::Linear,
+                        crate::core::types::GrowthPattern::Irregular => GrowthPattern::Irregular,
+                        crate::core::types::GrowthPattern::SingleAllocation => {
+                            GrowthPattern::SingleAllocation
+                        }
+                        crate::core::types::GrowthPattern::Unknown => GrowthPattern::Unknown,
+                    },
+                    frequency_assessment: match c.reallocation_patterns.frequency_assessment {
+                        crate::core::types::ReallocationFrequency::None => {
+                            ReallocationFrequency::None
+                        }
+                        crate::core::types::ReallocationFrequency::Low => {
+                            ReallocationFrequency::Low
+                        }
+                        crate::core::types::ReallocationFrequency::Moderate => {
+                            ReallocationFrequency::Moderate
+                        }
+                        crate::core::types::ReallocationFrequency::High { performance_impact } => {
+                            ReallocationFrequency::High { performance_impact }
+                        }
+                    },
+                    optimization_suggestions: c.reallocation_patterns.optimization_suggestions,
+                },
+                efficiency_metrics: ContainerEfficiencyMetrics {
+                    memory_overhead: c.efficiency_metrics.memory_overhead,
+                    cache_efficiency: c.efficiency_metrics.cache_efficiency,
+                    access_efficiency: match c.efficiency_metrics.access_efficiency {
+                        crate::core::types::AccessEfficiency::Sequential => {
+                            AccessEfficiency::Sequential
+                        }
+                        crate::core::types::AccessEfficiency::Random => AccessEfficiency::Random,
+                        crate::core::types::AccessEfficiency::Mixed => AccessEfficiency::Mixed,
+                        crate::core::types::AccessEfficiency::Unknown => AccessEfficiency::Unknown,
+                    },
+                    health_score: c.efficiency_metrics.health_score,
+                },
+            }),
+        }
+    }
+}

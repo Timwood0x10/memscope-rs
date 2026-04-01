@@ -392,10 +392,10 @@ fn generate_statistics(circular_references: &[CircularReference]) -> CircularRef
 
 #[cfg(test)]
 mod tests {
-    use std::thread;
-
     use super::*;
     use crate::capture::types::{RefCountSnapshot, SmartPointerInfo, SmartPointerType};
+
+    use std::thread;
 
     #[test]
     fn test_circular_reference_node_creation() {
@@ -657,7 +657,7 @@ mod tests {
             scope_name: None,
             timestamp_alloc: 0,
             timestamp_dealloc: None,
-            thread_id: thread::current().id(),
+            thread_id: std::thread::current().id(),
             borrow_count: 0,
             stack_trace: None,
             is_leaked: false,
@@ -690,7 +690,7 @@ mod tests {
             scope_name: None,
             timestamp_alloc: 0,
             timestamp_dealloc: None,
-            thread_id: thread::current().id(),
+            thread_id: std::thread::current().id(),
             borrow_count: 0,
             stack_trace: None,
             is_leaked: false,
@@ -748,7 +748,7 @@ mod tests {
             scope_name: None,
             timestamp_alloc: 0,
             timestamp_dealloc: None,
-            thread_id: thread::current().id(),
+            thread_id: std::thread::current().id(),
             borrow_count: 0,
             stack_trace: None,
             is_leaked: false,

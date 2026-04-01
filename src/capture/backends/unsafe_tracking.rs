@@ -777,9 +777,31 @@ mod tests {
 
     #[test]
     fn test_allocation_info_leak_detection() {
-        let info = AllocationInfo::new(0x1000, 1024, AllocationSource::SafeRust);
+        let mut info = AllocationInfo::new(0x1000, 1024, AllocationSource::SafeRust);
         assert!(!info.is_leaked(1000));
-        assert!(info.is_leaked(10000));
+
+        // Simulate time passing by creating an older allocation
+        let now_ms = AllocationInfo::now_ms();
+        let old_info = AllocationInfo {
+            ptr: 0x1000,
+            size: 1024,
+            source: AllocationSource::SafeRust,
+            allocated_at_ms: now_ms.saturating_sub(2000), // 2 seconds ago
+            deallocated_at_ms: None,
+            is_active: true,
+        };
+        assert!(old_info.is_leaked(1000));
+
+        // Deallocated allocation should not be leaked
+        let deallocated_info = AllocationInfo {
+            ptr: 0x2000,
+            size: 1024,
+            source: AllocationSource::SafeRust,
+            allocated_at_ms: now_ms.saturating_sub(2000),
+            deallocated_at_ms: Some(now_ms.saturating_sub(1000)), // 1 second ago
+            is_active: false,
+        };
+        assert!(!deallocated_info.is_leaked(1000));
     }
 
     #[test]
@@ -904,6 +926,22 @@ mod tests {
         tracker
             .track_unsafe_allocation(0x1000, 1024, "test.rs:42".to_string())
             .unwrap();
+
+        // Simulate time passing by creating an old allocation
+        let now_ms = AllocationInfo::now_ms();
+        let old_allocation = AllocationInfo {
+            ptr: 0x1000,
+            size: 1024,
+            source: AllocationSource::SafeRust,
+            allocated_at_ms: now_ms.saturating_sub(15000), // 15 seconds ago
+            deallocated_at_ms: None,
+            is_active: true,
+        };
+
+        // Manually add the old allocation to the tracker
+        if let Ok(mut allocations) = tracker.allocations.lock() {
+            allocations.insert(0x1000, old_allocation);
+        }
 
         let leaks = tracker.detect_leaks(10000);
         assert_eq!(leaks.len(), 1);

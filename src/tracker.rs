@@ -29,7 +29,8 @@
 //! let tracker = tracker!();
 //! let my_vec = vec![1, 2, 3];
 //! track!(tracker, my_vec);
-//! tracker.export_json("output")?;
+//! // Note: export_json returns (), not Result, so we don't use ?
+//! let _ = tracker.export_json("output");
 //!
 //! // Advanced usage with custom sampling
 //! use memscope_rs::tracker::SamplingConfig;

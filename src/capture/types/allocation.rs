@@ -197,21 +197,21 @@ impl From<crate::core::types::AllocationInfo> for AllocationInfo {
             clone_info,
             ownership_history_available: old.ownership_history_available,
             smart_pointer_info,
-            // Complex nested types - set to None for now
-            memory_layout: None,
-            generic_info: None,
-            dynamic_type_info: None,
-            runtime_state: None,
-            stack_allocation: None,
-            temporary_object: None,
-            fragmentation_analysis: None,
-            generic_instantiation: None,
-            type_relationships: None,
-            type_usage: None,
-            function_call_tracking: None,
-            lifecycle_tracking: None,
-            access_tracking: None,
-            drop_chain_analysis: None,
+            // Complex nested types - use Into::into for complete conversion
+            memory_layout: old.memory_layout.map(Into::into),
+            generic_info: old.generic_info.map(Into::into),
+            dynamic_type_info: old.dynamic_type_info.map(Into::into),
+            runtime_state: old.runtime_state.map(Into::into),
+            stack_allocation: old.stack_allocation.map(Into::into),
+            temporary_object: old.temporary_object.map(Into::into),
+            fragmentation_analysis: old.fragmentation_analysis.map(Into::into),
+            generic_instantiation: old.generic_instantiation.map(Into::into),
+            type_relationships: old.type_relationships.map(Into::into),
+            type_usage: old.type_usage.map(Into::into),
+            function_call_tracking: old.function_call_tracking.map(Into::into),
+            lifecycle_tracking: old.lifecycle_tracking.map(Into::into),
+            access_tracking: old.access_tracking.map(Into::into),
+            drop_chain_analysis: old.drop_chain_analysis.map(Into::into),
         }
     }
 }
@@ -803,5 +803,183 @@ mod tests {
         let json_str = serialized.expect("Serialization should succeed for valid AllocationInfo");
         assert!(json_str.contains("ptr"));
         assert!(json_str.contains("size"));
+    }
+}
+
+// Implement From trait for converting from core::types to capture::types
+impl From<crate::core::types::TypeUsageInfo> for TypeUsageInfo {
+    fn from(old: crate::core::types::TypeUsageInfo) -> Self {
+        Self {
+            type_name: old.type_name,
+            total_usage_count: old.total_usage_count,
+            usage_contexts: old
+                .usage_contexts
+                .into_iter()
+                .map(|c| UsageContext {
+                    context_type: match c.context_type {
+                        crate::core::types::ContextType::FunctionParameter => {
+                            ContextType::FunctionParameter
+                        }
+                        crate::core::types::ContextType::FunctionReturn => {
+                            ContextType::FunctionReturn
+                        }
+                        crate::core::types::ContextType::LocalVariable => {
+                            ContextType::LocalVariable
+                        }
+                        crate::core::types::ContextType::StructField => ContextType::StructField,
+                        crate::core::types::ContextType::EnumVariant => ContextType::EnumVariant,
+                        crate::core::types::ContextType::TraitMethod => ContextType::TraitMethod,
+                        crate::core::types::ContextType::GenericConstraint => {
+                            ContextType::GenericConstraint
+                        }
+                        crate::core::types::ContextType::ClosureCapture => {
+                            ContextType::ClosureCapture
+                        }
+                        crate::core::types::ContextType::AsyncContext => ContextType::AsyncContext,
+                        crate::core::types::ContextType::UnsafeContext => {
+                            ContextType::UnsafeContext
+                        }
+                    },
+                    location: c.location,
+                    frequency: c.frequency,
+                    performance_metrics: ContextPerformanceMetrics {
+                        avg_execution_time_ns: c.performance_metrics.avg_execution_time_ns,
+                        allocation_frequency: c.performance_metrics.allocation_frequency,
+                        cache_miss_rate: c.performance_metrics.cache_miss_rate,
+                        branch_misprediction_rate: c.performance_metrics.branch_misprediction_rate,
+                    },
+                })
+                .collect(),
+            usage_timeline: old
+                .usage_timeline
+                .into_iter()
+                .map(|t| UsageTimePoint {
+                    timestamp: t.timestamp,
+                    usage_count: t.usage_count,
+                    memory_usage: t.memory_usage,
+                    performance_snapshot: PerformanceSnapshot {
+                        cpu_usage: t.performance_snapshot.cpu_usage,
+                        memory_usage: t.performance_snapshot.memory_usage,
+                        cache_hit_rate: t.performance_snapshot.cache_hit_rate,
+                        throughput: t.performance_snapshot.throughput,
+                    },
+                })
+                .collect(),
+            hot_paths: old
+                .hot_paths
+                .into_iter()
+                .map(|h| HotPath {
+                    path_id: h.path_id,
+                    call_sequence: h.call_sequence,
+                    execution_frequency: h.execution_frequency,
+                    total_execution_time_ns: h.total_execution_time_ns,
+                    avg_execution_time_ns: h.avg_execution_time_ns,
+                    memory_allocations: h.memory_allocations,
+                    bottlenecks: h
+                        .bottlenecks
+                        .into_iter()
+                        .map(|b| PerformanceBottleneck {
+                            bottleneck_type: match b.bottleneck_type {
+                                crate::core::types::BottleneckType::MemoryAllocation => {
+                                    BottleneckType::MemoryAllocation
+                                }
+                                crate::core::types::BottleneckType::MemoryDeallocation => {
+                                    BottleneckType::MemoryDeallocation
+                                }
+                                crate::core::types::BottleneckType::CacheMiss => {
+                                    BottleneckType::CacheMiss
+                                }
+                                crate::core::types::BottleneckType::BranchMisprediction => {
+                                    BottleneckType::BranchMisprediction
+                                }
+                                crate::core::types::BottleneckType::FunctionCall => {
+                                    BottleneckType::FunctionCall
+                                }
+                                crate::core::types::BottleneckType::DataMovement => {
+                                    BottleneckType::DataMovement
+                                }
+                                crate::core::types::BottleneckType::Synchronization => {
+                                    BottleneckType::Synchronization
+                                }
+                                crate::core::types::BottleneckType::IO => BottleneckType::IO,
+                            },
+                            location: b.location,
+                            severity: match b.severity {
+                                crate::core::types::ImpactLevel::Low => ImpactLevel::Low,
+                                crate::core::types::ImpactLevel::Medium => ImpactLevel::Medium,
+                                crate::core::types::ImpactLevel::High => ImpactLevel::High,
+                                crate::core::types::ImpactLevel::Critical => ImpactLevel::Critical,
+                            },
+                            description: b.description,
+                            optimization_suggestion: b.optimization_suggestion,
+                        })
+                        .collect(),
+                })
+                .collect(),
+            performance_impact: TypePerformanceImpact {
+                performance_score: old.performance_impact.performance_score,
+                memory_efficiency_score: old.performance_impact.memory_efficiency_score,
+                cpu_efficiency_score: old.performance_impact.cpu_efficiency_score,
+                cache_efficiency_score: old.performance_impact.cache_efficiency_score,
+                optimization_recommendations: old
+                    .performance_impact
+                    .optimization_recommendations
+                    .into_iter()
+                    .map(|r| OptimizationRecommendation {
+                        recommendation_type: match r.recommendation_type {
+                            crate::core::types::RecommendationType::MemoryLayout => {
+                                RecommendationType::MemoryLayout
+                            }
+                            crate::core::types::RecommendationType::AlgorithmChange => {
+                                RecommendationType::AlgorithmChange
+                            }
+                            crate::core::types::RecommendationType::DataStructureChange => {
+                                RecommendationType::DataStructureChange
+                            }
+                            crate::core::types::RecommendationType::CachingStrategy => {
+                                RecommendationType::CachingStrategy
+                            }
+                            crate::core::types::RecommendationType::MemoryPooling => {
+                                RecommendationType::MemoryPooling
+                            }
+                            crate::core::types::RecommendationType::LazyInitialization => {
+                                RecommendationType::LazyInitialization
+                            }
+                            crate::core::types::RecommendationType::Inlining => {
+                                RecommendationType::Inlining
+                            }
+                            crate::core::types::RecommendationType::Vectorization => {
+                                RecommendationType::Vectorization
+                            }
+                            crate::core::types::RecommendationType::Parallelization => {
+                                RecommendationType::Parallelization
+                            }
+                        },
+                        priority: match r.priority {
+                            crate::core::types::Priority::Low => Priority::Low,
+                            crate::core::types::Priority::Medium => Priority::Medium,
+                            crate::core::types::Priority::High => Priority::High,
+                            crate::core::types::Priority::Critical => Priority::Critical,
+                        },
+                        description: r.description,
+                        expected_improvement: r.expected_improvement,
+                        implementation_difficulty: match r.implementation_difficulty {
+                            crate::core::types::ImplementationDifficulty::Easy => {
+                                ImplementationDifficulty::Easy
+                            }
+                            crate::core::types::ImplementationDifficulty::Medium => {
+                                ImplementationDifficulty::Medium
+                            }
+                            crate::core::types::ImplementationDifficulty::Hard => {
+                                ImplementationDifficulty::Hard
+                            }
+                            crate::core::types::ImplementationDifficulty::VeryHard => {
+                                ImplementationDifficulty::VeryHard
+                            }
+                        },
+                    })
+                    .collect(),
+            },
+        }
     }
 }

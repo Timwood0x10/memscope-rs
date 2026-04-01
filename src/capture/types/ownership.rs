@@ -280,3 +280,219 @@ mod tests {
         assert!(weak_ref.target_alive);
     }
 }
+
+impl From<crate::core::types::TypeRelationshipInfo> for TypeRelationshipInfo {
+    fn from(old: crate::core::types::TypeRelationshipInfo) -> Self {
+        Self {
+            type_name: old.type_name,
+            parent_types: old
+                .parent_types
+                .into_iter()
+                .map(|p| ParentTypeInfo {
+                    type_name: p.type_name,
+                    relationship_type: match p.relationship_type {
+                        crate::core::types::RelationshipType::TraitImplementation => {
+                            RelationshipType::TraitImplementation
+                        }
+                        crate::core::types::RelationshipType::TraitBound => {
+                            RelationshipType::TraitBound
+                        }
+                        crate::core::types::RelationshipType::Inheritance => {
+                            RelationshipType::Inheritance
+                        }
+                        crate::core::types::RelationshipType::Association => {
+                            RelationshipType::Association
+                        }
+                        crate::core::types::RelationshipType::Composition => {
+                            RelationshipType::Composition
+                        }
+                        crate::core::types::RelationshipType::Dependency => {
+                            RelationshipType::Dependency
+                        }
+                    },
+                    inheritance_level: p.inheritance_level,
+                    memory_impact: match p.memory_impact {
+                        crate::core::types::MemoryImpact::None => MemoryImpact::None,
+                        crate::core::types::MemoryImpact::SizeIncrease(s) => {
+                            MemoryImpact::SizeIncrease(s)
+                        }
+                        crate::core::types::MemoryImpact::AlignmentChange(s) => {
+                            MemoryImpact::AlignmentChange(s)
+                        }
+                        crate::core::types::MemoryImpact::LayoutChange(s) => {
+                            MemoryImpact::LayoutChange(s)
+                        }
+                    },
+                })
+                .collect(),
+            child_types: old
+                .child_types
+                .into_iter()
+                .map(|c| ChildTypeInfo {
+                    type_name: c.type_name,
+                    relationship_type: match c.relationship_type {
+                        crate::core::types::RelationshipType::TraitImplementation => {
+                            RelationshipType::TraitImplementation
+                        }
+                        crate::core::types::RelationshipType::TraitBound => {
+                            RelationshipType::TraitBound
+                        }
+                        crate::core::types::RelationshipType::Inheritance => {
+                            RelationshipType::Inheritance
+                        }
+                        crate::core::types::RelationshipType::Association => {
+                            RelationshipType::Association
+                        }
+                        crate::core::types::RelationshipType::Composition => {
+                            RelationshipType::Composition
+                        }
+                        crate::core::types::RelationshipType::Dependency => {
+                            RelationshipType::Dependency
+                        }
+                    },
+                    specialization_level: c.specialization_level,
+                    usage_frequency: c.usage_frequency,
+                })
+                .collect(),
+            composed_types: old
+                .composed_types
+                .into_iter()
+                .map(|c| ComposedTypeInfo {
+                    type_name: c.type_name,
+                    field_name: c.field_name,
+                    composition_type: match c.composition_type {
+                        crate::core::types::CompositionType::Field => CompositionType::Field,
+                        crate::core::types::CompositionType::AssociatedType => {
+                            CompositionType::AssociatedType
+                        }
+                        crate::core::types::CompositionType::GenericParameter => {
+                            CompositionType::GenericParameter
+                        }
+                        crate::core::types::CompositionType::NestedType => {
+                            CompositionType::NestedType
+                        }
+                        crate::core::types::CompositionType::Reference => {
+                            CompositionType::Reference
+                        }
+                        crate::core::types::CompositionType::SmartPointer => {
+                            CompositionType::SmartPointer
+                        }
+                    },
+                    memory_offset: c.memory_offset,
+                    access_frequency: c.access_frequency,
+                })
+                .collect(),
+            complexity_score: old.complexity_score,
+            inheritance_depth: old.inheritance_depth,
+            composition_breadth: old.composition_breadth,
+        }
+    }
+}
+
+impl From<crate::core::types::OwnershipNode> for OwnershipNode {
+    fn from(old: crate::core::types::OwnershipNode) -> Self {
+        Self {
+            object_id: old.object_id,
+            type_name: old.type_name,
+            ownership_type: match old.ownership_type {
+                crate::core::types::OwnershipType::Unique => OwnershipType::Unique,
+                crate::core::types::OwnershipType::SharedSingleThreaded => {
+                    OwnershipType::SharedSingleThreaded
+                }
+                crate::core::types::OwnershipType::SharedMultiThreaded => {
+                    OwnershipType::SharedMultiThreaded
+                }
+                crate::core::types::OwnershipType::Borrowed => OwnershipType::Borrowed,
+                crate::core::types::OwnershipType::Weak => OwnershipType::Weak,
+                crate::core::types::OwnershipType::Raw => OwnershipType::Raw,
+            },
+            owned_objects: old.owned_objects.into_iter().map(Into::into).collect(),
+            reference_count: old.reference_count,
+            weak_reference_count: old.weak_reference_count,
+        }
+    }
+}
+
+impl From<crate::core::types::OwnershipTransferEvent> for OwnershipTransferEvent {
+    fn from(old: crate::core::types::OwnershipTransferEvent) -> Self {
+        Self {
+            source_object: old.source_object,
+            target_object: old.target_object,
+            transfer_type: match old.transfer_type {
+                crate::core::types::OwnershipTransferType::Move => OwnershipTransferType::Move,
+                crate::core::types::OwnershipTransferType::Clone => OwnershipTransferType::Clone,
+                crate::core::types::OwnershipTransferType::Borrow => OwnershipTransferType::Borrow,
+                crate::core::types::OwnershipTransferType::ReferenceIncrement => {
+                    OwnershipTransferType::ReferenceIncrement
+                }
+                crate::core::types::OwnershipTransferType::ReferenceDecrement => {
+                    OwnershipTransferType::ReferenceDecrement
+                }
+            },
+            timestamp: old.timestamp,
+            mechanism: old.mechanism,
+        }
+    }
+}
+
+impl From<crate::core::types::WeakReferenceInfo> for WeakReferenceInfo {
+    fn from(old: crate::core::types::WeakReferenceInfo) -> Self {
+        Self {
+            weak_ref_id: old.weak_ref_id,
+            target_object_id: old.target_object_id,
+            weak_ref_type: match old.weak_ref_type {
+                crate::core::types::WeakReferenceType::RcWeak => WeakReferenceType::RcWeak,
+                crate::core::types::WeakReferenceType::ArcWeak => WeakReferenceType::ArcWeak,
+                crate::core::types::WeakReferenceType::Custom => WeakReferenceType::Custom,
+            },
+            target_alive: old.target_alive,
+            upgrade_attempts: old.upgrade_attempts,
+            successful_upgrades: old.successful_upgrades,
+        }
+    }
+}
+
+impl From<crate::core::types::CircularReferenceInfo> for CircularReferenceInfo {
+    fn from(old: crate::core::types::CircularReferenceInfo) -> Self {
+        Self {
+            cycle_objects: old.cycle_objects,
+            detection_timestamp: old.detection_timestamp,
+            cycle_type: match old.cycle_type {
+                crate::core::types::CircularReferenceType::Direct => CircularReferenceType::Direct,
+                crate::core::types::CircularReferenceType::Indirect => {
+                    CircularReferenceType::Indirect
+                }
+                crate::core::types::CircularReferenceType::SelfReferential => {
+                    CircularReferenceType::SelfReferential
+                }
+                crate::core::types::CircularReferenceType::Complex => {
+                    CircularReferenceType::Complex
+                }
+            },
+            leak_risk: match old.leak_risk {
+                crate::core::types::LeakRiskLevel::Low => LeakRiskLevel::Low,
+                crate::core::types::LeakRiskLevel::Medium => LeakRiskLevel::Medium,
+                crate::core::types::LeakRiskLevel::High => LeakRiskLevel::High,
+                crate::core::types::LeakRiskLevel::Critical => LeakRiskLevel::Critical,
+            },
+            resolution_suggestion: old.resolution_suggestion,
+        }
+    }
+}
+
+impl From<crate::core::types::OwnershipHierarchy> for OwnershipHierarchy {
+    fn from(old: crate::core::types::OwnershipHierarchy) -> Self {
+        Self {
+            root_owners: old.root_owners.into_iter().map(Into::into).collect(),
+            max_depth: old.max_depth,
+            total_objects: old.total_objects,
+            transfer_events: old.transfer_events.into_iter().map(Into::into).collect(),
+            weak_references: old.weak_references.into_iter().map(Into::into).collect(),
+            circular_references: old
+                .circular_references
+                .into_iter()
+                .map(Into::into)
+                .collect(),
+        }
+    }
+}

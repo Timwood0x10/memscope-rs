@@ -168,3 +168,66 @@ mod tests {
         ));
     }
 }
+
+// Implement From trait for converting from core::types to capture::types
+impl From<crate::core::types::RuntimeStateInfo> for RuntimeStateInfo {
+    fn from(old: crate::core::types::RuntimeStateInfo) -> Self {
+        Self {
+            cpu_usage: CpuUsageInfo {
+                current_usage_percent: old.cpu_usage.current_usage_percent,
+                average_usage_percent: old.cpu_usage.average_usage_percent,
+                peak_usage_percent: old.cpu_usage.peak_usage_percent,
+                intensive_operations_count: old.cpu_usage.intensive_operations_count,
+            },
+            memory_pressure: MemoryPressureInfo {
+                pressure_level: match old.memory_pressure.pressure_level {
+                    crate::core::types::MemoryPressureLevel::Low => MemoryPressureLevel::Low,
+                    crate::core::types::MemoryPressureLevel::Moderate => {
+                        MemoryPressureLevel::Moderate
+                    }
+                    crate::core::types::MemoryPressureLevel::High => MemoryPressureLevel::High,
+                    crate::core::types::MemoryPressureLevel::Critical => {
+                        MemoryPressureLevel::Critical
+                    }
+                },
+                available_memory_percent: old.memory_pressure.available_memory_percent,
+                allocation_failures: old.memory_pressure.allocation_failures,
+                fragmentation_level: old.memory_pressure.fragmentation_level,
+            },
+            cache_performance: CachePerformanceInfo {
+                l1_hit_rate: old.cache_performance.l1_hit_rate,
+                l2_hit_rate: old.cache_performance.l2_hit_rate,
+                l3_hit_rate: old.cache_performance.l3_hit_rate,
+                cache_miss_penalty_ns: old.cache_performance.cache_miss_penalty_ns,
+                access_pattern: match old.cache_performance.access_pattern {
+                    crate::core::types::MemoryAccessPattern::Sequential => {
+                        MemoryAccessPattern::Sequential
+                    }
+                    crate::core::types::MemoryAccessPattern::Random => MemoryAccessPattern::Random,
+                    crate::core::types::MemoryAccessPattern::Strided { stride } => {
+                        MemoryAccessPattern::Strided { stride }
+                    }
+                    crate::core::types::MemoryAccessPattern::Clustered => {
+                        MemoryAccessPattern::Clustered
+                    }
+                    crate::core::types::MemoryAccessPattern::Mixed => MemoryAccessPattern::Mixed,
+                },
+            },
+            allocator_state: AllocatorStateInfo {
+                allocator_type: old.allocator_state.allocator_type,
+                heap_size: old.allocator_state.heap_size,
+                heap_used: old.allocator_state.heap_used,
+                free_blocks_count: old.allocator_state.free_blocks_count,
+                largest_free_block: old.allocator_state.largest_free_block,
+                efficiency_score: old.allocator_state.efficiency_score,
+            },
+            gc_info: old.gc_info.map(|gc| GcInfo {
+                gc_type: gc.gc_type,
+                gc_runs: gc.gc_runs,
+                total_gc_time_ms: gc.total_gc_time_ms,
+                average_pause_time_ms: gc.average_pause_time_ms,
+                memory_reclaimed: gc.memory_reclaimed,
+            }),
+        }
+    }
+}

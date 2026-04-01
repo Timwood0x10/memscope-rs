@@ -208,3 +208,144 @@ mod tests {
         assert!(matches!(LeakRiskLevel::Critical, LeakRiskLevel::Critical));
     }
 }
+
+impl From<crate::core::types::EnhancedPotentialLeak> for EnhancedPotentialLeak {
+    fn from(old: crate::core::types::EnhancedPotentialLeak) -> Self {
+        Self {
+            object_id: old.object_id,
+            leak_type: match old.leak_type {
+                crate::core::types::LeakType::Memory => LeakType::Memory,
+                crate::core::types::LeakType::FileHandle => LeakType::FileHandle,
+                crate::core::types::LeakType::NetworkConnection => LeakType::NetworkConnection,
+                crate::core::types::LeakType::Thread => LeakType::Thread,
+                crate::core::types::LeakType::Lock => LeakType::Lock,
+                crate::core::types::LeakType::ReferenceCycle => LeakType::ReferenceCycle,
+            },
+            risk_level: match old.risk_level {
+                crate::core::types::LeakRiskLevel::Low => LeakRiskLevel::Low,
+                crate::core::types::LeakRiskLevel::Medium => LeakRiskLevel::Medium,
+                crate::core::types::LeakRiskLevel::High => LeakRiskLevel::High,
+                crate::core::types::LeakRiskLevel::Critical => LeakRiskLevel::Critical,
+            },
+            evidence: old
+                .evidence
+                .into_iter()
+                .map(|e| LeakEvidence {
+                    evidence_type: match e.evidence_type {
+                        crate::core::types::LeakEvidenceType::NeverDropped => {
+                            LeakEvidenceType::NeverDropped
+                        }
+                        crate::core::types::LeakEvidenceType::CircularReference => {
+                            LeakEvidenceType::CircularReference
+                        }
+                        crate::core::types::LeakEvidenceType::ResourceNotClosed => {
+                            LeakEvidenceType::ResourceNotClosed
+                        }
+                        crate::core::types::LeakEvidenceType::GrowingMemoryUsage => {
+                            LeakEvidenceType::GrowingMemoryUsage
+                        }
+                        crate::core::types::LeakEvidenceType::LongLivedTemporary => {
+                            LeakEvidenceType::LongLivedTemporary
+                        }
+                        crate::core::types::LeakEvidenceType::UnreachableObject => {
+                            LeakEvidenceType::UnreachableObject
+                        }
+                    },
+                    description: e.description,
+                    strength: e.strength,
+                    timestamp: e.timestamp,
+                })
+                .collect(),
+            estimated_impact: LeakImpact {
+                memory_bytes: old.estimated_impact.memory_bytes,
+                performance_impact_percent: old.estimated_impact.performance_impact_percent,
+                resource_count: old.estimated_impact.resource_count,
+                time_to_critical_hours: old.estimated_impact.time_to_critical_hours,
+            },
+        }
+    }
+}
+
+impl From<crate::core::types::ResourceUsagePattern> for ResourceUsagePattern {
+    fn from(old: crate::core::types::ResourceUsagePattern) -> Self {
+        Self {
+            pattern_type: match old.pattern_type {
+                crate::core::types::ResourcePatternType::MonotonicGrowth => {
+                    ResourcePatternType::MonotonicGrowth
+                }
+                crate::core::types::ResourcePatternType::PeriodicSpikes => {
+                    ResourcePatternType::PeriodicSpikes
+                }
+                crate::core::types::ResourcePatternType::GradualAccumulation => {
+                    ResourcePatternType::GradualAccumulation
+                }
+                crate::core::types::ResourcePatternType::SuddenJumps => {
+                    ResourcePatternType::SuddenJumps
+                }
+                crate::core::types::ResourcePatternType::Irregular => {
+                    ResourcePatternType::Irregular
+                }
+            },
+            description: old.description,
+            frequency: old.frequency,
+            leak_risk: match old.leak_risk {
+                crate::core::types::LeakRiskLevel::Low => LeakRiskLevel::Low,
+                crate::core::types::LeakRiskLevel::Medium => LeakRiskLevel::Medium,
+                crate::core::types::LeakRiskLevel::High => LeakRiskLevel::High,
+                crate::core::types::LeakRiskLevel::Critical => LeakRiskLevel::Critical,
+            },
+        }
+    }
+}
+
+impl From<crate::core::types::LeakPreventionRecommendation> for LeakPreventionRecommendation {
+    fn from(old: crate::core::types::LeakPreventionRecommendation) -> Self {
+        Self {
+            recommendation_type: match old.recommendation_type {
+                crate::core::types::LeakPreventionType::UseRAII => LeakPreventionType::UseRAII,
+                crate::core::types::LeakPreventionType::ImplementDrop => {
+                    LeakPreventionType::ImplementDrop
+                }
+                crate::core::types::LeakPreventionType::BreakCircularReferences => {
+                    LeakPreventionType::BreakCircularReferences
+                }
+                crate::core::types::LeakPreventionType::UseWeakReferences => {
+                    LeakPreventionType::UseWeakReferences
+                }
+                crate::core::types::LeakPreventionType::ResourcePooling => {
+                    LeakPreventionType::ResourcePooling
+                }
+                crate::core::types::LeakPreventionType::ResourceMonitoring => {
+                    LeakPreventionType::ResourceMonitoring
+                }
+                crate::core::types::LeakPreventionType::ScopedGuards => {
+                    LeakPreventionType::ScopedGuards
+                }
+            },
+            priority: match old.priority {
+                crate::core::types::Priority::Low => Priority::Low,
+                crate::core::types::Priority::Medium => Priority::Medium,
+                crate::core::types::Priority::High => Priority::High,
+                crate::core::types::Priority::Critical => Priority::Critical,
+            },
+            description: old.description,
+            implementation_guidance: old.implementation_guidance,
+            expected_effectiveness: old.expected_effectiveness,
+        }
+    }
+}
+
+impl From<crate::core::types::ResourceLeakAnalysis> for ResourceLeakAnalysis {
+    fn from(old: crate::core::types::ResourceLeakAnalysis) -> Self {
+        Self {
+            potential_leaks: old.potential_leaks.into_iter().map(Into::into).collect(),
+            detection_confidence: old.detection_confidence,
+            usage_patterns: old.usage_patterns.into_iter().map(Into::into).collect(),
+            prevention_recommendations: old
+                .prevention_recommendations
+                .into_iter()
+                .map(Into::into)
+                .collect(),
+        }
+    }
+}

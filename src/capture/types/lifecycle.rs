@@ -287,3 +287,169 @@ mod tests {
         }
     }
 }
+
+impl From<crate::core::types::ObjectLifecycleInfo> for ObjectLifecycleInfo {
+    fn from(old: crate::core::types::ObjectLifecycleInfo) -> Self {
+        Self {
+            object_id: old.object_id,
+            type_name: old.type_name,
+            lifecycle_events: old
+                .lifecycle_events
+                .into_iter()
+                .map(|e| LifecycleEvent {
+                    event_type: match e.event_type {
+                        crate::core::types::LifecycleEventType::Creation => {
+                            LifecycleEventType::Creation
+                        }
+                        crate::core::types::LifecycleEventType::Initialization => {
+                            LifecycleEventType::Initialization
+                        }
+                        crate::core::types::LifecycleEventType::FirstUse => {
+                            LifecycleEventType::FirstUse
+                        }
+                        crate::core::types::LifecycleEventType::Move => LifecycleEventType::Move,
+                        crate::core::types::LifecycleEventType::Copy => LifecycleEventType::Copy,
+                        crate::core::types::LifecycleEventType::Clone => LifecycleEventType::Clone,
+                        crate::core::types::LifecycleEventType::Borrow => {
+                            LifecycleEventType::Borrow
+                        }
+                        crate::core::types::LifecycleEventType::MutableBorrow => {
+                            LifecycleEventType::MutableBorrow
+                        }
+                        crate::core::types::LifecycleEventType::BorrowRelease => {
+                            LifecycleEventType::BorrowRelease
+                        }
+                        crate::core::types::LifecycleEventType::Modification => {
+                            LifecycleEventType::Modification
+                        }
+                        crate::core::types::LifecycleEventType::LastUse => {
+                            LifecycleEventType::LastUse
+                        }
+                        crate::core::types::LifecycleEventType::Drop => LifecycleEventType::Drop,
+                        crate::core::types::LifecycleEventType::Destruction => {
+                            LifecycleEventType::Destruction
+                        }
+                        crate::core::types::LifecycleEventType::MemoryReclaim => {
+                            LifecycleEventType::MemoryReclaim
+                        }
+                    },
+                    timestamp: e.timestamp,
+                    location: SourceLocation {
+                        file: e.location.file,
+                        line: e.location.line,
+                        column: e.location.column,
+                    },
+                    memory_state: MemoryState {
+                        memory_location: match e.memory_state.memory_location {
+                            crate::core::types::MemoryLocationType::Stack => {
+                                MemoryLocationType::Stack
+                            }
+                            crate::core::types::MemoryLocationType::Heap => {
+                                MemoryLocationType::Heap
+                            }
+                            crate::core::types::MemoryLocationType::Register => {
+                                MemoryLocationType::Register
+                            }
+                            crate::core::types::MemoryLocationType::Static => {
+                                MemoryLocationType::Static
+                            }
+                            crate::core::types::MemoryLocationType::ThreadLocal => {
+                                MemoryLocationType::ThreadLocal
+                            }
+                        },
+                        memory_address: e.memory_state.memory_address,
+                        object_size: e.memory_state.object_size,
+                        reference_count: e.memory_state.reference_count,
+                        borrow_state: match e.memory_state.borrow_state {
+                            crate::core::types::BorrowState::NotBorrowed => {
+                                BorrowState::NotBorrowed
+                            }
+                            crate::core::types::BorrowState::SharedBorrow { count } => {
+                                BorrowState::SharedBorrow { count }
+                            }
+                            crate::core::types::BorrowState::MutableBorrow => {
+                                BorrowState::MutableBorrow
+                            }
+                            crate::core::types::BorrowState::MovedOut => BorrowState::MovedOut,
+                        },
+                    },
+                    performance_metrics: EventPerformanceMetrics {
+                        cpu_cycles: e.performance_metrics.cpu_cycles,
+                        memory_bandwidth_bytes: e.performance_metrics.memory_bandwidth_bytes,
+                        cache_misses: e.performance_metrics.cache_misses,
+                        processing_time_ns: e.performance_metrics.processing_time_ns,
+                    },
+                    call_stack: e.call_stack,
+                })
+                .collect(),
+            total_lifetime_ns: old.total_lifetime_ns,
+            stage_durations: LifecycleStageDurations {
+                creation_to_first_use_ns: old.stage_durations.creation_to_first_use_ns,
+                active_use_duration_ns: old.stage_durations.active_use_duration_ns,
+                last_use_to_destruction_ns: old.stage_durations.last_use_to_destruction_ns,
+                borrowed_duration_ns: old.stage_durations.borrowed_duration_ns,
+                idle_duration_ns: old.stage_durations.idle_duration_ns,
+            },
+            efficiency_metrics: LifecycleEfficiencyMetrics {
+                utilization_ratio: old.efficiency_metrics.utilization_ratio,
+                memory_efficiency: old.efficiency_metrics.memory_efficiency,
+                performance_efficiency: old.efficiency_metrics.performance_efficiency,
+                resource_waste: ResourceWasteAssessment {
+                    wasted_memory_percent: old
+                        .efficiency_metrics
+                        .resource_waste
+                        .wasted_memory_percent,
+                    wasted_cpu_percent: old.efficiency_metrics.resource_waste.wasted_cpu_percent,
+                    premature_destructions: old
+                        .efficiency_metrics
+                        .resource_waste
+                        .premature_destructions,
+                    unused_instances: old.efficiency_metrics.resource_waste.unused_instances,
+                    optimization_opportunities: old
+                        .efficiency_metrics
+                        .resource_waste
+                        .optimization_opportunities,
+                },
+            },
+            lifecycle_patterns: old
+                .lifecycle_patterns
+                .into_iter()
+                .map(|p| LifecyclePattern {
+                    pattern_type: match p.pattern_type {
+                        crate::core::types::LifecyclePatternType::ShortLived => {
+                            LifecyclePatternType::ShortLived
+                        }
+                        crate::core::types::LifecyclePatternType::LongLived => {
+                            LifecyclePatternType::LongLived
+                        }
+                        crate::core::types::LifecyclePatternType::Cyclical => {
+                            LifecyclePatternType::Cyclical
+                        }
+                        crate::core::types::LifecyclePatternType::OnDemand => {
+                            LifecyclePatternType::OnDemand
+                        }
+                        crate::core::types::LifecyclePatternType::Cached => {
+                            LifecyclePatternType::Cached
+                        }
+                        crate::core::types::LifecyclePatternType::Pooled => {
+                            LifecyclePatternType::Pooled
+                        }
+                        crate::core::types::LifecyclePatternType::Singleton => {
+                            LifecyclePatternType::Singleton
+                        }
+                        crate::core::types::LifecyclePatternType::Factory => {
+                            LifecyclePatternType::Factory
+                        }
+                        crate::core::types::LifecyclePatternType::RAII => {
+                            LifecyclePatternType::RAII
+                        }
+                    },
+                    frequency: p.frequency,
+                    efficiency_score: p.efficiency_score,
+                    performance_impact: p.performance_impact,
+                    optimization_suggestions: p.optimization_suggestions,
+                })
+                .collect(),
+        }
+    }
+}

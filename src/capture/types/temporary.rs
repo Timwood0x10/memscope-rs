@@ -128,3 +128,65 @@ mod tests {
         }
     }
 }
+
+// Implement From trait for converting from core::types to capture::types
+impl From<crate::core::types::TemporaryObjectInfo> for TemporaryObjectInfo {
+    fn from(old: crate::core::types::TemporaryObjectInfo) -> Self {
+        Self {
+            temp_id: old.temp_id,
+            created_at: old.created_at,
+            destroyed_at: old.destroyed_at,
+            lifetime_ns: old.lifetime_ns,
+            creation_context: CreationContext {
+                function_name: old.creation_context.function_name,
+                expression_type: match old.creation_context.expression_type {
+                    crate::core::types::ExpressionType::FunctionCall => {
+                        ExpressionType::FunctionCall
+                    }
+                    crate::core::types::ExpressionType::MethodCall => ExpressionType::MethodCall,
+                    crate::core::types::ExpressionType::OperatorOverload => {
+                        ExpressionType::OperatorOverload
+                    }
+                    crate::core::types::ExpressionType::Conversion => ExpressionType::Conversion,
+                    crate::core::types::ExpressionType::Literal => ExpressionType::Literal,
+                    crate::core::types::ExpressionType::Conditional => ExpressionType::Conditional,
+                    crate::core::types::ExpressionType::Match => ExpressionType::Match,
+                },
+                source_location: old.creation_context.source_location.map(|loc| {
+                    super::generic::SourceLocation {
+                        file: loc.file,
+                        line: loc.line,
+                        column: loc.column,
+                    }
+                }),
+                call_stack: old.creation_context.call_stack,
+            },
+            usage_pattern: match old.usage_pattern {
+                crate::core::types::TemporaryUsagePattern::Immediate => {
+                    TemporaryUsagePattern::Immediate
+                }
+                crate::core::types::TemporaryUsagePattern::FunctionArgument => {
+                    TemporaryUsagePattern::FunctionArgument
+                }
+                crate::core::types::TemporaryUsagePattern::ExpressionChain => {
+                    TemporaryUsagePattern::ExpressionChain
+                }
+                crate::core::types::TemporaryUsagePattern::TemporaryStorage => {
+                    TemporaryUsagePattern::TemporaryStorage
+                }
+                crate::core::types::TemporaryUsagePattern::MovedToPermanent => {
+                    TemporaryUsagePattern::MovedToPermanent
+                }
+            },
+            location_type: match old.location_type {
+                crate::core::types::MemoryLocationType::Stack => MemoryLocationType::Stack,
+                crate::core::types::MemoryLocationType::Heap => MemoryLocationType::Heap,
+                crate::core::types::MemoryLocationType::Register => MemoryLocationType::Register,
+                crate::core::types::MemoryLocationType::Static => MemoryLocationType::Static,
+                crate::core::types::MemoryLocationType::ThreadLocal => {
+                    MemoryLocationType::ThreadLocal
+                }
+            },
+        }
+    }
+}

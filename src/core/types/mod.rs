@@ -394,13 +394,44 @@ impl SmartPointerInfo {
 /// Old API:
 /// ```rust
 /// use memscope_rs::core::types::AllocationInfo;
-/// let info = AllocationInfo::new(ptr, size);
+/// let info = AllocationInfo {
+///     ptr: 0x1000,
+///     size: 1024,
+///     var_name: None,
+///     type_name: None,
+///     scope_name: None,
+///     timestamp_alloc: 0,
+///     timestamp_dealloc: None,
+///     thread_id: String::new(),
+///     borrow_count: 0,
+///     stack_trace: None,
+///     is_leaked: false,
+///     lifetime_ms: None,
+///     borrow_info: None,
+///     clone_info: None,
+///     ownership_history_available: false,
+///     smart_pointer_info: None,
+///     memory_layout: None,
+///     generic_info: None,
+///     dynamic_type_info: None,
+///     runtime_state: None,
+///     stack_allocation: None,
+///     temporary_object: None,
+///     fragmentation_analysis: None,
+///     generic_instantiation: None,
+///     type_relationships: None,
+///     type_usage: None,
+///     function_call_tracking: None,
+///     lifecycle_tracking: None,
+///     access_tracking: None,
+///     drop_chain_analysis: None,
+/// };
 /// ```
 ///
 /// New API:
 /// ```rust
 /// use memscope_rs::capture::types::AllocationInfo;
-/// let info = AllocationInfo::new(ptr, size);
+/// let info = AllocationInfo::new(0x1000, 1024);
 /// ```
 #[deprecated(
     since = "0.7.0",

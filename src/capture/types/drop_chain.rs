@@ -164,6 +164,142 @@ pub struct DropPerformanceCharacteristics {
     pub impact_level: ImpactLevel,
 }
 
+// Implement From trait for converting from core::types to capture::types
+impl From<crate::core::types::DropChainAnalysis> for DropChainAnalysis {
+    fn from(old: crate::core::types::DropChainAnalysis) -> Self {
+        fn convert_drop_node(old: crate::core::types::DropChainNode) -> DropChainNode {
+            DropChainNode {
+                object_id: old.object_id,
+                type_name: old.type_name,
+                drop_timestamp: old.drop_timestamp,
+                drop_duration_ns: old.drop_duration_ns,
+                children: old.children.into_iter().map(convert_drop_node).collect(),
+                drop_impl_type: match old.drop_impl_type {
+                    crate::core::types::DropImplementationType::Automatic => {
+                        DropImplementationType::Automatic
+                    }
+                    crate::core::types::DropImplementationType::Custom => {
+                        DropImplementationType::Custom
+                    }
+                    crate::core::types::DropImplementationType::SmartPointer => {
+                        DropImplementationType::SmartPointer
+                    }
+                    crate::core::types::DropImplementationType::Collection => {
+                        DropImplementationType::Collection
+                    }
+                    crate::core::types::DropImplementationType::ResourceHandle => {
+                        DropImplementationType::ResourceHandle
+                    }
+                    crate::core::types::DropImplementationType::NoOp => {
+                        DropImplementationType::NoOp
+                    }
+                },
+                cleanup_actions: old
+                    .cleanup_actions
+                    .into_iter()
+                    .map(|a| CleanupAction {
+                        action_type: match a.action_type {
+                            crate::core::types::CleanupActionType::MemoryDeallocation => {
+                                CleanupActionType::MemoryDeallocation
+                            }
+                            crate::core::types::CleanupActionType::FileHandleClosure => {
+                                CleanupActionType::FileHandleClosure
+                            }
+                            crate::core::types::CleanupActionType::NetworkConnectionClosure => {
+                                CleanupActionType::NetworkConnectionClosure
+                            }
+                            crate::core::types::CleanupActionType::LockRelease => {
+                                CleanupActionType::LockRelease
+                            }
+                            crate::core::types::CleanupActionType::ThreadCleanup => {
+                                CleanupActionType::ThreadCleanup
+                            }
+                            crate::core::types::CleanupActionType::ReferenceCountDecrement => {
+                                CleanupActionType::ReferenceCountDecrement
+                            }
+                            crate::core::types::CleanupActionType::CustomCleanup => {
+                                CleanupActionType::CustomCleanup
+                            }
+                        },
+                        timestamp: a.timestamp,
+                        duration_ns: a.duration_ns,
+                        resource_description: a.resource_description,
+                        success: a.success,
+                    })
+                    .collect(),
+                performance_characteristics: DropPerformanceCharacteristics {
+                    execution_time_ns: old.performance_characteristics.execution_time_ns,
+                    cpu_usage_percent: old.performance_characteristics.cpu_usage_percent,
+                    memory_operations: old.performance_characteristics.memory_operations,
+                    io_operations: old.performance_characteristics.io_operations,
+                    system_calls: old.performance_characteristics.system_calls,
+                    impact_level: match old.performance_characteristics.impact_level {
+                        crate::core::types::ImpactLevel::Low => ImpactLevel::Low,
+                        crate::core::types::ImpactLevel::Medium => ImpactLevel::Medium,
+                        crate::core::types::ImpactLevel::High => ImpactLevel::High,
+                        crate::core::types::ImpactLevel::Critical => ImpactLevel::Critical,
+                    },
+                },
+            }
+        }
+
+        Self {
+            root_object: convert_drop_node(old.root_object),
+            drop_sequence: old
+                .drop_sequence
+                .into_iter()
+                .map(convert_drop_node)
+                .collect(),
+            total_duration_ns: old.total_duration_ns,
+            performance_metrics: DropChainPerformanceMetrics {
+                total_objects: old.performance_metrics.total_objects,
+                max_depth: old.performance_metrics.max_depth,
+                avg_drop_time_ns: old.performance_metrics.avg_drop_time_ns,
+                slowest_drop_ns: old.performance_metrics.slowest_drop_ns,
+                efficiency_score: old.performance_metrics.efficiency_score,
+                bottlenecks: old
+                    .performance_metrics
+                    .bottlenecks
+                    .into_iter()
+                    .map(|b| DropPerformanceBottleneck {
+                        object_id: b.object_id,
+                        bottleneck_type: match b.bottleneck_type {
+                            crate::core::types::DropBottleneckType::SlowCustomDrop => {
+                                DropBottleneckType::SlowCustomDrop
+                            }
+                            crate::core::types::DropBottleneckType::DeepOwnershipHierarchy => {
+                                DropBottleneckType::DeepOwnershipHierarchy
+                            }
+                            crate::core::types::DropBottleneckType::LargeCollectionCleanup => {
+                                DropBottleneckType::LargeCollectionCleanup
+                            }
+                            crate::core::types::DropBottleneckType::ResourceHandleDelay => {
+                                DropBottleneckType::ResourceHandleDelay
+                            }
+                            crate::core::types::DropBottleneckType::LockContention => {
+                                DropBottleneckType::LockContention
+                            }
+                            crate::core::types::DropBottleneckType::MemoryFragmentation => {
+                                DropBottleneckType::MemoryFragmentation
+                            }
+                        },
+                        severity: match b.severity {
+                            crate::core::types::ImpactLevel::Low => ImpactLevel::Low,
+                            crate::core::types::ImpactLevel::Medium => ImpactLevel::Medium,
+                            crate::core::types::ImpactLevel::High => ImpactLevel::High,
+                            crate::core::types::ImpactLevel::Critical => ImpactLevel::Critical,
+                        },
+                        description: b.description,
+                        optimization_suggestion: b.optimization_suggestion,
+                    })
+                    .collect(),
+            },
+            ownership_hierarchy: old.ownership_hierarchy.into(),
+            leak_detection: old.leak_detection.into(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

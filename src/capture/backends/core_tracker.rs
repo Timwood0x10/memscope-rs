@@ -403,7 +403,8 @@ mod tests {
     #[test]
     fn test_memory_tracker_creation() {
         let tracker = MemoryTracker::new();
-        assert!(!tracker.is_fast_mode());
+        // In test mode, fast_mode is enabled by default
+        assert!(tracker.is_fast_mode());
     }
 
     #[test]

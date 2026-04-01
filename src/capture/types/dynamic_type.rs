@@ -5,8 +5,6 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::generic::SourceLocation;
-
 /// Dynamic type information (trait objects).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DynamicTypeInfo {
@@ -135,5 +133,52 @@ mod tests {
 
         assert_eq!(vtable.method_count, 3);
         assert_eq!(vtable.methods.len(), 1);
+    }
+}
+
+// Implement From trait for converting from core::types to capture::types
+impl From<crate::core::types::DynamicTypeInfo> for DynamicTypeInfo {
+    fn from(old: crate::core::types::DynamicTypeInfo) -> Self {
+        Self {
+            trait_name: old.trait_name,
+            vtable_info: VTableInfo {
+                vtable_size: old.vtable_info.vtable_size,
+                method_count: old.vtable_info.method_count,
+                vtable_ptr_offset: old.vtable_info.vtable_ptr_offset,
+                methods: old
+                    .vtable_info
+                    .methods
+                    .into_iter()
+                    .map(|m| VTableMethod {
+                        name: m.name,
+                        signature: m.signature,
+                        vtable_offset: m.vtable_offset,
+                    })
+                    .collect(),
+            },
+            concrete_type: old.concrete_type,
+            dispatch_overhead: DispatchOverhead {
+                indirect_call_overhead_ns: old.dispatch_overhead.indirect_call_overhead_ns,
+                cache_miss_probability: old.dispatch_overhead.cache_miss_probability,
+                branch_misprediction_rate: old.dispatch_overhead.branch_misprediction_rate,
+                performance_impact: match old.dispatch_overhead.performance_impact {
+                    crate::core::types::PerformanceImpact::Negligible => {
+                        PerformanceImpact::Negligible
+                    }
+                    crate::core::types::PerformanceImpact::Minor => PerformanceImpact::Minor,
+                    crate::core::types::PerformanceImpact::Moderate => PerformanceImpact::Moderate,
+                    crate::core::types::PerformanceImpact::Significant => {
+                        PerformanceImpact::Significant
+                    }
+                    crate::core::types::PerformanceImpact::Severe => PerformanceImpact::Severe,
+                },
+            },
+            type_erasure_info: TypeErasureInfo {
+                type_info_recoverable: old.type_erasure_info.type_info_recoverable,
+                size_info: old.type_erasure_info.size_info,
+                alignment_info: old.type_erasure_info.alignment_info,
+                destructor_info: old.type_erasure_info.destructor_info,
+            },
+        }
     }
 }
