@@ -1,5 +1,32 @@
 //! Enhanced Memory Analysis Module
 //!
+//! # Deprecated
+//!
+//! This module is **deprecated** and will be removed in a future version.
+//! Please use the new modular API in `crate::analysis::enhanced` instead.
+//!
+//! ## Migration Guide
+//!
+//! Old API:
+//! ```rust
+//! use memscope_rs::analysis::enhanced_memory_analysis::{EnhancedMemoryAnalyzer, analyze_memory_with_enhanced_features};
+//! let analyzer = EnhancedMemoryAnalyzer::new();
+//! let report = analyzer.analyze_comprehensive(&allocations);
+//! ```
+//!
+//! New API:
+//! ```rust
+//! use memscope_rs::analysis::enhanced::{EnhancedMemoryAnalyzer, analyze_memory_with_enhanced_features_detailed};
+//! let analyzer = EnhancedMemoryAnalyzer::new();
+//! let report = analyzer.analyze_comprehensive(&allocations);
+//! ```
+//!
+//! The new API is split into multiple modules for better organization:
+//! - `analysis::enhanced::trackers` - Stack and heap boundary detection
+//! - `analysis::enhanced::monitors` - Fragmentation and lifecycle monitoring
+//! - `analysis::enhanced::optimizers` - Cache and access pattern optimization
+//! - `analysis::enhanced::analyzer` - Main analyzer with comprehensive analysis
+//!
 //! This module provides comprehensive memory analysis capabilities including:
 //! - Precise stack and heap allocation distinction
 //! - Complete memory space coverage
@@ -8,6 +35,11 @@
 //! - Deep generic type analysis with code bloat assessment
 //! - Complete object lifecycle tracking with resource waste identification
 //! - Memory access pattern analysis for cache optimization
+
+#[deprecated(
+    since = "0.7.0",
+    note = "Use analysis::enhanced instead. This module will be removed in a future version."
+)]
 
 use crate::core::types::AllocationInfo;
 use crate::core::types::{

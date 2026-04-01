@@ -749,6 +749,141 @@ pub struct StackHeapInteractionAnalysis {
     pub performance_implications: Vec<PerformanceImplication>,
 }
 
+/// Simple stub types for missing structs with serde support
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct MonomorphizationStatistics {
+    /// Total number of instantiations
+    pub total_instantiations: usize,
+}
+
+/// Efficiency metrics
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EfficiencyMetrics {
+    /// Efficiency score
+    pub efficiency_score: f64,
+}
+
+impl Default for EfficiencyMetrics {
+    fn default() -> Self {
+        Self {
+            efficiency_score: 0.0,
+        }
+    }
+}
+
+/// Object relationship graph
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ObjectRelationshipGraph {
+    /// List of nodes in the graph
+    pub nodes: Vec<String>,
+}
+
+/// Actual access tracking
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ActualAccessTracking {
+    /// Total number of accesses
+    pub total_accesses: usize,
+}
+
+/// Locality analysis
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LocalityAnalysis {
+    /// Locality score
+    pub locality_score: f64,
+}
+
+impl Default for LocalityAnalysis {
+    fn default() -> Self {
+        Self {
+            locality_score: 0.0,
+        }
+    }
+}
+
+/// Cache line analysis
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CacheLineAnalysis {
+    /// Utilization percentage
+    pub utilization_percentage: f64,
+    /// Estimated cache misses
+    pub estimated_cache_misses: usize,
+}
+
+impl Default for CacheLineAnalysis {
+    fn default() -> Self {
+        Self {
+            utilization_percentage: 0.0,
+            estimated_cache_misses: 0,
+        }
+    }
+}
+
+/// Bandwidth utilization
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BandwidthUtilization {
+    /// Utilization percentage
+    pub utilization_percentage: f64,
+}
+
+impl Default for BandwidthUtilization {
+    fn default() -> Self {
+        Self {
+            utilization_percentage: 0.0,
+        }
+    }
+}
+
+/// Lifecycle optimization
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LifecycleOptimization {
+    /// Type of optimization
+    pub optimization_type: String,
+}
+
+/// Layout recommendation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LayoutRecommendation {
+    /// Recommendation for layout
+    pub recommendation: String,
+}
+
+/// Data structure optimization
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DataStructureOptimization {
+    /// Type of optimization
+    pub optimization_type: String,
+}
+
+/// Access pattern optimization
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AccessPatternOptimization {
+    /// Type of optimization
+    pub optimization_type: String,
+}
+
+/// Stack frame information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StackFrameInfo {
+    /// Function name
+    pub function_name: String,
+    /// Frame ID
+    pub frame_id: u64,
+}
+
+/// Real-time monitoring data
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RealTimeMonitoringData {
+    /// Current fragmentation level
+    pub current_fragmentation_level: f64,
+}
+
+/// Adaptive recommendation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AdaptiveRecommendation {
+    /// Type of recommendation
+    pub recommendation_type: String,
+}
+
 /// Reference relationship between stack and heap allocations
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReferenceRelationship {
@@ -900,7 +1035,7 @@ pub struct GenericTypeAnalysisReport {
     /// Optimization recommendations for generic types
     pub optimization_recommendations: Vec<crate::core::types::MemoryOptimizationRecommendation>,
     /// Monomorphization statistics of generic types
-    pub monomorphization_statistics: crate::enhanced_memory_analysis::MonomorphizationStatistics,
+    pub monomorphization_statistics: MonomorphizationStatistics,
     /// Performance characteristics of generic types
     pub performance_characteristics: PerformanceCharacteristics,
 }
@@ -915,11 +1050,11 @@ pub struct ObjectLifecycleAnalysisReport {
     /// Resource waste analysis of objects
     pub resource_waste_analysis: ResourceWasteAnalysis,
     /// Lifecycle optimizations of objects
-    pub lifecycle_optimizations: Vec<crate::enhanced_memory_analysis::LifecycleOptimization>,
+    pub lifecycle_optimizations: Vec<LifecycleOptimization>,
     /// Efficiency metrics of objects
-    pub efficiency_metrics: crate::enhanced_memory_analysis::EfficiencyMetrics,
+    pub efficiency_metrics: EfficiencyMetrics,
     /// Object relationship graph of objects
-    pub object_relationship_graph: crate::enhanced_memory_analysis::ObjectRelationshipGraph,
+    pub object_relationship_graph: ObjectRelationshipGraph,
 }
 
 /// Memory access analysis report
@@ -928,26 +1063,24 @@ pub struct MemoryAccessAnalysisReport {
     /// Access patterns of memory
     pub access_patterns: Vec<AccessPattern>,
     /// Layout recommendations of memory
-    pub layout_recommendations: Vec<crate::enhanced_memory_analysis::LayoutRecommendation>,
+    pub layout_recommendations: Vec<LayoutRecommendation>,
     /// Actual access tracking of memory
-    pub actual_access_tracking: crate::enhanced_memory_analysis::ActualAccessTracking,
+    pub actual_access_tracking: ActualAccessTracking,
     /// Bandwidth utilization of memory
-    pub bandwidth_utilization: crate::enhanced_memory_analysis::BandwidthUtilization,
+    pub bandwidth_utilization: BandwidthUtilization,
     /// Locality analysis of memory
-    pub locality_analysis: crate::enhanced_memory_analysis::LocalityAnalysis,
+    pub locality_analysis: LocalityAnalysis,
 }
 
 /// Cache optimization report
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct CacheOptimizationReport {
     /// Cache line analysis of memory
-    pub cache_line_analysis: crate::enhanced_memory_analysis::CacheLineAnalysis,
+    pub cache_line_analysis: CacheLineAnalysis,
     /// Data structure optimizations of memory
-    pub data_structure_optimizations:
-        Vec<crate::enhanced_memory_analysis::DataStructureOptimization>,
+    pub data_structure_optimizations: Vec<DataStructureOptimization>,
     /// Access pattern optimizations of memory
-    pub access_pattern_optimizations:
-        Vec<crate::enhanced_memory_analysis::AccessPatternOptimization>,
+    pub access_pattern_optimizations: Vec<AccessPatternOptimization>,
     /// Cache efficiency metrics of memory
     pub cache_efficiency_metrics: LifecycleEfficiencyMetrics,
     /// Optimization recommendations of memory
@@ -1071,7 +1204,7 @@ pub enum WasteCategoryType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum MemoryLocation {
     /// Stack allocation of memory
-    Stack(crate::enhanced_memory_analysis::StackFrameInfo),
+    Stack(StackFrameInfo),
     /// Heap allocation of memory
     Heap(HeapRegionInfo),
     /// Ambiguous allocation of memory
@@ -1132,9 +1265,9 @@ pub struct EnhancedFragmentationAnalysis {
     /// Analysis of fragmentation trends over time
     pub fragmentation_trends: FragmentationTrends,
     /// Real-time monitoring data for ongoing fragmentation analysis
-    pub real_time_monitoring: crate::enhanced_memory_analysis::RealTimeMonitoringData,
+    pub real_time_monitoring: RealTimeMonitoringData,
     /// Adaptive recommendations based on current fragmentation patterns
-    pub adaptive_recommendations: Vec<crate::enhanced_memory_analysis::AdaptiveRecommendation>,
+    pub adaptive_recommendations: Vec<AdaptiveRecommendation>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

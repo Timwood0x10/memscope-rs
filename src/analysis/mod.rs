@@ -11,7 +11,7 @@
 //! - Size estimation
 
 pub mod circular_reference;
-pub mod enhanced_memory_analysis;
+pub mod enhanced;
 pub mod unknown_memory_regions;
 pub mod unsafe_ffi_tracker;
 pub mod variable_relationships;
@@ -37,7 +37,10 @@ pub mod quality;
 
 // Re-export key analysis functions
 pub use circular_reference::{CircularReference, CircularReferenceAnalysis, CircularReferenceNode};
-pub use enhanced_memory_analysis::{analyze_memory_with_enhanced_features, EnhancedMemoryAnalyzer};
+pub use enhanced::{
+    analyze_memory_with_enhanced_features, analyze_memory_with_enhanced_features_detailed,
+    EnhancedMemoryAnalyzer,
+};
 pub use unsafe_ffi_tracker::UnsafeFFITracker;
 pub use variable_relationships::{
     build_variable_relationship_graph, GraphStatistics, RelationshipType as VarRelationshipType,
