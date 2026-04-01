@@ -213,8 +213,16 @@ impl IntegrationValidator {
 
         let resolver = get_global_enhanced_ffi_resolver();
 
-        // Test function resolution
-        let resolved = resolver.resolve_function("malloc", Some("libc"))?;
+        // Test function resolution - manual error handling
+        let resolved = match resolver.resolve_function("malloc", Some("libc")) {
+            Ok(r) => r,
+            Err(e) => {
+                return Err(crate::core::types::TrackingError::AnalysisError(format!(
+                    "Failed to resolve malloc: {}",
+                    e
+                )))
+            }
+        };
         if resolved.function_name != "malloc" {
             tracing::error!("FFI function resolution failed: wrong function name");
             return Ok(false);
@@ -225,15 +233,31 @@ impl IntegrationValidator {
             return Ok(false);
         }
 
-        // Test pattern matching
-        let pthread_resolved = resolver.resolve_function("pthread_create", None)?;
+        // Test pattern matching - manual error handling
+        let pthread_resolved = match resolver.resolve_function("pthread_create", None) {
+            Ok(r) => r,
+            Err(e) => {
+                return Err(crate::core::types::TrackingError::AnalysisError(format!(
+                    "Failed to resolve pthread_create: {}",
+                    e
+                )))
+            }
+        };
         if pthread_resolved.library_name != "libpthread" {
             tracing::error!("FFI pattern matching failed: wrong library");
             return Ok(false);
         }
 
-        // Test statistics
-        let stats = resolver.get_stats()?;
+        // Test statistics - manual error handling
+        let stats = match resolver.get_stats() {
+            Ok(s) => s,
+            Err(e) => {
+                return Err(crate::core::types::TrackingError::AnalysisError(format!(
+                    "Failed to get FFI resolver stats: {}",
+                    e
+                )))
+            }
+        };
         if stats.total_attempts == 0 {
             tracing::error!("FFI resolver statistics not working");
             return Ok(false);

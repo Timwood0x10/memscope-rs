@@ -3,7 +3,7 @@
 //! This module provides functionality to detect circular references in Rc/Arc
 //! smart pointers that can lead to memory leaks.
 
-use crate::core::types::{AllocationInfo, SmartPointerInfo, SmartPointerType};
+use crate::capture::types::{AllocationInfo, SmartPointerInfo, SmartPointerType};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
@@ -392,8 +392,10 @@ fn generate_statistics(circular_references: &[CircularReference]) -> CircularRef
 
 #[cfg(test)]
 mod tests {
+    use std::thread;
+
     use super::*;
-    use crate::core::types::{RefCountSnapshot, SmartPointerInfo, SmartPointerType};
+    use crate::capture::types::{RefCountSnapshot, SmartPointerInfo, SmartPointerType};
 
     #[test]
     fn test_circular_reference_node_creation() {
@@ -655,7 +657,7 @@ mod tests {
             scope_name: None,
             timestamp_alloc: 0,
             timestamp_dealloc: None,
-            thread_id: "main".to_string(),
+            thread_id: thread::current().id(),
             borrow_count: 0,
             stack_trace: None,
             is_leaked: false,
@@ -688,7 +690,7 @@ mod tests {
             scope_name: None,
             timestamp_alloc: 0,
             timestamp_dealloc: None,
-            thread_id: "main".to_string(),
+            thread_id: thread::current().id(),
             borrow_count: 0,
             stack_trace: None,
             is_leaked: false,
@@ -746,7 +748,7 @@ mod tests {
             scope_name: None,
             timestamp_alloc: 0,
             timestamp_dealloc: None,
-            thread_id: "main".to_string(),
+            thread_id: thread::current().id(),
             borrow_count: 0,
             stack_trace: None,
             is_leaked: false,
@@ -804,7 +806,7 @@ mod tests {
             scope_name: None,
             timestamp_alloc: 0,
             timestamp_dealloc: None,
-            thread_id: "main".to_string(),
+            thread_id: thread::current().id(),
             borrow_count: 0,
             stack_trace: None,
             is_leaked: false,
@@ -869,7 +871,7 @@ mod tests {
             scope_name: None,
             timestamp_alloc: 0,
             timestamp_dealloc: None,
-            thread_id: "main".to_string(),
+            thread_id: thread::current().id(),
             borrow_count: 0,
             stack_trace: None,
             is_leaked: false,

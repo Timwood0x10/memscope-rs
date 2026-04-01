@@ -1,7 +1,7 @@
 // Variable relationship mapper for building dependency graphs
 // Creates visual maps of how variables interact across threads and processes
 
-use crate::core::types::{TrackingResult, TrackingError};
+use crate::capture::types::{TrackingResult, TrackingError};
 use crate::export::fixed_hybrid_template::HybridAnalysisData;
 use std::collections::{HashMap, HashSet};
 use tracing::{info, debug, trace};

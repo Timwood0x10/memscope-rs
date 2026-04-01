@@ -12,22 +12,28 @@
 
 pub mod circular_reference;
 pub mod enhanced;
-pub mod unknown_memory_regions;
 pub mod unsafe_ffi_tracker;
 pub mod variable_relationships;
+
+// Submodules from refactoring
+pub mod closure;
+pub mod generic;
+pub mod safety;
+pub mod security;
+pub mod unknown;
 
 // New analysis modules for ComplexTypeForRust.md features
 pub mod async_analysis;
 pub mod borrow_analysis;
-pub mod closure_analysis;
+// pub mod closure_analysis; // Moved to analysis/closure/
 pub mod enhanced_ffi_function_resolver;
 pub mod ffi_function_resolver;
-pub mod generic_analysis;
+// pub mod generic_analysis; // Moved to analysis/generic/
 pub mod lifecycle;
 pub mod lifecycle_analysis;
 pub mod memory_passport_tracker;
-pub mod safety_analyzer;
-pub mod security_violation_analyzer;
+// pub mod safety_analyzer; // Moved to analysis/safety/
+// pub mod security_violation_analyzer; // Moved to analysis/security/
 
 // Integrated analysis submodules
 pub mod classification;
@@ -53,12 +59,12 @@ pub use async_analysis::{
     get_global_async_analyzer, AsyncAnalyzer, AsyncPatternAnalysis, AsyncStatistics,
 };
 pub use borrow_analysis::{get_global_borrow_analyzer, BorrowAnalyzer, BorrowPatternAnalysis};
-pub use closure_analysis::{get_global_closure_analyzer, ClosureAnalysisReport, ClosureAnalyzer};
+pub use closure::{get_global_closure_analyzer, ClosureAnalysisReport, ClosureAnalyzer};
 pub use ffi_function_resolver::{
     get_global_ffi_resolver, initialize_global_ffi_resolver, FfiFunctionCategory,
     FfiFunctionResolver, FfiRiskLevel, ResolutionStats, ResolvedFfiFunction, ResolverConfig,
 };
-pub use generic_analysis::{get_global_generic_analyzer, GenericAnalyzer, GenericStatistics};
+pub use generic::{get_global_generic_analyzer, GenericAnalyzer, GenericStatistics};
 pub use lifecycle::{
     lifecycle_summary::{
         AllocationLifecycleSummary, ExportMetadata, LifecycleEvent, LifecycleEventSummary,
@@ -78,7 +84,7 @@ pub use memory_passport_tracker::{
     LeakDetectionResult, MemoryPassport, MemoryPassportTracker, PassportEvent, PassportEventType,
     PassportStatus, PassportTrackerConfig, PassportTrackerStats,
 };
-pub use safety_analyzer::{
+pub use safety::{
     DynamicViolation, RiskAssessment, RiskFactor, RiskFactorType, SafetyAnalysisConfig,
     SafetyAnalysisStats, SafetyAnalyzer, UnsafeReport, UnsafeSource,
 };
@@ -104,7 +110,8 @@ pub use quality::{
     validator::{QualityValidator, ValidationResult, ValidationRule},
 };
 
-use crate::core::types::*;
+use crate::capture::types::stats::FragmentationAnalysis;
+use crate::capture::types::*;
 use std::sync::Arc;
 
 /// Main analysis interface - consolidates all analysis functionality
@@ -332,7 +339,7 @@ pub fn perform_comprehensive_analysis(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::types::AllocationInfo;
+    use crate::capture::types::AllocationInfo;
 
     #[test]
     fn test_analyze_fragmentation() {

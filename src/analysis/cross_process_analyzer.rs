@@ -1,7 +1,7 @@
 // Cross-process memory analysis for detecting variable competition and optimization opportunities
 // Analyzes memory patterns across multiple processes to identify shared resource conflicts
 
-use crate::core::types::{TrackingResult, TrackingError};
+use crate::capture::types::{TrackingResult, TrackingError};
 use crate::export::fixed_hybrid_template::{HybridAnalysisData, VariableInfo, LifecycleStage};
 use std::collections::{HashMap, HashSet};
 use tracing::{info, warn, debug, trace};

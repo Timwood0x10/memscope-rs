@@ -7,8 +7,8 @@
 //! - Uses safe_operations for lock handling
 //! - Uses unwrap_safe for error handling
 
+use crate::capture::types::TrackingResult;
 use crate::core::safe_operations::SafeLock;
-use crate::core::types::TrackingResult;
 use crate::core::unwrap_safe::UnwrapSafe;
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
@@ -200,7 +200,7 @@ impl EnhancedFfiFunctionResolver {
         // Check for timeout
         if start_time.elapsed().as_millis() > self.config.resolution_timeout_ms as u128 {
             self.update_stats_timeout();
-            return Err(crate::core::types::TrackingError::PerformanceError(
+            return Err(crate::capture::types::TrackingError::PerformanceError(
                 format!("Function resolution timeout for: {function_name}"),
             ));
         }
@@ -290,7 +290,7 @@ impl EnhancedFfiFunctionResolver {
             name if name.starts_with("dl") => "libdl",
             name if name.starts_with("rt_") => "librt",
             _ => {
-                return Err(crate::core::types::TrackingError::DataError(format!(
+                return Err(crate::capture::types::TrackingError::DataError(format!(
                     "No pattern match for function: {function_name}",
                 )))
             }

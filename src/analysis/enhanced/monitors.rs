@@ -1,4 +1,4 @@
-use crate::core::types::AllocationInfo;
+use crate::capture::types::AllocationInfo;
 use crate::enhanced_types::*;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};

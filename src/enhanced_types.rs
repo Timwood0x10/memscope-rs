@@ -8,12 +8,19 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Duration;
-// Import specific types rather than wildcard to avoid conflicts
-use crate::core::types::{
-    AccessPattern, AllocationInfo, CreationContext, FragmentationAnalysis,
-    LifecycleEfficiencyMetrics, LifecyclePattern, ObjectLifecycleInfo, OptimizationPotential,
-    OptimizationRecommendation, PerformanceCharacteristics, PerformanceImpact, ScopeType,
-    TemporaryUsagePattern,
+// Import from new system (capture::types) instead of deprecated core::types
+use crate::capture::types::{
+    access_tracking::{AccessPattern, MemoryOptimizationRecommendation},
+    allocation::{AllocationInfo, OptimizationRecommendation},
+    dynamic_type::PerformanceImpact,
+    generic::{GenericInstantiationInfo, PerformanceCharacteristics},
+    lifecycle::{LifecycleEfficiencyMetrics, LifecyclePattern, ObjectLifecycleInfo},
+    memory_layout::OptimizationPotential,
+    runtime_state::MemoryAccessPattern,
+    stack::ScopeType,
+    stats::FragmentationAnalysis,
+    temporary::{CreationContext, TemporaryUsagePattern},
+    timeline::StackFrame,
 };
 
 ///  Stack Frame and Boundary Types
@@ -339,7 +346,7 @@ pub struct StackAllocationDetails {
     /// Allocation information
     pub allocation: AllocationInfo,
     /// Frame information
-    pub frame_info: crate::core::types::StackFrame,
+    pub frame_info: StackFrame,
     /// Stack depth
     pub stack_depth: usize,
     /// Scope analysis
@@ -1029,11 +1036,11 @@ pub enum StackHeapOptimizationType {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct GenericTypeAnalysisReport {
     /// Instantiation analysis of generic types
-    pub instantiation_analysis: Vec<crate::core::types::GenericInstantiationInfo>,
+    pub instantiation_analysis: Vec<GenericInstantiationInfo>,
     /// Code bloat assessment of generic types
     pub code_bloat_assessment: CodeBloatAssessment,
     /// Optimization recommendations for generic types
-    pub optimization_recommendations: Vec<crate::core::types::MemoryOptimizationRecommendation>,
+    pub optimization_recommendations: Vec<MemoryOptimizationRecommendation>,
     /// Monomorphization statistics of generic types
     pub monomorphization_statistics: MonomorphizationStatistics,
     /// Performance characteristics of generic types
@@ -1728,8 +1735,6 @@ mod tests {
 
     #[test]
     fn test_real_time_metrics_update_allocation() {
-        use crate::core::types::AllocationInfo;
-
         let mut metrics = RealTimeMetrics::new();
         let allocation = AllocationInfo::new(0x1000, 512);
 

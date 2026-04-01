@@ -164,12 +164,12 @@ pub use export::{
 };
 
 // Re-export main types for easier use
-pub use analysis::enhanced_memory_analysis::EnhancedMemoryAnalyzer;
+pub use analysis::enhanced::EnhancedMemoryAnalyzer;
 pub use analysis::unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, UnsafeFFITracker};
 pub use core::allocator::TrackingAllocator;
 pub use core::tracker::memory_tracker::BinaryExportMode;
 pub use core::tracker::{get_tracker, ExportOptions, MemoryTracker};
-pub use core::types::{AllocationInfo, TrackingError, TrackingResult};
+// pub use capture::types::{AllocationInfo, TrackingError, TrackingResult}; // Removed - use new system imports below
 pub use utils::{format_bytes, get_simple_type, simplify_type_name};
 
 // === CAPTURE ENGINE EXPORTS ===
@@ -178,9 +178,9 @@ pub use capture::backends::{
     configure_tracking_strategy, get_tracker as get_capture_tracker, AllocationCategory,
     AnalysisSummary, AsyncAllocation, AsyncBackend, AsyncMemorySnapshot, AsyncSnapshot, AsyncStats,
     AsyncTracker, CoreBackend, Event, EventType, FrequencyData, FrequencyPattern, InteractionType,
-    LockfreeAnalysis, LockfreeBackend, MemorySnapshot, MemoryStats, RuntimeEnvironment,
-    SamplingConfig, SystemMetrics, TaskInfo, TaskMemoryProfile, ThreadInteraction,
-    ThreadLocalTracker, ThreadStats, TrackedFuture, TrackingStrategy, UnifiedBackend,
+    LockfreeAnalysis, LockfreeBackend, RuntimeEnvironment, SamplingConfig, SystemMetrics, TaskInfo,
+    TaskMemoryProfile, ThreadInteraction, ThreadLocalTracker, ThreadStats, TrackedFuture,
+    TrackingStrategy, UnifiedBackend,
 };
 
 // Re-export new bottleneck and hotspot analysis types
@@ -199,9 +199,7 @@ pub use capture::{CaptureBackend, CaptureBackendType, CaptureEngine};
 // Re-export capture types (new architecture) for easier use
 // These are the new types that replace core::types
 pub use capture::types::{
-    AllocationInfo as NewAllocationInfo, MemorySnapshot as NewMemorySnapshot,
-    MemoryStats as NewMemoryStats, SmartPointerInfo as NewSmartPointerInfo,
-    TrackingError as NewTrackingError, TrackingResult as NewTrackingResult,
+    AllocationInfo, MemorySnapshot, MemoryStats, SmartPointerInfo, TrackingError, TrackingResult,
 };
 
 // Re-export the derive macro when the derive feature is enabled
@@ -257,7 +255,7 @@ pub trait Trackable {
         let type_name = self.get_type_name();
         if crate::advanced_types::is_advanced_type(type_name) {
             // Create a minimal allocation info for analysis
-            let allocation = crate::core::types::AllocationInfo {
+            let allocation = crate::capture::types::AllocationInfo {
                 ptr: self.get_heap_ptr().unwrap_or(0),
                 size: self.get_size_estimate(),
                 var_name: None,
@@ -268,7 +266,7 @@ pub trait Trackable {
                     .unwrap_or_default()
                     .as_nanos() as u64,
                 timestamp_dealloc: None,
-                thread_id: format!("{:?}", std::thread::current().id()),
+                thread_id: std::thread::current().id(),
                 borrow_count: 0,
                 stack_trace: None,
                 is_leaked: false,
@@ -1344,11 +1342,9 @@ pub fn _track_var_impl<T: Trackable>(var: &T, var_name: &str) -> TrackingResult<
     if tracker.is_fast_mode() {
         let unique_id = TRACKED_VARIABLE_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let synthetic_ptr = 0x8000_0000 + unique_id;
-        return tracker.fast_track_allocation(
-            synthetic_ptr,
-            var.get_size_estimate(),
-            var_name.to_string(),
-        );
+        return tracker
+            .fast_track_allocation(synthetic_ptr, var.get_size_estimate(), var_name.to_string())
+            .map_err(|e| e.into());
     }
 
     let type_name = var.get_type_name().to_string();
@@ -1467,6 +1463,11 @@ impl MemoryTracker {
         // Get all necessary data
         let allocations = self.get_active_allocations()?;
         let stats = self.get_stats()?;
+
+        // Convert to new system types
+        let allocations: Vec<crate::capture::types::AllocationInfo> =
+            allocations.into_iter().map(|a| a.into()).collect();
+        let stats: crate::capture::types::stats::MemoryStats = stats.into();
 
         // Perform comprehensive analysis
         let analysis_manager = crate::analysis::AnalysisManager::new();

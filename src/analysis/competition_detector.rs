@@ -1,7 +1,7 @@
 // Competition detector for identifying variable races and resource conflicts
 // Analyzes variable access patterns to detect potential race conditions
 
-use crate::core::types::{TrackingResult, TrackingError};
+use crate::capture::types::{TrackingResult, TrackingError};
 use crate::export::fixed_hybrid_template::HybridAnalysisData;
 use std::collections::HashMap;
 use tracing::{info, debug, trace};

@@ -1,5 +1,5 @@
-use crate::core::types::AllocationInfo;
-use crate::core::types::{
+use crate::capture::types::AllocationInfo;
+use crate::capture::types::{
     CreationContext, ExpressionType, PerformanceImpact, TemporaryUsagePattern,
 };
 use crate::enhanced_types::*;
@@ -271,8 +271,8 @@ impl TemporaryObjectAnalyzer {
     /// Assess optimization potential
     fn assess_optimization_potential(
         _allocation: &AllocationInfo,
-    ) -> crate::core::types::OptimizationPotential {
-        crate::core::types::OptimizationPotential::Minor {
+    ) -> crate::capture::types::OptimizationPotential {
+        crate::capture::types::OptimizationPotential::Minor {
             potential_savings: 100,
         }
     }

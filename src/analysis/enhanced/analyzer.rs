@@ -1,8 +1,8 @@
 use super::{monitors::*, optimizers::*, trackers::*};
-use crate::core::types::{
+use crate::capture::types::generic::{MemoryAccessPattern, PerformanceCharacteristics};
+use crate::capture::types::{
     AccessPattern, AllocationInfo, BranchPredictionImpact, CacheImpact, LifecycleEfficiencyMetrics,
-    MemoryAccessPattern, OptimizationRecommendation, PerformanceCharacteristics,
-    ResourceWasteAssessment, ScopeType, StackFrame,
+    OptimizationRecommendation, ResourceWasteAssessment, ScopeType, StackFrame,
 };
 use crate::enhanced_types::*;
 use std::sync::{Arc, RwLock};
@@ -347,8 +347,8 @@ impl EnhancedMemoryAnalyzer {
         TemporaryObjectAnalysisReport {
             temporary_objects,
             optimization_candidates,
-            hot_temporary_patterns: temp_analyzer.patterns.hot_patterns.clone(),
-            optimization_suggestions: temp_analyzer.patterns.suggestions.clone(),
+            hot_temporary_patterns: temp_analyzer.hot_patterns.clone(),
+            optimization_suggestions: temp_analyzer.suggestions.clone(),
             pattern_statistics: PatternStatistics {
                 total_patterns_detected: pattern_frequency.len(),
                 pattern_frequency_distribution: pattern_frequency,

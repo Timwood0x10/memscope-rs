@@ -119,6 +119,103 @@ pub struct AllocationInfo {
     pub drop_chain_analysis: Option<DropChainAnalysis>,
 }
 
+impl From<crate::core::types::AllocationInfo> for AllocationInfo {
+    fn from(old: crate::core::types::AllocationInfo) -> Self {
+        // For thread_id, we use a default value since ThreadId cannot be reliably reconstructed from String
+        // In a production system, this would require proper thread ID tracking
+        let thread_id = thread::current().id();
+
+        // Convert borrow_info
+        let borrow_info = old.borrow_info.map(|b| BorrowInfo {
+            immutable_borrows: b.immutable_borrows,
+            mutable_borrows: b.mutable_borrows,
+            max_concurrent_borrows: b.max_concurrent_borrows,
+            last_borrow_timestamp: b.last_borrow_timestamp,
+        });
+
+        // Convert clone_info
+        let clone_info = old.clone_info.map(|c| CloneInfo {
+            clone_count: c.clone_count,
+            is_clone: c.is_clone,
+            original_ptr: c.original_ptr,
+        });
+
+        // For complex nested types, we set them to None to avoid complex conversions
+        // In a production system, these would need proper conversion implementations
+        let smart_pointer_info =
+            old.smart_pointer_info
+                .map(|s| super::smart_pointer::SmartPointerInfo {
+                    data_ptr: s.data_ptr,
+                    cloned_from: s.cloned_from,
+                    clones: s.clones,
+                    ref_count_history: s
+                        .ref_count_history
+                        .iter()
+                        .map(|r| super::smart_pointer::RefCountSnapshot {
+                            timestamp: r.timestamp,
+                            strong_count: r.strong_count,
+                            weak_count: r.weak_count,
+                        })
+                        .collect(),
+                    weak_count: s.weak_count,
+                    is_weak_reference: s.is_weak_reference,
+                    is_data_owner: s.is_data_owner,
+                    is_implicitly_deallocated: s.is_implicitly_deallocated,
+                    pointer_type: match s.pointer_type {
+                        crate::core::types::SmartPointerType::Rc => {
+                            super::smart_pointer::SmartPointerType::Rc
+                        }
+                        crate::core::types::SmartPointerType::Arc => {
+                            super::smart_pointer::SmartPointerType::Arc
+                        }
+                        crate::core::types::SmartPointerType::RcWeak => {
+                            super::smart_pointer::SmartPointerType::RcWeak
+                        }
+                        crate::core::types::SmartPointerType::ArcWeak => {
+                            super::smart_pointer::SmartPointerType::ArcWeak
+                        }
+                        crate::core::types::SmartPointerType::Box => {
+                            super::smart_pointer::SmartPointerType::Box
+                        }
+                    },
+                });
+
+        Self {
+            ptr: old.ptr,
+            size: old.size,
+            var_name: old.var_name,
+            type_name: old.type_name,
+            scope_name: old.scope_name,
+            timestamp_alloc: old.timestamp_alloc,
+            timestamp_dealloc: old.timestamp_dealloc,
+            thread_id,
+            borrow_count: old.borrow_count,
+            stack_trace: old.stack_trace,
+            is_leaked: old.is_leaked,
+            lifetime_ms: old.lifetime_ms,
+            borrow_info,
+            clone_info,
+            ownership_history_available: old.ownership_history_available,
+            smart_pointer_info,
+            // Complex nested types - set to None for now
+            memory_layout: None,
+            generic_info: None,
+            dynamic_type_info: None,
+            runtime_state: None,
+            stack_allocation: None,
+            temporary_object: None,
+            fragmentation_analysis: None,
+            generic_instantiation: None,
+            type_relationships: None,
+            type_usage: None,
+            function_call_tracking: None,
+            lifecycle_tracking: None,
+            access_tracking: None,
+            drop_chain_analysis: None,
+        }
+    }
+}
+
 /// Type usage information for tracking how types are used across the codebase.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TypeUsageInfo {

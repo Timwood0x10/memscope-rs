@@ -3,12 +3,10 @@
 //! This module provides highly optimized JSON export functionality that addresses
 //! the main performance bottlenecks identified in the current implementation.
 
-use crate::analysis::security_violation_analyzer::{
-    AnalysisConfig, SecurityViolationAnalyzer, ViolationSeverity,
-};
+use crate::analysis::security::{AnalysisConfig, SecurityViolationAnalyzer, ViolationSeverity};
 use crate::analysis::unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, SafetyViolation};
+use crate::capture::types::{AllocationInfo, TrackingResult};
 use crate::core::tracker::MemoryTracker;
-use crate::core::types::{AllocationInfo, TrackingResult};
 use crate::export::adaptive_performance::AdaptivePerformanceOptimizer;
 // use crate::export::fast_export_coordinator::FastExportCoordinator;
 use crate::export::schema_validator::SchemaValidator;
@@ -600,6 +598,7 @@ impl MemoryTracker {
 
         // Get data once for all files
         let allocations = self.get_active_allocations()?;
+        let allocations: Vec<AllocationInfo> = allocations.into_iter().map(|a| a.into()).collect();
         let stats = self.get_stats()?;
 
         println!(
@@ -683,6 +682,7 @@ impl MemoryTracker {
 
         // Get data once for all files
         let allocations = self.get_active_allocations()?;
+        let allocations: Vec<AllocationInfo> = allocations.into_iter().map(|a| a.into()).collect();
         let stats = self.get_stats()?;
 
         println!("📊 Processing {} allocations...", allocations.len());
@@ -2276,7 +2276,7 @@ fn create_performance_metrics(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::types::AllocationInfo;
+    use crate::capture::types::AllocationInfo;
     use std::time::Instant;
 
     fn create_test_allocation(
@@ -2293,7 +2293,7 @@ mod tests {
             scope_name: None,
             timestamp_alloc: 1000,
             timestamp_dealloc: None,
-            thread_id: "test_thread".to_string(),
+            thread_id: std::thread::current().id(),
             borrow_count: 0,
             stack_trace: None,
             is_leaked: false,

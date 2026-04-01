@@ -3,7 +3,7 @@
 //! This module provides functionality to detect and analyze relationships between variables,
 //! building a comprehensive graph for visualization and analysis.
 
-use crate::core::types::{AllocationInfo, TrackingResult};
+use crate::capture::types::{AllocationInfo, TrackingResult};
 use crate::{analysis::CircularReferenceNode, variable_registry::VariableInfo};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -536,8 +536,10 @@ pub fn build_variable_relationship_graph(
 
 #[cfg(test)]
 mod tests {
+    use std::thread;
+
     use super::*;
-    use crate::core::types::{
+    use crate::capture::types::{
         AllocationInfo, RefCountSnapshot, SmartPointerInfo as CoreSmartPointerInfo,
         SmartPointerType,
     };
@@ -559,7 +561,7 @@ mod tests {
             scope_name,
             timestamp_alloc: 1000,
             timestamp_dealloc: None,
-            thread_id: "test_thread".to_string(),
+            thread_id: thread::current().id(),
             borrow_count: 0,
             stack_trace: Some(vec!["test_function".to_string()]),
             is_leaked: false,

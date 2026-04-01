@@ -3,7 +3,7 @@
 //! This module provides enhanced FFI function name resolution to replace
 //! vague "potential_ffi_target" with specific function and library information.
 
-use crate::core::types::{TrackingError, TrackingResult};
+use crate::capture::types::{TrackingError, TrackingResult};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};

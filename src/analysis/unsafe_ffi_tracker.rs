@@ -32,7 +32,7 @@
     note = "Use the new unified API in `crate::capture::backends::unsafe_tracking` instead"
 )]
 use crate::analysis::ffi_function_resolver::{get_global_ffi_resolver, ResolvedFfiFunction};
-use crate::core::types::{AllocationInfo, TrackingError, TrackingResult};
+use crate::capture::types::{AllocationInfo, TrackingError, TrackingResult};
 use crate::core::{get_global_call_stack_normalizer, CallStackRef};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -1029,7 +1029,16 @@ impl UnsafeFFITracker {
         }];
 
         let normalizer = get_global_call_stack_normalizer();
-        let id = normalizer.normalize_call_stack(&frames)?;
+        // Manual error handling to convert between old and new TrackingError types
+        let id = match normalizer.normalize_call_stack(&frames) {
+            Ok(id) => id,
+            Err(e) => {
+                return Err(TrackingError::AnalysisError(format!(
+                    "Failed to normalize call stack: {}",
+                    e
+                )))
+            }
+        };
         Ok(CallStackRef::new(id, Some(frames.len())))
     }
 
@@ -2422,7 +2431,7 @@ impl UnsafeFFITracker {
         };
 
         // Get current allocations
-        let allocations: Vec<crate::core::types::AllocationInfo> =
+        let allocations: Vec<AllocationInfo> =
             if let Ok(enhanced_allocations) = self.enhanced_allocations.lock() {
                 enhanced_allocations
                     .values()

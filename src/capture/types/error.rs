@@ -168,6 +168,190 @@ impl From<serde_json::Error> for TrackingError {
     }
 }
 
+impl From<crate::capture::backends::core_types::TrackingError> for TrackingError {
+    fn from(error: crate::capture::backends::core_types::TrackingError) -> Self {
+        match error {
+            crate::capture::backends::core_types::TrackingError::LockError(msg) => {
+                TrackingError::LockError(msg)
+            }
+            crate::capture::backends::core_types::TrackingError::InvalidPointer(msg) => {
+                TrackingError::InvalidPointer(msg)
+            }
+            crate::capture::backends::core_types::TrackingError::ExportError(msg) => {
+                TrackingError::ExportError(msg)
+            }
+            crate::capture::backends::core_types::TrackingError::SerializationError(msg) => {
+                TrackingError::SerializationError(msg)
+            }
+        }
+    }
+}
+
+impl From<crate::core::types::TrackingError> for TrackingError {
+    fn from(error: crate::core::types::TrackingError) -> Self {
+        // Direct conversion since both have compatible variants
+        // core::types::TrackingError has the same structure as capture::types::error::TrackingError
+        match error {
+            crate::core::types::TrackingError::AllocationFailed(msg) => {
+                TrackingError::AllocationFailed(msg)
+            }
+            crate::core::types::TrackingError::DeallocationFailed(msg) => {
+                TrackingError::DeallocationFailed(msg)
+            }
+            crate::core::types::TrackingError::TrackingDisabled => TrackingError::TrackingDisabled,
+            crate::core::types::TrackingError::InvalidPointer(msg) => {
+                TrackingError::InvalidPointer(msg)
+            }
+            crate::core::types::TrackingError::SerializationError(msg) => {
+                TrackingError::SerializationError(msg)
+            }
+            crate::core::types::TrackingError::VisualizationError(msg) => {
+                TrackingError::VisualizationError(msg)
+            }
+            crate::core::types::TrackingError::ThreadSafetyError(msg) => {
+                TrackingError::ThreadSafetyError(msg)
+            }
+            crate::core::types::TrackingError::ConfigurationError(msg) => {
+                TrackingError::ConfigurationError(msg)
+            }
+            crate::core::types::TrackingError::AnalysisError(msg) => {
+                TrackingError::AnalysisError(msg)
+            }
+            crate::core::types::TrackingError::ExportError(msg) => TrackingError::ExportError(msg),
+            crate::core::types::TrackingError::MemoryCorruption(msg) => {
+                TrackingError::MemoryCorruption(msg)
+            }
+            crate::core::types::TrackingError::UnsafeOperationDetected(msg) => {
+                TrackingError::UnsafeOperationDetected(msg)
+            }
+            crate::core::types::TrackingError::FFIError(msg) => TrackingError::FFIError(msg),
+            crate::core::types::TrackingError::ScopeError(msg) => TrackingError::ScopeError(msg),
+            crate::core::types::TrackingError::BorrowCheckError(msg) => {
+                TrackingError::BorrowCheckError(msg)
+            }
+            crate::core::types::TrackingError::LifetimeError(msg) => {
+                TrackingError::LifetimeError(msg)
+            }
+            crate::core::types::TrackingError::TypeInferenceError(msg) => {
+                TrackingError::TypeInferenceError(msg)
+            }
+            crate::core::types::TrackingError::PerformanceError(msg) => {
+                TrackingError::PerformanceError(msg)
+            }
+            crate::core::types::TrackingError::ResourceExhausted(msg) => {
+                TrackingError::ResourceExhausted(msg)
+            }
+            crate::core::types::TrackingError::InternalError(msg) => {
+                TrackingError::InternalError(msg)
+            }
+            crate::core::types::TrackingError::IoError(msg) => TrackingError::IoError(msg),
+            crate::core::types::TrackingError::LockError(msg) => TrackingError::LockError(msg),
+            crate::core::types::TrackingError::ChannelError(msg) => {
+                TrackingError::ChannelError(msg)
+            }
+            crate::core::types::TrackingError::ThreadError(msg) => TrackingError::ThreadError(msg),
+            crate::core::types::TrackingError::InitializationError(msg) => {
+                TrackingError::InitializationError(msg)
+            }
+            crate::core::types::TrackingError::NotImplemented(msg) => {
+                TrackingError::NotImplemented(msg)
+            }
+            crate::core::types::TrackingError::ValidationError(msg) => {
+                TrackingError::ValidationError(msg)
+            }
+            crate::core::types::TrackingError::InvalidOperation(msg) => {
+                TrackingError::InvalidOperation(msg)
+            }
+            crate::core::types::TrackingError::LockContention(msg) => {
+                TrackingError::LockContention(msg)
+            }
+            crate::core::types::TrackingError::DataError(msg) => TrackingError::DataError(msg),
+        }
+    }
+}
+
+impl From<TrackingError> for crate::core::types::TrackingError {
+    fn from(error: TrackingError) -> Self {
+        // Reverse conversion
+        match error {
+            TrackingError::AllocationFailed(msg) => {
+                crate::core::types::TrackingError::AllocationFailed(msg)
+            }
+            TrackingError::DeallocationFailed(msg) => {
+                crate::core::types::TrackingError::DeallocationFailed(msg)
+            }
+            TrackingError::TrackingDisabled => crate::core::types::TrackingError::TrackingDisabled,
+            TrackingError::InvalidPointer(msg) => {
+                crate::core::types::TrackingError::InvalidPointer(msg)
+            }
+            TrackingError::SerializationError(msg) => {
+                crate::core::types::TrackingError::SerializationError(msg)
+            }
+            TrackingError::VisualizationError(msg) => {
+                crate::core::types::TrackingError::VisualizationError(msg)
+            }
+            TrackingError::ThreadSafetyError(msg) => {
+                crate::core::types::TrackingError::ThreadSafetyError(msg)
+            }
+            TrackingError::ConfigurationError(msg) => {
+                crate::core::types::TrackingError::ConfigurationError(msg)
+            }
+            TrackingError::AnalysisError(msg) => {
+                crate::core::types::TrackingError::AnalysisError(msg)
+            }
+            TrackingError::ExportError(msg) => crate::core::types::TrackingError::ExportError(msg),
+            TrackingError::MemoryCorruption(msg) => {
+                crate::core::types::TrackingError::MemoryCorruption(msg)
+            }
+            TrackingError::UnsafeOperationDetected(msg) => {
+                crate::core::types::TrackingError::UnsafeOperationDetected(msg)
+            }
+            TrackingError::FFIError(msg) => crate::core::types::TrackingError::FFIError(msg),
+            TrackingError::ScopeError(msg) => crate::core::types::TrackingError::ScopeError(msg),
+            TrackingError::BorrowCheckError(msg) => {
+                crate::core::types::TrackingError::BorrowCheckError(msg)
+            }
+            TrackingError::LifetimeError(msg) => {
+                crate::core::types::TrackingError::LifetimeError(msg)
+            }
+            TrackingError::TypeInferenceError(msg) => {
+                crate::core::types::TrackingError::TypeInferenceError(msg)
+            }
+            TrackingError::PerformanceError(msg) => {
+                crate::core::types::TrackingError::PerformanceError(msg)
+            }
+            TrackingError::ResourceExhausted(msg) => {
+                crate::core::types::TrackingError::ResourceExhausted(msg)
+            }
+            TrackingError::InternalError(msg) => {
+                crate::core::types::TrackingError::InternalError(msg)
+            }
+            TrackingError::IoError(msg) => crate::core::types::TrackingError::IoError(msg),
+            TrackingError::LockError(msg) => crate::core::types::TrackingError::LockError(msg),
+            TrackingError::ChannelError(msg) => {
+                crate::core::types::TrackingError::ChannelError(msg)
+            }
+            TrackingError::ThreadError(msg) => crate::core::types::TrackingError::ThreadError(msg),
+            TrackingError::InitializationError(msg) => {
+                crate::core::types::TrackingError::InitializationError(msg)
+            }
+            TrackingError::NotImplemented(msg) => {
+                crate::core::types::TrackingError::NotImplemented(msg)
+            }
+            TrackingError::ValidationError(msg) => {
+                crate::core::types::TrackingError::ValidationError(msg)
+            }
+            TrackingError::InvalidOperation(msg) => {
+                crate::core::types::TrackingError::InvalidOperation(msg)
+            }
+            TrackingError::LockContention(msg) => {
+                crate::core::types::TrackingError::LockContention(msg)
+            }
+            TrackingError::DataError(msg) => crate::core::types::TrackingError::DataError(msg),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

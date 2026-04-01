@@ -6,8 +6,8 @@
 //! 3. Borrow checker integration - Track borrow and mutable borrow lifetimes
 //! 4. Closure capture analysis - Track closure captured variable lifetimes
 
+use crate::capture::types::AllocationInfo;
 use crate::core::safe_operations::SafeLock;
-use crate::core::types::AllocationInfo;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};

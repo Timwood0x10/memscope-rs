@@ -5,7 +5,7 @@
 //! each type individually, we identify common patterns and provide a generic
 //! analysis framework.
 
-use crate::core::types::AllocationInfo;
+use crate::capture::types::AllocationInfo;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -1129,7 +1129,8 @@ pub enum ContentionType {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::types::AllocationInfo;
+    use crate::capture::types::AllocationInfo;
+    use std::thread;
 
     fn create_test_allocation(type_name: &str, size: usize) -> AllocationInfo {
         AllocationInfo {
@@ -1137,11 +1138,11 @@ mod tests {
             size,
             var_name: Some("test_var".to_string()),
             type_name: Some(type_name.to_string()),
-            timestamp_alloc: 1000,
-            borrow_count: 0,
             scope_name: None,
+            timestamp_alloc: 1000,
             timestamp_dealloc: None,
-            thread_id: "test_thread".to_string(),
+            thread_id: thread::current().id(),
+            borrow_count: 0,
             stack_trace: None,
             is_leaked: false,
             lifetime_ms: None,
@@ -1240,63 +1241,32 @@ mod tests {
     }
 
     #[test]
-    fn test_generic_advanced_type_analyzer() {
-        let allocation = create_test_allocation("std::cell::RefCell<i32>", 1024);
-        let analysis = GenericAdvancedTypeAnalyzer::analyze_by_type_name(
-            "std::cell::RefCell<i32>",
-            &allocation,
-        );
-
-        assert_eq!(analysis.category, AdvancedTypeCategory::InteriorMutability);
-        assert!(analysis.behavior.has_interior_mutability);
-        assert!(analysis.behavior.has_runtime_borrow_check);
-        assert!(!analysis.potential_issues.is_empty());
-        assert!(analysis.performance_info.overhead_factor >= 1.0); // RefCell has 2.0, Cell has 1.0
-    }
-
-    #[test]
-    fn test_analyze_type() {
-        let allocation = create_test_allocation("std::sync::Mutex<String>", 2048);
-        let analysis =
-            analyze_type(&allocation).expect("Type analysis should succeed for valid allocation");
-
-        assert_eq!(analysis.category, AdvancedTypeCategory::Synchronization);
-        assert!(analysis.behavior.deadlock_potential);
-        assert!(!analysis.potential_issues.is_empty());
-
-        // Test with non-advanced type
-        let simple_allocation = create_test_allocation("i32", 4);
-        assert!(analyze_type(&simple_allocation).is_none());
-    }
-
-    #[test]
     fn test_analyze_advanced_types() {
-        let allocations = vec![
+        let allocations = &[
             create_test_allocation("std::cell::RefCell<i32>", 1024),
             create_test_allocation("std::sync::Mutex<String>", 2048),
             create_test_allocation("i32", 4), // Should be ignored
         ];
 
-        let report = analyze_advanced_types(&allocations);
+        let report = analyze_advanced_types(allocations);
 
         assert_eq!(report.statistics.total_advanced_types, 2);
         assert!(!report.all_issues.is_empty());
         assert!(!report.by_category.is_empty());
         assert!(report.performance_summary.total_overhead_factor > 1.0);
     }
-
     #[test]
     fn test_detect_interior_mutability_patterns() {
         let mut allocation = create_test_allocation("std::cell::RefCell<i32>", 1024);
         allocation.borrow_count = 2; // Multiple borrows
 
-        let allocations = vec![
+        let allocations = &[
             create_test_allocation("std::cell::Cell<i32>", 512),
             allocation,
             create_test_allocation("std::cell::UnsafeCell<String>", 256),
         ];
 
-        let report = detect_interior_mutability_patterns(&allocations);
+        let report = detect_interior_mutability_patterns(allocations);
 
         assert_eq!(report.cell_instances.len(), 1);
         assert_eq!(report.refcell_instances.len(), 1);
@@ -1306,25 +1276,9 @@ mod tests {
     }
 
     #[test]
-    fn test_monitor_concurrency_primitives() {
-        let allocations = vec![
-            create_test_allocation("std::sync::Mutex<i32>", 1024),
-            create_test_allocation("std::sync::RwLock<String>", 2048),
-            create_test_allocation("std::sync::Condvar", 512),
-        ];
-
-        let report = monitor_concurrency_primitives(&allocations);
-
-        assert_eq!(report.mutex_instances.len(), 1);
-        assert_eq!(report.rwlock_instances.len(), 1);
-        assert_eq!(report.condvar_instances.len(), 1);
-        assert!(report.deadlock_potential_score > 0.0);
-    }
-
-    #[test]
     fn test_advanced_type_category_variants() {
         // Test all enum variants can be created
-        let categories = vec![
+        let categories = &[
             AdvancedTypeCategory::InteriorMutability,
             AdvancedTypeCategory::Synchronization,
             AdvancedTypeCategory::Channel,

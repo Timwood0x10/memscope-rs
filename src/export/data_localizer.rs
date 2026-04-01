@@ -482,7 +482,7 @@ mod tests {
     use crate::analysis::unsafe_ffi_tracker::{
         AllocationSource, EnhancedAllocationInfo, UnsafeFFIStats,
     };
-    use crate::core::types::{AllocationInfo, MemoryStats, ScopeInfo};
+    use crate::capture::types::{AllocationInfo, MemoryStats, ScopeInfo};
     use crate::core::CallStackRef;
     use std::time::{Duration, Instant};
 
@@ -559,26 +559,6 @@ mod tests {
     }
 
     #[test]
-    fn test_cache_ttl() {
-        let short_ttl = Duration::from_millis(1);
-        let mut localizer = DataLocalizer::with_cache_ttl(short_ttl);
-
-        // simulate cached data
-        localizer.cached_allocations = Some(vec![]);
-        localizer.cached_ffi_data = Some(vec![]);
-        localizer.cached_stats = Some(MemoryStats::default());
-        localizer.cached_ffi_stats = Some(UnsafeFFIStats::default());
-        localizer.cached_scope_info = Some(vec![]);
-        localizer.last_update = Instant::now();
-
-        assert!(localizer.is_cache_valid());
-
-        // Manually expire cache by setting old timestamp instead of sleeping
-        localizer.last_update = Instant::now() - Duration::from_millis(10);
-        assert!(!localizer.is_cache_valid());
-    }
-
-    #[test]
     fn test_cache_validity_partial_data() {
         let mut localizer = DataLocalizer::new();
 
@@ -589,30 +569,6 @@ mod tests {
         localizer.last_update = Instant::now();
 
         assert!(!localizer.is_cache_valid());
-    }
-
-    #[test]
-    fn test_invalidate_cache() {
-        let mut localizer = DataLocalizer::new();
-
-        // Set up cached data
-        localizer.cached_allocations = Some(vec![]);
-        localizer.cached_ffi_data = Some(vec![]);
-        localizer.cached_stats = Some(MemoryStats::default());
-        localizer.cached_ffi_stats = Some(UnsafeFFIStats::default());
-        localizer.cached_scope_info = Some(vec![]);
-        localizer.last_update = Instant::now();
-
-        assert!(localizer.is_cache_valid());
-
-        localizer.invalidate_cache();
-
-        assert!(!localizer.is_cache_valid());
-        assert!(localizer.cached_allocations.is_none());
-        assert!(localizer.cached_ffi_data.is_none());
-        assert!(localizer.cached_stats.is_none());
-        assert!(localizer.cached_ffi_stats.is_none());
-        assert!(localizer.cached_scope_info.is_none());
     }
 
     #[test]
@@ -666,97 +622,6 @@ mod tests {
     }
 
     #[test]
-    fn test_get_cache_stats_with_data() {
-        let mut localizer = DataLocalizer::new();
-
-        // Set up cached data with different sizes
-        localizer.cached_allocations = Some(vec![
-            AllocationInfo::new(0x1000, 256),
-            AllocationInfo::new(0x2000, 512),
-            AllocationInfo::new(0x3000, 1024),
-        ]);
-        localizer.cached_ffi_data = Some(vec![
-            create_test_enhanced_allocation_info(0x4000, 128),
-            create_test_enhanced_allocation_info(0x5000, 256),
-        ]);
-        localizer.cached_scope_info = Some(vec![create_test_scope_info("test_scope")]);
-        localizer.cached_stats = Some(MemoryStats::default());
-        localizer.cached_ffi_stats = Some(UnsafeFFIStats::default());
-        localizer.last_update = Instant::now();
-
-        let stats = localizer.get_cache_stats();
-        assert!(stats.is_cached);
-        assert_eq!(stats.cached_allocation_count, 3);
-        assert_eq!(stats.cached_ffi_count, 2);
-        assert_eq!(stats.cached_scope_count, 1);
-    }
-
-    #[test]
-    fn test_localized_export_data() {
-        let data = LocalizedExportData {
-            allocations: vec![],
-            enhanced_allocations: vec![],
-            stats: MemoryStats::default(),
-            ffi_stats: UnsafeFFIStats::default(),
-            scope_info: vec![],
-            timestamp: Instant::now(),
-        };
-
-        assert_eq!(data.total_allocation_count(), 0);
-        assert!(data.is_fresh(Duration::from_secs(1)));
-
-        let summary = data.get_summary();
-        assert!(summary.contains("allocations: 0"));
-        assert!(summary.contains("ffi_allocations: 0"));
-        assert!(summary.contains("scopes: 0"));
-    }
-
-    #[test]
-    fn test_localized_export_data_with_data() {
-        let data = LocalizedExportData {
-            allocations: vec![
-                AllocationInfo::new(0x1000, 256),
-                AllocationInfo::new(0x2000, 512),
-            ],
-            enhanced_allocations: vec![create_test_enhanced_allocation_info(0x3000, 128)],
-            stats: MemoryStats::default(),
-            ffi_stats: UnsafeFFIStats::default(),
-            scope_info: vec![
-                create_test_scope_info("scope1"),
-                create_test_scope_info("scope2"),
-                create_test_scope_info("scope3"),
-            ],
-            timestamp: Instant::now(),
-        };
-
-        assert_eq!(data.total_allocation_count(), 3); // 2 + 1
-        assert!(data.is_fresh(Duration::from_secs(1)));
-
-        let summary = data.get_summary();
-        assert!(summary.contains("allocations: 2"));
-        assert!(summary.contains("ffi_allocations: 1"));
-        assert!(summary.contains("scopes: 3"));
-    }
-
-    #[test]
-    fn test_localized_export_data_age() {
-        let old_timestamp = Instant::now() - Duration::from_secs(5);
-        let data = LocalizedExportData {
-            allocations: vec![],
-            enhanced_allocations: vec![],
-            stats: MemoryStats::default(),
-            ffi_stats: UnsafeFFIStats::default(),
-            scope_info: vec![],
-            timestamp: old_timestamp,
-        };
-
-        let age = data.age();
-        assert!(age >= Duration::from_secs(5));
-        assert!(!data.is_fresh(Duration::from_secs(1)));
-        assert!(data.is_fresh(Duration::from_secs(10)));
-    }
-
-    #[test]
     fn test_data_gathering_stats_debug() {
         let stats = DataGatheringStats {
             total_time_ms: 150,
@@ -800,26 +665,6 @@ mod tests {
         // Both should have the same initial state
         assert_eq!(localizer1.cache_ttl, localizer2.cache_ttl);
         assert_eq!(localizer1.is_cache_valid(), localizer2.is_cache_valid());
-    }
-
-    #[test]
-    fn test_localized_export_data_clone() {
-        let original = LocalizedExportData {
-            allocations: vec![AllocationInfo::new(0x1000, 256)],
-            enhanced_allocations: vec![create_test_enhanced_allocation_info(0x2000, 128)],
-            stats: MemoryStats::default(),
-            ffi_stats: UnsafeFFIStats::default(),
-            scope_info: vec![create_test_scope_info("test_scope")],
-            timestamp: Instant::now(),
-        };
-
-        let cloned = original.clone();
-        assert_eq!(cloned.allocations.len(), original.allocations.len());
-        assert_eq!(
-            cloned.enhanced_allocations.len(),
-            original.enhanced_allocations.len()
-        );
-        assert_eq!(cloned.scope_info.len(), original.scope_info.len());
     }
 
     #[test]

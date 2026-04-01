@@ -70,6 +70,38 @@ impl MemoryStats {
     }
 }
 
+impl From<crate::core::types::MemoryStats> for MemoryStats {
+    fn from(old: crate::core::types::MemoryStats) -> Self {
+        Self {
+            total_allocations: old.total_allocations,
+            total_allocated: old.total_allocated,
+            active_allocations: old.active_allocations,
+            active_memory: old.active_memory,
+            peak_allocations: old.peak_allocations,
+            peak_memory: old.peak_memory,
+            total_deallocations: old.total_deallocations,
+            total_deallocated: old.total_deallocated,
+            leaked_allocations: old.leaked_allocations,
+            leaked_memory: old.leaked_memory,
+            // Convert FragmentationAnalysis
+            fragmentation_analysis: FragmentationAnalysis {
+                fragmentation_ratio: old.fragmentation_analysis.fragmentation_ratio,
+                largest_free_block: old.fragmentation_analysis.largest_free_block,
+                smallest_free_block: old.fragmentation_analysis.smallest_free_block,
+                free_block_count: old.fragmentation_analysis.free_block_count,
+                total_free_memory: old.fragmentation_analysis.total_free_memory,
+                external_fragmentation: old.fragmentation_analysis.external_fragmentation,
+                internal_fragmentation: old.fragmentation_analysis.internal_fragmentation,
+            },
+            // Use default values for complex nested types to avoid unsafe conversions
+            lifecycle_stats: ScopeLifecycleMetrics::default(),
+            allocations: old.allocations.into_iter().map(|a| a.into()).collect(),
+            system_library_stats: SystemLibraryStats::default(),
+            concurrency_analysis: ConcurrencyAnalysis::default(),
+        }
+    }
+}
+
 /// Memory type analysis.
 #[derive(Debug, Clone, Serialize)]
 pub struct MemoryTypeInfo {

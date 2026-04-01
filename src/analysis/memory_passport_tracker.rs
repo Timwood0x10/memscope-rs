@@ -4,7 +4,7 @@
 //! FFI boundaries, including lifecycle event recording and leak detection at shutdown.
 
 use crate::analysis::unsafe_ffi_tracker::StackFrame;
-use crate::core::types::{TrackingError, TrackingResult};
+use crate::capture::types::{TrackingError, TrackingResult};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};

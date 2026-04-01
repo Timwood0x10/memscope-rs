@@ -3,12 +3,12 @@
 //! This module provides high-performance batch processing capabilities for
 //! large datasets of unsafe and FFI memory allocations, with support for
 //! parallel processing and performance monitoring.
-
+#[allow(warnings)]
 use crate::analysis::unsafe_ffi_tracker::{
     AllocationSource, BoundaryEvent, EnhancedAllocationInfo, LibCHookInfo, MemoryPassport,
     RiskAssessment, RiskLevel,
 };
-use crate::core::types::{TrackingError, TrackingResult};
+use crate::capture::types::{TrackingError, TrackingResult};
 
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -1042,8 +1042,9 @@ mod tests {
         RiskFactor, RiskFactorType, RiskLevel,
     };
     use crate::analysis::FfiFunctionCategory;
-    use crate::core::types::AllocationInfo;
+    use crate::capture::types::AllocationInfo;
     use crate::core::CallStackRef;
+    use std::thread;
     use std::time::SystemTime;
 
     fn create_test_allocation_info(ptr: usize, size: usize, type_name: &str) -> AllocationInfo {
@@ -1058,7 +1059,7 @@ mod tests {
                 .unwrap()
                 .as_millis() as u64,
             timestamp_dealloc: None,
-            thread_id: "test_thread".to_string(),
+            thread_id: thread::current().id(),
             borrow_count: 0,
             stack_trace: None,
             is_leaked: false,

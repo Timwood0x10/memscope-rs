@@ -1,4 +1,4 @@
-use crate::core::types::{AccessPattern, OptimizationRecommendation};
+use crate::capture::types::{AccessPattern, OptimizationRecommendation};
 use crate::enhanced_types::*;
 use std::collections::HashMap;
 
