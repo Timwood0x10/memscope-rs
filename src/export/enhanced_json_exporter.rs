@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 
-/// Ownership event as specified in 
+/// Ownership event as specified in
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OwnershipEvent {
     /// Event timestamp in nanoseconds
@@ -29,7 +29,7 @@ pub struct OwnershipEvent {
     pub details: HashMap<String, serde_json::Value>,
 }
 
-/// Lifetime data for a specific allocation as specified in 
+/// Lifetime data for a specific allocation as specified in
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LifetimeData {
     /// Allocation pointer that links to memory_analysis.json
@@ -63,9 +63,9 @@ pub struct EnhancedAllocationInfo {
     pub is_leaked: bool,
     /// Precise lifetime in milliseconds (calculated from creation to destruction)
     pub lifetime_ms: Option<u64>,
-    /// Enhanced borrowing information as specified in 
+    /// Enhanced borrowing information as specified in
     pub borrow_info: Option<BorrowInfo>,
-    /// Enhanced cloning information as specified in 
+    /// Enhanced cloning information as specified in
     pub clone_info: Option<CloneInfo>,
     /// Flag indicating if detailed ownership history is available in lifetime.json
     pub ownership_history_available: bool,
@@ -198,7 +198,7 @@ impl EnhancedJsonExporter {
         Ok(())
     }
 
-    /// Export lifetime and ownership history data as specified in 
+    /// Export lifetime and ownership history data as specified in
     fn export_lifetime_data<P: AsRef<Path>>(
         &self,
         output_dir: P,
@@ -238,7 +238,7 @@ impl EnhancedJsonExporter {
         Ok(())
     }
 
-    /// Export unsafe FFI analysis as specified in 
+    /// Export unsafe FFI analysis as specified in
     fn export_unsafe_ffi_analysis<P: AsRef<Path>>(
         &self,
         output_dir: P,
@@ -302,7 +302,7 @@ impl EnhancedJsonExporter {
         }
     }
 
-    /// Generate lifetime data for an allocation as specified in 
+    /// Generate lifetime data for an allocation as specified in
     fn generate_lifetime_data(&self, alloc: &AllocationInfo) -> LifetimeData {
         let mut ownership_history = Vec::new();
 
@@ -952,10 +952,7 @@ mod tests {
 
         let metadata = &json_data["metadata"];
         assert_eq!(metadata["export_version"].as_str().unwrap(), "2.0");
-        assert_eq!(
-            metadata["specification"].as_str().unwrap(),
-            " compliant"
-        );
+        assert_eq!(metadata["specification"].as_str().unwrap(), " compliant");
         assert_eq!(metadata["total_allocations"].as_u64().unwrap(), 2);
 
         Ok(())

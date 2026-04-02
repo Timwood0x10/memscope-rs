@@ -44,7 +44,7 @@ impl Default for HistoryConfig {
     }
 }
 
-/// Types of ownership events as defined in 
+/// Types of ownership events as defined in
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum OwnershipEventType {
     /// Memory was allocated
@@ -65,7 +65,7 @@ pub enum OwnershipEventType {
     RefCountChanged { old_count: usize, new_count: usize },
 }
 
-/// A single ownership event in the history as defined in 
+/// A single ownership event in the history as defined in
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OwnershipEvent {
     /// Unique event ID for tracking

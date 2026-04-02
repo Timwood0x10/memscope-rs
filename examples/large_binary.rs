@@ -5,8 +5,7 @@
 use memscope_rs::analysis::memory_passport_tracker::{
     initialize_global_passport_tracker, PassportTrackerConfig,
 };
-use memscope_rs::render_engine::export::{export_snapshot_to_json, ExportJsonOptions};
-use memscope_rs::snapshot::MemorySnapshot;
+use memscope_rs::capture::backends::global_tracking::export_to_json;
 use memscope_rs::{track, tracker};
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::rc::Rc;
@@ -19,7 +18,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let total_start = Instant::now();
 
-    // Initialize Memory Passport for FFI tracking
     let config = PassportTrackerConfig {
         detailed_logging: false,
         max_events_per_passport: 1000,
@@ -31,57 +29,48 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let _passport_tracker = initialize_global_passport_tracker(config);
 
-    // Initialize tracker
     let tracker = tracker!();
 
-    // Create large-scale test data
     println!("Creating large-scale test data...");
     let data_creation_start = Instant::now();
     create_large_scale_data(&tracker);
     let data_creation_time = data_creation_start.elapsed();
 
-    // Add unsafe/FFI operations
     simulate_unsafe_ffi_operations();
 
-    println!("Data creation completed in {:.2}ms", data_creation_time.as_secs_f64() * 1000.0);
+    println!(
+        "Data creation completed in {:.2}ms",
+        data_creation_time.as_secs_f64() * 1000.0
+    );
 
-    // Export using new API
-    println!("\nExporting memory snapshot using new API...");
-    let export_start = Instant::now();
-
-    let allocations = tracker.inner().get_active_allocations().unwrap_or_default();
-    let snapshot = MemorySnapshot::from_allocation_infos(allocations);
-
-    let export_options = ExportJsonOptions::default();
-    let output_path = "MemoryAnalysis/large_scale_new_api";
-
-    export_snapshot_to_json(&snapshot, output_path.as_ref(), &export_options)?;
-
-    let export_time = export_start.elapsed();
-    let total_time = total_start.elapsed();
-
-    // Performance summary
-    println!("\n========================================");
-    println!("Performance Summary:");
-    println!("  Data Creation: {:.2}ms", data_creation_time.as_secs_f64() * 1000.0);
-    println!("  Export Time: {:.2}ms", export_time.as_secs_f64() * 1000.0);
-    println!("  Total Runtime: {:.2}ms", total_time.as_secs_f64() * 1000.0);
-
-    // Get analysis report
     let report = tracker.analyze();
     println!("\nMemory Analysis:");
     println!("  Total Allocations: {}", report.total_allocations);
     println!("  Active Allocations: {}", report.active_allocations);
-    println!("  Peak Memory: {} bytes ({:.2} MB)",
-             report.peak_memory_bytes,
-             report.peak_memory_bytes as f64 / 1024.0 / 1024.0);
+    println!(
+        "  Peak Memory: {} bytes ({:.2} MB)",
+        report.peak_memory_bytes,
+        report.peak_memory_bytes as f64 / 1024.0 / 1024.0
+    );
 
-    // Leak detection
     let leak_result = _passport_tracker.detect_leaks_at_shutdown();
     println!("\nLeak Detection:");
     println!("  Leaks Detected: {}", leak_result.total_leaks);
 
-    println!("\nExport successful to {}/", output_path);
+    println!("\nExporting memory snapshot (7 files)...");
+    let output_path = "MemoryAnalysis/large_scale_new_api";
+    export_to_json(output_path)?;
+    println!("  📄 memory_analysis.json");
+    println!("  📄 lifetime.json");
+    println!("  📄 thread_analysis.json");
+    println!("  📄 variable_relationships.json");
+    println!("  📄 memory_passports.json");
+    println!("  📄 leak_detection.json");
+    println!("  📄 unsafe_ffi.json");
+
+    let total_time = total_start.elapsed();
+    println!("\n========================================");
+    println!("Total Runtime: {:.2}ms", total_time.as_secs_f64() * 1000.0);
 
     Ok(())
 }
@@ -141,10 +130,7 @@ fn create_large_scale_data(tracker: &memscope_rs::tracker::Tracker) {
     for i in 0..20 {
         let mut nested_btree = BTreeMap::new();
         for j in 0..50 {
-            nested_btree.insert(
-                format!("btree_key_{i}_{j}"),
-                format!("btree_value_{i}_{j}"),
-            );
+            nested_btree.insert(format!("btree_key_{i}_{j}"), format!("btree_value_{i}_{j}"));
         }
         track!(tracker, nested_btree);
     }

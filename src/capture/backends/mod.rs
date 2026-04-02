@@ -38,6 +38,9 @@ pub mod unsafe_tracking;
 // Unified tracking modules
 pub mod unified_tracker;
 
+// Global tracking module (lazy init, CLI-friendly)
+pub mod global_tracking;
+
 use crate::event_store::{MemoryEvent, MemoryEventType};
 
 // Re-export core tracker types
@@ -110,6 +113,14 @@ pub use unified_tracker::{
     MemoryTracker as UnifiedMemoryTracker, RuntimeEnvironment, SessionMetadata, TrackerConfig,
     TrackerError, TrackerStatistics, TrackerType, TrackingDispatcher, TrackingOperation,
     TrackingSession, TrackingStrategy, UnifiedBackend,
+};
+
+// Re-export global tracking types
+pub use global_tracking::{
+    export_all_json, export_leak_detection_json, export_memory_passports_json, export_to_json,
+    export_unsafe_ffi_json, get_global_state, get_stats, global_passport_tracker, global_tracker,
+    init_global_tracking, is_initialized, GlobalTrackingConfig, GlobalTrackingError,
+    GlobalTrackingState, GlobalTrackingStats,
 };
 
 /// Capture Backend trait

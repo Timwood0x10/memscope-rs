@@ -3,7 +3,9 @@
 //! This module provides export functionality for memory tracking data,
 //! including JSON export, lifetime analysis, and variable relationships.
 
+use crate::analysis::memory_passport_tracker::{LeakDetectionResult, MemoryPassportTracker};
 use crate::snapshot::{ActiveAllocation, MemorySnapshot, ThreadMemoryStats};
+use crate::tracker::Tracker;
 use rayon::prelude::*;
 use serde_json::json;
 use std::{
@@ -11,8 +13,8 @@ use std::{
     fs::File,
     io::{BufWriter, Write},
     path::Path,
+    sync::Arc,
 };
-
 
 #[derive(Debug, Clone)]
 pub struct ExportJsonOptions {
@@ -363,7 +365,10 @@ fn generate_variable_relationships_json<P: AsRef<Path>>(
     let mut type_map: HashMap<String, Vec<&serde_json::Value>> = HashMap::new();
     for allocation in allocations {
         if let Some(type_name) = allocation.get("type_name").and_then(|t| t.as_str()) {
-            type_map.entry(type_name.to_string()).or_default().push(allocation);
+            type_map
+                .entry(type_name.to_string())
+                .or_default()
+                .push(allocation);
         }
     }
 
@@ -384,7 +389,9 @@ fn generate_variable_relationships_json<P: AsRef<Path>>(
                         type_allocations[i].get("address").and_then(|a| a.as_str()),
                         type_allocations[j].get("address").and_then(|a| a.as_str()),
                     ) {
-                        if let (Some(ptr1), Some(ptr2)) = (parse_address(addr1), parse_address(addr2)) {
+                        if let (Some(ptr1), Some(ptr2)) =
+                            (parse_address(addr1), parse_address(addr2))
+                        {
                             relationships.push(json!({
                                 "relationship_type": "type_similarity",
                                 "source_ptr": ptr1,
@@ -427,7 +434,9 @@ fn generate_variable_relationships_json<P: AsRef<Path>>(
                         size_allocations[i].get("address").and_then(|a| a.as_str()),
                         size_allocations[j].get("address").and_then(|a| a.as_str()),
                     ) {
-                        if let (Some(ptr1), Some(ptr2)) = (parse_address(addr1), parse_address(addr2)) {
+                        if let (Some(ptr1), Some(ptr2)) =
+                            (parse_address(addr1), parse_address(addr2))
+                        {
                             relationships.push(json!({
                                 "relationship_type": "size_similarity",
                                 "source_ptr": ptr1,
@@ -532,4 +541,160 @@ fn compute_enhanced_type_info(type_name: &str, size: usize) -> String {
     } else {
         "heap".to_string()
     }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ExportError {
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
+
+    #[error("JSON error: {0}")]
+    Json(#[from] serde_json::Error),
+
+    #[error("Export failed: {0}")]
+    ExportFailed(String),
+}
+
+pub fn export_all_json<P: AsRef<Path>>(
+    path: P,
+    tracker: &Tracker,
+    passport_tracker: &Arc<MemoryPassportTracker>,
+) -> Result<(), ExportError> {
+    let path_ref = path.as_ref();
+
+    let allocations = tracker.inner().get_active_allocations().unwrap_or_default();
+    let snapshot = MemorySnapshot::from_allocation_infos(allocations);
+    let options = ExportJsonOptions::default();
+
+    std::fs::create_dir_all(path_ref)?;
+
+    export_snapshot_to_json(&snapshot, path_ref, &options)
+        .map_err(|e| ExportError::ExportFailed(e.to_string()))?;
+
+    export_memory_passports_json(path_ref, passport_tracker)?;
+    export_leak_detection_json(path_ref, passport_tracker)?;
+    export_unsafe_ffi_json(path_ref, passport_tracker)?;
+
+    Ok(())
+}
+
+pub fn export_memory_passports_json<P: AsRef<Path>>(
+    base_path: P,
+    passport_tracker: &Arc<MemoryPassportTracker>,
+) -> Result<(), ExportError> {
+    let base_path = base_path.as_ref();
+    let passports = passport_tracker.get_all_passports();
+
+    let passport_data: Vec<_> = passports
+        .values()
+        .map(|p| {
+            serde_json::json!({
+                "passport_id": p.passport_id,
+                "allocation_ptr": format!("0x{:x}", p.allocation_ptr),
+                "size_bytes": p.size_bytes,
+                "created_at": p.created_at,
+                "lifecycle_events": p.lifecycle_events.len(),
+                "status": format!("{:?}", p.status_at_shutdown),
+            })
+        })
+        .collect();
+
+    let json_data = serde_json::json!({
+        "metadata": {
+            "export_version": "2.0",
+            "specification": "memory passport tracking",
+            "total_passports": passports.len()
+        },
+        "memory_passports": passport_data,
+    });
+
+    let file_path = base_path.join("memory_passports.json");
+    let json_string = serde_json::to_string_pretty(&json_data)?;
+    std::fs::write(&file_path, json_string)?;
+
+    Ok(())
+}
+
+pub fn export_leak_detection_json<P: AsRef<Path>>(
+    base_path: P,
+    passport_tracker: &Arc<MemoryPassportTracker>,
+) -> Result<(), ExportError> {
+    let base_path = base_path.as_ref();
+    let leak_result = passport_tracker.detect_leaks_at_shutdown();
+
+    let leak_details: Vec<_> = leak_result
+        .leak_details
+        .iter()
+        .map(|detail| {
+            serde_json::json!({
+                "passport_id": detail.passport_id,
+                "memory_address": format!("0x{:x}", detail.memory_address),
+                "size_bytes": detail.size_bytes,
+                "lifecycle_summary": detail.lifecycle_summary,
+            })
+        })
+        .collect();
+
+    let json_data = serde_json::json!({
+        "metadata": {
+            "export_version": "2.0",
+            "specification": "leak detection",
+            "leaks_detected": leak_result.total_leaks
+        },
+        "leak_detection": {
+            "total_leaks": leak_result.total_leaks,
+            "leak_details": leak_details
+        }
+    });
+
+    let file_path = base_path.join("leak_detection.json");
+    let json_string = serde_json::to_string_pretty(&json_data)?;
+    std::fs::write(&file_path, json_string)?;
+
+    Ok(())
+}
+
+pub fn export_unsafe_ffi_json<P: AsRef<Path>>(
+    base_path: P,
+    passport_tracker: &Arc<MemoryPassportTracker>,
+) -> Result<(), ExportError> {
+    let base_path = base_path.as_ref();
+    let passports = passport_tracker.get_all_passports();
+
+    let ffi_reports: Vec<_> = passports
+        .values()
+        .filter(|p| !p.lifecycle_events.is_empty())
+        .map(|p| {
+            serde_json::json!({
+                "passport_id": p.passport_id,
+                "allocation_ptr": format!("0x{:x}", p.allocation_ptr),
+                "size_bytes": p.size_bytes,
+                "created_at": p.created_at,
+                "boundary_events": p.lifecycle_events.iter().map(|e| {
+                    serde_json::json!({
+                        "timestamp": e.timestamp,
+                        "event_type": format!("{:?}", e.event_type),
+                        "context": e.context,
+                    })
+                }).collect::<Vec<_>>(),
+            })
+        })
+        .collect();
+
+    let json_data = serde_json::json!({
+        "metadata": {
+            "export_version": "2.0",
+            "specification": "unsafe FFI tracking",
+            "total_ffi_reports": ffi_reports.len(),
+            "total_memory_passports": passports.len()
+        },
+        "unsafe_reports": ffi_reports,
+        "memory_passports": passports.len()
+    });
+
+    let file_path = base_path.join("unsafe_ffi.json");
+    let json_string = serde_json::to_string_pretty(&json_data)?;
+    std::fs::write(&file_path, json_string)?;
+
+    Ok(())
 }

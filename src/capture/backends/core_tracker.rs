@@ -278,13 +278,20 @@ impl MemoryTracker {
 
     /// Export memory tracking data to JSON format.
     pub fn export_to_json<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
-        let output_path = self.ensure_memory_analysis_path(path);
+        let output_path = self.ensure_memory_analysis_path(&path);
+
+        let final_path = if output_path.is_dir() {
+            output_path.join("memory_analysis.json")
+        } else {
+            output_path
+        };
+
         let allocations = self.get_active_allocations()?;
 
         let json = serde_json::to_string_pretty(&allocations)
             .map_err(|e| TrackingError::SerializationError(e.to_string()))?;
 
-        std::fs::write(output_path, json).map_err(|e| TrackingError::ExportError(e.to_string()))?;
+        std::fs::write(&final_path, json).map_err(|e| TrackingError::ExportError(e.to_string()))?;
 
         Ok(())
     }

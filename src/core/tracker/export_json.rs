@@ -557,7 +557,7 @@ impl MemoryTracker {
         // Get memory by type for type analysis
         let memory_by_type = self.get_memory_by_type()?;
 
-        // Generate additional files as specified in 
+        // Generate additional files as specified in
         self.generate_lifetime_json(&output_path, &processed, &options)?;
         self.generate_unsafe_ffi_json(&output_path, &options)?;
         self.generate_variable_relationships_json(&output_path, &processed, &options)?;
@@ -607,7 +607,7 @@ impl MemoryTracker {
         Ok(type_usage.into_values().collect())
     }
 
-    /// Generate lifetime.json with ownership history as specified in 
+    /// Generate lifetime.json with ownership history as specified in
     fn generate_lifetime_json<P: AsRef<Path>>(
         &self,
         output_path: P,
@@ -1090,7 +1090,7 @@ pub fn build_unified_dashboard_structure(
         0.0
     };
 
-    // Prepare allocation details for frontend with extended fields from 
+    // Prepare allocation details for frontend with extended fields from
     let allocation_details: Vec<_> = active_allocations
         .iter()
         .map(|alloc| {

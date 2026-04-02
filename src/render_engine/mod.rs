@@ -8,5 +8,8 @@ pub mod export;
 pub mod renderer;
 
 pub use engine::RenderEngine;
-pub use export::*;
+pub use export::{
+    export_all_json, export_leak_detection_json, export_memory_passports_json,
+    export_snapshot_to_json, export_unsafe_ffi_json, ExportError, ExportJsonOptions,
+};
 pub use renderer::{OutputFormat, RenderConfig, RenderResult, Renderer};

@@ -3,9 +3,9 @@
 //! This example demonstrates async memory tracking using the new unified API.
 //! Uses the global tracker with tokio for async task tracking.
 
-use memscope_rs::render_engine::export::{export_snapshot_to_json, ExportJsonOptions};
-use memscope_rs::snapshot::MemorySnapshot;
-use memscope_rs::{track, tracker};
+use memscope_rs::capture::backends::global_tracking::export_to_json;
+use memscope_rs::capture::backends::global_tracking::{global_tracker, init_global_tracking};
+use memscope_rs::track;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -16,62 +16,61 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let start_time = Instant::now();
 
+    init_global_tracking()?;
+    println!("✓ Global tracking initialized\n");
+
     println!("Starting async tasks with global tracker...\n");
 
-    // Track async tasks using global tracker
-    let tracker = Arc::new(tracker!());
+    let tasks = (0..4).map(|i| async move {
+        let tracker = global_tracker().unwrap();
+        match i {
+            0 => {
+                let data = vec![0i32; 100];
+                track!(tracker, data);
+                println!("Task 1 (Light): allocated {} bytes", 100 * 4);
+                100 * 4
+            }
+            1 => {
+                let mut data = Vec::with_capacity(1000);
+                for j in 0..1000 {
+                    data.push(format!("Item {}: {}", j, j * j));
+                }
+                track!(tracker, data);
+                println!(
+                    "Task 2 (Heavy): allocated ~{} bytes",
+                    1000 * std::mem::size_of::<String>()
+                );
+                1000 * std::mem::size_of::<String>()
+            }
+            2 => {
+                let data = String::from("IO task data");
+                track!(tracker, data);
+                tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+                println!("Task 3 (IO): allocated {} bytes", data.len());
+                data.len()
+            }
+            _ => {
+                let vec_data = vec![1u64; 500];
+                let vec_size = 500 * 8;
+                track!(tracker, vec_data);
 
-    // Task 1: Light computation
-    let tracker1 = tracker.clone();
-    let handle1 = tokio::spawn(async move {
-        let data = vec![0i32; 100];
-        track!(tracker1, data);
-        println!("Task 1 (Light): allocated {} bytes", 100 * 4);
-        data.len()
-    });
+                let string_data = format!("Processed {} items", 500);
+                track!(tracker, string_data);
 
-    // Task 2: Heavy computation
-    let tracker2 = tracker.clone();
-    let handle2 = tokio::spawn(async move {
-        let mut data = Vec::with_capacity(1000);
-        for i in 0..1000 {
-            data.push(format!("Item {}: {}", i, i * i));
+                println!(
+                    "Task 4 (Mixed): allocated {} bytes",
+                    vec_size + string_data.len()
+                );
+                vec_size + string_data.len()
+            }
         }
-        track!(tracker2, data);
-        println!("Task 2 (Heavy): allocated ~{} bytes", 1000 * std::mem::size_of::<String>());
-        data.len()
     });
 
-    // Task 3: IO simulation
-    let tracker3 = tracker.clone();
-    let handle3 = tokio::spawn(async move {
-        let data = String::from("IO task data");
-        track!(tracker3, data);
-        tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
-        println!("Task 3 (IO): allocated {} bytes", data.len());
-        data.len()
-    });
-
-    // Task 4: Mixed workload
-    let tracker4 = tracker.clone();
-    let handle4 = tokio::spawn(async move {
-        let vec_data = vec![1u64; 500];
-        let vec_size = 500 * 8;
-        track!(tracker4, vec_data);
-
-        let string_data = format!("Processed {} items", 500);
-        track!(tracker4, string_data);
-
-        println!("Task 4 (Mixed): allocated {} bytes", vec_size + string_data.len());
-        vec_size + string_data.len()
-    });
-
-    // Wait for all tasks
-    futures::future::join_all([handle1, handle2, handle3, handle4]).await;
+    futures::future::join_all(tasks).await;
 
     let duration = start_time.elapsed();
 
-    // Get analysis
+    let tracker = global_tracker()?;
     let report = tracker.analyze();
 
     println!("\n======================================");
@@ -82,22 +81,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  Peak memory: {} bytes", report.peak_memory_bytes);
     println!("  Duration: {:.2}ms", duration.as_secs_f64() * 1000.0);
 
-    // Export
-    println!("\nExporting memory data...");
-    let allocations = tracker.inner().get_active_allocations().unwrap_or_default();
-    let snapshot = MemorySnapshot::from_allocation_infos(allocations);
-
-    let export_options = ExportJsonOptions::default();
+    println!("\nExporting memory data (7 files)...");
     let output_path = "MemoryAnalysis/async_showcase_new_api";
-
-    export_snapshot_to_json(&snapshot, output_path.as_ref(), &export_options)?;
-
-    println!("Export successful!");
-    println!("Files saved to {}/", output_path);
+    export_to_json(output_path)?;
     println!("  📄 memory_analysis.json");
     println!("  📄 lifetime.json");
     println!("  📄 thread_analysis.json");
     println!("  📄 variable_relationships.json");
+    println!("  📄 memory_passports.json");
+    println!("  📄 leak_detection.json");
+    println!("  📄 unsafe_ffi.json");
 
     Ok(())
 }
