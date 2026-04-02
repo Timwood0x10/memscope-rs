@@ -1,341 +1,197 @@
-//! Simple demonstration of unsafe Rust and FFI memory analysis
+//! Unsafe Rust & FFI Memory Analysis - New API
 //!
-//! This example shows basic usage of the enhanced memory tracking for:
-//! - Unsafe Rust allocations
-//! - FFI memory operations
-//! - Safety violation detection
+//! This example demonstrates unsafe Rust and FFI memory tracking with memory passport export.
 
-use memscope_rs::export::export_user_variables_json;
-use memscope_rs::unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, BoundaryEventType};
-use memscope_rs::{get_tracker, init, track_var};
+use memscope_rs::analysis::memory_passport_tracker::{
+    initialize_global_passport_tracker, PassportTrackerConfig,
+};
+use memscope_rs::render_engine::export::{export_snapshot_to_json, ExportJsonOptions};
+use memscope_rs::snapshot::MemorySnapshot;
+use memscope_rs::{track, tracker};
 use std::alloc::{alloc, dealloc, Layout};
+use std::time::Instant;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Initialize memory tracking
-    init();
-    println!("🦀 Starting Unsafe Rust & FFI Memory Analysis Demo");
+    println!("Unsafe Rust & FFI Memory Analysis - New API");
+    println!("============================================\n");
 
-    // Get trackers
-    let tracker = get_tracker();
-    let unsafe_ffi_tracker = get_global_unsafe_ffi_tracker();
+    let start_time = Instant::now();
 
-    // 1. Safe Rust allocations for comparison
-    println!("\n📊 1. Safe Rust Allocations");
+    // Initialize Memory Passport
+    let config = PassportTrackerConfig {
+        detailed_logging: true,
+        max_events_per_passport: 100,
+        enable_leak_detection: true,
+        enable_validation: true,
+        max_passports: 10000,
+        track_rust_internal_stack: false,
+        user_code_prefixes: vec!["examples/".to_string()],
+    };
+    let passport_tracker = initialize_global_passport_tracker(config);
+
+    // Initialize tracker
+    let tracker = tracker!();
+
+    // 1. Safe Rust allocations
+    println!("1. Safe Rust Allocations");
     let safe_vec = vec![1, 2, 3, 4, 5];
-    track_var!(safe_vec);
+    track!(tracker, safe_vec);
+    println!("   Tracked Vec with {} elements", 5);
 
     let safe_string = String::from("Hello, safe Rust!");
-    track_var!(safe_string);
+    track!(tracker, safe_string);
+    println!("   Tracked String with {} chars", safe_string.len());
 
     // 2. Unsafe Rust allocations
-    println!("\n⚠️  2. Unsafe Rust Allocations");
+    println!("\n2. Unsafe Rust Allocations");
     unsafe {
         let layout = Layout::new::<[i32; 10]>();
         let ptr = alloc(layout);
 
         if !ptr.is_null() {
-            // Track this unsafe allocation
-            memscope_rs::track_unsafe_alloc!(ptr, layout.size());
+            let passport_id = passport_tracker.create_passport(
+                ptr as usize,
+                layout.size(),
+                "unsafe_rust_allocation".to_string(),
+            )?;
 
-            // Initialize the memory
             let slice = std::slice::from_raw_parts_mut(ptr as *mut i32, 10);
             for (i, item) in slice.iter_mut().enumerate() {
                 *item = i as i32 * i as i32;
             }
 
-            println!(
-                "   ✅ Allocated and initialized {} bytes via unsafe",
-                layout.size()
-            );
-
-            // Record boundary event
-            let _ = unsafe_ffi_tracker.record_boundary_event(
-                ptr as usize,
-                BoundaryEventType::RustToFfi,
-                "unsafe_rust_block".to_string(),
-                "potential_ffi_target".to_string(),
-            );
-
-            // Clean up
+            println!("   Passport {}: {} bytes", passport_id, layout.size());
             dealloc(ptr, layout);
-            println!("   ✅ Deallocated unsafe memory");
         }
     }
 
-    // 3. Simulate FFI allocations
-    println!("\n🌉 3. Simulated FFI Memory Operations");
+    // 3. FFI memory operations
+    println!("\n3. FFI Memory Operations");
+    extern "C" {
+        fn malloc(size: usize) -> *mut std::ffi::c_void;
+        fn free(ptr: *mut std::ffi::c_void);
+        fn calloc(nmemb: usize, size: usize) -> *mut std::ffi::c_void;
+    }
 
-    // Simulate C malloc
-    unsafe {
-        let layout = Layout::from_size_align(256, 1).unwrap();
-        let ffi_ptr = alloc(layout);
+    for i in 0..5 {
+        let size = 256 * (i + 1);
+        let ffi_ptr = if i % 2 == 0 {
+            unsafe { malloc(size) }
+        } else {
+            unsafe { calloc(size / 8, 8) }
+        };
 
         if !ffi_ptr.is_null() {
-            // Track as FFI allocation
-            memscope_rs::track_ffi_alloc!(ffi_ptr, 256, "libc", "malloc");
-            println!("   ✅ Simulated FFI allocated 256 bytes");
-
-            // Record cross-boundary event
-            let _ = unsafe_ffi_tracker.record_boundary_event(
+            let passport_id = passport_tracker.create_passport(
                 ffi_ptr as usize,
-                BoundaryEventType::FfiToRust,
-                "libc".to_string(),
-                "rust_main".to_string(),
-            );
+                size,
+                format!("ffi_alloc_{}", i),
+            )?;
 
-            // Use the memory
-            let slice = std::slice::from_raw_parts_mut(ffi_ptr, 256);
-            slice[0] = 0x42; // Write some data
+            passport_tracker.record_handover_to_ffi(
+                ffi_ptr as usize,
+                "foreign_function".to_string(),
+                format!("ffi_call_{}", i),
+            )?;
 
-            // Clean up
-            dealloc(ffi_ptr, layout);
-            println!("   ✅ Simulated FFI freed memory");
-        }
-    }
-
-    // 4. Safety violation detection
-    println!("\n🚨 4. Safety Violation Detection");
-
-    // Simulate a potential double-free scenario (controlled - only tracking, no actual double dealloc)
-    unsafe {
-        let layout = Layout::new::<i32>();
-        let ptr = alloc(layout);
-
-        if !ptr.is_null() {
-            memscope_rs::track_unsafe_alloc!(ptr, layout.size());
-
-            // First deallocation (legitimate)
-            let _ = unsafe_ffi_tracker.track_enhanced_deallocation(ptr as usize);
-            dealloc(ptr, layout);
-
-            // Attempt to track second deallocation (this should be caught by tracker)
-            // Note: We don't actually call dealloc again, just test the tracking
-            match unsafe_ffi_tracker.track_enhanced_deallocation(ptr as usize) {
-                Ok(_) => println!("   ❌ Double-free not detected (unexpected)"),
-                Err(e) => println!("   ✅ Double-free detected: {e}"),
+            unsafe {
+                std::ptr::write_bytes(ffi_ptr as *mut u8, (0x40 + i) as u8, size);
+                free(ffi_ptr);
             }
+
+            println!("   Passport {}: FFI {} bytes (leaked intentionally)", passport_id, size);
         }
     }
 
-    // 5. Check for memory leaks
-    println!("\n🔍 5. Memory Leak Detection");
-    let leaks = unsafe_ffi_tracker.detect_leaks(1000)?; // 1 second threshold
-    if leaks.is_empty() {
-        println!("   ✅ No memory leaks detected");
-    } else {
-        println!("   ⚠️  {} potential leaks detected", leaks.len());
-    }
+    let duration = start_time.elapsed();
 
-    // 6. Generate reports
-    println!("\n📊 6. Generating Analysis Reports");
+    // Leak detection
+    println!("\n4. Leak Detection");
+    let leak_result = passport_tracker.detect_leaks_at_shutdown();
+    println!("   Total passports created: {}", passport_tracker.get_stats().total_passports_created);
+    println!("   Leaks detected: {}", leak_result.total_leaks);
 
-    // 6.1 Export JSON files to MemoryAnalysis folder
-    println!("📊 Exporting JSON files to MemoryAnalysis folder...");
-    let analysis_dir = "MemoryAnalysis";
-    std::fs::create_dir_all(analysis_dir)?;
+    // Memory analysis
+    let report = tracker.analyze();
+    println!("\n5. Memory Analysis");
+    println!("   Total allocations: {}", report.total_allocations);
+    println!("   Active allocations: {}", report.active_allocations);
+    println!("   Peak memory: {} bytes", report.peak_memory_bytes);
 
-    // Export main memory analysis (correct naming for html_from_json)
-    let memory_json = format!("{analysis_dir}/snapshot_memory_analysis.json");
-    // Export using new unified API
-    let allocations = tracker.get_active_allocations()?;
-    let stats = tracker.get_stats()?;
+    // Export using new API
+    println!("\n6. Exporting memory snapshot...");
+    let allocations = tracker.inner().get_active_allocations().unwrap_or_default();
+    let snapshot = MemorySnapshot::from_allocation_infos(allocations);
 
-    println!(
-        "📊 Exporting {} allocations using new unified API...",
-        allocations.len()
-    );
-    let export_stats = export_user_variables_json(allocations, stats, &memory_json)?;
+    let export_options = ExportJsonOptions::default();
+    let output_path = "MemoryAnalysis/unsafe_ffi_new_api";
 
-    println!("✅ JSON export completed!");
-    println!(
-        "   📊 Processed {} allocations in {}ms",
-        export_stats.allocations_processed, export_stats.processing_time_ms
-    );
-    println!("   ✅ Memory analysis: {memory_json}");
+    export_snapshot_to_json(&snapshot, output_path.as_ref(), &export_options)?;
+    println!("   📄 memory_analysis.json");
+    println!("   📄 lifetime.json");
+    println!("   📄 thread_analysis.json");
+    println!("   📄 variable_relationships.json");
 
-    // Export unsafe/FFI analysis
-    let ffi_json = format!("{analysis_dir}/snapshot_unsafe_ffi.json");
-    let enhanced_allocations = unsafe_ffi_tracker.get_enhanced_allocations()?;
-    let ffi_data = serde_json::to_string_pretty(&enhanced_allocations)?;
-    std::fs::write(&ffi_json, ffi_data)?;
-    println!("   ✅ Unsafe/FFI analysis: {ffi_json}");
+    // Export Memory Passport data
+    println!("\n7. Exporting Memory Passport data...");
+    export_memory_passport_json(&passport_tracker, &leak_result, output_path)?;
 
-    // Export performance metrics
-    let perf_json = format!("{analysis_dir}/snapshot_performance.json");
-    let stats = tracker.get_stats()?;
-    let perf_data = serde_json::json!({
-        "performance_metrics": stats,
-        "timestamp": std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs()
-    });
-    std::fs::write(&perf_json, serde_json::to_string_pretty(&perf_data)?)?;
-    println!("   ✅ Performance metrics: {perf_json}");
-
-    // Export security violations
-    let security_json = format!("{analysis_dir}/snapshot_security_violations.json");
-    let violations = unsafe_ffi_tracker
-        .get_safety_violations()
-        .unwrap_or_default();
-    let security_data = serde_json::json!({
-        "security_violations": violations,
-        "timestamp": std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs()
-    });
-    std::fs::write(
-        &security_json,
-        serde_json::to_string_pretty(&security_data)?,
-    )?;
-    println!("   ✅ Security violations: {security_json}");
-
-    // 7. Display summary statistics
-    println!("\n📈 7. Summary Statistics");
-    let stats = tracker.get_stats()?;
-    let enhanced_allocations = unsafe_ffi_tracker.get_enhanced_allocations()?;
-    let violations = unsafe_ffi_tracker.get_safety_violations()?;
-
-    println!("   📊 Total allocations: {}", stats.total_allocations);
-    println!("   📊 Active allocations: {}", stats.active_allocations);
-    println!(
-        "   📊 Peak memory: {}",
-        memscope_rs::format_bytes(stats.peak_memory)
-    );
-    println!(
-        "   📊 Enhanced allocations tracked: {}",
-        enhanced_allocations.len()
-    );
-    println!("   📊 Safety violations: {}", violations.len());
-
-    // Count by source type
-    let unsafe_count = enhanced_allocations
-        .iter()
-        .filter(|a| {
-            matches!(
-                a.source,
-                memscope_rs::unsafe_ffi_tracker::AllocationSource::UnsafeRust { .. }
-            )
-        })
-        .count();
-    let ffi_count = enhanced_allocations
-        .iter()
-        .filter(|a| {
-            matches!(
-                a.source,
-                memscope_rs::unsafe_ffi_tracker::AllocationSource::FfiC { .. }
-            )
-        })
-        .count();
-    let cross_boundary_events: usize = enhanced_allocations
-        .iter()
-        .map(|a| a.cross_boundary_events.len())
-        .sum();
-
-    println!("   📊 Unsafe Rust allocations: {unsafe_count}");
-    println!("   📊 FFI allocations: {ffi_count}");
-    println!("   📊 Cross-boundary events: {cross_boundary_events}");
-
-    println!("\n🎉 Unsafe Rust & FFI Memory Analysis Complete!");
-    println!("📁 All analysis files are organized in: {analysis_dir}/");
-    println!("\n📊 Generated files:");
-    println!("   • snapshot_memory_analysis.json - Memory allocation analysis");
-    println!("   • snapshot_unsafe_ffi.json - Unsafe/FFI analysis");
-    println!("   • snapshot_performance.json - Performance metrics");
+    println!("\n============================================");
+    println!("Duration: {:.2}ms", duration.as_secs_f64() * 1000.0);
 
     Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use memscope_rs::unsafe_ffi_tracker::AllocationSource;
+fn export_memory_passport_json(
+    passport_tracker: &memscope_rs::analysis::memory_passport_tracker::MemoryPassportTracker,
+    leak_result: &memscope_rs::analysis::memory_passport_tracker::LeakDetectionResult,
+    output_path: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let passports = passport_tracker.get_all_passports();
 
-    #[test]
-    fn test_unsafe_allocation_tracking() {
-        let tracker = get_global_unsafe_ffi_tracker();
+    let passport_data: Vec<_> = passports.values().map(|p| {
+        serde_json::json!({
+            "passport_id": p.passport_id,
+            "allocation_ptr": format!("0x{:x}", p.allocation_ptr),
+            "size_bytes": p.size_bytes,
+            "created_at": p.created_at,
+            "updated_at": p.updated_at,
+            "lifecycle_events": p.lifecycle_events.len(),
+            "status": format!("{:?}", p.status_at_shutdown),
+            "metadata": p.metadata,
+        })
+    }).collect();
 
-        unsafe {
-            let layout = Layout::new::<i32>();
-            let ptr = alloc(layout);
+    let leak_details: Vec<_> = leak_result.leak_details.iter().map(|detail| {
+        serde_json::json!({
+            "passport_id": detail.passport_id,
+            "memory_address": format!("0x{:x}", detail.memory_address),
+            "size_bytes": detail.size_bytes,
+            "lifecycle_summary": detail.lifecycle_summary,
+        })
+    }).collect();
 
-            if !ptr.is_null() {
-                // Track allocation
-                let result = tracker.track_unsafe_allocation(
-                    ptr as usize,
-                    layout.size(),
-                    "test_location".to_string(),
-                );
-                assert!(true);
-
-                // Verify it's tracked
-                let allocations = tracker.get_enhanced_allocations().unwrap();
-                let found = allocations.iter().any(|a| {
-                    a.base.ptr == ptr as usize
-                        && matches!(a.source, AllocationSource::UnsafeRust { .. })
-                });
-                assert!(found);
-
-                // Clean up
-                dealloc(ptr, layout);
-            }
+    let json_data = serde_json::json!({
+        "metadata": {
+            "export_version": "2.0",
+            "export_timestamp": chrono::Utc::now().to_rfc3339(),
+            "specification": "memory passport tracking",
+            "total_passports": passports.len(),
+            "leaks_detected": leak_result.total_leaks
+        },
+        "memory_passports": passport_data,
+        "leak_detection": {
+            "total_leaks": leak_result.total_leaks,
+            "leak_details": leak_details
         }
-    }
+    });
 
-    #[test]
-    fn test_ffi_allocation_tracking() {
-        let tracker = get_global_unsafe_ffi_tracker();
+    let file_path = format!("{}/memory_passports.json", output_path);
+    let json_string = serde_json::to_string_pretty(&json_data)?;
+    std::fs::write(&file_path, json_string)?;
 
-        unsafe {
-            let layout = Layout::from_size_align(128, 1).unwrap();
-            let ptr = alloc(layout);
+    println!("   📄 memory_passports.json - {} passports, {} leaks",
+             passports.len(), leak_result.total_leaks);
 
-            if !ptr.is_null() {
-                // Track FFI allocation
-                let result = tracker.track_ffi_allocation(
-                    ptr as usize,
-                    128,
-                    "test_lib".to_string(),
-                    "malloc".to_string(),
-                );
-                assert!(true);
-
-                // Verify it's tracked
-                let allocations = tracker.get_enhanced_allocations().unwrap();
-                let found = allocations.iter().any(|a| {
-                    a.base.ptr == ptr as usize && matches!(a.source, AllocationSource::FfiC { .. })
-                });
-                assert!(found);
-
-                // Clean up
-                dealloc(ptr, layout);
-            }
-        }
-    }
-
-    #[test]
-    fn test_boundary_event_recording() {
-        let tracker = get_global_unsafe_ffi_tracker();
-
-        // First create an allocation to attach events to
-        let result =
-            tracker.track_ffi_allocation(0x1000, 256, "test_lib".to_string(), "malloc".to_string());
-        assert!(true);
-
-        // Record boundary event
-        let result = tracker.record_boundary_event(
-            0x1000,
-            BoundaryEventType::FfiToRust,
-            "c_library".to_string(),
-            "rust_code".to_string(),
-        );
-        assert!(true);
-
-        // Verify event was recorded
-        let allocations = tracker.get_enhanced_allocations().unwrap();
-        let allocation = allocations.iter().find(|a| a.base.ptr == 0x1000);
-        assert!(allocation.is_some());
-        assert!(!allocation.unwrap().cross_boundary_events.is_empty());
-    }
+    Ok(())
 }

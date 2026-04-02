@@ -1,405 +1,198 @@
-use memscope_rs::analysis::unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, BoundaryEventType};
-use memscope_rs::export::binary::{detect_binary_type, BinaryParser};
-use memscope_rs::{get_tracker, init, track_var};
+//! Large Scale Performance Test - New API
+//!
+//! This example demonstrates extreme workload testing using the new unified API.
+
+use memscope_rs::analysis::memory_passport_tracker::{
+    initialize_global_passport_tracker, PassportTrackerConfig,
+};
+use memscope_rs::render_engine::export::{export_snapshot_to_json, ExportJsonOptions};
+use memscope_rs::snapshot::MemorySnapshot;
+use memscope_rs::{track, tracker};
 use std::collections::{BTreeMap, HashMap, VecDeque};
-use std::fs;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Instant;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    init();
-    println!("Large Scale Binary Comparison - User vs Full Binary Performance");
-    println!("================================================================");
+    println!("Large Scale Performance Test - New API");
+    println!("========================================\n");
 
     let total_start = Instant::now();
+
+    // Initialize Memory Passport for FFI tracking
+    let config = PassportTrackerConfig {
+        detailed_logging: false,
+        max_events_per_passport: 1000,
+        enable_leak_detection: true,
+        enable_validation: false,
+        max_passports: 100000,
+        track_rust_internal_stack: false,
+        user_code_prefixes: vec!["examples/".to_string()],
+    };
+    let _passport_tracker = initialize_global_passport_tracker(config);
+
+    // Initialize tracker
+    let tracker = tracker!();
 
     // Create large-scale test data
     println!("Creating large-scale test data...");
     let data_creation_start = Instant::now();
-    create_large_scale_data();
+    create_large_scale_data(&tracker);
     let data_creation_time = data_creation_start.elapsed();
 
-    // Add unsafe/FFI operations for comprehensive testing
+    // Add unsafe/FFI operations
     simulate_unsafe_ffi_operations();
 
-    println!(
-        "Data creation completed in {:.2}ms",
-        data_creation_time.as_secs_f64() * 1000.0
-    );
+    println!("Data creation completed in {:.2}ms", data_creation_time.as_secs_f64() * 1000.0);
 
-    let tracker = get_tracker();
+    // Export using new API
+    println!("\nExporting memory snapshot using new API...");
+    let export_start = Instant::now();
 
-    // Export user-only binary
-    println!("\\nExporting user-only binary...");
-    let user_export_start = Instant::now();
-    tracker.export_user_binary("large_scale_user")?;
-    let user_export_time = user_export_start.elapsed();
+    let allocations = tracker.inner().get_active_allocations().unwrap_or_default();
+    let snapshot = MemorySnapshot::from_allocation_infos(allocations);
 
-    // Export full binary
-    println!("Exporting full binary...");
-    let full_export_start = Instant::now();
-    tracker.export_full_binary("large_scale_full")?;
-    let full_export_time = full_export_start.elapsed();
+    let export_options = ExportJsonOptions::default();
+    let output_path = "MemoryAnalysis/large_scale_new_api";
 
-    // Analyze binary files
-    println!("\\nAnalyzing binary files...");
-    analyze_binary_files()?;
+    export_snapshot_to_json(&snapshot, output_path.as_ref(), &export_options)?;
 
-    // Parse user binary to JSON
-    println!("\\nParsing user binary to JSON...");
-    let user_parse_start = Instant::now();
-    BinaryParser::parse_user_binary_to_json(
-        "MemoryAnalysis/large_scale_user.memscope",
-        "large_scale_user",
-    )?;
-    let user_parse_time = user_parse_start.elapsed();
-
-    // Parse full binary to JSON using ultra-fast optimization
-    println!("Parsing full binary to JSON with ultra-fast optimization...");
-    let full_parse_start = Instant::now();
-    BinaryParser::parse_full_binary_to_json_with_existing_optimizations(
-        "MemoryAnalysis/large_scale_full.memscope",
-        "large_scale_full",
-    )?;
-    let full_parse_time = full_parse_start.elapsed();
-
-    // Comprehensive analysis
-    println!("\\nPerforming comprehensive analysis...");
-    analyze_json_outputs()?;
-
+    let export_time = export_start.elapsed();
     let total_time = total_start.elapsed();
 
     // Performance summary
-    println!("\\nPerformance Summary");
-    println!("==================");
-    println!(
-        "Data Creation: {:.2}ms",
-        data_creation_time.as_secs_f64() * 1000.0
-    );
-    println!(
-        "User Binary Export: {:.2}ms",
-        user_export_time.as_secs_f64() * 1000.0
-    );
-    println!(
-        "Full Binary Export: {:.2}ms",
-        full_export_time.as_secs_f64() * 1000.0
-    );
-    println!(
-        "User Binary Parse: {:.2}ms",
-        user_parse_time.as_secs_f64() * 1000.0
-    );
-    println!(
-        "Full Binary Parse: {:.2}ms",
-        full_parse_time.as_secs_f64() * 1000.0
-    );
-    println!("Total Runtime: {:.2}ms", total_time.as_secs_f64() * 1000.0);
+    println!("\n========================================");
+    println!("Performance Summary:");
+    println!("  Data Creation: {:.2}ms", data_creation_time.as_secs_f64() * 1000.0);
+    println!("  Export Time: {:.2}ms", export_time.as_secs_f64() * 1000.0);
+    println!("  Total Runtime: {:.2}ms", total_time.as_secs_f64() * 1000.0);
 
-    // Performance comparison
-    let export_ratio = full_export_time.as_secs_f64() / user_export_time.as_secs_f64();
-    let parse_ratio = full_parse_time.as_secs_f64() / user_parse_time.as_secs_f64();
+    // Get analysis report
+    let report = tracker.analyze();
+    println!("\nMemory Analysis:");
+    println!("  Total Allocations: {}", report.total_allocations);
+    println!("  Active Allocations: {}", report.active_allocations);
+    println!("  Peak Memory: {} bytes ({:.2} MB)",
+             report.peak_memory_bytes,
+             report.peak_memory_bytes as f64 / 1024.0 / 1024.0);
 
-    println!("\\nPerformance Ratios");
-    println!("==================");
-    println!("Full vs User Export Time: {export_ratio:.1}x");
-    println!("Full vs User Parse Time: {parse_ratio:.1}x");
+    // Leak detection
+    let leak_result = _passport_tracker.detect_leaks_at_shutdown();
+    println!("\nLeak Detection:");
+    println!("  Leaks Detected: {}", leak_result.total_leaks);
 
-    if full_parse_time.as_millis() < 300 {
-        println!("Performance Target: ACHIEVED (<300ms for full binary parsing)");
-    } else {
-        println!(
-            "Performance Target: MISSED ({}ms > 300ms target)",
-            full_parse_time.as_millis()
-        );
-    }
+    println!("\nExport successful to {}/", output_path);
 
     Ok(())
 }
 
-fn create_large_scale_data() {
+fn create_large_scale_data(tracker: &memscope_rs::tracker::Tracker) {
+    // Large vectors
     for i in 0..50 {
         let mut large_vec = Vec::with_capacity(500);
         for j in 0..2000 {
             large_vec.push(format!("Item_{i}_{j}"));
         }
-        track_var!(large_vec);
+        track!(tracker, large_vec);
     }
 
-    // Large string collections:
+    // Large string collections
     for i in 0..30 {
         let mut string_collection = Vec::new();
         for j in 0..500 {
             string_collection.push(format!(
-                "String collection item {j} in group {i} with extended content for testing large scale binary comparison performance analysis"
+                "String collection item {j} in group {i} with extended content for testing"
             ));
         }
-        track_var!(string_collection);
+        track!(tracker, string_collection);
     }
 
-    // Large hash maps:
+    // Large hash maps
     for i in 0..15 {
         let mut large_map = HashMap::new();
         for j in 0..1200 {
             large_map.insert(
                 format!("key_with_long_string_{i}_{j}"),
-                format!("value_with_even_longer_string_data_{i}_{j}_with_more_content_for_large_scale_testing"),
+                format!("value_with_even_longer_string_data_{i}_{j}"),
             );
         }
-        track_var!(large_map);
+        track!(tracker, large_map);
     }
 
-    // Large byte buffers:
+    // Large byte buffers
     for _i in 0..20 {
         let mut byte_buffer = Vec::with_capacity(5000);
         for j in 0..5000 {
             byte_buffer.push((j % 256) as u8);
         }
-        track_var!(byte_buffer);
+        track!(tracker, byte_buffer);
     }
 
-    // Complex nested string structures:
+    // Smart pointers
     for i in 0..20 {
-        let mut nested_strings = Vec::new();
-        for j in 0..50 {
-            nested_strings.push(format!(
-                "Nested string data entry {j} in group {i} with comprehensive content for performance testing and binary optimization analysis"
-            ));
-        }
-        track_var!(nested_strings);
+        let shared_data = Rc::new(format!("Shared data {i} with reference counting"));
+        track!(tracker, shared_data);
+
+        let thread_safe_data = Arc::new(format!("Thread safe data {i}"));
+        track!(tracker, thread_safe_data);
     }
 
-    // Smart pointers:
-    for i in 0..20 {
-        let shared_data = Rc::new(format!(
-            "Shared data {i} with reference counting for large scale testing"
-        ));
-        track_var!(shared_data);
-
-        let thread_safe_data = Arc::new(format!(
-            "Thread safe data {i} for concurrent access in large scale binary comparison"
-        ));
-        track_var!(thread_safe_data);
-    }
-
-    // BTreeMap:
+    // BTreeMap
     for i in 0..20 {
         let mut nested_btree = BTreeMap::new();
         for j in 0..50 {
             nested_btree.insert(
                 format!("btree_key_{i}_{j}"),
-                format!("btree_value_with_comprehensive_data_{i}_{j}_for_large_scale_binary_performance_testing"),
+                format!("btree_value_{i}_{j}"),
             );
         }
-        track_var!(nested_btree);
+        track!(tracker, nested_btree);
     }
 
-    // VecDeque:
+    // VecDeque
     for i in 0..15 {
         let mut queue_data = VecDeque::new();
         for j in 0..100 {
-            queue_data.push_back(format!(
-                "Queue item {j} in collection {i} with detailed content for binary optimization testing"
-            ));
+            queue_data.push_back(format!("Queue item {j} in collection {i}"));
         }
-        track_var!(queue_data);
+        track!(tracker, queue_data);
     }
 }
 
 fn simulate_unsafe_ffi_operations() {
-    let unsafe_ffi_tracker = get_global_unsafe_ffi_tracker();
+    use std::alloc::{alloc, dealloc, Layout};
 
-    unsafe {
-        use std::alloc::{alloc, dealloc, Layout};
+    println!("Simulating unsafe/FFI operations...");
 
-        // Reduced unsafe allocations (from 20 to 6)
-        for i in 0..20 {
-            let size = 1024 * (i + 1);
+    // Unsafe allocations
+    for i in 0..20 {
+        let size = 1024 * (i + 1);
+        unsafe {
             let layout = Layout::from_size_align(size, 8).unwrap();
             let ptr = alloc(layout);
 
             if !ptr.is_null() {
                 std::ptr::write_bytes(ptr, (0x40 + i) as u8, size);
-
-                let _ = unsafe_ffi_tracker.track_unsafe_allocation(
-                    ptr as usize,
-                    size,
-                    format!(
-                        "examples/large_scale_binary_comparison.rs:{}:13",
-                        300 + i * 10
-                    ),
-                );
-
-                let _ = unsafe_ffi_tracker.record_boundary_event(
-                    ptr as usize,
-                    BoundaryEventType::RustToFfi,
-                    format!("unsafe_block_{i}"),
-                    format!("ffi_target_{i}"),
-                );
-
                 dealloc(ptr, layout);
             }
         }
+    }
 
-        // Reduced FFI operations (from 15 to 4)
-        extern "C" {
-            fn malloc(size: usize) -> *mut std::ffi::c_void;
-            fn free(ptr: *mut std::ffi::c_void);
-            fn calloc(nmemb: usize, size: usize) -> *mut std::ffi::c_void;
-        }
+    // FFI operations
+    extern "C" {
+        fn malloc(size: usize) -> *mut std::ffi::c_void;
+        fn free(ptr: *mut std::ffi::c_void);
+    }
 
-        for i in 0..20 {
-            let size = 512 * (i + 1);
-            let ffi_ptr = if i % 2 == 0 {
-                malloc(size)
-            } else {
-                calloc(size / 8, 8)
-            };
+    for i in 0..20 {
+        let size = 512 * (i + 1);
+        let ffi_ptr = unsafe { malloc(size) };
 
-            if !ffi_ptr.is_null() {
+        if !ffi_ptr.is_null() {
+            unsafe {
                 std::ptr::write_bytes(ffi_ptr as *mut u8, (0x60 + i) as u8, size);
-
-                let _ = unsafe_ffi_tracker.track_ffi_allocation(
-                    ffi_ptr as usize,
-                    size,
-                    "libc".to_string(),
-                    if i % 2 == 0 { "malloc" } else { "calloc" }.to_string(),
-                );
-
-                let _ = unsafe_ffi_tracker.record_boundary_event(
-                    ffi_ptr as usize,
-                    BoundaryEventType::FfiToRust,
-                    "libc".to_string(),
-                    format!("rust_large_scale_{i}"),
-                );
-
                 free(ffi_ptr);
             }
         }
     }
-}
-
-fn analyze_binary_files() -> Result<(), Box<dyn std::error::Error>> {
-    println!("Binary File Analysis");
-    println!("===================");
-
-    // Analyze user binary
-    let user_info = detect_binary_type("MemoryAnalysis/large_scale_user.memscope")?;
-    println!("User Binary:");
-    println!("  Type: {}", user_info.type_description());
-    println!("  Strategy: {}", user_info.recommended_strategy());
-    println!("  Total allocations: {}", user_info.total_count);
-    println!("  User allocations: {}", user_info.user_count);
-    println!("  System allocations: {}", user_info.system_count);
-    println!(
-        "  File size: {} bytes ({:.2} KB)",
-        user_info.file_size,
-        user_info.file_size as f64 / 1024.0
-    );
-
-    // Analyze full binary
-    let full_info = detect_binary_type("MemoryAnalysis/large_scale_full.memscope")?;
-    println!("\\nFull Binary:");
-    println!("  Type: {}", full_info.type_description());
-    println!("  Strategy: {}", full_info.recommended_strategy());
-    println!("  Total allocations: {}", full_info.total_count);
-    println!("  User allocations: {}", full_info.user_count);
-    println!("  System allocations: {}", full_info.system_count);
-    println!(
-        "  File size: {} bytes ({:.2} KB)",
-        full_info.file_size,
-        full_info.file_size as f64 / 1024.0
-    );
-
-    // Size comparison
-    let size_ratio = full_info.file_size as f64 / user_info.file_size as f64;
-    let allocation_ratio = full_info.total_count as f64 / user_info.total_count.max(1) as f64;
-
-    println!("\\nComparison:");
-    println!("  File size ratio: {size_ratio:.1}x larger");
-    println!("  Allocation ratio: {allocation_ratio:.1}x more allocations");
-    println!(
-        "  Count consistency: User={}, Full={}",
-        user_info.is_count_consistent, full_info.is_count_consistent
-    );
-
-    Ok(())
-}
-
-fn analyze_json_outputs() -> Result<(), Box<dyn std::error::Error>> {
-    println!("JSON Output Analysis");
-    println!("===================");
-
-    // Use BinaryIndex for efficient analysis instead of parsing huge JSON files
-    use memscope_rs::export::binary::detect_binary_type;
-
-    // Analyze the original binary files directly using BinaryIndex
-    let user_binary_info = detect_binary_type("MemoryAnalysis/large_scale_user.memscope")?;
-    let full_binary_info = detect_binary_type("MemoryAnalysis/large_scale_full.memscope")?;
-
-    println!("Direct Binary Analysis (using BinaryIndex):");
-    println!(
-        "  User binary: {} allocations",
-        user_binary_info.total_count
-    );
-    println!(
-        "  Full binary: {} allocations",
-        full_binary_info.total_count
-    );
-    println!(
-        "  Allocation ratio: {:.1}x",
-        full_binary_info.total_count as f64 / user_binary_info.total_count.max(1) as f64
-    );
-
-    // Quick JSON file size analysis (no parsing)
-    let json_files = [
-        ("memory_analysis.json", "Memory Analysis"),
-        ("lifetime.json", "Lifetime Analysis"),
-        ("performance.json", "Performance Analysis"),
-        ("unsafe_ffi.json", "Unsafe/FFI Analysis"),
-        ("complex_types.json", "Complex Types Analysis"),
-    ];
-
-    let mut user_total_size = 0;
-    let mut full_total_size = 0;
-
-    for (file_suffix, description) in &json_files {
-        let user_file = format!("MemoryAnalysis/large_scale_user/large_scale_user_{file_suffix}");
-        let full_file = format!("MemoryAnalysis/large_scale_full/large_scale_full_{file_suffix}");
-
-        // Only check file sizes, no content parsing
-        if let (Ok(user_meta), Ok(full_meta)) = (fs::metadata(&user_file), fs::metadata(&full_file))
-        {
-            let user_size = user_meta.len() as usize;
-            let full_size = full_meta.len() as usize;
-
-            user_total_size += user_size;
-            full_total_size += full_size;
-
-            println!("\\n{description} ({file_suffix}):");
-            println!("  File sizes: {user_size} bytes (user) vs {full_size} bytes (full)");
-            if user_size > 0 {
-                println!("  Size ratio: {:.1}x", full_size as f64 / user_size as f64);
-            }
-        }
-    }
-
-    println!("\\nOverall JSON Analysis:");
-    println!(
-        "  Total user JSON size: {} bytes ({:.2} KB)",
-        user_total_size,
-        user_total_size as f64 / 1024.0
-    );
-    println!(
-        "  Total full JSON size: {} bytes ({:.2} KB)",
-        full_total_size,
-        full_total_size as f64 / 1024.0
-    );
-    if user_total_size > 0 {
-        println!(
-            "  Overall size ratio: {:.1}x",
-            full_total_size as f64 / user_total_size as f64
-        );
-    }
-
-    Ok(())
 }

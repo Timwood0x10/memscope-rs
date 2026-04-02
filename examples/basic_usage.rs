@@ -1,242 +1,91 @@
 //! Basic usage example for memscope-rs memory visualizer.
 //!
 //! This example demonstrates the new unified API with:
-//! - Safe error handling (no unwrap)
-//! - Clean export interface
-//! - User variables only export (recommended)
+//! - tracker!() and track!() macros
+//! - MemorySnapshot for snapshot building
+//! - render_engine::export for data export
 
-use memscope_rs::export::enhanced_json_exporter::{EnhancedJsonExporter, ExportConfig};
-use memscope_rs::export::{export_user_variables_binary, export_user_variables_json};
-use memscope_rs::{get_tracker, init, track_var};
+use memscope_rs::render_engine::export::{export_snapshot_to_json, ExportJsonOptions};
+use memscope_rs::snapshot::MemorySnapshot;
+use memscope_rs::{track, tracker};
 use std::rc::Rc;
 use std::sync::Arc;
+use std::time::Instant;
 
-fn main() {
-    // Initialize the memory tracking system
-    init();
-    println!("memscope-rs initialized. Tracking memory allocations...");
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    println!("Basic Usage Example - New API");
+    println!("================================\n");
 
-    // Allocate and track simple types
+    let start_time = Instant::now();
+
+    // Initialize tracker using new API
+    let tracker = tracker!();
+    println!("Tracker initialized");
+
+    // Track simple types using new track! macro
     println!("\nAllocating and tracking variables...");
 
     let numbers_vec = vec![1, 2, 3, 4, 5];
-    track_var!(numbers_vec);
+    track!(tracker, numbers_vec);
     println!("Tracked 'numbers_vec'");
 
     let text_string = String::from("Hello, Trace Tools!");
-    track_var!(text_string);
+    track!(tracker, text_string);
     println!("Tracked 'text_string'");
 
     let boxed_value = Box::new(100i32);
-    track_var!(boxed_value);
+    track!(tracker, boxed_value);
     println!("Tracked 'boxed_value'");
 
     let boxed_value2 = Box::new(200i32);
-    track_var!(boxed_value2);
+    track!(tracker, boxed_value2);
     println!("Tracked 'boxed_value2'");
 
     // Track reference-counted types
     let rc_data = Rc::new(vec![10, 20, 30]);
-    track_var!(rc_data);
+    track!(tracker, rc_data);
     println!("Tracked 'rc_data'");
 
     let arc_data = Arc::new(String::from("Shared data"));
-    track_var!(arc_data);
+    track!(tracker, arc_data);
     println!("Tracked 'arc_data'");
 
-    // Clone Rc to show shared ownership
     let rc_data_clone = Rc::clone(&rc_data);
-    track_var!(rc_data_clone);
-    println!("Tracked 'rc_data_clone' (shares allocation with 'rc_data')");
+    track!(tracker, rc_data_clone);
+    println!("Tracked 'rc_data_clone'");
 
-    // Perform some operations (variables remain fully usable)
+    // Operations
     let sum_of_vec = numbers_vec.iter().sum::<i32>();
     println!("\nSum of 'numbers_vec': {sum_of_vec}");
-    println!("Length of 'text_string': {}", text_string.len());
-    println!("Value in 'boxed_value': {}", *boxed_value);
-    println!("Value in 'boxed_value2': {}", *boxed_value2);
-    println!("First element of 'rc_data': {}", rc_data[0]);
-    println!("Content of 'arc_data': {}", *arc_data);
 
-    // Get memory statistics
-    let tracker = get_tracker();
-    if let Ok(stats) = tracker.get_stats() {
-        println!("\nMemory Statistics:");
-        println!("  Active allocations: {}", stats.active_allocations);
-        println!("  Active memory: {} bytes", stats.active_memory);
-        println!("  Total allocations: {}", stats.total_allocations);
-        println!("  Peak memory: {} bytes", stats.peak_memory);
-    }
+    let duration = start_time.elapsed();
 
-    // Export using new enhanced API with  extensions
-    println!("\n🚀 Exporting memory snapshot using enhanced API with  extensions...");
+    // Get analysis report using new API
+    let report = tracker.analyze();
+    println!("\nMemory Analysis Results:");
+    println!("  Active allocations: {}", report.active_allocations);
+    println!("  Total allocations: {}", report.total_allocations);
+    println!("  Peak memory: {} bytes", report.peak_memory_bytes);
 
-    // Get allocations and stats for export
-    match (tracker.get_active_allocations(), tracker.get_stats()) {
-        (Ok(allocations), Ok(stats)) => {
-            // First, export using legacy API for comparison
-            println!("📋 Exporting user variables to JSON (legacy)...");
-            match export_user_variables_json(allocations.clone(), stats.clone(), "basic_usage") {
-                Ok(export_stats) => {
-                    println!("✅ Legacy JSON export successful!");
-                    println!(
-                        "   📊 Processed {} allocations in {}ms",
-                        export_stats.allocations_processed, export_stats.processing_time_ms
-                    );
-                    println!("   📁 Files saved to MemoryAnalysis/basic_usage_snapshot_analysis/");
-                }
-                Err(e) => eprintln!("❌ Legacy JSON export failed: {e}"),
-            }
+    // Export using new render_engine
+    println!("\nExporting memory snapshot using new API...");
 
-            // Now export using enhanced API with  extensions
-            println!("\n🆕 Exporting with  extensions (borrow_info, clone_info, ownership_history)...");
-            let enhanced_config = ExportConfig {
-                pretty_print: true,
-                include_stack_traces: true,
-                generate_lifetime_file: true,
-                generate_unsafe_ffi_file: true,
-                max_ownership_events: 100,
-            };
+    let allocations = tracker.inner().get_active_allocations().unwrap_or_default();
+    let snapshot = MemorySnapshot::from_allocation_infos(allocations);
 
-            let enhanced_exporter = EnhancedJsonExporter::new(enhanced_config);
-            let enhanced_output_dir = "MemoryAnalysis/basic_usage_enhanced";
+    let export_options = ExportJsonOptions::default();
+    let output_path = "MemoryAnalysis/basic_usage_new_api";
 
-            match enhanced_exporter.export_enhanced_analysis(
-                enhanced_output_dir,
-                &stats,
-                &[], // No unsafe reports in basic usage
-                &[], // No memory passports in basic usage
-            ) {
-                Ok(_) => {
-                    println!("✅ Enhanced JSON export successful!");
-                    println!("   📁 Enhanced files saved to: {enhanced_output_dir}/");
-                    println!("   📄 memory_analysis.json - with borrow_info, clone_info, ownership_history_available");
-                    println!(
-                        "   📄 lifetime.json - detailed ownership events and lifecycle tracking"
-                    );
+    export_snapshot_to_json(&snapshot, output_path.as_ref(), &export_options)?;
 
-                    // Show what's different in the enhanced export
-                    show_enhanced_features(enhanced_output_dir);
-                }
-                Err(e) => eprintln!("❌ Enhanced JSON export failed: {e}"),
-            }
+    println!("Export successful!");
+    println!("Files saved to {}/", output_path);
+    println!("  memory_analysis.json");
+    println!("  lifetime.json");
+    println!("  thread_analysis.json");
+    println!("  variable_relationships.json");
 
-            // Export to binary format (efficient for large datasets)
-            println!("\n💾 Exporting user variables to binary...");
-            match export_user_variables_binary(allocations, stats, "basic_usage.memscope") {
-                Ok(export_stats) => {
-                    println!("✅ Binary export successful!");
-                    println!(
-                        "   📊 Processed {} allocations in {}ms",
-                        export_stats.allocations_processed, export_stats.processing_time_ms
-                    );
-                    println!("   📁 Binary file: MemoryAnalysis/basic_usage.memscope");
-                }
-                Err(e) => eprintln!("❌ Binary export failed: {e}"),
-            }
+    println!("\nExample finished in {:.2}ms", duration.as_secs_f64() * 1000.0);
 
-            // Legacy export for comparison (deprecated but still works)
-            println!("\n🔄 Legacy export for comparison...");
-            if let Err(e) = tracker.export_memory_analysis("basic_usage_graph.svg") {
-                eprintln!("⚠️  Legacy SVG export failed: {e}");
-            } else {
-                println!("✅ Legacy SVG exported to MemoryAnalysis/basic_usage/");
-            }
-        }
-        (Err(e), _) => eprintln!("❌ Failed to get allocations: {e}"),
-        (_, Err(e)) => eprintln!("❌ Failed to get stats: {e}"),
-    }
-
-    println!("\nExample finished. Check both legacy and enhanced exports:");
-    println!("📁 Legacy: MemoryAnalysis/basic_usage_snapshot_analysis/");
-    println!("📁 Enhanced: MemoryAnalysis/basic_usage_enhanced/");
-    println!("🔍 Compare the files to see  extensions in action!");
-}
-
-/// Show the enhanced features in the exported files
-fn show_enhanced_features(output_dir: &str) {
-    println!("\n🔍 Analyzing enhanced export features...");
-
-    // Check memory_analysis.json for  extensions
-    let memory_analysis_path = format!("{output_dir}/memory_analysis.json");
-    if let Ok(content) = std::fs::read_to_string(&memory_analysis_path) {
-        if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&content) {
-            if let Some(allocations) = json_value["allocations"].as_array() {
-                println!(
-                    "   📊 Found {} allocations in enhanced export",
-                    allocations.len()
-                );
-
-                // Check for  extensions
-                let mut has_borrow_info = 0;
-                let mut has_clone_info = 0;
-                let mut has_ownership_history = 0;
-                let mut has_lifetime_ms = 0;
-
-                for alloc in allocations {
-                    if alloc.get("borrow_info").is_some() && !alloc["borrow_info"].is_null() {
-                        has_borrow_info += 1;
-                    }
-                    if alloc.get("clone_info").is_some() && !alloc["clone_info"].is_null() {
-                        has_clone_info += 1;
-                    }
-                    if alloc.get("ownership_history_available").is_some() {
-                        has_ownership_history += 1;
-                    }
-                    if alloc.get("lifetime_ms").is_some() && !alloc["lifetime_ms"].is_null() {
-                        has_lifetime_ms += 1;
-                    }
-                }
-
-                println!("      • borrow_info: {has_borrow_info} allocations");
-                println!("      • clone_info: {has_clone_info} allocations");
-                println!(
-                    "      • ownership_history_available: {has_ownership_history} allocations"
-                );
-                println!("      • lifetime_ms: {has_lifetime_ms} allocations");
-
-                // Show example of borrow_info if available
-                if let Some(first_alloc) = allocations.first() {
-                    if let Some(borrow_info) = first_alloc.get("borrow_info") {
-                        if !borrow_info.is_null() {
-                            println!("   📋 Example borrow_info: {borrow_info}");
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // Check lifetime.json
-    let lifetime_path = format!("{output_dir}/lifetime.json");
-    if let Ok(content) = std::fs::read_to_string(&lifetime_path) {
-        if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&content) {
-            if let Some(histories) = json_value["ownership_histories"].as_array() {
-                println!(
-                    "   📈 Found {} ownership histories in lifetime.json",
-                    histories.len()
-                );
-
-                if let Some(first_history) = histories.first() {
-                    if let Some(events) = first_history["ownership_history"].as_array() {
-                        println!(
-                            "      • First allocation has {} ownership events",
-                            events.len()
-                        );
-                        if let Some(first_event) = events.first() {
-                            println!(
-                                "      • Example event: {} at timestamp {}",
-                                first_event["event_type"].as_str().unwrap_or("unknown"),
-                                first_event["timestamp"].as_u64().unwrap_or(0)
-                            );
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    println!(
-        "   🎯 These extensions provide detailed borrowing, cloning, and lifecycle information!"
-    );
+    Ok(())
 }

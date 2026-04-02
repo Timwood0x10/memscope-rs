@@ -131,6 +131,17 @@ pub struct Tracker {
     system_snapshots: Arc<Mutex<Vec<SystemSnapshot>>>,
 }
 
+impl Clone for Tracker {
+    fn clone(&self) -> Self {
+        Tracker {
+            inner: self.inner.clone(),
+            config: self.config.clone(),
+            start_time: self.start_time,
+            system_snapshots: self.system_snapshots.clone(),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 struct TrackerConfig {
     sampling: SamplingConfig,
