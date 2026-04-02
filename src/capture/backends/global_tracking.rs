@@ -162,6 +162,19 @@ pub use crate::render_engine::export::{
 /// Export captured memory data to JSON files using global tracker.
 ///
 /// This is a convenience wrapper that uses the global singleton tracker.
+///
+/// # Exported Files
+///
+/// This function creates the following JSON files in the specified directory:
+///
+/// - `memory_analysis.json` - Main memory allocation analysis
+/// - `lifetime.json` - Ownership and lifetime tracking
+/// - `thread_analysis.json` - Thread-local memory statistics
+/// - `variable_relationships.json` - Variable relationship graph
+/// - `memory_passports.json` - Memory passport tracking
+/// - `leak_detection.json` - Memory leak detection results
+/// - `unsafe_ffi.json` - Unsafe/FFI tracking data
+/// - `system_resources.json` - System resource monitoring (CPU, memory, pressure indicators)
 pub fn export_to_json<P: AsRef<Path>>(path: P) -> Result<(), GlobalTrackingError> {
     let tracker = global_tracker()?;
     let passport_tracker = global_passport_tracker()?;

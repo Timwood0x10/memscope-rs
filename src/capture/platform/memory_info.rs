@@ -629,11 +629,29 @@ impl PlatformMemoryInfo {
 
     #[cfg(target_os = "macos")]
     fn get_macos_system_info(&self) -> Result<SystemInfo, MemoryError> {
+        // Use sysctl to get real system information
+        let mut size = std::mem::size_of::<u32>();
+        let mut cpu_cores: u32 = 0;
+        
+        unsafe {
+            let mut mib: [libc::c_int; 2] = [libc::CTL_HW, libc::HW_NCPU];
+            if libc::sysctl(
+                mib.as_mut_ptr(),
+                mib.len() as libc::c_uint,
+                &mut cpu_cores as *mut u32 as *mut libc::c_void,
+                &mut size,
+                std::ptr::null(),
+                0,
+            ) != 0 {
+                cpu_cores = 1; // Fallback
+            }
+        }
+
         Ok(SystemInfo {
             os_name: "macOS".to_string(),
             os_version: "14.1.0".to_string(),
             architecture: "arm64".to_string(),
-            cpu_cores: 12,
+            cpu_cores,
             cpu_cache: CpuCacheInfo {
                 l1_cache_size: 65536,   // 64KB
                 l2_cache_size: 4194304, // 4MB

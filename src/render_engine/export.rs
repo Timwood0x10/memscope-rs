@@ -4,6 +4,7 @@
 //! including JSON export, lifetime analysis, and variable relationships.
 
 use crate::analysis::memory_passport_tracker::{LeakDetectionResult, MemoryPassportTracker};
+use crate::capture::platform::memory_info::{MemoryStats, PlatformMemoryInfo, SystemInfo};
 use crate::snapshot::{ActiveAllocation, MemorySnapshot, ThreadMemoryStats};
 use crate::tracker::Tracker;
 use rayon::prelude::*;
@@ -574,6 +575,7 @@ pub fn export_all_json<P: AsRef<Path>>(
     export_memory_passports_json(path_ref, passport_tracker)?;
     export_leak_detection_json(path_ref, passport_tracker)?;
     export_unsafe_ffi_json(path_ref, passport_tracker)?;
+    export_system_resources_json(path_ref)?; // 新增：导出系统资源监控
 
     Ok(())
 }
@@ -693,6 +695,131 @@ pub fn export_unsafe_ffi_json<P: AsRef<Path>>(
     });
 
     let file_path = base_path.join("unsafe_ffi.json");
+    let json_string = serde_json::to_string_pretty(&json_data)?;
+    std::fs::write(&file_path, json_string)?;
+
+    Ok(())
+}
+
+/// Export system resource monitoring data to JSON
+///
+/// This function exports comprehensive system resource statistics including:
+/// - Memory statistics (virtual, physical, process, system)
+/// - CPU information (cores, cache, system info)
+/// - Memory pressure indicators
+pub fn export_system_resources_json<P: AsRef<Path>>(
+    base_path: P,
+) -> Result<(), ExportError> {
+    let base_path = base_path.as_ref();
+
+    // Collect memory statistics
+    let mut memory_info = PlatformMemoryInfo::new();
+    let _ = memory_info.initialize();
+
+    let memory_stats = match memory_info.collect_stats() {
+        Ok(stats) => stats,
+        Err(e) => {
+            eprintln!("Warning: Failed to collect memory stats: {}", e);
+            return Err(ExportError::ExportFailed(e.to_string()));
+        }
+    };
+
+    // Collect system information
+    let system_info = match memory_info.get_system_info() {
+        Ok(info) => info,
+        Err(e) => {
+            eprintln!("Warning: Failed to collect system info: {}", e);
+            return Err(ExportError::ExportFailed(e.to_string()));
+        }
+    };
+
+    // Build JSON structure
+    let json_data = serde_json::json!({
+        "metadata": {
+            "export_version": "2.0",
+            "specification": "system resource monitoring",
+            "timestamp": std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs()
+        },
+        "system_info": {
+            "os_name": system_info.os_name,
+            "os_version": system_info.os_version,
+            "architecture": system_info.architecture,
+            "cpu_cores": system_info.cpu_cores,
+            "page_size": system_info.page_size,
+            "large_page_size": system_info.large_page_size,
+            "cpu_cache": {
+                "l1_cache_size": system_info.cpu_cache.l1_cache_size,
+                "l2_cache_size": system_info.cpu_cache.l2_cache_size,
+                "l3_cache_size": system_info.cpu_cache.l3_cache_size,
+                "cache_line_size": system_info.cpu_cache.cache_line_size
+            },
+            "mmu_info": {
+                "virtual_address_bits": system_info.mmu_info.virtual_address_bits,
+                "physical_address_bits": system_info.mmu_info.physical_address_bits,
+                "aslr_enabled": system_info.mmu_info.aslr_enabled,
+                "nx_bit_supported": system_info.mmu_info.nx_bit_supported
+            }
+        },
+        "memory_stats": {
+            "virtual_memory": {
+                "total_virtual": memory_stats.virtual_memory.total_virtual,
+                "available_virtual": memory_stats.virtual_memory.available_virtual,
+                "used_virtual": memory_stats.virtual_memory.used_virtual,
+                "reserved": memory_stats.virtual_memory.reserved,
+                "committed": memory_stats.virtual_memory.committed
+            },
+            "physical_memory": {
+                "total_physical": memory_stats.physical_memory.total_physical,
+                "available_physical": memory_stats.physical_memory.available_physical,
+                "used_physical": memory_stats.physical_memory.used_physical,
+                "cached": memory_stats.physical_memory.cached,
+                "buffers": memory_stats.physical_memory.buffers,
+                "swap": {
+                    "total_swap": memory_stats.physical_memory.swap.total_swap,
+                    "used_swap": memory_stats.physical_memory.swap.used_swap,
+                    "available_swap": memory_stats.physical_memory.swap.available_swap,
+                    "swap_in_rate": memory_stats.physical_memory.swap.swap_in_rate,
+                    "swap_out_rate": memory_stats.physical_memory.swap.swap_out_rate
+                }
+            },
+            "process_memory": {
+                "virtual_size": memory_stats.process_memory.virtual_size,
+                "resident_size": memory_stats.process_memory.resident_size,
+                "shared_size": memory_stats.process_memory.shared_size,
+                "private_size": memory_stats.process_memory.private_size,
+                "heap_size": memory_stats.process_memory.heap_size,
+                "stack_size": memory_stats.process_memory.stack_size,
+                "mapped_files": memory_stats.process_memory.mapped_files,
+                "peak_usage": memory_stats.process_memory.peak_usage
+            },
+            "system_memory": {
+                "allocation_count": memory_stats.system_memory.allocation_count,
+                "deallocation_count": memory_stats.system_memory.deallocation_count,
+                "active_allocations": memory_stats.system_memory.active_allocations,
+                "total_allocated": memory_stats.system_memory.total_allocated,
+                "total_deallocated": memory_stats.system_memory.total_deallocated,
+                "fragmentation_level": memory_stats.system_memory.fragmentation_level,
+                "large_pages": {
+                    "supported": memory_stats.system_memory.large_pages.supported,
+                    "total_large_pages": memory_stats.system_memory.large_pages.total_large_pages,
+                    "used_large_pages": memory_stats.system_memory.large_pages.used_large_pages,
+                    "page_size": memory_stats.system_memory.large_pages.page_size
+                }
+            },
+            "pressure_indicators": {
+                "pressure_level": format!("{:?}", memory_stats.pressure_indicators.pressure_level),
+                "low_memory": memory_stats.pressure_indicators.low_memory,
+                "swapping_active": memory_stats.pressure_indicators.swapping_active,
+                "allocation_failure_rate": memory_stats.pressure_indicators.allocation_failure_rate,
+                "gc_pressure": memory_stats.pressure_indicators.gc_pressure
+            }
+        }
+    });
+
+    let file_path = base_path.join("system_resources.json");
     let json_string = serde_json::to_string_pretty(&json_data)?;
     std::fs::write(&file_path, json_string)?;
 
