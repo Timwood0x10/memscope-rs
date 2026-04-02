@@ -358,7 +358,10 @@ pub fn get_tracker() -> Arc<MemoryTracker> {
 }
 
 /// Get the global memory tracker instance (legacy compatibility).
-#[deprecated(note = "Use get_tracker() instead for dual-mode support")]
+#[deprecated(
+    since = "0.7.0",
+    note = "Use get_tracker() instead for dual-mode support"
+)]
 pub fn get_global_tracker() -> Arc<MemoryTracker> {
     get_tracker()
 }

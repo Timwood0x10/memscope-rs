@@ -113,6 +113,13 @@ pub struct PassportTrackerConfig {
     pub enable_validation: bool,
     /// Maximum number of passports to track
     pub max_passports: usize,
+    /// Track Rust internal call stacks (e.g., std, core, alloc)
+    /// When false, only user code call stacks are tracked
+    pub track_rust_internal_stack: bool,
+    /// User code path prefixes for identifying user code
+    /// Call stacks from paths NOT starting with these prefixes are considered Rust internal
+    /// If empty, all paths are considered user code
+    pub user_code_prefixes: Vec<String>,
 }
 
 impl Default for PassportTrackerConfig {
@@ -123,6 +130,13 @@ impl Default for PassportTrackerConfig {
             enable_leak_detection: true,
             enable_validation: true,
             max_passports: 10000,
+            track_rust_internal_stack: false,
+            user_code_prefixes: vec![
+                "src/".to_string(),
+                "examples/".to_string(),
+                "tests/".to_string(),
+                "benches/".to_string(),
+            ],
         }
     }
 }
@@ -599,12 +613,44 @@ impl MemoryPassportTracker {
     fn capture_call_stack(&self) -> TrackingResult<Vec<StackFrame>> {
         // Simplified call stack capture
         // In a real implementation, this would use backtrace or similar
-        Ok(vec![StackFrame {
+        let all_frames = vec![StackFrame {
             function_name: "memory_passport_tracker".to_string(),
             file_name: Some("src/analysis/memory_passport_tracker.rs".to_string()),
             line_number: Some(1),
             is_unsafe: false,
-        }])
+        }];
+        
+        // Filter call stack based on configuration
+        if self.config.track_rust_internal_stack {
+            // Return all frames
+            Ok(all_frames)
+        } else {
+            // Filter to only include user code frames
+            let user_frames = all_frames.into_iter().filter(|frame| {
+                self.is_user_code_frame(frame)
+            }).collect();
+            Ok(user_frames)
+        }
+    }
+    
+    /// Check if a stack frame is from user code (not Rust internal)
+    fn is_user_code_frame(&self, frame: &StackFrame) -> bool {
+        // If user_code_prefixes is empty, consider all frames as user code
+        if self.config.user_code_prefixes.is_empty() {
+            return true;
+        }
+        
+        // Check if the file name matches any user code prefix
+        if let Some(ref file_name) = frame.file_name {
+            self.config.user_code_prefixes.iter().any(|prefix| {
+                file_name.starts_with(prefix) || 
+                file_name.contains(&format!("/{}", prefix)) ||
+                file_name.contains(&format!("\\{}", prefix))
+            })
+        } else {
+            // If file name is not available, consider it as user code
+            true
+        }
     }
 
     fn determine_final_status(&self, events: &[PassportEvent]) -> PassportStatus {

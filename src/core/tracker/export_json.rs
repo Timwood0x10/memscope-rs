@@ -357,10 +357,17 @@ fn write_json_optimized<P: AsRef<Path>>(
     // Use streaming writer for large files or when explicitly enabled
     // Streaming writer implementation for large datasets
     if options.streaming_writer && estimated_size > 500_000 {
-        let _file = File::create(path)?;
-        // let mut streaming_writer = StreamingJsonWriter::new(file);
-        // streaming_writer.write_complete_json(data)?;
-        // streaming_writer.finalize()?;
+        let file = File::create(path)?;
+        let mut writer = BufWriter::with_capacity(options.buffer_size, file);
+        
+        let result = if use_compact {
+            serde_json::to_writer(&mut writer, data)
+        } else {
+            serde_json::to_writer_pretty(&mut writer, data)
+        };
+        
+        result?;
+        writer.flush()?;
     } else {
         // Use traditional buffered writer for smaller files
         let file = File::create(path)?;
@@ -622,12 +629,14 @@ impl MemoryTracker {
         for allocation in allocations {
             if let Some(ownership_available) = allocation.get("ownership_history_available") {
                 if ownership_available.as_bool().unwrap_or(false) {
-                    if let Some(ptr) = allocation.get("ptr").and_then(|p| p.as_u64()) {
+                    // Use "address" field instead of "ptr"
+                    if let Some(address) = allocation.get("address").and_then(|a| a.as_str()) {
                         let mut ownership_events = Vec::new();
 
                         // Generate Allocated event
+                        // Use "timestamp" field instead of "timestamp_alloc"
                         if let Some(timestamp) =
-                            allocation.get("timestamp_alloc").and_then(|t| t.as_u64())
+                            allocation.get("timestamp").and_then(|t| t.as_u64())
                         {
                             ownership_events.push(json!({
                                 "timestamp": timestamp,
@@ -645,7 +654,7 @@ impl MemoryTracker {
                                 {
                                     for i in 0..clone_count.min(5) {
                                         ownership_events.push(json!({
-                                            "timestamp": allocation.get("timestamp_alloc").and_then(|t| t.as_u64()).unwrap_or(0) + 1000 * (i + 1),
+                                            "timestamp": allocation.get("timestamp").and_then(|t| t.as_u64()).unwrap_or(0) + 1000 * (i + 1),
                                             "event_type": "Cloned",
                                             "source_stack_id": 2 + i,
                                             "details": {
@@ -666,7 +675,7 @@ impl MemoryTracker {
                                 {
                                     for i in 0..immutable_borrows.min(3) {
                                         ownership_events.push(json!({
-                                            "timestamp": allocation.get("timestamp_alloc").and_then(|t| t.as_u64()).unwrap_or(0) + 2000 * (i + 1),
+                                            "timestamp": allocation.get("timestamp").and_then(|t| t.as_u64()).unwrap_or(0) + 2000 * (i + 1),
                                             "event_type": "Borrowed",
                                             "source_stack_id": 10 + i,
                                             "details": {
@@ -681,7 +690,7 @@ impl MemoryTracker {
                                 {
                                     for i in 0..mutable_borrows.min(2) {
                                         ownership_events.push(json!({
-                                            "timestamp": allocation.get("timestamp_alloc").and_then(|t| t.as_u64()).unwrap_or(0) + 3000 * (i + 1),
+                                            "timestamp": allocation.get("timestamp").and_then(|t| t.as_u64()).unwrap_or(0) + 3000 * (i + 1),
                                             "event_type": "MutablyBorrowed",
                                             "source_stack_id": 20 + i,
                                             "details": {
@@ -695,19 +704,11 @@ impl MemoryTracker {
                         }
 
                         // Generate Dropped event if deallocated
-                        if let Some(dealloc_timestamp) =
-                            allocation.get("timestamp_dealloc").and_then(|t| t.as_u64())
-                        {
-                            ownership_events.push(json!({
-                                "timestamp": dealloc_timestamp,
-                                "event_type": "Dropped",
-                                "source_stack_id": 99,
-                                "details": {}
-                            }));
-                        }
+                        // Note: We don't have deallocation timestamp in current data structure
+                        // So we skip this for now
 
                         ownership_histories.push(json!({
-                            "allocation_ptr": ptr,
+                            "allocation_ptr": address,
                             "ownership_history": ownership_events
                         }));
                     }
@@ -736,24 +737,115 @@ impl MemoryTracker {
         output_path: P,
         options: &ExportJsonOptions,
     ) -> TrackingResult<()> {
-        // Create default unsafe FFI stats since the method doesn't exist yet
-        let unsafe_stats = crate::analysis::unsafe_ffi_tracker::UnsafeFFIStats::default();
+        // Get memory passport tracker data
+        let passport_tracker = crate::analysis::memory_passport_tracker::get_global_passport_tracker();
+        let passports = passport_tracker.get_all_passports();
+        let stats = passport_tracker.get_stats();
+        
+        // Convert passports to JSON
+        let memory_passports: Vec<serde_json::Value> = passports
+            .values()
+            .map(|passport| {
+                json!({
+                    "passport_id": passport.passport_id,
+                    "allocation_ptr": passport.allocation_ptr,
+                    "size_bytes": passport.size_bytes,
+                    "status": passport.status_at_shutdown,
+                    "created_at": passport.created_at,
+                    "updated_at": passport.updated_at,
+                    "lifecycle_events": passport.lifecycle_events.iter().map(|event| {
+                        json!({
+                            "event_type": event.event_type,
+                            "context": event.context,
+                            "timestamp": event.timestamp,
+                            "sequence_number": event.sequence_number,
+                            "call_stack": event.call_stack.iter().map(|frame| {
+                                json!({
+                                    "function_name": frame.function_name,
+                                    "file_name": frame.file_name,
+                                    "line_number": frame.line_number,
+                                    "is_unsafe": frame.is_unsafe,
+                                })
+                            }).collect::<Vec<_>>(),
+                            "metadata": event.metadata,
+                        })
+                    }).collect::<Vec<_>>(),
+                    "metadata": passport.metadata,
+                })
+            })
+            .collect();
+
+        // Calculate FFI statistics from passports
+        let mut total_ffi_calls = 0;
+        let mut unsafe_operations = 0;
+        let mut memory_violations = 0;
+        let mut boundary_crossings = 0;
+
+        for passport in passports.values() {
+            for event in &passport.lifecycle_events {
+                match event.event_type {
+                    crate::analysis::memory_passport_tracker::PassportEventType::HandoverToFfi => {
+                        total_ffi_calls += 1;
+                        boundary_crossings += 1;
+                    }
+                    crate::analysis::memory_passport_tracker::PassportEventType::ReclaimedByRust => {
+                        boundary_crossings += 1;
+                    }
+                    crate::analysis::memory_passport_tracker::PassportEventType::FreedByForeign => {
+                        unsafe_operations += 1;
+                    }
+                    _ => {}
+                }
+            }
+            
+            // Check for memory violations (leaks)
+            if matches!(passport.status_at_shutdown, 
+                crate::analysis::memory_passport_tracker::PassportStatus::InForeignCustody) {
+                memory_violations += 1;
+            }
+        }
+
+        // Generate unsafe reports from passports with issues
+        let unsafe_reports: Vec<serde_json::Value> = passports
+            .values()
+            .filter(|passport| {
+                matches!(passport.status_at_shutdown, 
+                    crate::analysis::memory_passport_tracker::PassportStatus::InForeignCustody)
+            })
+            .map(|passport| {
+                json!({
+                    "passport_id": passport.passport_id,
+                    "memory_address": format!("0x{:x}", passport.allocation_ptr),
+                    "size_bytes": passport.size_bytes,
+                    "status": passport.status_at_shutdown,
+                    "last_context": passport.lifecycle_events.last()
+                        .map(|e| e.context.clone())
+                        .unwrap_or_default(),
+                    "lifecycle_summary": passport.lifecycle_events.iter()
+                        .map(|e| format!("{:?}", e.event_type))
+                        .collect::<Vec<_>>()
+                        .join(" -> "),
+                })
+            })
+            .collect();
 
         let unsafe_ffi_data = json!({
             "metadata": {
                 "export_version": "2.0",
                 "export_timestamp": chrono::Utc::now().to_rfc3339(),
                 "specification": "unsafe FFI tracking",
-                "total_unsafe_reports": 0,
-                "total_memory_passports": 0
+                "total_unsafe_reports": unsafe_reports.len(),
+                "total_memory_passports": memory_passports.len()
             },
-            "unsafe_reports": [],
-            "memory_passports": [],
+            "unsafe_reports": unsafe_reports,
+            "memory_passports": memory_passports,
             "ffi_statistics": {
-                "total_ffi_calls": unsafe_stats.ffi_calls,
-                "unsafe_operations": unsafe_stats.total_operations,
-                "memory_violations": unsafe_stats.memory_violations,
-                "boundary_crossings": 0
+                "total_ffi_calls": total_ffi_calls,
+                "unsafe_operations": unsafe_operations,
+                "memory_violations": memory_violations,
+                "boundary_crossings": boundary_crossings,
+                "total_passports_created": stats.total_passports_created,
+                "active_passports": stats.active_passports,
             }
         });
 
@@ -771,25 +863,130 @@ impl MemoryTracker {
     ) -> TrackingResult<()> {
         let mut relationships = Vec::new();
 
+        // Helper function to parse address string
+        fn parse_address(addr_str: &str) -> Option<usize> {
+            if addr_str.starts_with("0x") || addr_str.starts_with("0X") {
+                usize::from_str_radix(&addr_str[2..], 16).ok()
+            } else {
+                usize::from_str_radix(addr_str, 16).ok()
+                    .or_else(|| addr_str.parse::<usize>().ok())
+            }
+        }
+
         // Analyze clone relationships
         for allocation in allocations {
             if let Some(clone_info) = allocation.get("clone_info") {
                 if !clone_info.is_null() {
                     if let Some(is_clone) = clone_info.get("is_clone").and_then(|c| c.as_bool()) {
                         if is_clone {
-                            if let (Some(ptr), Some(original_ptr)) = (
-                                allocation.get("ptr").and_then(|p| p.as_u64()),
+                            if let (Some(address), Some(original_ptr)) = (
+                                allocation.get("address").and_then(|a| a.as_str()),
                                 clone_info.get("original_ptr").and_then(|p| p.as_u64()),
                             ) {
+                                if let Some(ptr) = parse_address(address) {
+                                    relationships.push(json!({
+                                        "relationship_type": "clone",
+                                        "source_ptr": original_ptr,
+                                        "target_ptr": ptr,
+                                        "relationship_strength": 1.0,
+                                        "details": {
+                                            "clone_count": clone_info.get("clone_count").and_then(|c| c.as_u64()).unwrap_or(0)
+                                        }
+                                    }));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Analyze type-based relationships
+        // Group allocations by type
+        let mut type_map: std::collections::HashMap<String, Vec<serde_json::Value>> = std::collections::HashMap::new();
+        for allocation in allocations {
+            if let Some(type_name) = allocation.get("type_name").and_then(|t| t.as_str()) {
+                type_map.entry(type_name.to_string()).or_default().push(allocation.clone());
+            }
+        }
+
+        // Create type similarity relationships (limit to avoid too many relationships)
+        for (type_name, type_allocations) in type_map {
+            if type_allocations.len() > 1 {
+                // Limit the number of relationships per type
+                let max_pairs = std::cmp::min(type_allocations.len() * 2, 100);
+                let mut pair_count = 0;
+                
+                for i in 0..type_allocations.len() {
+                    if pair_count >= max_pairs {
+                        break;
+                    }
+                    for j in i+1..type_allocations.len() {
+                        if pair_count >= max_pairs {
+                            break;
+                        }
+                        if let (Some(addr1), Some(addr2)) = (
+                            type_allocations[i].get("address").and_then(|a| a.as_str()),
+                            type_allocations[j].get("address").and_then(|a| a.as_str())
+                        ) {
+                            if let (Some(ptr1), Some(ptr2)) = (parse_address(addr1), parse_address(addr2)) {
                                 relationships.push(json!({
-                                    "relationship_type": "clone",
-                                    "source_ptr": original_ptr,
-                                    "target_ptr": ptr,
-                                    "relationship_strength": 1.0,
+                                    "relationship_type": "type_similarity",
+                                    "source_ptr": ptr1,
+                                    "target_ptr": ptr2,
+                                    "relationship_strength": 0.5,
                                     "details": {
-                                        "clone_count": clone_info.get("clone_count").and_then(|c| c.as_u64()).unwrap_or(0)
+                                        "type_name": type_name
                                     }
                                 }));
+                                pair_count += 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Analyze size-based relationships
+        // Group allocations by size range
+        let mut size_map: std::collections::HashMap<usize, Vec<serde_json::Value>> = std::collections::HashMap::new();
+        for allocation in allocations {
+            if let Some(size) = allocation.get("size").and_then(|s| s.as_u64()) {
+                let size_range = (size as usize / 1024) * 1024; // Group by 1KB ranges
+                size_map.entry(size_range).or_default().push(allocation.clone());
+            }
+        }
+
+        // Create size similarity relationships (limit to avoid too many relationships)
+        for (size_range, size_allocations) in size_map {
+            if size_allocations.len() > 1 {
+                // Limit the number of relationships per size range
+                let max_pairs = std::cmp::min(size_allocations.len() * 2, 100);
+                let mut pair_count = 0;
+                
+                for i in 0..size_allocations.len() {
+                    if pair_count >= max_pairs {
+                        break;
+                    }
+                    for j in i+1..size_allocations.len() {
+                        if pair_count >= max_pairs {
+                            break;
+                        }
+                        if let (Some(addr1), Some(addr2)) = (
+                            size_allocations[i].get("address").and_then(|a| a.as_str()),
+                            size_allocations[j].get("address").and_then(|a| a.as_str())
+                        ) {
+                            if let (Some(ptr1), Some(ptr2)) = (parse_address(addr1), parse_address(addr2)) {
+                                relationships.push(json!({
+                                    "relationship_type": "size_similarity",
+                                    "source_ptr": ptr1,
+                                    "target_ptr": ptr2,
+                                    "relationship_strength": 0.3,
+                                    "details": {
+                                        "size_range": format!("{}-{} bytes", size_range, size_range + 1023)
+                                    }
+                                }));
+                                pair_count += 1;
                             }
                         }
                     }

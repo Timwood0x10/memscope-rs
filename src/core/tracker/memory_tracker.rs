@@ -107,7 +107,10 @@ pub fn get_tracker() -> Arc<MemoryTracker> {
 ///
 /// This function is preserved for backward compatibility but now delegates to get_tracker().
 /// New code should use get_tracker() directly for dual-mode support.
-#[deprecated(note = "Use get_tracker() instead for dual-mode support")]
+#[deprecated(
+    since = "0.7.0",
+    note = "Use get_tracker() instead for dual-mode support"
+)]
 pub fn get_global_tracker() -> Arc<MemoryTracker> {
     get_tracker()
 }

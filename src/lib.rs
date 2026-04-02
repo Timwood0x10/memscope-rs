@@ -165,10 +165,44 @@ pub use export::{
 
 // Re-export main types for easier use
 pub use analysis::enhanced::EnhancedMemoryAnalyzer;
-pub use analysis::unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, UnsafeFFITracker};
 pub use core::allocator::TrackingAllocator;
 pub use core::tracker::memory_tracker::BinaryExportMode;
 pub use core::tracker::{get_tracker, ExportOptions, MemoryTracker};
+
+// Deprecated exports - for backward compatibility
+#[deprecated(
+    since = "0.7.0",
+    note = "Use capture::backends::unsafe_tracking instead"
+)]
+pub use analysis::unsafe_ffi_tracker::{
+    get_global_unsafe_ffi_tracker, UnsafeFFITracker,
+};
+
+#[deprecated(
+    since = "0.7.0",
+    note = "Use analysis::lifecycle instead"
+)]
+pub use analysis::lifecycle_analysis::{
+    get_global_lifecycle_analyzer, LifecycleAnalyzer,
+};
+
+#[deprecated(
+    since = "0.7.0",
+    note = "Use metadata::smart_pointers::analyzer instead"
+)]
+pub use analysis::circular_reference::{
+    CircularReference, CircularReferenceAnalysis, CircularReferenceNode,
+};
+
+#[deprecated(
+    since = "0.7.0",
+    note = "Use capture::types::scope and export::binary::variable_relationship_analyzer instead"
+)]
+pub use analysis::variable_relationships::{
+    build_variable_relationship_graph, GraphStatistics, RelationshipType as VarRelationshipType,
+    SmartPointerInfo as VarSmartPointerInfo, VariableCategory, VariableCluster, VariableNode,
+    VariableRelationship, VariableRelationshipGraph,
+};
 // pub use capture::types::{AllocationInfo, TrackingError, TrackingResult}; // Removed - use new system imports below
 pub use utils::{format_bytes, get_simple_type, simplify_type_name};
 
@@ -1512,22 +1546,6 @@ impl MemoryTracker {
                 "📁 Complex type files: {} bytes total",
                 export_result.export_stats.complex_files_size
             );
-
-            if let Some(ref file) = export_result.complex_types_file {
-                tracing::info!("   - Complex types: {}", file);
-            }
-            if let Some(ref file) = export_result.borrow_analysis_file {
-                tracing::info!("   - Borrow analysis: {}", file);
-            }
-            if let Some(ref file) = export_result.async_analysis_file {
-                tracing::info!("   - Async analysis: {}", file);
-            }
-            if let Some(ref file) = export_result.closure_analysis_file {
-                tracing::info!("   - Closure analysis: {}", file);
-            }
-            if let Some(ref file) = export_result.lifecycle_analysis_file {
-                tracing::info!("   - Lifecycle analysis: {}", file);
-            }
         }
 
         Ok(export_result)
@@ -1656,9 +1674,8 @@ pub mod test_utils {
             super::init_for_testing();
         });
 
-        // Enable fast mode on the global tracker
-        let tracker = crate::core::tracker::get_tracker();
-        tracker.enable_fast_mode();
+        // Note: fast_mode is now handled by the new capture::backends::core_tracker
+        // The old enable_fast_mode() method has been deprecated
     }
 
     /// Reset global tracker state for clean tests

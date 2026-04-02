@@ -2,7 +2,32 @@
 //!
 //! This module provides functionality to detect circular references in Rc/Arc
 //! smart pointers that can lead to memory leaks.
-
+//!
+//! # Deprecated
+//!
+//! This module is **deprecated** and will be removed in a future version.
+//! Please use new API in `crate::metadata::smart_pointers::analyzer` instead.
+//!
+//! ## Migration Guide
+//!
+//! Old API:
+//! ```rust
+//! use memscope_rs::analysis::circular_reference::{CircularReference, CircularReferenceAnalysis};
+//! let analysis = CircularReferenceAnalysis::new();
+//! let result = analysis.detect_circular_references(&allocations);
+//! ```
+//!
+//! New API:
+//! ```rust
+//! use memscope_rs::metadata::smart_pointers::analyzer::{CircularReference, CircularReferenceAnalysis};
+//! let analysis = CircularReferenceAnalysis::new();
+//! let result = analysis.detect_circular_references(&allocations);
+//! ```
+//!
+#[deprecated(
+    since = "0.7.0",
+    note = "Use metadata::smart_pointers::analyzer instead. This module will be removed in a future version."
+)]
 use crate::capture::types::{AllocationInfo, SmartPointerInfo, SmartPointerType};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};

@@ -1,11 +1,36 @@
 //! Advanced lifecycle analysis for Rust types
 //!
-//! This module implements the features outlined in ComplexTypeForRust.md:
+//! This module implements features outlined in ComplexTypeForRust.md:
 //! 1. Drop trait tracking - Record custom destructor execution
 //! 2. RAII pattern detection - Identify resource acquisition patterns
 //! 3. Borrow checker integration - Track borrow and mutable borrow lifetimes
 //! 4. Closure capture analysis - Track closure captured variable lifetimes
-
+//!
+//! # Deprecated
+//!
+//! This module is **deprecated** and will be removed in a future version.
+//! Please use new API in `crate::analysis::lifecycle` instead.
+//!
+//! ## Migration Guide
+//!
+//! Old API:
+//! ```rust
+//! use memscope_rs::analysis::lifecycle_analysis::{get_global_lifecycle_analyzer, LifecycleAnalyzer};
+//! let analyzer = get_global_lifecycle_analyzer();
+//! analyzer.record_drop_event(ptr, type_name, custom_drop);
+//! ```
+//!
+//! New API:
+//! ```rust
+//! use memscope_rs::analysis::lifecycle::{get_global_lifecycle_analyzer, LifecycleAnalyzer};
+//! let analyzer = get_global_lifecycle_analyzer();
+//! analyzer.record_drop_event(ptr, type_name, custom_drop);
+//! ```
+//!
+#[deprecated(
+    since = "0.7.0",
+    note = "Use analysis::lifecycle instead. This module will be removed in a future version."
+)]
 use crate::capture::types::AllocationInfo;
 use crate::core::safe_operations::SafeLock;
 use serde::{Deserialize, Serialize};
