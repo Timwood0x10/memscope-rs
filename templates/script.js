@@ -1845,7 +1845,7 @@ function renderLifetimeVisualizationWithCollapse(variableGroups) {
     console.log(`✅ Rendered ${variableGroups.length} variables in lifetime visualization with collapse functionality`);
 }
 
-// Initialize FFI visualization with enhanced support for improve.md fields
+// Initialize FFI visualization with enhanced support for  fields
 function initFFIVisualization() {
     console.log('🔄 Initializing FFI visualization...');
 
@@ -1860,7 +1860,7 @@ function initFFIVisualization() {
     
     console.log('🔍 Checking analysisData structure:', Object.keys(window.analysisData || {}));
     
-    // Enhanced data extraction supporting improve.md structure
+    // Enhanced data extraction supporting  structure
     if (window.analysisData) {
         // Debug: Show what data structure we actually have FIRST
         console.log('🔍 Available data keys:', Object.keys(window.analysisData));
@@ -1872,7 +1872,7 @@ function initFFIVisualization() {
             console.log('🔍 unsafe_ffi.allocations length:', window.analysisData.unsafe_ffi.allocations ? window.analysisData.unsafe_ffi.allocations.length : 'undefined');
         }
         
-        // Try unsafe_ffi data first (improve.md structure)
+        // Try unsafe_ffi data first ( structure)
         if (window.analysisData.unsafe_ffi) {
             allocations = window.analysisData.unsafe_ffi.allocations || [];
             unsafeReports = window.analysisData.unsafe_ffi.unsafe_reports || [];
@@ -1917,14 +1917,14 @@ function initFFIVisualization() {
     );
     console.log('📊 Found FFI-tracked allocations:', ffiAllocations.length);
     
-    // Debug: show first few allocations with improve.md fields
+    // Debug: show first few allocations with  fields
     if (allocations.length > 0) {
-        console.log('🔍 Sample allocation with improve.md fields:', allocations[0]);
+        console.log('🔍 Sample allocation with  fields:', allocations[0]);
         console.log('🔍 FFI tracked allocations sample:', ffiAllocations.slice(0, 3));
         
-        // Check for improve.md specific fields
+        // Check for  specific fields
         const sampleAlloc = allocations[0];
-        console.log('🔍 Improve.md fields check:');
+        console.log('🔍  fields check:');
         console.log('  - borrow_info:', sampleAlloc.borrow_info);
         console.log('  - clone_info:', sampleAlloc.clone_info);
         console.log('  - ownership_history_available:', sampleAlloc.ownership_history_available);
@@ -1939,7 +1939,7 @@ function initFFIVisualization() {
     console.log('🔍 Borrow info count:', allocations.filter(a => a.borrow_info).length);
     console.log('🔍 Clone info count:', allocations.filter(a => a.clone_info).length);
     
-    // Enhanced rendering with improve.md support - ALWAYS show if we have any allocations
+    // Enhanced rendering with  support - ALWAYS show if we have any allocations
     if (allocations.length === 0) {
         container.innerHTML = createFFIEmptyState();
         return;
@@ -1949,7 +1949,7 @@ function initFFIVisualization() {
     const displayAllocations = ffiAllocations.length > 0 ? ffiAllocations : allocations.slice(0, 20);
     console.log('🎯 Rendering FFI dashboard with:', displayAllocations.length, 'allocations,', unsafeReports.length, 'reports,', memoryPassports.length, 'passports');
 
-    // Generate enhanced FFI analysis with improve.md fields
+    // Generate enhanced FFI analysis with  fields
     try {
         if (FFI_STYLE === 'svg') {
             const boundaryEvents = window.analysisData.unsafe_ffi?.boundary_events || [];
@@ -1989,7 +1989,7 @@ function initFFIVisualization() {
     }
 }
 
-// Generate enhanced FFI analysis with improve.md fields support
+// Generate enhanced FFI analysis with  fields support
 function generateEnhancedFFIAnalysisWithImproveFields(ffiAllocations, unsafeReports, memoryPassports, ffiStatistics) {
     let totalFFI = ffiAllocations.length;
     let totalViolations = 0;
@@ -2005,14 +2005,14 @@ function generateEnhancedFFIAnalysisWithImproveFields(ffiAllocations, unsafeRepo
         const violations = alloc.safety_violations?.length || 0;
         const size = alloc.size || 0;
         
-        // Enhanced borrow analysis from improve.md fields
+        // Enhanced borrow analysis from  fields
         const borrowConflicts = alloc.borrow_info ? 
             (alloc.borrow_info.mutable_borrows > 0 && alloc.borrow_info.immutable_borrows > 0) : false;
         const totalBorrowsForAlloc = alloc.borrow_info ? 
             (alloc.borrow_info.immutable_borrows || 0) + (alloc.borrow_info.mutable_borrows || 0) : 0;
         totalBorrows += totalBorrowsForAlloc;
         
-        // Enhanced clone analysis from improve.md fields
+        // Enhanced clone analysis from  fields
         const cloneCount = alloc.clone_info?.clone_count || 0;
         const isClone = alloc.clone_info?.is_clone || false;
         totalClones += cloneCount;
@@ -2022,7 +2022,7 @@ function generateEnhancedFFIAnalysisWithImproveFields(ffiAllocations, unsafeRepo
         const isLeaked = alloc.is_leaked || false;
         if (isLeaked) leakedAllocations++;
         
-        // Enhanced risk calculation with improve.md fields
+        // Enhanced risk calculation with  fields
         let riskScore = 0;
         if (violations > 0) riskScore += 50;
         if (borrowConflicts) riskScore += 30;
@@ -2059,7 +2059,7 @@ function generateEnhancedFFIAnalysisWithImproveFields(ffiAllocations, unsafeRepo
         };
     });
 
-    // Enhanced statistics from improve.md structure
+    // Enhanced statistics from  structure
     const enhancedStats = {
         boundary_crossings: ffiStatistics.boundary_crossings || 0,
         memory_violations: ffiStatistics.memory_violations || 0,
@@ -2089,11 +2089,11 @@ function generateEnhancedFFIAnalysis(ffiAllocations) {
     return generateEnhancedFFIAnalysisWithImproveFields(ffiAllocations, [], [], {});
 }
 
-// Create enhanced FFI dashboard with improve.md fields support
+// Create enhanced FFI dashboard with  fields support
 function createEnhancedFFIDashboardWithImproveFields(analysis, ffiAllocations, unsafeReports, memoryPassports) {
     return `
         <div class="space-y-6">
-            <!-- Enhanced FFI Overview Cards with improve.md metrics -->
+            <!-- Enhanced FFI Overview Cards with  metrics -->
             <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                 <div class="bg-blue-100 dark:bg-blue-900 rounded-lg p-4 text-center">
                     <div class="text-2xl font-bold text-blue-600 dark:text-blue-300">${analysis.totalFFI}</div>
@@ -2121,7 +2121,7 @@ function createEnhancedFFIDashboardWithImproveFields(analysis, ffiAllocations, u
                 </div>
             </div>
 
-            <!-- FFI Statistics from improve.md -->
+            <!-- FFI Statistics from  -->
             ${analysis.ffiStatistics && Object.keys(analysis.ffiStatistics).length > 0 ? `
                 <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-6">
                     <h3 class="text-lg font-semibold mb-4 text-gray-800 dark:text-white">FFI Statistics</h3>
@@ -2146,7 +2146,7 @@ function createEnhancedFFIDashboardWithImproveFields(analysis, ffiAllocations, u
                 </div>
             ` : ''}
 
-            <!-- Unsafe Reports from improve.md structure -->
+            <!-- Unsafe Reports from  structure -->
             ${analysis.unsafeReports && analysis.unsafeReports.length > 0 ? `
                 <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-6">
                     <h3 class="text-lg font-semibold mb-4 text-gray-800 dark:text-white">Unsafe Reports</h3>
@@ -2156,7 +2156,7 @@ function createEnhancedFFIDashboardWithImproveFields(analysis, ffiAllocations, u
                 </div>
             ` : ''}
 
-            <!-- Memory Passports from improve.md structure -->
+            <!-- Memory Passports from  structure -->
             ${analysis.memoryPassports && analysis.memoryPassports.length > 0 ? `
                 <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-6">
                     <h3 class="text-lg font-semibold mb-4 text-gray-800 dark:text-white">Memory Passports</h3>
@@ -2166,7 +2166,7 @@ function createEnhancedFFIDashboardWithImproveFields(analysis, ffiAllocations, u
                 </div>
             ` : ''}
 
-            <!-- Enhanced FFI Risk Analysis with improve.md fields -->
+            <!-- Enhanced FFI Risk Analysis with  fields -->
             <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-6">
                 <h3 class="text-lg font-semibold mb-4 text-gray-800 dark:text-white">Enhanced FFI Risk Analysis</h3>
                 <div class="space-y-4">
@@ -2174,7 +2174,7 @@ function createEnhancedFFIDashboardWithImproveFields(analysis, ffiAllocations, u
                 </div>
             </div>
 
-            <!-- Enhanced Borrow Checker Analysis with improve.md fields -->
+            <!-- Enhanced Borrow Checker Analysis with  fields -->
             <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-6">
                 <h3 class="text-lg font-semibold mb-4 text-gray-800 dark:text-white">Enhanced Borrow Checker Analysis</h3>
                 <div class="space-y-3">
@@ -2182,7 +2182,7 @@ function createEnhancedFFIDashboardWithImproveFields(analysis, ffiAllocations, u
                 </div>
             </div>
 
-            <!-- Clone Analysis from improve.md fields -->
+            <!-- Clone Analysis from  fields -->
             ${analysis.totalClones > 0 ? `
                 <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-6">
                     <h3 class="text-lg font-semibold mb-4 text-gray-800 dark:text-white">Clone Analysis</h3>
@@ -2210,7 +2210,7 @@ function createEnhancedFFIDashboard(analysis, ffiAllocations) {
     return createEnhancedFFIDashboardWithImproveFields(analysis, ffiAllocations, [], []);
 }
 
-// Create enhanced FFI allocation card with improve.md fields
+// Create enhanced FFI allocation card with  fields
 function createEnhancedFFIAllocationCard(alloc) {
     const riskColor = alloc.riskLevel === 'High' ? 'red' : alloc.riskLevel === 'Medium' ? 'orange' : 'green';
     const hasViolations = alloc.violations > 0;
@@ -2254,7 +2254,7 @@ function createEnhancedFFIAllocationCard(alloc) {
                 </div>
             </div>
 
-            <!-- Enhanced improve.md fields -->
+            <!-- Enhanced  fields -->
             <div class="grid grid-cols-3 gap-4 text-sm mb-3">
                 <div>
                     <span class="text-gray-500 dark:text-gray-400">Total Borrows:</span>
@@ -2289,7 +2289,7 @@ function createFFIAllocationCard(alloc) {
     return createEnhancedFFIAllocationCard(alloc);
 }
 
-// Create enhanced borrow analysis card with improve.md fields
+// Create enhanced borrow analysis card with  fields
 function createEnhancedBorrowAnalysisCard(alloc) {
     const borrowInfo = alloc.borrow_info;
     const hasConflict = borrowInfo.mutable_borrows > 0 && borrowInfo.immutable_borrows > 0;
@@ -2324,7 +2324,7 @@ function createBorrowAnalysisCard(alloc) {
     return createEnhancedBorrowAnalysisCard(alloc);
 }
 
-// Create clone analysis card for improve.md clone_info fields
+// Create clone analysis card for  clone_info fields
 function createCloneAnalysisCard(alloc) {
     const cloneInfo = alloc.clone_info;
     const isClone = cloneInfo.is_clone;
@@ -2353,7 +2353,7 @@ function createCloneAnalysisCard(alloc) {
     `;
 }
 
-// Create ownership history card for improve.md ownership_history_available field
+// Create ownership history card for  ownership_history_available field
 function createOwnershipHistoryCard(alloc) {
     return `
         <div class="bg-white dark:bg-gray-600 rounded-lg p-3 border-l-4 border-green-500">
@@ -2374,7 +2374,7 @@ function createOwnershipHistoryCard(alloc) {
     `;
 }
 
-// Create unsafe report card for improve.md UnsafeReport structure
+// Create unsafe report card for  UnsafeReport structure
 function createUnsafeReportCard(report) {
     const riskLevel = report.risk_assessment?.risk_level || 'Unknown';
     const riskColor = riskLevel === 'High' ? 'red' : riskLevel === 'Medium' ? 'orange' : 'green';
@@ -2428,7 +2428,7 @@ function createUnsafeReportCard(report) {
     `;
 }
 
-// Create memory passport card for improve.md MemoryPassport structure
+// Create memory passport card for  MemoryPassport structure
 function createMemoryPassportCard(passport) {
     const status = passport.status_at_shutdown || 'Unknown';
     const statusColor = status === 'Reclaimed' ? 'green' : status === 'InForeignCustody' ? 'red' : 'orange';

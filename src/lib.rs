@@ -174,17 +174,10 @@ pub use core::tracker::{get_tracker, ExportOptions, MemoryTracker};
     since = "0.7.0",
     note = "Use capture::backends::unsafe_tracking instead"
 )]
-pub use analysis::unsafe_ffi_tracker::{
-    get_global_unsafe_ffi_tracker, UnsafeFFITracker,
-};
+pub use analysis::unsafe_ffi_tracker::{get_global_unsafe_ffi_tracker, UnsafeFFITracker};
 
-#[deprecated(
-    since = "0.7.0",
-    note = "Use analysis::lifecycle instead"
-)]
-pub use analysis::lifecycle_analysis::{
-    get_global_lifecycle_analyzer, LifecycleAnalyzer,
-};
+#[deprecated(since = "0.7.0", note = "Use analysis::lifecycle instead")]
+pub use analysis::lifecycle_analysis::{get_global_lifecycle_analyzer, LifecycleAnalyzer};
 
 #[deprecated(
     since = "0.7.0",

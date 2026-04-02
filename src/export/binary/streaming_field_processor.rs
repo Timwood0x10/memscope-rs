@@ -629,7 +629,7 @@ mod tests {
             stack_trace: Some(None),
             is_leaked: Some(false),
             lifetime_ms: Some(None),
-            // improve.md extensions
+            //  extensions
             borrow_info: None,
             clone_info: None,
             ownership_history_available: Some(false),
@@ -655,7 +655,7 @@ mod tests {
             stack_trace: Some(None),
             is_leaked: Some(false),
             lifetime_ms: Some(None),
-            // improve.md extensions
+            //  extensions
             borrow_info: None,
             clone_info: None,
             ownership_history_available: Some(false),
@@ -696,7 +696,7 @@ mod tests {
             stack_trace: Some(None),
             is_leaked: Some(false),
             lifetime_ms: Some(None),
-            // improve.md extensions
+            //  extensions
             borrow_info: None,
             clone_info: None,
             ownership_history_available: Some(false),
@@ -735,7 +735,7 @@ mod tests {
             stack_trace: Some(None),
             is_leaked: Some(false),
             lifetime_ms: Some(None),
-            // improve.md extensions
+            //  extensions
             borrow_info: None,
             clone_info: None,
             ownership_history_available: Some(false),
@@ -776,7 +776,7 @@ mod tests {
             stack_trace: Some(None),
             is_leaked: Some(false),
             lifetime_ms: Some(None),
-            // improve.md extensions
+            //  extensions
             borrow_info: None,
             clone_info: None,
             ownership_history_available: Some(false),

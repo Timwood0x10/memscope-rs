@@ -128,7 +128,7 @@ impl BinaryReader {
 
         match file_version {
             1 => self.read_allocation_v1(),
-            2 | 3 => self.read_allocation_v2(), // Version 3 uses same format as v2 with improve.md extensions
+            2 | 3 => self.read_allocation_v2(), // Version 3 uses same format as v2 with  extensions
             _ => Err(BinaryExportError::UnsupportedVersion(file_version)),
         }
     }
@@ -272,7 +272,7 @@ impl BinaryReader {
             None
         };
 
-        // Read improve.md extensions: borrow_info
+        // Read  extensions: borrow_info
         let borrow_info = if self.read_u8()? == 1 {
             let immutable_borrows = self.read_u32()? as usize;
             let mutable_borrows = self.read_u32()? as usize;
@@ -292,7 +292,7 @@ impl BinaryReader {
             None
         };
 
-        // Read improve.md extensions: clone_info
+        // Read  extensions: clone_info
         let clone_info = if self.read_u8()? == 1 {
             let clone_count = self.read_u32()? as usize;
             let is_clone = self.read_u8()? != 0;
@@ -310,7 +310,7 @@ impl BinaryReader {
             None
         };
 
-        // Read improve.md extensions: ownership_history_available
+        // Read  extensions: ownership_history_available
         let ownership_history_available = self.read_u8()? != 0;
 
         // Read advanced fields (v2 only)

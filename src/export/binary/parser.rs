@@ -1835,7 +1835,7 @@ impl BinaryParser {
             "false"
         });
 
-        // Add improve.md extensions if available
+        // Add  extensions if available
         if let Some(ref borrow_info) = allocation.borrow_info {
             buffer.push_str(r#","borrow_info":{"immutable_borrows":"#);
             Self::append_number_to_string(buffer, borrow_info.immutable_borrows as u64);

@@ -84,6 +84,66 @@ impl MemorySnapshot {
         }
     }
 
+    /// Build a MemorySnapshot from a list of AllocationInfo
+    pub fn from_allocation_infos(allocations: Vec<crate::core::types::AllocationInfo>) -> Self {
+        let mut snapshot = Self::new();
+        let mut thread_stats: HashMap<u64, ThreadMemoryStats> = HashMap::new();
+        let mut current_memory: usize = 0;
+
+        for alloc in allocations {
+            let thread_id = match alloc.thread_id.parse::<u64>() {
+                Ok(tid) => tid,
+                Err(_) => {
+                    tracing::warn!(
+                        "Failed to parse thread_id '{}' for allocation at address 0x{:x}, using default thread ID 0",
+                        alloc.thread_id, alloc.ptr
+                    );
+                    0
+                }
+            };
+
+            let active_alloc = ActiveAllocation {
+                ptr: alloc.ptr,
+                size: alloc.size,
+                allocated_at: alloc.timestamp_alloc,
+                var_name: alloc.var_name,
+                type_name: alloc.type_name,
+                thread_id,
+            };
+
+            current_memory += alloc.size;
+
+            snapshot.stats.total_allocations += 1;
+            snapshot.stats.total_allocated += alloc.size;
+
+            let thread_stat = thread_stats
+                .entry(thread_id)
+                .or_insert_with(|| ThreadMemoryStats {
+                    thread_id,
+                    allocation_count: 0,
+                    total_allocated: 0,
+                    current_memory: 0,
+                    peak_memory: 0,
+                });
+
+            thread_stat.allocation_count += 1;
+            thread_stat.total_allocated += alloc.size;
+            thread_stat.current_memory += alloc.size;
+            if thread_stat.current_memory > thread_stat.peak_memory {
+                thread_stat.peak_memory = thread_stat.current_memory;
+            }
+
+            snapshot.active_allocations.insert(alloc.ptr, active_alloc);
+        }
+
+        snapshot.stats.current_memory = current_memory;
+        snapshot.stats.peak_memory = current_memory;
+        snapshot.stats.active_allocations = snapshot.active_allocations.len();
+        snapshot.thread_stats = thread_stats;
+
+        snapshot
+    }
+
     /// Get the number of active allocations
     pub fn active_count(&self) -> usize {
         self.active_allocations.len()

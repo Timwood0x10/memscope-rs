@@ -259,7 +259,7 @@ fn process_allocation_batch(
             "size": alloc.size,
             "type": type_info,
             "timestamp": alloc.timestamp_alloc,
-            // improve.md extensions
+            //  extensions
             "lifetime_ms": alloc.lifetime_ms,
             "borrow_info": alloc.borrow_info,
             "clone_info": alloc.clone_info,
@@ -359,13 +359,13 @@ fn write_json_optimized<P: AsRef<Path>>(
     if options.streaming_writer && estimated_size > 500_000 {
         let file = File::create(path)?;
         let mut writer = BufWriter::with_capacity(options.buffer_size, file);
-        
+
         let result = if use_compact {
             serde_json::to_writer(&mut writer, data)
         } else {
             serde_json::to_writer_pretty(&mut writer, data)
         };
-        
+
         result?;
         writer.flush()?;
     } else {
@@ -403,40 +403,27 @@ fn estimate_json_size(data: &serde_json::Value) -> usize {
 impl MemoryTracker {
     /// Export memory tracking data to 4 separate JSON files.
     ///
-    /// This method exports data to 4 specialized files:
-    /// - {name}_memory_analysis.json: Memory allocation patterns and statistics
-    /// - {name}_lifetime.json: Variable lifetime and scope analysis
-    /// - {name}_unsafe_ffi.json: Unsafe operations and FFI tracking
-    /// - {name}_variable_relationships.json: Variable dependency graph and relationships
+    /// # Deprecation Notice
+    /// This method is deprecated. Use `render_engine::export::export_snapshot_to_json` instead.
     ///
-    /// # Export Modes
-    ///
-    /// ## Default Mode (Fast - Recommended)
+    /// # Migration Guide
     /// ```no_run
+    /// // Old way (deprecated):
     /// # use memscope_rs::core::tracker::get_tracker;
-    /// # use memscope_rs::core::tracker::export_json::ExportJsonOptions;
     /// let tracker = get_tracker();
     /// tracker.export_to_json("output").unwrap();
-    /// // OR explicitly
-    /// tracker.export_to_json_with_options("output", ExportJsonOptions::default()).unwrap();
-    /// ```
-    /// - **Performance**: ~2-5 seconds for typical datasets
-    /// - **Data**: Only user-tracked variables get full enrichment
-    /// - **Use case**: Normal development, HTML rendering, production monitoring
     ///
-    /// ## Complete Mode (Slow - Debug Only)
-    /// ```no_run
-    /// # use memscope_rs::core::tracker::get_tracker;
-    /// # use memscope_rs::core::tracker::export_json::ExportJsonOptions;
-    /// let tracker = get_tracker();
-    /// let mut options = ExportJsonOptions::default();
-    /// options.security_analysis = true;
-    /// tracker.export_to_json_with_options("output", options).unwrap();
+    /// // New way (recommended):
+    /// # use memscope_rs::snapshot::SnapshotEngine;
+    /// # use memscope_rs::render_engine::export::{export_snapshot_to_json, ExportJsonOptions};
+    /// let snapshot_engine = SnapshotEngine::new();
+    /// let snapshot = snapshot_engine.build_snapshot();
+    /// export_snapshot_to_json(&snapshot, "output".as_ref(), &ExportJsonOptions::default()).unwrap();
     /// ```
-    /// - **Performance**: ~10-40 seconds (5-10x slower!)
-    /// - **Data**: ALL allocations including system internals get full enrichment
-    /// - **Use case**: Deep debugging, memory leak investigation, system analysis
-    /// - **⚠️ Warning**: Very slow, generates large files, may impact application performance
+    #[deprecated(
+        since = "0.7.0",
+        note = "Use `render_engine::export::export_snapshot_to_json` instead. This method will be removed in a future version."
+    )]
     pub fn export_to_json<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
         // CRITICAL FIX: Set export mode to prevent recursive tracking during export
         thread_local! {
@@ -473,26 +460,29 @@ impl MemoryTracker {
 
     /// Export memory tracking data with custom options.
     ///
-    /// # Examples
+    /// # Deprecation Notice
+    /// This method is deprecated. Use `render_engine::export::export_snapshot_to_json` instead.
     ///
-    /// ## Fast mode (default - recommended for most users)
+    /// # Migration Guide
     /// ```no_run
+    /// // Old way (deprecated):
     /// # use memscope_rs::core::tracker::get_tracker;
     /// # use memscope_rs::core::tracker::export_json::ExportJsonOptions;
     /// let tracker = get_tracker();
     /// tracker.export_to_json_with_options("output", ExportJsonOptions::default()).unwrap();
-    /// ```
     ///
-    /// ## Complete mode (slow - for debugging)
-    /// ```no_run
-    /// # use memscope_rs::core::tracker::get_tracker;
-    /// # use memscope_rs::core::tracker::export_json::ExportJsonOptions;
-    /// let tracker = get_tracker();
-    /// let mut options = ExportJsonOptions::default();
-    /// options.security_analysis = true;
-    /// options.schema_validation = true;
-    /// tracker.export_to_json_with_options("debug_output", options).unwrap();
+    /// // New way (recommended):
+    /// # use memscope_rs::snapshot::SnapshotEngine;
+    /// # use memscope_rs::render_engine::export::{export_snapshot_to_json, ExportJsonOptions};
+    /// let snapshot_engine = SnapshotEngine::new();
+    /// let snapshot = snapshot_engine.build_snapshot();
+    /// let options = ExportJsonOptions::default();
+    /// export_snapshot_to_json(&snapshot, "output".as_ref(), &options).unwrap();
     /// ```
+    #[deprecated(
+        since = "0.7.0",
+        note = "Use `render_engine::export::export_snapshot_to_json` instead. This method will be removed in a future version."
+    )]
     pub fn export_to_json_with_options<P: AsRef<std::path::Path>>(
         &self,
         path: P,
@@ -514,7 +504,7 @@ impl MemoryTracker {
                     "size": alloc.size,
                     "type": get_or_compute_type_info(alloc.type_name.as_deref().unwrap_or("unknown"), alloc.size),
                     "timestamp": alloc.timestamp_alloc,
-                    // improve.md extensions
+                    //  extensions
                     "lifetime_ms": alloc.lifetime_ms,
                     "borrow_info": alloc.borrow_info,
                     "clone_info": alloc.clone_info,
@@ -567,7 +557,7 @@ impl MemoryTracker {
         // Get memory by type for type analysis
         let memory_by_type = self.get_memory_by_type()?;
 
-        // Generate additional files as specified in improve.md
+        // Generate additional files as specified in 
         self.generate_lifetime_json(&output_path, &processed, &options)?;
         self.generate_unsafe_ffi_json(&output_path, &options)?;
         self.generate_variable_relationships_json(&output_path, &processed, &options)?;
@@ -617,7 +607,7 @@ impl MemoryTracker {
         Ok(type_usage.into_values().collect())
     }
 
-    /// Generate lifetime.json with ownership history as specified in improve.md
+    /// Generate lifetime.json with ownership history as specified in 
     fn generate_lifetime_json<P: AsRef<Path>>(
         &self,
         output_path: P,
@@ -720,7 +710,7 @@ impl MemoryTracker {
             "metadata": {
                 "export_version": "2.0",
                 "export_timestamp": chrono::Utc::now().to_rfc3339(),
-                "specification": "improve.md lifetime tracking",
+                "specification": "memscope-rs lifetime tracking",
                 "total_tracked_allocations": ownership_histories.len()
             },
             "ownership_histories": ownership_histories
@@ -738,10 +728,11 @@ impl MemoryTracker {
         options: &ExportJsonOptions,
     ) -> TrackingResult<()> {
         // Get memory passport tracker data
-        let passport_tracker = crate::analysis::memory_passport_tracker::get_global_passport_tracker();
+        let passport_tracker =
+            crate::analysis::memory_passport_tracker::get_global_passport_tracker();
         let passports = passport_tracker.get_all_passports();
         let stats = passport_tracker.get_stats();
-        
+
         // Convert passports to JSON
         let memory_passports: Vec<serde_json::Value> = passports
             .values()
@@ -797,10 +788,12 @@ impl MemoryTracker {
                     _ => {}
                 }
             }
-            
+
             // Check for memory violations (leaks)
-            if matches!(passport.status_at_shutdown, 
-                crate::analysis::memory_passport_tracker::PassportStatus::InForeignCustody) {
+            if matches!(
+                passport.status_at_shutdown,
+                crate::analysis::memory_passport_tracker::PassportStatus::InForeignCustody
+            ) {
                 memory_violations += 1;
             }
         }
@@ -809,8 +802,10 @@ impl MemoryTracker {
         let unsafe_reports: Vec<serde_json::Value> = passports
             .values()
             .filter(|passport| {
-                matches!(passport.status_at_shutdown, 
-                    crate::analysis::memory_passport_tracker::PassportStatus::InForeignCustody)
+                matches!(
+                    passport.status_at_shutdown,
+                    crate::analysis::memory_passport_tracker::PassportStatus::InForeignCustody
+                )
             })
             .map(|passport| {
                 json!({
@@ -868,7 +863,8 @@ impl MemoryTracker {
             if addr_str.starts_with("0x") || addr_str.starts_with("0X") {
                 usize::from_str_radix(&addr_str[2..], 16).ok()
             } else {
-                usize::from_str_radix(addr_str, 16).ok()
+                usize::from_str_radix(addr_str, 16)
+                    .ok()
                     .or_else(|| addr_str.parse::<usize>().ok())
             }
         }
@@ -903,10 +899,14 @@ impl MemoryTracker {
 
         // Analyze type-based relationships
         // Group allocations by type
-        let mut type_map: std::collections::HashMap<String, Vec<serde_json::Value>> = std::collections::HashMap::new();
+        let mut type_map: std::collections::HashMap<String, Vec<serde_json::Value>> =
+            std::collections::HashMap::new();
         for allocation in allocations {
             if let Some(type_name) = allocation.get("type_name").and_then(|t| t.as_str()) {
-                type_map.entry(type_name.to_string()).or_default().push(allocation.clone());
+                type_map
+                    .entry(type_name.to_string())
+                    .or_default()
+                    .push(allocation.clone());
             }
         }
 
@@ -916,20 +916,22 @@ impl MemoryTracker {
                 // Limit the number of relationships per type
                 let max_pairs = std::cmp::min(type_allocations.len() * 2, 100);
                 let mut pair_count = 0;
-                
+
                 for i in 0..type_allocations.len() {
                     if pair_count >= max_pairs {
                         break;
                     }
-                    for j in i+1..type_allocations.len() {
+                    for j in i + 1..type_allocations.len() {
                         if pair_count >= max_pairs {
                             break;
                         }
                         if let (Some(addr1), Some(addr2)) = (
                             type_allocations[i].get("address").and_then(|a| a.as_str()),
-                            type_allocations[j].get("address").and_then(|a| a.as_str())
+                            type_allocations[j].get("address").and_then(|a| a.as_str()),
                         ) {
-                            if let (Some(ptr1), Some(ptr2)) = (parse_address(addr1), parse_address(addr2)) {
+                            if let (Some(ptr1), Some(ptr2)) =
+                                (parse_address(addr1), parse_address(addr2))
+                            {
                                 relationships.push(json!({
                                     "relationship_type": "type_similarity",
                                     "source_ptr": ptr1,
@@ -949,11 +951,15 @@ impl MemoryTracker {
 
         // Analyze size-based relationships
         // Group allocations by size range
-        let mut size_map: std::collections::HashMap<usize, Vec<serde_json::Value>> = std::collections::HashMap::new();
+        let mut size_map: std::collections::HashMap<usize, Vec<serde_json::Value>> =
+            std::collections::HashMap::new();
         for allocation in allocations {
             if let Some(size) = allocation.get("size").and_then(|s| s.as_u64()) {
                 let size_range = (size as usize / 1024) * 1024; // Group by 1KB ranges
-                size_map.entry(size_range).or_default().push(allocation.clone());
+                size_map
+                    .entry(size_range)
+                    .or_default()
+                    .push(allocation.clone());
             }
         }
 
@@ -963,20 +969,22 @@ impl MemoryTracker {
                 // Limit the number of relationships per size range
                 let max_pairs = std::cmp::min(size_allocations.len() * 2, 100);
                 let mut pair_count = 0;
-                
+
                 for i in 0..size_allocations.len() {
                     if pair_count >= max_pairs {
                         break;
                     }
-                    for j in i+1..size_allocations.len() {
+                    for j in i + 1..size_allocations.len() {
                         if pair_count >= max_pairs {
                             break;
                         }
                         if let (Some(addr1), Some(addr2)) = (
                             size_allocations[i].get("address").and_then(|a| a.as_str()),
-                            size_allocations[j].get("address").and_then(|a| a.as_str())
+                            size_allocations[j].get("address").and_then(|a| a.as_str()),
                         ) {
-                            if let (Some(ptr1), Some(ptr2)) = (parse_address(addr1), parse_address(addr2)) {
+                            if let (Some(ptr1), Some(ptr2)) =
+                                (parse_address(addr1), parse_address(addr2))
+                            {
                                 relationships.push(json!({
                                     "relationship_type": "size_similarity",
                                     "source_ptr": ptr1,
@@ -1082,7 +1090,7 @@ pub fn build_unified_dashboard_structure(
         0.0
     };
 
-    // Prepare allocation details for frontend with extended fields from improve.md
+    // Prepare allocation details for frontend with extended fields from 
     let allocation_details: Vec<_> = active_allocations
         .iter()
         .map(|alloc| {
@@ -1097,7 +1105,7 @@ pub fn build_unified_dashboard_structure(
                 "is_active": alloc.is_active()
             });
 
-            // Add extended fields from improve.md requirements for user variables
+            // Add extended fields from  requirements for user variables
             if let Some(var_name) = &alloc.var_name {
                 // Add borrow_info for lifetime analysis
                 allocation_data["borrow_info"] = serde_json::json!({

@@ -619,33 +619,34 @@ impl MemoryPassportTracker {
             line_number: Some(1),
             is_unsafe: false,
         }];
-        
+
         // Filter call stack based on configuration
         if self.config.track_rust_internal_stack {
             // Return all frames
             Ok(all_frames)
         } else {
             // Filter to only include user code frames
-            let user_frames = all_frames.into_iter().filter(|frame| {
-                self.is_user_code_frame(frame)
-            }).collect();
+            let user_frames = all_frames
+                .into_iter()
+                .filter(|frame| self.is_user_code_frame(frame))
+                .collect();
             Ok(user_frames)
         }
     }
-    
+
     /// Check if a stack frame is from user code (not Rust internal)
     fn is_user_code_frame(&self, frame: &StackFrame) -> bool {
         // If user_code_prefixes is empty, consider all frames as user code
         if self.config.user_code_prefixes.is_empty() {
             return true;
         }
-        
+
         // Check if the file name matches any user code prefix
         if let Some(ref file_name) = frame.file_name {
             self.config.user_code_prefixes.iter().any(|prefix| {
-                file_name.starts_with(prefix) || 
-                file_name.contains(&format!("/{}", prefix)) ||
-                file_name.contains(&format!("\\{}", prefix))
+                file_name.starts_with(prefix)
+                    || file_name.contains(&format!("/{}", prefix))
+                    || file_name.contains(&format!("\\{}", prefix))
             })
         } else {
             // If file name is not available, consider it as user code

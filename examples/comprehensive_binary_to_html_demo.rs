@@ -1,7 +1,7 @@
 //! Comprehensive Binary to HTML Demo
 //!
 //! This example demonstrates the full binary to HTML conversion functionality,
-//! showcasing all trackable types and improve.md extensions including:
+//! showcasing all trackable types and  extensions including:
 //! - Basic types (primitives, collections)
 //! - Smart pointers (Arc, Rc, Box, RefCell)
 //! - Complex generic types
@@ -482,7 +482,7 @@ fn create_comprehensive_allocations() -> Vec<AllocationInfo> {
     allocations
 }
 
-/// Create a standard allocation with all improve.md extensions
+/// Create a standard allocation with all  extensions
 #[allow(clippy::too_many_arguments)]
 fn create_allocation(
     ptr: usize,

@@ -413,7 +413,7 @@ impl MemoryTracker {
         allocation.var_name = Some(var_name.clone());
         allocation.type_name = Some(type_name.clone());
 
-        // Apply improve.md field enhancements based on type
+        // Apply  field enhancements based on type
         allocation.enhance_with_type_info(&type_name);
 
         // Store the allocation and update stats
@@ -472,7 +472,7 @@ impl MemoryTracker {
                 allocation.var_name = Some(var_name.clone());
                 allocation.type_name = Some(type_name.clone());
 
-                // Apply improve.md field enhancements based on type
+                // Apply  field enhancements based on type
                 allocation.enhance_with_type_info(&type_name);
 
                 // CRITICAL FIX: Update bounded_stats after associating var_name
@@ -500,7 +500,7 @@ impl MemoryTracker {
                 let estimated_size = self.estimate_type_size(&type_name);
                 synthetic_allocation.size = estimated_size;
 
-                // Apply improve.md field enhancements based on type
+                // Apply  field enhancements based on type
                 synthetic_allocation.enhance_with_type_info(&type_name);
 
                 // Add to active allocations for tracking
@@ -547,7 +547,7 @@ impl MemoryTracker {
                         allocation.var_name = Some(var_name.clone());
                         allocation.type_name = Some(type_name.clone());
 
-                        // Apply improve.md field enhancements based on type
+                        // Apply  field enhancements based on type
                         allocation.enhance_with_type_info(&type_name);
 
                         tracing::debug!(
@@ -566,7 +566,7 @@ impl MemoryTracker {
                         let estimated_size = self.estimate_type_size(&type_name);
                         synthetic_allocation.size = estimated_size;
 
-                        // Apply improve.md field enhancements based on type
+                        // Apply  field enhancements based on type
                         synthetic_allocation.enhance_with_type_info(&type_name);
 
                         // Add to active allocations for tracking
@@ -599,7 +599,7 @@ impl MemoryTracker {
         ))
     }
 
-    /// Enhance allocation with improve.md required fields
+    /// Enhance allocation with  required fields
     fn _enhance_allocation_with_improve_md_fields(
         mut allocation: AllocationInfo,
     ) -> AllocationInfo {

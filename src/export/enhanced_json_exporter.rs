@@ -1,6 +1,6 @@
-//! Enhanced JSON Exporter - Generates JSON files according to improve.md specifications
+//! Enhanced JSON Exporter - Generates JSON files according to  specifications
 //!
-//! This module creates the exact JSON format specified in improve.md:
+//! This module creates the exact JSON format specified in :
 //! 1. memory_analysis.json - Main memory analysis with extended fields
 //! 2. lifetime.json - Ownership history and lifecycle events  
 //! 3. unsafe_ffi.json - FFI safety analysis and memory passports
@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 
-/// Ownership event as specified in improve.md
+/// Ownership event as specified in 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OwnershipEvent {
     /// Event timestamp in nanoseconds
@@ -29,7 +29,7 @@ pub struct OwnershipEvent {
     pub details: HashMap<String, serde_json::Value>,
 }
 
-/// Lifetime data for a specific allocation as specified in improve.md
+/// Lifetime data for a specific allocation as specified in 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LifetimeData {
     /// Allocation pointer that links to memory_analysis.json
@@ -38,7 +38,7 @@ pub struct LifetimeData {
     pub ownership_history: Vec<OwnershipEvent>,
 }
 
-/// Enhanced allocation info with improve.md extensions
+/// Enhanced allocation info with  extensions
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EnhancedAllocationInfo {
     /// Memory address of the allocation
@@ -63,15 +63,15 @@ pub struct EnhancedAllocationInfo {
     pub is_leaked: bool,
     /// Precise lifetime in milliseconds (calculated from creation to destruction)
     pub lifetime_ms: Option<u64>,
-    /// Enhanced borrowing information as specified in improve.md
+    /// Enhanced borrowing information as specified in 
     pub borrow_info: Option<BorrowInfo>,
-    /// Enhanced cloning information as specified in improve.md
+    /// Enhanced cloning information as specified in 
     pub clone_info: Option<CloneInfo>,
     /// Flag indicating if detailed ownership history is available in lifetime.json
     pub ownership_history_available: bool,
 }
 
-/// Enhanced JSON exporter that creates improve.md compliant output
+/// Enhanced JSON exporter that creates  compliant output
 pub struct EnhancedJsonExporter {
     /// Configuration for export behavior
     config: ExportConfig,
@@ -110,7 +110,7 @@ impl EnhancedJsonExporter {
         Self { config }
     }
 
-    /// Export memory analysis data to improve.md compliant JSON files
+    /// Export memory analysis data to  compliant JSON files
     pub fn export_enhanced_analysis<P: AsRef<Path>>(
         &self,
         output_dir: P,
@@ -146,7 +146,7 @@ impl EnhancedJsonExporter {
         Ok(())
     }
 
-    /// Export main memory analysis with improve.md extended fields
+    /// Export main memory analysis with  extended fields
     fn export_memory_analysis<P: AsRef<Path>>(
         &self,
         output_dir: P,
@@ -156,7 +156,7 @@ impl EnhancedJsonExporter {
 
         tracing::info!("📊 Exporting memory analysis to: {}", output_path.display());
 
-        // Convert AllocationInfo to EnhancedAllocationInfo with improve.md fields
+        // Convert AllocationInfo to EnhancedAllocationInfo with  fields
         let enhanced_allocations: Vec<EnhancedAllocationInfo> = memory_stats
             .allocations
             .iter()
@@ -171,7 +171,7 @@ impl EnhancedJsonExporter {
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap_or_default()
                     .as_secs(),
-                "specification": "improve.md compliant",
+                "specification": " compliant",
                 "total_allocations": enhanced_allocations.len(),
                 "extended_fields_included": true
             },
@@ -198,7 +198,7 @@ impl EnhancedJsonExporter {
         Ok(())
     }
 
-    /// Export lifetime and ownership history data as specified in improve.md
+    /// Export lifetime and ownership history data as specified in 
     fn export_lifetime_data<P: AsRef<Path>>(
         &self,
         output_dir: P,
@@ -223,7 +223,7 @@ impl EnhancedJsonExporter {
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap_or_default()
                     .as_secs(),
-                "specification": "improve.md lifetime tracking",
+                "specification": " lifetime tracking",
                 "total_tracked_allocations": lifetime_data.len()
             },
             "ownership_histories": lifetime_data
@@ -238,7 +238,7 @@ impl EnhancedJsonExporter {
         Ok(())
     }
 
-    /// Export unsafe FFI analysis as specified in improve.md
+    /// Export unsafe FFI analysis as specified in 
     fn export_unsafe_ffi_analysis<P: AsRef<Path>>(
         &self,
         output_dir: P,
@@ -277,7 +277,7 @@ impl EnhancedJsonExporter {
         Ok(())
     }
 
-    /// Convert AllocationInfo to EnhancedAllocationInfo with improve.md fields
+    /// Convert AllocationInfo to EnhancedAllocationInfo with  fields
     fn convert_to_enhanced_allocation(&self, alloc: &AllocationInfo) -> EnhancedAllocationInfo {
         EnhancedAllocationInfo {
             ptr: alloc.ptr,
@@ -295,14 +295,14 @@ impl EnhancedJsonExporter {
             },
             is_leaked: alloc.is_leaked,
             lifetime_ms: alloc.lifetime_ms,
-            // These are the key improve.md extensions:
+            // These are the key  extensions:
             borrow_info: alloc.borrow_info.clone(),
             clone_info: alloc.clone_info.clone(),
             ownership_history_available: alloc.ownership_history_available,
         }
     }
 
-    /// Generate lifetime data for an allocation as specified in improve.md
+    /// Generate lifetime data for an allocation as specified in 
     fn generate_lifetime_data(&self, alloc: &AllocationInfo) -> LifetimeData {
         let mut ownership_history = Vec::new();
 
@@ -954,7 +954,7 @@ mod tests {
         assert_eq!(metadata["export_version"].as_str().unwrap(), "2.0");
         assert_eq!(
             metadata["specification"].as_str().unwrap(),
-            "improve.md compliant"
+            " compliant"
         );
         assert_eq!(metadata["total_allocations"].as_u64().unwrap(), 2);
 
@@ -991,7 +991,7 @@ mod tests {
         assert_eq!(metadata["export_version"].as_str().unwrap(), "2.0");
         assert_eq!(
             metadata["specification"].as_str().unwrap(),
-            "improve.md lifetime tracking"
+            "memscope-rs lifetime tracking"
         );
         assert_eq!(metadata["total_tracked_allocations"].as_u64().unwrap(), 2);
 

@@ -570,7 +570,7 @@ impl<W: Write> StreamingJsonWriter<W> {
             self.stats.fields_skipped += 1;
         }
 
-        // Write improve.md extensions: borrow_info
+        // Write  extensions: borrow_info
         if requested_fields.contains(&AllocationField::BorrowInfo) {
             if let Some(ref borrow_info) = allocation.borrow_info {
                 self.write_field_separator(field_count > 0)?;
@@ -591,7 +591,7 @@ impl<W: Write> StreamingJsonWriter<W> {
             self.stats.fields_skipped += 1;
         }
 
-        // Write improve.md extensions: clone_info
+        // Write  extensions: clone_info
         if requested_fields.contains(&AllocationField::CloneInfo) {
             if let Some(ref clone_info) = allocation.clone_info {
                 self.write_field_separator(field_count > 0)?;
@@ -611,7 +611,7 @@ impl<W: Write> StreamingJsonWriter<W> {
             self.stats.fields_skipped += 1;
         }
 
-        // Write improve.md extensions: ownership_history_available
+        // Write  extensions: ownership_history_available
         if requested_fields.contains(&AllocationField::OwnershipHistoryAvailable) {
             if let Some(ownership_history_available) = allocation.ownership_history_available {
                 self.write_field_separator(field_count > 0)?;
@@ -668,7 +668,7 @@ impl<W: Write> StreamingJsonWriter<W> {
             stack_trace: Some(allocation.stack_trace.clone()),
             is_leaked: Some(allocation.is_leaked),
             lifetime_ms: Some(allocation.lifetime_ms),
-            // improve.md extensions
+            //  extensions
             borrow_info: allocation.borrow_info.clone(),
             clone_info: allocation.clone_info.clone(),
             ownership_history_available: Some(allocation.ownership_history_available),
@@ -1401,7 +1401,7 @@ mod tests {
             stack_trace: Some(None),
             is_leaked: Some(false),
             lifetime_ms: Some(None),
-            // improve.md extensions
+            //  extensions
             borrow_info: None,
             clone_info: None,
             ownership_history_available: Some(false),
@@ -1449,7 +1449,7 @@ mod tests {
             stack_trace: Some(None),
             is_leaked: Some(false),
             lifetime_ms: Some(None),
-            // improve.md extensions
+            //  extensions
             borrow_info: None,
             clone_info: None,
             ownership_history_available: Some(false),

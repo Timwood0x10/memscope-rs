@@ -207,7 +207,7 @@ impl FileHeader {
     }
 }
 
-/// Allocation record structure for binary serialization with improve.md extensions
+/// Allocation record structure for binary serialization with  extensions
 #[derive(Debug, Clone, PartialEq)]
 pub struct AllocationRecord {
     pub ptr: u64,
@@ -216,7 +216,7 @@ pub struct AllocationRecord {
     pub var_name: Option<String>,
     pub type_name: Option<String>,
     pub thread_id: String,
-    // improve.md extensions
+    //  extensions
     pub lifetime_ms: Option<u64>,
     pub borrow_info: Option<crate::core::types::BorrowInfo>,
     pub clone_info: Option<crate::core::types::CloneInfo>,
@@ -224,7 +224,7 @@ pub struct AllocationRecord {
 }
 
 impl AllocationRecord {
-    /// Calculate serialized size in bytes with improve.md extensions
+    /// Calculate serialized size in bytes with  extensions
     #[allow(dead_code)]
     pub fn serialized_size(&self) -> usize {
         let mut size = 1 + 4; // Type + Length
@@ -243,7 +243,7 @@ impl AllocationRecord {
         size += 4; // thread_id_len
         size += self.thread_id.len();
 
-        // improve.md extensions
+        //  extensions
         size += 8; // lifetime_ms (Option<u64> as u64, 0 for None)
         size += 1; // borrow_info presence flag
         if self.borrow_info.is_some() {
@@ -427,7 +427,7 @@ mod tests {
             var_name: Some("test_var".to_string()),
             type_name: Some("i32".to_string()),
             thread_id: "main".to_string(),
-            // improve.md extensions
+            //  extensions
             lifetime_ms: None,
             borrow_info: None,
             clone_info: None,
@@ -439,7 +439,7 @@ mod tests {
                            4 + 8 + // var_name_len + var_name ("test_var" = 8 chars)
                            4 + 3 + // type_name_len + type_name ("i32" = 3 chars)
                            4 + 4 + // thread_id_len + thread_id ("main" = 4 chars)
-                           11; // Additional fields for improve.md extensions (8 + 1 + 1 + 1)
+                           11; // Additional fields for  extensions (8 + 1 + 1 + 1)
 
         assert_eq!(record.serialized_size(), expected_size);
     }

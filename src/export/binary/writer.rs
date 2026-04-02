@@ -191,7 +191,7 @@ impl BinaryWriter {
             }
         }
 
-        // Write improve.md extensions: borrow_info
+        // Write  extensions: borrow_info
         match &alloc.borrow_info {
             Some(borrow_info) => {
                 self.writer.write_all(&1u8.to_le_bytes())?; // has value
@@ -216,7 +216,7 @@ impl BinaryWriter {
             }
         }
 
-        // Write improve.md extensions: clone_info
+        // Write  extensions: clone_info
         match &alloc.clone_info {
             Some(clone_info) => {
                 self.writer.write_all(&1u8.to_le_bytes())?; // has value
@@ -239,7 +239,7 @@ impl BinaryWriter {
             }
         }
 
-        // Write improve.md extensions: ownership_history_available
+        // Write  extensions: ownership_history_available
         self.writer
             .write_all(&(alloc.ownership_history_available as u8).to_le_bytes())?;
 
@@ -586,7 +586,7 @@ impl BinaryWriter {
             size += 8;
         }
 
-        // improve.md extensions: borrow_info
+        //  extensions: borrow_info
         size += 1; // presence flag
         if let Some(ref borrow_info) = alloc.borrow_info {
             size += 4 + 4 + 4; // immutable_borrows + mutable_borrows + max_concurrent_borrows
@@ -596,7 +596,7 @@ impl BinaryWriter {
             }
         }
 
-        // improve.md extensions: clone_info
+        //  extensions: clone_info
         size += 1; // presence flag
         if let Some(ref clone_info) = alloc.clone_info {
             size += 4 + 1; // clone_count + is_clone
@@ -606,7 +606,7 @@ impl BinaryWriter {
             }
         }
 
-        // improve.md extensions: ownership_history_available
+        //  extensions: ownership_history_available
         size += 1; // boolean flag
 
         // Binary fields

@@ -68,8 +68,8 @@ fn main() {
         println!("  Peak memory: {} bytes", stats.peak_memory);
     }
 
-    // Export using new enhanced API with improve.md extensions
-    println!("\n🚀 Exporting memory snapshot using enhanced API with improve.md extensions...");
+    // Export using new enhanced API with  extensions
+    println!("\n🚀 Exporting memory snapshot using enhanced API with  extensions...");
 
     // Get allocations and stats for export
     match (tracker.get_active_allocations(), tracker.get_stats()) {
@@ -88,8 +88,8 @@ fn main() {
                 Err(e) => eprintln!("❌ Legacy JSON export failed: {e}"),
             }
 
-            // Now export using enhanced API with improve.md extensions
-            println!("\n🆕 Exporting with improve.md extensions (borrow_info, clone_info, ownership_history)...");
+            // Now export using enhanced API with  extensions
+            println!("\n🆕 Exporting with  extensions (borrow_info, clone_info, ownership_history)...");
             let enhanced_config = ExportConfig {
                 pretty_print: true,
                 include_stack_traces: true,
@@ -150,14 +150,14 @@ fn main() {
     println!("\nExample finished. Check both legacy and enhanced exports:");
     println!("📁 Legacy: MemoryAnalysis/basic_usage_snapshot_analysis/");
     println!("📁 Enhanced: MemoryAnalysis/basic_usage_enhanced/");
-    println!("🔍 Compare the files to see improve.md extensions in action!");
+    println!("🔍 Compare the files to see  extensions in action!");
 }
 
 /// Show the enhanced features in the exported files
 fn show_enhanced_features(output_dir: &str) {
     println!("\n🔍 Analyzing enhanced export features...");
 
-    // Check memory_analysis.json for improve.md extensions
+    // Check memory_analysis.json for  extensions
     let memory_analysis_path = format!("{output_dir}/memory_analysis.json");
     if let Ok(content) = std::fs::read_to_string(&memory_analysis_path) {
         if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&content) {
@@ -167,7 +167,7 @@ fn show_enhanced_features(output_dir: &str) {
                     allocations.len()
                 );
 
-                // Check for improve.md extensions
+                // Check for  extensions
                 let mut has_borrow_info = 0;
                 let mut has_clone_info = 0;
                 let mut has_ownership_history = 0;

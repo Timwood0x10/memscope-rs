@@ -181,7 +181,7 @@ impl Exporter {
         // Create a new tracker instance and populate it with our filtered allocations
         let tracker = MemoryTracker::new();
 
-        // Populate the tracker with our filtered allocations (including improve.md fields)
+        // Populate the tracker with our filtered allocations (including  fields)
         if let Ok(mut active) = tracker.active_allocations.try_lock() {
             for allocation in &filtered_allocations {
                 active.insert(allocation.ptr, allocation.clone());

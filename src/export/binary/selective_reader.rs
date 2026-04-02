@@ -176,7 +176,7 @@ pub enum AllocationField {
     IsLeaked,
     LifetimeMs,
 
-    // improve.md extensions
+    //  extensions
     BorrowInfo,
     CloneInfo,
     OwnershipHistoryAvailable,
@@ -232,7 +232,7 @@ impl AllocationField {
             Self::BorrowCount,
             Self::IsLeaked,
             Self::LifetimeMs,
-            // improve.md extensions
+            //  extensions
             Self::BorrowInfo,
             Self::CloneInfo,
             Self::OwnershipHistoryAvailable,
@@ -268,7 +268,7 @@ impl AllocationField {
             Self::TimestampAlloc,
             Self::IsLeaked,
             Self::BorrowCount,
-            // improve.md extensions for memory analysis
+            //  extensions for memory analysis
             Self::LifetimeMs,
             Self::BorrowInfo,
             Self::CloneInfo,
@@ -1207,7 +1207,7 @@ impl SelectiveBinaryReader {
         if !options.includes_field(&AllocationField::LifetimeMs) {
             filtered.lifetime_ms = None;
         }
-        // improve.md extensions
+        //  extensions
         if !options.includes_field(&AllocationField::BorrowInfo) {
             filtered.borrow_info = None;
         }

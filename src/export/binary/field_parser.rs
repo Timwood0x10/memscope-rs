@@ -489,7 +489,7 @@ pub struct PartialAllocationInfo {
     pub stack_trace: Option<Option<Vec<String>>>,
     pub is_leaked: Option<bool>,
     pub lifetime_ms: Option<Option<u64>>,
-    // improve.md extensions
+    //  extensions
     pub borrow_info: Option<crate::core::types::BorrowInfo>,
     pub clone_info: Option<crate::core::types::CloneInfo>,
     pub ownership_history_available: Option<bool>,

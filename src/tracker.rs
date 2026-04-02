@@ -299,7 +299,7 @@ impl Tracker {
         AnalysisReport {
             total_allocations: stats.total_allocations,
             total_deallocations: stats.total_deallocations,
-            active_allocations: stats.active_allocations,
+            active_allocations: allocations.len(),
             peak_memory_bytes: peak_memory as u64,
             current_memory_bytes: current_memory as u64,
             allocation_rate_per_sec: if elapsed > 0.0 {

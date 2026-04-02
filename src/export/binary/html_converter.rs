@@ -315,7 +315,7 @@ fn prepare_allocation_data(allocations: &[AllocationInfo]) -> Result<String, Bin
             "borrow_count": allocation.borrow_count,
         });
 
-        // Add improve.md extensions if available
+        // Add  extensions if available
         if let Some(ref borrow_info) = allocation.borrow_info {
             item["borrow_info"] = json!({
                 "immutable_borrows": borrow_info.immutable_borrows,

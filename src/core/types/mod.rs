@@ -563,7 +563,7 @@ impl<'de> serde::Deserialize<'de> for AllocationInfo {
 }
 
 impl AllocationInfo {
-    /// Create a new AllocationInfo instance with improve.md field enhancements
+    /// Create a new AllocationInfo instance with  field enhancements
     pub fn new(ptr: usize, size: usize) -> Self {
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -582,22 +582,22 @@ impl AllocationInfo {
             borrow_count: 0,
             stack_trace: None,
             is_leaked: false,
-            // improve.md field: Calculate initial lifetime_ms
+            //  field: Calculate initial lifetime_ms
             lifetime_ms: Some(1), // Default: 1ms (just allocated)
-            // improve.md field: Add default borrow_info
+            //  field: Add default borrow_info
             borrow_info: Some(BorrowInfo {
                 immutable_borrows: 2, // Simulate typical borrowing patterns
                 mutable_borrows: 1,
                 max_concurrent_borrows: 2,
                 last_borrow_timestamp: Some(timestamp + 500000),
             }),
-            // improve.md field: Add default clone_info with meaningful defaults
+            //  field: Add default clone_info with meaningful defaults
             clone_info: Some(CloneInfo {
                 clone_count: 0,     // Default: no clones yet
                 is_clone: false,    // Default: this is an original allocation
                 original_ptr: None, // Default: no original pointer
             }),
-            // improve.md field: Enable ownership history by default
+            //  field: Enable ownership history by default
             ownership_history_available: true,
             smart_pointer_info: None,
             memory_layout: None,
@@ -632,7 +632,7 @@ impl AllocationInfo {
         self.timestamp_dealloc.is_none()
     }
 
-    /// Update allocation with type-specific improve.md enhancements
+    /// Update allocation with type-specific  enhancements
     pub fn enhance_with_type_info(&mut self, type_name: &str) {
         // Update lifetime_ms with current elapsed time
         if self.timestamp_dealloc.is_none() {
