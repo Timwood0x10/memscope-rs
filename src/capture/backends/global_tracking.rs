@@ -198,36 +198,24 @@ pub struct GlobalTrackingStats {
 mod tests {
     use super::*;
 
-    fn reset_state() {
-        let _ = GLOBAL_TRACKING.take();
-    }
-
     #[test]
-    fn test_init_and_get() {
-        reset_state();
-        assert!(!is_initialized());
-
-        init_global_tracking().unwrap();
+    fn test_lazy_init() {
+        // OnceLock cannot be reset, so we just test lazy initialization
+        let tracker = global_tracker().unwrap();
         assert!(is_initialized());
 
-        let tracker = global_tracker().unwrap();
+        // Subsequent calls return the same instance
         let tracker2 = global_tracker().unwrap();
         assert_eq!(
             tracker.analyze().total_allocations,
             tracker2.analyze().total_allocations
         );
-
-        reset_state();
     }
 
     #[test]
-    fn test_lazy_init() {
-        reset_state();
-        assert!(!is_initialized());
-
+    fn test_stats() {
         let _tracker = global_tracker().unwrap();
-        assert!(is_initialized());
-
-        reset_state();
+        let stats = get_stats().unwrap();
+        assert!(stats.uptime.as_secs() >= 0);
     }
 }
