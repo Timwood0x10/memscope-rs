@@ -3,6 +3,7 @@
 //! This module provides the MemScope facade which unifies all engines
 //! into a simple, easy-to-use interface.
 
+use crate::analysis::detectors::Detector;
 use crate::analysis_engine::{AnalysisEngine, Analyzer};
 use crate::capture::{CaptureBackendType, CaptureEngine};
 use crate::event_store::EventStore;
@@ -12,6 +13,7 @@ use crate::render_engine::RenderEngine;
 use crate::snapshot::SnapshotEngine;
 use crate::timeline::TimelineEngine;
 use std::sync::{Arc, Mutex};
+use std::thread;
 
 /// MemScope - Unified facade for all engines
 ///
@@ -44,6 +46,44 @@ pub struct MemScope {
 }
 
 impl MemScope {
+    /// Convert ActiveAllocation to AllocationInfo (helper function)
+    fn to_allocation_info(
+        active: &crate::snapshot::ActiveAllocation,
+    ) -> crate::capture::types::AllocationInfo {
+        crate::capture::types::AllocationInfo {
+            ptr: active.ptr,
+            size: active.size,
+            var_name: active.var_name.clone(),
+            type_name: active.type_name.clone(),
+            scope_name: None,
+            timestamp_alloc: active.allocated_at,
+            timestamp_dealloc: None,
+            thread_id: thread::current().id(),
+            borrow_count: 0,
+            stack_trace: None,
+            is_leaked: false,
+            lifetime_ms: None,
+            borrow_info: None,
+            clone_info: None,
+            ownership_history_available: false,
+            smart_pointer_info: None,
+            memory_layout: None,
+            generic_info: None,
+            dynamic_type_info: None,
+            runtime_state: None,
+            stack_allocation: None,
+            temporary_object: None,
+            fragmentation_analysis: None,
+            generic_instantiation: None,
+            type_relationships: None,
+            type_usage: None,
+            function_call_tracking: None,
+            lifecycle_tracking: None,
+            access_tracking: None,
+            drop_chain_analysis: None,
+        }
+    }
+
     /// Create a new MemScope instance
     ///
     /// This creates all engines with default settings and connects them
@@ -172,6 +212,159 @@ impl MemScope {
     /// Get the total number of events
     pub fn event_count(&self) -> usize {
         self.event_store.len()
+    }
+
+    // ===== Detector Methods =====
+
+    /// Register a detector with the analysis engine
+    ///
+    /// This method automatically wraps the detector in an adapter
+    /// and registers it as an analyzer.
+    ///
+    /// # Arguments
+    /// * `detector` - The detector to register
+    pub fn register_detector<D>(&self, detector: D)
+    where
+        D: crate::analysis::detectors::Detector + Send + Sync + 'static,
+    {
+        use crate::analysis_engine::DetectorToAnalyzer;
+        let adapter = Box::new(DetectorToAnalyzer::new(detector));
+        self.register_analyzer(adapter);
+    }
+
+    /// Run all registered detectors and return the results
+    ///
+    /// # Returns
+    /// A vector of analysis results from all detectors
+    pub fn run_detectors(&self) -> Vec<crate::analysis_engine::analyzer::AnalysisResult> {
+        if let Ok(analysis) = self.analysis.lock() {
+            analysis.analyze()
+        } else {
+            tracing::error!("Failed to acquire analysis engine lock");
+            vec![]
+        }
+    }
+
+    /// Run the leak detector on the current snapshot
+    ///
+    /// # Returns
+    /// Detection results from the leak detector
+    pub fn run_leak_detector(&self) -> crate::analysis::detectors::DetectionResult {
+        use crate::analysis::detectors::{LeakDetector, LeakDetectorConfig};
+        let detector = LeakDetector::new(LeakDetectorConfig::default());
+        let snapshot = self.snapshot.build_snapshot();
+        let allocations: Vec<crate::capture::types::AllocationInfo> = snapshot
+            .active_allocations
+            .values()
+            .map(Self::to_allocation_info)
+            .collect();
+        detector.detect(&allocations)
+    }
+
+    /// Run the UAF (Use-After-Free) detector on the current snapshot
+    ///
+    /// # Returns
+    /// Detection results from the UAF detector
+    pub fn run_uaf_detector(&self) -> crate::analysis::detectors::DetectionResult {
+        use crate::analysis::detectors::{UafDetector, UafDetectorConfig};
+        let detector = UafDetector::new(UafDetectorConfig::default());
+        let snapshot = self.snapshot.build_snapshot();
+        let allocations: Vec<crate::capture::types::AllocationInfo> = snapshot
+            .active_allocations
+            .values()
+            .map(Self::to_allocation_info)
+            .collect();
+        detector.detect(&allocations)
+    }
+
+    /// Run the overflow detector on the current snapshot
+    ///
+    /// # Returns
+    /// Detection results from the overflow detector
+    pub fn run_overflow_detector(&self) -> crate::analysis::detectors::DetectionResult {
+        use crate::analysis::detectors::{OverflowDetector, OverflowDetectorConfig};
+        let detector = OverflowDetector::new(OverflowDetectorConfig::default());
+        let snapshot = self.snapshot.build_snapshot();
+        let allocations: Vec<crate::capture::types::AllocationInfo> = snapshot
+            .active_allocations
+            .values()
+            .map(Self::to_allocation_info)
+            .collect();
+        detector.detect(&allocations)
+    }
+
+    /// Run the safety detector on the current snapshot
+    ///
+    /// # Returns
+    /// Detection results from the safety detector
+    pub fn run_safety_detector(&self) -> crate::analysis::detectors::DetectionResult {
+        use crate::analysis::detectors::{SafetyDetector, SafetyDetectorConfig};
+        let detector = SafetyDetector::new(SafetyDetectorConfig::default());
+        let snapshot = self.snapshot.build_snapshot();
+        let allocations: Vec<crate::capture::types::AllocationInfo> = snapshot
+            .active_allocations
+            .values()
+            .map(Self::to_allocation_info)
+            .collect();
+        detector.detect(&allocations)
+    }
+
+    /// Run the lifecycle detector on the current snapshot
+    ///
+    /// # Returns
+    /// Detection results from the lifecycle detector
+    pub fn run_lifecycle_detector(&self) -> crate::analysis::detectors::DetectionResult {
+        use crate::analysis::detectors::{LifecycleDetector, LifecycleDetectorConfig};
+        let detector = LifecycleDetector::new(LifecycleDetectorConfig::default());
+        let snapshot = self.snapshot.build_snapshot();
+        let allocations: Vec<crate::capture::types::AllocationInfo> = snapshot
+            .active_allocations
+            .values()
+            .map(Self::to_allocation_info)
+            .collect();
+        detector.detect(&allocations)
+    }
+
+    // ===== Export Methods =====
+
+    /// Export the current memory snapshot as an HTML dashboard
+    ///
+    /// This method generates an interactive HTML dashboard with memory analysis,
+    /// visualization charts, and detailed statistics.
+    ///
+    /// # Arguments
+    /// * `path` - Directory path where the HTML file will be saved
+    ///
+    /// # Returns
+    /// Result indicating success or failure
+    pub fn export_html<P: AsRef<std::path::Path>>(&self, path: P) -> Result<(), String> {
+        use crate::render_engine::export::export_dashboard_html;
+        use crate::tracker::Tracker;
+        use std::sync::Arc;
+
+        // Create a new tracker instance for export
+        let tracker = Tracker::new();
+        let passport_tracker =
+            Arc::new(crate::analysis::memory_passport_tracker::get_global_passport_tracker());
+
+        export_dashboard_html(path, &tracker, &passport_tracker)
+            .map_err(|e| format!("Failed to export HTML: {}", e))
+    }
+
+    /// Export the current memory snapshot as a JSON file
+    ///
+    /// # Arguments
+    /// * `path` - File path where the JSON will be saved
+    ///
+    /// # Returns
+    /// Result indicating success or failure
+    pub fn export_json<P: AsRef<std::path::Path>>(&self, path: P) -> Result<(), String> {
+        use crate::render_engine::export::{export_snapshot_to_json, ExportJsonOptions};
+
+        let snapshot = self.snapshot.build_snapshot();
+        let options = ExportJsonOptions::default();
+        export_snapshot_to_json(&snapshot, path.as_ref(), &options)
+            .map_err(|e| format!("Failed to export JSON: {}", e))
     }
 }
 

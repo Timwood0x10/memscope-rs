@@ -6,7 +6,6 @@
 use memscope_rs::analysis::memory_passport_tracker::{
     MemoryPassportTracker, PassportTrackerConfig,
 };
-use memscope_rs::render_engine::export::export_dashboard_html;
 use memscope_rs::{track, tracker};
 use std::collections::HashMap;
 use std::sync::Arc;

@@ -3,7 +3,7 @@
 //! This module provides high-performance batch processing capabilities for
 //! large datasets of unsafe and FFI memory allocations, with support for
 //! parallel processing and performance monitoring.
-#[allow(warnings)]
+#![allow(warnings)]
 use crate::analysis::unsafe_ffi_tracker::{
     AllocationSource, BoundaryEvent, EnhancedAllocationInfo, LibCHookInfo, MemoryPassport,
     RiskAssessment, RiskLevel,

@@ -54,6 +54,10 @@ pub mod render_engine;
 /// Snapshot Engine - Snapshot construction and aggregation
 pub mod snapshot;
 /// System Monitor - Background thread for system metrics collection
+#[deprecated(
+    since = "0.6.0",
+    note = "Use capture::platform::memory_info instead. Migration: `system_monitor::SystemMonitor` → `capture::platform::PlatformMemoryInfo`. This module will be removed in a future version."
+)]
 pub mod system_monitor;
 /// Timeline Engine - Time-based memory analysis
 pub mod timeline;

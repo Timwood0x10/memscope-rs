@@ -5,7 +5,9 @@
 // and safety violations.
 
 pub mod analyzer;
+pub mod detector_adapter;
 pub mod engine;
 
 pub use analyzer::Analyzer;
+pub use detector_adapter::DetectorToAnalyzer;
 pub use engine::AnalysisEngine;

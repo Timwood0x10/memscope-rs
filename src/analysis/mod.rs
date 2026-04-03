@@ -60,9 +60,9 @@ pub use variable_relationships::{
 
 // Re-export new analysis modules
 pub use detectors::{
-    Detector, LeakDetector, LeakDetectorConfig, UafDetector, UafDetectorConfig,
-    OverflowDetector, OverflowDetectorConfig, SafetyDetector, SafetyDetectorConfig,
-    LifecycleDetector, LifecycleDetectorConfig,
+    Detector, LeakDetector, LeakDetectorConfig, LifecycleDetector, LifecycleDetectorConfig,
+    OverflowDetector, OverflowDetectorConfig, SafetyDetector, SafetyDetectorConfig, UafDetector,
+    UafDetectorConfig,
 };
 
 pub use async_analysis::{
