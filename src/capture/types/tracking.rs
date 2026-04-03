@@ -7,7 +7,6 @@ use serde::{Deserialize, Serialize};
 
 use super::allocation::{BottleneckType, ImpactLevel, PerformanceBottleneck};
 use super::generic::MemoryAccessPattern;
-use super::generic::SourceLocation;
 
 /// Function call tracking information.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

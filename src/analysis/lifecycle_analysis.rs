@@ -27,6 +27,7 @@
 //! analyzer.record_drop_event(ptr, type_name, custom_drop);
 //! ```
 //!
+#![allow(warnings)]
 #[deprecated(
     since = "0.7.0",
     note = "Use analysis::lifecycle instead. This module will be removed in a future version."

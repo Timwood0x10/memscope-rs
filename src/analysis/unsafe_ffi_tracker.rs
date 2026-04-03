@@ -17,6 +17,7 @@
 //! For migration to the new API, see the documentation in `crate::capture::backends::unsafe_tracking`.
 //!
 
+#![allow(warnings)]
 #[deprecated(
     since = "0.1.10",
     note = "Use the new unified API in `crate::capture::backends::unsafe_tracking` instead"

@@ -3,7 +3,9 @@
 //! This example demonstrates how to export memory tracking data
 //! as an interactive HTML dashboard using the new rendering engine.
 
-use memscope_rs::analysis::memory_passport_tracker::{PassportTrackerConfig, MemoryPassportTracker};
+use memscope_rs::analysis::memory_passport_tracker::{
+    MemoryPassportTracker, PassportTrackerConfig,
+};
 use memscope_rs::render_engine::export::export_dashboard_html;
 use memscope_rs::{track, tracker};
 use std::collections::HashMap;
@@ -21,7 +23,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Track some allocations
     println!("Tracking allocations...\n");
-    
+
     let data = vec![1, 2, 3, 4, 5];
     track!(tracker, data);
     println!("✓ Tracked Vec<i32>: {} elements", data.len());
@@ -52,9 +54,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("✓ Tracked HashMap<String, Vec<i32>> with 10 entries");
 
     // Create passport tracker
-    let passport_tracker = Arc::new(
-        MemoryPassportTracker::new(PassportTrackerConfig::default())
-    );
+    let passport_tracker = Arc::new(MemoryPassportTracker::new(PassportTrackerConfig::default()));
 
     // Get statistics
     let report = tracker.analyze();
@@ -63,20 +63,81 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  Active allocations: {}", report.active_allocations);
     println!("  Peak memory: {} bytes", report.peak_memory_bytes);
 
-    // Export HTML dashboard
-    println!("\nExporting HTML dashboard...");
+    // Export HTML dashboard with all templates
+    println!("\nExporting HTML dashboards with all templates...");
     let output_path = "MemoryAnalysis/dashboard_export";
-    
-    export_dashboard_html(output_path, &tracker, &passport_tracker)?;
-    
+
+    // Export with Binary template (default, comprehensive)
+    use memscope_rs::render_engine::export::{
+        export_dashboard_html_with_template, DashboardTemplate,
+    };
+
+    export_dashboard_html_with_template(
+        output_path,
+        &tracker,
+        &passport_tracker,
+        DashboardTemplate::Binary,
+    )?;
+    println!("✓ Binary dashboard exported");
+
+    export_dashboard_html_with_template(
+        output_path,
+        &tracker,
+        &passport_tracker,
+        DashboardTemplate::Clean,
+    )?;
+    println!("✓ Clean dashboard exported");
+
+    export_dashboard_html_with_template(
+        output_path,
+        &tracker,
+        &passport_tracker,
+        DashboardTemplate::Hybrid,
+    )?;
+    println!("✓ Hybrid dashboard exported");
+
+    export_dashboard_html_with_template(
+        output_path,
+        &tracker,
+        &passport_tracker,
+        DashboardTemplate::Performance,
+    )?;
+    println!("✓ Performance dashboard exported");
+
+    export_dashboard_html_with_template(
+        output_path,
+        &tracker,
+        &passport_tracker,
+        DashboardTemplate::Async,
+    )?;
+    println!("✓ Async dashboard exported");
+
+    export_dashboard_html_with_template(
+        output_path,
+        &tracker,
+        &passport_tracker,
+        DashboardTemplate::Standalone,
+    )?;
+    println!("✓ Standalone dashboard exported");
+
     let duration = start_time.elapsed();
-    
+
     println!("\n✅ Export successful!");
     println!("Files saved to {}/", output_path);
-    println!("  dashboard.html");
-    
-    println!("\nExample finished in {:.2}ms", duration.as_secs_f64() * 1000.0);
-    println!("\nOpen {}/dashboard.html in your browser to view the dashboard!", output_path);
-    
+    println!("Available dashboards:");
+    println!("  - binary_dashboard.html (comprehensive, with 3D visualization)");
+    println!("  - clean_dashboard.html (minimal, clean design)");
+    println!("  - hybrid_dashboard.html (mixed features)");
+    println!("  - performance_dashboard.html (performance metrics focus)");
+    println!("  - async_dashboard.html (async runtime analysis)");
+    println!("  - standalone_dashboard.html (no external dependencies)");
+
+    println!(
+        "\nExample finished in {:.2}ms",
+        duration.as_secs_f64() * 1000.0
+    );
+    println!("\nOpen any dashboard in your browser to view the results!");
+    println!("Recommended: binary_dashboard.html for comprehensive analysis");
+
     Ok(())
 }

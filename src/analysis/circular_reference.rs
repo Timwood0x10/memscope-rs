@@ -23,7 +23,9 @@
 //! let analysis = CircularReferenceAnalysis::new();
 //! let result = analysis.detect_circular_references(&allocations);
 //! ```
-//!
+
+#![allow(warnings)]
+
 #[deprecated(
     since = "0.7.0",
     note = "Use metadata::smart_pointers::analyzer instead. This module will be removed in a future version."

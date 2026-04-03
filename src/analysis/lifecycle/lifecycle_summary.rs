@@ -488,8 +488,8 @@ mod tests {
     #[test]
     fn test_lifecycle_summary_generator_creation() {
         let generator = LifecycleSummaryGenerator::new();
-        assert_eq!(generator.config.include_borrow_details, true);
-        assert_eq!(generator.config.include_clone_details, true);
+        assert!(generator.config.include_borrow_details);
+        assert!(generator.config.include_clone_details);
     }
 
     #[test]
@@ -594,8 +594,8 @@ mod tests {
     #[test]
     fn test_summary_config_default() {
         let config = SummaryConfig::default();
-        assert_eq!(config.include_borrow_details, true);
-        assert_eq!(config.include_clone_details, true);
+        assert!(config.include_borrow_details);
+        assert!(config.include_clone_details);
         assert_eq!(config.min_lifetime_threshold_ms, 0);
         assert_eq!(config.max_events_per_allocation, 50);
     }

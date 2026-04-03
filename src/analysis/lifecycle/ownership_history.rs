@@ -600,7 +600,6 @@ mod tests {
     }
 
     #[test]
-    #[test]
     fn test_reference_count_tracking() {
         let mut recorder = OwnershipHistoryRecorder::new();
         let ptr = 0x1000;

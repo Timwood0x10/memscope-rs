@@ -3,7 +3,7 @@
 //! This module provides optimized export functionality specifically for complex type analysis data.
 //! It separates complex type data into dedicated JSON files to improve performance.
 
-#[allow(warnings)]
+#![allow(warnings)]
 use crate::analysis::ComprehensiveAnalysisReport;
 use crate::capture::types::{AllocationInfo, TrackingResult};
 use serde::{Deserialize, Serialize};

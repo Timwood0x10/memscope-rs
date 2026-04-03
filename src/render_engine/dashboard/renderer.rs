@@ -1,12 +1,10 @@
 //! Dashboard renderer using Handlebars templates
 
-use crate::tracker::Tracker;
 use crate::analysis::memory_passport_tracker::MemoryPassportTracker;
+use crate::tracker::Tracker;
+use handlebars::Handlebars;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use std::path::Path;
-use handlebars::Handlebars;
-use tracing::{info, warn};
 
 /// Dashboard context for template rendering
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -262,12 +260,39 @@ impl DashboardRenderer {
         let mut handlebars = Handlebars::new();
 
         // Register base template (optional, for future use)
-        if let Err(_) = handlebars.register_template_file("base", "src/render_engine/dashboard/templates/base.html") {
+        if let Err(_) = handlebars
+            .register_template_file("base", "src/render_engine/dashboard/templates/base.html")
+        {
             // Base template is optional, ignore error
         }
 
+        // Register old templates
+        handlebars.register_template_file(
+            "binary_dashboard",
+            "src/render_engine/dashboard/templates/binary_dashboard.html",
+        )?;
+        handlebars.register_template_file(
+            "clean_dashboard",
+            "src/render_engine/dashboard/templates/clean_dashboard.html",
+        )?;
+        handlebars.register_template_file(
+            "hybrid_dashboard",
+            "src/render_engine/dashboard/templates/hybrid_dashboard.html",
+        )?;
+        handlebars.register_template_file(
+            "performance_dashboard",
+            "src/render_engine/dashboard/templates/performance_dashboard.html",
+        )?;
+        handlebars.register_template_file(
+            "async_template",
+            "src/render_engine/dashboard/templates/async_template.html",
+        )?;
+
         // Register standalone dashboard template (no external dependencies, works with file:// protocol)
-        handlebars.register_template_file("standalone_dashboard", "src/render_engine/dashboard/templates/standalone_dashboard.html")?;
+        handlebars.register_template_file(
+            "standalone_dashboard",
+            "src/render_engine/dashboard/templates/standalone_dashboard_v2.html",
+        )?;
 
         // Register custom helpers
         handlebars.register_helper("format_bytes", Box::new(format_bytes_helper));
@@ -277,78 +302,84 @@ impl DashboardRenderer {
 
         Ok(Self { handlebars })
     }
-    
-    /// Render dashboard from tracker data
-    pub fn render_from_tracker(
+
+    /// Build dashboard context from tracker data
+    pub fn build_context_from_tracker(
         &self,
         tracker: &Tracker,
         passport_tracker: &Arc<MemoryPassportTracker>,
-    ) -> Result<String, Box<dyn std::error::Error>> {
+    ) -> Result<DashboardContext, Box<dyn std::error::Error>> {
         let allocations = tracker.inner().get_active_allocations().unwrap_or_default();
         let passports = passport_tracker.get_all_passports();
         let analysis = tracker.analyze();
-        
+
         let total_memory: usize = allocations.iter().map(|a| a.size).sum();
-        
+
         // Build allocation info
-        let alloc_info: Vec<AllocationInfo> = allocations.iter().map(|a| {
-            let type_name = a.type_name.clone().unwrap_or_else(|| "unknown".to_string());
-            let timestamp_alloc = a.timestamp_alloc;
-            let timestamp_dealloc = a.timestamp_dealloc.unwrap_or(0);
-            let lifetime_ms = if timestamp_dealloc > 0 {
-                (timestamp_dealloc - timestamp_alloc) as f64 / 1_000_000.0
-            } else {
-                0.0
-            };
+        let alloc_info: Vec<AllocationInfo> = allocations
+            .iter()
+            .map(|a| {
+                let type_name = a.type_name.clone().unwrap_or_else(|| "unknown".to_string());
+                let timestamp_alloc = a.timestamp_alloc;
+                let timestamp_dealloc = a.timestamp_dealloc.unwrap_or(0);
+                let lifetime_ms = if timestamp_dealloc > 0 {
+                    (timestamp_dealloc - timestamp_alloc) as f64 / 1_000_000.0
+                } else {
+                    0.0
+                };
 
-            // Determine if smart pointer
-            let is_smart_pointer = type_name.contains("Arc") || type_name.contains("Rc") || type_name.contains("Box");
-            let smart_pointer_type = if type_name.contains("Arc") {
-                "Arc".to_string()
-            } else if type_name.contains("Rc") {
-                "Rc".to_string()
-            } else if type_name.contains("Box") {
-                "Box".to_string()
-            } else {
-                String::new()
-            };
+                // Determine if smart pointer
+                let is_smart_pointer = type_name.contains("Arc")
+                    || type_name.contains("Rc")
+                    || type_name.contains("Box");
+                let smart_pointer_type = if type_name.contains("Arc") {
+                    "Arc".to_string()
+                } else if type_name.contains("Rc") {
+                    "Rc".to_string()
+                } else if type_name.contains("Box") {
+                    "Box".to_string()
+                } else {
+                    String::new()
+                };
 
-            AllocationInfo {
-                address: format!("0x{:x}", a.ptr),
-                type_name: type_name.clone(),
-                size: a.size,
-                var_name: a.var_name.clone().unwrap_or_else(|| "unknown".to_string()),
-                timestamp: format!("{:?}", a.timestamp_alloc),
-                thread_id: format!("{}", a.thread_id),
-                immutable_borrows: a.borrow_info.as_ref()
-                    .map(|b| b.immutable_borrows)
-                    .unwrap_or(0),
-                mutable_borrows: a.borrow_info.as_ref()
-                    .map(|b| b.mutable_borrows)
-                    .unwrap_or(0),
-                is_clone: a.clone_info.as_ref()
-                    .map(|c| c.is_clone)
-                    .unwrap_or(false),
-                clone_count: a.clone_info.as_ref()
-                    .map(|c| c.clone_count)
-                    .unwrap_or(0),
-                timestamp_alloc,
-                timestamp_dealloc,
-                lifetime_ms,
-                is_leaked: timestamp_dealloc == 0,
-                allocation_type: "heap".to_string(), // TODO: Detect stack vs heap
-                is_smart_pointer,
-                smart_pointer_type,
-            }
-        }).collect();
-        
+                AllocationInfo {
+                    address: format!("0x{:x}", a.ptr),
+                    type_name: type_name.clone(),
+                    size: a.size,
+                    var_name: a.var_name.clone().unwrap_or_else(|| "unknown".to_string()),
+                    timestamp: format!("{:?}", a.timestamp_alloc),
+                    thread_id: format!("{}", a.thread_id),
+                    immutable_borrows: a
+                        .borrow_info
+                        .as_ref()
+                        .map(|b| b.immutable_borrows)
+                        .unwrap_or(0),
+                    mutable_borrows: a
+                        .borrow_info
+                        .as_ref()
+                        .map(|b| b.mutable_borrows)
+                        .unwrap_or(0),
+                    is_clone: a.clone_info.as_ref().map(|c| c.is_clone).unwrap_or(false),
+                    clone_count: a.clone_info.as_ref().map(|c| c.clone_count).unwrap_or(0),
+                    timestamp_alloc,
+                    timestamp_dealloc,
+                    lifetime_ms,
+                    is_leaked: timestamp_dealloc == 0,
+                    allocation_type: "heap".to_string(), // TODO: Detect stack vs heap
+                    is_smart_pointer,
+                    smart_pointer_type,
+                }
+            })
+            .collect();
+
         // Build variable relationships with real relationship types
         let mut relationships: Vec<RelationshipInfo> = Vec::new();
 
         for (i, a1) in alloc_info.iter().enumerate() {
             for a2 in alloc_info.iter().skip(i + 1) {
                 // Clone relationships (same type and size, both clones)
-                if a1.is_clone && a2.is_clone && a1.type_name == a2.type_name && a1.size == a2.size {
+                if a1.is_clone && a2.is_clone && a1.type_name == a2.type_name && a1.size == a2.size
+                {
                     relationships.push(RelationshipInfo {
                         source_ptr: a1.address.clone(),
                         source_var_name: a1.var_name.clone(),
@@ -376,9 +407,10 @@ impl DashboardRenderer {
                 }
 
                 // Borrow relationships (same address, different borrow counts)
-                if a1.address == a2.address &&
-                   (a1.immutable_borrows != a2.immutable_borrows ||
-                    a1.mutable_borrows != a2.mutable_borrows) {
+                if a1.address == a2.address
+                    && (a1.immutable_borrows != a2.immutable_borrows
+                        || a1.mutable_borrows != a2.mutable_borrows)
+                {
                     let borrow_type = if a1.mutable_borrows > 0 || a2.mutable_borrows > 0 {
                         "mutable_borrow"
                     } else {
@@ -397,14 +429,19 @@ impl DashboardRenderer {
                 }
 
                 // Smart pointer relationships (Arc/Rc with same original data)
-                if a1.is_smart_pointer && a2.is_smart_pointer &&
-                   a1.smart_pointer_type == a2.smart_pointer_type {
+                if a1.is_smart_pointer
+                    && a2.is_smart_pointer
+                    && a1.smart_pointer_type == a2.smart_pointer_type
+                {
                     relationships.push(RelationshipInfo {
                         source_ptr: a1.address.clone(),
                         source_var_name: a1.var_name.clone(),
                         target_ptr: a2.address.clone(),
                         target_var_name: a2.var_name.clone(),
-                        relationship_type: format!("smart_pointer_{}", a1.smart_pointer_type.to_lowercase()),
+                        relationship_type: format!(
+                            "smart_pointer_{}",
+                            a1.smart_pointer_type.to_lowercase()
+                        ),
                         strength: 0.7,
                         type_name: a1.type_name.clone(),
                         color: "#8b5cf6".to_string(), // Purple for smart pointer
@@ -414,13 +451,10 @@ impl DashboardRenderer {
         }
 
         // Remove duplicates
-        relationships.sort_by(|a, b| {
-            (&a.source_ptr, &a.target_ptr).cmp(&(&b.source_ptr, &b.target_ptr))
-        });
-        relationships.dedup_by(|a, b| {
-            a.source_ptr == b.source_ptr && a.target_ptr == b.target_ptr
-        });
-        
+        relationships
+            .sort_by(|a, b| (&a.source_ptr, &a.target_ptr).cmp(&(&b.source_ptr, &b.target_ptr)));
+        relationships.dedup_by(|a, b| a.source_ptr == b.source_ptr && a.target_ptr == b.target_ptr);
+
         // Build unsafe reports from passports
         let unsafe_reports: Vec<UnsafeReport> = passports.values()
             .filter(|p| !p.lifecycle_events.is_empty())
@@ -458,7 +492,7 @@ impl DashboardRenderer {
                         LifecycleEventInfo {
                             event_type: format!("{:?}", event.event_type),
                             timestamp: event.timestamp,
-                            context: context,
+                            context,
                             icon,
                             color,
                         }
@@ -539,7 +573,7 @@ impl DashboardRenderer {
                 }
             })
             .collect();
-        
+
         // Build passport details
         let passport_details: Vec<PassportDetail> = passports.values()
             .map(|p| {
@@ -670,7 +704,16 @@ impl DashboardRenderer {
             .map_err(|e| format!("Failed to serialize dashboard data: {}", e))?;
 
         // Get system information directly using platform-specific functions
-        let (os_name, os_version, architecture, cpu_cores, page_size, total_physical, available_physical, used_physical) = {
+        let (
+            os_name,
+            os_version,
+            architecture,
+            cpu_cores,
+            page_size,
+            total_physical,
+            available_physical,
+            used_physical,
+        ) = {
             #[cfg(target_os = "macos")]
             {
                 // Get OS version
@@ -683,7 +726,8 @@ impl DashboardRenderer {
                         &mut size,
                         std::ptr::null_mut(),
                         0,
-                    ) == 0 {
+                    ) == 0
+                    {
                         String::from_utf8_lossy(&buf[..size - 1]).to_string()
                     } else {
                         "Unknown".to_string()
@@ -700,7 +744,8 @@ impl DashboardRenderer {
                         &mut size,
                         std::ptr::null_mut(),
                         0,
-                    ) == 0 {
+                    ) == 0
+                    {
                         let arch_str = String::from_utf8_lossy(&buf[..size - 1]).to_string();
                         if arch_str.contains("arm64") || arch_str.contains("arm") {
                             "arm64".to_string()
@@ -724,7 +769,8 @@ impl DashboardRenderer {
                         &mut size,
                         std::ptr::null_mut(),
                         0,
-                    ) == 0 {
+                    ) == 0
+                    {
                         // Successfully got CPU cores
                     }
                 }
@@ -739,7 +785,8 @@ impl DashboardRenderer {
                         &mut size,
                         std::ptr::null_mut(),
                         0,
-                    ) != 0 {
+                    ) != 0
+                    {
                         page_size = 4096;
                     }
                 }
@@ -756,7 +803,8 @@ impl DashboardRenderer {
                         &mut size,
                         std::ptr::null_mut(),
                         0,
-                    ) != 0 {
+                    ) != 0
+                    {
                         total = 16 * 1024 * 1024 * 1024; // 16GB default
                     }
                 }
@@ -770,7 +818,8 @@ impl DashboardRenderer {
                         libc::HOST_VM_INFO64,
                         &mut vm_stats as *mut _ as libc::host_info64_t,
                         &mut count,
-                    ) != 0 {
+                    ) != 0
+                    {
                         // Fall back to simple calculation
                         (total / 2, total / 2)
                     } else {
@@ -785,18 +834,38 @@ impl DashboardRenderer {
                     }
                 };
 
-                ("macOS".to_string(), os_version, architecture, cpu_cores, page_size, total, available_physical, used_physical)
+                (
+                    "macOS".to_string(),
+                    os_version,
+                    architecture,
+                    cpu_cores,
+                    page_size,
+                    total,
+                    available_physical,
+                    used_physical,
+                )
             }
 
             #[cfg(not(target_os = "macos"))]
             {
-                ("Unknown".to_string(), "Unknown".to_string(), "unknown".to_string(), 1, 4096, 16 * 1024 * 1024 * 1024, 8 * 1024 * 1024 * 1024, 8 * 1024 * 1024 * 1024)
+                (
+                    "Unknown".to_string(),
+                    "Unknown".to_string(),
+                    "unknown".to_string(),
+                    1,
+                    4096,
+                    16 * 1024 * 1024 * 1024,
+                    8 * 1024 * 1024 * 1024,
+                    8 * 1024 * 1024 * 1024,
+                )
             }
         };
 
         let context = DashboardContext {
             title: "MemScope Dashboard".to_string(),
-            export_timestamp: chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC").to_string(),
+            export_timestamp: chrono::Utc::now()
+                .format("%Y-%m-%d %H:%M:%S UTC")
+                .to_string(),
             total_memory: format_bytes(total_memory),
             total_allocations: allocations.len(),
             active_allocations: allocations.len(),
@@ -835,21 +904,177 @@ impl DashboardRenderer {
                 total_allocated: format_bytes(total_memory),
             }],
         };
-        
+
+        Ok(context)
+    }
+
+    /// Render dashboard from tracker data (for standalone template)
+    pub fn render_from_tracker(
+        &self,
+        tracker: &Tracker,
+        passport_tracker: &Arc<MemoryPassportTracker>,
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        let context = self.build_context_from_tracker(tracker, passport_tracker)?;
         self.render_dashboard(&context)
     }
-    
+
     /// Render dashboard from context
-    pub fn render_dashboard(&self, context: &DashboardContext) -> Result<String, Box<dyn std::error::Error>> {
+    pub fn render_dashboard(
+        &self,
+        context: &DashboardContext,
+    ) -> Result<String, Box<dyn std::error::Error>> {
         // Use standalone dashboard to avoid CORS issues with file:// protocol
-        self.handlebars.render("standalone_dashboard", context)
+        self.handlebars
+            .render("standalone_dashboard", context)
             .map_err(|e| format!("Template rendering error: {}", e).into())
     }
 
     /// Render standalone dashboard (no external dependencies, works with file:// protocol)
-    pub fn render_standalone_dashboard(&self, context: &DashboardContext) -> Result<String, Box<dyn std::error::Error>> {
-        self.handlebars.render("standalone_dashboard", context)
+    pub fn render_standalone_dashboard(
+        &self,
+        context: &DashboardContext,
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        self.handlebars
+            .render("standalone_dashboard", context)
             .map_err(|e| format!("Template rendering error: {}", e).into())
+    }
+
+    /// Render binary dashboard (legacy template)
+    pub fn render_binary_dashboard(
+        &self,
+        context: &DashboardContext,
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        // Convert to legacy data format
+        let legacy_data = self.to_legacy_binary_data(context);
+        let mut template_data = std::collections::BTreeMap::new();
+        template_data.insert("BINARY_DATA", serde_json::to_string(&legacy_data)?);
+        template_data.insert("PROJECT_NAME", "MemScope Memory Analysis".to_string());
+
+        self.handlebars
+            .render("binary_dashboard", &template_data)
+            .map_err(|e| format!("Template rendering error: {}", e).into())
+    }
+
+    /// Render clean dashboard (legacy template)
+    pub fn render_clean_dashboard(
+        &self,
+        context: &DashboardContext,
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        let legacy_data = self.to_legacy_binary_data(context);
+        let mut template_data = std::collections::BTreeMap::new();
+        template_data.insert("BINARY_DATA", serde_json::to_string(&legacy_data)?);
+        template_data.insert("json_data", serde_json::to_string(&legacy_data)?);
+        template_data.insert("PROJECT_NAME", "MemScope Memory Analysis".to_string());
+
+        self.handlebars
+            .render("clean_dashboard", &template_data)
+            .map_err(|e| format!("Template rendering error: {}", e).into())
+    }
+
+    /// Render hybrid dashboard (legacy template)
+    pub fn render_hybrid_dashboard(
+        &self,
+        context: &DashboardContext,
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        let variables_data = serde_json::to_string(&context.allocations)?;
+        let threads_data = serde_json::to_string(&context.threads)?;
+        let tasks_data = serde_json::to_string(&Vec::<serde_json::Value>::new())?; // TODO: Add tasks data
+
+        let mut template_data = std::collections::BTreeMap::new();
+        template_data.insert("VARIABLES_DATA", variables_data);
+        template_data.insert("THREADS_DATA", threads_data);
+        template_data.insert("TASKS_DATA", tasks_data);
+        template_data.insert("PROJECT_NAME", "MemScope Memory Analysis".to_string());
+
+        self.handlebars
+            .render("hybrid_dashboard", &template_data)
+            .map_err(|e| format!("Template rendering error: {}", e).into())
+    }
+
+    /// Render performance dashboard (legacy template)
+    pub fn render_performance_dashboard(
+        &self,
+        context: &DashboardContext,
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        let performance_data = serde_json::to_string(&context.allocations)?;
+        let efficiency_data = serde_json::to_string(&Vec::<serde_json::Value>::new())?; // TODO: Add efficiency data
+
+        let mut template_data = std::collections::BTreeMap::new();
+        template_data.insert("PERFORMANCE_DATA", performance_data);
+        template_data.insert("EFFICIENCY_DATA", efficiency_data);
+        template_data.insert("PROJECT_NAME", "MemScope Memory Analysis".to_string());
+
+        self.handlebars
+            .render("performance_dashboard", &template_data)
+            .map_err(|e| format!("Template rendering error: {}", e).into())
+    }
+
+    /// Render async template (legacy template)
+    pub fn render_async_template(
+        &self,
+        context: &DashboardContext,
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        let legacy_data = self.to_legacy_binary_data(context);
+        let mut template_data = std::collections::BTreeMap::new();
+        template_data.insert("BINARY_DATA", serde_json::to_string(&legacy_data)?);
+        template_data.insert("PROJECT_NAME", "MemScope Memory Analysis".to_string());
+
+        self.handlebars
+            .render("async_template", &template_data)
+            .map_err(|e| format!("Template rendering error: {}", e).into())
+    }
+
+    /// Convert new DashboardContext to legacy binary data format
+    fn to_legacy_binary_data(&self, context: &DashboardContext) -> serde_json::Value {
+        serde_json::json!({
+            "memory_analysis": {
+                "allocations": context.allocations.iter().map(|a| {
+                    serde_json::json!({
+                        "var_name": a.var_name,
+                        "type_name": a.type_name,
+                        "size": a.size,
+                        "address": a.address,
+                        "timestamp_alloc": a.timestamp_alloc,
+                        "timestamp_dealloc": if a.timestamp_dealloc > 0 { Some(a.timestamp_dealloc) } else { None },
+                        "lifetime_ms": a.lifetime_ms,
+                        "is_leaked": a.is_leaked,
+                        "thread_id": a.thread_id,
+                        "immutable_borrows": a.immutable_borrows,
+                        "mutable_borrows": a.mutable_borrows,
+                        "is_clone": a.is_clone,
+                        "clone_count": a.clone_count,
+                        "allocation_type": a.allocation_type,
+                        "is_smart_pointer": a.is_smart_pointer,
+                        "smart_pointer_type": a.smart_pointer_type
+                    })
+                }).collect::<Vec<_>>()
+            },
+            "lifetime": {
+                "events": []
+            },
+            "complex_types": {
+                "smart_pointers": context.allocations.iter().filter(|a| a.is_smart_pointer).count(),
+                "collections": context.allocations.iter().filter(|a| {
+                    a.type_name.contains("Vec") || a.type_name.contains("HashMap") || a.type_name.contains("BTreeMap")
+                }).count()
+            },
+            "unsafe_ffi": {
+                "passports": context.passport_details,
+                "reports": context.unsafe_reports,
+                "cross_boundary_events": context.unsafe_reports.iter()
+                    .flat_map(|r| r.cross_boundary_events.iter())
+                    .count()
+            },
+            "performance": {
+                "total_memory": context.total_memory,
+                "peak_memory": context.peak_memory,
+                "total_allocations": context.total_allocations,
+                "active_allocations": context.active_allocations,
+                "thread_count": context.thread_count,
+                "passport_count": context.passport_count,
+                "leak_count": context.leak_count
+            }
+        })
     }
 }
 
@@ -930,9 +1155,8 @@ fn json_helper(
     out: &mut dyn handlebars::Output,
 ) -> handlebars::HelperResult {
     let param = h.param(0).unwrap().value();
-    let json_string = serde_json::to_string(param).map_err(|e| {
-        handlebars::RenderError::new(format!("Failed to serialize to JSON: {}", e))
-    })?;
+    let json_string = serde_json::to_string(param)
+        .map_err(|e| handlebars::RenderError::new(format!("Failed to serialize to JSON: {}", e)))?;
     out.write(&json_string)?;
     Ok(())
 }

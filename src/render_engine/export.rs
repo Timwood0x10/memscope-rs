@@ -3,9 +3,9 @@
 //! This module provides export functionality for memory tracking data,
 //! including JSON export, lifetime analysis, and variable relationships.
 
-use crate::analysis::memory_passport_tracker::{LeakDetectionResult, MemoryPassportTracker};
-use crate::capture::platform::memory_info::{MemoryStats, PlatformMemoryInfo, SystemInfo};
-use crate::render_engine::dashboard::{DashboardRenderer, DashboardContext};
+use crate::analysis::memory_passport_tracker::MemoryPassportTracker;
+use crate::capture::platform::memory_info::PlatformMemoryInfo;
+use crate::render_engine::dashboard::DashboardRenderer;
 use crate::snapshot::{ActiveAllocation, MemorySnapshot, ThreadMemoryStats};
 use crate::tracker::Tracker;
 use rayon::prelude::*;
@@ -581,8 +581,44 @@ pub fn export_all_json<P: AsRef<Path>>(
     Ok(())
 }
 
+/// Dashboard template type
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DashboardTemplate {
+    /// Binary dashboard (comprehensive, with 3D visualization)
+    Binary,
+    /// Clean dashboard (minimal, clean design)
+    Clean,
+    /// Hybrid dashboard (mixed features)
+    Hybrid,
+    /// Performance dashboard (focused on performance metrics)
+    Performance,
+    /// Async template (for async runtime analysis)
+    Async,
+    /// Standalone dashboard (no external dependencies, works with file://)
+    Standalone,
+}
+
+impl Default for DashboardTemplate {
+    fn default() -> Self {
+        DashboardTemplate::Binary
+    }
+}
+
+impl std::fmt::Display for DashboardTemplate {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DashboardTemplate::Binary => write!(f, "binary_dashboard"),
+            DashboardTemplate::Clean => write!(f, "clean_dashboard"),
+            DashboardTemplate::Hybrid => write!(f, "hybrid_dashboard"),
+            DashboardTemplate::Performance => write!(f, "performance_dashboard"),
+            DashboardTemplate::Async => write!(f, "async_template"),
+            DashboardTemplate::Standalone => write!(f, "standalone_dashboard"),
+        }
+    }
+}
+
 /// Export HTML dashboard from tracker data
-/// 
+///
 /// This function generates a complete HTML dashboard from the tracker data,
 /// including memory analysis, variable relationships, unsafe/FFI tracking,
 /// and system resources. The dashboard is rendered using Handlebars templates.
@@ -591,27 +627,89 @@ pub fn export_dashboard_html<P: AsRef<Path>>(
     tracker: &Tracker,
     passport_tracker: &Arc<MemoryPassportTracker>,
 ) -> Result<(), ExportError> {
+    export_dashboard_html_with_template(
+        path,
+        tracker,
+        passport_tracker,
+        DashboardTemplate::default(),
+    )
+}
+
+/// Export HTML dashboard with specific template
+///
+/// This function generates a complete HTML dashboard from the tracker data
+/// using the specified template type.
+pub fn export_dashboard_html_with_template<P: AsRef<Path>>(
+    path: P,
+    tracker: &Tracker,
+    passport_tracker: &Arc<MemoryPassportTracker>,
+    template: DashboardTemplate,
+) -> Result<(), ExportError> {
     let path_ref = path.as_ref();
-    
+
     // Create output directory if it doesn't exist
-    std::fs::create_dir_all(path_ref)
-        .map_err(|e| ExportError::ExportFailed(format!("Failed to create output directory: {}", e)))?;
-    
+    std::fs::create_dir_all(path_ref).map_err(|e| {
+        ExportError::ExportFailed(format!("Failed to create output directory: {}", e))
+    })?;
+
     // Create dashboard renderer
-    let renderer = DashboardRenderer::new()
-        .map_err(|e| ExportError::ExportFailed(format!("Failed to create dashboard renderer: {}", e)))?;
-    
-    // Render HTML from tracker data
-    let html_content = renderer.render_from_tracker(tracker, passport_tracker)
-        .map_err(|e| ExportError::ExportFailed(format!("Failed to render dashboard: {}", e)))?;
-    
+    let renderer = DashboardRenderer::new().map_err(|e| {
+        ExportError::ExportFailed(format!("Failed to create dashboard renderer: {}", e))
+    })?;
+
+    // Render HTML from tracker data using specified template
+    let html_content = match template {
+        DashboardTemplate::Binary => {
+            let context = renderer
+                .build_context_from_tracker(tracker, passport_tracker)
+                .map_err(|e| {
+                    ExportError::ExportFailed(format!("Failed to build context: {}", e))
+                })?;
+            renderer.render_binary_dashboard(&context)
+        }
+        DashboardTemplate::Clean => {
+            let context = renderer
+                .build_context_from_tracker(tracker, passport_tracker)
+                .map_err(|e| {
+                    ExportError::ExportFailed(format!("Failed to build context: {}", e))
+                })?;
+            renderer.render_clean_dashboard(&context)
+        }
+        DashboardTemplate::Hybrid => {
+            let context = renderer
+                .build_context_from_tracker(tracker, passport_tracker)
+                .map_err(|e| {
+                    ExportError::ExportFailed(format!("Failed to build context: {}", e))
+                })?;
+            renderer.render_hybrid_dashboard(&context)
+        }
+        DashboardTemplate::Performance => {
+            let context = renderer
+                .build_context_from_tracker(tracker, passport_tracker)
+                .map_err(|e| {
+                    ExportError::ExportFailed(format!("Failed to build context: {}", e))
+                })?;
+            renderer.render_performance_dashboard(&context)
+        }
+        DashboardTemplate::Async => {
+            let context = renderer
+                .build_context_from_tracker(tracker, passport_tracker)
+                .map_err(|e| {
+                    ExportError::ExportFailed(format!("Failed to build context: {}", e))
+                })?;
+            renderer.render_async_template(&context)
+        }
+        DashboardTemplate::Standalone => renderer.render_from_tracker(tracker, passport_tracker),
+    }
+    .map_err(|e| ExportError::ExportFailed(format!("Failed to render dashboard: {}", e)))?;
+
     // Write HTML to file
-    let output_file = path_ref.join("dashboard.html");
+    let output_file = path_ref.join(format!("{}_dashboard.html", template));
     std::fs::write(&output_file, html_content)
         .map_err(|e| ExportError::ExportFailed(format!("Failed to write HTML file: {}", e)))?;
-    
+
     tracing::info!("✅ Dashboard HTML exported to: {:?}", output_file);
-    
+
     Ok(())
 }
 
@@ -742,9 +840,7 @@ pub fn export_unsafe_ffi_json<P: AsRef<Path>>(
 /// - Memory statistics (virtual, physical, process, system)
 /// - CPU information (cores, cache, system info)
 /// - Memory pressure indicators
-pub fn export_system_resources_json<P: AsRef<Path>>(
-    base_path: P,
-) -> Result<(), ExportError> {
+pub fn export_system_resources_json<P: AsRef<Path>>(base_path: P) -> Result<(), ExportError> {
     let base_path = base_path.as_ref();
 
     // Collect memory statistics

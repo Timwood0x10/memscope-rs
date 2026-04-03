@@ -479,10 +479,8 @@ impl LocalizedExportData {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::analysis::unsafe_ffi_tracker::{
-        AllocationSource, EnhancedAllocationInfo, UnsafeFFIStats,
-    };
-    use crate::capture::types::{AllocationInfo, MemoryStats, ScopeInfo};
+    use crate::analysis::unsafe_ffi_tracker::{AllocationSource, EnhancedAllocationInfo};
+    use crate::capture::types::AllocationInfo;
     use crate::core::CallStackRef;
     use std::time::{Duration, Instant};
 

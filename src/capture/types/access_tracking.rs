@@ -6,7 +6,6 @@
 use serde::{Deserialize, Serialize};
 
 use super::allocation::{ImpactLevel, Priority};
-use super::generic::SourceLocation;
 
 /// Memory access pattern tracking.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

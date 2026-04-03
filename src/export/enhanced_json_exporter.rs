@@ -223,7 +223,7 @@ impl EnhancedJsonExporter {
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap_or_default()
                     .as_secs(),
-                "specification": " lifetime tracking",
+                "specification": "memscope-rs lifetime tracking",
                 "total_tracked_allocations": lifetime_data.len()
             },
             "ownership_histories": lifetime_data

@@ -5,9 +5,8 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::allocation::ImpactLevel;
 use super::generic::MemoryImpact;
-use super::leak_detection::{LeakRiskLevel, ResourceUsagePattern};
+use super::leak_detection::LeakRiskLevel;
 
 /// Ownership hierarchy analysis.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

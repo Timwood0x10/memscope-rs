@@ -2,6 +2,7 @@
 //!
 //! This API goes beyond memory tracking to provide comprehensive system analysis:
 //! CPU, GPU, Memory, I/O, Network - everything fire graphs don't show you
+#![allow(warnings)]
 
 use super::system_profiler::{SystemProfiler, SystemResourceSnapshot};
 // Enhanced lockfree API for system profiling

@@ -639,7 +639,8 @@ impl PlatformMemoryInfo {
                 &mut size,
                 std::ptr::null_mut(),
                 0,
-            ) == 0 {
+            ) == 0
+            {
                 String::from_utf8_lossy(&buf[..size - 1]).to_string()
             } else {
                 "Unknown".to_string()
@@ -656,7 +657,8 @@ impl PlatformMemoryInfo {
                 &mut size,
                 std::ptr::null_mut(),
                 0,
-            ) == 0 {
+            ) == 0
+            {
                 let arch_str = String::from_utf8_lossy(&buf[..size - 1]).to_string();
                 // Convert arm64, x86_64 to standard format
                 if arch_str.contains("arm64") || arch_str.contains("arm") {
@@ -681,7 +683,8 @@ impl PlatformMemoryInfo {
                 &mut size,
                 std::ptr::null_mut(),
                 0,
-            ) == 0 {
+            ) == 0
+            {
                 // Successfully got CPU cores
             }
         }
@@ -696,7 +699,8 @@ impl PlatformMemoryInfo {
                 &mut size,
                 std::ptr::null_mut(),
                 0,
-            ) != 0 {
+            ) != 0
+            {
                 page_size = 4096; // Default fallback
             }
         }

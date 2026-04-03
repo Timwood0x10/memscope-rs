@@ -71,7 +71,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  leak_detection.json");
     println!("  unsafe_ffi.json");
     println!("  system_resources.json");
-    println!("  dashboard.html");  // NEW: HTML dashboard
+    println!("  dashboard.html"); // NEW: HTML dashboard
 
     println!(
         "\nExample finished in {:.2}ms",

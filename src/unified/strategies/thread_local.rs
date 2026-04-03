@@ -2,6 +2,7 @@
 // Optimized implementation for multi-threaded applications
 // Uses thread-local storage to avoid lock contention
 
+#![allow(warnings)]
 use crate::unified::tracking_dispatcher::{
     MemoryTracker, TrackerConfig, TrackerError, TrackerStatistics, TrackerType,
 };

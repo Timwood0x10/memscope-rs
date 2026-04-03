@@ -90,14 +90,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n📦 Section 6: Export (8 files)\n");
     let output_path = "MemoryAnalysis/global_tracker_showcase";
     export_to_json(output_path)?;
-    
+
     // Also export HTML dashboard
     println!("Exporting HTML dashboard...");
     use memscope_rs::capture::backends::global_tracking::global_tracker;
     let tracker = global_tracker()?;
     let passport_tracker = global_passport_tracker()?;
     export_dashboard_html(output_path, &tracker, &passport_tracker)?;
-    
+
     println!("✓ Export successful!");
     println!("  📄 memory_analysis.json");
     println!("  📄 lifetime.json");
@@ -109,7 +109,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  📄 dashboard.html");
 
     println!("\n✓ All modes completed successfully!");
-    println!("\nOpen {}/dashboard.html in your browser to view the dashboard!", output_path);
+    println!(
+        "\nOpen {}/dashboard.html in your browser to view the dashboard!",
+        output_path
+    );
     Ok(())
 }
 

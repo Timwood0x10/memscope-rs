@@ -9,6 +9,10 @@
 //! - Performance metrics
 //! - Quality assurance
 //! - Size estimation
+//! - Dedicated detectors (LeakDetector, UafDetector, etc.)
+
+// Detector modules
+pub mod detectors;
 
 pub mod circular_reference;
 pub mod enhanced;
@@ -55,6 +59,12 @@ pub use variable_relationships::{
 };
 
 // Re-export new analysis modules
+pub use detectors::{
+    Detector, LeakDetector, LeakDetectorConfig, UafDetector, UafDetectorConfig,
+    OverflowDetector, OverflowDetectorConfig, SafetyDetector, SafetyDetectorConfig,
+    LifecycleDetector, LifecycleDetectorConfig,
+};
+
 pub use async_analysis::{
     get_global_async_analyzer, AsyncAnalyzer, AsyncPatternAnalysis, AsyncStatistics,
 };
@@ -212,6 +222,61 @@ impl AnalysisManager {
     ) -> LifecycleAnalysisReport {
         let analyzer = get_global_lifecycle_analyzer();
         analyzer.get_lifecycle_report()
+    }
+
+    /// Analyze memory leaks
+    pub fn analyze_memory_leaks(
+        &self,
+        allocations: &[AllocationInfo],
+    ) -> crate::analysis::detectors::DetectionResult {
+        let detector = crate::analysis::detectors::LeakDetector::new(
+            crate::analysis::detectors::LeakDetectorConfig::default(),
+        );
+        detector.detect(allocations)
+    }
+
+    /// Analyze use-after-free issues
+    pub fn analyze_use_after_free(
+        &self,
+        allocations: &[AllocationInfo],
+    ) -> crate::analysis::detectors::DetectionResult {
+        let detector = crate::analysis::detectors::UafDetector::new(
+            crate::analysis::detectors::UafDetectorConfig::default(),
+        );
+        detector.detect(allocations)
+    }
+
+    /// Analyze buffer overflow issues
+    pub fn analyze_buffer_overflow(
+        &self,
+        allocations: &[AllocationInfo],
+    ) -> crate::analysis::detectors::DetectionResult {
+        let detector = crate::analysis::detectors::OverflowDetector::new(
+            crate::analysis::detectors::OverflowDetectorConfig::default(),
+        );
+        detector.detect(allocations)
+    }
+
+    /// Analyze safety violations
+    pub fn analyze_safety_violations(
+        &self,
+        allocations: &[AllocationInfo],
+    ) -> crate::analysis::detectors::DetectionResult {
+        let detector = crate::analysis::detectors::SafetyDetector::new(
+            crate::analysis::detectors::SafetyDetectorConfig::default(),
+        );
+        detector.detect(allocations)
+    }
+
+    /// Analyze lifecycle issues
+    pub fn analyze_lifecycle_issues(
+        &self,
+        allocations: &[AllocationInfo],
+    ) -> crate::analysis::detectors::DetectionResult {
+        let detector = crate::analysis::detectors::LifecycleDetector::new(
+            crate::analysis::detectors::LifecycleDetectorConfig::default(),
+        );
+        detector.detect(allocations)
     }
 
     /// Perform comprehensive analysis

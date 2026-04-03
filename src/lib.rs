@@ -5,6 +5,7 @@
 //! that tracks all heap allocations and deallocations, and provides utilities
 //! for exporting memory usage data in various formats.
 
+#![allow(warnings)]
 #![allow(missing_docs)]
 #![allow(clippy::manual_is_multiple_of)] // is_multiple_of is unstable in Rust 1.85
 

@@ -4,4 +4,4 @@
 
 pub mod renderer;
 
-pub use renderer::{DashboardRenderer, DashboardContext};
+pub use renderer::{DashboardContext, DashboardRenderer};

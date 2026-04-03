@@ -135,15 +135,13 @@ pub fn is_initialized() -> bool {
 
 /// Get the global tracker instance.
 pub fn global_tracker() -> Result<Tracker, GlobalTrackingError> {
-    let state = GLOBAL_TRACKING
-        .get_or_init(|| GlobalTrackingState::new());
+    let state = GLOBAL_TRACKING.get_or_init(|| GlobalTrackingState::new());
     Ok(state.tracker().clone())
 }
 
 /// Get the global passport tracker instance.
 pub fn global_passport_tracker() -> Result<Arc<MemoryPassportTracker>, GlobalTrackingError> {
-    let state = GLOBAL_TRACKING
-        .get_or_init(|| GlobalTrackingState::new());
+    let state = GLOBAL_TRACKING.get_or_init(|| GlobalTrackingState::new());
     Ok(state.passport_tracker().clone())
 }
 

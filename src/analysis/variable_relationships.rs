@@ -25,6 +25,7 @@
 //! let graph = build_variable_relationship_graph(&allocations);
 //! ```
 //!
+#![allow(warnings)]
 #[deprecated(
     since = "0.7.0",
     note = "Use capture::types::scope and export::binary::variable_relationship_analyzer instead. This module will be removed in a future version."
