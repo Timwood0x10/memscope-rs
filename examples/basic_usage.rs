@@ -61,6 +61,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     use memscope_rs::render_engine::export::export_dashboard_html;
     export_dashboard_html(output_path, &tracker, &passport_tracker)?;
 
+    // Export SVG visualizations
+    println!("\nExporting SVG visualizations...");
+    use memscope_rs::render_engine::export::export_svg;
+    export_svg(output_path, &tracker)?;
+
     println!("Export successful!");
     println!("Files saved to {}/", output_path);
     println!("  memory_analysis.json");
@@ -71,7 +76,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  leak_detection.json");
     println!("  unsafe_ffi.json");
     println!("  system_resources.json");
-    println!("  dashboard.html"); // NEW: HTML dashboard
+    println!("  dashboard.html");
+    println!("  memory_analysis.svg");
+    println!("  lifecycle_timeline.svg");
 
     println!(
         "\nExample finished in {:.2}ms",

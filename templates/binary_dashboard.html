@@ -821,32 +821,41 @@
 
       console.warn('Data injection failed, attempting to load from JSON files...');
 
-      // Try to fetch the JSON data directly
-      fetch('./large_scale_user_memory_analysis.json')
+      // Try to fetch the JSON data directly from program exports
+      fetch('./memory_analysis.json')
         .then(response => response.json())
         .then(memoryData => {
           console.log('✅ Loaded memory analysis data:', memoryData);
 
-          // Construct the expected data structure
+          // Construct the expected data structure from actual program exports
           window.analysisData = {
             memory_analysis: memoryData,
             lifetime: {},
-            complex_types: {},
+            relationships: {},
+            threads: {},
             unsafe_ffi: {},
-            performance: {}
+            leaks: {},
+            system: {},
+            passports: {}
           };
 
-          // Try to load other JSON files
+          // Try to load other JSON files from program exports
           Promise.all([
-            fetch('./large_scale_user_lifetime.json').then(r => r.json()).catch(() => ({})),
-            fetch('./large_scale_user_complex_types.json').then(r => r.json()).catch(() => ({})),
-            fetch('./large_scale_user_unsafe_ffi.json').then(r => r.json()).catch(() => ({})),
-            fetch('./large_scale_user_performance.json').then(r => r.json()).catch(() => ({}))
-          ]).then(([lifetime, complexTypes, unsafeFfi, performance]) => {
+            fetch('./lifetime.json').then(r => r.json()).catch(() => ({})),
+            fetch('./variable_relationships.json').then(r => r.json()).catch(() => ({})),
+            fetch('./thread_analysis.json').then(r => r.json()).catch(() => ({})),
+            fetch('./unsafe_ffi.json').then(r => r.json()).catch(() => ({})),
+            fetch('./leak_detection.json').then(r => r.json()).catch(() => ({})),
+            fetch('./system_resources.json').then(r => r.json()).catch(() => ({})),
+            fetch('./memory_passports.json').then(r => r.json()).catch(() => ({}))
+          ]).then(([lifetime, relationships, threads, unsafe_ffi, leaks, system, passports]) => {
             window.analysisData.lifetime = lifetime;
-            window.analysisData.complex_types = complexTypes;
-            window.analysisData.unsafe_ffi = unsafeFfi;
-            window.analysisData.performance = performance;
+            window.analysisData.relationships = relationships;
+            window.analysisData.threads = threads;
+            window.analysisData.unsafe_ffi = unsafe_ffi;
+            window.analysisData.leaks = leaks;
+            window.analysisData.system = system;
+            window.analysisData.passports = passports;
 
             console.log('✅ All data loaded, initializing enhanced features...');
 
@@ -878,22 +887,81 @@
             memory_analysis: {
               allocations: [
                 {
+                  address: "0x1000",
                   var_name: 'test_var_1',
                   type_name: 'Arc<String>',
+                  type: "smart_pointer",
                   size: 1024,
                   timestamp_alloc: Date.now() * 1000000,
-                  lifetime_ms: 100.5,
-                  is_leaked: false
+                  timestamp_dealloc: null,
+                  lifetime_ms: 0,
+                  is_leaked: false,
+                  thread_id: 0,
+                  borrow_info: {
+                    immutable_borrows: 0,
+                    mutable_borrows: 0,
+                    max_concurrent_borrows: 0
+                  },
+                  clone_info: {
+                    is_clone: false,
+                    clone_count: 0,
+                    original_ptr: null
+                  }
                 },
                 {
+                  address: "0x2000",
                   var_name: 'test_var_2',
                   type_name: 'Vec<i32>',
+                  type: "dynamic_array",
                   size: 2048,
                   timestamp_alloc: Date.now() * 1000000 + 1000000,
-                  lifetime_ms: 250.0,
-                  is_leaked: true
+                  timestamp_dealloc: null,
+                  lifetime_ms: 0,
+                  is_leaked: true,
+                  thread_id: 0,
+                  borrow_info: {
+                    immutable_borrows: 0,
+                    mutable_borrows: 0,
+                    max_concurrent_borrows: 0
+                  },
+                  clone_info: {
+                    is_clone: false,
+                    clone_count: 0,
+                    original_ptr: null
+                  }
                 }
-              ]
+              ],
+              statistics: {
+                total_allocations: 2,
+                total_size_bytes: 3072,
+                average_size_bytes: 1536
+              },
+              type_distribution: {
+                "smart_pointer": 1,
+                "dynamic_array": 1
+              }
+            },
+            lifetime: {
+              ownership_histories: []
+            },
+            relationships: {
+              relationships: []
+            },
+            threads: {
+              thread_analysis: []
+            },
+            unsafe_ffi: {
+              unsafe_reports: []
+            },
+            leaks: {
+              leak_detection: {
+                total_leaks: 0,
+                leak_details: []
+              }
+            },
+            system: {},
+            passports: {
+              memory_passports: []
             }
           };
           console.log('⚠️ Using dummy data for testing');
@@ -2233,8 +2301,12 @@
         // Add visual feedback for button interactions
         this.addButtonFeedback();
 
-        // Wait for DOM to be fully ready
-        setTimeout(() => {
+        // Wait for DOM to be fully ready with retry logic
+        const maxRetries = 3;
+        const retryDelay = 1000;
+        let retryCount = 0;
+
+        const bindWithRetry = () => {
           const toggle3DBtn = document.getElementById('toggle3DView');
           const reset3DBtn = document.getElementById('reset3DView');
           const autoRotateBtn = document.getElementById('autoRotate3D');
@@ -2246,6 +2318,96 @@
             autoRotateBtn: !!autoRotateBtn,
             focusLargestBtn: !!focusLargestBtn
           });
+
+          if (toggle3DBtn && reset3DBtn && autoRotateBtn && focusLargestBtn) {
+            // All buttons found, proceed with binding
+            this.bindButtonEvents(toggle3DBtn, reset3DBtn, autoRotateBtn, focusLargestBtn);
+          } else {
+            // Some buttons missing, retry
+            retryCount++;
+            if (retryCount < maxRetries) {
+              console.log(`⏳ Buttons not ready, retrying in ${retryDelay}ms... (${retryCount}/${maxRetries})`);
+              setTimeout(bindWithRetry, retryDelay);
+            } else {
+              console.error('❌ Failed to bind 3D buttons after', maxRetries, 'retries');
+            }
+          }
+        };
+
+        // Start initial bind attempt
+        setTimeout(bindWithRetry, 2000);
+      }
+
+      bindButtonEvents(toggle3DBtn, reset3DBtn, autoRotateBtn, focusLargestBtn) {
+        console.log('✅ All buttons found, binding events...');
+
+        // Bind toggle 3D view button
+        toggle3DBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          console.log('🎯 Toggle 3D view clicked');
+          const container = document.getElementById('memory3DContainer');
+          if (container) {
+            const isHidden = container.style.display === 'none';
+            if (isHidden) {
+              // Show 3D view
+              container.style.display = 'block';
+              toggle3DBtn.innerHTML = '<i class="fa fa-eye-slash"></i><span>Hide 3D</span>';
+              toggle3DBtn.style.background = 'var(--primary-red)';
+              console.log('✅ Showing 3D view');
+              
+              // Reinitialize 3D scene if needed
+              if (!this.scene) {
+                console.log('🔄 Reinitializing 3D scene...');
+                this.init3DVisualization();
+              }
+              
+              // Update 3D visualization with current data
+              if (window.analysisData && window.analysisData.memory_analysis) {
+                this.create3DMemoryBlocks(window.analysisData.memory_analysis.allocations || []);
+              }
+            } else {
+              // Hide 3D view
+              container.style.display = 'none';
+              toggle3DBtn.innerHTML = '<i class="fa fa-eye"></i><span>Show 3D</span>';
+              toggle3DBtn.style.background = 'var(--primary-green)';
+              console.log('✅ Hiding 3D view');
+            }
+          } else {
+            console.error('❌ 3D container not found');
+          }
+        });
+        console.log('✅ Toggle 3D button event bound');
+
+        // Bind reset 3D view button
+        reset3DBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          console.log('🎯 Reset 3D view clicked');
+          this.reset3DView();
+        });
+        console.log('✅ Reset 3D button event bound');
+
+        // Bind auto rotate button
+        autoRotateBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          console.log('🎯 Auto rotate clicked');
+          this.toggleAutoRotate();
+        });
+        console.log('✅ Auto rotate button event bound');
+
+        // Bind focus largest button
+        focusLargestBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          console.log('🎯 Focus largest clicked');
+          this.focusOnLargestBlock();
+        });
+        console.log('✅ Focus largest button event bound');
+
+        console.log('✅ All 3D control buttons bound successfully');
+      }
+
+      addButtonFeedback() {
+        // Add hover and click effects to all 3D control buttons
+        const buttonIds = ['toggle3DView', 'reset3DView', 'autoRotate3D', 'focusLargest'];
 
           if (toggle3DBtn) {
             // Remove any existing event listeners
@@ -2587,6 +2749,11 @@
         this.initializeMemoryFragmentation(allocations);
 
         console.log('Enhanced memory visualization initialized successfully');
+        
+        // Bind 3D control events after initialization
+        setTimeout(() => {
+          this.bindEvents();
+        }, 500);
       }
 
       initializeMemoryFragmentation(allocations) {

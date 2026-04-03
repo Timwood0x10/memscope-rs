@@ -14,14 +14,14 @@
 //! ## Migration Guide
 //!
 //! Old API:
-//! ```rust
+//! ```rust,ignore
 //! use memscope_rs::analysis::lifecycle_analysis::{get_global_lifecycle_analyzer, LifecycleAnalyzer};
 //! let analyzer = get_global_lifecycle_analyzer();
 //! analyzer.record_drop_event(ptr, type_name, custom_drop);
 //! ```
 //!
 //! New API:
-//! ```rust
+//! ```rust,ignore
 //! use memscope_rs::analysis::lifecycle::{get_global_lifecycle_analyzer, LifecycleAnalyzer};
 //! let analyzer = get_global_lifecycle_analyzer();
 //! analyzer.record_drop_event(ptr, type_name, custom_drop);

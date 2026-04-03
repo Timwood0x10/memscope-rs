@@ -327,18 +327,20 @@ impl MemScope {
 
     // ===== Export Methods =====
 
-    /// Export the current memory snapshot as an HTML dashboard
-    ///
-    /// This method generates an interactive HTML dashboard with memory analysis,
-    /// visualization charts, and detailed statistics.
+    /// Export the current memory snapshot as an HTML dashboard with a specific template
     ///
     /// # Arguments
     /// * `path` - Directory path where the HTML file will be saved
+    /// * `template` - The dashboard template to use
     ///
     /// # Returns
     /// Result indicating success or failure
-    pub fn export_html<P: AsRef<std::path::Path>>(&self, path: P) -> Result<(), String> {
-        use crate::render_engine::export::export_dashboard_html;
+    pub fn export_html_with_template<P: AsRef<std::path::Path>>(
+        &self,
+        path: P,
+        template: crate::render_engine::export::DashboardTemplate,
+    ) -> Result<(), String> {
+        use crate::render_engine::export::export_dashboard_html_with_template;
         use crate::tracker::Tracker;
         use std::sync::Arc;
 
@@ -347,24 +349,86 @@ impl MemScope {
         let passport_tracker =
             Arc::new(crate::analysis::memory_passport_tracker::get_global_passport_tracker());
 
-        export_dashboard_html(path, &tracker, &passport_tracker)
+        export_dashboard_html_with_template(path, &tracker, &passport_tracker, template)
             .map_err(|e| format!("Failed to export HTML: {}", e))
     }
 
-    /// Export the current memory snapshot as a JSON file
+    /// Export the current memory snapshot as an HTML dashboard
+    ///
+    /// This method automatically detects program characteristics and selects
+    /// the most appropriate template:
+    /// - Multithread: If the program uses multiple threads
+    /// - Binary: Default template for single-threaded programs
     ///
     /// # Arguments
-    /// * `path` - File path where the JSON will be saved
+    /// * `path` - Directory path where the HTML file will be saved
+    ///
+    /// # Returns
+    /// Result indicating success or failure
+    pub fn export_html<P: AsRef<std::path::Path>>(&self, path: P) -> Result<(), String> {
+        use crate::render_engine::export::DashboardTemplate;
+
+        let snapshot = self.snapshot.build_snapshot();
+
+        // Auto-detect the best template based on program characteristics
+        let template = if snapshot.thread_stats.len() > 1 {
+            DashboardTemplate::Multithread
+        } else {
+            DashboardTemplate::Binary
+        };
+
+        self.export_html_with_template(path, template)
+    }
+
+    /// Export all JSON files
+    ///
+    /// This method exports 8 JSON files containing comprehensive memory analysis:
+    /// - memory_analysis.json: Complete memory allocation analysis
+    /// - lifetime.json: Ownership and lifetime tracking
+    /// - variable_relationships.json: Variable dependency graph
+    /// - system_resources.json: System resource monitoring
+    /// - thread_analysis.json: Thread-specific memory stats
+    /// - unsafe_ffi.json: Unsafe FFI boundary tracking
+    /// - memory_passports.json: Memory lifecycle passports
+    /// - leak_detection.json: Potential memory leaks
+    ///
+    /// # Arguments
+    /// * `path` - Directory path where JSON files will be saved
     ///
     /// # Returns
     /// Result indicating success or failure
     pub fn export_json<P: AsRef<std::path::Path>>(&self, path: P) -> Result<(), String> {
-        use crate::render_engine::export::{export_snapshot_to_json, ExportJsonOptions};
+        use crate::render_engine::export::export_all_json;
+        use crate::tracker::Tracker;
+        use std::sync::Arc;
 
-        let snapshot = self.snapshot.build_snapshot();
-        let options = ExportJsonOptions::default();
-        export_snapshot_to_json(&snapshot, path.as_ref(), &options)
-            .map_err(|e| format!("Failed to export JSON: {}", e))
+        let tracker = Tracker::new();
+        let passport_tracker =
+            Arc::new(crate::analysis::memory_passport_tracker::get_global_passport_tracker());
+
+        export_all_json(path, &tracker, &passport_tracker)
+            .map_err(|e| format!("Failed to export JSON files: {}", e))
+    }
+
+    /// Export SVG visualizations
+    ///
+    /// This method exports comprehensive SVG visualizations including:
+    /// - memory_analysis.svg: Memory analysis with variable names, types, and usage
+    /// - lifecycle_timeline.svg: Interactive lifecycle timeline showing variable lifecycles
+    ///
+    /// # Arguments
+    /// * `path` - Directory path where SVG files will be saved
+    ///
+    /// # Returns
+    /// Result indicating success or failure
+    pub fn export_svg<P: AsRef<std::path::Path>>(&self, path: P) -> Result<(), String> {
+        use crate::render_engine::export::export_svg;
+        use crate::tracker::Tracker;
+
+        let tracker = Tracker::new();
+
+        export_svg(path, &tracker)
+            .map_err(|e| format!("Failed to export SVG files: {}", e))
     }
 }
 

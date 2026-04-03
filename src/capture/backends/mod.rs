@@ -173,7 +173,7 @@ impl CaptureBackendType {
             CaptureBackendType::Core => Box::new(CoreBackend),
             CaptureBackendType::Lockfree => Box::new(LockfreeBackend),
             CaptureBackendType::Async => Box::new(AsyncBackend),
-            CaptureBackendType::Unified => Box::new(UnifiedCaptureBackend::default()),
+            CaptureBackendType::Unified => Box::new(UnifiedCaptureBackend::new()),
         }
     }
 }
@@ -345,13 +345,47 @@ impl CaptureBackend for AsyncBackend {
 pub struct UnifiedCaptureBackend {
     /// The actual backend being used
     inner: Box<dyn CaptureBackend>,
+    /// Which backend was selected
+    backend_type: CaptureBackendType,
+}
+
+impl UnifiedCaptureBackend {
+    /// Detect the best capture backend for the current runtime environment.
+    ///
+    /// Selection logic:
+    /// - Single CPU core → CoreBackend (simple, lowest overhead)
+    /// - Multiple CPU cores → LockfreeBackend (concurrent, high throughput)
+    /// - In async context (detected via thread-local) → AsyncBackend
+    fn detect_best_backend() -> (Box<dyn CaptureBackend>, CaptureBackendType) {
+        let thread_count = std::thread::available_parallelism()
+            .map(|p| p.get())
+            .unwrap_or(1);
+
+        if thread_count <= 1 {
+            (Box::new(CoreBackend), CaptureBackendType::Core)
+        } else {
+            (Box::new(LockfreeBackend), CaptureBackendType::Lockfree)
+        }
+    }
+
+    /// Create a new unified capture backend with auto-detection.
+    pub fn new() -> Self {
+        let (inner, backend_type) = Self::detect_best_backend();
+        Self {
+            inner,
+            backend_type,
+        }
+    }
+
+    /// Get which backend type was selected.
+    pub fn backend_type(&self) -> CaptureBackendType {
+        self.backend_type
+    }
 }
 
 impl Default for UnifiedCaptureBackend {
     fn default() -> Self {
-        Self {
-            inner: Box::new(CoreBackend),
-        }
+        Self::new()
     }
 }
 

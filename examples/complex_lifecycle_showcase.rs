@@ -61,6 +61,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  📄 leak_detection.json");
     println!("  📄 unsafe_ffi.json");
 
+    // Export HTML dashboard
+    println!("\nExporting HTML dashboard...");
+    use memscope_rs::analysis::memory_passport_tracker::{MemoryPassportTracker, PassportTrackerConfig};
+    use memscope_rs::render_engine::export::export_dashboard_html;
+    use std::sync::Arc;
+
+    let passport_tracker = Arc::new(MemoryPassportTracker::new(PassportTrackerConfig::default()));
+    export_dashboard_html(output_path, &tracker, &passport_tracker)?;
+    println!("  📄 dashboard.html");
+
+    // Export SVG visualizations
+    println!("\nExporting SVG visualizations...");
+    use memscope_rs::render_engine::export::export_svg;
+    export_svg(output_path, &tracker)?;
+    println!("  📄 memory_analysis.svg");
+    println!("  📄 lifecycle_timeline.svg");
+
     println!(
         "\nExample finished in {:.2}ms",
         duration.as_secs_f64() * 1000.0

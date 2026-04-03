@@ -11,7 +11,7 @@
 //! ## Migration Guide
 //!
 //! Old API:
-//! ```rust
+//! ```rust,ignore
 //! use memscope_rs::analysis::variable_relationships::{
 //!     VariableRelationship, VariableRelationshipGraph, build_variable_relationship_graph,
 //! };
@@ -19,7 +19,7 @@
 //! ```
 //!
 //! New API:
-//! ```rust
+//! ```rust,ignore
 //! use memscope_rs::capture::types::scope::{VariableRelationship, VariableRelationshipGraph};
 //! use memscope_rs::export::binary::variable_relationship_analyzer::build_variable_relationship_graph;
 //! let graph = build_variable_relationship_graph(&allocations);

@@ -4661,29 +4661,52 @@ function initTimelineChart(data) {
 
     // Comprehensive cleanup for timeline chart
     try {
+        // Step 1: Destroy chart attached to canvas
         if (ctx.chart) {
             ctx.chart.destroy();
-            delete ctx.chart;
+            ctx.chart = null;
         }
-        
+    } catch(e) {
+        console.warn('Failed to destroy ctx.chart:', e);
+    }
+    
+    try {
+        // Step 2: Destroy matching instances from Chart.js global registry
         if (window.Chart.instances) {
+            const instancesToDestroy = [];
             Object.values(window.Chart.instances).forEach(instance => {
                 if (instance.canvas === ctx) {
+                    instancesToDestroy.push(instance);
+                }
+            });
+            instancesToDestroy.forEach(instance => {
+                try {
                     instance.destroy();
+                } catch(e) {
+                    console.warn('Failed to destroy Chart instance:', e);
                 }
             });
         }
-        
+    } catch(e) {
+        console.warn('Failed to clean Chart.instances:', e);
+    }
+    
+    try {
+        // Step 3: Destroy chart stored in window.chartInstances
         if (window.chartInstances && window.chartInstances['timelineChart']) {
             window.chartInstances['timelineChart'].destroy();
             delete window.chartInstances['timelineChart'];
         }
-        
+    } catch(e) {
+        console.warn('Failed to destroy window.chartInstances:', e);
+    }
+    
+    try {
+        // Step 4: Clear canvas context
         const context = ctx.getContext('2d');
         context.clearRect(0, 0, ctx.width, ctx.height);
-        
     } catch(e) {
-        console.warn('Timeline chart cleanup warning:', e);
+        console.warn('Failed to clear canvas context:', e);
     }
     
     const allocs = (data.memory_analysis && data.memory_analysis.allocations) || [];
@@ -4720,10 +4743,67 @@ function initTimelineChart(data) {
     }
 
     if (cumSeries.length > 1 && window.Chart) {
-        // destroy previous chart if exists
-        if (window.chartInstances && window.chartInstances['timelineChart']) {
-            try { window.chartInstances['timelineChart'].destroy(); } catch(_) {}
-            delete window.chartInstances['timelineChart'];
+        // Comprehensive cleanup before creating new chart
+        const ctx = document.getElementById('timelineChart');
+        if (ctx) {
+            try {
+                // Step 1: Get all Chart.js instances
+                const allInstances = Chart.getChart('timelineChart');
+                if (allInstances) {
+                    allInstances.destroy();
+                }
+            } catch(e) {
+                console.warn('Failed to destroy via Chart.getChart:', e);
+            }
+            
+            try {
+                // Step 2: Destroy chart attached to canvas
+                if (ctx.chart) {
+                    ctx.chart.destroy();
+                    ctx.chart = null;
+                }
+            } catch(e) {
+                console.warn('Failed to destroy ctx.chart:', e);
+            }
+            
+            try {
+                // Step 3: Destroy matching instances from Chart.js global registry
+                if (window.Chart.instances) {
+                    const instancesToDestroy = [];
+                    Object.values(window.Chart.instances).forEach(instance => {
+                        if (instance.canvas === ctx) {
+                            instancesToDestroy.push(instance);
+                        }
+                    });
+                    instancesToDestroy.forEach(instance => {
+                        try {
+                            instance.destroy();
+                        } catch(e) {
+                            console.warn('Failed to destroy Chart instance:', e);
+                        }
+                    });
+                }
+            } catch(e) {
+                console.warn('Failed to clean Chart.instances:', e);
+            }
+            
+            try {
+                // Step 4: Destroy chart stored in window.chartInstances
+                if (window.chartInstances && window.chartInstances['timelineChart']) {
+                    window.chartInstances['timelineChart'].destroy();
+                    delete window.chartInstances['timelineChart'];
+                }
+            } catch(e) {
+                console.warn('Failed to destroy window.chartInstances:', e);
+            }
+            
+            try {
+                // Step 5: Clear canvas context
+                const context = ctx.getContext('2d');
+                context.clearRect(0, 0, ctx.width, ctx.height);
+            } catch(e) {
+                console.warn('Failed to clear canvas context:', e);
+            }
         }
 
         const labels = cumSeries.map(p=> new Date(p.x/1e6).toLocaleTimeString());

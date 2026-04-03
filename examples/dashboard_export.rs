@@ -1,7 +1,9 @@
-//! Dashboard HTML Export Example
+//! Dashboard Export Example
 //!
 //! This example demonstrates how to export memory tracking data
-//! as an interactive HTML dashboard using the new rendering engine.
+//! using the new simplified export API:
+//! - export_json: Exports 8 JSON files
+//! - export_html: Automatically detects program characteristics and exports appropriate HTML
 
 use memscope_rs::analysis::memory_passport_tracker::{
     MemoryPassportTracker, PassportTrackerConfig,
@@ -62,74 +64,47 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  Active allocations: {}", report.active_allocations);
     println!("  Peak memory: {} bytes", report.peak_memory_bytes);
 
-    // Export HTML dashboard with all templates
-    println!("\nExporting HTML dashboards with all templates...");
+    // Export with new simplified API
     let output_path = "MemoryAnalysis/dashboard_export";
 
-    // Export with Binary template (default, comprehensive)
-    use memscope_rs::render_engine::export::{
-        export_dashboard_html_with_template, DashboardTemplate,
-    };
+    // Export HTML dashboard (auto-detects template based on program characteristics)
+    println!("\nExporting HTML dashboard (auto-detecting template)...");
+    // Note: In this example, we're using the old tracker API for demonstration
+    // The new MemScope API would be: memscope.export_html(&output_path)?;
+    use memscope_rs::render_engine::export::export_dashboard_html;
+    export_dashboard_html(output_path, &tracker, &passport_tracker)?;
+    println!("✓ HTML dashboard exported (template auto-selected)");
 
-    export_dashboard_html_with_template(
-        output_path,
-        &tracker,
-        &passport_tracker,
-        DashboardTemplate::Binary,
-    )?;
-    println!("✓ Binary dashboard exported");
+    // Export all JSON files
+    println!("\nExporting JSON data files (8 files)...");
+    use memscope_rs::render_engine::export::export_all_json;
+    export_all_json(output_path, &tracker, &passport_tracker)?;
+    println!("✓ All JSON files exported");
 
-    export_dashboard_html_with_template(
-        output_path,
-        &tracker,
-        &passport_tracker,
-        DashboardTemplate::Clean,
-    )?;
-    println!("✓ Clean dashboard exported");
-
-    export_dashboard_html_with_template(
-        output_path,
-        &tracker,
-        &passport_tracker,
-        DashboardTemplate::Hybrid,
-    )?;
-    println!("✓ Hybrid dashboard exported");
-
-    export_dashboard_html_with_template(
-        output_path,
-        &tracker,
-        &passport_tracker,
-        DashboardTemplate::Performance,
-    )?;
-    println!("✓ Performance dashboard exported");
-
-    export_dashboard_html_with_template(
-        output_path,
-        &tracker,
-        &passport_tracker,
-        DashboardTemplate::Async,
-    )?;
-    println!("✓ Async dashboard exported");
-
-    export_dashboard_html_with_template(
-        output_path,
-        &tracker,
-        &passport_tracker,
-        DashboardTemplate::Standalone,
-    )?;
-    println!("✓ Standalone dashboard exported");
+    // Export SVG visualizations
+    println!("\nExporting SVG visualizations (2 files)...");
+    use memscope_rs::render_engine::export::export_svg;
+    export_svg(output_path, &tracker)?;
+    println!("✓ SVG visualizations exported");
 
     let duration = start_time.elapsed();
 
     println!("\n✅ Export successful!");
     println!("Files saved to {}/", output_path);
-    println!("Available dashboards:");
-    println!("  - binary_dashboard.html (comprehensive, with 3D visualization)");
-    println!("  - clean_dashboard.html (minimal, clean design)");
-    println!("  - hybrid_dashboard.html (mixed features)");
-    println!("  - performance_dashboard.html (performance metrics focus)");
-    println!("  - async_dashboard.html (async runtime analysis)");
-    println!("  - standalone_dashboard.html (no external dependencies)");
+    println!("\nExported files:");
+    println!("  - HTML dashboard (auto-selected template based on program characteristics)");
+    println!("  - 8 JSON files:");
+    println!("    • memory_analysis.json (complete memory allocation analysis)");
+    println!("    • lifetime.json (ownership and lifetime tracking)");
+    println!("    • variable_relationships.json (variable dependency graph)");
+    println!("    • system_resources.json (system resource monitoring)");
+    println!("    • thread_analysis.json (thread-specific memory stats)");
+    println!("    • unsafe_ffi.json (unsafe FFI boundary tracking)");
+    println!("    • memory_passports.json (memory lifecycle passports)");
+    println!("    • leak_detection.json (potential memory leaks)");
+    println!("  - 2 SVG visualizations:");
+    println!("    • memory_analysis.svg (comprehensive memory analysis)");
+    println!("    • lifecycle_timeline.svg (interactive lifecycle timeline)");
 
     println!(
         "\nExample finished in {:.2}ms",

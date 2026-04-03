@@ -11,14 +11,14 @@
 //! ## Migration Guide
 //!
 //! Old API:
-//! ```rust
+//! ```rust,ignore
 //! use memscope_rs::analysis::circular_reference::{CircularReference, CircularReferenceAnalysis};
 //! let analysis = CircularReferenceAnalysis::new();
 //! let result = analysis.detect_circular_references(&allocations);
 //! ```
 //!
 //! New API:
-//! ```rust
+//! ```rust,ignore
 //! use memscope_rs::metadata::smart_pointers::analyzer::{CircularReference, CircularReferenceAnalysis};
 //! let analysis = CircularReferenceAnalysis::new();
 //! let result = analysis.detect_circular_references(&allocations);

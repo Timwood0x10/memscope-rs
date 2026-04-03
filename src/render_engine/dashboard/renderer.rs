@@ -96,6 +96,46 @@ pub struct AllocationInfo {
     pub smart_pointer_type: String,
 }
 
+/// Thread statistics for multithread dashboard
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ThreadStats {
+    /// Thread ID
+    id: u64,
+    /// Number of allocations
+    allocations: usize,
+    /// Total memory used
+    memory: usize,
+    /// Peak memory usage
+    peak: usize,
+    /// Thread status
+    status: String,
+}
+
+/// Timeline allocation for multithread dashboard
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct TimelineAllocation {
+    /// Timestamp
+    timestamp: u64,
+    /// Thread ID
+    thread_id: u64,
+    /// Allocation size
+    size: usize,
+    /// Variable name
+    var_name: Option<String>,
+}
+
+/// Thread conflict information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ThreadConflict {
+    /// Description of the conflict
+    description: String,
+    /// Threads involved
+    threads: String,
+    /// Conflict type
+    #[serde(rename = "type")]
+    conflict_type: String,
+}
+
 /// Variable relationship information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RelationshipInfo {
@@ -261,37 +301,35 @@ impl DashboardRenderer {
 
         // Register base template (optional, for future use)
         if let Err(_) = handlebars
-            .register_template_file("base", "src/render_engine/dashboard/templates/base.html")
+            .register_template_file("base", "templates/base.html")
         {
             // Base template is optional, ignore error
         }
 
-        // Register old templates
+        // Register templates from root templates directory
         handlebars.register_template_file(
             "binary_dashboard",
-            "src/render_engine/dashboard/templates/binary_dashboard.html",
+            "templates/binary_dashboard.html",
         )?;
         handlebars.register_template_file(
             "clean_dashboard",
-            "src/render_engine/dashboard/templates/clean_dashboard.html",
+            "templates/clean_dashboard.html",
         )?;
         handlebars.register_template_file(
             "hybrid_dashboard",
-            "src/render_engine/dashboard/templates/hybrid_dashboard.html",
+            "templates/hybrid_dashboard.html",
         )?;
         handlebars.register_template_file(
             "performance_dashboard",
-            "src/render_engine/dashboard/templates/performance_dashboard.html",
+            "templates/performance_dashboard.html",
         )?;
         handlebars.register_template_file(
             "async_template",
-            "src/render_engine/dashboard/templates/async_template.html",
+            "templates/async_template.html",
         )?;
-
-        // Register standalone dashboard template (no external dependencies, works with file:// protocol)
         handlebars.register_template_file(
-            "standalone_dashboard",
-            "src/render_engine/dashboard/templates/standalone_dashboard_v2.html",
+            "multithread_template",
+            "templates/multithread_template.html",
         )?;
 
         // Register custom helpers
@@ -923,9 +961,14 @@ impl DashboardRenderer {
         &self,
         context: &DashboardContext,
     ) -> Result<String, Box<dyn std::error::Error>> {
-        // Use standalone dashboard to avoid CORS issues with file:// protocol
+        // Use binary dashboard as the default
+        let legacy_data = self.to_legacy_binary_data(context);
+        let mut template_data = std::collections::BTreeMap::new();
+        template_data.insert("BINARY_DATA", serde_json::to_string(&legacy_data)?);
+        template_data.insert("PROJECT_NAME", "MemScope Memory Analysis".to_string());
+
         self.handlebars
-            .render("standalone_dashboard", context)
+            .render("binary_dashboard", &template_data)
             .map_err(|e| format!("Template rendering error: {}", e).into())
     }
 
@@ -934,9 +977,8 @@ impl DashboardRenderer {
         &self,
         context: &DashboardContext,
     ) -> Result<String, Box<dyn std::error::Error>> {
-        self.handlebars
-            .render("standalone_dashboard", context)
-            .map_err(|e| format!("Template rendering error: {}", e).into())
+        // Use binary dashboard as fallback since standalone template doesn't exist
+        self.render_dashboard(context)
     }
 
     /// Render binary dashboard (legacy template)
@@ -979,12 +1021,24 @@ impl DashboardRenderer {
         let variables_data = serde_json::to_string(&context.allocations)?;
         let threads_data = serde_json::to_string(&context.threads)?;
         let tasks_data = serde_json::to_string(&Vec::<serde_json::Value>::new())?; // TODO: Add tasks data
+        
+        // Calculate metrics
+        let total_memory: usize = context.allocations.iter().map(|a| a.size).sum();
+        let efficiency = if total_memory > 0 {
+            (context.active_allocations as f64 / context.total_allocations as f64 * 100.0) as usize
+        } else {
+            100
+        };
 
         let mut template_data = std::collections::BTreeMap::new();
         template_data.insert("VARIABLES_DATA", variables_data);
         template_data.insert("THREADS_DATA", threads_data);
         template_data.insert("TASKS_DATA", tasks_data);
         template_data.insert("PROJECT_NAME", "MemScope Memory Analysis".to_string());
+        template_data.insert("TOTAL_MEMORY", format_bytes(total_memory));
+        template_data.insert("TOTAL_VARIABLES", context.allocations.len().to_string());
+        template_data.insert("THREAD_COUNT", context.thread_count.to_string());
+        template_data.insert("EFFICIENCY", format!("{}%", efficiency));
 
         self.handlebars
             .render("hybrid_dashboard", &template_data)
@@ -996,12 +1050,39 @@ impl DashboardRenderer {
         &self,
         context: &DashboardContext,
     ) -> Result<String, Box<dyn std::error::Error>> {
-        let performance_data = serde_json::to_string(&context.allocations)?;
-        let efficiency_data = serde_json::to_string(&Vec::<serde_json::Value>::new())?; // TODO: Add efficiency data
+        // Prepare performance data in expected format
+        let performance_data = serde_json::json!({
+            "allocations": context.allocations.iter().map(|a| {
+                serde_json::json!({
+                    "timestamp": a.timestamp_alloc,
+                    "memory": a.size,
+                    "var_name": a.var_name,
+                    "type_name": a.type_name
+                })
+            }).collect::<Vec<_>>(),
+            "total_memory": context.total_memory,
+            "peak_memory": context.peak_memory,
+            "allocations_count": context.total_allocations,
+            "thread_count": context.thread_count
+        });
+        
+        // Prepare efficiency data
+        let efficiency_data = serde_json::json!({
+            "memory_efficiency": if context.total_allocations > 0 {
+                (context.active_allocations as f64 / context.total_allocations as f64 * 100.0)
+            } else { 100.0 },
+            "fragmentation": "0.0", // TODO: Calculate actual fragmentation
+            "reclamation_rate": "0.0", // TODO: Calculate actual reclamation rate
+            "average_size": if context.allocations.is_empty() {
+                0
+            } else {
+                context.allocations.iter().map(|a| a.size).sum::<usize>() / context.allocations.len()
+            }
+        });
 
         let mut template_data = std::collections::BTreeMap::new();
-        template_data.insert("PERFORMANCE_DATA", performance_data);
-        template_data.insert("EFFICIENCY_DATA", efficiency_data);
+        template_data.insert("PERFORMANCE_DATA", serde_json::to_string(&performance_data)?);
+        template_data.insert("EFFICIENCY_DATA", serde_json::to_string(&efficiency_data)?);
         template_data.insert("PROJECT_NAME", "MemScope Memory Analysis".to_string());
 
         self.handlebars
@@ -1009,23 +1090,405 @@ impl DashboardRenderer {
             .map_err(|e| format!("Template rendering error: {}", e).into())
     }
 
+    /// Render multithread dashboard (new template for thread analysis)
+    pub fn render_multithread_dashboard(
+        &self,
+        context: &DashboardContext,
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        // Prepare thread data for multithread dashboard
+        let threads_data = self.prepare_thread_data(context)?;
+        let allocation_data = self.prepare_allocation_timeline_data(context)?;
+        let conflict_data = self.prepare_conflict_data(context)?;
+
+        // Add metrics
+        let conflict_count = conflict_data.len();
+        let mut template_data = std::collections::BTreeMap::new();
+        template_data.insert("THREADS_DATA", threads_data);
+        template_data.insert("ALLOCATION_DATA", allocation_data);
+        template_data.insert("CONFLICT_DATA", conflict_data);
+        template_data.insert("PROJECT_NAME", "MemScope Memory Analysis".to_string());
+        template_data.insert("THREAD_COUNT", context.thread_count.to_string());
+        template_data.insert("TOTAL_MEMORY", context.total_memory.clone());
+        template_data.insert("TOTAL_ALLOCATIONS", context.total_allocations.to_string());
+        template_data.insert("CONFLICT_COUNT", conflict_count.to_string());
+
+        self.handlebars
+            .render("multithread_template", &template_data)
+            .map_err(|e| format!("Template rendering error: {}", e).into())
+    }
+
+    /// Prepare thread data for multithread dashboard
+    fn prepare_thread_data(
+        &self,
+        context: &DashboardContext,
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        // Group allocations by thread
+        let mut thread_map: std::collections::HashMap<String, ThreadStats> =
+            std::collections::HashMap::new();
+
+        for allocation in &context.allocations {
+            let thread_id = allocation.thread_id.clone();
+            let stats = thread_map
+                .entry(thread_id.clone())
+                .or_insert_with(|| ThreadStats {
+                    id: thread_id.parse::<u64>().unwrap_or(0),
+                    allocations: 0,
+                    memory: 0,
+                    peak: 0,
+                    status: "active".to_string(),
+                });
+
+            stats.allocations += 1;
+            stats.memory += allocation.size;
+            if allocation.size > stats.peak {
+                stats.peak = allocation.size;
+            }
+        }
+
+        // Convert to JSON array
+        let threads: Vec<ThreadStats> = thread_map.into_values().collect();
+        serde_json::to_string(&threads).map_err(|e| e.into())
+    }
+
+    /// Prepare allocation timeline data for multithread dashboard
+    fn prepare_allocation_timeline_data(
+        &self,
+        context: &DashboardContext,
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        let timeline: Vec<TimelineAllocation> = context
+            .allocations
+            .iter()
+            .map(|a| TimelineAllocation {
+                timestamp: a.timestamp_alloc,
+                thread_id: a.thread_id.parse::<u64>().unwrap_or(0),
+                size: a.size,
+                var_name: Some(a.var_name.clone()),
+            })
+            .collect();
+
+        serde_json::to_string(&timeline).map_err(|e| e.into())
+    }
+
+    /// Prepare conflict data for multithread dashboard
+    fn prepare_conflict_data(
+        &self,
+        context: &DashboardContext,
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        // Detect potential thread conflicts
+        let mut conflicts: Vec<ThreadConflict> = Vec::new();
+
+        // Group allocations by address to detect conflicts
+        let mut address_map: std::collections::HashMap<String, Vec<&AllocationInfo>> =
+            std::collections::HashMap::new();
+
+        for allocation in &context.allocations {
+            address_map
+                .entry(allocation.address.clone())
+                .or_default()
+                .push(allocation);
+        }
+
+        // Check for conflicts (same address accessed by different threads)
+        for (address, allocations) in &address_map {
+            if allocations.len() > 1 {
+                let thread_ids: Vec<u64> = allocations
+                    .iter()
+                    .map(|a| a.thread_id.parse::<u64>().unwrap_or(0))
+                    .collect();
+                let unique_threads: std::collections::HashSet<u64> =
+                    thread_ids.iter().cloned().collect();
+
+                if unique_threads.len() > 1 {
+                    conflicts.push(ThreadConflict {
+                        description: format!(
+                            "Address {} accessed by {} threads",
+                            address,
+                            unique_threads.len()
+                        ),
+                        threads: thread_ids
+                            .iter()
+                            .map(|t| t.to_string())
+                            .collect::<Vec<_>>()
+                            .join(", "),
+                        conflict_type: "Data Race".to_string(),
+                    });
+                }
+            }
+        }
+
+        serde_json::to_string(&conflicts).map_err(|e| e.into())
+    }
+
     /// Render async template (legacy template)
     pub fn render_async_template(
         &self,
         context: &DashboardContext,
     ) -> Result<String, Box<dyn std::error::Error>> {
-        let legacy_data = self.to_legacy_binary_data(context);
+        // Detect if there are actual async tasks
+        let has_async_tasks = context.allocations.iter().any(|a| {
+            a.type_name.contains("Future")
+                || a.type_name.contains("Task")
+                || a.type_name.contains("async")
+                || a.type_name.contains("Waker")
+        });
+
+        // Prepare async-specific data structure
+        let async_data = if has_async_tasks {
+            self.prepare_async_data(context)?
+        } else {
+            // Default data when no async tasks detected
+            serde_json::json!({
+                "title": "Async Performance Dashboard",
+                "subtitle": "No async tasks detected - showing general memory data",
+                "total_tasks": context.allocations.len(),
+                "active_tasks": context.active_allocations,
+                "completed_tasks": context.allocations.iter().filter(|a| a.timestamp_dealloc > 0).count(),
+                "failed_tasks": 0,
+                "cpu_usage_avg": 0.0,
+                "cpu_usage_peak": 0.0,
+                "cpu_cores": context.cpu_cores,
+                "context_switches": 0,
+                "total_memory_mb": parse_bytes_to_mb(&context.total_memory),
+                "peak_memory_mb": parse_bytes_to_mb(&context.peak_memory),
+                "total_allocations": context.total_allocations,
+                "memory_efficiency": 100.0,
+                "io_throughput": 0.0,
+                "total_read_mb": 0.0,
+                "total_write_mb": 0.0,
+                "total_io_ops": 0,
+                "network_throughput": 0.0,
+                "total_sent_mb": 0.0,
+                "total_received_mb": 0.0,
+                "avg_latency": 0.0,
+                "efficiency_score": 100.0,
+                "resource_balance": 100.0,
+                "bottleneck_count": 0,
+                "optimization_potential": 0.0,
+                "futures_count": 0,
+                "total_polls": 0,
+                "avg_poll_time": 0.0,
+                "ready_rate": 100.0,
+                "cpu_intensive_count": 0,
+                "cpu_avg_efficiency": 100.0,
+                "cpu_intensive_tasks": [],
+                "memory_intensive_count": 0,
+                "memory_avg_efficiency": 100.0,
+                "memory_intensive_tasks": [],
+                "io_intensive_count": 0,
+                "io_avg_efficiency": 100.0,
+                "io_intensive_tasks": [],
+                "network_intensive_count": 0,
+                "network_avg_efficiency": 100.0,
+                "network_intensive_tasks": [],
+                "executor_utilization": 0.0,
+                "avg_queue_length": 0.0,
+                "blocking_tasks_count": 0,
+                "deadlock_risk": 0.0,
+                "gc_pressure": 0.0,
+                "avg_fragmentation": 0.0,
+                "peak_alloc_rate": 0.0,
+                "waker_efficiency": 100.0,
+                "immediate_ready_percent": 100.0
+            })
+        };
+
         let mut template_data = std::collections::BTreeMap::new();
-        template_data.insert("BINARY_DATA", serde_json::to_string(&legacy_data)?);
-        template_data.insert("PROJECT_NAME", "MemScope Memory Analysis".to_string());
+        template_data.insert("ASYNC_DATA", serde_json::to_string(&async_data)?);
+        template_data.insert("PROJECT_NAME", "MemScope Async Performance Analysis".to_string());
 
         self.handlebars
             .render("async_template", &template_data)
             .map_err(|e| format!("Template rendering error: {}", e).into())
     }
 
+    /// Prepare async-specific data from context
+    fn prepare_async_data(
+        &self,
+        context: &DashboardContext,
+    ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+        // Categorize allocations by type
+        let mut cpu_intensive_tasks = Vec::new();
+        let mut memory_intensive_tasks = Vec::new();
+        let mut io_intensive_tasks = Vec::new();
+        let mut network_intensive_tasks = Vec::new();
+
+        for (idx, alloc) in context.allocations.iter().enumerate() {
+            let task_type = if alloc.type_name.contains("Future") {
+                "future"
+            } else if alloc.type_name.contains("Task") {
+                "task"
+            } else if alloc.type_name.contains("Channel") {
+                "channel"
+            } else {
+                "async_op"
+            };
+
+            let task_data = serde_json::json!({
+                "task_id": idx,
+                "task_name": alloc.var_name.clone().unwrap_or_else(|| format!("async_{}", idx)),
+                "source_file": "unknown",
+                "source_line": 0,
+                "task_type": task_type,
+                "cpu_usage": 0.0,
+                "cpu_cycles": 0,
+                "instructions": 0,
+                "cache_misses": 0,
+                "allocated_mb": alloc.size as f64 / 1024.0 / 1024.0,
+                "memory_usage_percent": 0.0,
+                "peak_memory_mb": alloc.size as f64 / 1024.0 / 1024.0,
+                "allocation_count": 1,
+                "heap_fragmentation": 0.0,
+                "bytes_read_mb": 0.0,
+                "bytes_written_mb": 0.0,
+                "avg_latency_us": 0.0,
+                "queue_depth": 0,
+                "bytes_sent_mb": 0.0,
+                "bytes_received_mb": 0.0,
+                "active_connections": 0,
+                "avg_latency_ms": 0.0,
+                "status": if alloc.is_leaked { "leaked" } else if alloc.timestamp_dealloc > 0 { "completed" } else { "active" },
+                "duration_ms": alloc.lifetime_ms
+            });
+
+            // Categorize based on type name patterns
+            if alloc.type_name.contains("Future") || alloc.type_name.contains("Stream") {
+                cpu_intensive_tasks.push(task_data);
+            } else if alloc.type_name.contains("Channel") || alloc.type_name.contains("Mutex") {
+                memory_intensive_tasks.push(task_data);
+            } else if alloc.type_name.contains("Tcp") || alloc.type_name.contains("Udp") {
+                network_intensive_tasks.push(task_data);
+            } else {
+                io_intensive_tasks.push(task_data);
+            }
+        }
+
+        Ok(serde_json::json!({
+            "title": "Async Performance Dashboard",
+            "subtitle": "Rust Async Runtime Analysis",
+            "total_tasks": context.allocations.len(),
+            "active_tasks": context.active_allocations,
+            "completed_tasks": context.allocations.iter().filter(|a| a.timestamp_dealloc > 0).count(),
+            "failed_tasks": context.leak_count,
+            "cpu_usage_avg": 0.0,
+            "cpu_usage_peak": 0.0,
+            "cpu_cores": context.cpu_cores,
+            "context_switches": 0,
+            "total_memory_mb": parse_bytes_to_mb(&context.total_memory),
+            "peak_memory_mb": parse_bytes_to_mb(&context.peak_memory),
+            "total_allocations": context.total_allocations,
+            "memory_efficiency": if context.total_allocations > 0 {
+                (context.active_allocations as f64 / context.total_allocations as f64 * 100.0)
+            } else { 100.0 },
+            "io_throughput": 0.0,
+            "total_read_mb": 0.0,
+            "total_write_mb": 0.0,
+            "total_io_ops": 0,
+            "network_throughput": 0.0,
+            "total_sent_mb": 0.0,
+            "total_received_mb": 0.0,
+            "avg_latency": 0.0,
+            "efficiency_score": 100.0,
+            "resource_balance": 100.0,
+            "bottleneck_count": 0,
+            "optimization_potential": 0.0,
+            "futures_count": cpu_intensive_tasks.len(),
+            "total_polls": 0,
+            "avg_poll_time": 0.0,
+            "ready_rate": 100.0,
+            "cpu_intensive_count": cpu_intensive_tasks.len(),
+            "cpu_avg_efficiency": 100.0,
+            "cpu_intensive_tasks": cpu_intensive_tasks,
+            "memory_intensive_count": memory_intensive_tasks.len(),
+            "memory_avg_efficiency": 100.0,
+            "memory_intensive_tasks": memory_intensive_tasks,
+            "io_intensive_count": io_intensive_tasks.len(),
+            "io_avg_efficiency": 100.0,
+            "io_intensive_tasks": io_intensive_tasks,
+            "network_intensive_count": network_intensive_tasks.len(),
+            "network_avg_efficiency": 100.0,
+            "network_intensive_tasks": network_intensive_tasks,
+            "executor_utilization": 0.0,
+            "avg_queue_length": 0.0,
+            "blocking_tasks_count": 0,
+            "deadlock_risk": 0.0,
+            "gc_pressure": 0.0,
+            "avg_fragmentation": 0.0,
+            "peak_alloc_rate": 0.0,
+            "waker_efficiency": 100.0,
+            "immediate_ready_percent": 100.0
+        }))
+    }
+
+    /// Parse bytes string to MB (helper function)
+    fn parse_bytes_to_mb(bytes_str: &str) -> f64 {
+        // Extract number from string like "1.5 MB" or "1024 KB"
+        let num_str: String = bytes_str.chars().filter(|c| c.is_digit(10) || *c == '.').collect();
+        let num: f64 = num_str.parse().unwrap_or(0.0);
+
+        // Detect unit
+        if bytes_str.contains("GB") {
+            num * 1024.0
+        } else if bytes_str.contains("MB") {
+            num
+        } else if bytes_str.contains("KB") {
+            num / 1024.0
+        } else if bytes_str.contains("bytes") {
+            num / 1024.0 / 1024.0
+        } else {
+            num / 1024.0 / 1024.0
+        }
+    }
+
     /// Convert new DashboardContext to legacy binary data format
     fn to_legacy_binary_data(&self, context: &DashboardContext) -> serde_json::Value {
+        // Calculate type distribution
+        let mut type_counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+        let mut total_size: usize = 0;
+        
+        for alloc in &context.allocations {
+            let type_name = if alloc.type_name.contains("Vec") || alloc.type_name.contains("vec::Vec") {
+                "dynamic_array"
+            } else if alloc.type_name.contains("String") || alloc.type_name.contains("str") {
+                "string"
+            } else if alloc.type_name.contains("Box") || alloc.type_name.contains("Rc") || alloc.type_name.contains("Arc") {
+                "smart_pointer"
+            } else if alloc.type_name.contains("[") && alloc.type_name.contains("u8") {
+                "byte_array"
+            } else if alloc.size > 1024 * 1024 {
+                "large_buffer"
+            } else {
+                "custom"
+            }.to_string();
+            
+            *type_counts.entry(type_name).or_insert(0) += 1;
+            total_size += alloc.size;
+        }
+
+        // Calculate statistics
+        let average_size = if context.allocations.is_empty() {
+            0
+        } else {
+            total_size / context.allocations.len()
+        };
+
+        // Build lifetime events from allocations
+        let lifetime_events: Vec<serde_json::Value> = context.allocations.iter().map(|a| {
+            serde_json::json!({
+                "address": a.address,
+                "events": [{
+                    "context": "initial_allocation",
+                    "event_type": "Created",
+                    "timestamp": a.timestamp_alloc
+                }],
+                "lifetime_ms": a.lifetime_ms,
+                "size": a.size,
+                "timestamp_alloc": a.timestamp_alloc,
+                "timestamp_dealloc": if a.timestamp_dealloc > 0 { Some(a.timestamp_dealloc) } else { None },
+                "type_name": a.type_name,
+                "var_name": a.var_name
+            })
+        }).collect();
+
         serde_json::json!({
             "memory_analysis": {
                 "allocations": context.allocations.iter().map(|a| {
@@ -1034,6 +1497,7 @@ impl DashboardRenderer {
                         "type_name": a.type_name,
                         "size": a.size,
                         "address": a.address,
+                        "timestamp": a.timestamp,
                         "timestamp_alloc": a.timestamp_alloc,
                         "timestamp_dealloc": if a.timestamp_dealloc > 0 { Some(a.timestamp_dealloc) } else { None },
                         "lifetime_ms": a.lifetime_ms,
@@ -1045,12 +1509,51 @@ impl DashboardRenderer {
                         "clone_count": a.clone_count,
                         "allocation_type": a.allocation_type,
                         "is_smart_pointer": a.is_smart_pointer,
-                        "smart_pointer_type": a.smart_pointer_type
+                        "smart_pointer_type": a.smart_pointer_type,
+                        "borrow_info": {
+                            "immutable_borrows": a.immutable_borrows,
+                            "max_concurrent_borrows": a.immutable_borrows + a.mutable_borrows,
+                            "mutable_borrows": a.mutable_borrows
+                        },
+                        "clone_info": {
+                            "clone_count": a.clone_count,
+                            "is_clone": a.is_clone,
+                            "original_ptr": null
+                        },
+                        "ownership_history_available": false,
+                        "type": if a.type_name.contains("Vec") || a.type_name.contains("vec::Vec") {
+                            "dynamic_array"
+                        } else if a.type_name.contains("String") || a.type_name.contains("str") {
+                            "string"
+                        } else if a.type_name.contains("Box") || a.type_name.contains("Rc") || a.type_name.contains("Arc") {
+                            "smart_pointer"
+                        } else {
+                            "custom"
+                        }
                     })
-                }).collect::<Vec<_>>()
+                }).collect::<Vec<_>>(),
+                "metadata": {
+                    "export_timestamp": context.export_timestamp,
+                    "export_version": "2.0",
+                    "specification": "memscope-rs memory analysis",
+                    "total_allocations": context.allocations.len(),
+                    "total_size_bytes": total_size
+                },
+                "statistics": {
+                    "average_size_bytes": average_size,
+                    "total_allocations": context.allocations.len(),
+                    "total_size_bytes": total_size
+                },
+                "type_distribution": type_counts
             },
             "lifetime": {
-                "events": []
+                "metadata": {
+                    "export_timestamp": context.export_timestamp,
+                    "export_version": "2.0",
+                    "specification": "memscope-rs lifetime tracking",
+                    "total_tracked_allocations": context.allocations.len()
+                },
+                "ownership_histories": lifetime_events
             },
             "complex_types": {
                 "smart_pointers": context.allocations.iter().filter(|a| a.is_smart_pointer).count(),
@@ -1072,8 +1575,17 @@ impl DashboardRenderer {
                 "active_allocations": context.active_allocations,
                 "thread_count": context.thread_count,
                 "passport_count": context.passport_count,
-                "leak_count": context.leak_count
-            }
+                "leak_count": context.leak_count,
+                "unsafe_count": context.unsafe_count,
+                "ffi_count": context.ffi_count
+            },
+            "system_resources": {
+                "os_name": context.os_name,
+                "architecture": context.architecture,
+                "cpu_cores": context.cpu_cores,
+                "system_info": context.system_resources
+            },
+            "threads": context.threads
         })
     }
 }

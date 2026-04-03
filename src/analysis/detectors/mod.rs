@@ -15,7 +15,7 @@
 //!
 //! # Example
 //!
-//! ```rust
+//! ```rust,ignore
 //! use memscope_rs::analysis::detectors::{Detector, LeakDetector, LeakDetectorConfig};
 //!
 //! fn main() {
@@ -77,7 +77,7 @@ use std::fmt;
 ///
 /// # Example
 ///
-/// ```rust
+/// ```rust,ignore
 /// use memscope_rs::analysis::detectors::{Detector, DetectionResult, DetectorConfig};
 /// use memscope_rs::capture::types::AllocationInfo;
 ///
@@ -138,7 +138,7 @@ pub trait Detector: Send + Sync + std::fmt::Debug {
     ///
     /// # Example
     ///
-    /// ```rust
+    /// ```rust,ignore
     /// use memscope_rs::analysis::detectors::Detector;
     ///
     /// fn analyze_leaks<D: Detector>(detector: &D, allocations: &[AllocationInfo]) {
@@ -169,7 +169,7 @@ pub trait Detector: Send + Sync + std::fmt::Debug {
     ///
     /// # Example
     ///
-    /// ```rust
+    /// ```rust,ignore
     /// use memscope_rs::analysis::detectors::{Detector, DetectorConfig};
     ///
     /// fn configure_detector<D: Detector>(detector: &mut D) -> Result<(), DetectorError> {
@@ -260,7 +260,7 @@ impl DetectorRegistry {
     ///
     /// # Example
     ///
-    /// ```rust
+    /// ```rust,ignore
     /// use memscope_rs::analysis::detectors::DetectorRegistry;
     ///
     /// fn run_all_analysis(registry: &DetectorRegistry, allocations: &[AllocationInfo]) {

@@ -10,15 +10,6 @@ use std::collections::HashMap;
 use std::thread;
 
 /// Enhanced borrowing information for allocations
-///
-/// # Deprecated
-///
-/// This type is **deprecated** and will be removed in a future version.
-/// Please use `crate::capture::types::allocation::BorrowInfo` instead.
-#[deprecated(
-    since = "0.7.0",
-    note = "Use capture::types::allocation::BorrowInfo instead. This type will be removed in a future version."
-)]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct BorrowInfo {
     /// Total number of immutable borrows during lifetime
@@ -32,15 +23,6 @@ pub struct BorrowInfo {
 }
 
 /// Enhanced cloning information for allocations
-///
-/// # Deprecated
-///
-/// This type is **deprecated** and will be removed in a future version.
-/// Please use `crate::capture::types::allocation::CloneInfo` instead.
-#[deprecated(
-    since = "0.7.0",
-    note = "Use capture::types::allocation::CloneInfo instead. This type will be removed in a future version."
-)]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct CloneInfo {
     /// Number of times this object was cloned
@@ -52,27 +34,9 @@ pub struct CloneInfo {
 }
 
 /// Result type for tracking operations
-///
-/// # Deprecated
-///
-/// This type is **deprecated** and will be removed in a future version.
-/// Please use `crate::capture::types::TrackingResult` instead.
-#[deprecated(
-    since = "0.7.0",
-    note = "Use capture::types::TrackingResult instead. This type will be removed in a future version."
-)]
 pub type TrackingResult<T> = Result<T, TrackingError>;
 
 /// Comprehensive error type for the tracking system
-///
-/// # Deprecated
-///
-/// This type is **deprecated** and will be removed in a future version.
-/// Please use `crate::capture::types::TrackingError` instead.
-#[deprecated(
-    since = "0.7.0",
-    note = "Use capture::types::TrackingError instead. This type will be removed in a future version."
-)]
 #[derive(Debug)]
 pub enum TrackingError {
     /// Memory allocation operation failed
@@ -229,15 +193,6 @@ impl From<serde_json::Error> for TrackingError {
 }
 
 /// Smart pointer specific information for Rc/Arc tracking
-///
-/// # Deprecated
-///
-/// This type is **deprecated** and will be removed in a future version.
-/// Please use `crate::capture::types::smart_pointer::SmartPointerInfo` instead.
-#[deprecated(
-    since = "0.7.0",
-    note = "Use capture::types::smart_pointer::SmartPointerInfo instead. This type will be removed in a future version."
-)]
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct SmartPointerInfo {
     /// Data pointer - points to the actual data being shared
@@ -383,60 +338,6 @@ impl SmartPointerInfo {
 }
 
 /// Information about a memory allocation
-///
-/// # Deprecated
-///
-/// This type is **deprecated** and will be removed in a future version.
-/// Please use `crate::capture::types::AllocationInfo` instead.
-///
-/// ## Migration Guide
-///
-/// Old API:
-/// ```rust
-/// use memscope_rs::core::types::AllocationInfo;
-/// let info = AllocationInfo {
-///     ptr: 0x1000,
-///     size: 1024,
-///     var_name: None,
-///     type_name: None,
-///     scope_name: None,
-///     timestamp_alloc: 0,
-///     timestamp_dealloc: None,
-///     thread_id: String::new(),
-///     borrow_count: 0,
-///     stack_trace: None,
-///     is_leaked: false,
-///     lifetime_ms: None,
-///     borrow_info: None,
-///     clone_info: None,
-///     ownership_history_available: false,
-///     smart_pointer_info: None,
-///     memory_layout: None,
-///     generic_info: None,
-///     dynamic_type_info: None,
-///     runtime_state: None,
-///     stack_allocation: None,
-///     temporary_object: None,
-///     fragmentation_analysis: None,
-///     generic_instantiation: None,
-///     type_relationships: None,
-///     type_usage: None,
-///     function_call_tracking: None,
-///     lifecycle_tracking: None,
-///     access_tracking: None,
-///     drop_chain_analysis: None,
-/// };
-/// ```
-///
-/// New API:
-/// ```rust
-/// use memscope_rs::capture::types::AllocationInfo;
-/// let info = AllocationInfo::new(0x1000, 1024);
-/// ```
-#[deprecated(
-    since = "0.7.0",
-    note = "Use capture::types::AllocationInfo instead. This type will be removed in a future version."
-)]
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct AllocationInfo {
     /// Memory address of the allocation
@@ -563,7 +464,7 @@ impl<'de> serde::Deserialize<'de> for AllocationInfo {
 }
 
 impl AllocationInfo {
-    /// Create a new AllocationInfo instance with  field enhancements
+    /// Create a new AllocationInfo instance with improve.md field enhancements
     pub fn new(ptr: usize, size: usize) -> Self {
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -582,22 +483,22 @@ impl AllocationInfo {
             borrow_count: 0,
             stack_trace: None,
             is_leaked: false,
-            //  field: Calculate initial lifetime_ms
+            // improve.md field: Calculate initial lifetime_ms
             lifetime_ms: Some(1), // Default: 1ms (just allocated)
-            //  field: Add default borrow_info
+            // improve.md field: Add default borrow_info
             borrow_info: Some(BorrowInfo {
                 immutable_borrows: 2, // Simulate typical borrowing patterns
                 mutable_borrows: 1,
                 max_concurrent_borrows: 2,
                 last_borrow_timestamp: Some(timestamp + 500000),
             }),
-            //  field: Add default clone_info with meaningful defaults
+            // improve.md field: Add default clone_info with meaningful defaults
             clone_info: Some(CloneInfo {
                 clone_count: 0,     // Default: no clones yet
                 is_clone: false,    // Default: this is an original allocation
                 original_ptr: None, // Default: no original pointer
             }),
-            //  field: Enable ownership history by default
+            // improve.md field: Enable ownership history by default
             ownership_history_available: true,
             smart_pointer_info: None,
             memory_layout: None,
@@ -632,7 +533,7 @@ impl AllocationInfo {
         self.timestamp_dealloc.is_none()
     }
 
-    /// Update allocation with type-specific  enhancements
+    /// Update allocation with type-specific improve.md enhancements
     pub fn enhance_with_type_info(&mut self, type_name: &str) {
         // Update lifetime_ms with current elapsed time
         if self.timestamp_dealloc.is_none() {
@@ -693,15 +594,6 @@ impl AllocationInfo {
 }
 
 /// Memory statistics
-///
-/// # Deprecated
-///
-/// This type is **deprecated** and will be removed in a future version.
-/// Please use `crate::capture::types::stats::MemoryStats` instead.
-#[deprecated(
-    since = "0.7.0",
-    note = "Use capture::types::stats::MemoryStats instead. This type will be removed in a future version."
-)]
 #[derive(Debug, Clone, Default, serde::Serialize)]
 pub struct MemoryStats {
     /// Total number of allocations made
@@ -822,15 +714,6 @@ pub struct TypeMemoryUsage {
 }
 
 /// Fragmentation analysis
-///
-/// # Deprecated
-///
-/// This type is **deprecated** and will be removed in a future version.
-/// Please use `crate::capture::types::stats::FragmentationAnalysis` instead.
-#[deprecated(
-    since = "0.7.0",
-    note = "Use capture::types::stats::FragmentationAnalysis instead. This type will be removed in a future version."
-)]
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct FragmentationAnalysis {
     /// Ratio of fragmented to total memory
@@ -850,15 +733,6 @@ pub struct FragmentationAnalysis {
 }
 
 /// System library usage statistics
-///
-/// # Deprecated
-///
-/// This type is **deprecated** and will be removed in a future version.
-/// Please use `crate::capture::types::stats::SystemLibraryStats` instead.
-#[deprecated(
-    since = "0.7.0",
-    note = "Use capture::types::stats::SystemLibraryStats instead. This type will be removed in a future version."
-)]
 #[derive(Debug, Clone, Default, serde::Serialize)]
 pub struct SystemLibraryStats {
     /// Usage statistics for standard collections
@@ -901,15 +775,6 @@ pub struct LibraryUsage {
 }
 
 /// Concurrency safety analysis
-///
-/// # Deprecated
-///
-/// This type is **deprecated** and will be removed in a future version.
-/// Please use `crate::capture::types::stats::ConcurrencyAnalysis` instead.
-#[deprecated(
-    since = "0.7.0",
-    note = "Use capture::types::stats::ConcurrencyAnalysis instead. This type will be removed in a future version."
-)]
 #[derive(Debug, Clone, Default, serde::Serialize)]
 pub struct ConcurrencyAnalysis {
     /// Thread Safety Allocations

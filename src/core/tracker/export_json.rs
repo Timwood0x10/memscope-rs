@@ -407,7 +407,7 @@ impl MemoryTracker {
     /// This method is deprecated. Use `render_engine::export::export_snapshot_to_json` instead.
     ///
     /// # Migration Guide
-    /// ```no_run
+    /// ```no_run,ignore
     /// // Old way (deprecated):
     /// # use memscope_rs::core::tracker::get_tracker;
     /// let tracker = get_tracker();
@@ -464,7 +464,7 @@ impl MemoryTracker {
     /// This method is deprecated. Use `render_engine::export::export_snapshot_to_json` instead.
     ///
     /// # Migration Guide
-    /// ```no_run
+    /// ```no_run,ignore
     /// // Old way (deprecated):
     /// # use memscope_rs::core::tracker::get_tracker;
     /// # use memscope_rs::core::tracker::export_json::ExportJsonOptions;

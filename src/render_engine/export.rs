@@ -581,6 +581,41 @@ pub fn export_all_json<P: AsRef<Path>>(
     Ok(())
 }
 
+/// Export SVG visualizations
+///
+/// This function exports SVG visualizations including:
+/// - memory_analysis.svg: Comprehensive memory analysis
+/// - lifecycle_timeline.svg: Interactive lifecycle timeline
+///
+/// # Arguments
+/// * `path` - Directory path where SVG files will be saved
+/// * `tracker` - Memory tracker instance
+///
+/// # Returns
+/// Result indicating success or failure
+pub fn export_svg<P: AsRef<Path>>(path: P, tracker: &Tracker) -> Result<(), ExportError> {
+    let path_ref = path.as_ref();
+
+    std::fs::create_dir_all(path_ref)?;
+
+    // Use the global legacy MemoryTracker for SVG export
+    let legacy_tracker = crate::core::tracker::memory_tracker::get_tracker();
+
+    // Export memory analysis SVG
+    let memory_analysis_path = path_ref.join("memory_analysis.svg");
+    crate::export::visualization::export_memory_analysis(&legacy_tracker, &memory_analysis_path)
+        .map_err(|e| ExportError::ExportFailed(format!("Failed to export memory analysis SVG: {}", e)))?;
+
+    // Export lifecycle timeline SVG
+    let lifecycle_path = path_ref.join("lifecycle_timeline.svg");
+    crate::export::visualization::export_lifecycle_timeline(&legacy_tracker, &lifecycle_path)
+        .map_err(|e| ExportError::ExportFailed(format!("Failed to export lifecycle timeline SVG: {}", e)))?;
+
+    tracing::info!("✅ SVG export completed to: {}", path_ref.display());
+
+    Ok(())
+}
+
 /// Dashboard template type
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DashboardTemplate {
@@ -594,6 +629,8 @@ pub enum DashboardTemplate {
     Performance,
     /// Async template (for async runtime analysis)
     Async,
+    /// Multithread template (for multithread memory analysis)
+    Multithread,
     /// Standalone dashboard (no external dependencies, works with file://)
     Standalone,
 }
@@ -612,6 +649,7 @@ impl std::fmt::Display for DashboardTemplate {
             DashboardTemplate::Hybrid => write!(f, "hybrid_dashboard"),
             DashboardTemplate::Performance => write!(f, "performance_dashboard"),
             DashboardTemplate::Async => write!(f, "async_template"),
+            DashboardTemplate::Multithread => write!(f, "multithread_template"),
             DashboardTemplate::Standalone => write!(f, "standalone_dashboard"),
         }
     }
@@ -699,7 +737,23 @@ pub fn export_dashboard_html_with_template<P: AsRef<Path>>(
                 })?;
             renderer.render_async_template(&context)
         }
-        DashboardTemplate::Standalone => renderer.render_from_tracker(tracker, passport_tracker),
+        DashboardTemplate::Multithread => {
+            let context = renderer
+                .build_context_from_tracker(tracker, passport_tracker)
+                .map_err(|e| {
+                    ExportError::ExportFailed(format!("Failed to build context: {}", e))
+                })?;
+            renderer.render_multithread_dashboard(&context)
+        }
+        DashboardTemplate::Standalone => {
+            // Fallback to binary dashboard since standalone template doesn't exist
+            let context = renderer
+                .build_context_from_tracker(tracker, passport_tracker)
+                .map_err(|e| {
+                    ExportError::ExportFailed(format!("Failed to build context: {}", e))
+                })?;
+            renderer.render_binary_dashboard(&context)
+        }
     }
     .map_err(|e| ExportError::ExportFailed(format!("Failed to render dashboard: {}", e)))?;
 
@@ -711,6 +765,47 @@ pub fn export_dashboard_html_with_template<P: AsRef<Path>>(
     tracing::info!("✅ Dashboard HTML exported to: {:?}", output_file);
 
     Ok(())
+}
+
+/// Export HTML dashboard with automatic template selection
+///
+/// This function automatically detects the program mode (Async/Multithread/Normal)
+/// and selects the appropriate template for visualization.
+pub fn export_dashboard_html_auto<P: AsRef<Path>>(
+    path: P,
+    tracker: &Tracker,
+    passport_tracker: &Arc<MemoryPassportTracker>,
+) -> Result<(), ExportError> {
+    let renderer = DashboardRenderer::new().map_err(|e| {
+        ExportError::ExportFailed(format!("Failed to create dashboard renderer: {}", e))
+    })?;
+
+    let context = renderer
+        .build_context_from_tracker(tracker, passport_tracker)
+        .map_err(|e| ExportError::ExportFailed(format!("Failed to build context: {}", e)))?;
+
+    // Auto-detect program mode
+    let mode = crate::render_engine::dashboard::renderer::ProgramMode::detect(
+        &context.allocations,
+        context.thread_count,
+    );
+
+    // Select template based on mode
+    let template = match mode {
+        crate::render_engine::dashboard::renderer::ProgramMode::Async => {
+            DashboardTemplate::Async
+        }
+        crate::render_engine::dashboard::renderer::ProgramMode::Multithread => {
+            DashboardTemplate::Multithread
+        }
+        crate::render_engine::dashboard::renderer::ProgramMode::Normal => {
+            DashboardTemplate::Binary
+        }
+    };
+
+    println!("🎯 Auto-detected program mode: {:?}, using template: {}", mode, template);
+
+    export_dashboard_html_with_template(path, tracker, passport_tracker, template)
 }
 
 pub fn export_memory_passports_json<P: AsRef<Path>>(
