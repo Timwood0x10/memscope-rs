@@ -5,6 +5,7 @@
 
 use crate::analysis::memory_passport_tracker::{LeakDetectionResult, MemoryPassportTracker};
 use crate::capture::platform::memory_info::{MemoryStats, PlatformMemoryInfo, SystemInfo};
+use crate::render_engine::dashboard::{DashboardRenderer, DashboardContext};
 use crate::snapshot::{ActiveAllocation, MemorySnapshot, ThreadMemoryStats};
 use crate::tracker::Tracker;
 use rayon::prelude::*;
@@ -577,6 +578,40 @@ pub fn export_all_json<P: AsRef<Path>>(
     export_unsafe_ffi_json(path_ref, passport_tracker)?;
     export_system_resources_json(path_ref)?; // 新增：导出系统资源监控
 
+    Ok(())
+}
+
+/// Export HTML dashboard from tracker data
+/// 
+/// This function generates a complete HTML dashboard from the tracker data,
+/// including memory analysis, variable relationships, unsafe/FFI tracking,
+/// and system resources. The dashboard is rendered using Handlebars templates.
+pub fn export_dashboard_html<P: AsRef<Path>>(
+    path: P,
+    tracker: &Tracker,
+    passport_tracker: &Arc<MemoryPassportTracker>,
+) -> Result<(), ExportError> {
+    let path_ref = path.as_ref();
+    
+    // Create output directory if it doesn't exist
+    std::fs::create_dir_all(path_ref)
+        .map_err(|e| ExportError::ExportFailed(format!("Failed to create output directory: {}", e)))?;
+    
+    // Create dashboard renderer
+    let renderer = DashboardRenderer::new()
+        .map_err(|e| ExportError::ExportFailed(format!("Failed to create dashboard renderer: {}", e)))?;
+    
+    // Render HTML from tracker data
+    let html_content = renderer.render_from_tracker(tracker, passport_tracker)
+        .map_err(|e| ExportError::ExportFailed(format!("Failed to render dashboard: {}", e)))?;
+    
+    // Write HTML to file
+    let output_file = path_ref.join("dashboard.html");
+    std::fs::write(&output_file, html_content)
+        .map_err(|e| ExportError::ExportFailed(format!("Failed to write HTML file: {}", e)))?;
+    
+    tracing::info!("✅ Dashboard HTML exported to: {:?}", output_file);
+    
     Ok(())
 }
 

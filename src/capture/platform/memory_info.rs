@@ -629,10 +629,49 @@ impl PlatformMemoryInfo {
 
     #[cfg(target_os = "macos")]
     fn get_macos_system_info(&self) -> Result<SystemInfo, MemoryError> {
-        // Use sysctl to get real system information
+        // Get OS version
+        let os_version = unsafe {
+            let mut size: libc::size_t = 256;
+            let mut buf = [0u8; 256];
+            if libc::sysctlbyname(
+                b"kern.osrelease\0".as_ptr() as *const libc::c_char,
+                buf.as_mut_ptr() as *mut libc::c_void,
+                &mut size,
+                std::ptr::null_mut(),
+                0,
+            ) == 0 {
+                String::from_utf8_lossy(&buf[..size - 1]).to_string()
+            } else {
+                "Unknown".to_string()
+            }
+        };
+
+        // Get architecture
+        let architecture = unsafe {
+            let mut size: libc::size_t = 256;
+            let mut buf = [0u8; 256];
+            if libc::sysctlbyname(
+                b"hw.machine\0".as_ptr() as *const libc::c_char,
+                buf.as_mut_ptr() as *mut libc::c_void,
+                &mut size,
+                std::ptr::null_mut(),
+                0,
+            ) == 0 {
+                let arch_str = String::from_utf8_lossy(&buf[..size - 1]).to_string();
+                // Convert arm64, x86_64 to standard format
+                if arch_str.contains("arm64") || arch_str.contains("arm") {
+                    "arm64".to_string()
+                } else {
+                    arch_str
+                }
+            } else {
+                "unknown".to_string()
+            }
+        };
+
+        // Get CPU cores
         let mut size = std::mem::size_of::<u32>();
-        let mut cpu_cores: u32 = 0;
-        
+        let mut cpu_cores: u32 = 1;
         unsafe {
             let mut mib: [libc::c_int; 2] = [libc::CTL_HW, libc::HW_NCPU];
             if libc::sysctl(
@@ -640,17 +679,32 @@ impl PlatformMemoryInfo {
                 mib.len() as libc::c_uint,
                 &mut cpu_cores as *mut u32 as *mut libc::c_void,
                 &mut size,
-                std::ptr::null(),
+                std::ptr::null_mut(),
+                0,
+            ) == 0 {
+                // Successfully got CPU cores
+            }
+        }
+
+        // Get page size
+        let mut page_size: u64 = 4096;
+        unsafe {
+            size = std::mem::size_of::<u64>();
+            if libc::sysctlbyname(
+                b"hw.pagesize\0".as_ptr() as *const libc::c_char,
+                &mut page_size as *mut u64 as *mut libc::c_void,
+                &mut size,
+                std::ptr::null_mut(),
                 0,
             ) != 0 {
-                cpu_cores = 1; // Fallback
+                page_size = 4096; // Default fallback
             }
         }
 
         Ok(SystemInfo {
             os_name: "macOS".to_string(),
-            os_version: "14.1.0".to_string(),
-            architecture: "arm64".to_string(),
+            os_version,
+            architecture,
             cpu_cores,
             cpu_cache: CpuCacheInfo {
                 l1_cache_size: 65536,   // 64KB
@@ -658,7 +712,7 @@ impl PlatformMemoryInfo {
                 l3_cache_size: None,    // Unified memory architecture
                 cache_line_size: 128,
             },
-            page_size: 16384,      // 16KB on Apple Silicon
+            page_size,
             large_page_size: None, // Not supported on Apple Silicon
             mmu_info: MmuInfo {
                 virtual_address_bits: 48,
