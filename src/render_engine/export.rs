@@ -604,12 +604,16 @@ pub fn export_svg<P: AsRef<Path>>(path: P, tracker: &Tracker) -> Result<(), Expo
     // Export memory analysis SVG
     let memory_analysis_path = path_ref.join("memory_analysis.svg");
     crate::export::visualization::export_memory_analysis(&legacy_tracker, &memory_analysis_path)
-        .map_err(|e| ExportError::ExportFailed(format!("Failed to export memory analysis SVG: {}", e)))?;
+        .map_err(|e| {
+            ExportError::ExportFailed(format!("Failed to export memory analysis SVG: {}", e))
+        })?;
 
     // Export lifecycle timeline SVG
     let lifecycle_path = path_ref.join("lifecycle_timeline.svg");
     crate::export::visualization::export_lifecycle_timeline(&legacy_tracker, &lifecycle_path)
-        .map_err(|e| ExportError::ExportFailed(format!("Failed to export lifecycle timeline SVG: {}", e)))?;
+        .map_err(|e| {
+            ExportError::ExportFailed(format!("Failed to export lifecycle timeline SVG: {}", e))
+        })?;
 
     tracing::info!("✅ SVG export completed to: {}", path_ref.display());
 
@@ -619,38 +623,20 @@ pub fn export_svg<P: AsRef<Path>>(path: P, tracker: &Tracker) -> Result<(), Expo
 /// Dashboard template type
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DashboardTemplate {
-    /// Binary dashboard (comprehensive, with 3D visualization)
-    Binary,
-    /// Clean dashboard (minimal, clean design)
-    Clean,
-    /// Hybrid dashboard (mixed features)
-    Hybrid,
-    /// Performance dashboard (focused on performance metrics)
-    Performance,
-    /// Async template (for async runtime analysis)
-    Async,
-    /// Multithread template (for multithread memory analysis)
-    Multithread,
-    /// Standalone dashboard (no external dependencies, works with file://)
-    Standalone,
+    /// Unified dashboard (multi-mode in single HTML)
+    Unified,
 }
 
 impl Default for DashboardTemplate {
     fn default() -> Self {
-        DashboardTemplate::Binary
+        DashboardTemplate::Unified
     }
 }
 
 impl std::fmt::Display for DashboardTemplate {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            DashboardTemplate::Binary => write!(f, "binary_dashboard"),
-            DashboardTemplate::Clean => write!(f, "clean_dashboard"),
-            DashboardTemplate::Hybrid => write!(f, "hybrid_dashboard"),
-            DashboardTemplate::Performance => write!(f, "performance_dashboard"),
-            DashboardTemplate::Async => write!(f, "async_template"),
-            DashboardTemplate::Multithread => write!(f, "multithread_template"),
-            DashboardTemplate::Standalone => write!(f, "standalone_dashboard"),
+            DashboardTemplate::Unified => write!(f, "dashboard_unified"),
         }
     }
 }
@@ -695,67 +681,13 @@ pub fn export_dashboard_html_with_template<P: AsRef<Path>>(
         ExportError::ExportFailed(format!("Failed to create dashboard renderer: {}", e))
     })?;
 
-    // Render HTML from tracker data using specified template
-    let html_content = match template {
-        DashboardTemplate::Binary => {
-            let context = renderer
-                .build_context_from_tracker(tracker, passport_tracker)
-                .map_err(|e| {
-                    ExportError::ExportFailed(format!("Failed to build context: {}", e))
-                })?;
-            renderer.render_binary_dashboard(&context)
-        }
-        DashboardTemplate::Clean => {
-            let context = renderer
-                .build_context_from_tracker(tracker, passport_tracker)
-                .map_err(|e| {
-                    ExportError::ExportFailed(format!("Failed to build context: {}", e))
-                })?;
-            renderer.render_clean_dashboard(&context)
-        }
-        DashboardTemplate::Hybrid => {
-            let context = renderer
-                .build_context_from_tracker(tracker, passport_tracker)
-                .map_err(|e| {
-                    ExportError::ExportFailed(format!("Failed to build context: {}", e))
-                })?;
-            renderer.render_hybrid_dashboard(&context)
-        }
-        DashboardTemplate::Performance => {
-            let context = renderer
-                .build_context_from_tracker(tracker, passport_tracker)
-                .map_err(|e| {
-                    ExportError::ExportFailed(format!("Failed to build context: {}", e))
-                })?;
-            renderer.render_performance_dashboard(&context)
-        }
-        DashboardTemplate::Async => {
-            let context = renderer
-                .build_context_from_tracker(tracker, passport_tracker)
-                .map_err(|e| {
-                    ExportError::ExportFailed(format!("Failed to build context: {}", e))
-                })?;
-            renderer.render_async_template(&context)
-        }
-        DashboardTemplate::Multithread => {
-            let context = renderer
-                .build_context_from_tracker(tracker, passport_tracker)
-                .map_err(|e| {
-                    ExportError::ExportFailed(format!("Failed to build context: {}", e))
-                })?;
-            renderer.render_multithread_dashboard(&context)
-        }
-        DashboardTemplate::Standalone => {
-            // Fallback to binary dashboard since standalone template doesn't exist
-            let context = renderer
-                .build_context_from_tracker(tracker, passport_tracker)
-                .map_err(|e| {
-                    ExportError::ExportFailed(format!("Failed to build context: {}", e))
-                })?;
-            renderer.render_binary_dashboard(&context)
-        }
-    }
-    .map_err(|e| ExportError::ExportFailed(format!("Failed to render dashboard: {}", e)))?;
+    // Render HTML from tracker data using unified template
+    let context = renderer
+        .build_context_from_tracker(tracker, passport_tracker)
+        .map_err(|e| ExportError::ExportFailed(format!("Failed to build context: {}", e)))?;
+    let html_content = renderer
+        .render_unified_dashboard(&context)
+        .map_err(|e| ExportError::ExportFailed(format!("Failed to render dashboard: {}", e)))?;
 
     // Write HTML to file
     let output_file = path_ref.join(format!("{}_dashboard.html", template));
@@ -765,47 +697,6 @@ pub fn export_dashboard_html_with_template<P: AsRef<Path>>(
     tracing::info!("✅ Dashboard HTML exported to: {:?}", output_file);
 
     Ok(())
-}
-
-/// Export HTML dashboard with automatic template selection
-///
-/// This function automatically detects the program mode (Async/Multithread/Normal)
-/// and selects the appropriate template for visualization.
-pub fn export_dashboard_html_auto<P: AsRef<Path>>(
-    path: P,
-    tracker: &Tracker,
-    passport_tracker: &Arc<MemoryPassportTracker>,
-) -> Result<(), ExportError> {
-    let renderer = DashboardRenderer::new().map_err(|e| {
-        ExportError::ExportFailed(format!("Failed to create dashboard renderer: {}", e))
-    })?;
-
-    let context = renderer
-        .build_context_from_tracker(tracker, passport_tracker)
-        .map_err(|e| ExportError::ExportFailed(format!("Failed to build context: {}", e)))?;
-
-    // Auto-detect program mode
-    let mode = crate::render_engine::dashboard::renderer::ProgramMode::detect(
-        &context.allocations,
-        context.thread_count,
-    );
-
-    // Select template based on mode
-    let template = match mode {
-        crate::render_engine::dashboard::renderer::ProgramMode::Async => {
-            DashboardTemplate::Async
-        }
-        crate::render_engine::dashboard::renderer::ProgramMode::Multithread => {
-            DashboardTemplate::Multithread
-        }
-        crate::render_engine::dashboard::renderer::ProgramMode::Normal => {
-            DashboardTemplate::Binary
-        }
-    };
-
-    println!("🎯 Auto-detected program mode: {:?}, using template: {}", mode, template);
-
-    export_dashboard_html_with_template(path, tracker, passport_tracker, template)
 }
 
 pub fn export_memory_passports_json<P: AsRef<Path>>(

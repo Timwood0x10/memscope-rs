@@ -45,7 +45,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("\nExporting memory snapshot using new API...");
 
-    let allocations = tracker.inner().get_active_allocations().unwrap_or_default();
+    let _allocations = tracker.inner().get_active_allocations().unwrap_or_default();
 
     let output_path = "MemoryAnalysis/basic_usage_new_api";
     let passport_tracker = Arc::new(

@@ -63,7 +63,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Export HTML dashboard
     println!("\nExporting HTML dashboard...");
-    use memscope_rs::analysis::memory_passport_tracker::{MemoryPassportTracker, PassportTrackerConfig};
+    use memscope_rs::analysis::memory_passport_tracker::{
+        MemoryPassportTracker, PassportTrackerConfig,
+    };
     use memscope_rs::render_engine::export::export_dashboard_html;
     use std::sync::Arc;
 

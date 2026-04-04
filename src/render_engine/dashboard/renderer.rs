@@ -299,40 +299,9 @@ impl DashboardRenderer {
     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
         let mut handlebars = Handlebars::new();
 
-        // Register base template (optional, for future use)
-        if let Err(_) = handlebars
-            .register_template_file("base", "templates/base.html")
-        {
-            // Base template is optional, ignore error
-        }
+        handlebars
+            .register_template_file("dashboard_unified", "templates/dashboard_unified.html")?;
 
-        // Register templates from root templates directory
-        handlebars.register_template_file(
-            "binary_dashboard",
-            "templates/binary_dashboard.html",
-        )?;
-        handlebars.register_template_file(
-            "clean_dashboard",
-            "templates/clean_dashboard.html",
-        )?;
-        handlebars.register_template_file(
-            "hybrid_dashboard",
-            "templates/hybrid_dashboard.html",
-        )?;
-        handlebars.register_template_file(
-            "performance_dashboard",
-            "templates/performance_dashboard.html",
-        )?;
-        handlebars.register_template_file(
-            "async_template",
-            "templates/async_template.html",
-        )?;
-        handlebars.register_template_file(
-            "multithread_template",
-            "templates/multithread_template.html",
-        )?;
-
-        // Register custom helpers
         handlebars.register_helper("format_bytes", Box::new(format_bytes_helper));
         handlebars.register_helper("gt", Box::new(greater_than_helper));
         handlebars.register_helper("contains", Box::new(contains_helper));
@@ -961,15 +930,7 @@ impl DashboardRenderer {
         &self,
         context: &DashboardContext,
     ) -> Result<String, Box<dyn std::error::Error>> {
-        // Use binary dashboard as the default
-        let legacy_data = self.to_legacy_binary_data(context);
-        let mut template_data = std::collections::BTreeMap::new();
-        template_data.insert("BINARY_DATA", serde_json::to_string(&legacy_data)?);
-        template_data.insert("PROJECT_NAME", "MemScope Memory Analysis".to_string());
-
-        self.handlebars
-            .render("binary_dashboard", &template_data)
-            .map_err(|e| format!("Template rendering error: {}", e).into())
+        self.render_unified_dashboard(context)
     }
 
     /// Render standalone dashboard (no external dependencies, works with file:// protocol)
@@ -977,8 +938,91 @@ impl DashboardRenderer {
         &self,
         context: &DashboardContext,
     ) -> Result<String, Box<dyn std::error::Error>> {
-        // Use binary dashboard as fallback since standalone template doesn't exist
-        self.render_dashboard(context)
+        self.render_unified_dashboard(context)
+    }
+
+    /// Render unified dashboard (multi-mode in single HTML)
+    pub fn render_unified_dashboard(
+        &self,
+        context: &DashboardContext,
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        let mut template_data = std::collections::BTreeMap::new();
+        template_data.insert(
+            "title".to_string(),
+            serde_json::Value::String(context.title.clone()),
+        );
+        template_data.insert(
+            "export_timestamp".to_string(),
+            serde_json::Value::String(context.export_timestamp.clone()),
+        );
+        template_data.insert(
+            "total_memory".to_string(),
+            serde_json::Value::String(context.total_memory.clone()),
+        );
+        template_data.insert(
+            "total_allocations".to_string(),
+            serde_json::Value::Number(context.total_allocations.into()),
+        );
+        template_data.insert(
+            "active_allocations".to_string(),
+            serde_json::Value::Number(context.active_allocations.into()),
+        );
+        template_data.insert(
+            "peak_memory".to_string(),
+            serde_json::Value::String(context.peak_memory.clone()),
+        );
+        template_data.insert(
+            "thread_count".to_string(),
+            serde_json::Value::Number(context.thread_count.into()),
+        );
+        template_data.insert(
+            "passport_count".to_string(),
+            serde_json::Value::Number(context.passport_count.into()),
+        );
+        template_data.insert(
+            "leak_count".to_string(),
+            serde_json::Value::Number(context.leak_count.into()),
+        );
+        template_data.insert(
+            "unsafe_count".to_string(),
+            serde_json::Value::Number(context.unsafe_count.into()),
+        );
+        template_data.insert(
+            "ffi_count".to_string(),
+            serde_json::Value::Number(context.ffi_count.into()),
+        );
+        template_data.insert(
+            "allocations_count".to_string(),
+            serde_json::Value::Number(context.allocations_count.into()),
+        );
+        template_data.insert(
+            "relationships_count".to_string(),
+            serde_json::Value::Number(context.relationships_count.into()),
+        );
+        template_data.insert(
+            "unsafe_reports_count".to_string(),
+            serde_json::Value::Number(context.unsafe_reports_count.into()),
+        );
+        template_data.insert(
+            "os_name".to_string(),
+            serde_json::Value::String(context.os_name.clone()),
+        );
+        template_data.insert(
+            "architecture".to_string(),
+            serde_json::Value::String(context.architecture.clone()),
+        );
+        template_data.insert(
+            "cpu_cores".to_string(),
+            serde_json::Value::Number(context.cpu_cores.into()),
+        );
+        template_data.insert(
+            "json_data".to_string(),
+            serde_json::Value::String(context.json_data.clone()),
+        );
+
+        self.handlebars
+            .render("dashboard_unified", &template_data)
+            .map_err(|e| format!("Template rendering error: {}", e).into())
     }
 
     /// Render binary dashboard (legacy template)
@@ -986,11 +1030,13 @@ impl DashboardRenderer {
         &self,
         context: &DashboardContext,
     ) -> Result<String, Box<dyn std::error::Error>> {
-        // Convert to legacy data format
         let legacy_data = self.to_legacy_binary_data(context);
         let mut template_data = std::collections::BTreeMap::new();
-        template_data.insert("BINARY_DATA", serde_json::to_string(&legacy_data)?);
-        template_data.insert("PROJECT_NAME", "MemScope Memory Analysis".to_string());
+        template_data.insert("BINARY_DATA".to_string(), legacy_data);
+        template_data.insert(
+            "PROJECT_NAME".to_string(),
+            serde_json::Value::String("MemScope Memory Analysis".to_string()),
+        );
 
         self.handlebars
             .render("binary_dashboard", &template_data)
@@ -1004,9 +1050,12 @@ impl DashboardRenderer {
     ) -> Result<String, Box<dyn std::error::Error>> {
         let legacy_data = self.to_legacy_binary_data(context);
         let mut template_data = std::collections::BTreeMap::new();
-        template_data.insert("BINARY_DATA", serde_json::to_string(&legacy_data)?);
-        template_data.insert("json_data", serde_json::to_string(&legacy_data)?);
-        template_data.insert("PROJECT_NAME", "MemScope Memory Analysis".to_string());
+        template_data.insert("BINARY_DATA".to_string(), legacy_data.clone());
+        template_data.insert("json_data".to_string(), legacy_data);
+        template_data.insert(
+            "PROJECT_NAME".to_string(),
+            serde_json::Value::String("MemScope Memory Analysis".to_string()),
+        );
 
         self.handlebars
             .render("clean_dashboard", &template_data)
@@ -1018,27 +1067,110 @@ impl DashboardRenderer {
         &self,
         context: &DashboardContext,
     ) -> Result<String, Box<dyn std::error::Error>> {
-        let variables_data = serde_json::to_string(&context.allocations)?;
-        let threads_data = serde_json::to_string(&context.threads)?;
-        let tasks_data = serde_json::to_string(&Vec::<serde_json::Value>::new())?; // TODO: Add tasks data
-        
-        // Calculate metrics
+        let variables_data = serde_json::Value::Array(
+            context
+                .allocations
+                .iter()
+                .map(|a| {
+                    let mut map = serde_json::Map::new();
+                    map.insert(
+                        "var_name".to_string(),
+                        serde_json::Value::String(a.var_name.clone()),
+                    );
+                    map.insert(
+                        "type_name".to_string(),
+                        serde_json::Value::String(a.type_name.clone()),
+                    );
+                    map.insert("size".to_string(), serde_json::Value::Number(a.size.into()));
+                    map.insert(
+                        "address".to_string(),
+                        serde_json::Value::String(a.address.clone()),
+                    );
+                    map.insert(
+                        "is_leaked".to_string(),
+                        serde_json::Value::Bool(a.is_leaked),
+                    );
+                    map.insert(
+                        "timestamp_alloc".to_string(),
+                        serde_json::Value::Number(a.timestamp_alloc.into()),
+                    );
+                    map.insert(
+                        "timestamp_dealloc".to_string(),
+                        serde_json::Value::Number(a.timestamp_dealloc.into()),
+                    );
+                    map.insert(
+                        "thread_id".to_string(),
+                        serde_json::Value::String(a.thread_id.clone()),
+                    );
+                    serde_json::Value::Object(map)
+                })
+                .collect(),
+        );
+
+        let threads_data = serde_json::Value::Array(
+            context
+                .threads
+                .iter()
+                .map(|t| {
+                    let mut map = serde_json::Map::new();
+                    map.insert(
+                        "thread_id".to_string(),
+                        serde_json::Value::String(t.thread_id.clone()),
+                    );
+                    map.insert(
+                        "allocation_count".to_string(),
+                        serde_json::Value::String(t.allocation_count.to_string()),
+                    );
+                    map.insert(
+                        "current_memory".to_string(),
+                        serde_json::Value::String(t.current_memory.clone()),
+                    );
+                    map.insert(
+                        "peak_memory".to_string(),
+                        serde_json::Value::String(t.peak_memory.clone()),
+                    );
+                    map.insert(
+                        "total_allocated".to_string(),
+                        serde_json::Value::String(t.total_allocated.clone()),
+                    );
+                    serde_json::Value::Object(map)
+                })
+                .collect(),
+        );
+
+        let tasks_data = serde_json::Value::Array(Vec::new());
+
         let total_memory: usize = context.allocations.iter().map(|a| a.size).sum();
-        let efficiency = if total_memory > 0 {
+        let efficiency = if context.total_allocations > 0 {
             (context.active_allocations as f64 / context.total_allocations as f64 * 100.0) as usize
         } else {
             100
         };
 
         let mut template_data = std::collections::BTreeMap::new();
-        template_data.insert("VARIABLES_DATA", variables_data);
-        template_data.insert("THREADS_DATA", threads_data);
-        template_data.insert("TASKS_DATA", tasks_data);
-        template_data.insert("PROJECT_NAME", "MemScope Memory Analysis".to_string());
-        template_data.insert("TOTAL_MEMORY", format_bytes(total_memory));
-        template_data.insert("TOTAL_VARIABLES", context.allocations.len().to_string());
-        template_data.insert("THREAD_COUNT", context.thread_count.to_string());
-        template_data.insert("EFFICIENCY", format!("{}%", efficiency));
+        template_data.insert("VARIABLES_DATA".to_string(), variables_data);
+        template_data.insert("THREADS_DATA".to_string(), threads_data);
+        template_data.insert("TASKS_DATA".to_string(), tasks_data);
+        template_data.insert(
+            "PROJECT_NAME".to_string(),
+            serde_json::Value::String("MemScope Memory Analysis".to_string()),
+        );
+        template_data.insert(
+            "TOTAL_MEMORY".to_string(),
+            serde_json::Value::String(format_bytes(total_memory)),
+        );
+        template_data.insert(
+            "TOTAL_VARIABLES".to_string(),
+            serde_json::Value::Number(context.allocations.len().into()),
+        );
+        template_data.insert(
+            "THREAD_COUNT".to_string(),
+            serde_json::Value::Number(context.thread_count.into()),
+        );
+        template_data.insert(
+            "EFFICIENCY".to_string(),
+            serde_json::Value::String(format!("{}%", efficiency)),
+        );
 
         self.handlebars
             .render("hybrid_dashboard", &template_data)
@@ -1065,7 +1197,7 @@ impl DashboardRenderer {
             "allocations_count": context.total_allocations,
             "thread_count": context.thread_count
         });
-        
+
         // Prepare efficiency data
         let efficiency_data = serde_json::json!({
             "memory_efficiency": if context.total_allocations > 0 {
@@ -1081,7 +1213,10 @@ impl DashboardRenderer {
         });
 
         let mut template_data = std::collections::BTreeMap::new();
-        template_data.insert("PERFORMANCE_DATA", serde_json::to_string(&performance_data)?);
+        template_data.insert(
+            "PERFORMANCE_DATA",
+            serde_json::to_string(&performance_data)?,
+        );
         template_data.insert("EFFICIENCY_DATA", serde_json::to_string(&efficiency_data)?);
         template_data.insert("PROJECT_NAME", "MemScope Memory Analysis".to_string());
 
@@ -1095,22 +1230,35 @@ impl DashboardRenderer {
         &self,
         context: &DashboardContext,
     ) -> Result<String, Box<dyn std::error::Error>> {
-        // Prepare thread data for multithread dashboard
         let threads_data = self.prepare_thread_data(context)?;
         let allocation_data = self.prepare_allocation_timeline_data(context)?;
         let conflict_data = self.prepare_conflict_data(context)?;
 
-        // Add metrics
-        let conflict_count = conflict_data.len();
+        let conflict_count = conflict_data.as_array().map(|a| a.len()).unwrap_or(0);
         let mut template_data = std::collections::BTreeMap::new();
-        template_data.insert("THREADS_DATA", threads_data);
-        template_data.insert("ALLOCATION_DATA", allocation_data);
-        template_data.insert("CONFLICT_DATA", conflict_data);
-        template_data.insert("PROJECT_NAME", "MemScope Memory Analysis".to_string());
-        template_data.insert("THREAD_COUNT", context.thread_count.to_string());
-        template_data.insert("TOTAL_MEMORY", context.total_memory.clone());
-        template_data.insert("TOTAL_ALLOCATIONS", context.total_allocations.to_string());
-        template_data.insert("CONFLICT_COUNT", conflict_count.to_string());
+        template_data.insert("THREADS_DATA".to_string(), threads_data);
+        template_data.insert("ALLOCATION_DATA".to_string(), allocation_data);
+        template_data.insert("CONFLICT_DATA".to_string(), conflict_data);
+        template_data.insert(
+            "PROJECT_NAME".to_string(),
+            serde_json::Value::String("MemScope Memory Analysis".to_string()),
+        );
+        template_data.insert(
+            "THREAD_COUNT".to_string(),
+            serde_json::Value::Number(context.thread_count.into()),
+        );
+        template_data.insert(
+            "TOTAL_MEMORY".to_string(),
+            serde_json::Value::String(context.total_memory.clone()),
+        );
+        template_data.insert(
+            "TOTAL_ALLOCATIONS".to_string(),
+            serde_json::Value::Number(context.total_allocations.into()),
+        );
+        template_data.insert(
+            "CONFLICT_COUNT".to_string(),
+            serde_json::Value::Number(conflict_count.into()),
+        );
 
         self.handlebars
             .render("multithread_template", &template_data)
@@ -1121,8 +1269,7 @@ impl DashboardRenderer {
     fn prepare_thread_data(
         &self,
         context: &DashboardContext,
-    ) -> Result<String, Box<dyn std::error::Error>> {
-        // Group allocations by thread
+    ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
         let mut thread_map: std::collections::HashMap<String, ThreadStats> =
             std::collections::HashMap::new();
 
@@ -1145,16 +1292,15 @@ impl DashboardRenderer {
             }
         }
 
-        // Convert to JSON array
         let threads: Vec<ThreadStats> = thread_map.into_values().collect();
-        serde_json::to_string(&threads).map_err(|e| e.into())
+        serde_json::to_value(&threads).map_err(|e| e.into())
     }
 
     /// Prepare allocation timeline data for multithread dashboard
     fn prepare_allocation_timeline_data(
         &self,
         context: &DashboardContext,
-    ) -> Result<String, Box<dyn std::error::Error>> {
+    ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
         let timeline: Vec<TimelineAllocation> = context
             .allocations
             .iter()
@@ -1166,18 +1312,16 @@ impl DashboardRenderer {
             })
             .collect();
 
-        serde_json::to_string(&timeline).map_err(|e| e.into())
+        serde_json::to_value(&timeline).map_err(|e| e.into())
     }
 
     /// Prepare conflict data for multithread dashboard
     fn prepare_conflict_data(
         &self,
         context: &DashboardContext,
-    ) -> Result<String, Box<dyn std::error::Error>> {
-        // Detect potential thread conflicts
+    ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
         let mut conflicts: Vec<ThreadConflict> = Vec::new();
 
-        // Group allocations by address to detect conflicts
         let mut address_map: std::collections::HashMap<String, Vec<&AllocationInfo>> =
             std::collections::HashMap::new();
 
@@ -1188,7 +1332,6 @@ impl DashboardRenderer {
                 .push(allocation);
         }
 
-        // Check for conflicts (same address accessed by different threads)
         for (address, allocations) in &address_map {
             if allocations.len() > 1 {
                 let thread_ids: Vec<u64> = allocations
@@ -1216,7 +1359,251 @@ impl DashboardRenderer {
             }
         }
 
-        serde_json::to_string(&conflicts).map_err(|e| e.into())
+        serde_json::to_value(&conflicts).map_err(|e| e.into())
+    }
+
+    /// Build base async data map with common fields
+    fn build_async_base_map(
+        context: &DashboardContext,
+        subtitle: &str,
+    ) -> serde_json::Map<String, serde_json::Value> {
+        let mut map = serde_json::Map::new();
+        map.insert(
+            "title".to_string(),
+            serde_json::Value::String("Async Performance Dashboard".to_string()),
+        );
+        map.insert(
+            "subtitle".to_string(),
+            serde_json::Value::String(subtitle.to_string()),
+        );
+        map.insert(
+            "total_tasks".to_string(),
+            serde_json::Value::Number(context.allocations.len().into()),
+        );
+        map.insert(
+            "active_tasks".to_string(),
+            serde_json::Value::Number(context.active_allocations.into()),
+        );
+        map.insert(
+            "completed_tasks".to_string(),
+            serde_json::Value::Number(
+                context
+                    .allocations
+                    .iter()
+                    .filter(|a| a.timestamp_dealloc > 0)
+                    .count()
+                    .into(),
+            ),
+        );
+        map.insert(
+            "failed_tasks".to_string(),
+            serde_json::Value::Number(0.into()),
+        );
+        map.insert(
+            "cpu_usage_avg".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()),
+        );
+        map.insert(
+            "cpu_usage_peak".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()),
+        );
+        map.insert(
+            "cpu_cores".to_string(),
+            serde_json::Value::Number(context.cpu_cores.into()),
+        );
+        map.insert(
+            "context_switches".to_string(),
+            serde_json::Value::Number(0.into()),
+        );
+        map.insert(
+            "total_memory_mb".to_string(),
+            serde_json::Value::Number(
+                serde_json::Number::from_f64(Self::parse_bytes_to_mb(&context.total_memory))
+                    .unwrap(),
+            ),
+        );
+        map.insert(
+            "peak_memory_mb".to_string(),
+            serde_json::Value::Number(
+                serde_json::Number::from_f64(Self::parse_bytes_to_mb(&context.peak_memory))
+                    .unwrap(),
+            ),
+        );
+        map.insert(
+            "total_allocations".to_string(),
+            serde_json::Value::Number(context.total_allocations.into()),
+        );
+        map.insert(
+            "memory_efficiency".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(100.0).unwrap()),
+        );
+        map.insert(
+            "io_throughput".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()),
+        );
+        map.insert(
+            "total_read_mb".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()),
+        );
+        map.insert(
+            "total_write_mb".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()),
+        );
+        map.insert(
+            "total_io_ops".to_string(),
+            serde_json::Value::Number(0.into()),
+        );
+        map.insert(
+            "network_throughput".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()),
+        );
+        map.insert(
+            "total_sent_mb".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()),
+        );
+        map.insert(
+            "total_received_mb".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()),
+        );
+        map.insert(
+            "avg_latency".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()),
+        );
+        map.insert(
+            "efficiency_score".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(100.0).unwrap()),
+        );
+        map.insert(
+            "resource_balance".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(100.0).unwrap()),
+        );
+        map.insert(
+            "bottleneck_count".to_string(),
+            serde_json::Value::Number(0.into()),
+        );
+        map.insert(
+            "optimization_potential".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()),
+        );
+        map.insert(
+            "futures_count".to_string(),
+            serde_json::Value::Number(0.into()),
+        );
+        map.insert(
+            "total_polls".to_string(),
+            serde_json::Value::Number(0.into()),
+        );
+        map.insert(
+            "avg_poll_time".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()),
+        );
+        map.insert(
+            "ready_rate".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(100.0).unwrap()),
+        );
+        map.insert(
+            "cpu_intensive_count".to_string(),
+            serde_json::Value::Number(0.into()),
+        );
+        map.insert(
+            "cpu_avg_efficiency".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(100.0).unwrap()),
+        );
+        map.insert(
+            "cpu_intensive_tasks".to_string(),
+            serde_json::Value::Array(vec![]),
+        );
+        map.insert(
+            "memory_intensive_count".to_string(),
+            serde_json::Value::Number(0.into()),
+        );
+        map.insert(
+            "memory_avg_efficiency".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(100.0).unwrap()),
+        );
+        map.insert(
+            "memory_intensive_tasks".to_string(),
+            serde_json::Value::Array(vec![]),
+        );
+        map.insert(
+            "io_intensive_count".to_string(),
+            serde_json::Value::Number(0.into()),
+        );
+        map.insert(
+            "io_avg_efficiency".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(100.0).unwrap()),
+        );
+        map.insert(
+            "io_intensive_tasks".to_string(),
+            serde_json::Value::Array(vec![]),
+        );
+        map.insert(
+            "network_intensive_count".to_string(),
+            serde_json::Value::Number(0.into()),
+        );
+        map.insert(
+            "network_avg_efficiency".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(100.0).unwrap()),
+        );
+        map.insert(
+            "network_intensive_tasks".to_string(),
+            serde_json::Value::Array(vec![]),
+        );
+        map.insert(
+            "executor_utilization".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()),
+        );
+        map.insert(
+            "avg_queue_length".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()),
+        );
+        map.insert(
+            "blocking_tasks_count".to_string(),
+            serde_json::Value::Number(0.into()),
+        );
+        map.insert(
+            "deadlock_risk".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()),
+        );
+        map.insert(
+            "gc_pressure".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()),
+        );
+        map.insert(
+            "avg_fragmentation".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()),
+        );
+        map.insert(
+            "peak_alloc_rate".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()),
+        );
+        map.insert(
+            "waker_efficiency".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(100.0).unwrap()),
+        );
+        map.insert(
+            "immediate_ready_percent".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(100.0).unwrap()),
+        );
+        map
+    }
+
+    /// Parse bytes string to MB (helper function)
+    fn parse_bytes_to_mb(bytes_str: &str) -> f64 {
+        let num_str: String = bytes_str
+            .chars()
+            .filter(|c| c.is_digit(10) || *c == '.')
+            .collect();
+        let num: f64 = num_str.parse().unwrap_or(0.0);
+        if bytes_str.contains("GB") {
+            num * 1024.0
+        } else if bytes_str.contains("MB") {
+            num
+        } else if bytes_str.contains("KB") {
+            num / 1024.0
+        } else {
+            num / 1024.0 / 1024.0
+        }
     }
 
     /// Render async template (legacy template)
@@ -1224,7 +1611,6 @@ impl DashboardRenderer {
         &self,
         context: &DashboardContext,
     ) -> Result<String, Box<dyn std::error::Error>> {
-        // Detect if there are actual async tasks
         let has_async_tasks = context.allocations.iter().any(|a| {
             a.type_name.contains("Future")
                 || a.type_name.contains("Task")
@@ -1232,69 +1618,25 @@ impl DashboardRenderer {
                 || a.type_name.contains("Waker")
         });
 
-        // Prepare async-specific data structure
         let async_data = if has_async_tasks {
             self.prepare_async_data(context)?
         } else {
-            // Default data when no async tasks detected
-            serde_json::json!({
-                "title": "Async Performance Dashboard",
-                "subtitle": "No async tasks detected - showing general memory data",
-                "total_tasks": context.allocations.len(),
-                "active_tasks": context.active_allocations,
-                "completed_tasks": context.allocations.iter().filter(|a| a.timestamp_dealloc > 0).count(),
-                "failed_tasks": 0,
-                "cpu_usage_avg": 0.0,
-                "cpu_usage_peak": 0.0,
-                "cpu_cores": context.cpu_cores,
-                "context_switches": 0,
-                "total_memory_mb": parse_bytes_to_mb(&context.total_memory),
-                "peak_memory_mb": parse_bytes_to_mb(&context.peak_memory),
-                "total_allocations": context.total_allocations,
-                "memory_efficiency": 100.0,
-                "io_throughput": 0.0,
-                "total_read_mb": 0.0,
-                "total_write_mb": 0.0,
-                "total_io_ops": 0,
-                "network_throughput": 0.0,
-                "total_sent_mb": 0.0,
-                "total_received_mb": 0.0,
-                "avg_latency": 0.0,
-                "efficiency_score": 100.0,
-                "resource_balance": 100.0,
-                "bottleneck_count": 0,
-                "optimization_potential": 0.0,
-                "futures_count": 0,
-                "total_polls": 0,
-                "avg_poll_time": 0.0,
-                "ready_rate": 100.0,
-                "cpu_intensive_count": 0,
-                "cpu_avg_efficiency": 100.0,
-                "cpu_intensive_tasks": [],
-                "memory_intensive_count": 0,
-                "memory_avg_efficiency": 100.0,
-                "memory_intensive_tasks": [],
-                "io_intensive_count": 0,
-                "io_avg_efficiency": 100.0,
-                "io_intensive_tasks": [],
-                "network_intensive_count": 0,
-                "network_avg_efficiency": 100.0,
-                "network_intensive_tasks": [],
-                "executor_utilization": 0.0,
-                "avg_queue_length": 0.0,
-                "blocking_tasks_count": 0,
-                "deadlock_risk": 0.0,
-                "gc_pressure": 0.0,
-                "avg_fragmentation": 0.0,
-                "peak_alloc_rate": 0.0,
-                "waker_efficiency": 100.0,
-                "immediate_ready_percent": 100.0
-            })
+            serde_json::Value::Object(Self::build_async_base_map(
+                context,
+                "No async tasks detected",
+            ))
         };
 
         let mut template_data = std::collections::BTreeMap::new();
-        template_data.insert("ASYNC_DATA", serde_json::to_string(&async_data)?);
-        template_data.insert("PROJECT_NAME", "MemScope Async Performance Analysis".to_string());
+        if let serde_json::Value::Object(map) = &async_data {
+            for (key, value) in map {
+                template_data.insert(key.clone(), value.clone());
+            }
+        }
+        template_data.insert(
+            "PROJECT_NAME".to_string(),
+            serde_json::Value::String("MemScope Async Performance Analysis".to_string()),
+        );
 
         self.handlebars
             .render("async_template", &template_data)
@@ -1306,11 +1648,10 @@ impl DashboardRenderer {
         &self,
         context: &DashboardContext,
     ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
-        // Categorize allocations by type
-        let mut cpu_intensive_tasks = Vec::new();
-        let mut memory_intensive_tasks = Vec::new();
-        let mut io_intensive_tasks = Vec::new();
-        let mut network_intensive_tasks = Vec::new();
+        let mut cpu_intensive_tasks: Vec<serde_json::Value> = Vec::new();
+        let mut memory_intensive_tasks: Vec<serde_json::Value> = Vec::new();
+        let mut io_intensive_tasks: Vec<serde_json::Value> = Vec::new();
+        let mut network_intensive_tasks: Vec<serde_json::Value> = Vec::new();
 
         for (idx, alloc) in context.allocations.iter().enumerate() {
             let task_type = if alloc.type_name.contains("Future") {
@@ -1323,34 +1664,119 @@ impl DashboardRenderer {
                 "async_op"
             };
 
-            let task_data = serde_json::json!({
-                "task_id": idx,
-                "task_name": alloc.var_name.clone().unwrap_or_else(|| format!("async_{}", idx)),
-                "source_file": "unknown",
-                "source_line": 0,
-                "task_type": task_type,
-                "cpu_usage": 0.0,
-                "cpu_cycles": 0,
-                "instructions": 0,
-                "cache_misses": 0,
-                "allocated_mb": alloc.size as f64 / 1024.0 / 1024.0,
-                "memory_usage_percent": 0.0,
-                "peak_memory_mb": alloc.size as f64 / 1024.0 / 1024.0,
-                "allocation_count": 1,
-                "heap_fragmentation": 0.0,
-                "bytes_read_mb": 0.0,
-                "bytes_written_mb": 0.0,
-                "avg_latency_us": 0.0,
-                "queue_depth": 0,
-                "bytes_sent_mb": 0.0,
-                "bytes_received_mb": 0.0,
-                "active_connections": 0,
-                "avg_latency_ms": 0.0,
-                "status": if alloc.is_leaked { "leaked" } else if alloc.timestamp_dealloc > 0 { "completed" } else { "active" },
-                "duration_ms": alloc.lifetime_ms
-            });
+            let status = if alloc.is_leaked {
+                "leaked"
+            } else if alloc.timestamp_dealloc > 0 {
+                "completed"
+            } else {
+                "active"
+            };
+            let mut task_map = serde_json::Map::new();
+            task_map.insert("task_id".to_string(), serde_json::Value::Number(idx.into()));
+            task_map.insert(
+                "task_name".to_string(),
+                serde_json::Value::String(if alloc.var_name.is_empty() {
+                    format!("async_{}", idx)
+                } else {
+                    alloc.var_name.clone()
+                }),
+            );
+            task_map.insert(
+                "source_file".to_string(),
+                serde_json::Value::String("unknown".to_string()),
+            );
+            task_map.insert(
+                "source_line".to_string(),
+                serde_json::Value::Number(0.into()),
+            );
+            task_map.insert(
+                "task_type".to_string(),
+                serde_json::Value::String(task_type.to_string()),
+            );
+            task_map.insert(
+                "cpu_usage".to_string(),
+                serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()),
+            );
+            task_map.insert(
+                "cpu_cycles".to_string(),
+                serde_json::Value::Number(0.into()),
+            );
+            task_map.insert(
+                "instructions".to_string(),
+                serde_json::Value::Number(0.into()),
+            );
+            task_map.insert(
+                "cache_misses".to_string(),
+                serde_json::Value::Number(0.into()),
+            );
+            task_map.insert(
+                "allocated_mb".to_string(),
+                serde_json::Value::Number(
+                    serde_json::Number::from_f64(alloc.size as f64 / 1024.0 / 1024.0).unwrap(),
+                ),
+            );
+            task_map.insert(
+                "memory_usage_percent".to_string(),
+                serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()),
+            );
+            task_map.insert(
+                "peak_memory_mb".to_string(),
+                serde_json::Value::Number(
+                    serde_json::Number::from_f64(alloc.size as f64 / 1024.0 / 1024.0).unwrap(),
+                ),
+            );
+            task_map.insert(
+                "allocation_count".to_string(),
+                serde_json::Value::Number(1.into()),
+            );
+            task_map.insert(
+                "heap_fragmentation".to_string(),
+                serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()),
+            );
+            task_map.insert(
+                "bytes_read_mb".to_string(),
+                serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()),
+            );
+            task_map.insert(
+                "bytes_written_mb".to_string(),
+                serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()),
+            );
+            task_map.insert(
+                "avg_latency_us".to_string(),
+                serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()),
+            );
+            task_map.insert(
+                "queue_depth".to_string(),
+                serde_json::Value::Number(0.into()),
+            );
+            task_map.insert(
+                "bytes_sent_mb".to_string(),
+                serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()),
+            );
+            task_map.insert(
+                "bytes_received_mb".to_string(),
+                serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()),
+            );
+            task_map.insert(
+                "active_connections".to_string(),
+                serde_json::Value::Number(0.into()),
+            );
+            task_map.insert(
+                "avg_latency_ms".to_string(),
+                serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()),
+            );
+            task_map.insert(
+                "status".to_string(),
+                serde_json::Value::String(status.to_string()),
+            );
+            task_map.insert(
+                "duration_ms".to_string(),
+                serde_json::Value::Number(
+                    serde_json::Number::from_f64(alloc.lifetime_ms as f64).unwrap(),
+                ),
+            );
+            let task_data = serde_json::Value::Object(task_map);
 
-            // Categorize based on type name patterns
             if alloc.type_name.contains("Future") || alloc.type_name.contains("Stream") {
                 cpu_intensive_tasks.push(task_data);
             } else if alloc.type_name.contains("Channel") || alloc.type_name.contains("Mutex") {
@@ -1362,104 +1788,260 @@ impl DashboardRenderer {
             }
         }
 
-        Ok(serde_json::json!({
-            "title": "Async Performance Dashboard",
-            "subtitle": "Rust Async Runtime Analysis",
-            "total_tasks": context.allocations.len(),
-            "active_tasks": context.active_allocations,
-            "completed_tasks": context.allocations.iter().filter(|a| a.timestamp_dealloc > 0).count(),
-            "failed_tasks": context.leak_count,
-            "cpu_usage_avg": 0.0,
-            "cpu_usage_peak": 0.0,
-            "cpu_cores": context.cpu_cores,
-            "context_switches": 0,
-            "total_memory_mb": parse_bytes_to_mb(&context.total_memory),
-            "peak_memory_mb": parse_bytes_to_mb(&context.peak_memory),
-            "total_allocations": context.total_allocations,
-            "memory_efficiency": if context.total_allocations > 0 {
-                (context.active_allocations as f64 / context.total_allocations as f64 * 100.0)
-            } else { 100.0 },
-            "io_throughput": 0.0,
-            "total_read_mb": 0.0,
-            "total_write_mb": 0.0,
-            "total_io_ops": 0,
-            "network_throughput": 0.0,
-            "total_sent_mb": 0.0,
-            "total_received_mb": 0.0,
-            "avg_latency": 0.0,
-            "efficiency_score": 100.0,
-            "resource_balance": 100.0,
-            "bottleneck_count": 0,
-            "optimization_potential": 0.0,
-            "futures_count": cpu_intensive_tasks.len(),
-            "total_polls": 0,
-            "avg_poll_time": 0.0,
-            "ready_rate": 100.0,
-            "cpu_intensive_count": cpu_intensive_tasks.len(),
-            "cpu_avg_efficiency": 100.0,
-            "cpu_intensive_tasks": cpu_intensive_tasks,
-            "memory_intensive_count": memory_intensive_tasks.len(),
-            "memory_avg_efficiency": 100.0,
-            "memory_intensive_tasks": memory_intensive_tasks,
-            "io_intensive_count": io_intensive_tasks.len(),
-            "io_avg_efficiency": 100.0,
-            "io_intensive_tasks": io_intensive_tasks,
-            "network_intensive_count": network_intensive_tasks.len(),
-            "network_avg_efficiency": 100.0,
-            "network_intensive_tasks": network_intensive_tasks,
-            "executor_utilization": 0.0,
-            "avg_queue_length": 0.0,
-            "blocking_tasks_count": 0,
-            "deadlock_risk": 0.0,
-            "gc_pressure": 0.0,
-            "avg_fragmentation": 0.0,
-            "peak_alloc_rate": 0.0,
-            "waker_efficiency": 100.0,
-            "immediate_ready_percent": 100.0
-        }))
-    }
-
-    /// Parse bytes string to MB (helper function)
-    fn parse_bytes_to_mb(bytes_str: &str) -> f64 {
-        // Extract number from string like "1.5 MB" or "1024 KB"
-        let num_str: String = bytes_str.chars().filter(|c| c.is_digit(10) || *c == '.').collect();
-        let num: f64 = num_str.parse().unwrap_or(0.0);
-
-        // Detect unit
-        if bytes_str.contains("GB") {
-            num * 1024.0
-        } else if bytes_str.contains("MB") {
-            num
-        } else if bytes_str.contains("KB") {
-            num / 1024.0
-        } else if bytes_str.contains("bytes") {
-            num / 1024.0 / 1024.0
+        let memory_efficiency = if context.total_allocations > 0 {
+            context.active_allocations as f64 / context.total_allocations as f64 * 100.0
         } else {
-            num / 1024.0 / 1024.0
-        }
+            100.0
+        };
+
+        let mut map = serde_json::Map::new();
+        map.insert(
+            "title".to_string(),
+            serde_json::Value::String("Async Performance Dashboard".to_string()),
+        );
+        map.insert(
+            "subtitle".to_string(),
+            serde_json::Value::String("Rust Async Runtime Analysis".to_string()),
+        );
+        map.insert(
+            "total_tasks".to_string(),
+            serde_json::Value::Number(context.allocations.len().into()),
+        );
+        map.insert(
+            "active_tasks".to_string(),
+            serde_json::Value::Number(context.active_allocations.into()),
+        );
+        map.insert(
+            "completed_tasks".to_string(),
+            serde_json::Value::Number(
+                context
+                    .allocations
+                    .iter()
+                    .filter(|a| a.timestamp_dealloc > 0)
+                    .count()
+                    .into(),
+            ),
+        );
+        map.insert(
+            "failed_tasks".to_string(),
+            serde_json::Value::Number(context.leak_count.into()),
+        );
+        map.insert(
+            "cpu_usage_avg".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()),
+        );
+        map.insert(
+            "cpu_usage_peak".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()),
+        );
+        map.insert(
+            "cpu_cores".to_string(),
+            serde_json::Value::Number(context.cpu_cores.into()),
+        );
+        map.insert(
+            "context_switches".to_string(),
+            serde_json::Value::Number(0.into()),
+        );
+        map.insert(
+            "total_memory_mb".to_string(),
+            serde_json::Value::Number(
+                serde_json::Number::from_f64(Self::parse_bytes_to_mb(&context.total_memory))
+                    .unwrap(),
+            ),
+        );
+        map.insert(
+            "peak_memory_mb".to_string(),
+            serde_json::Value::Number(
+                serde_json::Number::from_f64(Self::parse_bytes_to_mb(&context.peak_memory))
+                    .unwrap(),
+            ),
+        );
+        map.insert(
+            "total_allocations".to_string(),
+            serde_json::Value::Number(context.total_allocations.into()),
+        );
+        map.insert(
+            "memory_efficiency".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(memory_efficiency).unwrap()),
+        );
+        map.insert(
+            "io_throughput".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()),
+        );
+        map.insert(
+            "total_read_mb".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()),
+        );
+        map.insert(
+            "total_write_mb".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()),
+        );
+        map.insert(
+            "total_io_ops".to_string(),
+            serde_json::Value::Number(0.into()),
+        );
+        map.insert(
+            "network_throughput".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()),
+        );
+        map.insert(
+            "total_sent_mb".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()),
+        );
+        map.insert(
+            "total_received_mb".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()),
+        );
+        map.insert(
+            "avg_latency".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()),
+        );
+        map.insert(
+            "efficiency_score".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(100.0).unwrap()),
+        );
+        map.insert(
+            "resource_balance".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(100.0).unwrap()),
+        );
+        map.insert(
+            "bottleneck_count".to_string(),
+            serde_json::Value::Number(0.into()),
+        );
+        map.insert(
+            "optimization_potential".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()),
+        );
+        map.insert(
+            "futures_count".to_string(),
+            serde_json::Value::Number(cpu_intensive_tasks.len().into()),
+        );
+        map.insert(
+            "total_polls".to_string(),
+            serde_json::Value::Number(0.into()),
+        );
+        map.insert(
+            "avg_poll_time".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()),
+        );
+        map.insert(
+            "ready_rate".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(100.0).unwrap()),
+        );
+        map.insert(
+            "cpu_intensive_count".to_string(),
+            serde_json::Value::Number(cpu_intensive_tasks.len().into()),
+        );
+        map.insert(
+            "cpu_avg_efficiency".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(100.0).unwrap()),
+        );
+        map.insert(
+            "cpu_intensive_tasks".to_string(),
+            serde_json::Value::Array(cpu_intensive_tasks),
+        );
+        map.insert(
+            "memory_intensive_count".to_string(),
+            serde_json::Value::Number(memory_intensive_tasks.len().into()),
+        );
+        map.insert(
+            "memory_avg_efficiency".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(100.0).unwrap()),
+        );
+        map.insert(
+            "memory_intensive_tasks".to_string(),
+            serde_json::Value::Array(memory_intensive_tasks),
+        );
+        map.insert(
+            "io_intensive_count".to_string(),
+            serde_json::Value::Number(io_intensive_tasks.len().into()),
+        );
+        map.insert(
+            "io_avg_efficiency".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(100.0).unwrap()),
+        );
+        map.insert(
+            "io_intensive_tasks".to_string(),
+            serde_json::Value::Array(io_intensive_tasks),
+        );
+        map.insert(
+            "network_intensive_count".to_string(),
+            serde_json::Value::Number(network_intensive_tasks.len().into()),
+        );
+        map.insert(
+            "network_avg_efficiency".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(100.0).unwrap()),
+        );
+        map.insert(
+            "network_intensive_tasks".to_string(),
+            serde_json::Value::Array(network_intensive_tasks),
+        );
+        map.insert(
+            "executor_utilization".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()),
+        );
+        map.insert(
+            "avg_queue_length".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()),
+        );
+        map.insert(
+            "blocking_tasks_count".to_string(),
+            serde_json::Value::Number(0.into()),
+        );
+        map.insert(
+            "deadlock_risk".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()),
+        );
+        map.insert(
+            "gc_pressure".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()),
+        );
+        map.insert(
+            "avg_fragmentation".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()),
+        );
+        map.insert(
+            "peak_alloc_rate".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()),
+        );
+        map.insert(
+            "waker_efficiency".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(100.0).unwrap()),
+        );
+        map.insert(
+            "immediate_ready_percent".to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(100.0).unwrap()),
+        );
+        Ok(serde_json::Value::Object(map))
     }
 
     /// Convert new DashboardContext to legacy binary data format
     fn to_legacy_binary_data(&self, context: &DashboardContext) -> serde_json::Value {
         // Calculate type distribution
-        let mut type_counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+        let mut type_counts: std::collections::HashMap<String, usize> =
+            std::collections::HashMap::new();
         let mut total_size: usize = 0;
-        
+
         for alloc in &context.allocations {
-            let type_name = if alloc.type_name.contains("Vec") || alloc.type_name.contains("vec::Vec") {
-                "dynamic_array"
-            } else if alloc.type_name.contains("String") || alloc.type_name.contains("str") {
-                "string"
-            } else if alloc.type_name.contains("Box") || alloc.type_name.contains("Rc") || alloc.type_name.contains("Arc") {
-                "smart_pointer"
-            } else if alloc.type_name.contains("[") && alloc.type_name.contains("u8") {
-                "byte_array"
-            } else if alloc.size > 1024 * 1024 {
-                "large_buffer"
-            } else {
-                "custom"
-            }.to_string();
-            
+            let type_name =
+                if alloc.type_name.contains("Vec") || alloc.type_name.contains("vec::Vec") {
+                    "dynamic_array"
+                } else if alloc.type_name.contains("String") || alloc.type_name.contains("str") {
+                    "string"
+                } else if alloc.type_name.contains("Box")
+                    || alloc.type_name.contains("Rc")
+                    || alloc.type_name.contains("Arc")
+                {
+                    "smart_pointer"
+                } else if alloc.type_name.contains("[") && alloc.type_name.contains("u8") {
+                    "byte_array"
+                } else if alloc.size > 1024 * 1024 {
+                    "large_buffer"
+                } else {
+                    "custom"
+                }
+                .to_string();
+
             *type_counts.entry(type_name).or_insert(0) += 1;
             total_size += alloc.size;
         }

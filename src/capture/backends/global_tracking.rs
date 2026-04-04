@@ -227,6 +227,6 @@ mod tests {
     fn test_stats() {
         let _tracker = global_tracker().unwrap();
         let stats = get_stats().unwrap();
-        assert!(stats.uptime.as_secs() >= 0);
+        assert!(stats.uptime.as_secs() > 0 || stats.uptime.subsec_nanos() > 0);
     }
 }

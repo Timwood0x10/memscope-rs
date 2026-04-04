@@ -369,15 +369,7 @@ impl MemScope {
         use crate::render_engine::export::DashboardTemplate;
 
         let snapshot = self.snapshot.build_snapshot();
-
-        // Auto-detect the best template based on program characteristics
-        let template = if snapshot.thread_stats.len() > 1 {
-            DashboardTemplate::Multithread
-        } else {
-            DashboardTemplate::Binary
-        };
-
-        self.export_html_with_template(path, template)
+        self.export_html_with_template(path, DashboardTemplate::Unified)
     }
 
     /// Export all JSON files
@@ -427,8 +419,7 @@ impl MemScope {
 
         let tracker = Tracker::new();
 
-        export_svg(path, &tracker)
-            .map_err(|e| format!("Failed to export SVG files: {}", e))
+        export_svg(path, &tracker).map_err(|e| format!("Failed to export SVG files: {}", e))
     }
 }
 

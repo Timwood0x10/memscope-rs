@@ -31,12 +31,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             thread::spawn(move || {
                 let tracker = global_tracker().unwrap();
 
-                for i in 0..allocations_per_thread / 2 {
+                for _i in 0..allocations_per_thread / 2 {
                     let data = vec![0i32; 64];
                     memscope_rs::track!(tracker, data);
                 }
 
-                for i in 0..allocations_per_thread / 2 {
+                for _i in 0..allocations_per_thread / 2 {
                     let data = vec![0i64; 256];
                     memscope_rs::track!(tracker, data);
                 }
@@ -85,7 +85,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Export HTML dashboard
     println!("\nExporting HTML dashboard...");
-    use memscope_rs::analysis::memory_passport_tracker::{MemoryPassportTracker, PassportTrackerConfig};
+    use memscope_rs::analysis::memory_passport_tracker::{
+        MemoryPassportTracker, PassportTrackerConfig,
+    };
     use memscope_rs::render_engine::export::export_dashboard_html;
     use std::sync::Arc;
 

@@ -10,8 +10,10 @@ use memscope_rs::capture::backends::global_tracking::{
     export_to_json, get_stats, global_passport_tracker, global_tracker, init_global_tracking,
 };
 use memscope_rs::render_engine::export::export_dashboard_html;
-use memscope_rs::{track, tracker};
+use memscope_rs::track;
 use std::alloc::{alloc, dealloc, Layout};
+use std::rc::Rc;
+use std::sync::Arc;
 use std::thread;
 use std::time::Instant;
 
@@ -27,10 +29,48 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let single_start = Instant::now();
     {
         let tracker = global_tracker()?;
-        track!(tracker, vec![1i32, 2, 3, 4, 5]);
-        track!(tracker, String::from("Hello, global tracking!"));
-        track!(tracker, Box::new(42i64));
-        println!("✓ Tracked 3 allocations");
+
+        let v1 = vec![1i32, 2, 3, 4, 5];
+        let v2 = v1.clone();
+        let v3 = v2.clone();
+        track!(tracker, v1);
+        track!(tracker, v2);
+        track!(tracker, v3);
+
+        let s1 = String::from("Hello, global tracking!");
+        let s2 = s1.clone();
+        let s3 = s2.clone();
+        track!(tracker, s1);
+        track!(tracker, s2);
+        track!(tracker, s3);
+
+        let b1 = Box::new(42i64);
+        let b2 = b1.clone();
+        track!(tracker, b1);
+        track!(tracker, b2);
+
+        let arc1 = Arc::new(vec![1i32, 2, 3]);
+        let arc2 = arc1.clone();
+        let arc3 = arc1.clone();
+        track!(tracker, arc1);
+        track!(tracker, arc2);
+        track!(tracker, arc3);
+
+        let rc1 = Rc::new(String::from("Rc string"));
+        let rc2 = rc1.clone();
+        let rc3 = rc1.clone();
+        track!(tracker, rc1);
+        track!(tracker, rc2);
+        track!(tracker, rc3);
+
+        let boxed_vec = Box::new(vec![1i32, 2, 3, 4, 5]);
+        let owned_string = String::from("Owned string");
+        let cloned_vec = boxed_vec.clone();
+        track!(tracker, boxed_vec);
+        track!(tracker, owned_string);
+        track!(tracker, cloned_vec);
+
+        println!("✓ Tracked 18 allocations with clones and smart pointers");
     }
     println!(
         "  Duration: {:.2}ms\n",
@@ -44,9 +84,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             thread::spawn(move || {
                 let tracker = global_tracker().unwrap();
                 for i in 0..100 {
-                    track!(tracker, vec![i as i32; 16]);
+                    track!(tracker, vec![i; 16]);
                 }
-                println!("  Thread {}: tracked 100 allocations", id);
+                // Add shared data between threads
+                let _shared_arc = Arc::new(vec![1i32, 2, 3]);
+                let _thread_rc = Rc::new(format!("Thread {} string", id));
+                println!("  Thread {}: tracked 100 allocations + smart pointers", id);
             })
         })
         .collect();

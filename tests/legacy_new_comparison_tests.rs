@@ -120,7 +120,7 @@ fn test_tracking_result_comparison() {
     assert!(new_err.is_err());
 
     // Verify both systems have similar result behavior
-    assert_eq!(legacy_ok.unwrap(), new_ok.unwrap());
+    assert_eq!(legacy_ok.is_ok(), new_ok.is_ok());
 }
 
 #[test]

@@ -2,9 +2,7 @@
 //!
 //! This example demonstrates unsafe Rust and FFI memory tracking with memory passport export.
 
-use memscope_rs::analysis::memory_passport_tracker::{
-    initialize_global_passport_tracker, PassportTrackerConfig,
-};
+use memscope_rs::analysis::memory_passport_tracker::initialize_global_passport_tracker;
 use memscope_rs::capture::backends::global_tracking::export_to_json;
 use memscope_rs::{track, tracker};
 use std::alloc::{alloc, dealloc, Layout};
@@ -129,7 +127,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Export HTML dashboard
     println!("\n7. Exporting HTML dashboard...");
-    use memscope_rs::analysis::memory_passport_tracker::{MemoryPassportTracker, PassportTrackerConfig};
+    use memscope_rs::analysis::memory_passport_tracker::{
+        MemoryPassportTracker, PassportTrackerConfig,
+    };
     use memscope_rs::render_engine::export::export_dashboard_html;
     use std::sync::Arc;
 
