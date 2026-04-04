@@ -188,7 +188,7 @@ impl Tracker {
         self
     }
 
-    pub fn track_as<T: crate::Trackable>(&self, var: &T, name: &str) {
+    pub fn track_as<T: crate::Trackable>(&self, var: &T, name: &str, file: &str, line: u32) {
         if let Ok(cfg) = self.config.lock() {
             if cfg.sampling.sample_rate < 1.0 {
                 use std::collections::hash_map::DefaultHasher;
@@ -203,10 +203,10 @@ impl Tracker {
             }
         }
 
-        self.track_inner(var, name);
+        self.track_inner(var, name, file, line);
     }
 
-    fn track_inner<T: crate::Trackable>(&self, var: &T, name: &str) {
+    fn track_inner<T: crate::Trackable>(&self, var: &T, name: &str, file: &str, line: u32) {
         let type_name = var.get_type_name().to_string();
         let size = var.get_size_estimate();
 
@@ -465,7 +465,7 @@ macro_rules! tracker {
 macro_rules! track {
     ($tracker:expr, $var:expr) => {{
         let var_name = stringify!($var);
-        $tracker.track_as(&$var, var_name);
+        $tracker.track_as(&$var, var_name, file!(), line!());
     }};
 }
 

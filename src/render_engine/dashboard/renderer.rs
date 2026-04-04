@@ -94,6 +94,10 @@ pub struct AllocationInfo {
     pub is_smart_pointer: bool,
     /// Smart pointer type (Arc, Rc, Box, etc.)
     pub smart_pointer_type: String,
+    /// Source file where allocation occurred
+    pub source_file: Option<String>,
+    /// Source line where allocation occurred
+    pub source_line: Option<u32>,
 }
 
 /// Thread statistics for multithread dashboard
@@ -287,6 +291,19 @@ pub struct ThreadInfo {
     pub peak_memory: String,
     /// Total allocated
     pub total_allocated: String,
+    /// Raw current memory in bytes for sorting
+    pub current_memory_bytes: usize,
+    /// Raw peak memory in bytes for sorting
+    pub peak_memory_bytes: usize,
+    /// Raw total allocated in bytes for sorting
+    pub total_allocated_bytes: usize,
+}
+
+struct ThreadAggregator {
+    allocation_count: usize,
+    current_memory: usize,
+    peak_memory: usize,
+    total_allocated: usize,
 }
 
 /// Dashboard renderer
@@ -300,7 +317,7 @@ impl DashboardRenderer {
         let mut handlebars = Handlebars::new();
 
         handlebars
-            .register_template_file("dashboard_unified", "templates/dashboard_unified.html")?;
+            .register_template_file("dashboard_unified", "./templates/dashboard_unified.html")?;
 
         handlebars.register_helper("format_bytes", Box::new(format_bytes_helper));
         handlebars.register_helper("gt", Box::new(greater_than_helper));
@@ -308,6 +325,57 @@ impl DashboardRenderer {
         handlebars.register_helper("json", Box::new(json_helper));
 
         Ok(Self { handlebars })
+    }
+
+    /// Extract user source file from stack trace (filter out Rust internals)
+    fn extract_user_source_file(stack_trace: &Option<Vec<String>>) -> Option<String> {
+        if let Some(ref frames) = stack_trace {
+            for frame in frames {
+                let frame_lower = frame.to_lowercase();
+                if !frame_lower.contains("/rustc/")
+                    && !frame_lower.contains("/library/")
+                    && !frame_lower.contains("memscope")
+                    && !frame_lower.contains(".cargo/registry")
+                    && !frame_lower.contains("/src/core/")
+                    && !frame_lower.contains("/src/capture/")
+                    && !frame_lower.contains("/src/unified/")
+                    && !frame_lower.contains("/src/tracker")
+                {
+                    if let Some(file_part) = frame.split(':').next() {
+                        let file_name = file_part.split('/').last().unwrap_or(file_part);
+                        if !file_name.starts_with('<') && file_name.contains(".rs") {
+                            return Some(file_part.to_string());
+                        }
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    /// Extract user source line from stack trace (filter out Rust internals)
+    fn extract_user_source_line(stack_trace: &Option<Vec<String>>) -> Option<u32> {
+        if let Some(ref frames) = stack_trace {
+            for frame in frames {
+                let frame_lower = frame.to_lowercase();
+                if !frame_lower.contains("/rustc/")
+                    && !frame_lower.contains("/library/")
+                    && !frame_lower.contains("memscope")
+                    && !frame_lower.contains(".cargo/registry")
+                    && !frame_lower.contains("/src/core/")
+                    && !frame_lower.contains("/src/capture/")
+                    && !frame_lower.contains("/src/unified/")
+                    && !frame_lower.contains("/src/tracker")
+                {
+                    if let Some(line_part) = frame.rsplit(':').next() {
+                        if let Ok(line) = line_part.parse::<u32>() {
+                            return Some(line);
+                        }
+                    }
+                }
+            }
+        }
+        None
     }
 
     /// Build dashboard context from tracker data
@@ -372,9 +440,11 @@ impl DashboardRenderer {
                     timestamp_dealloc,
                     lifetime_ms,
                     is_leaked: timestamp_dealloc == 0,
-                    allocation_type: "heap".to_string(), // TODO: Detect stack vs heap
+                    allocation_type: "heap".to_string(),
                     is_smart_pointer,
                     smart_pointer_type,
+                    source_file: Self::extract_user_source_file(&a.stack_trace),
+                    source_line: Self::extract_user_source_line(&a.stack_trace),
                 }
             })
             .collect();
@@ -692,6 +762,9 @@ impl DashboardRenderer {
         let leak_result = passport_tracker.detect_leaks_at_shutdown();
         let leak_count = leak_result.leaked_passports.len();
 
+        // Build thread data from allocations
+        let thread_data = Self::aggregate_thread_data(&alloc_info);
+
         // Prepare JSON data for direct injection (performance optimization)
         #[allow(dead_code)]
         #[derive(serde::Serialize)]
@@ -699,12 +772,22 @@ impl DashboardRenderer {
             allocations: &'a [AllocationInfo],
             relationships: &'a [RelationshipInfo],
             unsafe_reports: &'a [UnsafeReport],
+            threads: &'a [ThreadInfo],
+            passport_details: &'a [PassportDetail],
+            active_allocations: usize,
+            total_allocations: usize,
+            leak_count: usize,
         }
 
         let data = DashboardData {
             allocations: &alloc_info,
             relationships: &relationships,
             unsafe_reports: &unsafe_reports,
+            threads: &thread_data,
+            passport_details: &passport_details,
+            active_allocations: allocations.len(),
+            total_allocations: allocations.len(),
+            leak_count,
         };
 
         let json_data: String = serde_json::to_string(&data)
@@ -903,16 +986,46 @@ impl DashboardRenderer {
                 used_physical: format_bytes(used_physical as usize),
                 page_size,
             },
-            threads: vec![ThreadInfo {
-                thread_id: "0".to_string(),
-                allocation_count: allocations.len(),
-                current_memory: format_bytes(total_memory),
-                peak_memory: format_bytes(analysis.peak_memory_bytes as usize),
-                total_allocated: format_bytes(total_memory),
-            }],
+            threads: Self::aggregate_thread_data(&alloc_info),
         };
 
         Ok(context)
+    }
+
+    fn aggregate_thread_data(allocations: &[AllocationInfo]) -> Vec<ThreadInfo> {
+        use std::collections::HashMap;
+        let mut thread_map: HashMap<String, ThreadAggregator> = HashMap::new();
+
+        for alloc in allocations {
+            let entry = thread_map
+                .entry(alloc.thread_id.clone())
+                .or_insert_with(|| ThreadAggregator {
+                    allocation_count: 0,
+                    current_memory: 0,
+                    peak_memory: 0,
+                    total_allocated: 0,
+                });
+            entry.allocation_count += 1;
+            entry.current_memory += alloc.size;
+            entry.total_allocated += alloc.size;
+            if alloc.size > entry.peak_memory {
+                entry.peak_memory = alloc.size;
+            }
+        }
+
+        thread_map
+            .into_iter()
+            .map(|(thread_id, agg)| ThreadInfo {
+                thread_id,
+                allocation_count: agg.allocation_count,
+                current_memory: format_bytes(agg.current_memory),
+                peak_memory: format_bytes(agg.peak_memory),
+                total_allocated: format_bytes(agg.total_allocated),
+                current_memory_bytes: agg.current_memory,
+                peak_memory_bytes: agg.peak_memory,
+                total_allocated_bytes: agg.total_allocated,
+            })
+            .collect()
     }
 
     /// Render dashboard from tracker data (for standalone template)

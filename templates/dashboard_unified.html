@@ -418,10 +418,13 @@
             <div class="card">
                 <div class="card-header">
                     <h2 class="card-title">📋 Active Allocations</h2>
-                    <span class="badge badge-info" id="allocCount">0 items</span>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <span class="badge badge-info" id="allocCount">0 items</span>
+                        <button class="btn-link" onclick="toggleAllocationsTable()" id="toggleAllocBtn" style="background: var(--bg3); border: 1px solid var(--border); padding: 4px 12px; border-radius: 6px; cursor: pointer; color: var(--text);">▼ Show All</button>
+                    </div>
                 </div>
                 <input type="text" class="search-box" id="searchAllocations" placeholder="Search by name or type..." oninput="filterTable('allocationsTable', this.value)">
-                <div class="table-wrapper">
+                <div class="table-wrapper" id="allocationsWrapper" style="max-height: 400px; overflow-y: auto; border-radius: 8px;">
                     <table id="allocationsTable">
                         <thead>
                             <tr>
@@ -436,6 +439,11 @@
                         </thead>
                         <tbody id="allocationsBody"></tbody>
                     </table>
+                </div>
+                <div id="allocationsPagination" style="display: none; justify-content: center; align-items: center; gap: 8px; margin-top: 12px; padding: 12px;">
+                    <button onclick="prevAllocPage()" id="prevAllocBtn" style="padding: 4px 12px; background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; cursor: pointer; color: var(--text);">← Prev</button>
+                    <span id="allocPageInfo" style="color: var(--text2);">Page 1 of 1</span>
+                    <button onclick="nextAllocPage()" id="nextAllocBtn" style="padding: 4px 12px; background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; cursor: pointer; color: var(--text);">Next →</button>
                 </div>
             </div>
         </div>
@@ -455,6 +463,16 @@
             <div class="card">
                 <div class="card-header">
                     <h2 class="card-title">📊 Memory Usage by Thread</h2>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <label style="color: var(--text2); font-size: 0.9rem;">Sort by:</label>
+                        <select id="threadSortOrder" onchange="sortThreads()" style="background: var(--bg3); border: 1px solid var(--border); padding: 4px 8px; border-radius: 4px; color: var(--text); cursor: pointer;">
+                            <option value="alloc-desc">Allocations ↓</option>
+                            <option value="alloc-asc">Allocations ↑</option>
+                            <option value="memory-desc">Memory ↓</option>
+                            <option value="memory-asc">Memory ↑</option>
+                            <option value="thread-id">Thread ID</option>
+                        </select>
+                    </div>
                 </div>
                 <div class="table-wrapper">
                     <table>
@@ -488,6 +506,16 @@
             <div class="card">
                 <div class="card-header">
                     <h2 class="card-title">📋 Future/Task List</h2>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <label style="color: var(--text2); font-size: 0.9rem;">Sort by:</label>
+                        <select id="taskSortOrder" onchange="sortTasks()" style="background: var(--bg3); border: 1px solid var(--border); padding: 4px 8px; border-radius: 4px; color: var(--text); cursor: pointer;">
+                            <option value="memory-desc">Memory ↓</option>
+                            <option value="memory-asc">Memory ↑</option>
+                            <option value="poll-desc">Poll Count ↓</option>
+                            <option value="poll-asc">Poll Count ↑</option>
+                            <option value="efficiency-desc">Efficiency ↓</option>
+                        </select>
+                    </div>
                 </div>
                 <div class="table-wrapper">
                     <table>
@@ -526,8 +554,18 @@
             <div class="card">
                 <div class="card-header">
                     <h2 class="card-title">📋 Relationship List</h2>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <span class="badge badge-info" id="relationshipCount2">0 relationships</span>
+                        <select id="relSortOrder" onchange="sortRelationships()" style="background: var(--bg3); border: 1px solid var(--border); padding: 4px 8px; border-radius: 4px; color: var(--text); cursor: pointer;">
+                            <option value="strength-desc">Strength ↓</option>
+                            <option value="strength-asc">Strength ↑</option>
+                            <option value="type">Type A-Z</option>
+                            <option value="source">Source A-Z</option>
+                        </select>
+                        <button class="btn-link" onclick="toggleRelTable()" id="toggleRelBtn" style="background: var(--bg3); border: 1px solid var(--border); padding: 4px 12px; border-radius: 6px; cursor: pointer; color: var(--text);">▼ Expand</button>
+                    </div>
                 </div>
-                <div class="table-wrapper">
+                <div class="table-wrapper" id="relTableWrapper" style="max-height: 300px; overflow-y: auto; border-radius: 8px;">
                     <table>
                         <thead>
                             <tr>
@@ -608,18 +646,47 @@
                 <div class="card-header">
                     <h2 class="card-title">⏪ Time Travel Debugging</h2>
                 </div>
+                <div class="detail-panel" style="margin-bottom: 16px;">
+                    <div style="display: flex; align-items: flex-start; gap: 16px; margin-bottom: 12px;">
+                        <div style="flex: 1;">
+                            <p style="color: var(--text); margin: 0 0 8px 0; font-weight: 600;">What is Time Travel Debugging?</p>
+                            <p style="color: var(--text2); margin: 0; font-size: 0.9rem;">
+                                Time Travel Debugging allows you to trace the complete lifecycle of each memory allocation - from creation to destruction.
+                                Click on any allocation to see its timeline, including when it was allocated, accessed, and deallocated (if applicable).
+                            </p>
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            <span class="badge badge-info">🟢 Alloc</span>
+                            <span class="badge badge-success">🔵 Use</span>
+                            <span class="badge badge-danger">⚠️ Leak</span>
+                            <span class="badge badge-warning">➖ Dealloc</span>
+                        </div>
+                    </div>
+                </div>
                 <div class="detail-panel">
-                    <p style="color: var(--text2); margin-bottom: 16px;">Select an allocation to view its complete lifecycle history</p>
-                    <input type="text" class="search-box" placeholder="Search by address..." id="timetravelSearch">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 12px;">
+                        <input type="text" class="search-box" placeholder="Search by address or variable name..." id="timetravelSearch" oninput="filterTimetravel()">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label style="color: var(--text2); font-size: 0.9rem;">Sort by:</label>
+                            <select id="ttSortOrder" onchange="sortTimetravel()" style="background: var(--bg3); border: 1px solid var(--border); padding: 4px 8px; border-radius: 4px; color: var(--text); cursor: pointer;">
+                                <option value="time-asc">Time (Oldest First)</option>
+                                <option value="time-desc">Time (Newest First)</option>
+                                <option value="size-desc">Size (Largest First)</option>
+                                <option value="size-asc">Size (Smallest First)</option>
+                                <option value="lifetime-desc">Lifetime (Longest First)</option>
+                            </select>
+                        </div>
+                    </div>
                     <div class="table-wrapper">
                         <table>
                             <thead>
                                 <tr>
                                     <th>Address</th>
                                     <th>Variable</th>
+                                    <th>Size</th>
                                     <th>Alloc Time</th>
-                                    <th>Dealloc Time</th>
                                     <th>Lifetime</th>
+                                    <th>Status</th>
                                     <th>Action</th>
                                 </tr>
                             </thead>
@@ -673,6 +740,17 @@
                 <div class="chart-container small">
                     <canvas id="unsafeRiskChart"></canvas>
                 </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">🔄 Memory Lifecycle Flow</h2>
+                    <span class="badge badge-info" id="lifecycleFlowCount">0 flows</span>
+                </div>
+                <p style="color: var(--text2); margin-bottom: 16px; font-size: 0.9rem;">
+                    Visual representation of memory as it moves between Rust and Foreign code boundaries.
+                </p>
+                <div id="lifecycleFlowContainer" style="display: flex; flex-direction: column; gap: 12px;"></div>
             </div>
 
             <div class="card">
@@ -1147,17 +1225,40 @@
             }
         }
 
-        function populateAllocations() {
-            const tbody = document.getElementById('allocationsBody');
-            const data_list = data.allocations || [];
-            document.getElementById('allocCount').textContent = data_list.length + ' items';
+        const PAGE_SIZE = 100;
+        let allocShowAll = false;
+        let allocCurrentPage = 1;
+        let allocFilteredData = [];
 
-            if (data_list.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No allocation data</td></tr>';
-                return;
+        function toggleAllocationsTable() {
+            const wrapper = document.getElementById('allocationsWrapper');
+            const btn = document.getElementById('toggleAllocBtn');
+            const pagination = document.getElementById('allocationsPagination');
+            allocShowAll = !allocShowAll;
+
+            if (allocShowAll) {
+                wrapper.style.maxHeight = 'none';
+                wrapper.style.overflow = 'visible';
+                btn.textContent = '▲ Collapse';
+                if (allocFilteredData.length > PAGE_SIZE) {
+                    pagination.style.display = 'flex';
+                }
+            } else {
+                wrapper.style.maxHeight = '400px';
+                wrapper.style.overflow = 'auto';
+                btn.textContent = '▼ Show All';
+                pagination.style.display = 'none';
+                renderAllocPage(1);
             }
+        }
 
-            tbody.innerHTML = data_list.map(a => `
+        function renderAllocPage(page) {
+            const tbody = document.getElementById('allocationsBody');
+            const start = (page - 1) * PAGE_SIZE;
+            const end = start + PAGE_SIZE;
+            const pageData = allocFilteredData.slice(start, end);
+
+            tbody.innerHTML = pageData.map(a => `
                 <tr>
                     <td><code>${a.address || '0x0'}</code></td>
                     <td>${a.var_name || 'unknown'}</td>
@@ -1170,48 +1271,170 @@
                           '<span class="badge badge-info">Active</span>'}</td>
                 </tr>
             `).join('');
+
+            allocCurrentPage = page;
+            const totalPages = Math.ceil(allocFilteredData.length / PAGE_SIZE);
+            document.getElementById('allocPageInfo').textContent = `Page ${page} of ${totalPages}`;
+            document.getElementById('prevAllocBtn').disabled = page <= 1;
+            document.getElementById('nextAllocBtn').disabled = page >= totalPages;
         }
 
-        function populateThreads() {
-            const tbody = document.getElementById('threadTableBody');
-            const threads = data.threads || [];
-            document.getElementById('threadCount').textContent = threads.length + ' threads';
+        function prevAllocPage() {
+            if (allocCurrentPage > 1) {
+                renderAllocPage(allocCurrentPage - 1);
+            }
+        }
 
-            if (threads.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No thread data</td></tr>';
+        function nextAllocPage() {
+            const totalPages = Math.ceil(allocFilteredData.length / PAGE_SIZE);
+            if (allocCurrentPage < totalPages) {
+                renderAllocPage(allocCurrentPage + 1);
+            }
+        }
+
+        function populateAllocations() {
+            const tbody = document.getElementById('allocationsBody');
+            const data_list = data.allocations || [];
+            allocFilteredData = data_list;
+            document.getElementById('allocCount').textContent = data_list.length + ' items';
+
+            if (data_list.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No allocation data</td></tr>';
                 return;
             }
 
-            tbody.innerHTML = threads.map(t => `
+            if (data_list.length <= PAGE_SIZE) {
+                tbody.innerHTML = data_list.map(a => `
+                    <tr>
+                        <td><code>${a.address || '0x0'}</code></td>
+                        <td>${a.var_name || 'unknown'}</td>
+                        <td>${a.type_name || 'Unknown'}</td>
+                        <td>${formatBytes(parseInt(a.size) || 0)}</td>
+                        <td>${a.thread_id || 'N/A'}</td>
+                        <td>${formatTime(parseInt(a.lifetime_ms || 0) * 1000000)}</td>
+                        <td>${a.is_leaked ? '<span class="badge badge-danger">Leaked</span>' :
+                              a.timestamp_dealloc > 0 ? '<span class="badge badge-success">Freed</span>' :
+                              '<span class="badge badge-info">Active</span>'}</td>
+                    </tr>
+                `).join('');
+            } else {
+                renderAllocPage(1);
+            }
+        }
+
+        let threadFilteredData = [];
+
+        function sortThreads() {
+            const sortBy = document.getElementById('threadSortOrder').value;
+            threadFilteredData.sort((a, b) => {
+                switch (sortBy) {
+                    case 'alloc-desc': return (b.allocation_count || 0) - (a.allocation_count || 0);
+                    case 'alloc-asc': return (a.allocation_count || 0) - (b.allocation_count || 0);
+                    case 'memory-desc': return parseMemString(b.current_memory) - parseMemString(a.current_memory);
+                    case 'memory-asc': return parseMemString(a.current_memory) - parseMemString(b.current_memory);
+                    case 'thread-id': return (a.thread_id || '0').localeCompare(b.thread_id || '0');
+                    default: return 0;
+                }
+            });
+            renderThreads();
+        }
+
+        function parseMemString(memStr) {
+            if (!memStr) return 0;
+            const match = memStr.match(/([\d.]+)\s*(B|KB|MB|GB)?/i);
+            if (!match) return 0;
+            let val = parseFloat(match[1]);
+            const unit = (match[2] || 'B').toUpperCase();
+            if (unit === 'KB') val *= 1024;
+            else if (unit === 'MB') val *= 1024 * 1024;
+            else if (unit === 'GB') val *= 1024 * 1024 * 1024;
+            return val;
+        }
+
+        function renderThreads() {
+            const tbody = document.getElementById('threadTableBody');
+            tbody.innerHTML = threadFilteredData.map(t => `
                 <tr>
                     <td><code>${t.thread_id || '0'}</code></td>
                     <td>${t.allocation_count || 0}</td>
-                    <td>${formatBytes(parseInt(t.current_memory) || 0)}</td>
-                    <td>${formatBytes(parseInt(t.peak_memory) || 0)}</td>
-                    <td>${formatBytes(parseInt(t.total_allocated) || 0)}</td>
+                    <td>${t.current_memory || '0 B'}</td>
+                    <td>${t.peak_memory || '0 B'}</td>
+                    <td>${t.total_allocated || '0 B'}</td>
                     <td><span class="badge badge-success">active</span></td>
                 </tr>
             `).join('');
         }
 
-        function populateRelationships() {
-            const tbody = document.getElementById('relationshipsBody');
-            const relationships = data.relationships || [];
+        function populateThreads() {
+            const threads = data.threads || [];
+            threadFilteredData = [...threads];
+            document.getElementById('threadCount').textContent = threads.length + ' threads';
 
-            if (relationships.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No relationship data</td></tr>';
+            if (threads.length === 0) {
+                document.getElementById('threadTableBody').innerHTML = '<tr><td colspan="6" class="empty-state">No thread data</td></tr>';
                 return;
             }
 
-            tbody.innerHTML = relationships.map(r => `
+            sortThreads();
+        }
+
+        let relShowAll = false;
+        let relFilteredData = [];
+
+        function toggleRelTable() {
+            const wrapper = document.getElementById('relTableWrapper');
+            const btn = document.getElementById('toggleRelBtn');
+            relShowAll = !relShowAll;
+
+            if (relShowAll) {
+                wrapper.style.maxHeight = 'none';
+                wrapper.style.overflow = 'visible';
+                btn.textContent = '▲ Collapse';
+            } else {
+                wrapper.style.maxHeight = '300px';
+                wrapper.style.overflow = 'auto';
+                btn.textContent = '▼ Expand';
+            }
+        }
+
+        function sortRelationships() {
+            const sortBy = document.getElementById('relSortOrder').value;
+            relFilteredData.sort((a, b) => {
+                switch (sortBy) {
+                    case 'strength-desc': return (b.strength || 0.5) - (a.strength || 0.5);
+                    case 'strength-asc': return (a.strength || 0.5) - (b.strength || 0.5);
+                    case 'type': return (a.relationship_type || '').localeCompare(b.relationship_type || '');
+                    case 'source': return (a.source_var_name || '').localeCompare(b.source_var_name || '');
+                    default: return 0;
+                }
+            });
+            renderRelationships();
+        }
+
+        function renderRelationships() {
+            const tbody = document.getElementById('relationshipsBody');
+            tbody.innerHTML = relFilteredData.map(r => `
                 <tr>
                     <td>${r.source_var_name || ('Ptr ' + r.source_ptr) || 'N/A'}</td>
                     <td>${r.target_var_name || ('Ptr ' + r.target_ptr) || 'N/A'}</td>
                     <td><span class="badge badge-info">${r.relationship_type || 'reference'}</span></td>
-                    <td>${r.details?.type_name || 'Unknown'}</td>
-                    <td>${(((r.relationship_strength || 0.5) * 100)).toFixed(0)}%</td>
+                    <td>${r.type_name || 'Unknown'}</td>
+                    <td>${(((r.strength || 0.5) * 100)).toFixed(0)}%</td>
                 </tr>
             `).join('');
+        }
+
+        function populateRelationships() {
+            const relationships = data.relationships || [];
+            relFilteredData = [...relationships];
+            document.getElementById('relationshipCount2').textContent = relationships.length + ' relationships';
+
+            if (relationships.length === 0) {
+                document.getElementById('relationshipsBody').innerHTML = '<tr><td colspan="5" class="empty-state">No relationship data</td></tr>';
+                return;
+            }
+
+            sortRelationships();
         }
 
         function populatePassports() {
@@ -1258,6 +1481,8 @@
 
             if (unsafeReports.length === 0) {
                 container.innerHTML = '<div class="empty-state">✅ No high risk operations detected</div>';
+                document.getElementById('lifecycleFlowContainer').innerHTML = '<div class="empty-state">No lifecycle data available</div>';
+                document.getElementById('lifecycleFlowCount').textContent = '0 flows';
                 return;
             }
 
@@ -1292,11 +1517,56 @@
 
             const ffiBody = document.getElementById('ffiTableBody');
             const ffiEvents = [];
+            const lifecycleFlows = [];
+
             unsafeReports.forEach(r => {
                 if (r.cross_boundary_events) {
-                    r.cross_boundary_events.forEach(e => ffiEvents.push({...e, var_name: r.var_name}));
+                    r.cross_boundary_events.forEach(e => ffiEvents.push({...e, var_name: r.var_name, size_bytes: r.size_bytes}));
+                }
+                if (r.lifecycle_events && r.lifecycle_events.length > 0) {
+                    lifecycleFlows.push({
+                        var_name: r.var_name,
+                        allocation_ptr: r.allocation_ptr,
+                        size_bytes: r.size_bytes,
+                        events: r.lifecycle_events
+                    });
                 }
             });
+
+            document.getElementById('lifecycleFlowCount').textContent = lifecycleFlows.length + ' flows';
+            const flowContainer = document.getElementById('lifecycleFlowContainer');
+            if (lifecycleFlows.length === 0) {
+                flowContainer.innerHTML = '<div class="empty-state">No lifecycle flow data available</div>';
+            } else {
+                flowContainer.innerHTML = lifecycleFlows.slice(0, 10).map(flow => {
+                    const flowSteps = flow.events.map((e, idx) => {
+                        const isLast = idx === flow.events.length - 1;
+                        const stepColor = e.color || '#64748b';
+                        return `
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <div style="width: 32px; height: 32px; border-radius: 50%; background: ${stepColor}; display: flex; align-items: center; justify-content: center; font-size: 14px;">${e.icon || '•'}</div>
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 600; color: var(--text);">${e.context || e.event_type}</div>
+                                    <div style="font-size: 0.8rem; color: var(--text2);">${flow.var_name} | ${formatBytes(flow.size_bytes || 0)}</div>
+                                </div>
+                                ${!isLast ? '<div style="width: 2px; height: 24px; background: var(--border);"></div>' : ''}
+                            </div>
+                        `;
+                    }).join('');
+
+                    return `
+                        <div class="detail-panel" style="border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                                <h4 style="color: var(--primary); margin: 0;">${flow.var_name}</h4>
+                                <code style="font-size: 0.8rem; color: var(--text2);">${flow.allocation_ptr || 'N/A'}</code>
+                            </div>
+                            <div style="display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap;">
+                                ${flowSteps}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
 
             if (ffiEvents.length === 0) {
                 ffiBody.innerHTML = '<tr><td colspan="5" class="empty-state">No FFI events</td></tr>';
@@ -1313,25 +1583,59 @@
             }
         }
 
-        function populateTimetravel() {
+        let ttFilteredData = [];
+
+        function filterTimetravel() {
+            const query = document.getElementById('timetravelSearch').value.toLowerCase();
+            ttFilteredData = data.allocations?.filter(a =>
+                (a.address || '').toLowerCase().includes(query) ||
+                (a.var_name || '').toLowerCase().includes(query)
+            ) || [];
+            sortTimetravel();
+        }
+
+        function sortTimetravel() {
+            const sortBy = document.getElementById('ttSortOrder').value;
+            ttFilteredData.sort((a, b) => {
+                switch (sortBy) {
+                    case 'time-asc': return (a.timestamp_alloc || 0) - (b.timestamp_alloc || 0);
+                    case 'time-desc': return (b.timestamp_alloc || 0) - (a.timestamp_alloc || 0);
+                    case 'size-desc': return (b.size || 0) - (a.size || 0);
+                    case 'size-asc': return (a.size || 0) - (b.size || 0);
+                    case 'lifetime-desc': return (b.lifetime_ms || 0) - (a.lifetime_ms || 0);
+                    default: return 0;
+                }
+            });
+            renderTimetravelTable();
+        }
+
+        function renderTimetravelTable() {
             const tbody = document.getElementById('timetravelBody');
-            const allocations = data.allocations || [];
-
-            if (allocations.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No allocation data</td></tr>';
-                return;
-            }
-
-            tbody.innerHTML = allocations.slice(0, 100).map(a => `
+            tbody.innerHTML = ttFilteredData.slice(0, 100).map(a => `
                 <tr onclick="showTimetravelDetail('${a.address}')" style="cursor: pointer;">
                     <td><code>${a.address || '0x0'}</code></td>
                     <td>${a.var_name || 'unknown'}</td>
+                    <td>${formatBytes(parseInt(a.size) || 0)}</td>
                     <td>${a.timestamp_alloc || 0}</td>
-                    <td>${a.timestamp_dealloc || 'N/A'}</td>
                     <td>${formatTime(parseInt(a.lifetime_ms || 0) * 1000000)}</td>
+                    <td>${a.is_leaked ? '<span class="badge badge-danger">Leaked</span>' :
+                          a.timestamp_dealloc > 0 ? '<span class="badge badge-success">Freed</span>' :
+                          '<span class="badge badge-info">Active</span>'}</td>
                     <td><button class="btn-link">View History</button></td>
                 </tr>
             `).join('');
+        }
+
+        function populateTimetravel() {
+            const allocations = data.allocations || [];
+            ttFilteredData = [...allocations];
+
+            if (allocations.length === 0) {
+                document.getElementById('timetravelBody').innerHTML = '<tr><td colspan="7" class="empty-state">No allocation data</td></tr>';
+                return;
+            }
+
+            sortTimetravel();
         }
 
         function showTimetravelDetail(address) {
@@ -1371,16 +1675,26 @@
             `).join('');
         }
 
-        function populateTasks() {
+        let taskFilteredData = [];
+
+        function sortTasks() {
+            const sortBy = document.getElementById('taskSortOrder').value;
+            taskFilteredData.sort((a, b) => {
+                switch (sortBy) {
+                    case 'memory-desc': return (b.size_bytes || 0) - (a.size_bytes || 0);
+                    case 'memory-asc': return (a.size_bytes || 0) - (b.size_bytes || 0);
+                    case 'poll-desc': return (b.poll_count || 0) - (a.poll_count || 0);
+                    case 'poll-asc': return (a.poll_count || 0) - (b.poll_count || 0);
+                    case 'efficiency-desc': return (b.waker_efficiency || 0) - (a.waker_efficiency || 0);
+                    default: return 0;
+                }
+            });
+            renderTasks();
+        }
+
+        function renderTasks() {
             const tbody = document.getElementById('taskTableBody');
-            const passports = data.passport_details || [];
-
-            if (passports.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No task data</td></tr>';
-                return;
-            }
-
-            tbody.innerHTML = passports.slice(0, 20).map((p, i) => `
+            tbody.innerHTML = taskFilteredData.slice(0, 20).map((p, i) => `
                 <tr>
                     <td><code>Task-${i}</code></td>
                     <td>${p.type_name || 'Future'}</td>
@@ -1391,6 +1705,18 @@
                           '<span class="badge badge-success">Active</span>'}</td>
                 </tr>
             `).join('');
+        }
+
+        function populateTasks() {
+            const passports = data.passport_details || [];
+            taskFilteredData = [...passports];
+
+            if (passports.length === 0) {
+                document.getElementById('taskTableBody').innerHTML = '<tr><td colspan="6" class="empty-state">No task data</td></tr>';
+                return;
+            }
+
+            sortTasks();
         }
 
         document.addEventListener('DOMContentLoaded', function() {
