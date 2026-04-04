@@ -192,6 +192,25 @@ impl From<serde_json::Error> for TrackingError {
     }
 }
 
+impl From<crate::capture::backends::core_types::TrackingError> for TrackingError {
+    fn from(error: crate::capture::backends::core_types::TrackingError) -> Self {
+        match error {
+            crate::capture::backends::core_types::TrackingError::LockError(msg) => {
+                TrackingError::LockError(msg)
+            }
+            crate::capture::backends::core_types::TrackingError::InvalidPointer(msg) => {
+                TrackingError::InvalidPointer(msg)
+            }
+            crate::capture::backends::core_types::TrackingError::ExportError(msg) => {
+                TrackingError::ExportError(msg)
+            }
+            crate::capture::backends::core_types::TrackingError::SerializationError(msg) => {
+                TrackingError::SerializationError(msg)
+            }
+        }
+    }
+}
+
 /// Smart pointer specific information for Rc/Arc tracking
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct SmartPointerInfo {

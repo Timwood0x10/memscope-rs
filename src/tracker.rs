@@ -37,8 +37,14 @@
 //! let tracker = tracker!().with_sampling(SamplingConfig::high_performance());
 //! ```
 
+use crate::capture::system_monitor;
 use crate::core::tracker::MemoryTracker;
-use crate::system_monitor;
+use crate::render_engine::export::{export_snapshot_to_json, ExportJsonOptions};
+use crate::snapshot::MemorySnapshot;
+
+use crate::analysis::memory_passport_tracker::MemoryPassportTracker;
+use crate::render_engine::export::export_dashboard_html;
+
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -153,8 +159,6 @@ struct TrackerConfig {
 
 impl Tracker {
     pub fn new() -> Self {
-        system_monitor::SystemMonitor::global();
-
         Self {
             inner: crate::core::tracker::get_tracker(),
             config: Arc::new(Mutex::new(TrackerConfig {
@@ -260,7 +264,20 @@ impl Tracker {
     }
 
     pub fn snapshot(&self) -> crate::core::types::MemoryStats {
-        self.inner.get_stats().unwrap_or_default()
+        let stats = self.inner.get_stats().unwrap_or_default();
+        crate::core::types::MemoryStats {
+            total_allocations: stats.total_allocations as usize,
+            total_allocated: stats.total_allocated as usize,
+            active_allocations: stats.active_allocations,
+            active_memory: stats.active_memory as usize,
+            peak_allocations: stats.peak_allocations,
+            peak_memory: stats.peak_memory as usize,
+            total_deallocations: stats.total_deallocations as usize,
+            total_deallocated: stats.total_deallocated as usize,
+            leaked_allocations: stats.leaked_allocations,
+            leaked_memory: stats.leaked_memory as usize,
+            ..Default::default()
+        }
     }
 
     pub fn analyze(&self) -> AnalysisReport {
@@ -331,40 +348,6 @@ impl Tracker {
         }
     }
 
-    pub fn export_svg(&self, path: &str) -> Result<(), Box<dyn std::error::Error>> {
-        self.inner.export_memory_analysis(path)?;
-        Ok(())
-    }
-
-    pub fn export_json(&self, path: &str) -> Result<(), Box<dyn std::error::Error>> {
-        let allocations = self.inner.get_active_allocations()?;
-        let stats = self.inner.get_stats()?;
-        crate::export::export_user_variables_json(allocations, stats, path)?;
-        Ok(())
-    }
-
-    pub fn export_binary(&self, path: &str) -> Result<(), Box<dyn std::error::Error>> {
-        let allocations = self.inner.get_active_allocations()?;
-        let stats = self.inner.get_stats()?;
-        crate::export::export_user_variables_binary(allocations, stats, path)?;
-        Ok(())
-    }
-
-    pub fn export_analysis(&self, path: &str) -> Result<(), Box<dyn std::error::Error>> {
-        let report = self.analyze();
-        let json = serde_json::to_string_pretty(&report)?;
-        let output_dir = std::path::Path::new("MemoryAnalysis");
-        std::fs::create_dir_all(output_dir)?;
-        let file_path = output_dir.join(format!("{}_analysis.json", path));
-        std::fs::write(file_path, json)?;
-        Ok(())
-    }
-
-    pub fn export_html(&self, path: &str) -> Result<(), Box<dyn std::error::Error>> {
-        self.export_svg(path)?;
-        Ok(())
-    }
-
     pub fn inner(&self) -> &Arc<MemoryTracker> {
         &self.inner
     }
@@ -412,7 +395,12 @@ impl Drop for Tracker {
         if let Ok(cfg) = self.config.lock() {
             if cfg.auto_export_on_drop {
                 if let Some(ref path) = cfg.export_path {
-                    if let Err(e) = self.export_json(path) {
+                    let allocations = self.inner.get_active_allocations().unwrap_or_default();
+                    let snapshot = MemorySnapshot::from_allocation_infos(allocations);
+                    let options = ExportJsonOptions::default();
+                    if let Err(e) =
+                        export_snapshot_to_json(&snapshot, std::path::Path::new(path), &options)
+                    {
                         tracing::error!("Failed to auto-export on drop: {}", e);
                     }
                 }

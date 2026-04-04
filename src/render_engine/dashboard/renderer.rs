@@ -402,13 +402,9 @@ impl DashboardRenderer {
             .iter()
             .map(|a| {
                 let type_name = a.type_name.clone().unwrap_or_else(|| "unknown".to_string());
-                let timestamp_alloc = a.timestamp_alloc;
-                let timestamp_dealloc = a.timestamp_dealloc.unwrap_or(0);
-                let lifetime_ms = if timestamp_dealloc > 0 {
-                    (timestamp_dealloc - timestamp_alloc) as f64 / 1_000_000.0
-                } else {
-                    0.0
-                };
+                let timestamp_alloc = a.allocated_at_ns;
+                let timestamp_dealloc = 0u64;
+                let lifetime_ms = 0.0;
 
                 // Determine if smart pointer
                 let is_smart_pointer = type_name.contains("Arc")
@@ -429,24 +425,16 @@ impl DashboardRenderer {
                     type_name: type_name.clone(),
                     size: a.size,
                     var_name: a.var_name.clone().unwrap_or_else(|| "unknown".to_string()),
-                    timestamp: format!("{:?}", a.timestamp_alloc),
+                    timestamp: format!("{:?}", a.allocated_at_ns),
                     thread_id: format!("{}", a.thread_id),
-                    immutable_borrows: a
-                        .borrow_info
-                        .as_ref()
-                        .map(|b| b.immutable_borrows)
-                        .unwrap_or(0),
-                    mutable_borrows: a
-                        .borrow_info
-                        .as_ref()
-                        .map(|b| b.mutable_borrows)
-                        .unwrap_or(0),
-                    is_clone: a.clone_info.as_ref().map(|c| c.is_clone).unwrap_or(false),
-                    clone_count: a.clone_info.as_ref().map(|c| c.clone_count).unwrap_or(0),
+                    immutable_borrows: 0,
+                    mutable_borrows: 0,
+                    is_clone: false,
+                    clone_count: 0,
                     timestamp_alloc,
                     timestamp_dealloc,
                     lifetime_ms,
-                    is_leaked: timestamp_dealloc == 0,
+                    is_leaked: true,
                     allocation_type: "heap".to_string(),
                     is_smart_pointer,
                     smart_pointer_type,

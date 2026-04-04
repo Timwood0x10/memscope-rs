@@ -212,11 +212,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let passport_tracker = global_passport_tracker()?;
     export_dashboard_html(output_path, &tracker, &passport_tracker)?;
 
-    // Export SVG visualizations
-    println!("\nExporting SVG visualizations...");
-    use memscope_rs::render_engine::export::export_svg;
-    export_svg(output_path, &tracker)?;
-
     println!("✓ Export successful!");
     println!("  📄 memory_analysis.json");
     println!("  📄 lifetime.json");
@@ -226,8 +221,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  📄 leak_detection.json");
     println!("  📄 unsafe_ffi.json");
     println!("  📄 dashboard.html");
-    println!("  📄 memory_analysis.svg");
-    println!("  📄 lifecycle_timeline.svg");
 
     println!("\n✓ All modes completed successfully!");
     println!(

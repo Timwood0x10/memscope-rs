@@ -216,6 +216,43 @@ impl From<crate::core::types::AllocationInfo> for AllocationInfo {
     }
 }
 
+impl From<crate::capture::backends::core_types::AllocationInfo> for AllocationInfo {
+    fn from(info: crate::capture::backends::core_types::AllocationInfo) -> Self {
+        Self {
+            ptr: info.ptr,
+            size: info.size,
+            var_name: info.var_name,
+            type_name: info.type_name,
+            scope_name: None,
+            timestamp_alloc: info.allocated_at_ns,
+            timestamp_dealloc: None,
+            thread_id: std::thread::current().id(),
+            borrow_count: 0,
+            stack_trace: info.stack_trace,
+            is_leaked: false,
+            lifetime_ms: None,
+            borrow_info: None,
+            clone_info: None,
+            ownership_history_available: false,
+            smart_pointer_info: None,
+            memory_layout: None,
+            generic_info: None,
+            dynamic_type_info: None,
+            runtime_state: None,
+            stack_allocation: None,
+            temporary_object: None,
+            fragmentation_analysis: None,
+            generic_instantiation: None,
+            type_relationships: None,
+            type_usage: None,
+            function_call_tracking: None,
+            lifecycle_tracking: None,
+            access_tracking: None,
+            drop_chain_analysis: None,
+        }
+    }
+}
+
 /// Type usage information for tracking how types are used across the codebase.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TypeUsageInfo {

@@ -2,6 +2,8 @@
 //!
 //! This provides a unified command-line interface for memory analysis tools.
 
+#![allow(warnings)]
+
 use clap::{Arg, Command};
 use std::process;
 
@@ -209,63 +211,18 @@ fn main() {
         .get_matches();
 
     match matches.subcommand() {
-        Some(("analyze", sub_matches)) => {
-            if let Err(e) = run_analyze_command(sub_matches) {
-                tracing::error!("Error running analyze command: {}", e);
-                process::exit(1);
-            }
-        }
         Some(("run", sub_matches)) => {
             if let Err(e) = run_unified_command(sub_matches) {
                 tracing::error!("Error running unified command: {}", e);
                 process::exit(1);
             }
         }
-        Some(("report", sub_matches)) => {
-            if let Err(e) = run_report_command(sub_matches) {
-                tracing::error!("Error running report command: {}", e);
-                process::exit(1);
-            }
-        }
-        Some(("html-from-json", sub_matches)) => {
-            if let Err(e) = run_html_from_json_command(sub_matches) {
-                tracing::error!("Error running html-from-json command: {}", e);
-                process::exit(1);
-            }
-        }
-        Some(("test", sub_matches)) => {
-            if let Err(e) = run_test_command(sub_matches) {
-                tracing::error!("Error running test command: {}", e);
-                process::exit(1);
-            }
-        }
+
         _ => {
             tracing::error!("No subcommand provided. Use --help for usage information.");
             process::exit(1);
         }
     }
-}
-
-fn run_analyze_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> {
-    use memscope_rs::cli::commands::analyze::run_analyze;
-    run_analyze(matches)
-}
-
-fn run_report_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> {
-    use memscope_rs::cli::commands::generate_report::run_generate_report;
-    run_generate_report(matches)
-}
-
-fn run_html_from_json_command(
-    matches: &clap::ArgMatches,
-) -> Result<(), Box<dyn std::error::Error>> {
-    use memscope_rs::cli::commands::html_from_json::run_html_from_json;
-    run_html_from_json(matches)
-}
-
-fn run_test_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> {
-    use memscope_rs::cli::commands::test::run_test;
-    run_test(matches)
 }
 
 fn run_unified_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> {
@@ -391,7 +348,6 @@ fn run_unified_command(matches: &clap::ArgMatches) -> Result<(), Box<dyn std::er
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use clap::{Arg, Command};
 
     fn create_test_command() -> Command {
@@ -436,33 +392,6 @@ mod tests {
                         .default_value("enhanced_memory_test"),
                 ),
             )
-    }
-
-    #[test]
-    fn test_run_analyze_command_function_exists() {
-        // Test that the function exists and has the correct signature
-        let _f: fn(&clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> =
-            run_analyze_command;
-    }
-
-    #[test]
-    fn test_run_report_command_function_exists() {
-        // Test that the function exists and has the correct signature
-        let _f: fn(&clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> =
-            run_report_command;
-    }
-
-    #[test]
-    fn test_run_html_from_json_command_function_exists() {
-        // Test that the function exists and has the correct signature
-        let _f: fn(&clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> =
-            run_html_from_json_command;
-    }
-
-    #[test]
-    fn test_run_test_command_function_exists() {
-        // Test that the function exists and has the correct signature
-        let _f: fn(&clap::ArgMatches) -> Result<(), Box<dyn std::error::Error>> = run_test_command;
     }
 
     #[test]

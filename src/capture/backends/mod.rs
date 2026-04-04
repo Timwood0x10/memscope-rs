@@ -8,6 +8,7 @@
 // Core tracking modules
 pub mod core_tracker;
 pub mod core_types;
+pub mod export_options;
 
 // Lockfree tracking modules
 pub mod lockfree_tracker;
@@ -48,6 +49,9 @@ pub use core_tracker::{
     collect_all_trackers_local, configure_tracking_strategy, get_registry_stats_local, get_tracker,
     MemoryTracker,
 };
+
+// Re-export export options
+pub use export_options::{ExportMode, ExportOptions};
 
 // Re-export async tracker types
 pub use async_tracker::{

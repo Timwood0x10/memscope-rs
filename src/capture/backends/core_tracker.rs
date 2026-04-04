@@ -227,6 +227,23 @@ impl MemoryTracker {
             .collect())
     }
 
+    /// Get memory grouped by type.
+    pub fn get_memory_by_type(&self) -> TrackingResult<std::collections::HashMap<String, usize>> {
+        let mut type_sizes: std::collections::HashMap<String, usize> =
+            std::collections::HashMap::new();
+
+        for entry in self.active_allocations.iter() {
+            let alloc = entry.value();
+            let type_name = alloc
+                .type_name
+                .clone()
+                .unwrap_or_else(|| "unknown".to_string());
+            *type_sizes.entry(type_name).or_insert(0) += alloc.size;
+        }
+
+        Ok(type_sizes)
+    }
+
     /// Enable or disable fast mode.
     pub fn set_fast_mode(&self, enabled: bool) {
         self.fast_mode.store(enabled as u64, Ordering::Relaxed);

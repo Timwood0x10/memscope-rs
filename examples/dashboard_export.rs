@@ -81,12 +81,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     export_all_json(output_path, &tracker, &passport_tracker)?;
     println!("✓ All JSON files exported");
 
-    // Export SVG visualizations
-    println!("\nExporting SVG visualizations (2 files)...");
-    use memscope_rs::render_engine::export::export_svg;
-    export_svg(output_path, &tracker)?;
-    println!("✓ SVG visualizations exported");
-
     let duration = start_time.elapsed();
 
     println!("\n✅ Export successful!");
@@ -102,9 +96,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("    • unsafe_ffi.json (unsafe FFI boundary tracking)");
     println!("    • memory_passports.json (memory lifecycle passports)");
     println!("    • leak_detection.json (potential memory leaks)");
-    println!("  - 2 SVG visualizations:");
-    println!("    • memory_analysis.svg (comprehensive memory analysis)");
-    println!("    • lifecycle_timeline.svg (interactive lifecycle timeline)");
 
     println!(
         "\nExample finished in {:.2}ms",

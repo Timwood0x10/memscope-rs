@@ -8,6 +8,7 @@
 pub mod backends;
 pub mod engine;
 pub mod platform;
+pub mod system_monitor;
 pub mod types;
 
 pub use backends::{CaptureBackend, CaptureBackendType};

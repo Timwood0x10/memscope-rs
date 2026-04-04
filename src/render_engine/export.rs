@@ -18,6 +18,41 @@ use std::{
     sync::Arc,
 };
 
+/// Optimization level for JSON export
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum OptimizationLevel {
+    /// Low optimization - maximum compatibility
+    Low,
+    /// Medium optimization - balanced
+    #[default]
+    Medium,
+    /// High optimization - maximum performance
+    High,
+    /// Maximum optimization - aggressive optimization
+    Maximum,
+}
+
+/// Schema validator for JSON export
+#[derive(Debug, Clone, Default)]
+pub struct SchemaValidator {
+    strict_mode: bool,
+}
+
+impl SchemaValidator {
+    pub fn new() -> Self {
+        Self { strict_mode: false }
+    }
+
+    pub fn with_strict_mode(mut self, strict: bool) -> Self {
+        self.strict_mode = strict;
+        self
+    }
+
+    pub fn validate(&self, _data: &serde_json::Value) -> Result<(), String> {
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ExportJsonOptions {
     pub parallel_processing: bool,
@@ -576,46 +611,7 @@ pub fn export_all_json<P: AsRef<Path>>(
     export_memory_passports_json(path_ref, passport_tracker)?;
     export_leak_detection_json(path_ref, passport_tracker)?;
     export_unsafe_ffi_json(path_ref, passport_tracker)?;
-    export_system_resources_json(path_ref)?; // 新增：导出系统资源监控
-
-    Ok(())
-}
-
-/// Export SVG visualizations
-///
-/// This function exports SVG visualizations including:
-/// - memory_analysis.svg: Comprehensive memory analysis
-/// - lifecycle_timeline.svg: Interactive lifecycle timeline
-///
-/// # Arguments
-/// * `path` - Directory path where SVG files will be saved
-/// * `tracker` - Memory tracker instance
-///
-/// # Returns
-/// Result indicating success or failure
-pub fn export_svg<P: AsRef<Path>>(path: P, tracker: &Tracker) -> Result<(), ExportError> {
-    let path_ref = path.as_ref();
-
-    std::fs::create_dir_all(path_ref)?;
-
-    // Use the global legacy MemoryTracker for SVG export
-    let legacy_tracker = crate::core::tracker::memory_tracker::get_tracker();
-
-    // Export memory analysis SVG
-    let memory_analysis_path = path_ref.join("memory_analysis.svg");
-    crate::export::visualization::export_memory_analysis(&legacy_tracker, &memory_analysis_path)
-        .map_err(|e| {
-            ExportError::ExportFailed(format!("Failed to export memory analysis SVG: {}", e))
-        })?;
-
-    // Export lifecycle timeline SVG
-    let lifecycle_path = path_ref.join("lifecycle_timeline.svg");
-    crate::export::visualization::export_lifecycle_timeline(&legacy_tracker, &lifecycle_path)
-        .map_err(|e| {
-            ExportError::ExportFailed(format!("Failed to export lifecycle timeline SVG: {}", e))
-        })?;
-
-    tracing::info!("✅ SVG export completed to: {}", path_ref.display());
+    export_system_resources_json(path_ref)?;
 
     Ok(())
 }

@@ -401,26 +401,6 @@ impl MemScope {
         export_all_json(path, &tracker, &passport_tracker)
             .map_err(|e| format!("Failed to export JSON files: {}", e))
     }
-
-    /// Export SVG visualizations
-    ///
-    /// This method exports comprehensive SVG visualizations including:
-    /// - memory_analysis.svg: Memory analysis with variable names, types, and usage
-    /// - lifecycle_timeline.svg: Interactive lifecycle timeline showing variable lifecycles
-    ///
-    /// # Arguments
-    /// * `path` - Directory path where SVG files will be saved
-    ///
-    /// # Returns
-    /// Result indicating success or failure
-    pub fn export_svg<P: AsRef<std::path::Path>>(&self, path: P) -> Result<(), String> {
-        use crate::render_engine::export::export_svg;
-        use crate::tracker::Tracker;
-
-        let tracker = Tracker::new();
-
-        export_svg(path, &tracker).map_err(|e| format!("Failed to export SVG files: {}", e))
-    }
 }
 
 impl Default for MemScope {

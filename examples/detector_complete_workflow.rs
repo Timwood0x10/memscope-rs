@@ -85,20 +85,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Err(e) => println!("❌ 导出 JSON 失败: {}", e),
     }
 
-    // 4.3 导出 SVG 可视化
-    println!("\n4.3 导出 SVG 可视化...");
-    match memscope.export_svg("./output") {
-        Ok(_) => println!("✅ SVG 文件已导出到 ./output/ 目录"),
-        Err(e) => println!("❌ 导出 SVG 失败: {}", e),
-    }
-
     // ===== 完成 =====
     println!("\n====================================");
     println!("🎉 工作流完成！");
     println!("\n你可以打开 ./output/ 目录查看生成的文件：");
     println!("  - binary_dashboard.html: 交互式 HTML 仪表盘");
     println!("  - 8 个 JSON 文件: 详细的内存分析数据");
-    println!("  - 2 个 SVG 文件: 内存分析和生命周期可视化");
     println!("\n提示: 在浏览器中打开 binary_dashboard.html 查看可视化结果！");
 
     Ok(())

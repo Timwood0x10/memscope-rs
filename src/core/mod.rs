@@ -5,215 +5,14 @@
 //! - Custom allocator
 //! - Type definitions
 //! - Scope tracking
-//!
-//! **DEPRECATED**: Use `capture::backends::core_tracker` instead.
 
-#[deprecated(
-    since = "0.6.0",
-    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
-)]
-pub mod adaptive_hashmap;
-#[deprecated(
-    since = "0.6.0",
-    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
-)]
-pub mod allocation_adapter;
-#[deprecated(
-    since = "0.6.0",
-    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
-)]
 pub mod allocator;
-#[deprecated(
-    since = "0.6.0",
-    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
-)]
-pub mod atomic_stats;
-#[deprecated(
-    since = "0.6.0",
-    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
-)]
-pub mod bounded_memory_stats;
-#[deprecated(
-    since = "0.6.0",
-    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
-)]
 pub mod call_stack_normalizer;
-#[deprecated(
-    since = "0.6.0",
-    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
-)]
-pub mod clone_monitor;
-#[deprecated(
-    since = "0.6.0",
-    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
-)]
-pub mod clone_optimizer;
-#[deprecated(
-    since = "0.6.0",
-    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
-)]
-pub mod clone_utils;
-#[deprecated(
-    since = "0.6.0",
-    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
-)]
-pub mod comprehensive_data_deduplicator;
-#[deprecated(
-    since = "0.6.0",
-    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
-)]
-pub mod edge_case_handler;
-#[deprecated(
-    since = "0.6.0",
-    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
-)]
-pub mod enhanced_call_stack_normalizer;
-#[deprecated(
-    since = "0.6.0",
-    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
-)]
-pub mod enhanced_pointer_extractor;
-#[deprecated(
-    since = "0.6.0",
-    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
-)]
-pub mod enhanced_type_inference;
-#[deprecated(
-    since = "0.6.0",
-    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
-)]
 pub mod error;
-#[deprecated(
-    since = "0.6.0",
-    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
-)]
-pub mod error_adapter;
-#[deprecated(
-    since = "0.6.0",
-    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
-)]
-pub mod fast_data_deduplicator;
-#[deprecated(
-    since = "0.6.0",
-    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
-)]
-pub mod integration_validator;
-#[deprecated(
-    since = "0.6.0",
-    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
-)]
-pub mod lifecycle_summary;
-#[deprecated(
-    since = "0.6.0",
-    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
-)]
-pub mod optimized_locks;
-#[deprecated(
-    since = "0.6.0",
-    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
-)]
-pub mod optimized_tracker;
-#[deprecated(
-    since = "0.6.0",
-    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
-)]
-pub mod optimized_types;
-#[deprecated(
-    since = "0.6.0",
-    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
-)]
-pub mod ownership_history;
-#[deprecated(
-    since = "0.6.0",
-    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
-)]
-pub mod performance_optimizer;
-#[deprecated(
-    since = "0.6.0",
-    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
-)]
 pub mod safe_operations;
-#[deprecated(
-    since = "0.6.0",
-    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
-)]
-pub mod sampling_tracker;
-#[deprecated(
-    since = "0.6.0",
-    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
-)]
 pub mod scope_tracker;
-#[deprecated(
-    since = "0.6.0",
-    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
-)]
-pub mod sharded_locks;
-#[deprecated(
-    since = "0.6.0",
-    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
-)]
-pub mod shared_types;
-#[deprecated(
-    since = "0.6.0",
-    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
-)]
-pub mod simple_mutex;
-#[deprecated(
-    since = "0.6.0",
-    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
-)]
-pub mod smart_optimization;
-#[deprecated(
-    since = "0.6.0",
-    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
-)]
-pub mod string_pool;
-#[deprecated(
-    since = "0.6.0",
-    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
-)]
-pub mod string_pool_monitor;
-#[deprecated(
-    since = "0.6.0",
-    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
-)]
-pub mod targeted_optimizations;
-#[deprecated(
-    since = "0.6.0",
-    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
-)]
-pub mod test_optimized_locks;
-#[deprecated(
-    since = "0.6.0",
-    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
-)]
-pub mod thread_registry;
-#[deprecated(
-    since = "0.6.0",
-    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
-)]
-pub mod threshold_batch_processor;
-#[deprecated(
-    since = "0.6.0",
-    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
-)]
 pub mod tracker;
-#[deprecated(
-    since = "0.6.0",
-    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
-)]
-pub mod ultra_fast_tracker;
-
-/// Type definitions
-#[deprecated(
-    since = "0.7.0",
-    note = "Use capture::types instead. This module will be removed in a future version. Migration guide: replace `core::types` with `capture::types`."
-)]
 pub mod types;
-#[deprecated(
-    since = "0.6.0",
-    note = "Use capture::backends::core_tracker instead. This module will be removed in a future version."
-)]
 pub mod unwrap_safe;
 
 // Re-export key types for easier access
@@ -221,112 +20,15 @@ pub use allocator::TrackingAllocator;
 pub use tracker::{get_tracker, MemoryTracker};
 pub use types::{AllocationInfo, TrackingError, TrackingResult};
 
-// Re-export the new unified error system
+pub use crate::capture::backends::{ExportMode, ExportOptions};
+
 pub use error::{
     DefaultErrorRecovery, ErrorRecovery, ErrorSeverity, MemScopeError, MemoryOperation,
     RecoveryAction, Result as MemScopeResult, SystemErrorType,
 };
-pub use error_adapter::{
-    adapt_result, from_tracking_error, to_tracking_error, to_tracking_result, DefaultErrorAdapter,
-    ErrorAdapter,
-};
 
 // Re-export safe unwrap utilities
 pub use unwrap_safe::{get_unwrap_stats, update_unwrap_stats, UnwrapSafe, UnwrapStats};
-
-// Re-export string pool functionality
-pub use string_pool::{get_string_pool_stats, intern_string, StringPoolStats};
-
-// Re-export string pool monitoring
-pub use string_pool_monitor::{
-    get_string_pool_monitor_stats, MemoryEfficiencyMetrics, OptimizationRecommendation,
-    PerformanceMetrics, StringPoolMonitorStats, UsagePatterns,
-};
-
-// Re-export optimized types
-pub use optimized_types::OptimizedAllocationInfo;
-
-// Re-export atomic statistics
-pub use atomic_stats::{
-    AtomicMemoryStats, AtomicPerformanceCounters, MemoryStatsSnapshot, PerformanceSnapshot,
-    SimpleMemoryStats,
-};
-
-// Re-export optimized locks
-pub use optimized_locks::{LockFreeCounter, OptimizedMutex, OptimizedRwLock};
-
-// Re-export sharded locks
-pub use sharded_locks::{ShardStats, ShardedMutex, ShardedRwLock};
-
-// Re-export adaptive hashmap
-pub use adaptive_hashmap::AdaptiveHashMap;
-
-// Re-export simple mutex
-pub use simple_mutex::SimpleMutex;
-
-// Re-export smart optimization tools
-pub use smart_optimization::{SmartClone, SmartMutex, SmartStats};
-
-// Re-export targeted optimizations
-pub use targeted_optimizations::{efficient_string_concat, BatchProcessor, FastStatsCollector};
-
-// Re-export threshold batch processor
-pub use threshold_batch_processor::{BatchConfig, ProcessingStats, ThresholdBatchProcessor};
-
-// Re-export allocation adapter for compatibility
-pub use allocation_adapter::{AllocationCollection, AllocationInfoAdapter, CollectionMemoryStats};
-
-// Re-export clone optimization functionality
-pub use clone_monitor::{get_clone_stats, get_optimization_recommendations, CloneMonitorStats};
-pub use clone_optimizer::{CloneInfo, CloneOptimizer, CloneStats};
-pub use clone_utils::{clone_shared_allocation, optimized_clone, share_allocation_info};
-pub use optimized_tracker::OptimizedMemoryTracker;
-pub use shared_types::{SharedAllocationCollection, SharedAllocationInfo, SharedConfig};
-
-// Re-export bounded memory stats functionality
-pub use bounded_memory_stats::{
-    AllocationHistoryManager, AllocationSummary, BoundedMemoryStats, BoundedStatsConfig,
-    HistoricalSummary, MemoryUsageStats,
-};
-
-// Re-export enhanced pointer extractor functionality
-pub use enhanced_pointer_extractor::{
-    EnhancedPointerExtractor, EnhancedTrackable, PointerInfo, PointerStatistics, SyntheticReason,
-    TypeCategory, TypeInfo,
-};
-
-// Re-export enhanced type inference functionality
-pub use enhanced_type_inference::{
-    AllocationContext, InferenceMethod, InferenceStatistics, InferredType, TypeConfidence,
-    TypeInferenceEngine, TypeSignature,
-};
-
-// Re-export the new dual-mode tracking functionality
-pub use tracker::configure_tracking_strategy;
-
-// Re-export unified backend system
-pub use crate::unified::{
-    detect_environment, detect_environment_detailed, quick_start as unified_quick_start,
-    test_unified_system, AsyncRuntimeType, BackendConfig, BackendError, DetectionConfig,
-    DetectionMetadata, DetectionMethod, DispatcherConfig, DispatcherMetrics, EnvironmentAnalysis,
-    EnvironmentDetector, MemoryAnalysisData, MemoryStatistics,
-    MemoryTracker as UnifiedMemoryTracker, RuntimeEnvironment, SessionMetadata, TrackerConfig,
-    TrackerError, TrackerStatistics, TrackerType, TrackingDispatcher, TrackingOperation,
-    TrackingSession, TrackingStrategy, UnifiedBackend,
-};
-
-// Re-export ownership history functionality
-pub use ownership_history::{
-    ActiveBorrow, BorrowInfo, BorrowType, CloneInfo as OwnershipCloneInfo, HistoryConfig,
-    OwnershipEvent, OwnershipEventDetails, OwnershipEventType, OwnershipHistoryExport,
-    OwnershipHistoryRecorder, OwnershipStatistics, OwnershipSummary, RefCountInfo,
-};
-
-// Re-export lifecycle summary functionality
-pub use lifecycle_summary::{
-    AllocationLifecycleSummary, ExportMetadata, LifecycleEvent, LifecycleEventSummary,
-    LifecycleExportData, LifecyclePattern, LifecycleSummaryGenerator, SummaryConfig, VariableGroup,
-};
 
 // Re-export call stack normalizer functionality
 pub use call_stack_normalizer::{
@@ -334,19 +36,7 @@ pub use call_stack_normalizer::{
     CallStackNormalizer, CallStackRef, NormalizedCallStack, NormalizerConfig, NormalizerStats,
 };
 
-// Re-export ultra-fast tracking functionality
-pub use ultra_fast_tracker::{SamplingStats, UltraFastSamplingConfig, UltraFastTracker};
-
-// Re-export performance optimization functionality
-pub use performance_optimizer::{
-    AllocationPattern, OptimizationAction, OptimizationRecommendations,
-    PerformanceMetrics as OptimizerPerformanceMetrics, PerformanceOptimizer,
-};
-
-// Re-export sampling tracker functionality
-pub use sampling_tracker::{
-    get_sampling_tracker, init_sampling_tracker, SamplingConfig, SamplingTracker, ThreadStats,
-};
+pub use safe_operations::SafeLock;
 
 #[cfg(test)]
 pub use unwrap_safe::get_unwrap_stats_mut;
