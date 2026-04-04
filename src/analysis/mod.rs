@@ -58,6 +58,10 @@ pub use variable_relationships::{
     VariableRelationship, VariableRelationshipGraph,
 };
 
+// Relationship cycle detection
+pub mod relationship_cycle_detector;
+pub use relationship_cycle_detector::{detect_cycles_in_relationships, CycleDetectionResult};
+
 // Re-export new analysis modules
 pub use detectors::{
     Detector, LeakDetector, LeakDetectorConfig, LifecycleDetector, LifecycleDetectorConfig,

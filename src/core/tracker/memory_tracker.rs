@@ -11,7 +11,7 @@ use crate::core::safe_operations::SafeLock;
 use crate::core::types::{
     AllocationInfo, DropChainNode, DropChainPerformanceMetrics, EnhancedPotentialLeak,
     LeakEvidence, LeakEvidenceType, LeakImpact, LeakRiskLevel, LeakType, MemoryStats,
-    ResourceLeakAnalysis, TrackingError::LockError, TrackingResult,
+    PointerRelationship, ResourceLeakAnalysis, TrackingError::LockError, TrackingResult,
 };
 
 use std::collections::HashMap;
@@ -132,6 +132,8 @@ pub struct MemoryTracker {
     pub(crate) stats: Mutex<MemoryStats>,
     /// Fast mode flag for testing (reduces overhead)
     pub(crate) fast_mode: std::sync::atomic::AtomicBool,
+    /// Pointer relationships for tracking circular references
+    pub(crate) pointer_relationships: Mutex<Vec<PointerRelationship>>,
 }
 
 impl MemoryTracker {
@@ -173,6 +175,7 @@ impl MemoryTracker {
             ownership_history: Mutex::new(OwnershipHistoryRecorder::with_config(history_config)),
             stats: Mutex::new(MemoryStats::default()),
             fast_mode: std::sync::atomic::AtomicBool::new(fast_mode),
+            pointer_relationships: Mutex::new(Vec::new()),
         }
     }
 

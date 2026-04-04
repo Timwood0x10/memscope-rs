@@ -476,8 +476,7 @@ impl MemoryTracker {
 
                 // Set source location if provided
                 if let (Some(file), Some(line)) = (source_file, source_line) {
-                    let frame = format!("{}:{}", file, line);
-                    allocation.stack_trace = Some(vec![frame]);
+                    allocation.set_source_location(file, line);
                 }
 
                 // Apply  field enhancements based on type
@@ -607,7 +606,93 @@ impl MemoryTracker {
         ))
     }
 
-    /// Enhance allocation with  required fields
+    /// Associate a pointer relationship between two allocations (e.g., Rc/Arc internal pointers forming cycles)
+    /// This allows tracking of circular references like: node1.next -> node2 -> node3 -> node1
+    ///
+    /// Note: This method does NOT validate that pointers correspond to tracked allocations because:
+    /// - Rc/Arc internal pointers (like `next` fields) point to internal control blocks, not user allocations
+    /// - These internal pointers are intentionally not in `active_allocations`
+    /// - Users are responsible for ensuring pointer validity at the application level
+    pub fn associate_pointer_relationship(
+        &self,
+        from_ptr: usize,
+        to_ptr: usize,
+        relationship_type: &str,
+    ) -> TrackingResult<()> {
+        if from_ptr == 0 || to_ptr == 0 {
+            return Err(crate::core::types::TrackingError::InvalidPointer(
+                "Pointer relationship cannot use null pointer (0)".to_string(),
+            ));
+        }
+
+        let use_blocking_locks = self.is_fast_mode()
+            || std::env::var("MEMSCOPE_ACCURATE_TRACKING").is_ok()
+            || cfg!(test);
+
+        if use_blocking_locks {
+            let mut relationships = self.pointer_relationships.lock().map_err(|_| {
+                crate::core::types::TrackingError::LockError(
+                    "Failed to acquire pointer_relationships lock".to_string(),
+                )
+            })?;
+            relationships.push(crate::core::types::PointerRelationship {
+                from_ptr,
+                to_ptr,
+                relationship_type: relationship_type.to_string(),
+            });
+            tracing::debug!(
+                "Associated pointer relationship: {:x} --{}--> {:x}",
+                from_ptr,
+                relationship_type,
+                to_ptr
+            );
+            Ok(())
+        } else {
+            self.push_relationship_with_retry(from_ptr, to_ptr, relationship_type.to_string())
+        }
+    }
+
+    /// Push a relationship with retry logic for non-blocking acquisition
+    fn push_relationship_with_retry(
+        &self,
+        from_ptr: usize,
+        to_ptr: usize,
+        relationship_type: String,
+    ) -> TrackingResult<()> {
+        let mut retry_count = 0;
+        const MAX_RETRIES: u32 = 10;
+
+        while retry_count < MAX_RETRIES {
+            match self.pointer_relationships.try_lock() {
+                Ok(mut relationships) => {
+                    relationships.push(crate::core::types::PointerRelationship {
+                        from_ptr,
+                        to_ptr,
+                        relationship_type: relationship_type.clone(),
+                    });
+                    tracing::debug!(
+                        "Associated pointer relationship: {:x} --{}--> {:x}",
+                        from_ptr,
+                        relationship_type,
+                        to_ptr
+                    );
+                    return Ok(());
+                }
+                Err(_) => {
+                    retry_count += 1;
+                    if retry_count < MAX_RETRIES {
+                        std::thread::yield_now();
+                    }
+                }
+            }
+        }
+
+        Err(crate::core::types::TrackingError::LockError(
+            "Failed to acquire pointer_relationships lock after retries".to_string(),
+        ))
+    }
+
+    /// Enhance allocation with improve.md required fields
     fn _enhance_allocation_with_improve_md_fields(
         mut allocation: AllocationInfo,
     ) -> AllocationInfo {

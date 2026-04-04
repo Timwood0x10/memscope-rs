@@ -120,7 +120,78 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         unsafe_start.elapsed().as_secs_f64() * 1000.0
     );
 
-    println!("📦 Section 5: Statistics\n");
+    println!("📦 Section 5: Circular Reference Detection\n");
+    let cycle_start = Instant::now();
+    {
+        let tracker = global_tracker()?;
+
+        println!("  Creating variables with circular clone relationships...");
+
+        // Create variables that will form clone cycles
+        // These are separate allocations that reference each other via clones
+        let data1 = vec![1, 2, 3];
+        let data2 = vec![4, 5, 6];
+        let data3 = vec![7, 8, 9];
+
+        // Track initial allocations
+        track!(tracker, data1);
+        track!(tracker, data2);
+        track!(tracker, data3);
+
+        // Create explicit circular references via variable names
+        // This demonstrates the cycle detection in the relationship graph
+        // In a real scenario, Rc/Arc internal pointers would create similar patterns
+
+        // Create String clones that form a cycle
+        let s1 = String::from("cycle_node_1");
+        let s2 = String::from("cycle_node_2");
+        let s3 = String::from("cycle_node_3");
+
+        track!(tracker, s1);
+        track!(tracker, s2);
+        track!(tracker, s3);
+
+        // Create Rc clones that will form cycles
+        struct Node {
+            #[allow(dead_code)]
+            value: i32,
+            next: Option<std::rc::Rc<std::cell::RefCell<Node>>>,
+        }
+
+        // Track nodes in sequence - these form a cycle when linked
+        let n1 = std::rc::Rc::new(std::cell::RefCell::new(Node {
+            value: 1,
+            next: None,
+        }));
+        let n2 = std::rc::Rc::new(std::cell::RefCell::new(Node {
+            value: 2,
+            next: None,
+        }));
+        let n3 = std::rc::Rc::new(std::cell::RefCell::new(Node {
+            value: 3,
+            next: None,
+        }));
+
+        track!(tracker, n1);
+        track!(tracker, n2);
+        track!(tracker, n3);
+
+        // Create the circular links after tracking
+        // This creates internal references that may form cycles
+        n1.borrow_mut().next = Some(std::rc::Rc::clone(&n2));
+        n2.borrow_mut().next = Some(std::rc::Rc::clone(&n3));
+        n3.borrow_mut().next = Some(std::rc::Rc::clone(&n1)); // Creates a cycle!
+
+        println!("✓ Created circular reference structures");
+        println!("  - 3 Rc nodes linked in a cycle: n1 -> n2 -> n3 -> n1");
+        println!("  - In the relationship graph, cycle edges will appear as RED DASHED lines");
+    }
+    println!(
+        "  Duration: {:.2}ms\n",
+        cycle_start.elapsed().as_secs_f64() * 1000.0
+    );
+
+    println!("📦 Section 6: Statistics\n");
     let stats = get_stats()?;
     println!("✓ Total allocations: {}", stats.total_allocations);
     println!("✓ Active allocations: {}", stats.active_allocations);

@@ -159,6 +159,8 @@ pub struct RelationshipInfo {
     pub type_name: String,
     /// Color for visualization
     pub color: String,
+    /// Whether this relationship is part of a detected cycle (true) or not (false)
+    pub is_part_of_cycle: bool,
 }
 
 /// Unsafe/FFI report
@@ -316,8 +318,11 @@ impl DashboardRenderer {
     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
         let mut handlebars = Handlebars::new();
 
-        handlebars
-            .register_template_file("dashboard_unified", "./templates/dashboard_unified.html")?;
+        let template_path = format!(
+            "{}/src/render_engine/dashboard/templates/dashboard_unified.html",
+            env!("CARGO_MANIFEST_DIR")
+        );
+        handlebars.register_template_file("dashboard_unified", &template_path)?;
 
         handlebars.register_helper("format_bytes", Box::new(format_bytes_helper));
         handlebars.register_helper("gt", Box::new(greater_than_helper));
@@ -465,7 +470,8 @@ impl DashboardRenderer {
                         relationship_type: "clone".to_string(),
                         strength: 0.9,
                         type_name: a1.type_name.clone(),
-                        color: "#10b981".to_string(), // Green for clone
+                        color: "#10b981".to_string(),
+                        is_part_of_cycle: false,
                     });
                 }
 
@@ -479,7 +485,8 @@ impl DashboardRenderer {
                         relationship_type: "ownership_transfer".to_string(),
                         strength: 1.0,
                         type_name: a1.type_name.clone(),
-                        color: "#dc2626".to_string(), // Red for ownership transfer
+                        color: "#dc2626".to_string(),
+                        is_part_of_cycle: false,
                     });
                 }
 
@@ -501,7 +508,8 @@ impl DashboardRenderer {
                         relationship_type: borrow_type.to_string(),
                         strength: 0.8,
                         type_name: a1.type_name.clone(),
-                        color: "#3b82f6".to_string(), // Blue for borrow
+                        color: "#3b82f6".to_string(),
+                        is_part_of_cycle: false,
                     });
                 }
 
@@ -521,7 +529,8 @@ impl DashboardRenderer {
                         ),
                         strength: 0.7,
                         type_name: a1.type_name.clone(),
-                        color: "#8b5cf6".to_string(), // Purple for smart pointer
+                        color: "#8b5cf6".to_string(),
+                        is_part_of_cycle: false,
                     });
                 }
             }
@@ -531,6 +540,29 @@ impl DashboardRenderer {
         relationships
             .sort_by(|a, b| (&a.source_ptr, &a.target_ptr).cmp(&(&b.source_ptr, &b.target_ptr)));
         relationships.dedup_by(|a, b| a.source_ptr == b.source_ptr && a.target_ptr == b.target_ptr);
+
+        // Detect cycles in relationships and mark cycle edges
+        let cycle_edges: std::collections::HashSet<(String, String)> = {
+            let rel_tuples: Vec<(String, String, String)> = relationships
+                .iter()
+                .map(|r| {
+                    (
+                        r.source_ptr.clone(),
+                        r.target_ptr.clone(),
+                        r.type_name.clone(),
+                    )
+                })
+                .collect();
+            let result = crate::analysis::detect_cycles_in_relationships(&rel_tuples);
+            result.cycle_edges
+        };
+
+        for rel in &mut relationships {
+            if cycle_edges.contains(&(rel.source_ptr.clone(), rel.target_ptr.clone())) {
+                rel.is_part_of_cycle = true;
+                rel.color = "#ef4444".to_string();
+            }
+        }
 
         // Build unsafe reports from passports
         let unsafe_reports: Vec<UnsafeReport> = passports.values()
@@ -1131,6 +1163,23 @@ impl DashboardRenderer {
         template_data.insert(
             "json_data".to_string(),
             serde_json::Value::String(context.json_data.clone()),
+        );
+
+        template_data.insert(
+            "allocations".to_string(),
+            serde_json::to_value(&context.allocations)?,
+        );
+        template_data.insert(
+            "passport_details".to_string(),
+            serde_json::to_value(&context.passport_details)?,
+        );
+        template_data.insert(
+            "relationships".to_string(),
+            serde_json::to_value(&context.relationships)?,
+        );
+        template_data.insert(
+            "threads".to_string(),
+            serde_json::to_value(&context.threads)?,
         );
 
         self.handlebars

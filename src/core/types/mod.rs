@@ -518,6 +518,12 @@ impl AllocationInfo {
         }
     }
 
+    /// Set source location (file and line) for this allocation.
+    pub fn set_source_location(&mut self, file: &str, line: u32) {
+        let frame = format!("{}:{}", file, line);
+        self.stack_trace.get_or_insert_with(Vec::new).push(frame);
+    }
+
     /// Mark this allocation as deallocated with current timestamp
     pub fn mark_deallocated(&mut self) {
         self.timestamp_dealloc = Some(
@@ -3556,6 +3562,17 @@ pub struct CircularReferenceInfo {
     pub leak_risk: LeakRiskLevel,
     /// Suggested resolution
     pub resolution_suggestion: String,
+}
+
+/// Pointer relationship between allocations (e.g., Rc/Arc internal pointers forming cycles)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PointerRelationship {
+    /// Source pointer address
+    pub from_ptr: usize,
+    /// Target pointer address
+    pub to_ptr: usize,
+    /// Relationship type (e.g., "next", "prev", "child", "parent")
+    pub relationship_type: String,
 }
 
 /// Types of circular references

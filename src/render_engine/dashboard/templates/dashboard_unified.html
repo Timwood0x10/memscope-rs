@@ -14,7 +14,14 @@
             --accent: #f59e0b;
             --danger: #ef4444;
             --success: #10b981;
+            --info: #3b82f6;
             --warning: #f59e0b;
+            --cycle-edge: #ef4444;
+            --relationship-clone: #10b981;
+            --relationship-ownership: #dc2626;
+            --relationship-borrow: #3b82f6;
+            --relationship-arc: #8b5cf6;
+            --relationship-reference: #64748b;
             --bg: #f8fafc;
             --bg2: #ffffff;
             --bg3: #f1f5f9;
@@ -637,6 +644,12 @@
                 <div class="card-header">
                     <h2 class="card-title">🛂 Memory Passport Details</h2>
                     <span class="badge badge-warning" id="passportBadge">0 passports</span>
+                    <select id="passportSortOrder" onchange="Dashboard.passports.sort()" class="input-sm" style="margin-left:8px;">
+                        <option value="size-desc">Size ↓</option>
+                        <option value="size-asc">Size ↑</option>
+                        <option value="lifetime-desc">Lifetime ↓</option>
+                        <option value="lifetime-asc">Lifetime ↑</option>
+                    </select>
                 </div>
 
                 <div class="tab-nav">
@@ -666,21 +679,7 @@
                 </div>
 
                 <div id="tab-passport-list" class="tab-content">
-                    <div class="table-wrapper">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Passport ID</th>
-                                    <th>Variable</th>
-                                    <th>Type</th>
-                                    <th>Size</th>
-                                    <th>Status</th>
-                                    <th>Risk Level</th>
-                                </tr>
-                            </thead>
-                            <tbody id="passportTableBody"></tbody>
-                        </table>
-                    </div>
+                    <div id="passportCardContainer" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 16px;"></div>
                 </div>
 
                 <div id="tab-passport-timeline" class="tab-content">
@@ -927,11 +926,12 @@
                     });
                     const nodes = Array.from(nodeMap.values());
                     const nodeIds = new Set(nodes.map(n => n.id));
-                    const links = relationships.map(r => ({ source: r.source_ptr, target: r.target_ptr, type: r.relationship_type || 'reference', strength: r.strength || 0.5, typeName: r.type_name || 'unknown' })).filter(l => nodeIds.has(l.source) && nodeIds.has(l.target));
+                    const links = relationships.map(r => ({ source: r.source_ptr, target: r.target_ptr, type: r.relationship_type || 'reference', strength: r.strength || 0.5, typeName: r.type_name || 'unknown', isPartOfCycle: r.is_part_of_cycle || false })).filter(l => nodeIds.has(l.source) && nodeIds.has(l.target));
                     const colorMap = { clone: '#10b981', ownership_transfer: '#dc2626', immutable_borrow: '#3b82f6', mutable_borrow: '#f59e0b', Arc: '#8b5cf6', Rc: '#8b5cf6', reference: '#64748b' };
                     const getColor = (type) => colorMap[type] || '#64748b';
+                    const getLinkColor = (d) => d.isPartOfCycle ? '#ef4444' : getColor(d.type);
                     this.simulation = d3.forceSimulation(nodes).force('link', d3.forceLink(links).id(d => d.id).distance(120)).force('charge', d3.forceManyBody().strength(-400)).force('center', d3.forceCenter(width / 2, height / 2)).force('collision', d3.forceCollide().radius(40));
-                    const link = svg.append('g').selectAll('line').data(links).join('line').attr('class', 'link').attr('stroke', d => getColor(d.type)).attr('stroke-width', d => Math.max(1, d.strength * 4));
+                    const link = svg.append('g').selectAll('line').data(links).join('line').attr('class', 'link').attr('stroke', getLinkColor).attr('stroke-width', d => Math.max(1, d.strength * 4)).attr('stroke-dasharray', d => d.isPartOfCycle ? '5,5' : null);
                     const node = svg.append('g').selectAll('g').data(nodes).join('g').attr('class', 'node').call(d3.drag().on('start', (event) => { if (!event.active) this.simulation.alphaTarget(0.3).restart(); event.subject.fx = event.subject.x || 0; event.subject.fy = event.subject.y || 0; }).on('drag', (event) => { event.subject.fx = event.x || 0; event.subject.fy = event.y || 0; }).on('end', (event) => { if (!event.active) this.simulation.alphaTarget(0); event.subject.fx = null; event.subject.fy = null; }));
                     node.append('circle').attr('r', 14).attr('fill', d => getColor(d.type));
                     node.append('text').attr('dx', 18).attr('dy', 4).text(d => { const name = d.name || 'unknown'; return name.length > 12 ? name.substring(0, 10) + '..' : name; }).style('font-size', '11px').style('fill', 'var(--text)');
@@ -968,8 +968,8 @@
             passports: {
                 filteredData: [],
                 sort() { const sortBy = document.getElementById('passportSortOrder').value; this.filteredData.sort((a, b) => { switch (sortBy) { case 'size-desc': return (b.size_bytes || 0) - (a.size_bytes || 0); case 'size-asc': return (a.size_bytes || 0) - (b.size_bytes || 0); case 'lifetime-desc': return (b.lifetime_ms || 0) - (a.lifetime_ms || 0); case 'lifetime-asc': return (a.lifetime_ms || 0) - (b.lifetime_ms || 0); default: return 0; } }); this.render(); },
-                render() { const container = document.getElementById('passportContainer'); container.innerHTML = this.filteredData.slice(0, 20).map(p => `<div class="detail-panel" style="border-left: 4px solid var(--primary);"><div style="display: flex; justify-content: space-between; align-items: center;"><h4 style="color: var(--primary); margin: 0;">${p.var_name || 'unknown'}</h4><span class="badge ${p.is_leaked ? 'badge-danger' : 'badge-success'}">${p.is_leaked ? 'Leaked' : 'Active'}</span></div><div style="margin-top: 8px; display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px;"><div><span class="detail-label">Type</span><div class="detail-value">${p.type_name || 'Unknown'}</div></div><div><span class="detail-label">Size</span><div class="detail-value">${Utils.formatBytes(parseInt(p.size_bytes) || 0)}</div></div><div><span class="detail-label">Status</span><div class="detail-value">${p.status || 'N/A'}</div></div><div><span class="detail-label">Risk</span><div class="detail-value">${p.risk_level || 'low'}</div></div></div></div>`).join(''); },
-                init() { const passports = data.passport_details || []; this.filteredData = [...passports]; document.getElementById('passportCount').textContent = passports.length + ' passports'; if (passports.length === 0) { document.getElementById('passportContainer').innerHTML = '<div class="empty-state">No passport data</div>'; return; } this.sort(); }
+                render() { const container = document.getElementById('passportCardContainer'); container.innerHTML = this.filteredData.slice(0, 50).map(p => { const visaFlow = (p.cross_boundary_events && p.cross_boundary_events.length > 0) ? `<div style="margin-top: 12px; padding: 12px; background: var(--bg3); border-radius: 8px; border: 1px solid var(--border);"><div style="font-size: 0.75rem; color: var(--text2); margin-bottom: 8px; font-weight: 600;">🛂 VISA FLOW - FFI Boundary Crossing</div><div style="display: flex; align-items: center; gap: 4px; overflow-x: auto; padding: 4px 0;">${p.cross_boundary_events.map((e, idx) => `<div style="display: flex; align-items: center; gap: 4px; flex-shrink: 0;"><div style="padding: 6px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; background: ${e.color || '#10b981'}; color: white;">${e.icon || '📍'} ${e.event_type || 'Cross'}</div><div style="font-size: 0.7rem; color: var(--text2); white-space: nowrap;">${e.from_context || 'Rust'}</div><div style="color: var(--text2); font-size: 0.7rem;">→</div><div style="font-size: 0.7rem; color: var(--text2); white-space: nowrap;">${e.to_context || 'FFI'}</div>${idx < p.cross_boundary_events.length - 1 ? '<div style="color: var(--border);">│</div>' : ''}</div>`).join('')}</div></div>` : '<div style="margin-top: 12px; padding: 8px 12px; background: var(--bg3); border-radius: 8px; border: 1px dashed var(--border); font-size: 0.8rem; color: var(--text2);">🛂 No FFI boundary crossings detected</div>'; return `<div class="detail-panel" style="border-left: 4px solid ${p.is_leaked ? '#ef4444' : 'var(--primary)'};"><div style="display: flex; justify-content: space-between; align-items: center;"><h4 style="color: var(--primary); margin: 0;">${p.var_name || 'unknown'}</h4><span class="badge ${p.is_leaked ? 'badge-danger' : 'badge-success'}">${p.is_leaked ? '🔴 LEAKED' : '🟢 Active'}</span></div><div style="margin-top: 8px; display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px;"><div><span class="detail-label">Type</span><div class="detail-value">${p.type_name || 'Unknown'}</div></div><div><span class="detail-label">Size</span><div class="detail-value">${Utils.formatBytes(parseInt(p.size_bytes) || 0)}</div></div><div><span class="detail-label">Status</span><div class="detail-value">${p.status || 'N/A'}</div></div><div><span class="detail-label">Risk</span><div class="detail-value ${p.risk_level === 'high' ? 'risk-high' : p.risk_level === 'medium' ? 'risk-medium' : ''}">${p.risk_level || 'low'}</div></div></div>${visaFlow}</div>`; }).join(''); },
+                init() { const passports = data.passport_details || []; this.filteredData = [...passports]; document.getElementById('passportBadge').textContent = passports.length + ' passports'; if (passports.length === 0) { document.getElementById('passportCardContainer').innerHTML = '<div class="empty-state">No passport data</div>'; return; } this.sort(); }
             },
 
             unsafe: {
@@ -1485,9 +1485,9 @@
                     <td><code>${a.address || '0x0'}</code></td>
                     <td>${a.var_name || 'unknown'}</td>
                     <td>${a.type_name || 'Unknown'}</td>
-                    <td>${formatBytes(parseInt(a.size) || 0)}</td>
+                    <td>${Utils.formatBytes(parseInt(a.size) || 0)}</td>
                     <td>${a.thread_id || 'N/A'}</td>
-                    <td>${formatTime(parseInt(a.lifetime_ms || 0) * 1000000)}</td>
+                    <td>${Utils.formatTime(parseInt(a.lifetime_ms || 0) * 1000000)}</td>
                     <td>${a.is_leaked ? '<span class="badge badge-danger">Leaked</span>' :
                           a.timestamp_dealloc > 0 ? '<span class="badge badge-success">Freed</span>' :
                           '<span class="badge badge-info">Active</span>'}</td>
@@ -1531,9 +1531,9 @@
                         <td><code>${a.address || '0x0'}</code></td>
                         <td>${a.var_name || 'unknown'}</td>
                         <td>${a.type_name || 'Unknown'}</td>
-                        <td>${formatBytes(parseInt(a.size) || 0)}</td>
+                        <td>${Utils.formatBytes(parseInt(a.size) || 0)}</td>
                         <td>${a.thread_id || 'N/A'}</td>
-                        <td>${formatTime(parseInt(a.lifetime_ms || 0) * 1000000)}</td>
+                        <td>${Utils.formatTime(parseInt(a.lifetime_ms || 0) * 1000000)}</td>
                         <td>${a.is_leaked ? '<span class="badge badge-danger">Leaked</span>' :
                               a.timestamp_dealloc > 0 ? '<span class="badge badge-success">Freed</span>' :
                               '<span class="badge badge-info">Active</span>'}</td>
@@ -1648,29 +1648,50 @@
         }
 
         function populatePassports() {
-            const tbody = document.getElementById('passportTableBody');
             const passports = data.passport_details || [];
             document.getElementById('passportBadge').textContent = passports.length + ' passports';
 
             if (passports.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No passport data</td></tr>';
+                const tbody = document.getElementById('passportTableBody');
+                if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No passport data</td></tr>';
                 return;
             }
 
-            tbody.innerHTML = passports.map(p => {
-                const riskClass = p.risk_level === 'high' ? 'risk-high' :
-                                  p.risk_level === 'medium' ? 'risk-medium' : 'risk-low';
-                return `
-                <tr>
-                    <td><code>${p.passport_id || 'N/A'}</code></td>
-                    <td>${p.var_name || 'unknown'}</td>
-                    <td>${p.type_name || 'Unknown'}</td>
-                    <td>${formatBytes(parseInt(p.size_bytes) || 0)}</td>
-                    <td>${p.is_leaked ? '<span class="badge badge-danger">Leaked</span>' :
-                          '<span class="badge badge-success">Normal</span>'}</td>
-                    <td class="${riskClass}">${p.risk_level || 'low'}</td>
-                </tr>
-            `}).join('');
+            const container = document.getElementById('passportCardContainer');
+            if (container) {
+                container.innerHTML = passports.slice(0, 20).map(p => {
+                    const riskClass = p.risk_level === 'high' ? 'risk-high' :
+                                      p.risk_level === 'medium' ? 'risk-medium' : 'risk-low';
+                    return `<div class="detail-panel" style="border-left: 4px solid ${p.is_leaked ? '#ef4444' : 'var(--primary)'};">
+                        <div style="display:flex;justify-content:space-between;align-items:center;">
+                            <h4 style="color:var(--primary);margin:0;">${p.var_name || 'unknown'}</h4>
+                            <span class="badge ${p.is_leaked ? 'badge-danger' : 'badge-success'}">${p.is_leaked ? '🔴 LEAKED' : '🟢 Active'}</span>
+                        </div>
+                        <div style="margin-top:8px;display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px;">
+                            <div><span class="detail-label">Type</span><div class="detail-value">${p.type_name || 'Unknown'}</div></div>
+                            <div><span class="detail-label">Size</span><div class="detail-value">${Utils.formatBytes(parseInt(p.size_bytes) || 0)}</div></div>
+                            <div><span class="detail-label">Status</span><div class="detail-value">${p.status || 'N/A'}</div></div>
+                            <div><span class="detail-label">Risk</span><div class="detail-value ${riskClass}">${p.risk_level || 'low'}</div></div>
+                        </div>
+                    </div>`;
+                }).join('');
+            }
+
+            const tbody = document.getElementById('passportTableBody');
+            if (tbody) {
+                tbody.innerHTML = passports.map(p => {
+                    const riskClass = p.risk_level === 'high' ? 'risk-high' :
+                                      p.risk_level === 'medium' ? 'risk-medium' : 'risk-low';
+                    return `<tr>
+                        <td><code>${(p.passport_id || 'N/A').substring(0, 16)}...</code></td>
+                        <td>${p.var_name || 'unknown'}</td>
+                        <td>${p.type_name || 'Unknown'}</td>
+                        <td>${Utils.formatBytes(parseInt(p.size_bytes) || 0)}</td>
+                        <td>${p.is_leaked ? '<span class="badge badge-danger">Leaked</span>' : '<span class="badge badge-success">Normal</span>'}</td>
+                        <td class="${riskClass}">${p.risk_level || 'low'}</td>
+                    </tr>`;
+                }).join('');
+            }
 
             const timeline = document.getElementById('passportTimeline');
             timeline.innerHTML = passports.slice(0, 10).map(p => `
@@ -1678,7 +1699,7 @@
                     <strong>${p.var_name || 'unknown'}</strong>
                     <span class="badge ${p.is_leaked ? 'badge-danger' : 'badge-success'}">${p.status || 'active'}</span>
                     <div style="color: var(--text2); font-size: 0.85rem;">
-                        ${formatBytes(parseInt(p.size_bytes) || 0)} | ${p.type_name || 'Unknown'}
+                        ${Utils.formatBytes(parseInt(p.size_bytes) || 0)} | ${p.type_name || 'Unknown'}
                     </div>
                 </div>
             `).join('');
@@ -1710,7 +1731,7 @@
                         <div style="margin-top: 12px; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px;">
                             <div><span class="detail-label">Address</span><div class="detail-value">${r.allocation_ptr || 'N/A'}</div></div>
                             <div><span class="detail-label">Type</span><div class="detail-value">${r.type_name || 'Unknown'}</div></div>
-                            <div><span class="detail-label">Size</span><div class="detail-value">${formatBytes(parseInt(r.size_bytes) || 0)}</div></div>
+                            <div><span class="detail-label">Size</span><div class="detail-value">${Utils.formatBytes(parseInt(r.size_bytes) || 0)}</div></div>
                             <div><span class="detail-label">Status</span><div class="detail-value">${r.status || 'unknown'}</div></div>
                         </div>
                         ${r.risk_factors && r.risk_factors.length > 0 ? `
@@ -1757,7 +1778,7 @@
                                 <div style="width: 32px; height: 32px; border-radius: 50%; background: ${stepColor}; display: flex; align-items: center; justify-content: center; font-size: 14px;">${e.icon || '•'}</div>
                                 <div style="flex: 1;">
                                     <div style="font-weight: 600; color: var(--text);">${e.context || e.event_type}</div>
-                                    <div style="font-size: 0.8rem; color: var(--text2);">${flow.var_name} | ${formatBytes(flow.size_bytes || 0)}</div>
+                                    <div style="font-size: 0.8rem; color: var(--text2);">${flow.var_name} | ${Utils.formatBytes(flow.size_bytes || 0)}</div>
                                 </div>
                                 ${!isLast ? '<div style="width: 2px; height: 24px; background: var(--border);"></div>' : ''}
                             </div>
@@ -1829,10 +1850,10 @@
                 <tr onclick="showTimetravelDetail('${a.address}')" style="cursor: pointer;">
                     <td><code>${a.address || '0x0'}</code></td>
                     <td>${a.var_name || 'unknown'}</td>
-                    <td>${formatBytes(parseInt(a.size) || 0)}</td>
+                    <td>${Utils.formatBytes(parseInt(a.size) || 0)}</td>
                     <td style="font-size: 0.85rem;">${sourceLoc}</td>
-                    <td>${a.timestamp_alloc || 0}</td>
-                    <td>${formatTime(parseInt(a.lifetime_ms || 0) * 1000000)}</td>
+                    <td>${Utils.formatTime(parseInt(a.timestamp_alloc) || 0)}</td>
+                    <td>${Utils.formatTime(parseInt(a.lifetime_ms || 0) * 1000000)}</td>
                     <td>${a.is_leaked ? '<span class="badge badge-danger">Leaked</span>' :
                           a.timestamp_dealloc > 0 ? '<span class="badge badge-success">Freed</span>' :
                           '<span class="badge badge-info">Active</span>'}</td>
@@ -1864,7 +1885,7 @@
             document.getElementById('ttAddress').textContent = address;
             document.getElementById('ttVarName').textContent = alloc.var_name || 'unknown';
             document.getElementById('ttType').textContent = alloc.type_name || 'Unknown';
-            document.getElementById('ttSize').textContent = formatBytes(parseInt(alloc.size) || 0);
+            document.getElementById('ttSize').textContent = Utils.formatBytes(parseInt(alloc.size) || 0);
             document.getElementById('ttStatus').innerHTML = alloc.is_leaked ?
                 '<span class="badge badge-danger">Leaked</span>' :
                 '<span class="badge badge-success">Normal</span>';
@@ -1884,7 +1905,7 @@
                 <div class="timeline-item ${e.type}">
                     <strong>${e.icon} ${e.desc}</strong>
                     <div style="color: var(--text2); font-size: 0.85rem;">
-                        Timestamp: ${e.time} | Delta: +${formatTime(e.time - events[0].time)}
+                        Timestamp: ${e.time} | Delta: +${Utils.formatTime(e.time - events[0].time)}
                     </div>
                 </div>
             `).join('');
@@ -1913,7 +1934,7 @@
                 <tr>
                     <td><code>Task-${i}</code></td>
                     <td>${p.type_name || 'Future'}</td>
-                    <td>${formatBytes(parseInt(p.size_bytes) || 0)}</td>
+                    <td>${Utils.formatBytes(parseInt(p.size_bytes) || 0)}</td>
                     <td>${p.poll_count || 0}</td>
                     <td>${((p.waker_efficiency || 1) * 100).toFixed(0)}%</td>
                     <td>${p.is_leaked ? '<span class="badge badge-danger">Leaked</span>' :
@@ -1943,6 +1964,7 @@
             Dashboard.unsafe.init();
             Dashboard.timetravel.init();
             Dashboard.tasks.init();
+            populatePassports();
         });
     </script>
 </body>
