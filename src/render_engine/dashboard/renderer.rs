@@ -57,6 +57,52 @@ pub struct DashboardContext {
     pub system_resources: SystemResources,
     /// Thread analysis data
     pub threads: Vec<ThreadInfo>,
+    /// Async task analysis data
+    pub async_tasks: Vec<AsyncTaskInfo>,
+    /// Async summary
+    pub async_summary: AsyncSummary,
+}
+
+/// Async task information for dashboard
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AsyncTaskInfo {
+    /// Task ID
+    pub task_id: u64,
+    /// Task name
+    pub task_name: String,
+    /// Task type
+    pub task_type: String,
+    /// Total bytes allocated
+    pub total_bytes: u64,
+    /// Current memory usage
+    pub current_memory: u64,
+    /// Peak memory usage
+    pub peak_memory: u64,
+    /// Number of allocations
+    pub total_allocations: u64,
+    /// Duration in milliseconds
+    pub duration_ms: f64,
+    /// Efficiency score (0.0 - 1.0)
+    pub efficiency_score: f64,
+    /// Whether task is completed
+    pub is_completed: bool,
+    /// Whether task has potential leak
+    pub has_potential_leak: bool,
+}
+
+/// Async summary for dashboard
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AsyncSummary {
+    /// Total number of async tasks
+    pub total_tasks: usize,
+    /// Number of active tasks
+    pub active_tasks: usize,
+    /// Total allocations across all tasks
+    pub total_allocations: usize,
+    /// Total memory bytes
+    pub total_memory_bytes: usize,
+    /// Peak memory bytes
+    pub peak_memory_bytes: usize,
 }
 
 /// Allocation information for dashboard
@@ -390,6 +436,16 @@ impl DashboardRenderer {
         &self,
         tracker: &Tracker,
         passport_tracker: &Arc<MemoryPassportTracker>,
+    ) -> Result<DashboardContext, Box<dyn std::error::Error>> {
+        self.build_context_from_tracker_with_async(tracker, passport_tracker, None)
+    }
+
+    /// Build dashboard context from tracker data with async support
+    pub fn build_context_from_tracker_with_async(
+        &self,
+        tracker: &Tracker,
+        passport_tracker: &Arc<MemoryPassportTracker>,
+        async_tracker: Option<&Arc<crate::capture::backends::async_tracker::AsyncTracker>>,
     ) -> Result<DashboardContext, Box<dyn std::error::Error>> {
         let allocations = tracker.inner().get_active_allocations().unwrap_or_default();
         let passports = passport_tracker.get_all_passports();
@@ -799,8 +855,12 @@ impl DashboardRenderer {
             active_allocations: usize,
             total_allocations: usize,
             leak_count: usize,
+            async_tasks: &'a [AsyncTaskInfo],
+            async_summary: &'a AsyncSummary,
         }
 
+        let async_tasks = Self::build_async_tasks(async_tracker);
+        let async_summary = Self::build_async_summary(async_tracker);
         let data = DashboardData {
             allocations: &alloc_info,
             relationships: &relationships,
@@ -810,6 +870,8 @@ impl DashboardRenderer {
             active_allocations: analysis.active_allocations,
             total_allocations: analysis.total_allocations,
             leak_count,
+            async_tasks: &async_tasks,
+            async_summary: &async_summary,
         };
 
         let json_data: String = serde_json::to_string(&data)
@@ -1009,9 +1071,65 @@ impl DashboardRenderer {
                 page_size,
             },
             threads: Self::aggregate_thread_data(&alloc_info),
+            async_tasks: Self::build_async_tasks(async_tracker),
+            async_summary: Self::build_async_summary(async_tracker),
         };
 
         Ok(context)
+    }
+
+    fn build_async_tasks(
+        async_tracker: Option<&Arc<crate::capture::backends::async_tracker::AsyncTracker>>,
+    ) -> Vec<AsyncTaskInfo> {
+        if let Some(tracker) = async_tracker {
+            let profiles = tracker.get_all_profiles();
+            profiles
+                .into_iter()
+                .map(|p| {
+                    let is_completed = p.is_completed();
+                    let has_potential_leak = p.has_potential_leak();
+                    let task_type_str = format!("{:?}", p.task_type);
+                    AsyncTaskInfo {
+                        task_id: p.task_id,
+                        task_name: p.task_name,
+                        task_type: task_type_str,
+                        total_bytes: p.total_bytes,
+                        current_memory: p.current_memory,
+                        peak_memory: p.peak_memory,
+                        total_allocations: p.total_allocations,
+                        duration_ms: p.duration_ns as f64 / 1_000_000.0,
+                        efficiency_score: p.efficiency_score,
+                        is_completed,
+                        has_potential_leak,
+                    }
+                })
+                .collect()
+        } else {
+            Vec::new()
+        }
+    }
+
+    fn build_async_summary(
+        async_tracker: Option<&Arc<crate::capture::backends::async_tracker::AsyncTracker>>,
+    ) -> AsyncSummary {
+        if let Some(tracker) = async_tracker {
+            let stats = tracker.get_stats();
+            AsyncSummary {
+                total_tasks: stats.total_tasks,
+                active_tasks: stats.active_tasks,
+                total_allocations: stats.total_allocations,
+                total_memory_bytes: stats.total_memory,
+                peak_memory_bytes: stats.peak_memory,
+            }
+        } else {
+            AsyncSummary {
+                total_tasks: 0,
+                active_tasks: 0,
+                total_allocations: 0,
+                total_memory_bytes: 0,
+                peak_memory_bytes: 0,
+            }
+        }
     }
 
     fn aggregate_thread_data(allocations: &[AllocationInfo]) -> Vec<ThreadInfo> {

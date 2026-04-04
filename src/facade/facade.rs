@@ -349,7 +349,7 @@ impl MemScope {
         let passport_tracker =
             Arc::new(crate::analysis::memory_passport_tracker::get_global_passport_tracker());
 
-        export_dashboard_html_with_template(path, &tracker, &passport_tracker, template)
+        export_dashboard_html_with_template(path, &tracker, &passport_tracker, template, None)
             .map_err(|e| format!("Failed to export HTML: {}", e))
     }
 
@@ -397,8 +397,9 @@ impl MemScope {
         let tracker = Tracker::new();
         let passport_tracker =
             Arc::new(crate::analysis::memory_passport_tracker::get_global_passport_tracker());
+        let async_tracker = Arc::new(crate::capture::backends::async_tracker::AsyncTracker::new());
 
-        export_all_json(path, &tracker, &passport_tracker)
+        export_all_json(path, &tracker, &passport_tracker, &async_tracker)
             .map_err(|e| format!("Failed to export JSON files: {}", e))
     }
 }

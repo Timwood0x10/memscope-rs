@@ -10,7 +10,7 @@ use std::thread::ThreadId;
 
 use super::async_types::{
     AsyncAllocation, AsyncError, AsyncMemorySnapshot, AsyncResult, AsyncSnapshot, AsyncStats,
-    TaskInfo, TrackedFuture,
+    TrackedFuture,
 };
 use super::task_profile::{TaskMemoryProfile, TaskType};
 
@@ -45,13 +45,11 @@ static GLOBAL_TRACKER: Mutex<Option<Arc<AsyncTracker>>> = Mutex::new(None);
 
 /// Async memory tracker for task-aware memory tracking.
 pub struct AsyncTracker {
-    /// Tracked tasks
-    tasks: Arc<Mutex<HashMap<u64, TaskInfo>>>,
     /// Active allocations
     allocations: Arc<Mutex<HashMap<usize, AsyncAllocation>>>,
     /// Statistics
     stats: Arc<Mutex<AsyncStats>>,
-    /// Task memory profiles
+    /// Task memory profiles (unified task info)
     profiles: Arc<Mutex<HashMap<u64, TaskMemoryProfile>>>,
     /// Initialization state
     initialized: Arc<Mutex<bool>>,
@@ -61,7 +59,6 @@ impl AsyncTracker {
     /// Create a new async tracker.
     pub fn new() -> Self {
         Self {
-            tasks: Arc::new(Mutex::new(HashMap::new())),
             allocations: Arc::new(Mutex::new(HashMap::new())),
             stats: Arc::new(Mutex::new(AsyncStats::default())),
             profiles: Arc::new(Mutex::new(HashMap::new())),
@@ -70,80 +67,59 @@ impl AsyncTracker {
     }
 
     /// Track a task start.
-    ///
-    /// # Arguments
-    /// * `task_id` - Unique task identifier
-    /// * `name` - Task name
-    /// * `thread_id` - Thread ID where task runs
-    pub fn track_task_start(&self, task_id: u64, name: String, thread_id: ThreadId) {
-        let task = TaskInfo {
-            task_id,
-            name: name.clone(),
-            thread_id,
-            created_at: Self::now(),
-            active_allocations: 0,
-            total_memory: 0,
-        };
-
-        // Use blocking lock to prevent data loss
-        let mut tasks = self.tasks.lock().unwrap();
-        tasks.insert(task_id, task.clone());
-        drop(tasks);
-
-        let mut stats = self.stats.lock().unwrap();
-        stats.total_tasks += 1;
-        stats.active_tasks += 1;
-
-        // Create task profile
+    pub fn track_task_start(&self, task_id: u64, name: String, _thread_id: ThreadId) {
         let mut profiles = self.profiles.lock().unwrap();
+
+        // Prevent duplicate task tracking
+        if profiles.contains_key(&task_id) {
+            tracing::warn!(
+                "Duplicate task tracking attempt ignored for task_id: {}. Existing task will be used.",
+                task_id
+            );
+            return;
+        }
+
         profiles.insert(
             task_id,
             TaskMemoryProfile::new(task_id, name, TaskType::default()),
         );
+
+        drop(profiles);
+
+        let mut stats = self.stats.lock().unwrap();
+        stats.total_tasks += 1;
+        stats.active_tasks += 1;
     }
 
     /// Track a task end.
-    ///
-    /// # Arguments
-    /// * `task_id` - Unique task identifier
     pub fn track_task_end(&self, task_id: u64) {
-        // Use blocking lock to prevent data loss
-        let task_info = {
-            let mut tasks = self.tasks.lock().unwrap();
-            tasks.remove(&task_id)
-        };
+        let mut profiles = self.profiles.lock().unwrap();
 
-        // Update task profile with duration
-        if let Some(_task) = task_info {
-            let mut profiles = self.profiles.lock().unwrap();
-            if let Some(profile) = profiles.get_mut(&task_id) {
+        // Validate task exists before marking as completed
+        if let Some(profile) = profiles.get_mut(&task_id) {
+            if !profile.is_completed() {
                 profile.mark_completed();
-            }
-        }
+                drop(profiles);
 
-        let mut stats = self.stats.lock().unwrap();
-        stats.active_tasks = stats.active_tasks.saturating_sub(1);
+                let mut stats = self.stats.lock().unwrap();
+                stats.active_tasks = stats.active_tasks.saturating_sub(1);
+            } else {
+                tracing::debug!("Task {} is already marked as completed", task_id);
+            }
+        } else {
+            tracing::warn!(
+                "track_task_end called for non-existent task_id: {}. Ignoring.",
+                task_id
+            );
+        }
     }
 
     /// Track an allocation associated with a task.
-    ///
-    /// # Arguments
-    /// * `ptr` - Memory pointer
-    /// * `size` - Allocation size
-    /// * `task_id` - Associated task ID
     pub fn track_allocation(&self, ptr: usize, size: usize, task_id: u64) {
         self.track_allocation_with_location(ptr, size, task_id, None, None, None);
     }
 
     /// Track an allocation with source location.
-    ///
-    /// # Arguments
-    /// * `ptr` - Memory pointer
-    /// * `size` - Allocation size
-    /// * `task_id` - Associated task ID
-    /// * `var_name` - Variable name
-    /// * `type_name` - Type name
-    /// * `source_location` - Source code location
     pub fn track_allocation_with_location(
         &self,
         ptr: usize,
@@ -163,49 +139,31 @@ impl AsyncTracker {
             source_location,
         };
 
-        // Store allocation - use blocking lock
         {
             let mut allocations = self.allocations.lock().unwrap();
-            allocations.insert(ptr, allocation.clone());
+            allocations.insert(ptr, allocation);
         }
 
-        // Update task info - use blocking lock
         {
-            let mut tasks = self.tasks.lock().unwrap();
-            if let Some(task) = tasks.get_mut(&task_id) {
-                task.active_allocations += 1;
-                task.total_memory += size;
+            let mut profiles = self.profiles.lock().unwrap();
+            if let Some(profile) = profiles.get_mut(&task_id) {
+                profile.record_allocation(size as u64);
             }
         }
 
-        // Update statistics - use blocking lock
         {
             let mut stats = self.stats.lock().unwrap();
             stats.total_allocations += 1;
             stats.total_memory += size;
             stats.active_memory += size;
-            // Peak memory is the maximum active memory we've ever seen
             if stats.active_memory > stats.peak_memory {
                 stats.peak_memory = stats.active_memory;
-            }
-        }
-
-        // Update task profile
-        {
-            let mut profiles = self.profiles.lock().unwrap();
-            if let Some(profile) = profiles.get_mut(&task_id) {
-                profile.total_allocations += 1;
-                profile.total_bytes += size as u64;
             }
         }
     }
 
     /// Track a deallocation associated with a task.
-    ///
-    /// # Arguments
-    /// * `ptr` - Memory pointer
     pub fn track_deallocation(&self, ptr: usize) {
-        // Get allocation info before removing - use blocking lock
         let (task_id, size) = {
             let mut allocations = self.allocations.lock().unwrap();
             allocations
@@ -214,15 +172,13 @@ impl AsyncTracker {
                 .unwrap_or((0, 0))
         };
 
-        // Update task info - use blocking lock
         if task_id != 0 {
-            let mut tasks = self.tasks.lock().unwrap();
-            if let Some(task) = tasks.get_mut(&task_id) {
-                task.active_allocations = task.active_allocations.saturating_sub(1);
+            let mut profiles = self.profiles.lock().unwrap();
+            if let Some(profile) = profiles.get_mut(&task_id) {
+                profile.record_deallocation(size as u64);
             }
         }
 
-        // Update active memory stats
         if size > 0 {
             let mut stats = self.stats.lock().unwrap();
             stats.active_memory = stats.active_memory.saturating_sub(size);
@@ -237,10 +193,20 @@ impl AsyncTracker {
 
     /// Take a snapshot of current state.
     pub fn snapshot(&self) -> AsyncSnapshot {
-        let tasks = {
-            let tasks = self.tasks.lock().unwrap();
-            tasks.values().cloned().collect()
-        };
+        let profiles = self.profiles.lock().unwrap();
+        let tasks: Vec<super::async_types::TaskInfo> = profiles
+            .values()
+            .filter(|p| p.completed_at_ms.is_none())
+            .map(|p| super::async_types::TaskInfo {
+                task_id: p.task_id,
+                name: p.task_name.clone(),
+                thread_id: std::thread::current().id(),
+                created_at: p.created_at_ms as u64 * 1_000_000,
+                active_allocations: p.total_allocations as usize,
+                total_memory: p.current_memory as usize,
+            })
+            .collect();
+        drop(profiles);
 
         let allocations = {
             let allocs = self.allocations.lock().unwrap();
@@ -280,20 +246,14 @@ impl AsyncTracker {
     }
 
     /// Generate task efficiency report
-    ///
-    /// Calculates efficiency scores based on task-specific metrics.
     pub fn analyze_task(&self, task_id: u64, task_type: TaskType) -> Option<TaskReport> {
         let profile = self.get_task_profile(task_id)?;
 
-        // Use task-specific metrics instead of global system metrics
         let total_bytes = profile.total_bytes as f64;
         let total_allocations = profile.total_allocations as f64;
         let peak_memory = profile.peak_memory as f64;
         let duration_ms = profile.duration_ns as f64 / 1_000_000.0;
 
-        // Calculate efficiency scores (0.0 - 1.0)
-
-        // Base efficiency for compute-intensive tasks (CPU, IO, GPU)
         let compute_efficiency = if duration_ms > 0.0 {
             (total_allocations / duration_ms * 1000.0).min(1.0)
         } else {
@@ -335,7 +295,6 @@ impl AsyncTracker {
 
         let efficiency_score = (cpu_efficiency + memory_efficiency + io_efficiency) / 3.0;
 
-        // Determine bottleneck based on task-specific metrics
         let bottleneck = if duration_ms > 5000.0 {
             "Execution Time".to_string()
         } else if peak_memory > 100.0 * 1024.0 * 1024.0 {
@@ -346,7 +305,6 @@ impl AsyncTracker {
             "None".to_string()
         };
 
-        // Generate recommendations based on task-specific metrics
         let mut recommendations = Vec::new();
         if duration_ms > 5000.0 {
             recommendations.push("Consider optimizing task execution time".to_string());
@@ -374,9 +332,6 @@ impl AsyncTracker {
     }
 
     /// Get resource rankings for all tasks
-    ///
-    /// Returns tasks sorted by overall resource consumption score.
-    /// Uses task-specific metrics (memory, allocation rate, duration) for ranking.
     pub fn get_resource_rankings(&self) -> Vec<ResourceRanking> {
         let profiles = self.get_all_profiles();
 
@@ -431,9 +386,6 @@ impl Default for AsyncTracker {
 }
 
 /// Initialize async memory tracking system
-///
-/// Must be called before spawning any tracked tasks.
-/// Sets up background aggregation and monitoring.
 pub fn initialize() -> AsyncResult<()> {
     let mut global = GLOBAL_TRACKER.lock().map_err(|_| AsyncError::System {
         operation: Arc::from("initialize"),
@@ -456,8 +408,6 @@ pub fn initialize() -> AsyncResult<()> {
 }
 
 /// Shutdown async memory tracking system
-///
-/// Cleans up resources and stops tracking.
 pub fn shutdown() -> AsyncResult<()> {
     let mut global = GLOBAL_TRACKER.lock().map_err(|_| AsyncError::System {
         operation: Arc::from("shutdown"),
@@ -499,9 +449,6 @@ fn get_global_tracker() -> AsyncResult<Arc<AsyncTracker>> {
 }
 
 /// Create a tracked future wrapper
-///
-/// Wraps the provided future in a TrackedFuture that automatically
-/// attributes memory allocations to the task.
 pub fn create_tracked<F>(future: F) -> TrackedFuture<F>
 where
     F: Future,
@@ -510,25 +457,6 @@ where
 }
 
 /// Spawn a tracked async task
-///
-/// This is a convenience function that wraps the provided future in a TrackedFuture.
-/// Use with your preferred async runtime (tokio, async-std, etc.)
-///
-/// Example:
-/// ```rust,no_run
-/// use memscope_rs::capture::backends::async_tracker;
-///
-/// #[tokio::main]
-/// async fn main() {
-///     let handle = async_tracker::spawn_tracked(async {
-///         let data = vec![0u8; 1024];
-///         data.len()
-///     });
-///     
-///     let result = handle.await;
-///     println!("Result: {}", result);
-/// }
-/// ```
 pub fn spawn_tracked<F>(future: F) -> TrackedFuture<F>
 where
     F: Future,
@@ -537,8 +465,6 @@ where
 }
 
 /// Get current memory usage snapshot
-///
-/// Returns statistics about async task memory usage.
 pub fn get_memory_snapshot() -> AsyncMemorySnapshot {
     if let Ok(tracker) = get_global_tracker() {
         let stats = tracker.get_stats();
@@ -567,8 +493,6 @@ pub fn is_tracking_active() -> bool {
 }
 
 /// Track allocation for current task
-///
-/// Called by global allocator hook to track allocations.
 pub fn track_current_allocation(ptr: usize, size: usize) -> AsyncResult<()> {
     let tracker = get_global_tracker()?;
     let task_info = super::async_types::get_current_task();
@@ -581,8 +505,6 @@ pub fn track_current_allocation(ptr: usize, size: usize) -> AsyncResult<()> {
 }
 
 /// Track deallocation for current task
-///
-/// Called by global allocator hook to track deallocations.
 pub fn track_current_deallocation(ptr: usize) -> AsyncResult<()> {
     let tracker = get_global_tracker()?;
     tracker.track_deallocation(ptr);
@@ -622,39 +544,36 @@ mod tests {
         tracker.track_task_start(1, "test_task".to_string(), thread_id);
         tracker.track_allocation(0x1000, 1024, 1);
 
-        let snapshot = tracker.snapshot();
-        assert_eq!(snapshot.allocations.len(), 1);
-        assert_eq!(snapshot.tasks[0].active_allocations, 1);
+        let profile = tracker.get_task_profile(1);
+        assert!(profile.is_some());
+        let profile = profile.unwrap();
+        assert_eq!(profile.total_allocations, 1);
+        assert_eq!(profile.total_bytes, 1024);
     }
 
     #[test]
     fn test_initialization() {
-        // Clean up any existing state first
         reset_global_tracker();
 
         let result = initialize();
         assert!(result.is_ok());
 
         let result2 = initialize();
-        // Note: This might fail if another test already initialized
-        // We check the error message instead
         if let Err(e) = result2 {
             assert!(e.message().contains("Already initialized"));
         }
 
-        let _ = shutdown(); // Clean up
+        let _ = shutdown();
     }
 
     #[test]
     fn test_shutdown() {
-        // Clean up any existing state first
         reset_global_tracker();
 
         initialize().unwrap();
         let result = shutdown();
         assert!(result.is_ok());
 
-        // Second shutdown might fail if already cleaned
         let result2 = shutdown();
         if let Err(e) = result2 {
             assert!(e.message().contains("Not initialized"));
@@ -663,24 +582,22 @@ mod tests {
 
     #[test]
     fn test_memory_snapshot() {
-        // Clean up any existing state first
         reset_global_tracker();
 
         initialize().unwrap();
         let snapshot = get_memory_snapshot();
         assert_eq!(snapshot.active_task_count, 0);
-        let _ = shutdown(); // Clean up
+        let _ = shutdown();
     }
 
     #[test]
     fn test_is_tracking_active() {
-        // Clean up any existing state first
         reset_global_tracker();
 
         assert!(!is_tracking_active());
         initialize().unwrap();
         assert!(is_tracking_active());
-        let _ = shutdown(); // Ignore result as state might already be cleared
+        let _ = shutdown();
         assert!(!is_tracking_active());
     }
 

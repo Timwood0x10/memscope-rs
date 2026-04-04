@@ -7,15 +7,19 @@
 //! - Unsafe/FFI mode
 
 use memscope_rs::capture::backends::global_tracking::{
-    export_to_json, get_stats, global_passport_tracker, global_tracker, init_global_tracking,
+    export_to_json, get_stats, global_async_tracker, global_passport_tracker, global_tracker,
+    init_global_tracking,
 };
-use memscope_rs::render_engine::export::export_dashboard_html;
+
 use memscope_rs::track;
-use std::alloc::{alloc, dealloc, Layout};
-use std::rc::Rc;
-use std::sync::Arc;
-use std::thread;
-use std::time::Instant;
+
+use std::{
+    alloc::{alloc, dealloc, Layout},
+    rc::Rc,
+    sync::Arc,
+    thread,
+    time::Instant,
+};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("╔════════════════════════════════════════════════════════════╗");
@@ -201,16 +205,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     println!("✓ Memory passports: {}", stats.passport_count);
 
-    println!("\n📦 Section 6: Export (8 files)\n");
+    println!("\n📦 Section 6: Export (9 files)\n");
     let output_path = "MemoryAnalysis/global_tracker_showcase";
     export_to_json(output_path)?;
 
-    // Also export HTML dashboard
+    // Also export HTML dashboard with async data
     println!("Exporting HTML dashboard...");
-    use memscope_rs::capture::backends::global_tracking::global_tracker;
+    use memscope_rs::render_engine::export::export_dashboard_html_with_async;
+
     let tracker = global_tracker()?;
     let passport_tracker = global_passport_tracker()?;
-    export_dashboard_html(output_path, &tracker, &passport_tracker)?;
+    let async_tracker = global_async_tracker()?;
+    export_dashboard_html_with_async(output_path, &tracker, &passport_tracker, &async_tracker)?;
 
     println!("✓ Export successful!");
     println!("  📄 memory_analysis.json");
@@ -220,6 +226,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  📄 memory_passports.json");
     println!("  📄 leak_detection.json");
     println!("  📄 unsafe_ffi.json");
+    println!("  📄 async_analysis.json");
     println!("  📄 dashboard.html");
 
     println!("\n✓ All modes completed successfully!");
@@ -234,12 +241,39 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 async fn run_async_mode() -> Result<(), Box<dyn std::error::Error>> {
     println!("Spawning 4 async tasks...");
 
-    let tasks = (0..4).map(|i| async move {
-        let tracker = global_tracker().unwrap();
-        track!(tracker, vec![0u64; 50]);
-        track!(tracker, format!("Async task: {}", i));
-        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-        println!("  Task-{}: tracked 2 allocations", i);
+    use memscope_rs::capture::backends::global_tracking::global_async_tracker;
+    let async_tracker = global_async_tracker()?;
+
+    let tasks = (0..4).map(|i| {
+        let async_tracker = async_tracker.clone();
+        async move {
+            let task_id = i as u64;
+            let thread_id = std::thread::current().id();
+
+            // Track async task start
+            async_tracker.track_task_start(task_id, format!("async_task_{}", i), thread_id);
+
+            let tracker = global_tracker().unwrap();
+
+            // Track allocations in both trackers
+            let vec_data = vec![0u64; 50];
+            let vec_size =
+                std::mem::size_of_val(&vec_data) + vec_data.len() * std::mem::size_of::<u64>();
+            track!(tracker, vec_data);
+            async_tracker.track_allocation(i * 1000, vec_size, task_id);
+
+            let string_data = format!("Async task: {}", i);
+            let string_size = string_data.len();
+            track!(tracker, string_data);
+            async_tracker.track_allocation(i * 1000 + 1, string_size, task_id);
+
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+
+            // Track async task end
+            async_tracker.track_task_end(task_id);
+
+            println!("  Task-{}: tracked 2 allocations", i);
+        }
     });
 
     futures::future::join_all(tasks).await;

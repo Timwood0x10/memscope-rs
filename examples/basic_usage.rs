@@ -53,8 +53,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             PassportTrackerConfig::default(),
         ),
     );
+    use memscope_rs::capture::backends::async_tracker::AsyncTracker;
+    let async_tracker = Arc::new(AsyncTracker::new());
 
-    export_all_json(output_path, &tracker, &passport_tracker)?;
+    export_all_json(output_path, &tracker, &passport_tracker, &async_tracker)?;
 
     // Also export HTML dashboard
     println!("\nExporting HTML dashboard...");
@@ -70,6 +72,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  memory_passports.json");
     println!("  leak_detection.json");
     println!("  unsafe_ffi.json");
+    println!("  async_analysis.json");
     println!("  system_resources.json");
     println!("  dashboard.html");
 

@@ -596,6 +596,7 @@ pub fn export_all_json<P: AsRef<Path>>(
     path: P,
     tracker: &Tracker,
     passport_tracker: &Arc<MemoryPassportTracker>,
+    async_tracker: &Arc<crate::capture::backends::async_tracker::AsyncTracker>,
 ) -> Result<(), ExportError> {
     let path_ref = path.as_ref();
 
@@ -612,6 +613,63 @@ pub fn export_all_json<P: AsRef<Path>>(
     export_leak_detection_json(path_ref, passport_tracker)?;
     export_unsafe_ffi_json(path_ref, passport_tracker)?;
     export_system_resources_json(path_ref)?;
+    export_async_analysis_json(path_ref, async_tracker)?;
+
+    Ok(())
+}
+
+/// Export async task analysis to JSON
+pub fn export_async_analysis_json<P: AsRef<Path>>(
+    path: P,
+    async_tracker: &Arc<crate::capture::backends::async_tracker::AsyncTracker>,
+) -> Result<(), ExportError> {
+    let path_ref = path.as_ref();
+    let stats = async_tracker.get_stats();
+    let profiles = async_tracker.get_all_profiles();
+    let snapshot = async_tracker.snapshot();
+
+    let async_data = json!({
+        "summary": {
+            "total_tasks": stats.total_tasks,
+            "active_tasks": stats.active_tasks,
+            "total_allocations": stats.total_allocations,
+            "total_memory_bytes": stats.total_memory,
+            "active_memory_bytes": stats.active_memory,
+            "peak_memory_bytes": stats.peak_memory,
+        },
+        "task_profiles": profiles.iter().map(|p| json!({
+            "task_id": p.task_id,
+            "task_name": p.task_name,
+            "task_type": format!("{:?}", p.task_type),
+            "created_at_ms": p.created_at_ms,
+            "completed_at_ms": p.completed_at_ms,
+            "total_bytes": p.total_bytes,
+            "current_memory": p.current_memory,
+            "peak_memory": p.peak_memory,
+            "total_allocations": p.total_allocations,
+            "total_deallocations": p.total_deallocations,
+            "duration_ns": p.duration_ns,
+            "allocation_rate": p.allocation_rate,
+            "efficiency_score": p.efficiency_score,
+            "average_allocation_size": p.average_allocation_size,
+            "is_completed": p.is_completed(),
+            "has_potential_leak": p.has_potential_leak(),
+        })).collect::<Vec<_>>(),
+        "allocations": snapshot.allocations.iter().map(|a| json!({
+            "ptr": format!("0x{:x}", a.ptr),
+            "size": a.size,
+            "timestamp": a.timestamp,
+            "task_id": a.task_id,
+            "var_name": a.var_name,
+            "type_name": a.type_name,
+        })).collect::<Vec<_>>(),
+    });
+
+    let async_path = path_ref.join("async_analysis.json");
+    let file = File::create(async_path)?;
+    let mut writer = BufWriter::new(file);
+    serde_json::to_writer_pretty(&mut writer, &async_data)?;
+    writer.flush()?;
 
     Ok(())
 }
@@ -652,6 +710,23 @@ pub fn export_dashboard_html<P: AsRef<Path>>(
         tracker,
         passport_tracker,
         DashboardTemplate::default(),
+        None,
+    )
+}
+
+/// Export HTML dashboard with async tracker support
+pub fn export_dashboard_html_with_async<P: AsRef<Path>>(
+    path: P,
+    tracker: &Tracker,
+    passport_tracker: &Arc<MemoryPassportTracker>,
+    async_tracker: &Arc<crate::capture::backends::async_tracker::AsyncTracker>,
+) -> Result<(), ExportError> {
+    export_dashboard_html_with_template(
+        path,
+        tracker,
+        passport_tracker,
+        DashboardTemplate::default(),
+        Some(async_tracker),
     )
 }
 
@@ -664,6 +739,7 @@ pub fn export_dashboard_html_with_template<P: AsRef<Path>>(
     tracker: &Tracker,
     passport_tracker: &Arc<MemoryPassportTracker>,
     template: DashboardTemplate,
+    async_tracker: Option<&Arc<crate::capture::backends::async_tracker::AsyncTracker>>,
 ) -> Result<(), ExportError> {
     let path_ref = path.as_ref();
 
@@ -679,7 +755,7 @@ pub fn export_dashboard_html_with_template<P: AsRef<Path>>(
 
     // Render HTML from tracker data using unified template
     let context = renderer
-        .build_context_from_tracker(tracker, passport_tracker)
+        .build_context_from_tracker_with_async(tracker, passport_tracker, async_tracker)
         .map_err(|e| ExportError::ExportFailed(format!("Failed to build context: {}", e)))?;
     let html_content = renderer
         .render_unified_dashboard(&context)

@@ -76,9 +76,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("✓ HTML dashboard exported (template auto-selected)");
 
     // Export all JSON files
-    println!("\nExporting JSON data files (8 files)...");
+    println!("\nExporting JSON data files (9 files)...");
+    use memscope_rs::capture::backends::async_tracker::AsyncTracker;
     use memscope_rs::render_engine::export::export_all_json;
-    export_all_json(output_path, &tracker, &passport_tracker)?;
+    let async_tracker = Arc::new(AsyncTracker::new());
+    export_all_json(output_path, &tracker, &passport_tracker, &async_tracker)?;
     println!("✓ All JSON files exported");
 
     let duration = start_time.elapsed();
@@ -87,7 +89,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Files saved to {}/", output_path);
     println!("\nExported files:");
     println!("  - HTML dashboard (auto-selected template based on program characteristics)");
-    println!("  - 8 JSON files:");
+    println!("  - 9 JSON files:");
     println!("    • memory_analysis.json (complete memory allocation analysis)");
     println!("    • lifetime.json (ownership and lifetime tracking)");
     println!("    • variable_relationships.json (variable dependency graph)");
@@ -96,6 +98,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("    • unsafe_ffi.json (unsafe FFI boundary tracking)");
     println!("    • memory_passports.json (memory lifecycle passports)");
     println!("    • leak_detection.json (potential memory leaks)");
+    println!("    • async_analysis.json (async task memory analysis)");
 
     println!(
         "\nExample finished in {:.2}ms",

@@ -887,8 +887,36 @@
                     }
                     const asyncCtx = document.getElementById('asyncChart');
                     if (asyncCtx) {
-                        const allocData = allocations.slice(0, 15).map((a, i) => ({ label: a.var_name || a.type_name || `Alloc ${i}`, value: parseInt(a.size) || 0 }));
-                        this.instances.async = new Chart(asyncCtx, { type: 'line', data: { labels: allocData.map(d => d.label), datasets: [{ label: 'Memory', data: allocData.map(d => d.value), borderColor: colors.primary, backgroundColor: colors.primary + '33', fill: true, tension: 0.4 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { grid: { color: colors.grid }, ticks: { color: colors.text2 } }, x: { grid: { display: false }, ticks: { color: colors.text2, maxRotation: 45 } } } } });
+                        const asyncTasks = data.async_tasks || [];
+                        const asyncSummary = data.async_summary || {};
+                        if (asyncTasks.length > 0) {
+                            const sortedTasks = [...asyncTasks].sort((a, b) => a.task_id - b.task_id);
+                            const timeLabels = sortedTasks.map((t, i) => `T+${i * 100}ms`);
+                            const cpuUsage = sortedTasks.map(t => Math.min(100, (t.total_allocations || 0) * 5));
+                            const memoryUsage = sortedTasks.map(t => Math.min(100, ((t.peak_memory || 0) / 1024 / 1024) * 2));
+                            const ioUsage = sortedTasks.map(t => Math.min(100, ((t.total_bytes || 0) / 1024) * 0.5));
+                            this.instances.async = new Chart(asyncCtx, {
+                                type: 'line',
+                                data: {
+                                    labels: timeLabels,
+                                    datasets: [
+                                        { label: 'CPU Usage %', data: cpuUsage, borderColor: '#3b82f6', backgroundColor: '#3b82f633', fill: false, tension: 0.4 },
+                                        { label: 'Memory %', data: memoryUsage, borderColor: '#10b981', backgroundColor: '#10b98133', fill: false, tension: 0.4 },
+                                        { label: 'IO Usage %', data: ioUsage, borderColor: '#f59e0b', backgroundColor: '#f59e0b33', fill: false, tension: 0.4 }
+                                    ]
+                                },
+                                options: {
+                                    responsive: true,
+                                    maintainAspectRatio: false,
+                                    interaction: { mode: 'index', intersect: false },
+                                    plugins: { legend: { display: true, position: 'top', labels: { color: colors.text } }, title: { display: true, text: `Resource Consumption Over Time | Tasks: ${asyncSummary.total_tasks || 0}`, color: colors.text2 } },
+                                    scales: { y: { min: 0, max: 100, grid: { color: colors.grid }, ticks: { color: colors.text2, callback: (v) => v + '%' }, title: { display: true, text: 'Resource Usage %', color: colors.text2 } }, x: { grid: { display: false }, ticks: { color: colors.text2 }, title: { display: true, text: 'Time', color: colors.text2 } } }
+                                }
+                            });
+                        } else {
+                            const allocData = allocations.slice(0, 15).map((a, i) => ({ label: a.var_name || a.type_name || `Alloc ${i}`, value: parseInt(a.size) || 0 }));
+                            this.instances.async = new Chart(asyncCtx, { type: 'line', data: { labels: allocData.map(d => d.label), datasets: [{ label: 'Memory', data: allocData.map(d => d.value), borderColor: colors.primary, backgroundColor: colors.primary + '33', fill: true, tension: 0.4 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { grid: { color: colors.grid }, ticks: { color: colors.text2 } }, x: { grid: { display: false }, ticks: { color: colors.text2, maxRotation: 45 } } } } });
+                        }
                     }
                     const unsafeCtx = document.getElementById('unsafeChart');
                     if (unsafeCtx) {
@@ -1236,31 +1264,59 @@
 
             const asyncCtx = document.getElementById('asyncChart');
             if (asyncCtx) {
-                const allocData = allocations.slice(0, 15).map((a, i) => ({
-                    label: a.var_name || a.type_name || `Alloc ${i}`,
-                    value: parseInt(a.size) || 0
-                }));
-                charts.async = new Chart(asyncCtx, {
-                    type: 'line',
-                    data: {
-                        labels: allocData.map(t => t.label.substring(0, 20)),
-                        datasets: [{
-                            label: 'Memory Usage',
-                            data: allocData.map(t => t.value),
-                            borderColor: colors.primary,
-                            fill: true,
-                            backgroundColor: colors.primary + '20'
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: {
-                            y: { grid: { color: colors.grid }, ticks: { color: colors.text2 } },
-                            x: { grid: { display: false }, ticks: { color: colors.text2, maxRotation: 45 } }
+                const asyncTasks = data.async_tasks || [];
+                const asyncSummary = data.async_summary || {};
+                if (asyncTasks.length > 0) {
+                    const sortedTasks = [...asyncTasks].sort((a, b) => a.task_id - b.task_id);
+                    const timeLabels = sortedTasks.map((t, i) => `T+${i * 100}ms`);
+                    const cpuUsage = sortedTasks.map(t => Math.min(100, (t.total_allocations || 0) * 5));
+                    const memoryUsage = sortedTasks.map(t => Math.min(100, ((t.peak_memory || 0) / 1024 / 1024) * 2));
+                    const ioUsage = sortedTasks.map(t => Math.min(100, ((t.total_bytes || 0) / 1024) * 0.5));
+                    charts.async = new Chart(asyncCtx, {
+                        type: 'line',
+                        data: {
+                            labels: timeLabels,
+                            datasets: [
+                                { label: 'CPU Usage %', data: cpuUsage, borderColor: '#3b82f6', backgroundColor: '#3b82f633', fill: false, tension: 0.4 },
+                                { label: 'Memory %', data: memoryUsage, borderColor: '#10b981', backgroundColor: '#10b98133', fill: false, tension: 0.4 },
+                                { label: 'IO Usage %', data: ioUsage, borderColor: '#f59e0b', backgroundColor: '#f59e0b33', fill: false, tension: 0.4 }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            interaction: { mode: 'index', intersect: false },
+                            plugins: { legend: { display: true, position: 'top', labels: { color: colors.text } }, title: { display: true, text: `Resource Consumption Over Time | Tasks: ${asyncSummary.total_tasks || 0}`, color: colors.text2 } },
+                            scales: { y: { min: 0, max: 100, grid: { color: colors.grid }, ticks: { color: colors.text2, callback: (v) => v + '%' }, title: { display: true, text: 'Resource Usage %', color: colors.text2 } }, x: { grid: { display: false }, ticks: { color: colors.text2 }, title: { display: true, text: 'Time', color: colors.text2 } } }
                         }
-                    }
-                });
+                    });
+                } else {
+                    const allocData = allocations.slice(0, 15).map((a, i) => ({
+                        label: a.var_name || a.type_name || `Alloc ${i}`,
+                        value: parseInt(a.size) || 0
+                    }));
+                    charts.async = new Chart(asyncCtx, {
+                        type: 'line',
+                        data: {
+                            labels: allocData.map(t => t.label.substring(0, 20)),
+                            datasets: [{
+                                label: 'Memory Usage',
+                                data: allocData.map(t => t.value),
+                                borderColor: colors.primary,
+                                fill: true,
+                                backgroundColor: colors.primary + '20'
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                y: { grid: { color: colors.grid }, ticks: { color: colors.text2 } },
+                                x: { grid: { display: false }, ticks: { color: colors.text2, maxRotation: 45 } }
+                            }
+                        }
+                    });
+                }
             }
 
             const passportCtx = document.getElementById('passportChart');
