@@ -283,8 +283,10 @@ pub struct SystemResources {
 /// Thread information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ThreadInfo {
-    /// Thread ID
+    /// Thread ID (formatted as "Thread-N" instead of "ThreadId(N)")
     pub thread_id: String,
+    /// Thread summary (e.g., "5 allocs, 1.2KB")
+    pub thread_summary: String,
     /// Number of allocations
     pub allocation_count: usize,
     /// Current memory usage
@@ -1047,15 +1049,24 @@ impl DashboardRenderer {
 
         thread_map
             .into_iter()
-            .map(|(thread_id, agg)| ThreadInfo {
-                thread_id,
-                allocation_count: agg.allocation_count,
-                current_memory: format_bytes(agg.current_memory),
-                peak_memory: format_bytes(agg.peak_memory),
-                total_allocated: format_bytes(agg.total_allocated),
-                current_memory_bytes: agg.current_memory,
-                peak_memory_bytes: agg.peak_memory,
-                total_allocated_bytes: agg.total_allocated,
+            .map(|(raw_tid, agg)| {
+                let summary = format!(
+                    "{} allocs, {}",
+                    agg.allocation_count,
+                    format_bytes(agg.current_memory)
+                );
+                let thread_id = format_thread_id(&raw_tid);
+                ThreadInfo {
+                    thread_id,
+                    thread_summary: summary,
+                    allocation_count: agg.allocation_count,
+                    current_memory: format_bytes(agg.current_memory),
+                    peak_memory: format_bytes(agg.peak_memory),
+                    total_allocated: format_bytes(agg.total_allocated),
+                    current_memory_bytes: agg.current_memory,
+                    peak_memory_bytes: agg.peak_memory,
+                    total_allocated_bytes: agg.total_allocated,
+                }
             })
             .collect()
     }
@@ -2335,6 +2346,16 @@ impl DashboardRenderer {
             },
             "threads": context.threads
         })
+    }
+}
+
+/// Format thread_id from "ThreadId(5)" to "Thread-5"
+fn format_thread_id(raw: &str) -> String {
+    if raw.starts_with("ThreadId(") && raw.ends_with(')') {
+        let num = &raw[9..raw.len() - 1];
+        format!("Thread-{}", num)
+    } else {
+        raw.to_string()
     }
 }
 

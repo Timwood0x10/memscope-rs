@@ -535,10 +535,10 @@
                         <thead>
                             <tr>
                                 <th>Thread ID</th>
+                                <th>Summary</th>
                                 <th>Allocations</th>
                                 <th>Current Memory</th>
                                 <th>Peak Memory</th>
-                                <th>Total Allocated</th>
                                 <th>Status</th>
                             </tr>
                         </thead>
@@ -548,11 +548,11 @@
             </div>
         </div>
 
-        <!-- Task Mode (Async) -->
+        <!-- Task Mode (Allocations) -->
         <div id="mode-task" class="mode-section">
             <div class="card">
                 <div class="card-header">
-                    <h2 class="card-title">⚡ Async Task Analysis</h2>
+                    <h2 class="card-title">📊 Allocation Memory Analysis</h2>
                 </div>
                 <div class="chart-container">
                     <canvas id="asyncChart"></canvas>
@@ -887,8 +887,8 @@
                     }
                     const asyncCtx = document.getElementById('asyncChart');
                     if (asyncCtx) {
-                        const taskData = passports.slice(0, 15).map((p, i) => ({ label: p.var_name || `Task ${i}`, value: parseInt(p.size_bytes) || 0 }));
-                        this.instances.async = new Chart(asyncCtx, { type: 'line', data: { labels: taskData.map(d => d.label), datasets: [{ label: 'Memory', data: taskData.map(d => d.value), borderColor: colors.primary, backgroundColor: colors.primary + '33', fill: true, tension: 0.4 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { grid: { color: colors.grid }, ticks: { color: colors.text2 } }, x: { grid: { display: false }, ticks: { color: colors.text2, maxRotation: 45 } } } } });
+                        const allocData = allocations.slice(0, 15).map((a, i) => ({ label: a.var_name || a.type_name || `Alloc ${i}`, value: parseInt(a.size) || 0 }));
+                        this.instances.async = new Chart(asyncCtx, { type: 'line', data: { labels: allocData.map(d => d.label), datasets: [{ label: 'Memory', data: allocData.map(d => d.value), borderColor: colors.primary, backgroundColor: colors.primary + '33', fill: true, tension: 0.4 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { grid: { color: colors.grid }, ticks: { color: colors.text2 } }, x: { grid: { display: false }, ticks: { color: colors.text2, maxRotation: 45 } } } } });
                     }
                     const unsafeCtx = document.getElementById('unsafeChart');
                     if (unsafeCtx) {
@@ -952,7 +952,7 @@
             threads: {
                 filteredData: [],
                 sort() { const sortBy = document.getElementById('threadSortOrder').value; this.filteredData.sort((a, b) => { switch (sortBy) { case 'alloc-desc': return (b.allocation_count || 0) - (a.allocation_count || 0); case 'alloc-asc': return (a.allocation_count || 0) - (b.allocation_count || 0); case 'memory-desc': return (b.current_memory_bytes || 0) - (a.current_memory_bytes || 0); case 'memory-asc': return (a.current_memory_bytes || 0) - (b.current_memory_bytes || 0); case 'thread-id': return (a.thread_id || '0').localeCompare(b.thread_id || '0'); default: return 0; } }); this.render(); },
-                render() { const tbody = document.getElementById('threadTableBody'); tbody.innerHTML = this.filteredData.map(t => `<tr><td><code>${t.thread_id || '0'}</code></td><td>${t.allocation_count || 0}</td><td>${t.current_memory || '0 B'}</td><td>${t.peak_memory || '0 B'}</td><td>${t.total_allocated || '0 B'}</td><td><span class="badge badge-success">active</span></td></tr>`).join(''); },
+                render() { const tbody = document.getElementById('threadTableBody'); tbody.innerHTML = this.filteredData.map(t => `<tr><td><code>${t.thread_id || 'Thread-?'}</code></td><td><span class="text-secondary">${t.thread_summary || ''}</span></td><td>${t.allocation_count || 0}</td><td>${t.current_memory || '0 B'}</td><td>${t.peak_memory || '0 B'}</td><td><span class="badge badge-success">active</span></td></tr>`).join(''); },
                 init() { const threads = data.threads || []; this.filteredData = [...threads]; document.getElementById('threadCount').textContent = threads.length + ' threads'; const tbody = document.getElementById('threadTableBody'); if (threads.length === 0) { tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No thread data</td></tr>'; return; } this.sort(); }
             },
 
@@ -1236,17 +1236,17 @@
 
             const asyncCtx = document.getElementById('asyncChart');
             if (asyncCtx) {
-                const taskData = passports.slice(0, 15).map((p, i) => ({
-                    label: p.var_name || `Task ${i}`,
-                    value: parseInt(p.size_bytes) || 0
+                const allocData = allocations.slice(0, 15).map((a, i) => ({
+                    label: a.var_name || a.type_name || `Alloc ${i}`,
+                    value: parseInt(a.size) || 0
                 }));
                 charts.async = new Chart(asyncCtx, {
                     type: 'line',
                     data: {
-                        labels: taskData.map(t => t.label.substring(0, 10)),
+                        labels: allocData.map(t => t.label.substring(0, 20)),
                         datasets: [{
                             label: 'Memory Usage',
-                            data: taskData.map(t => t.value),
+                            data: allocData.map(t => t.value),
                             borderColor: colors.primary,
                             fill: true,
                             backgroundColor: colors.primary + '20'
