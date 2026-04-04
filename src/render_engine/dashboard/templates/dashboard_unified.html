@@ -968,8 +968,70 @@
             passports: {
                 filteredData: [],
                 sort() { const sortBy = document.getElementById('passportSortOrder').value; this.filteredData.sort((a, b) => { switch (sortBy) { case 'size-desc': return (b.size_bytes || 0) - (a.size_bytes || 0); case 'size-asc': return (a.size_bytes || 0) - (b.size_bytes || 0); case 'lifetime-desc': return (b.lifetime_ms || 0) - (a.lifetime_ms || 0); case 'lifetime-asc': return (a.lifetime_ms || 0) - (b.lifetime_ms || 0); default: return 0; } }); this.render(); },
-                render() { const container = document.getElementById('passportCardContainer'); container.innerHTML = this.filteredData.slice(0, 50).map(p => { const visaFlow = (p.cross_boundary_events && p.cross_boundary_events.length > 0) ? `<div style="margin-top: 12px; padding: 12px; background: var(--bg3); border-radius: 8px; border: 1px solid var(--border);"><div style="font-size: 0.75rem; color: var(--text2); margin-bottom: 8px; font-weight: 600;">🛂 VISA FLOW - FFI Boundary Crossing</div><div style="display: flex; align-items: center; gap: 4px; overflow-x: auto; padding: 4px 0;">${p.cross_boundary_events.map((e, idx) => `<div style="display: flex; align-items: center; gap: 4px; flex-shrink: 0;"><div style="padding: 6px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; background: ${e.color || '#10b981'}; color: white;">${e.icon || '📍'} ${e.event_type || 'Cross'}</div><div style="font-size: 0.7rem; color: var(--text2); white-space: nowrap;">${e.from_context || 'Rust'}</div><div style="color: var(--text2); font-size: 0.7rem;">→</div><div style="font-size: 0.7rem; color: var(--text2); white-space: nowrap;">${e.to_context || 'FFI'}</div>${idx < p.cross_boundary_events.length - 1 ? '<div style="color: var(--border);">│</div>' : ''}</div>`).join('')}</div></div>` : '<div style="margin-top: 12px; padding: 8px 12px; background: var(--bg3); border-radius: 8px; border: 1px dashed var(--border); font-size: 0.8rem; color: var(--text2);">🛂 No FFI boundary crossings detected</div>'; return `<div class="detail-panel" style="border-left: 4px solid ${p.is_leaked ? '#ef4444' : 'var(--primary)'};"><div style="display: flex; justify-content: space-between; align-items: center;"><h4 style="color: var(--primary); margin: 0;">${p.var_name || 'unknown'}</h4><span class="badge ${p.is_leaked ? 'badge-danger' : 'badge-success'}">${p.is_leaked ? '🔴 LEAKED' : '🟢 Active'}</span></div><div style="margin-top: 8px; display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px;"><div><span class="detail-label">Type</span><div class="detail-value">${p.type_name || 'Unknown'}</div></div><div><span class="detail-label">Size</span><div class="detail-value">${Utils.formatBytes(parseInt(p.size_bytes) || 0)}</div></div><div><span class="detail-label">Status</span><div class="detail-value">${p.status || 'N/A'}</div></div><div><span class="detail-label">Risk</span><div class="detail-value ${p.risk_level === 'high' ? 'risk-high' : p.risk_level === 'medium' ? 'risk-medium' : ''}">${p.risk_level || 'low'}</div></div></div>${visaFlow}</div>`; }).join(''); },
-                init() { const passports = data.passport_details || []; this.filteredData = [...passports]; document.getElementById('passportBadge').textContent = passports.length + ' passports'; if (passports.length === 0) { document.getElementById('passportCardContainer').innerHTML = '<div class="empty-state">No passport data</div>'; return; } this.sort(); }
+                render() {
+                    const container = document.getElementById('passportCardContainer');
+                    const timeline = document.getElementById('passportTimeline');
+                    const riskCount = { high: 0, medium: 0, low: 0 };
+                    const passportCtx = document.getElementById('passportChart');
+                    const chartColors = Utils.getChartColors();
+
+                    container.innerHTML = this.filteredData.slice(0, 50).map(p => {
+                        const risk = p.risk_level || 'low';
+                        riskCount[risk] = (riskCount[risk] || 0) + 1;
+                        const visaFlow = (p.cross_boundary_events && p.cross_boundary_events.length > 0) ? `<div style="margin-top: 12px; padding: 12px; background: var(--bg3); border-radius: 8px; border: 1px solid var(--border);"><div style="font-size: 0.75rem; color: var(--text2); margin-bottom: 8px; font-weight: 600;">🛂 VISA FLOW - FFI Boundary Crossing</div><div style="display: flex; align-items: center; gap: 4px; overflow-x: auto; padding: 4px 0;">${p.cross_boundary_events.map((e, idx) => `<div style="display: flex; align-items: center; gap: 4px; flex-shrink: 0;"><div style="padding: 6px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; background: ${e.color || '#10b981'}; color: white;">${e.icon || '📍'} ${e.event_type || 'Cross'}</div><div style="font-size: 0.7rem; color: var(--text2); white-space: nowrap;">${e.from_context || 'Rust'}</div><div style="color: var(--text2); font-size: 0.7rem;">→</div><div style="font-size: 0.7rem; color: var(--text2); white-space: nowrap;">${e.to_context || 'FFI'}</div>${idx < p.cross_boundary_events.length - 1 ? '<div style="color: var(--border);">│</div>' : ''}</div>`).join('')}</div></div>` : '<div style="margin-top: 12px; padding: 8px 12px; background: var(--bg3); border-radius: 8px; border: 1px dashed var(--border); font-size: 0.8rem; color: var(--text2);">🛂 No FFI boundary crossings detected</div>';
+                        return `<div class="detail-panel" style="border-left: 4px solid ${p.is_leaked ? '#ef4444' : 'var(--primary)'};"><div style="display: flex; justify-content: space-between; align-items: center;"><h4 style="color: var(--primary); margin: 0;">${p.var_name || 'unknown'}</h4><span class="badge ${p.is_leaked ? 'badge-danger' : 'badge-success'}">${p.is_leaked ? '🔴 LEAKED' : '🟢 Active'}</span></div><div style="margin-top: 8px; display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px;"><div><span class="detail-label">Type</span><div class="detail-value">${p.type_name || 'Unknown'}</div></div><div><span class="detail-label">Size</span><div class="detail-value">${Utils.formatBytes(parseInt(p.size_bytes) || 0)}</div></div><div><span class="detail-label">Status</span><div class="detail-value">${p.status || 'N/A'}</div></div><div><span class="detail-label">Risk</span><div class="detail-value ${p.risk_level === 'high' ? 'risk-high' : p.risk_level === 'medium' ? 'risk-medium' : ''}">${p.risk_level || 'low'}</div></div></div>${visaFlow}</div>`;
+                    }).join('');
+
+                    if (timeline) {
+                        timeline.innerHTML = this.filteredData.slice(0, 10).map(p => `
+                            <div class="timeline-item ${p.is_leaked ? 'leaked' : 'active'}">
+                                <strong>${p.var_name || 'unknown'}</strong>
+                                <span class="badge ${p.is_leaked ? 'badge-danger' : 'badge-success'}">${p.status || 'active'}</span>
+                                <div style="color: var(--text2); font-size: 0.85rem;">
+                                    ${Utils.formatBytes(parseInt(p.size_bytes) || 0)} | ${p.type_name || 'Unknown'}
+                                </div>
+                            </div>
+                        `).join('');
+                    }
+
+                    document.getElementById('highRiskCount').textContent = riskCount.high;
+                    document.getElementById('mediumRiskCount').textContent = riskCount.medium;
+                    document.getElementById('lowRiskCount').textContent = riskCount.low;
+
+                    if (passportCtx && !Dashboard.charts.instances.passport) {
+                        Dashboard.charts.instances.passport = new Chart(passportCtx, {
+                            type: 'radar',
+                            data: {
+                                labels: ['Size', 'Lifetime', 'Refs', 'Clones', 'Borrows'],
+                                datasets: [{
+                                    label: 'Risk Metrics',
+                                    data: [
+                                        Math.min(100, this.filteredData.length * 5),
+                                        Math.min(100, riskCount.high * 20),
+                                        Math.min(100, riskCount.medium * 15),
+                                        Math.min(100, riskCount.low * 10),
+                                        50
+                                    ],
+                                    borderColor: chartColors.primary,
+                                    backgroundColor: chartColors.primary + '20'
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                scales: {
+                                    r: {
+                                        grid: { color: chartColors.grid },
+                                        angleLines: { color: chartColors.grid },
+                                        ticks: { display: false }
+                                    }
+                                },
+                                plugins: { legend: { labels: { color: chartColors.text } } }
+                            }
+                        });
+                    }
+                },
+                init() { const passports = data.passport_details || []; this.filteredData = [...passports]; document.getElementById('passportBadge').textContent = passports.length + ' passports'; if (passports.length === 0) { document.getElementById('passportCardContainer').innerHTML = '<div class="empty-state">No passport data</div>'; return; } this.render(); }
             },
 
             unsafe: {
@@ -1006,8 +1068,8 @@
             tasks: {
                 filteredData: [],
                 sort() { const sortBy = document.getElementById('taskSortOrder').value; this.filteredData.sort((a, b) => { switch (sortBy) { case 'memory-desc': return (b.size_bytes || 0) - (a.size_bytes || 0); case 'memory-asc': return (a.size_bytes || 0) - (b.size_bytes || 0); case 'poll-desc': return (b.poll_count || 0) - (a.poll_count || 0); case 'poll-asc': return (a.poll_count || 0) - (b.poll_count || 0); case 'efficiency-desc': return (b.waker_efficiency || 0) - (a.waker_efficiency || 0); default: return 0; } }); this.render(); },
-                render() { const tbody = document.getElementById('taskTableBody'); tbody.innerHTML = this.filteredData.slice(0, 20).map((p, i) => `<tr><td><code>Task-${i}</code></td><td>${p.type_name || 'Future'}</td><td>${Utils.formatBytes(parseInt(p.size_bytes) || 0)}</td><td>${p.poll_count || 0}</td><td>${((p.waker_efficiency || 1) * 100).toFixed(0)}%</td><td>${p.is_leaked ? '<span class="badge badge-danger">Leaked</span>' : '<span class="badge badge-success">Active</span>'}</td></tr>`).join(''); },
-                init() { const passports = data.passport_details || []; this.filteredData = [...passports]; if (passports.length === 0) { document.getElementById('taskTableBody').innerHTML = '<tr><td colspan="6" class="empty-state">No task data</td></tr>'; return; } this.sort(); }
+                render() { const tbody = document.getElementById('taskTableBody'); tbody.innerHTML = this.filteredData.slice(0, 20).map((p, i) => `<tr><td><code>${(p.passport_id || p.allocation_ptr || 'task_' + i).substring(0, 16)}</code></td><td>${p.type_name || 'Unknown'}</td><td>${Utils.formatBytes(parseInt(p.size_bytes) || 0)}</td><td>${p.poll_count || 0}</td><td>${((p.waker_efficiency || 1) * 100).toFixed(0)}%</td><td>${p.is_leaked ? '<span class="badge badge-danger">Leaked</span>' : '<span class="badge badge-success">Active</span>'}</td></tr>`).join(''); },
+                init() { const reports = data.unsafe_reports || []; this.filteredData = [...reports]; if (reports.length === 0) { document.getElementById('taskTableBody').innerHTML = '<tr><td colspan="6" class="empty-state">No async task data</td></tr>'; return; } this.sort(); }
             },
 
             init() {

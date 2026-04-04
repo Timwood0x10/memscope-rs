@@ -1178,6 +1178,10 @@ impl DashboardRenderer {
             serde_json::to_value(&context.relationships)?,
         );
         template_data.insert(
+            "unsafe_reports".to_string(),
+            serde_json::to_value(&context.unsafe_reports)?,
+        );
+        template_data.insert(
             "threads".to_string(),
             serde_json::to_value(&context.threads)?,
         );
