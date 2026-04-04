@@ -785,8 +785,8 @@ impl DashboardRenderer {
             unsafe_reports: &unsafe_reports,
             threads: &thread_data,
             passport_details: &passport_details,
-            active_allocations: allocations.len(),
-            total_allocations: allocations.len(),
+            active_allocations: analysis.active_allocations,
+            total_allocations: analysis.total_allocations,
             leak_count,
         };
 
@@ -957,10 +957,10 @@ impl DashboardRenderer {
                 .format("%Y-%m-%d %H:%M:%S UTC")
                 .to_string(),
             total_memory: format_bytes(total_memory),
-            total_allocations: allocations.len(),
-            active_allocations: allocations.len(),
+            total_allocations: analysis.total_allocations,
+            active_allocations: analysis.active_allocations,
             peak_memory: format_bytes(analysis.peak_memory_bytes as usize),
-            thread_count: 1, // TODO: Read from actual thread data
+            thread_count: 1,
             passport_count: passports.len(),
             leak_count,
             unsafe_count: unsafe_reports.len(),

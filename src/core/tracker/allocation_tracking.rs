@@ -452,6 +452,8 @@ impl MemoryTracker {
         ptr: usize,
         var_name: String,
         type_name: String,
+        source_file: Option<&str>,
+        source_line: Option<u32>,
     ) -> TrackingResult<()> {
         // In test mode or when explicitly requested, use blocking locks for accuracy
         let use_blocking_locks = self.is_fast_mode()
@@ -471,6 +473,12 @@ impl MemoryTracker {
 
                 allocation.var_name = Some(var_name.clone());
                 allocation.type_name = Some(type_name.clone());
+
+                // Set source location if provided
+                if let (Some(file), Some(line)) = (source_file, source_line) {
+                    let frame = format!("{}:{}", file, line);
+                    allocation.stack_trace = Some(vec![frame]);
+                }
 
                 // Apply  field enhancements based on type
                 allocation.enhance_with_type_info(&type_name);
@@ -1087,6 +1095,8 @@ mod tests {
             0x6000,
             "associated_var".to_string(),
             "HashMap<String, i32>".to_string(),
+            None,
+            None,
         );
         assert!(result.is_ok());
 
@@ -1105,8 +1115,13 @@ mod tests {
         let tracker = create_test_tracker();
 
         // Associate a variable with a non-existent allocation (creates synthetic)
-        let result =
-            tracker.associate_var(0x7000, "new_var".to_string(), "Box<String>".to_string());
+        let result = tracker.associate_var(
+            0x7000,
+            "new_var".to_string(),
+            "Box<String>".to_string(),
+            None,
+            None,
+        );
         assert!(result.is_ok());
 
         // Verify synthetic allocation was created
@@ -1483,6 +1498,8 @@ mod tests {
                 0x13000,
                 "updated_lifecycle_var".to_string(),
                 "Vec<String>".to_string(),
+                None,
+                None,
             )
             .unwrap();
 

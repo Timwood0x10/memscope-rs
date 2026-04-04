@@ -640,6 +640,12 @@ impl AllocationInfo {
         }
     }
 
+    /// Set source location (file and line) for this allocation.
+    pub fn set_source_location(&mut self, file: &str, line: u32) {
+        let frame = format!("{}:{}", file, line);
+        self.stack_trace.get_or_insert_with(Vec::new).push(frame);
+    }
+
     /// Mark this allocation as deallocated with current timestamp.
     pub fn mark_deallocated(&mut self) {
         self.timestamp_dealloc = Some(

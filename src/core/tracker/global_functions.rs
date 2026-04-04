@@ -26,7 +26,7 @@ pub fn track_deallocation(ptr: usize) -> TrackingResult<()> {
 /// Associate variable - convenience function
 pub fn associate_var(ptr: usize, var_name: String, type_name: String) -> TrackingResult<()> {
     let manager = TrackingManager::new();
-    manager.associate_var(ptr, var_name, type_name)
+    manager.associate_var(ptr, var_name, type_name, None, None)
 }
 
 /// Enter scope - convenience function

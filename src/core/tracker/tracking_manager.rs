@@ -52,8 +52,11 @@ impl TrackingManager {
         ptr: usize,
         var_name: String,
         type_name: String,
+        source_file: Option<&str>,
+        source_line: Option<u32>,
     ) -> TrackingResult<()> {
-        self.memory_tracker.associate_var(ptr, var_name, type_name)
+        self.memory_tracker
+            .associate_var(ptr, var_name, type_name, source_file, source_line)
     }
 
     /// Enter a new scope

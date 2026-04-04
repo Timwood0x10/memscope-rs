@@ -227,7 +227,10 @@ impl Tracker {
             return;
         }
 
-        if let Err(e) = self.inner.associate_var(ptr, name.to_string(), type_name) {
+        if let Err(e) =
+            self.inner
+                .associate_var(ptr, name.to_string(), type_name, Some(file), Some(line))
+        {
             tracing::error!("Failed to associate var '{}' at ptr {:x}: {}", name, ptr, e);
         }
     }

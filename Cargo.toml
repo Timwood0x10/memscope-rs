@@ -75,23 +75,6 @@ reqwest = { version = "0.12", features = ["json"] }
 sha2 = "0.10"
 
 [[bench]]
-name = "fast_realistic_tracking"
-harness = false
-
-[[bench]]
-name = "minimal_performance"
-harness = false
-
-# Original benchmarks (slower)
-[[bench]]
-name = "realistic_memory_tracking"
-harness = false
-
-[[bench]]
-name = "performance_comparison"
-harness = false
-
-[[bench]]
 name = "comprehensive_benchmarks"
 harness = false
 

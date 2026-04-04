@@ -53,7 +53,13 @@ mod simplified_export_tests {
         assert!(result.is_ok(), "Should be able to track allocation");
 
         // Test that we can associate variables
-        let result = tracker.associate_var(0x1000, "test_var".to_string(), "i32".to_string());
+        let result = tracker.associate_var(
+            0x1000,
+            "test_var".to_string(),
+            "i32".to_string(),
+            None,
+            None,
+        );
         assert!(result.is_ok(), "Should be able to associate variable");
 
         // Test that we can track deallocation
@@ -71,7 +77,13 @@ mod simplified_export_tests {
 
         // Add some test data
         let _ = tracker.track_allocation(0x1000, 64);
-        let _ = tracker.associate_var(0x1000, "test_var".to_string(), "i32".to_string());
+        let _ = tracker.associate_var(
+            0x1000,
+            "test_var".to_string(),
+            "i32".to_string(),
+            None,
+            None,
+        );
 
         // Export to binary
         let result = tracker.export_to_binary(&binary_path);

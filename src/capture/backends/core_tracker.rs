@@ -141,15 +141,22 @@ impl MemoryTracker {
     /// * `ptr` - Memory pointer address
     /// * `var_name` - Variable name
     /// * `type_name` - Type name
+    /// * `source_file` - Source file (optional)
+    /// * `source_line` - Source line (optional)
     pub fn associate_var(
         &self,
         ptr: usize,
         var_name: String,
         type_name: String,
+        source_file: Option<&str>,
+        source_line: Option<u32>,
     ) -> TrackingResult<()> {
         if let Some(mut allocation) = self.active_allocations.get_mut(&ptr) {
             allocation.var_name = Some(var_name);
             allocation.type_name = Some(type_name);
+            if let (Some(file), Some(line)) = (source_file, source_line) {
+                allocation.set_source_location(file, line);
+            }
         }
 
         Ok(())
@@ -444,7 +451,13 @@ mod tests {
         let tracker = MemoryTracker::new();
         tracker.track_allocation(0x1000, 1024).unwrap();
         tracker
-            .associate_var(0x1000, "test_var".to_string(), "String".to_string())
+            .associate_var(
+                0x1000,
+                "test_var".to_string(),
+                "String".to_string(),
+                None,
+                None,
+            )
             .unwrap();
 
         let allocations = tracker.get_active_allocations().unwrap();

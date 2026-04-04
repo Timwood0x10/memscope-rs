@@ -21,6 +21,8 @@ pub struct AllocationInfo {
     pub allocated_at_ns: u64,
     /// Thread ID that performed allocation
     pub thread_id: u64,
+    /// Stack trace (source location)
+    pub stack_trace: Option<Vec<String>>,
 }
 
 impl AllocationInfo {
@@ -34,7 +36,14 @@ impl AllocationInfo {
             type_name: None,
             allocated_at_ns: Self::now_ns(),
             thread_id: Self::current_thread_id(),
+            stack_trace: None,
         }
+    }
+
+    /// Set source location (file and line)
+    pub fn set_source_location(&mut self, file: &str, line: u32) {
+        let frame = format!("{}:{}", file, line);
+        self.stack_trace.get_or_insert_with(Vec::new).push(frame);
     }
 
     /// Get current timestamp in nanoseconds

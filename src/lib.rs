@@ -1119,7 +1119,8 @@ impl<T: Trackable> TrackedVariable<T> {
                 );
             } else {
                 // For real heap pointers, use association
-                let _ = tracker.associate_var(ptr_val, var_name.clone(), type_name.clone());
+                let _ =
+                    tracker.associate_var(ptr_val, var_name.clone(), type_name.clone(), None, None);
 
                 tracing::debug!(
                     "🎯 Associated variable '{}' of type '{}' at ptr 0x{:x}",
@@ -1458,7 +1459,7 @@ pub fn _track_var_impl<T: Trackable>(var: &T, var_name: &str) -> TrackingResult<
             );
         } else {
             // For real heap pointers, use association
-            tracker.associate_var(ptr_val, var_name.to_string(), type_name.clone())?;
+            tracker.associate_var(ptr_val, var_name.to_string(), type_name.clone(), None, None)?;
 
             tracing::debug!(
                 "🎯 Associated variable '{}' of type '{}' at ptr 0x{:x}",
