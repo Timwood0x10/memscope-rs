@@ -272,15 +272,47 @@ impl SingleThreadStrategy {
         }
     }
 
-    /// Capture simplified stack trace for allocation context
-    /// Optimized for single-threaded performance
+    /// Capture stack trace for allocation context
+    /// Uses std::backtrace::Backtrace for stable, no-feature stack trace capture
     fn capture_stack_trace(&self) -> Vec<String> {
-        // Simplified stack trace for performance
-        // In production, this would integrate with backtrace crate
-        vec![
-            "single_thread_strategy::track_allocation".to_string(),
-            "application_code::allocate_memory".to_string(),
-        ]
+        use std::backtrace::Backtrace;
+
+        let backtrace = Backtrace::capture();
+
+        let mut frames: Vec<String> = Vec::new();
+        let bt_str = format!("{backtrace:?}");
+
+        for line in bt_str.lines() {
+            if frames.len() >= 12 {
+                break;
+            }
+
+            let trimmed = line.trim();
+            if trimmed.is_empty() || trimmed.starts_with("stack backtrace:") {
+                continue;
+            }
+
+            if trimmed.starts_with("0x") {
+                if let Some(rest) = trimmed.split_whitespace().skip(1).next() {
+                    let cleaned = rest
+                        .replace("memscope_rs::", "")
+                        .replace("memscope_rs", "")
+                        .replace("::", ".")
+                        .trim()
+                        .to_string();
+
+                    if !cleaned.is_empty() && !cleaned.contains("<") {
+                        frames.push(cleaned);
+                    }
+                }
+            }
+        }
+
+        if frames.is_empty() {
+            vec!["allocation_tracked".to_string()]
+        } else {
+            frames
+        }
     }
 
     /// Get high-precision timestamp in nanoseconds

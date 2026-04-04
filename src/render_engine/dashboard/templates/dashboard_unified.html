@@ -561,15 +561,14 @@
 
             <div class="card">
                 <div class="card-header">
-                    <h2 class="card-title">📋 Future/Task List</h2>
+                    <h2 class="card-title">📊 Active Allocations</h2>
                     <div class="flex-gap-2">
                         <label class="text-secondary">Sort by:</label>
                         <select id="taskSortOrder" onchange="Dashboard.tasks.sort()" class="input-sm">
                             <option value="memory-desc">Memory ↓</option>
                             <option value="memory-asc">Memory ↑</option>
-                            <option value="poll-desc">Poll Count ↓</option>
-                            <option value="poll-asc">Poll Count ↑</option>
-                            <option value="efficiency-desc">Efficiency ↓</option>
+                            <option value="lifetime-desc">Lifetime ↓</option>
+                            <option value="lifetime-asc">Lifetime ↑</option>
                         </select>
                     </div>
                 </div>
@@ -577,11 +576,11 @@
                     <table>
                         <thead>
                             <tr>
-                                <th>Task ID</th>
+                                <th>Address</th>
                                 <th>Type</th>
-                                <th>Memory</th>
-                                <th>Poll Count</th>
-                                <th>Waker Efficiency</th>
+                                <th>Size</th>
+                                <th>Lifetime</th>
+                                <th>Clones</th>
                                 <th>Status</th>
                             </tr>
                         </thead>
@@ -1067,9 +1066,9 @@
 
             tasks: {
                 filteredData: [],
-                sort() { const sortBy = document.getElementById('taskSortOrder').value; this.filteredData.sort((a, b) => { switch (sortBy) { case 'memory-desc': return (b.size_bytes || 0) - (a.size_bytes || 0); case 'memory-asc': return (a.size_bytes || 0) - (b.size_bytes || 0); case 'poll-desc': return (b.poll_count || 0) - (a.poll_count || 0); case 'poll-asc': return (a.poll_count || 0) - (b.poll_count || 0); case 'efficiency-desc': return (b.waker_efficiency || 0) - (a.waker_efficiency || 0); default: return 0; } }); this.render(); },
-                render() { const tbody = document.getElementById('taskTableBody'); tbody.innerHTML = this.filteredData.slice(0, 20).map((p, i) => `<tr><td><code>${(p.passport_id || p.allocation_ptr || 'task_' + i).substring(0, 16)}</code></td><td>${p.type_name || 'Unknown'}</td><td>${Utils.formatBytes(parseInt(p.size_bytes) || 0)}</td><td>${p.poll_count || 0}</td><td>${((p.waker_efficiency || 1) * 100).toFixed(0)}%</td><td>${p.is_leaked ? '<span class="badge badge-danger">Leaked</span>' : '<span class="badge badge-success">Active</span>'}</td></tr>`).join(''); },
-                init() { const reports = data.unsafe_reports || []; this.filteredData = [...reports]; if (reports.length === 0) { document.getElementById('taskTableBody').innerHTML = '<tr><td colspan="6" class="empty-state">No async task data</td></tr>'; return; } this.sort(); }
+                sort() { const sortBy = document.getElementById('taskSortOrder').value; this.filteredData.sort((a, b) => { switch (sortBy) { case 'memory-desc': return (b.size || 0) - (a.size || 0); case 'memory-asc': return (a.size || 0) - (b.size || 0); case 'lifetime-desc': return (b.lifetime_ms || 0) - (a.lifetime_ms || 0); case 'lifetime-asc': return (a.lifetime_ms || 0) - (b.lifetime_ms || 0); default: return 0; } }); this.render(); },
+                render() { const tbody = document.getElementById('taskTableBody'); tbody.innerHTML = this.filteredData.slice(0, 20).map((a, i) => `<tr><td><code>${(a.address || 'alloc_' + i).substring(0, 16)}</code></td><td>${a.type_name || 'Unknown'}</td><td>${Utils.formatBytes(parseInt(a.size) || 0)}</td><td>${((a.lifetime_ms || 0) / 1000000).toFixed(2)}ms</td><td>${a.clone_count || 0}</td><td>${a.is_leaked ? '<span class="badge badge-danger">Leaked</span>' : '<span class="badge badge-success">Active</span>'}</td></tr>`).join(''); },
+                init() { const allocations = data.allocations || []; this.filteredData = [...allocations]; if (allocations.length === 0) { document.getElementById('taskTableBody').innerHTML = '<tr><td colspan="6" class="empty-state">No allocation data</td></tr>'; return; } this.sort(); }
             },
 
             init() {
