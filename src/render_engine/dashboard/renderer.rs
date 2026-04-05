@@ -1,6 +1,7 @@
 //! Dashboard renderer using Handlebars templates
 
 use crate::analysis::memory_passport_tracker::MemoryPassportTracker;
+use crate::analysis::unsafe_inference::{TypeKind, UnsafeInferenceEngine};
 use crate::tracker::Tracker;
 use handlebars::Handlebars;
 use serde::{Deserialize, Serialize};
@@ -431,6 +432,29 @@ impl DashboardRenderer {
         None
     }
 
+    /// Infer type from size-based heuristics when type_name is unknown
+    fn infer_type_from_size(size: usize) -> String {
+        match size {
+            8 => "*mut c_void (30%)".to_string(),
+            16 => "&[T] (25%)".to_string(),
+            24 => "Vec<_>/String (15%)".to_string(),
+            32 | 48 | 64 => "CStruct (10%)".to_string(),
+            n if n.is_power_of_two() && n >= 64 => {
+                format!("Vec<_>/[u8] ({}%)", 10 + n.trailing_zeros() as u8)
+            }
+            n if n >= 32 && n <= 256 => format!("[u8] (10%)"),
+            _ => "unknown".to_string(),
+        }
+    }
+
+    /// Get inferred type name with confidence
+    fn get_inferred_type_name(type_name: &str, size: usize) -> String {
+        if type_name != "unknown" && type_name != "-" && !type_name.is_empty() {
+            return type_name.to_string();
+        }
+        Self::infer_type_from_size(size)
+    }
+
     /// Build dashboard context from tracker data
     pub fn build_context_from_tracker(
         &self,
@@ -457,7 +481,9 @@ impl DashboardRenderer {
         let alloc_info: Vec<AllocationInfo> = allocations
             .iter()
             .map(|a| {
-                let type_name = a.type_name.clone().unwrap_or_else(|| "unknown".to_string());
+                let original_type_name =
+                    a.type_name.clone().unwrap_or_else(|| "unknown".to_string());
+                let type_name = Self::get_inferred_type_name(&original_type_name, a.size);
                 let timestamp_alloc = a.allocated_at_ns;
                 let timestamp_dealloc = 0u64;
                 let lifetime_ms = 0.0;
@@ -688,16 +714,30 @@ impl DashboardRenderer {
                     "low".to_string()
                 };
 
-                // Find variable name from allocations
-                let var_name = allocations.iter()
-                    .find(|a| a.ptr == p.allocation_ptr)
-                    .and_then(|a| a.var_name.clone())
-                    .unwrap_or_else(|| "unknown".to_string());
+                // Use passport's stored type and variable name, fallback to allocations if needed
+                let var_name = if p.var_name != "-" {
+                    p.var_name.clone()
+                } else {
+                    allocations.iter()
+                        .find(|a| a.ptr == p.allocation_ptr)
+                        .and_then(|a| a.var_name.clone())
+                        .unwrap_or_else(|| "-".to_string())
+                };
 
-                let type_name = allocations.iter()
-                    .find(|a| a.ptr == p.allocation_ptr)
-                    .and_then(|a| a.type_name.clone())
-                    .unwrap_or_else(|| "unknown".to_string());
+                let type_name = if p.type_name != "-" {
+                    p.type_name.clone()
+                } else {
+                    let from_alloc = allocations.iter()
+                        .find(|a| a.ptr == p.allocation_ptr)
+                        .and_then(|a| a.type_name.clone())
+                        .unwrap_or_else(|| "-".to_string());
+
+                    if from_alloc != "-" {
+                        from_alloc
+                    } else {
+                        Self::infer_type_from_size(p.size_bytes)
+                    }
+                };
 
                 // Risk factors
                 let mut risk_factors = Vec::new();
@@ -795,16 +835,30 @@ impl DashboardRenderer {
                     })
                     .collect();
 
-                // Find variable name from allocations
-                let var_name = allocations.iter()
-                    .find(|a| a.ptr == p.allocation_ptr)
-                    .and_then(|a| a.var_name.clone())
-                    .unwrap_or_else(|| "unknown".to_string());
+                // Use passport's stored type and variable name, fallback to allocations if needed
+                let var_name = if p.var_name != "-" {
+                    p.var_name.clone()
+                } else {
+                    allocations.iter()
+                        .find(|a| a.ptr == p.allocation_ptr)
+                        .and_then(|a| a.var_name.clone())
+                        .unwrap_or_else(|| "-".to_string())
+                };
 
-                let type_name = allocations.iter()
-                    .find(|a| a.ptr == p.allocation_ptr)
-                    .and_then(|a| a.type_name.clone())
-                    .unwrap_or_else(|| "unknown".to_string());
+                let type_name = if p.type_name != "-" {
+                    p.type_name.clone()
+                } else {
+                    let from_alloc = allocations.iter()
+                        .find(|a| a.ptr == p.allocation_ptr)
+                        .and_then(|a| a.type_name.clone())
+                        .unwrap_or_else(|| "-".to_string());
+
+                    if from_alloc != "-" {
+                        from_alloc
+                    } else {
+                        Self::infer_type_from_size(p.size_bytes)
+                    }
+                };
 
                 // Determine risk level
                 let is_leaked = p.status_at_shutdown == crate::analysis::memory_passport_tracker::PassportStatus::InForeignCustody ||

@@ -17,6 +17,7 @@ pub mod detectors;
 pub mod circular_reference;
 pub mod enhanced;
 pub mod unsafe_ffi_tracker;
+pub mod unsafe_inference;
 pub mod variable_relationships;
 
 // Submodules from refactoring
@@ -103,6 +104,11 @@ pub use safety::{
     SafetyAnalysisStats, SafetyAnalyzer, UnsafeReport, UnsafeSource,
 };
 pub use unsafe_ffi_tracker::ComprehensiveSafetyReport;
+pub use unsafe_inference::{
+    count_valid_pointers, get_valid_regions, is_valid_ptr, is_valid_ptr_static, InferenceMethod,
+    InferenceRecord, MemoryRegion, MemoryView, TypeGuess, TypeKind, UnsafeInferenceEngine,
+    ValidRegions,
+};
 
 // Re-export integrated submodules
 pub use classification::{

@@ -552,10 +552,20 @@
         <div id="mode-task" class="mode-section">
             <div class="card">
                 <div class="card-header">
-                    <h2 class="card-title">📊 Allocation Memory Analysis</h2>
+                    <h2 class="card-title">📊 Async Resource Consumption</h2>
+                    <span class="badge badge-info" id="asyncTaskCount">0 tasks</span>
                 </div>
                 <div class="chart-container">
                     <canvas id="asyncChart"></canvas>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">⏱️ Task Duration & Efficiency</h2>
+                </div>
+                <div class="chart-container" style="height: 250px;">
+                    <canvas id="asyncDurationChart"></canvas>
                 </div>
             </div>
 
@@ -571,6 +581,8 @@
                             <option value="peak-asc">Peak ↑</option>
                             <option value="allocations-desc">Allocs ↓</option>
                             <option value="allocations-asc">Allocs ↑</option>
+                            <option value="duration-desc">Duration ↓</option>
+                            <option value="efficiency-desc">Efficiency ↓</option>
                         </select>
                     </div>
                 </div>
@@ -583,6 +595,8 @@
                                 <th>Memory</th>
                                 <th>Peak</th>
                                 <th>Allocs</th>
+                                <th>Duration</th>
+                                <th>Efficiency</th>
                                 <th>Status</th>
                             </tr>
                         </thead>
@@ -851,6 +865,12 @@
                 if (ns < 1000000000) return (ns / 1000000).toFixed(2) + ' ms';
                 return (ns / 1000000000).toFixed(2) + ' s';
             },
+            formatThreadId(tid) {
+                if (!tid) return 'N/A';
+                const str = String(tid);
+                const match = str.match(/(\d+)/);
+                return match ? 'T' + match[1].slice(-4) : str.slice(-6);
+            },
             getChartColors() {
                 const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
                 return {
@@ -978,16 +998,16 @@
             allocations: {
                 showAll: false, currentPage: 1, pageSize: 100, filteredData: [],
                 toggle() { const wrapper = document.getElementById('allocationsWrapper'); const btn = document.getElementById('toggleAllocBtn'); const pagination = document.getElementById('allocationsPagination'); this.showAll = !this.showAll; if (this.showAll) { wrapper.style.maxHeight = 'none'; wrapper.style.overflow = 'visible'; btn.textContent = '▲ Collapse'; if (this.filteredData.length > this.pageSize) pagination.style.display = 'flex'; } else { wrapper.style.maxHeight = '400px'; wrapper.style.overflow = 'auto'; btn.textContent = '▼ Show All'; pagination.style.display = 'none'; this.renderPage(1); } },
-                renderPage(page) { const tbody = document.getElementById('allocationsBody'); const start = (page - 1) * this.pageSize; const end = start + this.pageSize; const pageData = this.filteredData.slice(start, end); tbody.innerHTML = pageData.map(a => `<tr><td><code>${a.address || '0x0'}</code></td><td>${a.var_name || 'unknown'}</td><td>${a.type_name || 'Unknown'}</td><td>${Utils.formatBytes(parseInt(a.size) || 0)}</td><td>${a.thread_id || 'N/A'}</td><td>${Utils.formatTime(parseInt(a.lifetime_ms || 0) * 1000000)}</td><td>${a.is_leaked ? '<span class="badge badge-danger">Leaked</span>' : a.timestamp_dealloc > 0 ? '<span class="badge badge-success">Freed</span>' : '<span class="badge badge-info">Active</span>'}</td></tr>`).join(''); this.currentPage = page; const totalPages = Math.ceil(this.filteredData.length / this.pageSize); document.getElementById('allocPageInfo').textContent = `Page ${page} of ${totalPages}`; document.getElementById('prevAllocBtn').disabled = page <= 1; document.getElementById('nextAllocBtn').disabled = page >= totalPages; },
+                renderPage(page) { const tbody = document.getElementById('allocationsBody'); const start = (page - 1) * this.pageSize; const end = start + this.pageSize; const pageData = this.filteredData.slice(start, end); tbody.innerHTML = pageData.map(a => `<tr><td><code>${a.address || '0x0'}</code></td><td>${a.var_name || 'unknown'}</td><td>${a.type_name || 'Unknown'}</td><td>${Utils.formatBytes(parseInt(a.size) || 0)}</td><td><code title="${a.thread_id || ''}">${Utils.formatThreadId(a.thread_id)}</code></td><td>${Utils.formatTime(parseInt(a.lifetime_ms || 0) * 1000000)}</td><td>${a.is_leaked ? '<span class="badge badge-danger">Leaked</span>' : a.timestamp_dealloc > 0 ? '<span class="badge badge-success">Freed</span>' : '<span class="badge badge-info">Active</span>'}</td></tr>`).join(''); this.currentPage = page; const totalPages = Math.ceil(this.filteredData.length / this.pageSize); document.getElementById('allocPageInfo').textContent = `Page ${page} of ${totalPages}`; document.getElementById('prevAllocBtn').disabled = page <= 1; document.getElementById('nextAllocBtn').disabled = page >= totalPages; },
                 prevPage() { if (this.currentPage > 1) this.renderPage(this.currentPage - 1); },
                 nextPage() { const totalPages = Math.ceil(this.filteredData.length / this.pageSize); if (this.currentPage < totalPages) this.renderPage(this.currentPage + 1); },
-                init() { const data_list = data.allocations || []; this.filteredData = data_list; document.getElementById('allocCount').textContent = data_list.length + ' items'; const tbody = document.getElementById('allocationsBody'); if (data_list.length === 0) { tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No allocation data</td></tr>'; return; } if (data_list.length <= this.pageSize) { tbody.innerHTML = data_list.map(a => `<tr><td><code>${a.address || '0x0'}</code></td><td>${a.var_name || 'unknown'}</td><td>${a.type_name || 'Unknown'}</td><td>${Utils.formatBytes(parseInt(a.size) || 0)}</td><td>${a.thread_id || 'N/A'}</td><td>${Utils.formatTime(parseInt(a.lifetime_ms || 0) * 1000000)}</td><td>${a.is_leaked ? '<span class="badge badge-danger">Leaked</span>' : a.timestamp_dealloc > 0 ? '<span class="badge badge-success">Freed</span>' : '<span class="badge badge-info">Active</span>'}</td></tr>`).join(''); } else this.renderPage(1); }
+                init() { const data_list = data.allocations || []; this.filteredData = data_list; document.getElementById('allocCount').textContent = data_list.length + ' items'; const tbody = document.getElementById('allocationsBody'); if (data_list.length === 0) { tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No allocation data</td></tr>'; return; } if (data_list.length <= this.pageSize) { tbody.innerHTML = data_list.map(a => `<tr><td><code>${a.address || '0x0'}</code></td><td>${a.var_name || 'unknown'}</td><td>${a.type_name || 'Unknown'}</td><td>${Utils.formatBytes(parseInt(a.size) || 0)}</td><td><code title="${a.thread_id || ''}">${Utils.formatThreadId(a.thread_id)}</code></td><td>${Utils.formatTime(parseInt(a.lifetime_ms || 0) * 1000000)}</td><td>${a.is_leaked ? '<span class="badge badge-danger">Leaked</span>' : a.timestamp_dealloc > 0 ? '<span class="badge badge-success">Freed</span>' : '<span class="badge badge-info">Active</span>'}</td></tr>`).join(''); } else this.renderPage(1); }
             },
 
             threads: {
                 filteredData: [],
                 sort() { const sortBy = document.getElementById('threadSortOrder').value; this.filteredData.sort((a, b) => { switch (sortBy) { case 'alloc-desc': return (b.allocation_count || 0) - (a.allocation_count || 0); case 'alloc-asc': return (a.allocation_count || 0) - (b.allocation_count || 0); case 'memory-desc': return (b.current_memory_bytes || 0) - (a.current_memory_bytes || 0); case 'memory-asc': return (a.current_memory_bytes || 0) - (b.current_memory_bytes || 0); case 'thread-id': return (a.thread_id || '0').localeCompare(b.thread_id || '0'); default: return 0; } }); this.render(); },
-                render() { const tbody = document.getElementById('threadTableBody'); tbody.innerHTML = this.filteredData.map(t => `<tr><td><code>${t.thread_id || 'Thread-?'}</code></td><td><span class="text-secondary">${t.thread_summary || ''}</span></td><td>${t.allocation_count || 0}</td><td>${t.current_memory || '0 B'}</td><td>${t.peak_memory || '0 B'}</td><td><span class="badge badge-success">active</span></td></tr>`).join(''); },
+                render() { const tbody = document.getElementById('threadTableBody'); tbody.innerHTML = this.filteredData.map(t => `<tr><td><code title="${t.thread_id || ''}">${Utils.formatThreadId(t.thread_id)}</code></td><td><span class="text-secondary">${t.thread_summary || ''}</span></td><td>${t.allocation_count || 0}</td><td>${t.current_memory || '0 B'}</td><td>${t.peak_memory || '0 B'}</td><td><span class="badge badge-success">active</span></td></tr>`).join(''); },
                 init() { const threads = data.threads || []; this.filteredData = [...threads]; document.getElementById('threadCount').textContent = threads.length + ' threads'; const tbody = document.getElementById('threadTableBody'); if (threads.length === 0) { tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No thread data</td></tr>'; return; } this.sort(); }
             },
 
@@ -1111,6 +1131,8 @@
                             case 'peak-asc': return (a.peak_memory || 0) - (b.peak_memory || 0);
                             case 'allocations-desc': return (b.total_allocations || 0) - (a.total_allocations || 0);
                             case 'allocations-asc': return (a.total_allocations || 0) - (b.total_allocations || 0);
+                            case 'duration-desc': return (b.duration_ms || 0) - (a.duration_ms || 0);
+                            case 'efficiency-desc': return (b.efficiency_score || 0) - (a.efficiency_score || 0);
                             default: return 0;
                         }
                     });
@@ -1119,7 +1141,7 @@
                 render() {
                     const tbody = document.getElementById('taskTableBody');
                     if (this.filteredData.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No async task data</td></tr>';
+                        tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No async task data</td></tr>';
                         return;
                     }
                     tbody.innerHTML = this.filteredData.map(t => `
@@ -1129,19 +1151,71 @@
                             <td>${Utils.formatBytes(t.current_memory || 0)}</td>
                             <td>${Utils.formatBytes(t.peak_memory || 0)}</td>
                             <td>${t.total_allocations || 0}</td>
+                            <td>${(t.duration_ms || 0).toFixed(1)}ms</td>
+                            <td><span class="badge ${t.efficiency_score >= 0.8 ? 'badge-success' : t.efficiency_score >= 0.5 ? 'badge-warning' : 'badge-danger'}">${((t.efficiency_score || 0) * 100).toFixed(0)}%</span></td>
                             <td>${t.is_completed ? '<span class="badge badge-success">Completed</span>' : '<span class="badge badge-info">Running</span>'}${t.has_potential_leak ? ' <span class="badge badge-warning">Leak?</span>' : ''}</td>
                         </tr>
                     `).join('');
                 },
                 init() {
                     const asyncTasks = data.async_tasks || [];
+                    const asyncSummary = data.async_summary || {};
                     this.filteredData = [...asyncTasks];
+                    
+                    document.getElementById('asyncTaskCount').textContent = (asyncSummary.total_tasks || asyncTasks.length) + ' tasks';
+                    
                     if (asyncTasks.length === 0) {
-                        document.getElementById('taskTableBody').innerHTML = '<tr><td colspan="6" class="empty-state">No async task data</td></tr>';
+                        document.getElementById('taskTableBody').innerHTML = '<tr><td colspan="8" class="empty-state">No async task data</td></tr>';
                         return;
                     }
                     this.sort();
+                    this.initDurationChart();
                 },
+                initDurationChart() {
+                    const ctx = document.getElementById('asyncDurationChart');
+                    if (!ctx) return;
+                    
+                    const colors = Utils.getChartColors();
+                    const tasks = this.filteredData.slice(0, 10);
+                    
+                    new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: tasks.map(t => t.task_name || `Task ${t.task_id}`),
+                            datasets: [{
+                                label: 'Duration (ms)',
+                                data: tasks.map(t => t.duration_ms || 0),
+                                backgroundColor: colors.primary + '80',
+                                borderColor: colors.primary,
+                                borderWidth: 1
+                            }, {
+                                label: 'Efficiency %',
+                                data: tasks.map(t => (t.efficiency_score || 0) * 100),
+                                backgroundColor: '#10b98180',
+                                borderColor: '#10b981',
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    grid: { color: colors.grid },
+                                    ticks: { color: colors.text2 }
+                                },
+                                x: {
+                                    grid: { display: false },
+                                    ticks: { color: colors.text2, maxRotation: 45 }
+                                }
+                            },
+                            plugins: {
+                                legend: { labels: { color: colors.text } }
+                            }
+                        }
+                    });
+                }
             },
 
             init() {

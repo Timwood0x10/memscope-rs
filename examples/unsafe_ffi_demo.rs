@@ -46,6 +46,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ptr as usize,
                 layout.size(),
                 "unsafe_rust_allocation".to_string(),
+                Some("[i32; 10]".to_string()),
+                Some("unsafe_array".to_string()),
             )?;
 
             let slice = std::slice::from_raw_parts_mut(ptr as *mut i32, 10);
@@ -78,6 +80,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ffi_ptr as usize,
                 size,
                 format!("ffi_alloc_{}", i),
+                Some(format!("FFIBuffer{}", i)),
+                Some(format!("ffi_buffer_{}", i)),
             )?;
 
             _passport_tracker.record_handover_to_ffi(

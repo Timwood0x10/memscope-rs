@@ -302,6 +302,8 @@ fn run_unsafe_ffi_mode() -> Result<(), Box<dyn std::error::Error>> {
                     ptr as usize,
                     layout.size(),
                     format!("unsafe_vec_{}", i),
+                    Some("[i32; 64]".to_string()),
+                    Some(format!("unsafe_vec_{}", i)),
                 )?;
 
                 let slice = std::slice::from_raw_parts_mut(ptr as *mut i32, 64);
@@ -326,7 +328,14 @@ fn run_unsafe_ffi_mode() -> Result<(), Box<dyn std::error::Error>> {
         let ffi_ptr = unsafe { malloc(size) };
 
         if !ffi_ptr.is_null() {
-            passport_tracker.create_passport(ffi_ptr as usize, size, format!("ffi_alloc_{}", i))?;
+            // FFI memory type is unknown at compile time, use *mut c_void
+            passport_tracker.create_passport(
+                ffi_ptr as usize,
+                size,
+                format!("ffi_alloc_{}", i),
+                Some("*mut c_void".to_string()),
+                Some(format!("ffi_memory_{}", i)),
+            )?;
 
             passport_tracker.record_handover_to_ffi(
                 ffi_ptr as usize,

@@ -19,6 +19,10 @@ pub struct MemoryPassport {
     pub allocation_ptr: usize,
     /// Size in bytes
     pub size_bytes: usize,
+    /// Type name of the allocated memory
+    pub type_name: String,
+    /// Variable name if available
+    pub var_name: String,
     /// Current status at program shutdown
     pub status_at_shutdown: PassportStatus,
     /// Complete lifecycle events recorded
@@ -217,12 +221,27 @@ impl MemoryPassportTracker {
         }
     }
 
+    /// Create memory passport for FFI boundary tracking (backward compatible).
+    ///
+    /// This is a convenience wrapper that calls `create_passport` with
+    /// `type_name` and `var_name` set to `None`.
+    pub fn create_passport_simple(
+        &self,
+        allocation_ptr: usize,
+        size_bytes: usize,
+        initial_context: String,
+    ) -> TrackingResult<String> {
+        self.create_passport(allocation_ptr, size_bytes, initial_context, None, None)
+    }
+
     /// Create memory passport for FFI boundary tracking
     pub fn create_passport(
         &self,
         allocation_ptr: usize,
         size_bytes: usize,
         initial_context: String,
+        type_name: Option<String>,
+        var_name: Option<String>,
     ) -> TrackingResult<String> {
         let passport_id = self.generate_passport_id(allocation_ptr)?;
         let current_time = SystemTime::now()
@@ -244,6 +263,8 @@ impl MemoryPassportTracker {
             passport_id: passport_id.clone(),
             allocation_ptr,
             size_bytes,
+            type_name: type_name.unwrap_or_else(|| "-".to_string()),
+            var_name: var_name.unwrap_or_else(|| "-".to_string()),
             status_at_shutdown: PassportStatus::Unknown,
             lifecycle_events: vec![initial_event],
             created_at: current_time,
@@ -279,6 +300,34 @@ impl MemoryPassportTracker {
         }
 
         Ok(passport_id)
+    }
+
+    /// Create memory passport with automatic type inference
+    pub fn create_passport_with_inference(
+        &self,
+        allocation_ptr: usize,
+        size_bytes: usize,
+        memory: Option<&[u8]>,
+        initial_context: String,
+        var_name: Option<String>,
+    ) -> TrackingResult<String> {
+        let type_name = memory
+            .map(|m| {
+                let guess =
+                    crate::analysis::unsafe_inference::UnsafeInferenceEngine::infer_from_bytes(
+                        m, size_bytes,
+                    );
+                guess.display_with_confidence()
+            })
+            .unwrap_or_else(|| "-".to_string());
+
+        self.create_passport(
+            allocation_ptr,
+            size_bytes,
+            initial_context,
+            Some(type_name),
+            var_name,
+        )
     }
 
     /// Record HandoverToFfi event
@@ -765,7 +814,7 @@ mod tests {
         let size = 1024;
 
         let passport_id = tracker
-            .create_passport(ptr, size, "test_context".to_string())
+            .create_passport(ptr, size, "test_context".to_string(), None, None)
             .expect("Failed to create passport");
         assert!(!passport_id.is_empty());
 
@@ -785,7 +834,7 @@ mod tests {
         let ptr = 0x2000;
 
         tracker
-            .create_passport(ptr, 512, "rust_context".to_string())
+            .create_passport(ptr, 512, "rust_context".to_string(), None, None)
             .expect("Failed to create passport");
         tracker
             .record_handover_to_ffi(ptr, "ffi_context".to_string(), "malloc".to_string())
@@ -806,7 +855,7 @@ mod tests {
 
         // Create passport and hand over to FFI without reclaim
         tracker
-            .create_passport(ptr, 256, "rust_context".to_string())
+            .create_passport(ptr, 256, "rust_context".to_string(), None, None)
             .expect("Failed to create passport");
         tracker
             .record_handover_to_ffi(ptr, "ffi_context".to_string(), "malloc".to_string())
@@ -835,7 +884,7 @@ mod tests {
 
         // Create passport, hand over to FFI, then reclaim
         tracker
-            .create_passport(ptr, 128, "rust_context".to_string())
+            .create_passport(ptr, 128, "rust_context".to_string(), None, None)
             .expect("Failed to create passport");
         tracker
             .record_handover_to_ffi(ptr, "ffi_context".to_string(), "malloc".to_string())
@@ -860,7 +909,7 @@ mod tests {
         let ptr = 0x5000;
 
         tracker
-            .create_passport(ptr, 64, "test_context".to_string())
+            .create_passport(ptr, 64, "test_context".to_string(), None, None)
             .expect("Failed to create passport");
         tracker
             .record_handover_to_ffi(ptr, "ffi_context".to_string(), "test_func".to_string())

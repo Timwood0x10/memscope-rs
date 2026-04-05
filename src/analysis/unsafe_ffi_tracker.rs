@@ -2482,11 +2482,30 @@ impl UnsafeFFITracker {
             for (ptr, allocation) in enhanced_allocations.iter() {
                 // Create passports for FFI allocations
                 if allocation.ffi_tracked {
-                    let _passport_id = passport_tracker.create_passport(
-                        *ptr,
-                        allocation.base.size,
-                        "ffi_integration".to_string(),
-                    )?;
+                    // Use type inference if type_name is not available
+                    let type_name = allocation.base.type_name.clone();
+                    let _passport_id = if type_name.is_none()
+                        || type_name
+                            .as_ref()
+                            .map_or(true, |t| t == "unknown" || t.is_empty())
+                    {
+                        // Use inference-based passport creation
+                        passport_tracker.create_passport_with_inference(
+                            *ptr,
+                            allocation.base.size,
+                            None,
+                            "ffi_integration".to_string(),
+                            allocation.base.var_name.clone(),
+                        )?
+                    } else {
+                        passport_tracker.create_passport(
+                            *ptr,
+                            allocation.base.size,
+                            "ffi_integration".to_string(),
+                            type_name,
+                            allocation.base.var_name.clone(),
+                        )?
+                    };
 
                     // Record boundary events
                     for event in &allocation.cross_boundary_events {
