@@ -251,7 +251,11 @@ async fn run_async_mode() -> Result<(), Box<dyn std::error::Error>> {
             let thread_id = std::thread::current().id();
 
             // Track async task start
-            async_tracker.track_task_start(task_id, format!("async_task_{}", i), thread_id);
+            if let Err(e) =
+                async_tracker.track_task_start(task_id, format!("async_task_{}", i), thread_id)
+            {
+                eprintln!("Warning: {}", e);
+            }
 
             let tracker = global_tracker().unwrap();
 
@@ -270,7 +274,9 @@ async fn run_async_mode() -> Result<(), Box<dyn std::error::Error>> {
             tokio::time::sleep(std::time::Duration::from_millis(10)).await;
 
             // Track async task end
-            async_tracker.track_task_end(task_id);
+            if let Err(e) = async_tracker.track_task_end(task_id) {
+                eprintln!("Warning: {}", e);
+            }
 
             println!("  Task-{}: tracked 2 allocations", i);
         }

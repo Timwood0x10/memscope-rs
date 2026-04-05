@@ -561,14 +561,16 @@
 
             <div class="card">
                 <div class="card-header">
-                    <h2 class="card-title">📊 Active Allocations</h2>
+                    <h2 class="card-title">📋 Async Task Details</h2>
                     <div class="flex-gap-2">
                         <label class="text-secondary">Sort by:</label>
                         <select id="taskSortOrder" onchange="Dashboard.tasks.sort()" class="input-sm">
                             <option value="memory-desc">Memory ↓</option>
                             <option value="memory-asc">Memory ↑</option>
-                            <option value="lifetime-desc">Lifetime ↓</option>
-                            <option value="lifetime-asc">Lifetime ↑</option>
+                            <option value="peak-desc">Peak ↓</option>
+                            <option value="peak-asc">Peak ↑</option>
+                            <option value="allocations-desc">Allocs ↓</option>
+                            <option value="allocations-asc">Allocs ↑</option>
                         </select>
                     </div>
                 </div>
@@ -576,11 +578,11 @@
                     <table>
                         <thead>
                             <tr>
-                                <th>Address</th>
-                                <th>Type</th>
-                                <th>Size</th>
-                                <th>Lifetime</th>
-                                <th>Clones</th>
+                                <th>Task ID</th>
+                                <th>Task Name</th>
+                                <th>Memory</th>
+                                <th>Peak</th>
+                                <th>Allocs</th>
                                 <th>Status</th>
                             </tr>
                         </thead>
@@ -883,7 +885,12 @@
                     }
                     const threadCtx = document.getElementById('threadChart');
                     if (threadCtx) {
-                        this.instances.thread = new Chart(threadCtx, { type: 'bar', data: { labels: threads.map(t => 'Thread ' + (t.thread_id || '?')), datasets: [{ label: 'Allocations', data: threads.map(t => parseInt(t.allocation_count) || 0), backgroundColor: colors.primary }] }, options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', scales: { y: { grid: { display: false }, ticks: { color: colors.text2 } }, x: { grid: { color: colors.grid }, ticks: { color: colors.text2 } } } } });
+                        const shortThreadIds = threads.map(t => {
+                            const tid = t.thread_id || '?';
+                            const match = String(tid).match(/(\d+)/);
+                            return match ? 'T' + match[1].slice(-4) : String(tid).slice(-6);
+                        });
+                        this.instances.thread = new Chart(threadCtx, { type: 'bar', data: { labels: shortThreadIds, datasets: [{ label: 'Allocations', data: threads.map(t => parseInt(t.allocation_count) || 0), backgroundColor: colors.primary }] }, options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', scales: { y: { grid: { display: false }, ticks: { color: colors.text2 } }, x: { grid: { color: colors.grid }, ticks: { color: colors.text2 } } } } });
                     }
                     const asyncCtx = document.getElementById('asyncChart');
                     if (asyncCtx) {
@@ -1094,9 +1101,47 @@
 
             tasks: {
                 filteredData: [],
-                sort() { const sortBy = document.getElementById('taskSortOrder').value; this.filteredData.sort((a, b) => { switch (sortBy) { case 'memory-desc': return (b.size || 0) - (a.size || 0); case 'memory-asc': return (a.size || 0) - (b.size || 0); case 'lifetime-desc': return (b.lifetime_ms || 0) - (a.lifetime_ms || 0); case 'lifetime-asc': return (a.lifetime_ms || 0) - (b.lifetime_ms || 0); default: return 0; } }); this.render(); },
-                render() { const tbody = document.getElementById('taskTableBody'); tbody.innerHTML = this.filteredData.slice(0, 20).map((a, i) => `<tr><td><code>${(a.address || 'alloc_' + i).substring(0, 16)}</code></td><td>${a.type_name || 'Unknown'}</td><td>${Utils.formatBytes(parseInt(a.size) || 0)}</td><td>${((a.lifetime_ms || 0) / 1000000).toFixed(2)}ms</td><td>${a.clone_count || 0}</td><td>${a.is_leaked ? '<span class="badge badge-danger">Leaked</span>' : '<span class="badge badge-success">Active</span>'}</td></tr>`).join(''); },
-                init() { const allocations = data.allocations || []; this.filteredData = [...allocations]; if (allocations.length === 0) { document.getElementById('taskTableBody').innerHTML = '<tr><td colspan="6" class="empty-state">No allocation data</td></tr>'; return; } this.sort(); }
+                sort() {
+                    const sortBy = document.getElementById('taskSortOrder').value;
+                    this.filteredData.sort((a, b) => {
+                        switch (sortBy) {
+                            case 'memory-desc': return (b.current_memory || 0) - (a.current_memory || 0);
+                            case 'memory-asc': return (a.current_memory || 0) - (b.current_memory || 0);
+                            case 'peak-desc': return (b.peak_memory || 0) - (a.peak_memory || 0);
+                            case 'peak-asc': return (a.peak_memory || 0) - (b.peak_memory || 0);
+                            case 'allocations-desc': return (b.total_allocations || 0) - (a.total_allocations || 0);
+                            case 'allocations-asc': return (a.total_allocations || 0) - (b.total_allocations || 0);
+                            default: return 0;
+                        }
+                    });
+                    this.render();
+                },
+                render() {
+                    const tbody = document.getElementById('taskTableBody');
+                    if (this.filteredData.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No async task data</td></tr>';
+                        return;
+                    }
+                    tbody.innerHTML = this.filteredData.map(t => `
+                        <tr>
+                            <td><code>#${t.task_id}</code></td>
+                            <td>${t.task_name || 'Unknown'}</td>
+                            <td>${Utils.formatBytes(t.current_memory || 0)}</td>
+                            <td>${Utils.formatBytes(t.peak_memory || 0)}</td>
+                            <td>${t.total_allocations || 0}</td>
+                            <td>${t.is_completed ? '<span class="badge badge-success">Completed</span>' : '<span class="badge badge-info">Running</span>'}${t.has_potential_leak ? ' <span class="badge badge-warning">Leak?</span>' : ''}</td>
+                        </tr>
+                    `).join('');
+                },
+                init() {
+                    const asyncTasks = data.async_tasks || [];
+                    this.filteredData = [...asyncTasks];
+                    if (asyncTasks.length === 0) {
+                        document.getElementById('taskTableBody').innerHTML = '<tr><td colspan="6" class="empty-state">No async task data</td></tr>';
+                        return;
+                    }
+                    this.sort();
+                },
             },
 
             init() {
@@ -1240,10 +1285,15 @@
 
             const threadCtx = document.getElementById('threadChart');
             if (threadCtx) {
+                const shortThreadIds = threads.map(t => {
+                    const tid = t.thread_id || '?';
+                    const match = String(tid).match(/(\d+)/);
+                    return match ? 'T' + match[1].slice(-4) : String(tid).slice(-6);
+                });
                 charts.thread = new Chart(threadCtx, {
                     type: 'bar',
                     data: {
-                        labels: threads.map(t => 'Thread ' + (t.thread_id || '?')),
+                        labels: shortThreadIds,
                         datasets: [{
                             label: 'Allocations',
                             data: threads.map(t => parseInt(t.allocation_count) || 0),
@@ -2034,11 +2084,12 @@
             const sortBy = document.getElementById('taskSortOrder').value;
             taskFilteredData.sort((a, b) => {
                 switch (sortBy) {
-                    case 'memory-desc': return (b.size_bytes || 0) - (a.size_bytes || 0);
-                    case 'memory-asc': return (a.size_bytes || 0) - (b.size_bytes || 0);
-                    case 'poll-desc': return (b.poll_count || 0) - (a.poll_count || 0);
-                    case 'poll-asc': return (a.poll_count || 0) - (b.poll_count || 0);
-                    case 'efficiency-desc': return (b.waker_efficiency || 0) - (a.waker_efficiency || 0);
+                    case 'memory-desc': return (b.current_memory || 0) - (a.current_memory || 0);
+                    case 'memory-asc': return (a.current_memory || 0) - (b.current_memory || 0);
+                    case 'peak-desc': return (b.peak_memory || 0) - (a.peak_memory || 0);
+                    case 'peak-asc': return (a.peak_memory || 0) - (b.peak_memory || 0);
+                    case 'allocations-desc': return (b.total_allocations || 0) - (a.total_allocations || 0);
+                    case 'allocations-asc': return (a.total_allocations || 0) - (b.total_allocations || 0);
                     default: return 0;
                 }
             });
@@ -2047,25 +2098,28 @@
 
         function renderTasks() {
             const tbody = document.getElementById('taskTableBody');
-            tbody.innerHTML = taskFilteredData.slice(0, 20).map((p, i) => `
+            if (taskFilteredData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No async task data</td></tr>';
+                return;
+            }
+            tbody.innerHTML = taskFilteredData.map(t => `
                 <tr>
-                    <td><code>Task-${i}</code></td>
-                    <td>${p.type_name || 'Future'}</td>
-                    <td>${Utils.formatBytes(parseInt(p.size_bytes) || 0)}</td>
-                    <td>${p.poll_count || 0}</td>
-                    <td>${((p.waker_efficiency || 1) * 100).toFixed(0)}%</td>
-                    <td>${p.is_leaked ? '<span class="badge badge-danger">Leaked</span>' :
-                          '<span class="badge badge-success">Active</span>'}</td>
+                    <td><code>#${t.task_id}</code></td>
+                    <td>${t.task_name || 'Unknown'}</td>
+                    <td>${Utils.formatBytes(t.current_memory || 0)}</td>
+                    <td>${Utils.formatBytes(t.peak_memory || 0)}</td>
+                    <td>${t.total_allocations || 0}</td>
+                    <td>${t.is_completed ? '<span class="badge badge-success">Completed</span>' : '<span class="badge badge-info">Running</span>'}${t.has_potential_leak ? ' <span class="badge badge-warning">Leak?</span>' : ''}</td>
                 </tr>
             `).join('');
         }
 
         function populateTasks() {
-            const passports = data.passport_details || [];
-            taskFilteredData = [...passports];
+            const asyncTasks = data.async_tasks || [];
+            taskFilteredData = [...asyncTasks];
 
-            if (passports.length === 0) {
-                document.getElementById('taskTableBody').innerHTML = '<tr><td colspan="6" class="empty-state">No task data</td></tr>';
+            if (asyncTasks.length === 0) {
+                document.getElementById('taskTableBody').innerHTML = '<tr><td colspan="6" class="empty-state">No async task data</td></tr>';
                 return;
             }
 

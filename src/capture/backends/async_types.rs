@@ -200,6 +200,8 @@ pub enum TaskOperation {
     Propagation,
     Registration,
     Cleanup,
+    Duplicate,
+    TaskNotFound,
 }
 
 /// Allocation event types for error context
@@ -218,6 +220,41 @@ impl AsyncError {
             component: Arc::from(component),
             message: Arc::from(message),
             recoverable,
+        }
+    }
+
+    /// Create a duplicate task error
+    pub fn duplicate_task(task_id: u64) -> Self {
+        Self::TaskTracking {
+            operation: TaskOperation::Duplicate,
+            message: Arc::from(format!(
+                "Duplicate task tracking attempt for task_id: {}. Operation rejected.",
+                task_id
+            )),
+            task_id: Some(task_id),
+        }
+    }
+
+    /// Create a task not found error
+    pub fn task_not_found(task_id: u64) -> Self {
+        Self::TaskTracking {
+            operation: TaskOperation::TaskNotFound,
+            message: Arc::from(format!(
+                "Task with id {} not found. Cannot complete tracking operation.",
+                task_id
+            )),
+            task_id: Some(task_id),
+        }
+    }
+
+    /// Create a system error for mutex lock failure with poison error details
+    pub fn mutex_lock_failed(lock_name: &str, poison_error_msg: &str) -> Self {
+        Self::System {
+            operation: Arc::from("mutex_lock"),
+            message: Arc::from(format!(
+                "Failed to acquire lock on '{}': {}",
+                lock_name, poison_error_msg
+            )),
         }
     }
 

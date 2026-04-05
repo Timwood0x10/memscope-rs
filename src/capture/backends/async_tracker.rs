@@ -10,7 +10,7 @@ use std::thread::ThreadId;
 
 use super::async_types::{
     AsyncAllocation, AsyncError, AsyncMemorySnapshot, AsyncResult, AsyncSnapshot, AsyncStats,
-    TrackedFuture,
+    TaskOperation, TrackedFuture,
 };
 use super::task_profile::{TaskMemoryProfile, TaskType};
 
@@ -67,51 +67,64 @@ impl AsyncTracker {
     }
 
     /// Track a task start.
-    pub fn track_task_start(&self, task_id: u64, name: String, _thread_id: ThreadId) {
-        let mut profiles = self.profiles.lock().unwrap();
+    pub fn track_task_start(
+        &self,
+        task_id: u64,
+        name: String,
+        _thread_id: ThreadId,
+    ) -> Result<(), AsyncError> {
+        {
+            let mut profiles = self
+                .profiles
+                .lock()
+                .map_err(|e| AsyncError::mutex_lock_failed("profiles", &e.to_string()))?;
 
-        // Prevent duplicate task tracking
-        if profiles.contains_key(&task_id) {
-            tracing::warn!(
-                "Duplicate task tracking attempt ignored for task_id: {}. Existing task will be used.",
-                task_id
+            if profiles.contains_key(&task_id) {
+                return Err(AsyncError::duplicate_task(task_id));
+            }
+
+            profiles.insert(
+                task_id,
+                TaskMemoryProfile::new(task_id, name, TaskType::default()),
             );
-            return;
         }
 
-        profiles.insert(
-            task_id,
-            TaskMemoryProfile::new(task_id, name, TaskType::default()),
-        );
-
-        drop(profiles);
-
-        let mut stats = self.stats.lock().unwrap();
+        let mut stats = self
+            .stats
+            .lock()
+            .map_err(|e| AsyncError::mutex_lock_failed("stats", &e.to_string()))?;
         stats.total_tasks += 1;
         stats.active_tasks += 1;
+
+        Ok(())
     }
 
     /// Track a task end.
-    pub fn track_task_end(&self, task_id: u64) {
-        let mut profiles = self.profiles.lock().unwrap();
+    pub fn track_task_end(&self, task_id: u64) -> Result<(), AsyncError> {
+        {
+            let mut profiles = self
+                .profiles
+                .lock()
+                .map_err(|e| AsyncError::mutex_lock_failed("profiles", &e.to_string()))?;
 
-        // Validate task exists before marking as completed
-        if let Some(profile) = profiles.get_mut(&task_id) {
-            if !profile.is_completed() {
-                profile.mark_completed();
-                drop(profiles);
+            let profile = profiles
+                .get_mut(&task_id)
+                .ok_or_else(|| AsyncError::task_not_found(task_id))?;
 
-                let mut stats = self.stats.lock().unwrap();
-                stats.active_tasks = stats.active_tasks.saturating_sub(1);
-            } else {
-                tracing::debug!("Task {} is already marked as completed", task_id);
+            if profile.is_completed() {
+                return Ok(());
             }
-        } else {
-            tracing::warn!(
-                "track_task_end called for non-existent task_id: {}. Ignoring.",
-                task_id
-            );
+
+            profile.mark_completed();
         }
+
+        let mut stats = self
+            .stats
+            .lock()
+            .map_err(|e| AsyncError::mutex_lock_failed("stats", &e.to_string()))?;
+        stats.active_tasks = stats.active_tasks.saturating_sub(1);
+
+        Ok(())
     }
 
     /// Track an allocation associated with a task.
@@ -526,13 +539,15 @@ mod tests {
     fn test_task_tracking() {
         let tracker = AsyncTracker::new();
         let thread_id = std::thread::current().id();
-        tracker.track_task_start(1, "test_task".to_string(), thread_id);
+        tracker
+            .track_task_start(1, "test_task".to_string(), thread_id)
+            .unwrap();
 
         let stats = tracker.get_stats();
         assert_eq!(stats.total_tasks, 1);
         assert_eq!(stats.active_tasks, 1);
 
-        tracker.track_task_end(1);
+        tracker.track_task_end(1).unwrap();
         let stats = tracker.get_stats();
         assert_eq!(stats.active_tasks, 0);
     }
@@ -541,7 +556,9 @@ mod tests {
     fn test_allocation_tracking() {
         let tracker = AsyncTracker::new();
         let thread_id = std::thread::current().id();
-        tracker.track_task_start(1, "test_task".to_string(), thread_id);
+        tracker
+            .track_task_start(1, "test_task".to_string(), thread_id)
+            .unwrap();
         tracker.track_allocation(0x1000, 1024, 1);
 
         let profile = tracker.get_task_profile(1);
@@ -605,10 +622,12 @@ mod tests {
     fn test_task_memory_profile() {
         let tracker = AsyncTracker::new();
         let thread_id = std::thread::current().id();
-        tracker.track_task_start(1, "test_task".to_string(), thread_id);
+        tracker
+            .track_task_start(1, "test_task".to_string(), thread_id)
+            .unwrap();
         tracker.track_allocation(0x1000, 1024, 1);
         tracker.track_allocation(0x2000, 2048, 1);
-        tracker.track_task_end(1);
+        tracker.track_task_end(1).unwrap();
 
         let profile = tracker.get_task_profile(1);
         assert!(profile.is_some());
@@ -616,5 +635,36 @@ mod tests {
         assert_eq!(profile.task_id, 1);
         assert_eq!(profile.total_allocations, 2);
         assert_eq!(profile.total_bytes, 3072);
+    }
+
+    #[test]
+    fn test_duplicate_task_tracking() {
+        let tracker = AsyncTracker::new();
+        let thread_id = std::thread::current().id();
+
+        // First registration should succeed
+        let result = tracker.track_task_start(1, "test_task".to_string(), thread_id);
+        assert!(result.is_ok());
+
+        // Second registration should fail
+        let result = tracker.track_task_start(1, "duplicate_task".to_string(), thread_id);
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(
+            matches!(error, AsyncError::TaskTracking { operation, .. } if matches!(operation, TaskOperation::Duplicate))
+        );
+    }
+
+    #[test]
+    fn test_task_not_found() {
+        let tracker = AsyncTracker::new();
+
+        // Calling track_task_end with non-existent task should fail
+        let result = tracker.track_task_end(999);
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert!(
+            matches!(error, AsyncError::TaskTracking { operation, .. } if matches!(operation, TaskOperation::TaskNotFound))
+        );
     }
 }
