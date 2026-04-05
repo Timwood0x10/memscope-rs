@@ -1,9 +1,9 @@
 //! Dashboard renderer using Handlebars templates
 
 use crate::analysis::memory_passport_tracker::MemoryPassportTracker;
-use crate::analysis::unsafe_inference::{TypeKind, UnsafeInferenceEngine};
 use crate::tracker::Tracker;
 use handlebars::Handlebars;
+use mach2::mach_init::mach_host_self;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -396,7 +396,7 @@ impl DashboardRenderer {
                     && !frame_lower.contains("/src/tracker")
                 {
                     if let Some(file_part) = frame.split(':').next() {
-                        let file_name = file_part.split('/').last().unwrap_or(file_part);
+                        let file_name = file_part.split('/').next_back().unwrap_or(file_part);
                         if !file_name.starts_with('<') && file_name.contains(".rs") {
                             return Some(file_part.to_string());
                         }
@@ -442,7 +442,7 @@ impl DashboardRenderer {
             n if n.is_power_of_two() && n >= 64 => {
                 format!("Vec<_>/[u8] ({}%)", 10 + n.trailing_zeros() as u8)
             }
-            n if n >= 32 && n <= 256 => format!("[u8] (10%)"),
+            n if (32..=256).contains(&n) => "[u8] (10%)".to_string(),
             _ => "unknown".to_string(),
         }
     }
@@ -949,7 +949,7 @@ impl DashboardRenderer {
                     let mut size: libc::size_t = 256;
                     let mut buf = [0u8; 256];
                     if libc::sysctlbyname(
-                        b"kern.osrelease\0".as_ptr() as *const libc::c_char,
+                        c"kern.osrelease".as_ptr(),
                         buf.as_mut_ptr() as *mut libc::c_void,
                         &mut size,
                         std::ptr::null_mut(),
@@ -967,7 +967,7 @@ impl DashboardRenderer {
                     let mut size: libc::size_t = 256;
                     let mut buf = [0u8; 256];
                     if libc::sysctlbyname(
-                        b"hw.machine\0".as_ptr() as *const libc::c_char,
+                        c"hw.machine".as_ptr(),
                         buf.as_mut_ptr() as *mut libc::c_void,
                         &mut size,
                         std::ptr::null_mut(),
@@ -1008,7 +1008,7 @@ impl DashboardRenderer {
                 unsafe {
                     size = std::mem::size_of::<u64>();
                     if libc::sysctlbyname(
-                        b"hw.pagesize\0".as_ptr() as *const libc::c_char,
+                        c"hw.pagesize".as_ptr(),
                         &mut page_size as *mut u64 as *mut libc::c_void,
                         &mut size,
                         std::ptr::null_mut(),
@@ -1042,7 +1042,7 @@ impl DashboardRenderer {
                 let mut count = libc::HOST_VM_INFO64_COUNT;
                 let (available_physical, used_physical) = unsafe {
                     if libc::host_statistics64(
-                        libc::mach_host_self(),
+                        mach_host_self(),
                         libc::HOST_VM_INFO64,
                         &mut vm_stats as *mut _ as libc::host_info64_t,
                         &mut count,
@@ -1538,7 +1538,7 @@ impl DashboardRenderer {
         // Prepare efficiency data
         let efficiency_data = serde_json::json!({
             "memory_efficiency": if context.total_allocations > 0 {
-                (context.active_allocations as f64 / context.total_allocations as f64 * 100.0)
+                context.active_allocations as f64 / context.total_allocations as f64 * 100.0
             } else { 100.0 },
             "fragmentation": "0.0", // TODO: Calculate actual fragmentation
             "reclamation_rate": "0.0", // TODO: Calculate actual reclamation rate
@@ -1929,7 +1929,7 @@ impl DashboardRenderer {
     fn parse_bytes_to_mb(bytes_str: &str) -> f64 {
         let num_str: String = bytes_str
             .chars()
-            .filter(|c| c.is_digit(10) || *c == '.')
+            .filter(|c| c.is_ascii_digit() || *c == '.')
             .collect();
         let num: f64 = num_str.parse().unwrap_or(0.0);
         if bytes_str.contains("GB") {
@@ -2108,9 +2108,7 @@ impl DashboardRenderer {
             );
             task_map.insert(
                 "duration_ms".to_string(),
-                serde_json::Value::Number(
-                    serde_json::Number::from_f64(alloc.lifetime_ms as f64).unwrap(),
-                ),
+                serde_json::Value::Number(serde_json::Number::from_f64(alloc.lifetime_ms).unwrap()),
             );
             let task_data = serde_json::Value::Object(task_map);
 
@@ -2596,8 +2594,9 @@ fn json_helper(
     out: &mut dyn handlebars::Output,
 ) -> handlebars::HelperResult {
     let param = h.param(0).unwrap().value();
-    let json_string = serde_json::to_string(param)
-        .map_err(|e| handlebars::RenderError::new(format!("Failed to serialize to JSON: {}", e)))?;
+    let json_string = serde_json::to_string(param).map_err(|e| {
+        handlebars::RenderErrorReason::Other(format!("Failed to serialize to JSON: {}", e))
+    })?;
     out.write(&json_string)?;
     Ok(())
 }

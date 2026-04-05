@@ -4,7 +4,7 @@ use crate::core::types::*;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, RwLock};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Global scope tracker instance
 static GLOBAL_SCOPE_TRACKER: OnceLock<Arc<ScopeTracker>> = OnceLock::new();

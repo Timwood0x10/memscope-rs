@@ -246,7 +246,7 @@ mod tests {
             let handle = thread::spawn(move || {
                 for _ in 0..1000 {
                     stats_clone.record_attempt();
-                    if thread_local_random() % 10 != 0 {
+                    if !thread_local_random().is_multiple_of(10) {
                         stats_clone.record_success();
                     } else {
                         stats_clone.record_miss();

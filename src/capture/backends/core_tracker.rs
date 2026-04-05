@@ -356,7 +356,7 @@ pub fn configure_tracking_strategy(is_concurrent: bool) {
         STRATEGY_GLOBAL_SINGLETON
     };
 
-    TRACKING_STRATEGY.store(strategy as u64, Ordering::Relaxed);
+    TRACKING_STRATEGY.store(strategy, Ordering::Relaxed);
 
     tracing::info!(
         "Configured tracking strategy: {}",

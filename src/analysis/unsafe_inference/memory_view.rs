@@ -109,6 +109,29 @@ impl ValidRegions {
 /// Global cached valid regions.
 static VALID_REGIONS: RwLock<Option<ValidRegions>> = RwLock::new(None);
 
+/// Merge overlapping or adjacent memory regions.
+#[cfg(target_os = "linux")]
+fn merge_regions(regions: Vec<MemoryRegion>) -> Vec<MemoryRegion> {
+    if regions.is_empty() {
+        return regions;
+    }
+
+    let mut merged: Vec<MemoryRegion> = Vec::with_capacity(regions.len());
+    let mut current = regions[0].clone();
+
+    for region in regions.into_iter().skip(1) {
+        if region.start <= current.end {
+            current.end = current.end.max(region.end);
+        } else {
+            merged.push(current);
+            current = region;
+        }
+    }
+    merged.push(current);
+
+    merged
+}
+
 /// Get valid memory regions for the current process.
 ///
 /// Platform-specific implementation:
@@ -167,31 +190,6 @@ fn get_valid_regions_impl() -> ValidRegions {
     ValidRegions::empty()
 }
 
-/// Merge overlapping or adjacent memory regions.
-fn merge_regions(regions: Vec<MemoryRegion>) -> Vec<MemoryRegion> {
-    if regions.is_empty() {
-        return regions;
-    }
-
-    let mut merged = Vec::with_capacity(regions.len());
-    let mut current = regions[0].clone();
-
-    for region in regions.into_iter().skip(1) {
-        // Check if regions overlap or are adjacent
-        if region.start <= current.end {
-            // Merge: extend current region
-            current.end = current.end.max(region.end);
-        } else {
-            // No overlap: push current and start new
-            merged.push(current);
-            current = region;
-        }
-    }
-    merged.push(current);
-
-    merged
-}
-
 /// Get cached valid regions, initializing if needed.
 pub fn get_valid_regions() -> ValidRegions {
     {
@@ -211,6 +209,7 @@ pub fn get_valid_regions() -> ValidRegions {
 }
 
 /// Refresh valid regions (call after significant memory changes).
+#[cfg(target_os = "linux")]
 pub fn refresh_valid_regions() {
     let mut write_guard = VALID_REGIONS.write().unwrap();
     *write_guard = None;
@@ -371,36 +370,6 @@ mod tests {
         assert!(regions.contains(0x3500));
         assert!(!regions.contains(0x2500));
         assert!(!regions.contains(0x5000));
-    }
-
-    #[test]
-    fn test_merge_regions() {
-        let regions = vec![
-            MemoryRegion {
-                start: 0x1000,
-                end: 0x2000,
-            },
-            MemoryRegion {
-                start: 0x1800,
-                end: 0x3000,
-            }, // Overlapping
-            MemoryRegion {
-                start: 0x4000,
-                end: 0x5000,
-            },
-            MemoryRegion {
-                start: 0x5000,
-                end: 0x6000,
-            }, // Adjacent
-        ];
-
-        let merged = merge_regions(regions);
-
-        assert_eq!(merged.len(), 2);
-        assert_eq!(merged[0].start, 0x1000);
-        assert_eq!(merged[0].end, 0x3000);
-        assert_eq!(merged[1].start, 0x4000);
-        assert_eq!(merged[1].end, 0x6000);
     }
 
     #[test]

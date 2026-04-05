@@ -2,6 +2,8 @@
 //!
 //! This module contains type definitions for the lockfree memory tracking system.
 
+use super::bottleneck_analysis::PerformanceIssue;
+use super::hotspot_analysis::{CallStackHotspot, MemoryUsagePeak};
 use std::thread::ThreadId;
 
 /// Memory event for lockfree tracking
@@ -353,25 +355,6 @@ pub struct ThreadStats {
     pub avg_allocation_size: f64,
 }
 
-/// Hot call stack information
-#[deprecated(
-    since = "0.1.10",
-    note = "Use capture::backends::hotspot_analysis::CallStackHotspot instead. This module will be removed in a future version."
-)]
-#[derive(Debug, Clone)]
-pub struct HotCallStack {
-    /// Hash of the call stack
-    pub call_stack_hash: u64,
-    /// Total frequency across all threads
-    pub total_frequency: u64,
-    /// Total memory allocated by this call stack
-    pub total_size: usize,
-    /// Impact score (frequency * size)
-    pub impact_score: u64,
-    /// Threads that use this call stack
-    pub threads: Vec<u64>,
-}
-
 /// Thread interaction type
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InteractionType {
@@ -396,65 +379,6 @@ pub struct ThreadInteraction {
     pub interaction_strength: u64,
     /// Type of interaction detected
     pub interaction_type: InteractionType,
-}
-
-/// Memory usage peak
-#[deprecated(
-    since = "0.1.10",
-    note = "Use capture::backends::hotspot_analysis::MemoryUsagePeak instead. This module will be removed in a future version."
-)]
-#[derive(Debug, Clone)]
-pub struct MemoryPeak {
-    /// Timestamp of the peak
-    pub timestamp: u64,
-    /// Thread that caused the peak
-    pub thread_id: u64,
-    /// Memory usage at peak (bytes)
-    pub memory_usage: usize,
-    /// Number of active allocations
-    pub active_allocations: u64,
-    /// Call stack that triggered the peak
-    pub triggering_call_stack: u64,
-}
-
-/// Performance bottleneck type
-#[deprecated(
-    since = "0.1.10",
-    note = "Use capture::backends::bottleneck_analysis::BottleneckKind instead. This module will be removed in a future version."
-)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BottleneckType {
-    /// High frequency small allocations
-    HighFrequencySmallAllocation,
-    /// Large allocation spike
-    LargeAllocationSpike,
-    /// Potential memory leak
-    MemoryLeak,
-    /// Thread contention
-    ThreadContention,
-    /// Fragmentation risk
-    FragmentationRisk,
-}
-
-/// Performance bottleneck information
-#[deprecated(
-    since = "0.1.10",
-    note = "Use capture::backends::bottleneck_analysis::PerformanceIssue instead. This module will be removed in a future version."
-)]
-#[derive(Debug, Clone)]
-pub struct PerformanceBottleneck {
-    /// Type of bottleneck detected
-    pub bottleneck_type: BottleneckType,
-    /// Thread where bottleneck was detected
-    pub thread_id: u64,
-    /// Call stack associated with bottleneck
-    pub call_stack_hash: u64,
-    /// Severity score (0.0 to 1.0)
-    pub severity: f64,
-    /// Human-readable description
-    pub description: String,
-    /// Suggested remediation
-    pub suggestion: String,
 }
 
 /// Analysis summary
@@ -484,13 +408,13 @@ pub struct LockfreeAnalysis {
     /// Statistics for each thread
     pub thread_stats: std::collections::HashMap<u64, ThreadStats>,
     /// Most frequently used call stacks across all threads
-    pub hottest_call_stacks: Vec<HotCallStack>,
+    pub hottest_call_stacks: Vec<CallStackHotspot>,
     /// Detected interactions between threads
     pub thread_interactions: Vec<ThreadInteraction>,
     /// Memory usage peaks across all threads
-    pub memory_peaks: Vec<MemoryPeak>,
+    pub memory_peaks: Vec<MemoryUsagePeak>,
     /// Detected performance bottlenecks
-    pub performance_bottlenecks: Vec<PerformanceBottleneck>,
+    pub performance_bottlenecks: Vec<PerformanceIssue>,
     /// Overall summary statistics
     pub summary: AnalysisSummary,
 }
@@ -550,7 +474,7 @@ impl LockfreeAnalysis {
     }
 
     /// Gets most severe performance bottlenecks
-    pub fn get_critical_bottlenecks(&self, severity_threshold: f64) -> Vec<&PerformanceBottleneck> {
+    pub fn get_critical_bottlenecks(&self, severity_threshold: f64) -> Vec<&PerformanceIssue> {
         self.performance_bottlenecks
             .iter()
             .filter(|b| b.severity >= severity_threshold)

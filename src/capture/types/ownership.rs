@@ -239,47 +239,6 @@ pub enum CompositionType {
     SmartPointer,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_ownership_hierarchy() {
-        let hierarchy = OwnershipHierarchy {
-            root_owners: vec![],
-            max_depth: 3,
-            total_objects: 10,
-            transfer_events: vec![],
-            weak_references: vec![],
-            circular_references: vec![],
-        };
-
-        assert_eq!(hierarchy.max_depth, 3);
-        assert_eq!(hierarchy.total_objects, 10);
-    }
-
-    #[test]
-    fn test_ownership_type() {
-        let ownership = OwnershipType::SharedMultiThreaded;
-        assert!(matches!(ownership, OwnershipType::SharedMultiThreaded));
-    }
-
-    #[test]
-    fn test_weak_reference_info() {
-        let weak_ref = WeakReferenceInfo {
-            weak_ref_id: 1,
-            target_object_id: 100,
-            weak_ref_type: WeakReferenceType::ArcWeak,
-            target_alive: true,
-            upgrade_attempts: 5,
-            successful_upgrades: 4,
-        };
-
-        assert_eq!(weak_ref.upgrade_attempts, 5);
-        assert!(weak_ref.target_alive);
-    }
-}
-
 impl From<crate::core::types::TypeRelationshipInfo> for TypeRelationshipInfo {
     fn from(old: crate::core::types::TypeRelationshipInfo) -> Self {
         Self {
@@ -493,5 +452,46 @@ impl From<crate::core::types::OwnershipHierarchy> for OwnershipHierarchy {
                 .map(Into::into)
                 .collect(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_ownership_hierarchy() {
+        let hierarchy = OwnershipHierarchy {
+            root_owners: vec![],
+            max_depth: 3,
+            total_objects: 10,
+            transfer_events: vec![],
+            weak_references: vec![],
+            circular_references: vec![],
+        };
+
+        assert_eq!(hierarchy.max_depth, 3);
+        assert_eq!(hierarchy.total_objects, 10);
+    }
+
+    #[test]
+    fn test_ownership_type() {
+        let ownership = OwnershipType::SharedMultiThreaded;
+        assert!(matches!(ownership, OwnershipType::SharedMultiThreaded));
+    }
+
+    #[test]
+    fn test_weak_reference_info() {
+        let weak_ref = WeakReferenceInfo {
+            weak_ref_id: 1,
+            target_object_id: 100,
+            weak_ref_type: WeakReferenceType::ArcWeak,
+            target_alive: true,
+            upgrade_attempts: 5,
+            successful_upgrades: 4,
+        };
+
+        assert_eq!(weak_ref.upgrade_attempts, 5);
+        assert!(weak_ref.target_alive);
     }
 }

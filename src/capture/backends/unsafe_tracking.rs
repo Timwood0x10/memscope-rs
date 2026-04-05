@@ -777,7 +777,7 @@ mod tests {
 
     #[test]
     fn test_allocation_info_leak_detection() {
-        let mut info = AllocationInfo::new(0x1000, 1024, AllocationSource::SafeRust);
+        let info = AllocationInfo::new(0x1000, 1024, AllocationSource::SafeRust);
         assert!(!info.is_leaked(1000));
 
         // Simulate time passing by creating an older allocation

@@ -302,68 +302,6 @@ pub enum ImplementationDifficulty {
     VeryHard,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_memory_access_tracking_info() {
-        let info = MemoryAccessTrackingInfo {
-            region_id: 1,
-            address_range: AddressRange {
-                start_address: 0x1000,
-                end_address: 0x2000,
-                size: 0x1000,
-            },
-            access_events: vec![],
-            access_statistics: MemoryAccessStatistics {
-                total_reads: 100,
-                total_writes: 50,
-                read_write_ratio: 2.0,
-                avg_access_frequency: 1000.0,
-                peak_access_frequency: 5000.0,
-                locality_metrics: LocalityMetrics {
-                    temporal_locality: 0.8,
-                    spatial_locality: 0.9,
-                    sequential_access_percent: 70.0,
-                    random_access_percent: 30.0,
-                    stride_patterns: vec![],
-                },
-                bandwidth_utilization: BandwidthUtilization {
-                    peak_bandwidth: 1000000.0,
-                    avg_bandwidth: 500000.0,
-                    efficiency_percent: 50.0,
-                    bottlenecks: vec![],
-                },
-            },
-            access_patterns: vec![],
-            performance_impact: MemoryAccessPerformanceImpact {
-                performance_score: 0.8,
-                cache_efficiency_impact: 0.1,
-                bandwidth_impact: 0.1,
-                pipeline_impact: 0.05,
-                optimization_recommendations: vec![],
-            },
-        };
-
-        assert_eq!(info.region_id, 1);
-        assert_eq!(info.access_statistics.total_reads, 100);
-    }
-
-    #[test]
-    fn test_access_pattern_type() {
-        let patterns = vec![
-            AccessPatternType::Sequential,
-            AccessPatternType::Random,
-            AccessPatternType::Strided,
-        ];
-
-        for pattern in patterns {
-            assert!(!format!("{pattern:?}").is_empty());
-        }
-    }
-}
-
 // Implement From trait for converting from core::types to capture::types
 impl From<crate::core::types::MemoryAccessTrackingInfo> for MemoryAccessTrackingInfo {
     fn from(old: crate::core::types::MemoryAccessTrackingInfo) -> Self {
@@ -584,6 +522,68 @@ impl From<crate::core::types::MemoryAccessTrackingInfo> for MemoryAccessTracking
                     })
                     .collect(),
             },
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_memory_access_tracking_info() {
+        let info = MemoryAccessTrackingInfo {
+            region_id: 1,
+            address_range: AddressRange {
+                start_address: 0x1000,
+                end_address: 0x2000,
+                size: 0x1000,
+            },
+            access_events: vec![],
+            access_statistics: MemoryAccessStatistics {
+                total_reads: 100,
+                total_writes: 50,
+                read_write_ratio: 2.0,
+                avg_access_frequency: 1000.0,
+                peak_access_frequency: 5000.0,
+                locality_metrics: LocalityMetrics {
+                    temporal_locality: 0.8,
+                    spatial_locality: 0.9,
+                    sequential_access_percent: 70.0,
+                    random_access_percent: 30.0,
+                    stride_patterns: vec![],
+                },
+                bandwidth_utilization: BandwidthUtilization {
+                    peak_bandwidth: 1000000.0,
+                    avg_bandwidth: 500000.0,
+                    efficiency_percent: 50.0,
+                    bottlenecks: vec![],
+                },
+            },
+            access_patterns: vec![],
+            performance_impact: MemoryAccessPerformanceImpact {
+                performance_score: 0.8,
+                cache_efficiency_impact: 0.1,
+                bandwidth_impact: 0.1,
+                pipeline_impact: 0.05,
+                optimization_recommendations: vec![],
+            },
+        };
+
+        assert_eq!(info.region_id, 1);
+        assert_eq!(info.access_statistics.total_reads, 100);
+    }
+
+    #[test]
+    fn test_access_pattern_type() {
+        let patterns = vec![
+            AccessPatternType::Sequential,
+            AccessPatternType::Random,
+            AccessPatternType::Strided,
+        ];
+
+        for pattern in patterns {
+            assert!(!format!("{pattern:?}").is_empty());
         }
     }
 }

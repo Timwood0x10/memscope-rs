@@ -560,26 +560,6 @@ fn estimate_json_size(data: &serde_json::Value) -> usize {
     }
 }
 
-fn compute_enhanced_type_info(type_name: &str, size: usize) -> String {
-    if type_name.contains("Vec") || type_name.contains("vec::Vec") {
-        "dynamic_array".to_string()
-    } else if type_name.contains("String") || type_name.contains("str") {
-        "string".to_string()
-    } else if type_name.contains("Box") {
-        "boxed".to_string()
-    } else if type_name.contains("Rc") || type_name.contains("Arc") {
-        "reference_counted".to_string()
-    } else if type_name.contains("Cell") || type_name.contains("RefCell") {
-        "cell".to_string()
-    } else if type_name.contains("[") {
-        "array".to_string()
-    } else if type_name.contains("u8") && size > 0 {
-        "byte".to_string()
-    } else {
-        "heap".to_string()
-    }
-}
-
 #[derive(Debug, thiserror::Error)]
 pub enum ExportError {
     #[error("IO error: {0}")]
@@ -675,16 +655,11 @@ pub fn export_async_analysis_json<P: AsRef<Path>>(
 }
 
 /// Dashboard template type
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum DashboardTemplate {
     /// Unified dashboard (multi-mode in single HTML)
+    #[default]
     Unified,
-}
-
-impl Default for DashboardTemplate {
-    fn default() -> Self {
-        DashboardTemplate::Unified
-    }
 }
 
 impl std::fmt::Display for DashboardTemplate {

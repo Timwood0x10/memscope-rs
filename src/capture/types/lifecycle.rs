@@ -248,46 +248,6 @@ pub enum SimpleLifecyclePattern {
     Persistent,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_object_lifecycle_info() {
-        let info = ObjectLifecycleInfo {
-            object_id: 1,
-            type_name: "String".to_string(),
-            lifecycle_events: vec![],
-            total_lifetime_ns: Some(1000000),
-            stage_durations: LifecycleStageDurations {
-                creation_to_first_use_ns: Some(100),
-                active_use_duration_ns: Some(900000),
-                last_use_to_destruction_ns: Some(99900),
-                borrowed_duration_ns: 100000,
-                idle_duration_ns: 50000,
-            },
-            efficiency_metrics: LifecycleEfficiencyMetrics::default(),
-            lifecycle_patterns: vec![],
-        };
-
-        assert_eq!(info.object_id, 1);
-        assert_eq!(info.type_name, "String");
-    }
-
-    #[test]
-    fn test_lifecycle_event_type() {
-        let events = vec![
-            LifecycleEventType::Creation,
-            LifecycleEventType::FirstUse,
-            LifecycleEventType::Drop,
-        ];
-
-        for event in events {
-            assert!(!format!("{event:?}").is_empty());
-        }
-    }
-}
-
 impl From<crate::core::types::ObjectLifecycleInfo> for ObjectLifecycleInfo {
     fn from(old: crate::core::types::ObjectLifecycleInfo) -> Self {
         Self {
@@ -450,6 +410,46 @@ impl From<crate::core::types::ObjectLifecycleInfo> for ObjectLifecycleInfo {
                     optimization_suggestions: p.optimization_suggestions,
                 })
                 .collect(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_object_lifecycle_info() {
+        let info = ObjectLifecycleInfo {
+            object_id: 1,
+            type_name: "String".to_string(),
+            lifecycle_events: vec![],
+            total_lifetime_ns: Some(1000000),
+            stage_durations: LifecycleStageDurations {
+                creation_to_first_use_ns: Some(100),
+                active_use_duration_ns: Some(900000),
+                last_use_to_destruction_ns: Some(99900),
+                borrowed_duration_ns: 100000,
+                idle_duration_ns: 50000,
+            },
+            efficiency_metrics: LifecycleEfficiencyMetrics::default(),
+            lifecycle_patterns: vec![],
+        };
+
+        assert_eq!(info.object_id, 1);
+        assert_eq!(info.type_name, "String");
+    }
+
+    #[test]
+    fn test_lifecycle_event_type() {
+        let events = vec![
+            LifecycleEventType::Creation,
+            LifecycleEventType::FirstUse,
+            LifecycleEventType::Drop,
+        ];
+
+        for event in events {
+            assert!(!format!("{event:?}").is_empty());
         }
     }
 }

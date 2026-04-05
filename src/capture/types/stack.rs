@@ -58,6 +58,35 @@ pub enum ScopeType {
     Unsafe,
 }
 
+// Implement From trait for converting from core::types to capture::types
+impl From<crate::core::types::StackAllocationInfo> for StackAllocationInfo {
+    fn from(old: crate::core::types::StackAllocationInfo) -> Self {
+        Self {
+            frame_id: old.frame_id,
+            var_name: old.var_name,
+            stack_offset: old.stack_offset,
+            size: old.size,
+            function_name: old.function_name,
+            stack_depth: old.stack_depth,
+            scope_info: StackScopeInfo {
+                scope_type: match old.scope_info.scope_type {
+                    crate::core::types::ScopeType::Function => ScopeType::Function,
+                    crate::core::types::ScopeType::Block => ScopeType::Block,
+                    crate::core::types::ScopeType::Loop => ScopeType::Loop,
+                    crate::core::types::ScopeType::Conditional => ScopeType::Conditional,
+                    crate::core::types::ScopeType::Match => ScopeType::Match,
+                    crate::core::types::ScopeType::Async => ScopeType::Async,
+                    crate::core::types::ScopeType::Unsafe => ScopeType::Unsafe,
+                },
+                start_line: old.scope_info.start_line,
+                end_line: old.scope_info.end_line,
+                parent_scope: old.scope_info.parent_scope,
+                nesting_level: old.scope_info.nesting_level,
+            },
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -99,35 +128,6 @@ mod tests {
 
         for scope_type in types {
             assert!(!format!("{scope_type:?}").is_empty());
-        }
-    }
-}
-
-// Implement From trait for converting from core::types to capture::types
-impl From<crate::core::types::StackAllocationInfo> for StackAllocationInfo {
-    fn from(old: crate::core::types::StackAllocationInfo) -> Self {
-        Self {
-            frame_id: old.frame_id,
-            var_name: old.var_name,
-            stack_offset: old.stack_offset,
-            size: old.size,
-            function_name: old.function_name,
-            stack_depth: old.stack_depth,
-            scope_info: StackScopeInfo {
-                scope_type: match old.scope_info.scope_type {
-                    crate::core::types::ScopeType::Function => ScopeType::Function,
-                    crate::core::types::ScopeType::Block => ScopeType::Block,
-                    crate::core::types::ScopeType::Loop => ScopeType::Loop,
-                    crate::core::types::ScopeType::Conditional => ScopeType::Conditional,
-                    crate::core::types::ScopeType::Match => ScopeType::Match,
-                    crate::core::types::ScopeType::Async => ScopeType::Async,
-                    crate::core::types::ScopeType::Unsafe => ScopeType::Unsafe,
-                },
-                start_line: old.scope_info.start_line,
-                end_line: old.scope_info.end_line,
-                parent_scope: old.scope_info.parent_scope,
-                nesting_level: old.scope_info.nesting_level,
-            },
         }
     }
 }

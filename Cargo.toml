@@ -47,6 +47,10 @@ memscope-derive = { path = "./memscope-derive", optional = true, version = "0.1.
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["processthreadsapi", "winnt"] }
 
+# macOS-specific dependencies
+[target.'cfg(target_os = "macos")'.dependencies]
+mach2 = "0.6"
+
 
 [lib]
 name = "memscope_rs"

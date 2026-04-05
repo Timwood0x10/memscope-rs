@@ -199,7 +199,7 @@ impl LeakDetector {
     fn assess_leak_severity(&self, size: usize) -> IssueSeverity {
         if size >= 10 * 1024 * 1024 {
             IssueSeverity::Critical
-        } else if size >= 1 * 1024 * 1024 {
+        } else if size >= 1024 * 1024 {
             IssueSeverity::High
         } else if size >= 100 * 1024 {
             IssueSeverity::Medium

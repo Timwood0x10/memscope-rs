@@ -234,8 +234,8 @@ impl LifecycleDetector {
                 if let Some(actual_lifetime) = alloc.lifetime_ms {
                     // Estimate expected lifetime
                     let expected_lifetime = match temp_info.lifetime_ns {
-                        Some(ns) => (ns / 1_000_000) as u64, // Convert ns to ms
-                        None => 100,                         // Default 100ms
+                        Some(ns) => ns / 1_000_000, // Convert ns to ms
+                        None => 100,                // Default 100ms
                     };
 
                     if actual_lifetime > expected_lifetime * 10 {

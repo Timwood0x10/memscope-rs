@@ -124,51 +124,6 @@ pub struct GcInfo {
     pub memory_reclaimed: usize,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_runtime_state_info() {
-        let state = RuntimeStateInfo {
-            cpu_usage: CpuUsageInfo {
-                current_usage_percent: 25.0,
-                average_usage_percent: 20.0,
-                peak_usage_percent: 50.0,
-                intensive_operations_count: 10,
-            },
-            memory_pressure: MemoryPressureInfo {
-                pressure_level: MemoryPressureLevel::Low,
-                available_memory_percent: 80.0,
-                allocation_failures: 0,
-                fragmentation_level: 0.1,
-            },
-            cache_performance: CachePerformanceInfo {
-                l1_hit_rate: 0.95,
-                l2_hit_rate: 0.85,
-                l3_hit_rate: 0.75,
-                cache_miss_penalty_ns: 100.0,
-                access_pattern: MemoryAccessPattern::Sequential,
-            },
-            allocator_state: AllocatorStateInfo {
-                allocator_type: "system".to_string(),
-                heap_size: 1024 * 1024,
-                heap_used: 512 * 1024,
-                free_blocks_count: 10,
-                largest_free_block: 256 * 1024,
-                efficiency_score: 0.8,
-            },
-            gc_info: None,
-        };
-
-        assert_eq!(state.cpu_usage.current_usage_percent, 25.0);
-        assert!(matches!(
-            state.memory_pressure.pressure_level,
-            MemoryPressureLevel::Low
-        ));
-    }
-}
-
 // Implement From trait for converting from core::types to capture::types
 impl From<crate::core::types::RuntimeStateInfo> for RuntimeStateInfo {
     fn from(old: crate::core::types::RuntimeStateInfo) -> Self {
@@ -229,5 +184,50 @@ impl From<crate::core::types::RuntimeStateInfo> for RuntimeStateInfo {
                 memory_reclaimed: gc.memory_reclaimed,
             }),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_runtime_state_info() {
+        let state = RuntimeStateInfo {
+            cpu_usage: CpuUsageInfo {
+                current_usage_percent: 25.0,
+                average_usage_percent: 20.0,
+                peak_usage_percent: 50.0,
+                intensive_operations_count: 10,
+            },
+            memory_pressure: MemoryPressureInfo {
+                pressure_level: MemoryPressureLevel::Low,
+                available_memory_percent: 80.0,
+                allocation_failures: 0,
+                fragmentation_level: 0.1,
+            },
+            cache_performance: CachePerformanceInfo {
+                l1_hit_rate: 0.95,
+                l2_hit_rate: 0.85,
+                l3_hit_rate: 0.75,
+                cache_miss_penalty_ns: 100.0,
+                access_pattern: MemoryAccessPattern::Sequential,
+            },
+            allocator_state: AllocatorStateInfo {
+                allocator_type: "system".to_string(),
+                heap_size: 1024 * 1024,
+                heap_used: 512 * 1024,
+                free_blocks_count: 10,
+                largest_free_block: 256 * 1024,
+                efficiency_score: 0.8,
+            },
+            gc_info: None,
+        };
+
+        assert_eq!(state.cpu_usage.current_usage_percent, 25.0);
+        assert!(matches!(
+            state.memory_pressure.pressure_level,
+            MemoryPressureLevel::Low
+        ));
     }
 }

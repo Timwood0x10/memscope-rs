@@ -5,10 +5,6 @@
 //! that tracks all heap allocations and deallocations, and provides utilities
 //! for exporting memory usage data in various formats.
 
-#![allow(warnings)]
-#![allow(missing_docs)]
-/// Advanced type analysis framework
-pub mod advanced_types;
 /// Advanced memory analysis functionality
 pub mod analysis;
 /// Analysis Engine - Memory analysis logic
@@ -43,17 +39,9 @@ pub mod utils;
 /// Variable registry for lightweight HashMap-based variable tracking
 pub mod variable_registry;
 
-/// Enhanced types for comprehensive memory analysis
-pub mod enhanced_types;
-pub use advanced_types::*;
-pub use analysis::enhanced::EnhancedMemoryAnalyzer;
 pub use analysis::*;
 pub use capture::backends::bottleneck_analysis::{BottleneckKind, PerformanceIssue};
 pub use capture::backends::hotspot_analysis::{CallStackHotspot, MemoryUsagePeak};
-pub use capture::backends::lockfree_types::BottleneckType as LegacyBottleneckType;
-pub use capture::backends::lockfree_types::HotCallStack as LegacyHotCallStack;
-pub use capture::backends::lockfree_types::MemoryPeak as LegacyMemoryPeak;
-pub use capture::backends::lockfree_types::PerformanceBottleneck as LegacyPerformanceBottleneck;
 pub use capture::backends::{
     configure_tracking_strategy, get_tracker as get_capture_tracker, AllocationCategory,
     AnalysisSummary, AsyncAllocation, AsyncBackend, AsyncMemorySnapshot, AsyncSnapshot, AsyncStats,

@@ -771,84 +771,6 @@ pub struct RiskDistribution {
     pub critical_risk: usize,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_allocation_info_creation() {
-        let info = AllocationInfo::new(0x12345678, 1024);
-
-        assert_eq!(info.ptr, 0x12345678);
-        assert_eq!(info.size, 1024);
-        assert!(info.is_active());
-        assert!(info.borrow_info.is_some());
-        assert!(info.clone_info.is_some());
-        assert!(info.ownership_history_available);
-    }
-
-    #[test]
-    fn test_allocation_info_mark_deallocated() {
-        let mut info = AllocationInfo::new(0x1000, 512);
-        assert!(info.is_active());
-
-        info.mark_deallocated();
-        assert!(!info.is_active());
-        assert!(info.timestamp_dealloc.is_some());
-    }
-
-    #[test]
-    fn test_allocation_info_enhance_with_type_info() {
-        let mut info = AllocationInfo::new(0x1000, 512);
-
-        // Test with Rc type
-        info.enhance_with_type_info("std::rc::Rc<String>");
-        if let Some(clone_info) = &info.clone_info {
-            assert_eq!(clone_info.clone_count, 2);
-        }
-
-        // Test with Vec type
-        info.enhance_with_type_info("Vec<i32>");
-        if let Some(borrow_info) = &info.borrow_info {
-            assert_eq!(borrow_info.immutable_borrows, 4);
-            assert_eq!(borrow_info.mutable_borrows, 2);
-        }
-    }
-
-    #[test]
-    fn test_borrow_info_default() {
-        let borrow_info = BorrowInfo::default();
-
-        assert_eq!(borrow_info.immutable_borrows, 0);
-        assert_eq!(borrow_info.mutable_borrows, 0);
-        assert_eq!(borrow_info.max_concurrent_borrows, 0);
-        assert_eq!(borrow_info.last_borrow_timestamp, None);
-    }
-
-    #[test]
-    fn test_clone_info_default() {
-        let clone_info = CloneInfo::default();
-
-        assert_eq!(clone_info.clone_count, 0);
-        assert!(!clone_info.is_clone);
-        assert_eq!(clone_info.original_ptr, None);
-    }
-
-    #[test]
-    fn test_allocation_info_serialization() {
-        let info = AllocationInfo::new(0x1000, 512);
-
-        // Test that it can be serialized
-        let serialized = serde_json::to_string(&info);
-        assert!(serialized.is_ok());
-
-        // Test that serialized data contains expected fields
-        let json_str = serialized.expect("Serialization should succeed for valid AllocationInfo");
-        assert!(json_str.contains("ptr"));
-        assert!(json_str.contains("size"));
-    }
-}
-
 // Implement From trait for converting from core::types to capture::types
 impl From<crate::core::types::TypeUsageInfo> for TypeUsageInfo {
     fn from(old: crate::core::types::TypeUsageInfo) -> Self {
@@ -1024,5 +946,83 @@ impl From<crate::core::types::TypeUsageInfo> for TypeUsageInfo {
                     .collect(),
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_allocation_info_creation() {
+        let info = AllocationInfo::new(0x12345678, 1024);
+
+        assert_eq!(info.ptr, 0x12345678);
+        assert_eq!(info.size, 1024);
+        assert!(info.is_active());
+        assert!(info.borrow_info.is_some());
+        assert!(info.clone_info.is_some());
+        assert!(info.ownership_history_available);
+    }
+
+    #[test]
+    fn test_allocation_info_mark_deallocated() {
+        let mut info = AllocationInfo::new(0x1000, 512);
+        assert!(info.is_active());
+
+        info.mark_deallocated();
+        assert!(!info.is_active());
+        assert!(info.timestamp_dealloc.is_some());
+    }
+
+    #[test]
+    fn test_allocation_info_enhance_with_type_info() {
+        let mut info = AllocationInfo::new(0x1000, 512);
+
+        // Test with Rc type
+        info.enhance_with_type_info("std::rc::Rc<String>");
+        if let Some(clone_info) = &info.clone_info {
+            assert_eq!(clone_info.clone_count, 2);
+        }
+
+        // Test with Vec type
+        info.enhance_with_type_info("Vec<i32>");
+        if let Some(borrow_info) = &info.borrow_info {
+            assert_eq!(borrow_info.immutable_borrows, 4);
+            assert_eq!(borrow_info.mutable_borrows, 2);
+        }
+    }
+
+    #[test]
+    fn test_borrow_info_default() {
+        let borrow_info = BorrowInfo::default();
+
+        assert_eq!(borrow_info.immutable_borrows, 0);
+        assert_eq!(borrow_info.mutable_borrows, 0);
+        assert_eq!(borrow_info.max_concurrent_borrows, 0);
+        assert_eq!(borrow_info.last_borrow_timestamp, None);
+    }
+
+    #[test]
+    fn test_clone_info_default() {
+        let clone_info = CloneInfo::default();
+
+        assert_eq!(clone_info.clone_count, 0);
+        assert!(!clone_info.is_clone);
+        assert_eq!(clone_info.original_ptr, None);
+    }
+
+    #[test]
+    fn test_allocation_info_serialization() {
+        let info = AllocationInfo::new(0x1000, 512);
+
+        // Test that it can be serialized
+        let serialized = serde_json::to_string(&info);
+        assert!(serialized.is_ok());
+
+        // Test that serialized data contains expected fields
+        let json_str = serialized.expect("Serialization should succeed for valid AllocationInfo");
+        assert!(json_str.contains("ptr"));
+        assert!(json_str.contains("size"));
     }
 }

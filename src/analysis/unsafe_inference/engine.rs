@@ -646,8 +646,8 @@ fn lifetime_analysis(alloc_time: Option<u64>, dealloc_time: Option<u64>, score: 
     let lifetime_ms = lifetime_ns / 1_000_000;
 
     match lifetime_ms {
-        // Transient allocation (< 1ms) → possibly temporary String or small Vec
-        0..=1 => {
+        // Transient allocation (0ms) → possibly temporary String or small Vec
+        0 => {
             score.string += 10;
             score.vec += 5;
         }
@@ -1007,7 +1007,7 @@ mod tests {
     fn test_lifetime_transient_allocation() {
         let memory = b"test".to_vec();
         let alloc_time = Some(1000);
-        let dealloc_time = Some(1000_500); // 0.5ms lifetime
+        let dealloc_time = Some(1_000_500); // 0.5ms lifetime
         let guess =
             UnsafeInferenceEngine::infer_with_context(&memory, 4, None, alloc_time, dealloc_time);
 
@@ -1032,7 +1032,7 @@ mod tests {
         let memory = vec![0u8; 24];
         let stack = vec!["alloc::vec::Vec::new".to_string()];
         let alloc_time = Some(1000);
-        let dealloc_time = Some(1000_500); // 0.5ms
+        let dealloc_time = Some(1_000_500); // 0.5ms
         let guess = UnsafeInferenceEngine::infer_with_context(
             &memory,
             24,
@@ -1090,8 +1090,8 @@ mod real_data_tests {
     }
 
     /// Get memory representation of a Box.
-    fn box_to_memory<T>(b: &Box<T>) -> Vec<u8> {
-        let ptr = &**b as *const T as usize;
+    fn box_to_memory<T>(b: &T) -> Vec<u8> {
+        let ptr = b as *const T as usize;
         let mut memory = vec![0u8; 8];
         memory[..8].copy_from_slice(&ptr.to_le_bytes());
         memory
@@ -1153,7 +1153,7 @@ mod real_data_tests {
     #[test]
     fn test_real_box_i32() {
         let b = Box::new(42i32);
-        let memory = box_to_memory(&b);
+        let memory = box_to_memory(&*b);
         let guess = UnsafeInferenceEngine::infer_from_bytes(&memory, 8);
 
         // Box and Pointer have same size=8 layout
@@ -1230,15 +1230,15 @@ mod real_data_tests {
     #[test]
     fn test_real_struct_with_pointers() {
         struct TestStruct {
-            ptr1: *const u8,
-            ptr2: *const u8,
-            value: u64,
+            _ptr1: *const u8,
+            _ptr2: *const u8,
+            _value: u64,
         }
 
         let s = TestStruct {
-            ptr1: &0u8,
-            ptr2: &1u8,
-            value: 42,
+            _ptr1: &0u8,
+            _ptr2: &1u8,
+            _value: 42,
         };
 
         let memory = unsafe {

@@ -434,16 +434,8 @@ impl OverflowDetector {
         event: &crate::capture::types::MemoryAccessEvent,
     ) -> IssueSeverity {
         // Calculate distance from buffer bounds
-        let start_distance = if event.address < alloc.ptr {
-            alloc.ptr - event.address
-        } else {
-            0
-        };
-        let end_distance = if event.address >= alloc.ptr + alloc.size {
-            event.address - (alloc.ptr + alloc.size)
-        } else {
-            0
-        };
+        let start_distance = alloc.ptr.saturating_sub(event.address);
+        let end_distance = event.address.saturating_sub(alloc.ptr + alloc.size);
 
         // Critical if far outside bounds (>1KB)
         if start_distance > 1024 || end_distance > 1024 {
@@ -515,6 +507,7 @@ impl OverflowDetector {
 mod tests {
     use super::*;
     use crate::capture::types::AllocationInfo;
+    use crate::capture::types::LocalityMetrics;
 
     #[test]
     fn test_overflow_detector_creation() {
@@ -571,11 +564,8 @@ mod tests {
 
         // Create access tracking with out-of-bounds access
         use crate::capture::types::{
-            AddressRange, BandwidthUtilization, CacheAccessInfo, CacheLatencyBreakdown,
-            EventPerformanceMetrics, ImplementationDifficulty, LocalityMetrics, MemoryAccessEvent,
+            AddressRange, CacheAccessInfo, CacheLatencyBreakdown, MemoryAccessEvent,
             MemoryAccessPerformanceImpact, MemoryAccessTrackingInfo, MemoryAccessType,
-            MemoryOptimizationRecommendation, MemoryOptimizationType, MemoryState, Priority,
-            SourceLocation,
         };
 
         allocations[0].access_tracking = Some(MemoryAccessTrackingInfo {

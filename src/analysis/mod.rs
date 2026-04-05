@@ -15,7 +15,6 @@
 pub mod detectors;
 
 pub mod circular_reference;
-pub mod enhanced;
 pub mod unsafe_ffi_tracker;
 pub mod unsafe_inference;
 pub mod variable_relationships;
@@ -48,10 +47,6 @@ pub mod quality;
 
 // Re-export key analysis functions
 pub use circular_reference::{CircularReference, CircularReferenceAnalysis, CircularReferenceNode};
-pub use enhanced::{
-    analyze_memory_with_enhanced_features, analyze_memory_with_enhanced_features_detailed,
-    EnhancedMemoryAnalyzer,
-};
 pub use unsafe_ffi_tracker::UnsafeFFITracker;
 pub use variable_relationships::{
     build_variable_relationship_graph, GraphStatistics, RelationshipType as VarRelationshipType,
@@ -186,14 +181,6 @@ impl AnalysisManager {
         crate::circular_reference::detect_circular_references(allocations)
     }
 
-    /// Analyze advanced types (Cell, RefCell, Mutex, etc.)
-    pub fn analyze_advanced_types(
-        &self,
-        allocations: &[AllocationInfo],
-    ) -> crate::advanced_types::AdvancedTypeAnalysisReport {
-        crate::advanced_types::analyze_advanced_types(allocations)
-    }
-
     /// Analyze borrow checker integration and lifetime tracking
     pub fn analyze_borrow_patterns(
         &self,
@@ -300,7 +287,6 @@ impl AnalysisManager {
         let concurrency = self.analyze_concurrency_safety(allocations);
         let unsafe_stats = self.get_unsafe_ffi_stats();
         let circular_refs = self.analyze_circular_references(allocations);
-        let advanced_types = self.analyze_advanced_types(allocations);
 
         // New comprehensive analysis features
         let borrow_analysis = self.analyze_borrow_patterns(allocations);
@@ -315,7 +301,6 @@ impl AnalysisManager {
             concurrency_analysis: concurrency,
             unsafe_ffi_stats: unsafe_stats,
             circular_reference_analysis: circular_refs,
-            advanced_type_analysis: advanced_types,
             borrow_analysis,
             generic_analysis,
             async_analysis,
@@ -349,8 +334,6 @@ pub struct ComprehensiveAnalysisReport {
     pub unsafe_ffi_stats: crate::unsafe_ffi_tracker::UnsafeFFIStats,
     /// Circular reference analysis for smart pointers
     pub circular_reference_analysis: crate::circular_reference::CircularReferenceAnalysis,
-    /// Advanced type analysis (Cell, RefCell, Mutex, etc.)
-    pub advanced_type_analysis: crate::advanced_types::AdvancedTypeAnalysisReport,
     /// Borrow checker integration and lifetime tracking
     pub borrow_analysis: BorrowPatternAnalysis,
     /// Generic type usage and constraint analysis
@@ -511,21 +494,6 @@ mod tests {
     }
 
     #[test]
-    fn test_analyze_advanced_types() {
-        let manager = AnalysisManager::new();
-        let allocations = vec![AllocationInfo::new(0x6000, 512)];
-
-        let result = manager.analyze_advanced_types(&allocations);
-
-        // Test that advanced type analysis returns valid results
-        assert!(result.by_category.is_empty());
-        assert!(result.all_issues.is_empty());
-        // Performance summary may have default values, so just check it's not negative
-        assert!(result.performance_summary.total_overhead_factor >= 0.0);
-        assert_eq!(result.statistics.total_advanced_types, 0);
-    }
-
-    #[test]
     fn test_analyze_borrow_patterns() {
         let manager = AnalysisManager::new();
         let allocations = vec![AllocationInfo::new(0x7000, 1024)];
@@ -617,7 +585,6 @@ mod tests {
         assert_eq!(result.concurrency_analysis.thread_safety_allocations, 0);
         assert_eq!(result.unsafe_ffi_stats.total_operations, 0);
         assert_eq!(result.circular_reference_analysis.total_smart_pointers, 0);
-        assert!(result.advanced_type_analysis.by_category.is_empty());
         assert!(result.borrow_analysis.patterns.is_empty());
         assert_eq!(result.generic_analysis.total_instances, 0);
         assert!(result.async_analysis.patterns.is_empty());
@@ -668,9 +635,6 @@ mod tests {
 
         let circ_result = manager.analyze_circular_references(&empty_allocations);
         assert_eq!(circ_result.total_smart_pointers, 0);
-
-        let adv_result = manager.analyze_advanced_types(&empty_allocations);
-        assert!(adv_result.by_category.is_empty());
     }
 
     #[test]

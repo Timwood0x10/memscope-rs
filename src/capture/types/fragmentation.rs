@@ -95,48 +95,6 @@ pub enum FragmentationCauseType {
     MemoryLeaks,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_enhanced_fragmentation_analysis() {
-        let analysis = EnhancedFragmentationAnalysis {
-            total_heap_size: 1024 * 1024,
-            used_heap_size: 512 * 1024,
-            free_heap_size: 512 * 1024,
-            free_block_count: 10,
-            free_block_distribution: vec![],
-            fragmentation_metrics: FragmentationMetrics {
-                external_fragmentation: 0.3,
-                internal_fragmentation: 0.1,
-                largest_free_block: 256 * 1024,
-                average_free_block_size: 51200.0,
-                severity_level: FragmentationSeverity::Low,
-            },
-            fragmentation_causes: vec![],
-        };
-
-        assert_eq!(analysis.total_heap_size, 1024 * 1024);
-        assert_eq!(analysis.free_block_count, 10);
-    }
-
-    #[test]
-    fn test_fragmentation_severity() {
-        let severity = FragmentationSeverity::High;
-        assert!(matches!(severity, FragmentationSeverity::High));
-    }
-
-    #[test]
-    fn test_fragmentation_cause_type() {
-        let cause = FragmentationCauseType::MixedAllocationSizes;
-        assert!(matches!(
-            cause,
-            FragmentationCauseType::MixedAllocationSizes
-        ));
-    }
-}
-
 // Implement From trait for converting from core::types to capture::types
 impl From<crate::core::types::EnhancedFragmentationAnalysis> for EnhancedFragmentationAnalysis {
     fn from(old: crate::core::types::EnhancedFragmentationAnalysis) -> Self {
@@ -203,5 +161,47 @@ impl From<crate::core::types::EnhancedFragmentationAnalysis> for EnhancedFragmen
                 })
                 .collect(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_enhanced_fragmentation_analysis() {
+        let analysis = EnhancedFragmentationAnalysis {
+            total_heap_size: 1024 * 1024,
+            used_heap_size: 512 * 1024,
+            free_heap_size: 512 * 1024,
+            free_block_count: 10,
+            free_block_distribution: vec![],
+            fragmentation_metrics: FragmentationMetrics {
+                external_fragmentation: 0.3,
+                internal_fragmentation: 0.1,
+                largest_free_block: 256 * 1024,
+                average_free_block_size: 51200.0,
+                severity_level: FragmentationSeverity::Low,
+            },
+            fragmentation_causes: vec![],
+        };
+
+        assert_eq!(analysis.total_heap_size, 1024 * 1024);
+        assert_eq!(analysis.free_block_count, 10);
+    }
+
+    #[test]
+    fn test_fragmentation_severity() {
+        let severity = FragmentationSeverity::High;
+        assert!(matches!(severity, FragmentationSeverity::High));
+    }
+
+    #[test]
+    fn test_fragmentation_cause_type() {
+        let cause = FragmentationCauseType::MixedAllocationSizes;
+        assert!(matches!(
+            cause,
+            FragmentationCauseType::MixedAllocationSizes
+        ));
     }
 }

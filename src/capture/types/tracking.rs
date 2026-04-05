@@ -254,73 +254,6 @@ pub enum CallPatternType {
     EventDriven,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_function_call_tracking_info() {
-        let info = FunctionCallTrackingInfo {
-            function_name: "test_func".to_string(),
-            module_path: "test::module".to_string(),
-            total_call_count: 100,
-            call_frequency_per_sec: 10.0,
-            avg_execution_time_ns: 1000.0,
-            total_execution_time_ns: 100000,
-            call_stack_info: CallStackInfo {
-                max_stack_depth: 5,
-                avg_stack_depth: 3.0,
-                common_call_sequences: vec![],
-                recursive_calls: vec![],
-                stack_overflow_risk: StackOverflowRisk::Low,
-            },
-            memory_allocations_per_call: 2.0,
-            performance_characteristics: FunctionPerformanceCharacteristics {
-                cpu_usage_percent: 5.0,
-                memory_characteristics: FunctionMemoryCharacteristics {
-                    stack_memory_usage: 1024,
-                    heap_allocations: 5,
-                    access_pattern: MemoryAccessPattern::Sequential,
-                    cache_efficiency: 0.9,
-                    memory_bandwidth_utilization: 0.5,
-                },
-                io_characteristics: IOCharacteristics {
-                    file_io_operations: 0,
-                    network_io_operations: 0,
-                    avg_io_wait_time_ns: 0.0,
-                    io_throughput_bytes_per_sec: 0.0,
-                    io_efficiency_score: 1.0,
-                },
-                concurrency_characteristics: ConcurrencyCharacteristics {
-                    thread_safety_level: ThreadSafetyLevel::ThreadSafe,
-                    lock_contention_frequency: 0.0,
-                    parallel_execution_potential: 0.8,
-                    synchronization_overhead_ns: 0.0,
-                    deadlock_risk: DeadlockRisk::None,
-                },
-                bottlenecks: vec![],
-            },
-            call_patterns: vec![],
-        };
-
-        assert_eq!(info.function_name, "test_func");
-        assert_eq!(info.total_call_count, 100);
-    }
-
-    #[test]
-    fn test_call_pattern_type() {
-        let patterns = vec![
-            CallPatternType::Sequential,
-            CallPatternType::Recursive,
-            CallPatternType::Parallel,
-        ];
-
-        for pattern in patterns {
-            assert!(!format!("{pattern:?}").is_empty());
-        }
-    }
-}
-
 impl From<crate::core::types::FunctionCallTrackingInfo> for FunctionCallTrackingInfo {
     fn from(old: crate::core::types::FunctionCallTrackingInfo) -> Self {
         Self {
@@ -565,6 +498,73 @@ impl From<crate::core::types::FunctionCallTrackingInfo> for FunctionCallTracking
                     optimization_potential: p.optimization_potential,
                 })
                 .collect(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_function_call_tracking_info() {
+        let info = FunctionCallTrackingInfo {
+            function_name: "test_func".to_string(),
+            module_path: "test::module".to_string(),
+            total_call_count: 100,
+            call_frequency_per_sec: 10.0,
+            avg_execution_time_ns: 1000.0,
+            total_execution_time_ns: 100000,
+            call_stack_info: CallStackInfo {
+                max_stack_depth: 5,
+                avg_stack_depth: 3.0,
+                common_call_sequences: vec![],
+                recursive_calls: vec![],
+                stack_overflow_risk: StackOverflowRisk::Low,
+            },
+            memory_allocations_per_call: 2.0,
+            performance_characteristics: FunctionPerformanceCharacteristics {
+                cpu_usage_percent: 5.0,
+                memory_characteristics: FunctionMemoryCharacteristics {
+                    stack_memory_usage: 1024,
+                    heap_allocations: 5,
+                    access_pattern: MemoryAccessPattern::Sequential,
+                    cache_efficiency: 0.9,
+                    memory_bandwidth_utilization: 0.5,
+                },
+                io_characteristics: IOCharacteristics {
+                    file_io_operations: 0,
+                    network_io_operations: 0,
+                    avg_io_wait_time_ns: 0.0,
+                    io_throughput_bytes_per_sec: 0.0,
+                    io_efficiency_score: 1.0,
+                },
+                concurrency_characteristics: ConcurrencyCharacteristics {
+                    thread_safety_level: ThreadSafetyLevel::ThreadSafe,
+                    lock_contention_frequency: 0.0,
+                    parallel_execution_potential: 0.8,
+                    synchronization_overhead_ns: 0.0,
+                    deadlock_risk: DeadlockRisk::None,
+                },
+                bottlenecks: vec![],
+            },
+            call_patterns: vec![],
+        };
+
+        assert_eq!(info.function_name, "test_func");
+        assert_eq!(info.total_call_count, 100);
+    }
+
+    #[test]
+    fn test_call_pattern_type() {
+        let patterns = vec![
+            CallPatternType::Sequential,
+            CallPatternType::Recursive,
+            CallPatternType::Parallel,
+        ];
+
+        for pattern in patterns {
+            assert!(!format!("{pattern:?}").is_empty());
         }
     }
 }

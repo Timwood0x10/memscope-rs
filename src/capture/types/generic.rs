@@ -293,40 +293,6 @@ impl Default for BranchPredictionImpact {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_generic_type_info() {
-        let info = GenericTypeInfo {
-            base_type: "Vec".to_string(),
-            type_parameters: vec![],
-            monomorphization_info: MonomorphizationInfo {
-                instance_count: 1,
-                per_instance_memory: 24,
-                total_memory_usage: 24,
-                code_bloat_assessment: CodeBloatLevel::Low,
-            },
-            constraints: vec![],
-        };
-
-        assert_eq!(info.base_type, "Vec");
-    }
-
-    #[test]
-    fn test_performance_characteristics_default() {
-        let chars = PerformanceCharacteristics::default();
-        assert_eq!(chars.avg_allocation_time_ns, 0.0);
-    }
-
-    #[test]
-    fn test_cache_impact_default() {
-        let impact = CacheImpact::default();
-        assert_eq!(impact.l1_impact_score, 0.0);
-    }
-}
-
 // Implement From trait for converting from core::types to capture::types
 impl From<crate::core::types::GenericTypeInfo> for GenericTypeInfo {
     fn from(old: crate::core::types::GenericTypeInfo) -> Self {
@@ -486,5 +452,39 @@ impl From<crate::core::types::GenericInstantiationInfo> for GenericInstantiation
                 },
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_generic_type_info() {
+        let info = GenericTypeInfo {
+            base_type: "Vec".to_string(),
+            type_parameters: vec![],
+            monomorphization_info: MonomorphizationInfo {
+                instance_count: 1,
+                per_instance_memory: 24,
+                total_memory_usage: 24,
+                code_bloat_assessment: CodeBloatLevel::Low,
+            },
+            constraints: vec![],
+        };
+
+        assert_eq!(info.base_type, "Vec");
+    }
+
+    #[test]
+    fn test_performance_characteristics_default() {
+        let chars = PerformanceCharacteristics::default();
+        assert_eq!(chars.avg_allocation_time_ns, 0.0);
+    }
+
+    #[test]
+    fn test_cache_impact_default() {
+        let impact = CacheImpact::default();
+        assert_eq!(impact.l1_impact_score, 0.0);
     }
 }

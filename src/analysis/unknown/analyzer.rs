@@ -304,7 +304,7 @@ impl UnknownMemoryAnalyzer {
     }
 
     fn is_likely_mmap_allocation(&self, allocation: &AllocationInfo) -> bool {
-        allocation.size >= 4096 && allocation.ptr % 4096 == 0
+        allocation.size >= 4096 && allocation.ptr.is_multiple_of(4096)
     }
 
     fn is_likely_tls_allocation(&self, allocation: &AllocationInfo) -> bool {

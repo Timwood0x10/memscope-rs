@@ -10,7 +10,7 @@ use std::thread::ThreadId;
 
 use super::async_types::{
     AsyncAllocation, AsyncError, AsyncMemorySnapshot, AsyncResult, AsyncSnapshot, AsyncStats,
-    TaskOperation, TrackedFuture,
+    TrackedFuture,
 };
 use super::task_profile::{TaskMemoryProfile, TaskType};
 
@@ -214,7 +214,7 @@ impl AsyncTracker {
                 task_id: p.task_id,
                 name: p.task_name.clone(),
                 thread_id: std::thread::current().id(),
-                created_at: p.created_at_ms as u64 * 1_000_000,
+                created_at: p.created_at_ms * 1_000_000,
                 active_allocations: p.total_allocations as usize,
                 total_memory: p.current_memory as usize,
             })
@@ -527,6 +527,7 @@ pub fn track_current_deallocation(ptr: usize) -> AsyncResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::capture::backends::async_types::TaskOperation;
 
     #[test]
     fn test_async_tracker_creation() {

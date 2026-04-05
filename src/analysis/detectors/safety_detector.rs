@@ -167,38 +167,35 @@ impl SafetyDetector {
 
         for (index, alloc) in allocations.iter().enumerate() {
             // Check for raw pointer usage
-            if self.config.enable_raw_pointer_detection {
-                if self.is_raw_pointer_type(alloc) {
-                    let issue_id = format!("unsafe_raw_pointer_{}", index);
-                    let severity = self.assess_unsafe_severity(alloc);
+            if self.config.enable_raw_pointer_detection && self.is_raw_pointer_type(alloc) {
+                let issue_id = format!("unsafe_raw_pointer_{}", index);
+                let severity = self.assess_unsafe_severity(alloc);
 
-                    let issue = Issue::new(
-                        issue_id,
-                        severity,
-                        IssueCategory::Safety,
-                        format!(
-                            "Raw pointer usage detected at 0x{:x}: type {}",
-                            alloc.ptr,
-                            alloc.type_name.as_deref().unwrap_or("unknown")
-                        ),
-                    )
-                    .with_allocation_ptr(alloc.ptr)
-                    .with_suggested_fix(
-                        "Consider using safe alternatives (Box, Rc, Arc, references)".to_string(),
-                    );
+                let issue = Issue::new(
+                    issue_id,
+                    severity,
+                    IssueCategory::Safety,
+                    format!(
+                        "Raw pointer usage detected at 0x{:x}: type {}",
+                        alloc.ptr,
+                        alloc.type_name.as_deref().unwrap_or("unknown")
+                    ),
+                )
+                .with_allocation_ptr(alloc.ptr)
+                .with_suggested_fix(
+                    "Consider using safe alternatives (Box, Rc, Arc, references)".to_string(),
+                );
 
-                    issues.push(issue);
-                    statistics.allocations_with_issues += 1;
-                }
+                issues.push(issue);
+                statistics.allocations_with_issues += 1;
             }
 
             // Check for FFI-related allocations
-            if self.config.enable_ffi_detection {
-                if self.is_ffi_related(alloc) {
-                    let issue_id = format!("unsafe_ffi_{}", index);
-                    let severity = IssueSeverity::High;
+            if self.config.enable_ffi_detection && self.is_ffi_related(alloc) {
+                let issue_id = format!("unsafe_ffi_{}", index);
+                let severity = IssueSeverity::High;
 
-                    let issue = Issue::new(
+                let issue = Issue::new(
                         issue_id,
                         severity,
                         IssueCategory::Safety,
@@ -213,18 +210,16 @@ impl SafetyDetector {
                         "Ensure proper FFI safety: use libc types, validate inputs, manage memory correctly".to_string(),
                     );
 
-                    issues.push(issue);
-                    statistics.allocations_with_issues += 1;
-                }
+                issues.push(issue);
+                statistics.allocations_with_issues += 1;
             }
 
             // Check for static mutable allocations
-            if self.config.enable_static_mut_detection {
-                if self.is_static_mutable(alloc) {
-                    let issue_id = format!("unsafe_static_mut_{}", index);
-                    let severity = IssueSeverity::Critical;
+            if self.config.enable_static_mut_detection && self.is_static_mutable(alloc) {
+                let issue_id = format!("unsafe_static_mut_{}", index);
+                let severity = IssueSeverity::Critical;
 
-                    let issue = Issue::new(
+                let issue = Issue::new(
                         issue_id,
                         severity,
                         IssueCategory::Safety,
@@ -238,9 +233,8 @@ impl SafetyDetector {
                         "Consider using atomic types, Mutex, or lazy_static for thread-safe static data".to_string(),
                     );
 
-                    issues.push(issue);
-                    statistics.allocations_with_issues += 1;
-                }
+                issues.push(issue);
+                statistics.allocations_with_issues += 1;
             }
 
             // Check for unsafe memory allocations
@@ -282,7 +276,7 @@ impl SafetyDetector {
         for alloc in allocations {
             thread_allocations
                 .entry(alloc.thread_id)
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(alloc);
         }
 
@@ -313,12 +307,14 @@ impl SafetyDetector {
             }
 
             // Check for unsynchronized mutable borrows across threads
-            if alloc.borrow_count > 0 && thread_allocations.len() > 1 {
-                if self.has_unsynchronized_borrows(alloc) {
-                    let issue_id = format!("unsynchronized_borrow_{}", index);
-                    let severity = IssueSeverity::Critical;
+            if alloc.borrow_count > 0
+                && thread_allocations.len() > 1
+                && self.has_unsynchronized_borrows(alloc)
+            {
+                let issue_id = format!("unsynchronized_borrow_{}", index);
+                let severity = IssueSeverity::Critical;
 
-                    let issue = Issue::new(
+                let issue = Issue::new(
                         issue_id,
                         severity,
                         IssueCategory::Safety,
@@ -332,19 +328,20 @@ impl SafetyDetector {
                         "Use Mutex, RwLock, or Arc for thread-safe shared mutable state".to_string(),
                     );
 
-                    issues.push(issue);
-                    statistics.allocations_with_issues += 1;
-                }
+                issues.push(issue);
+                statistics.allocations_with_issues += 1;
             }
 
             // Check for clone operations without proper synchronization
             if let Some(clone_info) = &alloc.clone_info {
-                if clone_info.clone_count > 0 && thread_allocations.len() > 1 {
-                    if !self.is_thread_safe_type(alloc) {
-                        let issue_id = format!("unsafe_clone_{}", index);
-                        let severity = IssueSeverity::High;
+                if clone_info.clone_count > 0
+                    && thread_allocations.len() > 1
+                    && !self.is_thread_safe_type(alloc)
+                {
+                    let issue_id = format!("unsafe_clone_{}", index);
+                    let severity = IssueSeverity::High;
 
-                        let issue = Issue::new(
+                    let issue = Issue::new(
                             issue_id,
                             severity,
                             IssueCategory::Safety,
@@ -358,9 +355,8 @@ impl SafetyDetector {
                             "Use Arc for thread-safe reference counting".to_string(),
                         );
 
-                        issues.push(issue);
-                        statistics.allocations_with_issues += 1;
-                    }
+                    issues.push(issue);
+                    statistics.allocations_with_issues += 1;
                 }
             }
         }
@@ -768,7 +764,7 @@ mod tests {
         let detector = SafetyDetector::new(config);
 
         // Create allocations from different threads to simulate multi-threaded context
-        let thread1_id = thread::current().id();
+        let _thread1_id = thread::current().id();
         let mut allocations = vec![AllocationInfo::new(0x1000, 1024)];
         allocations[0].type_name = Some("Rc<i32>".to_string()); // Not thread-safe
         allocations[0].clone_info = Some(crate::capture::types::CloneInfo {
@@ -778,11 +774,11 @@ mod tests {
         });
 
         // Create another allocation with a different thread ID to simulate multi-threading
-        let thread2_alloc = AllocationInfo::new(0x2000, 1024);
+        let _thread2_alloc = AllocationInfo::new(0x2000, 1024);
         // Simulate different thread by using a different approach
         // Note: In practice, thread IDs would be different, but for testing we'll check the logic
 
-        let issues = detector.detect_data_races(&allocations, &mut DetectionStatistics::new());
+        let _issues = detector.detect_data_races(&allocations, &mut DetectionStatistics::new());
 
         // The issue might not be detected in this simple test case
         // Let's verify the logic works by checking the is_thread_safe_type method

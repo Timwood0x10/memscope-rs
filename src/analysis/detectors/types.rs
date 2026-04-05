@@ -174,9 +174,12 @@ impl fmt::Display for Issue {
 }
 
 /// Severity level of an issue
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Default,
+)]
 pub enum IssueSeverity {
     /// Informational
+    #[default]
     Info,
     /// Optional
     Low,
@@ -200,14 +203,8 @@ impl fmt::Display for IssueSeverity {
     }
 }
 
-impl Default for IssueSeverity {
-    fn default() -> Self {
-        IssueSeverity::Info
-    }
-}
-
 /// Category of the issue
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 pub enum IssueCategory {
     /// Memory leak
     Leak,
@@ -226,6 +223,7 @@ pub enum IssueCategory {
     /// Type issue
     Type,
     /// Other
+    #[default]
     Other,
 }
 
@@ -242,12 +240,6 @@ impl fmt::Display for IssueCategory {
             IssueCategory::Type => write!(f, "Type"),
             IssueCategory::Other => write!(f, "Other"),
         }
-    }
-}
-
-impl Default for IssueCategory {
-    fn default() -> Self {
-        IssueCategory::Other
     }
 }
 
@@ -392,7 +384,7 @@ impl fmt::Display for DetectorError {
 impl std::error::Error for DetectorError {}
 
 /// Statistics from a detection operation
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct DetectionStatistics {
     /// Total number of allocations analyzed
     pub total_allocations: usize,
@@ -442,19 +434,6 @@ impl DetectionStatistics {
     /// Get issues count by category
     pub fn issues_by_category(&self, category: IssueCategory) -> usize {
         *self.category_breakdown.get(&category).unwrap_or(&0)
-    }
-}
-
-impl Default for DetectionStatistics {
-    fn default() -> Self {
-        Self {
-            total_allocations: 0,
-            allocations_with_issues: 0,
-            total_memory_analyzed: 0,
-            memory_affected: 0,
-            severity_breakdown: HashMap::new(),
-            category_breakdown: HashMap::new(),
-        }
     }
 }
 

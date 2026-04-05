@@ -90,9 +90,10 @@ pub enum PaddingReason {
 }
 
 /// Optimization potential assessment.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub enum OptimizationPotential {
     /// No optimization needed.
+    #[default]
     None,
     /// Minor optimization potential.
     Minor {
@@ -113,12 +114,6 @@ pub enum OptimizationPotential {
         /// Optimization suggestions.
         suggestions: Vec<String>,
     },
-}
-
-impl Default for OptimizationPotential {
-    fn default() -> Self {
-        Self::None
-    }
 }
 
 /// Container-specific analysis for Vec, HashMap, Box, etc.
@@ -295,45 +290,6 @@ pub enum AccessEfficiency {
     Mixed,
     /// Unknown access pattern.
     Unknown,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_memory_layout_info() {
-        let layout = MemoryLayoutInfo {
-            total_size: 64,
-            alignment: 8,
-            field_layout: vec![],
-            padding_info: PaddingAnalysis::default(),
-            layout_efficiency: LayoutEfficiency::default(),
-            container_analysis: None,
-        };
-
-        assert_eq!(layout.total_size, 64);
-        assert_eq!(layout.alignment, 8);
-    }
-
-    #[test]
-    fn test_padding_analysis_default() {
-        let padding = PaddingAnalysis::default();
-
-        assert_eq!(padding.total_padding_bytes, 0);
-        assert_eq!(padding.padding_ratio, 0.0);
-        assert!(padding.padding_locations.is_empty());
-    }
-
-    #[test]
-    fn test_container_type_vec() {
-        let container = ContainerType::Vec {
-            element_type: "i32".to_string(),
-            element_size: 4,
-        };
-
-        assert!(matches!(container, ContainerType::Vec { .. }));
-    }
 }
 
 impl From<crate::core::types::MemoryLayoutInfo> for MemoryLayoutInfo {
@@ -525,5 +481,44 @@ impl From<crate::core::types::MemoryLayoutInfo> for MemoryLayoutInfo {
                 },
             }),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_memory_layout_info() {
+        let layout = MemoryLayoutInfo {
+            total_size: 64,
+            alignment: 8,
+            field_layout: vec![],
+            padding_info: PaddingAnalysis::default(),
+            layout_efficiency: LayoutEfficiency::default(),
+            container_analysis: None,
+        };
+
+        assert_eq!(layout.total_size, 64);
+        assert_eq!(layout.alignment, 8);
+    }
+
+    #[test]
+    fn test_padding_analysis_default() {
+        let padding = PaddingAnalysis::default();
+
+        assert_eq!(padding.total_padding_bytes, 0);
+        assert_eq!(padding.padding_ratio, 0.0);
+        assert!(padding.padding_locations.is_empty());
+    }
+
+    #[test]
+    fn test_container_type_vec() {
+        let container = ContainerType::Vec {
+            element_type: "i32".to_string(),
+            element_size: 4,
+        };
+
+        assert!(matches!(container, ContainerType::Vec { .. }));
     }
 }

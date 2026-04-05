@@ -103,10 +103,9 @@ pub use lockfree_tracker::{
     track_deallocation_lockfree, ThreadLocalTracker,
 };
 pub use lockfree_types::{
-    AllocationCategory, AnalysisSummary, BottleneckType, Event, EventType, FrequencyData,
-    FrequencyPattern, HotCallStack, InteractionType, LockfreeAnalysis, MemoryPeak, MemorySnapshot,
-    MemoryStats, PerformanceBottleneck, SamplingConfig, SystemMetrics, ThreadInteraction,
-    ThreadStats,
+    AllocationCategory, AnalysisSummary, Event, EventType, FrequencyData, FrequencyPattern,
+    InteractionType, LockfreeAnalysis, MemorySnapshot, MemoryStats, SamplingConfig, SystemMetrics,
+    ThreadInteraction, ThreadStats,
 };
 
 // Re-export unified tracker types

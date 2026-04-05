@@ -5,7 +5,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::allocation::{ImpactLevel, Priority};
+use super::allocation::Priority;
 
 /// Resource leak analysis.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -170,45 +170,6 @@ pub enum LeakPreventionType {
     ScopedGuards,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_resource_leak_analysis() {
-        let analysis = ResourceLeakAnalysis {
-            potential_leaks: vec![],
-            detection_confidence: 0.95,
-            usage_patterns: vec![],
-            prevention_recommendations: vec![],
-        };
-
-        assert_eq!(analysis.detection_confidence, 0.95);
-    }
-
-    #[test]
-    fn test_leak_type_variants() {
-        let types = vec![
-            LeakType::Memory,
-            LeakType::FileHandle,
-            LeakType::NetworkConnection,
-            LeakType::Thread,
-            LeakType::Lock,
-            LeakType::ReferenceCycle,
-        ];
-
-        for leak_type in types {
-            assert!(!format!("{leak_type:?}").is_empty());
-        }
-    }
-
-    #[test]
-    fn test_leak_risk_level() {
-        assert!(matches!(LeakRiskLevel::Low, LeakRiskLevel::Low));
-        assert!(matches!(LeakRiskLevel::Critical, LeakRiskLevel::Critical));
-    }
-}
-
 impl From<crate::core::types::EnhancedPotentialLeak> for EnhancedPotentialLeak {
     fn from(old: crate::core::types::EnhancedPotentialLeak) -> Self {
         Self {
@@ -347,5 +308,44 @@ impl From<crate::core::types::ResourceLeakAnalysis> for ResourceLeakAnalysis {
                 .map(Into::into)
                 .collect(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_resource_leak_analysis() {
+        let analysis = ResourceLeakAnalysis {
+            potential_leaks: vec![],
+            detection_confidence: 0.95,
+            usage_patterns: vec![],
+            prevention_recommendations: vec![],
+        };
+
+        assert_eq!(analysis.detection_confidence, 0.95);
+    }
+
+    #[test]
+    fn test_leak_type_variants() {
+        let types = vec![
+            LeakType::Memory,
+            LeakType::FileHandle,
+            LeakType::NetworkConnection,
+            LeakType::Thread,
+            LeakType::Lock,
+            LeakType::ReferenceCycle,
+        ];
+
+        for leak_type in types {
+            assert!(!format!("{leak_type:?}").is_empty());
+        }
+    }
+
+    #[test]
+    fn test_leak_risk_level() {
+        assert!(matches!(LeakRiskLevel::Low, LeakRiskLevel::Low));
+        assert!(matches!(LeakRiskLevel::Critical, LeakRiskLevel::Critical));
     }
 }

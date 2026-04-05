@@ -634,7 +634,7 @@ impl PlatformMemoryInfo {
             let mut size: libc::size_t = 256;
             let mut buf = [0u8; 256];
             if libc::sysctlbyname(
-                b"kern.osrelease\0".as_ptr() as *const libc::c_char,
+                c"kern.osrelease".as_ptr(),
                 buf.as_mut_ptr() as *mut libc::c_void,
                 &mut size,
                 std::ptr::null_mut(),
@@ -652,7 +652,7 @@ impl PlatformMemoryInfo {
             let mut size: libc::size_t = 256;
             let mut buf = [0u8; 256];
             if libc::sysctlbyname(
-                b"hw.machine\0".as_ptr() as *const libc::c_char,
+                c"hw.machine".as_ptr(),
                 buf.as_mut_ptr() as *mut libc::c_void,
                 &mut size,
                 std::ptr::null_mut(),
@@ -694,7 +694,7 @@ impl PlatformMemoryInfo {
         unsafe {
             size = std::mem::size_of::<u64>();
             if libc::sysctlbyname(
-                b"hw.pagesize\0".as_ptr() as *const libc::c_char,
+                c"hw.pagesize".as_ptr(),
                 &mut page_size as *mut u64 as *mut libc::c_void,
                 &mut size,
                 std::ptr::null_mut(),

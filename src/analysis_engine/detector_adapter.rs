@@ -3,22 +3,11 @@
 //! This module provides an adapter that allows detectors to be used
 //! with the AnalysisEngine, which expects the Analyzer trait.
 
-use crate::analysis::detectors::{DetectionResult, Detector, Issue, IssueSeverity};
+use crate::analysis::detectors::Detector;
 use crate::analysis_engine::analyzer::{AnalysisResult, Analyzer, Finding, Severity};
 use crate::capture::types::AllocationInfo;
 use crate::snapshot::ActiveAllocation;
 use std::sync::Arc;
-
-/// Convert IssueSeverity to Severity
-fn convert_severity(severity: IssueSeverity) -> Severity {
-    match severity {
-        IssueSeverity::Critical => Severity::Critical,
-        IssueSeverity::High => Severity::Error,
-        IssueSeverity::Medium => Severity::Warning,
-        IssueSeverity::Low => Severity::Info,
-        IssueSeverity::Info => Severity::Info,
-    }
-}
 
 /// Convert ActiveAllocation to AllocationInfo
 fn active_to_allocation_info(active: &ActiveAllocation) -> AllocationInfo {
@@ -140,7 +129,6 @@ mod tests {
     use super::*;
     use crate::analysis::detectors::{LeakDetector, LeakDetectorConfig};
     use crate::snapshot::MemorySnapshot;
-    use std::thread;
 
     #[test]
     fn test_detector_adapter_creation() {
@@ -159,18 +147,6 @@ mod tests {
 
         assert_eq!(result.analyzer_name, "LeakDetector");
         assert_eq!(result.issue_count, 0);
-    }
-
-    #[test]
-    fn test_convert_severity() {
-        assert_eq!(
-            convert_severity(IssueSeverity::Critical),
-            Severity::Critical
-        );
-        assert_eq!(convert_severity(IssueSeverity::High), Severity::Error);
-        assert_eq!(convert_severity(IssueSeverity::Medium), Severity::Warning);
-        assert_eq!(convert_severity(IssueSeverity::Low), Severity::Info);
-        assert_eq!(convert_severity(IssueSeverity::Info), Severity::Info);
     }
 
     #[test]
@@ -193,6 +169,6 @@ mod tests {
         assert_eq!(alloc.type_name, Some("Vec<u8>".to_string()));
         // thread_id is the current thread ID, not 42
         assert_eq!(alloc.borrow_count, 0);
-        assert_eq!(alloc.is_leaked, false);
+        assert!(!alloc.is_leaked);
     }
 }

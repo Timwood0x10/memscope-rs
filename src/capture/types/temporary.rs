@@ -88,47 +88,6 @@ pub enum MemoryLocationType {
     ThreadLocal,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_temporary_object_info() {
-        let info = TemporaryObjectInfo {
-            temp_id: 1,
-            created_at: 1000,
-            destroyed_at: Some(2000),
-            lifetime_ns: Some(1000),
-            creation_context: CreationContext {
-                function_name: "test_func".to_string(),
-                expression_type: ExpressionType::FunctionCall,
-                source_location: None,
-                call_stack: vec![],
-            },
-            usage_pattern: TemporaryUsagePattern::Immediate,
-            location_type: MemoryLocationType::Stack,
-        };
-
-        assert_eq!(info.temp_id, 1);
-        assert!(info.destroyed_at.is_some());
-    }
-
-    #[test]
-    fn test_expression_type() {
-        let types = vec![
-            ExpressionType::FunctionCall,
-            ExpressionType::MethodCall,
-            ExpressionType::OperatorOverload,
-            ExpressionType::Conversion,
-            ExpressionType::Literal,
-        ];
-
-        for expr_type in types {
-            assert!(!format!("{expr_type:?}").is_empty());
-        }
-    }
-}
-
 // Implement From trait for converting from core::types to capture::types
 impl From<crate::core::types::TemporaryObjectInfo> for TemporaryObjectInfo {
     fn from(old: crate::core::types::TemporaryObjectInfo) -> Self {
@@ -187,6 +146,47 @@ impl From<crate::core::types::TemporaryObjectInfo> for TemporaryObjectInfo {
                     MemoryLocationType::ThreadLocal
                 }
             },
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_temporary_object_info() {
+        let info = TemporaryObjectInfo {
+            temp_id: 1,
+            created_at: 1000,
+            destroyed_at: Some(2000),
+            lifetime_ns: Some(1000),
+            creation_context: CreationContext {
+                function_name: "test_func".to_string(),
+                expression_type: ExpressionType::FunctionCall,
+                source_location: None,
+                call_stack: vec![],
+            },
+            usage_pattern: TemporaryUsagePattern::Immediate,
+            location_type: MemoryLocationType::Stack,
+        };
+
+        assert_eq!(info.temp_id, 1);
+        assert!(info.destroyed_at.is_some());
+    }
+
+    #[test]
+    fn test_expression_type() {
+        let types = vec![
+            ExpressionType::FunctionCall,
+            ExpressionType::MethodCall,
+            ExpressionType::OperatorOverload,
+            ExpressionType::Conversion,
+            ExpressionType::Literal,
+        ];
+
+        for expr_type in types {
+            assert!(!format!("{expr_type:?}").is_empty());
         }
     }
 }

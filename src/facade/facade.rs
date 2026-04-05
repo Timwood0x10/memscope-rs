@@ -368,7 +368,7 @@ impl MemScope {
     pub fn export_html<P: AsRef<std::path::Path>>(&self, path: P) -> Result<(), String> {
         use crate::render_engine::export::DashboardTemplate;
 
-        let snapshot = self.snapshot.build_snapshot();
+        let _snapshot = self.snapshot.build_snapshot();
         self.export_html_with_template(path, DashboardTemplate::Unified)
     }
 
