@@ -27,7 +27,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("╚════════════════════════════════════════════════════════════╝\n");
 
     init_global_tracking()?;
-    println!("✓ Global tracking initialized (Tracker + MemoryPassport)\n");
+    println!("✓ Global tracking initialized (Tracker + MemoryPassport + AsyncTracker)\n");
 
     println!("📦 Section 1: Single-Threaded Mode\n");
     let single_start = Instant::now();
@@ -131,8 +131,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         println!("  Creating variables with circular clone relationships...");
 
-        // Create variables that will form clone cycles
-        // These are separate allocations that reference each other via clones
         let data1 = vec![1, 2, 3];
         let data2 = vec![4, 5, 6];
         let data3 = vec![7, 8, 9];
@@ -205,18 +203,37 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     println!("✓ Memory passports: {}", stats.passport_count);
 
-    println!("\n📦 Section 6: Export (9 files)\n");
+    println!("\n📦 Section 6: Export (10 files)\n");
     let output_path = "MemoryAnalysis/global_tracker_showcase";
     export_to_json(output_path)?;
 
-    // Also export HTML dashboard with async data
-    println!("Exporting HTML dashboard...");
-    use memscope_rs::render_engine::export::export_dashboard_html_with_async;
+    // Export HTML dashboards with both templates
+    println!("Exporting HTML dashboards...");
+    use memscope_rs::render_engine::export::{
+        export_dashboard_html_with_template, DashboardTemplate,
+    };
 
     let tracker = global_tracker()?;
     let passport_tracker = global_passport_tracker()?;
     let async_tracker = global_async_tracker()?;
-    export_dashboard_html_with_async(output_path, &tracker, &passport_tracker, &async_tracker)?;
+
+    // Export unified dashboard (original)
+    export_dashboard_html_with_template(
+        output_path,
+        &tracker,
+        &passport_tracker,
+        DashboardTemplate::Unified,
+        Some(&async_tracker),
+    )?;
+
+    // Export final dashboard (new investigation console)
+    export_dashboard_html_with_template(
+        output_path,
+        &tracker,
+        &passport_tracker,
+        DashboardTemplate::Final,
+        Some(&async_tracker),
+    )?;
 
     println!("✓ Export successful!");
     println!("  📄 memory_analysis.json");
@@ -227,11 +244,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  📄 leak_detection.json");
     println!("  📄 unsafe_ffi.json");
     println!("  📄 async_analysis.json");
-    println!("  📄 dashboard.html");
+    println!("  📄 dashboard_unified_dashboard.html (original)");
+    println!("  📄 dashboard_final_dashboard.html (NEW investigation console)");
 
     println!("\n✓ All modes completed successfully!");
     println!(
-        "\nOpen {}/dashboard.html in your browser to view the dashboard!",
+        "\n🆕 Open {}/dashboard_final_dashboard.html for the NEW investigation console!",
+        output_path
+    );
+    println!(
+        "📄 Or open {}/dashboard_unified_dashboard.html for the original dashboard.",
         output_path
     );
     Ok(())

@@ -6,20 +6,20 @@ This document provides detailed usage instructions and best practices based on `
 
 ### Basic Setup
 ```rust
-use memscope_rs::{get_global_tracker, init, track_var};
+use memscope_rs::{track_var};
 use std::rc::Rc;
 use std::sync::Arc;
 
 fn main() {
-    // 1. Initialize memory tracking system
-    init();
+    // 1. Create MemScope instance
+    let memscope = memscope_rs::MemScope::new();
     println!("memscope-rs initialized. Tracking memory allocations...");
 ```
 
 **Key Points**:
-- `init()` must be called before any tracking operations
+- `memscope_rs::MemScope::new()` creates a new tracking instance
 - Only needs to be called once, usually at the start of `main()` function
-- After initialization, the global allocator starts working
+- After initialization, the tracking system is ready
 
 ### Basic Type Tracking
 ```rust
@@ -105,8 +105,7 @@ After clone:   rc_data (ref count: 2) ←─┐
 ### Get Memory Statistics
 ```rust
     // 5. Get memory statistics
-    let tracker = get_global_tracker();
-    if let Ok(stats) = tracker.get_stats() {
+    if let Ok(stats) = memscope.summary() {
         println!("\nMemory Statistics:");
         println!("  Active allocations: {}", stats.active_allocations);
         println!("  Active memory: {} bytes", stats.active_memory);
@@ -125,7 +124,7 @@ After clone:   rc_data (ref count: 2) ←─┐
 ```rust
     // 6. Export memory snapshot to JSON
     println!("\nExporting memory snapshot to MemoryAnalysis/basic_usage/...");
-    if let Err(e) = tracker.export_to_json("basic_usage_snapshot") {
+    if let Err(e) = memscope.export_json("basic_usage_snapshot") {
         eprintln!("Failed to export JSON: {e}");
     } else {
         println!("Successfully exported JSON to MemoryAnalysis/basic_usage/");
@@ -133,11 +132,12 @@ After clone:   rc_data (ref count: 2) ←─┐
 
     // 7. Export memory usage visualization to SVG
     println!("\nExporting memory usage visualization to MemoryAnalysis/basic_usage/...");
-    if let Err(e) = tracker.export_memory_analysis("basic_usage_graph.svg") {
+    if let Err(e) = memscope.export_svg("basic_usage_graph.svg") {
         eprintln!("Failed to export SVG: {e}");
     } else {
         println!("Successfully exported SVG to MemoryAnalysis/basic_usage/");
     }
+}
 ```
 
 ## 🔍 Running Results Analysis
@@ -150,232 +150,241 @@ Allocating and tracking variables...
 Tracked 'numbers_vec'
 Tracked 'text_string'
 Tracked 'boxed_value'
-Tracked 'boxed_value2'
 Tracked 'rc_data'
 Tracked 'arc_data'
 Tracked 'rc_data_clone' (shares allocation with 'rc_data')
 
 Sum of 'numbers_vec': 15
-Length of 'text_string': 19
+Length of 'text_string': 17
 Value in 'boxed_value': 100
-Value in 'boxed_value2': 200
 First element of 'rc_data': 10
 Content of 'arc_data': Shared data
 
 Memory Statistics:
-  Active allocations: 7
-  Active memory: 234 bytes
-  Total allocations: 7
-  Peak memory: 234 bytes
+  Active allocations: 6
+  Active memory: 321 bytes
+  Total allocations: 6
+  Peak memory: 321 bytes
 
 Exporting memory snapshot to MemoryAnalysis/basic_usage/...
 Successfully exported JSON to MemoryAnalysis/basic_usage/
 
 Exporting memory usage visualization to MemoryAnalysis/basic_usage/...
 Successfully exported SVG to MemoryAnalysis/basic_usage/
-
-Example finished. Check 'basic_usage_snapshot.json' and 'basic_usage_graph.svg'.
-The SVG shows memory usage by type and individual allocations.
 ```
 
-### Generated Files
+## 📊 Understanding the Output
+
+### Memory Breakdown
+
+Based on the example output:
+
+| Variable | Type | Approx. Size | Notes |
+|----------|------|--------------|-------|
+| `numbers_vec` | `Vec<i32>` | 40 bytes | 5 × 8 bytes |
+| `text_string` | `String` | 17 bytes | Length |
+| `boxed_value` | `Box<i32>` | 8 bytes | Single value |
+| `rc_data` | `Rc<Vec<i32>>` | 24 bytes | 3 × 8 bytes |
+| `arc_data` | `Arc<String>` | 10 bytes | Shared string |
+| `rc_data_clone` | `Rc<Vec<i32>>` | 8 bytes | Ref count only |
+| **Total** | | **~107 bytes** | Data + overhead |
+
+### File Structure
+
+After running the example:
+
 ```
-MemoryAnalysis/basic_usage/
-├── basic_usage_snapshot_memory_analysis.json  # Basic memory analysis
-├── basic_usage_snapshot_lifetime.json         # Lifecycle data
-├── basic_usage_snapshot_performance.json      # Performance data
-├── basic_usage_snapshot_unsafe_ffi.json       # Unsafe/FFI data
-├── basic_usage_snapshot_complex_types.json    # Complex type analysis
-└── basic_usage_graph.svg                      # Visualization chart
+MemoryAnalysis/
+└── basic_usage_snapshot/
+    ├── basic_usage_snapshot_memory_analysis.json
+    ├── basic_usage_snapshot_lifetime.json
+    ├── basic_usage_snapshot_performance.json
+    ├── basic_usage_snapshot_unsafe_ffi.json
+    ├── basic_usage_snapshot_complex_types.json
+    └── basic_usage_graph.svg
 ```
 
-### Generate HTML Report with make Command
-```bash
-# Run example
-cargo run --example basic_usage
+## 🎯 Best Practices
 
-# Generate HTML report
-make html DIR=MemoryAnalysis/basic_usage BASE=basic_usage_snapshot
+### 1. Initialize at Program Start
+```rust
+// ✅ Good
+fn main() {
+    let memscope = memscope_rs::MemScope::new(); // First line
+    // ... rest of program
+}
 
-# Open report
-open memory_report.html
-```
-
-## 📊 Memory Analysis Details
-
-### JSON Data Structure
-Generated JSON files contain:
-
-```json
-{
-  "metadata": {
-    "export_timestamp": 1691234567890,
-    "total_allocations": 5,
-    "active_allocations": 5
-  },
-  "allocations": [
-    {
-      "ptr": 140712345678912,
-      "size": 40,
-      "var_name": "numbers_vec",
-      "type_name": "Vec<i32>",
-      "timestamp_alloc": 1691234567123,
-      "is_leaked": false
-    },
-    {
-      "ptr": 140712345678952,
-      "size": 19,
-      "var_name": "text_string", 
-      "type_name": "String",
-      "timestamp_alloc": 1691234567124,
-      "is_leaked": false
-    }
-    // ... more allocation info
-  ]
+// ❌ Avoid
+fn main() {
+    some_function();
+    // ... later
+    let memscope = memscope_rs::MemScope::new(); // Too late
 }
 ```
 
-### SVG Visualization
-Generated SVG charts show:
-- Memory usage distribution by type
-- Allocation timeline
-- Memory size comparison
-
-## 🚀 Extended Examples
-
-### Add More Tracking
+### 2. Track Key Variables
 ```rust
-use memscope_rs::{track_var, init, get_global_tracker};
-use std::collections::{HashMap, VecDeque};
+// ✅ Track important allocations
+let large_data = vec![0; 1024 * 1024]; // 1MB
+track_var!(large_data);
 
-fn extended_example() {
-    init();
-    
-    // Collection types
-    let mut map = HashMap::new();
-    map.insert("key1", "value1");
-    map.insert("key2", "value2");
-    track_var!(map);
-    
-    let mut deque = VecDeque::new();
-    deque.push_back(1);
-    deque.push_back(2);
-    track_var!(deque);
-    
-    // Nested structures
-    let nested = vec![vec![1, 2], vec![3, 4, 5]];
-    track_var!(nested);
-    
-    // Large allocations
-    let large_buffer = vec![0u8; 1024 * 1024]; // 1MB
-    track_var!(large_buffer);
-    
-    // Export detailed analysis
-    let tracker = get_global_tracker();
-    tracker.export_to_html("extended_analysis.html").unwrap();
+// ✅ Track shared references
+let shared = Arc::new(String::from("important"));
+track_var!(shared);
+
+// ❌ Don't track small stack variables
+let x = 42; // No need to track
+```
+
+### 3. Export Before Program Exit
+```rust
+fn main() {
+    let memscope = memscope_rs::MemScope::new();
+
+    // ... your code ...
+
+    // Export before exit
+    memscope.export_json("final_analysis").unwrap();
+}
+```
+
+## 🚀 Advanced Usage
+
+### Conditional Tracking
+```rust
+#[cfg(debug_assertions)]
+macro_rules! debug_track {
+    ($var:expr) => { track_var!($var) };
+}
+
+#[cfg(not(debug_assertions))]
+macro_rules! debug_track {
+    ($var:expr) => {};
+}
+
+fn main() {
+    let memscope = memscope_rs::MemScope::new();
+
+    let data = vec![1, 2, 3];
+    debug_track!(data); // Only tracks in debug mode
 }
 ```
 
 ### Function-Level Tracking
 ```rust
 fn process_data(input: Vec<i32>) -> Vec<i32> {
-    track_var!(input);
-    
+    track_var!(input); // Track input
+
     let mut result = Vec::with_capacity(input.len());
-    track_var!(result);
-    
+    track_var!(result); // Track output buffer
+
     for item in input {
         result.push(item * 2);
     }
-    
+
     result
 }
+```
 
+## 💡 Common Patterns
+
+### Pattern 1: Resource Tracking
+```rust
 fn main() {
-    init();
-    
-    let data = vec![1, 2, 3, 4, 5];
-    let processed = process_data(data);
-    track_var!(processed);
-    
-    let tracker = get_global_tracker();
-    tracker.export_to_json("function_level_tracking").unwrap();
+    let memscope = memscope_rs::MemScope::new();
+
+    // Track resources
+    let buffer = vec![0u8; 4096];
+    track_var!(buffer);
+
+    let cache = std::collections::HashMap::new();
+    track_var!(cache);
+
+    // Use resources
+    // ...
+
+    memscope.export_json("resource_analysis").unwrap();
 }
 ```
 
-### Lifecycle Analysis
+### Pattern 2: Performance Profiling
 ```rust
-fn lifecycle_example() {
-    init();
-    
-    {
-        let short_lived = vec![1, 2, 3];
-        track_var!(short_lived);
-        // short_lived is destroyed here
+fn main() {
+    let memscope = memscope_rs::MemScope::new();
+
+    let start = std::time::Instant::now();
+
+    // Run workload
+    for i in 0..1000 {
+        let data = vec![i; 100];
+        track_var!(data);
     }
-    
-    let long_lived = vec![4, 5, 6];
-    track_var!(long_lived);
-    
-    // Export shows different lifecycle patterns
-    let tracker = get_global_tracker();
-    tracker.export_to_html("lifecycle_analysis.html").unwrap();
+
+    let duration = start.elapsed();
+    println!("Completed in {:?}", duration);
+
+    memscope.export_json("performance_profile").unwrap();
 }
 ```
 
-## 💡 Best Practices
+## 🔧 Troubleshooting
 
-### 1. Initialization Timing
+### Issue: No Output Files
+**Cause**: Export not called or export failed
+
+**Solution**:
 ```rust
-// ✅ Good practice
-fn main() {
-    memscope_rs::init(); // Initialize at program start
-    
-    // Your program logic...
-}
-
-// ❌ Avoid
-fn some_function() {
-    memscope_rs::init(); // Don't repeatedly initialize in functions
+// Check export result
+if let Err(e) = memscope.export_json("analysis") {
+    eprintln!("Export failed: {}", e);
 }
 ```
 
-### 2. Tracking Strategy
+### Issue: Variables Not Tracked
+**Cause**: Forgot to call `track_var!`
+
+**Solution**:
 ```rust
-// ✅ Track important heap allocations
-let important_data = vec![1, 2, 3];
-track_var!(important_data);
+// ✅ Correct
+let data = vec![1, 2, 3];
+track_var!(data);
 
-// ✅ Track large allocations
-let large_buffer = vec![0; 1024 * 1024];
-track_var!(large_buffer);
-
-// ❌ No need to track simple stack values
-let simple_int = 42; // No need to track
+// ❌ Missing
+let data = vec![1, 2, 3];
+// track_var!(data); // Forgot this
 ```
 
-### 3. Export Timing
+### Issue: No Memory Statistics
+**Cause**: Query before any allocations
+
+**Solution**:
 ```rust
-// ✅ Export before program ends
-fn main() {
-    init();
-    
-    // Program logic...
-    
-    // Export analysis results
-    let tracker = get_global_tracker();
-    tracker.export_to_html("final_analysis.html").unwrap();
-}
+let memscope = memscope_rs::MemScope::new();
+
+// Track something first
+let data = vec![1, 2, 3];
+track_var!(data);
+
+// Now query
+let stats = memscope.summary()?;
 ```
 
-### 4. Error Handling
-```rust
-// ✅ Proper error handling
-let tracker = get_global_tracker();
-match tracker.export_to_json("analysis") {
-    Ok(_) => println!("Export successful"),
-    Err(e) => eprintln!("Export failed: {}", e),
-}
-```
+## 📚 Next Steps
 
-This basic example provides you with a complete starting point for using memscope-rs. From here, you can explore more advanced features! 🎯
+Now that you understand basic usage:
+
+1. **[Memory Analysis Guide](../user-guide/memory-analysis.md)** - Learn advanced analysis
+2. **[Export Formats](../user-guide/export-formats.md)** - Understand output formats
+3. **[Advanced Examples](performance-profiling.md)** - Explore complex scenarios
+4. **[Smart Pointers](smart-pointers.md)** - Deep dive into Rc/Arc tracking
+
+## 💡 Key Takeaways
+
+- **Create MemScope instance** - Use `memscope_rs::MemScope::new()` at program start
+- **Track with macros** - Use `track_var!` for zero-cost tracking
+- **Variables work normally** - No behavior changes after tracking
+- **Export for analysis** - Generate JSON and SVG reports
+- **Check statistics** - Use `memscope.summary()` for real-time stats
+- **Smart pointers work** - Rc/Arc reference counting tracked automatically
+
+Start with the basic example and expand from there! 🎯

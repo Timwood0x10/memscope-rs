@@ -9,7 +9,7 @@
 
 ```toml
 [dependencies]
-memscope-rs = "0.1.4"
+memscope-rs = "0.1.10"
 ```
 
 这将启用默认特性，包括：
@@ -21,7 +21,7 @@ memscope-rs = "0.1.4"
 
 ```toml
 [dependencies]
-memscope-rs = { version = "0.1.4", default-features = false }
+memscope-rs = { version = "0.1.10", default-features = false }
 ```
 
 ## 🎛️ 特性配置
@@ -40,36 +40,36 @@ memscope-rs = { version = "0.1.4", default-features = false }
 **完整功能配置**:
 ```toml
 [dependencies]
-memscope-rs = { 
-    version = "0.1.4", 
-    features = ["tracking-allocator", "backtrace", "derive"] 
+memscope-rs = {
+    version = "0.1.10",
+    features = ["tracking-allocator", "backtrace", "derive"]
 }
 ```
 
 **性能优化配置**:
 ```toml
 [dependencies]
-memscope-rs = { 
-    version = "0.1.4", 
-    features = ["tracking-allocator"] 
+memscope-rs = {
+    version = "0.1.10",
+    features = ["tracking-allocator"]
 }
 ```
 
 **调试配置**:
 ```toml
 [dependencies]
-memscope-rs = { 
-    version = "0.1.4", 
-    features = ["tracking-allocator", "backtrace"] 
+memscope-rs = {
+    version = "0.1.10",
+    features = ["tracking-allocator", "backtrace"]
 }
 ```
 
 **测试配置**:
 ```toml
 [dev-dependencies]
-memscope-rs = { 
-    version = "0.1.4", 
-    features = ["test"] 
+memscope-rs = {
+    version = "0.1.10",
+    features = ["test"]
 }
 ```
 
@@ -84,21 +84,20 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-memscope-rs = "0.1.4"
+memscope-rs = "0.1.10"
 ```
 
 ```rust
 // src/main.rs
-use memscope_rs::{init, track_var, get_global_tracker};
+use memscope_rs::{track_var};
 
 fn main() {
-    init();
-    
+    let memscope = memscope_rs::MemScope::new();
+
     let data = vec![1, 2, 3];
     track_var!(data);
-    
-    let tracker = get_global_tracker();
-    tracker.export_to_html("analysis.html").unwrap();
+
+    memscope.export_html("analysis.html").unwrap();
 }
 ```
 
@@ -111,7 +110,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-memscope-rs = { version = "0.1.4", optional = true }
+memscope-rs = { version = "0.1.10", optional = true }
 
 [features]
 default = []
@@ -126,7 +125,7 @@ use memscope_rs::track_var;
 pub fn process_data(data: Vec<i32>) -> Vec<i32> {
     #[cfg(feature = "memory-analysis")]
     track_var!(data);
-    
+
     // 处理逻辑...
     data.into_iter().map(|x| x * 2).collect()
 }
@@ -135,10 +134,10 @@ pub fn process_data(data: Vec<i32>) -> Vec<i32> {
 ### no_std 环境
 ```toml
 [dependencies]
-memscope-rs = { 
-    version = "0.1.4", 
+memscope-rs = {
+    version = "0.1.10",
     default-features = false,
-    features = [] 
+    features = []
 }
 ```
 
@@ -251,25 +250,24 @@ services:
 ### 单元测试
 ```toml
 [dev-dependencies]
-memscope-rs = { version = "0.1.4", features = ["test"] }
+memscope-rs = { version = "0.1.10", features = ["test"] }
 tokio-test = "0.4"
 ```
 
 ```rust
 #[cfg(test)]
 mod tests {
-    use memscope_rs::{init, track_var, get_global_tracker};
+    use memscope_rs::{track_var};
 
     #[test]
     fn test_memory_tracking() {
-        init();
-        
+        let memscope = memscope_rs::MemScope::new();
+
         let data = vec![1, 2, 3];
         track_var!(data);
-        
-        let tracker = get_global_tracker();
-        let stats = tracker.get_stats().unwrap();
-        assert!(stats.active_allocations > 0);
+
+        let stats = memscope.summary().unwrap();
+        assert!(stats.total_allocations > 0);
     }
 }
 ```
@@ -277,21 +275,19 @@ mod tests {
 ### 集成测试
 ```rust
 // tests/integration_test.rs
-use memscope_rs::{init, track_var, get_global_tracker};
+use memscope_rs::{track_var};
 
 #[test]
 fn integration_test() {
-    init();
-    
+    let memscope = memscope_rs::MemScope::new();
+
     // 模拟真实使用场景
     let large_data = vec![0; 1024 * 1024];
     track_var!(large_data);
-    
-    let tracker = get_global_tracker();
-    
+
     // 验证导出功能
-    assert!(tracker.export_to_json("integration_test").is_ok());
-    
+    assert!(memscope.export_json("integration_test").is_ok());
+
     // 验证文件生成
     let path = std::path::Path::new("MemoryAnalysis/integration_test");
     assert!(path.exists());
@@ -369,43 +365,45 @@ fn main() {
 ### 快速验证脚本
 ```rust
 // verify_installation.rs
-use memscope_rs::{init, track_var, get_global_tracker};
+use memscope_rs::{track_var};
 
 fn main() {
     println!("🔍 验证 memscope-rs 安装...");
-    
+
     // 1. 初始化测试
-    match std::panic::catch_unwind(|| init()) {
-        Ok(_) => println!("✅ 初始化成功"),
+    let memscope = match std::panic::catch_unwind(|| memscope_rs::MemScope::new()) {
+        Ok(m) => {
+            println!("✅ 初始化成功");
+            m
+        }
         Err(_) => {
             println!("❌ 初始化失败");
             return;
         }
-    }
-    
+    };
+
     // 2. 跟踪测试
     let test_data = vec![1, 2, 3];
     track_var!(test_data);
     println!("✅ 变量跟踪成功");
-    
+
     // 3. 统计测试
-    let tracker = get_global_tracker();
-    match tracker.get_stats() {
+    match memscope.summary() {
         Ok(stats) => {
-            println!("✅ 统计获取成功: {} 个活跃分配", stats.active_allocations);
+            println!("✅ 统计获取成功: {} 个总分配", stats.total_allocations);
         }
         Err(e) => {
             println!("❌ 统计获取失败: {}", e);
             return;
         }
     }
-    
+
     // 4. 导出测试
-    match tracker.export_to_json("verification_test") {
+    match memscope.export_json("verification_test") {
         Ok(_) => println!("✅ JSON 导出成功"),
         Err(e) => println!("⚠️ JSON 导出失败: {}", e),
     }
-    
+
     println!("🎉 memscope-rs 安装验证完成！");
 }
 ```

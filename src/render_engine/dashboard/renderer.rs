@@ -62,6 +62,24 @@ pub struct DashboardContext {
     pub async_tasks: Vec<AsyncTaskInfo>,
     /// Async summary
     pub async_summary: AsyncSummary,
+    /// Health score (0-100)
+    pub health_score: u32,
+    /// Health status text
+    pub health_status: String,
+    /// Safe operations count
+    pub safe_ops_count: usize,
+    /// High risk issues count
+    pub high_risk_count: usize,
+    /// Clean passports count
+    pub clean_passport_count: usize,
+    /// Active passports count
+    pub active_passport_count: usize,
+    /// Leaked passports count
+    pub leaked_passport_count: usize,
+    /// FFI tracked passports count
+    pub ffi_tracked_count: usize,
+    /// Safe code percentage
+    pub safe_code_percent: u32,
 }
 
 /// Async task information for dashboard
@@ -372,6 +390,12 @@ impl DashboardRenderer {
             env!("CARGO_MANIFEST_DIR")
         );
         handlebars.register_template_file("dashboard_unified", &template_path)?;
+
+        let final_path = format!(
+            "{}/src/render_engine/dashboard/templates/dashboard_final.html",
+            env!("CARGO_MANIFEST_DIR")
+        );
+        handlebars.register_template_file("dashboard_final", &final_path)?;
 
         handlebars.register_helper("format_bytes", Box::new(format_bytes_helper));
         handlebars.register_helper("gt", Box::new(greater_than_helper));
@@ -1089,6 +1113,34 @@ impl DashboardRenderer {
             }
         };
 
+        let high_risk_count = unsafe_reports
+            .iter()
+            .filter(|r| r.risk_level == "high")
+            .count();
+        let clean_passport_count = passport_details.iter().filter(|p| !p.is_leaked).count();
+        let active_passport_count = passport_details
+            .iter()
+            .filter(|p| p.status == "active")
+            .count();
+        let leaked_passport_count = passport_details.iter().filter(|p| p.is_leaked).count();
+        let ffi_tracked_count = passport_details.iter().filter(|p| p.ffi_tracked).count();
+        let total_allocs = alloc_info.len().max(1);
+        let unsafe_count = unsafe_reports.len();
+        let leak_score = (100.0 - (leak_count as f64 / total_allocs as f64) * 100.0).max(0.0);
+        let unsafe_score = (100.0 - (unsafe_count as f64 / total_allocs as f64) * 50.0).max(0.0);
+        let risk_score = (100.0 - high_risk_count as f64 * 10.0).max(0.0);
+        let health_score = ((leak_score + unsafe_score + risk_score) / 3.0).round() as u32;
+        let health_status = if health_score >= 80 {
+            "✅ Excellent"
+        } else if health_score >= 60 {
+            "⚠️ Good"
+        } else {
+            "🚨 Needs Attention"
+        };
+        let safe_ops_count = total_allocs.saturating_sub(unsafe_count);
+        let safe_code_percent =
+            ((safe_ops_count as f64 / total_allocs as f64) * 100.0).round() as u32;
+
         let context = DashboardContext {
             title: "MemScope Dashboard".to_string(),
             export_timestamp: chrono::Utc::now()
@@ -1127,6 +1179,15 @@ impl DashboardRenderer {
             threads: Self::aggregate_thread_data(&alloc_info),
             async_tasks: Self::build_async_tasks(async_tracker),
             async_summary: Self::build_async_summary(async_tracker),
+            health_score,
+            health_status: health_status.to_string(),
+            safe_ops_count,
+            high_risk_count,
+            clean_passport_count,
+            active_passport_count,
+            leaked_passport_count,
+            ffi_tracked_count,
+            safe_code_percent,
         };
 
         Ok(context)
@@ -1335,6 +1396,42 @@ impl DashboardRenderer {
             "json_data".to_string(),
             serde_json::Value::String(context.json_data.clone()),
         );
+        template_data.insert(
+            "health_score".to_string(),
+            serde_json::Value::Number(context.health_score.into()),
+        );
+        template_data.insert(
+            "health_status".to_string(),
+            serde_json::Value::String(context.health_status.clone()),
+        );
+        template_data.insert(
+            "safe_ops_count".to_string(),
+            serde_json::Value::Number(context.safe_ops_count.into()),
+        );
+        template_data.insert(
+            "high_risk_count".to_string(),
+            serde_json::Value::Number(context.high_risk_count.into()),
+        );
+        template_data.insert(
+            "clean_passport_count".to_string(),
+            serde_json::Value::Number(context.clean_passport_count.into()),
+        );
+        template_data.insert(
+            "active_passport_count".to_string(),
+            serde_json::Value::Number(context.active_passport_count.into()),
+        );
+        template_data.insert(
+            "leaked_passport_count".to_string(),
+            serde_json::Value::Number(context.leaked_passport_count.into()),
+        );
+        template_data.insert(
+            "ffi_tracked_count".to_string(),
+            serde_json::Value::Number(context.ffi_tracked_count.into()),
+        );
+        template_data.insert(
+            "safe_code_percent".to_string(),
+            serde_json::Value::Number(context.safe_code_percent.into()),
+        );
 
         template_data.insert(
             "allocations".to_string(),
@@ -1359,6 +1456,138 @@ impl DashboardRenderer {
 
         self.handlebars
             .render("dashboard_unified", &template_data)
+            .map_err(|e| format!("Template rendering error: {}", e).into())
+    }
+
+    /// Render final dashboard (new investigation console template)
+    pub fn render_final_dashboard(
+        &self,
+        context: &DashboardContext,
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        let mut template_data = std::collections::BTreeMap::new();
+        template_data.insert(
+            "title".to_string(),
+            serde_json::Value::String(context.title.clone()),
+        );
+        template_data.insert(
+            "export_timestamp".to_string(),
+            serde_json::Value::String(context.export_timestamp.clone()),
+        );
+        template_data.insert(
+            "total_memory".to_string(),
+            serde_json::Value::String(context.total_memory.clone()),
+        );
+        template_data.insert(
+            "total_allocations".to_string(),
+            serde_json::Value::Number(context.total_allocations.into()),
+        );
+        template_data.insert(
+            "active_allocations".to_string(),
+            serde_json::Value::Number(context.active_allocations.into()),
+        );
+        template_data.insert(
+            "peak_memory".to_string(),
+            serde_json::Value::String(context.peak_memory.clone()),
+        );
+        template_data.insert(
+            "thread_count".to_string(),
+            serde_json::Value::Number(context.thread_count.into()),
+        );
+        template_data.insert(
+            "passport_count".to_string(),
+            serde_json::Value::Number(context.passport_count.into()),
+        );
+        template_data.insert(
+            "leak_count".to_string(),
+            serde_json::Value::Number(context.leak_count.into()),
+        );
+        template_data.insert(
+            "unsafe_count".to_string(),
+            serde_json::Value::Number(context.unsafe_count.into()),
+        );
+        template_data.insert(
+            "ffi_count".to_string(),
+            serde_json::Value::Number(context.ffi_count.into()),
+        );
+        template_data.insert(
+            "health_score".to_string(),
+            serde_json::Value::Number(context.health_score.into()),
+        );
+        template_data.insert(
+            "health_status".to_string(),
+            serde_json::Value::String(context.health_status.clone()),
+        );
+        template_data.insert(
+            "safe_ops_count".to_string(),
+            serde_json::Value::Number(context.safe_ops_count.into()),
+        );
+        template_data.insert(
+            "high_risk_count".to_string(),
+            serde_json::Value::Number(context.high_risk_count.into()),
+        );
+        template_data.insert(
+            "clean_passport_count".to_string(),
+            serde_json::Value::Number(context.clean_passport_count.into()),
+        );
+        template_data.insert(
+            "active_passport_count".to_string(),
+            serde_json::Value::Number(context.active_passport_count.into()),
+        );
+        template_data.insert(
+            "leaked_passport_count".to_string(),
+            serde_json::Value::Number(context.leaked_passport_count.into()),
+        );
+        template_data.insert(
+            "ffi_tracked_count".to_string(),
+            serde_json::Value::Number(context.ffi_tracked_count.into()),
+        );
+        template_data.insert(
+            "safe_code_percent".to_string(),
+            serde_json::Value::Number(context.safe_code_percent.into()),
+        );
+        template_data.insert(
+            "os_name".to_string(),
+            serde_json::Value::String(context.os_name.clone()),
+        );
+        template_data.insert(
+            "architecture".to_string(),
+            serde_json::Value::String(context.architecture.clone()),
+        );
+        template_data.insert(
+            "cpu_cores".to_string(),
+            serde_json::Value::Number(context.cpu_cores.into()),
+        );
+        template_data.insert(
+            "json_data".to_string(),
+            serde_json::Value::String(context.json_data.clone()),
+        );
+        template_data.insert(
+            "allocations".to_string(),
+            serde_json::to_value(&context.allocations)?,
+        );
+        template_data.insert(
+            "passport_details".to_string(),
+            serde_json::to_value(&context.passport_details)?,
+        );
+        template_data.insert(
+            "relationships".to_string(),
+            serde_json::to_value(&context.relationships)?,
+        );
+        template_data.insert(
+            "unsafe_reports".to_string(),
+            serde_json::to_value(&context.unsafe_reports)?,
+        );
+        template_data.insert(
+            "threads".to_string(),
+            serde_json::to_value(&context.threads)?,
+        );
+        template_data.insert(
+            "async_tasks".to_string(),
+            serde_json::to_value(&context.async_tasks)?,
+        );
+
+        self.handlebars
+            .render("dashboard_final", &template_data)
             .map_err(|e| format!("Template rendering error: {}", e).into())
     }
 

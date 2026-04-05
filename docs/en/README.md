@@ -1,16 +1,24 @@
 # memscope-rs Documentation
 
-Welcome to memscope-rs - A Rust memory tracking and analysis library!
+Welcome to memscope-rs — A high-performance Rust memory analysis toolkit!
+
+## 🆕 What's New
+
+- **[New Features & Highlights](new-features.md)** — 10 key features in v0.1.10
+- **[Architecture Overview](architecture-overview.md)** — The 9-engine pipeline explained
+- **[Capture Backends Deep Dive](capture-backends.md)** — Four data collection strategies compared
 
 ## 🚀 Quick Start
 
 If you're new to memscope-rs, we recommend reading in this order:
 
-1. **[Core Modules Overview](modules/README.md)** - Understand the four tracking modules
-2. **[Installation](getting-started/installation.md)** - Project integration and environment setup
-3. **[5-Minute Quick Start](getting-started/quick-start.md)** - Get started immediately
-4. **[Basic Tracking](getting-started/basic-tracking.md)** - Learn core functionality
-5. **[First Analysis](getting-started/first-analysis.md)** - Generate your first analysis report
+1. **[Architecture Overview](architecture-overview.md)** — Understand the 9-engine pipeline
+2. **[Capture Backends](capture-backends.md)** — Choose the right data collection strategy
+3. **[New Features & Highlights](new-features.md)** — What makes MemScope stand out
+4. **[Installation](getting-started/installation.md)** — Project integration and environment setup
+5. **[5-Minute Quick Start](getting-started/quick-start.md)** — Get started immediately
+
+**Note**: This documentation reflects memscope-rs v0.1.10. Please ensure you're using the latest version.
 
 ## 📚 Documentation Navigation
 

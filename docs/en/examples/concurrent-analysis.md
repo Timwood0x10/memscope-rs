@@ -184,12 +184,12 @@ The interactive report generated with `make html` includes:
 ### Create Your Own Multi-threaded Analysis
 
 ```rust
-use memscope_rs::{get_global_tracker, track_var, init};
+use memscope_rs::track_var;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    init();
+    let memscope = memscope_rs::MemScope::new();
     
     // 1. Create shared data structures
     let shared_data = Arc::new(Mutex::new(Vec::new()));
@@ -220,8 +220,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     
     // 6. Export analysis results
-    let tracker = get_global_tracker();
-    tracker.export_to_binary("my_concurrent_analysis")?;
+    memscope.export_binary("my_concurrent_analysis")?;
     
     println!("✅ Concurrent analysis complete!");
     println!("Run: make html DIR=MemoryAnalysis/my_concurrent_analysis BASE=my_concurrent_analysis");
@@ -271,13 +270,13 @@ track_var!(condvar);
 
 ```bash
 # Quick view - Use SVG
-tracker.export_memory_analysis("quick_view.svg")?;
+memscope.export_svg("quick_view.svg")?;
 
 # Detailed analysis - Use HTML
 make html DIR=MemoryAnalysis/your_analysis BASE=your_analysis
 
 # Data processing - Use JSON
-tracker.export_to_json("data_analysis")?;
+memscope.export_json("data_analysis")?;
 ```
 
 ## 🔧 Troubleshooting
@@ -315,11 +314,11 @@ std::env::set_var("MEMSCOPE_ACCURATE_TRACKING", "1");
 
 ```rust
 use tokio;
-use memscope_rs::{track_var, init};
+use memscope_rs::track_var;
 
 #[tokio::main]
 async fn main() {
-    init();
+    let memscope = memscope_rs::MemScope::new();
     
     // Track async data structures
     let async_data = Arc::new(Mutex::new(Vec::new()));
@@ -358,7 +357,7 @@ use std::sync::atomic::{AtomicUsize, AtomicPtr, Ordering};
 use std::sync::Arc;
 
 fn analyze_lockfree_structures() {
-    init();
+    let memscope = memscope_rs::MemScope::new();
     
     // Track atomic operations
     let counter = Arc::new(AtomicUsize::new(0));

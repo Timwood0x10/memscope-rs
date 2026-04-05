@@ -151,6 +151,36 @@
         .stat-card.warning .stat-value { color: var(--warning); }
         .stat-card.success .stat-value { color: var(--success); }
 
+        .diagnosis-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 12px;
+        }
+
+        .diagnosis-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 12px 16px;
+            background: var(--bg);
+            border-radius: 8px;
+            border-left: 4px solid var(--border);
+        }
+
+        .diagnosis-item.critical { border-left-color: var(--danger); background: rgba(239, 68, 68, 0.05); }
+        .diagnosis-item.warning { border-left-color: var(--warning); background: rgba(245, 158, 11, 0.05); }
+        .diagnosis-item.info { border-left-color: var(--info); background: rgba(59, 130, 246, 0.05); }
+        .diagnosis-item.success { border-left-color: var(--success); background: rgba(16, 185, 129, 0.05); }
+
+        .diagnosis-icon { font-size: 1.25rem; flex-shrink: 0; }
+        .diagnosis-content { flex: 1; }
+        .diagnosis-title { font-weight: 600; font-size: 0.9rem; margin-bottom: 2px; }
+        .diagnosis-item.critical .diagnosis-title { color: var(--danger); }
+        .diagnosis-item.warning .diagnosis-title { color: var(--warning); }
+        .diagnosis-item.info .diagnosis-title { color: var(--info); }
+        .diagnosis-item.success .diagnosis-title { color: var(--success); }
+        .diagnosis-desc { font-size: 0.8rem; color: var(--text2); }
+
         .card {
             background: var(--bg2);
             border: 1px solid var(--border);
@@ -417,45 +447,87 @@
         </div>
 
         <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-value">{{total_allocations}}</div>
-                <div class="stat-label">Total Allocations</div>
+            <div class="stat-card" id="healthScoreCard" style="background: linear-gradient(135deg, var(--bg2) 0%, var(--bg3) 100%); border: 2px solid var(--primary);">
+                <div class="stat-value" id="healthScore" style="font-size: 2.5rem;">{{health_score}}</div>
+                <div class="stat-label">🛡️ Health Score</div>
+                <div id="healthStatus" style="font-size: 0.75rem; margin-top: 4px; color: var(--text2);">{{health_status}}</div>
             </div>
             <div class="stat-card">
-                <div class="stat-value">{{active_allocations}}</div>
-                <div class="stat-label">Active</div>
+                <div class="stat-value">{{total_allocations}}</div>
+                <div class="stat-label">📦 Allocations</div>
             </div>
             <div class="stat-card">
                 <div class="stat-value">{{total_memory}}</div>
-                <div class="stat-label">Total Memory</div>
+                <div class="stat-label">💾 Memory</div>
             </div>
             <div class="stat-card">
                 <div class="stat-value">{{peak_memory}}</div>
-                <div class="stat-label">Peak Memory</div>
+                <div class="stat-label">📈 Peak</div>
             </div>
-            <div class="stat-card danger">
+            <div class="stat-card danger" id="leakCard">
                 <div class="stat-value">{{leak_count}}</div>
-                <div class="stat-label">Leaks</div>
+                <div class="stat-label">🔴 Leaks</div>
             </div>
-            <div class="stat-card warning">
-                <div class="stat-value">{{passport_count}}</div>
-                <div class="stat-label">Passports</div>
+            <div class="stat-card" style="background: linear-gradient(135deg, #8b5cf620 0%, #8b5cf640 100%); border: 1px solid #8b5cf6;">
+                <div class="stat-value" style="color: #8b5cf6;">{{passport_count}}</div>
+                <div class="stat-label">🛂 Passports</div>
             </div>
             <div class="stat-card warning">
                 <div class="stat-value">{{unsafe_count}}</div>
-                <div class="stat-label">Unsafe Ops</div>
+                <div class="stat-label">⚠️ Unsafe</div>
             </div>
             <div class="stat-card">
                 <div class="stat-value">{{ffi_count}}</div>
-                <div class="stat-label">FFI Calls</div>
+                <div class="stat-label">🔗 FFI Calls</div>
             </div>
         </div>
 
         <!-- Overview Mode -->
         <div id="mode-overview" class="mode-section active">
-            <div class="card">
+            <!-- Auto Diagnosis -->
+            <div class="card" style="background: linear-gradient(135deg, #fef2f220 0%, #fef2f240 100%); border: 2px solid #fef2f2;">
                 <div class="card-header">
-                    <h2 class="card-title">📈 Memory Overview</h2>
+                    <h2 class="card-title">🔬 Auto Diagnosis</h2>
+                    <span class="badge" id="diagnosisBadge" style="background: var(--primary); color: white;">Analysis Complete</span>
+                </div>
+                <div id="diagnosisContent" class="diagnosis-grid">
+                    <!-- Dynamic diagnosis content will be rendered here -->
+                </div>
+            </div>
+
+            <div class="card" style="background: linear-gradient(135deg, var(--bg2) 0%, var(--bg3) 100%); border: 2px solid var(--primary);">
+                <div class="card-header">
+                    <h2 class="card-title">🛡️ Memory Safety Analysis</h2>
+                    <span class="badge badge-info" id="safetyBadge">{{safe_code_percent}}% Safe</span>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 16px;">
+                    <div class="detail-panel" style="border-left: 4px solid var(--success);">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 1.5rem;">✅</span>
+                            <div>
+                                <div style="font-weight: 600; color: var(--success);">Safe Operations</div>
+                                <div id="safeOpsCount" style="font-size: 1.25rem; font-weight: 700;">{{safe_ops_count}}</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="detail-panel" style="border-left: 4px solid var(--warning);">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 1.5rem;">⚡</span>
+                            <div>
+                                <div style="font-weight: 600; color: var(--warning);">Rust-FFI Crossings</div>
+                                <div id="ffiCrossCount" style="font-size: 1.25rem; font-weight: 700;">{{ffi_count}}</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="detail-panel" style="border-left: 4px solid var(--danger);">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 1.5rem;">🚨</span>
+                            <div>
+                                <div style="font-weight: 600; color: var(--danger);">Potential Issues</div>
+                                <div id="potentialIssues" style="font-size: 1.25rem; font-weight: 700;">{{high_risk_count}}</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <div class="chart-container">
                     <canvas id="memoryChart"></canvas>
@@ -464,7 +536,8 @@
 
             <div class="card">
                 <div class="card-header">
-                    <h2 class="card-title">🏷️ Allocation Type Distribution</h2>
+                    <h2 class="card-title">📊 Type Intelligence</h2>
+                    <span class="text-secondary" style="font-size: 0.85rem;">Automatic type inference with confidence scores</span>
                 </div>
                 <div class="chart-container">
                     <canvas id="typeChart"></canvas>
@@ -488,6 +561,7 @@
                                 <th>Variable</th>
                                 <th>Type</th>
                                 <th>Size</th>
+                                <th>Source</th>
                                 <th>Thread</th>
                                 <th>Lifetime</th>
                                 <th>Status</th>
@@ -608,18 +682,34 @@
 
         <!-- Variable Mode -->
         <div id="mode-variable" class="mode-section">
-            <div class="card">
+            <div class="card" style="background: linear-gradient(135deg, var(--bg2) 0%, var(--bg3) 100%);">
                 <div class="card-header">
                     <h2 class="card-title">🔗 Variable Relationship Graph</h2>
                     <span class="badge badge-info" id="relationshipCount">0 relationships</span>
                 </div>
-                <div class="flex-gap-4 flex-wrap mb-3">
-                    <div class="legend-item"><div class="legend-color" style="background: #10b981;"></div>Owner/Clone</div>
-                    <div class="legend-item"><div class="legend-color" style="background: #3b82f6;"></div>Immutable Borrow</div>
-                    <div class="legend-item"><div class="legend-color" style="background: #f59e0b;"></div>Mutable Borrow</div>
-                    <div class="legend-item"><div class="legend-color" style="background: #8b5cf6;"></div>Arc/Rc</div>
+                <div style="background: linear-gradient(135deg, #3b82f610 0%, #3b82f620 100%); border-radius: 8px; padding: 12px; margin-bottom: 12px; border: 1px solid #3b82f640;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <span style="font-size: 1.5rem;">🕸️</span>
+                        <div>
+                            <div style="font-weight: 600; color: var(--primary);">Ownership & Borrowing Visualization</div>
+                            <div style="color: var(--text2); font-size: 0.85rem;">
+                                Drag nodes to explore • Red dashed lines = circular references • Node size = allocation size
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="graph-container" id="relationshipGraph"></div>
+                <div class="flex-gap-4 flex-wrap mb-3">
+                    <div class="legend-item"><div class="legend-color" style="background: #10b981; width: 12px; height: 12px; border-radius: 50%;"></div>Owner/Clone</div>
+                    <div class="legend-item"><div class="legend-color" style="background: #3b82f6; width: 12px; height: 12px; border-radius: 50%;"></div>Immutable &</div>
+                    <div class="legend-item"><div class="legend-color" style="background: #f59e0b; width: 12px; height: 12px; border-radius: 50%;"></div>Mutable &mut</div>
+                    <div class="legend-item"><div class="legend-color" style="background: #8b5cf6; width: 12px; height: 12px; border-radius: 50%;"></div>Arc/Rc</div>
+                    <div class="legend-item"><div class="legend-color" style="background: #ef4444; width: 20px; height: 2px; border-style: dashed;"></div>Circular Ref</div>
+                </div>
+                <div class="graph-container" id="relationshipGraph" style="border: 1px solid var(--border); border-radius: 8px; background: var(--bg);"></div>
+                <div style="display: flex; gap: 8px; margin-top: 8px;">
+                    <button class="btn-sm" onclick="Dashboard.variableGraph.resetZoom()">🔍 Reset View</button>
+                    <button class="btn-sm" onclick="Dashboard.variableGraph.highlightCycles()">🔴 Highlight Cycles</button>
+                </div>
             </div>
 
             <div class="card">
@@ -655,100 +745,121 @@
 
         <!-- Passport Mode -->
         <div id="mode-passport" class="mode-section">
-            <div class="card">
+            <div class="card" style="background: linear-gradient(135deg, #8b5cf610 0%, #8b5cf620 100%); border: 2px solid #8b5cf6;">
                 <div class="card-header">
-                    <h2 class="card-title">🛂 Memory Passport Details</h2>
-                    <span class="badge badge-warning" id="passportBadge">0 passports</span>
-                    <select id="passportSortOrder" onchange="Dashboard.passports.sort()" class="input-sm" style="margin-left:8px;">
-                        <option value="size-desc">Size ↓</option>
-                        <option value="size-asc">Size ↑</option>
-                        <option value="lifetime-desc">Lifetime ↓</option>
-                        <option value="lifetime-asc">Lifetime ↑</option>
-                    </select>
+                    <h2 class="card-title" style="color: #8b5cf6;">🛂 Memory Passport™</h2>
+                    <span class="badge" style="background: #8b5cf630; color: #8b5cf6;" id="passportBadge">0 passports</span>
                 </div>
-
+                <div style="background: var(--bg2); border-radius: 8px; padding: 16px; margin-bottom: 16px; border: 1px solid var(--border);">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <span style="font-size: 2rem;">💡</span>
+                        <div>
+                            <div style="font-weight: 600; color: var(--primary);">What is Memory Passport?</div>
+                            <div style="color: var(--text2); font-size: 0.85rem;">
+                                Every memory allocation gets a "passport" that tracks its entire lifecycle - from birth to death.
+                                Like a visa, it records every border crossing between Rust and FFI, detecting potential leaks before they happen.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px;">
+                    <div class="detail-panel" style="border-left: 4px solid #10b981; text-align: center;">
+                        <div style="font-size: 0.75rem; color: var(--text2);">✅ Clean</div>
+                        <div class="stat-value" style="color: #10b981; font-size: 1.5rem;" id="cleanPassCount">{{clean_passport_count}}</div>
+                    </div>
+                    <div class="detail-panel" style="border-left: 4px solid #f59e0b; text-align: center;">
+                        <div style="font-size: 0.75rem; color: var(--text2);">⚡ Active</div>
+                        <div class="stat-value" style="color: #f59e0b; font-size: 1.5rem;" id="activePassCount">{{active_passport_count}}</div>
+                    </div>
+                    <div class="detail-panel" style="border-left: 4px solid #ef4444; text-align: center;">
+                        <div style="font-size: 0.75rem; color: var(--text2);">🚨 Leaked</div>
+                        <div class="stat-value" style="color: #ef4444; font-size: 1.5rem;" id="leakedPassCount">{{leaked_passport_count}}</div>
+                    </div>
+                    <div class="detail-panel" style="border-left: 4px solid #8b5cf6; text-align: center;">
+                        <div style="font-size: 0.75rem; color: var(--text2);">🔗 FFI Tracked</div>
+                        <div class="stat-value" style="color: #8b5cf6; font-size: 1.5rem;" id="ffiPassCount">{{ffi_tracked_count}}</div>
+                    </div>
+                </div>
                 <div class="tab-nav">
-                    <button class="tab-btn active" onclick="showTab('passport-overview')">📊 Overview</button>
-                    <button class="tab-btn" onclick="showTab('passport-list')">📋 List</button>
+                    <button class="tab-btn active" onclick="showTab('passport-overview')">📊 Risk Analysis</button>
+                    <button class="tab-btn" onclick="showTab('passport-list')">📋 Passport List</button>
                     <button class="tab-btn" onclick="showTab('passport-timeline')">⏱️ Timeline</button>
                 </div>
-
                 <div id="tab-passport-overview" class="tab-content active">
                     <div class="chart-container">
                         <canvas id="passportChart"></canvas>
                     </div>
                     <div class="grid-auto-lg gap-4 mt-4">
-                        <div class="detail-panel">
-                            <div class="detail-label">High Risk</div>
+                        <div class="detail-panel" style="border-left: 4px solid var(--danger);">
+                            <div class="detail-label">🔴 High Risk</div>
                             <div class="stat-value risk-high" id="highRiskCount">0</div>
                         </div>
-                        <div class="detail-panel">
-                            <div class="detail-label">Medium Risk</div>
+                        <div class="detail-panel" style="border-left: 4px solid var(--warning);">
+                            <div class="detail-label">🟡 Medium Risk</div>
                             <div class="stat-value risk-medium" id="mediumRiskCount">0</div>
                         </div>
-                        <div class="detail-panel">
-                            <div class="detail-label">Low Risk</div>
+                        <div class="detail-panel" style="border-left: 4px solid var(--success);">
+                            <div class="detail-label">🟢 Low Risk</div>
                             <div class="stat-value risk-low" id="lowRiskCount">0</div>
                         </div>
                     </div>
                 </div>
-
                 <div id="tab-passport-list" class="tab-content">
-                    <div id="passportCardContainer" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 16px;"></div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <span class="text-secondary" style="font-size: 0.85rem;">Click to expand each passport for details</span>
+                        <button class="btn-sm" onclick="toggleSection('passportCardContainer', this)">▼ Expand All</button>
+                    </div>
+                    <div id="passportCardContainer" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 16px; max-height: 600px; overflow-y: auto;"></div>
                 </div>
-
                 <div id="tab-passport-timeline" class="tab-content">
-                    <div id="passportTimeline" class="timeline"></div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <span class="text-secondary" style="font-size: 0.85rem;">Timeline of passport events</span>
+                        <button class="btn-sm" onclick="toggleSection('passportTimeline', this)">▼ Expand All</button>
+                    </div>
+                    <div id="passportTimeline" class="timeline" style="max-height: 500px; overflow-y: auto;"></div>
                 </div>
             </div>
         </div>
 
         <!-- Time Travel Mode -->
         <div id="mode-timetravel" class="mode-section">
-            <div class="card">
+            <div class="card" style="background: linear-gradient(135deg, var(--bg2) 0%, var(--bg3) 100%);">
                 <div class="card-header">
                     <h2 class="card-title">⏪ Time Travel Debugging</h2>
+                    <span class="badge badge-info">Simple & Powerful</span>
+                </div>
+                <div style="background: linear-gradient(135deg, #3b82f610 0%, #3b82f620 100%); border-radius: 8px; padding: 16px; margin-bottom: 16px; border: 1px solid #3b82f640;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <span style="font-size: 2rem;">🎯</span>
+                        <div>
+                            <div style="font-weight: 600; color: var(--primary);">Time Travel Debugging</div>
+                            <div style="color: var(--text2); font-size: 0.85rem;">
+                                Click any allocation to see its complete lifecycle. No complex setup, no configuration - just click and explore.
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <div class="detail-panel mb-4">
-                    <div class="flex-float-start gap-4 mb-3">
-                        <div class="flex-1">
-                            <p class="text-primary font-bold mb-2">What is Time Travel Debugging?</p>
-                            <p class="text-secondary text-sm">
-                                Time Travel Debugging allows you to trace the complete lifecycle of each memory allocation - from creation to destruction.
-                                Click on any allocation to see its timeline, including when it was allocated, accessed, and deallocated (if applicable).
-                            </p>
-                        </div>
-                        <div style="display: flex; gap: 8px;">
-                            <span class="badge badge-info">🟢 Alloc</span>
-                            <span class="badge badge-success">🔵 Use</span>
-                            <span class="badge badge-danger">⚠️ Leak</span>
-                            <span class="badge badge-warning">➖ Dealloc</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="detail-panel">
                     <div class="flex-between flex-wrap gap-3 mb-3">
-                        <input type="text" class="search-box" placeholder="Search by address or variable name..." id="timetravelSearch" oninput="Dashboard.timetravel.filter()">
+                        <input type="text" class="search-box" placeholder="🔍 Search by address or variable..." id="timetravelSearch" oninput="Dashboard.timetravel.filter()">
                         <div class="flex-gap-2">
-                            <label class="text-secondary">Sort by:</label>
                             <select id="ttSortOrder" onchange="Dashboard.timetravel.sort()" class="input-sm">
-                                <option value="time-asc">Time (Oldest First)</option>
-                                <option value="time-desc">Time (Newest First)</option>
-                                <option value="size-desc">Size (Largest First)</option>
-                                <option value="size-asc">Size (Smallest First)</option>
-                                <option value="lifetime-desc">Lifetime (Longest First)</option>
+                                <option value="time-asc">⏱️ Oldest First</option>
+                                <option value="time-desc">⏱️ Newest First</option>
+                                <option value="size-desc">📦 Largest</option>
+                                <option value="lifetime-desc">⏳ Longest Life</option>
                             </select>
+                            <button class="btn-sm" onclick="toggleTable('timetravelTableWrapper', this)">▼ Expand</button>
                         </div>
                     </div>
-                    <div class="table-wrapper">
+                    <div class="table-wrapper" id="timetravelTableWrapper" style="max-height: 400px; overflow-y: auto;">
                         <table>
                             <thead>
                                 <tr>
                                     <th>Address</th>
                                     <th>Variable</th>
                                     <th>Size</th>
-                                    <th>Source Location</th>
-                                    <th>Alloc Time</th>
+                                    <th>Source</th>
                                     <th>Lifetime</th>
                                     <th>Status</th>
                                     <th>Action</th>
@@ -759,27 +870,27 @@
                     </div>
                 </div>
 
-                <div id="timetravelDetail" class="detail-panel mt-5" style="display: none;">
+                <div id="timetravelDetail" class="detail-panel mt-5" style="display: none; background: linear-gradient(135deg, var(--bg) 0%, var(--bg3) 100%); border: 2px solid var(--primary);">
                     <h3 style="color: var(--primary); margin-top: 0;">📍 <span id="ttAddress"></span></h3>
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px;">
-                        <div class="detail-panel">
+                        <div class="detail-panel" style="border-left: 4px solid var(--primary);">
                             <div class="detail-label">Variable</div>
                             <div id="ttVarName" class="detail-value">-</div>
                         </div>
-                        <div class="detail-panel">
+                        <div class="detail-panel" style="border-left: 4px solid var(--info);">
                             <div class="detail-label">Type</div>
                             <div id="ttType" class="detail-value">-</div>
                         </div>
-                        <div class="detail-panel">
+                        <div class="detail-panel" style="border-left: 4px solid var(--warning);">
                             <div class="detail-label">Size</div>
                             <div id="ttSize" class="detail-value">-</div>
                         </div>
-                        <div class="detail-panel">
+                        <div class="detail-panel" style="border-left: 4px solid var(--success);">
                             <div class="detail-label">Status</div>
                             <div id="ttStatus" class="detail-value">-</div>
                         </div>
                     </div>
-                    <h4 style="color: var(--text2); margin-bottom: 12px;">Lifecycle Events</h4>
+                    <h4 style="color: var(--text2); margin-bottom: 12px;">🔄 Lifecycle Events</h4>
                     <div class="timeline" id="ttTimeline"></div>
                 </div>
             </div>
@@ -787,10 +898,39 @@
 
         <!-- Unsafe/FFI Mode -->
         <div id="mode-unsafe" class="mode-section">
-            <div class="card">
+            <div class="card" style="background: linear-gradient(135deg, #ef444410 0%, #ef444420 100%); border: 2px solid #ef444460;">
                 <div class="card-header">
-                    <h2 class="card-title">⚠️ Unsafe/FFI Analysis</h2>
-                    <span class="badge badge-warning" id="unsafeBadge">0 reports</span>
+                    <h2 class="card-title" style="color: #ef4444;">🛡️ Memory Safety Guardian</h2>
+                    <span class="badge" style="background: #ef444430; color: #ef4444;" id="unsafeBadge">0 issues</span>
+                </div>
+                <div style="background: var(--bg2); border-radius: 8px; padding: 16px; margin-bottom: 16px; border: 1px solid var(--border);">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <span style="font-size: 2rem;">🔒</span>
+                        <div>
+                            <div style="font-weight: 600; color: var(--primary);">Rust's Promise: Memory Safety</div>
+                            <div style="color: var(--text2); font-size: 0.85rem;">
+                                Track every unsafe block and FFI call. Know exactly where your code steps outside Rust's safety guarantees.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px;">
+                    <div class="detail-panel" style="border-left: 4px solid #10b981; text-align: center;">
+                        <div style="font-size: 0.75rem; color: var(--text2);">✅ Safe Code</div>
+                        <div class="stat-value" style="color: #10b981; font-size: 1.5rem;" id="safeCodePercent">{{safe_code_percent}}%</div>
+                    </div>
+                    <div class="detail-panel" style="border-left: 4px solid #f59e0b; text-align: center;">
+                        <div style="font-size: 0.75rem; color: var(--text2);">⚠️ Unsafe Blocks</div>
+                        <div class="stat-value" style="color: #f59e0b; font-size: 1.5rem;" id="unsafeBlockCount">{{unsafe_count}}</div>
+                    </div>
+                    <div class="detail-panel" style="border-left: 4px solid #3b82f6; text-align: center;">
+                        <div style="font-size: 0.75rem; color: var(--text2);">🔗 FFI Calls</div>
+                        <div class="stat-value" style="color: #3b82f6; font-size: 1.5rem;" id="ffiCallCount">{{ffi_count}}</div>
+                    </div>
+                    <div class="detail-panel" style="border-left: 4px solid #ef4444; text-align: center;">
+                        <div style="font-size: 0.75rem; color: var(--text2);">🚨 Critical</div>
+                        <div class="stat-value" style="color: #ef4444; font-size: 1.5rem;" id="criticalIssueCount">{{high_risk_count}}</div>
+                    </div>
                 </div>
                 <div class="chart-container">
                     <canvas id="unsafeChart"></canvas>
@@ -799,7 +939,7 @@
 
             <div class="card">
                 <div class="card-header">
-                    <h2 class="card-title">🔴 Risk Distribution</h2>
+                    <h2 class="card-title">🎯 Risk Assessment</h2>
                 </div>
                 <div class="chart-container small">
                     <canvas id="unsafeRiskChart"></canvas>
@@ -811,24 +951,28 @@
                     <h2 class="card-title">🔄 Memory Lifecycle Flow</h2>
                     <span class="badge badge-info" id="lifecycleFlowCount">0 flows</span>
                 </div>
-                <p style="color: var(--text2); margin-bottom: 16px; font-size: 0.9rem;">
-                    Visual representation of memory as it moves between Rust and Foreign code boundaries.
-                </p>
+                <div style="background: linear-gradient(135deg, #8b5cf610 0%, #8b5cf620 100%); border-radius: 8px; padding: 12px; margin-bottom: 16px; border: 1px solid #8b5cf640;">
+                    <div style="color: var(--text2); font-size: 0.85rem;">
+                        <strong style="color: #8b5cf6;">VISA Flow:</strong> Track memory as it crosses between Rust and FFI boundaries. Each crossing is logged like a visa stamp.
+                    </div>
+                </div>
                 <div id="lifecycleFlowContainer" style="display: flex; flex-direction: column; gap: 12px;"></div>
             </div>
 
             <div class="card">
                 <div class="card-header">
-                    <h2 class="card-title">🔴 High Risk Operations</h2>
+                    <h2 class="card-title">🚨 High Risk Operations</h2>
+                    <button class="btn-sm" onclick="toggleSection('unsafeReportsContainer', this)">▼ Expand</button>
                 </div>
-                <div id="unsafeReportsContainer"></div>
+                <div id="unsafeReportsContainer" style="max-height: 400px; overflow-y: auto;"></div>
             </div>
 
             <div class="card">
                 <div class="card-header">
                     <h2 class="card-title">📋 FFI Boundary Events</h2>
+                    <button class="btn-sm" onclick="toggleTable('ffiTableWrapper', this)">▼ Expand</button>
                 </div>
-                <div class="table-wrapper">
+                <div class="table-wrapper" id="ffiTableWrapper" style="max-height: 300px; overflow-y: auto;">
                     <table>
                         <thead>
                             <tr>
@@ -959,8 +1103,133 @@
                 }
             },
 
+            diagnosis: {
+                init() {
+                    const container = document.getElementById('diagnosisContent');
+                    if (!container) return;
+                    
+                    const diagnoses = [];
+                    const allocations = data.allocations || [];
+                    const passports = data.passport_details || [];
+                    const unsafeReports = data.unsafe_reports || [];
+                    const relationships = data.relationships || [];
+                    
+                    const leakCount = data.leak_count || 0;
+                    const unsafeCount = data.unsafe_count || 0;
+                    const ffiCount = data.ffi_count || 0;
+                    const highRiskCount = data.high_risk_count || 0;
+                    
+                    if (leakCount > 0) {
+                        diagnoses.push({
+                            level: 'critical',
+                            icon: '🔴',
+                            title: 'Memory Leak Detected',
+                            desc: `${leakCount} allocation${leakCount > 1 ? 's' : ''} not freed - potential memory leak`
+                        });
+                    }
+                    
+                    const cycleCount = relationships.filter(r => r.is_part_of_cycle).length;
+                    if (cycleCount > 0) {
+                        diagnoses.push({
+                            level: 'critical',
+                            icon: '🔄',
+                            title: 'Reference Cycle Detected',
+                            desc: `${cycleCount} circular reference${cycleCount > 1 ? 's' : ''} found - may cause memory leak`
+                        });
+                    }
+                    
+                    if (highRiskCount > 0) {
+                        diagnoses.push({
+                            level: 'warning',
+                            icon: '⚠️',
+                            title: 'High Risk Unsafe Operations',
+                            desc: `${highRiskCount} high-risk unsafe operation${highRiskCount > 1 ? 's' : ''} detected`
+                        });
+                    }
+                    
+                    const ffiPassports = passports.filter(p => p.ffi_tracked).length;
+                    if (ffiPassports > 0) {
+                        const leakedFfi = passports.filter(p => p.ffi_tracked && p.is_leaked).length;
+                        if (leakedFfi > 0) {
+                            diagnoses.push({
+                                level: 'warning',
+                                icon: '🔗',
+                                title: 'FFI Memory Escape',
+                                desc: `${leakedFfi} allocation${leakedFfi > 1 ? 's' : ''} leaked across FFI boundary`
+                            });
+                        } else {
+                            diagnoses.push({
+                                level: 'info',
+                                icon: '🔗',
+                                title: 'FFI Boundary Tracking Active',
+                                desc: `${ffiPassports} allocation${ffiPassports > 1 ? 's' : ''} tracked across FFI boundaries`
+                            });
+                        }
+                    }
+                    
+                    const largeAllocs = allocations.filter(a => (parseInt(a.size) || 0) > 1024 * 1024);
+                    if (largeAllocs.length > 0) {
+                        diagnoses.push({
+                            level: 'warning',
+                            icon: '📦',
+                            title: 'Large Allocations Found',
+                            desc: `${largeAllocs.length} allocation${largeAllocs.length > 1 ? 's' : ''} larger than 1MB detected`
+                        });
+                    }
+                    
+                    const healthScore = data.health_score || 0;
+                    if (diagnoses.length === 0) {
+                        if (healthScore >= 80) {
+                            diagnoses.push({
+                                level: 'success',
+                                icon: '✅',
+                                title: 'Memory Health Excellent',
+                                desc: `Health score: ${healthScore} - No critical issues detected`
+                            });
+                        } else {
+                            diagnoses.push({
+                                level: 'info',
+                                icon: '✅',
+                                title: 'No Critical Issues',
+                                desc: `Health score: ${healthScore} - Memory tracking looks healthy`
+                            });
+                        }
+                    }
+                    
+                    const badge = document.getElementById('diagnosisBadge');
+                    const criticalCount = diagnoses.filter(d => d.level === 'critical').length;
+                    if (criticalCount > 0) {
+                        badge.textContent = `${criticalCount} Critical Issue${criticalCount > 1 ? 's' : ''}`;
+                        badge.style.background = 'var(--danger)';
+                    } else {
+                        const warningCount = diagnoses.filter(d => d.level === 'warning').length;
+                        if (warningCount > 0) {
+                            badge.textContent = `${warningCount} Warning${warningCount > 1 ? 's' : ''}`;
+                            badge.style.background = 'var(--warning)';
+                        } else {
+                            badge.textContent = 'All Clear';
+                            badge.style.background = 'var(--success)';
+                        }
+                    }
+                    
+                    container.innerHTML = diagnoses.map(d => `
+                        <div class="diagnosis-item ${d.level}">
+                            <span class="diagnosis-icon">${d.icon}</span>
+                            <div class="diagnosis-content">
+                                <div class="diagnosis-title">${d.title}</div>
+                                <div class="diagnosis-desc">${d.desc}</div>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            },
+
             variableGraph: {
                 simulation: null,
+                svg: null,
+                zoom: null,
+                g: null,
+                highlightMode: false,
                 init() {
                     const container = document.getElementById('relationshipGraph');
                     if (!container) return;
@@ -970,38 +1239,76 @@
                     document.getElementById('relationshipCount').textContent = relationships.length + ' relationships';
                     const width = container.clientWidth;
                     const height = container.clientHeight || 400;
-                    const svg = d3.select(container).append('svg').attr('width', width).attr('height', height);
+                    this.svg = d3.select(container).append('svg').attr('width', '100%').attr('height', height).attr('viewBox', [0, 0, width, height]);
+                    this.zoom = d3.zoom().on('zoom', (event) => { this.g.attr('transform', event.transform); });
+                    this.svg.call(this.zoom);
+                    this.g = this.svg.append('g');
+                    this.svg.append('defs').append('marker').attr('id', 'arrowhead').attr('viewBox', '-0 -5 10 10').attr('refX', 20).attr('refY', 0).attr('orient', 'auto').attr('markerWidth', 6).attr('markerHeight', 6).append('path').attr('d', 'M 0,-5 L 10,0 L 0,5').attr('fill', '#64748b');
                     const nodeMap = new Map();
                     relationships.forEach((r) => {
                         const sourceId = r.source_ptr;
                         const targetId = r.target_ptr;
-                        if (!nodeMap.has(sourceId)) nodeMap.set(sourceId, { id: sourceId, ptr: sourceId, name: r.source_var_name || ('Ptr ' + sourceId), type: r.relationship_type, isSource: true });
-                        if (!nodeMap.has(targetId)) nodeMap.set(targetId, { id: targetId, ptr: targetId, name: r.target_var_name || ('Ptr ' + targetId), type: r.relationship_type, isSource: false });
+                        if (!nodeMap.has(sourceId)) nodeMap.set(sourceId, { id: sourceId, ptr: sourceId, name: r.source_var_name || ('Ptr ' + sourceId.slice(-6)), type: r.relationship_type, typeName: r.type_name || 'unknown', isSource: true, hasCycle: false, inDegree: 0, outDegree: 0 });
+                        if (!nodeMap.has(targetId)) nodeMap.set(targetId, { id: targetId, ptr: targetId, name: r.target_var_name || ('Ptr ' + targetId.slice(-6)), type: r.relationship_type, typeName: r.type_name || 'unknown', isSource: false, hasCycle: false, inDegree: 0, outDegree: 0 });
                     });
                     const nodes = Array.from(nodeMap.values());
                     const nodeIds = new Set(nodes.map(n => n.id));
                     const links = relationships.map(r => ({ source: r.source_ptr, target: r.target_ptr, type: r.relationship_type || 'reference', strength: r.strength || 0.5, typeName: r.type_name || 'unknown', isPartOfCycle: r.is_part_of_cycle || false })).filter(l => nodeIds.has(l.source) && nodeIds.has(l.target));
+                    links.forEach(l => { 
+                        if (l.isPartOfCycle) { 
+                            const srcNode = nodeMap.get(l.source.id || l.source); 
+                            const tgtNode = nodeMap.get(l.target.id || l.target); 
+                            if (srcNode) srcNode.hasCycle = true; 
+                            if (tgtNode) tgtNode.hasCycle = true; 
+                        }
+                        const srcId = l.source.id || l.source;
+                        const tgtId = l.target.id || l.target;
+                        const srcNode = nodeMap.get(srcId);
+                        const tgtNode = nodeMap.get(tgtId);
+                        if (srcNode) srcNode.outDegree++;
+                        if (tgtNode) tgtNode.inDegree++;
+                    });
                     const colorMap = { clone: '#10b981', ownership_transfer: '#dc2626', immutable_borrow: '#3b82f6', mutable_borrow: '#f59e0b', Arc: '#8b5cf6', Rc: '#8b5cf6', reference: '#64748b' };
+                    const typeLabels = { clone: 'Clone', ownership_transfer: 'Ownership Transfer', immutable_borrow: 'Immutable Borrow (&)', mutable_borrow: 'Mutable Borrow (&mut)', Arc: 'Arc Smart Pointer', Rc: 'Rc Smart Pointer', reference: 'Reference' };
                     const getColor = (type) => colorMap[type] || '#64748b';
+                    const getTypeLabel = (type) => typeLabels[type] || type;
                     const getLinkColor = (d) => d.isPartOfCycle ? '#ef4444' : getColor(d.type);
-                    this.simulation = d3.forceSimulation(nodes).force('link', d3.forceLink(links).id(d => d.id).distance(120)).force('charge', d3.forceManyBody().strength(-400)).force('center', d3.forceCenter(width / 2, height / 2)).force('collision', d3.forceCollide().radius(40));
-                    const link = svg.append('g').selectAll('line').data(links).join('line').attr('class', 'link').attr('stroke', getLinkColor).attr('stroke-width', d => Math.max(1, d.strength * 4)).attr('stroke-dasharray', d => d.isPartOfCycle ? '5,5' : null);
-                    const node = svg.append('g').selectAll('g').data(nodes).join('g').attr('class', 'node').call(d3.drag().on('start', (event) => { if (!event.active) this.simulation.alphaTarget(0.3).restart(); event.subject.fx = event.subject.x || 0; event.subject.fy = event.subject.y || 0; }).on('drag', (event) => { event.subject.fx = event.x || 0; event.subject.fy = event.y || 0; }).on('end', (event) => { if (!event.active) this.simulation.alphaTarget(0); event.subject.fx = null; event.subject.fy = null; }));
-                    node.append('circle').attr('r', 14).attr('fill', d => getColor(d.type));
-                    node.append('text').attr('dx', 18).attr('dy', 4).text(d => { const name = d.name || 'unknown'; return name.length > 12 ? name.substring(0, 10) + '..' : name; }).style('font-size', '11px').style('fill', 'var(--text)');
+                    this.simulation = d3.forceSimulation(nodes).force('link', d3.forceLink(links).id(d => d.id).distance(100)).force('charge', d3.forceManyBody().strength(-300)).force('center', d3.forceCenter(width / 2, height / 2)).force('collision', d3.forceCollide().radius(35));
+                    const link = this.g.append('g').selectAll('line').data(links).join('line').attr('class', 'link').attr('stroke', getLinkColor).attr('stroke-width', d => Math.max(1.5, d.strength * 3)).attr('stroke-dasharray', d => d.isPartOfCycle ? '6,3' : null).attr('marker-end', 'url(#arrowhead)');
+                    const node = this.g.append('g').selectAll('g').data(nodes).join('g').attr('class', 'node').call(d3.drag().on('start', (event) => { if (!event.active) this.simulation.alphaTarget(0.3).restart(); event.subject.fx = event.subject.x || 0; event.subject.fy = event.subject.y || 0; }).on('drag', (event) => { event.subject.fx = event.x || 0; event.subject.fy = event.y || 0; }).on('end', (event) => { if (!event.active) this.simulation.alphaTarget(0); event.subject.fx = null; event.subject.fy = null; }));
+                    node.append('circle').attr('r', d => d.hasCycle ? 18 : 14).attr('fill', d => getColor(d.type)).attr('stroke', d => d.hasCycle ? '#ef4444' : 'none').attr('stroke-width', 3);
+                    node.append('text').attr('dx', 20).attr('dy', 4).text(d => { const name = d.name || 'unknown'; return name.length > 14 ? name.substring(0, 12) + '..' : name; }).style('font-size', '12px').style('fill', 'var(--text)').style('font-weight', '500');
                     const tooltip = document.getElementById('tooltip');
-                    node.on('mouseover', (event, d) => { tooltip.style.display = 'block'; tooltip.innerHTML = `<strong>${d.name || 'Unknown'}</strong><br>Type: ${d.type || 'unknown'}<br>Ptr: ${d.ptr || 'N/A'}`; tooltip.style.left = (event.pageX + 10) + 'px'; tooltip.style.top = (event.pageY - 10) + 'px'; }).on('mouseout', () => { tooltip.style.display = 'none'; });
+                    node.on('mouseover', (event, d) => { 
+                        tooltip.style.display = 'block'; 
+                        const totalConnections = d.inDegree + d.outDegree;
+                        tooltip.innerHTML = `<div style="min-width: 180px;">
+                            <div style="font-weight: 600; font-size: 14px; margin-bottom: 8px; color: var(--primary);">${d.name || 'Unknown'}</div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 12px;">
+                                <div style="color: var(--text2);">Type:</div><div>${d.typeName || 'unknown'}</div>
+                                <div style="color: var(--text2);">Relation:</div><div style="color: ${getColor(d.type)};">${getTypeLabel(d.type)}</div>
+                                <div style="color: var(--text2);">Incoming:</div><div>${d.inDegree} links</div>
+                                <div style="color: var(--text2);">Outgoing:</div><div>${d.outDegree} links</div>
+                                <div style="color: var(--text2);">Total:</div><div>${totalConnections} connections</div>
+                            </div>
+                            ${d.hasCycle ? '<div style="margin-top: 8px; color: #ef4444; font-size: 11px;">⚠️ Part of reference cycle</div>' : ''}
+                        </div>`; 
+                        tooltip.style.left = (event.pageX + 15) + 'px'; 
+                        tooltip.style.top = (event.pageY - 10) + 'px'; 
+                    }).on('mouseout', () => { tooltip.style.display = 'none'; });
                     this.simulation.on('tick', () => { link.attr('x1', d => d.source?.x || 0).attr('y1', d => d.source?.y || 0).attr('x2', d => d.target?.x || 0).attr('y2', d => d.target?.y || 0); node.attr('transform', d => `translate(${d.x || 0},${d.y || 0})`); });
-                }
+                },
+                resetZoom() { if (this.svg && this.zoom) this.svg.transition().duration(500).call(this.zoom.transform, d3.zoomIdentity); },
+                highlightCycles() { this.highlightMode = !this.highlightMode; if (!this.g) return; this.g.selectAll('.node circle').attr('stroke-width', d => this.highlightMode && d.hasCycle ? 5 : d.hasCycle ? 3 : 0); this.g.selectAll('.link').attr('stroke-width', d => this.highlightMode && d.isPartOfCycle ? 4 : Math.max(1.5, d.strength * 3)); }
             },
 
             allocations: {
                 showAll: false, currentPage: 1, pageSize: 100, filteredData: [],
                 toggle() { const wrapper = document.getElementById('allocationsWrapper'); const btn = document.getElementById('toggleAllocBtn'); const pagination = document.getElementById('allocationsPagination'); this.showAll = !this.showAll; if (this.showAll) { wrapper.style.maxHeight = 'none'; wrapper.style.overflow = 'visible'; btn.textContent = '▲ Collapse'; if (this.filteredData.length > this.pageSize) pagination.style.display = 'flex'; } else { wrapper.style.maxHeight = '400px'; wrapper.style.overflow = 'auto'; btn.textContent = '▼ Show All'; pagination.style.display = 'none'; this.renderPage(1); } },
-                renderPage(page) { const tbody = document.getElementById('allocationsBody'); const start = (page - 1) * this.pageSize; const end = start + this.pageSize; const pageData = this.filteredData.slice(start, end); tbody.innerHTML = pageData.map(a => `<tr><td><code>${a.address || '0x0'}</code></td><td>${a.var_name || 'unknown'}</td><td>${a.type_name || 'Unknown'}</td><td>${Utils.formatBytes(parseInt(a.size) || 0)}</td><td><code title="${a.thread_id || ''}">${Utils.formatThreadId(a.thread_id)}</code></td><td>${Utils.formatTime(parseInt(a.lifetime_ms || 0) * 1000000)}</td><td>${a.is_leaked ? '<span class="badge badge-danger">Leaked</span>' : a.timestamp_dealloc > 0 ? '<span class="badge badge-success">Freed</span>' : '<span class="badge badge-info">Active</span>'}</td></tr>`).join(''); this.currentPage = page; const totalPages = Math.ceil(this.filteredData.length / this.pageSize); document.getElementById('allocPageInfo').textContent = `Page ${page} of ${totalPages}`; document.getElementById('prevAllocBtn').disabled = page <= 1; document.getElementById('nextAllocBtn').disabled = page >= totalPages; },
+                renderPage(page) { const tbody = document.getElementById('allocationsBody'); const start = (page - 1) * this.pageSize; const end = start + this.pageSize; const pageData = this.filteredData.slice(start, end); tbody.innerHTML = pageData.map(a => { const sourceLoc = (a.source_file && a.source_line) ? `<span style="font-family: monospace; font-size: 0.8rem; color: var(--primary);">${a.source_file.split('/').pop()}:${a.source_line}</span>` : '<span style="color: var(--text2);">—</span>'; return `<tr><td><code>${a.address || '0x0'}</code></td><td>${a.var_name || 'unknown'}</td><td style="font-family: monospace; font-size: 0.8rem;">${a.type_name || 'Unknown'}</td><td>${Utils.formatBytes(parseInt(a.size) || 0)}</td><td>${sourceLoc}</td><td><code title="${a.thread_id || ''}">${Utils.formatThreadId(a.thread_id)}</code></td><td>${Utils.formatTime(parseInt(a.lifetime_ms || 0) * 1000000)}</td><td>${a.is_leaked ? '<span class="badge badge-danger">Leaked</span>' : a.timestamp_dealloc > 0 ? '<span class="badge badge-success">Freed</span>' : '<span class="badge badge-info">Active</span>'}</td></tr>`; }).join(''); this.currentPage = page; const totalPages = Math.ceil(this.filteredData.length / this.pageSize); document.getElementById('allocPageInfo').textContent = `Page ${page} of ${totalPages}`; document.getElementById('prevAllocBtn').disabled = page <= 1; document.getElementById('nextAllocBtn').disabled = page >= totalPages; },
                 prevPage() { if (this.currentPage > 1) this.renderPage(this.currentPage - 1); },
                 nextPage() { const totalPages = Math.ceil(this.filteredData.length / this.pageSize); if (this.currentPage < totalPages) this.renderPage(this.currentPage + 1); },
-                init() { const data_list = data.allocations || []; this.filteredData = data_list; document.getElementById('allocCount').textContent = data_list.length + ' items'; const tbody = document.getElementById('allocationsBody'); if (data_list.length === 0) { tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No allocation data</td></tr>'; return; } if (data_list.length <= this.pageSize) { tbody.innerHTML = data_list.map(a => `<tr><td><code>${a.address || '0x0'}</code></td><td>${a.var_name || 'unknown'}</td><td>${a.type_name || 'Unknown'}</td><td>${Utils.formatBytes(parseInt(a.size) || 0)}</td><td><code title="${a.thread_id || ''}">${Utils.formatThreadId(a.thread_id)}</code></td><td>${Utils.formatTime(parseInt(a.lifetime_ms || 0) * 1000000)}</td><td>${a.is_leaked ? '<span class="badge badge-danger">Leaked</span>' : a.timestamp_dealloc > 0 ? '<span class="badge badge-success">Freed</span>' : '<span class="badge badge-info">Active</span>'}</td></tr>`).join(''); } else this.renderPage(1); }
+                init() { const data_list = data.allocations || []; this.filteredData = data_list; document.getElementById('allocCount').textContent = data_list.length + ' items'; const tbody = document.getElementById('allocationsBody'); if (data_list.length === 0) { tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No allocation data</td></tr>'; return; } if (data_list.length <= this.pageSize) { tbody.innerHTML = data_list.map(a => { const sourceLoc = (a.source_file && a.source_line) ? `<span style="font-family: monospace; font-size: 0.8rem; color: var(--primary);">${a.source_file.split('/').pop()}:${a.source_line}</span>` : '<span style="color: var(--text2);">—</span>'; return `<tr><td><code>${a.address || '0x0'}</code></td><td>${a.var_name || 'unknown'}</td><td style="font-family: monospace; font-size: 0.8rem;">${a.type_name || 'Unknown'}</td><td>${Utils.formatBytes(parseInt(a.size) || 0)}</td><td>${sourceLoc}</td><td><code title="${a.thread_id || ''}">${Utils.formatThreadId(a.thread_id)}</code></td><td>${Utils.formatTime(parseInt(a.lifetime_ms || 0) * 1000000)}</td><td>${a.is_leaked ? '<span class="badge badge-danger">Leaked</span>' : a.timestamp_dealloc > 0 ? '<span class="badge badge-success">Freed</span>' : '<span class="badge badge-info">Active</span>'}</td></tr>`; }).join(''); } else this.renderPage(1); }
             },
 
             threads: {
@@ -1032,8 +1339,8 @@
                     container.innerHTML = this.filteredData.slice(0, 50).map(p => {
                         const risk = p.risk_level || 'low';
                         riskCount[risk] = (riskCount[risk] || 0) + 1;
-                        const visaFlow = (p.cross_boundary_events && p.cross_boundary_events.length > 0) ? `<div style="margin-top: 12px; padding: 12px; background: var(--bg3); border-radius: 8px; border: 1px solid var(--border);"><div style="font-size: 0.75rem; color: var(--text2); margin-bottom: 8px; font-weight: 600;">🛂 VISA FLOW - FFI Boundary Crossing</div><div style="display: flex; align-items: center; gap: 4px; overflow-x: auto; padding: 4px 0;">${p.cross_boundary_events.map((e, idx) => `<div style="display: flex; align-items: center; gap: 4px; flex-shrink: 0;"><div style="padding: 6px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; background: ${e.color || '#10b981'}; color: white;">${e.icon || '📍'} ${e.event_type || 'Cross'}</div><div style="font-size: 0.7rem; color: var(--text2); white-space: nowrap;">${e.from_context || 'Rust'}</div><div style="color: var(--text2); font-size: 0.7rem;">→</div><div style="font-size: 0.7rem; color: var(--text2); white-space: nowrap;">${e.to_context || 'FFI'}</div>${idx < p.cross_boundary_events.length - 1 ? '<div style="color: var(--border);">│</div>' : ''}</div>`).join('')}</div></div>` : '<div style="margin-top: 12px; padding: 8px 12px; background: var(--bg3); border-radius: 8px; border: 1px dashed var(--border); font-size: 0.8rem; color: var(--text2);">🛂 No FFI boundary crossings detected</div>';
-                        return `<div class="detail-panel" style="border-left: 4px solid ${p.is_leaked ? '#ef4444' : 'var(--primary)'};"><div style="display: flex; justify-content: space-between; align-items: center;"><h4 style="color: var(--primary); margin: 0;">${p.var_name || 'unknown'}</h4><span class="badge ${p.is_leaked ? 'badge-danger' : 'badge-success'}">${p.is_leaked ? '🔴 LEAKED' : '🟢 Active'}</span></div><div style="margin-top: 8px; display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px;"><div><span class="detail-label">Type</span><div class="detail-value">${p.type_name || 'Unknown'}</div></div><div><span class="detail-label">Size</span><div class="detail-value">${Utils.formatBytes(parseInt(p.size_bytes) || 0)}</div></div><div><span class="detail-label">Status</span><div class="detail-value">${p.status || 'N/A'}</div></div><div><span class="detail-label">Risk</span><div class="detail-value ${p.risk_level === 'high' ? 'risk-high' : p.risk_level === 'medium' ? 'risk-medium' : ''}">${p.risk_level || 'low'}</div></div></div>${visaFlow}</div>`;
+                        const visaFlow = (p.cross_boundary_events && p.cross_boundary_events.length > 0) ? `<div style="margin-top: 12px; padding: 12px; background: linear-gradient(135deg, #1e3a5f10 0%, #1e3a5f20 100%); border-radius: 8px; border: 1px solid #1e3a5f40;"><div style="font-size: 0.75rem; color: #1e3a5f; margin-bottom: 8px; font-weight: 600; display: flex; align-items: center; gap: 6px;"><span style="font-size: 1rem;">🛂</span> FFI VISA STAMPS - Border Crossings</div><div style="display: flex; flex-wrap: wrap; gap: 8px;">${p.cross_boundary_events.map((e, idx) => `<div style="display: flex; flex-direction: column; align-items: center; padding: 8px 12px; border-radius: 8px; background: white; border: 2px dashed ${e.color || '#10b981'}; min-width: 80px;"><div style="font-size: 1.25rem;">${e.icon || '📍'}</div><div style="font-size: 0.7rem; font-weight: 600; color: #1e293b;">${e.event_type || 'Cross'}</div><div style="font-size: 0.65rem; color: #64748b;">${e.from_context || 'Rust'} → ${e.to_context || 'FFI'}</div></div>`).join('')}</div></div>` : '<div style="margin-top: 12px; padding: 8px 12px; background: var(--bg3); border-radius: 8px; border: 1px dashed var(--border); font-size: 0.8rem; color: var(--text2); display: flex; align-items: center; gap: 8px;"><span>🛂</span> No FFI boundary crossings - stayed in Rust territory</div>';
+                        return `<div class="detail-panel" style="border-left: 4px solid ${p.is_leaked ? '#ef4444' : 'var(--primary)'}; position: relative; overflow: hidden;"><div style="position: absolute; top: 8px; right: 8px; font-size: 0.65rem; padding: 2px 8px; border-radius: 4px; background: ${p.is_leaked ? '#ef444420' : '#10b98120'}; color: ${p.is_leaked ? '#ef4444' : '#10b981'}; font-weight: 600;">${p.is_leaked ? '🔴 LEAKED' : '🟢 VALID'}</div><div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;"><span style="font-size: 1.25rem;">🛂</span><h4 style="color: var(--primary); margin: 0;">${p.var_name || 'unknown'}</h4></div><div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px;"><div><span class="detail-label">Type</span><div class="detail-value" style="font-family: monospace; font-size: 0.8rem;">${(p.type_name || 'Unknown').substring(0, 25)}${(p.type_name || '').length > 25 ? '...' : ''}</div></div><div><span class="detail-label">Size</span><div class="detail-value">${Utils.formatBytes(parseInt(p.size_bytes) || 0)}</div></div><div><span class="detail-label">Status</span><div class="detail-value">${p.status || 'N/A'}</div></div><div><span class="detail-label">Risk</span><div class="detail-value ${p.risk_level === 'high' ? 'risk-high' : p.risk_level === 'medium' ? 'risk-medium' : ''}">${p.risk_level || 'low'}</div></div></div>${visaFlow}</div>`;
                     }).join('');
 
                     if (timeline) {
@@ -1220,6 +1527,7 @@
 
             init() {
                 this.charts.init();
+                this.diagnosis.init();
                 this.allocations.init();
                 this.threads.init();
                 this.relationships.init();
@@ -1290,6 +1598,32 @@
             for (let row of rows) {
                 const text = row.textContent.toLowerCase();
                 row.style.display = text.includes(query) ? '' : 'none';
+            }
+        }
+
+        function toggleSection(sectionId, btn) {
+            const section = document.getElementById(sectionId);
+            if (!section) return;
+            const isCollapsed = section.style.maxHeight === '200px';
+            if (isCollapsed) {
+                section.style.maxHeight = 'none';
+                btn.textContent = '▲ Collapse';
+            } else {
+                section.style.maxHeight = '200px';
+                btn.textContent = '▼ Expand All';
+            }
+        }
+
+        function toggleTable(wrapperId, btn) {
+            const wrapper = document.getElementById(wrapperId);
+            if (!wrapper) return;
+            const isCollapsed = wrapper.style.maxHeight === '200px';
+            if (isCollapsed) {
+                wrapper.style.maxHeight = 'none';
+                btn.textContent = '▲ Collapse';
+            } else {
+                wrapper.style.maxHeight = '200px';
+                btn.textContent = '▼ Expand';
             }
         }
 

@@ -1,6 +1,12 @@
 # memscope-rs Documentation
 
-Welcome to memscope-rs documentation! A high-performance Rust memory analysis tool.
+Welcome to memscope-rs! A high-performance Rust memory analysis toolkit.
+
+## 🆕 Latest Documentation
+
+- **[New Features & Highlights](en/new-features.md)** / **[新功能与亮点](zh/new-features.md)** — v0.1.10 key features
+- **[Architecture Overview](en/architecture-overview.md)** / **[架构概览](zh/architecture-overview.md)** — 9-engine pipeline
+- **[Capture Backends](en/capture-backends.md)** / **[捕获后端详解](zh/capture-backends.md)** — Four data collection strategies
 
 ## 🌍 Language / 语言
 
@@ -14,20 +20,19 @@ Choose your preferred language:
 ## 🚀 Quick Start
 
 ```rust
-use memscope_rs::{init, track_var, get_global_tracker};
+use memscope_rs::{track_var};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Initialize memory tracking
-    init();
-    
+    // Create MemScope instance
+    let memscope = memscope_rs::MemScope::new();
+
     // Track variables
     let data = vec![1, 2, 3, 4, 5];
     track_var!(data);
-    
+
     // Export analysis results
-    let tracker = get_global_tracker();
-    tracker.export_to_html("memory_analysis.html")?;
-    
+    memscope.export_html("memory_analysis.html")?;
+
     println!("Memory analysis complete! Check memory_analysis.html");
     Ok(())
 }

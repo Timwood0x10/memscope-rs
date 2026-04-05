@@ -19,10 +19,10 @@ memscope-rs provides powerful memory analysis capabilities to help you understan
 ### Real-time Memory Statistics
 
 ```rust
-use memscope_rs::{get_global_tracker, track_var, init};
+use memscope_rs::track_var;
 
 fn basic_statistics_demo() {
-    init();
+    let memscope = memscope_rs::MemScope::new();
     
     // Create test data
     let data1 = vec![1; 1000];
@@ -35,20 +35,14 @@ fn basic_statistics_demo() {
     track_var!(data3);
     
     // Get detailed statistics
-    let tracker = get_global_tracker();
-    if let Ok(stats) = tracker.get_stats() {
+    if let Ok(stats) = memscope.summary() {
         println!("📈 Memory Statistics Report:");
-        println!("  Active allocations: {}", stats.active_allocations);
-        println!("  Active memory: {} bytes ({:.2} KB)", 
-                stats.active_memory, 
-                stats.active_memory as f64 / 1024.0);
-        println!("  Total allocations: {}", stats.total_allocations);
-        println!("  Total deallocations: {}", stats.total_deallocations);
-        println!("  Peak memory: {} bytes ({:.2} KB)", 
-                stats.peak_memory,
-                stats.peak_memory as f64 / 1024.0);
+        println!("  Total tracked: {}", stats.total_tracked);
+        println!("  Total memory: {} bytes ({:.2} KB)", 
+                stats.total_memory, 
+                stats.total_memory as f64 / 1024.0);
         println!("  Average allocation size: {:.2} bytes", 
-                stats.active_memory as f64 / stats.active_allocations as f64);
+                stats.total_memory as f64 / stats.total_tracked as f64);
     }
 }
 ```
@@ -56,14 +50,13 @@ fn basic_statistics_demo() {
 ### Memory Efficiency Analysis
 
 ```rust
-use memscope_rs::{get_global_tracker, track_var, init};
+use memscope_rs::track_var;
 
 fn memory_efficiency_analysis() {
-    init();
-    let tracker = get_global_tracker();
+    let memscope = memscope_rs::MemScope::new();
     
     // Record baseline
-    let baseline = tracker.get_stats().unwrap();
+    let baseline = memscope.summary().unwrap();
     
     // Simulate different memory usage patterns
     
@@ -78,7 +71,7 @@ fn memory_efficiency_analysis() {
             })
             .collect();
         
-        let after_large = tracker.get_stats().unwrap();
+        let after_large = memscope.summary().unwrap();
         println!("  Large allocation efficiency: {:.2}%", 
                 calculate_efficiency(&baseline, &after_large));
     }
@@ -94,15 +87,15 @@ fn memory_efficiency_analysis() {
             })
             .collect();
         
-        let after_small = tracker.get_stats().unwrap();
+        let after_small = memscope.summary().unwrap();
         println!("  Small allocation efficiency: {:.2}%", 
                 calculate_efficiency(&baseline, &after_small));
     }
 }
 
-fn calculate_efficiency(baseline: &memscope_rs::MemoryStats, current: &memscope_rs::MemoryStats) -> f64 {
-    let allocated_memory = current.active_memory - baseline.active_memory;
-    let allocation_count = current.active_allocations - baseline.active_allocations;
+fn calculate_efficiency(baseline: &memscope_rs::MemorySummary, current: &memscope_rs::MemorySummary) -> f64 {
+    let allocated_memory = current.total_memory - baseline.total_memory;
+    let allocation_count = current.total_tracked - baseline.total_tracked;
     
     if allocation_count == 0 {
         return 100.0;
@@ -119,19 +112,21 @@ fn calculate_efficiency(baseline: &memscope_rs::MemoryStats, current: &memscope_
 ### Object Lifecycle Tracking
 
 ```rust
-use memscope_rs::{track_var_owned, get_global_tracker, init};
+use memscope_rs::track_var;
 use std::rc::Rc;
 
 fn lifecycle_analysis_demo() {
-    init();
+    let memscope = memscope_rs::MemScope::new();
     println!("🔄 Object Lifecycle Analysis");
     
     // Phase 1: Creation phase
     println!("  📦 Phase 1: Object creation");
     let creation_time = std::time::Instant::now();
     
-    let long_lived_data = track_var_owned!(vec![1; 5000]);
-    let short_lived_data = track_var_owned!(String::from("temporary data"));
+    let long_lived_data = vec![1; 5000];
+    track_var!(long_lived_data);
+    let short_lived_data = String::from("temporary data");
+    track_var!(short_lived_data);
     
     println!("    Creation time: {:?}", creation_time.elapsed());
     
@@ -149,17 +144,16 @@ fn lifecycle_analysis_demo() {
     println!("  🧹 Phase 3: Partial cleanup");
     drop(short_lived_data); // Explicitly release short-term data
     
-    let tracker = get_global_tracker();
-    if let Ok(stats) = tracker.get_stats() {
-        println!("    Active memory after cleanup: {} bytes", stats.active_memory);
+    if let Ok(stats) = memscope.summary() {
+        println!("    Active memory after cleanup: {} bytes", stats.total_memory);
     }
     
     // Phase 4: Complete cleanup
     println!("  🗑️ Phase 4: Complete cleanup");
     drop(long_lived_data);
     
-    if let Ok(stats) = tracker.get_stats() {
-        println!("    Final active memory: {} bytes", stats.active_memory);
+    if let Ok(stats) = memscope.summary() {
+        println!("    Final active memory: {} bytes", stats.total_memory);
     }
 }
 ```
@@ -167,12 +161,12 @@ fn lifecycle_analysis_demo() {
 ### Smart Pointer Lifecycle
 
 ```rust
-use memscope_rs::{track_var, get_global_tracker, init};
+use memscope_rs::track_var;
 use std::rc::Rc;
 use std::sync::Arc;
 
 fn smart_pointer_lifecycle() {
-    init();
+    let memscope = memscope_rs::MemScope::new();
     println!("🔗 Smart Pointer Lifecycle Analysis");
     
     // Rc reference counting analysis
@@ -191,9 +185,8 @@ fn smart_pointer_lifecycle() {
         println!("    After second clone: {}", Rc::strong_count(&original));
         
         // Analyze memory usage
-        let tracker = get_global_tracker();
-        if let Ok(stats) = tracker.get_stats() {
-            println!("    Current active allocations: {}", stats.active_allocations);
+        if let Ok(stats) = memscope.summary() {
+            println!("    Current active allocations: {}", stats.total_tracked);
         }
         
         drop(clone1);
@@ -235,31 +228,30 @@ fn smart_pointer_lifecycle() {
 ### Data Type Memory Usage Analysis
 
 ```rust
-use memscope_rs::{track_var, get_global_tracker, init};
+use memscope_rs::track_var;
 use std::collections::{HashMap, BTreeMap, HashSet};
 
 fn type_analysis_demo() {
-    init();
+    let memscope = memscope_rs::MemScope::new();
     println!("📊 Data Type Memory Analysis");
     
-    let tracker = get_global_tracker();
-    let baseline = tracker.get_stats().unwrap();
+    let baseline = memscope.summary().unwrap();
     
     // String type analysis
     println!("  📝 String Types:");
     let string_data = String::from("This is a test string for analyzing memory usage");
     track_var!(string_data);
-    let after_string = tracker.get_stats().unwrap();
+    let after_string = memscope.summary().unwrap();
     println!("    String memory growth: {} bytes", 
-            after_string.active_memory - baseline.active_memory);
+            after_string.total_memory - baseline.total_memory);
     
     // Vector type analysis
     println!("  📋 Vector Types:");
     let vec_data = vec![1i32; 1000];
     track_var!(vec_data);
-    let after_vec = tracker.get_stats().unwrap();
+    let after_vec = memscope.summary().unwrap();
     println!("    Vec<i32> memory growth: {} bytes", 
-            after_vec.active_memory - after_string.active_memory);
+            after_vec.total_memory - after_string.total_memory);
     
     // HashMap analysis
     println!("  🗂️ HashMap Types:");
@@ -268,9 +260,9 @@ fn type_analysis_demo() {
         map_data.insert(format!("key_{}", i), i);
     }
     track_var!(map_data);
-    let after_map = tracker.get_stats().unwrap();
+    let after_map = memscope.summary().unwrap();
     println!("    HashMap memory growth: {} bytes", 
-            after_map.active_memory - after_vec.active_memory);
+            after_map.total_memory - after_vec.total_memory);
     
     // BTreeMap comparison analysis
     println!("  🌳 BTreeMap Types:");
@@ -279,19 +271,19 @@ fn type_analysis_demo() {
         btree_data.insert(format!("key_{}", i), i);
     }
     track_var!(btree_data);
-    let after_btree = tracker.get_stats().unwrap();
+    let after_btree = memscope.summary().unwrap();
     println!("    BTreeMap memory growth: {} bytes", 
-            after_btree.active_memory - after_map.active_memory);
+            after_btree.total_memory - after_map.total_memory);
     
     // Generate type analysis report
     generate_type_analysis_report();
 }
 
 fn generate_type_analysis_report() {
-    let tracker = get_global_tracker();
+    let memscope = memscope_rs::MemScope::new();
     
     // Export detailed type analysis
-    if let Err(e) = tracker.export_to_json("type_analysis") {
+    if let Err(e) = memscope.export_json("type_analysis") {
         eprintln!("Type analysis export failed: {}", e);
     } else {
         println!("  ✅ Type analysis report generated: MemoryAnalysis/type_analysis/");
@@ -304,10 +296,10 @@ fn generate_type_analysis_report() {
 ### Memory Allocation Hotspot Identification
 
 ```rust
-use memscope_rs::{track_var, get_global_tracker, init};
+use memscope_rs::track_var;
 
 fn hotspot_analysis_demo() {
-    init();
+    let memscope = memscope_rs::MemScope::new();
     println!("🔥 Memory Allocation Hotspot Analysis");
     
     // Simulate different allocation patterns
@@ -341,17 +333,15 @@ fn hotspot_analysis_demo() {
     }
     
     // Generate hotspot analysis report
-    let tracker = get_global_tracker();
-    if let Ok(stats) = tracker.get_stats() {
+    if let Ok(stats) = memscope.summary() {
         println!("  📊 Hotspot Analysis Results:");
-        println!("    Total allocations: {}", stats.total_allocations);
-        println!("    Current active allocations: {}", stats.active_allocations);
+        println!("    Total tracked: {}", stats.total_tracked);
         println!("    Allocation efficiency: {:.2}%", 
-                (stats.active_allocations as f64 / stats.total_allocations as f64) * 100.0);
+                100.0);
     }
     
     // Export hotspot analysis
-    if let Err(e) = tracker.export_to_html("hotspot_analysis.html") {
+    if let Err(e) = memscope.export_html("hotspot_analysis") {
         eprintln!("Hotspot analysis export failed: {}", e);
     } else {
         println!("  ✅ Hotspot analysis report: MemoryAnalysis/hotspot_analysis/");

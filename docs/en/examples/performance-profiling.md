@@ -12,18 +12,17 @@ Practical guide for performance analysis and optimization using memscope-rs.
 ## 🚀 Quick Example
 
 ```rust
-use memscope_rs::{init, track_var, get_global_tracker};
+use memscope_rs::track_var;
 use std::time::Instant;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    init();
+    let memscope = memscope_rs::MemScope::new();
     
     // Performance testing
     benchmark_allocations();
     
     // Export analysis
-    let tracker = get_global_tracker();
-    tracker.export_to_binary("performance_analysis")?;
+    memscope.export_binary("performance_analysis")?;
     
     println!("Run: make html DIR=MemoryAnalysis/performance_analysis BASE=performance_analysis");
     Ok(())

@@ -43,20 +43,19 @@ pub struct ResourceRanking {
 /// Global async tracker instance
 static GLOBAL_TRACKER: Mutex<Option<Arc<AsyncTracker>>> = Mutex::new(None);
 
+thread_local! {
+    static CURRENT_TASK_ID: std::cell::Cell<Option<u64>> = const { std::cell::Cell::new(None) };
+}
+
 /// Async memory tracker for task-aware memory tracking.
 pub struct AsyncTracker {
-    /// Active allocations
     allocations: Arc<Mutex<HashMap<usize, AsyncAllocation>>>,
-    /// Statistics
     stats: Arc<Mutex<AsyncStats>>,
-    /// Task memory profiles (unified task info)
     profiles: Arc<Mutex<HashMap<u64, TaskMemoryProfile>>>,
-    /// Initialization state
     initialized: Arc<Mutex<bool>>,
 }
 
 impl AsyncTracker {
-    /// Create a new async tracker.
     pub fn new() -> Self {
         Self {
             allocations: Arc::new(Mutex::new(HashMap::new())),
@@ -66,7 +65,18 @@ impl AsyncTracker {
         }
     }
 
-    /// Track a task start.
+    pub fn set_current_task(task_id: u64) {
+        CURRENT_TASK_ID.with(|cell| cell.set(Some(task_id)));
+    }
+
+    pub fn clear_current_task() {
+        CURRENT_TASK_ID.with(|cell| cell.set(None));
+    }
+
+    pub fn get_current_task() -> Option<u64> {
+        CURRENT_TASK_ID.with(|cell| cell.get())
+    }
+
     pub fn track_task_start(
         &self,
         task_id: u64,
@@ -96,6 +106,8 @@ impl AsyncTracker {
         stats.total_tasks += 1;
         stats.active_tasks += 1;
 
+        Self::set_current_task(task_id);
+
         Ok(())
     }
 
@@ -124,7 +136,21 @@ impl AsyncTracker {
             .map_err(|e| AsyncError::mutex_lock_failed("stats", &e.to_string()))?;
         stats.active_tasks = stats.active_tasks.saturating_sub(1);
 
+        Self::clear_current_task();
+
         Ok(())
+    }
+
+    pub fn track_allocation_auto(
+        &self,
+        ptr: usize,
+        size: usize,
+        var_name: Option<String>,
+        type_name: Option<String>,
+    ) {
+        if let Some(task_id) = Self::get_current_task() {
+            self.track_allocation_with_location(ptr, size, task_id, var_name, type_name, None);
+        }
     }
 
     /// Track an allocation associated with a task.

@@ -8,7 +8,7 @@
 
 ```toml
 [dependencies]
-memscope-rs = "0.1.4"
+memscope-rs = "0.1.10"
 ```
 
 ## 2. 基础使用 (2分钟)
@@ -16,36 +16,35 @@ memscope-rs = "0.1.4"
 创建一个简单的示例：
 
 ```rust
-use memscope_rs::{track_var, get_global_tracker, init};
+use memscope_rs::{track_var};
 use std::rc::Rc;
 
 fn main() {
-    // 初始化内存跟踪
-    init();
-    
+    // 创建 MemScope 实例
+    let memscope = memscope_rs::MemScope::new();
+
     // 创建一些变量并跟踪它们
     let my_vec = vec![1, 2, 3, 4, 5];
     track_var!(my_vec);  // 零开销跟踪
-    
+
     let my_string = String::from("Hello, memscope!");
     track_var!(my_string);
-    
+
     let boxed_data = Box::new(42);
     track_var!(boxed_data);
-    
+
     // 智能指针跟踪
     let rc_data = Rc::new(vec![10, 20, 30]);
     track_var!(rc_data);
-    
+
     // 变量依然可以正常使用
     println!("Vector: {:?}", my_vec);
     println!("String: {}", my_string);
     println!("Boxed: {}", *boxed_data);
     println!("RC data: {:?}", *rc_data);
-    
+
     // 获取内存统计
-    let tracker = get_global_tracker();
-    if let Ok(stats) = tracker.get_stats() {
+    if let Ok(stats) = memscope.summary() {
         println!("活跃分配: {}", stats.active_allocations);
         println!("活跃内存: {} bytes", stats.active_memory);
         println!("总分配数: {}", stats.total_allocations);
@@ -59,50 +58,34 @@ fn main() {
 添加导出功能：
 
 ```rust
-use memscope_rs::{track_var, get_global_tracker, init};
+use memscope_rs::{track_var};
 use std::rc::Rc;
 
 fn main() {
-    init();
-    
+    let memscope = memscope_rs::MemScope::new();
+
     // 跟踪更多类型的数据
     let numbers = vec![1, 2, 3, 4, 5];
     track_var!(numbers);
-    
+
     let shared_data = Rc::new(vec!["a", "b", "c"]);
     track_var!(shared_data);
-    
+
     let shared_clone = Rc::clone(&shared_data);
     track_var!(shared_clone);
-    
-    let tracker = get_global_tracker();
-    
-    // 1. 导出 JSON 数据（5个分类文件）
-    if let Err(e) = tracker.export_to_json("my_analysis") {
+
+    // 1. 导出 JSON 数据
+    if let Err(e) = memscope.export_json("my_analysis") {
         eprintln!("JSON 导出失败: {}", e);
     } else {
         println!("✅ JSON 导出成功: MemoryAnalysis/my_analysis/");
     }
-    
-    // 2. 导出 SVG 可视化图表
-    if let Err(e) = tracker.export_memory_analysis("my_analysis.svg") {
-        eprintln!("SVG 导出失败: {}", e);
-    } else {
-        println!("✅ SVG 导出成功: MemoryAnalysis/my_analysis/");
-    }
-    
-    // 3. 导出 HTML 交互式仪表板
-    if let Err(e) = tracker.export_interactive_dashboard("my_analysis.html") {
+
+    // 2. 导出 HTML 交互式仪表板
+    if let Err(e) = memscope.export_html("my_analysis.html") {
         eprintln!("HTML 导出失败: {}", e);
     } else {
         println!("✅ HTML 导出成功: MemoryAnalysis/my_analysis/");
-    }
-    
-    // 4. 导出二进制格式（高性能）
-    if let Err(e) = tracker.export_to_binary("my_analysis") {
-        eprintln!("Binary 导出失败: {}", e);
-    } else {
-        println!("✅ Binary 导出成功: MemoryAnalysis/my_analysis/");
     }
 }
 ```

@@ -27,21 +27,21 @@ memscope-rs is designed with zero-cost abstraction:
 **Best for**: 95% of use cases, production monitoring
 
 ```rust
-use memscope_rs::{init, track_var};
+use memscope_rs::track_var;
 
 fn main() {
-    init();
-    
+    let memscope = memscope_rs::MemScope::new();
+
     // Track any heap-allocated type
     let my_vec = vec![1, 2, 3, 4, 5];
     track_var!(my_vec);
-    
+
     let my_string = String::from("Hello, world!");
     track_var!(my_string);
-    
+
     let my_box = Box::new(42);
     track_var!(my_box);
-    
+
     // Variables work completely normally
     println!("Vec: {:?}", my_vec);
     println!("String: {}", my_string);
@@ -60,16 +60,16 @@ fn main() {
 **Best for**: Mixed types, rapid prototyping
 
 ```rust
-use memscope_rs::{init, track_var_smart};
+use memscope_rs::track_var_smart;
 
 fn main() {
-    init();
-    
+    let memscope = memscope_rs::MemScope::new();
+
     // Automatically optimizes based on type
     let number = track_var_smart!(42i32);        // Copy type
     let text = track_var_smart!(String::from("hello")); // Non-Copy type
     let boxed = track_var_smart!(Box::new(100)); // Smart pointer
-    
+
     // All variables remain usable
     println!("{}, {}, {}", number, text, *boxed);
 }
@@ -86,18 +86,18 @@ fn main() {
 **Best for**: Detailed lifecycle analysis, debugging
 
 ```rust
-use memscope_rs::{init, track_var_owned};
+use memscope_rs::track_var_owned;
 
 fn main() {
-    init();
-    
+    let memscope = memscope_rs::MemScope::new();
+
     let data = vec![1, 2, 3, 4, 5];
     let tracked = track_var_owned!(data); // Takes ownership
-    
+
     // Transparent usage through Deref
     println!("Length: {}", tracked.len());
     println!("First: {}", tracked[0]);
-    
+
     // Can retrieve original if needed
     let original = tracked.into_inner();
 } // Precise lifecycle timing recorded here
@@ -114,29 +114,29 @@ fn main() {
 ### Reference Counting Analysis
 
 ```rust
-use memscope_rs::{init, track_var};
+use memscope_rs::track_var;
 use std::rc::Rc;
 use std::sync::Arc;
 
 fn main() {
-    init();
-    
+    let memscope = memscope_rs::MemScope::new();
+
     // Rc tracking
     let rc_data = Rc::new(vec![1, 2, 3]);
     track_var!(rc_data);
     println!("Initial Rc count: {}", Rc::strong_count(&rc_data));
-    
+
     let rc_clone = Rc::clone(&rc_data);
     track_var!(rc_clone);
     println!("After clone: {}", Rc::strong_count(&rc_data));
-    
+
     // Arc tracking (thread-safe)
     let arc_data = Arc::new(String::from("shared"));
     track_var!(arc_data);
-    
+
     let arc_clone = Arc::clone(&arc_data);
     track_var!(arc_clone);
-    
+
     // Reference count changes are automatically tracked
 }
 ```
@@ -144,18 +144,18 @@ fn main() {
 ### Box and Unique Ownership
 
 ```rust
-use memscope_rs::{init, track_var};
+use memscope_rs::track_var;
 
 fn main() {
-    init();
-    
+    let memscope = memscope_rs::MemScope::new();
+
     // Box tracking
     let boxed_data = Box::new(vec![1, 2, 3, 4, 5]);
     track_var!(boxed_data);
-    
+
     // Box provides unique ownership
     println!("Boxed data: {:?}", *boxed_data);
-    
+
     // Moving Box transfers ownership
     let moved_box = boxed_data; // Ownership transferred
     track_var!(moved_box);
@@ -167,29 +167,29 @@ fn main() {
 ### Standard Collections
 
 ```rust
-use memscope_rs::{init, track_var};
+use memscope_rs::track_var;
 use std::collections::{HashMap, HashSet, VecDeque};
 
 fn main() {
-    init();
-    
+    let memscope = memscope_rs::MemScope::new();
+
     // Vector
     let mut vec = Vec::with_capacity(100);
     vec.extend(0..50);
     track_var!(vec);
-    
+
     // HashMap
     let mut map = HashMap::new();
     map.insert("key1", "value1");
     map.insert("key2", "value2");
     track_var!(map);
-    
+
     // HashSet
     let mut set = HashSet::new();
     set.insert(1);
     set.insert(2);
     track_var!(set);
-    
+
     // VecDeque
     let mut deque = VecDeque::new();
     deque.push_back(1);
@@ -201,11 +201,11 @@ fn main() {
 ### Nested Collections
 
 ```rust
-use memscope_rs::{init, track_var};
+use memscope_rs::track_var;
 
 fn main() {
-    init();
-    
+    let memscope = memscope_rs::MemScope::new();
+
     // Vector of vectors
     let nested_vec = vec![
         vec![1, 2, 3],
@@ -213,7 +213,7 @@ fn main() {
         vec![7, 8, 9],
     ];
     track_var!(nested_vec);
-    
+
     // HashMap with Vec values
     let mut complex_map = std::collections::HashMap::new();
     complex_map.insert("numbers", vec![1, 2, 3]);
@@ -227,19 +227,19 @@ fn main() {
 ### Selective Tracking
 
 ```rust
-use memscope_rs::{init, track_var};
+use memscope_rs::track_var;
 
 fn main() {
-    init();
-    
+    let memscope = memscope_rs::MemScope::new();
+
     // Track important allocations
     let important_data = vec![0; 1024 * 1024]; // 1MB
     track_var!(important_data);
-    
+
     // Don't track small/temporary data
     let temp = vec![1, 2, 3]; // Small, temporary
     // No tracking needed
-    
+
     // Track long-lived data
     let persistent = String::with_capacity(10000);
     track_var!(persistent);
@@ -249,24 +249,24 @@ fn main() {
 ### Function-Level Tracking
 
 ```rust
-use memscope_rs::{init, track_var};
+use memscope_rs::track_var;
 
 fn process_data(input: Vec<i32>) -> Vec<i32> {
     track_var!(input); // Track input parameter
-    
+
     let mut result = Vec::with_capacity(input.len());
     track_var!(result); // Track result buffer
-    
+
     for item in input {
         result.push(item * 2);
     }
-    
+
     result
 }
 
 fn main() {
-    init();
-    
+    let memscope = memscope_rs::MemScope::new();
+
     let data = vec![1, 2, 3, 4, 5];
     let processed = process_data(data);
     track_var!(processed); // Track final result
@@ -276,7 +276,7 @@ fn main() {
 ### Conditional Tracking
 
 ```rust
-use memscope_rs::{init, track_var};
+use memscope_rs::track_var;
 
 // Only track in debug builds
 #[cfg(debug_assertions)]
@@ -290,8 +290,8 @@ macro_rules! debug_track {
 }
 
 fn main() {
-    init();
-    
+    let memscope = memscope_rs::MemScope::new();
+
     let data = vec![1, 2, 3];
     debug_track!(data); // Only tracks in debug mode
 }
@@ -302,51 +302,47 @@ fn main() {
 ### Real-Time Statistics
 
 ```rust
-use memscope_rs::{init, track_var, get_global_tracker};
+use memscope_rs::track_var;
 
 fn main() {
-    init();
-    
+    let memscope = memscope_rs::MemScope::new();
+
     // Create some tracked data
     let data1 = vec![1; 1000];
     track_var!(data1);
-    
+
     let data2 = String::from("Hello, world!".repeat(100));
     track_var!(data2);
-    
+
     // Get current statistics
-    let tracker = get_global_tracker();
-    if let Ok(stats) = tracker.get_stats() {
-        println!("📊 Memory Statistics:");
-        println!("  Active allocations: {}", stats.active_allocations);
-        println!("  Active memory: {} bytes", stats.active_memory);
-        println!("  Peak memory: {} bytes", stats.peak_memory);
-        println!("  Total allocations: {}", stats.total_allocations);
-    }
+    let summary = memscope.summary();
+    println!("📊 Memory Statistics:");
+    println!("  Active allocations: {}", summary.active_allocations);
+    println!("  Active memory: {} bytes", summary.active_memory);
+    println!("  Peak memory: {} bytes", summary.peak_memory);
+    println!("  Total allocations: {}", summary.total_allocations);
 }
 ```
 
 ### Allocation Details
 
 ```rust
-use memscope_rs::{init, track_var, get_global_tracker};
+use memscope_rs::track_var;
 
 fn main() {
-    init();
-    
+    let memscope = memscope_rs::MemScope::new();
+
     let vec1 = vec![1; 100];
     track_var!(vec1);
-    
+
     let vec2 = vec![2; 200];
     track_var!(vec2);
-    
-    let tracker = get_global_tracker();
-    if let Ok(allocations) = tracker.get_active_allocations() {
-        println!("📋 Active Allocations:");
-        for alloc in allocations {
-            if let Some(var_name) = &alloc.var_name {
-                println!("  {}: {} bytes", var_name, alloc.size);
-            }
+
+    let allocations = memscope.active_allocations();
+    println!("📋 Active Allocations:");
+    for alloc in allocations {
+        if let Some(var_name) = &alloc.var_name {
+            println!("  {}: {} bytes", var_name, alloc.size);
         }
     }
 }
@@ -359,14 +355,14 @@ fn main() {
 ```rust
 // ✅ Good
 fn main() {
-    memscope_rs::init(); // First thing in main
-    
+    let memscope = memscope_rs::MemScope::new(); // First thing in main
+
     // Your program logic...
 }
 
 // ❌ Avoid
 fn some_function() {
-    memscope_rs::init(); // Don't initialize in functions
+    let memscope = memscope_rs::MemScope::new(); // Don't initialize in functions
 }
 ```
 
@@ -401,15 +397,16 @@ let tracked = track_var_owned!(critical_data);
 ### 4. Export Results
 
 ```rust
-use memscope_rs::get_global_tracker;
+use memscope_rs::track_var;
 
 fn main() {
+    let memscope = memscope_rs::MemScope::new();
+
     // ... tracking code ...
-    
+
     // Export at program end
-    let tracker = get_global_tracker();
-    tracker.export_to_json("analysis").unwrap();
-    tracker.export_memory_analysis("chart.svg").unwrap();
+    memscope.export_json("analysis").unwrap();
+    memscope.export_html("chart.html").unwrap();
 }
 ```
 
@@ -427,7 +424,7 @@ Now that you understand basic tracking:
 - **Track heap allocations** - Vec, String, Box, HashMap, etc.
 - **Smart pointers work automatically** - Rc/Arc reference counting tracked
 - **Variables remain normal** - No behavior changes after tracking
-- **Initialize once** - Call `init()` at program start
+- **Create MemScope instance** - Use `memscope_rs::MemScope::new()` at program start
 - **Export results** - Generate reports for analysis
 
 Start with `track_var!` and expand from there! 🎯

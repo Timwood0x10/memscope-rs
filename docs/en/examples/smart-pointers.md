@@ -25,13 +25,13 @@ This guide demonstrates how to use memscope-rs to analyze memory usage patterns 
 ### Basic Smart Pointer Tracking
 
 ```rust
-use memscope_rs::{init, track_var, get_global_tracker};
+use memscope_rs::track_var;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::cell::RefCell;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    init();
+    let memscope = memscope_rs::MemScope::new();
     
     // 1. Box pointer analysis
     analyze_box_pointers();
@@ -46,8 +46,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     analyze_refcell_patterns();
     
     // 5. Export analysis results
-    let tracker = get_global_tracker();
-    tracker.export_to_binary("smart_pointer_analysis")?;
+    memscope.export_binary("smart_pointer_analysis")?;
     
     println!("✅ Smart pointer analysis complete!");
     println!("Run: make html DIR=MemoryAnalysis/smart_pointer_analysis BASE=smart_pointer_analysis");
@@ -458,9 +457,9 @@ process_data(&data);
 2. **High memory usage**
    ```rust
    // Check for memory leaks
-   let tracker = get_global_tracker();
-   let stats = tracker.get_stats()?;
-   println!("Active allocations: {}", stats.active_allocations);
+   let memscope = memscope_rs::MemScope::new();
+   let summary = memscope.summary()?;
+   println!("Active allocations: {}", summary.total_tracked);
    ```
 
 3. **Performance issues**

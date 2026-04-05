@@ -22,14 +22,14 @@ This guide demonstrates how to use memscope-rs to detect and analyze memory leak
 ## 🚀 Complete Detection Example
 
 ```rust
-use memscope_rs::{init, track_var, get_global_tracker};
+use memscope_rs::track_var;
 use std::rc::{Rc, Weak};
 use std::sync::{Arc, Mutex};
 use std::cell::RefCell;
 use std::collections::HashMap;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    init();
+    let memscope = memscope_rs::MemScope::new();
     
     println!("🔍 Starting memory leak detection...");
     
@@ -46,8 +46,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     detect_async_leaks();
     
     // 5. Export analysis results
-    let tracker = get_global_tracker();
-    tracker.export_to_binary("memory_leak_detection")?;
+    memscope.export_binary("memory_leak_detection")?;
     
     println!("✅ Memory leak detection complete!");
     println!("Run: make html DIR=MemoryAnalysis/memory_leak_detection BASE=memory_leak_detection");
@@ -426,8 +425,8 @@ cat MemoryAnalysis/memory_leak_detection/memory_leak_detection_memory_analysis.j
 use memscope_rs::analysis::detect_memory_leaks;
 
 fn automated_leak_detection() -> Result<(), Box<dyn std::error::Error>> {
-    let tracker = get_global_tracker();
-    let allocations = tracker.get_active_allocations()?;
+    let memscope = memscope_rs::MemScope::new();
+    let allocations = memscope.get_active_allocations()?;
     
     // Detect objects alive for more than 5 seconds
     let potential_leaks = detect_memory_leaks(&allocations, 5000);
@@ -455,8 +454,8 @@ fn automated_leak_detection() -> Result<(), Box<dyn std::error::Error>> {
 use memscope_rs::analysis::analyze_circular_references;
 
 fn automated_circular_reference_detection() -> Result<(), Box<dyn std::error::Error>> {
-    let tracker = get_global_tracker();
-    let allocations = tracker.get_active_allocations()?;
+    let memscope = memscope_rs::MemScope::new();
+    let allocations = memscope.get_active_allocations()?;
     
     let circular_refs = analyze_circular_references(&allocations)?;
     
@@ -617,7 +616,7 @@ impl LeakDetector {
 
 ```rust
 fn analyze_allocation_patterns() {
-    let tracker = get_global_tracker();
+    let memscope = memscope_rs::MemScope::new();
     
     // Analyze allocation frequency
     let mut allocation_times = Vec::new();

@@ -12,12 +12,12 @@ Practical examples for integrating memscope-rs into existing projects.
 ## 🌐 Web Server Integration
 
 ```rust
-use memscope_rs::{init, track_var};
+use memscope_rs::track_var;
 use warp::Filter;
 
 #[tokio::main]
 async fn main() {
-    init();
+    let memscope = memscope_rs::MemScope::new();
     
     let routes = warp::path("api")
         .and(warp::path("data"))
@@ -46,7 +46,7 @@ struct Args {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    init();
+    let memscope = memscope_rs::MemScope::new();
     
     let args = Args::parse();
     let input_data = std::fs::read_to_string(&args.input)?;
@@ -63,18 +63,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```rust
 #[cfg(test)]
 mod tests {
-    use memscope_rs::{init, track_var, get_global_tracker};
+    use memscope_rs::track_var;
     
     #[test]
     fn test_memory_usage() {
-        init();
+        let memscope = memscope_rs::MemScope::new();
         
         let test_data = vec![1; 1000];
         track_var!(test_data);
         
-        let tracker = get_global_tracker();
-        let stats = tracker.get_stats().unwrap();
-        assert!(stats.active_allocations > 0);
+        let summary = memscope.summary().unwrap();
+        assert!(summary.total_tracked > 0);
     }
 }
 ```

@@ -8,43 +8,42 @@ Learn how to generate, interpret, and act on your first memory analysis report w
 
 ```rust
 // src/main.rs
-use memscope_rs::{init, track_var, get_global_tracker};
+use memscope_rs::track_var;
 use std::rc::Rc;
 
 fn main() {
     // Initialize tracking
-    init();
-    
+    let memscope = memscope_rs::MemScope::new();
+
     // Create and track different types of data
     let numbers = vec![1, 2, 3, 4, 5];
     track_var!(numbers);
-    
+
     let text = String::from("Hello, memory analysis!");
     track_var!(text);
-    
+
     let boxed_data = Box::new(vec![10, 20, 30]);
     track_var!(boxed_data);
-    
+
     let shared_data = Rc::new(String::from("Shared between clones"));
     track_var!(shared_data);
-    
+
     let shared_clone = Rc::clone(&shared_data);
     track_var!(shared_clone);
-    
+
     // Use the data normally
     println!("Numbers: {:?}", numbers);
     println!("Text: {}", text);
     println!("Boxed: {:?}", *boxed_data);
     println!("Shared: {}", *shared_data);
     println!("Rc count: {}", Rc::strong_count(&shared_data));
-    
+
     // Generate analysis report
-    let tracker = get_global_tracker();
-    
+
     // Export to multiple formats
-    tracker.export_to_json("first_analysis").unwrap();
-    tracker.export_memory_analysis("first_analysis.svg").unwrap();
-    
+    memscope.export_json("first_analysis").unwrap();
+    memscope.export_html("first_analysis.html").unwrap();
+
     println!("✅ Analysis complete! Check MemoryAnalysis/ directory");
 }
 ```
@@ -104,7 +103,7 @@ The main analysis file (`first_analysis_memory_analysis.json`) contains:
     "export_timestamp": 1691234567890,
     "total_allocations": 5,
     "active_allocations": 5,
-    "export_version": "0.1.4"
+    "export_version": "0.1.10"
   },
   "memory_stats": {
     "active_allocations": 5,
@@ -238,38 +237,37 @@ From our first analysis:
 ### Add More Tracking
 
 ```rust
-use memscope_rs::{init, track_var, get_global_tracker};
+use memscope_rs::track_var;
 
 fn main() {
-    init();
-    
+    let memscope = memscope_rs::MemScope::new();
+
     // Track function-level allocations
     let result = process_large_data();
     track_var!(result);
-    
+
     // Track temporary allocations
     {
         let temp_buffer = vec![0; 10000];
         track_var!(temp_buffer);
         // temp_buffer dropped here
     }
-    
+
     // Track collections
     let mut map = std::collections::HashMap::new();
     for i in 0..100 {
         map.insert(i, format!("value_{}", i));
     }
     track_var!(map);
-    
+
     // Generate comprehensive report
-    let tracker = get_global_tracker();
-    tracker.export_to_json("comprehensive_analysis").unwrap();
+    memscope.export_json("comprehensive_analysis").unwrap();
 }
 
 fn process_large_data() -> Vec<i32> {
     let data = vec![1; 50000];
     track_var!(data);
-    
+
     data.into_iter().map(|x| x * 2).collect()
 }
 ```
@@ -277,6 +275,8 @@ fn process_large_data() -> Vec<i32> {
 ### Compare Different Scenarios
 
 ```rust
+use memscope_rs::track_var;
+
 // Scenario 1: Many small allocations
 fn many_small_allocations() {
     for i in 0..1000 {
@@ -285,22 +285,23 @@ fn many_small_allocations() {
     }
 }
 
-// Scenario 2: Few large allocations  
+// Scenario 2: Few large allocations
 fn few_large_allocations() {
     let large_vec = vec![0; 100000];
     track_var!(large_vec);
 }
 
 fn main() {
-    init();
-    
+    let memscope = memscope_rs::MemScope::new();
+
     many_small_allocations();
     // Export and compare
-    get_global_tracker().export_to_json("many_small").unwrap();
-    
+    memscope.export_json("many_small").unwrap();
+
     // Reset and try different approach
+    let memscope2 = memscope_rs::MemScope::new();
     few_large_allocations();
-    get_global_tracker().export_to_json("few_large").unwrap();
+    memscope2.export_json("few_large").unwrap();
 }
 ```
 

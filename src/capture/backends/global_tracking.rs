@@ -123,6 +123,52 @@ impl Default for GlobalTrackingState {
     }
 }
 
+#[derive(Clone)]
+pub struct GlobalTracker {
+    inner: Tracker,
+    async_tracker: Arc<AsyncTracker>,
+}
+
+impl GlobalTracker {
+    pub fn track_as<T: crate::Trackable>(&self, var: &T, name: &str, file: &str, line: u32) {
+        self.inner.track_as(var, name, file, line);
+
+        if let Some(task_id) = AsyncTracker::get_current_task() {
+            let ptr = var.get_heap_ptr().unwrap_or(0);
+            let size = var.get_size_estimate();
+            let type_name = var.get_type_name().to_string();
+            self.async_tracker.track_allocation_with_location(
+                ptr,
+                size,
+                task_id,
+                Some(name.to_string()),
+                Some(type_name),
+                None,
+            );
+        }
+    }
+
+    pub fn analyze(&self) -> crate::tracker::AnalysisReport {
+        self.inner.analyze()
+    }
+
+    pub fn inner(&self) -> &Tracker {
+        &self.inner
+    }
+
+    pub fn async_tracker(&self) -> &Arc<AsyncTracker> {
+        &self.async_tracker
+    }
+}
+
+impl std::ops::Deref for GlobalTracker {
+    type Target = Tracker;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
 /// Initialize global tracking with default configuration.
 pub fn init_global_tracking() -> Result<(), GlobalTrackingError> {
     let state = GlobalTrackingState::new();
@@ -142,10 +188,13 @@ pub fn is_initialized() -> bool {
     GLOBAL_TRACKING.get().is_some()
 }
 
-/// Get the global tracker instance.
-pub fn global_tracker() -> Result<Tracker, GlobalTrackingError> {
+/// Get the global tracker instance (unified tracker with async support).
+pub fn global_tracker() -> Result<GlobalTracker, GlobalTrackingError> {
     let state = GLOBAL_TRACKING.get_or_init(GlobalTrackingState::new);
-    Ok(state.tracker().clone())
+    Ok(GlobalTracker {
+        inner: state.tracker().clone(),
+        async_tracker: state.async_tracker().clone(),
+    })
 }
 
 /// Get the global passport tracker instance.

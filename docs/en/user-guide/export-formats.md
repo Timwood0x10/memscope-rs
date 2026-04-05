@@ -40,24 +40,22 @@ JSON export generates 5 specialized files:
 
 ### Basic Usage
 ```rust
-use memscope_rs::{get_global_tracker, track_var, init};
+use memscope_rs::track_var;
 
 fn main() {
-    init();
-    
+    let memscope = memscope_rs::MemScope::new();
+
     let data = vec![1, 2, 3, 4, 5];
     track_var!(data);
-    
-    let tracker = get_global_tracker();
-    
+
     // Export to JSON (generates 5 categorized files)
-    if let Err(e) = tracker.export_to_json("my_analysis") {
+    if let Err(e) = memscope.export_json("my_analysis") {
         eprintln!("Export failed: {}", e);
     } else {
         println!("✅ JSON export successful");
         // Files location: MemoryAnalysis/my_analysis/
         // - my_analysis_memory_analysis.json
-        // - my_analysis_lifetime.json  
+        // - my_analysis_lifetime.json
         // - my_analysis_performance.json
         // - my_analysis_unsafe_ffi.json
         // - my_analysis_complex_types.json
@@ -70,7 +68,7 @@ fn main() {
 {
   "metadata": {
     "export_timestamp": 1691234567890,
-    "export_version": "0.1.4",
+    "export_version": "0.1.10",
     "total_allocations": 3,
     "active_allocations": 3,
     "peak_memory": 1024
@@ -102,30 +100,6 @@ fn main() {
 }
 ```
 
-### Custom JSON Export
-```rust
-use memscope_rs::{get_global_tracker, ExportOptions};
-
-let tracker = get_global_tracker();
-let options = ExportOptions::new()
-    .include_system_allocations(true);  // Include system allocations (slow but detailed)
-
-// Note: Including system allocations significantly reduces performance (5-10x slower)
-tracker.export_to_json_with_options("detailed_analysis", options)?;
-```
-
-### Performance Mode Selection
-
-```rust
-// Fast mode (recommended) - only tracks user variables
-tracker.export_to_json("fast_analysis")?;
-
-// Detailed mode - includes all system allocations (slow)
-let detailed_options = ExportOptions::new()
-    .include_system_allocations(true);
-tracker.export_to_json_with_options("detailed_analysis", detailed_options)?;
-```
-
 ## 🎨 SVG Export - Static Visualization
 
 ### Features
@@ -135,25 +109,23 @@ tracker.export_to_json_with_options("detailed_analysis", detailed_options)?;
 
 ### Basic Usage
 ```rust
-use memscope_rs::{get_global_tracker, track_var, init};
+use memscope_rs::track_var;
 
 fn main() {
-    init();
-    
+    let memscope = memscope_rs::MemScope::new();
+
     // Create some interesting memory patterns
     let vec1 = vec![1; 100];
     track_var!(vec1);
-    
+
     let vec2 = vec![2; 200];
     track_var!(vec2);
-    
+
     let boxed = Box::new(vec![3; 50]);
     track_var!(boxed);
-    
-    let tracker = get_global_tracker();
-    
+
     // Export memory usage chart
-    if let Err(e) = tracker.export_memory_analysis("memory_chart.svg") {
+    if let Err(e) = memscope.export_svg("memory_chart.svg") {
         eprintln!("SVG export failed: {}", e);
     } else {
         println!("✅ SVG export successful");
@@ -162,57 +134,33 @@ fn main() {
 }
 ```
 
-### SVG Chart Types
-
-**Memory Usage Timeline**
-```rust
-// Generate memory usage over time chart
-tracker.export_memory_timeline("timeline.svg")?;
-```
-
-**Allocation Type Distribution**
-```rust
-// Generate memory distribution chart by type
-tracker.export_type_distribution("distribution.svg")?;
-```
-
-**Lifecycle Analysis**
-```rust
-// Generate variable lifecycle visualization
-use memscope_rs::export_lifecycle_timeline;
-export_lifecycle_timeline("lifecycle.svg", &allocations)?;
-```
-
 ## 🌐 HTML Export - Interactive Dashboard
 
 ### Features
 - **Interactive** - Clickable, filterable, zoomable
 - **Real-time analysis** - Dynamic calculation and display
 - **Beautiful interface** - Professional data visualization
-- **Two methods** - Direct export or via make command
 
-### Method 1: Direct HTML Export
+### Basic Usage
 ```rust
-use memscope_rs::{get_global_tracker, track_var, init};
+use memscope_rs::track_var;
 use std::rc::Rc;
 
 fn main() {
-    init();
-    
+    let memscope = memscope_rs::MemScope::new();
+
     // Create complex memory scenarios
     let data1 = vec![1; 1000];
     track_var!(data1);
-    
+
     let shared = Rc::new(String::from("shared data"));
     track_var!(shared);
-    
+
     let clone1 = Rc::clone(&shared);
     track_var!(clone1);
-    
-    let tracker = get_global_tracker();
-    
+
     // Export interactive HTML dashboard
-    if let Err(e) = tracker.export_interactive_dashboard("interactive_report.html") {
+    if let Err(e) = memscope.export_html("interactive_report.html") {
         eprintln!("HTML export failed: {}", e);
     } else {
         println!("✅ HTML export successful");
@@ -221,7 +169,7 @@ fn main() {
 }
 ```
 
-### Method 2: Using make Command (Recommended)
+### Using make Command (Recommended)
 ```bash
 # 1. First run program to generate JSON data
 cargo run --example your_program
@@ -252,19 +200,6 @@ This method generates HTML reports with richer functionality and more interactiv
 - Filter by type/thread/time
 - Zoom and pan charts
 
-### Custom HTML Themes
-```rust
-use memscope_rs::HtmlExportOptions;
-
-let html_options = HtmlExportOptions::new()
-    .with_theme("dark")              // Dark theme
-    .with_charts(true)               // Include charts
-    .with_detailed_tables(true)      // Detailed tables
-    .with_performance_metrics(true); // Performance metrics
-
-tracker.export_to_html_with_options("custom_report.html", &html_options)?;
-```
-
 ## ⚡ Binary Export - High Performance Choice
 
 ### Features
@@ -275,21 +210,19 @@ tracker.export_to_html_with_options("custom_report.html", &html_options)?;
 
 ### Basic Usage
 ```rust
-use memscope_rs::{get_global_tracker, track_var, init};
+use memscope_rs::track_var;
 
 fn main() {
-    init();
-    
+    let memscope = memscope_rs::MemScope::new();
+
     // Large dataset scenario
     for i in 0..1000 {
         let data = vec![i; 100];
         track_var!(data);
     }
-    
-    let tracker = get_global_tracker();
-    
+
     // Export binary format (.memscope extension)
-    if let Err(e) = tracker.export_to_binary("large_dataset") {
+    if let Err(e) = memscope.export_binary("large_dataset") {
         eprintln!("Binary export failed: {}", e);
     } else {
         println!("✅ Binary export successful");
@@ -298,109 +231,35 @@ fn main() {
 }
 ```
 
-### Binary → JSON Conversion
-```rust
-use memscope_rs::MemoryTracker;
-
-// Convert binary file to standard 5 JSON files
-MemoryTracker::parse_binary_to_standard_json(
-    "data.memscope", 
-    "converted_data"
-)?;
-
-// Or convert to single JSON file
-MemoryTracker::parse_binary_to_json(
-    "data.memscope", 
-    "single_file.json"
-)?;
-```
-
-### Binary → HTML Conversion
-```rust
-use memscope_rs::MemoryTracker;
-
-// Generate HTML report directly from binary
-MemoryTracker::parse_binary_to_html(
-    "data.memscope", 
-    "report.html"
-)?;
-```
-
-### Binary Format Configuration
-```rust
-use memscope_rs::BinaryExportConfig;
-
-let config = BinaryExportConfig::new()
-    .with_compression(true)          // Enable compression
-    .with_string_deduplication(true) // String deduplication
-    .with_fast_mode(true);           // Fast mode
-
-tracker.export_to_binary_with_config("optimized.memscope", &config)?;
-```
-
-### Reading Binary Files
-```rust
-use memscope_rs::BinaryReader;
-
-// Read binary file
-let reader = BinaryReader::from_file("data.memscope")?;
-let allocations = reader.read_allocations()?;
-let stats = reader.read_stats()?;
-
-// Convert to other formats
-reader.export_to_json("converted.json")?;
-reader.export_to_html("converted.html")?;
-```
-
 ## 🔧 Batch Export
 
 ### Export All Formats
 ```rust
-use memscope_rs::{get_global_tracker, ExportOptions};
+use memscope_rs::track_var;
 
 fn export_all_formats(base_name: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let tracker = get_global_tracker();
-    
+    let memscope = memscope_rs::MemScope::new();
+
+    // ... tracking code ...
+
     // JSON data
-    tracker.export_to_json(base_name)?;
-    
+    memscope.export_json(base_name)?;
+
     // SVG charts
-    tracker.export_memory_analysis(&format!("{}.svg", base_name))?;
-    
+    memscope.export_svg(&format!("{}.svg", base_name))?;
+
     // HTML dashboard
-    tracker.export_to_html(&format!("{}.html", base_name))?;
-    
+    memscope.export_html(&format!("{}.html", base_name))?;
+
     // Binary data
-    tracker.export_to_binary(&format!("{}.memscope", base_name))?;
-    
+    memscope.export_binary(&format!("{}.memscope", base_name))?;
+
     println!("✅ All formats exported successfully");
     Ok(())
 }
 
 // Usage
 export_all_formats("complete_analysis")?;
-```
-
-### Performance Optimized Export
-```rust
-use memscope_rs::ExportOptions;
-
-// Fast export (suitable for large datasets)
-let fast_options = ExportOptions::new()
-    .with_fast_mode(true)
-    .with_minimal_analysis(true)
-    .with_compression(true);
-
-tracker.export_to_json_with_options("fast_export", &fast_options)?;
-
-// Detailed export (suitable for deep analysis)
-let detailed_options = ExportOptions::new()
-    .with_detailed_analysis(true)
-    .with_stack_traces(true)
-    .with_thread_info(true)
-    .with_circular_reference_detection(true);
-
-tracker.export_to_json_with_options("detailed_export", &detailed_options)?;
 ```
 
 ## 📁 File Organization
@@ -419,42 +278,30 @@ MemoryAnalysis/
     └── ...
 ```
 
-### Custom Output Directory
-```rust
-use memscope_rs::ExportOptions;
-
-let options = ExportOptions::new()
-    .with_output_directory("custom_reports")
-    .with_create_subdirectory(false);
-
-tracker.export_to_json_with_options("analysis", &options)?;
-// Output to: custom_reports/analysis_memory_analysis.json
-```
-
 ## 🎯 Usage Recommendations
 
 ### Development Phase
 ```rust
 // Quick iteration - use SVG
-tracker.export_memory_analysis("debug.svg")?;
+memscope.export_svg("debug.svg")?;
 ```
 
 ### Detailed Analysis
 ```rust
 // Deep analysis - use HTML
-tracker.export_to_html("detailed_analysis.html")?;
+memscope.export_html("detailed_analysis.html")?;
 ```
 
 ### Automated Processing
 ```rust
 // Data processing - use JSON
-tracker.export_to_json("automated_analysis")?;
+memscope.export_json("automated_analysis")?;
 ```
 
 ### Performance Critical
 ```rust
 // Large datasets - use Binary
-tracker.export_to_binary("performance_data.memscope")?;
+memscope.export_binary("performance_data.memscope")?;
 ```
 
 Choose the right export format for efficient memory analysis! 🚀

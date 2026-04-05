@@ -660,12 +660,15 @@ pub enum DashboardTemplate {
     /// Unified dashboard (multi-mode in single HTML)
     #[default]
     Unified,
+    /// Final dashboard (new investigation console)
+    Final,
 }
 
 impl std::fmt::Display for DashboardTemplate {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             DashboardTemplate::Unified => write!(f, "dashboard_unified"),
+            DashboardTemplate::Final => write!(f, "dashboard_final"),
         }
     }
 }
@@ -728,13 +731,19 @@ pub fn export_dashboard_html_with_template<P: AsRef<Path>>(
         ExportError::ExportFailed(format!("Failed to create dashboard renderer: {}", e))
     })?;
 
-    // Render HTML from tracker data using unified template
+    // Render HTML from tracker data using selected template
     let context = renderer
         .build_context_from_tracker_with_async(tracker, passport_tracker, async_tracker)
         .map_err(|e| ExportError::ExportFailed(format!("Failed to build context: {}", e)))?;
-    let html_content = renderer
-        .render_unified_dashboard(&context)
-        .map_err(|e| ExportError::ExportFailed(format!("Failed to render dashboard: {}", e)))?;
+
+    let html_content = match template {
+        DashboardTemplate::Final => renderer
+            .render_final_dashboard(&context)
+            .map_err(|e| ExportError::ExportFailed(format!("Failed to render final dashboard: {}", e)))?,
+        DashboardTemplate::Unified => renderer
+            .render_unified_dashboard(&context)
+            .map_err(|e| ExportError::ExportFailed(format!("Failed to render dashboard: {}", e)))?,
+    };
 
     // Write HTML to file
     let output_file = path_ref.join(format!("{}_dashboard.html", template));

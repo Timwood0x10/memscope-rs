@@ -1,11 +1,19 @@
 # memscope-rs 中文文档
 
-memscope-rs 是一个生产级的 Rust 内存分析工具包，针对不同的应用场景提供四个专门的跟踪模块：单线程、多线程、异步和混合模式。
+memscope-rs 是一个高性能的 Rust 内存分析工具包，通过九引擎流水线架构，为不同应用场景提供多种数据收集策略。
+
+## 🆕 新增内容
+
+- **[新功能与亮点](new-features.md)** — v0.1.10 的 10 个核心亮点
+- **[架构概览](architecture-overview.md)** — 九引擎流水线详解
+- **[捕获后端详解](capture-backends.md)** — 四种数据收集策略对比
 
 ## 📚 文档导航
 
 ### 🚀 入门指南
-- **[核心模块概览](modules/README.md)** - 了解四个跟踪模块
+- **[架构概览](architecture-overview.md)** — 理解九引擎流水线
+- **[捕获后端](capture-backends.md)** — 选择合适的数据收集策略
+- **[新功能与亮点](new-features.md)** — MemScope 的核心竞争力
 - [安装指南](getting-started/installation.md) - 如何安装和配置 memscope-rs
 - [快速开始](getting-started/quick-start.md) - 5分钟快速上手
 - [基础跟踪](getting-started/basic-tracking.md) - 学习基本的内存跟踪
