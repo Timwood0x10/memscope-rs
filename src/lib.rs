@@ -21,8 +21,6 @@ pub mod capture;
 pub mod event_store;
 /// Facade API - Unified user interface
 pub mod facade;
-/// Lockfree tracking for high-concurrency applications
-pub mod lockfree;
 /// Metadata Engine - Centralized metadata management
 pub mod metadata;
 /// Query Engine - Unified query interface
@@ -35,8 +33,6 @@ pub mod snapshot;
 pub mod timeline;
 /// Unified Tracker API - Simple, unified interface for memory tracking
 pub mod tracker;
-/// Unified backend for environment detection and strategy selection
-pub mod unified;
 
 /// Unified error handling and recovery system
 pub mod error;
@@ -80,7 +76,6 @@ pub use core::{ExportMode, ExportOptions};
 pub use memscope_derive::Trackable;
 /// Global tracking allocator instance - only enabled with tracking-allocator feature
 /// for single-threaded or low-concurrency applications.
-/// For high-concurrency (30+ threads), use lockfree module instead.
 #[cfg(feature = "tracking-allocator")]
 #[global_allocator]
 pub static GLOBAL: TrackingAllocator = TrackingAllocator::new();
