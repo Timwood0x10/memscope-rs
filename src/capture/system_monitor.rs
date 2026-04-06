@@ -15,7 +15,7 @@
 //! - Performance scoring
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 use sysinfo::System;
@@ -35,7 +35,7 @@ pub struct SystemMonitor {
     gpu_memory_total: Arc<AtomicU64>,
     last_update: Arc<AtomicU64>,
     running: Arc<AtomicBool>,
-    handle: Option<JoinHandle<()>>,
+    handle: Mutex<Option<JoinHandle<()>>>,
 }
 
 impl SystemMonitor {
@@ -162,7 +162,7 @@ impl SystemMonitor {
             gpu_memory_total,
             last_update,
             running,
-            handle: Some(handle),
+            handle: Mutex::new(Some(handle)),
         }
     }
 
@@ -170,10 +170,31 @@ impl SystemMonitor {
         SYSTEM_MONITOR.get_or_init(Self::new)
     }
 
+    pub fn shutdown() {
+        if let Some(monitor) = SYSTEM_MONITOR.get() {
+            monitor.running.store(false, Ordering::Release);
+            if let Ok(mut handle_guard) = monitor.handle.lock() {
+                if let Some(handle) = handle_guard.take() {
+                    let _ = handle.join();
+                }
+            }
+        }
+    }
+
+    #[inline]
+    pub fn is_running(&self) -> bool {
+        self.running.load(Ordering::Acquire)
+    }
+
     #[inline]
     pub fn cpu_usage(&self) -> f64 {
         let bits = self.cpu_usage.load(Ordering::Acquire);
-        f64::from_bits(bits)
+        let value = f64::from_bits(bits);
+        if value.is_nan() || value < 0.0 {
+            0.0
+        } else {
+            value.min(100.0)
+        }
     }
 
     #[inline]
@@ -335,8 +356,10 @@ impl SystemMonitor {
 impl Drop for SystemMonitor {
     fn drop(&mut self) {
         self.running.store(false, Ordering::Release);
-        if let Some(handle) = self.handle.take() {
-            let _ = handle.join();
+        if let Ok(mut handle_guard) = self.handle.lock() {
+            if let Some(handle) = handle_guard.take() {
+                let _ = handle.join();
+            }
         }
     }
 }

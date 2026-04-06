@@ -15,7 +15,8 @@ pub fn track_allocation(ptr: usize, size: usize) -> TrackingResult<()> {
 }
 
 /// Track deallocation - convenience function
-pub fn track_deallocation(ptr: usize) -> TrackingResult<()> {
+/// Returns true if the allocation was found and removed
+pub fn track_deallocation(ptr: usize) -> TrackingResult<bool> {
     let tracker = get_tracker();
     tracker.track_deallocation(ptr)
 }

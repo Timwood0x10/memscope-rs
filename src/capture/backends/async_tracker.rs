@@ -302,6 +302,8 @@ impl AsyncTracker {
         if size > 0 {
             let mut stats = self.stats.lock().unwrap();
             stats.active_memory = stats.active_memory.saturating_sub(size);
+            stats.total_deallocations += 1;
+            stats.total_deallocated += size as u64;
         }
     }
 

@@ -276,21 +276,27 @@ impl CaptureBackend for LockfreeBackend {
 }
 
 impl LockfreeBackend {
-    /// Generate a hash of the current call stack
+    /// Generate a hash of the current call context.
+    ///
+    /// Note: This is a lightweight hash based on thread ID and a counter,
+    /// not a full call stack capture. For full call stack tracking,
+    /// enable the `backtrace` feature.
     #[inline]
     fn hash_call_stack(&self) -> u64 {
-        // Placeholder: In real implementation, this would capture the call stack
-        // and hash it for efficient grouping and analysis
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
-        use std::time::{SystemTime, UNIX_EPOCH};
 
         let mut hasher = DefaultHasher::new();
-        let timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        timestamp.hash(&mut hasher);
+
+        // Use thread ID for basic grouping
+        std::thread::current().id().hash(&mut hasher);
+
+        // Add a counter for uniqueness within the same thread
+        // Using a thread-local counter would be better but adds overhead
+        static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let count = COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        count.hash(&mut hasher);
+
         hasher.finish()
     }
 }

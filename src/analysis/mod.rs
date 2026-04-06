@@ -141,24 +141,247 @@ impl AnalysisManager {
     }
 
     /// Analyze memory fragmentation
-    pub fn analyze_fragmentation(&self, _allocations: &[AllocationInfo]) -> FragmentationAnalysis {
-        // Simple implementation for now
-        FragmentationAnalysis::default()
+    pub fn analyze_fragmentation(&self, allocations: &[AllocationInfo]) -> FragmentationAnalysis {
+        if allocations.is_empty() {
+            return FragmentationAnalysis::default();
+        }
+
+        let active_allocations: Vec<_> = allocations
+            .iter()
+            .filter(|a| a.timestamp_dealloc.is_none())
+            .collect();
+
+        if active_allocations.is_empty() {
+            return FragmentationAnalysis::default();
+        }
+
+        let mut sorted_ptrs: Vec<usize> = active_allocations.iter().map(|a| a.ptr).collect();
+        sorted_ptrs.sort();
+
+        let mut gaps: Vec<usize> = Vec::new();
+        for i in 1..sorted_ptrs.len() {
+            let prev = sorted_ptrs[i - 1];
+            let curr = sorted_ptrs[i];
+            if curr > prev {
+                let prev_alloc = active_allocations
+                    .iter()
+                    .find(|a| a.ptr == prev)
+                    .map(|a| a.size)
+                    .unwrap_or(0);
+                let gap = curr.saturating_sub(prev + prev_alloc);
+                if gap > 0 {
+                    gaps.push(gap);
+                }
+            }
+        }
+
+        let total_memory: usize = active_allocations.iter().map(|a| a.size).sum();
+        let total_gap: usize = gaps.iter().sum();
+
+        let fragmentation_ratio = if total_memory > 0 {
+            total_gap as f64 / (total_memory + total_gap) as f64
+        } else {
+            0.0
+        };
+
+        let largest_free_block = gaps.iter().max().copied().unwrap_or(0);
+        let smallest_free_block = gaps.iter().min().copied().unwrap_or(0);
+        let free_block_count = gaps.len();
+        let total_free_memory = total_gap;
+
+        let external_fragmentation = if !gaps.is_empty() {
+            let avg_gap = total_gap as f64 / gaps.len() as f64;
+            let max_gap = largest_free_block as f64;
+            if max_gap > 0.0 {
+                1.0 - (avg_gap / max_gap)
+            } else {
+                0.0
+            }
+        } else {
+            0.0
+        };
+
+        let total_requested: usize = active_allocations.iter().map(|a| a.size).sum();
+        let total_allocated = total_requested + total_gap;
+        let internal_fragmentation = if total_allocated > 0 {
+            (total_gap as f64 / total_allocated as f64) * 100.0
+        } else {
+            0.0
+        };
+
+        FragmentationAnalysis {
+            fragmentation_ratio,
+            largest_free_block,
+            smallest_free_block,
+            free_block_count,
+            total_free_memory,
+            external_fragmentation,
+            internal_fragmentation,
+        }
     }
 
     /// Analyze system library usage
-    pub fn analyze_system_libraries(&self, _allocations: &[AllocationInfo]) -> SystemLibraryStats {
-        // Simple implementation for now
-        SystemLibraryStats::default()
+    pub fn analyze_system_libraries(&self, allocations: &[AllocationInfo]) -> SystemLibraryStats {
+        let mut stats = SystemLibraryStats::default();
+
+        for alloc in allocations {
+            let type_name = alloc.type_name.as_deref().unwrap_or("");
+            let stack = alloc.stack_trace.as_deref().unwrap_or(&[]);
+
+            if type_name.contains("Vec<")
+                || type_name.contains("HashMap")
+                || type_name.contains("HashSet")
+                || type_name.contains("BTreeMap")
+                || type_name.contains("BTreeSet")
+            {
+                stats.std_collections.allocation_count += 1;
+                stats.std_collections.total_bytes += alloc.size;
+            }
+
+            if type_name.contains("Future")
+                || type_name.contains("async")
+                || type_name.contains("tokio")
+                || type_name.contains("async_std")
+            {
+                stats.async_runtime.allocation_count += 1;
+                stats.async_runtime.total_bytes += alloc.size;
+            }
+
+            if type_name.contains("TcpStream")
+                || type_name.contains("UdpSocket")
+                || type_name.contains("Http")
+                || stack.iter().any(|s| s.contains("net::"))
+            {
+                stats.network_io.allocation_count += 1;
+                stats.network_io.total_bytes += alloc.size;
+            }
+
+            if type_name.contains("File")
+                || type_name.contains("Path")
+                || stack.iter().any(|s| s.contains("fs::"))
+            {
+                stats.file_system.allocation_count += 1;
+                stats.file_system.total_bytes += alloc.size;
+            }
+
+            if type_name.contains("serde")
+                || type_name.contains("Json")
+                || type_name.contains("Deserialize")
+            {
+                stats.serialization.allocation_count += 1;
+                stats.serialization.total_bytes += alloc.size;
+            }
+
+            if type_name.contains("Regex") || type_name.contains("regex") {
+                stats.regex_engine.allocation_count += 1;
+                stats.regex_engine.total_bytes += alloc.size;
+            }
+
+            if type_name.contains("Crypto")
+                || type_name.contains("Hash")
+                || type_name.contains("Signature")
+            {
+                stats.crypto_security.allocation_count += 1;
+                stats.crypto_security.total_bytes += alloc.size;
+            }
+
+            if type_name.contains("Database")
+                || type_name.contains("Connection")
+                || type_name.contains("Query")
+            {
+                stats.database.allocation_count += 1;
+                stats.database.total_bytes += alloc.size;
+            }
+
+            if type_name.contains("Window")
+                || type_name.contains("Canvas")
+                || type_name.contains("Surface")
+                || type_name.contains("wgpu")
+            {
+                stats.graphics_ui.allocation_count += 1;
+                stats.graphics_ui.total_bytes += alloc.size;
+            }
+
+            if type_name.contains("Request")
+                || type_name.contains("Response")
+                || type_name.contains("hyper")
+                || type_name.contains("reqwest")
+            {
+                stats.http_stack.allocation_count += 1;
+                stats.http_stack.total_bytes += alloc.size;
+            }
+        }
+
+        stats
     }
 
     /// Analyze concurrency safety
     pub fn analyze_concurrency_safety(
         &self,
-        _allocations: &[AllocationInfo],
+        allocations: &[AllocationInfo],
     ) -> ConcurrencyAnalysis {
-        // Simple implementation for now
-        ConcurrencyAnalysis::default()
+        let mut analysis = ConcurrencyAnalysis::default();
+
+        let mut thread_alloc_counts: std::collections::HashMap<std::thread::ThreadId, usize> =
+            std::collections::HashMap::new();
+
+        for alloc in allocations {
+            let type_name = alloc.type_name.as_deref().unwrap_or("");
+
+            if type_name.contains("Arc<")
+                || type_name.contains("Mutex<")
+                || type_name.contains("RwLock<")
+            {
+                analysis.thread_safety_allocations += 1;
+                analysis.shared_memory_bytes += alloc.size;
+            }
+
+            if type_name.contains("Arc<") {
+                analysis.arc_shared += 1;
+            }
+
+            if type_name.contains("mpsc")
+                || type_name.contains("channel")
+                || type_name.contains("Sender")
+                || type_name.contains("Receiver")
+            {
+                analysis.channel_buffers += 1;
+            }
+
+            if type_name.contains("thread_local") || type_name.contains("LocalKey") {
+                analysis.thread_local_storage += 1;
+            }
+
+            if type_name.contains("Atomic") {
+                analysis.atomic_operations += 1;
+            }
+
+            *thread_alloc_counts.entry(alloc.thread_id).or_insert(0) += 1;
+        }
+
+        let max_thread_allocs = thread_alloc_counts.values().max().copied().unwrap_or(0);
+        let min_thread_allocs = thread_alloc_counts.values().min().copied().unwrap_or(0);
+        let thread_count = thread_alloc_counts.len();
+
+        if thread_count <= 1 {
+            analysis.lock_contention_risk = "None".to_string();
+        } else {
+            let imbalance_ratio = if min_thread_allocs > 0 {
+                max_thread_allocs as f64 / min_thread_allocs as f64
+            } else {
+                f64::MAX
+            };
+
+            if imbalance_ratio > 10.0 {
+                analysis.lock_contention_risk = "High".to_string();
+            } else if imbalance_ratio > 3.0 {
+                analysis.lock_contention_risk = "Medium".to_string();
+            } else {
+                analysis.lock_contention_risk = "Low".to_string();
+            }
+        }
+
+        analysis
     }
 
     /// Get unsafe/FFI tracker instance
@@ -409,13 +632,9 @@ mod tests {
 
         let result = manager.analyze_fragmentation(&allocations);
 
-        // Test that fragmentation analysis returns valid default values
-        assert_eq!(result.fragmentation_ratio, 0.0);
-        assert_eq!(result.largest_free_block, 0);
-        assert_eq!(result.free_block_count, 0);
-        assert_eq!(result.total_free_memory, 0);
-        assert_eq!(result.external_fragmentation, 0.0);
-        assert_eq!(result.internal_fragmentation, 0.0);
+        assert!(result.fragmentation_ratio >= 0.0 && result.fragmentation_ratio <= 1.0);
+        assert!(result.external_fragmentation >= 0.0);
+        assert!(result.internal_fragmentation >= 0.0);
     }
 
     #[test]
@@ -450,7 +669,7 @@ mod tests {
         assert_eq!(result.channel_buffers, 0);
         assert_eq!(result.thread_local_storage, 0);
         assert_eq!(result.atomic_operations, 0);
-        assert_eq!(result.lock_contention_risk, "");
+        assert_eq!(result.lock_contention_risk, "None");
     }
 
     #[test]
@@ -576,8 +795,10 @@ mod tests {
 
         let result = manager.perform_comprehensive_analysis(&allocations, &stats);
 
-        // Test that comprehensive analysis includes all components
-        assert_eq!(result.fragmentation_analysis.fragmentation_ratio, 0.0);
+        assert!(
+            result.fragmentation_analysis.fragmentation_ratio >= 0.0
+                && result.fragmentation_analysis.fragmentation_ratio <= 1.0
+        );
         assert_eq!(
             result.system_library_stats.std_collections.allocation_count,
             0

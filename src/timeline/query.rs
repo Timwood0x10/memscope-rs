@@ -77,14 +77,16 @@ impl TimelineQuery {
             .collect()
     }
 
-    /// Get memory usage over time
-    ///
-    /// Returns a series of memory usage snapshots at regular intervals.
+    /// Get memory usage over time with cumulative tracking.
     ///
     /// # Arguments
     /// * `start` - Start timestamp (inclusive)
     /// * `end` - End timestamp (exclusive)
     /// * `interval_ms` - Interval between snapshots in milliseconds
+    ///
+    /// # Returns
+    /// Vector of (timestamp, cumulative_memory_bytes) tuples showing
+    /// the actual memory usage at each point in time.
     pub fn get_memory_usage_over_time(
         &self,
         start: u64,
@@ -92,24 +94,41 @@ impl TimelineQuery {
         interval_ms: u64,
     ) -> Vec<(u64, usize)> {
         let mut result = Vec::new();
-        let mut current = start;
         let interval_ns = interval_ms * 1_000_000;
 
-        while current < end {
-            let interval_end = (current + interval_ns).min(end);
-            let allocations: usize = self
-                .get_allocations_in_range(current, interval_end)
-                .iter()
-                .map(|e| e.size)
-                .sum();
-            let deallocations: usize = self
-                .get_deallocations_in_range(current, interval_end)
-                .iter()
-                .map(|e| e.size)
-                .sum();
+        // Get all events in the time range, sorted by timestamp
+        let mut all_events: Vec<(u64, usize, bool)> = Vec::new(); // (timestamp, size, is_alloc)
 
-            result.push((current, allocations.saturating_sub(deallocations)));
-            current = interval_end;
+        for event in self.get_events_in_range(start, end) {
+            let is_alloc = matches!(event.event_type, MemoryEventType::Allocate);
+            all_events.push((event.timestamp, event.size, is_alloc));
+        }
+
+        // Sort by timestamp
+        all_events.sort_by_key(|(ts, _, _)| *ts);
+
+        // Sample at each interval
+        let mut current = start;
+        let mut event_idx = 0;
+        let mut running_memory: usize = 0;
+
+        while current < end {
+            // Process all events up to current timestamp
+            while event_idx < all_events.len() {
+                let (ts, size, is_alloc) = all_events[event_idx];
+                if ts > current {
+                    break;
+                }
+                if is_alloc {
+                    running_memory += size;
+                } else {
+                    running_memory = running_memory.saturating_sub(size);
+                }
+                event_idx += 1;
+            }
+
+            result.push((current, running_memory));
+            current += interval_ns;
         }
 
         result
@@ -120,13 +139,35 @@ impl TimelineQuery {
     /// # Arguments
     /// * `start` - Start timestamp (inclusive)
     /// * `end` - End timestamp (exclusive)
+    ///
+    /// # Note
+    /// This function processes all events in chronological order to find
+    /// the true peak memory usage, not just the maximum interval delta.
     pub fn get_peak_memory_in_range(&self, start: u64, end: u64) -> usize {
-        let memory_usage = self.get_memory_usage_over_time(start, end, 100);
-        memory_usage
-            .into_iter()
-            .map(|(_, usage)| usage)
-            .max()
-            .unwrap_or(0)
+        // Get all events sorted by timestamp
+        let mut all_events: Vec<(u64, usize, bool)> = Vec::new();
+
+        for event in self.get_events_in_range(start, end) {
+            let is_alloc = matches!(event.event_type, MemoryEventType::Allocate);
+            all_events.push((event.timestamp, event.size, is_alloc));
+        }
+
+        all_events.sort_by_key(|(ts, _, _)| *ts);
+
+        // Track running memory and find peak
+        let mut running_memory: usize = 0;
+        let mut peak_memory: usize = 0;
+
+        for (_, size, is_alloc) in all_events {
+            if is_alloc {
+                running_memory += size;
+            } else {
+                running_memory = running_memory.saturating_sub(size);
+            }
+            peak_memory = peak_memory.max(running_memory);
+        }
+
+        peak_memory
     }
 
     /// Get event rate (events per second) in a time range

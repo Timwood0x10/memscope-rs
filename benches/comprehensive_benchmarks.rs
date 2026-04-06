@@ -77,15 +77,19 @@ fn benchmark_tracker_analyze(c: &mut Criterion) {
             alloc_count,
             |b, &alloc_count| {
                 let t = tracker!();
+                let mut keep_alive: Vec<Vec<u8>> = Vec::with_capacity(alloc_count);
                 for i in 0..alloc_count {
-                    let data = vec![i as u8; 64];
+                    let data = vec![i as u8; 64 + i % 256];
                     track!(t, data);
+                    keep_alive.push(data);
                 }
 
                 b.iter(|| {
                     let report = t.analyze();
                     black_box(report);
                 });
+
+                std::mem::forget(keep_alive);
             },
         );
     }
@@ -93,24 +97,28 @@ fn benchmark_tracker_analyze(c: &mut Criterion) {
     group.finish();
 }
 
-fn benchmark_tracker_snapshot(c: &mut Criterion) {
-    let mut group = c.benchmark_group("tracker_snapshot");
+fn benchmark_tracker_stats(c: &mut Criterion) {
+    let mut group = c.benchmark_group("tracker_stats");
 
     for alloc_count in [10, 50, 100, 500, 1000, 5000, 10000].iter() {
         group.bench_with_input(
-            BenchmarkId::new("snapshot", alloc_count),
+            BenchmarkId::new("stats", alloc_count),
             alloc_count,
             |b, &alloc_count| {
                 let t = tracker!();
+                let mut keep_alive: Vec<Vec<u8>> = Vec::with_capacity(alloc_count);
                 for i in 0..alloc_count {
-                    let data = vec![i as u8; 64];
+                    let data = vec![i as u8; 64 + i % 256];
                     track!(t, data);
+                    keep_alive.push(data);
                 }
 
                 b.iter(|| {
-                    let snapshot = t.snapshot();
-                    black_box(snapshot);
+                    let stats = t.stats();
+                    black_box(stats);
                 });
+
+                std::mem::forget(keep_alive);
             },
         );
     }
@@ -499,9 +507,7 @@ fn benchmark_io_operations(c: &mut Criterion) {
         let t = tracker!();
         let (tx, rx) = channel();
 
-        thread::spawn(move || {
-            while rx.recv().is_ok() {}
-        });
+        thread::spawn(move || while rx.recv().is_ok() {});
 
         b.iter(|| {
             for i in 0..50 {
@@ -540,7 +546,7 @@ fn benchmark_io_operations(c: &mut Criterion) {
                 track!(t, data);
                 counter.fetch_add(1, Ordering::SeqCst);
                 counter.load(Ordering::SeqCst);
-                counter.compare_exchange(i, i + 1, Ordering::SeqCst, Ordering::Relaxed);
+                let _ = counter.compare_exchange(i, i + 1, Ordering::SeqCst, Ordering::Relaxed);
             }
         });
     });
@@ -1017,10 +1023,9 @@ criterion_group!(
     benchmark_track_single,
     benchmark_track_multiple,
     benchmark_tracker_analyze,
-    benchmark_tracker_snapshot,
+    benchmark_tracker_stats,
     benchmark_tracker_clone,
 );
-
 criterion_group!(
     backend_benches,
     benchmark_backend_alloc,
@@ -1053,7 +1058,11 @@ criterion_group!(analysis_benches, benchmark_analysis_operations,);
 
 criterion_group!(stats_benches, benchmark_tracking_stats,);
 
-criterion_group!(io_benches, benchmark_io_operations, benchmark_mixed_operations,);
+criterion_group!(
+    io_benches,
+    benchmark_io_operations,
+    benchmark_mixed_operations,
+);
 
 criterion_group!(stress_benches, benchmark_stress_tests,);
 

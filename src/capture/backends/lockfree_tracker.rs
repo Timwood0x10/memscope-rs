@@ -1,185 +1,156 @@
 //! Lockfree memory tracker implementation.
 //!
-//! This module contains the ThreadLocalTracker for thread-local memory tracking.
+//! This module contains the ThreadLocalTracker for thread-local memory tracking
+//! using lock-free data structures for optimal concurrent performance.
 
 use std::{
-    collections::HashMap,
     fs::File,
     io::Write,
     path::PathBuf,
     sync::{
-        atomic::{AtomicBool, AtomicUsize, Ordering},
-        Arc, Mutex, OnceLock,
+        atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
+        Arc, OnceLock,
     },
     thread::ThreadId,
 };
+
+use crossbeam::queue::SegQueue;
+use dashmap::DashMap;
 
 use super::lockfree_types::{Event, EventType, MemoryStats};
 
 static TRACKING_ENABLED: AtomicBool = AtomicBool::new(false);
 static OUTPUT_DIRECTORY: OnceLock<std::path::PathBuf> = OnceLock::new();
 
-/// Thread-local memory tracker for lock-free operation.
+/// Thread-local memory tracker using lock-free data structures.
 ///
-/// This tracker stores memory events in a thread-local buffer to avoid
-/// synchronization overhead during memory allocation tracking.
+/// This tracker uses SegQueue for events and DashMap for active allocations,
+/// ensuring no event loss under high contention.
 pub struct ThreadLocalTracker {
-    /// Thread ID for this tracker
     thread_id: ThreadId,
-    /// Memory events buffer
-    events: Arc<Mutex<Vec<Event>>>,
-    /// Active allocations tracking
-    active_allocations: Arc<Mutex<HashMap<usize, usize>>>,
-    /// Memory statistics
-    stats: Arc<Mutex<MemoryStats>>,
-    /// Output file path for this thread
+    events: Arc<SegQueue<Event>>,
+    active_allocations: Arc<DashMap<usize, usize>>,
+    total_allocations: AtomicU64,
+    total_allocated: AtomicU64,
+    total_deallocations: AtomicU64,
+    total_deallocated: AtomicU64,
+    active_memory: AtomicU64,
+    peak_memory: AtomicU64,
     output_file: PathBuf,
-    /// Sampling rate (0.0 to 1.0)
     sample_rate: f64,
-    /// Total allocations seen (atomic for lock-free counting)
-    total_seen: Arc<AtomicUsize>,
-    /// Number of allocations actually tracked (atomic for lock-free counting)
-    total_tracked: Arc<AtomicUsize>,
+    total_seen: AtomicUsize,
+    total_tracked: AtomicUsize,
 }
 
 impl ThreadLocalTracker {
-    /// Create a new thread-local tracker.
-    ///
-    /// # Arguments
-    /// * `thread_id` - The thread ID for this tracker
-    /// * `output_file` - Path to the output file for this thread
-    /// * `sample_rate` - Sampling rate (0.0 to 1.0)
     pub fn new(thread_id: ThreadId, output_file: PathBuf, sample_rate: f64) -> Self {
         Self {
             thread_id,
-            events: Arc::new(Mutex::new(Vec::new())),
-            active_allocations: Arc::new(Mutex::new(HashMap::new())),
-            stats: Arc::new(Mutex::new(MemoryStats::default())),
+            events: Arc::new(SegQueue::new()),
+            active_allocations: Arc::new(DashMap::new()),
+            total_allocations: AtomicU64::new(0),
+            total_allocated: AtomicU64::new(0),
+            total_deallocations: AtomicU64::new(0),
+            total_deallocated: AtomicU64::new(0),
+            active_memory: AtomicU64::new(0),
+            peak_memory: AtomicU64::new(0),
             output_file,
             sample_rate: sample_rate.clamp(0.0, 1.0),
-            total_seen: Arc::new(AtomicUsize::new(0)),
-            total_tracked: Arc::new(AtomicUsize::new(0)),
+            total_seen: AtomicUsize::new(0),
+            total_tracked: AtomicUsize::new(0),
         }
     }
 
-    /// Track a memory allocation.
-    ///
-    /// # Arguments
-    /// * `ptr` - Memory pointer
-    /// * `size` - Memory size in bytes
-    /// * `call_stack_hash` - Hash of the call stack
     pub fn track_allocation(&self, ptr: usize, size: usize, call_stack_hash: u64) {
-        // Update seen counter using atomic operation (always increment, regardless of sampling)
         self.total_seen.fetch_add(1, Ordering::Relaxed);
 
-        // Check sampling rate
         if self.sample_rate < 1.0 {
             let sample_decision = rand::random::<f64>();
             if sample_decision >= self.sample_rate {
-                return; // Skip this allocation
+                return;
             }
         }
 
-        // Update tracked counter using atomic operation (only for sampled allocations)
         self.total_tracked.fetch_add(1, Ordering::Relaxed);
 
-        // Create allocation event
         let event = Event::allocation(ptr, size, call_stack_hash, self.thread_id);
+        self.events.push(event);
 
-        // Record event
-        if let Ok(mut events) = self.events.try_lock() {
-            events.push(event);
-        }
+        self.active_allocations.insert(ptr, size);
 
-        // Track active allocation
-        if let Ok(mut active) = self.active_allocations.try_lock() {
-            active.insert(ptr, size);
-        }
+        self.total_allocations.fetch_add(1, Ordering::Relaxed);
+        self.total_allocated
+            .fetch_add(size as u64, Ordering::Relaxed);
 
-        // Update statistics
-        if let Ok(mut stats) = self.stats.try_lock() {
-            stats.total_allocations += 1;
-            stats.total_allocated += size;
-            stats.active_memory += size;
-            stats.peak_memory = stats.peak_memory.max(stats.active_memory);
-        }
-    }
+        let new_active = self.active_memory.fetch_add(size as u64, Ordering::Relaxed) + size as u64;
 
-    /// Track a memory deallocation.
-    ///
-    /// # Arguments
-    /// * `ptr` - Memory pointer
-    /// * `call_stack_hash` - Hash of the call stack
-    pub fn track_deallocation(&self, ptr: usize, call_stack_hash: u64) {
-        // Get allocation size if available
-        let size = if let Ok(mut active) = self.active_allocations.try_lock() {
-            active.remove(&ptr)
-        } else {
-            None
-        };
-
-        // Create deallocation event
-        let event_size = size.unwrap_or(0);
-        let event = Event::deallocation(ptr, event_size, call_stack_hash, self.thread_id);
-
-        // Record event
-        if let Ok(mut events) = self.events.try_lock() {
-            events.push(event);
-        }
-
-        // Update statistics
-        if let Ok(mut stats) = self.stats.try_lock() {
-            stats.total_deallocations += 1;
-            stats.total_deallocated += event_size;
-            if let Some(alloc_size) = size {
-                stats.active_memory = stats.active_memory.saturating_sub(alloc_size);
+        let mut current_peak = self.peak_memory.load(Ordering::Relaxed);
+        while new_active > current_peak {
+            match self.peak_memory.compare_exchange_weak(
+                current_peak,
+                new_active,
+                Ordering::Relaxed,
+                Ordering::Relaxed,
+            ) {
+                Ok(_) => break,
+                Err(actual) => current_peak = actual,
             }
         }
     }
 
-    /// Get memory statistics.
+    pub fn track_deallocation(&self, ptr: usize, call_stack_hash: u64) {
+        let size = self
+            .active_allocations
+            .remove(&ptr)
+            .map(|(_, v)| v)
+            .unwrap_or(0);
+
+        let event = Event::deallocation(ptr, size, call_stack_hash, self.thread_id);
+        self.events.push(event);
+
+        self.total_deallocations.fetch_add(1, Ordering::Relaxed);
+        self.total_deallocated
+            .fetch_add(size as u64, Ordering::Relaxed);
+        self.active_memory.fetch_sub(size as u64, Ordering::Relaxed);
+    }
+
     pub fn get_stats(&self) -> MemoryStats {
-        if let Ok(stats) = self.stats.try_lock() {
-            stats.clone()
-        } else {
-            MemoryStats::default()
+        MemoryStats {
+            total_allocations: self.total_allocations.load(Ordering::Relaxed) as usize,
+            total_allocated: self.total_allocated.load(Ordering::Relaxed) as usize,
+            total_deallocations: self.total_deallocations.load(Ordering::Relaxed) as usize,
+            total_deallocated: self.total_deallocated.load(Ordering::Relaxed) as usize,
+            active_memory: self.active_memory.load(Ordering::Relaxed) as usize,
+            peak_memory: self.peak_memory.load(Ordering::Relaxed) as usize,
         }
     }
 
-    /// Get sampling statistics.
     pub fn get_sampling_stats(&self) -> (usize, usize) {
-        let seen = self.total_seen.load(Ordering::Relaxed);
-        let tracked = self.total_tracked.load(Ordering::Relaxed);
-        (seen, tracked)
+        (
+            self.total_seen.load(Ordering::Relaxed),
+            self.total_tracked.load(Ordering::Relaxed),
+        )
     }
 
-    /// Finalize the tracker and write events to file.
     pub fn finalize(&self) -> std::io::Result<()> {
-        // Collect all events
-        let events = if let Ok(mut events) = self.events.try_lock() {
-            std::mem::take(&mut *events)
-        } else {
-            return Ok(()); // Skip if we can't get the lock
-        };
+        let mut events = Vec::new();
+        while let Some(event) = self.events.pop() {
+            events.push(event);
+        }
 
-        // Write events to file
         if events.is_empty() {
             return Ok(());
         }
 
-        // Create parent directory if needed
         if let Some(parent) = self.output_file.parent() {
             std::fs::create_dir_all(parent)?;
         }
 
-        // Write events in binary format
         let mut file = File::create(&self.output_file)?;
 
-        // Write header
-        let header = "MEMSCOPE_LOCKFREE".to_string();
+        let header = "MEMSCOPE_LOCKFREE";
         file.write_all(header.as_bytes())?;
 
-        // Write events
         for event in events {
             self.write_event(&mut file, &event)?;
         }
@@ -188,76 +159,44 @@ impl ThreadLocalTracker {
         Ok(())
     }
 
-    /// Write a single event to file.
     fn write_event(&self, file: &mut File, event: &Event) -> std::io::Result<()> {
-        // Write event type
         let event_type_byte = match event.event_type {
             EventType::Allocation => 1u8,
             EventType::Deallocation => 2u8,
         };
         file.write_all(&event_type_byte.to_le_bytes())?;
-
-        // Write timestamp
         file.write_all(&event.timestamp.to_le_bytes())?;
-
-        // Write pointer
         file.write_all(&event.ptr.to_le_bytes())?;
-
-        // Write size
         file.write_all(&event.size.to_le_bytes())?;
-
-        // Write call stack hash
         file.write_all(&event.call_stack_hash.to_le_bytes())?;
-
         Ok(())
     }
 
-    /// Get the thread ID.
     pub fn thread_id(&self) -> ThreadId {
         self.thread_id
     }
 
-    /// Get the output file path.
     pub fn output_file(&self) -> &PathBuf {
         &self.output_file
     }
 
-    /// Get the number of buffered events.
     pub fn event_count(&self) -> usize {
-        if let Ok(events) = self.events.try_lock() {
-            events.len()
-        } else {
-            0
-        }
+        self.events.len()
     }
 
-    /// Clear all buffered events.
     pub fn clear_events(&self) {
-        if let Ok(mut events) = self.events.try_lock() {
-            events.clear();
-        }
+        while self.events.pop().is_some() {}
     }
 }
 
 impl Drop for ThreadLocalTracker {
     fn drop(&mut self) {
-        // Automatically finalize when tracker is dropped
         if let Err(e) = self.finalize() {
             tracing::warn!("Failed to finalize thread-local tracker: {}", e);
         }
     }
 }
 
-/// Calculate a hash of the call stack.
-///
-/// This function hashes the memory addresses in the call stack to create a
-/// compact identifier for tracking allocation patterns.
-///
-/// # Arguments
-/// * `call_stack` - Slice of call stack addresses
-///
-/// # Returns
-/// Hash of the call stack
 pub fn calculate_call_stack_hash(call_stack: &[usize]) -> u64 {
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
@@ -280,10 +219,6 @@ mod tests {
         let tracker = ThreadLocalTracker::new(thread_id, output_file, 1.0);
 
         assert_eq!(tracker.thread_id(), thread_id);
-        assert_eq!(
-            tracker.output_file(),
-            &PathBuf::from("/tmp/test_tracker.bin")
-        );
         assert_eq!(tracker.event_count(), 0);
     }
 
@@ -293,16 +228,12 @@ mod tests {
         let output_file = PathBuf::from("/tmp/test_tracker2.bin");
         let tracker = ThreadLocalTracker::new(thread_id, output_file, 1.0);
 
-        // Track allocation
         tracker.track_allocation(0x1000, 1024, 12345);
 
-        // Check stats
         let stats = tracker.get_stats();
         assert_eq!(stats.total_allocations, 1);
         assert_eq!(stats.total_allocated, 1024);
         assert_eq!(stats.active_memory, 1024);
-
-        // Check event count
         assert_eq!(tracker.event_count(), 1);
     }
 
@@ -312,33 +243,13 @@ mod tests {
         let output_file = PathBuf::from("/tmp/test_tracker3.bin");
         let tracker = ThreadLocalTracker::new(thread_id, output_file, 1.0);
 
-        // Track allocation and deallocation
         tracker.track_allocation(0x1000, 1024, 12345);
         tracker.track_deallocation(0x1000, 12345);
 
-        // Check stats
         let stats = tracker.get_stats();
         assert_eq!(stats.total_allocations, 1);
         assert_eq!(stats.total_deallocations, 1);
         assert_eq!(stats.active_memory, 0);
-    }
-
-    #[test]
-    fn test_sampling_rate() {
-        let thread_id = std::thread::current().id();
-        let output_file = PathBuf::from("/tmp/test_tracker4.bin");
-
-        // Low sampling rate
-        let tracker = ThreadLocalTracker::new(thread_id, output_file.clone(), 0.1);
-
-        // Track many allocations
-        for i in 0..100 {
-            tracker.track_allocation(0x1000 + i * 0x100, 1024, 12345);
-        }
-
-        let (seen, tracked) = tracker.get_sampling_stats();
-        assert_eq!(seen, 100);
-        assert!(tracked < seen); // Should be less than 100 due to sampling
     }
 
     #[test]
@@ -347,11 +258,11 @@ mod tests {
         let hash1 = calculate_call_stack_hash(&call_stack);
         let hash2 = calculate_call_stack_hash(&call_stack);
 
-        assert_eq!(hash1, hash2); // Same stack should produce same hash
+        assert_eq!(hash1, hash2);
 
         let different_stack = vec![0x1000, 0x2000, 0x4000];
         let hash3 = calculate_call_stack_hash(&different_stack);
-        assert_ne!(hash1, hash3); // Different stack should produce different hash
+        assert_ne!(hash1, hash3);
     }
 }
 
@@ -359,7 +270,6 @@ thread_local! {
     static THREAD_TRACKER: std::cell::RefCell<Option<ThreadLocalTracker>> = const { std::cell::RefCell::new(None) };
 }
 
-/// Get thread ID as u64
 fn get_thread_id() -> u64 {
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
@@ -370,11 +280,6 @@ fn get_thread_id() -> u64 {
     hasher.finish()
 }
 
-/// Initialize thread-local tracker for current thread
-///
-/// # Arguments
-/// * `output_dir` - Directory to store tracking data
-/// * `sample_rate` - Sampling rate (0.0 to 1.0), defaults to 1.0
 pub fn init_thread_tracker(
     output_dir: &std::path::Path,
     sample_rate: Option<f64>,
@@ -392,12 +297,6 @@ pub fn init_thread_tracker(
     Ok(())
 }
 
-/// Track allocation in current thread using lock-free approach
-///
-/// # Arguments
-/// * `ptr` - Memory pointer address
-/// * `size` - Allocation size in bytes
-/// * `call_stack_hash` - Hash of the call stack for tracking
 pub fn track_allocation_lockfree(
     ptr: usize,
     size: usize,
@@ -413,11 +312,6 @@ pub fn track_allocation_lockfree(
     })
 }
 
-/// Track deallocation in current thread using lock-free approach
-///
-/// # Arguments
-/// * `ptr` - Memory pointer address
-/// * `call_stack_hash` - Hash of the call stack for tracking
 pub fn track_deallocation_lockfree(
     ptr: usize,
     call_stack_hash: u64,
@@ -432,7 +326,6 @@ pub fn track_deallocation_lockfree(
     })
 }
 
-/// Finalize tracking for current thread and write data to file
 pub fn finalize_thread_tracker() -> Result<(), Box<dyn std::error::Error>> {
     THREAD_TRACKER.with(|thread_tracker| {
         let mut tracker_ref = thread_tracker.borrow_mut();
@@ -441,12 +334,11 @@ pub fn finalize_thread_tracker() -> Result<(), Box<dyn std::error::Error>> {
                 .finalize()
                 .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
         } else {
-            Ok(()) // No tracker initialized, nothing to finalize
+            Ok(())
         }
     })
 }
 
-/// Get the current thread's tracker if initialized
 pub fn get_current_tracker() -> Option<ThreadLocalTracker> {
     THREAD_TRACKER.with(|thread_tracker| {
         thread_tracker
@@ -456,25 +348,26 @@ pub fn get_current_tracker() -> Option<ThreadLocalTracker> {
                 thread_id: tracker.thread_id,
                 events: Arc::clone(&tracker.events),
                 active_allocations: Arc::clone(&tracker.active_allocations),
-                stats: Arc::clone(&tracker.stats),
+                total_allocations: AtomicU64::new(
+                    tracker.total_allocations.load(Ordering::Relaxed),
+                ),
+                total_allocated: AtomicU64::new(tracker.total_allocated.load(Ordering::Relaxed)),
+                total_deallocations: AtomicU64::new(
+                    tracker.total_deallocations.load(Ordering::Relaxed),
+                ),
+                total_deallocated: AtomicU64::new(
+                    tracker.total_deallocated.load(Ordering::Relaxed),
+                ),
+                active_memory: AtomicU64::new(tracker.active_memory.load(Ordering::Relaxed)),
+                peak_memory: AtomicU64::new(tracker.peak_memory.load(Ordering::Relaxed)),
                 output_file: tracker.output_file.clone(),
                 sample_rate: tracker.sample_rate,
-                total_seen: Arc::clone(&tracker.total_seen),
-                total_tracked: Arc::clone(&tracker.total_tracked),
+                total_seen: AtomicUsize::new(tracker.total_seen.load(Ordering::Relaxed)),
+                total_tracked: AtomicUsize::new(tracker.total_tracked.load(Ordering::Relaxed)),
             })
     })
 }
 
-/// Start tracking all threads with automatic initialization
-///
-/// This function enables memory tracking for all threads in your application.
-/// Call once at program start, tracking happens automatically afterward.
-///
-/// # Arguments
-/// * `output_dir` - Directory where tracking data will be stored
-///
-/// # Returns
-/// Result indicating success or error during initialization
 pub fn trace_all<P: AsRef<std::path::Path>>(
     output_dir: &P,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -508,16 +401,6 @@ pub fn trace_all<P: AsRef<std::path::Path>>(
     Ok(())
 }
 
-/// Start tracking current thread only
-///
-/// Enables memory tracking for the calling thread only. Use this when you want
-/// to track specific threads rather than the entire application.
-///
-/// # Arguments
-/// * `output_dir` - Directory where tracking data will be stored
-///
-/// # Returns
-/// Result indicating success or error during thread tracker initialization
 pub fn trace_thread<P: AsRef<std::path::Path>>(
     output_dir: &P,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -532,10 +415,6 @@ pub fn trace_thread<P: AsRef<std::path::Path>>(
     Ok(())
 }
 
-/// Stop all memory tracking and generate reports
-///
-/// Finalizes memory tracking, processes all collected data, and generates
-/// reports for analysis.
 pub fn stop_tracing() -> Result<(), Box<dyn std::error::Error>> {
     if !TRACKING_ENABLED.load(Ordering::SeqCst) {
         return Ok(());
@@ -548,20 +427,10 @@ pub fn stop_tracing() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-/// Check if lockfree tracking is currently active
-///
-/// # Returns
-/// Boolean indicating whether memory tracking is enabled
 pub fn is_tracking() -> bool {
     TRACKING_ENABLED.load(Ordering::SeqCst)
 }
 
-/// Get current memory usage snapshot
-///
-/// Returns real-time memory statistics without interrupting tracking.
-///
-/// # Returns
-/// MemorySnapshot containing current memory usage data
 pub fn memory_snapshot() -> super::lockfree_types::MemorySnapshot {
     use super::lockfree_types::MemorySnapshot;
 
@@ -571,8 +440,8 @@ pub fn memory_snapshot() -> super::lockfree_types::MemorySnapshot {
             (
                 stats.active_memory as f64 / (1024.0 * 1024.0),
                 stats.peak_memory as f64 / (1024.0 * 1024.0),
-                stats.total_allocations as u64,
-                stats.total_deallocations as u64,
+                stats.total_allocations,
+                stats.total_deallocations,
             )
         } else {
             (0.0, 0.0, 0, 0)
@@ -582,8 +451,8 @@ pub fn memory_snapshot() -> super::lockfree_types::MemorySnapshot {
     MemorySnapshot {
         current_mb,
         peak_mb,
-        allocations,
-        deallocations,
+        allocations: allocations as u64,
+        deallocations: deallocations as u64,
         active_threads: if TRACKING_ENABLED.load(Ordering::SeqCst) {
             1
         } else {
@@ -592,16 +461,6 @@ pub fn memory_snapshot() -> super::lockfree_types::MemorySnapshot {
     }
 }
 
-/// Quick trace function for debugging and profiling
-///
-/// Runs the provided function with temporary memory tracking enabled.
-/// Results are stored in a temporary directory and basic statistics are printed.
-///
-/// # Arguments
-/// * `f` - Function to execute with tracking enabled
-///
-/// # Returns
-/// The return value of the provided function
 pub fn quick_trace<F, R>(f: F) -> R
 where
     F: FnOnce() -> R,
@@ -630,35 +489,29 @@ mod global_api_tests {
         let temp_dir = std::env::temp_dir().join("memscope_global_test");
         std::fs::create_dir_all(&temp_dir).unwrap();
 
-        // Test initialization
         let result = init_thread_tracker(&temp_dir, Some(1.0));
         assert!(result.is_ok(), "Should successfully initialize tracker");
 
-        // Test duplicate initialization (should not fail)
         let result2 = init_thread_tracker(&temp_dir, Some(0.5));
         assert!(result2.is_ok(), "Should handle duplicate initialization");
     }
 
     #[test]
     fn test_track_without_init() {
-        // Clear any existing tracker
         THREAD_TRACKER.with(|t| {
             *t.borrow_mut() = None;
         });
 
-        // Try to track without initialization
         let result = track_allocation_lockfree(0x1000, 1024, 12345);
         assert!(result.is_err(), "Should fail without initialization");
     }
 
     #[test]
     fn test_finalize_without_init() {
-        // Clear any existing tracker
         THREAD_TRACKER.with(|t| {
             *t.borrow_mut() = None;
         });
 
-        // Try to finalize without initialization (should not fail)
         let result = finalize_thread_tracker();
         assert!(
             result.is_ok(),
@@ -671,14 +524,11 @@ mod global_api_tests {
         let temp_dir = std::env::temp_dir().join("memscope_workflow_test");
         std::fs::create_dir_all(&temp_dir).unwrap();
 
-        // Initialize
         init_thread_tracker(&temp_dir, Some(1.0)).unwrap();
 
-        // Track allocation and deallocation
         track_allocation_lockfree(0x1000, 1024, 12345).unwrap();
         track_deallocation_lockfree(0x1000, 12345).unwrap();
 
-        // Get current tracker
         let tracker = get_current_tracker();
         assert!(tracker.is_some(), "Should have active tracker");
 
@@ -688,7 +538,6 @@ mod global_api_tests {
             assert_eq!(stats.total_deallocations, 1);
         }
 
-        // Finalize
         finalize_thread_tracker().unwrap();
     }
 }

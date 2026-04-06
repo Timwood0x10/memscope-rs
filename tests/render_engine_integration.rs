@@ -76,8 +76,14 @@ fn test_export_json_options_custom() {
 #[test]
 fn test_memory_snapshot_new() {
     let snapshot = MemorySnapshot::new();
-    assert!(snapshot.active_allocations.is_empty(), "New snapshot should have no allocations");
-    assert!(snapshot.timestamp > 0, "Snapshot should have valid timestamp");
+    assert!(
+        snapshot.active_allocations.is_empty(),
+        "New snapshot should have no allocations"
+    );
+    assert!(
+        snapshot.timestamp > 0,
+        "Snapshot should have valid timestamp"
+    );
 }
 
 #[test]
@@ -103,10 +109,10 @@ fn test_tracker_snapshot_captures_allocations() {
     track!(t, vec![1u8; 100]);
     track!(t, vec![2u8; 200]);
 
-    let snapshot = t.snapshot();
+    let stats = t.stats();
     assert!(
-        snapshot.total_allocations > 0,
-        "Snapshot should capture allocations"
+        stats.total_allocations > 0,
+        "Stats should capture allocations"
     );
 }
 
@@ -119,7 +125,10 @@ fn test_tracker_analyze_returns_valid_report() {
 
     let report = t.analyze();
     assert!(report.total_allocations > 0);
-    assert!(report.current_memory_bytes > 0, "Current memory should be tracked");
+    assert!(
+        report.current_memory_bytes > 0,
+        "Current memory should be tracked"
+    );
 }
 
 #[test]
@@ -312,7 +321,7 @@ fn test_analyze_detects_hotspots_by_size() {
 
     let largest = report.hotspots.iter().max_by_key(|h| h.total_size);
     assert!(
-        largest.map_or(false, |h| h.total_size >= 5000),
+        largest.is_some_and(|h| h.total_size >= 5000),
         "Largest hotspot should be at least 5000 bytes"
     );
 }

@@ -217,10 +217,16 @@ fn test_analysis_manager_empty_allocations() {
     let empty: Vec<AllocationInfo> = vec![];
 
     let frag = manager.analyze_fragmentation(&empty);
-    assert_eq!(frag.fragmentation_ratio, 0.0, "Empty allocations should have 0 fragmentation");
+    assert_eq!(
+        frag.fragmentation_ratio, 0.0,
+        "Empty allocations should have 0 fragmentation"
+    );
 
     let libs = manager.analyze_system_libraries(&empty);
-    assert_eq!(libs.std_collections.allocation_count, 0, "Empty allocations should have no std collections");
+    assert_eq!(
+        libs.std_collections.allocation_count, 0,
+        "Empty allocations should have no std collections"
+    );
 }
 
 #[test]
@@ -245,7 +251,10 @@ fn test_analysis_manager_comprehensive_analysis() {
     let stats = MemoryStats::new();
 
     let report = manager.perform_comprehensive_analysis(&allocations, &stats);
-    assert!(report.analysis_timestamp > 0, "Report should have valid timestamp");
+    assert!(
+        report.analysis_timestamp > 0,
+        "Report should have valid timestamp"
+    );
 }
 
 #[test]
@@ -254,7 +263,10 @@ fn test_analysis_manager_circular_reference_analysis() {
     let allocations = create_test_allocations();
 
     let result = manager.analyze_circular_references(&allocations);
-    assert_eq!(result.total_smart_pointers, 0, "Basic allocations should have no smart pointers");
+    assert_eq!(
+        result.total_smart_pointers, 0,
+        "Basic allocations should have no smart pointers"
+    );
 }
 
 #[test]
@@ -275,7 +287,10 @@ fn test_analysis_manager_generic_type_analysis() {
     let allocations = create_test_allocations();
 
     let result = manager.analyze_generic_types(&allocations);
-    assert_eq!(result.total_instances, 0, "Basic allocations should have no generic instances");
+    assert_eq!(
+        result.total_instances, 0,
+        "Basic allocations should have no generic instances"
+    );
 }
 
 #[test]
@@ -324,7 +339,10 @@ fn test_single_allocation_analysis() {
     let allocations = vec![AllocationInfo::new(0x1000, 1024)];
 
     let frag = manager.analyze_fragmentation(&allocations);
-    assert_eq!(frag.fragmentation_ratio, 0.0, "Single allocation should have 0 fragmentation");
+    assert_eq!(
+        frag.fragmentation_ratio, 0.0,
+        "Single allocation should have 0 fragmentation"
+    );
 }
 
 #[test]

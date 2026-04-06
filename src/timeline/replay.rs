@@ -42,11 +42,18 @@ impl TimelineReplay {
         self.position = 0;
     }
 
-    /// Replay all events until a specific timestamp
+    /// Replay all events until a specific timestamp, advancing the position.
+    ///
+    /// **Note**: This method consumes events up to the timestamp. After calling,
+    /// the replay position is advanced and those events cannot be replayed again.
+    /// Use `get_events_between()` for non-consuming queries.
     ///
     /// # Arguments
     /// * `timestamp` - The timestamp to replay until
-    pub fn replay_until(&mut self, timestamp: u64) -> Vec<MemoryEvent> {
+    ///
+    /// # Returns
+    /// Vector of events up to (but not including) the specified timestamp
+    pub fn advance_until(&mut self, timestamp: u64) -> Vec<MemoryEvent> {
         let mut result = Vec::new();
         for event in self.by_ref() {
             if event.timestamp > timestamp {
@@ -55,6 +62,15 @@ impl TimelineReplay {
             result.push(event);
         }
         result
+    }
+
+    /// Replay all events until a specific timestamp (deprecated: use advance_until).
+    #[deprecated(
+        since = "0.1.12",
+        note = "Use `advance_until()` instead. This method consumes events and advances the replay position."
+    )]
+    pub fn replay_until(&mut self, timestamp: u64) -> Vec<MemoryEvent> {
+        self.advance_until(timestamp)
     }
 
     /// Get all events between two timestamps

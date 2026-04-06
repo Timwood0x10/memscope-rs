@@ -563,6 +563,21 @@ impl<'de> Deserialize<'de> for AllocationInfo {
             borrow_info: Option<BorrowInfo>,
             clone_info: Option<CloneInfo>,
             ownership_history_available: Option<bool>,
+            smart_pointer_info: Option<SmartPointerInfo>,
+            memory_layout: Option<MemoryLayoutInfo>,
+            generic_info: Option<GenericTypeInfo>,
+            dynamic_type_info: Option<DynamicTypeInfo>,
+            runtime_state: Option<RuntimeStateInfo>,
+            stack_allocation: Option<StackAllocationInfo>,
+            temporary_object: Option<TemporaryObjectInfo>,
+            fragmentation_analysis: Option<EnhancedFragmentationAnalysis>,
+            generic_instantiation: Option<GenericInstantiationInfo>,
+            type_relationships: Option<TypeRelationshipInfo>,
+            type_usage: Option<TypeUsageInfo>,
+            function_call_tracking: Option<FunctionCallTrackingInfo>,
+            lifecycle_tracking: Option<ObjectLifecycleInfo>,
+            access_tracking: Option<MemoryAccessTrackingInfo>,
+            drop_chain_analysis: Option<DropChainAnalysis>,
         }
 
         let helper = AllocationInfoHelper::deserialize(deserializer)?;
@@ -591,21 +606,21 @@ impl<'de> Deserialize<'de> for AllocationInfo {
             borrow_info: helper.borrow_info,
             clone_info: helper.clone_info,
             ownership_history_available: helper.ownership_history_available.unwrap_or(false),
-            smart_pointer_info: None,
-            memory_layout: None,
-            generic_info: None,
-            dynamic_type_info: None,
-            runtime_state: None,
-            stack_allocation: None,
-            temporary_object: None,
-            fragmentation_analysis: None,
-            generic_instantiation: None,
-            type_relationships: None,
-            type_usage: None,
-            function_call_tracking: None,
-            lifecycle_tracking: None,
-            access_tracking: None,
-            drop_chain_analysis: None,
+            smart_pointer_info: helper.smart_pointer_info,
+            memory_layout: helper.memory_layout,
+            generic_info: helper.generic_info,
+            dynamic_type_info: helper.dynamic_type_info,
+            runtime_state: helper.runtime_state,
+            stack_allocation: helper.stack_allocation,
+            temporary_object: helper.temporary_object,
+            fragmentation_analysis: helper.fragmentation_analysis,
+            generic_instantiation: helper.generic_instantiation,
+            type_relationships: helper.type_relationships,
+            type_usage: helper.type_usage,
+            function_call_tracking: helper.function_call_tracking,
+            lifecycle_tracking: helper.lifecycle_tracking,
+            access_tracking: helper.access_tracking,
+            drop_chain_analysis: helper.drop_chain_analysis,
         })
     }
 }
@@ -647,18 +662,13 @@ impl AllocationInfo {
             stack_trace: None,
             is_leaked: false,
             lifetime_ms: Some(1), // Default: 1ms (just allocated)
-            borrow_info: Some(BorrowInfo {
-                immutable_borrows: 2,
-                mutable_borrows: 1,
-                max_concurrent_borrows: 2,
-                last_borrow_timestamp: Some(timestamp + 500000),
-            }),
+            borrow_info: None,    // No borrow info available by default
             clone_info: Some(CloneInfo {
                 clone_count: 0,
                 is_clone: false,
                 original_ptr: None,
             }),
-            ownership_history_available: true,
+            ownership_history_available: false, // Not available without tracking
             smart_pointer_info: None,
             memory_layout: None,
             generic_info: None,
@@ -960,9 +970,9 @@ mod tests {
         assert_eq!(info.ptr, 0x12345678);
         assert_eq!(info.size, 1024);
         assert!(info.is_active());
-        assert!(info.borrow_info.is_some());
+        assert!(info.borrow_info.is_none());
         assert!(info.clone_info.is_some());
-        assert!(info.ownership_history_available);
+        assert!(!info.ownership_history_available);
     }
 
     #[test]

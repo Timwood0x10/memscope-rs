@@ -100,20 +100,47 @@ impl MemoryTracker {
         self.total_allocated
             .fetch_add(size as u64, Ordering::Relaxed);
 
-        // Update peak allocations
-        let current_count = self.active_allocations.len();
-        let current_peak = self.peak_allocations.load(Ordering::Relaxed);
-        if current_count > current_peak {
-            self.peak_allocations
-                .store(current_count, Ordering::Relaxed);
+        // Update peak allocations using CAS loop to avoid TOCTOU race
+        loop {
+            let current_count = self.active_allocations.len();
+            let current_peak = self.peak_allocations.load(Ordering::Relaxed);
+            if current_count <= current_peak {
+                break;
+            }
+            if self
+                .peak_allocations
+                .compare_exchange_weak(
+                    current_peak,
+                    current_count,
+                    Ordering::Relaxed,
+                    Ordering::Relaxed,
+                )
+                .is_ok()
+            {
+                break;
+            }
         }
 
-        // Update peak memory
-        let current_memory = self.total_allocated.load(Ordering::Relaxed)
-            - self.total_deallocated.load(Ordering::Relaxed);
-        let current_peak_memory = self.peak_memory.load(Ordering::Relaxed);
-        if current_memory > current_peak_memory {
-            self.peak_memory.store(current_memory, Ordering::Relaxed);
+        // Update peak memory using CAS loop
+        loop {
+            let current_memory = self.total_allocated.load(Ordering::Relaxed)
+                - self.total_deallocated.load(Ordering::Relaxed);
+            let current_peak_memory = self.peak_memory.load(Ordering::Relaxed);
+            if current_memory <= current_peak_memory {
+                break;
+            }
+            if self
+                .peak_memory
+                .compare_exchange_weak(
+                    current_peak_memory,
+                    current_memory,
+                    Ordering::Relaxed,
+                    Ordering::Relaxed,
+                )
+                .is_ok()
+            {
+                break;
+            }
         }
 
         Ok(())
@@ -123,16 +150,41 @@ impl MemoryTracker {
     ///
     /// # Arguments
     /// * `ptr` - Memory pointer address
-    pub fn track_deallocation(&self, ptr: usize) -> TrackingResult<()> {
+    ///
+    /// # Returns
+    /// * `Ok(true)` if the allocation was found and removed
+    /// * `Ok(false)` if the pointer was not tracked (possible double-free or untracked allocation)
+    pub fn track_deallocation(&self, ptr: usize) -> TrackingResult<bool> {
         // Remove from DashMap (lock-free)
         if let Some((_, allocation)) = self.active_allocations.remove(&ptr) {
             // Update atomic statistics (lock-free)
             self.total_deallocations.fetch_add(1, Ordering::Relaxed);
             self.total_deallocated
                 .fetch_add(allocation.size as u64, Ordering::Relaxed);
+            Ok(true)
+        } else {
+            // Pointer not found - could be double-free or untracked allocation
+            // Log warning in debug mode
+            #[cfg(debug_assertions)]
+            eprintln!(
+                "[memscope] Warning: deallocation called for untracked pointer {:x}. \
+                 This may indicate a double-free or memory not tracked by memscope.",
+                ptr
+            );
+            Ok(false)
         }
+    }
 
-        Ok(())
+    /// Get the size of an active allocation.
+    ///
+    /// # Arguments
+    /// * `ptr` - Memory pointer address
+    ///
+    /// # Returns
+    /// * `Some(size)` if the allocation exists
+    /// * `None` if the pointer is not tracked
+    pub fn get_allocation_size(&self, ptr: usize) -> Option<usize> {
+        self.active_allocations.get(&ptr).map(|a| a.size)
     }
 
     /// Associate a variable name and type with an allocation.
@@ -193,7 +245,7 @@ impl MemoryTracker {
         let active_count = self.active_allocations.len();
         let total_allocated = self.total_allocated.load(Ordering::Relaxed);
         let total_deallocated = self.total_deallocated.load(Ordering::Relaxed);
-        let active_memory = total_allocated - total_deallocated;
+        let active_memory = total_allocated.saturating_sub(total_deallocated);
 
         Ok(MemoryStats {
             total_allocations: self.total_allocations.load(Ordering::Relaxed),
@@ -204,9 +256,22 @@ impl MemoryTracker {
             peak_memory: self.peak_memory.load(Ordering::Relaxed),
             total_deallocations: self.total_deallocations.load(Ordering::Relaxed),
             total_deallocated,
-            leaked_allocations: active_count,
-            leaked_memory: active_memory,
+            leaked_allocations: 0,
+            leaked_memory: 0,
         })
+    }
+
+    /// Detect memory leaks at program shutdown.
+    ///
+    /// This should be called when the program is shutting down to detect
+    /// allocations that were never freed. Returns the count and total size
+    /// of allocations that are still active.
+    pub fn detect_leaks(&self) -> (usize, u64) {
+        let active_count = self.active_allocations.len();
+        let total_allocated = self.total_allocated.load(Ordering::Relaxed);
+        let total_deallocated = self.total_deallocated.load(Ordering::Relaxed);
+        let active_memory = total_allocated.saturating_sub(total_deallocated);
+        (active_count, active_memory)
     }
 
     /// Get all currently active allocations.
@@ -219,12 +284,16 @@ impl MemoryTracker {
     }
 
     /// Get allocation history (all allocations, including deallocated).
+    ///
+    /// Note: Currently returns only active allocations. Full history tracking
+    /// requires enabling the `tracking-allocator` feature and may have performance impact.
+    /// Use `get_active_allocations()` for the same result without the misleading name.
+    #[deprecated(
+        since = "0.1.11",
+        note = "Use `get_active_allocations()` instead. This method currently returns the same data but with a misleading name."
+    )]
     pub fn get_allocation_history(&self) -> TrackingResult<Vec<AllocationInfo>> {
-        Ok(self
-            .active_allocations
-            .iter()
-            .map(|entry| entry.value().clone())
-            .collect())
+        self.get_active_allocations()
     }
 
     /// Get memory grouped by type.
@@ -418,6 +487,19 @@ pub fn get_registry_stats_local() -> ThreadRegistryStats {
 }
 
 /// Cleanup dead thread references from the registry.
+///
+/// # Warning
+/// This function is deprecated and dangerous. It removes ALL trackers from threads
+/// other than the current thread, regardless of whether those threads are still alive.
+/// This will break multi-threaded tracking. Use with extreme caution.
+///
+/// # Safety
+/// Only call this when you are certain no other threads are using their trackers,
+/// such as during application shutdown.
+#[deprecated(
+    since = "0.1.11",
+    note = "This function removes ALL non-current thread trackers, breaking multi-threaded tracking. Only use during shutdown."
+)]
 pub fn cleanup_registry_local() {
     let registry = get_local_registry();
     let current_thread_id = thread::current().id();

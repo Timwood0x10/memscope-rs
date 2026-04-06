@@ -35,13 +35,14 @@ pub fn simplify_type_name(type_name: &str) -> (String, String) {
     if clean_type.contains("Vec<") || clean_type.contains("vec::Vec") {
         let inner = extract_generic_type(clean_type, "Vec");
         (format!("Vec<{inner}>"), "Collections".to_string())
-    } else if clean_type.contains("String") || clean_type.contains("string::String") {
-        ("String".to_string(), "Basic Types".to_string())
     } else if clean_type.contains("Box<") || clean_type.contains("boxed::Box") {
         let inner = extract_generic_type(clean_type, "Box");
-        // Check if the inner type is a collection - if so, categorize as collection
         if inner.contains("HashMap") || inner.contains("hash_map") {
-            ("HashMap<K,V>".to_string(), "Collections".to_string())
+            if inner.contains("String") || inner.contains("string::String") {
+                ("String".to_string(), "Basic Types".to_string())
+            } else {
+                ("HashMap<K,V>".to_string(), "Collections".to_string())
+            }
         } else if inner.contains("BTreeMap") || inner.contains("btree_map") {
             ("BTreeMap<K,V>".to_string(), "Collections".to_string())
         } else if inner.contains("BTreeSet") || inner.contains("btree_set") {
@@ -53,15 +54,27 @@ pub fn simplify_type_name(type_name: &str) -> (String, String) {
         } else if inner.contains("Vec") || inner.contains("vec::Vec") {
             let vec_inner = extract_generic_type(&inner, "Vec");
             (format!("Vec<{vec_inner}>"), "Collections".to_string())
+        } else if inner.contains("String") || inner.contains("string::String") {
+            ("String".to_string(), "Basic Types".to_string())
         } else {
             (format!("Box<{inner}>"), "Smart Pointers".to_string())
         }
     } else if clean_type.contains("Rc<") || clean_type.contains("rc::Rc") {
         let inner = extract_generic_type(clean_type, "Rc");
-        (format!("Rc<{inner}>"), "Smart Pointers".to_string())
+        if inner.contains("String") || inner.contains("string::String") {
+            ("String".to_string(), "Basic Types".to_string())
+        } else {
+            (format!("Rc<{inner}>"), "Smart Pointers".to_string())
+        }
     } else if clean_type.contains("Arc<") || clean_type.contains("sync::Arc") {
         let inner = extract_generic_type(clean_type, "Arc");
-        (format!("Arc<{inner}>"), "Smart Pointers".to_string())
+        if inner.contains("String") || inner.contains("string::String") {
+            ("String".to_string(), "Basic Types".to_string())
+        } else {
+            (format!("Arc<{inner}>"), "Smart Pointers".to_string())
+        }
+    } else if clean_type.contains("String") || clean_type.contains("string::String") {
+        ("String".to_string(), "Basic Types".to_string())
     } else if clean_type.contains("HashMap") || clean_type.contains("hash_map") {
         ("HashMap<K,V>".to_string(), "Collections".to_string())
     } else if clean_type.contains("BTreeMap") || clean_type.contains("btree_map") {

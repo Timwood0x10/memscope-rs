@@ -284,7 +284,6 @@ impl UnifiedBackend {
             .unwrap_or(1);
 
         let environment = match (async_runtime, thread_count) {
-            (Some(runtime_type), 0) => RuntimeEnvironment::AsyncRuntime { runtime_type },
             (Some(runtime_type), 1) => RuntimeEnvironment::AsyncRuntime { runtime_type },
             (Some(_runtime_type), threads) => RuntimeEnvironment::Hybrid {
                 thread_count: threads,
@@ -638,12 +637,17 @@ pub trait MemoryTracker: Send + Sync {
 }
 
 /// Central dispatcher for tracking operations.
+///
+/// **Note**: This struct is currently unused but reserved for future versions
+/// where it will handle automatic strategy selection based on runtime environment.
+#[allow(dead_code)]
 pub struct TrackingDispatcher {
     active_strategy: Option<TrackingStrategy>,
     config: DispatcherConfig,
     metrics: DispatcherMetrics,
 }
 
+#[allow(dead_code)]
 impl TrackingDispatcher {
     /// Create new tracking dispatcher.
     pub fn new(config: DispatcherConfig) -> Self {

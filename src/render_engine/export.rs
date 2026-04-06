@@ -48,7 +48,22 @@ impl SchemaValidator {
         self
     }
 
-    pub fn validate(&self, _data: &serde_json::Value) -> Result<(), String> {
+    pub fn validate(&self, data: &serde_json::Value) -> Result<(), String> {
+        if !data.is_object() {
+            return Err("Export data must be a JSON object".to_string());
+        }
+
+        let obj = data.as_object().ok_or("Invalid JSON object")?;
+
+        if self.strict_mode {
+            let required_fields = ["timestamp", "allocations", "stats"];
+            for field in &required_fields {
+                if !obj.contains_key(*field) {
+                    return Err(format!("Missing required field: {}", field));
+                }
+            }
+        }
+
         Ok(())
     }
 }
@@ -151,15 +166,28 @@ pub fn export_snapshot_to_json(
     output_path: &Path,
     options: &ExportJsonOptions,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    std::fs::create_dir_all(output_path)?;
+    // Create parent directory if it doesn't exist
+    if let Some(parent) = output_path.parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent)?;
+        }
+    }
 
     let allocations: Vec<&ActiveAllocation> = snapshot.active_allocations.values().collect();
     let processed = process_allocations(&allocations, options)?;
 
-    generate_memory_analysis_json(output_path, &processed, options)?;
-    generate_lifetime_json(output_path, &processed, options)?;
-    generate_thread_analysis_json(output_path, &snapshot.thread_stats, options)?;
-    generate_variable_relationships_json(output_path, &processed, options)?;
+    // Use output_path as the base directory for generated files
+    let output_dir = if output_path.extension().is_some() {
+        // If output_path has an extension, treat it as a file and use its parent
+        output_path.parent().unwrap_or(Path::new("."))
+    } else {
+        output_path
+    };
+
+    generate_memory_analysis_json(output_dir, &processed, options)?;
+    generate_lifetime_json(output_dir, &processed, options)?;
+    generate_thread_analysis_json(output_dir, &snapshot.thread_stats, options)?;
+    generate_variable_relationships_json(output_dir, &processed, options)?;
 
     Ok(())
 }
@@ -224,7 +252,11 @@ fn process_allocation_batch(allocations: &[&ActiveAllocation]) -> Vec<serde_json
 fn get_or_compute_type_info(type_name: &str, size: usize) -> String {
     if type_name.contains("Vec") || type_name.contains("vec::Vec") {
         "dynamic_array".to_string()
-    } else if type_name.contains("String") || type_name.contains("str") {
+    } else if type_name == "str"
+        || type_name == "String"
+        || type_name.contains("&str")
+        || type_name.contains("alloc::string::String")
+    {
         "string".to_string()
     } else if type_name.contains("Box") || type_name.contains("Rc") || type_name.contains("Arc") {
         "smart_pointer".to_string()
@@ -835,17 +867,25 @@ pub fn export_unsafe_ffi_json<P: AsRef<Path>>(
     base_path: P,
     passport_tracker: &Arc<MemoryPassportTracker>,
 ) -> Result<(), ExportError> {
+    use crate::analysis::memory_passport_tracker::PassportStatus;
+
     let base_path = base_path.as_ref();
     let passports = passport_tracker.get_all_passports();
 
     let ffi_reports: Vec<_> = passports
         .values()
-        .filter(|p| !p.lifecycle_events.is_empty())
+        .filter(|p| {
+            matches!(
+                p.status_at_shutdown,
+                PassportStatus::HandoverToFfi | PassportStatus::FreedByForeign
+            )
+        })
         .map(|p| {
             serde_json::json!({
                 "passport_id": p.passport_id,
                 "allocation_ptr": format!("0x{:x}", p.allocation_ptr),
                 "size_bytes": p.size_bytes,
+                "status": format!("{:?}", p.status_at_shutdown),
                 "created_at": p.created_at,
                 "boundary_events": p.lifecycle_events.iter().map(|e| {
                     serde_json::json!({

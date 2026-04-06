@@ -144,6 +144,10 @@ pub struct AsyncStats {
     pub total_allocations: usize,
     /// Total memory allocated
     pub total_memory: usize,
+    /// Total deallocations across all tasks
+    pub total_deallocations: usize,
+    /// Total memory deallocated
+    pub total_deallocated: u64,
     /// Current active memory (sum of all active allocations)
     pub active_memory: usize,
     /// Peak memory usage (maximum active memory observed)

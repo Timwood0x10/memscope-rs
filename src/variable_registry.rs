@@ -84,6 +84,13 @@ impl VariableRegistry {
 
         if let Ok(mut registry) = get_global_registry().try_lock() {
             registry.insert(address, var_info);
+        } else {
+            // Lock contention - in debug mode, warn that registration was dropped
+            #[cfg(debug_assertions)]
+            eprintln!(
+                "[memscope] Warning: Variable registration for '{}' dropped due to lock contention",
+                var_info.var_name
+            );
         }
 
         Ok(())
@@ -788,7 +795,7 @@ impl VariableRegistry {
         let (active_allocations, other_data) = rayon::join(
             || tracker.get_active_allocations(),
             || {
-                let history = tracker.get_allocation_history();
+                let history = tracker.get_active_allocations();
                 let memory_types = tracker.get_memory_by_type();
                 let stats = tracker.get_stats();
                 let registry = Self::get_all_variables();

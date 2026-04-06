@@ -2,95 +2,97 @@
 //!
 //! This module provides the EventStore which is responsible for storing
 //! all memory events across all tracking backends. It uses a lock-free
-//! queue for high-performance concurrent access.
+//! SegQueue for high-concurrency recording with parking_lot RwLock for snapshots.
 
 use crate::event_store::event::MemoryEvent;
 use crossbeam::queue::SegQueue;
-use std::sync::{Arc, Mutex};
+use parking_lot::RwLock;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 
 /// Event Store - Centralized storage for memory events
 ///
 /// The EventStore is the single source of truth for all memory events
-/// in the system. It uses a lock-free queue (SegQueue) to allow
-/// concurrent event recording from multiple threads without contention.
+/// in the system. It uses a lock-free SegQueue for recording operations
+/// and a RwLock-protected Vec for efficient snapshots.
 ///
 /// Key properties:
-/// - Lock-free: Uses SegQueue for zero-contention concurrent access
-/// - Non-blocking: All operations are non-blocking
-/// - Thread-safe: Safe to share across threads via Arc
-/// - Atomic snapshots: Uses mutex to ensure thread-safe snapshot operations
+/// - Lock-free recording: Uses SegQueue for O(1) append without blocking
+/// - Thread-safe: All operations are safe for concurrent use
+/// - Efficient snapshots: Uses RwLock for fast read access
 #[derive(Debug)]
 pub struct EventStore {
-    /// Lock-free queue of memory events
-    events: SegQueue<MemoryEvent>,
-    /// Mutex to protect snapshot operations
-    snapshot_lock: Mutex<()>,
+    /// Lock-free queue for high-concurrency recording
+    queue: SegQueue<MemoryEvent>,
+    /// Cached events for fast snapshot access
+    cache: RwLock<Vec<MemoryEvent>>,
+    /// Approximate count of events (may be slightly stale)
+    count: AtomicUsize,
 }
 
 impl EventStore {
     /// Create a new EventStore
     pub fn new() -> Self {
         Self {
-            events: SegQueue::new(),
-            snapshot_lock: Mutex::new(()),
+            queue: SegQueue::new(),
+            cache: RwLock::new(Vec::new()),
+            count: AtomicUsize::new(0),
         }
     }
 
     /// Record a memory event
     ///
-    /// This method is thread-safe and can be called from any thread.
-    /// It pushes the event into the lock-free queue without blocking.
+    /// This method is lock-free and can be called from any thread
+    /// without blocking other recording operations.
     ///
     /// # Arguments
     /// * `event` - The memory event to record
     pub fn record(&self, event: MemoryEvent) {
-        self.events.push(event);
+        self.queue.push(event);
+        self.count.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Flush pending events from queue to cache
+    fn flush_to_cache(&self) {
+        let mut cache = self.cache.write();
+        while let Some(event) = self.queue.pop() {
+            cache.push(event);
+        }
     }
 
     /// Get all events as a snapshot
     ///
     /// Returns a snapshot of all events currently in the store.
-    /// This method does not consume or remove events; they remain
-    /// available for future queries.
-    ///
-    /// This method uses a mutex to ensure thread-safe snapshot operations.
-    /// Multiple concurrent snapshot calls will be serialized, while event
-    /// recording remains lock-free and non-blocking.
+    /// This method flushes any pending events from the lock-free queue
+    /// to the cache before returning.
     ///
     /// # Returns
     /// A vector containing all events in the store
     pub fn snapshot(&self) -> Vec<MemoryEvent> {
-        let _guard = self.snapshot_lock.lock().unwrap();
-        let mut events = Vec::new();
-        // Temporarily drain all events
-        while let Some(event) = self.events.pop() {
-            events.push(event);
-        }
-        // Restore all events to the queue
-        for event in &events {
-            self.events.push(event.clone());
-        }
-        events
+        self.flush_to_cache();
+        self.cache.read().clone()
     }
 
     /// Get the number of events in the store
+    ///
+    /// Note: This returns an approximate count that may be slightly
+    /// higher than the actual count due to concurrent operations.
     pub fn len(&self) -> usize {
-        self.events.len()
+        self.count.load(Ordering::Relaxed)
     }
 
     /// Check if the store is empty
     pub fn is_empty(&self) -> bool {
-        self.events.is_empty()
+        self.len() == 0
     }
 
     /// Clear all events from the store
     ///
-    /// This method removes all events from the store. Use with caution
-    /// as this will permanently delete all recorded events.
+    /// This method removes all events from both the queue and cache.
     pub fn clear(&self) {
-        while self.events.pop().is_some() {
-            // Pop all events
-        }
+        while self.queue.pop().is_some() {}
+        self.cache.write().clear();
+        self.count.store(0, Ordering::Relaxed);
     }
 }
 
@@ -169,5 +171,7 @@ mod tests {
         }
 
         assert_eq!(store.len(), 1000);
+        let snapshot = store.snapshot();
+        assert_eq!(snapshot.len(), 1000);
     }
 }

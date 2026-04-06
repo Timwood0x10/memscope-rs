@@ -49,13 +49,13 @@ fn test_snapshot_captures_state() {
 
     track!(t, vec![1u8; 100]);
 
-    let snapshot1 = t.snapshot();
-    assert!(snapshot1.total_allocations > 0);
+    let stats1 = t.stats();
+    assert!(stats1.total_allocations > 0);
 
     track!(t, vec![2u8; 200]);
 
-    let snapshot2 = t.snapshot();
-    assert!(snapshot2.total_allocations >= snapshot1.total_allocations);
+    let stats2 = t.stats();
+    assert!(stats2.total_allocations >= stats1.total_allocations);
 }
 
 #[test]
@@ -96,7 +96,10 @@ fn test_empty_tracker_state() {
     let t = tracker!();
     let report = t.analyze();
 
-    assert!(report.total_allocations >= 0, "Empty tracker should have non-negative count");
+    assert_eq!(
+        report.total_allocations, 0,
+        "Empty tracker should have zero allocations"
+    );
 }
 
 #[test]
@@ -107,7 +110,10 @@ fn test_small_allocation_tracking() {
     track!(t, small_data);
 
     let report = t.analyze();
-    assert!(report.total_allocations > 0, "Should track small allocation");
+    assert!(
+        report.total_allocations > 0,
+        "Should track small allocation"
+    );
 }
 
 #[test]
@@ -119,7 +125,10 @@ fn test_large_allocation_tracking() {
     track!(t, data);
 
     let report = t.analyze();
-    assert!(report.total_allocations > 0, "Should track large allocation");
+    assert!(
+        report.total_allocations > 0,
+        "Should track large allocation"
+    );
 }
 
 #[test]
@@ -173,7 +182,10 @@ fn test_concurrent_tracking() {
     }
 
     let report = t.analyze();
-    assert!(report.total_allocations > 0, "Concurrent tracking should work");
+    assert!(
+        report.total_allocations > 0,
+        "Concurrent tracking should work"
+    );
 }
 
 #[test]
@@ -187,7 +199,10 @@ fn test_different_collection_types() {
     track!(t, hashmap);
 
     let report = t.analyze();
-    assert!(report.total_allocations > 0, "Should track HashMap allocation");
+    assert!(
+        report.total_allocations > 0,
+        "Should track HashMap allocation"
+    );
 }
 
 #[test]
@@ -201,7 +216,10 @@ fn test_smart_pointer_types() {
     track!(t, box_data);
 
     let report = t.analyze();
-    assert!(report.total_allocations > 0, "Should track Arc and Box allocations");
+    assert!(
+        report.total_allocations > 0,
+        "Should track Arc and Box allocations"
+    );
 }
 
 #[test]
@@ -215,7 +233,10 @@ fn test_string_tracking() {
     track!(t, long_string);
 
     let report = t.analyze();
-    assert!(report.total_allocations > 0, "Should track string allocations");
+    assert!(
+        report.total_allocations > 0,
+        "Should track string allocations"
+    );
 }
 
 // ============================================================================
@@ -234,7 +255,10 @@ fn test_high_performance_sampling() {
     }
 
     let report = t.analyze();
-    assert!(report.total_allocations > 0, "High performance sampling should track allocations");
+    assert!(
+        report.total_allocations > 0,
+        "High performance sampling should track allocations"
+    );
 }
 
 #[test]
@@ -249,7 +273,10 @@ fn test_default_sampling() {
     }
 
     let report = t.analyze();
-    assert!(report.total_allocations > 0, "Default sampling should track allocations");
+    assert!(
+        report.total_allocations > 0,
+        "Default sampling should track allocations"
+    );
 }
 
 // ============================================================================

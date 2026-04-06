@@ -39,6 +39,7 @@
 
 use crate::capture::system_monitor;
 use crate::core::tracker::MemoryTracker;
+use crate::event_store::{EventStore, MemoryEvent};
 use crate::render_engine::export::{export_snapshot_to_json, ExportJsonOptions};
 use crate::snapshot::MemorySnapshot;
 
@@ -129,6 +130,7 @@ pub struct AllocationHotspot {
 
 pub struct Tracker {
     inner: Arc<MemoryTracker>,
+    event_store: Arc<EventStore>,
     config: Arc<Mutex<TrackerConfig>>,
     start_time: Instant,
     system_snapshots: Arc<Mutex<Vec<SystemSnapshot>>>,
@@ -138,6 +140,7 @@ impl Clone for Tracker {
     fn clone(&self) -> Self {
         Tracker {
             inner: self.inner.clone(),
+            event_store: self.event_store.clone(),
             config: self.config.clone(),
             start_time: self.start_time,
             system_snapshots: self.system_snapshots.clone(),
@@ -157,7 +160,8 @@ struct TrackerConfig {
 impl Tracker {
     pub fn new() -> Self {
         Self {
-            inner: crate::core::tracker::get_tracker(),
+            inner: Arc::new(MemoryTracker::new()),
+            event_store: Arc::new(EventStore::new()),
             config: Arc::new(Mutex::new(TrackerConfig {
                 sampling: SamplingConfig::default(),
                 track_thread_id: true,
@@ -166,6 +170,37 @@ impl Tracker {
             })),
             start_time: Instant::now(),
             system_snapshots: Arc::new(Mutex::new(Vec::new())),
+        }
+    }
+
+    pub fn global() -> Self {
+        use crate::core::tracker::get_tracker;
+        static GLOBAL_EVENT_STORE: std::sync::OnceLock<Arc<EventStore>> =
+            std::sync::OnceLock::new();
+        static GLOBAL_CONFIG: std::sync::OnceLock<Arc<Mutex<TrackerConfig>>> =
+            std::sync::OnceLock::new();
+        static GLOBAL_SYSTEM_SNAPSHOTS: std::sync::OnceLock<Arc<Mutex<Vec<SystemSnapshot>>>> =
+            std::sync::OnceLock::new();
+
+        Self {
+            inner: get_tracker(),
+            event_store: GLOBAL_EVENT_STORE
+                .get_or_init(|| Arc::new(EventStore::new()))
+                .clone(),
+            config: GLOBAL_CONFIG
+                .get_or_init(|| {
+                    Arc::new(Mutex::new(TrackerConfig {
+                        sampling: SamplingConfig::default(),
+                        track_thread_id: true,
+                        auto_export_on_drop: false,
+                        export_path: None,
+                    }))
+                })
+                .clone(),
+            start_time: Instant::now(),
+            system_snapshots: GLOBAL_SYSTEM_SNAPSHOTS
+                .get_or_init(|| Arc::new(Mutex::new(Vec::new())))
+                .clone(),
         }
     }
 
@@ -228,12 +263,54 @@ impl Tracker {
             return;
         }
 
+        let thread_id = std::thread::current().id();
+        let thread_id_u64 = {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            thread_id.hash(&mut hasher);
+            hasher.finish()
+        };
+
+        let mut event = MemoryEvent::allocate(ptr, size, thread_id_u64);
+        event.var_name = Some(name.to_string());
+        event.type_name = Some(type_name.clone());
+        self.event_store.record(event);
+
         if let Err(e) =
             self.inner
                 .associate_var(ptr, name.to_string(), type_name, Some(file), Some(line))
         {
             tracing::error!("Failed to associate var '{}' at ptr {:x}: {}", name, ptr, e);
         }
+    }
+
+    pub fn track_deallocation(&self, ptr: usize) -> crate::TrackingResult<bool> {
+        let size = self.inner.get_allocation_size(ptr).unwrap_or(0);
+
+        let result = self.inner.track_deallocation(ptr)?;
+
+        let thread_id = std::thread::current().id();
+        let thread_id_u64 = {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            thread_id.hash(&mut hasher);
+            hasher.finish()
+        };
+
+        let event = MemoryEvent::deallocate(ptr, size, thread_id_u64);
+        self.event_store.record(event);
+
+        Ok(result)
+    }
+
+    pub fn events(&self) -> Vec<MemoryEvent> {
+        self.event_store.snapshot()
+    }
+
+    pub fn event_store(&self) -> &Arc<EventStore> {
+        &self.event_store
     }
 
     fn capture_system_snapshot(&self) {
@@ -260,7 +337,7 @@ impl Tracker {
         }
     }
 
-    pub fn snapshot(&self) -> crate::core::types::MemoryStats {
+    pub fn stats(&self) -> crate::core::types::MemoryStats {
         let stats = self.inner.get_stats().unwrap_or_default();
         crate::core::types::MemoryStats {
             total_allocations: stats.total_allocations as usize,
@@ -278,18 +355,12 @@ impl Tracker {
     }
 
     pub fn analyze(&self) -> AnalysisReport {
-        let stats = self.snapshot();
+        let stats = self.stats();
         let allocations = self.inner.get_active_allocations().unwrap_or_default();
         let elapsed = self.start_time.elapsed().as_secs_f64();
 
-        // Calculate peak memory from current allocations (since stats.peak_memory is broken)
         let current_memory: usize = allocations.iter().map(|a| a.size).sum();
-        let peak_memory = if stats.peak_memory > 0 {
-            stats.peak_memory
-        } else {
-            // Fallback: use current memory if peak_memory is 0
-            current_memory
-        };
+        let peak_memory = stats.peak_memory.max(current_memory);
 
         let mut hotspot_map: HashMap<String, (String, usize, usize)> = HashMap::new();
         for alloc in &allocations {
