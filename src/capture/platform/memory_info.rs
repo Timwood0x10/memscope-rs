@@ -640,8 +640,9 @@ impl PlatformMemoryInfo {
                 std::ptr::null_mut(),
                 0,
             ) == 0
+                && size > 0
             {
-                String::from_utf8_lossy(&buf[..size - 1]).to_string()
+                String::from_utf8_lossy(&buf[..size.min(buf.len())]).to_string()
             } else {
                 "Unknown".to_string()
             }
@@ -658,8 +659,9 @@ impl PlatformMemoryInfo {
                 std::ptr::null_mut(),
                 0,
             ) == 0
+                && size > 0
             {
-                let arch_str = String::from_utf8_lossy(&buf[..size - 1]).to_string();
+                let arch_str = String::from_utf8_lossy(&buf[..size.min(buf.len())]).to_string();
                 // Convert arm64, x86_64 to standard format
                 if arch_str.contains("arm64") || arch_str.contains("arm") {
                     "arm64".to_string()

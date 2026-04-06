@@ -108,11 +108,7 @@ impl VariableRegistry {
 
     /// Hash the current thread ID to a usize
     fn hash_thread_id(&self) -> usize {
-        use std::hash::{Hash, Hasher};
-        let thread_id = std::thread::current().id();
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        thread_id.hash(&mut hasher);
-        hasher.finish() as usize
+        crate::utils::current_thread_id_u64() as usize
     }
 }
 

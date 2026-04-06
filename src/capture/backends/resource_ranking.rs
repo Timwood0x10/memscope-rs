@@ -428,7 +428,11 @@ impl ResourceRankingAnalyzer {
     /// Get all rankings sorted by overall score
     pub fn get_rankings(&self) -> Vec<&ResourceRanking> {
         let mut rankings: Vec<&ResourceRanking> = self.rankings.iter().collect();
-        rankings.sort_by(|a, b| b.overall_score.partial_cmp(&a.overall_score).unwrap());
+        rankings.sort_by(|a, b| {
+            b.overall_score
+                .partial_cmp(&a.overall_score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         rankings
     }
 
@@ -442,7 +446,11 @@ impl ResourceRankingAnalyzer {
     /// Get bottom N rankings
     pub fn get_bottom_rankings(&self, n: usize) -> Vec<&ResourceRanking> {
         let mut rankings: Vec<&ResourceRanking> = self.rankings.iter().collect();
-        rankings.sort_by(|a, b| a.overall_score.partial_cmp(&b.overall_score).unwrap());
+        rankings.sort_by(|a, b| {
+            a.overall_score
+                .partial_cmp(&b.overall_score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         rankings.truncate(n);
         rankings
     }

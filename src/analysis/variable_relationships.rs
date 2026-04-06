@@ -2,34 +2,7 @@
 //!
 //! This module provides functionality to detect and analyze relationships between variables,
 //! building a comprehensive graph for visualization and analysis.
-//!
-//! # Deprecated
-//!
-//! This module is **deprecated** and will be removed in a future version.
-//! Please use new API in `crate::capture::types::scope` and `crate::export::binary::variable_relationship_analyzer` instead.
-//!
-//! ## Migration Guide
-//!
-//! Old API:
-//! ```rust,ignore
-//! use memscope_rs::analysis::variable_relationships::{
-//!     VariableRelationship, VariableRelationshipGraph, build_variable_relationship_graph,
-//! };
-//! let graph = build_variable_relationship_graph(&allocations);
-//! ```
-//!
-//! New API:
-//! ```rust,ignore
-//! use memscope_rs::capture::types::scope::{VariableRelationship, VariableRelationshipGraph};
-//! use memscope_rs::export::binary::variable_relationship_analyzer::build_variable_relationship_graph;
-//! let graph = build_variable_relationship_graph(&allocations);
-//! ```
-//!
-#![allow(warnings)]
-#[deprecated(
-    since = "0.7.0",
-    note = "Use capture::types::scope and export::binary::variable_relationship_analyzer instead. This module will be removed in a future version."
-)]
+
 use crate::capture::types::{AllocationInfo, TrackingResult};
 use crate::{analysis::CircularReferenceNode, variable_registry::VariableInfo};
 use serde::{Deserialize, Serialize};
@@ -570,6 +543,7 @@ mod tests {
         AllocationInfo, RefCountSnapshot, SmartPointerInfo as CoreSmartPointerInfo,
         SmartPointerType,
     };
+    use crate::utils::current_thread_id_u64;
     use crate::variable_registry::VariableInfo;
 
     /// Helper function to create test allocation info
@@ -580,6 +554,8 @@ mod tests {
         type_name: Option<String>,
         scope_name: Option<String>,
     ) -> AllocationInfo {
+        let thread_id = thread::current().id();
+        let thread_id_u64 = current_thread_id_u64();
         AllocationInfo {
             ptr,
             size,
@@ -588,7 +564,8 @@ mod tests {
             scope_name,
             timestamp_alloc: 1000,
             timestamp_dealloc: None,
-            thread_id: thread::current().id(),
+            thread_id,
+            thread_id_u64,
             borrow_count: 0,
             stack_trace: Some(vec!["test_function".to_string()]),
             is_leaked: false,

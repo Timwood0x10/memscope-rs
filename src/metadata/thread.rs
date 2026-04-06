@@ -124,10 +124,7 @@ impl ThreadRegistry {
 
     /// Hash a thread ID to a u64
     fn hash_thread_id(&self, thread_id: &std::thread::ThreadId) -> u64 {
-        use std::hash::{Hash, Hasher};
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        thread_id.hash(&mut hasher);
-        hasher.finish()
+        crate::utils::thread_id_to_u64(*thread_id)
     }
 }
 

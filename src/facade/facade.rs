@@ -13,7 +13,6 @@ use crate::render_engine::RenderEngine;
 use crate::snapshot::SnapshotEngine;
 use crate::timeline::TimelineEngine;
 use std::sync::{Arc, Mutex};
-use std::thread;
 
 /// MemScope - Unified facade for all engines
 ///
@@ -50,6 +49,11 @@ impl MemScope {
     fn to_allocation_info(
         active: &crate::snapshot::ActiveAllocation,
     ) -> crate::capture::types::AllocationInfo {
+        let thread_id_u64 = active.thread_id;
+        // Note: ThreadId cannot be reconstructed from u64. We use the current thread's
+        // ID as a placeholder. The actual thread ID should be read from thread_id_u64.
+        let thread_id = std::thread::current().id();
+
         crate::capture::types::AllocationInfo {
             ptr: active.ptr,
             size: active.size,
@@ -58,7 +62,8 @@ impl MemScope {
             scope_name: None,
             timestamp_alloc: active.allocated_at,
             timestamp_dealloc: None,
-            thread_id: thread::current().id(),
+            thread_id,
+            thread_id_u64,
             borrow_count: 0,
             stack_trace: None,
             is_leaked: false,

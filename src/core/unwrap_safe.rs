@@ -3,7 +3,6 @@
 //! This module provides safe, panic-free alternatives to unwrap() calls.
 //! It includes comprehensive error tracking and recovery mechanisms.
 
-use crate::core::error::{MemScopeError, MemoryOperation, SystemErrorType};
 use crate::core::safe_operations::SafeLock;
 use std::backtrace::Backtrace;
 use std::error::Error as StdError;
@@ -114,60 +113,6 @@ pub trait UnwrapSafe<T> {
             default_fn()
         })
     }
-
-    /// Backwards compatibility method (deprecated)
-    #[deprecated(note = "Use try_unwrap() instead")]
-    fn try_unwrap_safe(self, context: &'static str) -> Result<T, MemScopeError>
-    where
-        Self: Sized,
-    {
-        self.try_unwrap(context).map_err(|e| {
-            MemScopeError::memory(
-                MemoryOperation::Allocation,
-                format!("Failed to unwrap value: {e}"),
-            )
-        })
-    }
-
-    /// Unwrap with context information (deprecated)
-    /// Unwrap or abort the process
-    ///
-    /// # Safety
-    /// This method will abort the process on error. Only use when the program
-    /// cannot continue without this value.
-    #[deprecated(note = "Use try_unwrap() instead")]
-    fn unwrap_safe(self, context: &'static str) -> T
-    where
-        Self: Sized,
-    {
-        self.try_unwrap(context).unwrap_or_else(|e| {
-            tracing::error!("Fatal error: {}\nBacktrace:\n{:?}", e, e.backtrace());
-            std::process::abort();
-        })
-    }
-
-    /// Unwrap with context and location information (deprecated)
-    /// Unwrap or abort the process with location information
-    ///
-    /// # Safety
-    /// This method will abort the process on error. Only use when the program
-    /// cannot continue without this value.
-    #[deprecated(note = "Use try_unwrap_at() instead")]
-    fn unwrap_safe_at(self, context: &'static str, location: &'static str) -> T
-    where
-        Self: Sized,
-    {
-        self.try_unwrap_at(context, location).unwrap_or_else(|e| {
-            let backtrace = e.backtrace();
-            tracing::error!(
-                "Fatal error at {}: {}\nBacktrace:\n{:?}",
-                location,
-                e,
-                backtrace
-            );
-            std::process::abort();
-        })
-    }
 }
 
 impl<T> UnwrapSafe<T> for Option<T> {
@@ -196,15 +141,6 @@ impl<T> UnwrapSafe<T> for Option<T> {
         self.try_unwrap(context).unwrap_or_else(|e| {
             tracing::warn!("Using default value: {}", e);
             default_fn()
-        })
-    }
-
-    fn try_unwrap_safe(self, context: &'static str) -> Result<T, MemScopeError> {
-        self.try_unwrap(context).map_err(|e| {
-            MemScopeError::memory(
-                MemoryOperation::Allocation,
-                format!("Failed to unwrap value: {e:?}"),
-            )
         })
     }
 }
@@ -272,41 +208,6 @@ impl<T, E: StdError + Send + Sync + 'static> UnwrapSafe<T> for Result<T, E> {
             }
         }
     }
-
-    fn try_unwrap_safe(self, context: &str) -> Result<T, MemScopeError> {
-        match self {
-            Ok(value) => {
-                tracing::trace!("Safe unwrap succeeded: {context}");
-                Ok(value)
-            }
-            Err(error) => {
-                tracing::error!("Safe unwrap failed (Error: {error:?}): {context}");
-                Err(MemScopeError::system(
-                    SystemErrorType::Io,
-                    format!("Result unwrap failed in context: {context} - error: {error:?}",),
-                ))
-            }
-        }
-    }
-}
-
-/// Convenience macro for safe unwrapping with automatic context
-#[macro_export]
-macro_rules! unwrap_safe {
-    ($expr:expr) => {
-        $expr.unwrap_safe(&format!("{}:{}", file!(), line!()))
-    };
-    ($expr:expr, $context:expr) => {
-        $expr.unwrap_safe($context)
-    };
-}
-
-/// Convenience macro for safe unwrapping with location
-#[macro_export]
-macro_rules! unwrap_safe_at {
-    ($expr:expr, $context:expr) => {
-        $expr.unwrap_safe_at($context, &format!("{}:{}", file!(), line!()))
-    };
 }
 
 /// Convenience macro for safe unwrapping with default value
@@ -328,17 +229,6 @@ macro_rules! unwrap_or_else_safe {
     };
     ($expr:expr, $default_fn:expr, $context:expr) => {
         $expr.unwrap_or_else_safe($default_fn, $context)
-    };
-}
-
-/// Convenience macro for trying to unwrap safely
-#[macro_export]
-macro_rules! try_unwrap_safe {
-    ($expr:expr) => {
-        $expr.try_unwrap_safe(&format!("{}:{}", file!(), line!()))
-    };
-    ($expr:expr, $context:expr) => {
-        $expr.try_unwrap_safe($context)
     };
 }
 
@@ -677,36 +567,6 @@ mod tests {
             backtrace: Backtrace::capture(),
         };
         assert!(result_error.source().is_some());
-    }
-
-    #[test]
-    fn test_option_try_unwrap_safe_deprecated() {
-        #[allow(deprecated)]
-        {
-            let some_option = Some(42);
-            let result = some_option.try_unwrap_safe("test");
-            assert!(result.is_ok());
-            assert_eq!(result.unwrap(), 42);
-
-            let none_option: Option<i32> = None;
-            let result = none_option.try_unwrap_safe("test");
-            assert!(result.is_err());
-        }
-    }
-
-    #[test]
-    fn test_result_try_unwrap_safe_deprecated() {
-        #[allow(deprecated)]
-        {
-            let ok_result: Result<i32, std::io::Error> = Ok(42);
-            let result = ok_result.try_unwrap_safe("test");
-            assert!(result.is_ok());
-            assert_eq!(result.unwrap(), 42);
-
-            let err_result: Result<i32, std::io::Error> = Err(std::io::Error::other("error"));
-            let result = err_result.try_unwrap_safe("test");
-            assert!(result.is_err());
-        }
     }
 
     #[test]

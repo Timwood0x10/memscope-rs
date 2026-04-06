@@ -2,34 +2,7 @@
 //!
 //! This module provides functionality to detect circular references in Rc/Arc
 //! smart pointers that can lead to memory leaks.
-//!
-//! # Deprecated
-//!
-//! This module is **deprecated** and will be removed in a future version.
-//! Please use new API in `crate::metadata::smart_pointers::analyzer` instead.
-//!
-//! ## Migration Guide
-//!
-//! Old API:
-//! ```rust,ignore
-//! use memscope_rs::analysis::circular_reference::{CircularReference, CircularReferenceAnalysis};
-//! let analysis = CircularReferenceAnalysis::new();
-//! let result = analysis.detect_circular_references(&allocations);
-//! ```
-//!
-//! New API:
-//! ```rust,ignore
-//! use memscope_rs::metadata::smart_pointers::analyzer::{CircularReference, CircularReferenceAnalysis};
-//! let analysis = CircularReferenceAnalysis::new();
-//! let result = analysis.detect_circular_references(&allocations);
-//! ```
 
-#![allow(warnings)]
-
-#[deprecated(
-    since = "0.7.0",
-    note = "Use metadata::smart_pointers::analyzer instead. This module will be removed in a future version."
-)]
 use crate::capture::types::{AllocationInfo, SmartPointerInfo, SmartPointerType};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -421,6 +394,7 @@ fn generate_statistics(circular_references: &[CircularReference]) -> CircularRef
 mod tests {
     use super::*;
     use crate::capture::types::{RefCountSnapshot, SmartPointerInfo, SmartPointerType};
+    use crate::utils::current_thread_id_u64;
 
     use std::thread;
 
@@ -685,6 +659,7 @@ mod tests {
             timestamp_alloc: 0,
             timestamp_dealloc: None,
             thread_id: std::thread::current().id(),
+            thread_id_u64: current_thread_id_u64(),
             borrow_count: 0,
             stack_trace: None,
             is_leaked: false,
@@ -718,6 +693,7 @@ mod tests {
             timestamp_alloc: 0,
             timestamp_dealloc: None,
             thread_id: std::thread::current().id(),
+            thread_id_u64: current_thread_id_u64(),
             borrow_count: 0,
             stack_trace: None,
             is_leaked: false,
@@ -776,6 +752,12 @@ mod tests {
             timestamp_alloc: 0,
             timestamp_dealloc: None,
             thread_id: std::thread::current().id(),
+            thread_id_u64: {
+                use std::hash::{Hash, Hasher};
+                let mut hasher = std::collections::hash_map::DefaultHasher::new();
+                std::thread::current().id().hash(&mut hasher);
+                hasher.finish()
+            },
             borrow_count: 0,
             stack_trace: None,
             is_leaked: false,
@@ -834,6 +816,12 @@ mod tests {
             timestamp_alloc: 0,
             timestamp_dealloc: None,
             thread_id: thread::current().id(),
+            thread_id_u64: {
+                use std::hash::{Hash, Hasher};
+                let mut hasher = std::collections::hash_map::DefaultHasher::new();
+                thread::current().id().hash(&mut hasher);
+                hasher.finish()
+            },
             borrow_count: 0,
             stack_trace: None,
             is_leaked: false,
@@ -899,6 +887,12 @@ mod tests {
             timestamp_alloc: 0,
             timestamp_dealloc: None,
             thread_id: thread::current().id(),
+            thread_id_u64: {
+                use std::hash::{Hash, Hasher};
+                let mut hasher = std::collections::hash_map::DefaultHasher::new();
+                thread::current().id().hash(&mut hasher);
+                hasher.finish()
+            },
             borrow_count: 0,
             stack_trace: None,
             is_leaked: false,

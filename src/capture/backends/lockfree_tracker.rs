@@ -111,7 +111,13 @@ impl ThreadLocalTracker {
         self.total_deallocations.fetch_add(1, Ordering::Relaxed);
         self.total_deallocated
             .fetch_add(size as u64, Ordering::Relaxed);
-        self.active_memory.fetch_sub(size as u64, Ordering::Relaxed);
+
+        // Use fetch_update for atomic saturating_sub to prevent underflow
+        let _ = self
+            .active_memory
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
+                Some(current.saturating_sub(size as u64))
+            });
     }
 
     pub fn get_stats(&self) -> MemoryStats {
@@ -271,13 +277,7 @@ thread_local! {
 }
 
 fn get_thread_id() -> u64 {
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
-
-    let thread_id = std::thread::current().id();
-    let mut hasher = DefaultHasher::new();
-    thread_id.hash(&mut hasher);
-    hasher.finish()
+    crate::utils::current_thread_id_u64()
 }
 
 pub fn init_thread_tracker(
@@ -339,6 +339,16 @@ pub fn finalize_thread_tracker() -> Result<(), Box<dyn std::error::Error>> {
     })
 }
 
+/// Get a snapshot of the current thread's tracker.
+///
+/// # Warning
+/// The returned tracker shares `events` and `active_allocations` with the original.
+/// **Do NOT call `finalize()` on the returned tracker** - it will drain shared data
+/// and corrupt the original tracker. Use this only for read operations.
+///
+/// # Returns
+/// - `Some(ThreadLocalTracker)` if a tracker is initialized
+/// - `None` if `init_thread_tracker()` was not called
 pub fn get_current_tracker() -> Option<ThreadLocalTracker> {
     THREAD_TRACKER.with(|thread_tracker| {
         thread_tracker

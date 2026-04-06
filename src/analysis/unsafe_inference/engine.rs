@@ -320,13 +320,15 @@ fn size_heuristic(size: usize, score: &mut Score) {
 /// Detects the (ptr, len, cap) triplet structure.
 /// Key improvement: UTF-8 validation for String detection.
 fn vec_string_layout(view: &MemoryView, score: &mut Score) {
-    if view.len() < 24 {
+    let usize_size = std::mem::size_of::<usize>();
+    let min_len = usize_size * 3; // ptr + len + cap
+    if view.len() < min_len {
         return;
     }
 
     let ptr_val = view.read_usize(0);
-    let len = view.read_usize(8);
-    let cap = view.read_usize(16);
+    let len = view.read_usize(usize_size);
+    let cap = view.read_usize(usize_size * 2);
 
     let (Some(p), Some(l), Some(c)) = (ptr_val, len, cap) else {
         return;

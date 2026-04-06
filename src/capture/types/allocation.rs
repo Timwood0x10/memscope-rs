@@ -73,6 +73,8 @@ pub struct AllocationInfo {
     pub timestamp_dealloc: Option<u64>,
     /// Thread ID where the allocation occurred.
     pub thread_id: thread::ThreadId,
+    /// Thread ID as u64 (original value from tracking).
+    pub thread_id_u64: u64,
     /// Number of active borrows for this allocation.
     pub borrow_count: usize,
     /// Optional stack trace at the time of allocation.
@@ -189,6 +191,13 @@ impl From<crate::core::types::AllocationInfo> for AllocationInfo {
             timestamp_alloc: old.timestamp_alloc,
             timestamp_dealloc: old.timestamp_dealloc,
             thread_id,
+            thread_id_u64: old.thread_id.parse().unwrap_or_else(|_| {
+                tracing::warn!(
+                    "Failed to parse thread_id: '{}', defaulting to 0",
+                    old.thread_id
+                );
+                0
+            }),
             borrow_count: old.borrow_count,
             stack_trace: old.stack_trace,
             is_leaked: old.is_leaked,
@@ -227,6 +236,7 @@ impl From<crate::capture::backends::core_types::AllocationInfo> for AllocationIn
             timestamp_alloc: info.allocated_at_ns,
             timestamp_dealloc: None,
             thread_id: std::thread::current().id(),
+            thread_id_u64: info.thread_id,
             borrow_count: 0,
             stack_trace: info.stack_trace,
             is_leaked: false,
@@ -556,6 +566,8 @@ impl<'de> Deserialize<'de> for AllocationInfo {
             timestamp_dealloc: Option<u64>,
             #[serde(default)]
             thread_id: String,
+            #[serde(default)]
+            thread_id_u64: u64,
             borrow_count: usize,
             stack_trace: Option<Vec<String>>,
             is_leaked: bool,
@@ -599,6 +611,7 @@ impl<'de> Deserialize<'de> for AllocationInfo {
             timestamp_alloc: helper.timestamp_alloc,
             timestamp_dealloc: helper.timestamp_dealloc,
             thread_id,
+            thread_id_u64: helper.thread_id_u64,
             borrow_count: helper.borrow_count,
             stack_trace: helper.stack_trace,
             is_leaked: helper.is_leaked,
@@ -658,6 +671,12 @@ impl AllocationInfo {
             timestamp_alloc: timestamp,
             timestamp_dealloc: None,
             thread_id: thread::current().id(),
+            thread_id_u64: {
+                use std::hash::{Hash, Hasher};
+                let mut hasher = std::collections::hash_map::DefaultHasher::new();
+                thread::current().id().hash(&mut hasher);
+                hasher.finish()
+            },
             borrow_count: 0,
             stack_trace: None,
             is_leaked: false,

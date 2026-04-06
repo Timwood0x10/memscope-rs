@@ -283,19 +283,6 @@ impl MemoryTracker {
             .collect())
     }
 
-    /// Get allocation history (all allocations, including deallocated).
-    ///
-    /// Note: Currently returns only active allocations. Full history tracking
-    /// requires enabling the `tracking-allocator` feature and may have performance impact.
-    /// Use `get_active_allocations()` for the same result without the misleading name.
-    #[deprecated(
-        since = "0.1.11",
-        note = "Use `get_active_allocations()` instead. This method currently returns the same data but with a misleading name."
-    )]
-    pub fn get_allocation_history(&self) -> TrackingResult<Vec<AllocationInfo>> {
-        self.get_active_allocations()
-    }
-
     /// Get memory grouped by type.
     pub fn get_memory_by_type(&self) -> TrackingResult<std::collections::HashMap<String, usize>> {
         let mut type_sizes: std::collections::HashMap<String, usize> =
@@ -457,15 +444,6 @@ pub fn get_tracker() -> Arc<MemoryTracker> {
     }
 }
 
-/// Get the global memory tracker instance (legacy compatibility).
-#[deprecated(
-    since = "0.7.0",
-    note = "Use get_tracker() instead for dual-mode support"
-)]
-pub fn get_global_tracker() -> Arc<MemoryTracker> {
-    get_tracker()
-}
-
 /// Collect all thread-local trackers.
 pub fn collect_all_trackers_local() -> Vec<Arc<MemoryTracker>> {
     get_local_registry()
@@ -484,27 +462,6 @@ pub fn get_registry_stats_local() -> ThreadRegistryStats {
         active_threads: total_threads,
         dead_references: 0,
     }
-}
-
-/// Cleanup dead thread references from the registry.
-///
-/// # Warning
-/// This function is deprecated and dangerous. It removes ALL trackers from threads
-/// other than the current thread, regardless of whether those threads are still alive.
-/// This will break multi-threaded tracking. Use with extreme caution.
-///
-/// # Safety
-/// Only call this when you are certain no other threads are using their trackers,
-/// such as during application shutdown.
-#[deprecated(
-    since = "0.1.11",
-    note = "This function removes ALL non-current thread trackers, breaking multi-threaded tracking. Only use during shutdown."
-)]
-pub fn cleanup_registry_local() {
-    let registry = get_local_registry();
-    let current_thread_id = thread::current().id();
-
-    registry.retain(|&thread_id, _| thread_id == current_thread_id);
 }
 
 /// Check if there are active trackers.

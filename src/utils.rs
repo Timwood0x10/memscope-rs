@@ -1,5 +1,7 @@
 //! Common utility functions shared across modules
 
+use std::hash::{Hash, Hasher};
+use std::thread::ThreadId;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Get current timestamp in nanoseconds since Unix epoch
@@ -8,6 +10,24 @@ pub fn current_timestamp_nanos() -> u64 {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_nanos() as u64
+}
+
+/// Convert ThreadId to u64 for serialization and storage.
+///
+/// This uses a hash-based approach since ThreadId cannot be directly
+/// converted to u64. The hash is consistent for the same ThreadId.
+pub fn thread_id_to_u64(thread_id: ThreadId) -> u64 {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    thread_id.hash(&mut hasher);
+    hasher.finish()
+}
+
+/// Get the current thread's ID as u64.
+///
+/// Convenience function that combines getting the current ThreadId
+/// and converting it to u64.
+pub fn current_thread_id_u64() -> u64 {
+    thread_id_to_u64(std::thread::current().id())
 }
 
 /// Format bytes in a human-readable format
@@ -38,11 +58,7 @@ pub fn simplify_type_name(type_name: &str) -> (String, String) {
     } else if clean_type.contains("Box<") || clean_type.contains("boxed::Box") {
         let inner = extract_generic_type(clean_type, "Box");
         if inner.contains("HashMap") || inner.contains("hash_map") {
-            if inner.contains("String") || inner.contains("string::String") {
-                ("String".to_string(), "Basic Types".to_string())
-            } else {
-                ("HashMap<K,V>".to_string(), "Collections".to_string())
-            }
+            ("HashMap<K,V>".to_string(), "Collections".to_string())
         } else if inner.contains("BTreeMap") || inner.contains("btree_map") {
             ("BTreeMap<K,V>".to_string(), "Collections".to_string())
         } else if inner.contains("BTreeSet") || inner.contains("btree_set") {

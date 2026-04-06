@@ -263,14 +263,7 @@ impl Tracker {
             return;
         }
 
-        let thread_id = std::thread::current().id();
-        let thread_id_u64 = {
-            use std::collections::hash_map::DefaultHasher;
-            use std::hash::{Hash, Hasher};
-            let mut hasher = DefaultHasher::new();
-            thread_id.hash(&mut hasher);
-            hasher.finish()
-        };
+        let thread_id_u64 = crate::utils::current_thread_id_u64();
 
         let mut event = MemoryEvent::allocate(ptr, size, thread_id_u64);
         event.var_name = Some(name.to_string());
@@ -290,17 +283,13 @@ impl Tracker {
 
         let result = self.inner.track_deallocation(ptr)?;
 
-        let thread_id = std::thread::current().id();
-        let thread_id_u64 = {
-            use std::collections::hash_map::DefaultHasher;
-            use std::hash::{Hash, Hasher};
-            let mut hasher = DefaultHasher::new();
-            thread_id.hash(&mut hasher);
-            hasher.finish()
-        };
+        // Only record event if deallocation was successful (ptr was tracked)
+        if result {
+            let thread_id_u64 = crate::utils::current_thread_id_u64();
 
-        let event = MemoryEvent::deallocate(ptr, size, thread_id_u64);
-        self.event_store.record(event);
+            let event = MemoryEvent::deallocate(ptr, size, thread_id_u64);
+            self.event_store.record(event);
+        }
 
         Ok(result)
     }

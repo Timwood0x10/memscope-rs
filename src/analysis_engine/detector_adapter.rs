@@ -11,6 +11,11 @@ use std::sync::Arc;
 
 /// Convert ActiveAllocation to AllocationInfo
 fn active_to_allocation_info(active: &ActiveAllocation) -> AllocationInfo {
+    let thread_id_u64 = active.thread_id;
+    // Note: ThreadId cannot be reconstructed from u64. We use the current thread's
+    // ID as a placeholder. The actual thread ID should be read from thread_id_u64.
+    let thread_id = std::thread::current().id();
+
     AllocationInfo {
         ptr: active.ptr,
         size: active.size,
@@ -19,7 +24,8 @@ fn active_to_allocation_info(active: &ActiveAllocation) -> AllocationInfo {
         scope_name: None,
         timestamp_alloc: active.allocated_at,
         timestamp_dealloc: None,
-        thread_id: std::thread::current().id(),
+        thread_id,
+        thread_id_u64,
         borrow_count: 0,
         stack_trace: None,
         is_leaked: false,

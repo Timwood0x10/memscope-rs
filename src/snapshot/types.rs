@@ -30,6 +30,8 @@ pub struct MemoryStats {
     pub total_allocations: usize,
     /// Total number of deallocations
     pub total_deallocations: usize,
+    /// Number of deallocations without matching allocations
+    pub unmatched_deallocations: usize,
     /// Number of currently active allocations
     pub active_allocations: usize,
     /// Total bytes allocated

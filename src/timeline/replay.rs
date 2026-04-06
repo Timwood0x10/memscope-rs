@@ -64,15 +64,6 @@ impl TimelineReplay {
         result
     }
 
-    /// Replay all events until a specific timestamp (deprecated: use advance_until).
-    #[deprecated(
-        since = "0.1.12",
-        note = "Use `advance_until()` instead. This method consumes events and advances the replay position."
-    )]
-    pub fn replay_until(&mut self, timestamp: u64) -> Vec<MemoryEvent> {
-        self.advance_until(timestamp)
-    }
-
     /// Get all events between two timestamps
     ///
     /// # Arguments

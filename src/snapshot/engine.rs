@@ -97,6 +97,14 @@ impl SnapshotEngine {
                         if let Some(thread_stat) = thread_stats.get_mut(&event.thread_id) {
                             thread_stat.current_memory -= allocation.size;
                         }
+                    } else {
+                        // Unmatched deallocation - no corresponding allocation found
+                        snapshot.stats.unmatched_deallocations += 1;
+                        tracing::debug!(
+                            "Unmatched deallocation: ptr={:#x}, thread_id={}",
+                            event.ptr,
+                            event.thread_id
+                        );
                     }
                 }
                 MemoryEventType::Move | MemoryEventType::Borrow | MemoryEventType::Return => {
