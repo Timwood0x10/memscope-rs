@@ -1115,9 +1115,9 @@
                     const relationships = data.relationships || [];
                     
                     const leakCount = data.leak_count || 0;
-                    const unsafeCount = data.unsafe_count || 0;
-                    const ffiCount = data.ffi_count || 0;
-                    const highRiskCount = data.high_risk_count || 0;
+                    const unsafeCount = unsafeReports.length;
+                    const ffiCount = passports.filter(p => p.ffi_tracked).length;
+                    const highRiskCount = unsafeReports.filter(r => r.risk_level === 'high').length;
                     
                     if (leakCount > 0) {
                         diagnoses.push({
@@ -2535,6 +2535,7 @@
         }
 
         document.addEventListener('DOMContentLoaded', function() {
+            Dashboard.diagnosis.init();
             Dashboard.charts.init();
             Dashboard.allocations.init();
             Dashboard.threads.init();

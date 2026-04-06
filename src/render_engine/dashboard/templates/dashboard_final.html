@@ -19,103 +19,112 @@
             --border: #e2e8f0;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }
+        html, body { height: 100%; overflow: hidden; }
+        body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; display: flex; flex-direction: column; }
         
-        .header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 12px 24px; position: sticky; top: 0; z-index: 100; }
-        .header-content { max-width: 1600px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
-        .header h1 { font-size: 1.1rem; color: var(--primary); }
-        .header-info { font-size: 0.8rem; color: var(--text2); }
+        .header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 8px 16px; flex-shrink: 0; }
+        .header-content { display: flex; justify-content: space-between; align-items: center; }
+        .header h1 { font-size: 1rem; color: var(--primary); }
+        .header-info { font-size: 0.75rem; color: var(--text2); }
         
-        .container { max-width: 1600px; margin: 0 auto; padding: 24px; }
-        .section { margin-bottom: 24px; }
-        .section-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
-        .section-title { font-size: 1.1rem; font-weight: 600; }
-        .section-badge { padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
-        .section-controls { display: flex; gap: 8px; margin-left: auto; align-items: center; }
+        .main-container { flex: 1; overflow-y: auto; padding: 12px; }
         
-        .btn-toggle { padding: 4px 10px; border-radius: 4px; border: 1px solid var(--border); background: var(--bg); color: var(--text2); font-size: 0.75rem; cursor: pointer; transition: all 0.2s; }
+        .section { margin-bottom: 12px; }
+        .section-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+        .section-title { font-size: 0.95rem; font-weight: 600; }
+        .section-badge { padding: 2px 8px; border-radius: 10px; font-size: 0.7rem; font-weight: 600; }
+        .section-controls { display: flex; gap: 6px; margin-left: auto; align-items: center; }
+        
+        .btn-toggle { padding: 3px 8px; border-radius: 4px; border: 1px solid var(--border); background: var(--bg); color: var(--text2); font-size: 0.7rem; cursor: pointer; }
         .btn-toggle:hover { background: var(--primary); color: white; border-color: var(--primary); }
+        .sort-select { padding: 3px 6px; border-radius: 4px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 0.7rem; cursor: pointer; }
         
-        .sort-select { padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 0.75rem; cursor: pointer; }
-        
-        .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+        .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 10px; }
         
         .collapsible-content { overflow: hidden; transition: max-height 0.3s ease; }
-        .collapsible-content.collapsed { max-height: 0 !important; padding: 0 !important; }
+        .collapsible-content.collapsed { max-height: 0 !important; padding: 0 !important; overflow: hidden; }
         
-        .diagnosis-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 10px; }
-        .diagnosis-item { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; background: var(--bg); border-radius: 8px; border-left: 4px solid var(--border); }
+        .diagnosis-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 8px; }
+        .diagnosis-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px; background: var(--bg); border-radius: 6px; border-left: 3px solid var(--border); }
         .diagnosis-item.critical { border-left-color: var(--danger); background: rgba(239, 68, 68, 0.05); }
         .diagnosis-item.warning { border-left-color: var(--warning); background: rgba(245, 158, 11, 0.05); }
         .diagnosis-item.info { border-left-color: var(--info); background: rgba(6, 182, 212, 0.05); }
         .diagnosis-item.success { border-left-color: var(--success); background: rgba(16, 185, 129, 0.05); }
-        .diagnosis-icon { font-size: 1.1rem; }
-        .diagnosis-title { font-weight: 600; font-size: 0.85rem; margin-bottom: 2px; }
+        .diagnosis-icon { font-size: 1rem; }
+        .diagnosis-title { font-weight: 600; font-size: 0.8rem; margin-bottom: 2px; }
         .diagnosis-item.critical .diagnosis-title { color: var(--danger); }
         .diagnosis-item.warning .diagnosis-title { color: var(--warning); }
         .diagnosis-item.info .diagnosis-title { color: var(--info); }
         .diagnosis-item.success .diagnosis-title { color: var(--success); }
-        .diagnosis-desc { font-size: 0.75rem; color: var(--text2); }
+        .diagnosis-desc { font-size: 0.7rem; color: var(--text2); }
         
-        .score-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
-        .score-card { background: var(--bg); border-radius: 8px; padding: 12px; text-align: center; border: 1px solid var(--border); }
-        .score-value { font-size: 1.5rem; font-weight: 700; margin-bottom: 2px; }
-        .score-label { font-size: 0.7rem; color: var(--text2); }
-        .score-bar { height: 3px; background: var(--bg3); border-radius: 2px; margin-top: 6px; overflow: hidden; }
+        .score-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+        .score-card { background: var(--bg); border-radius: 6px; padding: 10px; text-align: center; border: 1px solid var(--border); }
+        .score-value { font-size: 1.2rem; font-weight: 700; margin-bottom: 2px; }
+        .score-label { font-size: 0.65rem; color: var(--text2); }
+        .score-bar { height: 2px; background: var(--bg3); border-radius: 2px; margin-top: 4px; overflow: hidden; }
         .score-bar-fill { height: 100%; border-radius: 2px; }
         
-        .passport-card { background: var(--bg); border-radius: 8px; padding: 14px; border: 1px solid var(--border); margin-bottom: 10px; }
-        .passport-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-        .passport-id { font-weight: 600; color: var(--purple); font-size: 0.9rem; }
-        .passport-status { padding: 3px 8px; border-radius: 4px; font-size: 0.65rem; font-weight: 600; }
+        .passport-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 8px; }
+        .passport-card { background: var(--bg); border-radius: 6px; padding: 10px; border: 1px solid var(--border); }
+        .passport-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .passport-id { font-weight: 600; color: var(--purple); font-size: 0.85rem; }
+        .passport-status { padding: 2px 6px; border-radius: 4px; font-size: 0.6rem; font-weight: 600; }
         .passport-status.valid { background: rgba(16, 185, 129, 0.2); color: var(--success); }
         .passport-status.leaked { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
-        .passport-info { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; font-size: 0.8rem; }
-        .passport-info-label { color: var(--text3); font-size: 0.65rem; }
+        .passport-info { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; font-size: 0.75rem; }
+        .passport-info-label { color: var(--text3); font-size: 0.6rem; }
         
-        .visa-timeline { margin-top: 10px; padding: 10px; background: linear-gradient(135deg, #1e3a5f10 0%, #1e3a5f20 100%); border-radius: 6px; }
-        .visa-title { font-size: 0.7rem; color: #1e3a5f; font-weight: 600; margin-bottom: 6px; display: flex; align-items: center; gap: 4px; }
-        .visa-steps { display: flex; flex-direction: column; gap: 6px; }
-        .visa-step { display: flex; align-items: center; gap: 10px; padding: 6px 10px; background: var(--bg2); border-radius: 4px; font-size: 0.75rem; }
-        .visa-step.status-ok { border-left: 3px solid var(--success); }
-        .visa-step.status-warn { border-left: 3px solid var(--warning); }
-        .visa-step.status-error { border-left: 3px solid var(--danger); }
+        .visa-timeline { margin-top: 8px; padding: 8px; background: linear-gradient(135deg, #1e3a5f10 0%, #1e3a5f20 100%); border-radius: 4px; }
+        .visa-title { font-size: 0.65rem; color: #1e3a5f; font-weight: 600; margin-bottom: 4px; }
+        .visa-steps { display: flex; flex-direction: column; gap: 4px; }
+        .visa-step { display: flex; align-items: center; gap: 8px; padding: 4px 8px; background: var(--bg2); border-radius: 4px; font-size: 0.7rem; }
+        .visa-step.status-ok { border-left: 2px solid var(--success); }
+        .visa-step.status-warn { border-left: 2px solid var(--warning); }
+        .visa-step.status-error { border-left: 2px solid var(--danger); }
         
-        .type-row { display: flex; align-items: center; padding: 8px 10px; background: var(--bg); border-radius: 4px; margin-bottom: 6px; }
-        .type-name { flex: 1; font-family: monospace; font-size: 0.8rem; }
-        .type-size { width: 80px; text-align: right; font-weight: 600; font-size: 0.8rem; }
-        .type-score { width: 40px; text-align: center; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; margin-left: 8px; }
+        .type-row { display: flex; align-items: center; padding: 6px 8px; background: var(--bg); border-radius: 4px; margin-bottom: 4px; }
+        .type-name { flex: 1; font-family: monospace; font-size: 0.75rem; }
+        .type-size { width: 70px; text-align: right; font-weight: 600; font-size: 0.75rem; }
+        .type-score { width: 35px; text-align: center; padding: 2px 4px; border-radius: 4px; font-size: 0.65rem; font-weight: 600; margin-left: 6px; }
         
-        .table-wrapper { overflow-x: auto; max-height: 350px; overflow-y: auto; border-radius: 6px; border: 1px solid var(--border); }
-        table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
-        th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); }
-        th { background: var(--bg); color: var(--text2); font-weight: 600; position: sticky; top: 0; cursor: pointer; }
-        th:hover { background: var(--bg3); }
+        .table-wrapper { overflow: auto; border-radius: 4px; border: 1px solid var(--border); }
+        table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
+        th, td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border); }
+        th { background: var(--bg); color: var(--text2); font-weight: 600; position: sticky; top: 0; }
         tr:hover { background: rgba(99, 102, 241, 0.05); }
         
-        .badge { display: inline-block; padding: 2px 6px; border-radius: 3px; font-size: 0.65rem; font-weight: 600; }
+        .badge { display: inline-block; padding: 2px 5px; border-radius: 3px; font-size: 0.6rem; font-weight: 600; }
         .badge-success { background: rgba(16, 185, 129, 0.2); color: var(--success); }
         .badge-warning { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
         .badge-danger { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
         .badge-info { background: rgba(99, 102, 241, 0.2); color: var(--primary); }
         
-        .async-card { background: var(--bg); border-radius: 8px; padding: 12px; border: 1px solid var(--border); margin-bottom: 8px; }
-        .async-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-        .async-id { font-weight: 600; color: var(--info); font-size: 0.85rem; }
+        .async-card { background: var(--bg); border-radius: 6px; padding: 8px; border: 1px solid var(--border); margin-bottom: 6px; }
+        .async-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+        .async-id { font-weight: 600; color: var(--info); font-size: 0.8rem; }
         
-        .leak-row { display: flex; align-items: center; padding: 10px; background: var(--bg); border-radius: 6px; margin-bottom: 6px; border-left: 3px solid var(--danger); font-size: 0.8rem; }
+        .leak-row { display: flex; align-items: center; padding: 8px; background: var(--bg); border-radius: 4px; margin-bottom: 4px; border-left: 3px solid var(--danger); font-size: 0.75rem; }
         
-        .graph-container { width: 100%; height: 320px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
-        .graph-legend { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; font-size: 0.7rem; color: var(--text2); }
+        .graph-container { width: 100%; min-height: 300px; height: 50vh; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); }
+        .graph-legend { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; font-size: 0.65rem; color: var(--text2); }
         .legend-item { display: flex; align-items: center; gap: 4px; }
-        .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+        .legend-dot { width: 6px; height: 6px; border-radius: 50%; }
         
-        .empty-state { text-align: center; padding: 30px 20px; color: var(--text2); font-size: 0.85rem; }
-        .empty-icon { font-size: 1.5rem; margin-bottom: 6px; }
+        .empty-state { text-align: center; padding: 20px; color: var(--text2); font-size: 0.8rem; }
+        .empty-icon { font-size: 1.2rem; margin-bottom: 4px; }
         
-        .chart-container { position: relative; height: 200px; }
+        .chart-container { position: relative; height: 180px; }
         
-        .tooltip { position: absolute; background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; padding: 10px; font-size: 0.8rem; pointer-events: none; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.2); max-width: 250px; }
+        .tooltip { position: fixed; background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; padding: 8px; font-size: 0.75rem; pointer-events: none; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.3); max-width: 280px; }
+        
+        .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .three-col { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+        .four-col { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+        
+        @media (max-width: 900px) {
+            .two-col, .three-col, .four-col { grid-template-columns: 1fr; }
+        }
     </style>
 </head>
 <body>
@@ -125,46 +134,48 @@
                 <h1>🧠 MemScope Memory Investigation Console</h1>
                 <div class="header-info">{{title}} | {{export_timestamp}}</div>
             </div>
-            <div style="display: flex; gap: 16px; align-items: center;">
+            <div style="display: flex; gap: 12px; align-items: center;">
                 <div class="header-info">{{os_name}} | {{architecture}} | {{cpu_cores}} cores</div>
-                <button onclick="toggleTheme()" style="background: var(--bg3); border: 1px solid var(--border); color: var(--text); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.85rem;">
+                <button onclick="toggleTheme()" style="background: var(--bg3); border: 1px solid var(--border); color: var(--text); padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 0.75rem;">
                     <span id="themeIcon">☀️</span> Light
                 </button>
             </div>
         </div>
     </div>
 
-    <div class="container">
+    <div class="main-container">
         <!-- [0] Auto Diagnosis -->
         <div class="section">
             <div class="section-header">
-                <span style="font-size: 1.1rem;">🔬</span>
+                <span>🔬</span>
                 <span class="section-title">Auto Diagnosis</span>
                 <span class="section-badge" id="diagnosisBadge" style="background: var(--primary); color: white;">Analyzing...</span>
                 <div class="section-controls">
                     <button class="btn-toggle" onclick="toggleSection('diagnosisContent', this)">▼</button>
                 </div>
             </div>
-            <div id="diagnosisContent" class="diagnosis-grid collapsible-content" style="max-height: 500px;"></div>
+            <div id="diagnosisContent" class="diagnosis-grid collapsible-content" style="max-height: none;"></div>
         </div>
 
         <!-- [1] Quick Insight -->
         <div class="section">
-            <div class="section-header">
-                <span style="font-size: 1.1rem;">📊</span>
-                <span class="section-title">Quick Insight</span>
-                <div class="section-controls">
-                    <button class="btn-toggle" onclick="toggleSection('quickInsightContent', this)">▼</button>
+            <div class="card">
+                <div class="section-header">
+                    <span>📊</span>
+                    <span class="section-title">Quick Insight</span>
+                    <div class="section-controls">
+                        <button class="btn-toggle" onclick="toggleSection('quickInsightContent', this)">▼</button>
+                    </div>
                 </div>
-            </div>
-            <div id="quickInsightContent" class="collapsible-content" style="max-height: 300px;">
-                <div class="score-grid">
-                    <div class="score-card"><div class="score-value">{{total_allocations}}</div><div class="score-label">Allocations</div></div>
-                    <div class="score-card"><div class="score-value">{{total_memory}}</div><div class="score-label">Live Memory</div></div>
-                    <div class="score-card"><div class="score-value">{{peak_memory}}</div><div class="score-label">Peak</div></div>
-                    <div class="score-card"><div class="score-value" style="color: var(--success);">{{health_score}}</div><div class="score-label">Health Score</div><div class="score-bar"><div class="score-bar-fill" style="width: {{health_score}}%; background: var(--success);"></div></div></div>
-                    <div class="score-card"><div class="score-value" style="color: var(--warning);">{{leak_count}}</div><div class="score-label">Leaks</div></div>
-                    <div class="score-card"><div class="score-value" style="color: var(--info);">{{unsafe_count}}</div><div class="score-label">Unsafe</div></div>
+                <div id="quickInsightContent" class="collapsible-content" style="max-height: none;">
+                    <div class="score-grid">
+                        <div class="score-card"><div class="score-value">{{total_allocations}}</div><div class="score-label">Allocations</div></div>
+                        <div class="score-card"><div class="score-value">{{total_memory}}</div><div class="score-label">Live Memory</div></div>
+                        <div class="score-card"><div class="score-value">{{peak_memory}}</div><div class="score-label">Peak</div></div>
+                        <div class="score-card"><div class="score-value" style="color: var(--success);">{{health_score}}</div><div class="score-label">Health Score</div><div class="score-bar"><div class="score-bar-fill" style="width: {{health_score}}%; background: var(--success);"></div></div></div>
+                        <div class="score-card"><div class="score-value" style="color: var(--warning);">{{leak_count}}</div><div class="score-label">Leaks</div></div>
+                        <div class="score-card"><div class="score-value" style="color: var(--info);">{{unsafe_count}}</div><div class="score-label">Unsafe</div></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -173,7 +184,7 @@
         <div class="section">
             <div class="card" style="background: linear-gradient(135deg, #8b5cf610 0%, #8b5cf620 100%); border: 2px solid var(--purple);">
                 <div class="section-header">
-                    <span style="font-size: 1.1rem;">🛂</span>
+                    <span>🛂</span>
                     <span class="section-title" style="color: var(--purple);">Memory Passport Center</span>
                     <span class="section-badge" style="background: rgba(139, 92, 246, 0.2); color: var(--purple);" id="passportCount">{{passport_count}} passports</span>
                     <div class="section-controls">
@@ -186,14 +197,14 @@
                         <button class="btn-toggle" onclick="toggleSection('passportContent', this)">▼</button>
                     </div>
                 </div>
-                <div id="passportContent" class="collapsible-content" style="max-height: 800px;">
-                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px;">
-                        <div style="text-align: center; padding: 10px; background: var(--bg); border-radius: 6px; border-left: 3px solid var(--success);"><div style="font-size: 1.1rem; font-weight: 700; color: var(--success);">{{clean_passport_count}}</div><div style="font-size: 0.7rem; color: var(--text2);">✅ Clean</div></div>
-                        <div style="text-align: center; padding: 10px; background: var(--bg); border-radius: 6px; border-left: 3px solid var(--warning);"><div style="font-size: 1.1rem; font-weight: 700; color: var(--warning);">{{active_passport_count}}</div><div style="font-size: 0.7rem; color: var(--text2);">⚡ Active</div></div>
-                        <div style="text-align: center; padding: 10px; background: var(--bg); border-radius: 6px; border-left: 3px solid var(--danger);"><div style="font-size: 1.1rem; font-weight: 700; color: var(--danger);">{{leaked_passport_count}}</div><div style="font-size: 0.7rem; color: var(--text2);">🚨 Leaked</div></div>
-                        <div style="text-align: center; padding: 10px; background: var(--bg); border-radius: 6px; border-left: 3px solid var(--purple);"><div style="font-size: 1.1rem; font-weight: 700; color: var(--purple);">{{ffi_tracked_count}}</div><div style="font-size: 0.7rem; color: var(--text2);">🔗 FFI</div></div>
+                <div id="passportContent" class="collapsible-content" style="max-height: none;">
+                    <div class="four-col" style="margin-bottom: 10px;">
+                        <div style="text-align: center; padding: 8px; background: var(--bg); border-radius: 4px; border-left: 3px solid var(--success);"><div style="font-size: 1rem; font-weight: 700; color: var(--success);">{{clean_passport_count}}</div><div style="font-size: 0.65rem; color: var(--text2);">✅ Clean</div></div>
+                        <div style="text-align: center; padding: 8px; background: var(--bg); border-radius: 4px; border-left: 3px solid var(--warning);"><div style="font-size: 1rem; font-weight: 700; color: var(--warning);">{{active_passport_count}}</div><div style="font-size: 0.65rem; color: var(--text2);">⚡ Active</div></div>
+                        <div style="text-align: center; padding: 8px; background: var(--bg); border-radius: 4px; border-left: 3px solid var(--danger);"><div style="font-size: 1rem; font-weight: 700; color: var(--danger);">{{leaked_passport_count}}</div><div style="font-size: 0.65rem; color: var(--text2);">🚨 Leaked</div></div>
+                        <div style="text-align: center; padding: 8px; background: var(--bg); border-radius: 4px; border-left: 3px solid var(--purple);"><div style="font-size: 1rem; font-weight: 700; color: var(--purple);">{{ffi_tracked_count}}</div><div style="font-size: 0.65rem; color: var(--text2);">🔗 FFI</div></div>
                     </div>
-                    <div id="passportCards"></div>
+                    <div id="passportCards" class="passport-grid"></div>
                 </div>
             </div>
         </div>
@@ -202,7 +213,7 @@
         <div class="section">
             <div class="card">
                 <div class="section-header">
-                    <span style="font-size: 1.1rem;">🔥</span>
+                    <span>🔥</span>
                     <span class="section-title">Hot Object Types</span>
                     <div class="section-controls">
                         <select class="sort-select" id="typeSort" onchange="Dashboard.hotTypes.sort()">
@@ -214,9 +225,11 @@
                         <button class="btn-toggle" onclick="toggleSection('hotTypesContent', this)">▼</button>
                     </div>
                 </div>
-                <div id="hotTypesContent" class="collapsible-content" style="max-height: 400px;">
-                    <div id="hotTypes"></div>
-                    <div class="chart-container" style="margin-top: 12px;"><canvas id="typeChart"></canvas></div>
+                <div id="hotTypesContent" class="collapsible-content" style="max-height: none;">
+                    <div class="two-col">
+                        <div id="hotTypes"></div>
+                        <div class="chart-container"><canvas id="typeChart"></canvas></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -225,7 +238,7 @@
         <div class="section">
             <div class="card">
                 <div class="section-header">
-                    <span style="font-size: 1.1rem;">📋</span>
+                    <span>📋</span>
                     <span class="section-title">Allocation Table</span>
                     <span class="section-badge badge-info" id="allocCount">{{total_allocations}} items</span>
                     <div class="section-controls">
@@ -238,10 +251,10 @@
                         <button class="btn-toggle" onclick="toggleSection('allocTableContent', this)">▼</button>
                     </div>
                 </div>
-                <div id="allocTableContent" class="collapsible-content" style="max-height: 450px;">
-                    <div class="table-wrapper">
+                <div id="allocTableContent" class="collapsible-content" style="max-height: none;">
+                    <div class="table-wrapper" style="max-height: 300px;">
                         <table id="allocTable">
-                            <thead><tr><th onclick="Dashboard.allocTable.sortBy('ptr')">ptr</th><th onclick="Dashboard.allocTable.sortBy('size')">size</th><th onclick="Dashboard.allocTable.sortBy('type')">type</th><th>source</th><th>status</th></tr></thead>
+                            <thead><tr><th>ptr</th><th>size</th><th>type</th><th>source</th><th>status</th></tr></thead>
                             <tbody id="allocTableBody"></tbody>
                         </table>
                     </div>
@@ -253,16 +266,16 @@
         <div class="section">
             <div class="card">
                 <div class="section-header">
-                    <span style="font-size: 1.1rem;">🧵</span>
+                    <span>🧵</span>
                     <span class="section-title">Thread / Async Runtime</span>
                     <div class="section-controls">
                         <button class="btn-toggle" onclick="toggleSection('runtimeContent', this)">▼</button>
                     </div>
                 </div>
-                <div id="runtimeContent" class="collapsible-content" style="max-height: 500px;">
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px;">
-                        <div><h4 style="margin-bottom: 10px; color: var(--text2); font-size: 0.85rem;">Threads</h4><div id="threadCards"></div></div>
-                        <div><h4 style="margin-bottom: 10px; color: var(--text2); font-size: 0.85rem;">Async Tasks</h4><div id="asyncCards"></div></div>
+                <div id="runtimeContent" class="collapsible-content" style="max-height: none;">
+                    <div class="two-col">
+                        <div><h4 style="margin-bottom: 8px; color: var(--text2); font-size: 0.8rem;">Threads</h4><div id="threadCards"></div></div>
+                        <div><h4 style="margin-bottom: 8px; color: var(--text2); font-size: 0.8rem;">Async Tasks</h4><div id="asyncCards"></div></div>
                     </div>
                 </div>
             </div>
@@ -272,25 +285,24 @@
         <div class="section">
             <div class="card" style="border-left: 4px solid var(--danger);">
                 <div class="section-header">
-                    <span style="font-size: 1.1rem;">🔍</span>
+                    <span>🔍</span>
                     <span class="section-title">Leak Inspector</span>
                     <span class="section-badge badge-danger" id="leakCount">{{leak_count}} leaks</span>
                     <div class="section-controls">
                         <button class="btn-toggle" onclick="toggleSection('leakContent', this)">▼</button>
                     </div>
                 </div>
-                <div id="leakContent" class="collapsible-content" style="max-height: 600px;">
+                <div id="leakContent" class="collapsible-content" style="max-height: none;">
                     <div id="leakList"></div>
-                    <div id="cycleSection" style="margin-top: 12px;"></div>
+                    <div id="cycleSection" style="margin-top: 10px;"></div>
                     
-                    <!-- Variable Relationship Graph -->
-                    <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
-                        <div class="section-header" style="margin-bottom: 10px;">
-                            <span style="font-size: 1rem;">🔗</span>
-                            <span class="section-title" style="font-size: 0.95rem;">Variable Relationships</span>
+                    <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);">
+                        <div class="section-header" style="margin-bottom: 8px;">
+                            <span>🔗</span>
+                            <span class="section-title" style="font-size: 0.85rem;">Variable Relationships</span>
                             <div class="section-controls">
-                                <button class="btn-toggle" onclick="Dashboard.variableGraph.resetZoom()" style="font-size: 0.7rem;">Reset</button>
-                                <button class="btn-toggle" onclick="Dashboard.variableGraph.highlightCycles()" style="font-size: 0.7rem;">Cycles</button>
+                                <button class="btn-toggle" onclick="Dashboard.variableGraph.resetZoom()" style="font-size: 0.65rem;">Reset</button>
+                                <button class="btn-toggle" onclick="Dashboard.variableGraph.highlightCycles()" style="font-size: 0.65rem;">Cycles</button>
                                 <button class="btn-toggle" onclick="toggleSection('graphContent', this)">▼</button>
                             </div>
                         </div>
@@ -301,7 +313,7 @@
                             <div class="legend-item"><div class="legend-dot" style="background: #8b5cf6;"></div><span>Arc/Rc</span></div>
                             <div class="legend-item"><div class="legend-dot" style="background: #ef4444;"></div><span>Cycle</span></div>
                         </div>
-                        <div id="graphContent" class="collapsible-content" style="max-height: 400px;">
+                        <div id="graphContent" class="collapsible-content" style="max-height: none;">
                             <div class="graph-container" id="relationshipGraph"></div>
                         </div>
                     </div>
@@ -313,16 +325,22 @@
         <div class="section">
             <div class="card" style="border-left: 4px solid var(--warning);">
                 <div class="section-header">
-                    <span style="font-size: 1.1rem;">⚠️</span>
+                    <span>⚠️</span>
                     <span class="section-title">Unsafe / FFI Boundary</span>
                     <div class="section-controls">
                         <button class="btn-toggle" onclick="toggleSection('unsafeContent', this)">▼</button>
                     </div>
                 </div>
-                <div id="unsafeContent" class="collapsible-content" style="max-height: 400px;">
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px;">
-                        <div><h4 style="margin-bottom: 10px; color: var(--warning); font-size: 0.85rem;">Unsafe Allocations</h4><div id="unsafeList"></div></div>
-                        <div><h4 style="margin-bottom: 10px; color: var(--purple); font-size: 0.85rem;">FFI Allocations</h4><div id="ffiList"></div></div>
+                <div id="unsafeContent" class="collapsible-content" style="max-height: none;">
+                    <div class="two-col">
+                        <div>
+                            <h4 style="margin-bottom: 8px; color: var(--warning); font-size: 0.8rem;">⚠️ Unsafe Allocations</h4>
+                            <div id="unsafeList"></div>
+                        </div>
+                        <div>
+                            <h4 style="margin-bottom: 8px; color: var(--purple); font-size: 0.8rem;">🔗 FFI Allocations</h4>
+                            <div id="ffiList"></div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -369,10 +387,11 @@
                     const allocations = data.allocations || [];
                     const passports = data.passport_details || [];
                     const relationships = data.relationships || [];
+                    const unsafeReports = data.unsafe_reports || [];
                     
                     const leakCount = data.leak_count || 0;
                     const cycleCount = relationships.filter(r => r.is_part_of_cycle).length;
-                    const highRiskCount = data.high_risk_count || 0;
+                    const highRiskCount = unsafeReports.filter(r => r.risk_level === 'high').length;
                     const ffiPassports = passports.filter(p => p.ffi_tracked);
                     const leakedFfi = ffiPassports.filter(p => p.is_leaked).length;
                     const largeAllocs = allocations.filter(a => (parseInt(a.size) || 0) > 1024 * 1024);
@@ -413,15 +432,15 @@
                     const container = document.getElementById('passportCards');
                     if (this.sortedData.length === 0) { container.innerHTML = '<div class="empty-state"><div class="empty-icon">🛂</div>No passport data</div>'; return; }
                     
-                    container.innerHTML = this.sortedData.slice(0, 20).map(p => {
+                    container.innerHTML = this.sortedData.map(p => {
                         const statusClass = p.is_leaked ? 'leaked' : 'valid';
                         const visaHtml = (p.cross_boundary_events && p.cross_boundary_events.length > 0) ? `
                             <div class="visa-timeline">
                                 <div class="visa-title">🛂 FFI Visa Timeline</div>
                                 <div class="visa-steps">
                                     <div class="visa-step status-ok"><span>🦀</span><span>[Rust] Allocated</span></div>
-                                    ${p.cross_boundary_events.map(e => `<div class="visa-step status-warn"><span>✈️</span><span>[Border] ${e.event_type || 'Cross'}: ${e.from_context || 'Rust'} → ${e.to_context || 'FFI'}</span></div>`).join('')}
-                                    ${p.is_leaked ? '<div class="visa-step status-error"><span>❌</span><span>[Status] Leaked in FFI</span></div>' : ''}
+                                    ${p.cross_boundary_events.map(e => `<div class="visa-step status-warn"><span>✈️</span><span>${e.event_type || 'Cross'}: ${e.from_context || 'Rust'} → ${e.to_context || 'FFI'}</span></div>`).join('')}
+                                    ${p.is_leaked ? '<div class="visa-step status-error"><span>❌</span><span>Leaked in FFI</span></div>' : ''}
                                 </div>
                             </div>
                         ` : '';
@@ -429,7 +448,7 @@
                         return `<div class="passport-card">
                             <div class="passport-header"><span class="passport-id">🛂 ${p.var_name || 'unknown'}</span><span class="passport-status ${statusClass}">${p.is_leaked ? 'LEAKED' : 'VALID'}</span></div>
                             <div class="passport-info">
-                                <div><span class="passport-info-label">Type</span><div style="font-family: monospace; font-size: 0.75rem;">${(p.type_name || 'Unknown').substring(0, 20)}</div></div>
+                                <div><span class="passport-info-label">Type</span><div style="font-family: monospace; font-size: 0.7rem;">${(p.type_name || 'Unknown').substring(0, 18)}</div></div>
                                 <div><span class="passport-info-label">Size</span><div>${Utils.formatBytes(parseInt(p.size_bytes) || 0)}</div></div>
                                 <div><span class="passport-info-label">Risk</span><div style="color: ${p.risk_level === 'high' ? 'var(--danger)' : p.risk_level === 'medium' ? 'var(--warning)' : 'var(--success)'};">${p.risk_level || 'low'}</div></div>
                                 <div><span class="passport-info-label">Lifetime</span><div>${Utils.formatTime(p.lifetime_ms || 0)}</div></div>
@@ -464,7 +483,7 @@
                     if (this.sortedData.length === 0) { container.innerHTML = '<div class="empty-state"><div class="empty-icon">🔥</div>No type data</div>'; return; }
                     
                     const maxSize = this.sortedData[0]?.size || 1;
-                    container.innerHTML = this.sortedData.slice(0, 10).map(t => {
+                    container.innerHTML = this.sortedData.slice(0, 8).map(t => {
                         const score = Math.round((t.size / maxSize) * 100);
                         const color = Utils.getScoreColor(score);
                         return `<div class="type-row"><span class="type-name">${t.type}</span><span class="type-size">${Utils.formatBytes(t.size)}</span><span class="type-score" style="background: ${color}20; color: ${color};">${score}</span></div>`;
@@ -477,7 +496,6 @@
                 sortedData: [],
                 currentSort: 'time-desc',
                 sort() { this.currentSort = document.getElementById('allocSort').value; this.applySort(); },
-                sortBy(col) { document.getElementById('allocSort').value = col + '-desc'; this.sort(); },
                 applySort() {
                     const allocations = data.allocations || [];
                     this.sortedData = [...allocations];
@@ -493,13 +511,13 @@
                     const tbody = document.getElementById('allocTableBody');
                     if (this.sortedData.length === 0) { tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No data</td></tr>'; return; }
                     
-                    tbody.innerHTML = this.sortedData.slice(0, 100).map(a => {
+                    tbody.innerHTML = this.sortedData.slice(0, 50).map(a => {
                         const source = a.source_file ? `${a.source_file.split('/').pop()}:${a.source_line}` : '—';
                         return `<tr>
-                            <td><code style="font-size: 0.7rem;">${a.address || '0x0'}</code></td>
+                            <td><code style="font-size: 0.65rem;">${a.address || '0x0'}</code></td>
                             <td>${Utils.formatBytes(parseInt(a.size) || 0)}</td>
-                            <td style="font-family: monospace; font-size: 0.7rem;">${(a.type_name || 'Unknown').substring(0, 15)}</td>
-                            <td style="font-size: 0.7rem; color: var(--primary);">${source}</td>
+                            <td style="font-family: monospace; font-size: 0.65rem;">${(a.type_name || 'Unknown').substring(0, 12)}</td>
+                            <td style="font-size: 0.65rem; color: var(--primary);">${source}</td>
                             <td>${a.is_leaked ? '<span class="badge badge-danger">leaked</span>' : '<span class="badge badge-success">live</span>'}</td>
                         </tr>`;
                     }).join('');
@@ -513,7 +531,7 @@
                     const threads = data.threads || [];
                     if (threads.length === 0) { container.innerHTML = '<div class="empty-state"><div class="empty-icon">🧵</div>No thread data</div>'; return; }
                     
-                    container.innerHTML = threads.slice(0, 6).map(t => `<div class="async-card"><div class="async-header"><span class="async-id">${Utils.formatThread(t.thread_id)}</span><span class="badge badge-success">active</span></div><div style="font-size: 0.8rem;"><span style="color: var(--text3);">Allocs:</span> ${t.allocation_count || 0} | <span style="color: var(--text3);">Mem:</span> ${t.current_memory || '0 B'}</div></div>`).join('');
+                    container.innerHTML = threads.slice(0, 4).map(t => `<div class="async-card"><div class="async-header"><span class="async-id">${Utils.formatThread(t.thread_id)}</span><span class="badge badge-success">active</span></div><div style="font-size: 0.75rem;"><span style="color: var(--text3);">Allocs:</span> ${t.allocation_count || 0} | <span style="color: var(--text3);">Mem:</span> ${t.current_memory || '0 B'}</div></div>`).join('');
                 }
             },
 
@@ -523,7 +541,7 @@
                     const tasks = data.async_tasks || [];
                     if (tasks.length === 0) { container.innerHTML = '<div class="empty-state"><div class="empty-icon">⚡</div>No async task data</div>'; return; }
                     
-                    container.innerHTML = tasks.slice(0, 6).map(t => `<div class="async-card"><div class="async-header"><span class="async-id">Task #${t.task_id}</span><span class="badge badge-info">${t.status || 'running'}</span></div><div style="font-size: 0.8rem;"><span style="color: var(--text3);">Allocs:</span> ${t.allocation_count || t.total_allocations || 0} | <span style="color: var(--text3);">Mem:</span> ${Utils.formatBytes(t.current_memory || 0)}</div></div>`).join('');
+                    container.innerHTML = tasks.slice(0, 4).map(t => `<div class="async-card"><div class="async-header"><span class="async-id">Task #${t.task_id}</span><span class="badge badge-info">${t.status || 'running'}</span></div><div style="font-size: 0.75rem;"><span style="color: var(--text3);">Allocs:</span> ${t.allocation_count || t.total_allocations || 0} | <span style="color: var(--text3);">Mem:</span> ${Utils.formatBytes(t.current_memory || 0)}</div></div>`).join('');
                 }
             },
 
@@ -540,13 +558,13 @@
                     document.getElementById('leakCount').textContent = leaks.length + ' leaks';
                     
                     if (leaks.length === 0) container.innerHTML = '<div class="empty-state"><div class="empty-icon">✅</div>No memory leaks</div>';
-                    else container.innerHTML = leaks.slice(0, 10).map(l => `<div class="leak-row"><code style="font-size: 0.7rem; width: 70px;">${l.address || '0x0'}</code><span style="flex: 1; font-family: monospace; font-size: 0.75rem;">${l.type_name || 'Unknown'}</span><span style="width: 60px; text-align: right;">${Utils.formatTime(l.lifetime_ms || 0)}</span><span class="badge badge-danger" style="margin-left: 8px;">${l.leak_reason || 'not freed'}</span></div>`).join('');
+                    else container.innerHTML = leaks.slice(0, 8).map(l => `<div class="leak-row"><code style="font-size: 0.65rem; width: 60px;">${l.address || '0x0'}</code><span style="flex: 1; font-family: monospace; font-size: 0.7rem;">${l.type_name || 'Unknown'}</span><span style="width: 50px; text-align: right;">${Utils.formatTime(l.lifetime_ms || 0)}</span><span class="badge badge-danger" style="margin-left: 6px;">${l.leak_reason || 'not freed'}</span></div>`).join('');
                     
                     if (cycles.length > 0) {
                         const nodes = new Set();
                         cycles.forEach(c => { nodes.add(c.source_var_name || 'A'); nodes.add(c.target_var_name || 'B'); });
                         const nodeList = Array.from(nodes).slice(0, 4);
-                        cycleContainer.innerHTML = `<div style="margin-top: 10px; padding: 10px; background: var(--bg); border-radius: 6px; text-align: center;"><span style="font-size: 0.8rem; color: var(--danger); font-weight: 600;">🔄 Retain Cycle:</span> ${nodeList.map((n, i) => `<span style="display: inline-block; padding: 4px 8px; background: var(--danger); color: white; border-radius: 4px; font-size: 0.7rem; margin: 0 4px;">${n}</span>${i < nodeList.length - 1 ? '<span style="color: var(--danger);">→</span>' : '<span style="color: var(--danger);">→</span><span style="display: inline-block; padding: 4px 8px; background: var(--danger); color: white; border-radius: 4px; font-size: 0.7rem;">' + nodeList[0] + '</span>'}`).join('')}</div>`;
+                        cycleContainer.innerHTML = `<div style="padding: 8px; background: var(--bg); border-radius: 4px; text-align: center;"><span style="font-size: 0.75rem; color: var(--danger); font-weight: 600;">🔄 Retain Cycle:</span> ${nodeList.map((n, i) => `<span style="display: inline-block; padding: 3px 6px; background: var(--danger); color: white; border-radius: 3px; font-size: 0.65rem; margin: 0 3px;">${n}</span>${i < nodeList.length - 1 ? '<span style="color: var(--danger);">→</span>' : '<span style="color: var(--danger);">→</span><span style="display: inline-block; padding: 3px 6px; background: var(--danger); color: white; border-radius: 3px; font-size: 0.65rem;">' + nodeList[0] + '</span>'}`).join('')}</div>`;
                     }
                 }
             },
@@ -557,11 +575,15 @@
                     if (!container) return;
                     container.innerHTML = '';
                     const relationships = data.relationships || [];
+                    const allocations = data.allocations || [];
                     if (relationships.length === 0) { container.innerHTML = '<div class="empty-state"><div class="empty-icon">🔗</div>No relationship data</div>'; return; }
                     
-                    const width = container.clientWidth;
-                    const height = 320;
-                    const svg = d3.select(container).append('svg').attr('width', '100%').attr('height', height).attr('viewBox', [0, 0, width, height]);
+                    const allocMap = new Map();
+                    allocations.forEach(a => { if (a.address) allocMap.set(a.address, a); });
+                    
+                    const width = container.clientWidth || 600;
+                    const height = container.clientHeight || 300;
+                    const svg = d3.select(container).append('svg').attr('width', '100%').attr('height', '100%').attr('viewBox', [0, 0, width, height]);
                     const g = svg.append('g');
                     
                     const zoom = d3.zoom().on('zoom', (e) => g.attr('transform', e.transform));
@@ -569,8 +591,8 @@
                     
                     const nodeMap = new Map();
                     relationships.forEach(r => {
-                        if (!nodeMap.has(r.source_ptr)) nodeMap.set(r.source_ptr, { id: r.source_ptr, name: r.source_var_name || 'A', relType: r.relationship_type, hasCycle: false });
-                        if (!nodeMap.has(r.target_ptr)) nodeMap.set(r.target_ptr, { id: r.target_ptr, name: r.target_var_name || 'B', relType: r.relationship_type, hasCycle: false });
+                        if (!nodeMap.has(r.source_ptr)) nodeMap.set(r.source_ptr, { id: r.source_ptr, name: r.source_var_name || 'A', relType: r.relationship_type, hasCycle: false, alloc: allocMap.get(r.source_ptr) });
+                        if (!nodeMap.has(r.target_ptr)) nodeMap.set(r.target_ptr, { id: r.target_ptr, name: r.target_var_name || 'B', relType: r.relationship_type, hasCycle: false, alloc: allocMap.get(r.target_ptr) });
                     });
                     
                     const nodes = Array.from(nodeMap.values());
@@ -588,14 +610,24 @@
                     const link = g.append('g').selectAll('line').data(links).join('line').attr('stroke', d => d.isCycle ? '#ef4444' : colorMap[d.type] || '#64748b').attr('stroke-width', 1.5).attr('stroke-dasharray', d => d.isCycle ? '4,2' : null);
                     const node = g.append('g').selectAll('circle').data(nodes).join('circle').attr('r', d => d.hasCycle ? 10 : 7).attr('fill', getColor).attr('stroke', d => d.hasCycle ? '#fbbf24' : 'none').attr('stroke-width', 2).call(d3.drag().on('start', e => { if (!e.active) sim.alphaTarget(0.3).restart(); e.subject.fx = e.subject.x; e.subject.fy = e.subject.y; }).on('drag', e => { e.subject.fx = e.x; e.subject.fy = e.y; }).on('end', e => { if (!e.active) sim.alphaTarget(0); e.subject.fx = null; e.subject.fy = null; }));
                     
-                    node.append('title').text(d => d.name);
-                    
                     const tooltip = document.getElementById('tooltip');
                     node.on('mouseover', (e, d) => {
+                        const alloc = d.alloc || {};
+                        const ptrStr = d.id ? '0x' + d.id.toString(16) : 'N/A';
                         tooltip.style.display = 'block';
-                        tooltip.innerHTML = `<strong>${d.name}</strong><br><span style="color: var(--text2);">Type: ${d.relType || 'unknown'}</span>${d.hasCycle ? '<br><span style="color: var(--danger);">⚠️ In cycle</span>' : ''}`;
-                        tooltip.style.left = (e.pageX + 10) + 'px';
-                        tooltip.style.top = (e.pageY - 10) + 'px';
+                        tooltip.innerHTML = `
+                            <div style="font-weight: 600; color: var(--primary); margin-bottom: 4px;">${d.name}</div>
+                            <div style="display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; font-size: 0.7rem;">
+                                <span style="color: var(--text3);">Ptr:</span><code style="font-size: 0.65rem;">${ptrStr}</code>
+                                <span style="color: var(--text3);">Type:</span><span style="font-family: monospace;">${(alloc.type_name || 'unknown').substring(0, 18)}</span>
+                                <span style="color: var(--text3);">Size:</span><span>${Utils.formatBytes(parseInt(alloc.size) || 0)}</span>
+                                <span style="color: var(--text3);">Rel:</span><span style="color: ${colorMap[d.relType] || 'var(--text)'};">${d.relType || 'unknown'}</span>
+                                ${alloc.is_leaked ? '<span style="color: var(--danger); grid-column: span 2;">⚠️ Leaked</span>' : ''}
+                                ${d.hasCycle ? '<span style="color: var(--danger); grid-column: span 2;">🔄 In Cycle</span>' : ''}
+                            </div>
+                        `;
+                        tooltip.style.left = Math.min(e.clientX + 10, window.innerWidth - 280) + 'px';
+                        tooltip.style.top = (e.clientY + 10) + 'px';
                     }).on('mouseout', () => tooltip.style.display = 'none');
                     
                     sim.on('tick', () => { link.attr('x1', d => d.source?.x).attr('y1', d => d.source?.y).attr('x2', d => d.target?.x).attr('y2', d => d.target?.y); node.attr('cx', d => d.x).attr('cy', d => d.y); });
@@ -603,7 +635,7 @@
                     this.zoom = zoom; this.svg = svg;
                 },
                 resetZoom() { if (this.svg && this.zoom) this.svg.transition().duration(300).call(this.zoom.transform, d3.zoomIdentity); },
-                highlightCycles() { /* toggle cycle highlight */ }
+                highlightCycles() {}
             },
 
             unsafeFfi: {
@@ -613,14 +645,14 @@
                     const unsafeReports = data.unsafe_reports || [];
                     const passports = data.passport_details || [];
                     
-                    const unsafeAllocs = unsafeReports.filter(r => r.risk_level === 'high').slice(0, 5);
-                    const ffiAllocs = passports.filter(p => p.ffi_tracked).slice(0, 5);
+                    const unsafeAllocs = unsafeReports.filter(r => r.risk_level === 'high').slice(0, 6);
+                    const ffiAllocs = passports.filter(p => p.ffi_tracked).slice(0, 6);
                     
-                    if (unsafeAllocs.length === 0) unsafeContainer.innerHTML = '<div class="empty-state" style="padding: 16px;"><div class="empty-icon">✅</div>No high-risk</div>';
-                    else unsafeContainer.innerHTML = unsafeAllocs.map(r => `<div class="leak-row" style="border-left-color: var(--warning);"><code style="font-size: 0.7rem; width: 70px;">${r.allocation_ptr || '0x0'}</code><span style="flex: 1;">${Utils.formatBytes(parseInt(r.size_bytes) || 0)}</span></div>`).join('');
+                    if (unsafeAllocs.length === 0) unsafeContainer.innerHTML = '<div class="empty-state" style="padding: 16px;"><div class="empty-icon">✅</div>No high-risk unsafe operations</div>';
+                    else unsafeContainer.innerHTML = `<div class="table-wrapper" style="max-height: 200px;"><table><thead><tr><th>Ptr</th><th>Size</th><th>Risk</th></tr></thead><tbody>${unsafeAllocs.map(r => `<tr><td><code style="font-size: 0.65rem;">${r.allocation_ptr || '0x0'}</code></td><td>${Utils.formatBytes(parseInt(r.size_bytes) || 0)}</td><td><span class="badge badge-warning">${r.risk_level || 'high'}</span></td></tr>`).join('')}</tbody></table></div>`;
                     
-                    if (ffiAllocs.length === 0) ffiContainer.innerHTML = '<div class="empty-state" style="padding: 16px;"><div class="empty-icon">🔗</div>No FFI</div>';
-                    else ffiContainer.innerHTML = ffiAllocs.map(p => `<div class="leak-row" style="border-left-color: var(--purple);"><code style="font-size: 0.7rem; width: 70px;">${p.var_name || '-'}</code><span style="flex: 1;">${Utils.formatBytes(parseInt(p.size_bytes) || 0)}</span><span class="badge ${p.is_leaked ? 'badge-danger' : 'badge-success'}">${p.is_leaked ? 'leaked' : 'ok'}</span></div>`).join('');
+                    if (ffiAllocs.length === 0) ffiContainer.innerHTML = '<div class="empty-state" style="padding: 16px;"><div class="empty-icon">🔗</div>No FFI allocations</div>';
+                    else ffiContainer.innerHTML = `<div class="table-wrapper" style="max-height: 200px;"><table><thead><tr><th>Name</th><th>Size</th><th>Status</th></tr></thead><tbody>${ffiAllocs.map(p => `<tr><td style="font-family: monospace; font-size: 0.7rem;">${p.var_name || '-'}</td><td>${Utils.formatBytes(parseInt(p.size_bytes) || 0)}</td><td><span class="badge ${p.is_leaked ? 'badge-danger' : 'badge-success'}">${p.is_leaked ? 'leaked' : 'ok'}</span></td></tr>`).join('')}</tbody></table></div>`;
                 }
             },
 
@@ -636,8 +668,8 @@
                     
                     new Chart(typeCtx, {
                         type: 'doughnut',
-                        data: { labels: sorted.map(s => s[0]), datasets: [{ data: sorted.map(s => s[1]), backgroundColor: ['#6366f1', '#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444'] }] },
-                        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { color: 'var(--text)', font: { size: 10 } } } } }
+                        data: { labels: sorted.map(s => s[0].substring(0, 12)), datasets: [{ data: sorted.map(s => s[1]), backgroundColor: ['#6366f1', '#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444'] }] },
+                        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { color: 'var(--text)', font: { size: 9 }, boxWidth: 10 } } } }
                     });
                 }
             },
