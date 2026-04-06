@@ -109,12 +109,13 @@ impl MemoryEvent {
     }
 
     /// Get current timestamp in nanoseconds
+    /// Returns 0 if system time is before Unix epoch (should not happen in practice)
     pub fn now() -> u64 {
         use std::time::{SystemTime, UNIX_EPOCH};
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos() as u64
+            .map(|d| d.as_nanos() as u64)
+            .unwrap_or_default()
     }
 
     /// Set variable name

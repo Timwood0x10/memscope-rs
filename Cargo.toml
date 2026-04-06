@@ -1,44 +1,37 @@
 [package]
 name = "memscope-rs"
-version = "0.1.10"
+version = "0.1.11"
 edition = "2021"
 authors = ["TimWood"]
 license = "MIT OR Apache-2.0"
-description = "Advanced Rust memory analysis and visualization toolkit with custom allocator, variable tracking, and beautiful SVG reports."
+description = "A memory tracking library for Rust applications."
 homepage = "https://github.com/TimWood0x10/memscope-rs"
 repository = "https://github.com/TimWood0x10/memscope-rs"
 documentation = "https://docs.rs/memscope-rs"
 readme = "README.md"
-keywords = ["memory", "tracking", "allocator", "visualization", "profiling"]
-categories = [
-    "development-tools::profiling",
-    "memory-management",
-    "visualization",
-]
+keywords = ["memory", "tracking", "profiling", "debugging"]
+categories = ["development-tools::profiling", "memory-management"]
 
 [dependencies]
-handlebars = "6.3.2"
-tracing = "0.1"
-tracing-subscriber = { version = "0.3.20", features = [
-    "env-filter",
-    "tracing-log",
-] }
+handlebars = "6.4.0"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.20", features = ["env-filter", "tracing-log"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 svg = "0.18.0"
 chrono = { version = "0.4", features = ["serde"] }
-thiserror = "2.0.12"
+thiserror = "2.0.18"
 backtrace = { version = "0.3", features = ["serde"], optional = true }
 rayon = "1.8"
-clap = { version = "4.5.48", features = ["derive"] }
+clap = { version = "4.6.0", features = ["derive"] }
 num_cpus = "1.16"
 libc = "0.2"
-sysinfo = "0.37.1"
-flate2 = "1.0"
-regex = "1.10"
-rand = { version = "0.9.2", features = ["std"] }
+sysinfo = "0.38.4"
+flate2 = "1.1.9"
+regex = "1.12.3"
+rand = { version = "0.10.0", features = ["std"] }
 dashmap = "6.0"
-parking_lot = "0.12"
+parking_lot = "0.12.5"
 bincode = "2.0.1"
 crossbeam = "0.8"
 memscope-derive = { path = "./memscope-derive", optional = true, version = "0.1.0" }
@@ -51,37 +44,25 @@ winapi = { version = "0.3", features = ["processthreadsapi", "winnt"] }
 [target.'cfg(target_os = "macos")'.dependencies]
 mach2 = "0.6"
 
-
 [lib]
 name = "memscope_rs"
 path = "src/lib.rs"
-
 
 [features]
 backtrace = ["dep:backtrace"]
 tracking-allocator = []
 derive = ["dep:memscope-derive"]
-parking-lot = []
-default = ["parking-lot"]
-test = []
-enhanced-tracking = ["backtrace", "advanced-analysis"]
-advanced-analysis = []
+default = []
 
 [dev-dependencies]
-rayon = "1.8"
-parking_lot = "0.12"
-tempfile = "3.23.0"
-criterion = { version = "0.7.0", features = ["html_reports"] }
-tokio = { version = "1.0", features = ["full"] }
-futures = "0.3"
-chrono = { version = "0.4", features = ["serde"] }
-reqwest = { version = "0.12", features = ["json"] }
-sha2 = "0.10"
+tempfile = "3.27.0"
+criterion = { version = "0.8.2", features = ["html_reports"] }
+tokio = { version = "1.51.0", features = ["full"] }
+futures = "0.3.32"
 
 [[bench]]
 name = "comprehensive_benchmarks"
 harness = false
-
 
 [profile.release]
 lto = true
@@ -100,7 +81,6 @@ strip = false
 opt-level = 2
 debug = false
 
-# cargo build --profile release-small
 [profile.release-small]
 inherits = "release"
 opt-level = "z"

@@ -737,9 +737,9 @@ pub fn export_dashboard_html_with_template<P: AsRef<Path>>(
         .map_err(|e| ExportError::ExportFailed(format!("Failed to build context: {}", e)))?;
 
     let html_content = match template {
-        DashboardTemplate::Final => renderer
-            .render_final_dashboard(&context)
-            .map_err(|e| ExportError::ExportFailed(format!("Failed to render final dashboard: {}", e)))?,
+        DashboardTemplate::Final => renderer.render_final_dashboard(&context).map_err(|e| {
+            ExportError::ExportFailed(format!("Failed to render final dashboard: {}", e))
+        })?,
         DashboardTemplate::Unified => renderer
             .render_unified_dashboard(&context)
             .map_err(|e| ExportError::ExportFailed(format!("Failed to render dashboard: {}", e)))?,

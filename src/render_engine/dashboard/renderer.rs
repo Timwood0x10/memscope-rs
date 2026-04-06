@@ -7,6 +7,10 @@ use mach2::mach_init::mach_host_self;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+/// Risk score penalty per high-risk operation.
+/// Each high-risk operation reduces the health score by this amount.
+const HIGH_RISK_PENALTY: f64 = 10.0;
+
 /// Dashboard context for template rendering
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DashboardContext {
@@ -1128,7 +1132,7 @@ impl DashboardRenderer {
         let unsafe_count = unsafe_reports.len();
         let leak_score = (100.0 - (leak_count as f64 / total_allocs as f64) * 100.0).max(0.0);
         let unsafe_score = (100.0 - (unsafe_count as f64 / total_allocs as f64) * 50.0).max(0.0);
-        let risk_score = (100.0 - high_risk_count as f64 * 10.0).max(0.0);
+        let risk_score = (100.0 - high_risk_count as f64 * HIGH_RISK_PENALTY).max(0.0);
         let health_score = ((leak_score + unsafe_score + risk_score) / 3.0).round() as u32;
         let health_status = if health_score >= 80 {
             "✅ Excellent"

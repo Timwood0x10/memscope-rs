@@ -47,6 +47,69 @@ thread_local! {
     static CURRENT_TASK_ID: std::cell::Cell<Option<u64>> = const { std::cell::Cell::new(None) };
 }
 
+/// RAII guard for automatic task cleanup.
+/// When dropped, it automatically clears the current task ID from thread-local storage.
+pub struct TaskGuard {
+    task_id: u64,
+    cleaned_up: bool,
+}
+
+// SAFETY: TaskGuard can be safely sent between threads because:
+// 1. It only contains primitive types (u64, bool) that are both Send and Sync.
+// 2. It does NOT hold any references, raw pointers, or non-thread-safe data.
+// 3. The thread-local state it manages (CURRENT_TASK_ID) is accessed via thread_local!(),
+//    which provides per-thread isolation - each thread has its own copy of the task ID.
+// 4. When TaskGuard is moved to another thread, it clears the task ID in the CURRENT
+//    thread's thread-local storage (not the original thread's), which is the expected
+//    behavior for task context management in async runtimes.
+// 5. The Drop implementation clears the task ID of whichever thread is currently
+//    executing, which is correct for RAII cleanup in async contexts where tasks
+//    may migrate between threads.
+unsafe impl Send for TaskGuard {}
+
+// SAFETY: TaskGuard can be safely shared between threads because:
+// 1. All fields (task_id, cleaned_up) are primitive types that are safe for concurrent access.
+// 2. TaskGuard does not provide mutable access to its fields through &self.
+// 3. The thread-local manipulation via clear_current_task_internal() operates on the
+//    CURRENT thread's storage, not a shared resource, so concurrent calls from different
+//    threads are inherently isolated.
+// 4. No interior mutability or shared mutable state is exposed.
+unsafe impl Sync for TaskGuard {}
+
+impl TaskGuard {
+    fn new(task_id: u64) -> Self {
+        Self {
+            task_id,
+            cleaned_up: false,
+        }
+    }
+
+    /// Get the task ID this guard is associated with.
+    pub fn task_id(&self) -> u64 {
+        self.task_id
+    }
+
+    /// Manually release the guard (prevents double cleanup).
+    pub fn release(mut self) {
+        self.cleaned_up = true;
+        TaskGuard::clear_current_task_internal();
+    }
+}
+
+impl Drop for TaskGuard {
+    fn drop(&mut self) {
+        if !self.cleaned_up {
+            TaskGuard::clear_current_task_internal();
+        }
+    }
+}
+
+impl TaskGuard {
+    fn clear_current_task_internal() {
+        CURRENT_TASK_ID.with(|cell| cell.set(None));
+    }
+}
+
 /// Async memory tracker for task-aware memory tracking.
 pub struct AsyncTracker {
     allocations: Arc<Mutex<HashMap<usize, AsyncAllocation>>>,
@@ -75,6 +138,24 @@ impl AsyncTracker {
 
     pub fn get_current_task() -> Option<u64> {
         CURRENT_TASK_ID.with(|cell| cell.get())
+    }
+
+    /// Enter a task context with automatic cleanup.
+    /// Returns a TaskGuard that will clear the task ID when dropped.
+    pub fn enter_task(task_id: u64) -> TaskGuard {
+        Self::set_current_task(task_id);
+        TaskGuard::new(task_id)
+    }
+
+    /// Execute a closure within a task context with automatic cleanup.
+    /// The task ID is automatically cleared after the closure completes,
+    /// even if the closure panics.
+    pub fn with_task<F, T>(task_id: u64, f: F) -> T
+    where
+        F: FnOnce() -> T,
+    {
+        let _guard = Self::enter_task(task_id);
+        f()
     }
 
     pub fn track_task_start(
@@ -424,6 +505,12 @@ impl Default for AsyncTracker {
     }
 }
 
+impl Drop for AsyncTracker {
+    fn drop(&mut self) {
+        Self::clear_current_task();
+    }
+}
+
 /// Initialize async memory tracking system
 pub fn initialize() -> AsyncResult<()> {
     let mut global = GLOBAL_TRACKER.lock().map_err(|_| AsyncError::System {
@@ -693,5 +780,45 @@ mod tests {
         assert!(
             matches!(error, AsyncError::TaskTracking { operation, .. } if matches!(operation, TaskOperation::TaskNotFound))
         );
+    }
+
+    #[test]
+    fn test_task_guard_cleanup() {
+        assert!(AsyncTracker::get_current_task().is_none());
+
+        {
+            let _guard = AsyncTracker::enter_task(42);
+            assert_eq!(AsyncTracker::get_current_task(), Some(42));
+        }
+
+        assert!(AsyncTracker::get_current_task().is_none());
+    }
+
+    #[test]
+    fn test_with_task_closure() {
+        assert!(AsyncTracker::get_current_task().is_none());
+
+        let result = AsyncTracker::with_task(123, || {
+            assert_eq!(AsyncTracker::get_current_task(), Some(123));
+            "test_result"
+        });
+
+        assert_eq!(result, "test_result");
+        assert!(AsyncTracker::get_current_task().is_none());
+    }
+
+    #[test]
+    fn test_with_task_panic_cleanup() {
+        assert!(AsyncTracker::get_current_task().is_none());
+
+        let result = std::panic::catch_unwind(|| {
+            AsyncTracker::with_task(999, || {
+                assert_eq!(AsyncTracker::get_current_task(), Some(999));
+                panic!("intentional panic");
+            });
+        });
+
+        assert!(result.is_err());
+        assert!(AsyncTracker::get_current_task().is_none());
     }
 }

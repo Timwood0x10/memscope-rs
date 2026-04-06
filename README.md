@@ -1,975 +1,241 @@
-# memscope-rs - Rust Memory Analysis Toolkit
+# memscope-rs
 
-[![Rust](https://img.shields.io/badge/rust-1.85+-orange.svg)](https://www.rust-lang.org)
-[![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE)
-[![Crates.io](https://img.shields.io/crates/v/memscope-rs.svg)](https://crates.io/crates/memscope-rs)
+[!\[Rust\](https://img.shields.io/badge/rust-1.85+-orange.svg null)](https://www.rust-lang.org)
+[!\[License\](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg null)](LICENSE)
 
-**A memory analysis toolkit with specialized tracking strategies for single-threaded, multi-threaded, and async Rust applications. 238 source files, 2450+ tests, and 235k+ lines of code provide memory insights with minimal overhead.**
+A memory tracking library for Rust applications.
 
----
+## Architecture
 
-## 🎯 Four Specialized Tracking Strategies
+```mermaid
+graph TB
+    subgraph "User Code"
+        A[track! macro]
+        B[tracker! macro]
+    end
 
-memscope-rs provides **four tracking strategies** selected based on your application patterns:
+    subgraph "Facade Layer"
+        C[Tracker]
+        D[GlobalTrackingState]
+    end
 
-| Strategy                             | Use Case                        | Performance           | Best For                                    |
-| ------------------------------------ | ------------------------------- | --------------------- | ------------------------------------------- |
-| 🧩**Core Tracker**             | Development & debugging         | Zero overhead         | Precise analysis with `track_var!` macros |
-| 🔀**Lock-free Multi-threaded** | High concurrency (100+ threads) | Thread-local sampling | Production monitoring, reduced contention      |
-| ⚡**Async Task-aware**         | async/await applications        | < 5ns per allocation  | Context-aware async task tracking           |
-| 🔄**Unified Backend**          | Complex hybrid applications     | Adaptive routing      | Automatic strategy selection and switching  |
+    subgraph "Capture Backends"
+        E[CoreBackend]
+        F[LockfreeBackend]
+        G[AsyncTracker]
+        H[UnifiedBackend]
+    end
 
-## 🚀 Quick Start Examples
+    subgraph "Analysis Engine"
+        I[LeakDetector]
+        J[UafDetector]
+        K[OverflowDetector]
+        L[SafetyAnalyzer]
+        M[MemoryPassportTracker]
+    end
 
-### 🧩 Core Tracking (Minimal Overhead)
+    subgraph "Render Engine"
+        N[JSON Export]
+        O[HTML Dashboard]
+        P[Binary Export]
+    end
+
+    A --> C
+    B --> C
+    C --> E
+    C --> F
+    C --> G
+    D --> C
+    D --> G
+    D --> M
+    H --> E
+    H --> F
+    
+    E --> I
+    E --> J
+    F --> I
+    F --> J
+    G --> I
+    
+    I --> N
+    I --> O
+    J --> O
+    K --> O
+    L --> O
+    M --> O
+```
+
+## Data Flow
+
+```mermaid
+sequenceDiagram
+    participant User as User Code
+    participant Tracker as Tracker
+    participant Backend as CaptureBackend
+    participant Event as EventStore
+    participant Analysis as AnalysisManager
+    participant Render as RenderEngine
+
+    User->>Tracker: track!(data)
+    Tracker->>Backend: capture_alloc(ptr, size)
+    Backend->>Event: store event
+    User->>Tracker: analyze()
+    Tracker->>Analysis: detect issues
+    Analysis->>Event: read events
+    Analysis-->>Tracker: report
+    User->>Tracker: export_json()
+    Tracker->>Render: render data
+    Render-->>User: output file
+```
+
+## Module Overview
+
+```mermaid
+graph LR
+    subgraph "Core Modules"
+        core[core/]
+        tracker[tracker.rs]
+        capture[capture/]
+    end
+
+    subgraph "Analysis Modules"
+        analysis[analysis/]
+        detectors[detectors/]
+        safety[safety/]
+    end
+
+    subgraph "Output Modules"
+        render[render_engine/]
+        export[export.rs]
+    end
+
+    core --> tracker
+    tracker --> capture
+    capture --> analysis
+    analysis --> detectors
+    analysis --> safety
+    analysis --> render
+    render --> export
+```
+
+## Quick Start
 
 ```rust
-use memscope_rs::{track_var, track_var_smart, track_var_owned};
+use memscope_rs::{tracker, track};
 
 fn main() {
-    // Zero-overhead reference tracking (recommended)
+    let tracker = tracker!();
+    
     let data = vec![1, 2, 3, 4, 5];
-    track_var!(data);
-  
-    // Smart tracking (automatic strategy selection)
-    let number = 42i32;        // Copy type - copied
-    let text = String::new();  // Non-copy - tracked by reference
-    track_var_smart!(number);
-    track_var_smart!(text);
-  
-    // Ownership tracking (precise lifecycle analysis)
-    let tracked = track_var_owned!(vec![1, 2, 3]);
-  
-    // Export with multiple formats
-    memscope_rs::export_user_variables_json("analysis.json").unwrap();
-    memscope_rs::export_user_variables_binary("analysis.memscope").unwrap();
+    track!(tracker, data);
+    
+    let report = tracker.analyze();
+    println!("Allocations: {}", report.total_allocations);
 }
 ```
 
-### 🔀 Lock-free Multi-threaded (100+ Threads)
+## Tracking Backends
 
-```rust
-use memscope_rs::lockfree;
+| Backend  | Use Case        | Notes                      |
+| -------- | --------------- | -------------------------- |
+| Core     | Single-threaded | Simple, low overhead       |
+| Lockfree | Multi-threaded  | Thread-local storage       |
+| Async    | Async tasks     | Task ID tracking           |
+| Unified  | Auto-detect     | Selects based on CPU cores |
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Initialize lock-free tracking
-    lockfree::initialize_lockfree_tracking()?;
-  
-    // Spawn many threads (scales to 100+ threads)
-    let handles: Vec<_> = (0..100).map(|i| {
-        std::thread::spawn(move || {
-            // Thread-local tracking with intelligent sampling
-            for j in 0..1000 {
-                let data = vec![i; j % 100 + 1];
-                lockfree::track_allocation(&data, &format!("data_{}_{}", i, j));
-            }
-        })
-    }).collect();
-  
-    for handle in handles {
-        handle.join().unwrap();
-    }
-  
-    // Aggregate and analyze all threads
-    let analysis = lockfree::aggregate_all_threads()?;
-    lockfree::export_analysis(&analysis, "lockfree_analysis")?;
-  
-    Ok(())
-}
-```
+## Analysis Features
 
-### ⚡ Async Task-aware Tracking
+- **Leak Detection** - Find unreleased allocations
+- **Use-After-Free Detection** - Detect UAF patterns
+- **Buffer Overflow Detection** - Find bounds violations
+- **Safety Analysis** - Risk assessment for unsafe code
+- **Memory Passport** - Track FFI boundary crossings
 
-```rust
-use memscope_rs::async_memory;
+## Export Formats
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Initialize async-aware tracking
-    async_memory::initialize().await?;
-  
-    // Track memory across async tasks
-    let tasks: Vec<_> = (0..50).map(|i| {
-        tokio::spawn(async move {
-            let data = vec![i; 1000];
-            async_memory::track_in_task(&data, &format!("async_data_{}", i)).await;
-          
-            // Simulate async work
-            tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
-        })
-    }).collect();
-  
-    futures::future::join_all(tasks).await;
-  
-    // Export task-aware analysis
-    let analysis = async_memory::generate_analysis().await?;
-    async_memory::export_visualization(&analysis, "async_analysis").await?;
-  
-    Ok(())
-}
-```
+- **JSON** - Human-readable format
+- **HTML Dashboard** - Interactive visualization
+- **Binary** - Compact format for large datasets
 
-### 🔄 Unified Backend (Automatic Strategy Selection)
-
-```rust
-use memscope_rs::unified::{UnifiedBackend, BackendConfig};
-
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Initialize unified backend with automatic detection
-    let mut backend = UnifiedBackend::initialize(BackendConfig::default())?;
-  
-    // Backend automatically detects environment and selects optimal strategy:
-    // - Single-threaded: Core tracker
-    // - Multi-threaded: Lock-free tracker  
-    // - Async runtime: Async-aware tracker
-    // - Mixed: Hybrid strategy
-  
-    let session = backend.start_tracking()?;
-  
-    // Your application logic here - tracking happens transparently
-    let data = vec![1, 2, 3, 4, 5];
-    // Backend handles tracking automatically
-  
-    // Collect comprehensive analysis
-    let analysis = session.collect_data()?;
-    let final_data = session.end_session()?;
-  
-    // Export unified analysis
-    backend.export_analysis(&final_data, "unified_analysis")?;
-  
-    Ok(())
-}
-```
-
-## 🔥 Key Features
-
-### 📊 Export Formats
-
-- **JSON Export**: Human-readable with interactive HTML dashboards
-- **Binary Export**: High-performance format (5-10x faster, 60-80% smaller)
-- **Streaming Export**: Memory-efficient for large datasets
-- **HTML Dashboards**: Interactive real-time visualization
-
-### 🛡️ Smart Pointer Support
-
-- **Automatic Detection**: Rc, Arc, Box, and custom smart pointers
-- **Reference Counting**: Accurate ref count tracking
-- **Lifecycle Analysis**: Comprehensive ownership history
-- **Memory Safety**: Enhanced safety analysis and validation
-
-### 🔧 Production-Ready Features
-
-- **Low Overhead**: Optimized tracking with configurable sampling (2-8% overhead)
-- **Thread Safety**: Multi-threading support for 100+ threads with reduced contention
-- **Sampling Support**: Adaptive sampling for production environments
-- **Error Recovery**: Error handling and degradation mechanisms
-
-### 🎯 Analysis & Features
-
-- **Memory Passport System**: FFI boundary tracking with lifecycle documentation
-- **Cross-Boundary Risk Detection**: Analysis of Rust/C/C++ memory handovers and potential leaks
-- **Dynamic Safety Violation Detection**: Real-time detection of double-free, use-after-free, and buffer overflows
-- **FFI Memory Custody Tracking**: Track memory ownership across language boundaries with passport status monitoring
-- **Smart Pointer Lifecycle Analysis**: Complete Rc, Arc, Box ownership chain tracking with reference counting
-- **Container Deep Analysis**: Specialized tracking for Vec, HashMap, BTreeMap with growth pattern analysis
-- **Drop Chain Analysis**: Complex destructor chain analysis with RAII violation detection
-- **Unsafe Code Risk Assessment**: Risk scoring for unsafe blocks, raw pointers, and transmutes
-
-## 📊 Performance Benchmarks
-
-### 🚀 Tracking Overhead
-
-| Strategy                           | Overhead                  | Best Use Case               |
-| ---------------------------------- | ------------------------- | --------------------------- |
-| **Reference Tracking**       | ~0% (zero-cost)           | Development debugging       |
-| **Ownership Tracking**       | ~5-10%                    | Precise lifecycle analysis  |
-| **Lock-free Multi-threaded** | ~2-8% (adaptive sampling) | High concurrency production |
-| **Async Task-aware**         | < 5ns per allocation      | Async applications          |
-
-### 📈 Export Performance
-
-| Format                     | Speed vs JSON    | Size vs JSON   | Use Case                       |
-| -------------------------- | ---------------- | -------------- | ------------------------------ |
-| **Binary Export**    | 5-10x faster     | 60-80% smaller | Production, large datasets     |
-| **JSON Export**      | Baseline         | Baseline       | Development, debugging         |
-| **Streaming Export** | Memory-efficient | Variable       | Large datasets, limited memory |
-
-### 🔧 Scalability
-
-| Metric                 | Single-threaded  | Multi-threaded     | Async              |
-| ---------------------- | ---------------- | ------------------ | ------------------ |
-| **Concurrency**  | 1 thread         | 100+ threads       | 50+ tasks          |
-| **Variables**    | 1M+ variables    | 100K+ per thread   | 10K+ per task      |
-| **Memory Usage** | ~50KB + 100B/var | Thread-local pools | Task-local buffers |
-
-### 📊 Export Performance (Real Test Data)
-
-| Module          | Export Time | File Size | Use Case                  |
-| --------------- | ----------- | --------- | ------------------------- |
-| Single-threaded | 1.3s        | 1.2MB     | Development analysis      |
-| Multi-threaded  | 211ms       | 480KB     | Production monitoring     |
-| Async           | 800ms       | 800KB     | Task performance analysis |
-| Hybrid          | 2.1s        | 2.5MB     | Comprehensive analysis    |
-
-*Based on actual test results from example applications*
-
-### 🎮 Interactive HTML Dashboards
-
-All modules generate rich, interactive HTML dashboards:
-
-- **Memory Timeline**: Real-time allocation/deallocation patterns
-- **Thread Analysis**: Per-thread memory usage and performance metrics
-- **Task Insights**: Async task lifecycle and resource usage
-- **Smart Pointer Tracking**: Reference counting and relationship analysis
-- **Leak Detection**: Automatic identification of potential memory leaks
-- **Performance Bottlenecks**: CPU, I/O, and memory correlation analysis
-
-## 🚀 Try It Now
-
-```bash
-# Clone the repository
-git clone https://github.com/TimWood0x10/memscope-rs
-cd memscope-rs
-
-# Try each module:
-cargo run --example basic_usage                    # 🧩 Single-threaded
-cargo run --example complex_multithread_showcase   # 🔀 Multi-threaded  
-cargo run --example comprehensive_async_showcase   # ⚡ Async
-cargo run --example enhanced_30_thread_demo        # 🔄 Hybrid
-
-# Generate HTML reports:
-make html DIR=MemoryAnalysis BASE=basic_usage
-```
-
-## 📚 Documentation
-
-### 🎯 Core Tracking Modules
-
-- **[Core Modules Overview](docs/en/core-modules.md)** - Complete comparison of all four tracking strategies
-- **[Single-threaded Module](docs/en/single-threaded.md)** - Zero-overhead `track_var!` macros with examples
-- **[Multi-threaded Module](docs/en/multithread.md)** - Lock-free high-concurrency tracking for 20+ threads
-- **[Async Module](docs/en/async.md)** - Task-centric memory analysis for async/await applications
-- **[Hybrid Module](docs/en/hybrid.md)** - Comprehensive cross-module analysis and visualization
-
-### 📖 Complete Documentation
-
-- **[Getting Started](docs/en/getting-started/)** - Installation, quick start, and basic tutorials
-- **[User Guide](docs/en/user-guide/)** - Tracking macros, analysis, export formats, CLI tools
-- **[API Reference](docs/en/api-reference/)** - Complete API documentation with examples
-- **[Examples](docs/en/examples/)** - Real-world usage examples and integration guides
-- **[Advanced Features](docs/en/advanced/)** - Binary format, custom allocators, performance optimization
-
-### 🌍 Multi-language Documentation
-
-- **[English Documentation](docs/en/)** - Complete English documentation
-- **[中文文档](docs/zh/)** - 完整的中文文档
-
-## Core Features
-
-### 1. Variable Tracking
-
-- **Non-intrusive tracking**: Use `track_var!` macro to track variables without breaking your existing code (we promise!)
-- **Smart pointer support**: Full support for `Rc<T>`, `Arc<T>`, `Box<T>` - because Rust loves its smart pointers
-- **Lifecycle analysis**: Automatic recording of variable lifecycles from birth to... well, drop
-- **Reference count monitoring**: Real-time tracking of smart pointer reference count changes (watch those Rc clones!)
-
-### 2. Memory Analysis
-
-- **Memory leak detection**: Find those sneaky leaks hiding in your code
-- **Fragmentation analysis**: Basic heap fragmentation reporting
-- **Usage pattern detection**: Simple memory usage pattern recognition
-- **Performance issue identification**: Spot memory-related bottlenecks
-
-### 3. Data Export & Interactive Visualization
-
-- **JSON export**: Export detailed memory allocation data for programmatic analysis
-- **Binary export**: Efficient binary format for large datasets with faster I/O
-- **SVG visualization**: Generate memory usage charts and timelines (pretty pictures!)
-- **🎯 HTML Interactive Dashboard**: Full-featured web-based dashboard with clickable charts, filterable data, and real-time analysis
-  - **Binary → HTML**: Convert binary snapshots directly to interactive HTML dashboards
-  - **JSON → HTML**: Transform JSON analysis data into rich web visualizations
-- **Multiple export modes**: Fast mode, detailed mode, and "let the computer decide" mode
-
-### 4. Safety Analysis
-
-- **FFI boundary tracking**: Monitor memory interactions between Rust and C/C++ code
-- **Security violation detection**: Identify potential memory safety issues
-- **Use-after-free detection**: Catch those "oops, I used it after freeing it" moments
-
-## Available Commands and Tools
-
-### Example Programs
-
-```bash
-# Basic usage demonstration
-cargo run --example basic_usage
-
-# Comprehensive memory analysis showcase
-cargo run --example comprehensive_memory_analysis
-
-# Complex lifecycle showcase
-cargo run --example comprehensive_binary_to_html_demo
-
-# Memory stress test (warning: may stress your computer too)
-cargo run --example heavy_workload_test
-
-# Multi-threaded stress test
-cargo run --example multithreaded_stress_test
-
-# Performance test
-cargo run --example performance_benchmark_demo
-
-# Realistic usage with extensions
-cargo run --example realistic_usage_with_extensions
-
-# Large-scale binary comparison
-cargo run --example large_scale_binary_comparison
-
-# Unsafe/FFI safety demo (for the brave souls)
-cargo run --example unsafe_ffi_demo
-
-# Async basic test
-cargo run --example async_basic_test
-
-# Simple binary test
-cargo run --example simple_binary_test
-
-# JSON export test
-cargo run --example test_binary_to_json
-```
-
-## Usage Examples
-
-### Basic Usage
-
-```rust
-use memscope_rs::{init, track_var, get_global_tracker};
-
-fn main() {
-    // Initialize memory tracking (don't forget this, or nothing will work!)
-    init();
-  
-    // Create and track variables
-    let my_vec = vec![1, 2, 3, 4, 5];
-    track_var!(my_vec);
-  
-    let my_string = String::from("Hello, memscope!");
-    track_var!(my_string);
-  
-    let my_box = Box::new(42); // The answer to everything
-    track_var!(my_box);
-  
-    // Variables work normally (tracking is invisible, like a good spy)
-    println!("Vector: {:?}", my_vec);
-    println!("String: {}", my_string);
-    println!("Box: {}", *my_box);
-  
-    // Export analysis results
-    let tracker = get_global_tracker();
-    if let Err(e) = tracker.export_to_json("my_analysis") {
-        eprintln!("Export failed: {} (this shouldn't happen, but computers...)", e);
-    }
-}
-```
-
-### Smart Pointer Tracking
-
-```rust
-use std::rc::Rc;
-use std::sync::Arc;
-
-// Track reference counted pointers
-let rc_data = Rc::new(vec![1, 2, 3]);
-track_var!(rc_data);
-
-// Track atomic reference counted pointers (for when you need thread safety)
-let arc_data = Arc::new(String::from("shared data"));
-track_var!(arc_data);
-
-// Cloning operations are also tracked (watch the ref count go up!)
-let rc_clone = Rc::clone(&rc_data);
-track_var!(rc_clone);
-```
-
-### Export Configuration
-
-```rust
-use memscope_rs::ExportOptions;
-
-let options = ExportOptions::new()
-    .include_system_allocations(false)  // Fast mode (recommended)
-    .verbose_logging(true)              // For when you want ALL the details
-    .buffer_size(128 * 1024);           // 128KB buffer (because bigger is better, right?)
-
-if let Err(e) = tracker.export_to_json_with_options("detailed_analysis", options) {
-    eprintln!("Export failed: {}", e);
-}
-```
-
-## Performance Testing & Benchmarks
-
-### 🎯 Quick Start Commands
-
-```bash
-# Clone and setup
-git clone https://github.com/TimWood0x10/memscope-rs
-cd memscope-rs
-
-# Build and test basic functionality
-make build
-make run-basic
-
-# Generate HTML report
-make html DIR=MemoryAnalysis/basic_usage BASE=user OUTPUT=memory_report.html VERBOSE=1 
-open ./MemoryAnalysis/basic_usage/memory_report.html
-
-```
-
-### 📊 Available Benchmarks
-
-```bash
-# Fast benchmarks (recommended)
-make benchmark-main          # ~2 minutes
-
-# Comprehensive benchmarks
-make run-benchmark           # Full performance analysis
-make run-core-performance    # Core system evaluation
-make run-simple-benchmark    # Quick validation
-
-# Stress testing
-cargo run --example heavy_workload_test
-cargo run --example multithreaded_stress_test
-```
-
-## Build & Installation
-
-### System Requirements
-
-- **Rust**: 1.85 or later (required for bincode 2.0.1 compatibility)
-- **OS**: Linux, macOS, Windows (basically everywhere Rust runs)
-- **Memory**: At least 4GB RAM recommended (for analyzing large projects)
-
-### From Source
-
-```bash
-# Clone the repository
-git clone https://github.com/TimWood0x10/memscope-rs.git
-cd memscope-rs
-
-# Build the project (grab a coffee, this might take a moment)
-make build 
-
-# Run tests
-cargo test
-
-# Try an example
-make run-basic
-├── complex_lifecycle_snapshot_complex_types.json
-├── complex_lifecycle_snapshot_lifetime.json
-├── complex_lifecycle_snapshot_memory_analysis.json
-├── complex_lifecycle_snapshot_performance.json
-├── complex_lifecycle_snapshot_security_violations.json
-├── complex_lifecycle_snapshot_unsafe_ffi.json
-
-
-# Export to different formats
-make html DIR=MemoryAnalysis/basic_usage OUTPUT=memory_report.html  # JSON → HTML
-cargo run --example comprehensive_binary_to_html_demo              # Binary → HTML
-cargo run --example large_scale_binary_comparison              # Binary format comparison demo
-
-# View generated dashboards
-open memory_report.html                    # From JSON conversion
-open comprehensive_report.html             # From binary conversion
-
-# You can view the HTML interface examples in ./images/*.html
-```
-
-### From Crates.io
-
-```bash
-# Add to your project
-cargo add memscope-rs
-
-# Or manually add to Cargo.toml
-[dependencies]
-memscope-rs = "0.1.10"
-```
-
-### Feature Flags
+## Installation
 
 ```toml
 [dependencies]
-memscope-rs = { version = "0.1.10" }
+memscope-rs = "0.1.1"
 ```
 
-Available features:
-
-- `backtrace` - Enable stack trace collection (adds overhead, but gives you the full story)
-- `derive` - Enable derive macro support
-- `tracking-allocator` - Custom allocator support (enabled by default)
-
-## Output File Structure & Interactive Dashboard
-
-After running programs, you'll find analysis results in the `MemoryAnalysis/` directory:
-
-```
-├── basic_usage_memory_analysis.json     // comprehensive memory data
-├── basic_usage_lifetime.json            // variable lifetime info
-├── basic_usage_performance.json         // performance metrics 
-├── basic_usage_security_violations.json // security analysis
-├── basic_usage_unsafe_ffi.json          // unsafe && ffi info
-├── basic_usage_complex_types.json       // complex types data
-└── memory_report.html                   // interactive dashboard
-```
-
-### 🌟 Interactive HTML Dashboard Features
-
-The generated `dashboard.html` provides a rich, interactive experience:
-
-- **📊 Interactive Charts**: Click and zoom on memory usage graphs
-- **🔍 Filterable Data Tables**: Search and filter allocations by type, size, or lifetime
-- **📈 Real-time Statistics**: Live updating memory metrics and trends
-- **🎯 Variable Drill-down**: Click on any variable to see detailed lifecycle information
-- **📱 Responsive Design**: Works on desktop, tablet, and mobile browsers
-- **🔗 Cross-references**: Navigate between related allocations and smart pointer relationships
-
-**To view the dashboard:**
+## Examples
 
 ```bash
-# output html 
-make html DIR=YOUR_JSON_DIR BASE=complex_lifecycle OUTPUT=improved_tracking_final.html
+# Basic usage
+cargo run --example basic_usage
 
-# After running your tracked program
-open MemoryAnalysis/your_analysis_name/dashboard.html
-# Or simply double-click the HTML file in your file manager
+# Multi-threaded
+cargo run --example complex_multithread_showcase
+
+# Async
+cargo run --example comprehensive_async_showcase
+
+# Full showcase with dashboard
+cargo run --example global_tracker_showcase
 ```
 
-## Project Highlights
+## Project Structure
 
-### 1. Non-intrusive Design
-
-- Use macros for tracking without changing your code structure
-- Variables work normally after tracking (no weird side effects)
-- Selective tracking of key variables instead of global tracking (because sometimes less is more)
-
-### 2. Smart Analysis
-
-- Automatic identification of memory usage patterns and anomalies
-- Smart pointer reference count change tracking
-- Variable relationship analysis and dependency graph generation
-
-### 3. Diverse Output Formats
-
-- JSON data for programmatic processing and integration
-- SVG charts for intuitive visualization
-- HTML dashboard for interactive analysis (with actual buttons to click!)
-
-### 4. Performance Optimization
-
-- Fast export mode to reduce performance overhead
-- Parallel processing support for large datasets
-- Configurable buffer sizes for I/O optimization
-
-### 5. Safety Analysis
-
-- FFI boundary memory safety checks
-- Automatic detection of potential security vulnerabilities
-- Memory access pattern safety assessment
+```
+src/
+├── core/           # Core tracking, allocator
+├── tracker.rs      # Unified Tracker API
+├── capture/        # Capture backends
+│   └── backends/   # Core, Lockfree, Async, Unified
+├── analysis/       # Analysis modules
+│   ├── detectors/  # Leak, UAF, Overflow detectors
+│   └── safety/     # Safety analyzer
+├── render_engine/  # Output rendering
+│   └── dashboard/  # HTML templates
+└── lib.rs          # Public API
+```
 
 ## Comparison with Other Tools
 
-| Feature                                   | memscope-rs | Valgrind | Heaptrack | jemalloc |
-| ----------------------------------------- | ----------- | -------- | --------- | -------- |
-| **Rust Native**                     | ✅          | ❌       | ❌        | ⚠️     |
-| **Variable Names**                  | ✅          | ❌       | ❌        | ❌       |
-| **Smart Pointer Analysis**          | ✅          | ⚠️     | ⚠️      | ❌       |
-| **Visual Reports**                  | ✅          | ⚠️     | ✅        | ❌       |
-| **Production Ready**                | ✅          | ✅       | ✅        | ✅       |
-| **Interactive Timeline**            | ✅          | ❌       | ⚠️      | ❌       |
-| **Real-time Tracking**              | ✅          | ✅       | ✅        | ✅       |
-| **Low Overhead**                    | ✅          | ⚠️     | ✅        | ✅       |
-| **🌟 Memory Passport System**       | ✅          | ❌       | ❌        | ❌       |
-| **🌟 FFI Boundary Tracking**        | ✅          | ❌       | ❌        | ❌       |
-| **🌟 Dynamic Safety Detection**     | ✅          | ⚠️     | ❌        | ❌       |
-| **🌟 Risk Assessment Engine**       | ✅          | ❌       | ❌        | ❌       |
-| **🌟 Multi-layered Leak Detection** | ✅          | ⚠️     | ⚠️      | ❌       |
-| **🌟 Unsafe Code Analysis**         | ✅          | ❌       | ❌        | ❌       |
-| **Mature Ecosystem**                | ❌          | ✅       | ✅        | ✅       |
-
-### Honest Assessment
-
-**memscope-rs (this project)**
-
-- ✅ **Strengths**: Rust native, variable name tracking, smart pointer analysis, interactive visualization
-- ✅ **Current status**: Stable with testing coverage (2450+ tests passing), mature codebase
-- ⚠️ **Considerations**: Monitor performance overhead in high-frequency scenarios, test thoroughly in your specific environment
-
-**Valgrind**
-
-- ✅ **Strengths**: Widely used, mature, feature-rich, stable
-- ⚠️ **Limitations**: Not Rust native, significant performance overhead, steep learning curve
-- 🎯 **Best for**: Deep memory debugging, complex problem troubleshooting
-
-**Heaptrack**
-
-- ✅ **Strengths**: Mature profiling tool, good visualization, relatively low overhead
-- ⚠️ **Limitations**: Mainly for C/C++, limited Rust-specific features
-- 🎯 **Best for**: Performance analysis, memory usage optimization
-
-**jemalloc**
-
-- ✅ **Strengths**: Stable allocator, good performance, built-in analysis features
-- ⚠️ **Limitations**: Mainly an allocator, basic analysis functionality
-- 🎯 **Best for**: Production environments, performance optimization
+| Feature              | memscope-rs | Valgrind      | AddressSanitizer | Heaptrack |
+| -------------------- | ----------- | ------------- | ---------------- | --------- |
+| **Language**         | Rust native | C/C++         | C/C++/Rust       | C/C++     |
+| **Runtime**          | In-process  | External      | In-process       | External  |
+| **Overhead**         | Low         | High (10-50x) | Medium (2x)      | Medium    |
+| **Variable Names**   | ✅           | ❌             | ❌                | ❌         |
+| **Source Location**  | ✅           | ✅             | ✅                | ✅         |
+| **Leak Detection**   | ✅           | ✅             | ✅                | ✅         |
+| **UAF Detection**    | ✅           | ✅             | ✅                | ⚠️        |
+| **Buffer Overflow**  | ⚠️          | ✅             | ✅                | ❌         |
+| **Thread Analysis**  | ✅           | ✅             | ✅                | ✅         |
+| **Async Support**    | ✅           | ❌             | ❌                | ❌         |
+| **FFI Tracking**     | ✅           | ⚠️            | ⚠️               | ⚠️        |
+| **HTML Dashboard**   | ✅           | ❌             | ❌                | ⚠️        |
+| **Production Ready** | ⚠️          | ❌             | ❌                | ⚠️        |
 
 ### When to Use memscope-rs
 
-**Good scenarios:**
+**Good fit:**
 
-- 🔍 **Rust project development debugging** - Want to understand specific variable memory usage
-- 📚 **Learning Rust memory management** - Visualize ownership and borrowing concepts
-- 🧪 **Prototype validation** - Quickly verify memory usage patterns
-- 🎯 **Smart pointer analysis** - Deep dive into Rc/Arc reference count changes
+- Rust projects needing variable-level tracking
+- Async/await applications
+- Development and debugging
+- Understanding memory patterns
 
-**Use with caution:**
+**Consider alternatives:**
 
-- ⚠️ **Production environments** - Recommend thorough testing in staging first
-- ⚠️ **High-performance requirements** - Monitor tracking overhead in your specific use case
-- ⚠️ **Very large datasets** - Performance may degrade with >1M allocations
-- ⚠️ **Complex memory issues** - Consider using mature tools like Valgrind for deep debugging
+- **Valgrind** - Deep memory debugging, mature tooling
+- **AddressSanitizer** - Production-grade UAF/overflow detection
+- **Heaptrack** - C/C++ projects, mature profiler
 
-## Performance Characteristics
+### Limitations
 
-Based on actual testing (not marketing numbers):
-
-### Tracking Overhead
-
-- **Small programs**: ~5-15% runtime overhead
-- **Memory usage**: ~10-20% additional memory for tracking data
-- **Large datasets**: Performance degrades with >1M allocations (optimization ongoing)
-
-### Export Performance
-
-- **Small datasets** (< 1000 allocations): < 100ms
-- **Medium datasets** (1000-10000 allocations): 100ms - 1s
-- **Large datasets** (> 10000 allocations): Several seconds
-
-## Use Cases
-
-### ✅ Recommended Use Cases
-
-#### Single-threaded Applications
-
-#### **Development debugging** : Track memory usage during development
-
-- **Performance optimization** : Identify memory bottlenecks and optimization opportunities
-- **Memory leak troubleshooting** : Locate and fix memory leak issues
-- **Code review** : Analyze code memory usage patterns
-- **Educational demos** : Demonstrate Rust memory management mechanisms
-- **Algorithm analysis** : Understand memory behavior of data structures and algorithms
-
-### ✅ Multi-threaded Applications
-
-- **Production-grade threading**: Handles 100+ concurrent threads reliably with lock-free optimizations
-- **Async/await support**: Comprehensive Future and task tracking
-- **Lock-free optimizations**: Reduced contention and improved performance
-- **Hybrid analysis**: Automatic detection of mixed execution patterns
-
-## 🌟 Unique Features & Innovations
-
-### 📋 Memory Passport System
-
-Cross-language memory tracking with lifecycle documentation:
-
-```rust
-use memscope_rs::analysis::SafetyAnalyzer;
-
-let analyzer = SafetyAnalyzer::new();
-
-// Create passport for FFI memory handover
-let passport_id = analyzer.create_memory_passport(
-    ptr_address, 
-    size_bytes, 
-    PassportEventType::HandoverToFfi
-)?;
-
-// Track lifecycle events
-analyzer.record_passport_event(
-    ptr_address,
-    PassportEventType::FreedByForeign, 
-    "external_library_cleanup".to_string()
-)?;
-
-// Detect leaks at shutdown
-let leaked_passports = analyzer.finalize_passports_at_shutdown();
-for leak in leaked_passports {
-    println!("🚨 FFI Memory Leak Detected: {}", leak);
-}
-```
-
-**Memory Passport Features:**
-
-- **Cross-Language Tracking**: Monitor memory handed between Rust and C/C++
-- **Lifecycle Documentation**: Complete event history from allocation to deallocation
-- **Leak Detection**: Automatic detection of memory left in foreign custody
-- **Risk Assessment**: Scoring of unsafe operations and boundary crossings
-- **Ownership Transfer**: Track complex ownership scenarios across FFI boundaries
-
-### 🚨 Memory Leak Detection
-
-Multi-layered leak detection with pattern analysis:
-
-```rust
-use memscope_rs::quality::MemoryLeakChecker;
-
-let mut checker = MemoryLeakChecker::new();
-
-// Set baseline for comparison
-checker.set_baseline("critical_operation", initial_memory, initial_allocations);
-
-// Continuous monitoring
-let current = MemorySnapshot {
-    memory_usage: current_memory,
-    allocation_count: current_allocations,
-    timestamp: Instant::now(),
-};
-
-let result = checker.check_for_leaks("critical_operation", &current);
-if result.leak_detected {
-    match result.severity {
-        LeakSeverity::Critical => println!("🚨 CRITICAL: {:.2}MB/sec growth rate", result.growth_rate / 1_048_576.0),
-        LeakSeverity::High => println!("⚠️  HIGH: Excessive memory growth detected"),
-        LeakSeverity::Medium => println!("📊 MEDIUM: Moderate memory growth"),
-        _ => {}
-    }
-}
-```
-
-**Leak Detection Capabilities:**
-
-- **Real-time Monitoring**: Continuous growth rate analysis during operation
-- **Baseline Comparison**: Detection based on expected vs actual usage
-- **Pattern Recognition**: Identify allocation/deallocation imbalances and suspicious patterns
-- **Sensitivity Levels**: Configurable detection sensitivity (Low, Medium, High, Paranoid)
-- **FFI Leak Detection**: Specialized detection for cross-boundary memory leaks
-
-### 🛡️ Dynamic Safety Violation Detection
-
-Real-time detection of memory safety violations:
-
-```rust
-// Automatic detection of common violations
-- Double-Free Detection: Prevent attempts to free already-freed memory
-- Use-After-Free Detection: Catch access to deallocated memory
-- Buffer Overflow Detection: Monitor bounds violations in unsafe code
-- Cross-Boundary Violations: Detect improper FFI memory handling
-- Invalid Transmute Detection: Analyze unsafe type conversions
-```
-
-### 🔍 Risk Assessment
-
-Risk scoring for unsafe operations:
-
-```rust
-use memscope_rs::analysis::SafetyAnalyzer;
-
-let analyzer = SafetyAnalyzer::new();
-let risk_assessment = analyzer.assess_risk(unsafe_operation, memory_context, call_stack);
-
-match risk_assessment.risk_level {
-    RiskLevel::Critical => {
-        println!("🚨 CRITICAL RISK: Score {:.1}/100", risk_assessment.risk_score);
-        println!("Mitigation: {:?}", risk_assessment.mitigation_suggestions);
-    },
-    RiskLevel::High => println!("⚠️  HIGH RISK: Requires immediate attention"),
-    _ => {}
-}
-```
-
-**Risk Assessment Features:**
-
-- **Rule-based Scoring**: Risk calculation (0-100 scale) based on operation types
-- **Factor Analysis**: Detailed breakdown of contributing risk factors
-- **Mitigation Suggestions**: Actionable recommendations for risk reduction
-- **Context Awareness**: Risk adjustment based on memory pressure and system state
-- **Weighted Risk Factors**: Different risk weights for various unsafe operations
-
-### 📋 Performance Considerations
-
-- **Large datasets**: Optimized for datasets up to 1M allocations; sampling recommended for larger scales
-- **High-frequency systems**: Configurable sampling available for production workloads
-- **Production deployment**: Test suite available; recommend performance validation in your environment
-
-## Technical Architecture
-
-The project uses a modular design:
-
-- **core/**: Core tracking functionality and type definitions
-- **analysis/**: Memory analysis algorithms and pattern recognition
-- **export/**: Data export and visualization generation
-- **cli/**: Command-line tools and user interface
-- **bin/**: Executable analysis tools
-
-## Troubleshooting
-
-### Common Issues
-
-**Performance optimization:**
-
-```bash
-# Use fast mode for reduced overhead
-export MEMSCOPE_FAST_MODE=1
-# Or disable expensive operations for large datasets
-export MEMSCOPE_DISABLE_ANALYSIS=1
-```
-
-**Export fails with large datasets:**
-
-```rust
-// Use smaller buffer or exclude system allocations
-let options = ExportOptions::new()
-    .include_system_allocations(false)
-    .buffer_size(32 * 1024);
-```
-
-**High memory usage:**
-
-```bash
-# Disable backtrace collection
-cargo run --no-default-features --features tracking-allocator
-```
-
-**Permission errors on output:**
-
-```bash
-# Ensure write permissions
-mkdir -p MemoryAnalysis
-chmod 755 MemoryAnalysis
-```
-
-**Platform-specific configuration:**
-
-```bash
-# For optimal performance on different platforms
-export MEMSCOPE_PLATFORM_OPTIMIZED=1
-```
-
-## Contributing
-
-We welcome contributions to continue improving memscope-rs! Please:
-
-1. **Test thoroughly** - Make sure your changes don't break existing functionality
-2. **Document limitations** - Be honest about what doesn't work
-3. **Performance test** - Measure the impact of your changes
-4. **Keep it simple** - Avoid over-engineering (we have enough complexity already)
-
-```bash
-# Development workflow
-git clone https://github.com/TimWood0x10/memscope-rs
-cd memscope-rs
-
-make build
-make run-basic
-```
+- Buffer overflow detection is pattern-based, not runtime enforcement
+- Not a replacement for ASAN/Valgrind in production
+- Requires code instrumentation (track! macros)
+- Performance overhead varies by use case
 
 ## License
 
-Licensed under either of:
-
-- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
-- MIT License ([LICENSE-MIT](LICENSE-MIT))
-
-at your option.
-
-## 🛠️ Installation
-
-Add to your `Cargo.toml`:
-
-```toml
-[dependencies]
-memscope-rs = "0.1.10"
-
-# Optional features
-[features]
-default = ["parking-lot"]
-derive = ["memscope-rs/derive"]           # Derive macros
-enhanced-tracking = ["memscope-rs/enhanced-tracking"]  # Advanced analysis
-system-metrics = ["memscope-rs/system-metrics"]        # System monitoring
-```
-
-## 🔧 CLI Tools
-
-memscope-rs includes command-line tools:
-
-```bash
-# Analyze existing memory data
-cargo run --bin memscope-analyze -- analysis.json
-
-# Generate reports
-cargo run --bin memscope-report -- --input analysis.memscope --format html
-
-# Run performance benchmarks
-cargo run --bin memscope-benchmark -- --threads 50 --allocations 10000
-```
-
-## 📚 Documentation
-
-- **[API Documentation](https://docs.rs/memscope-rs)** - Complete API reference
-- **[User Guide](docs/user_guide.md)** - Step-by-step tutorials
-- **[Examples](examples/)** - Real-world usage examples
-- **[Performance Guide](docs/performance.md)** - Optimization tips
-
-## 🙏 Help Me Improve This Project
-
-**I need your feedback!** While memscope-rs has useful functionality, I believe it can be even better with your help.
-
-### 🐛 **Found a Bug? Please Tell Me!**
-
-I've put tremendous effort into testing, but complex software inevitably has edge cases I haven't encountered. Your real-world usage scenarios are invaluable:
-
-- **Performance issues** in your specific use case
-- **Compatibility problems** with certain crates or Rust versions
-- **Unexpected behavior** that doesn't match documentation
-- **Missing features** that would make your workflow easier
-
-### 💡 **How You Can Help**
-
-1. **Create Issues**: [Open an issue](https://github.com/TimWood0x10/memscope-rs/issues/new) - no matter how small!
-2. **Share Use Cases**: Tell me how you're using memscope-rs
-3. **Report Performance**: Let me know if tracking overhead is higher than expected
-4. **Documentation Gaps**: Point out anything confusing or unclear
-
-### 🚀 **Your Experience Matters**
-
-Every issue report helps improve memscope-rs for the Rust community. I'm committed to:
-
-- **Quick responses** to reported issues
-- **Transparent communication** about fixes and improvements
-- **Recognition** for your contributions
-
-**Together, we can build the best memory analysis tool for Rust!** 🦀
-
----
-
-## 🤝 Contributing
-
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
-
-### Running Tests
-
-```bash
-make test        # Run all tests
-make check       # Check code quality
-make benchmark   # Run performance benchmarks
-```
-
-## 📄 License
-
-This project is licensed under either of:
-
-- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
-- MIT License ([LICENSE-MIT](LICENSE-MIT))
-
----
-
-**Made with ❤️ and 🦀 by developers who care about memory (maybe too much) \**
+Licensed under MIT OR Apache-2.0.

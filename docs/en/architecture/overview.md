@@ -2,7 +2,7 @@
 
 > MemScope v0.1.10 — 9-Engine Pipeline Architecture
 
-***
+---
 
 ## System Architecture
 
@@ -60,7 +60,7 @@ MemScope captures, analyzes, and visualizes memory allocations through a **9-eng
               └────────────────────┘
 ```
 
-***
+---
 
 ## The 9 Engines
 
@@ -72,19 +72,18 @@ The entry point for all memory events. Routes allocation/deallocation calls to a
 
 **Four backends:**
 
-| Backend      | File                  | Strategy                                                           | Best For                                |
-| ------------ | --------------------- | ------------------------------------------------------------------ | --------------------------------------- |
-| **Core**     | `core_tracker.rs`     | `DashMap<usize, AllocationInfo>` + `AtomicU64` counters            | Single-threaded or low-concurrency apps |
-| **Lockfree** | `lockfree_tracker.rs` | `Arc<Mutex<Vec<Event>>>` with `try_lock()` + thread-local tracking | High-concurrency multi-threaded apps    |
-| **Async**    | `async_tracker.rs`    | `Mutex<HashMap<task_id, AsyncAllocation>>`                         | Async runtimes (tokio, async-std)       |
-| **Unified**  | `unified_tracker.rs`  | Auto-detects: CPU count → Core/Lockfree; async runtime → Async     | "Just work" — recommended default       |
+| Backend | File | Strategy | Best For |
+|---------|------|----------|----------|
+| **Core** | `core_tracker.rs` | `DashMap<usize, AllocationInfo>` + `AtomicU64` counters | Single-threaded or low-concurrency apps |
+| **Lockfree** | `lockfree_tracker.rs` | `Arc<Mutex<Vec<Event>>>` with `try_lock()` + thread-local tracking | High-concurrency multi-threaded apps |
+| **Async** | `async_tracker.rs` | `Mutex<HashMap<task_id, AsyncAllocation>>` | Async runtimes (tokio, async-std) |
+| **Unified** | `unified_tracker.rs` | Auto-detects: CPU count → Core/Lockfree; async runtime → Async | "Just work" — recommended default |
 
 **Unified auto-detection logic:**
-
 ```
 thread_count <= 1        → Core backend
 thread_count > 1         → Lockfree backend
-tokio/async-std detected → Async backend (planned)
+Async detection (planned) → Async backend
 ```
 
 ### 2. EventStore — Centralized Event Storage
@@ -94,7 +93,6 @@ tokio/async-std detected → Async backend (planned)
 Stores all `MemoryEvent` records in a lock-free `SegQueue<MemoryEvent>` (from crossbeam). Every allocation, deallocation, reallocation, and move event flows through here.
 
 **Key operations:**
-
 - `record(event)` — Push event to queue (lock-free, O(1))
 - `snapshot()` — Drain-and-restore for point-in-time view (O(n))
 - `len()` — Current event count (concurrent read)
@@ -104,7 +102,6 @@ Stores all `MemoryEvent` records in a lock-free `SegQueue<MemoryEvent>` (from cr
 **Module:** `src/metadata/`
 
 Enriches raw allocation events with contextual metadata:
-
 - **Scope tracking** — Variable scopes and lifetime boundaries
 - **Thread metadata** — Thread names, IDs, grouping
 - **Stack traces** — Call stack capture and normalization
@@ -115,7 +112,6 @@ Enriches raw allocation events with contextual metadata:
 **Module:** `src/snapshot/engine.rs`
 
 Builds `MemorySnapshot` from the EventStore:
-
 - Maps of active allocations by pointer address
 - Per-thread statistics
 - Aggregate memory stats (total, active, peak)
@@ -125,7 +121,6 @@ Builds `MemorySnapshot` from the EventStore:
 **Module:** `src/query/engine.rs`
 
 Unified query interface over snapshots:
-
 - `summary()` — Overall memory statistics
 - `top_allocations(n)` — Top N allocations by size
 - `by_thread(thread_id)` — Filter by thread
@@ -136,7 +131,6 @@ Unified query interface over snapshots:
 **Module:** `src/timeline/engine.rs`
 
 Time-series memory analysis:
-
 - `get_events_in_range(start, end)` — Events in time window
 - `get_memory_usage_over_time(start, end, interval)` — Memory trend
 - `get_peak_memory_in_range(start, end)` — Peak memory
@@ -148,16 +142,15 @@ Time-series memory analysis:
 
 Pluggable analysis via the `Detector` trait:
 
-| Detector              | Purpose                                         |
-| --------------------- | ----------------------------------------------- |
-| **LeakDetector**      | Finds allocations with no matching deallocation |
-| **UafDetector**       | Detects use-after-free patterns                 |
-| **OverflowDetector**  | Identifies buffer overflow risks                |
-| **SafetyDetector**    | General unsafe code safety violations           |
-| **LifecycleDetector** | RAII/Drop pattern analysis                      |
+| Detector | Purpose |
+|----------|---------|
+| **LeakDetector** | Finds allocations with no matching deallocation |
+| **UafDetector** | Detects use-after-free patterns |
+| **OverflowDetector** | Identifies buffer overflow risks |
+| **SafetyDetector** | General unsafe code safety violations |
+| **LifecycleDetector** | RAII/Drop pattern analysis |
 
 Additional analysis modules:
-
 - **Async analysis** — Task memory profiling, efficiency scoring
 - **Borrow analysis** — Mutable/immutable borrow pattern detection
 - **Generic analysis** — Generic type instantiation statistics
@@ -170,11 +163,12 @@ Additional analysis modules:
 **Module:** `src/render_engine/`
 
 Multiple export formats:
-
 - **JSON** — Machine-readable analysis results
 - **HTML Dashboard** — Interactive web-based visualization with charts
+- **SVG** — Memory layout visualization
+- **Binary** — Compact `.memscope` format (80x faster than JSON)
 
-## 9. Tracker API — Simplified Interface
+### 9. Tracker API — Simplified Interface
 
 **Module:** `src/tracker.rs`
 
@@ -187,51 +181,12 @@ let report = tracker.analyze();
 ```
 
 Features:
-
 - **System monitoring** — CPU, memory, disk I/O, network, GPU metrics
 - **Sampling** — Configurable sample rate to reduce overhead
 - **Auto-export** — Export on drop
 - **Hotspot analysis** — Identify allocation hotspots by call site
 
-***
-
-## Data Flow: End-to-End
-
-### Scenario: Tracking a `Vec` in a multi-threaded program
-
-```
-1. User code:
-   let data = vec![1, 2, 3];
-   track_var!(data);
-
-2. TrackingAllocator::alloc() intercepts the heap allocation
-   → ptr: 0x7f..., size: 24, thread_id: 3
-
-3. CaptureEngine routes to LockfreeBackend (multi-threaded detected)
-   → ThreadLocalTracker.push(Event { ptr, size, timestamp, ... })
-
-4. Event forwarded to EventStore
-   → SegQueue.push(MemoryEvent::Allocate { ... })
-
-5. MetadataEngine enriches the event
-   → var_name: "data", type_name: "Vec<i32>", scope: "main"
-
-6. User calls: memscope.export_html("report.html")
-
-7. SnapshotEngine builds MemorySnapshot from EventStore
-   → active_allocations: { 0x7f...: ActiveAllocation { ... } }
-
-8. QueryEngine runs summary() and top_allocations(10)
-
-9. AnalysisEngine runs all registered detectors
-   → LeakDetector: 0 leaks found
-   → UafDetector: 0 issues found
-
-10. RenderEngine generates HTML dashboard
-    → Charts, tables, allocation timeline, detector results
-```
-
-***
+---
 
 ## Two APIs: Which to Use?
 
@@ -260,25 +215,24 @@ let report = t.analyze();
 
 **Best for:** Quick scripts, simple programs, when you don't need the full engine pipeline.
 
-***
+---
 
 ## Feature Flags
 
-| Feature              | Default | Description                               |
-| -------------------- | ------- | ----------------------------------------- |
-| `tracking-allocator` | ✅       | Enable `#[global_allocator]` interception |
-| `backtrace`          | ❌       | Call stack capture                        |
-| `derive`             | ❌       | `#[derive(Trackable)]` macro              |
-| `test`               | ❌       | Testing utilities                         |
+| Feature | Default | Description |
+|---------|---------|-------------|
+| `tracking-allocator` | ✅ | Enable `#[global_allocator]` interception |
+| `backtrace` | ❌ | Call stack capture |
+| `derive` | ❌ | `#[derive(Trackable)]` macro |
+| `test` | ❌ | Testing utilities |
 
-***
+---
 
 ## Performance Characteristics
 
-| Backend  | Tracking Overhead | Memory Overhead  | Thread Safety            |
-| -------- | ----------------- | ---------------- | ------------------------ |
-| Core     | \~5-10%           | \~80 bytes/alloc | DashMap (sharded locks)  |
-| Lockfree | \~2-5%            | \~64 bytes/event | Thread-local + try\_lock |
-| Async    | \~10-20%          | \~80 bytes/task  | Mutex (per-task)         |
-| Unified  | Auto-selects      | Auto-selects     | Auto-selects             |
-
+| Backend | Tracking Overhead | Memory Overhead | Thread Safety |
+|---------|-------------------|-----------------|---------------|
+| Core | ~5-10% | ~80 bytes/alloc | DashMap (sharded locks) |
+| Lockfree | ~2-5% | ~64 bytes/event | Thread-local + try_lock |
+| Async | ~10-20% | ~80 bytes/task | Mutex (per-task) |
+| Unified | Auto-selects | Auto-selects | Auto-selects |

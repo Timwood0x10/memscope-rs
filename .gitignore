@@ -24,46 +24,39 @@ ehthumbs.db
 Thumbs.db
 
 # memscope-rs specific output files
-*.json
-
 *.memscope
 *.bin
 
-# Ignore all SVG files
-*.svg
-
-
+# Analysis output directories
 /backup/
+/MemoryAnalysis/
+/test_data/
+/core_performance_results/
+/performance_only_results/
+/partial_exports/
 
-MemoryAnalysis/
-
-test_data/
-
-core_performance_results/
-performance_only_results/
-
-*.sh
-
-*.txt
-
-# But keep these specific SVG files
+/aim/
+# Generated files (but keep templates)
+*.json
+*.svg
+*.html
+!src/render_engine/dashboard/templates/*.html
 !images/*.svg
 !images/*.json
 
-aim/**
+# Shell scripts (generated)
+*.sh
 
-/partial_exports/
+# Text files (generated)
+*.txt
 
+# Specific test/analysis files
 memory_*.json
 memory_*.svg
 *_test.json
 *_test.svg
 *_analysis.json
 *_visualization.svg
-
-*.html
-*.json
-!src/render_engine/dashboard/templates/*.html
 
 # Coverage reports
 /target/coverage/
@@ -84,8 +77,8 @@ temp_*
 # Documentation build
 /target/doc/
 
+# Subproject targets
 memscope-derive/target/
-
 doc-generator/target/
 
 # Local configuration
@@ -109,3 +102,6 @@ perf.data*
 # Local development scripts
 dev_*
 local_*
+
+# Trae IDE rules (keep this file)
+!.trae/
