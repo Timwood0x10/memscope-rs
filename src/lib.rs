@@ -25,6 +25,10 @@ pub mod query;
 pub mod render_engine;
 /// Snapshot Engine - Snapshot construction and aggregation
 pub mod snapshot;
+/// Memory management utilities
+pub mod memory {
+    pub use crate::snapshot::memory::*;
+}
 /// Timeline Engine - Time-based memory analysis
 pub mod timeline;
 /// Unified Tracker API - Simple, unified interface for memory tracking
@@ -53,15 +57,18 @@ pub use capture::backends::{
 pub use capture::backends::{
     is_tracking, memory_snapshot, quick_trace, stop_tracing, trace_all, trace_thread,
 };
-pub use capture::types::{
-    AllocationInfo, MemorySnapshot, MemoryStats, SmartPointerInfo, TrackingError, TrackingResult,
-};
+pub use capture::types::{AllocationInfo, SmartPointerInfo, TrackingError, TrackingResult};
 pub use capture::{CaptureBackend, CaptureBackendType, CaptureEngine};
 pub use core::allocator::TrackingAllocator;
 pub use core::tracker::{get_tracker, MemoryTracker};
 pub use core::{ExportMode, ExportOptions};
 #[cfg(feature = "derive")]
 pub use memscope_derive::Trackable;
+pub use snapshot::engine::SnapshotEngine;
+pub use snapshot::memory::{
+    BoundedHistory, BoundedHistoryConfig, BoundedHistoryStats, MemoryConfig, TimestampedEntry,
+};
+pub use snapshot::types::{ActiveAllocation, MemorySnapshot, MemoryStats, ThreadMemoryStats};
 /// Global tracking allocator instance - only enabled with tracking-allocator feature
 /// for single-threaded or low-concurrency applications.
 #[cfg(feature = "tracking-allocator")]

@@ -1769,12 +1769,32 @@ impl DashboardRenderer {
         });
 
         // Prepare efficiency data
+        // Calculate fragmentation: ratio of active allocations to total allocations
+        // Higher ratio = less fragmentation (more allocations still in use)
+        let fragmentation = if context.total_allocations > 0 {
+            let deallocated = context
+                .total_allocations
+                .saturating_sub(context.active_allocations);
+            deallocated as f64 / context.total_allocations as f64 * 100.0
+        } else {
+            0.0
+        };
+
+        // Calculate reclamation rate: percentage of memory that was deallocated
+        // This estimates how well the program is cleaning up memory
+        let reclamation_rate = if context.total_allocations > 0 {
+            let active_ratio = context.active_allocations as f64 / context.total_allocations as f64;
+            (1.0 - active_ratio) * 100.0
+        } else {
+            100.0
+        };
+
         let efficiency_data = serde_json::json!({
             "memory_efficiency": if context.total_allocations > 0 {
                 context.active_allocations as f64 / context.total_allocations as f64 * 100.0
             } else { 100.0 },
-            "fragmentation": "0.0", // TODO: Calculate actual fragmentation
-            "reclamation_rate": "0.0", // TODO: Calculate actual reclamation rate
+            "fragmentation": format!("{:.1}", fragmentation),
+            "reclamation_rate": format!("{:.1}", reclamation_rate),
             "average_size": if context.allocations.is_empty() {
                 0
             } else {

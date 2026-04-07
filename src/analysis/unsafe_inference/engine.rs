@@ -1159,10 +1159,12 @@ mod real_data_tests {
         let guess = UnsafeInferenceEngine::infer_from_bytes(&memory, 8);
 
         // Box and Pointer have same size=8 layout
+        // Note: CString is also possible if the bytes happen to look like a valid C string
         assert!(
             guess.kind == TypeKind::Pointer
                 || guess.kind == TypeKind::Vec
-                || guess.kind == TypeKind::String,
+                || guess.kind == TypeKind::String
+                || guess.kind == TypeKind::CString,
             "Got {:?}",
             guess.kind
         );

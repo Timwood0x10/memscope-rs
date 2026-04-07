@@ -390,6 +390,20 @@ impl UnifiedCaptureBackend {
     pub fn backend_type(&self) -> CaptureBackendType {
         self.backend_type
     }
+
+    /// Refresh the backend selection based on current runtime environment.
+    ///
+    /// This allows switching to a more appropriate backend if the
+    /// runtime conditions have changed (e.g., from single-threaded
+    /// to multi-threaded).
+    ///
+    /// Note: This replaces the inner backend with a new instance,
+    /// so any internal state is lost.
+    pub fn refresh_backend(&mut self) {
+        let (new_inner, new_type) = Self::detect_best_backend();
+        self.inner = new_inner;
+        self.backend_type = new_type;
+    }
 }
 
 impl Default for UnifiedCaptureBackend {

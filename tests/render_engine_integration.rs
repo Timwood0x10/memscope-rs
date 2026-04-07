@@ -185,14 +185,17 @@ fn test_high_performance_sampling_tracks_allocations() {
 
     let t = tracker!().with_sampling(SamplingConfig::high_performance());
 
-    for i in 0..100 {
+    // Use more iterations to ensure at least some allocations are sampled
+    // With 1% sample rate, 1000 iterations should yield ~10 samples
+    for i in 0..1000 {
         track!(t, vec![i as u8; 64]);
     }
 
     let report = t.analyze();
     assert!(
         report.total_allocations > 0,
-        "High performance sampling should track some allocations"
+        "High performance sampling should track some allocations (got {})",
+        report.total_allocations
     );
 }
 

@@ -57,7 +57,10 @@ pub fn simplify_type_name(type_name: &str) -> (String, String) {
         (format!("Vec<{inner}>"), "Collections".to_string())
     } else if clean_type.contains("Box<") || clean_type.contains("boxed::Box") {
         let inner = extract_generic_type(clean_type, "Box");
-        if inner.contains("HashMap") || inner.contains("hash_map") {
+        // String detection takes priority
+        if inner.contains("String") || inner.contains("string::String") {
+            ("String".to_string(), "Basic Types".to_string())
+        } else if inner.contains("HashMap") || inner.contains("hash_map") {
             ("HashMap<K,V>".to_string(), "Collections".to_string())
         } else if inner.contains("BTreeMap") || inner.contains("btree_map") {
             ("BTreeMap<K,V>".to_string(), "Collections".to_string())
@@ -70,8 +73,6 @@ pub fn simplify_type_name(type_name: &str) -> (String, String) {
         } else if inner.contains("Vec") || inner.contains("vec::Vec") {
             let vec_inner = extract_generic_type(&inner, "Vec");
             (format!("Vec<{vec_inner}>"), "Collections".to_string())
-        } else if inner.contains("String") || inner.contains("string::String") {
-            ("String".to_string(), "Basic Types".to_string())
         } else {
             (format!("Box<{inner}>"), "Smart Pointers".to_string())
         }

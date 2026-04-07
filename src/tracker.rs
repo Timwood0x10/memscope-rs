@@ -29,8 +29,8 @@
 //! let tracker = tracker!();
 //! let my_vec = vec![1, 2, 3];
 //! track!(tracker, my_vec);
-//! // Note: export_json returns (), not Result, so we don't use ?
-//! let _ = tracker.export_json("output");
+//! // Analyze the tracked allocations
+//! let report = tracker.analyze();
 //!
 //! // Advanced usage with custom sampling
 //! use memscope_rs::tracker::SamplingConfig;
@@ -230,7 +230,17 @@ impl Tracker {
                 use std::collections::hash_map::DefaultHasher;
                 use std::hash::{Hash, Hasher};
                 let mut hasher = DefaultHasher::new();
+                // Use current timestamp for randomness to ensure sampling works
+                // correctly even with identical variable names in a loop
+                let timestamp = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_nanos();
+                timestamp.hash(&mut hasher);
+                std::thread::current().id().hash(&mut hasher);
                 name.hash(&mut hasher);
+                file.hash(&mut hasher);
+                line.hash(&mut hasher);
                 let hash = hasher.finish();
                 let threshold = (cfg.sampling.sample_rate * 1000.0) as u64;
                 if (hash % 1000) > threshold {

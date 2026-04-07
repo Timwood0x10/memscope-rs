@@ -190,12 +190,11 @@ pub fn is_initialized() -> bool {
 
 /// Get the global tracker instance (unified tracker with async support).
 ///
-/// # Errors
-/// Returns `GlobalTrackingError::NotInitialized` if `init_global_tracking()` was not called.
+/// # Thread Safety
+/// Uses OnceLock for thread-safe one-time initialization.
 pub fn global_tracker() -> Result<GlobalTracker, GlobalTrackingError> {
-    let state = GLOBAL_TRACKING
-        .get()
-        .ok_or(GlobalTrackingError::NotInitialized)?;
+    let state = GLOBAL_TRACKING.get_or_init(GlobalTrackingState::new);
+
     Ok(GlobalTracker {
         inner: state.tracker().clone(),
         async_tracker: state.async_tracker().clone(),
@@ -204,23 +203,21 @@ pub fn global_tracker() -> Result<GlobalTracker, GlobalTrackingError> {
 
 /// Get the global passport tracker instance.
 ///
-/// # Errors
-/// Returns `GlobalTrackingError::NotInitialized` if `init_global_tracking()` was not called.
+/// # Thread Safety
+/// Uses OnceLock for thread-safe one-time initialization.
 pub fn global_passport_tracker() -> Result<Arc<MemoryPassportTracker>, GlobalTrackingError> {
-    let state = GLOBAL_TRACKING
-        .get()
-        .ok_or(GlobalTrackingError::NotInitialized)?;
+    let state = GLOBAL_TRACKING.get_or_init(GlobalTrackingState::new);
+
     Ok(state.passport_tracker().clone())
 }
 
 /// Get the global async tracker instance.
 ///
-/// # Errors
-/// Returns `GlobalTrackingError::NotInitialized` if `init_global_tracking()` was not called.
+/// # Thread Safety
+/// Uses OnceLock for thread-safe one-time initialization.
 pub fn global_async_tracker() -> Result<Arc<AsyncTracker>, GlobalTrackingError> {
-    let state = GLOBAL_TRACKING
-        .get()
-        .ok_or(GlobalTrackingError::NotInitialized)?;
+    let state = GLOBAL_TRACKING.get_or_init(GlobalTrackingState::new);
+
     Ok(state.async_tracker().clone())
 }
 

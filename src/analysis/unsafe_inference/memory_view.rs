@@ -120,7 +120,7 @@ fn merge_regions(regions: Vec<MemoryRegion>) -> Vec<MemoryRegion> {
     let mut current = regions[0].clone();
 
     for region in regions.into_iter().skip(1) {
-        if region.start <= current.end {
+        if region.start < current.end {
             current.end = current.end.max(region.end);
         } else {
             merged.push(current);
@@ -192,26 +192,43 @@ fn get_valid_regions_impl() -> ValidRegions {
 
 /// Get cached valid regions, initializing if needed.
 pub fn get_valid_regions() -> ValidRegions {
+    // Fast path: check if already initialized
     {
-        let read_guard = VALID_REGIONS.read().unwrap();
+        let read_guard = match VALID_REGIONS.read() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
         if read_guard.is_some() {
             return read_guard.as_ref().unwrap().clone();
         }
     }
 
-    // Need to initialize
-    let regions = get_valid_regions_impl();
-    {
-        let mut write_guard = VALID_REGIONS.write().unwrap();
-        *write_guard = Some(regions.clone());
+    // Slow path: need to initialize
+    // Use write lock and double-check to prevent TOCTOU race
+    let mut write_guard = match VALID_REGIONS.write() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+
+    // Double-check after acquiring write lock
+    if write_guard.is_some() {
+        return write_guard.as_ref().unwrap().clone();
     }
+
+    // Initialize while holding the write lock
+    let regions = get_valid_regions_impl();
+    *write_guard = Some(regions.clone());
     regions
 }
 
 /// Refresh valid regions (call after significant memory changes).
-#[cfg(target_os = "linux")]
+/// Works on all platforms to invalidate the cached regions.
+#[allow(dead_code)]
 pub fn refresh_valid_regions() {
-    let mut write_guard = VALID_REGIONS.write().unwrap();
+    let mut write_guard = match VALID_REGIONS.write() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    };
     *write_guard = None;
 }
 
@@ -272,14 +289,24 @@ impl<'a> MemoryView<'a> {
 
 /// Count valid pointers in a memory view.
 pub fn count_valid_pointers(view: &MemoryView) -> usize {
+    let ptr_size = std::mem::size_of::<usize>();
     let mut count = 0;
-    for chunk in view.chunks(8) {
-        if chunk.len() < 8 {
+    for chunk in view.chunks(ptr_size) {
+        if chunk.len() < ptr_size {
             break;
         }
-        let mut buf = [0u8; 8];
-        buf.copy_from_slice(chunk);
-        let v = usize::from_le_bytes(buf);
+        // Use a buffer sized for the platform's pointer size
+        let mut buf = [0u8; 16]; // Max pointer size is 16 bytes (128-bit)
+        buf[..ptr_size].copy_from_slice(chunk);
+        let v = if ptr_size == 8 {
+            usize::from_le_bytes(buf[..8].try_into().unwrap())
+        } else {
+            usize::from_le_bytes({
+                let mut arr = [0u8; 8];
+                arr[..ptr_size].copy_from_slice(&buf[..ptr_size]);
+                arr
+            })
+        };
         if is_valid_ptr(v) {
             count += 1;
         }

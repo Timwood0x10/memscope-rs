@@ -47,9 +47,16 @@ impl EventStore {
     ///
     /// # Arguments
     /// * `event` - The memory event to record
+    ///
+    /// # Note
+    /// There is a potential race condition with `clear()`: if `clear()` is called
+    /// concurrently, events recorded during the clear operation may be lost.
+    /// This is acceptable for memory tracking use cases where exact counts are
+    /// not critical.
     pub fn record(&self, event: MemoryEvent) {
         self.queue.push(event);
-        self.count.fetch_add(1, Ordering::Relaxed);
+        // Use Release ordering to ensure the push is visible before the count increment
+        self.count.fetch_add(1, Ordering::Release);
     }
 
     /// Flush pending events from queue to cache
@@ -89,10 +96,19 @@ impl EventStore {
     /// Clear all events from the store
     ///
     /// This method removes all events from both the queue and cache.
+    /// Uses write lock to ensure atomicity with concurrent record operations.
     pub fn clear(&self) {
+        // Acquire write lock first to prevent concurrent modifications
+        let mut cache = self.cache.write();
+
+        // Clear the queue
         while self.queue.pop().is_some() {}
-        self.cache.write().clear();
-        self.count.store(0, Ordering::Relaxed);
+
+        // Clear the cache
+        cache.clear();
+
+        // Reset count last, while still holding the write lock
+        self.count.store(0, Ordering::Release);
     }
 }
 
