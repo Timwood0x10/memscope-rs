@@ -84,6 +84,51 @@ pub struct DashboardContext {
     pub ffi_tracked_count: usize,
     /// Safe code percentage
     pub safe_code_percent: u32,
+    /// Ownership graph information
+    pub ownership_graph: OwnershipGraphInfo,
+}
+
+/// Ownership graph information for dashboard
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OwnershipGraphInfo {
+    /// Total number of nodes
+    pub total_nodes: usize,
+    /// Total number of edges
+    pub total_edges: usize,
+    /// Number of detected cycles
+    pub total_cycles: usize,
+    /// Rc clone count
+    pub rc_clone_count: usize,
+    /// Arc clone count
+    pub arc_clone_count: usize,
+    /// Whether there are issues
+    pub has_issues: bool,
+    /// Detected issues
+    pub issues: Vec<OwnershipIssue>,
+    /// Root cause if any
+    pub root_cause: Option<RootCauseInfo>,
+}
+
+/// Ownership issue for dashboard
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OwnershipIssue {
+    /// Issue type
+    pub issue_type: String,
+    /// Severity (error, warning)
+    pub severity: String,
+    /// Description
+    pub description: String,
+}
+
+/// Root cause information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RootCauseInfo {
+    /// Cause type
+    pub cause: String,
+    /// Description
+    pub description: String,
+    /// Impact
+    pub impact: String,
 }
 
 /// Async task information for dashboard
@@ -633,6 +678,30 @@ impl DashboardRenderer {
                         is_part_of_cycle: false,
                     });
                 }
+
+                // Add relationships based on type similarity (for visualization purposes)
+                if a1.type_name == a2.type_name && a1.address != a2.address {
+                    let color = match a1.type_name.as_str() {
+                        t if t.contains("Arc<") => "#8b5cf6",
+                        t if t.contains("Rc<") => "#8b5cf6",
+                        t if t.contains("Vec<") => "#10b981",
+                        t if t.contains("String") => "#10b981",
+                        t if t.contains("HashMap") => "#f59e0b",
+                        t if t.contains("BTreeMap") => "#f59e0b",
+                        _ => "#64748b",
+                    };
+                    relationships.push(RelationshipInfo {
+                        source_ptr: a1.address.clone(),
+                        source_var_name: a1.var_name.clone(),
+                        target_ptr: a2.address.clone(),
+                        target_var_name: a2.var_name.clone(),
+                        relationship_type: "same_type".to_string(),
+                        strength: 0.4,
+                        type_name: a1.type_name.clone(),
+                        color: color.to_string(),
+                        is_part_of_cycle: false,
+                    });
+                }
             }
         }
 
@@ -640,6 +709,11 @@ impl DashboardRenderer {
         relationships
             .sort_by(|a, b| (&a.source_ptr, &a.target_ptr).cmp(&(&b.source_ptr, &b.target_ptr)));
         relationships.dedup_by(|a, b| a.source_ptr == b.source_ptr && a.target_ptr == b.target_ptr);
+
+        // Limit relationships to avoid performance issues
+        if relationships.len() > 500 {
+            relationships.truncate(500);
+        }
 
         // Detect cycles in relationships and mark cycle edges
         let cycle_edges: std::collections::HashSet<(String, String)> = {
@@ -939,10 +1013,12 @@ impl DashboardRenderer {
             leak_count: usize,
             async_tasks: &'a [AsyncTaskInfo],
             async_summary: &'a AsyncSummary,
+            ownership_graph: &'a OwnershipGraphInfo,
         }
 
         let async_tasks = Self::build_async_tasks(async_tracker);
         let async_summary = Self::build_async_summary(async_tracker);
+        let ownership_graph = Self::build_ownership_graph_info(&allocations);
         let data = DashboardData {
             allocations: &alloc_info,
             relationships: &relationships,
@@ -954,6 +1030,7 @@ impl DashboardRenderer {
             leak_count,
             async_tasks: &async_tasks,
             async_summary: &async_summary,
+            ownership_graph: &ownership_graph,
         };
 
         let json_data: String = serde_json::to_string(&data)
@@ -1192,9 +1269,95 @@ impl DashboardRenderer {
             leaked_passport_count,
             ffi_tracked_count,
             safe_code_percent,
+            ownership_graph: Self::build_ownership_graph_info(&allocations),
         };
 
         Ok(context)
+    }
+
+    /// Build ownership graph info from allocations
+    fn build_ownership_graph_info(
+        allocations: &[crate::capture::backends::core_types::AllocationInfo],
+    ) -> OwnershipGraphInfo {
+        use crate::analysis::ownership_graph::{
+            DiagnosticIssue, ObjectId, OwnershipGraph, OwnershipOp,
+        };
+
+        // Convert allocations to passport format for graph building
+        let passports: Vec<(
+            ObjectId,
+            String,
+            usize,
+            Vec<crate::analysis::ownership_graph::OwnershipEvent>,
+        )> = allocations
+            .iter()
+            .map(|alloc| {
+                let id = ObjectId::from_ptr(alloc.ptr);
+                let type_name = alloc
+                    .type_name
+                    .clone()
+                    .unwrap_or_else(|| "unknown".to_string());
+                let size = alloc.size;
+
+                // Generate ownership events from allocation info
+                let mut events = Vec::new();
+
+                // Add create event
+                events.push(crate::analysis::ownership_graph::OwnershipEvent::new(
+                    alloc.allocated_at_ns,
+                    OwnershipOp::Create,
+                    id,
+                    None,
+                ));
+
+                (id, type_name, size, events)
+            })
+            .collect();
+
+        let graph = OwnershipGraph::build(&passports);
+        let diagnostics = graph.diagnostics(50);
+
+        // Build issues list
+        let issues = diagnostics
+            .issues
+            .iter()
+            .map(|issue| match issue {
+                DiagnosticIssue::RcCycle { cycle_type, .. } => OwnershipIssue {
+                    issue_type: "RcCycle".to_string(),
+                    severity: "error".to_string(),
+                    description: format!("{:?} retain cycle detected", cycle_type),
+                },
+                DiagnosticIssue::ArcCloneStorm {
+                    clone_count,
+                    threshold,
+                } => OwnershipIssue {
+                    issue_type: "ArcCloneStorm".to_string(),
+                    severity: "warning".to_string(),
+                    description: format!(
+                        "Arc clone storm: {} clones (threshold: {})",
+                        clone_count, threshold
+                    ),
+                },
+            })
+            .collect();
+
+        // Build root cause
+        let root_cause = graph.find_root_cause().map(|rc| RootCauseInfo {
+            cause: format!("{:?}", rc.root_cause),
+            description: rc.description,
+            impact: rc.impact,
+        });
+
+        OwnershipGraphInfo {
+            total_nodes: graph.nodes.len(),
+            total_edges: graph.edges.len(),
+            total_cycles: graph.cycles.len(),
+            rc_clone_count: diagnostics.rc_clone_count,
+            arc_clone_count: diagnostics.arc_clone_count,
+            has_issues: diagnostics.has_issues(),
+            issues,
+            root_cause,
+        }
     }
 
     fn build_async_tasks(
@@ -1457,6 +1620,10 @@ impl DashboardRenderer {
             "threads".to_string(),
             serde_json::to_value(&context.threads)?,
         );
+        template_data.insert(
+            "ownership_graph".to_string(),
+            serde_json::to_value(&context.ownership_graph)?,
+        );
 
         self.handlebars
             .render("dashboard_unified", &template_data)
@@ -1588,6 +1755,10 @@ impl DashboardRenderer {
         template_data.insert(
             "async_tasks".to_string(),
             serde_json::to_value(&context.async_tasks)?,
+        );
+        template_data.insert(
+            "ownership_graph".to_string(),
+            serde_json::to_value(&context.ownership_graph)?,
         );
 
         self.handlebars

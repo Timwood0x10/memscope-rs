@@ -108,19 +108,21 @@ export_unsafe_ffi_json("output", &passport_tracker).ok();
 
 ## 📄 Export Files
 
-Each example generates JSON files in `MemoryAnalysis/<example_name>/`. The global tracker exports **7 files**, while other examples export **4 files**.
+Each example generates JSON files in `MemoryAnalysis/<example_name>/`. The global tracker exports **9 files**, while other examples export **4 files**.
 
-### 7 Files (Global Tracker - `global_tracker_showcase`)
+### 9 Files (Global Tracker - `global_tracker_showcase`)
 
 | File | Description | Key Fields |
 |------|-------------|------------|
 | `memory_analysis.json` | 所有内存分配详情 | `ptr`, `size`, `type_name`, `var_name`, `thread_id`, `allocated_at` |
 | `lifetime.json` | 变量生命周期和所有权历史 | `var_name`, `allocated_at`, `deallocated_at`, `ownership_chain` |
 | `thread_analysis.json` | 按线程分类的内存统计 | `thread_id`, `allocations`, `total_bytes`, `thread_name` |
-| `variable_relationships.json` | 变量依赖关系图 | `from_var`, `to_var`, `relationship_type`, `access_mode` |
+| `ownership_graph.json` | 所有权图分析 | `nodes`, `edges`, `cycles`, `diagnostics`, `root_cause` |
 | `memory_passports.json` | 内存护照元数据 | `passport_id`, `allocation_ptr`, `size_bytes`, `created_at`, `status` |
 | `leak_detection.json` | 泄漏检测结果 | `total_leaks`, `passport_id`, `memory_address`, `size_bytes`, `lifecycle_summary` |
 | `unsafe_ffi.json` | FFI边界追踪数据 | `passport_id`, `allocation_ptr`, `boundary_events`, `event_type`, `context` |
+| `system_resources.json` | 系统资源监控 | `os_name`, `cpu_cores`, `total_physical`, `used_physical` |
+| `async_analysis.json` | 异步任务分析 | `total_tasks`, `active_tasks`, `total_allocations` |
 
 ### 4 Files (Other Examples)
 
@@ -129,7 +131,7 @@ Each example generates JSON files in `MemoryAnalysis/<example_name>/`. The globa
 | `memory_analysis.json` | 所有分配详情 | `ptr`, `size`, `type_name`, `var_name`, `thread_id` |
 | `lifetime.json` | 生命周期事件 | `var_name`, `allocated_at`, `deallocated_at` |
 | `thread_analysis.json` | 线程统计 | `thread_id`, `allocations`, `total_bytes` |
-| `variable_relationships.json` | 变量依赖 | `from_var`, `to_var`, `relationship_type` |
+| `ownership_graph.json` | 所有权图 | `nodes`, `edges`, `cycles`, `diagnostics` |
 
 ### Export Data Examples
 

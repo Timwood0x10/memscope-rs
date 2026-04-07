@@ -73,11 +73,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Files saved to {}/", output_path);
     println!("\nExported files:");
     println!("  - dashboard.html (interactive HTML dashboard)");
-    println!("  - 6 JSON files:");
-    println!("    • memory_snapshots.json");
+    println!("  - 9 JSON files:");
+    println!("    • memory_analysis.json");
+    println!("    • lifetime.json");
+    println!("    • thread_analysis.json");
+    println!("    • ownership_graph.json");
     println!("    • memory_passports.json");
     println!("    • leak_detection.json");
-    println!("    • unsafe_ffi_analysis.json");
+    println!("    • unsafe_ffi.json");
     println!("    • system_resources.json");
     println!("    • async_analysis.json");
 

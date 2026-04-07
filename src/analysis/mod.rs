@@ -58,6 +58,10 @@ pub use variable_relationships::{
 pub mod relationship_cycle_detector;
 pub use relationship_cycle_detector::{detect_cycles_in_relationships, CycleDetectionResult};
 
+// Ownership graph analysis
+pub mod ownership_graph;
+pub use ownership_graph::{Edge, EdgeKind, Node, ObjectId, OwnershipGraph, OwnershipOp};
+
 // Re-export new analysis modules
 pub use detectors::{
     Detector, LeakDetector, LeakDetectorConfig, LifecycleDetector, LifecycleDetectorConfig,

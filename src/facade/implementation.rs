@@ -379,15 +379,16 @@ impl MemScope {
 
     /// Export all JSON files
     ///
-    /// This method exports 8 JSON files containing comprehensive memory analysis:
+    /// This method exports 9 JSON files containing comprehensive memory analysis:
     /// - memory_analysis.json: Complete memory allocation analysis
     /// - lifetime.json: Ownership and lifetime tracking
-    /// - variable_relationships.json: Variable dependency graph
+    /// - ownership_graph.json: Ownership graph analysis with cycle detection
     /// - system_resources.json: System resource monitoring
     /// - thread_analysis.json: Thread-specific memory stats
     /// - unsafe_ffi.json: Unsafe FFI boundary tracking
     /// - memory_passports.json: Memory lifecycle passports
     /// - leak_detection.json: Potential memory leaks
+    /// - async_analysis.json: Async task analysis
     ///
     /// # Arguments
     /// * `path` - Directory path where JSON files will be saved

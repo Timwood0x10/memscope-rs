@@ -321,7 +321,67 @@
             </div>
         </div>
 
-        <!-- [9] Unsafe / FFI Boundary -->
+        <!-- [9] Ownership Graph -->
+        <div class="section">
+            <div class="card" style="border-left: 4px solid var(--purple);">
+                <div class="section-header">
+                    <span>🔗</span>
+                    <span class="section-title">Ownership Graph</span>
+                    <div class="section-controls">
+                        <button class="btn-toggle" onclick="toggleSection('ownershipContent', this)">▼</button>
+                    </div>
+                </div>
+                <div id="ownershipContent" class="collapsible-content" style="max-height: none;">
+                    <div class="score-grid" style="margin-bottom: 12px;">
+                        <div class="score-card">
+                            <div class="score-value" style="color: var(--purple);">{{ownership_graph.total_nodes}}</div>
+                            <div class="score-label">Nodes</div>
+                        </div>
+                        <div class="score-card">
+                            <div class="score-value" style="color: var(--info);">{{ownership_graph.total_edges}}</div>
+                            <div class="score-label">Edges</div>
+                        </div>
+                        <div class="score-card">
+                            <div class="score-value" style="color: var(--danger);">{{ownership_graph.total_cycles}}</div>
+                            <div class="score-label">Cycles</div>
+                        </div>
+                        <div class="score-card">
+                            <div class="score-value" style="color: var(--success);">{{ownership_graph.rc_clone_count}}</div>
+                            <div class="score-label">Rc Clones</div>
+                        </div>
+                        <div class="score-card">
+                            <div class="score-value" style="color: var(--warning);">{{ownership_graph.arc_clone_count}}</div>
+                            <div class="score-label">Arc Clones</div>
+                        </div>
+                    </div>
+                    {{#if ownership_graph.has_issues}}
+                    <div class="diagnosis-grid" style="margin-bottom: 12px;">
+                        {{#each ownership_graph.issues}}
+                        <div class="diagnosis-item {{#if (eq severity 'error')}}critical{{else if (eq severity 'warning')}}warning{{else}}info{{/if}}">
+                            <div class="diagnosis-icon">{{#if (eq issue_type 'RcCycle')}}🔄{{else if (eq issue_type 'ArcCloneStorm')}}⚠️{{else}}ℹ️{{/if}}</div>
+                            <div>
+                                <div class="diagnosis-title">{{issue_type}}</div>
+                                <div class="diagnosis-desc">{{description}}</div>
+                            </div>
+                        </div>
+                        {{/each}}
+                    </div>
+                    {{/if}}
+                    {{#if ownership_graph.root_cause}}
+                    <div class="diagnosis-item info" style="margin-bottom: 12px;">
+                        <div class="diagnosis-icon">🔍</div>
+                        <div>
+                            <div class="diagnosis-title">Root Cause: {{ownership_graph.root_cause.cause}}</div>
+                            <div class="diagnosis-desc">{{ownership_graph.root_cause.description}}</div>
+                            <div class="diagnosis-desc">Impact: {{ownership_graph.root_cause.impact}}</div>
+                        </div>
+                    </div>
+                    {{/if}}
+                </div>
+            </div>
+        </div>
+
+        <!-- [10] Unsafe / FFI Boundary -->
         <div class="section">
             <div class="card" style="border-left: 4px solid var(--warning);">
                 <div class="section-header">
@@ -596,18 +656,18 @@
                     });
                     
                     const nodes = Array.from(nodeMap.values());
-                    const links = relationships.map(r => ({ source: r.source_ptr, target: r.target_ptr, type: r.relationship_type, isCycle: r.is_part_of_cycle }));
+                    const links = relationships.map(r => ({ source: r.source_ptr, target: r.target_ptr, type: r.relationship_type, isCycle: r.is_part_of_cycle, color: r.color }));
                     
                     links.forEach(l => {
                         if (l.isCycle) { const s = nodeMap.get(l.source.id || l.source); const t = nodeMap.get(l.target.id || l.target); if (s) s.hasCycle = true; if (t) t.hasCycle = true; }
                     });
                     
-                    const colorMap = { clone: '#10b981', immutable_borrow: '#3b82f6', mutable_borrow: '#f59e0b', smart_pointer_arc: '#8b5cf6', smart_pointer_rc: '#8b5cf6', reference: '#64748b' };
-                    const getColor = d => d.hasCycle ? '#ef4444' : colorMap[d.relType] || '#64748b';
+                    const colorMap = { clone: '#10b981', immutable_borrow: '#3b82f6', mutable_borrow: '#f59e0b', smart_pointer_arc: '#8b5cf6', smart_pointer_rc: '#8b5cf6', reference: '#64748b', same_type: '#64748b', ownership_transfer: '#dc2626' };
+                    const getColor = d => d.hasCycle ? '#ef4444' : (d.relType ? colorMap[d.relType] || d.color : d.color) || '#64748b';
                     
-                    const sim = d3.forceSimulation(nodes).force('link', d3.forceLink(links).id(d => d.id).distance(80)).force('charge', d3.forceManyBody().strength(-200)).force('center', d3.forceCenter(width / 2, height / 2));
+                    const sim = d3.forceSimulation(nodes).force('link', d3.forceLink(links).id(d => d.id).distance(100)).force('charge', d3.forceManyBody().strength(-150)).force('center', d3.forceCenter(width / 2, height / 2)).force('collide', d3.forceCollide().radius(15).iterations(2));
                     
-                    const link = g.append('g').selectAll('line').data(links).join('line').attr('stroke', d => d.isCycle ? '#ef4444' : colorMap[d.type] || '#64748b').attr('stroke-width', 1.5).attr('stroke-dasharray', d => d.isCycle ? '4,2' : null);
+                    const link = g.append('g').selectAll('line').data(links).join('line').attr('stroke', d => d.isCycle ? '#ef4444' : (d.color || colorMap[d.type] || '#64748b')).attr('stroke-width', 1.5).attr('stroke-dasharray', d => d.isCycle ? '4,2' : null);
                     const node = g.append('g').selectAll('circle').data(nodes).join('circle').attr('r', d => d.hasCycle ? 10 : 7).attr('fill', getColor).attr('stroke', d => d.hasCycle ? '#fbbf24' : 'none').attr('stroke-width', 2).call(d3.drag().on('start', e => { if (!e.active) sim.alphaTarget(0.3).restart(); e.subject.fx = e.subject.x; e.subject.fy = e.subject.y; }).on('drag', e => { e.subject.fx = e.x; e.subject.fy = e.y; }).on('end', e => { if (!e.active) sim.alphaTarget(0); e.subject.fx = null; e.subject.fy = null; }));
                     
                     const tooltip = document.getElementById('tooltip');
