@@ -6,10 +6,7 @@
 //! - Async mode
 //! - Unsafe/FFI mode
 
-use memscope_rs::capture::backends::global_tracking::{
-    export_to_json, get_stats, global_async_tracker, global_passport_tracker, global_tracker,
-    init_global_tracking,
-};
+use memscope_rs::{global_tracker, init_global_tracking};
 
 use memscope_rs::track;
 
@@ -193,7 +190,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     println!("📦 Section 6: Statistics\n");
-    let stats = get_stats()?;
+    let tracker = global_tracker()?;
+    let stats = tracker.get_stats();
     println!("✓ Total allocations: {}", stats.total_allocations);
     println!("✓ Active allocations: {}", stats.active_allocations);
     println!(
@@ -202,49 +200,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     println!("✓ Memory passports: {}", stats.passport_count);
 
-    println!("\n📦 Section 6: Export (10 files)\n");
+    println!("\n📦 Section 6: Export (simplified API)\n");
     let output_path = "MemoryAnalysis/global_tracker_showcase";
-    export_to_json(output_path)?;
-
-    // Export HTML dashboards with both templates
-    println!("Exporting HTML dashboards...");
-    use memscope_rs::render_engine::export::{
-        export_dashboard_html_with_template, DashboardTemplate,
-    };
 
     let tracker = global_tracker()?;
-    let passport_tracker = global_passport_tracker()?;
-    let async_tracker = global_async_tracker()?;
 
-    // Export unified dashboard (original)
-    export_dashboard_html_with_template(
-        output_path,
-        &tracker,
-        &passport_tracker,
-        DashboardTemplate::Unified,
-        Some(&async_tracker),
-    )?;
+    // Export JSON files (simplified)
+    tracker.export_json(output_path)?;
 
-    // Export final dashboard (new investigation console)
-    export_dashboard_html_with_template(
-        output_path,
-        &tracker,
-        &passport_tracker,
-        DashboardTemplate::Final,
-        Some(&async_tracker),
-    )?;
+    // Export HTML dashboard (simplified)
+    tracker.export_html(output_path)?;
 
     println!("✓ Export successful!");
-    println!("  📄 memory_analysis.json");
-    println!("  📄 lifetime.json");
-    println!("  📄 thread_analysis.json");
-    println!("  📄 variable_relationships.json");
-    println!("  📄 memory_passports.json");
-    println!("  📄 leak_detection.json");
-    println!("  📄 unsafe_ffi.json");
-    println!("  📄 async_analysis.json");
-    println!("  📄 dashboard_unified_dashboard.html (original)");
-    println!("  📄 dashboard_final_dashboard.html (NEW investigation console)");
+    println!("  memory_snapshots.json");
+    println!("  memory_passports.json");
+    println!("  leak_detection.json");
+    println!("  unsafe_ffi_analysis.json");
+    println!("  system_resources.json");
+    println!("  async_analysis.json");
+    println!("  dashboard.html");
 
     println!("\n✓ All modes completed successfully!");
     println!(
@@ -262,8 +236,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 async fn run_async_mode() -> Result<(), Box<dyn std::error::Error>> {
     println!("Spawning 4 async tasks...");
 
-    use memscope_rs::capture::backends::global_tracking::global_async_tracker;
-    let async_tracker = global_async_tracker()?;
+    let tracker = global_tracker()?;
+    let async_tracker = tracker.async_tracker().clone();
 
     let tasks = (0..4).map(|i| {
         let async_tracker = async_tracker.clone();
@@ -308,7 +282,7 @@ async fn run_async_mode() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn run_unsafe_ffi_mode() -> Result<(), Box<dyn std::error::Error>> {
-    let passport_tracker = global_passport_tracker()?;
+    let tracker = global_tracker()?;
 
     println!("Spawning unsafe/FFI operations...");
 
@@ -319,12 +293,10 @@ fn run_unsafe_ffi_mode() -> Result<(), Box<dyn std::error::Error>> {
             let ptr = alloc(layout);
 
             if !ptr.is_null() {
-                passport_tracker.create_passport(
+                tracker.create_passport(
                     ptr as usize,
                     layout.size(),
                     format!("unsafe_vec_{}", i),
-                    Some("[i32; 64]".to_string()),
-                    Some(format!("unsafe_vec_{}", i)),
                 )?;
 
                 let slice = std::slice::from_raw_parts_mut(ptr as *mut i32, 64);
@@ -350,19 +322,13 @@ fn run_unsafe_ffi_mode() -> Result<(), Box<dyn std::error::Error>> {
 
         if !ffi_ptr.is_null() {
             // FFI memory type is unknown at compile time, use *mut c_void
-            passport_tracker.create_passport(
-                ffi_ptr as usize,
-                size,
-                format!("ffi_alloc_{}", i),
-                Some("*mut c_void".to_string()),
-                Some(format!("ffi_memory_{}", i)),
-            )?;
+            tracker.create_passport(ffi_ptr as usize, size, format!("ffi_alloc_{}", i))?;
 
-            passport_tracker.record_handover_to_ffi(
+            tracker.record_handover(
                 ffi_ptr as usize,
                 "foreign_function".to_string(),
                 format!("ffi_call_{}", i),
-            )?;
+            );
 
             unsafe {
                 std::ptr::write_bytes(ffi_ptr as *mut u8, (0x40 + i) as u8, size);

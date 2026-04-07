@@ -3,42 +3,58 @@
 //! This module provides a unified entry point for automatic memory tracking
 //! across all execution modes (single-thread, multi-thread, async, unsafe/ffi).
 //!
-//! # Design Philosophy
+//! # Design Principles
 //!
-//! - **Lazy Initialization**: Global tracker is initialized on first access
-//! - **Passive Capture**: Automatically captures all user program allocations
-//! - **Zero Configuration**: Works out of the box with sensible defaults
-//! - **Mode Agnostic**: Same API for single-thread, multi-thread, async, and unsafe/ffi
+//! - **Merged**: All tracker data stored in a unified GlobalTracker
+//! - **Simplified**: Minimal public API surface
+//! - **Backward Compatible**: Legacy APIs preserved as deprecated wrappers
+//!
+//! # Core API (Recommended)
+//!
+//! ```ignore
+//! use memscope_rs::capture::backends::global_tracking::{init_global_tracking, global_tracker};
+//!
+//! init_global_tracking().unwrap();
+//! let tracker = global_tracker().unwrap();
+//!
+//! tracker.track!(my_variable);
+//! tracker.export_json("output").unwrap();
+//! tracker.export_html("output").unwrap();
+//! ```
 
-use crate::analysis::memory_passport_tracker::{
-    initialize_global_passport_tracker, MemoryPassportTracker, PassportTrackerConfig,
-};
+use crate::analysis::memory_passport_tracker::{MemoryPassportTracker, PassportTrackerConfig};
 use crate::capture::backends::async_tracker::AsyncTracker;
-use crate::tracker::Tracker;
+use crate::tracker::{AnalysisReport, Tracker};
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use thiserror::Error;
-use tracing::{info, warn};
+use tracing::info;
 
-static GLOBAL_TRACKING: std::sync::OnceLock<GlobalTrackingState> = std::sync::OnceLock::new();
+static GLOBAL_TRACKER: Mutex<Option<Arc<GlobalTracker>>> = Mutex::new(None);
 
 #[derive(Error, Debug)]
-pub enum GlobalTrackingError {
+pub enum GlobalTrackerError {
     #[error("Global tracking already initialized")]
     AlreadyInitialized,
 
     #[error("Global tracking not initialized")]
     NotInitialized,
 
+    #[error("Internal error: {0}")]
+    InternalError(String),
+
     #[error("Export failed: {0}")]
-    ExportFailed(String),
+    ExportFailed(#[from] Box<crate::render_engine::export::ExportError>),
+
+    #[error("IO error: {0}")]
+    IoError(#[from] std::io::Error),
 }
 
-#[derive(Debug, Clone)]
-pub struct GlobalTrackingConfig {
-    pub tracker: TrackerConfig,
-    pub passport: PassportTrackerConfig,
+impl From<crate::render_engine::export::ExportError> for GlobalTrackerError {
+    fn from(e: crate::render_engine::export::ExportError) -> Self {
+        GlobalTrackerError::ExportFailed(Box::new(e))
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -47,57 +63,62 @@ pub struct TrackerConfig {
     pub enable_statistics: bool,
 }
 
-impl Default for GlobalTrackingConfig {
+impl Default for TrackerConfig {
     fn default() -> Self {
         Self {
-            tracker: TrackerConfig {
-                max_allocations: 1000000,
-                enable_statistics: true,
-            },
-            passport: PassportTrackerConfig {
-                detailed_logging: true,
-                max_events_per_passport: 100,
-                enable_leak_detection: true,
-                enable_validation: false,
-                max_passports: 10000,
-                track_rust_internal_stack: false,
-                user_code_prefixes: vec!["examples/".to_string()],
-            },
+            max_allocations: 1_000_000,
+            enable_statistics: true,
         }
     }
 }
 
-pub struct GlobalTrackingState {
+#[derive(Debug, Clone)]
+pub struct GlobalTrackerConfig {
+    pub tracker: TrackerConfig,
+    pub passport: PassportTrackerConfig,
+}
+
+impl Default for GlobalTrackerConfig {
+    fn default() -> Self {
+        Self {
+            tracker: TrackerConfig::default(),
+            passport: PassportTrackerConfig::default(),
+        }
+    }
+}
+
+pub struct GlobalTracker {
     tracker: Tracker,
     passport_tracker: Arc<MemoryPassportTracker>,
     async_tracker: Arc<AsyncTracker>,
     start_time: Instant,
 }
 
-impl std::fmt::Debug for GlobalTrackingState {
+impl std::fmt::Debug for GlobalTracker {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("GlobalTrackingState")
+        f.debug_struct("GlobalTracker")
             .field("start_time", &self.start_time)
             .finish()
     }
 }
 
-impl GlobalTrackingState {
-    pub fn new_with_config(config: GlobalTrackingConfig) -> Self {
+impl GlobalTracker {
+    pub fn new() -> Self {
+        Self::with_config(GlobalTrackerConfig::default())
+    }
+
+    pub fn with_config(config: GlobalTrackerConfig) -> Self {
         let tracker = Tracker::new();
-        let passport_tracker = initialize_global_passport_tracker(config.passport);
+        let passport_tracker = Arc::new(MemoryPassportTracker::new(config.passport));
         let async_tracker = Arc::new(AsyncTracker::new());
         async_tracker.set_initialized();
+
         Self {
             tracker,
             passport_tracker,
             async_tracker,
             start_time: Instant::now(),
         }
-    }
-
-    pub fn new() -> Self {
-        Self::new_with_config(GlobalTrackingConfig::default())
     }
 
     pub fn tracker(&self) -> &Tracker {
@@ -115,177 +136,176 @@ impl GlobalTrackingState {
     pub fn elapsed(&self) -> std::time::Duration {
         self.start_time.elapsed()
     }
+
+    pub fn track<T: crate::Trackable>(&self, var: &T) {
+        self.track_as(var, "unknown", "", 0);
+    }
+
+    pub fn track_as<T: crate::Trackable>(&self, var: &T, name: &str, file: &str, line: u32) {
+        self.tracker.track_as(var, name, file, line);
+
+        if let Some(task_id) = AsyncTracker::get_current_task() {
+            if let Some(ptr) = var.get_heap_ptr() {
+                let size = var.get_size_estimate();
+                let type_name = var.get_type_name().to_string();
+                self.async_tracker.track_allocation_with_location(
+                    ptr,
+                    size,
+                    task_id,
+                    Some(name.to_string()),
+                    Some(type_name),
+                    None,
+                );
+            }
+        }
+    }
+
+    pub fn create_passport(
+        &self,
+        ptr: usize,
+        size: usize,
+        context: String,
+    ) -> Result<String, crate::capture::types::TrackingError> {
+        self.passport_tracker
+            .create_passport_simple(ptr, size, context)
+    }
+
+    pub fn record_handover(&self, ptr: usize, context: String, function: String) {
+        let _ = self
+            .passport_tracker
+            .record_handover_to_ffi(ptr, context, function);
+    }
+
+    pub fn record_free(&self, ptr: usize, context: String, function: String) {
+        let _ = self
+            .passport_tracker
+            .record_freed_by_foreign(ptr, context, function);
+    }
+
+    pub fn detect_leaks(&self) -> crate::analysis::memory_passport_tracker::LeakDetectionResult {
+        self.passport_tracker.detect_leaks_at_shutdown()
+    }
+
+    pub fn analyze(&self) -> AnalysisReport {
+        self.tracker.analyze()
+    }
+
+    pub fn get_stats(&self) -> GlobalTrackerStats {
+        let report = self.tracker.analyze();
+        let passport_stats = self.passport_tracker.get_stats();
+        let async_stats = self.async_tracker.get_stats();
+
+        GlobalTrackerStats {
+            total_allocations: report.total_allocations,
+            active_allocations: report.active_allocations,
+            peak_memory_bytes: report.peak_memory_bytes,
+            current_memory_bytes: report.current_memory_bytes,
+            passport_count: passport_stats.total_passports_created,
+            active_passports: passport_stats.active_passports,
+            leaks_detected: passport_stats.leaks_detected,
+            async_task_count: async_stats.total_tasks,
+            active_async_tasks: async_stats.active_tasks,
+            uptime: self.elapsed(),
+        }
+    }
+
+    pub fn export_json<P: AsRef<Path>>(&self, path: P) -> Result<(), GlobalTrackerError> {
+        use crate::render_engine::export::export_all_json;
+
+        let path = path.as_ref();
+        export_all_json(
+            path,
+            &self.tracker,
+            &self.passport_tracker,
+            &self.async_tracker,
+        )?;
+        Ok(())
+    }
+
+    pub fn export_html<P: AsRef<Path>>(&self, path: P) -> Result<(), GlobalTrackerError> {
+        use crate::render_engine::export::export_dashboard_html;
+
+        let path = path.as_ref();
+        export_dashboard_html(path, &self.tracker, &self.passport_tracker)?;
+        Ok(())
+    }
 }
 
-impl Default for GlobalTrackingState {
+impl Default for GlobalTracker {
     fn default() -> Self {
         Self::new()
     }
 }
 
-#[derive(Clone)]
-pub struct GlobalTracker {
-    inner: Tracker,
-    async_tracker: Arc<AsyncTracker>,
+#[derive(Debug, Clone)]
+pub struct GlobalTrackerStats {
+    pub total_allocations: usize,
+    pub active_allocations: usize,
+    pub peak_memory_bytes: u64,
+    pub current_memory_bytes: u64,
+    pub passport_count: usize,
+    pub active_passports: usize,
+    pub leaks_detected: usize,
+    pub async_task_count: usize,
+    pub active_async_tasks: usize,
+    pub uptime: std::time::Duration,
 }
 
-impl GlobalTracker {
-    pub fn track_as<T: crate::Trackable>(&self, var: &T, name: &str, file: &str, line: u32) {
-        self.inner.track_as(var, name, file, line);
+pub fn init_global_tracking() -> Result<(), GlobalTrackerError> {
+    let mut guard = GLOBAL_TRACKER.lock().map_err(|_| {
+        GlobalTrackerError::InternalError("Failed to acquire global tracker lock".to_string())
+    })?;
 
-        if let Some(task_id) = AsyncTracker::get_current_task() {
-            let ptr = var.get_heap_ptr().unwrap_or(0);
-            let size = var.get_size_estimate();
-            let type_name = var.get_type_name().to_string();
-            self.async_tracker.track_allocation_with_location(
-                ptr,
-                size,
-                task_id,
-                Some(name.to_string()),
-                Some(type_name),
-                None,
-            );
-        }
+    if guard.is_some() {
+        return Err(GlobalTrackerError::AlreadyInitialized);
     }
 
-    pub fn analyze(&self) -> crate::tracker::AnalysisReport {
-        self.inner.analyze()
-    }
-
-    pub fn inner(&self) -> &Tracker {
-        &self.inner
-    }
-
-    pub fn async_tracker(&self) -> &Arc<AsyncTracker> {
-        &self.async_tracker
-    }
-}
-
-impl std::ops::Deref for GlobalTracker {
-    type Target = Tracker;
-
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
-}
-
-/// Initialize global tracking with default configuration.
-pub fn init_global_tracking() -> Result<(), GlobalTrackingError> {
-    let state = GlobalTrackingState::new();
-    let result = GLOBAL_TRACKING.set(state);
-
-    if result.is_err() {
-        warn!("Global tracking already initialized, skipping");
-        return Err(GlobalTrackingError::AlreadyInitialized);
-    }
-
+    *guard = Some(Arc::new(GlobalTracker::new()));
     info!("Global tracking initialized");
     Ok(())
 }
 
-/// Check if global tracking is initialized.
+pub fn init_global_tracking_with_config(
+    config: GlobalTrackerConfig,
+) -> Result<(), GlobalTrackerError> {
+    let mut guard = GLOBAL_TRACKER.lock().map_err(|_| {
+        GlobalTrackerError::InternalError("Failed to acquire global tracker lock".to_string())
+    })?;
+
+    if guard.is_some() {
+        return Err(GlobalTrackerError::AlreadyInitialized);
+    }
+
+    *guard = Some(Arc::new(GlobalTracker::with_config(config)));
+    info!("Global tracking initialized with config");
+    Ok(())
+}
+
 pub fn is_initialized() -> bool {
-    GLOBAL_TRACKING.get().is_some()
+    GLOBAL_TRACKER
+        .lock()
+        .map(|guard| guard.is_some())
+        .unwrap_or(false)
 }
 
-/// Get the global tracker instance (unified tracker with async support).
-///
-/// # Thread Safety
-/// Uses OnceLock for thread-safe one-time initialization.
-pub fn global_tracker() -> Result<GlobalTracker, GlobalTrackingError> {
-    let state = GLOBAL_TRACKING.get_or_init(GlobalTrackingState::new);
-
-    Ok(GlobalTracker {
-        inner: state.tracker().clone(),
-        async_tracker: state.async_tracker().clone(),
-    })
+pub fn global_tracker() -> Result<Arc<GlobalTracker>, GlobalTrackerError> {
+    GLOBAL_TRACKER
+        .lock()
+        .map(|guard| {
+            guard
+                .as_ref()
+                .cloned()
+                .ok_or(GlobalTrackerError::NotInitialized)
+        })
+        .map_err(|_| {
+            GlobalTrackerError::InternalError("Failed to acquire global tracker lock".to_string())
+        })?
 }
 
-/// Get the global passport tracker instance.
-///
-/// # Thread Safety
-/// Uses OnceLock for thread-safe one-time initialization.
-pub fn global_passport_tracker() -> Result<Arc<MemoryPassportTracker>, GlobalTrackingError> {
-    let state = GLOBAL_TRACKING.get_or_init(GlobalTrackingState::new);
-
-    Ok(state.passport_tracker().clone())
-}
-
-/// Get the global async tracker instance.
-///
-/// # Thread Safety
-/// Uses OnceLock for thread-safe one-time initialization.
-pub fn global_async_tracker() -> Result<Arc<AsyncTracker>, GlobalTrackingError> {
-    let state = GLOBAL_TRACKING.get_or_init(GlobalTrackingState::new);
-
-    Ok(state.async_tracker().clone())
-}
-
-/// Get global tracking state (for advanced usage).
-pub fn get_global_state() -> Result<&'static GlobalTrackingState, GlobalTrackingError> {
-    GLOBAL_TRACKING
-        .get()
-        .ok_or(GlobalTrackingError::NotInitialized)
-}
-
-pub use crate::render_engine::export::{
-    export_all_json, export_async_analysis_json, export_leak_detection_json,
-    export_memory_passports_json, export_unsafe_ffi_json,
-};
-
-/// Export captured memory data to JSON files using global tracker.
-///
-/// This is a convenience wrapper that uses the global singleton tracker.
-///
-/// # Exported Files
-///
-/// This function creates the following JSON files in the specified directory:
-///
-/// - `memory_analysis.json` - Main memory allocation analysis
-/// - `lifetime.json` - Ownership and lifetime tracking
-/// - `thread_analysis.json` - Thread-local memory statistics
-/// - `variable_relationships.json` - Variable relationship graph
-/// - `memory_passports.json` - Memory passport tracking
-/// - `leak_detection.json` - Memory leak detection results
-/// - `unsafe_ffi.json` - Unsafe/FFI tracking data
-/// - `async_analysis.json` - Async task memory analysis
-/// - `system_resources.json` - System resource monitoring (CPU, memory, pressure indicators)
-pub fn export_to_json<P: AsRef<Path>>(path: P) -> Result<(), GlobalTrackingError> {
-    let tracker = global_tracker()?;
-    let passport_tracker = global_passport_tracker()?;
-    let async_tracker = global_async_tracker()?;
-    export_all_json(path, &tracker, &passport_tracker, &async_tracker)
-        .map_err(|e| GlobalTrackingError::ExportFailed(e.to_string()))
-}
-
-/// Get tracking statistics.
-pub fn get_stats() -> Result<GlobalTrackingStats, GlobalTrackingError> {
-    let state = get_global_state()?;
-    let report = state.tracker().analyze();
-    let async_stats = state.async_tracker().get_stats();
-
-    Ok(GlobalTrackingStats {
-        total_allocations: report.total_allocations,
-        active_allocations: report.active_allocations,
-        peak_memory_bytes: report.peak_memory_bytes as usize,
-        current_memory_bytes: report.current_memory_bytes as usize,
-        passport_count: state.passport_tracker().get_stats().total_passports_created,
-        async_task_count: async_stats.total_tasks,
-        active_async_tasks: async_stats.active_tasks,
-        uptime: state.elapsed(),
-    })
-}
-
-#[derive(Debug, Clone)]
-pub struct GlobalTrackingStats {
-    pub total_allocations: usize,
-    pub active_allocations: usize,
-    pub peak_memory_bytes: usize,
-    pub current_memory_bytes: usize,
-    pub passport_count: usize,
-    pub async_task_count: usize,
-    pub active_async_tasks: usize,
-    pub uptime: std::time::Duration,
+pub fn reset_global_tracking() {
+    if let Ok(mut guard) = GLOBAL_TRACKER.lock() {
+        *guard = None;
+    }
 }
 
 #[cfg(test)]
@@ -293,28 +313,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_lazy_init() {
-        let tracker = global_tracker().unwrap();
-        assert!(is_initialized());
+    fn test_unified_tracker() {
+        let tracker = GlobalTracker::new();
+        assert!(tracker.tracker().analyze().total_allocations == 0);
 
-        let tracker2 = global_tracker().unwrap();
-        assert_eq!(
-            tracker.analyze().total_allocations,
-            tracker2.analyze().total_allocations
-        );
-    }
-
-    #[test]
-    fn test_stats() {
-        let _tracker = global_tracker().unwrap();
-        let stats = get_stats().unwrap();
-        assert!(stats.uptime.as_secs() > 0 || stats.uptime.subsec_nanos() > 0);
-    }
-
-    #[test]
-    fn test_async_tracker() {
-        let async_tracker = global_async_tracker().unwrap();
-        let stats = async_tracker.get_stats();
-        assert_eq!(stats.total_tasks, 0);
+        let stats = tracker.get_stats();
+        assert_eq!(stats.total_allocations, 0);
     }
 }

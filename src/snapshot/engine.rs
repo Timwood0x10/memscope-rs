@@ -49,8 +49,7 @@ impl SnapshotEngine {
 
         for event in events {
             match event.event_type {
-                MemoryEventType::Allocate | MemoryEventType::Reallocate => {
-                    // Record allocation
+                MemoryEventType::Allocate => {
                     let allocation = ActiveAllocation {
                         ptr: event.ptr,
                         size: event.size,
@@ -62,12 +61,10 @@ impl SnapshotEngine {
 
                     ptr_to_allocation.insert(event.ptr, allocation);
 
-                    // Update stats
                     snapshot.stats.total_allocations += 1;
                     snapshot.stats.total_allocated += event.size;
                     current_memory += event.size;
 
-                    // Update thread stats
                     let thread_stat =
                         thread_stats
                             .entry(event.thread_id)
@@ -75,12 +72,67 @@ impl SnapshotEngine {
                                 thread_id: event.thread_id,
                                 allocation_count: 0,
                                 total_allocated: 0,
+                                total_deallocated: 0,
                                 current_memory: 0,
                                 peak_memory: 0,
                             });
                     thread_stat.allocation_count += 1;
                     thread_stat.total_allocated += event.size;
                     thread_stat.current_memory += event.size;
+                    if thread_stat.current_memory > thread_stat.peak_memory {
+                        thread_stat.peak_memory = thread_stat.current_memory;
+                    }
+                }
+                MemoryEventType::Reallocate => {
+                    let old_allocation = ptr_to_allocation.get(&event.ptr).cloned();
+                    let old_size = event.old_size.unwrap_or_else(|| {
+                        old_allocation.as_ref().map(|a| a.size).unwrap_or_else(|| {
+                            tracing::warn!(
+                                "Reallocation without old_size or previous allocation: ptr={:#x}, new_size={}",
+                                event.ptr,
+                                event.size
+                            );
+                            0
+                        })
+                    });
+
+                    let allocation = ActiveAllocation {
+                        ptr: event.ptr,
+                        size: event.size,
+                        allocated_at: old_allocation
+                            .map(|a| a.allocated_at)
+                            .unwrap_or(event.timestamp),
+                        var_name: event.var_name,
+                        type_name: event.type_name,
+                        thread_id: event.thread_id,
+                    };
+
+                    ptr_to_allocation.insert(event.ptr, allocation);
+
+                    snapshot.stats.total_reallocations += 1;
+                    snapshot.stats.total_allocated += event.size;
+                    snapshot.stats.total_deallocated += old_size;
+                    current_memory = current_memory
+                        .saturating_sub(old_size)
+                        .saturating_add(event.size);
+
+                    let thread_stat =
+                        thread_stats
+                            .entry(event.thread_id)
+                            .or_insert_with(|| ThreadMemoryStats {
+                                thread_id: event.thread_id,
+                                allocation_count: 0,
+                                total_allocated: 0,
+                                total_deallocated: 0,
+                                current_memory: 0,
+                                peak_memory: 0,
+                            });
+                    thread_stat.total_allocated += event.size;
+                    thread_stat.total_deallocated += old_size;
+                    thread_stat.current_memory = thread_stat
+                        .current_memory
+                        .saturating_sub(old_size)
+                        .saturating_add(event.size);
                     if thread_stat.current_memory > thread_stat.peak_memory {
                         thread_stat.peak_memory = thread_stat.current_memory;
                     }
@@ -95,6 +147,7 @@ impl SnapshotEngine {
 
                         // Update thread stats
                         if let Some(thread_stat) = thread_stats.get_mut(&event.thread_id) {
+                            thread_stat.total_deallocated += allocation.size;
                             thread_stat.current_memory -= allocation.size;
                         }
                     } else {

@@ -2,9 +2,7 @@
 //!
 //! This example demonstrates unsafe Rust and FFI memory tracking with memory passport export.
 
-use memscope_rs::analysis::memory_passport_tracker::initialize_global_passport_tracker;
-use memscope_rs::capture::backends::global_tracking::export_to_json;
-use memscope_rs::{track, tracker};
+use memscope_rs::{global_tracker, init_global_tracking, track};
 use std::alloc::{alloc, dealloc, Layout};
 use std::time::Instant;
 
@@ -14,18 +12,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let start_time = Instant::now();
 
-    let config = PassportTrackerConfig {
-        detailed_logging: true,
-        max_events_per_passport: 100,
-        enable_leak_detection: true,
-        enable_validation: true,
-        max_passports: 10000,
-        track_rust_internal_stack: false,
-        user_code_prefixes: vec!["examples/".to_string()],
-    };
-    let _passport_tracker = initialize_global_passport_tracker(config);
+    init_global_tracking()?;
 
-    let tracker = tracker!();
+    let tracker = global_tracker()?;
 
     println!("1. Safe Rust Allocations");
     let safe_vec = vec![1, 2, 3, 4, 5];
@@ -42,12 +31,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let ptr = alloc(layout);
 
         if !ptr.is_null() {
-            let passport_id = _passport_tracker.create_passport(
+            let passport_id = tracker.create_passport(
                 ptr as usize,
                 layout.size(),
                 "unsafe_rust_allocation".to_string(),
-                Some("[i32; 10]".to_string()),
-                Some("unsafe_array".to_string()),
             )?;
 
             let slice = std::slice::from_raw_parts_mut(ptr as *mut i32, 10);
@@ -76,19 +63,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
 
         if !ffi_ptr.is_null() {
-            let passport_id = _passport_tracker.create_passport(
-                ffi_ptr as usize,
-                size,
-                format!("ffi_alloc_{}", i),
-                Some(format!("FFIBuffer{}", i)),
-                Some(format!("ffi_buffer_{}", i)),
-            )?;
+            let passport_id =
+                tracker.create_passport(ffi_ptr as usize, size, format!("ffi_alloc_{}", i))?;
 
-            _passport_tracker.record_handover_to_ffi(
+            tracker.record_handover(
                 ffi_ptr as usize,
                 "foreign_function".to_string(),
                 format!("ffi_call_{}", i),
-            )?;
+            );
 
             unsafe {
                 std::ptr::write_bytes(ffi_ptr as *mut u8, (0x40 + i) as u8, size);
@@ -105,41 +87,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let duration = start_time.elapsed();
 
     println!("\n4. Leak Detection");
-    let leak_result = _passport_tracker.detect_leaks_at_shutdown();
-    println!(
-        "   Total passports created: {}",
-        _passport_tracker.get_stats().total_passports_created
-    );
+    let leak_result = tracker.passport_tracker().detect_leaks_at_shutdown();
+    let stats = tracker.get_stats();
+    println!("   Total passports created: {}", stats.passport_count);
     println!("   Leaks detected: {}", leak_result.total_leaks);
 
-    let report = tracker.analyze();
     println!("\n5. Memory Analysis");
-    println!("   Total allocations: {}", report.total_allocations);
-    println!("   Active allocations: {}", report.active_allocations);
-    println!("   Peak memory: {} bytes", report.peak_memory_bytes);
+    println!("   Total allocations: {}", stats.total_allocations);
+    println!("   Active allocations: {}", stats.active_allocations);
+    println!("   Peak memory: {} bytes", stats.peak_memory_bytes);
 
-    println!("\n6. Exporting memory snapshot (7 files)...");
+    println!("\n6. Exporting memory snapshot...");
     let output_path = "MemoryAnalysis/unsafe_ffi_new_api";
-    export_to_json(output_path)?;
-    println!("   📄 memory_analysis.json");
-    println!("   📄 lifetime.json");
-    println!("   📄 thread_analysis.json");
-    println!("   📄 variable_relationships.json");
-    println!("   📄 memory_passports.json");
-    println!("   📄 leak_detection.json");
-    println!("   📄 unsafe_ffi.json");
+    tracker.export_json(output_path)?;
+    println!("   memory_snapshots.json");
+    println!("   memory_passports.json");
+    println!("   leak_detection.json");
+    println!("   unsafe_ffi_analysis.json");
+    println!("   system_resources.json");
+    println!("   async_analysis.json");
 
     // Export HTML dashboard
     println!("\n7. Exporting HTML dashboard...");
-    use memscope_rs::analysis::memory_passport_tracker::{
-        MemoryPassportTracker, PassportTrackerConfig,
-    };
-    use memscope_rs::render_engine::export::export_dashboard_html;
-    use std::sync::Arc;
-
-    let passport_tracker = Arc::new(MemoryPassportTracker::new(PassportTrackerConfig::default()));
-    export_dashboard_html(output_path, &tracker, &passport_tracker)?;
-    println!("   📄 dashboard.html");
+    tracker.export_html(output_path)?;
+    println!("   dashboard.html");
 
     println!("\n============================================");
     println!("Duration: {:.2}ms", duration.as_secs_f64() * 1000.0);

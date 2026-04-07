@@ -28,6 +28,8 @@ pub struct ActiveAllocation {
 pub struct MemoryStats {
     /// Total number of allocations in the snapshot
     pub total_allocations: usize,
+    /// Total number of reallocations
+    pub total_reallocations: usize,
     /// Total number of deallocations
     pub total_deallocations: usize,
     /// Number of deallocations without matching allocations
@@ -53,6 +55,8 @@ pub struct ThreadMemoryStats {
     pub allocation_count: usize,
     /// Total bytes allocated by this thread
     pub total_allocated: usize,
+    /// Total bytes deallocated by this thread
+    pub total_deallocated: usize,
     /// Current memory usage by this thread
     pub current_memory: usize,
     /// Peak memory usage by this thread
@@ -117,6 +121,7 @@ impl MemorySnapshot {
                     thread_id,
                     allocation_count: 0,
                     total_allocated: 0,
+                    total_deallocated: 0,
                     current_memory: 0,
                     peak_memory: 0,
                 });

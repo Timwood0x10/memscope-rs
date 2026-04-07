@@ -560,59 +560,49 @@ impl AllocationInfo {
 
     /// Update allocation with type-specific improve.md enhancements
     pub fn enhance_with_type_info(&mut self, type_name: &str) {
-        // Update lifetime_ms with current elapsed time
         if self.timestamp_dealloc.is_none() {
             let current_time = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
                 .as_nanos() as u64;
             let elapsed_ns = current_time.saturating_sub(self.timestamp_alloc);
-            let elapsed_ms = elapsed_ns / 1_000_000; // Convert to milliseconds
+            let elapsed_ms = elapsed_ns / 1_000_000;
             self.lifetime_ms = Some(if elapsed_ms == 0 { 1 } else { elapsed_ms });
-            // Minimum 1ms
         }
 
-        // Detect reference counting types (Rc, Arc)
         if type_name.contains("Rc<") || type_name.contains("Arc<") {
             self.clone_info = Some(CloneInfo {
-                clone_count: 2,  // Simulate that Rc/Arc types are typically cloned
-                is_clone: false, // This is the original
+                clone_count: 0,
+                is_clone: false,
                 original_ptr: None,
             });
-
-            // Update borrow_info for reference counted types
             self.borrow_info = Some(BorrowInfo {
-                immutable_borrows: 5, // Rc/Arc are often borrowed more
-                mutable_borrows: 0,   // Rc doesn't allow mutable borrows
-                max_concurrent_borrows: 5,
-                last_borrow_timestamp: Some(self.timestamp_alloc + 1000000),
+                immutable_borrows: 0,
+                mutable_borrows: 0,
+                max_concurrent_borrows: 0,
+                last_borrow_timestamp: None,
             });
-        }
-        // Detect collections that are commonly borrowed
-        else if type_name.contains("Vec<")
+        } else if type_name.contains("Vec<")
             || type_name.contains("String")
             || type_name.contains("HashMap")
         {
             self.borrow_info = Some(BorrowInfo {
-                immutable_borrows: 4, // Collections are frequently borrowed
-                mutable_borrows: 2,
-                max_concurrent_borrows: 3,
-                last_borrow_timestamp: Some(self.timestamp_alloc + 800000),
+                immutable_borrows: 0,
+                mutable_borrows: 0,
+                max_concurrent_borrows: 0,
+                last_borrow_timestamp: None,
             });
-        }
-        // Detect Box types
-        else if type_name.contains("Box<") {
+        } else if type_name.contains("Box<") {
             self.clone_info = Some(CloneInfo {
-                clone_count: 0, // Box typically doesn't clone, it moves
+                clone_count: 0,
                 is_clone: false,
                 original_ptr: None,
             });
-
             self.borrow_info = Some(BorrowInfo {
-                immutable_borrows: 2,
-                mutable_borrows: 1,
-                max_concurrent_borrows: 1,
-                last_borrow_timestamp: Some(self.timestamp_alloc + 300000),
+                immutable_borrows: 0,
+                mutable_borrows: 0,
+                max_concurrent_borrows: 0,
+                last_borrow_timestamp: None,
             });
         }
     }
@@ -3865,14 +3855,14 @@ mod tests {
         // Test with Rc type
         info.enhance_with_type_info("std::rc::Rc<String>");
         if let Some(clone_info) = &info.clone_info {
-            assert_eq!(clone_info.clone_count, 2);
+            assert_eq!(clone_info.clone_count, 0);
         }
 
         // Test with Vec type
         info.enhance_with_type_info("Vec<i32>");
         if let Some(borrow_info) = &info.borrow_info {
-            assert_eq!(borrow_info.immutable_borrows, 4);
-            assert_eq!(borrow_info.mutable_borrows, 2);
+            assert_eq!(borrow_info.immutable_borrows, 0);
+            assert_eq!(borrow_info.mutable_borrows, 0);
         }
     }
 

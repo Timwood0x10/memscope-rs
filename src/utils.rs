@@ -36,8 +36,20 @@ pub fn format_bytes(bytes: usize) -> String {
         format!("{bytes}B")
     } else if bytes < 1024 * 1024 {
         format!("{:.1}KB", bytes as f64 / 1024.0)
-    } else {
+    } else if bytes < 1024 * 1024 * 1024 {
         format!("{:.1}MB", bytes as f64 / (1024.0 * 1024.0))
+    } else if bytes < 1024 * 1024 * 1024 * 1024 {
+        format!("{:.1}GB", bytes as f64 / (1024.0 * 1024.0 * 1024.0))
+    } else if bytes < 1024 * 1024 * 1024 * 1024 * 1024 {
+        format!(
+            "{:.1}TB",
+            bytes as f64 / (1024.0 * 1024.0 * 1024.0 * 1024.0)
+        )
+    } else {
+        format!(
+            "{:.1}PB",
+            bytes as f64 / (1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0)
+        )
     }
 }
 
@@ -55,9 +67,18 @@ pub fn simplify_type_name(type_name: &str) -> (String, String) {
     if clean_type.contains("Vec<") || clean_type.contains("vec::Vec") {
         let inner = extract_generic_type(clean_type, "Vec");
         (format!("Vec<{inner}>"), "Collections".to_string())
+    } else if clean_type.contains("HashMap") || clean_type.contains("hash_map") {
+        ("HashMap<K,V>".to_string(), "Collections".to_string())
+    } else if clean_type.contains("BTreeMap") || clean_type.contains("btree_map") {
+        ("BTreeMap<K,V>".to_string(), "Collections".to_string())
+    } else if clean_type.contains("BTreeSet") || clean_type.contains("btree_set") {
+        ("BTreeSet<T>".to_string(), "Collections".to_string())
+    } else if clean_type.contains("HashSet") || clean_type.contains("hash_set") {
+        ("HashSet<T>".to_string(), "Collections".to_string())
+    } else if clean_type.contains("VecDeque") || clean_type.contains("vec_deque") {
+        ("VecDeque<T>".to_string(), "Collections".to_string())
     } else if clean_type.contains("Box<") || clean_type.contains("boxed::Box") {
         let inner = extract_generic_type(clean_type, "Box");
-        // String detection takes priority
         if inner.contains("String") || inner.contains("string::String") {
             ("String".to_string(), "Basic Types".to_string())
         } else if inner.contains("HashMap") || inner.contains("hash_map") {
@@ -92,16 +113,6 @@ pub fn simplify_type_name(type_name: &str) -> (String, String) {
         }
     } else if clean_type.contains("String") || clean_type.contains("string::String") {
         ("String".to_string(), "Basic Types".to_string())
-    } else if clean_type.contains("HashMap") || clean_type.contains("hash_map") {
-        ("HashMap<K,V>".to_string(), "Collections".to_string())
-    } else if clean_type.contains("BTreeMap") || clean_type.contains("btree_map") {
-        ("BTreeMap<K,V>".to_string(), "Collections".to_string())
-    } else if clean_type.contains("BTreeSet") || clean_type.contains("btree_set") {
-        ("BTreeSet<T>".to_string(), "Collections".to_string())
-    } else if clean_type.contains("HashSet") || clean_type.contains("hash_set") {
-        ("HashSet<T>".to_string(), "Collections".to_string())
-    } else if clean_type.contains("VecDeque") || clean_type.contains("vec_deque") {
-        ("VecDeque<T>".to_string(), "Collections".to_string())
     } else if clean_type.contains("LinkedList") {
         ("LinkedList<T>".to_string(), "Collections".to_string())
     } else if clean_type.contains("&str") || clean_type == "str" {
@@ -220,10 +231,28 @@ pub fn simplify_type_name(type_name: &str) -> (String, String) {
 /// Extract generic type parameter for display
 pub fn extract_generic_type(type_name: &str, container: &str) -> String {
     if let Some(start) = type_name.find(&format!("{container}<")) {
-        let start = start + container.len() + 1;
-        if let Some(end) = type_name[start..].rfind('>') {
-            let inner = &type_name[start..start + end];
-            // Simplify the inner type too
+        let content_start = start + container.len() + 1;
+        let content = &type_name[content_start..];
+
+        let mut depth = 1;
+        let mut end = 0;
+
+        for (i, c) in content.char_indices() {
+            match c {
+                '<' => depth += 1,
+                '>' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        end = i;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        if end > 0 {
+            let inner = &content[..end];
             return inner.split("::").last().unwrap_or(inner).to_string();
         }
     }
@@ -645,6 +674,12 @@ mod tests {
         assert_eq!(format_bytes(1536), "1.5KB");
         assert_eq!(format_bytes(1024 * 1024), "1.0MB");
         assert_eq!(format_bytes(1024 * 1024 + 512 * 1024), "1.5MB");
+        assert_eq!(format_bytes(1024 * 1024 * 1024), "1.0GB");
+        assert_eq!(format_bytes(1024 * 1024 * 1024 * 2), "2.0GB");
+        assert_eq!(format_bytes(1024usize.pow(4)), "1.0TB");
+        assert_eq!(format_bytes(1024usize.pow(4) * 5), "5.0TB");
+        assert_eq!(format_bytes(1024usize.pow(5)), "1.0PB");
+        assert_eq!(format_bytes(1024usize.pow(5) * 10), "10.0PB");
     }
 
     #[test]
@@ -672,18 +707,17 @@ mod tests {
         assert_eq!(simplified, "Vec<i32>");
         assert_eq!(category, "Collections");
 
-        // The function prioritizes String detection over HashMap
         let (simplified, category) = simplify_type_name("HashMap<String, i32>");
-        assert_eq!(simplified, "String");
-        assert_eq!(category, "Basic Types");
+        assert_eq!(simplified, "HashMap<K,V>");
+        assert_eq!(category, "Collections");
 
         let (simplified, category) = simplify_type_name("BTreeMap<String, i32>");
-        assert_eq!(simplified, "String");
-        assert_eq!(category, "Basic Types");
+        assert_eq!(simplified, "BTreeMap<K,V>");
+        assert_eq!(category, "Collections");
 
         let (simplified, category) = simplify_type_name("HashSet<String>");
-        assert_eq!(simplified, "String");
-        assert_eq!(category, "Basic Types");
+        assert_eq!(simplified, "HashSet<T>");
+        assert_eq!(category, "Collections");
     }
 
     #[test]
@@ -692,20 +726,17 @@ mod tests {
         assert_eq!(simplified, "Box<i32>");
         assert_eq!(category, "Smart Pointers");
 
-        // String detection takes priority
         let (simplified, category) = simplify_type_name("Rc<String>");
         assert_eq!(simplified, "String");
         assert_eq!(category, "Basic Types");
 
-        // The function returns the full Arc type
         let (simplified, category) = simplify_type_name("Arc<Mutex<i32>>");
         assert_eq!(simplified, "Arc<Mutex<i32>>");
         assert_eq!(category, "Smart Pointers");
 
-        // String detection takes priority over HashMap
         let (simplified, category) = simplify_type_name("Box<HashMap<String, i32>>");
-        assert_eq!(simplified, "String");
-        assert_eq!(category, "Basic Types");
+        assert_eq!(simplified, "HashMap<K,V>");
+        assert_eq!(category, "Collections");
     }
 
     #[test]
@@ -1053,12 +1084,12 @@ mod tests {
         assert_eq!(simplified, "String");
         assert_eq!(category, "Basic Types");
 
-        // Test complex nested types - the function returns the exact input
+        // Test complex nested types - correctly handles nested brackets
         let (simplified, category) = simplify_type_name("Box<Vec<HashMap<String, i32>>>");
-        assert_eq!(simplified, "Vec<HashMap<String, i32>>>");
+        assert_eq!(simplified, "Vec<HashMap<String, i32>>");
         assert_eq!(category, "Collections");
 
-        // Test weak pointers - String detection takes priority
+        // Test weak pointers
         let (simplified, category) = simplify_type_name("Weak<String>");
         assert_eq!(simplified, "String");
         assert_eq!(category, "Basic Types");

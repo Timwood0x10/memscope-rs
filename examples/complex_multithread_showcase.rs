@@ -2,9 +2,7 @@
 //!
 //! This example demonstrates multi-thread memory tracking using the new unified API.
 
-use memscope_rs::capture::backends::global_tracking::{
-    export_to_json, global_tracker, init_global_tracking,
-};
+use memscope_rs::{global_tracker, init_global_tracking};
 use std::thread;
 use std::time::Instant;
 
@@ -58,42 +56,34 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let throughput = total_allocations as f64 / duration.as_secs_f64();
 
     let tracker = global_tracker()?;
-    let report = tracker.analyze();
+    let stats = tracker.get_stats();
 
     println!("\n========================================");
     println!("Memory Analysis Results:");
-    println!("  Total allocations: {}", report.total_allocations);
-    println!("  Active allocations: {}", report.active_allocations);
+    println!("  Total allocations: {}", stats.total_allocations);
+    println!("  Active allocations: {}", stats.active_allocations);
     println!(
         "  Peak memory: {} bytes ({:.2} MB)",
-        report.peak_memory_bytes,
-        report.peak_memory_bytes as f64 / 1024.0 / 1024.0
+        stats.peak_memory_bytes,
+        stats.peak_memory_bytes as f64 / 1024.0 / 1024.0
     );
     println!("  Duration: {:.2}ms", duration.as_secs_f64() * 1000.0);
     println!("  Throughput: {:.0} allocs/sec", throughput);
 
-    println!("\nExporting memory snapshot (7 files)...");
+    println!("\nExporting memory snapshot...");
     let output_path = "MemoryAnalysis/multithread_new_api";
-    export_to_json(output_path)?;
-    println!("  📄 memory_analysis.json");
-    println!("  📄 lifetime.json");
-    println!("  📄 thread_analysis.json");
-    println!("  📄 variable_relationships.json");
-    println!("  📄 memory_passports.json");
-    println!("  📄 leak_detection.json");
-    println!("  📄 unsafe_ffi.json");
+    tracker.export_json(output_path)?;
+    println!("  memory_snapshots.json");
+    println!("  memory_passports.json");
+    println!("  leak_detection.json");
+    println!("  unsafe_ffi_analysis.json");
+    println!("  system_resources.json");
+    println!("  async_analysis.json");
 
     // Export HTML dashboard
     println!("\nExporting HTML dashboard...");
-    use memscope_rs::analysis::memory_passport_tracker::{
-        MemoryPassportTracker, PassportTrackerConfig,
-    };
-    use memscope_rs::render_engine::export::export_dashboard_html;
-    use std::sync::Arc;
-
-    let passport_tracker = Arc::new(MemoryPassportTracker::new(PassportTrackerConfig::default()));
-    export_dashboard_html(output_path, &tracker, &passport_tracker)?;
-    println!("  📄 dashboard.html");
+    tracker.export_html(output_path)?;
+    println!("  dashboard.html");
 
     Ok(())
 }

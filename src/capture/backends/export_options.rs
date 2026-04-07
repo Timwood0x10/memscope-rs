@@ -9,8 +9,6 @@ pub struct ExportOptions {
     pub verbose_logging: bool,
     /// Buffer size for file I/O in bytes (default: 64KB)
     pub buffer_size: usize,
-    /// Enable data compression (default: false)
-    pub compress_output: bool,
 }
 
 impl Default for ExportOptions {
@@ -19,7 +17,6 @@ impl Default for ExportOptions {
             include_system_allocations: false,
             verbose_logging: false,
             buffer_size: 64 * 1024,
-            compress_output: false,
         }
     }
 }
@@ -41,11 +38,6 @@ impl ExportOptions {
 
     pub fn buffer_size(mut self, size: usize) -> Self {
         self.buffer_size = size;
-        self
-    }
-
-    pub fn compress_output(mut self, compress: bool) -> Self {
-        self.compress_output = compress;
         self
     }
 }

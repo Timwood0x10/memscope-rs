@@ -398,63 +398,83 @@ impl PlatformMemoryInfo {
 
     #[cfg(target_os = "linux")]
     fn collect_linux_stats(&self) -> Result<MemoryStats, MemoryError> {
-        // Collect Linux memory statistics from /proc filesystem
-        // This is a simplified mock implementation
-        Ok(MemoryStats {
-            virtual_memory: VirtualMemoryStats {
-                total_virtual: 1_099_511_627_776,   // 1TB on 64-bit
-                available_virtual: 549_755_813_888, // 512GB
-                used_virtual: 549_755_813_888,
-                reserved: 274_877_906_944, // 256GB
-                committed: 274_877_906_944,
-            },
-            physical_memory: PhysicalMemoryStats {
-                total_physical: 17_179_869_184,    // 16GB
-                available_physical: 8_589_934_592, // 8GB
-                used_physical: 8_589_934_592,
-                cached: 4_294_967_296,  // 4GB
-                buffers: 1_073_741_824, // 1GB
-                swap: SwapStats {
-                    total_swap: 8_589_934_592, // 8GB
-                    used_swap: 1_073_741_824,  // 1GB
-                    available_swap: 7_516_192_768,
-                    swap_in_rate: 0.0,
-                    swap_out_rate: 0.0,
-                },
-            },
-            process_memory: ProcessMemoryStats {
-                virtual_size: 1_073_741_824, // 1GB
-                resident_size: 536_870_912,  // 512MB
-                shared_size: 134_217_728,    // 128MB
-                private_size: 402_653_184,   // 384MB
-                heap_size: 268_435_456,      // 256MB
-                stack_size: 8_388_608,       // 8MB
-                mapped_files: 134_217_728,   // 128MB
-                peak_usage: 1_073_741_824,
-            },
-            system_memory: SystemMemoryStats {
-                allocation_count: 1_000_000,
-                deallocation_count: 950_000,
-                active_allocations: 50_000,
-                total_allocated: 10_737_418_240,  // 10GB
-                total_deallocated: 9_663_676_416, // 9GB
-                fragmentation_level: 0.15,
-                large_pages: LargePageStats {
-                    supported: true,
-                    total_large_pages: 2_097_152, // 2MB
-                    used_large_pages: 0,
-                    page_size: 2_097_152,
-                },
-            },
-            pressure_indicators: PressureIndicators {
-                pressure_level: PressureLevel::Normal,
-                low_memory: false,
-                swapping_active: false,
-                allocation_failure_rate: 0.001,
-                gc_pressure: None,
-            },
-            timestamp: Instant::now(),
-        })
+        let mut stats = MemoryStats::default();
+
+        if let Ok(meminfo) = std::fs::read_to_string("/proc/meminfo") {
+            for line in meminfo.lines() {
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if parts.len() < 2 {
+                    continue;
+                }
+                let value_kb: u64 = match parts[1].parse() {
+                    Ok(v) => v,
+                    Err(e) => {
+                        tracing::warn!(
+                            "Failed to parse memory value for '{}': '{}', error: {}",
+                            parts[0],
+                            parts[1],
+                            e
+                        );
+                        0
+                    }
+                };
+                let value_bytes = value_kb * 1024;
+
+                match parts[0] {
+                    "MemTotal:" => stats.physical_memory.total_physical = value_bytes,
+                    "MemAvailable:" => stats.physical_memory.available_physical = value_bytes,
+                    "Buffers:" => stats.physical_memory.buffers = value_bytes,
+                    "Cached:" => stats.physical_memory.cached = value_bytes,
+                    "SwapTotal:" => stats.physical_memory.swap.total_swap = value_bytes,
+                    "SwapFree:" => stats.physical_memory.swap.available_swap = value_bytes,
+                    "SwapUsed:" => stats.physical_memory.swap.used_swap = value_bytes,
+                    "Committed_AS:" => stats.virtual_memory.committed = value_bytes,
+                    "VmallocTotal:" => stats.virtual_memory.total_virtual = value_bytes,
+                    _ => {}
+                }
+            }
+            stats.physical_memory.used_physical = stats
+                .physical_memory
+                .total_physical
+                .saturating_sub(stats.physical_memory.available_physical);
+            stats.physical_memory.swap.used_swap = stats
+                .physical_memory
+                .swap
+                .total_swap
+                .saturating_sub(stats.physical_memory.swap.available_swap);
+            stats.virtual_memory.used_virtual = stats.virtual_memory.committed;
+            stats.virtual_memory.available_virtual = stats
+                .virtual_memory
+                .total_virtual
+                .saturating_sub(stats.virtual_memory.used_virtual);
+            stats.virtual_memory.reserved = stats.virtual_memory.total_virtual / 4;
+        }
+
+        if let Ok(status) = std::fs::read_to_string("/proc/self/status") {
+            for line in status.lines() {
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if parts.len() < 2 {
+                    continue;
+                }
+                let value_kb: u64 = parts[1].parse().unwrap_or(0);
+                let value_bytes = value_kb * 1024;
+
+                match parts[0] {
+                    "VmSize:" => stats.process_memory.virtual_size = value_bytes,
+                    "VmRSS:" => stats.process_memory.resident_size = value_bytes,
+                    "RssAnon:" => stats.process_memory.private_size = value_bytes,
+                    "RssFile:" => stats.process_memory.mapped_files = value_bytes,
+                    "VmData:" => stats.process_memory.heap_size = value_bytes,
+                    "VmStk:" => stats.process_memory.stack_size = value_bytes,
+                    "VmPeak:" => stats.process_memory.peak_usage = value_bytes,
+                    _ => {}
+                }
+            }
+        }
+
+        stats.pressure_indicators = PressureIndicators::default();
+
+        Ok(stats)
     }
 
     #[cfg(target_os = "windows")]

@@ -12,6 +12,10 @@ readme = "README.md"
 keywords = ["memory", "tracking", "profiling", "debugging"]
 categories = ["development-tools::profiling", "memory-management"]
 
+[lib]
+name = "memscope_rs"
+path = "src/lib.rs"
+
 [dependencies]
 handlebars = "6.4.0"
 tracing = "0.1.44"
@@ -23,16 +27,13 @@ chrono = { version = "0.4", features = ["serde"] }
 thiserror = "2.0.18"
 backtrace = { version = "0.3", features = ["serde"], optional = true }
 rayon = "1.8"
-clap = { version = "4.6.0", features = ["derive"] }
 num_cpus = "1.16"
 libc = "0.2"
 sysinfo = "0.38.4"
-flate2 = "1.1.9"
 regex = "1.12.3"
 rand = { version = "0.10.0", features = ["std"] }
 dashmap = "6.0"
 parking_lot = "0.12.5"
-bincode = "2.0.1"
 crossbeam = "0.8"
 memscope-derive = { path = "./memscope-derive", optional = true, version = "0.1.0" }
 
@@ -44,15 +45,11 @@ winapi = { version = "0.3", features = ["processthreadsapi", "winnt"] }
 [target.'cfg(target_os = "macos")'.dependencies]
 mach2 = "0.6"
 
-[lib]
-name = "memscope_rs"
-path = "src/lib.rs"
-
 [features]
 backtrace = ["dep:backtrace"]
 tracking-allocator = []
 derive = ["dep:memscope-derive"]
-default = []
+default = ["derive"]
 
 [dev-dependencies]
 tempfile = "3.27.0"

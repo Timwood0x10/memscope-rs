@@ -34,6 +34,13 @@ pub mod timeline;
 /// Unified Tracker API - Simple, unified interface for memory tracking
 pub mod tracker;
 
+// Export simplified global tracking API
+pub use capture::backends::global_tracking::{
+    global_tracker, init_global_tracking, init_global_tracking_with_config, is_initialized,
+    reset_global_tracking, GlobalTracker, GlobalTrackerConfig, GlobalTrackerError,
+    GlobalTrackerStats, TrackerConfig,
+};
+
 /// Unified error handling and recovery system
 pub mod error;
 /// Memory allocation tracking statistics and monitoring

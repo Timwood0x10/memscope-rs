@@ -50,6 +50,8 @@ pub struct MemoryEvent {
     pub ptr: usize,
     /// Allocation size in bytes
     pub size: usize,
+    /// Previous allocation size (for Reallocate events)
+    pub old_size: Option<usize>,
     /// Thread identifier
     pub thread_id: u64,
     /// Optional variable name
@@ -70,6 +72,7 @@ impl MemoryEvent {
             event_type: MemoryEventType::Allocate,
             ptr,
             size,
+            old_size: None,
             thread_id,
             var_name: None,
             type_name: None,
@@ -85,6 +88,7 @@ impl MemoryEvent {
             event_type: MemoryEventType::Deallocate,
             ptr,
             size,
+            old_size: None,
             thread_id,
             var_name: None,
             type_name: None,
@@ -94,12 +98,13 @@ impl MemoryEvent {
     }
 
     /// Create a new reallocation event
-    pub fn reallocate(ptr: usize, _old_size: usize, new_size: usize, thread_id: u64) -> Self {
+    pub fn reallocate(ptr: usize, old_size: usize, new_size: usize, thread_id: u64) -> Self {
         Self {
             timestamp: Self::now(),
             event_type: MemoryEventType::Reallocate,
             ptr,
             size: new_size,
+            old_size: Some(old_size),
             thread_id,
             var_name: None,
             type_name: None,

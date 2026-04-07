@@ -120,10 +120,9 @@ pub use unified_tracker::{
 
 // Re-export global tracking types
 pub use global_tracking::{
-    export_all_json, export_leak_detection_json, export_memory_passports_json, export_to_json,
-    export_unsafe_ffi_json, get_global_state, get_stats, global_passport_tracker, global_tracker,
-    init_global_tracking, is_initialized, GlobalTrackingConfig, GlobalTrackingError,
-    GlobalTrackingState, GlobalTrackingStats,
+    global_tracker, init_global_tracking, init_global_tracking_with_config, is_initialized,
+    reset_global_tracking, GlobalTracker, GlobalTrackerConfig, GlobalTrackerError,
+    GlobalTrackerStats,
 };
 
 /// Capture Backend trait
@@ -218,6 +217,7 @@ impl CaptureBackend for CoreBackend {
             event_type: MemoryEventType::Move,
             ptr: to_ptr,
             size,
+            old_size: None,
             thread_id,
             var_name: None,
             type_name: None,
@@ -266,6 +266,7 @@ impl CaptureBackend for LockfreeBackend {
             event_type: MemoryEventType::Move,
             ptr: to_ptr,
             size,
+            old_size: None,
             thread_id,
             var_name: None,
             type_name: None,
@@ -338,6 +339,7 @@ impl CaptureBackend for AsyncBackend {
             event_type: MemoryEventType::Move,
             ptr: to_ptr,
             size,
+            old_size: None,
             thread_id,
             var_name: None,
             type_name: None,

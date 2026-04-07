@@ -11,7 +11,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Memory passport for tracking cross-FFI boundary memory
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct MemoryPassport {
     /// Unique passport identifier
     pub passport_id: String,
@@ -53,7 +53,7 @@ pub enum PassportStatus {
 }
 
 /// Lifecycle event in memory passport
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PassportEvent {
     /// Event type
     pub event_type: PassportEventType,
@@ -197,14 +197,14 @@ pub struct LeakDetail {
 impl MemoryPassportTracker {
     /// Create new memory passport tracker
     pub fn new(config: PassportTrackerConfig) -> Self {
-        tracing::info!("📋 Initializing Memory Passport Tracker");
-        tracing::info!("   • Detailed logging: {}", config.detailed_logging);
-        tracing::info!(
-            "   • Max events per passport: {}",
+        tracing::debug!("Initializing Memory Passport Tracker");
+        tracing::debug!("   Detailed logging: {}", config.detailed_logging);
+        tracing::debug!(
+            "   Max events per passport: {}",
             config.max_events_per_passport
         );
-        tracing::info!("   • Leak detection: {}", config.enable_leak_detection);
-        tracing::info!("   • Validation: {}", config.enable_validation);
+        tracing::debug!("   Leak detection: {}", config.enable_leak_detection);
+        tracing::debug!("   Validation: {}", config.enable_validation);
 
         Self {
             passports: Arc::new(Mutex::new(HashMap::new())),
@@ -291,8 +291,8 @@ impl MemoryPassportTracker {
         self.update_stats_passport_created();
 
         if self.config.detailed_logging {
-            tracing::info!(
-                "📋 Created passport: {} for 0x{:x} ({} bytes)",
+            tracing::debug!(
+                "Created passport: {} for 0x{:x} ({} bytes)",
                 passport_id,
                 allocation_ptr,
                 size_bytes
@@ -420,8 +420,8 @@ impl MemoryPassportTracker {
                 self.update_stats_event_recorded();
 
                 if self.config.detailed_logging {
-                    tracing::info!(
-                        "📝 Recorded {:?} event for passport 0x{:x} in context: {}",
+                    tracing::debug!(
+                        "Recorded {:?} event for passport 0x{:x} in context: {}",
                         event_type,
                         allocation_ptr,
                         context
@@ -513,8 +513,8 @@ impl MemoryPassportTracker {
 
         let total_leaks = leaked_passports.len();
 
-        tracing::info!(
-            "🔍 Leak detection complete: {} leaks detected out of {} passports",
+        tracing::debug!(
+            "Leak detection complete: {} leaks detected out of {} passports",
             total_leaks,
             self.get_passport_count()
         );
@@ -536,9 +536,12 @@ impl MemoryPassportTracker {
     pub fn get_all_passports(&self) -> HashMap<usize, MemoryPassport> {
         self.passports
             .lock()
-            .unwrap_or_else(|_| {
-                tracing::error!("Failed to lock passports for reading");
-                std::process::exit(1);
+            .unwrap_or_else(|e| {
+                tracing::warn!(
+                    "Mutex poisoned in get_all_passports, recovering data: {}",
+                    e
+                );
+                e.into_inner()
             })
             .clone()
     }
@@ -560,9 +563,9 @@ impl MemoryPassportTracker {
     pub fn get_stats(&self) -> PassportTrackerStats {
         self.stats
             .lock()
-            .unwrap_or_else(|_| {
-                tracing::error!("Failed to lock stats");
-                std::process::exit(1);
+            .unwrap_or_else(|e| {
+                tracing::warn!("Mutex poisoned in get_stats, recovering data: {}", e);
+                e.into_inner()
             })
             .clone()
     }
@@ -621,7 +624,7 @@ impl MemoryPassportTracker {
             };
         }
 
-        tracing::info!("🧹 Cleared all passports");
+        tracing::debug!("Cleared all passports");
     }
 
     // Private helper methods
@@ -707,26 +710,28 @@ impl MemoryPassportTracker {
         let mut has_handover = false;
         let mut has_reclaim = false;
         let mut has_foreign_free = false;
+        let mut has_corruption = false;
 
-        // Analyze events in chronological order
         for event in events {
             match event.event_type {
                 PassportEventType::HandoverToFfi => has_handover = true,
                 PassportEventType::ReclaimedByRust => {
                     has_reclaim = true;
-                    has_handover = false; // Reset handover status
+                    has_handover = false;
                 }
                 PassportEventType::FreedByForeign => {
                     has_foreign_free = true;
-                    has_handover = false; // Reset handover status
+                    has_handover = false;
                 }
+                PassportEventType::CorruptionDetected => has_corruption = true,
                 _ => {}
             }
         }
 
-        // Determine final status based on event history
-        if has_handover && !has_reclaim && !has_foreign_free {
-            PassportStatus::InForeignCustody // This is a confirmed leak
+        if has_corruption {
+            PassportStatus::Unknown
+        } else if has_handover && !has_reclaim && !has_foreign_free {
+            PassportStatus::InForeignCustody
         } else if has_foreign_free {
             PassportStatus::FreedByForeign
         } else if has_reclaim {
@@ -781,26 +786,32 @@ impl Default for MemoryPassportTracker {
     }
 }
 
-/// Global memory passport tracker instance
-static GLOBAL_PASSPORT_TRACKER: std::sync::OnceLock<Arc<MemoryPassportTracker>> =
+/// Global memory passport tracker instance (used as fallback for direct access)
+static GLOBAL_MEMORY_PASSPORT_TRACKER: std::sync::OnceLock<Arc<MemoryPassportTracker>> =
     std::sync::OnceLock::new();
 
 /// Get global memory passport tracker instance
+///
+/// # Note
+/// This function is deprecated. Use `global_passport_tracker()` from
+/// `memscope_rs::capture::backends::global_tracking` instead.
 pub fn get_global_passport_tracker() -> Arc<MemoryPassportTracker> {
-    GLOBAL_PASSPORT_TRACKER
+    GLOBAL_MEMORY_PASSPORT_TRACKER
         .get_or_init(|| Arc::new(MemoryPassportTracker::new(PassportTrackerConfig::default())))
         .clone()
 }
 
 /// Initialize global passport tracker with custom config
+///
+/// # Note  
+/// This function is deprecated. Use `init_global_tracking_with_config()` from
+/// `memscope_rs::capture::backends::global_tracking` instead.
 pub fn initialize_global_passport_tracker(
     config: PassportTrackerConfig,
 ) -> Arc<MemoryPassportTracker> {
-    let tracker = Arc::new(MemoryPassportTracker::new(config));
-    if GLOBAL_PASSPORT_TRACKER.set(tracker.clone()).is_err() {
-        tracing::warn!("Global passport tracker already initialized");
-    }
-    tracker
+    GLOBAL_MEMORY_PASSPORT_TRACKER
+        .get_or_init(|| Arc::new(MemoryPassportTracker::new(config)))
+        .clone()
 }
 
 #[cfg(test)]

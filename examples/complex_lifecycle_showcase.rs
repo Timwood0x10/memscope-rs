@@ -3,8 +3,7 @@
 //! This example demonstrates the new unified API with various built-in types,
 //! custom types, and complex memory patterns.
 
-use memscope_rs::capture::backends::global_tracking::export_to_json;
-use memscope_rs::{track, tracker};
+use memscope_rs::{global_tracker, init_global_tracking, track};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::rc::Rc;
@@ -16,7 +15,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("==========================================\n");
 
     let start_time = Instant::now();
-    let tracker = tracker!();
+    init_global_tracking()?;
+    let tracker = global_tracker()?;
 
     println!("Phase 1: Built-in Types");
     println!("=========================================");
@@ -40,38 +40,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let duration = start_time.elapsed();
 
-    let report = tracker.analyze();
+    let stats = tracker.get_stats();
     println!("\nMemory Analysis Results:");
-    println!("  Total allocations: {}", report.total_allocations);
-    println!("  Active allocations: {}", report.active_allocations);
+    println!("  Total allocations: {}", stats.total_allocations);
+    println!("  Active allocations: {}", stats.active_allocations);
     println!(
         "  Peak memory: {} bytes ({:.2} MB)",
-        report.peak_memory_bytes,
-        report.peak_memory_bytes as f64 / 1024.0 / 1024.0
+        stats.peak_memory_bytes,
+        stats.peak_memory_bytes as f64 / 1024.0 / 1024.0
     );
 
-    println!("\nExporting memory snapshot (7 files)...");
+    println!("\nExporting memory snapshot...");
     let output_path = "MemoryAnalysis/complex_lifecycle_new_api";
-    export_to_json(output_path)?;
-    println!("  📄 memory_analysis.json");
-    println!("  📄 lifetime.json");
-    println!("  📄 thread_analysis.json");
-    println!("  📄 variable_relationships.json");
-    println!("  📄 memory_passports.json");
-    println!("  📄 leak_detection.json");
-    println!("  📄 unsafe_ffi.json");
+    tracker.export_json(output_path)?;
+    println!("  memory_snapshots.json");
+    println!("  memory_passports.json");
+    println!("  leak_detection.json");
+    println!("  unsafe_ffi_analysis.json");
+    println!("  system_resources.json");
+    println!("  async_analysis.json");
 
     // Export HTML dashboard
     println!("\nExporting HTML dashboard...");
-    use memscope_rs::analysis::memory_passport_tracker::{
-        MemoryPassportTracker, PassportTrackerConfig,
-    };
-    use memscope_rs::render_engine::export::export_dashboard_html;
-    use std::sync::Arc;
-
-    let passport_tracker = Arc::new(MemoryPassportTracker::new(PassportTrackerConfig::default()));
-    export_dashboard_html(output_path, &tracker, &passport_tracker)?;
-    println!("  📄 dashboard.html");
+    tracker.export_html(output_path)?;
+    println!("  dashboard.html");
 
     println!(
         "\nExample finished in {:.2}ms",
@@ -81,7 +73,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn demonstrate_builtin_types(tracker: &memscope_rs::tracker::Tracker) {
+fn demonstrate_builtin_types(tracker: &memscope_rs::GlobalTracker) {
     let mut small_vec = Vec::with_capacity(5);
     for i in 0..10 {
         small_vec.push(i);
@@ -118,7 +110,7 @@ fn demonstrate_builtin_types(tracker: &memscope_rs::tracker::Tracker) {
     println!("✓ BTreeMap: 300 sorted entries");
 }
 
-fn demonstrate_smart_pointers(tracker: &memscope_rs::tracker::Tracker) {
+fn demonstrate_smart_pointers(tracker: &memscope_rs::GlobalTracker) {
     let boxed_large = Box::new(vec![0u8; 1024]);
     track!(tracker, boxed_large);
     println!("✓ Box<Vec<u8>>: 1KB heap allocation");
@@ -146,7 +138,7 @@ fn demonstrate_smart_pointers(tracker: &memscope_rs::tracker::Tracker) {
     println!("✓ Rc<RefCell<Vec<i32>>>: interior mutability");
 }
 
-fn demonstrate_complex_patterns(tracker: &memscope_rs::tracker::Tracker) {
+fn demonstrate_complex_patterns(tracker: &memscope_rs::GlobalTracker) {
     let mut nested = HashMap::new();
     for i in 0..5 {
         let mut inner = BTreeMap::new();
@@ -170,7 +162,7 @@ fn demonstrate_complex_patterns(tracker: &memscope_rs::tracker::Tracker) {
     println!("✓ Large computation: 1000 formatted strings");
 }
 
-fn simulate_web_server_scenario(tracker: &memscope_rs::tracker::Tracker) {
+fn simulate_web_server_scenario(tracker: &memscope_rs::GlobalTracker) {
     let mut routes = HashMap::new();
     routes.insert(
         "/api/users".to_string(),
@@ -210,7 +202,7 @@ fn simulate_web_server_scenario(tracker: &memscope_rs::tracker::Tracker) {
     println!("✓ Request log: {} entries", request_log.len());
 }
 
-fn simulate_data_processing_pipeline(tracker: &memscope_rs::tracker::Tracker) {
+fn simulate_data_processing_pipeline(tracker: &memscope_rs::GlobalTracker) {
     let mut input_queue = VecDeque::new();
     for i in 0..500 {
         input_queue.push_back(format!("data_record_{i:06}"));

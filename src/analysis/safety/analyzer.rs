@@ -288,9 +288,12 @@ impl SafetyAnalyzer {
     pub fn get_unsafe_reports(&self) -> HashMap<String, UnsafeReport> {
         self.unsafe_reports
             .lock()
-            .unwrap_or_else(|_| {
-                tracing::error!("Failed to lock unsafe reports");
-                std::process::exit(1);
+            .unwrap_or_else(|e| {
+                tracing::warn!(
+                    "Mutex poisoned in get_unsafe_reports, recovering data: {}",
+                    e
+                );
+                e.into_inner()
             })
             .clone()
     }
@@ -298,9 +301,12 @@ impl SafetyAnalyzer {
     pub fn get_memory_passports(&self) -> HashMap<usize, MemoryPassport> {
         self.memory_passports
             .lock()
-            .unwrap_or_else(|_| {
-                tracing::error!("Failed to lock memory passports");
-                std::process::exit(1);
+            .unwrap_or_else(|e| {
+                tracing::warn!(
+                    "Mutex poisoned in get_memory_passports, recovering data: {}",
+                    e
+                );
+                e.into_inner()
             })
             .clone()
     }
@@ -308,9 +314,9 @@ impl SafetyAnalyzer {
     pub fn get_stats(&self) -> SafetyAnalysisStats {
         self.stats
             .lock()
-            .unwrap_or_else(|_| {
-                tracing::error!("Failed to lock stats");
-                std::process::exit(1);
+            .unwrap_or_else(|e| {
+                tracing::warn!("Mutex poisoned in get_stats, recovering data: {}", e);
+                e.into_inner()
             })
             .clone()
     }

@@ -208,6 +208,11 @@ fn process_allocations(
 }
 
 fn process_allocation_batch(allocations: &[&ActiveAllocation]) -> Vec<serde_json::Value> {
+    let current_time = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos() as u64)
+        .unwrap_or(0);
+
     allocations
         .iter()
         .map(|alloc| {
@@ -216,13 +221,19 @@ fn process_allocation_batch(allocations: &[&ActiveAllocation]) -> Vec<serde_json
                 alloc.size,
             );
 
+            let lifetime_ms = if alloc.allocated_at > 0 {
+                (current_time.saturating_sub(alloc.allocated_at)) / 1_000_000
+            } else {
+                0
+            };
+
             let mut entry = json!({
                 "address": format!("0x{:x}", alloc.ptr),
                 "size": alloc.size,
                 "type": type_info,
                 "timestamp": alloc.allocated_at,
                 "thread_id": alloc.thread_id,
-                "lifetime_ms": 0,
+                "lifetime_ms": lifetime_ms,
                 "borrow_info": {
                     "immutable_borrows": 0,
                     "mutable_borrows": 0,
@@ -554,13 +565,12 @@ fn write_json_optimized<P: AsRef<Path>>(
         let file = File::create(path)?;
         let mut writer = BufWriter::with_capacity(options.buffer_size, file);
 
-        let result = if use_compact {
-            serde_json::to_writer(&mut writer, data)
+        if use_compact {
+            serde_json::to_writer(&mut writer, data)?;
         } else {
-            serde_json::to_writer_pretty(&mut writer, data)
-        };
+            serde_json::to_writer_pretty(&mut writer, data)?;
+        }
 
-        result?;
         writer.flush()?;
     } else {
         let file = File::create(path)?;
@@ -690,9 +700,9 @@ pub fn export_async_analysis_json<P: AsRef<Path>>(
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum DashboardTemplate {
     /// Unified dashboard (multi-mode in single HTML)
-    #[default]
     Unified,
     /// Final dashboard (new investigation console)
+    #[default]
     Final,
 }
 
