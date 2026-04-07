@@ -349,7 +349,7 @@ pub type AsyncResult<T> = Result<T, AsyncError>;
 pub struct TrackedFuture<F> {
     inner: Pin<Box<F>>,
     task_id: Option<TaskId>,
-    #[allow(dead_code)]
+
     task_name: Option<String>,
 }
 
@@ -373,6 +373,10 @@ where
             task_id: None,
             task_name: Some(name),
         }
+    }
+
+    pub fn task_name(&self) -> Option<&str> {
+        self.task_name.as_deref()
     }
 }
 

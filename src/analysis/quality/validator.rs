@@ -416,15 +416,6 @@ impl QualityValidator {
         });
     }
 
-    #[allow(dead_code)]
-    fn execute_rule(
-        &self,
-        rule: &ValidationRule,
-        context: &ValidationContext,
-    ) -> Result<(), ValidationError> {
-        (rule.validator)(context)
-    }
-
     fn update_rule_stats(&mut self, rule_id: &str, duration: Duration, failed: bool) {
         let stats = self
             .rule_stats

@@ -57,9 +57,6 @@ struct LinuxResolverContext {
     addr2line_available: bool,
     /// Whether DWARF debug info is loaded
     dwarf_loaded: bool,
-    /// Loaded shared libraries
-    #[allow(dead_code)]
-    loaded_libraries: Vec<LibraryInfo>,
 }
 
 /// Windows-specific resolver context
@@ -71,7 +68,6 @@ struct WindowsResolverContext {
     /// Whether PDB files are loaded
     pdb_loaded: bool,
     /// Symbol search paths
-    #[allow(dead_code)]
     symbol_paths: Vec<PathBuf>,
 }
 
@@ -83,38 +79,6 @@ struct MacOSResolverContext {
     atos_available: bool,
     /// Whether dSYM files are loaded
     dsym_loaded: bool,
-    /// Loaded frameworks
-    #[allow(dead_code)]
-    loaded_frameworks: Vec<FrameworkInfo>,
-}
-
-/// Information about a loaded library/module
-#[derive(Debug, Clone)]
-#[allow(dead_code)]
-struct LibraryInfo {
-    /// Library name
-    name: String,
-    /// Base address
-    base_address: usize,
-    /// Size of library
-    size: usize,
-    /// Path to library file
-    path: PathBuf,
-}
-
-/// Framework information (macOS)
-#[derive(Debug, Clone)]
-#[allow(dead_code)]
-struct FrameworkInfo {
-    /// Framework name
-    #[allow(dead_code)]
-    name: String,
-    /// Base address
-    #[allow(dead_code)]
-    base_address: usize,
-    /// dSYM path if available
-    #[allow(dead_code)]
-    dsym_path: Option<PathBuf>,
 }
 
 /// Cached symbol information
@@ -122,9 +86,6 @@ struct FrameworkInfo {
 struct CachedSymbol {
     /// Symbol information
     symbol: SymbolInfo,
-    /// Cache timestamp
-    #[allow(dead_code)]
-    cached_at: Instant,
     /// Access count
     access_count: usize,
 }
@@ -278,7 +239,6 @@ impl PlatformSymbolResolver {
                     address,
                     CachedSymbol {
                         symbol: symbol.clone(),
-                        cached_at: Instant::now(),
                         access_count: 1,
                     },
                 );
@@ -484,7 +444,6 @@ impl ResolverContext {
             linux_context: LinuxResolverContext {
                 addr2line_available: false,
                 dwarf_loaded: false,
-                loaded_libraries: Vec::new(),
             },
             #[cfg(target_os = "windows")]
             windows_context: WindowsResolverContext {
@@ -496,7 +455,6 @@ impl ResolverContext {
             macos_context: MacOSResolverContext {
                 atos_available: false,
                 dsym_loaded: false,
-                loaded_frameworks: Vec::new(),
             },
         }
     }

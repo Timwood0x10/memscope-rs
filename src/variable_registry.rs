@@ -40,7 +40,16 @@ fn get_global_registry() -> Arc<Mutex<HashMap<usize, VariableInfo>>> {
 pub struct VariableRegistry;
 
 impl VariableRegistry {
-    /// Register a variable with its address and information
+    /// Register a variable with its address and information.
+    ///
+    /// # Thread Safety
+    /// This function uses a try-lock on the global registry. If the lock is
+    /// unavailable (high contention), registration is silently skipped.
+    /// In debug builds, a warning is printed to stderr in this case.
+    ///
+    /// # Return Value
+    /// Returns `Ok(())` on success. Note: due to lock-free design,
+    /// registration failures are silently ignored to avoid blocking.
     pub fn register_variable(
         address: usize,
         var_name: String,

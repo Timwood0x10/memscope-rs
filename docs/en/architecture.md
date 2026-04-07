@@ -597,6 +597,19 @@ All shared state is properly synchronized using `Arc` and `Mutex`.
 ### Recursive Protection
 Tracking is disabled during tracking operations to prevent infinite loops.
 
+## Additional Modules
+
+For detailed documentation on individual modules, see:
+
+- [Analysis Engine](modules/analysis_engine.md) - Pluggable memory analysis
+- [Event Store](modules/event_store.md) - Lock-free event storage
+- [Facade](modules/facade.md) - Unified interface
+- [Render Engine](modules/render_engine.md) - Multi-format output
+- [Timeline](modules/timeline.md) - Time-based analysis
+- [Error Handling](modules/error.md) - Error types and recovery
+- [Variable Registry](modules/variable_registry.md) - Variable name tracking
+- [Metadata](modules/metadata.md) - Thread and variable metadata
+
 ## Dependencies
 
 ### External Dependencies

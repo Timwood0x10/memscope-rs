@@ -10,13 +10,22 @@ pub struct PatternMatcher {
 
 /// A compiled pattern with metadata
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct CompiledPattern {
     id: String,
     regex: Regex,
     weight: f64,
     tags: Vec<String>,
     description: String,
+}
+
+impl CompiledPattern {
+    pub fn description(&self) -> &str {
+        &self.description
+    }
+
+    pub fn tags(&self) -> &[String] {
+        &self.tags
+    }
 }
 
 /// Result of a pattern match

@@ -640,14 +640,12 @@ pub trait MemoryTracker: Send + Sync {
 ///
 /// **Note**: This struct is currently unused but reserved for future versions
 /// where it will handle automatic strategy selection based on runtime environment.
-#[allow(dead_code)]
 pub struct TrackingDispatcher {
     active_strategy: Option<TrackingStrategy>,
     config: DispatcherConfig,
     metrics: DispatcherMetrics,
 }
 
-#[allow(dead_code)]
 impl TrackingDispatcher {
     /// Create new tracking dispatcher.
     pub fn new(config: DispatcherConfig) -> Self {

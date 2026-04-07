@@ -221,17 +221,6 @@ pub fn get_valid_regions() -> ValidRegions {
     regions
 }
 
-/// Refresh valid regions (call after significant memory changes).
-/// Works on all platforms to invalidate the cached regions.
-#[allow(dead_code)]
-pub fn refresh_valid_regions() {
-    let mut write_guard = match VALID_REGIONS.write() {
-        Ok(guard) => guard,
-        Err(poisoned) => poisoned.into_inner(),
-    };
-    *write_guard = None;
-}
-
 /// Check if a pointer value is valid using dynamic regions with static fallback.
 pub fn is_valid_ptr(p: usize) -> bool {
     get_valid_regions().contains(p)

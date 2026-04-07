@@ -21,13 +21,30 @@ pub struct Rule {
 
 /// Additional metadata for rules
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct RuleMetadata {
     description: String,
     author: String,
     version: String,
     created_at: chrono::DateTime<chrono::Utc>,
     tags: Vec<String>,
+}
+
+impl RuleMetadata {
+    pub fn description(&self) -> &str {
+        &self.description
+    }
+    pub fn author(&self) -> &str {
+        &self.author
+    }
+    pub fn version(&self) -> &str {
+        &self.version
+    }
+    pub fn tags(&self) -> &[String] {
+        &self.tags
+    }
+    pub fn created_at(&self) -> &chrono::DateTime<chrono::Utc> {
+        &self.created_at
+    }
 }
 
 /// Conditions that can be applied to rules

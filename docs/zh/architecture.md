@@ -597,6 +597,19 @@ pub trait Trackable {
 ### 递归保护
 在追踪操作期间禁用追踪以防止无限循环。
 
+## 附加模块
+
+各模块的详细文档请参阅：
+
+- [分析引擎](modules/analysis_engine.md) - 可插拔的内存分析
+- [事件存储](modules/event_store.md) - 无锁事件存储
+- [外观层](modules/facade.md) - 统一接口
+- [渲染引擎](modules/render_engine.md) - 多格式输出
+- [时间线](modules/timeline.md) - 基于时间的分析
+- [错误处理](modules/error.md) - 错误类型和恢复
+- [变量注册表](modules/variable_registry.md) - 变量名追踪
+- [元数据](modules/metadata.md) - 线程和变量元数据
+
 ## 依赖
 
 ### 外部依赖

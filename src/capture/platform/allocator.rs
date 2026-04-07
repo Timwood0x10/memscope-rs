@@ -3,15 +3,19 @@ use std::time::Instant;
 
 /// Platform-specific allocator hooking system
 pub struct PlatformAllocator {
-    /// Original allocator functions
-    #[allow(dead_code)]
     original_alloc: AtomicPtr<u8>,
-    #[allow(dead_code)]
     original_dealloc: AtomicPtr<u8>,
-    /// Hook configuration
     config: HookConfig,
-    /// Hook statistics
     stats: HookStats,
+}
+
+impl PlatformAllocator {
+    pub fn original_alloc(&self) -> *mut u8 {
+        self.original_alloc.load(Ordering::SeqCst)
+    }
+    pub fn original_dealloc(&self) -> *mut u8 {
+        self.original_dealloc.load(Ordering::SeqCst)
+    }
 }
 
 /// Configuration for allocation hooks

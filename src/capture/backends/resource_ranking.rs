@@ -81,6 +81,15 @@ pub struct TaskResourceMetrics {
     pub gpu_usage: f64,
 }
 
+/// Resource usage for recommendations
+struct ResourceUsage {
+    cpu: f64,
+    memory: f64,
+    io: f64,
+    network: f64,
+    gpu: f64,
+}
+
 impl EfficiencyScores {
     /// Create new efficiency scores
     pub fn new(cpu: f64, memory: f64, io: f64, network: f64, gpu: f64) -> Self {
@@ -193,11 +202,13 @@ impl ResourceRankingAnalyzer {
             self.generate_recommendations(
                 &efficiency_scores,
                 overall_score,
-                metrics.cpu_usage,
-                metrics.memory_usage_mb,
-                metrics.io_usage_mb,
-                metrics.network_usage_mb,
-                metrics.gpu_usage,
+                ResourceUsage {
+                    cpu: metrics.cpu_usage,
+                    memory: metrics.memory_usage_mb,
+                    io: metrics.io_usage_mb,
+                    network: metrics.network_usage_mb,
+                    gpu: metrics.gpu_usage,
+                },
             )
         } else {
             Vec::new()
@@ -337,16 +348,11 @@ impl ResourceRankingAnalyzer {
     }
 
     /// Generate optimization recommendations
-    #[allow(clippy::too_many_arguments)]
     fn generate_recommendations(
         &self,
         efficiency: &EfficiencyScores,
         overall_score: f64,
-        cpu_usage: f64,
-        memory_mb: f64,
-        io_mb: f64,
-        network_mb: f64,
-        gpu_usage: f64,
+        usage: ResourceUsage,
     ) -> Vec<String> {
         let mut recommendations = Vec::new();
 
@@ -357,11 +363,11 @@ impl ResourceRankingAnalyzer {
         }
 
         if efficiency.cpu_efficiency < 0.6 {
-            if cpu_usage > 90.0 {
+            if usage.cpu > 90.0 {
                 recommendations.push(
                     "CPU usage is critical (>90%). Consider parallelizing work or optimizing algorithms.".to_string()
                 );
-            } else if cpu_usage > 75.0 {
+            } else if usage.cpu > 75.0 {
                 recommendations.push(
                     "CPU usage is high (>75%). Profile hot paths and optimize critical sections."
                         .to_string(),
@@ -370,12 +376,12 @@ impl ResourceRankingAnalyzer {
         }
 
         if efficiency.memory_efficiency < 0.6 {
-            if memory_mb > 1000.0 {
+            if usage.memory > 1000.0 {
                 recommendations.push(
                     "Memory usage is high (>1GB). Implement memory pooling or reduce footprint."
                         .to_string(),
                 );
-            } else if memory_mb > 500.0 {
+            } else if usage.memory > 500.0 {
                 recommendations.push(
                     "Memory usage is moderate (>500MB). Consider optimizing data structures."
                         .to_string(),
@@ -384,11 +390,11 @@ impl ResourceRankingAnalyzer {
         }
 
         if efficiency.io_efficiency < 0.6 {
-            if io_mb > 500.0 {
+            if usage.io > 500.0 {
                 recommendations.push(
                     "I/O usage is high (>500MB). Implement buffering or async I/O.".to_string(),
                 );
-            } else if io_mb > 100.0 {
+            } else if usage.io > 100.0 {
                 recommendations.push(
                     "I/O usage is moderate (>100MB). Consider batching operations.".to_string(),
                 );
@@ -396,12 +402,12 @@ impl ResourceRankingAnalyzer {
         }
 
         if efficiency.network_efficiency < 0.6 {
-            if network_mb > 500.0 {
+            if usage.network > 500.0 {
                 recommendations.push(
                     "Network usage is high (>500MB). Implement compression or connection pooling."
                         .to_string(),
                 );
-            } else if network_mb > 100.0 {
+            } else if usage.network > 100.0 {
                 recommendations.push(
                     "Network usage is moderate (>100MB). Consider caching or batching requests."
                         .to_string(),
@@ -410,12 +416,12 @@ impl ResourceRankingAnalyzer {
         }
 
         if efficiency.gpu_efficiency < 0.6 {
-            if gpu_usage > 90.0 {
+            if usage.gpu > 90.0 {
                 recommendations.push(
                     "GPU usage is critical (>90%). Optimize kernel execution or reduce workload."
                         .to_string(),
                 );
-            } else if gpu_usage > 75.0 {
+            } else if usage.gpu > 75.0 {
                 recommendations.push(
                     "GPU usage is high (>75%). Review compute kernel efficiency.".to_string(),
                 );

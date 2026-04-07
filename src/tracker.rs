@@ -151,8 +151,6 @@ impl Clone for Tracker {
 #[derive(Debug, Clone)]
 struct TrackerConfig {
     sampling: SamplingConfig,
-    #[allow(dead_code)]
-    track_thread_id: bool,
     auto_export_on_drop: bool,
     export_path: Option<String>,
 }
@@ -164,7 +162,6 @@ impl Tracker {
             event_store: Arc::new(EventStore::new()),
             config: Arc::new(Mutex::new(TrackerConfig {
                 sampling: SamplingConfig::default(),
-                track_thread_id: true,
                 auto_export_on_drop: false,
                 export_path: None,
             })),
@@ -191,7 +188,6 @@ impl Tracker {
                 .get_or_init(|| {
                     Arc::new(Mutex::new(TrackerConfig {
                         sampling: SamplingConfig::default(),
-                        track_thread_id: true,
                         auto_export_on_drop: false,
                         export_path: None,
                     }))

@@ -428,16 +428,8 @@ pub enum TrendDirection {
 /// Analysis result for historical tracking
 #[derive(Debug, Clone)]
 struct AnalysisResult {
-    /// Component analyzed
     component: String,
-    /// Quality score achieved
     quality_score: f64,
-    /// Analysis timestamp
-    #[allow(dead_code)]
-    timestamp: Instant,
-    /// Key metrics
-    #[allow(dead_code)]
-    metrics: HashMap<String, f64>,
 }
 
 impl CodeAnalyzer {
@@ -784,18 +776,11 @@ impl CodeAnalyzer {
         &mut self,
         component: &str,
         assessment: &QualityAssessment,
-        metrics: &[QualityMetric],
+        _metrics: &[QualityMetric],
     ) {
-        let mut metric_map = HashMap::new();
-        for metric in metrics {
-            metric_map.insert(metric.name.clone(), metric.value);
-        }
-
         let result = AnalysisResult {
             component: component.to_string(),
             quality_score: assessment.overall_score,
-            timestamp: Instant::now(),
-            metrics: metric_map,
         };
 
         self.history.results.push(result);

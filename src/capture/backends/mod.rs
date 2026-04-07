@@ -362,9 +362,12 @@ impl UnifiedCaptureBackend {
     /// Detect the best capture backend for the current runtime environment.
     ///
     /// Selection logic:
-    /// - Single CPU core → CoreBackend (simple, lowest overhead)
+    /// - Single CPU core or unavailable parallelism → CoreBackend (simple, lowest overhead)
     /// - Multiple CPU cores → LockfreeBackend (concurrent, high throughput)
-    /// - In async context (detected via thread-local) → AsyncBackend
+    ///
+    /// Note: AsyncBackend detection is not currently implemented.
+    /// The backend selection is made once at creation time and can be
+    /// refreshed using `refresh_backend()` if runtime conditions change.
     fn detect_best_backend() -> (Box<dyn CaptureBackend>, CaptureBackendType) {
         let thread_count = std::thread::available_parallelism()
             .map(|p| p.get())

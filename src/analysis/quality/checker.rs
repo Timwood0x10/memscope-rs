@@ -3,36 +3,47 @@ use std::time::{Duration, Instant};
 
 /// Performance checker for memory analysis operations
 pub struct PerformanceChecker {
-    /// Performance benchmarks by operation
     benchmarks: HashMap<String, PerformanceBenchmark>,
-    /// Performance thresholds
     thresholds: PerformanceThresholds,
-    /// Monitoring configuration
-    #[allow(dead_code)]
     config: CheckerConfig,
+}
+
+impl PerformanceChecker {
+    pub fn config(&self) -> &CheckerConfig {
+        &self.config
+    }
 }
 
 /// Memory leak detection checker
 pub struct MemoryLeakChecker {
-    /// Baseline memory measurements
     baseline_measurements: HashMap<String, MemoryBaseline>,
-    /// Leak detection configuration
     config: LeakDetectionConfig,
-    /// Detection sensitivity
     sensitivity: LeakSensitivity,
+}
+
+impl MemoryLeakChecker {
+    pub fn config(&self) -> &LeakDetectionConfig {
+        &self.config
+    }
 }
 
 /// Safety checker for memory operations
 pub struct SafetyChecker {
-    /// Safety violation patterns
-    #[allow(dead_code)]
     violation_patterns: Vec<SafetyPattern>,
-    /// Safety requirements by operation type
-    #[allow(dead_code)]
     safety_requirements: HashMap<String, SafetyRequirement>,
-    /// Checker configuration
-    #[allow(dead_code)]
     config: SafetyConfig,
+}
+
+impl SafetyChecker {
+    pub fn violation_patterns(&self) -> &[SafetyPattern] {
+        &self.violation_patterns
+    }
+    pub fn safety_requirements(&self) -> &HashMap<String, SafetyRequirement> {
+        &self.safety_requirements
+    }
+    pub fn config(&self) -> &SafetyConfig {
+        &self.config
+    }
 }
 
 /// Performance benchmark for specific operation

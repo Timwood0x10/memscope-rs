@@ -926,7 +926,7 @@ impl DashboardRenderer {
         let thread_data = Self::aggregate_thread_data(&alloc_info);
 
         // Prepare JSON data for direct injection (performance optimization)
-        #[allow(dead_code)]
+
         #[derive(serde::Serialize)]
         struct DashboardData<'a> {
             allocations: &'a [AllocationInfo],

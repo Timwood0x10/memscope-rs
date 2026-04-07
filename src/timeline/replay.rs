@@ -13,9 +13,6 @@ use std::sync::Arc;
 /// Provides functionality to replay memory events in chronological order,
 /// allowing for time-based analysis and visualization.
 pub struct TimelineReplay {
-    /// Reference to the event store
-    #[allow(dead_code)]
-    event_store: Arc<EventStore>,
     /// Current replay position
     position: usize,
     /// All events sorted by timestamp
@@ -31,7 +28,6 @@ impl TimelineReplay {
         sorted_events.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
 
         Self {
-            event_store,
             position: 0,
             events: sorted_events,
         }

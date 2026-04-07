@@ -32,7 +32,6 @@ pub struct ThreadRegistry {
     /// Registered threads
     threads: Arc<Mutex<HashMap<u64, ThreadInfo>>>,
     /// Next available internal thread ID
-    #[allow(dead_code)]
     next_id: Arc<Mutex<u64>>,
 }
 
@@ -43,6 +42,13 @@ impl ThreadRegistry {
             threads: Arc::new(Mutex::new(HashMap::new())),
             next_id: Arc::new(Mutex::new(1)),
         }
+    }
+
+    pub fn next_id(&self) -> u64 {
+        let mut id = self.next_id.lock().unwrap();
+        let current = *id;
+        *id = current.saturating_add(1);
+        current
     }
 
     /// Register the current thread

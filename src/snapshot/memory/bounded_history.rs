@@ -43,7 +43,6 @@ pub struct BoundedHistory<T> {
     /// Operation statistics
     stats: Arc<RwLock<BoundedHistoryStats>>,
     /// Last cleanup timestamp
-    #[allow(dead_code)]
     last_cleanup: Arc<Mutex<Instant>>,
 }
 
@@ -112,6 +111,10 @@ where
     /// Create a new bounded history with default configuration
     pub fn new() -> Self {
         Self::with_config(BoundedHistoryConfig::default())
+    }
+
+    pub fn last_cleanup(&self) -> Instant {
+        *self.last_cleanup.lock().unwrap()
     }
 
     /// Create a new bounded history with custom configuration

@@ -155,22 +155,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // Create Rc clones that will form cycles
         struct Node {
-            #[allow(dead_code)]
-            value: i32,
+            _value: i32,
             next: Option<std::rc::Rc<std::cell::RefCell<Node>>>,
         }
 
         // Track nodes in sequence - these form a cycle when linked
         let n1 = std::rc::Rc::new(std::cell::RefCell::new(Node {
-            value: 1,
+            _value: 1,
             next: None,
         }));
         let n2 = std::rc::Rc::new(std::cell::RefCell::new(Node {
-            value: 2,
+            _value: 2,
             next: None,
         }));
         let n3 = std::rc::Rc::new(std::cell::RefCell::new(Node {
-            value: 3,
+            _value: 3,
             next: None,
         }));
 
