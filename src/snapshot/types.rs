@@ -21,6 +21,8 @@ pub struct ActiveAllocation {
     pub type_name: Option<String>,
     /// Thread ID that made this allocation
     pub thread_id: u64,
+    /// Optional call stack hash for clone detection
+    pub call_stack_hash: Option<u64>,
 }
 
 /// Memory statistics for a snapshot
@@ -108,6 +110,7 @@ impl MemorySnapshot {
                 var_name: alloc.var_name,
                 type_name: alloc.type_name,
                 thread_id,
+                call_stack_hash: None,
             };
 
             current_memory += alloc.size;

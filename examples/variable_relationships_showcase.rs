@@ -3,13 +3,28 @@
 //! This example demonstrates all types of variable relationships that memscope can capture:
 //! - Clone relationships
 //! - Smart pointer relationships (Arc/Rc)
-//! - Ownership transfers
+//! - Rc retain cycles (memory leaks)
 //! - Type-based relationships
-//! - Borrow relationships
 
 use memscope_rs::{global_tracker, init_global_tracking, track};
+use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
+
+#[derive(Debug)]
+struct Node {
+    name: String,
+    next: Option<Rc<RefCell<Node>>>,
+}
+
+impl Node {
+    fn new(name: impl Into<String>) -> Self {
+        Node {
+            name: name.into(),
+            next: None,
+        }
+    }
+}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🔗 Variable Relationships Showcase");
@@ -52,8 +67,41 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!("✓ Created Rc with {} clones", 7);
 
-    // 4. String type relationships
-    println!("\n4. String Type Relationships");
+    // 4. Rc retain cycle (memory leak)
+    println!("\n4. Rc Retain Cycle (Memory Leak Warning)");
+    let a = Rc::new(RefCell::new(Node::new("Node A")));
+    let b = Rc::new(RefCell::new(Node::new("Node B")));
+
+    track!(tracker, a.clone());
+    track!(tracker, b.clone());
+
+    // Create cycle: A -> B -> A
+    a.borrow_mut().next = Some(b.clone());
+    b.borrow_mut().next = Some(a.clone());
+
+    println!("✓ Created cycle: A -> B -> A");
+    println!("  ⚠️  These Rc objects will never be dropped (memory leak)");
+    println!("  ℹ️  Current system shows this as same-type Rc relationships");
+
+    // 5. Safe Rc structure (no cycle)
+    println!("\n5. Safe Rc Structure (No Cycle)");
+    let c = Rc::new(RefCell::new(Node::new("Node C")));
+    let d = Rc::new(RefCell::new(Node::new("Node D")));
+    let e = Rc::new(RefCell::new(Node::new("Node E")));
+
+    track!(tracker, c.clone());
+    track!(tracker, d.clone());
+    track!(tracker, e.clone());
+
+    // Linear: C -> D -> E (no back references)
+    c.borrow_mut().next = Some(d.clone());
+    d.borrow_mut().next = Some(e.clone());
+
+    println!("✓ Created linear structure: C -> D -> E");
+    println!("  ℹ️  This will be properly dropped when out of scope");
+
+    // 6. String type relationships
+    println!("\n6. String Type Relationships");
     let mut strings = Vec::new();
     for i in 0..12 {
         let s = format!("String number {}", i);
@@ -62,8 +110,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!("✓ Created {} String instances", strings.len());
 
-    // 5. HashMap type relationships
-    println!("\n5. HashMap Type Relationships");
+    // 7. HashMap type relationships
+    println!("\n7. HashMap Type Relationships");
     let mut maps = Vec::new();
     for i in 0..5 {
         let mut map = std::collections::HashMap::new();
@@ -75,8 +123,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!("✓ Created {} HashMap instances", maps.len());
 
-    // 6. BTreeMap type relationships
-    println!("\n6. BTreeMap Type Relationships");
+    // 8. BTreeMap type relationships
+    println!("\n8. BTreeMap Type Relationships");
     let mut btree_maps = Vec::new();
     for i in 0..4 {
         let mut map = std::collections::BTreeMap::new();
@@ -88,8 +136,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!("✓ Created {} BTreeMap instances", btree_maps.len());
 
-    // 7. Vector<u8> type relationships (different from Vec<i32>)
-    println!("\n7. Vector<u8> Type Relationships");
+    // 9. Vector<u8> type relationships (different from Vec<i32>)
+    println!("\n9. Vector<u8> Type Relationships");
     let mut byte_vecs = Vec::new();
     for i in 0..8 {
         let vec: Vec<u8> = (0..128).map(|j| ((i * 128 + j) % 256) as u8).collect();
@@ -98,8 +146,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!("✓ Created {} Vec<u8> instances", byte_vecs.len());
 
-    // 8. Box type relationships
-    println!("\n8. Box Type Relationships");
+    // 10. Box type relationships
+    println!("\n10. Box Type Relationships");
     let mut boxes = Vec::new();
     for i in 0..6 {
         let boxed: Box<i32> = Box::new(i * 100);
@@ -122,12 +170,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("\n✅ Export successful!");
     println!("📁 Results saved to: {}", output_path);
-    println!("\nExpected relationships in visualization:");
-    println!("  🟢 Green: Vec<i32>, Vec<u8>, String, Box");
-    println!("  🟣 Purple: Arc, Rc");
-    println!("  🟠 Yellow: HashMap, BTreeMap");
-    println!("  🔵 Blue: Other relationships");
-    println!("  🔴 Red: Cycles (if any)");
+    println!("\n🔍 Key Relationships in Dashboard:");
+    println!("  🟢 Green: Vec<i32>, Vec<u8>, String, Box clones");
+    println!("  🟣 Purple: Arc, Rc smart pointers");
+    println!("  🟠 Yellow: HashMap, BTreeMap collections");
+    println!("  🔵 Blue: Other same-type relationships");
+    println!("  ⚠️  Note: Rc cycles shown as same-type relationships");
+    println!("  💡  True cycle detection needs TrackedRc implementation");
 
     Ok(())
 }

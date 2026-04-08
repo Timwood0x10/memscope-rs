@@ -57,6 +57,7 @@ impl SnapshotEngine {
                         var_name: event.var_name,
                         type_name: event.type_name,
                         thread_id: event.thread_id,
+                        call_stack_hash: event.call_stack_hash,
                     };
 
                     ptr_to_allocation.insert(event.ptr, allocation);
@@ -105,6 +106,7 @@ impl SnapshotEngine {
                         var_name: event.var_name,
                         type_name: event.type_name,
                         thread_id: event.thread_id,
+                        call_stack_hash: event.call_stack_hash,
                     };
 
                     ptr_to_allocation.insert(event.ptr, allocation);

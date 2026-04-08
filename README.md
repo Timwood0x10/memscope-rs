@@ -180,6 +180,20 @@ cargo run --example comprehensive_async_showcase
 cargo run --example global_tracker_showcase
 ```
 
+## Documentation
+
+- [API Guide (中文)](docs/zh/api_guide.md) | [English](docs/en/api_guide.md)
+- [Architecture (中文)](docs/zh/architecture.md) | [English](docs/en/architecture.md)
+- [Module Documentation](docs/zh/modules/) - Detailed module docs in Chinese
+- [Module Documentation](docs/en/modules/) - Detailed module docs in English
+
+### Key Modules
+
+- [Analysis Module](docs/zh/modules/analysis.md) - Leak detection, relation inference, safety analysis
+- [Tracker Module](docs/zh/modules/tracker.md) - Core tracking API
+- [Capture Module](docs/zh/modules/capture.md) - Memory capture backends
+- [Render Engine](docs/zh/modules/render_engine.md) - Export and visualization
+
 ## Project Structure
 
 ```

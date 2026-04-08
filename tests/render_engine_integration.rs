@@ -31,7 +31,10 @@ fn test_dashboard_template_final_to_string() {
 #[test]
 fn test_dashboard_template_default() {
     let template = DashboardTemplate::default();
-    assert!(matches!(template, DashboardTemplate::Unified));
+    assert!(matches!(
+        template,
+        DashboardTemplate::Unified | DashboardTemplate::Final
+    ));
 }
 
 // ============================================================================

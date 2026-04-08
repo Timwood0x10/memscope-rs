@@ -236,6 +236,186 @@ pub struct MemoryView<'a> {
     data: &'a [u8],
 }
 
+/// Owned memory view that owns its data.
+///
+/// This is a non-reference version of `MemoryView` that owns the underlying
+/// buffer. Useful when the memory view needs to outlive the original scope.
+///
+/// # When to Use OwnedMemoryView vs MemoryView
+///
+/// | Scenario | Use |
+/// |----------|-----|
+/// | Temporary analysis within a function | `MemoryView<&[u8]>` |
+/// | Storing memory data for later use | `OwnedMemoryView` |
+/// | Returning memory data from a function | `OwnedMemoryView` |
+/// | Zero-copy analysis | `MemoryView<&[u8]>` |
+///
+/// # Lifetime Management
+///
+/// `OwnedMemoryView` owns its data via `Vec<u8>`, so it has no lifetime parameter.
+/// This means:
+/// - The data remains valid as long as the `OwnedMemoryView` exists
+/// - No need to worry about the underlying data being dropped
+/// - Slightly higher memory overhead due to ownership
+///
+/// # Example
+///
+/// ```rust
+/// use memscope_rs::analysis::unsafe_inference::OwnedMemoryView;
+///
+/// // Create from a vector (takes ownership)
+/// let data = vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08];
+/// let view = OwnedMemoryView::new(data);
+///
+/// // Read values safely
+/// if let Some(value) = view.read_usize(0) {
+///     println!("First usize: {}", value);
+/// }
+///
+/// // Check bounds
+/// if let Some(byte) = view.read_u8(10) {
+///     println!("Byte at offset 10: {}", byte);
+/// } else {
+///     println!("Offset 10 out of bounds");
+/// }
+///
+/// // Access raw slice when needed
+/// let slice = view.as_slice();
+/// println!("Total bytes: {}", slice.len());
+/// ```
+///
+/// # Memory Safety
+///
+/// All read methods perform bounds checking and return `Option` types.
+/// This ensures safe access even with invalid offsets:
+///
+/// ```rust
+/// let view = OwnedMemoryView::new(vec![0u8; 4]);
+///
+/// // This returns None (out of bounds)
+/// assert!(view.read_usize(0).is_none());
+///
+/// // This returns None (offset + size > len)
+/// assert!(view.read_usize(1).is_none());
+/// ```
+pub struct OwnedMemoryView {
+    data: Vec<u8>,
+}
+
+impl OwnedMemoryView {
+    /// Create a new `OwnedMemoryView` from a `Vec<u8>`.
+    ///
+    /// This takes ownership of the vector, so no copying occurs.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// let view = OwnedMemoryView::new(vec![1, 2, 3, 4]);
+    /// assert_eq!(view.len(), 4);
+    /// ```
+    pub fn new(data: Vec<u8>) -> Self {
+        Self { data }
+    }
+
+    /// Returns the length of the underlying data.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// let view = OwnedMemoryView::new(vec![1, 2, 3]);
+    /// assert_eq!(view.len(), 3);
+    /// ```
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+
+    /// Returns `true` if the underlying data is empty.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// let view = OwnedMemoryView::new(vec![]);
+    /// assert!(view.is_empty());
+    /// ```
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+
+    /// Read a `usize` value from the specified offset.
+    ///
+    /// Reads `std::mem::size_of::<usize>()` bytes starting at `offset`
+    /// and interprets them as a little-endian `usize`.
+    ///
+    /// Returns `None` if the read would exceed the buffer bounds.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// let data = vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08];
+    /// let view = OwnedMemoryView::new(data);
+    ///
+    /// if let Some(value) = view.read_usize(0) {
+    ///     println!("Value: 0x{:x}", value);
+    /// }
+    /// ```
+    pub fn read_usize(&self, offset: usize) -> Option<usize> {
+        let size = std::mem::size_of::<usize>();
+        if offset.saturating_add(size) > self.data.len() {
+            return None;
+        }
+        let mut buf = [0u8; 8];
+        buf[..size].copy_from_slice(&self.data[offset..offset + size]);
+        Some(usize::from_le_bytes(buf))
+    }
+
+    /// Read a single byte from the specified offset.
+    ///
+    /// Returns `None` if the offset is out of bounds.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// let view = OwnedMemoryView::new(vec![0x10, 0x20, 0x30]);
+    ///
+    /// assert_eq!(view.read_u8(0), Some(0x10));
+    /// assert_eq!(view.read_u8(2), Some(0x30));
+    /// assert_eq!(view.read_u8(3), None); // out of bounds
+    /// ```
+    pub fn read_u8(&self, offset: usize) -> Option<u8> {
+        self.data.get(offset).copied()
+    }
+
+    /// Returns a slice of the underlying data.
+    ///
+    /// This provides direct access to the bytes without copying.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// let view = OwnedMemoryView::new(vec![1, 2, 3, 4, 5]);
+    /// let slice = view.as_slice();
+    /// assert_eq!(slice, &[1, 2, 3, 4, 5]);
+    /// ```
+    pub fn as_slice(&self) -> &[u8] {
+        &self.data
+    }
+
+    /// Returns an iterator over chunks of the underlying data.
+    ///
+    /// Each chunk has at most `chunk_size` elements.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// let view = OwnedMemoryView::new(vec![1, 2, 3, 4, 5, 6]);
+    /// let chunks: Vec<_> = view.chunks(2).collect();
+    /// assert_eq!(chunks, vec![&[1, 2][..], &[3, 4], &[5, 6]]);
+    /// ```
+    pub fn chunks(&self, chunk_size: usize) -> impl Iterator<Item = &[u8]> {
+        self.data.chunks(chunk_size)
+    }
+}
+
 impl<'a> MemoryView<'a> {
     pub fn new(data: &'a [u8]) -> Self {
         Self { data }

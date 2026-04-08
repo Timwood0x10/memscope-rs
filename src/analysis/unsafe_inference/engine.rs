@@ -21,7 +21,7 @@ use super::memory_view::{count_valid_pointers, is_valid_ptr, MemoryView};
 /// Inferred type category for unsafe memory allocations.
 ///
 /// Each variant represents a common pattern in FFI/unsafe code.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum TypeKind {
     /// Rust Vec<T>: heap-allocated growable array (ptr, len, cap)
     Vec,

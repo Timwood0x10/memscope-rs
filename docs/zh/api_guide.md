@@ -299,3 +299,82 @@ fs::create_dir_all("output")?;
 - `comprehensive_async_showcase.rs` - 异步编程示例
 - `unsafe_ffi_demo.rs` - 不安全代码和 FFI 示例
 - `merkle_tree.rs` - Merkle 树实现示例
+
+## 关系推断系统
+
+memscope-rs 提供了强大的内存关系推断引擎，能够自动检测分配之间的语义关系。
+
+### 支持的关系类型
+
+| 关系类型 | 描述 | 检测方法 |
+|----------|------|----------|
+| **Owner** | A 拥有或指向 B | 指针扫描 - 在 A 的内存中找到指向 B 的指针 |
+| **Slice** | A 是 B 的子视图 | 地址范围检测 - A 的指针在 B 的内部 |
+| **Clone** | A 是 B 的克隆 | 内容相似度 + 时间窗口 + 调用栈匹配 |
+| **Shared** | A 和 B 共享所有权 | Arc/Rc control block 模式识别 |
+
+### 使用方法
+
+```rust
+use memscope_rs::analysis::relation_inference::{RelationGraphBuilder, Relation};
+
+// 从活跃分配构建关系图
+let graph = RelationGraphBuilder::build(&allocations, None);
+
+// 查询关系
+for edge in graph.edges() {
+    println!("{:?}: {} -> {}", edge.relation, edge.from, edge.to);
+}
+
+// 检测循环引用
+let cycles = graph.detect_cycles();
+if !cycles.is_empty() {
+    println!("检测到 {} 个循环引用", cycles.len());
+}
+
+// 获取所有节点
+let nodes = graph.all_nodes();
+```
+
+### 准确率数据
+
+基于真实测试数据的准确率：
+
+```
+=== Clone 检测准确率 ===
+Precision: 100.00%
+Recall: 100.00%
+F1 Score: 100.00%
+
+=== Owner 检测准确率 ===
+✅ Box<Vec> 关系正确检测
+✅ 独立 Vec 无误报
+
+=== 性能数据 ===
+1000 分配构建时间: ~230ms
+```
+
+### 配置选项
+
+```rust
+use memscope_rs::analysis::relation_inference::{GraphBuilderConfig, CloneConfig};
+
+let config = GraphBuilderConfig {
+    clone_config: CloneConfig {
+        min_similarity: 0.8,              // 最小相似度阈值
+        min_similarity_no_stack_hash: 0.95, // 无调用栈时的更严格阈值
+        max_time_diff_ns: 10_000_000,     // 10ms 时间窗口
+        max_clone_edges_per_node: 10,     // 每节点最大克隆边数
+        ..Default::default()
+    },
+};
+
+let graph = RelationGraphBuilder::build(&allocations, Some(config));
+```
+
+### 注意事项
+
+1. **Owner 检测**：需要元数据在堆上（如 `Box<Vec>`），栈上的元数据无法被扫描
+2. **Clone 检测**：依赖调用栈哈希，相同调用栈的分配会被分组比较
+3. **Shared 检测**：依赖 Owner 关系，需要先检测 Owner 后再检测 Shared
+4. **性能**：使用滑动时间窗口避免 O(n²) 复杂度

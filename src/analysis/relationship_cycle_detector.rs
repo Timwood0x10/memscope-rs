@@ -163,6 +163,48 @@ pub fn detect_cycles_with_indices(
     }
 }
 
+/// Direct integer-based cycle detection without string conversion.
+///
+/// This is the most efficient version for graphs that already use integer indices.
+pub fn detect_cycles_direct(relationships: &[(usize, usize)]) -> Vec<(usize, usize)> {
+    if relationships.is_empty() {
+        return Vec::new();
+    }
+
+    let max_node = relationships
+        .iter()
+        .flat_map(|(from, to)| [*from, *to])
+        .max()
+        .unwrap_or(0);
+
+    let n = max_node + 1;
+    let mut graph: Vec<Vec<usize>> = vec![Vec::new(); n];
+
+    for (source, target) in relationships {
+        graph[*source].push(*target);
+    }
+
+    let mut visited: Vec<bool> = vec![false; n];
+    let mut rec_stack: Vec<bool> = vec![false; n];
+    let mut path: Vec<usize> = Vec::new();
+    let mut cycle_edges: Vec<(usize, usize)> = Vec::new();
+
+    for start in 0..n {
+        if !visited[start] {
+            dfs_detect_cycles_indices(
+                start,
+                &graph,
+                &mut visited,
+                &mut rec_stack,
+                &mut path,
+                &mut cycle_edges,
+            );
+        }
+    }
+
+    cycle_edges
+}
+
 fn dfs_detect_cycles_indices(
     node: usize,
     graph: &[Vec<usize>],

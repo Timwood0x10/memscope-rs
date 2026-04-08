@@ -27,5 +27,5 @@ mod memory_view;
 pub use engine::{InferenceMethod, InferenceRecord, TypeGuess, TypeKind, UnsafeInferenceEngine};
 pub use memory_view::{
     count_valid_pointers, get_valid_regions, is_valid_ptr, is_valid_ptr_static, MemoryRegion,
-    MemoryView, ValidRegions,
+    MemoryView, OwnedMemoryView, ValidRegions,
 };

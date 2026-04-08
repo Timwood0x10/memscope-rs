@@ -164,6 +164,7 @@ mod tests {
             var_name: Some("test_var".to_string()),
             type_name: Some("Vec<u8>".to_string()),
             thread_id: 42,
+            call_stack_hash: None,
         };
 
         let alloc = active_to_allocation_info(&active);

@@ -15,6 +15,8 @@
 pub mod detectors;
 
 pub mod circular_reference;
+pub mod heap_scanner;
+pub mod relation_inference;
 pub mod unsafe_ffi_tracker;
 pub mod unsafe_inference;
 pub mod variable_relationships;
@@ -107,6 +109,15 @@ pub use unsafe_inference::{
     count_valid_pointers, get_valid_regions, is_valid_ptr, is_valid_ptr_static, InferenceMethod,
     InferenceRecord, MemoryRegion, MemoryView, TypeGuess, TypeKind, UnsafeInferenceEngine,
     ValidRegions,
+};
+
+// Heap scanner exports
+pub use heap_scanner::{HeapScanner, ScanResult};
+
+// Relation inference exports
+pub use relation_inference::{
+    detect_clones, detect_owner, detect_slice, CloneConfig, GraphBuilderConfig, RangeMap, Relation,
+    RelationEdge, RelationGraph, RelationGraphBuilder,
 };
 
 // Re-export integrated submodules

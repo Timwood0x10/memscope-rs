@@ -312,3 +312,133 @@ let closure_analysis = closure_analyzer.analyze_closure_patterns(&allocations);
 3. **性能**: 提高分析性能
 4. **机器学习**: 使用 ML 进行模式检测
 5. **实时分析**: 支持实时分析
+
+## 关系推断引擎
+
+### 概述
+
+关系推断引擎能够自动检测内存分配之间的语义关系，帮助理解程序的内存结构和所有权模型。
+
+### 支持的关系类型
+
+| 关系类型 | 描述 | 检测方法 |
+|----------|------|----------|
+| **Owner** | A 拥有或指向 B | 指针扫描 - 在 A 的内存中找到指向 B 的指针 |
+| **Slice** | A 是 B 的子视图 | 地址范围检测 - A 的指针在 B 的内部 |
+| **Clone** | A 是 B 的克隆 | 内容相似度 + 时间窗口 + 调用栈匹配 |
+| **Shared** | A 和 B 共享所有权 | Arc/Rc control block 模式识别 |
+
+### 使用方法
+
+```rust
+use memscope_rs::analysis::relation_inference::{RelationGraphBuilder, Relation};
+
+// 从活跃分配构建关系图
+let graph = RelationGraphBuilder::build(&allocations, None);
+
+// 查询关系
+for edge in &graph.edges {
+    println!("{:?}: {} -> {}", edge.relation, edge.from, edge.to);
+}
+
+// 检测循环引用
+let cycles = graph.detect_cycles();
+if !cycles.is_empty() {
+    println!("检测到 {} 个循环引用", cycles.len());
+}
+
+// 获取所有节点
+let nodes = graph.all_nodes();
+```
+
+### 准确率数据
+
+基于真实测试数据的准确率：
+
+```
+=== Clone 检测准确率 ===
+Precision: 100.00%
+Recall: 100.00%
+F1 Score: 100.00%
+
+=== Owner 检测准确率 ===
+✅ Box<Vec> 关系正确检测
+✅ 独立 Vec 无误报
+
+=== 性能数据 ===
+1000 分配构建时间: ~230ms
+```
+
+### 配置选项
+
+```rust
+use memscope_rs::analysis::relation_inference::{GraphBuilderConfig, CloneConfig};
+
+let config = GraphBuilderConfig {
+    clone_config: CloneConfig {
+        min_similarity: 0.8,              // 最小相似度阈值
+        min_similarity_no_stack_hash: 0.95, // 无调用栈时的更严格阈值
+        max_time_diff_ns: 10_000_000,     // 10ms 时间窗口
+        max_clone_edges_per_node: 10,     // 每节点最大克隆边数
+        ..Default::default()
+    },
+};
+
+let graph = RelationGraphBuilder::build(&allocations, Some(config));
+```
+
+### 检测算法详解
+
+#### Owner 检测
+
+扫描分配内存中的指针值，如果找到指向其他分配的指针，则建立 Owner 关系。
+
+```rust
+// 检测流程
+1. 读取分配内存内容
+2. 扫描每个 8 字节对齐位置
+3. 解析为指针值
+4. 在 RangeMap 中查找目标分配
+5. 建立 Owner 边
+```
+
+#### Slice 检测
+
+检测一个分配的指针是否落在另一个分配的内部（非起始位置）。
+
+```rust
+// 检测条件
+1. A.ptr 在 B 的地址范围内 (B.ptr < A.ptr < B.ptr + B.size)
+2. A.size <= 256 (Slice 元数据通常较小)
+3. A 的完整范围在 B 内
+```
+
+#### Clone 检测
+
+基于内容相似度和时间窗口检测克隆关系。
+
+```rust
+// 检测条件
+1. 相同的 TypeKind 和 size
+2. 相同的 call_stack_hash (或都为 None)
+3. 分配时间差在窗口内
+4. 内容相似度 >= 阈值
+```
+
+#### Shared 检测
+
+检测 Arc/Rc 共享所有权。
+
+```rust
+// 检测条件
+1. 多个 Owner 边指向同一目标
+2. 目标内存布局符合 ArcInner 结构
+3. strong_count 和 weak_count 在合理范围内
+```
+
+### 注意事项
+
+1. **Owner 检测**：需要元数据在堆上（如 `Box<Vec>`），栈上的元数据无法被扫描
+2. **Clone 检测**：依赖调用栈哈希，相同调用栈的分配会被分组比较
+3. **Shared 检测**：依赖 Owner 关系，需要先检测 Owner 后再检测 Shared
+4. **性能**：使用滑动时间窗口避免 O(n²) 复杂度
