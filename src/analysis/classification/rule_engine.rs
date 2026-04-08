@@ -1,4 +1,5 @@
 use crate::classification::TypeCategory;
+use crate::core::{MemScopeError, MemScopeResult};
 use regex::Regex;
 use std::collections::HashMap;
 
@@ -88,11 +89,7 @@ impl RuleEngine {
     }
 
     /// Add a rule to the engine
-    pub fn add_rule(
-        &mut self,
-        rule: Rule,
-        metadata: Option<RuleMetadata>,
-    ) -> Result<(), RuleEngineError> {
+    pub fn add_rule(&mut self, rule: Rule, metadata: Option<RuleMetadata>) -> MemScopeResult<()> {
         // Validate rule
         self.validate_rule(&rule)?;
 
@@ -228,15 +225,21 @@ impl RuleEngine {
     }
 
     /// Validate a rule before adding it
-    fn validate_rule(&self, rule: &Rule) -> Result<(), RuleEngineError> {
+    fn validate_rule(&self, rule: &Rule) -> MemScopeResult<()> {
         if rule.id.is_empty() {
-            return Err(RuleEngineError::InvalidRule(
-                "Rule ID cannot be empty".to_string(),
+            return Err(MemScopeError::error(
+                "rule_engine",
+                "validate_rule",
+                "Rule ID cannot be empty",
             ));
         }
 
         if self.rules.iter().any(|r| r.id == rule.id) {
-            return Err(RuleEngineError::DuplicateRule(rule.id.clone()));
+            return Err(MemScopeError::error(
+                "rule_engine",
+                "validate_rule",
+                format!("Duplicate rule ID: {}", rule.id),
+            ));
         }
 
         // Test if regex is valid by trying a simple match
@@ -246,8 +249,10 @@ impl RuleEngine {
             if rule.pattern.captures("test").is_none()
                 && rule.pattern.as_str().contains("invalid_regex_pattern")
             {
-                return Err(RuleEngineError::InvalidPattern(
-                    rule.pattern.as_str().to_string(),
+                return Err(MemScopeError::error(
+                    "rule_engine",
+                    "validate_rule",
+                    format!("Invalid regex pattern: {}", rule.pattern.as_str()),
                 ));
             }
         }
@@ -308,22 +313,6 @@ pub struct RuleEngineStats {
     pub has_metadata: usize,
 }
 
-/// Rule engine errors
-#[derive(Debug, thiserror::Error)]
-pub enum RuleEngineError {
-    #[error("Invalid rule: {0}")]
-    InvalidRule(String),
-
-    #[error("Duplicate rule ID: {0}")]
-    DuplicateRule(String),
-
-    #[error("Invalid regex pattern: {0}")]
-    InvalidPattern(String),
-
-    #[error("Rule not found: {0}")]
-    RuleNotFound(String),
-}
-
 /// Builder for creating rules
 pub struct RuleBuilder {
     id: Option<String>,
@@ -376,19 +365,20 @@ impl RuleBuilder {
         self
     }
 
-    pub fn build(self) -> Result<Rule, RuleEngineError> {
+    pub fn build(self) -> MemScopeResult<Rule> {
         let id = self
             .id
-            .ok_or_else(|| RuleEngineError::InvalidRule("ID is required".to_string()))?;
+            .ok_or_else(|| MemScopeError::error("rule_engine", "build", "ID is required"))?;
         let pattern_str = self
             .pattern
-            .ok_or_else(|| RuleEngineError::InvalidRule("Pattern is required".to_string()))?;
+            .ok_or_else(|| MemScopeError::error("rule_engine", "build", "Pattern is required"))?;
         let category = self
             .category
-            .ok_or_else(|| RuleEngineError::InvalidRule("Category is required".to_string()))?;
+            .ok_or_else(|| MemScopeError::error("rule_engine", "build", "Category is required"))?;
 
-        let pattern =
-            Regex::new(&pattern_str).map_err(|_| RuleEngineError::InvalidPattern(pattern_str))?;
+        let pattern = Regex::new(&pattern_str).map_err(|e| {
+            MemScopeError::error("rule_engine", "build", format!("Invalid pattern: {}", e))
+        })?;
 
         Ok(Rule {
             id,

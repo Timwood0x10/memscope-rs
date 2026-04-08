@@ -111,18 +111,17 @@ pub use lockfree_types::{
 // Re-export unified tracker types
 pub use unified_tracker::{
     detect_environment, get_backend, initialize as initialize_unified, AsyncRuntimeType,
-    BackendConfig, BackendError, DetectionConfig, DispatcherConfig, DispatcherMetrics,
-    EnvironmentDetection, EnvironmentDetector, MemoryAnalysisData, MemoryStatistics,
+    BackendConfig, DetectionConfig, DispatcherConfig, DispatcherMetrics, EnvironmentDetection,
+    EnvironmentDetector, MemoryAnalysisData, MemoryStatistics,
     MemoryTracker as UnifiedMemoryTracker, RuntimeEnvironment, SessionMetadata, TrackerConfig,
-    TrackerError, TrackerStatistics, TrackerType, TrackingDispatcher, TrackingOperation,
-    TrackingSession, TrackingStrategy, UnifiedBackend,
+    TrackerStatistics, TrackerType, TrackingDispatcher, TrackingOperation, TrackingSession,
+    TrackingStrategy, UnifiedBackend,
 };
 
 // Re-export global tracking types
 pub use global_tracking::{
     global_tracker, init_global_tracking, init_global_tracking_with_config, is_initialized,
-    reset_global_tracking, GlobalTracker, GlobalTrackerConfig, GlobalTrackerError,
-    GlobalTrackerStats,
+    reset_global_tracking, GlobalTracker, GlobalTrackerConfig, GlobalTrackerStats,
 };
 
 /// Capture Backend trait

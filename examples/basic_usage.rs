@@ -5,12 +5,12 @@
 //! - MemorySnapshot for snapshot building
 //! - global_tracking::export_all_json for data export
 
-use memscope_rs::{global_tracker, init_global_tracking, track};
+use memscope_rs::{global_tracker, init_global_tracking, track, MemScopeResult};
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Instant;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> MemScopeResult<()> {
     println!("Basic Usage Example - New API");
     println!("================================\n");
 

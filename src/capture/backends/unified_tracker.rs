@@ -2,8 +2,8 @@
 //!
 //! This module contains type definitions for unified tracking strategy.
 
+use crate::core::{MemScopeError, MemScopeResult};
 use std::sync::Arc;
-use thiserror::Error;
 use tracing::{debug, info, warn};
 
 /// Runtime environment type.
@@ -112,30 +112,6 @@ pub struct EnvironmentDetection {
     pub confidence: f64,
 }
 
-/// Backend operation errors.
-#[derive(Error, Debug)]
-pub enum BackendError {
-    /// Environment detection failed
-    #[error("Failed to detect runtime environment: {reason}")]
-    EnvironmentDetectionFailed { reason: String },
-
-    /// Strategy selection failed
-    #[error("Cannot select appropriate tracking strategy for environment: {environment:?}")]
-    StrategySelectionFailed { environment: RuntimeEnvironment },
-
-    /// Tracking initialization failed
-    #[error("Failed to initialize tracking session: {reason}")]
-    TrackingInitializationFailed { reason: String },
-
-    /// Data collection error
-    #[error("Error collecting tracking data: {reason}")]
-    DataCollectionError { reason: String },
-
-    /// Configuration validation error
-    #[error("Invalid backend configuration: {reason}")]
-    ConfigurationError { reason: String },
-}
-
 /// Tracking session handle.
 pub struct TrackingSession {
     /// Session identifier
@@ -208,17 +184,21 @@ impl Clone for UnifiedBackend {
 
 impl UnifiedBackend {
     /// Initialize unified backend with configuration.
-    pub fn initialize(config: BackendConfig) -> Result<Self, BackendError> {
+    pub fn initialize(config: BackendConfig) -> MemScopeResult<Self> {
         if config.sample_rate < 0.0 || config.sample_rate > 1.0 {
-            return Err(BackendError::ConfigurationError {
-                reason: "Sample rate must be between 0.0 and 1.0".to_string(),
-            });
+            return Err(MemScopeError::error(
+                "unified_tracker",
+                "initialize",
+                "Sample rate must be between 0.0 and 1.0",
+            ));
         }
 
         if config.max_overhead_percent < 0.0 || config.max_overhead_percent > 100.0 {
-            return Err(BackendError::ConfigurationError {
-                reason: "Max overhead percent must be between 0.0 and 100.0".to_string(),
-            });
+            return Err(MemScopeError::error(
+                "unified_tracker",
+                "initialize",
+                "Max overhead percent must be between 0.0 and 100.0",
+            ));
         }
 
         info!("Initializing unified backend");
@@ -255,7 +235,7 @@ impl UnifiedBackend {
     }
 
     /// Create with specified configuration.
-    pub fn with_config(config: BackendConfig) -> Result<Self, BackendError> {
+    pub fn with_config(config: BackendConfig) -> MemScopeResult<Self> {
         Self::initialize(config)
     }
 
@@ -275,7 +255,7 @@ impl UnifiedBackend {
     }
 
     /// Detect current runtime environment.
-    pub fn detect_environment() -> Result<RuntimeEnvironment, BackendError> {
+    pub fn detect_environment() -> MemScopeResult<RuntimeEnvironment> {
         debug!("Starting environment detection");
 
         let async_runtime = Self::detect_async_runtime();
@@ -329,7 +309,7 @@ impl UnifiedBackend {
     }
 
     /// Select optimal tracking strategy.
-    fn select_strategy(environment: &RuntimeEnvironment) -> Result<TrackingStrategy, BackendError> {
+    fn select_strategy(environment: &RuntimeEnvironment) -> MemScopeResult<TrackingStrategy> {
         let strategy = match environment {
             RuntimeEnvironment::SingleThreaded => TrackingStrategy::GlobalDirect,
             RuntimeEnvironment::MultiThreaded { .. } => TrackingStrategy::ThreadLocal,
@@ -345,14 +325,16 @@ impl UnifiedBackend {
     }
 
     /// Start active memory tracking session.
-    pub fn start_tracking(&mut self) -> Result<TrackingSession, BackendError> {
+    pub fn start_tracking(&mut self) -> MemScopeResult<TrackingSession> {
         let session_id = format!(
             "session_{}",
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .map_err(|e| BackendError::TrackingInitializationFailed {
-                    reason: format!("Failed to generate session ID: {}", e),
-                })?
+                .map_err(|e| MemScopeError::error(
+                    "unified_tracker",
+                    "start_tracking",
+                    format!("Failed to generate session ID: {}", e)
+                ))?
                 .as_millis()
         );
 
@@ -369,7 +351,7 @@ impl UnifiedBackend {
     }
 
     /// Collect all tracking data.
-    pub fn collect_data(&self) -> Result<MemoryAnalysisData, BackendError> {
+    pub fn collect_data(&self) -> MemScopeResult<MemoryAnalysisData> {
         debug!("Collecting tracking data");
 
         let statistics = MemoryStatistics {
@@ -395,7 +377,7 @@ impl UnifiedBackend {
     }
 
     /// Shutdown backend.
-    pub fn shutdown(self) -> Result<MemoryAnalysisData, BackendError> {
+    pub fn shutdown(self) -> MemScopeResult<MemoryAnalysisData> {
         info!("Shutting down unified backend");
         self.collect_data()
     }
@@ -419,12 +401,12 @@ impl TrackingSession {
     }
 
     /// Collect current tracking data.
-    pub fn collect_data(&self) -> Result<MemoryAnalysisData, BackendError> {
+    pub fn collect_data(&self) -> MemScopeResult<MemoryAnalysisData> {
         self.backend.collect_data()
     }
 
     /// End tracking session.
-    pub fn end_session(self) -> Result<MemoryAnalysisData, BackendError> {
+    pub fn end_session(self) -> MemScopeResult<MemoryAnalysisData> {
         info!("Ending tracking session: {}", self.session_id);
         self.backend.collect_data()
     }
@@ -443,7 +425,7 @@ impl EnvironmentDetector {
     }
 
     /// Perform environment detection.
-    pub fn detect(&self) -> Result<EnvironmentDetection, BackendError> {
+    pub fn detect(&self) -> MemScopeResult<EnvironmentDetection> {
         let environment = UnifiedBackend::detect_environment()?;
         let recommended_strategy = UnifiedBackend::select_strategy(&environment)?;
 
@@ -478,7 +460,7 @@ impl Default for EnvironmentDetector {
 }
 
 /// Quick initialization function.
-pub fn initialize() -> Result<UnifiedBackend, BackendError> {
+pub fn initialize() -> MemScopeResult<UnifiedBackend> {
     UnifiedBackend::initialize(BackendConfig::default())
 }
 
@@ -488,7 +470,7 @@ pub fn get_backend() -> UnifiedBackend {
 }
 
 /// Detect environment with default configuration.
-pub fn detect_environment() -> Result<RuntimeEnvironment, BackendError> {
+pub fn detect_environment() -> MemScopeResult<RuntimeEnvironment> {
     UnifiedBackend::detect_environment()
 }
 
@@ -741,10 +723,7 @@ mod tests {
             ..Default::default()
         };
         let result = UnifiedBackend::initialize(config);
-        assert!(matches!(
-            result,
-            Err(BackendError::ConfigurationError { .. })
-        ));
+        assert!(result.is_err());
     }
 
     #[test]

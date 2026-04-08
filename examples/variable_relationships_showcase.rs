@@ -6,7 +6,7 @@
 //! - Rc retain cycles (memory leaks)
 //! - Type-based relationships
 
-use memscope_rs::{global_tracker, init_global_tracking, track};
+use memscope_rs::{global_tracker, init_global_tracking, track, MemScopeResult};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -22,7 +22,7 @@ impl Node {
     }
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> MemScopeResult<()> {
     println!("🔗 Variable Relationships Showcase");
     println!("===================================\n");
 

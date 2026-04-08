@@ -3,12 +3,12 @@
 //! This example demonstrates async memory tracking using the new unified API.
 //! Uses the global tracker with tokio for async task tracking.
 
-use memscope_rs::{global_tracker, init_global_tracking, track};
+use memscope_rs::{global_tracker, init_global_tracking, track, MemScopeResult};
 
 use std::time::Instant;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> MemScopeResult<()> {
     println!("Comprehensive Async Showcase - New API");
     println!("======================================\n");
 

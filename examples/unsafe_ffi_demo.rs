@@ -2,11 +2,11 @@
 //!
 //! This example demonstrates unsafe Rust and FFI memory tracking with memory passport export.
 
-use memscope_rs::{global_tracker, init_global_tracking, track};
+use memscope_rs::{global_tracker, init_global_tracking, track, MemScopeResult};
 use std::alloc::{alloc, dealloc, Layout};
 use std::time::Instant;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> MemScopeResult<()> {
     println!("Unsafe Rust & FFI Memory Analysis - New API");
     println!("============================================\n");
 
@@ -31,11 +31,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let ptr = alloc(layout);
 
         if !ptr.is_null() {
-            let passport_id = tracker.create_passport(
-                ptr as usize,
-                layout.size(),
-                "unsafe_rust_allocation".to_string(),
-            )?;
+            let passport_id = tracker
+                .create_passport(
+                    ptr as usize,
+                    layout.size(),
+                    "unsafe_rust_allocation".to_string(),
+                )
+                .map_err(|e| {
+                    memscope_rs::MemScopeError::error("unsafe_ffi_demo", "main", e.to_string())
+                })?;
 
             let slice = std::slice::from_raw_parts_mut(ptr as *mut i32, 10);
             for (i, item) in slice.iter_mut().enumerate() {
@@ -63,8 +67,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
 
         if !ffi_ptr.is_null() {
-            let passport_id =
-                tracker.create_passport(ffi_ptr as usize, size, format!("ffi_alloc_{}", i))?;
+            let passport_id = tracker
+                .create_passport(ffi_ptr as usize, size, format!("ffi_alloc_{}", i))
+                .map_err(|e| {
+                    memscope_rs::MemScopeError::error("unsafe_ffi_demo", "main", e.to_string())
+                })?;
 
             tracker.record_handover(
                 ffi_ptr as usize,

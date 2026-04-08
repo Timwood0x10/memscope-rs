@@ -1,3 +1,4 @@
+use crate::core::{MemScopeError, MemScopeResult};
 use std::time::Duration;
 
 /// Memory management configuration
@@ -97,34 +98,44 @@ impl MemoryConfig {
     }
 
     /// Validate configuration validity
-    pub fn validate(&self) -> Result<(), ConfigError> {
+    pub fn validate(&self) -> MemScopeResult<()> {
         if self.max_allocations == 0 {
-            return Err(ConfigError::InvalidValue(
-                "max_allocations must be greater than 0".into(),
+            return Err(MemScopeError::error(
+                "config",
+                "validate",
+                "max_allocations must be greater than 0",
             ));
         }
 
         if self.memory_limit_mb == 0 {
-            return Err(ConfigError::InvalidValue(
-                "memory_limit_mb must be greater than 0".into(),
+            return Err(MemScopeError::error(
+                "config",
+                "validate",
+                "memory_limit_mb must be greater than 0",
             ));
         }
 
         if self.cleanup_threshold <= 0.0 || self.cleanup_threshold >= 1.0 {
-            return Err(ConfigError::InvalidValue(
-                "cleanup_threshold must be between 0.0 and 1.0".into(),
+            return Err(MemScopeError::error(
+                "config",
+                "validate",
+                "cleanup_threshold must be between 0.0 and 1.0",
             ));
         }
 
         if self.batch_cleanup_size == 0 {
-            return Err(ConfigError::InvalidValue(
-                "batch_cleanup_size must be greater than 0".into(),
+            return Err(MemScopeError::error(
+                "config",
+                "validate",
+                "batch_cleanup_size must be greater than 0",
             ));
         }
 
         if self.batch_cleanup_size > self.max_allocations {
-            return Err(ConfigError::InvalidValue(
-                "batch_cleanup_size should not exceed max_allocations".into(),
+            return Err(MemScopeError::error(
+                "config",
+                "validate",
+                "batch_cleanup_size should not exceed max_allocations",
             ));
         }
 
@@ -132,7 +143,7 @@ impl MemoryConfig {
     }
 
     /// Auto-adjust configuration based on available system memory
-    pub fn auto_adjust_for_system(&mut self) -> Result<(), ConfigError> {
+    pub fn auto_adjust_for_system(&mut self) -> MemScopeResult<()> {
         // Get system memory info (simplified implementation)
         let system_memory_mb = self.get_system_memory_mb()?;
 
@@ -150,20 +161,25 @@ impl MemoryConfig {
     }
 
     /// Get system memory size (MB)
-    fn get_system_memory_mb(&self) -> Result<usize, ConfigError> {
+    fn get_system_memory_mb(&self) -> MemScopeResult<usize> {
         #[cfg(target_os = "linux")]
         {
             use std::fs;
-            let meminfo = fs::read_to_string("/proc/meminfo")
-                .map_err(|_| ConfigError::SystemInfoUnavailable)?;
+            let meminfo = fs::read_to_string("/proc/meminfo").map_err(|_| {
+                MemScopeError::error("config", "get_system_memory_mb", "System info unavailable")
+            })?;
 
             for line in meminfo.lines() {
                 if line.starts_with("MemTotal:") {
                     let parts: Vec<&str> = line.split_whitespace().collect();
                     if parts.len() >= 2 {
-                        let kb: usize = parts[1]
-                            .parse()
-                            .map_err(|_| ConfigError::SystemInfoUnavailable)?;
+                        let kb: usize = parts[1].parse().map_err(|_| {
+                            MemScopeError::error(
+                                "config",
+                                "get_system_memory_mb",
+                                "Failed to parse memory info",
+                            )
+                        })?;
                         return Ok(kb / 1024); // convert to MB
                     }
                 }
@@ -185,7 +201,7 @@ impl MemoryConfig {
     }
 
     /// Create configuration suitable for current system
-    pub fn for_current_system() -> Result<Self, ConfigError> {
+    pub fn for_current_system() -> MemScopeResult<Self> {
         let mut config = Self::default();
         config.auto_adjust_for_system()?;
         config.validate()?;
@@ -208,19 +224,6 @@ impl MemoryConfig {
                 / (1024.0 * 1024.0),
         }
     }
-}
-
-/// Configuration error types
-#[derive(Debug, thiserror::Error)]
-pub enum ConfigError {
-    #[error("Invalid configuration value: {0}")]
-    InvalidValue(String),
-
-    #[error("System information unavailable")]
-    SystemInfoUnavailable,
-
-    #[error("Insufficient system resources")]
-    InsufficientResources,
 }
 
 /// Memory usage estimation

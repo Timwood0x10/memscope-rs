@@ -3,7 +3,7 @@
 //! This module provides a lightweight alternative to log-based tracking,
 //! using a global HashMap to store variable address -> variable info mappings.
 
-use crate::core::types::TrackingResult;
+use crate::core::{MemScopeError, MemScopeResult};
 use rayon::prelude::*;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -55,7 +55,7 @@ impl VariableRegistry {
         var_name: String,
         type_name: String,
         size: usize,
-    ) -> TrackingResult<()> {
+    ) -> MemScopeResult<()> {
         let thread_id = {
             // Use a simple atomic counter for thread IDs instead of hash
             static THREAD_COUNTER: std::sync::atomic::AtomicUsize =
@@ -135,7 +135,7 @@ impl VariableRegistry {
     }
 
     /// Mark a variable as destroyed with destruction timestamp
-    pub fn mark_variable_destroyed(address: usize, destruction_time: u64) -> TrackingResult<()> {
+    pub fn mark_variable_destroyed(address: usize, destruction_time: u64) -> MemScopeResult<()> {
         // For now, we keep the variable in registry but could add destruction_time field
         // This method ensures the variable registry is aware of destruction events
         tracing::debug!(
@@ -814,7 +814,7 @@ impl VariableRegistry {
     /// Generate comprehensive export data with clear separation of system vs user allocations
     pub fn generate_comprehensive_export(
         tracker: &crate::core::tracker::MemoryTracker,
-    ) -> TrackingResult<serde_json::Value> {
+    ) -> MemScopeResult<serde_json::Value> {
         let start_time = std::time::Instant::now();
         tracing::info!(
             "🔄 Starting comprehensive export generation with allocation classification..."
@@ -832,11 +832,35 @@ impl VariableRegistry {
             },
         );
 
-        let active_allocations = active_allocations?;
+        let active_allocations = active_allocations.map_err(|e| {
+            MemScopeError::error(
+                "variable_registry",
+                "generate_comprehensive_export",
+                e.to_string(),
+            )
+        })?;
         let (allocation_history, memory_by_type, stats, registry) = {
-            let allocation_history = other_data.0?;
-            let memory_by_type = other_data.1?;
-            let stats = other_data.2?;
+            let allocation_history = other_data.0.map_err(|e| {
+                MemScopeError::error(
+                    "variable_registry",
+                    "generate_comprehensive_export",
+                    e.to_string(),
+                )
+            })?;
+            let memory_by_type = other_data.1.map_err(|e| {
+                MemScopeError::error(
+                    "variable_registry",
+                    "generate_comprehensive_export",
+                    e.to_string(),
+                )
+            })?;
+            let stats = other_data.2.map_err(|e| {
+                MemScopeError::error(
+                    "variable_registry",
+                    "generate_comprehensive_export",
+                    e.to_string(),
+                )
+            })?;
             let registry = other_data.3;
             (allocation_history, memory_by_type, stats, registry)
         };
@@ -955,7 +979,7 @@ impl VariableRegistry {
     }
 
     /// Clear all variable registrations
-    pub fn clear_registry() -> TrackingResult<()> {
+    pub fn clear_registry() -> MemScopeResult<()> {
         if let Ok(mut registry) = get_global_registry().try_lock() {
             registry.clear();
         }

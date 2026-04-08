@@ -6,7 +6,7 @@
 //! - Async mode
 //! - Unsafe/FFI mode
 
-use memscope_rs::{global_tracker, init_global_tracking};
+use memscope_rs::{global_tracker, init_global_tracking, MemScopeResult};
 
 use memscope_rs::track;
 
@@ -18,7 +18,7 @@ use std::{
     time::Instant,
 };
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> MemScopeResult<()> {
     println!("╔════════════════════════════════════════════════════════════╗");
     println!("║        Global Tracker Showcase - New Unified API           ║");
     println!("╚════════════════════════════════════════════════════════════╝\n");
@@ -233,7 +233,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[tokio::main]
-async fn run_async_mode() -> Result<(), Box<dyn std::error::Error>> {
+async fn run_async_mode() -> MemScopeResult<()> {
     println!("Spawning 4 async tasks...");
 
     let tracker = global_tracker()?;
@@ -281,7 +281,7 @@ async fn run_async_mode() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn run_unsafe_ffi_mode() -> Result<(), Box<dyn std::error::Error>> {
+fn run_unsafe_ffi_mode() -> MemScopeResult<()> {
     let tracker = global_tracker()?;
 
     println!("Spawning unsafe/FFI operations...");
@@ -293,11 +293,15 @@ fn run_unsafe_ffi_mode() -> Result<(), Box<dyn std::error::Error>> {
             let ptr = alloc(layout);
 
             if !ptr.is_null() {
-                tracker.create_passport(
-                    ptr as usize,
-                    layout.size(),
-                    format!("unsafe_vec_{}", i),
-                )?;
+                tracker
+                    .create_passport(ptr as usize, layout.size(), format!("unsafe_vec_{}", i))
+                    .map_err(|e| {
+                        memscope_rs::MemScopeError::error(
+                            "global_tracker_showcase",
+                            "run_unsafe_ffi_mode",
+                            e.to_string(),
+                        )
+                    })?;
 
                 let slice = std::slice::from_raw_parts_mut(ptr as *mut i32, 64);
                 for (j, item) in slice.iter_mut().enumerate() {
@@ -322,7 +326,15 @@ fn run_unsafe_ffi_mode() -> Result<(), Box<dyn std::error::Error>> {
 
         if !ffi_ptr.is_null() {
             // FFI memory type is unknown at compile time, use *mut c_void
-            tracker.create_passport(ffi_ptr as usize, size, format!("ffi_alloc_{}", i))?;
+            tracker
+                .create_passport(ffi_ptr as usize, size, format!("ffi_alloc_{}", i))
+                .map_err(|e| {
+                    memscope_rs::MemScopeError::error(
+                        "global_tracker_showcase",
+                        "run_unsafe_ffi_mode",
+                        e.to_string(),
+                    )
+                })?;
 
             tracker.record_handover(
                 ffi_ptr as usize,

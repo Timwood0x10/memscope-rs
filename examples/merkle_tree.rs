@@ -3,7 +3,7 @@
 //! This example demonstrates a Merkle Tree implementation using unsafe Rust
 //! with memscope memory tracking and HTML dashboard export.
 
-use memscope_rs::{global_tracker, init_global_tracking, track};
+use memscope_rs::{global_tracker, init_global_tracking, track, MemScopeResult};
 use std::fmt;
 
 /// Hash type (256-bit)
@@ -323,7 +323,7 @@ unsafe fn free_large_buffer(ptr: *mut u8, size: usize) {
     std::alloc::dealloc(ptr, layout);
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> MemScopeResult<()> {
     println!("🌳 Merkle Tree Example with Unsafe Code & Memscope Tracking");
     println!("=========================================================\n");
 

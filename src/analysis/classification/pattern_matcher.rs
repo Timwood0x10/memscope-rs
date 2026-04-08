@@ -1,3 +1,4 @@
+use crate::core::{MemScopeError, MemScopeResult};
 use regex::Regex;
 use std::collections::HashMap;
 
@@ -66,9 +67,14 @@ impl PatternMatcher {
         pattern: &str,
         weight: f64,
         description: &str,
-    ) -> Result<(), PatternMatcherError> {
-        let regex = Regex::new(pattern)
-            .map_err(|e| PatternMatcherError::InvalidPattern(pattern.to_string(), e.to_string()))?;
+    ) -> MemScopeResult<()> {
+        let regex = Regex::new(pattern).map_err(|e| {
+            MemScopeError::error(
+                "pattern_matcher",
+                "add_pattern",
+                format!("Invalid pattern '{}': {}", pattern, e),
+            )
+        })?;
 
         let compiled = CompiledPattern {
             id: id.to_string(),
@@ -91,9 +97,14 @@ impl PatternMatcher {
         weight: f64,
         description: &str,
         tags: Vec<String>,
-    ) -> Result<(), PatternMatcherError> {
-        let regex = Regex::new(pattern)
-            .map_err(|e| PatternMatcherError::InvalidPattern(pattern.to_string(), e.to_string()))?;
+    ) -> MemScopeResult<()> {
+        let regex = Regex::new(pattern).map_err(|e| {
+            MemScopeError::error(
+                "pattern_matcher",
+                "add_pattern_with_tags",
+                format!("Invalid pattern '{}': {}", pattern, e),
+            )
+        })?;
 
         let compiled = CompiledPattern {
             id: id.to_string(),
@@ -406,19 +417,6 @@ pub struct PatternMatcherStats {
     pub tag_distribution: HashMap<String, usize>,
 }
 
-/// Pattern matcher errors
-#[derive(Debug, thiserror::Error)]
-pub enum PatternMatcherError {
-    #[error("Invalid pattern '{0}': {1}")]
-    InvalidPattern(String, String),
-
-    #[error("Pattern not found: {0}")]
-    PatternNotFound(String),
-
-    #[error("Cache error: {0}")]
-    CacheError(String),
-}
-
 /// Builder for creating pattern matchers with common patterns
 pub struct PatternMatcherBuilder {
     matcher: PatternMatcher,
@@ -432,7 +430,7 @@ impl PatternMatcherBuilder {
     }
 
     /// Add common Rust type patterns
-    pub fn with_rust_patterns(mut self) -> Result<Self, PatternMatcherError> {
+    pub fn with_rust_patterns(mut self) -> MemScopeResult<Self> {
         // Primitive types
         self.matcher.add_pattern_with_tags(
             "primitives",

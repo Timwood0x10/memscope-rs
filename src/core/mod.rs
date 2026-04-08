@@ -13,7 +13,6 @@ pub mod safe_operations;
 pub mod scope_tracker;
 pub mod tracker;
 pub mod types;
-pub mod unwrap_safe;
 
 // Re-export key types for easier access
 pub use allocator::TrackingAllocator;
@@ -27,9 +26,6 @@ pub use error::{
     RecoveryAction, Result as MemScopeResult, SystemErrorType,
 };
 
-// Re-export safe unwrap utilities
-pub use unwrap_safe::{get_unwrap_stats, update_unwrap_stats, UnwrapSafe, UnwrapStats};
-
 // Re-export call stack normalizer functionality
 pub use call_stack_normalizer::{
     get_global_call_stack_normalizer, initialize_global_call_stack_normalizer, CallStackId,
@@ -37,6 +33,3 @@ pub use call_stack_normalizer::{
 };
 
 pub use safe_operations::SafeLock;
-
-#[cfg(test)]
-pub use unwrap_safe::get_unwrap_stats_mut;

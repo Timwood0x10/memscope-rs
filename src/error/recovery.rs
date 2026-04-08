@@ -1,4 +1,4 @@
-use super::{ErrorKind, ErrorSeverity, MemScopeError};
+use crate::core::error::{ErrorKind, ErrorSeverity, MemScopeError};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
@@ -240,12 +240,12 @@ impl RecoveryStrategy {
 
     fn get_recovery_action(&self, error: &MemScopeError) -> RecoveryAction {
         // Check for registered action
-        if let Some(action) = self.action_map.get(&error.kind) {
+        if let Some(action) = self.action_map.get(&error.kind()) {
             return action.clone();
         }
 
         // Fallback based on severity
-        match error.severity {
+        match error.severity() {
             ErrorSeverity::Warning => RecoveryAction::Skip,
             ErrorSeverity::Error => RecoveryAction::RetryWithBackoff {
                 max_attempts: self.retry_config.default_max_attempts,
@@ -454,7 +454,7 @@ impl FallbackRegistry {
         } else {
             Err(Box::new(MemScopeError::new(
                 ErrorKind::ConfigurationError,
-                &format!("Fallback strategy '{}' not found", name),
+                format!("Fallback strategy '{}' not found", name),
             )))
         }
     }

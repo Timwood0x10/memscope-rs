@@ -1,4 +1,4 @@
-use super::{ErrorKind, ErrorSeverity, MemScopeError};
+use crate::core::error::{ErrorKind, ErrorSeverity, MemScopeError};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -115,15 +115,20 @@ impl ErrorHandler {
             if recent.is_empty() {
                 0.0
             } else {
-                let oldest_time = recent.first().map(|e| e.context.timestamp);
-                let newest_time = recent.last().map(|e| e.context.timestamp);
+                let oldest_time = recent.first().map(|e| e.context().timestamp);
+                let newest_time = recent.last().map(|e| e.context().timestamp);
 
                 if let (Some(oldest), Some(newest)) = (oldest_time, newest_time) {
-                    let duration = newest.duration_since(oldest).as_secs_f64();
-                    if duration > 0.0 {
-                        recent.len() as f64 / duration
-                    } else {
-                        0.0
+                    match newest.duration_since(oldest) {
+                        Ok(duration) => {
+                            let duration_secs = duration.as_secs_f64();
+                            if duration_secs > 0.0 {
+                                recent.len() as f64 / duration_secs
+                            } else {
+                                0.0
+                            }
+                        }
+                        Err(_) => 0.0,
                     }
                 } else {
                     0.0
@@ -144,7 +149,7 @@ impl ErrorHandler {
     fn update_statistics(&mut self, error: &MemScopeError) {
         let counter = self
             .error_counts
-            .entry(error.kind.clone())
+            .entry(error.kind())
             .or_insert_with(|| AtomicUsize::new(0));
         counter.fetch_add(1, Ordering::Relaxed);
     }
@@ -162,10 +167,10 @@ impl ErrorHandler {
     }
 
     fn determine_response(&self, error: &MemScopeError) -> ErrorResponse {
-        match error.severity {
+        match error.severity() {
             ErrorSeverity::Warning => ErrorResponse::Continue,
             ErrorSeverity::Error => {
-                if self.is_frequent_error(&error.kind) {
+                if self.is_frequent_error(&error.kind()) {
                     ErrorResponse::Throttle
                 } else {
                     ErrorResponse::Retry
@@ -234,12 +239,12 @@ impl ErrorReporter {
 
     /// Report error if it meets severity threshold
     pub fn report_error(&self, error: &MemScopeError) -> bool {
-        if error.severity < self.min_severity {
+        if error.severity() < self.min_severity {
             return false;
         }
 
         // Call custom handler if registered
-        if let Some(handler) = self.custom_handlers.get(&error.severity) {
+        if let Some(handler) = self.custom_handlers.get(&error.severity()) {
             handler(error);
         }
 

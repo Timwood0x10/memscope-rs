@@ -37,8 +37,7 @@ pub mod tracker;
 // Export simplified global tracking API
 pub use capture::backends::global_tracking::{
     global_tracker, init_global_tracking, init_global_tracking_with_config, is_initialized,
-    reset_global_tracking, GlobalTracker, GlobalTrackerConfig, GlobalTrackerError,
-    GlobalTrackerStats, TrackerConfig,
+    reset_global_tracking, GlobalTracker, GlobalTrackerConfig, GlobalTrackerStats, TrackerConfig,
 };
 
 /// Unified error handling and recovery system
@@ -69,6 +68,7 @@ pub use capture::{CaptureBackend, CaptureBackendType, CaptureEngine};
 pub use core::allocator::TrackingAllocator;
 pub use core::tracker::{get_tracker, MemoryTracker};
 pub use core::{ExportMode, ExportOptions};
+pub use core::{MemScopeError, MemScopeResult};
 #[cfg(feature = "derive")]
 pub use memscope_derive::Trackable;
 pub use snapshot::engine::SnapshotEngine;

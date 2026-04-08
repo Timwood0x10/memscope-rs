@@ -80,7 +80,10 @@ impl ScopeTracker {
     /// Enter a new scope
     pub fn enter_scope(&self, name: String) -> ScopeId {
         let scope_id = {
-            let mut id = self.next_scope_id.lock().unwrap();
+            let mut id = self
+                .next_scope_id
+                .lock()
+                .expect("Failed to acquire next_scope_id lock");
             let id_val = *id;
             *id += 1;
             id_val
@@ -94,10 +97,18 @@ impl ScopeTracker {
 
         // Determine parent scope and depth
         let (parent, depth) = {
-            let stack = self.scope_stack.lock().unwrap();
+            let stack = self
+                .scope_stack
+                .lock()
+                .expect("Failed to acquire scope_stack lock");
             if let Some(thread_stack) = stack.get(&thread_id) {
                 if let Some(&parent_id) = thread_stack.last() {
-                    if let Some(active) = self.active_scopes.lock().unwrap().get(&parent_id) {
+                    if let Some(active) = self
+                        .active_scopes
+                        .lock()
+                        .expect("Failed to acquire active_scopes lock")
+                        .get(&parent_id)
+                    {
                         (Some(active.name.clone()), active.depth + 1)
                     } else {
                         (None, 0)
@@ -126,20 +137,23 @@ impl ScopeTracker {
         // Add to active scopes
         self.active_scopes
             .lock()
-            .unwrap()
+            .expect("Failed to acquire active_scopes lock")
             .insert(scope_id, scope_info.clone());
 
         // Push to scope stack
         self.scope_stack
             .lock()
-            .unwrap()
+            .expect("Failed to acquire scope_stack lock")
             .entry(thread_id)
             .or_default()
             .push(scope_id);
 
         // Update hierarchy
         {
-            let mut hierarchy = self.hierarchy.lock().unwrap();
+            let mut hierarchy = self
+                .hierarchy
+                .lock()
+                .expect("Failed to acquire hierarchy lock");
             if let Some(parent_name) = &parent {
                 hierarchy
                     .scope_tree
@@ -169,7 +183,10 @@ impl ScopeTracker {
             .as_nanos() as u64;
 
         let scope_id = {
-            let mut stack = self.scope_stack.lock().unwrap();
+            let mut stack = self
+                .scope_stack
+                .lock()
+                .expect("Failed to acquire scope_stack lock");
             if let Some(thread_stack) = stack.get_mut(&thread_id) {
                 thread_stack.pop()
             } else {
@@ -178,7 +195,12 @@ impl ScopeTracker {
         };
 
         if let Some(scope_id) = scope_id {
-            if let Some(scope) = self.active_scopes.lock().unwrap().get_mut(&scope_id) {
+            if let Some(scope) = self
+                .active_scopes
+                .lock()
+                .expect("Failed to acquire active_scopes lock")
+                .get_mut(&scope_id)
+            {
                 scope.lifetime_end = Some(timestamp);
                 scope.is_active = false;
             }
@@ -190,14 +212,18 @@ impl ScopeTracker {
 
     /// Get scope information by ID
     pub fn get_scope(&self, scope_id: ScopeId) -> Option<ScopeInfo> {
-        self.active_scopes.lock().unwrap().get(&scope_id).cloned()
+        self.active_scopes
+            .lock()
+            .expect("Failed to acquire active_scopes lock")
+            .get(&scope_id)
+            .cloned()
     }
 
     /// Get all scopes
     pub fn get_all_scopes(&self) -> Vec<(ScopeId, ScopeInfo)> {
         self.active_scopes
             .lock()
-            .unwrap()
+            .expect("Failed to acquire active_scopes lock")
             .iter()
             .map(|(k, v)| (*k, v.clone()))
             .collect()
@@ -205,14 +231,26 @@ impl ScopeTracker {
 
     /// Get scope hierarchy
     pub fn get_hierarchy(&self) -> ScopeHierarchy {
-        self.hierarchy.lock().unwrap().clone()
+        self.hierarchy
+            .lock()
+            .expect("Failed to acquire hierarchy lock")
+            .clone()
     }
 
     /// Clear all scopes
     pub fn clear(&self) {
-        self.active_scopes.lock().unwrap().clear();
-        self.scope_stack.lock().unwrap().clear();
-        *self.next_scope_id.lock().unwrap() = 1;
+        self.active_scopes
+            .lock()
+            .expect("Failed to acquire active_scopes lock")
+            .clear();
+        self.scope_stack
+            .lock()
+            .expect("Failed to acquire scope_stack lock")
+            .clear();
+        *self
+            .next_scope_id
+            .lock()
+            .expect("Failed to acquire next_scope_id lock") = 1;
     }
 }
 

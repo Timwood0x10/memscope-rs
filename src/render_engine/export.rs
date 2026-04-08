@@ -6,6 +6,7 @@
 use crate::analysis::memory_passport_tracker::MemoryPassportTracker;
 use crate::analysis::ownership_graph::{EdgeKind, ObjectId, OwnershipGraph, OwnershipOp};
 use crate::capture::platform::memory_info::PlatformMemoryInfo;
+use crate::core::{MemScopeError, MemScopeResult};
 use crate::render_engine::dashboard::DashboardRenderer;
 use crate::snapshot::{ActiveAllocation, MemorySnapshot, ThreadMemoryStats};
 use crate::tracker::Tracker;
@@ -456,27 +457,34 @@ pub fn export_all_json<P: AsRef<Path>>(
     tracker: &Tracker,
     passport_tracker: &Arc<MemoryPassportTracker>,
     async_tracker: &Arc<crate::capture::backends::async_tracker::AsyncTracker>,
-) -> Result<(), ExportError> {
+) -> MemScopeResult<()> {
     let path_ref = path.as_ref();
 
     let allocations = tracker.inner().get_active_allocations().unwrap_or_default();
     let snapshot = MemorySnapshot::from_allocation_infos(allocations.clone());
     let options = ExportJsonOptions::default();
 
-    std::fs::create_dir_all(path_ref)?;
+    std::fs::create_dir_all(path_ref)
+        .map_err(|e| MemScopeError::error("export", "export_all_json", e.to_string()))?;
 
     export_snapshot_to_json(&snapshot, path_ref, &options)
-        .map_err(|e| ExportError::ExportFailed(e.to_string()))?;
+        .map_err(|e| MemScopeError::error("export", "export_all_json", e.to_string()))?;
 
-    export_memory_passports_json(path_ref, passport_tracker)?;
-    export_leak_detection_json(path_ref, passport_tracker)?;
-    export_unsafe_ffi_json(path_ref, passport_tracker)?;
-    export_system_resources_json(path_ref)?;
-    export_async_analysis_json(path_ref, async_tracker)?;
+    export_memory_passports_json(path_ref, passport_tracker)
+        .map_err(|e| MemScopeError::error("export", "export_all_json", e.to_string()))?;
+    export_leak_detection_json(path_ref, passport_tracker)
+        .map_err(|e| MemScopeError::error("export", "export_all_json", e.to_string()))?;
+    export_unsafe_ffi_json(path_ref, passport_tracker)
+        .map_err(|e| MemScopeError::error("export", "export_all_json", e.to_string()))?;
+    export_system_resources_json(path_ref)
+        .map_err(|e| MemScopeError::error("export", "export_all_json", e.to_string()))?;
+    export_async_analysis_json(path_ref, async_tracker)
+        .map_err(|e| MemScopeError::error("export", "export_all_json", e.to_string()))?;
     // Convert core_types::AllocationInfo to types::AllocationInfo for ownership graph export
     let typed_allocations: Vec<crate::capture::types::AllocationInfo> =
         allocations.clone().into_iter().map(|a| a.into()).collect();
-    export_ownership_graph_json(path_ref, &typed_allocations)?;
+    export_ownership_graph_json(path_ref, &typed_allocations)
+        .map_err(|e| MemScopeError::error("export", "export_all_json", e.to_string()))?;
 
     Ok(())
 }
@@ -485,7 +493,7 @@ pub fn export_all_json<P: AsRef<Path>>(
 pub fn export_async_analysis_json<P: AsRef<Path>>(
     path: P,
     async_tracker: &Arc<crate::capture::backends::async_tracker::AsyncTracker>,
-) -> Result<(), ExportError> {
+) -> MemScopeResult<()> {
     let path_ref = path.as_ref();
     let stats = async_tracker.get_stats();
     let profiles = async_tracker.get_all_profiles();
@@ -529,10 +537,14 @@ pub fn export_async_analysis_json<P: AsRef<Path>>(
     });
 
     let async_path = path_ref.join("async_analysis.json");
-    let file = File::create(async_path)?;
+    let file = File::create(async_path)
+        .map_err(|e| MemScopeError::error("export", "export_async_analysis_json", e.to_string()))?;
     let mut writer = BufWriter::new(file);
-    serde_json::to_writer_pretty(&mut writer, &async_data)?;
-    writer.flush()?;
+    serde_json::to_writer_pretty(&mut writer, &async_data)
+        .map_err(|e| MemScopeError::error("export", "export_async_analysis_json", e.to_string()))?;
+    writer
+        .flush()
+        .map_err(|e| MemScopeError::error("export", "export_async_analysis_json", e.to_string()))?;
 
     Ok(())
 }
@@ -565,7 +577,7 @@ pub fn export_dashboard_html<P: AsRef<Path>>(
     path: P,
     tracker: &Tracker,
     passport_tracker: &Arc<MemoryPassportTracker>,
-) -> Result<(), ExportError> {
+) -> MemScopeResult<()> {
     export_dashboard_html_with_template(
         path,
         tracker,
@@ -581,7 +593,7 @@ pub fn export_dashboard_html_with_async<P: AsRef<Path>>(
     tracker: &Tracker,
     passport_tracker: &Arc<MemoryPassportTracker>,
     async_tracker: &Arc<crate::capture::backends::async_tracker::AsyncTracker>,
-) -> Result<(), ExportError> {
+) -> MemScopeResult<()> {
     export_dashboard_html_with_template(
         path,
         tracker,
@@ -601,37 +613,64 @@ pub fn export_dashboard_html_with_template<P: AsRef<Path>>(
     passport_tracker: &Arc<MemoryPassportTracker>,
     template: DashboardTemplate,
     async_tracker: Option<&Arc<crate::capture::backends::async_tracker::AsyncTracker>>,
-) -> Result<(), ExportError> {
+) -> MemScopeResult<()> {
     let path_ref = path.as_ref();
 
     // Create output directory if it doesn't exist
     std::fs::create_dir_all(path_ref).map_err(|e| {
-        ExportError::ExportFailed(format!("Failed to create output directory: {}", e))
+        MemScopeError::error(
+            "export",
+            "export_dashboard_html_with_template",
+            format!("Failed to create output directory: {}", e),
+        )
     })?;
 
     // Create dashboard renderer
     let renderer = DashboardRenderer::new().map_err(|e| {
-        ExportError::ExportFailed(format!("Failed to create dashboard renderer: {}", e))
+        MemScopeError::error(
+            "export",
+            "export_dashboard_html_with_template",
+            format!("Failed to create dashboard renderer: {}", e),
+        )
     })?;
 
     // Render HTML from tracker data using selected template
     let context = renderer
         .build_context_from_tracker_with_async(tracker, passport_tracker, async_tracker)
-        .map_err(|e| ExportError::ExportFailed(format!("Failed to build context: {}", e)))?;
+        .map_err(|e| {
+            MemScopeError::error(
+                "export",
+                "export_dashboard_html_with_template",
+                format!("Failed to build context: {}", e),
+            )
+        })?;
 
     let html_content = match template {
         DashboardTemplate::Final => renderer.render_final_dashboard(&context).map_err(|e| {
-            ExportError::ExportFailed(format!("Failed to render final dashboard: {}", e))
+            MemScopeError::error(
+                "export",
+                "export_dashboard_html_with_template",
+                format!("Failed to render final dashboard: {}", e),
+            )
         })?,
-        DashboardTemplate::Unified => renderer
-            .render_unified_dashboard(&context)
-            .map_err(|e| ExportError::ExportFailed(format!("Failed to render dashboard: {}", e)))?,
+        DashboardTemplate::Unified => renderer.render_unified_dashboard(&context).map_err(|e| {
+            MemScopeError::error(
+                "export",
+                "export_dashboard_html_with_template",
+                format!("Failed to render dashboard: {}", e),
+            )
+        })?,
     };
 
     // Write HTML to file
     let output_file = path_ref.join(format!("{}_dashboard.html", template));
-    std::fs::write(&output_file, html_content)
-        .map_err(|e| ExportError::ExportFailed(format!("Failed to write HTML file: {}", e)))?;
+    std::fs::write(&output_file, html_content).map_err(|e| {
+        MemScopeError::error(
+            "export",
+            "export_dashboard_html_with_template",
+            format!("Failed to write HTML file: {}", e),
+        )
+    })?;
 
     tracing::info!("✅ Dashboard HTML exported to: {:?}", output_file);
 
@@ -641,7 +680,7 @@ pub fn export_dashboard_html_with_template<P: AsRef<Path>>(
 pub fn export_memory_passports_json<P: AsRef<Path>>(
     base_path: P,
     passport_tracker: &Arc<MemoryPassportTracker>,
-) -> Result<(), ExportError> {
+) -> MemScopeResult<()> {
     let base_path = base_path.as_ref();
     let passports = passport_tracker.get_all_passports();
 
@@ -669,8 +708,12 @@ pub fn export_memory_passports_json<P: AsRef<Path>>(
     });
 
     let file_path = base_path.join("memory_passports.json");
-    let json_string = serde_json::to_string_pretty(&json_data)?;
-    std::fs::write(&file_path, json_string)?;
+    let json_string = serde_json::to_string_pretty(&json_data).map_err(|e| {
+        MemScopeError::error("export", "export_memory_passports_json", e.to_string())
+    })?;
+    std::fs::write(&file_path, json_string).map_err(|e| {
+        MemScopeError::error("export", "export_memory_passports_json", e.to_string())
+    })?;
 
     Ok(())
 }
@@ -678,7 +721,7 @@ pub fn export_memory_passports_json<P: AsRef<Path>>(
 pub fn export_leak_detection_json<P: AsRef<Path>>(
     base_path: P,
     passport_tracker: &Arc<MemoryPassportTracker>,
-) -> Result<(), ExportError> {
+) -> MemScopeResult<()> {
     let base_path = base_path.as_ref();
     let leak_result = passport_tracker.detect_leaks_at_shutdown();
 
@@ -708,8 +751,10 @@ pub fn export_leak_detection_json<P: AsRef<Path>>(
     });
 
     let file_path = base_path.join("leak_detection.json");
-    let json_string = serde_json::to_string_pretty(&json_data)?;
-    std::fs::write(&file_path, json_string)?;
+    let json_string = serde_json::to_string_pretty(&json_data)
+        .map_err(|e| MemScopeError::error("export", "export_leak_detection_json", e.to_string()))?;
+    std::fs::write(&file_path, json_string)
+        .map_err(|e| MemScopeError::error("export", "export_leak_detection_json", e.to_string()))?;
 
     Ok(())
 }
@@ -717,7 +762,7 @@ pub fn export_leak_detection_json<P: AsRef<Path>>(
 pub fn export_unsafe_ffi_json<P: AsRef<Path>>(
     base_path: P,
     passport_tracker: &Arc<MemoryPassportTracker>,
-) -> Result<(), ExportError> {
+) -> MemScopeResult<()> {
     use crate::analysis::memory_passport_tracker::PassportStatus;
 
     let base_path = base_path.as_ref();
@@ -763,8 +808,10 @@ pub fn export_unsafe_ffi_json<P: AsRef<Path>>(
     });
 
     let file_path = base_path.join("unsafe_ffi.json");
-    let json_string = serde_json::to_string_pretty(&json_data)?;
-    std::fs::write(&file_path, json_string)?;
+    let json_string = serde_json::to_string_pretty(&json_data)
+        .map_err(|e| MemScopeError::error("export", "export_unsafe_ffi_json", e.to_string()))?;
+    std::fs::write(&file_path, json_string)
+        .map_err(|e| MemScopeError::error("export", "export_unsafe_ffi_json", e.to_string()))?;
 
     Ok(())
 }
@@ -775,7 +822,7 @@ pub fn export_unsafe_ffi_json<P: AsRef<Path>>(
 /// - Memory statistics (virtual, physical, process, system)
 /// - CPU information (cores, cache, system info)
 /// - Memory pressure indicators
-pub fn export_system_resources_json<P: AsRef<Path>>(base_path: P) -> Result<(), ExportError> {
+pub fn export_system_resources_json<P: AsRef<Path>>(base_path: P) -> MemScopeResult<()> {
     let base_path = base_path.as_ref();
 
     // Collect memory statistics
@@ -786,7 +833,11 @@ pub fn export_system_resources_json<P: AsRef<Path>>(base_path: P) -> Result<(), 
         Ok(stats) => stats,
         Err(e) => {
             eprintln!("Warning: Failed to collect memory stats: {}", e);
-            return Err(ExportError::ExportFailed(e.to_string()));
+            return Err(MemScopeError::error(
+                "export",
+                "export_system_resources_json",
+                e.to_string(),
+            ));
         }
     };
 
@@ -795,7 +846,11 @@ pub fn export_system_resources_json<P: AsRef<Path>>(base_path: P) -> Result<(), 
         Ok(info) => info,
         Err(e) => {
             eprintln!("Warning: Failed to collect system info: {}", e);
-            return Err(ExportError::ExportFailed(e.to_string()));
+            return Err(MemScopeError::error(
+                "export",
+                "export_system_resources_json",
+                e.to_string(),
+            ));
         }
     };
 
@@ -886,8 +941,12 @@ pub fn export_system_resources_json<P: AsRef<Path>>(base_path: P) -> Result<(), 
     });
 
     let file_path = base_path.join("system_resources.json");
-    let json_string = serde_json::to_string_pretty(&json_data)?;
-    std::fs::write(&file_path, json_string)?;
+    let json_string = serde_json::to_string_pretty(&json_data).map_err(|e| {
+        MemScopeError::error("export", "export_system_resources_json", e.to_string())
+    })?;
+    std::fs::write(&file_path, json_string).map_err(|e| {
+        MemScopeError::error("export", "export_system_resources_json", e.to_string())
+    })?;
 
     Ok(())
 }
@@ -902,7 +961,7 @@ pub fn export_system_resources_json<P: AsRef<Path>>(base_path: P) -> Result<(), 
 pub fn export_ownership_graph_json<P: AsRef<Path>>(
     base_path: P,
     allocations: &[crate::capture::types::AllocationInfo],
-) -> Result<(), ExportError> {
+) -> MemScopeResult<()> {
     let base_path = base_path.as_ref();
 
     // Build ownership graph from allocations
@@ -1020,8 +1079,12 @@ pub fn export_ownership_graph_json<P: AsRef<Path>>(
     });
 
     let file_path = base_path.join("ownership_graph.json");
-    let json_string = serde_json::to_string_pretty(&json_data)?;
-    std::fs::write(&file_path, json_string)?;
+    let json_string = serde_json::to_string_pretty(&json_data).map_err(|e| {
+        MemScopeError::error("export", "export_ownership_graph_json", e.to_string())
+    })?;
+    std::fs::write(&file_path, json_string).map_err(|e| {
+        MemScopeError::error("export", "export_ownership_graph_json", e.to_string())
+    })?;
 
     Ok(())
 }

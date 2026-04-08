@@ -199,7 +199,10 @@ pub fn get_valid_regions() -> ValidRegions {
             Err(poisoned) => poisoned.into_inner(),
         };
         if read_guard.is_some() {
-            return read_guard.as_ref().unwrap().clone();
+            return read_guard
+                .as_ref()
+                .cloned()
+                .expect("VALID_REGIONS should be Some after is_some() check (read path)");
         }
     }
 
@@ -212,7 +215,10 @@ pub fn get_valid_regions() -> ValidRegions {
 
     // Double-check after acquiring write lock
     if write_guard.is_some() {
-        return write_guard.as_ref().unwrap().clone();
+        return write_guard
+            .as_ref()
+            .cloned()
+            .expect("VALID_REGIONS should be Some after is_some() check (write path)");
     }
 
     // Initialize while holding the write lock

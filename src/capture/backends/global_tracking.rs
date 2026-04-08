@@ -24,38 +24,14 @@
 
 use crate::analysis::memory_passport_tracker::{MemoryPassportTracker, PassportTrackerConfig};
 use crate::capture::backends::async_tracker::AsyncTracker;
+use crate::core::{MemScopeError, MemScopeResult};
 use crate::tracker::{AnalysisReport, Tracker};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
-use thiserror::Error;
 use tracing::info;
 
 static GLOBAL_TRACKER: std::sync::RwLock<Option<Arc<GlobalTracker>>> = std::sync::RwLock::new(None);
-
-#[derive(Error, Debug)]
-pub enum GlobalTrackerError {
-    #[error("Global tracking already initialized")]
-    AlreadyInitialized,
-
-    #[error("Global tracking not initialized")]
-    NotInitialized,
-
-    #[error("Internal error: {0}")]
-    InternalError(String),
-
-    #[error("Export failed: {0}")]
-    ExportFailed(#[from] Box<crate::render_engine::export::ExportError>),
-
-    #[error("IO error: {0}")]
-    IoError(#[from] std::io::Error),
-}
-
-impl From<crate::render_engine::export::ExportError> for GlobalTrackerError {
-    fn from(e: crate::render_engine::export::ExportError) -> Self {
-        GlobalTrackerError::ExportFailed(Box::new(e))
-    }
-}
 
 #[derive(Debug, Clone)]
 pub struct TrackerConfig {
@@ -200,7 +176,7 @@ impl GlobalTracker {
         }
     }
 
-    pub fn export_json<P: AsRef<Path>>(&self, path: P) -> Result<(), GlobalTrackerError> {
+    pub fn export_json<P: AsRef<Path>>(&self, path: P) -> MemScopeResult<()> {
         use crate::render_engine::export::export_all_json;
 
         let path = path.as_ref();
@@ -209,11 +185,12 @@ impl GlobalTracker {
             &self.tracker,
             &self.passport_tracker,
             &self.async_tracker,
-        )?;
+        )
+        .map_err(|e| MemScopeError::error("global_tracking", "export_json", e.to_string()))?;
         Ok(())
     }
 
-    pub fn export_html<P: AsRef<Path>>(&self, path: P) -> Result<(), GlobalTrackerError> {
+    pub fn export_html<P: AsRef<Path>>(&self, path: P) -> MemScopeResult<()> {
         use crate::render_engine::export::export_dashboard_html_with_async;
 
         let path = path.as_ref();
@@ -222,7 +199,8 @@ impl GlobalTracker {
             &self.tracker,
             &self.passport_tracker,
             &self.async_tracker,
-        )?;
+        )
+        .map_err(|e| MemScopeError::error("global_tracking", "export_html", e.to_string()))?;
         Ok(())
     }
 }
@@ -247,13 +225,21 @@ pub struct GlobalTrackerStats {
     pub uptime: std::time::Duration,
 }
 
-pub fn init_global_tracking() -> Result<(), GlobalTrackerError> {
+pub fn init_global_tracking() -> MemScopeResult<()> {
     let mut guard = GLOBAL_TRACKER.write().map_err(|_| {
-        GlobalTrackerError::InternalError("Failed to acquire global tracker lock".to_string())
+        MemScopeError::error(
+            "global_tracking",
+            "init_global_tracking",
+            "Failed to acquire global tracker lock",
+        )
     })?;
 
     if guard.is_some() {
-        return Err(GlobalTrackerError::AlreadyInitialized);
+        return Err(MemScopeError::error(
+            "global_tracking",
+            "init_global_tracking",
+            "Global tracking already initialized",
+        ));
     }
 
     *guard = Some(Arc::new(GlobalTracker::new()));
@@ -261,15 +247,21 @@ pub fn init_global_tracking() -> Result<(), GlobalTrackerError> {
     Ok(())
 }
 
-pub fn init_global_tracking_with_config(
-    config: GlobalTrackerConfig,
-) -> Result<(), GlobalTrackerError> {
+pub fn init_global_tracking_with_config(config: GlobalTrackerConfig) -> MemScopeResult<()> {
     let mut guard = GLOBAL_TRACKER.write().map_err(|_| {
-        GlobalTrackerError::InternalError("Failed to acquire global tracker lock".to_string())
+        MemScopeError::error(
+            "global_tracking",
+            "init_global_tracking_with_config",
+            "Failed to acquire global tracker lock",
+        )
     })?;
 
     if guard.is_some() {
-        return Err(GlobalTrackerError::AlreadyInitialized);
+        return Err(MemScopeError::error(
+            "global_tracking",
+            "init_global_tracking_with_config",
+            "Global tracking already initialized",
+        ));
     }
 
     *guard = Some(Arc::new(GlobalTracker::with_config(config)));
@@ -284,17 +276,24 @@ pub fn is_initialized() -> bool {
         .unwrap_or(false)
 }
 
-pub fn global_tracker() -> Result<Arc<GlobalTracker>, GlobalTrackerError> {
+pub fn global_tracker() -> MemScopeResult<Arc<GlobalTracker>> {
     GLOBAL_TRACKER
         .read()
         .map(|guard| {
-            guard
-                .as_ref()
-                .cloned()
-                .ok_or(GlobalTrackerError::NotInitialized)
+            guard.as_ref().cloned().ok_or_else(|| {
+                MemScopeError::error(
+                    "global_tracking",
+                    "global_tracker",
+                    "Global tracking not initialized",
+                )
+            })
         })
         .map_err(|_| {
-            GlobalTrackerError::InternalError("Failed to acquire global tracker lock".to_string())
+            MemScopeError::error(
+                "global_tracking",
+                "global_tracker",
+                "Failed to acquire global tracker lock",
+            )
         })?
 }
 

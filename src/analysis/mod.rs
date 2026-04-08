@@ -31,15 +31,11 @@ pub mod unknown;
 // New analysis modules for ComplexTypeForRust.md features
 pub mod async_analysis;
 pub mod borrow_analysis;
-// pub mod closure_analysis; // Moved to analysis/closure/
-pub mod enhanced_ffi_function_resolver;
+
 pub mod ffi_function_resolver;
-// pub mod generic_analysis; // Moved to analysis/generic/
 pub mod lifecycle;
 pub mod lifecycle_analysis;
 pub mod memory_passport_tracker;
-// pub mod safety_analyzer; // Moved to analysis/safety/
-// pub mod security_violation_analyzer; // Moved to analysis/security/
 
 // Integrated analysis submodules
 pub mod classification;

@@ -2,11 +2,11 @@
 //!
 //! This example demonstrates multi-thread memory tracking using the new unified API.
 
-use memscope_rs::{global_tracker, init_global_tracking};
+use memscope_rs::{global_tracker, init_global_tracking, MemScopeResult};
 use std::thread;
 use std::time::Instant;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> MemScopeResult<()> {
     println!("Complex Multi-Thread Showcase - New API");
     println!("========================================\n");
 

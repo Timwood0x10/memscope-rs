@@ -3,14 +3,14 @@
 //! This example demonstrates the new unified API with various built-in types,
 //! custom types, and complex memory patterns.
 
-use memscope_rs::{global_tracker, init_global_tracking, track};
+use memscope_rs::{global_tracker, init_global_tracking, track, MemScopeResult};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Instant;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> MemScopeResult<()> {
     println!("Complex Lifecycle Showcase - New API");
     println!("==========================================\n");
 
