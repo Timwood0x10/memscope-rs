@@ -705,27 +705,6 @@ impl MemoryPassportTracker {
         }
     }
 
-    /// Check if a stack frame is from user code (not Rust internal)
-    #[allow(dead_code)]
-    fn is_user_code_frame(&self, frame: &StackFrame) -> bool {
-        // If user_code_prefixes is empty, consider all frames as user code
-        if self.config.user_code_prefixes.is_empty() {
-            return true;
-        }
-
-        // Check if the file name matches any user code prefix
-        if let Some(ref file_name) = frame.file_name {
-            self.config.user_code_prefixes.iter().any(|prefix| {
-                file_name.starts_with(prefix)
-                    || file_name.contains(&format!("/{}", prefix))
-                    || file_name.contains(&format!("\\{}", prefix))
-            })
-        } else {
-            // If file name is not available, consider it as user code
-            true
-        }
-    }
-
     fn determine_final_status(&self, events: &[PassportEvent]) -> PassportStatus {
         let mut has_handover = false;
         let mut has_reclaim = false;

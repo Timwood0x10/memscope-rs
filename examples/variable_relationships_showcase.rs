@@ -13,16 +13,12 @@ use std::sync::Arc;
 
 #[derive(Debug)]
 struct Node {
-    name: String,
     next: Option<Rc<RefCell<Node>>>,
 }
 
 impl Node {
-    fn new(name: impl Into<String>) -> Self {
-        Node {
-            name: name.into(),
-            next: None,
-        }
+    fn new(_name: impl Into<String>) -> Self {
+        Node { next: None }
     }
 }
 

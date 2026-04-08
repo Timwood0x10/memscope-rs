@@ -77,7 +77,8 @@ impl StackTraceCapture {
 
         let mut frames = Vec::with_capacity(self.config.max_depth);
         let mut frame_count = 0;
-        let mut skip_count = 0;
+        #[cfg_attr(feature = "backtrace", allow(unused_variables))]
+        let skip_count = 0;
 
         // Use backtrace crate for real stack trace capture
         #[cfg(feature = "backtrace")]
@@ -214,18 +215,21 @@ impl StackTraceCapture {
     }
 
     #[cfg(target_os = "macos")]
+    #[cfg_attr(feature = "backtrace", allow(dead_code))]
     fn get_current_instruction_pointer(&self) -> usize {
         // Platform-specific implementation would use __builtin_return_address or similar
         // Real stack trace is captured via backtrace crate in walk_stack
         0
     }
 
+    #[cfg_attr(feature = "backtrace", allow(dead_code))]
     fn walk_stack_frame(&self, _current_ip: usize) -> Option<usize> {
         // Platform-specific stack walking implementation
         // This feature is not yet implemented
         None
     }
 
+    #[cfg_attr(feature = "backtrace", allow(dead_code))]
     fn create_frame(&self, ip: usize) -> StackFrame {
         let mut frame = StackFrame {
             instruction_pointer: ip,
@@ -266,18 +270,21 @@ impl StackTraceCapture {
         true
     }
 
+    #[cfg_attr(feature = "backtrace", allow(dead_code))]
     fn resolve_function_name(&self, _ip: usize) -> Option<String> {
         // Real implementation would use debug symbols
         // This feature is not yet implemented
         None
     }
 
+    #[cfg_attr(feature = "backtrace", allow(dead_code))]
     fn resolve_filename(&self, _ip: usize) -> Option<String> {
         // Real implementation would use debug symbols
         // This feature is not yet implemented
         None
     }
 
+    #[cfg_attr(feature = "backtrace", allow(dead_code))]
     fn resolve_line_number(&self, _ip: usize) -> Option<u32> {
         // Real implementation would use debug symbols
         // This feature is not yet implemented
