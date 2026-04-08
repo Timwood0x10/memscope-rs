@@ -367,5 +367,6 @@ fn current_timestamp() -> u64 {
 }
 
 fn capture_call_site() -> String {
-    "<call_site_placeholder>".to_string()
+    // Use file!() and line!() macros to capture call site
+    format!("{}:{}", file!(), line!())
 }

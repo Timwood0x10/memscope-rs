@@ -97,15 +97,14 @@ impl TimelineQuery {
         let interval_ns = interval_ms * 1_000_000;
 
         // Get all events in the time range, sorted by timestamp
-        let mut all_events: Vec<(u64, usize, bool)> = Vec::new(); // (timestamp, size, is_alloc)
+        let mut all_events: Vec<(u64, MemoryEvent)> = Vec::new();
 
         for event in self.get_events_in_range(start, end) {
-            let is_alloc = matches!(event.event_type, MemoryEventType::Allocate);
-            all_events.push((event.timestamp, event.size, is_alloc));
+            all_events.push((event.timestamp, event));
         }
 
         // Sort by timestamp
-        all_events.sort_by_key(|(ts, _, _)| *ts);
+        all_events.sort_by_key(|(ts, _)| *ts);
 
         // Sample at each interval
         let mut current = start;
@@ -115,15 +114,27 @@ impl TimelineQuery {
         while current < end {
             // Process all events up to current timestamp
             while event_idx < all_events.len() {
-                let (ts, size, is_alloc) = all_events[event_idx];
-                if ts > current {
+                let (ts, event) = &all_events[event_idx];
+                if *ts > current {
                     break;
                 }
-                if is_alloc {
-                    running_memory += size;
-                } else {
-                    running_memory = running_memory.saturating_sub(size);
+
+                match &event.event_type {
+                    MemoryEventType::Allocate => {
+                        running_memory += event.size;
+                    }
+                    MemoryEventType::Deallocate => {
+                        running_memory = running_memory.saturating_sub(event.size);
+                    }
+                    MemoryEventType::Reallocate => {
+                        let old_size = event.old_size.unwrap_or(0);
+                        running_memory = running_memory
+                            .saturating_sub(old_size)
+                            .saturating_add(event.size);
+                    }
+                    _ => {}
                 }
+
                 event_idx += 1;
             }
 
@@ -145,24 +156,33 @@ impl TimelineQuery {
     /// the true peak memory usage, not just the maximum interval delta.
     pub fn get_peak_memory_in_range(&self, start: u64, end: u64) -> usize {
         // Get all events sorted by timestamp
-        let mut all_events: Vec<(u64, usize, bool)> = Vec::new();
+        let mut all_events: Vec<MemoryEvent> = Vec::new();
 
         for event in self.get_events_in_range(start, end) {
-            let is_alloc = matches!(event.event_type, MemoryEventType::Allocate);
-            all_events.push((event.timestamp, event.size, is_alloc));
+            all_events.push(event);
         }
 
-        all_events.sort_by_key(|(ts, _, _)| *ts);
+        all_events.sort_by_key(|e| e.timestamp);
 
         // Track running memory and find peak
         let mut running_memory: usize = 0;
         let mut peak_memory: usize = 0;
 
-        for (_, size, is_alloc) in all_events {
-            if is_alloc {
-                running_memory += size;
-            } else {
-                running_memory = running_memory.saturating_sub(size);
+        for event in all_events {
+            match &event.event_type {
+                MemoryEventType::Allocate => {
+                    running_memory += event.size;
+                }
+                MemoryEventType::Deallocate => {
+                    running_memory = running_memory.saturating_sub(event.size);
+                }
+                MemoryEventType::Reallocate => {
+                    let old_size = event.old_size.unwrap_or(0);
+                    running_memory = running_memory
+                        .saturating_sub(old_size)
+                        .saturating_add(event.size);
+                }
+                _ => {}
             }
             peak_memory = peak_memory.max(running_memory);
         }

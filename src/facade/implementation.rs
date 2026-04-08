@@ -50,8 +50,10 @@ impl MemScope {
         active: &crate::snapshot::ActiveAllocation,
     ) -> crate::capture::types::AllocationInfo {
         let thread_id_u64 = active.thread_id;
-        // Note: ThreadId cannot be reconstructed from u64. We use the current thread's
-        // ID as a placeholder. The actual thread ID should be read from thread_id_u64.
+        // Note: Rust's ThreadId type cannot be reconstructed from u64.
+        // We use the current thread's ID as a placeholder.
+        // The actual thread ID value is available in thread_id_u64 field.
+        // This is a known limitation that requires tracking ThreadId at allocation time.
         let thread_id = std::thread::current().id();
 
         crate::capture::types::AllocationInfo {

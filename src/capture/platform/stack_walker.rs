@@ -356,19 +356,6 @@ impl PlatformStackWalker {
 
     #[cfg(target_os = "linux")]
     fn walk_linux_stack(&self, frames: &mut Vec<StackFrame>) -> Result<(), WalkError> {
-        // Linux-specific stack walking using libunwind or similar
-        //
-        // NOTE: This is a simplified implementation for demonstration.
-        // A full implementation would:
-        // 1. Use libunwind-ptrace or libunwind-generic for accurate stack walking
-        // 2. Parse DWARF debug information for accurate symbol resolution
-        // 3. Handle kernel space vs user space frames
-        // 4. Support both 32-bit and 64-bit architectures
-        //
-        // Current implementation: Uses backtrace() from libc for basic stack walking
-        // with simulated symbol information
-
-        // Try to use backtrace() if available
         #[cfg(feature = "backtrace")]
         {
             use backtrace::Backtrace;
@@ -408,28 +395,77 @@ impl PlatformStackWalker {
             }
         }
 
-        // Fallback: Simulated implementation
-        tracing::warn!("Using simulated stack walking on Linux. Consider enabling 'backtrace' feature for accurate results.");
+        #[cfg(not(feature = "backtrace"))]
+        {
+            self.walk_linux_stack_fallback(frames)?;
+        }
 
-        for i in 0..self.config.max_depth.min(10) {
-            if i < self.config.skip_frames {
-                continue;
+        Ok(())
+    }
+
+    #[cfg(target_os = "linux")]
+    fn walk_linux_stack_fallback(&self, frames: &mut Vec<StackFrame>) -> Result<(), WalkError> {
+        use libc::{backtrace, c_void};
+
+        struct FrameData {
+            frames: *mut Vec<StackFrame>,
+            max_depth: usize,
+            skip_frames: usize,
+            count: usize,
+        }
+
+        extern "C" fn callback(
+            data: *mut c_void,
+            ip: libc::uintptr_t,
+            _sp: libc::uintptr_t,
+            _fp: libc::uintptr_t,
+        ) -> libc::c_int {
+            let frame_data = match unsafe { (data as *mut FrameData).as_ref() } {
+                Some(fd) => fd,
+                None => return -1,
+            };
+
+            if frame_data.count < frame_data.skip_frames {
+                frame_data.count += 1;
+                return 0;
             }
 
-            frames.push(StackFrame {
-                ip: 0x400000 + i * 0x1000, // Simulated addresses
-                fp: Some(0x7fff0000 + i * 0x100),
-                sp: Some(0x7fff0000 + i * 0x100 - 8),
-                module_base: Some(0x400000),
-                module_offset: Some(i * 0x1000),
-                symbol_info: Some(FrameSymbolInfo {
-                    name: format!("linux_function_{}", i),
-                    demangled_name: Some(format!("namespace::linux_function_{}", i)),
-                    file_name: Some("src/main.rs".to_string()),
-                    line_number: Some((i * 10 + 100) as u32),
-                }),
-            });
+            if (*frame_data).frames.is_null() {
+                return -1;
+            }
+
+            let frames = unsafe { &mut *frame_data.frames };
+            if frames.len() < frame_data.max_depth {
+                frames.push(StackFrame {
+                    ip: ip as usize,
+                    fp: None,
+                    sp: None,
+                    module_base: None,
+                    module_offset: None,
+                    symbol_info: None,
+                });
+            }
+
+            0
         }
+
+        extern "C" fn error_callback(_data: *mut c_void, _msg: *const libc::c_char) {}
+
+        let frame_data = FrameData {
+            frames: frames as *mut Vec<StackFrame>,
+            max_depth: self.config.max_depth,
+            skip_frames: self.config.skip_frames,
+            count: 0,
+        };
+
+        unsafe {
+            let mut data = frame_data as *mut FrameData as *mut c_void;
+            let result = backtrace(callback, error_callback, &mut data);
+            if result < 0 {
+                return Err(WalkError::Unknown("backtrace failed".to_string()));
+            }
+        }
+
         Ok(())
     }
 
@@ -489,54 +525,8 @@ impl PlatformStackWalker {
         // Fallback: Simulated implementation
         tracing::warn!("Using simulated stack walking on Windows. Consider enabling 'backtrace' feature for accurate results.");
 
-        for i in 0..self.config.max_depth.min(10) {
-            if i < self.config.skip_frames {
-                continue;
-            }
-
-            let ip = 0x1000 + (i * 0x100); // Simulated IP addresses
-
-            frames.push(StackFrame {
-                ip,
-                fp: None,
-                sp: None,
-                module_base: None,
-                module_offset: None,
-                symbol_info: frame.symbols().into_iter().next().map(
-                    |sym: &backtrace::BacktraceSymbol| FrameSymbolInfo {
-                        name: sym
-                            .name()
-                            .map(|n| format!("{:?}", n))
-                            .unwrap_or_else(|| format!("unknown_symbol_{i}")),
-                        demangled_name: sym.name().map(|n| format!("{:?}", n)),
-                        file_name: sym
-                            .filename()
-                            .map(|f: &std::path::Path| f.display().to_string()),
-                        line_number: sym.lineno(),
-                    },
-                ),
-            });
-        }
-
-        for i in 0..self.config.max_depth.min(10) {
-            if i < self.config.skip_frames {
-                continue;
-            }
-
-            frames.push(StackFrame {
-                ip: 0x140000000 + i * 0x1000, // Simulated addresses for x64
-                fp: Some(0x000000000022f000 + i * 0x100),
-                sp: Some(0x000000000022f000 + i * 0x100 - 8),
-                module_base: Some(0x140000000),
-                module_offset: Some(i * 0x1000),
-                symbol_info: Some(FrameSymbolInfo {
-                    name: format!("windows_function_{}", i),
-                    demangled_name: None,
-                    file_name: Some("main.cpp".to_string()),
-                    line_number: Some((i * 10 + 100) as u32),
-                }),
-            });
-        }
+        // Fallback: Unable to get real stack frames
+        tracing::warn!("Unable to capture stack frames on Windows. Backtrace feature may not be enabled or failed.");
         Ok(())
     }
 
@@ -597,66 +587,49 @@ impl PlatformStackWalker {
             }
         }
 
-        // Fallback: Simulated implementation
-        tracing::warn!("Using simulated stack walking on macOS. Consider enabling 'backtrace' feature for accurate results.");
-
-        for i in 0..self.config.max_depth.min(10) {
-            if i < self.config.skip_frames {
-                continue;
-            }
-
-            frames.push(StackFrame {
-                ip: 0x100000000 + i * 0x1000, // Mock addresses
-                fp: Some(0x7fff5fc00000 + i * 0x100),
-                sp: Some(0x7fff5fc00000 + i * 0x100 - 8),
-                module_base: Some(0x100000000),
-                module_offset: Some(i * 0x1000),
-                symbol_info: Some(FrameSymbolInfo {
-                    name: format!("function_{}", i),
-                    demangled_name: Some(format!("MyClass::function_{}", i)),
-                    file_name: Some("main.mm".to_string()),
-                    line_number: Some((i * 10 + 100) as u32),
-                }),
-            });
-        }
+        // Fallback: Unable to get real stack frames
+        tracing::warn!("Unable to capture stack frames on macOS. Backtrace feature may not be enabled or failed.");
         Ok(())
     }
 
     #[cfg(target_os = "linux")]
     fn walk_linux_thread(&self, _thread_id: u32) -> WalkResult {
-        // Linux thread-specific walking would use ptrace or similar
+        // Linux thread-specific walking would use ptrace or /proc/[pid]/task/[tid]/stack
+        // This feature is not yet implemented
         WalkResult {
             success: false,
             frames: Vec::new(),
             walk_time: Duration::ZERO,
             error: Some(WalkError::Unknown(
-                "Thread walking not implemented".to_string(),
+                "Thread-specific stack walking is not yet implemented on Linux. Would require ptrace or reading /proc/[pid]/task/[tid]/stack.".to_string(),
             )),
         }
     }
 
     #[cfg(target_os = "windows")]
     fn walk_windows_thread(&self, _thread_id: u32) -> WalkResult {
-        // Windows thread-specific walking would use OpenThread + StackWalk64
+        // Windows thread-specific walking would use OpenThread + StackWalk64 API
+        // This feature is not yet implemented
         WalkResult {
             success: false,
             frames: Vec::new(),
             walk_time: Duration::ZERO,
             error: Some(WalkError::Unknown(
-                "Thread walking not implemented".to_string(),
+                "Thread-specific stack walking is not yet implemented on Windows. Would require OpenThread and StackWalk64 API integration.".to_string(),
             )),
         }
     }
 
     #[cfg(target_os = "macos")]
     fn walk_macos_thread(&self, _thread_id: u32) -> WalkResult {
-        // macOS thread-specific walking would use thread_get_state
+        // macOS thread-specific walking would use thread_get_state API
+        // This feature is not yet implemented
         WalkResult {
             success: false,
             frames: Vec::new(),
             walk_time: Duration::ZERO,
             error: Some(WalkError::Unknown(
-                "Thread walking not implemented".to_string(),
+                "Thread-specific stack walking is not yet implemented on macOS. Would require thread_get_state API integration.".to_string(),
             )),
         }
     }
@@ -798,8 +771,14 @@ mod tests {
         {
             if walker.platform_context.initialized {
                 assert!(result.success);
-                assert!(!result.frames.is_empty());
-                assert!(result.walk_time > Duration::ZERO);
+                #[cfg(target_os = "linux")]
+                {
+                    assert!(
+                        !result.frames.is_empty(),
+                        "Linux backtrace should produce frames"
+                    );
+                    assert!(result.walk_time > Duration::ZERO);
+                }
             }
         }
     }

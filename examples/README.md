@@ -2,7 +2,7 @@
 
 This directory contains examples demonstrating different tracking strategies using the **new unified API** (`tracker!()` + `track!()` macros).
 
-## 📁 Available Examples
+## Available Examples
 
 ### Core Examples
 
@@ -10,7 +10,7 @@ This directory contains examples demonstrating different tracking strategies usi
 |---------|-------------|--------------|
 | [`basic_usage.rs`](basic_usage.rs) | Basic single-threaded tracking | Simple API usage, JSON export |
 | [`complex_lifecycle_showcase.rs`](complex_lifecycle_showcase.rs) | Variable lifecycle analysis | Built-in types, smart pointers, complex patterns |
-| [`large_binary.rs`](large_binary.rs) | Large dataset handling | Extreme performance benchmarking |
+| [`merkle_tree.rs`](merkle_tree.rs) | Complex data structure tracking | HashMap, Vec, tree structures, ownership relationships |
 
 ### Multi-Threaded & Async Examples
 
@@ -31,7 +31,7 @@ This directory contains examples demonstrating different tracking strategies usi
 |---------|-------------|--------------|
 | [`global_tracker_showcase.rs`](global_tracker_showcase.rs) | Global tracker unified API | Single-thread, multi-thread, async modes |
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Run Examples
 
@@ -48,14 +48,17 @@ cargo run --example comprehensive_async_showcase
 # FFI tracking
 cargo run --example unsafe_ffi_demo
 
-# Performance testing
-cargo run --example large_binary
+# Variable relationships (ownership graph)
+cargo run --example merkle_tree
 
 # Global tracker (single-thread + multi-thread + async)
 cargo run --example global_tracker_showcase
+
+# Lifecycle analysis
+cargo run --example complex_lifecycle_showcase
 ```
 
-## 📖 New Unified API
+## New Unified API
 
 ```rust
 use memscope_rs::{track, tracker};
@@ -106,84 +109,49 @@ export_leak_detection_json("output", &passport_tracker).ok();
 export_unsafe_ffi_json("output", &passport_tracker).ok();
 ```
 
-## 📄 Export Files
+## Export Files
 
-Each example generates JSON files in `MemoryAnalysis/<example_name>/`. The global tracker exports **9 files**, while other examples export **4 files**.
+Each example generates JSON files in `MemoryAnalysis/<example_name>/`.
 
-### 9 Files (Global Tracker - `global_tracker_showcase`)
+### Global Tracker - 9 Files (`global_tracker_showcase`)
 
-| File | Description | Key Fields |
-|------|-------------|------------|
-| `memory_analysis.json` | 所有内存分配详情 | `ptr`, `size`, `type_name`, `var_name`, `thread_id`, `allocated_at` |
-| `lifetime.json` | 变量生命周期和所有权历史 | `var_name`, `allocated_at`, `deallocated_at`, `ownership_chain` |
-| `thread_analysis.json` | 按线程分类的内存统计 | `thread_id`, `allocations`, `total_bytes`, `thread_name` |
-| `ownership_graph.json` | 所有权图分析 | `nodes`, `edges`, `cycles`, `diagnostics`, `root_cause` |
-| `memory_passports.json` | 内存护照元数据 | `passport_id`, `allocation_ptr`, `size_bytes`, `created_at`, `status` |
-| `leak_detection.json` | 泄漏检测结果 | `total_leaks`, `passport_id`, `memory_address`, `size_bytes`, `lifecycle_summary` |
-| `unsafe_ffi.json` | FFI边界追踪数据 | `passport_id`, `allocation_ptr`, `boundary_events`, `event_type`, `context` |
-| `system_resources.json` | 系统资源监控 | `os_name`, `cpu_cores`, `total_physical`, `used_physical` |
-| `async_analysis.json` | 异步任务分析 | `total_tasks`, `active_tasks`, `total_allocations` |
+| File | Description |
+|------|-------------|
+| `memory_analysis.json` | All allocation details |
+| `lifetime.json` | Variable lifecycle and ownership history |
+| `thread_analysis.json` | Memory statistics by thread |
+| `ownership_graph.json` | Ownership graph with real pointer relationships |
+| `memory_passports.json` | Memory passport metadata |
+| `leak_detection.json` | Leak detection results |
+| `unsafe_ffi.json` | FFI boundary tracking data |
+| `system_resources.json` | System resource monitoring |
+| `async_analysis.json` | Async task analysis |
 
-### 4 Files (Other Examples)
+### Other Examples - 4 Files
 
-| File | Description | Key Fields |
-|------|-------------|------------|
-| `memory_analysis.json` | 所有分配详情 | `ptr`, `size`, `type_name`, `var_name`, `thread_id` |
-| `lifetime.json` | 生命周期事件 | `var_name`, `allocated_at`, `deallocated_at` |
-| `thread_analysis.json` | 线程统计 | `thread_id`, `allocations`, `total_bytes` |
-| `ownership_graph.json` | 所有权图 | `nodes`, `edges`, `cycles`, `diagnostics` |
+| File | Description |
+|------|-------------|
+| `memory_analysis.json` | All allocation details |
+| `lifetime.json` | Lifecycle events |
+| `thread_analysis.json` | Thread statistics |
+| `ownership_graph.json` | Ownership graph |
 
-### Export Data Examples
+## Variable Relationships
 
-**memory_passports.json:**
-```json
-{
-  "memory_passports": [
-    {
-      "passport_id": "passport_131008200_...",
-      "allocation_ptr": "0x131008200",
-      "size_bytes": 256,
-      "created_at": 1775115134,
-      "status": "InForeignCustody"
-    }
-  ]
-}
-```
+The ownership graph in `ownership_graph.json` and the dashboard HTML contain real **ownership relationships** detected by analyzing heap memory:
 
-**leak_detection.json:**
-```json
-{
-  "leak_detection": {
-    "total_leaks": 5,
-    "leak_details": [
-      {
-        "passport_id": "passport_131008200_...",
-        "memory_address": "0x131008200",
-        "size_bytes": 256,
-        "lifecycle_summary": "Never deallocated"
-      }
-    ]
-  }
-}
-```
+- **Owner** - A contains pointer to B (e.g., Vec metadata -> buffer)
+- **Slice** - A points into B's interior (e.g., slice metadata -> buffer)
+- **Clone** - A and B are copies with similar content
+- **Shared** - Multiple Arc/Rc pointing to same data
 
-**unsafe_ffi.json:**
-```json
-{
-  "unsafe_reports": [
-    {
-      "passport_id": "passport_131008200_...",
-      "allocation_ptr": "0x131008200",
-      "size_bytes": 512,
-      "boundary_events": [
-        {"event_type": "AllocatedInRust", "context": "ffi_alloc_1"},
-        {"event_type": "HandoverToFfi", "context": "foreign_function"}
-      ]
-    }
-  ]
-}
-```
+Examples with rich variable relationships:
+
+| Example | Relationships | Allocations |
+|---------|---------------|-------------|
+| merkle_tree | ~500 | ~1164 |
+| variable_relationships_showcase | ~265 | ~52 |
+| multithread_new_api | ~133 | ~82 |
+| complex_lifecycle_showcase | ~20 | ~18 |
 
 ---
-
-**Happy memory tracking! 🚀🦀**

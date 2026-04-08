@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// Active allocation information in a snapshot
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ActiveAllocation {
     /// Memory pointer address
     pub ptr: usize,
@@ -140,7 +140,7 @@ impl MemorySnapshot {
         }
 
         snapshot.stats.current_memory = current_memory;
-        snapshot.stats.peak_memory = current_memory;
+        snapshot.stats.peak_memory = 0; // Cannot determine peak from current allocations only
         snapshot.stats.active_allocations = snapshot.active_allocations.len();
         snapshot.thread_stats = thread_stats;
 

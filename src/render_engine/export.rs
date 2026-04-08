@@ -250,7 +250,10 @@ fn process_allocation_batch(allocations: &[&ActiveAllocation]) -> Vec<serde_json
 }
 
 fn get_or_compute_type_info(type_name: &str, size: usize) -> String {
-    if type_name.contains("Vec") || type_name.contains("vec::Vec") {
+    // Check for Vec but not VecDeque
+    if (type_name.contains("Vec<") || type_name.contains("vec::Vec<"))
+        && !type_name.contains("VecDeque")
+    {
         "dynamic_array".to_string()
     } else if type_name == "str"
         || type_name == "String"
@@ -411,16 +414,12 @@ fn write_json_optimized<P: AsRef<Path>>(
 
         writer.flush()?;
     } else {
-        let file = File::create(path)?;
-        let mut writer = BufWriter::with_capacity(options.buffer_size, file);
-
-        if use_compact {
-            serde_json::to_writer(&mut writer, data)?;
+        let json_string = if use_compact {
+            serde_json::to_string(data)?
         } else {
-            serde_json::to_writer_pretty(&mut writer, data)?;
-        }
-
-        writer.flush()?;
+            serde_json::to_string_pretty(data)?
+        };
+        std::fs::write(path, json_string)?;
     }
 
     Ok(())
@@ -932,6 +931,8 @@ pub fn export_ownership_graph_json<P: AsRef<Path>>(
                 "from": format!("0x{:x}", edge.from.0),
                 "to": format!("0x{:x}", edge.to.0),
                 "kind": match edge.op {
+                    EdgeKind::Owns => "Owns",
+                    EdgeKind::Borrows => "Borrows",
                     EdgeKind::RcClone => "RcClone",
                     EdgeKind::ArcClone => "ArcClone",
                 },
@@ -1027,6 +1028,8 @@ pub fn export_ownership_graph_json<P: AsRef<Path>>(
 fn build_ownership_graph_from_allocations(
     allocations: &[crate::capture::types::AllocationInfo],
 ) -> OwnershipGraph {
+    use crate::analysis::relation_inference::{Relation, RelationGraphBuilder};
+
     // Convert allocations to passport format for graph building
     let passports: Vec<(
         ObjectId,
@@ -1065,5 +1068,43 @@ fn build_ownership_graph_from_allocations(
         })
         .collect();
 
-    OwnershipGraph::build(&passports)
+    let mut graph = OwnershipGraph::build(&passports);
+
+    // Use RelationGraphBuilder to detect relationships and add edges
+    let active_allocations: Vec<ActiveAllocation> = allocations
+        .iter()
+        .filter(|a| a.timestamp_dealloc.is_none())
+        .map(|a| ActiveAllocation {
+            ptr: a.ptr,
+            size: a.size,
+            allocated_at: a.timestamp_alloc,
+            var_name: a.var_name.clone(),
+            type_name: a.type_name.clone(),
+            thread_id: 0,
+            call_stack_hash: None,
+        })
+        .collect();
+
+    let relation_graph = RelationGraphBuilder::build(&active_allocations, None);
+
+    // Add edges from relation inference
+    for edge in &relation_graph.edges {
+        let from_id = ObjectId(edge.from as u64);
+        let to_id = ObjectId(edge.to as u64);
+
+        let edge_kind = match edge.relation {
+            Relation::Owner => EdgeKind::Owns,
+            Relation::Slice => EdgeKind::Borrows,
+            Relation::Clone => EdgeKind::RcClone,
+            Relation::Shared => EdgeKind::ArcClone,
+        };
+
+        graph.edges.push(crate::analysis::ownership_graph::Edge {
+            from: from_id,
+            to: to_id,
+            op: edge_kind,
+        });
+    }
+
+    graph
 }

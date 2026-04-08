@@ -39,7 +39,13 @@ memscope-derive = { path = "./memscope-derive", optional = true, version = "0.1.
 
 # Windows-specific dependencies
 [target.'cfg(windows)'.dependencies]
-winapi = { version = "0.3", features = ["processthreadsapi", "winnt"] }
+windows-sys = { version = "0.61.2", features = [
+    "Win32_Foundation",
+    "Win32_System_Memory",
+    "Win32_System_SystemInformation",
+    "Win32_System_Diagnostics_Debug",
+    "Win32_System_ProcessStatus",
+] }
 
 # macOS-specific dependencies
 [target.'cfg(target_os = "macos")'.dependencies]

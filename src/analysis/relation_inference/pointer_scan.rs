@@ -57,6 +57,7 @@ pub struct InferenceRecord {
 /// A list of Owner edges from this allocation to targets it points into.
 pub fn detect_owner(record: &InferenceRecord, range_map: &RangeMap) -> Vec<RelationEdge> {
     let mut relations = Vec::new();
+    let mut seen_targets = std::collections::HashSet::new();
 
     let memory = match &record.memory {
         Some(m) => m,
@@ -82,14 +83,10 @@ pub fn detect_owner(record: &InferenceRecord, range_map: &RangeMap) -> Vec<Relat
             continue;
         }
 
-        // Filter 1: Alignment check - valid heap pointers are aligned
-        // This filters out ~30% of false positives from random data
         if ptr_val % POINTER_ALIGNMENT != 0 {
             continue;
         }
 
-        // Filter 2: Valid memory region check
-        // Ensures the pointer is in a readable memory region
         if !is_valid_ptr(ptr_val) {
             continue;
         }
@@ -98,11 +95,13 @@ pub fn detect_owner(record: &InferenceRecord, range_map: &RangeMap) -> Vec<Relat
             if target_id == record.id {
                 continue;
             }
-            relations.push(RelationEdge {
-                from: record.id,
-                to: target_id,
-                relation: Relation::Owner,
-            });
+            if seen_targets.insert(target_id) {
+                relations.push(RelationEdge {
+                    from: record.id,
+                    to: target_id,
+                    relation: Relation::Owner,
+                });
+            }
         }
     }
 
@@ -224,5 +223,118 @@ mod tests {
         let range_map = RangeMap::new(&[]);
         let edges = detect_owner(&record, &range_map);
         assert!(edges.is_empty());
+    }
+
+    #[test]
+    fn test_detect_owner_duplicate_pointer_same_target() {
+        let target_ptr: usize = 0x5000;
+        let mut mem = vec![0u8; 24];
+        mem[0..8].copy_from_slice(&target_ptr.to_le_bytes());
+        mem[8..16].copy_from_slice(&target_ptr.to_le_bytes());
+
+        let record = make_record(0, 0x1000, 24, mem);
+        let allocs = vec![make_alloc(0x1000, 24), make_alloc(0x5000, 100)];
+        let range_map = RangeMap::new(&allocs);
+
+        let edges = detect_owner(&record, &range_map);
+        assert_eq!(edges.len(), 1);
+        assert_eq!(edges[0].to, 1);
+        assert_eq!(edges[0].from, 0);
+    }
+
+    #[test]
+    fn test_detect_owner_unaligned_pointer_rejected() {
+        // Pointer value that is not 8-byte aligned should be rejected.
+        let mut mem = vec![0u8; 24];
+        let unaligned_ptr: usize = 0x5003; // Not aligned to 8 bytes
+        mem[0..8].copy_from_slice(&unaligned_ptr.to_le_bytes());
+
+        let record = make_record(0, 0x1000, 24, mem);
+        let allocs = vec![make_alloc(0x1000, 24), make_alloc(0x5000, 100)];
+        let range_map = RangeMap::new(&allocs);
+
+        let edges = detect_owner(&record, &range_map);
+        assert!(edges.is_empty(), "Unaligned pointer should be rejected");
+    }
+
+    #[test]
+    fn test_detect_owner_pointer_to_gap_rejected() {
+        // Pointer that falls into a gap between allocations should not match.
+        let gap_ptr: usize = 0x5500; // Between 0x5000+100 and 0x6000
+        let mut mem = vec![0u8; 24];
+        mem[0..8].copy_from_slice(&gap_ptr.to_le_bytes());
+
+        let record = make_record(0, 0x1000, 24, mem);
+        let allocs = vec![
+            make_alloc(0x1000, 24),
+            make_alloc(0x5000, 100),
+            make_alloc(0x6000, 100),
+        ];
+        let range_map = RangeMap::new(&allocs);
+
+        let edges = detect_owner(&record, &range_map);
+        assert!(
+            edges.is_empty(),
+            "Pointer to gap should not match any allocation"
+        );
+    }
+
+    #[test]
+    fn test_detect_owner_multiple_different_targets() {
+        // Multiple distinct pointers to different allocations.
+        let ptr1: usize = 0x5000;
+        let ptr2: usize = 0x6000;
+        let ptr3: usize = 0x7000;
+        let mut mem = vec![0u8; 32];
+        mem[0..8].copy_from_slice(&ptr1.to_le_bytes());
+        mem[8..16].copy_from_slice(&ptr2.to_le_bytes());
+        mem[16..24].copy_from_slice(&ptr3.to_le_bytes());
+
+        let record = make_record(0, 0x1000, 32, mem);
+        let allocs = vec![
+            make_alloc(0x1000, 32),
+            make_alloc(0x5000, 100),
+            make_alloc(0x6000, 100),
+            make_alloc(0x7000, 100),
+        ];
+        let range_map = RangeMap::new(&allocs);
+
+        let edges = detect_owner(&record, &range_map);
+        assert_eq!(edges.len(), 3);
+        let targets: Vec<_> = edges.iter().map(|e| e.to).collect();
+        assert!(targets.contains(&1));
+        assert!(targets.contains(&2));
+        assert!(targets.contains(&3));
+    }
+
+    #[test]
+    fn test_detect_owner_null_pointer_skipped() {
+        let mut mem = vec![0u8; 24];
+        // First 8 bytes = 0 (null pointer)
+        let valid_ptr: usize = 0x5000;
+        mem[8..16].copy_from_slice(&valid_ptr.to_le_bytes());
+
+        let record = make_record(0, 0x1000, 24, mem);
+        let allocs = vec![make_alloc(0x1000, 24), make_alloc(0x5000, 100)];
+        let range_map = RangeMap::new(&allocs);
+
+        let edges = detect_owner(&record, &range_map);
+        assert_eq!(edges.len(), 1);
+        assert_eq!(edges[0].to, 1);
+    }
+
+    #[test]
+    fn test_detect_owner_low_address_skipped() {
+        let mut mem = vec![0u8; 24];
+        // Low address below MIN_VALID_POINTER (0x1000)
+        let low_ptr: usize = 0x100;
+        mem[0..8].copy_from_slice(&low_ptr.to_le_bytes());
+
+        let record = make_record(0, 0x1000, 24, mem);
+        let allocs = vec![make_alloc(0x100, 100), make_alloc(0x1000, 24)];
+        let range_map = RangeMap::new(&allocs);
+
+        let edges = detect_owner(&record, &range_map);
+        assert!(edges.is_empty(), "Low address pointer should be skipped");
     }
 }

@@ -8,7 +8,7 @@ use crate::analysis::relation_inference::clone_detector::{detect_clones, CloneCo
 use crate::analysis::relation_inference::pointer_scan::{detect_owner, InferenceRecord};
 use crate::analysis::relation_inference::shared_detector::detect_shared;
 use crate::analysis::relation_inference::slice_detector::detect_slice;
-use crate::analysis::relation_inference::{RangeMap, Relation, RelationEdge, RelationGraph};
+use crate::analysis::relation_inference::{RangeMap, RelationGraph};
 use crate::analysis::unsafe_inference::{
     MemoryView, OwnedMemoryView, TypeKind, UnsafeInferenceEngine,
 };
@@ -45,7 +45,7 @@ use crate::snapshot::types::ActiveAllocation;
 ///
 /// * `clone_config` - Controls clone detection behavior. See [`CloneConfig`]
 ///   for details on similarity thresholds and time windows.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct GraphBuilderConfig {
     /// Configuration for clone detection.
     ///
@@ -59,14 +59,6 @@ pub struct GraphBuilderConfig {
     /// - 10ms time window
     /// - 64 bytes comparison
     pub clone_config: CloneConfig,
-}
-
-impl Default for GraphBuilderConfig {
-    fn default() -> Self {
-        Self {
-            clone_config: CloneConfig::default(),
-        }
-    }
 }
 
 /// Builds a relation graph from active allocations.
@@ -131,7 +123,7 @@ impl RelationGraphBuilder {
                     id,
                     ptr: scan.ptr,
                     size: scan.size,
-                    memory: scan.memory.map(|bytes| OwnedMemoryView::new(bytes)),
+                    memory: scan.memory.map(OwnedMemoryView::new),
                     type_kind,
                     confidence,
                     call_stack_hash: allocations[id].call_stack_hash,
@@ -194,7 +186,7 @@ mod tests {
     #[test]
     fn test_build_basic_owner_relationship() {
         // Use real heap allocations via Vec to ensure addresses are valid.
-        let buf1 = vec![0u8; 24];
+        let buf1 = [0u8; 24];
         let buf2 = vec![0u8; 1024];
         let ptr1 = buf1.as_ptr() as usize;
         let ptr2 = buf2.as_ptr() as usize;
@@ -215,7 +207,7 @@ mod tests {
         let len = inner.len();
         let cap = inner.capacity();
 
-        let mut metadata = vec![0u8; 24];
+        let mut metadata = [0u8; 24];
         metadata[0..8].copy_from_slice(&ptr.to_le_bytes());
         metadata[8..16].copy_from_slice(&len.to_le_bytes());
         metadata[16..24].copy_from_slice(&cap.to_le_bytes());

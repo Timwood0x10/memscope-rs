@@ -640,6 +640,10 @@ mod tests {
     #[test]
     fn test_analyze_fragmentation() {
         let manager = AnalysisManager::new();
+        // Create allocations with known gaps to verify precise calculation.
+        // alloc1 at 0x1000 (size 1024) → ends at 0x1400
+        // alloc2 at 0x2000 (size 512) → ends at 0x2200
+        // Gap between them: 0x2000 - 0x1400 = 3072 bytes
         let allocations = vec![
             AllocationInfo::new(0x1000, 1024),
             AllocationInfo::new(0x2000, 512),
@@ -647,44 +651,111 @@ mod tests {
 
         let result = manager.analyze_fragmentation(&allocations);
 
-        assert!(result.fragmentation_ratio >= 0.0 && result.fragmentation_ratio <= 1.0);
-        assert!(result.external_fragmentation >= 0.0);
-        assert!(result.internal_fragmentation >= 0.0);
+        // With known layout: total_memory = 1536, total_gap = 3072
+        // fragmentation_ratio = 3072 / (1536 + 3072) = 3072/4608 ≈ 0.667
+        assert!(
+            result.fragmentation_ratio > 0.5,
+            "fragmentation_ratio should be > 0.5, got {}",
+            result.fragmentation_ratio
+        );
+        assert_eq!(result.free_block_count, 1, "should have exactly 1 gap");
+        assert_eq!(
+            result.largest_free_block, 3072,
+            "largest gap should be 3072"
+        );
+        assert_eq!(
+            result.smallest_free_block, 3072,
+            "smallest gap should be 3072"
+        );
+    }
+
+    #[test]
+    fn test_analyze_fragmentation_no_gaps() {
+        let manager = AnalysisManager::new();
+        // Contiguous allocations: no gaps
+        let allocations = vec![
+            AllocationInfo::new(0x1000, 256),
+            AllocationInfo::new(0x1100, 256),
+        ];
+
+        let result = manager.analyze_fragmentation(&allocations);
+        assert_eq!(
+            result.fragmentation_ratio, 0.0,
+            "no gaps means zero fragmentation"
+        );
+        assert_eq!(result.free_block_count, 0);
     }
 
     #[test]
     fn test_analyze_system_libraries() {
         let manager = AnalysisManager::new();
-        let allocations = vec![AllocationInfo::new(0x1000, 256)];
+
+        // Create allocations with specific type names to trigger detection
+        let mut alloc_vec = AllocationInfo::new(0x1000, 256);
+        alloc_vec.type_name = Some("Vec<String>".to_string());
+
+        let mut alloc_hashmap = AllocationInfo::new(0x2000, 512);
+        alloc_hashmap.type_name = Some("HashMap<K, V>".to_string());
+
+        let mut alloc_file = AllocationInfo::new(0x3000, 128);
+        alloc_file.type_name = Some("File".to_string());
+
+        let mut alloc_regex = AllocationInfo::new(0x4000, 64);
+        alloc_regex.type_name = Some("Regex".to_string());
+
+        let allocations = vec![alloc_vec, alloc_hashmap, alloc_file, alloc_regex];
 
         let result = manager.analyze_system_libraries(&allocations);
 
-        // Test that system library analysis returns valid default values
-        assert_eq!(result.std_collections.allocation_count, 0);
-        assert_eq!(result.async_runtime.total_bytes, 0);
-        assert_eq!(result.network_io.peak_bytes, 0);
-        assert_eq!(result.file_system.average_size, 0.0);
-        assert!(result.serialization.categories.is_empty());
-        assert!(result.regex_engine.hotspot_functions.is_empty());
+        assert_eq!(
+            result.std_collections.allocation_count, 2,
+            "Vec and HashMap"
+        );
+        assert_eq!(result.std_collections.total_bytes, 256 + 512);
+        assert_eq!(result.file_system.allocation_count, 1, "File");
+        assert_eq!(result.file_system.total_bytes, 128);
+        assert_eq!(result.regex_engine.allocation_count, 1, "Regex");
+        assert_eq!(result.regex_engine.total_bytes, 64);
+        assert_eq!(result.async_runtime.allocation_count, 0, "no async types");
     }
 
     #[test]
     fn test_analyze_concurrency_safety() {
         let manager = AnalysisManager::new();
-        let allocations = vec![AllocationInfo::new(0x3000, 2048)];
+
+        let mut alloc_arc = AllocationInfo::new(0x1000, 64);
+        alloc_arc.type_name = Some("Arc<Mutex<i32>>".to_string());
+
+        let mut alloc_mutex = AllocationInfo::new(0x2000, 128);
+        alloc_mutex.type_name = Some("Mutex<String>".to_string());
+
+        let mut alloc_atomic = AllocationInfo::new(0x3000, 8);
+        alloc_atomic.type_name = Some("AtomicUsize".to_string());
+
+        let allocations = vec![alloc_arc, alloc_mutex, alloc_atomic];
 
         let result = manager.analyze_concurrency_safety(&allocations);
 
-        // Test that concurrency analysis returns valid default values
-        assert_eq!(result.thread_safety_allocations, 0);
-        assert_eq!(result.shared_memory_bytes, 0);
-        assert_eq!(result.mutex_protected, 0);
-        assert_eq!(result.arc_shared, 0);
-        assert_eq!(result.rc_shared, 0);
-        assert_eq!(result.channel_buffers, 0);
-        assert_eq!(result.thread_local_storage, 0);
-        assert_eq!(result.atomic_operations, 0);
-        assert_eq!(result.lock_contention_risk, "None");
+        assert_eq!(result.thread_safety_allocations, 2, "Arc and Mutex");
+        assert_eq!(result.arc_shared, 1, "Arc");
+        assert_eq!(result.atomic_operations, 1, "AtomicUsize");
+        assert_eq!(result.shared_memory_bytes, 64 + 128);
+        assert_eq!(result.lock_contention_risk, "None", "single thread");
+    }
+
+    #[test]
+    fn test_analyze_concurrency_safety_multi_thread() {
+        let manager = AnalysisManager::new();
+
+        // Note: We can't easily create different ThreadId values,
+        // so this tests the single-thread case which is "None" risk.
+        let mut alloc_arc = AllocationInfo::new(0x1000, 64);
+        alloc_arc.type_name = Some("Arc<i32>".to_string());
+
+        let allocations = vec![alloc_arc];
+
+        let result = manager.analyze_concurrency_safety(&allocations);
+        assert_eq!(result.arc_shared, 1);
     }
 
     #[test]
@@ -713,15 +784,15 @@ mod tests {
     #[test]
     fn test_analyze_circular_references() {
         let manager = AnalysisManager::new();
+        // Without smart pointer info, no circular references can be detected.
+        // This tests the zero case.
         let allocations = vec![
             AllocationInfo::new(0x4000, 128),
             AllocationInfo::new(0x5000, 256),
         ];
 
         let result = manager.analyze_circular_references(&allocations);
-
-        // Test that circular reference analysis returns valid results
-        assert_eq!(result.total_smart_pointers, 0);
+        assert_eq!(result.total_smart_pointers, 0, "no smart pointer info");
         assert_eq!(result.circular_references.len(), 0);
         assert_eq!(result.pointers_in_cycles, 0);
         assert_eq!(result.total_leaked_memory, 0);

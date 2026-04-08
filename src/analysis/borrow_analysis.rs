@@ -486,9 +486,28 @@ fn current_timestamp() -> u64 {
 
 /// Capture call stack (simplified)
 fn capture_call_stack() -> Vec<String> {
-    // In a real implementation, this would capture the actual call stack
-    // For now, return a placeholder
-    vec!["<call_stack_placeholder>".to_string()]
+    // Use backtrace crate to capture real call stack
+    #[cfg(feature = "backtrace")]
+    {
+        let bt = backtrace::Backtrace::new();
+        bt.frames()
+            .iter()
+            .skip(2) // Skip capture_call_stack and caller
+            .filter_map(|frame| {
+                frame
+                    .symbols()
+                    .first()
+                    .and_then(|sym| sym.name())
+                    .map(|name| name.to_string())
+            })
+            .collect()
+    }
+
+    #[cfg(not(feature = "backtrace"))]
+    {
+        // Return empty vector when backtrace feature is not enabled
+        Vec::new()
+    }
 }
 
 #[cfg(test)]

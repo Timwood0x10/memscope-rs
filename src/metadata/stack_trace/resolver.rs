@@ -161,66 +161,34 @@ impl SymbolResolver {
         })
     }
 
-    fn lookup_symbol_name(&self, address: usize) -> Option<String> {
-        // Mock implementation - real version would use debug info
-        match address % 7 {
-            0 => Some("_ZN4main17h1234567890abcdefE".to_string()),
-            1 => Some("_ZN9allocator8allocate17h9876543210fedcbaE".to_string()),
-            2 => Some("process_data".to_string()),
-            3 => Some("_ZN3std6thread6spawn17habcdef1234567890E".to_string()),
-            4 => Some("handle_request".to_string()),
-            5 => Some("_ZN4core3ptr8drop_in_place17h1111222233334444E".to_string()),
-            _ => Some(format!("unknown_symbol_{:x}", address)),
-        }
+    fn lookup_symbol_name(&self, _address: usize) -> Option<String> {
+        // Real implementation would use debug info (DWARF, PDB, dSYM)
+        // This feature is not yet implemented
+        None
     }
 
-    fn demangle_symbol(&self, mangled: &str) -> Option<String> {
-        // Simple demangling for Rust symbols
-        if mangled.starts_with("_ZN") {
-            // This is a very simplified demangling - real implementation would be more complex
-            if mangled.contains("main") {
-                Some("main".to_string())
-            } else if mangled.contains("allocate") {
-                Some("allocator::allocate".to_string())
-            } else if mangled.contains("spawn") {
-                Some("std::thread::spawn".to_string())
-            } else if mangled.contains("drop_in_place") {
-                Some("core::ptr::drop_in_place".to_string())
-            } else {
-                Some(format!("demangled({})", mangled))
-            }
-        } else {
-            None
-        }
+    fn demangle_symbol(&self, _mangled: &str) -> Option<String> {
+        // Real implementation should use rustc-demangle crate
+        // This feature is not yet implemented
+        None
     }
 
-    fn lookup_line_info(&self, address: usize) -> (Option<String>, Option<u32>, Option<u32>) {
-        // Mock implementation
-        let file = match address % 4 {
-            0 => Some("src/main.rs".to_string()),
-            1 => Some("src/allocator.rs".to_string()),
-            2 => Some("src/process.rs".to_string()),
-            _ => Some("src/lib.rs".to_string()),
-        };
-
-        let line = Some((address % 500) as u32 + 1);
-        let column = Some((address % 80) as u32 + 1);
-
-        (file, line, column)
+    fn lookup_line_info(&self, _address: usize) -> (Option<String>, Option<u32>, Option<u32>) {
+        // Real implementation would use addr2line or debug info
+        // This feature is not yet implemented
+        (None, None, None)
     }
 
-    fn lookup_module_name(&self, address: usize) -> Option<String> {
-        // Mock implementation
-        match address % 3 {
-            0 => Some("main_executable".to_string()),
-            1 => Some("libstd.so".to_string()),
-            _ => Some("libcore.so".to_string()),
-        }
+    fn lookup_module_name(&self, _address: usize) -> Option<String> {
+        // Real implementation would use dladdr or equivalent
+        // This feature is not yet implemented
+        None
     }
 
-    fn calculate_offset(&self, address: usize, _symbol_name: &str) -> Option<usize> {
-        // Mock implementation - calculate offset within symbol
-        Some(address % 256)
+    fn calculate_offset(&self, _address: usize, _symbol_name: &str) -> Option<usize> {
+        // Real implementation would calculate offset within symbol based on debug info
+        // This feature is not yet implemented
+        None
     }
 }
 
@@ -275,6 +243,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[cfg(target_os = "linux")]
     fn test_basic_resolution() {
         let mut resolver = SymbolResolver::new();
         let frame = StackFrame::new(0x12345678);
@@ -288,15 +257,14 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "linux")]
     fn test_cache_functionality() {
         let mut resolver = SymbolResolver::new();
         let frame = StackFrame::new(0x12345678);
 
-        // First resolution should be a cache miss
         let resolved1 = resolver.resolve_frame(&frame);
         assert!(resolved1.is_some());
 
-        // Second resolution should be a cache hit
         let resolved2 = resolver.resolve_frame(&frame);
         assert!(resolved2.is_some());
 
@@ -307,6 +275,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "linux")]
     fn test_batch_resolution() {
         let mut resolver = SymbolResolver::new();
         let frames = vec![
@@ -324,6 +293,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "linux")]
     fn test_demangling() {
         let resolver = SymbolResolver::new();
 
@@ -355,6 +325,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "linux")]
     fn test_preload_symbols() {
         let mut resolver = SymbolResolver::new();
         let addresses = vec![0x1000, 0x2000, 0x3000];
@@ -366,6 +337,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "linux")]
     fn test_clear_cache() {
         let mut resolver = SymbolResolver::new();
         let frame = StackFrame::new(0x12345678);

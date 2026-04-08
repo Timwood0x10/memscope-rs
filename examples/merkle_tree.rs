@@ -119,6 +119,12 @@ pub struct MerkleTree {
     leaves: Vec<Vec<u8>>,
 }
 
+impl Default for MerkleTree {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MerkleTree {
     pub fn new() -> Self {
         MerkleTree {
@@ -291,7 +297,7 @@ unsafe fn create_large_buffer(size: usize) -> *mut u8 {
     let _ = tracker.create_passport(ptr_addr, size, "unsafe_alloc".to_string());
 
     // Then record the handover to FFI event
-    let _ = tracker.record_handover(
+    tracker.record_handover(
         ptr_addr,
         "unsafe_alloc".to_string(),
         "create_large_buffer".to_string(),
@@ -308,7 +314,7 @@ unsafe fn free_large_buffer(ptr: *mut u8, size: usize) {
 
     // Track unsafe deallocation with passport
     let _ = tracker.create_passport(ptr_addr, size, "unsafe_dealloc".to_string());
-    let _ = tracker.record_free(
+    tracker.record_free(
         ptr_addr,
         "unsafe_dealloc".to_string(),
         "free_large_buffer".to_string(),

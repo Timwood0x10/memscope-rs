@@ -165,6 +165,7 @@ fn safe_read_linux(ptr: usize, buf: &mut [u8]) -> bool {
 }
 
 #[cfg(not(target_os = "linux"))]
+#[allow(dead_code)] // Stub for non-Linux platforms; used when building on macOS/Windows
 fn safe_read_linux(_ptr: usize, _buf: &mut [u8]) -> bool {
     false
 }
@@ -177,7 +178,7 @@ fn read_bytes_volatile(ptr: usize, buf: &mut [u8]) -> bool {
             return false;
         }
         *byte = unsafe { std::ptr::read_volatile(addr as *const u8) };
-        addr = addr.checked_add(1).unwrap_or(usize::MAX);
+        addr = addr.saturating_add(1);
     }
     true
 }
@@ -239,8 +240,8 @@ mod tests {
     #[test]
     fn test_heap_scanner_scan_real_allocations() {
         // Scan actual heap allocations to verify end-to-end behavior.
-        let alloc1 = vec![42u8; 64];
-        let alloc2 = vec![99u8; 128];
+        let alloc1 = [42u8; 64];
+        let alloc2 = [99u8; 128];
         let allocations = vec![
             ActiveAllocation {
                 ptr: alloc1.as_ptr() as usize,
@@ -273,5 +274,51 @@ mod tests {
         let mem0 = results[0].memory.as_ref().unwrap();
         let read_size = 64.min(mem0.len());
         assert_eq!(mem0.as_slice()[..read_size], alloc1[..read_size]);
+    }
+
+    #[test]
+    fn test_heap_scanner_scan_empty_allocations() {
+        let allocations: Vec<ActiveAllocation> = vec![];
+        let results = HeapScanner::scan(&allocations);
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn test_heap_scanner_scan_zero_size_allocation() {
+        let allocations = vec![ActiveAllocation {
+            ptr: 0x10000,
+            size: 0,
+            allocated_at: 1000,
+            var_name: None,
+            type_name: None,
+            thread_id: 0,
+            call_stack_hash: None,
+        }];
+
+        let results = HeapScanner::scan(&allocations);
+        assert_eq!(results.len(), 1);
+        // Zero-size allocation should return None for memory (nothing to read).
+        assert!(results[0].memory.is_none());
+    }
+
+    #[test]
+    fn test_heap_scanner_content_preserved_after_scan() {
+        // Verify that scanning a Vec with known pattern preserves the content.
+        let data = [0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE, 0xBA, 0xBE];
+        let alloc = ActiveAllocation {
+            ptr: data.as_ptr() as usize,
+            size: data.len(),
+            allocated_at: 1000,
+            var_name: None,
+            type_name: None,
+            thread_id: 0,
+            call_stack_hash: None,
+        };
+
+        let results = HeapScanner::scan(&[alloc]);
+        assert_eq!(results.len(), 1);
+
+        let mem = results[0].memory.as_ref().unwrap();
+        assert_eq!(mem.as_slice()[..8], data[..]);
     }
 }

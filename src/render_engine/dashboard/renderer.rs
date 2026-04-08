@@ -505,6 +505,90 @@ impl DashboardRenderer {
         None
     }
 
+    /// Build relationships using the relation inference system
+    fn build_relationships_from_inference(
+        allocations: &[crate::capture::backends::core_types::AllocationInfo],
+        alloc_info: &[AllocationInfo],
+    ) -> Vec<RelationshipInfo> {
+        use crate::analysis::relation_inference::{Relation, RelationGraphBuilder};
+        use crate::snapshot::types::ActiveAllocation;
+
+        // Convert AllocationInfo to ActiveAllocation
+        let active_allocations: Vec<ActiveAllocation> = allocations
+            .iter()
+            .map(|a| ActiveAllocation {
+                ptr: a.ptr,
+                size: a.size,
+                allocated_at: a.allocated_at_ns,
+                var_name: a.var_name.clone(),
+                type_name: a.type_name.clone(),
+                thread_id: a.thread_id,
+                call_stack_hash: None,
+            })
+            .collect();
+
+        let graph = RelationGraphBuilder::build(&active_allocations, None);
+
+        let mut relationships = Vec::new();
+
+        for edge in &graph.edges {
+            let from_alloc = alloc_info.get(edge.from);
+            let to_alloc = alloc_info.get(edge.to);
+
+            let (rel_type, color, strength) = match edge.relation {
+                Relation::Owner => ("ownership_transfer", "#dc2626", 1.0),
+                Relation::Slice => ("immutable_borrow", "#3b82f6", 0.8),
+                Relation::Clone => ("clone", "#10b981", 0.9),
+                Relation::Shared => ("Arc", "#8b5cf6", 0.7),
+            };
+
+            let source_addr = from_alloc
+                .and_then(|a| {
+                    if a.address.starts_with("0x") {
+                        usize::from_str_radix(&a.address[2..], 16).ok()
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(edge.from);
+
+            let target_addr = to_alloc
+                .and_then(|a| {
+                    if a.address.starts_with("0x") {
+                        usize::from_str_radix(&a.address[2..], 16).ok()
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(edge.to);
+
+            relationships.push(RelationshipInfo {
+                source_ptr: format!("0x{:x}", source_addr),
+                source_var_name: from_alloc
+                    .map(|a| a.var_name.clone())
+                    .unwrap_or_else(|| format!("alloc_{}", edge.from)),
+                target_ptr: format!("0x{:x}", target_addr),
+                target_var_name: to_alloc
+                    .map(|a| a.var_name.clone())
+                    .unwrap_or_else(|| format!("alloc_{}", edge.to)),
+                relationship_type: rel_type.to_string(),
+                strength,
+                type_name: from_alloc
+                    .map(|a| a.type_name.clone())
+                    .unwrap_or_else(|| "unknown".to_string()),
+                color: color.to_string(),
+                is_part_of_cycle: false,
+            });
+        }
+
+        // Limit relationships to avoid performance issues
+        if relationships.len() > 500 {
+            relationships.truncate(500);
+        }
+
+        relationships
+    }
+
     /// Infer type from size-based heuristics when type_name is unknown
     fn infer_type_from_size(size: usize) -> String {
         match size {
@@ -599,121 +683,8 @@ impl DashboardRenderer {
             })
             .collect();
 
-        // Build variable relationships with real relationship types
-        let mut relationships: Vec<RelationshipInfo> = Vec::new();
-
-        for (i, a1) in alloc_info.iter().enumerate() {
-            for a2 in alloc_info.iter().skip(i + 1) {
-                // Clone relationships (same type and size, both clones)
-                if a1.is_clone && a2.is_clone && a1.type_name == a2.type_name && a1.size == a2.size
-                {
-                    relationships.push(RelationshipInfo {
-                        source_ptr: a1.address.clone(),
-                        source_var_name: a1.var_name.clone(),
-                        target_ptr: a2.address.clone(),
-                        target_var_name: a2.var_name.clone(),
-                        relationship_type: "clone".to_string(),
-                        strength: 0.9,
-                        type_name: a1.type_name.clone(),
-                        color: "#10b981".to_string(),
-                        is_part_of_cycle: false,
-                    });
-                }
-
-                // Ownership transfer (same pointer, different clone count)
-                if a1.address == a2.address && a1.clone_count != a2.clone_count {
-                    relationships.push(RelationshipInfo {
-                        source_ptr: a1.address.clone(),
-                        source_var_name: a1.var_name.clone(),
-                        target_ptr: a2.address.clone(),
-                        target_var_name: a2.var_name.clone(),
-                        relationship_type: "ownership_transfer".to_string(),
-                        strength: 1.0,
-                        type_name: a1.type_name.clone(),
-                        color: "#dc2626".to_string(),
-                        is_part_of_cycle: false,
-                    });
-                }
-
-                // Borrow relationships (same address, different borrow counts)
-                if a1.address == a2.address
-                    && (a1.immutable_borrows != a2.immutable_borrows
-                        || a1.mutable_borrows != a2.mutable_borrows)
-                {
-                    let borrow_type = if a1.mutable_borrows > 0 || a2.mutable_borrows > 0 {
-                        "mutable_borrow"
-                    } else {
-                        "immutable_borrow"
-                    };
-                    relationships.push(RelationshipInfo {
-                        source_ptr: a1.address.clone(),
-                        source_var_name: a1.var_name.clone(),
-                        target_ptr: a2.address.clone(),
-                        target_var_name: a2.var_name.clone(),
-                        relationship_type: borrow_type.to_string(),
-                        strength: 0.8,
-                        type_name: a1.type_name.clone(),
-                        color: "#3b82f6".to_string(),
-                        is_part_of_cycle: false,
-                    });
-                }
-
-                // Smart pointer relationships (Arc/Rc with same original data)
-                if a1.is_smart_pointer
-                    && a2.is_smart_pointer
-                    && a1.smart_pointer_type == a2.smart_pointer_type
-                {
-                    relationships.push(RelationshipInfo {
-                        source_ptr: a1.address.clone(),
-                        source_var_name: a1.var_name.clone(),
-                        target_ptr: a2.address.clone(),
-                        target_var_name: a2.var_name.clone(),
-                        relationship_type: format!(
-                            "smart_pointer_{}",
-                            a1.smart_pointer_type.to_lowercase()
-                        ),
-                        strength: 0.7,
-                        type_name: a1.type_name.clone(),
-                        color: "#8b5cf6".to_string(),
-                        is_part_of_cycle: false,
-                    });
-                }
-
-                // Add relationships based on type similarity (for visualization purposes)
-                if a1.type_name == a2.type_name && a1.address != a2.address {
-                    let color = match a1.type_name.as_str() {
-                        t if t.contains("Arc<") => "#8b5cf6",
-                        t if t.contains("Rc<") => "#8b5cf6",
-                        t if t.contains("Vec<") => "#10b981",
-                        t if t.contains("String") => "#10b981",
-                        t if t.contains("HashMap") => "#f59e0b",
-                        t if t.contains("BTreeMap") => "#f59e0b",
-                        _ => "#64748b",
-                    };
-                    relationships.push(RelationshipInfo {
-                        source_ptr: a1.address.clone(),
-                        source_var_name: a1.var_name.clone(),
-                        target_ptr: a2.address.clone(),
-                        target_var_name: a2.var_name.clone(),
-                        relationship_type: "same_type".to_string(),
-                        strength: 0.4,
-                        type_name: a1.type_name.clone(),
-                        color: color.to_string(),
-                        is_part_of_cycle: false,
-                    });
-                }
-            }
-        }
-
-        // Remove duplicates
-        relationships
-            .sort_by(|a, b| (&a.source_ptr, &a.target_ptr).cmp(&(&b.source_ptr, &b.target_ptr)));
-        relationships.dedup_by(|a, b| a.source_ptr == b.source_ptr && a.target_ptr == b.target_ptr);
-
-        // Limit relationships to avoid performance issues
-        if relationships.len() > 500 {
-            relationships.truncate(500);
-        }
+        // Build variable relationships using RelationGraphBuilder
+        let mut relationships = Self::build_relationships_from_inference(&allocations, &alloc_info);
 
         // Detect cycles in relationships and mark cycle edges
         let cycle_edges: std::collections::HashSet<(String, String)> = {

@@ -23,11 +23,27 @@ impl TimelineEngine {
     }
 
     fn ensure_sorted_cache(&self) {
+        // Double-check locking pattern to avoid TOCTOU race condition
         let current_count = self.event_store.len();
-        let cache_count = self.cached_events.read().unwrap().len();
 
-        if cache_count != current_count {
+        // First check: read-only
+        {
+            let cache = self.cached_events.read().unwrap();
+            if cache.len() == current_count {
+                return;
+            }
+        }
+
+        // Second check: acquire write lock
+        {
             let mut cache = self.cached_events.write().unwrap();
+
+            // Check again in case another thread already updated the cache
+            if cache.len() == current_count {
+                return;
+            }
+
+            // Rebuild cache
             *cache = self.event_store.snapshot();
             cache.sort_by_key(|e| e.timestamp);
             self.cache_version.fetch_add(1, Ordering::Relaxed);

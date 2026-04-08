@@ -447,7 +447,9 @@ impl PlatformMemoryInfo {
                 .virtual_memory
                 .total_virtual
                 .saturating_sub(stats.virtual_memory.used_virtual);
-            stats.virtual_memory.reserved = stats.virtual_memory.total_virtual / 4;
+            // Note: Real reserved memory would require reading /proc/iomem
+            // Setting to 0 as fallback since it's not currently implemented
+            stats.virtual_memory.reserved = 0;
         }
 
         if let Ok(status) = std::fs::read_to_string("/proc/self/status") {
@@ -479,59 +481,97 @@ impl PlatformMemoryInfo {
 
     #[cfg(target_os = "windows")]
     fn collect_windows_stats(&self) -> Result<MemoryStats, MemoryError> {
-        // Collect Windows memory statistics using Windows APIs
-        // This is a simplified mock implementation
+        use windows_sys::Win32::System::Memory::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
+        use windows_sys::Win32::System::SystemInformation::{GetSystemInfo, SYSTEM_INFO};
+
+        let mut mem_status: MEMORYSTATUSEX = unsafe { std::mem::zeroed() };
+        mem_status.dwLength = std::mem::size_of::<MEMORYSTATUSEX>() as u32;
+
+        unsafe {
+            if GlobalMemoryStatusEx(&mut mem_status) == 0 {
+                return Err(MemoryError::Unknown(
+                    "Failed to get memory status".to_string(),
+                ));
+            }
+        }
+
+        let mut sys_info: SYSTEM_INFO = unsafe { std::mem::zeroed() };
+        unsafe { GetSystemInfo(&mut sys_info) };
+
+        let total_physical = mem_status.ullTotalPhys;
+        let available_physical = mem_status.ullAvailPhys;
+        let total_virtual = mem_status.ullTotalVirtual;
+        let available_virtual = mem_status.ullAvailVirtual;
+
+        let page_size = sys_info.dwPageSize as u64;
+        let total_memory_bytes = total_physical;
+        let available_memory_bytes = available_physical;
+        let used_memory_bytes = total_physical.saturating_sub(available_physical);
+        let memory_usage_percent = if total_physical > 0 {
+            (used_memory_bytes as f64 / total_physical as f64 * 100.0).round() as u32
+        } else {
+            0
+        };
+
         Ok(MemoryStats {
             virtual_memory: VirtualMemoryStats {
-                total_virtual: 140_737_488_355_328,    // 128TB on x64
-                available_virtual: 70_368_744_177_664, // 64TB
-                used_virtual: 70_368_744_177_664,
-                reserved: 35_184_372_088_832, // 32TB
-                committed: 35_184_372_088_832,
+                total_virtual,
+                available_virtual,
+                used_virtual: total_virtual - available_virtual,
+                reserved: total_virtual / 4,
+                committed: mem_status.ullTotalCommit,
             },
             physical_memory: PhysicalMemoryStats {
-                total_physical: 34_359_738_368,     // 32GB
-                available_physical: 17_179_869_184, // 16GB
-                used_physical: 17_179_869_184,
-                cached: 8_589_934_592,  // 8GB
-                buffers: 2_147_483_648, // 2GB
+                total_physical,
+                available_physical,
+                used_physical: total_physical - available_physical,
+                cached: 0,
+                buffers: 0,
                 swap: SwapStats {
-                    total_swap: 17_179_869_184, // 16GB page file
-                    used_swap: 2_147_483_648,   // 2GB
-                    available_swap: 15_032_385_536,
+                    total_swap: mem_status.ullTotalPageFile,
+                    used_swap: mem_status.ullTotalPageFile - mem_status.ullAvailPageFile,
+                    available_swap: mem_status.ullAvailPageFile,
                     swap_in_rate: 0.0,
                     swap_out_rate: 0.0,
                 },
             },
             process_memory: ProcessMemoryStats {
-                virtual_size: 2_147_483_648,  // 2GB
-                resident_size: 1_073_741_824, // 1GB
-                shared_size: 268_435_456,     // 256MB
-                private_size: 805_306_368,    // 768MB
-                heap_size: 536_870_912,       // 512MB
-                stack_size: 16_777_216,       // 16MB
-                mapped_files: 268_435_456,    // 256MB
-                peak_usage: 2_147_483_648,
+                virtual_size: 0,
+                resident_size: 0,
+                shared_size: 0,
+                private_size: 0,
+                heap_size: 0,
+                stack_size: 0,
+                mapped_files: 0,
+                peak_usage: 0,
             },
             system_memory: SystemMemoryStats {
-                allocation_count: 2_000_000,
-                deallocation_count: 1_900_000,
-                active_allocations: 100_000,
-                total_allocated: 21_474_836_480,   // 20GB
-                total_deallocated: 19_327_352_832, // 18GB
-                fragmentation_level: 0.12,
+                allocation_count: 0,
+                deallocation_count: 0,
+                active_allocations: 0,
+                total_allocated: 0,
+                total_deallocated: 0,
+                fragmentation_level: 0.0,
                 large_pages: LargePageStats {
                     supported: true,
-                    total_large_pages: 2_097_152, // 2MB
+                    total_large_pages: 0,
                     used_large_pages: 0,
-                    page_size: 2_097_152,
+                    page_size: sys_info.dwLargePageSize as u64,
                 },
             },
             pressure_indicators: PressureIndicators {
-                pressure_level: PressureLevel::Normal,
-                low_memory: false,
-                swapping_active: false,
-                allocation_failure_rate: 0.0005,
+                pressure_level: if mem_status.dwMemoryLoad > 90 {
+                    PressureLevel::Critical
+                } else if mem_status.dwMemoryLoad > 70 {
+                    PressureLevel::High
+                } else if mem_status.dwMemoryLoad > 50 {
+                    PressureLevel::Moderate
+                } else {
+                    PressureLevel::Normal
+                },
+                low_memory: mem_status.dwMemoryLoad > 80,
+                swapping_active: mem_status.ullTotalPageFile - mem_status.ullAvailPageFile > 0,
+                allocation_failure_rate: 0.0,
                 gc_pressure: None,
             },
             timestamp: Instant::now(),
@@ -572,7 +612,10 @@ impl PlatformMemoryInfo {
                 0,
             ) != 0
             {
-                total_physical = 68_719_476_736; // Fallback: 64GB
+                // Failed to get physical memory size
+                return Err(MemoryError::SystemError(
+                    "Failed to get physical memory size via sysctl(hw.memsize)".to_string(),
+                ));
             }
         }
 
@@ -601,8 +644,26 @@ impl PlatformMemoryInfo {
         // Get swap info - estimate from compressed memory
         let compressed = vm_stats.compressor_page_count as u64 * page_size;
         let swap_used_estimated = compressed; // Compressed pages often correlate with swap
-        let total_swap = swap_used_estimated + 34_359_738_368;
-        let available_swap = 34_359_738_368;
+
+        // Get real swap info using sysctl
+        let (total_swap, available_swap) = unsafe {
+            let mut swap_usage: libc::xsw_usage = std::mem::zeroed();
+            let mut size = std::mem::size_of::<libc::xsw_usage>();
+            let result = libc::sysctlbyname(
+                b"vm.swapusage\0".as_ptr() as *const i8,
+                &mut swap_usage as *mut libc::xsw_usage as *mut libc::c_void,
+                &mut size,
+                std::ptr::null_mut(),
+                0,
+            );
+
+            if result == 0 {
+                (swap_usage.xsu_total, swap_usage.xsu_avail)
+            } else {
+                // Fallback: use compressed memory as estimate
+                (compressed, 0)
+            }
+        };
 
         // Get process memory info using task_info
         let process_memory = unsafe {
@@ -629,16 +690,16 @@ impl PlatformMemoryInfo {
                     peak_usage: task_info.resident_size_max,
                 }
             } else {
-                // Fallback
+                // Fallback - return zero values when task_info fails
                 ProcessMemoryStats {
-                    virtual_size: 4_294_967_296,
-                    resident_size: 2_147_483_648,
-                    shared_size: 536_870_912,
-                    private_size: 1_610_612_736,
-                    heap_size: 1_073_741_824,
-                    stack_size: 33_554_432,
-                    mapped_files: 536_870_912,
-                    peak_usage: 4_294_967_296,
+                    virtual_size: 0,
+                    resident_size: 0,
+                    shared_size: 0,
+                    private_size: 0,
+                    heap_size: 0,
+                    stack_size: 0,
+                    mapped_files: 0,
+                    peak_usage: 0,
                 }
             }
         };
@@ -656,11 +717,14 @@ impl PlatformMemoryInfo {
 
         Ok(MemoryStats {
             virtual_memory: VirtualMemoryStats {
-                total_virtual: 1_099_511_627_776, // 1TB typical user space
-                available_virtual: 549_755_813_888,
-                used_virtual: 549_755_813_888,
-                reserved: 274_877_906_944,
-                committed: 274_877_906_944,
+                // On macOS, user space virtual memory is limited by the architecture
+                // For x86_64 and ARM64, user space typically has 128TB virtual address space
+                // We use a more accurate estimate based on the process's virtual memory
+                total_virtual: process_memory.virtual_size.max(physical_memory * 2),
+                available_virtual: physical_memory,
+                used_virtual: process_memory.virtual_size,
+                reserved: process_memory.virtual_size / 4,
+                committed: process_memory.virtual_size / 4,
             },
             physical_memory: PhysicalMemoryStats {
                 total_physical: physical_memory,
@@ -704,22 +768,100 @@ impl PlatformMemoryInfo {
 
     #[cfg(target_os = "linux")]
     fn get_linux_system_info(&self) -> Result<SystemInfo, MemoryError> {
+        // Get OS version from /proc/sys/kernel/osrelease
+        let os_version = std::fs::read_to_string("/proc/sys/kernel/osrelease")
+            .map(|s| s.trim().to_string())
+            .unwrap_or_else(|_| "Unknown".to_string());
+
+        // Get architecture from uname
+        let architecture = unsafe {
+            let mut uname: libc::utsname = std::mem::zeroed();
+            if libc::uname(&mut uname) == 0 {
+                let machine = std::ffi::CStr::from_ptr(uname.machine.as_ptr())
+                    .to_string_lossy()
+                    .to_string();
+                machine
+            } else {
+                "unknown".to_string()
+            }
+        };
+
+        // Get CPU cores from /proc/cpuinfo
+        let cpu_cores = if let Ok(cpuinfo) = std::fs::read_to_string("/proc/cpuinfo") {
+            cpuinfo
+                .lines()
+                .filter(|line| line.starts_with("processor"))
+                .count() as u32
+        } else {
+            1
+        };
+
+        // Get page size
+        let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as u64 };
+        let page_size = if page_size == 0 { 4096 } else { page_size };
+
+        // Get cache info from /proc/cpuinfo
+        let (l1_cache_size, l2_cache_size, l3_cache_size, cache_line_size) =
+            if let Ok(cpuinfo) = std::fs::read_to_string("/proc/cpuinfo") {
+                let mut l1 = 0u64;
+                let mut l2 = 0u64;
+                let mut l3 = 0u64;
+                let mut line_size = 64u64;
+
+                for line in cpuinfo.lines() {
+                    if line.contains("cache size") {
+                        // Format: "cache size : 6144 KB"
+                        if let Some(kb_str) = line.split(':').nth(1) {
+                            if let Some(kb_val) = kb_str.trim().split_whitespace().next() {
+                                if let Ok(kb) = kb_val.parse::<u64>() {
+                                    let bytes = kb * 1024;
+                                    // Heuristic: L1 < 256KB, L2 < 4MB, L3 >= 4MB
+                                    if bytes < 256 * 1024 && l1 == 0 {
+                                        l1 = bytes;
+                                    } else if bytes < 4 * 1024 * 1024 && l2 == 0 {
+                                        l2 = bytes;
+                                    } else if bytes >= 4 * 1024 * 1024 && l3 == 0 {
+                                        l3 = bytes;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if line.contains("cache_alignment") {
+                        // Format: "cache_alignment : 64"
+                        if let Some(val_str) = line.split(':').nth(1) {
+                            if let Ok(val) = val_str.trim().parse::<u64>() {
+                                line_size = val;
+                            }
+                        }
+                    }
+                }
+
+                (l1, l2, l3, line_size)
+            } else {
+                (0, 0, 0, 64)
+            };
+
         Ok(SystemInfo {
             os_name: "Linux".to_string(),
-            os_version: "5.15.0".to_string(),
-            architecture: "x86_64".to_string(),
-            cpu_cores: 8,
+            os_version,
+            architecture,
+            cpu_cores,
             cpu_cache: CpuCacheInfo {
-                l1_cache_size: 32768,         // 32KB
-                l2_cache_size: 262144,        // 256KB
-                l3_cache_size: Some(8388608), // 8MB
-                cache_line_size: 64,
+                l1_cache_size,
+                l2_cache_size,
+                l3_cache_size: if l3_cache_size > 0 {
+                    Some(l3_cache_size)
+                } else {
+                    None
+                },
+                cache_line_size,
             },
-            page_size: 4096,
-            large_page_size: Some(2097152), // 2MB
+            page_size,
+            large_page_size: None, // Not universally supported on Linux
             mmu_info: MmuInfo {
-                virtual_address_bits: 48,
-                physical_address_bits: 40,
+                virtual_address_bits: 48,  // x86_64 typical
+                physical_address_bits: 40, // x86_64 typical
                 aslr_enabled: true,
                 nx_bit_supported: true,
             },
@@ -728,22 +870,45 @@ impl PlatformMemoryInfo {
 
     #[cfg(target_os = "windows")]
     fn get_windows_system_info(&self) -> Result<SystemInfo, MemoryError> {
+        use windows_sys::Win32::System::SystemInformation::{
+            GetNativeSystemInfo, GetSystemInfo, SYSTEM_INFO,
+        };
+
+        let mut sys_info: SYSTEM_INFO = unsafe { std::mem::zeroed() };
+        unsafe { GetSystemInfo(&mut sys_info) };
+
+        let page_size = sys_info.dwPageSize as u64;
+        let cpu_cores = sys_info.dwNumberOfProcessors as u32;
+
+        let architecture = match sys_info.wProcessorArchitecture {
+            5 => "ARM",
+            6 => "ARM64",
+            9 => "x64",
+            12 => "ARM", // Windows on ARM
+            0 => "x86",
+            _ => "Unknown",
+        };
+
         Ok(SystemInfo {
             os_name: "Windows".to_string(),
-            os_version: "10.0.19045".to_string(),
-            architecture: "x86_64".to_string(),
-            cpu_cores: 16,
+            os_version: std::env::var("OS").unwrap_or_else(|_| "Unknown".to_string()),
+            architecture: architecture.to_string(),
+            cpu_cores,
             cpu_cache: CpuCacheInfo {
-                l1_cache_size: 32768,          // 32KB
-                l2_cache_size: 524288,         // 512KB
-                l3_cache_size: Some(16777216), // 16MB
-                cache_line_size: 64,
+                l1_cache_size: 0,
+                l2_cache_size: 0,
+                l3_cache_size: None,
+                cache_line_size: page_size as u32,
             },
-            page_size: 4096,
-            large_page_size: Some(2097152), // 2MB
+            page_size,
+            large_page_size: Some(sys_info.dwLargePageSize as u64),
             mmu_info: MmuInfo {
-                virtual_address_bits: 48,
-                physical_address_bits: 40,
+                virtual_address_bits: if sys_info.wProcessorArchitecture == 9 {
+                    48
+                } else {
+                    32
+                },
+                physical_address_bits: 0,
                 aslr_enabled: true,
                 nx_bit_supported: true,
             },
@@ -830,16 +995,94 @@ impl PlatformMemoryInfo {
             }
         }
 
+        // Get cache line size
+        let mut cache_line_size: u64 = 64;
+        unsafe {
+            size = std::mem::size_of::<u64>();
+            if libc::sysctlbyname(
+                c"hw.cachelinesize".as_ptr(),
+                &mut cache_line_size as *mut u64 as *mut libc::c_void,
+                &mut size,
+                std::ptr::null_mut(),
+                0,
+            ) != 0
+            {
+                cache_line_size = 64; // Default fallback
+            }
+        }
+
+        // Get L1 cache size
+        let mut l1_cache_size: u64 = 0;
+        unsafe {
+            size = std::mem::size_of::<u64>();
+            if libc::sysctlbyname(
+                c"hw.l1dcachesize".as_ptr(),
+                &mut l1_cache_size as *mut u64 as *mut libc::c_void,
+                &mut size,
+                std::ptr::null_mut(),
+                0,
+            ) != 0
+            {
+                // Try alternative
+                if libc::sysctlbyname(
+                    c"hw.l1icachesize".as_ptr(),
+                    &mut l1_cache_size as *mut u64 as *mut libc::c_void,
+                    &mut size,
+                    std::ptr::null_mut(),
+                    0,
+                ) != 0
+                {
+                    l1_cache_size = 0;
+                }
+            }
+        }
+
+        // Get L2 cache size
+        let mut l2_cache_size: u64 = 0;
+        unsafe {
+            size = std::mem::size_of::<u64>();
+            if libc::sysctlbyname(
+                c"hw.l2cachesize".as_ptr(),
+                &mut l2_cache_size as *mut u64 as *mut libc::c_void,
+                &mut size,
+                std::ptr::null_mut(),
+                0,
+            ) != 0
+            {
+                l2_cache_size = 0;
+            }
+        }
+
+        // Get L3 cache size (may not exist on Apple Silicon)
+        let mut l3_cache_size: u64 = 0;
+        unsafe {
+            size = std::mem::size_of::<u64>();
+            if libc::sysctlbyname(
+                c"hw.l3cachesize".as_ptr(),
+                &mut l3_cache_size as *mut u64 as *mut libc::c_void,
+                &mut size,
+                std::ptr::null_mut(),
+                0,
+            ) != 0
+            {
+                l3_cache_size = 0;
+            }
+        }
+
         Ok(SystemInfo {
             os_name: "macOS".to_string(),
             os_version,
             architecture,
             cpu_cores,
             cpu_cache: CpuCacheInfo {
-                l1_cache_size: 65536,   // 64KB
-                l2_cache_size: 4194304, // 4MB
-                l3_cache_size: None,    // Unified memory architecture
-                cache_line_size: 128,
+                l1_cache_size,
+                l2_cache_size,
+                l3_cache_size: if l3_cache_size > 0 {
+                    Some(l3_cache_size)
+                } else {
+                    None
+                },
+                cache_line_size,
             },
             page_size,
             large_page_size: None, // Not supported on Apple Silicon
@@ -894,6 +1137,8 @@ pub enum MemoryError {
     ParseError(String),
     /// I/O error
     IoError(String),
+    /// Feature not implemented
+    NotImplemented(String),
 }
 
 impl Default for PlatformMemoryInfo {
@@ -913,6 +1158,9 @@ impl std::fmt::Display for MemoryError {
             MemoryError::SystemError(msg) => write!(f, "System error: {}", msg),
             MemoryError::ParseError(msg) => write!(f, "Parse error: {}", msg),
             MemoryError::IoError(msg) => write!(f, "I/O error: {}", msg),
+            MemoryError::NotImplemented(msg) => {
+                write!(f, "Feature not implemented: {}", msg)
+            }
         }
     }
 }

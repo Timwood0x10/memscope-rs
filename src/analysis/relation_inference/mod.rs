@@ -79,7 +79,7 @@ pub struct RelationEdge {
 }
 
 /// A relation graph connecting allocations.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct RelationGraph {
     /// All edges in the graph.
     pub edges: Vec<RelationEdge>,

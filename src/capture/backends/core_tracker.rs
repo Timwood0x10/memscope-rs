@@ -123,8 +123,10 @@ impl MemoryTracker {
 
         // Update peak memory using CAS loop
         loop {
-            let current_memory = self.total_allocated.load(Ordering::Relaxed)
-                - self.total_deallocated.load(Ordering::Relaxed);
+            let current_memory = self
+                .total_allocated
+                .load(Ordering::Relaxed)
+                .saturating_sub(self.total_deallocated.load(Ordering::Relaxed));
             let current_peak_memory = self.peak_memory.load(Ordering::Relaxed);
             if current_memory <= current_peak_memory {
                 break;
@@ -343,17 +345,12 @@ impl MemoryTracker {
         output_path
     }
 
-    /// Export memory tracking data to binary format (.memscope file).
-    pub fn export_to_binary<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
-        let output_path = self.ensure_memscope_path(path);
-        let allocations = self.get_active_allocations()?;
-
-        let json = serde_json::to_string_pretty(&allocations)
-            .map_err(|e| TrackingError::SerializationError(e.to_string()))?;
-
-        std::fs::write(output_path, json).map_err(|e| TrackingError::ExportError(e.to_string()))?;
-
-        Ok(())
+    /// Export memory tracking data to .memscope file format (JSON content).
+    ///
+    /// This method exports memory tracking data with a .memscope file extension.
+    /// The content is serialized as JSON for human readability and interoperability.
+    pub fn export_to_memscope<P: AsRef<std::path::Path>>(&self, path: P) -> TrackingResult<()> {
+        self.export_to_json(path)
     }
 
     /// Export memory tracking data to JSON format.

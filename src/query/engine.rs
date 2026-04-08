@@ -86,7 +86,7 @@ impl QueryEngine {
     pub fn thread_stats(&self) -> QueryResult {
         let snapshot = self.get_snapshot();
         let threads: Vec<_> = snapshot.thread_stats.values().cloned().collect();
-        let total_bytes = threads.iter().map(|t| t.total_allocated).sum();
+        let total_bytes = threads.iter().map(|t| t.current_memory).sum();
 
         QueryResult::Threads(ThreadQueryResult {
             count: threads.len(),

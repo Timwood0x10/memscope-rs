@@ -188,11 +188,30 @@ fn test_graph_add_edge() {
 }
 
 #[test]
-fn test_relation_display() {
-    assert_eq!(Relation::Owner.to_string(), "Owner");
-    assert_eq!(Relation::Slice.to_string(), "Slice");
-    assert_eq!(Relation::Clone.to_string(), "Clone");
-    assert_eq!(Relation::Shared.to_string(), "Shared");
+fn test_owner_detection_with_vec_metadata() {
+    // Create a real Vec-like scenario: metadata buffer containing a pointer to a data buffer.
+    let data = vec![0xDEu8; 256];
+    let data_ptr = data.as_ptr() as usize;
+
+    // Simulate metadata that contains the data pointer (like Vec's ptr field).
+    let mut metadata = [0u8; 24];
+    metadata[0..8].copy_from_slice(&data_ptr.to_le_bytes());
+    let meta_ptr = metadata.as_ptr() as usize;
+
+    let allocs = vec![make_alloc(meta_ptr, 24), make_alloc(data_ptr, 256)];
+
+    let graph = RelationGraphBuilder::build(&allocs, None);
+
+    let owner_edges: Vec<_> = graph
+        .edges
+        .iter()
+        .filter(|e| e.relation == Relation::Owner && e.from == 0 && e.to == 1)
+        .collect();
+
+    assert!(
+        !owner_edges.is_empty(),
+        "Should detect Owner relationship from metadata containing pointer to data buffer"
+    );
 }
 
 #[test]
@@ -264,9 +283,9 @@ fn test_arc_inner_memory_layout() {
 
 #[test]
 fn test_similar_size_allocations() {
-    let v1 = vec![0u8; 100];
-    let v2 = vec![0u8; 100];
-    let v3 = vec![0u8; 100];
+    let v1 = [0u8; 100];
+    let v2 = [0u8; 100];
+    let v3 = [0u8; 100];
 
     let allocs = vec![
         make_alloc(v1.as_ptr() as usize, 100),
@@ -295,8 +314,8 @@ fn test_similar_size_allocations() {
 
 #[test]
 fn test_different_size_allocations() {
-    let v1 = vec![0u8; 100];
-    let v2 = vec![0u8; 200];
+    let v1 = [0u8; 100];
+    let v2 = [0u8; 200];
     let v3 = vec![0u8; 300];
 
     let allocs = vec![
@@ -357,7 +376,7 @@ fn test_graph_all_nodes_dedup() {
 fn test_large_allocation_graph() {
     let allocs: Vec<ActiveAllocation> = (0..100)
         .map(|i| {
-            let v = vec![i as u8; 64];
+            let v = [i as u8; 64];
             make_alloc(v.as_ptr() as usize, 64)
         })
         .collect();
@@ -384,10 +403,10 @@ fn test_realistic_clone_scenario_with_timestamps() {
     let stack_hash_1: u64 = 0x1234_5678;
     let stack_hash_2: u64 = 0xABCD_EF00;
 
-    let v1 = vec![1i32, 2, 3, 4, 5];
-    let v2 = vec![1i32, 2, 3, 4, 5];
-    let v3 = vec![10i32, 20, 30, 40, 50];
-    let v4 = vec![1i32, 2, 3, 4, 5];
+    let v1 = [1i32, 2, 3, 4, 5];
+    let v2 = [1i32, 2, 3, 4, 5];
+    let v3 = [10i32, 20, 30, 40, 50];
+    let v4 = [1i32, 2, 3, 4, 5];
 
     let allocs = vec![
         make_alloc_with_metadata(v1.as_ptr() as usize, 20, base_time, Some(stack_hash_1)),
@@ -422,7 +441,7 @@ fn test_realistic_clone_scenario_with_timestamps() {
         .collect();
 
     assert!(
-        clone_edges.len() >= 1,
+        !clone_edges.is_empty(),
         "Should detect at least 1 clone relationship (v1 and v2)"
     );
 
@@ -466,9 +485,9 @@ fn test_accuracy_metrics() {
         }
     }
 
-    let v1 = vec![1i32, 2, 3];
-    let v2 = vec![1i32, 2, 3];
-    let v3 = vec![100i32, 200, 300];
+    let v1 = [1i32, 2, 3];
+    let v2 = [1i32, 2, 3];
+    let v3 = [100i32, 200, 300];
 
     let allocs = vec![
         make_alloc(v1.as_ptr() as usize, 12),
@@ -565,8 +584,8 @@ fn test_owner_detection_accuracy() {
 
 #[test]
 fn test_no_false_positive_owner_different_types() {
-    let v1 = vec![1i32, 2, 3];
-    let v2 = vec![4i32, 5, 6];
+    let v1 = [1i32, 2, 3];
+    let v2 = [4i32, 5, 6];
 
     let allocs = vec![
         make_alloc(v1.as_ptr() as usize, 12),
@@ -599,7 +618,7 @@ fn test_performance_large_graph() {
 
     let allocs: Vec<ActiveAllocation> = (0..1000)
         .map(|i| {
-            let v = vec![i as u8; 64];
+            let v = [i as u8; 64];
             make_alloc(v.as_ptr() as usize, 64)
         })
         .collect();

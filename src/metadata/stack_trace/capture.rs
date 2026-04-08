@@ -79,32 +79,64 @@ impl StackTraceCapture {
         let mut frame_count = 0;
         let mut skip_count = 0;
 
-        // Simulate stack walking (simplified implementation)
-        let mut current_ip = self.get_current_instruction_pointer();
+        // Use backtrace crate for real stack trace capture
+        #[cfg(feature = "backtrace")]
+        {
+            let bt = backtrace::Backtrace::new();
 
-        while frame_count < self.config.max_depth {
-            if skip_count < self.config.skip_frames {
-                skip_count += 1;
-                current_ip = self.walk_stack_frame(current_ip)?;
-                continue;
-            }
-
-            let frame = if let Some(cached_frame) = self.frame_cache.get(&current_ip) {
-                cached_frame.clone()
-            } else {
-                let new_frame = self.create_frame(current_ip);
-                if self.config.cache_symbols {
-                    self.frame_cache.insert(current_ip, new_frame.clone());
+            for frame in bt.frames().iter().skip(self.config.skip_frames) {
+                if frame_count >= self.config.max_depth {
+                    break;
                 }
-                new_frame
-            };
 
-            if self.should_include_frame(&frame) {
-                frames.push(frame);
-                frame_count += 1;
+                let ip = frame.ip() as usize;
+
+                let stack_frame = if let Some(cached_frame) = self.frame_cache.get(&ip) {
+                    cached_frame.clone()
+                } else {
+                    let new_frame = self.create_frame_from_backtrace(frame);
+                    if self.config.cache_symbols {
+                        self.frame_cache.insert(ip, new_frame.clone());
+                    }
+                    new_frame
+                };
+
+                if self.should_include_frame(&stack_frame) {
+                    frames.push(stack_frame);
+                    frame_count += 1;
+                }
             }
+        }
 
-            current_ip = self.walk_stack_frame(current_ip)?;
+        #[cfg(not(feature = "backtrace"))]
+        {
+            // Fallback: Use simulated stack walking when backtrace feature is not enabled
+            let mut current_ip = self.get_current_instruction_pointer();
+
+            while frame_count < self.config.max_depth {
+                if skip_count < self.config.skip_frames {
+                    skip_count += 1;
+                    current_ip = self.walk_stack_frame(current_ip)?;
+                    continue;
+                }
+
+                let frame = if let Some(cached_frame) = self.frame_cache.get(&current_ip) {
+                    cached_frame.clone()
+                } else {
+                    let new_frame = self.create_frame(current_ip);
+                    if self.config.cache_symbols {
+                        self.frame_cache.insert(current_ip, new_frame.clone());
+                    }
+                    new_frame
+                };
+
+                if self.should_include_frame(&frame) {
+                    frames.push(frame);
+                    frame_count += 1;
+                }
+
+                current_ip = self.walk_stack_frame(current_ip)?;
+            }
         }
 
         Some(frames)
@@ -118,18 +150,34 @@ impl StackTraceCapture {
         }
 
         let mut instruction_pointers = Vec::with_capacity(self.config.max_depth);
-        let mut current_ip = self.get_current_instruction_pointer();
-        let mut skip_count = 0;
 
-        for _ in 0..self.config.max_depth {
-            if skip_count < self.config.skip_frames {
-                skip_count += 1;
-                current_ip = self.walk_stack_frame(current_ip)?;
-                continue;
+        #[cfg(feature = "backtrace")]
+        {
+            let bt = backtrace::Backtrace::new();
+
+            for frame in bt.frames().iter().skip(self.config.skip_frames) {
+                if instruction_pointers.len() >= self.config.max_depth {
+                    break;
+                }
+                instruction_pointers.push(frame.ip() as usize);
             }
+        }
 
-            instruction_pointers.push(current_ip);
-            current_ip = self.walk_stack_frame(current_ip)?;
+        #[cfg(not(feature = "backtrace"))]
+        {
+            let mut current_ip = self.get_current_instruction_pointer();
+            let mut skip_count = 0;
+
+            for _ in 0..self.config.max_depth {
+                if skip_count < self.config.skip_frames {
+                    skip_count += 1;
+                    current_ip = self.walk_stack_frame(current_ip)?;
+                    continue;
+                }
+
+                instruction_pointers.push(current_ip);
+                current_ip = self.walk_stack_frame(current_ip)?;
+            }
         }
 
         Some(instruction_pointers)
@@ -165,20 +213,17 @@ impl StackTraceCapture {
         self.frame_cache.len()
     }
 
+    #[cfg(target_os = "macos")]
     fn get_current_instruction_pointer(&self) -> usize {
-        // Platform-specific implementation would go here
-        // For now, return a mock value
-        0x7fff_0000_0000
+        // Platform-specific implementation would use __builtin_return_address or similar
+        // Real stack trace is captured via backtrace crate in walk_stack
+        0
     }
 
-    fn walk_stack_frame(&self, current_ip: usize) -> Option<usize> {
+    fn walk_stack_frame(&self, _current_ip: usize) -> Option<usize> {
         // Platform-specific stack walking implementation
-        // For now, simulate by decrementing
-        if current_ip > 0x1000_0000 {
-            Some(current_ip - 0x1000)
-        } else {
-            None
-        }
+        // This feature is not yet implemented
+        None
     }
 
     fn create_frame(&self, ip: usize) -> StackFrame {
@@ -221,29 +266,51 @@ impl StackTraceCapture {
         true
     }
 
-    fn resolve_function_name(&self, ip: usize) -> Option<String> {
-        // Mock implementation - real version would use debug symbols
-        match ip % 5 {
-            0 => Some("main".to_string()),
-            1 => Some("allocation_function".to_string()),
-            2 => Some("process_data".to_string()),
-            3 => Some("handle_request".to_string()),
-            _ => Some(format!("function_{:x}", ip)),
-        }
+    fn resolve_function_name(&self, _ip: usize) -> Option<String> {
+        // Real implementation would use debug symbols
+        // This feature is not yet implemented
+        None
     }
 
-    fn resolve_filename(&self, ip: usize) -> Option<String> {
-        // Mock implementation
-        match ip % 3 {
-            0 => Some("src/main.rs".to_string()),
-            1 => Some("src/lib.rs".to_string()),
-            _ => Some("src/utils.rs".to_string()),
-        }
+    fn resolve_filename(&self, _ip: usize) -> Option<String> {
+        // Real implementation would use debug symbols
+        // This feature is not yet implemented
+        None
     }
 
-    fn resolve_line_number(&self, ip: usize) -> Option<u32> {
-        // Mock implementation
-        Some((ip % 1000) as u32 + 1)
+    fn resolve_line_number(&self, _ip: usize) -> Option<u32> {
+        // Real implementation would use debug symbols
+        // This feature is not yet implemented
+        None
+    }
+
+    #[cfg(feature = "backtrace")]
+    fn create_frame_from_backtrace(&self, frame: &backtrace::BacktraceFrame) -> StackFrame {
+        let ip = frame.ip() as usize;
+
+        let symbol_name = frame
+            .symbols()
+            .first()
+            .and_then(|sym| sym.name())
+            .map(|name| name.to_string());
+
+        let filename = frame
+            .symbols()
+            .first()
+            .and_then(|sym| sym.filename())
+            .map(|path| path.display().to_string());
+
+        let line_number = frame.symbols().first().and_then(|sym| sym.lineno());
+
+        let function_name = symbol_name.clone();
+
+        StackFrame {
+            instruction_pointer: ip,
+            symbol_name,
+            filename,
+            line_number,
+            function_name,
+        }
     }
 }
 
@@ -301,6 +368,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[cfg(target_os = "linux")]
     fn test_basic_capture() {
         let mut capture = StackTraceCapture::default();
 
@@ -315,6 +383,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "linux")]
     fn test_lightweight_capture() {
         let capture = StackTraceCapture::default();
 

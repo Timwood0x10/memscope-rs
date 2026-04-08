@@ -93,6 +93,10 @@ pub struct Node {
 /// Edge kind
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EdgeKind {
+    /// Owner relationship (A contains pointer to B)
+    Owns,
+    /// Borrow relationship (A borrows from B)
+    Borrows,
     /// Rc clone edge
     RcClone,
     /// Arc clone edge
@@ -298,10 +302,11 @@ impl OwnershipGraph {
     fn detect_cycle_type(&self, cycle: &[ObjectId]) -> CycleType {
         // Check if any edge in the cycle is an RcClone
         for edge in &self.edges {
-            if cycle.contains(&edge.from) && cycle.contains(&edge.to) {
-                if edge.op == EdgeKind::RcClone {
-                    return CycleType::Rc;
-                }
+            if cycle.contains(&edge.from)
+                && cycle.contains(&edge.to)
+                && edge.op == EdgeKind::RcClone
+            {
+                return CycleType::Rc;
             }
         }
         CycleType::Arc

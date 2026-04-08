@@ -338,12 +338,9 @@ impl PlatformAllocator {
 
     fn extract_metadata(&self, _info: &AllocationInfo) -> Option<AllocationMetadata> {
         // Extract metadata from allocation context
-        // This would use debug info, compiler hints, etc.
-        Some(AllocationMetadata {
-            type_name: None,       // Would be extracted from debug info
-            source_location: None, // Would be extracted from debug info
-            tags: Vec::new(),
-        })
+        // Real implementation would use debug info, compiler hints, or source location tracking
+        // This feature is not yet implemented
+        None
     }
 }
 

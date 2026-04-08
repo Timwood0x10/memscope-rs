@@ -123,6 +123,10 @@ pub fn simplify_type_name(type_name: &str) -> (String, String) {
         ("OsString".to_string(), "Basic Types".to_string())
     } else if clean_type.contains("PathBuf") || clean_type.contains("Path") {
         ("PathBuf".to_string(), "Basic Types".to_string())
+    } else if clean_type.contains("Option<") {
+        ("Option<T>".to_string(), "Optionals".to_string())
+    } else if clean_type.contains("Result<") {
+        ("Result<T,E>".to_string(), "Results".to_string())
     } else if clean_type.matches("i32").count() > 0
         || clean_type.matches("u32").count() > 0
         || clean_type.matches("i64").count() > 0
@@ -144,10 +148,6 @@ pub fn simplify_type_name(type_name: &str) -> (String, String) {
         ("Array".to_string(), "Arrays".to_string())
     } else if clean_type.starts_with("(") && clean_type.ends_with(")") {
         ("Tuple".to_string(), "Tuples".to_string())
-    } else if clean_type.contains("Option<") {
-        ("Option<T>".to_string(), "Optionals".to_string())
-    } else if clean_type.contains("Result<") {
-        ("Result<T,E>".to_string(), "Results".to_string())
     } else if clean_type.contains("Mutex<") || clean_type.contains("RwLock<") {
         ("Mutex/RwLock".to_string(), "Synchronization".to_string())
     } else if clean_type.contains("Cell<") || clean_type.contains("RefCell<") {
@@ -571,7 +571,9 @@ pub fn is_primitive_type(type_name: &str) -> bool {
 pub fn extract_array_info(type_name: &str) -> String {
     if let Some(start) = type_name.find('[') {
         if let Some(end) = type_name.find(']') {
-            return type_name[start..=end].to_string();
+            if end > start {
+                return type_name[start..=end].to_string();
+            }
         }
     }
     "Array".to_string()
@@ -599,16 +601,16 @@ pub fn extract_std_module(type_name: &str) -> String {
 // Thread Utilities (merged from thread_utils.rs)
 // ============================================================================
 
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc,
-};
 use std::thread;
 use std::time::Duration;
 
 /// Extension trait for JoinHandle to add timeout functionality
 pub trait JoinHandleExt<T> {
     /// Join with a timeout, returning an error if the timeout is exceeded
+    ///
+    /// This implementation properly handles timeout by using a dedicated timeout thread
+    /// that will exit immediately, avoiding resource leaks. The original thread continues
+    /// running in the background if it doesn't finish within the timeout.
     fn join_timeout(self, timeout: Duration) -> Result<T, Box<dyn std::any::Any + Send + 'static>>;
 }
 
@@ -619,33 +621,28 @@ impl<T: Send + 'static> JoinHandleExt<T> for thread::JoinHandle<T> {
             return self.join().map_err(|e| Box::new(e) as _);
         }
 
-        // Create a flag to track if the thread completed
-        let completed = Arc::new(AtomicBool::new(false));
-        let completed_clone = completed.clone();
+        // Use a channel to communicate result or timeout
+        let (tx, rx) = std::sync::mpsc::channel();
 
-        // Spawn a thread that will wait for the original thread
-        let handle = thread::spawn(move || {
+        // Spawn a thread that will join the original thread and send the result
+        thread::spawn(move || {
             let result = self.join();
-            completed_clone.store(true, Ordering::SeqCst);
-            result
+            // Ignore send errors - the receiver might have been dropped due to timeout
+            let _ = tx.send(result);
         });
 
-        // Wait for the timeout or until the thread completes
-        let start = std::time::Instant::now();
-        while !completed.load(Ordering::SeqCst) && start.elapsed() < timeout {
-            thread::sleep(Duration::from_millis(10));
-        }
-
-        if completed.load(Ordering::SeqCst) {
-            // Thread completed within timeout
-            match handle.join() {
-                Ok(result) => result.map_err(|e| Box::new(e) as _),
-                Err(_) => Err(Box::new("Watcher thread panicked") as _),
+        // Wait for either the thread to finish or timeout to occur
+        match rx.recv_timeout(timeout) {
+            Ok(result) => result.map_err(|e| Box::new(e) as _),
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                // Timeout occurred - the original thread continues running in background
+                // This is unavoidable in Rust without thread cancellation
+                Err(Box::new("Thread join timed out") as _)
             }
-        } else {
-            // Timeout reached and thread is still running
-            // Return an error indicating timeout
-            Err(Box::new("Thread join timed out") as _)
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                // Sender disconnected unexpectedly
+                Err(Box::new("Thread communication error") as _)
+            }
         }
     }
 }
@@ -749,10 +746,9 @@ mod tests {
         assert_eq!(simplified, "Unknown Type");
         assert_eq!(category, "Unknown");
 
-        // i32 detection takes priority over Option
         let (simplified, category) = simplify_type_name("Option<i32>");
-        assert_eq!(simplified, "Option<i32>");
-        assert_eq!(category, "Basic Types");
+        assert_eq!(simplified, "Option<T>");
+        assert_eq!(category, "Optionals");
 
         // String detection takes priority
         let (simplified, category) = simplify_type_name("Result<String, Error>");

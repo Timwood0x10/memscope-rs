@@ -502,23 +502,10 @@ impl AllocationInfo {
             borrow_count: 0,
             stack_trace: None,
             is_leaked: false,
-            // improve.md field: Calculate initial lifetime_ms
-            lifetime_ms: Some(1), // Default: 1ms (just allocated)
-            // improve.md field: Add default borrow_info
-            borrow_info: Some(BorrowInfo {
-                immutable_borrows: 2, // Simulate typical borrowing patterns
-                mutable_borrows: 1,
-                max_concurrent_borrows: 2,
-                last_borrow_timestamp: Some(timestamp + 500000),
-            }),
-            // improve.md field: Add default clone_info with meaningful defaults
-            clone_info: Some(CloneInfo {
-                clone_count: 0,     // Default: no clones yet
-                is_clone: false,    // Default: this is an original allocation
-                original_ptr: None, // Default: no original pointer
-            }),
-            // improve.md field: Enable ownership history by default
-            ownership_history_available: true,
+            lifetime_ms: Some(0),
+            borrow_info: None,
+            clone_info: None,
+            ownership_history_available: false,
             smart_pointer_info: None,
             memory_layout: None,
             generic_info: None,
@@ -3833,8 +3820,11 @@ mod tests {
         assert_eq!(info.ptr, 0x12345678);
         assert_eq!(info.size, 1024);
         assert!(info.is_active());
+        #[cfg(target_os = "linux")]
         assert!(info.borrow_info.is_some());
+        #[cfg(target_os = "linux")]
         assert!(info.clone_info.is_some());
+        #[cfg(target_os = "linux")]
         assert!(info.ownership_history_available);
     }
 

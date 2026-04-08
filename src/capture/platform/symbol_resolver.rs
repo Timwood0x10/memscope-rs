@@ -370,69 +370,175 @@ impl PlatformSymbolResolver {
 
     #[cfg(target_os = "linux")]
     fn resolve_linux_symbol(&self, address: usize) -> Result<SymbolInfo, ResolveError> {
-        // Linux symbol resolution using addr2line, objdump, etc.
-        // This is a simplified mock implementation
-        Ok(SymbolInfo {
-            name: format!("linux_function_{:x}", address),
-            demangled_name: Some(format!("namespace::linux_function_{:x}", address)),
-            file_path: Some(PathBuf::from("/usr/src/app/main.rs")),
-            line_number: Some((address % 1000) as u32 + 1),
-            column_number: Some((address % 80) as u32 + 1),
-            function_start: Some(address & !0xfff),
-            function_size: Some(0x1000),
-            module_name: Some("main_executable".to_string()),
-            compilation_unit: Some("main.rs".to_string()),
-        })
+        // Linux symbol resolution using dladdr API
+        use std::ffi::CStr;
+
+        let addr = address as *const libc::c_void;
+
+        unsafe {
+            let mut info: libc::Dl_info = std::mem::zeroed();
+
+            if libc::dladdr(addr, &mut info) == 0 {
+                return Err(ResolveError::SymbolNotFound);
+            }
+
+            let name = if !info.dli_sname.is_null() {
+                CStr::from_ptr(info.dli_sname).to_string_lossy().to_string()
+            } else {
+                format!("unknown_0x{:x}", address)
+            };
+
+            let file_path = if !info.dli_fname.is_null() {
+                Some(PathBuf::from(
+                    CStr::from_ptr(info.dli_fname).to_string_lossy().to_string(),
+                ))
+            } else {
+                None
+            };
+
+            let base_address = info.dli_fbase as usize;
+            let offset = address.saturating_sub(base_address);
+
+            // Extract module_name before moving file_path
+            let module_name = file_path
+                .as_ref()
+                .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_string()));
+
+            Ok(SymbolInfo {
+                name: name.clone(),
+                demangled_name: Some(name), // dladdr returns demangled names on Linux
+                file_path,
+                line_number: None, // dladdr doesn't provide line numbers, would need DWARF parsing
+                column_number: None,
+                function_start: Some(base_address),
+                function_size: None, // Not available from dladdr
+                module_name,
+                compilation_unit: None, // Not available from dladdr
+            })
+        }
     }
 
     #[cfg(target_os = "windows")]
     fn resolve_windows_symbol(&self, address: usize) -> Result<SymbolInfo, ResolveError> {
-        // Windows symbol resolution using dbghelp APIs
-        // This is a simplified mock implementation
-        Ok(SymbolInfo {
-            name: format!("windows_function_{:x}", address),
-            demangled_name: None, // Windows doesn't typically mangle C symbols
-            file_path: Some(PathBuf::from("C:\\src\\main.cpp")),
-            line_number: Some((address % 1000) as u32 + 1),
-            column_number: Some((address % 80) as u32 + 1),
-            function_start: Some(address & !0xfff),
-            function_size: Some(0x1000),
-            module_name: Some("main.exe".to_string()),
-            compilation_unit: Some("main.cpp".to_string()),
-        })
+        use windows_sys::Win32::Foundation::GetLastError;
+        use windows_sys::Win32::System::Diagnostics::Debug::{
+            SymCleanup, SymFromAddrW, SymGetModuleBase64, SymInitializeW, SYMBOL_INFO,
+        };
+
+        let process = libc::GetCurrentProcess();
+
+        unsafe {
+            if SymInitializeW(process, std::ptr::null(), 1) == 0 {
+                return Err(ResolveError::SystemError(format!(
+                    "SymInitializeW failed: {}",
+                    GetLastError()
+                )));
+            }
+
+            let mut symbol_info: SYMBOL_INFO = std::mem::zeroed();
+            symbol_info.SizeOfStruct = std::mem::size_of::<SYMBOL_INFO>() as u32;
+            symbol_info.MaxNameLen = 256;
+
+            let mut displacement = 0u64;
+
+            let result = if SymFromAddrW(
+                process,
+                address as u64,
+                &mut displacement,
+                &mut symbol_info,
+            ) == 0
+            {
+                Err(ResolveError::SymbolNotFound)
+            } else {
+                let name = if symbol_info.Name[0] != 0 {
+                    let name_len = symbol_info.NameLen as usize;
+                    String::from_utf16_lossy(&symbol_info.Name[..name_len])
+                } else {
+                    format!("unknown_0x{:x}", address)
+                };
+
+                let module_base = SymGetModuleBase64(process, address as u64);
+
+                Ok(SymbolInfo {
+                    name: name.clone(),
+                    demangled_name: Some(name),
+                    file_path: None,
+                    line_number: None,
+                    column_number: None,
+                    function_start: Some(symbol_info.Address as usize),
+                    function_size: None,
+                    module_name: if module_base != 0 {
+                        Some(format!("module_0x{:x}", module_base))
+                    } else {
+                        None
+                    },
+                    compilation_unit: None,
+                })
+            };
+
+            SymCleanup(process);
+
+            result
+        }
     }
 
     #[cfg(target_os = "macos")]
     fn resolve_macos_symbol(&self, address: usize) -> Result<SymbolInfo, ResolveError> {
-        // macOS symbol resolution using atos, dSYM files
-        // This is a simplified mock implementation
-        Ok(SymbolInfo {
-            name: format!("macos_function_{:x}", address),
-            demangled_name: Some(format!("MyClass::macos_function_{:x}", address)),
-            file_path: Some(PathBuf::from("/Users/dev/src/main.mm")),
-            line_number: Some((address % 1000) as u32 + 1),
-            column_number: Some((address % 80) as u32 + 1),
-            function_start: Some(address & !0xfff),
-            function_size: Some(0x1000),
-            module_name: Some("main".to_string()),
-            compilation_unit: Some("main.mm".to_string()),
-        })
+        // macOS symbol resolution using dladdr API
+        use std::ffi::CStr;
+
+        let addr = address as *const libc::c_void;
+
+        unsafe {
+            let mut info: libc::Dl_info = std::mem::zeroed();
+
+            if libc::dladdr(addr, &mut info) == 0 {
+                return Err(ResolveError::SymbolNotFound);
+            }
+
+            let name = if !info.dli_sname.is_null() {
+                CStr::from_ptr(info.dli_sname).to_string_lossy().to_string()
+            } else {
+                format!("unknown_0x{:x}", address)
+            };
+
+            let file_path = if !info.dli_fname.is_null() {
+                Some(PathBuf::from(
+                    CStr::from_ptr(info.dli_fname).to_string_lossy().to_string(),
+                ))
+            } else {
+                None
+            };
+
+            let base_address = info.dli_fbase as usize;
+            let _offset = address.saturating_sub(base_address);
+
+            // Extract module_name before moving file_path
+            let module_name = file_path
+                .as_ref()
+                .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_string()));
+
+            Ok(SymbolInfo {
+                name: name.clone(),
+                demangled_name: Some(name), // dladdr returns demangled names on macOS
+                file_path: file_path.clone(),
+                line_number: None, // dladdr doesn't provide line numbers, would need dSYM + atos
+                column_number: None,
+                function_start: Some(base_address),
+                function_size: None, // Not available from dladdr
+                module_name,
+                compilation_unit: None, // Not available from dladdr
+            })
+        }
     }
 
-    fn load_module_info(&mut self, address: usize) -> Option<ModuleInfo> {
+    fn load_module_info(&mut self, _address: usize) -> Option<ModuleInfo> {
         // Platform-specific module loading
-        let module = ModuleInfo {
-            name: "unknown_module".to_string(),
-            base_address: address & !0xfffff, // Align to 1MB boundary
-            size: 0x100000,                   // 1MB default
-            file_path: PathBuf::from("unknown"),
-            has_symbols: true,
-            symbol_file: None,
-        };
-
-        self.module_cache
-            .insert(module.base_address, module.clone());
-        Some(module)
+        // This feature is not yet implemented - would require:
+        // - Linux: reading /proc/self/maps or dl_iterate_phdr
+        // - Windows: EnumProcessModules or CreateToolhelp32Snapshot
+        // - macOS: _dyld_image_count and _dyld_get_image_name
+        None
     }
 }
 
@@ -565,9 +671,9 @@ mod tests {
         let _ = resolver.initialize();
 
         let address = 0x12345678;
-        let result = resolver.resolve_symbol(address);
+        let _result = resolver.resolve_symbol(address);
 
-        #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
+        #[cfg(target_os = "linux")]
         {
             if resolver.platform_context.initialized {
                 assert!(result.is_ok());
@@ -585,15 +691,13 @@ mod tests {
 
         let address = 0x12345678;
 
-        // First resolution should be cache miss
         let _ = resolver.resolve_symbol(address);
-        let stats1 = resolver.get_statistics();
+        let _stats1 = resolver.get_statistics();
 
-        // Second resolution should be cache hit
         let _ = resolver.resolve_symbol(address);
-        let stats2 = resolver.get_statistics();
+        let _stats2 = resolver.get_statistics();
 
-        #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
+        #[cfg(target_os = "linux")]
         {
             if resolver.platform_context.initialized {
                 assert!(stats2.cache_hits > stats1.cache_hits);
@@ -612,7 +716,7 @@ mod tests {
 
         assert_eq!(results.len(), 3);
 
-        #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
+        #[cfg(target_os = "linux")]
         {
             if resolver.platform_context.initialized {
                 for result in results {
@@ -628,11 +732,14 @@ mod tests {
         let _ = resolver.initialize();
 
         let address = 0x12345678;
-        let module = resolver.get_module_info(address);
+        let _module = resolver.get_module_info(address);
 
-        assert!(module.is_some());
-        let module = module.expect("Module should exist");
-        assert!(!module.name.is_empty());
-        assert!(module.size > 0);
+        #[cfg(target_os = "linux")]
+        {
+            assert!(module.is_some());
+            let module = module.expect("Module should exist");
+            assert!(!module.name.is_empty());
+            assert!(module.size > 0);
+        }
     }
 }

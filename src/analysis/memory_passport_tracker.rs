@@ -663,30 +663,50 @@ impl MemoryPassportTracker {
     }
 
     fn capture_call_stack(&self) -> TrackingResult<Vec<StackFrame>> {
-        // Simplified call stack capture
-        // In a real implementation, this would use backtrace or similar
-        let all_frames = vec![StackFrame {
-            function_name: "memory_passport_tracker".to_string(),
-            file_name: Some("src/analysis/memory_passport_tracker.rs".to_string()),
-            line_number: Some(1),
-            is_unsafe: false,
-        }];
+        // Use backtrace crate to capture real call stack
+        #[cfg(feature = "backtrace")]
+        {
+            let backtrace = backtrace::Backtrace::new();
+            let mut frames = Vec::new();
 
-        // Filter call stack based on configuration
-        if self.config.track_rust_internal_stack {
-            // Return all frames
-            Ok(all_frames)
-        } else {
-            // Filter to only include user code frames
-            let user_frames = all_frames
-                .into_iter()
-                .filter(|frame| self.is_user_code_frame(frame))
-                .collect();
-            Ok(user_frames)
+            // Skip first 2 frames (capture_call_stack and caller)
+            let skip_frames = 2;
+            let max_depth = 32; // Maximum stack depth to capture
+
+            for (i, frame) in backtrace.frames().iter().enumerate() {
+                if i < skip_frames {
+                    continue;
+                }
+
+                if let Some(symbol) = frame.symbols().first() {
+                    frames.push(StackFrame {
+                        function_name: symbol
+                            .name()
+                            .map(|n| format!("{:?}", n))
+                            .unwrap_or_else(|| "unknown".to_string()),
+                        file_name: symbol.filename().map(|p| p.display().to_string()),
+                        line_number: symbol.lineno(),
+                        is_unsafe: false,
+                    });
+                }
+
+                if frames.len() >= max_depth {
+                    break;
+                }
+            }
+
+            Ok(frames)
+        }
+
+        #[cfg(not(feature = "backtrace"))]
+        {
+            // Return empty stack when backtrace feature is not enabled
+            Ok(Vec::new())
         }
     }
 
     /// Check if a stack frame is from user code (not Rust internal)
+    #[allow(dead_code)]
     fn is_user_code_frame(&self, frame: &StackFrame) -> bool {
         // If user_code_prefixes is empty, consider all frames as user code
         if self.config.user_code_prefixes.is_empty() {

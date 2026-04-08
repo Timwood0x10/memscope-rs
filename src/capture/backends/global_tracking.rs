@@ -72,19 +72,10 @@ impl Default for TrackerConfig {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct GlobalTrackerConfig {
     pub tracker: TrackerConfig,
     pub passport: PassportTrackerConfig,
-}
-
-impl Default for GlobalTrackerConfig {
-    fn default() -> Self {
-        Self {
-            tracker: TrackerConfig::default(),
-            passport: PassportTrackerConfig::default(),
-        }
-    }
 }
 
 pub struct GlobalTracker {
