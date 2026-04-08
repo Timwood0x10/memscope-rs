@@ -484,6 +484,78 @@
 
         <!-- Overview Mode -->
         <div id="mode-overview" class="mode-section active">
+            <!-- Quick Health Dashboard -->
+            <div class="card" style="background: linear-gradient(135deg, #3b82f610 0%, #3b82f620 100%); border: 2px solid var(--primary); margin-bottom: 16px;">
+                <div class="card-header" style="margin-bottom: 12px;">
+                    <h2 class="card-title">🎯 Quick Health Dashboard</h2>
+                    <div class="flex-gap-2">
+                        <span class="badge badge-info" id="quickStatusBadge">Analyzing...</span>
+                        <span class="text-secondary" style="font-size: 0.85rem;">Last Updated: {{export_timestamp}}</span>
+                    </div>
+                </div>
+                
+                <!-- Critical Alerts -->
+                <div id="criticalAlerts" style="margin-bottom: 12px;"></div>
+                
+                <!-- Compact Stats Grid -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px;">
+                    <div class="stat-card" style="padding: 8px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <div class="stat-value" style="font-size: 1.5rem;" id="quickHealthScore">{{health_score}}</div>
+                                <div class="stat-label" style="font-size: 0.75rem;">🛡️ Health</div>
+                            </div>
+                            <div id="healthTrend" style="font-size: 1.5rem;">✅</div>
+                        </div>
+                    </div>
+                    <div class="stat-card danger" style="padding: 8px;" id="quickLeakCard">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <div class="stat-value" style="font-size: 1.5rem;">{{leak_count}}</div>
+                                <div class="stat-label" style="font-size: 0.75rem;">🔴 Leaks</div>
+                            </div>
+                            <div id="leakTrend" style="font-size: 1.5rem;">⚠️</div>
+                        </div>
+                    </div>
+                    <div class="stat-card" style="padding: 8px; background: linear-gradient(135deg, #10b98120 0%, #10b98140 100%); border: 1px solid #10b981;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <div class="stat-value" style="font-size: 1.5rem; color: #10b981;" id="quickActiveTasks">0</div>
+                                <div class="stat-label" style="font-size: 0.75rem;">🟢 Active Tasks</div>
+                            </div>
+                            <div style="font-size: 1.5rem;">⚡</div>
+                        </div>
+                    </div>
+                    <div class="stat-card warning" style="padding: 8px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <div class="stat-value" style="font-size: 1.5rem;">{{unsafe_count}}</div>
+                                <div class="stat-label" style="font-size: 0.75rem;">⚠️ Unsafe</div>
+                            </div>
+                            <div id="unsafeTrend" style="font-size: 1.5rem;">⚡</div>
+                        </div>
+                    </div>
+                    <div class="stat-card" style="padding: 8px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <div class="stat-value" style="font-size: 1.5rem;">{{ffi_count}}</div>
+                                <div class="stat-label" style="font-size: 0.75rem;">🔗 FFI</div>
+                            </div>
+                            <div style="font-size: 1.5rem;">🌐</div>
+                        </div>
+                    </div>
+                    <div class="stat-card" style="padding: 8px; background: linear-gradient(135deg, #8b5cf620 0%, #8b5cf640 100%); border: 1px solid #8b5cf6;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <div class="stat-value" style="font-size: 1.5rem; color: #8b5cf6;">{{passport_count}}</div>
+                                <div class="stat-label" style="font-size: 0.75rem;">🛂 Passports</div>
+                            </div>
+                            <div style="font-size: 1.5rem;">📋</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Auto Diagnosis -->
             <div class="card" style="background: linear-gradient(135deg, #fef2f220 0%, #fef2f240 100%); border: 2px solid #fef2f2;">
                 <div class="card-header">
@@ -624,59 +696,104 @@
 
         <!-- Task Mode (Allocations) -->
         <div id="mode-task" class="mode-section">
-            <div class="card">
+            <!-- Async Overview Dashboard -->
+            <div class="card" style="background: linear-gradient(135deg, #3b82f610 0%, #3b82f620 100%); border: 2px solid var(--primary);">
                 <div class="card-header">
-                    <h2 class="card-title">📊 Async Resource Consumption</h2>
+                    <h2 class="card-title">⚡ Async Task Dashboard</h2>
                     <span class="badge badge-info" id="asyncTaskCount">0 tasks</span>
                 </div>
-                <div class="chart-container">
-                    <canvas id="asyncChart"></canvas>
+                
+                <!-- Quick Stats -->
+                <div class="stats-grid" style="margin-bottom: 16px;">
+                    <div class="stat-card">
+                        <div class="stat-value" id="activeTaskCount">0</div>
+                        <div class="stat-label">🟢 Active Tasks</div>
+                    </div>
+                    <div class="stat-card success">
+                        <div class="stat-value" id="completedTaskCount">0</div>
+                        <div class="stat-label">✅ Completed</div>
+                    </div>
+                    <div class="stat-card warning">
+                        <div class="stat-value" id="leakTaskCount">0</div>
+                        <div class="stat-label">⚠️ Potential Leaks</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="avgEfficiency">0%</div>
+                        <div class="stat-label">📊 Avg Efficiency</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="totalAsyncMemory">0 B</div>
+                        <div class="stat-label">💾 Total Memory</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="avgDuration">0ms</div>
+                        <div class="stat-label">⏱️ Avg Duration</div>
+                    </div>
                 </div>
             </div>
 
+            <!-- Task Execution Timeline -->
             <div class="card">
                 <div class="card-header">
-                    <h2 class="card-title">⏱️ Task Duration & Efficiency</h2>
+                    <h2 class="card-title">📅 Task Execution Timeline</h2>
+                    <div class="flex-gap-2">
+                        <button class="btn-sm" onclick="Dashboard.tasks.toggleView('timeline')">📊 Timeline</button>
+                        <button class="btn-sm" onclick="Dashboard.tasks.toggleView('gantt')">📈 Gantt Chart</button>
+                    </div>
+                </div>
+                <div id="taskTimelineContainer" style="min-height: 300px; background: var(--bg); border-radius: 8px; padding: 16px;">
+                    <div id="taskTimeline"></div>
+                </div>
+            </div>
+
+            <!-- Resource Consumption Heatmap -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">🔥 Resource Consumption Heatmap</h2>
                 </div>
                 <div class="chart-container" style="height: 250px;">
-                    <canvas id="asyncDurationChart"></canvas>
+                    <canvas id="asyncHeatmapChart"></canvas>
                 </div>
             </div>
 
+            <!-- Task Performance Analysis -->
             <div class="card">
                 <div class="card-header">
-                    <h2 class="card-title">📋 Async Task Details</h2>
+                    <h2 class="card-title">📊 Task Performance Analysis</h2>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="chart-container small">
+                        <canvas id="asyncDurationChart"></canvas>
+                    </div>
+                    <div class="chart-container small">
+                        <canvas id="asyncEfficiencyChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Personalized Task Cards -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">🎯 Task Details</h2>
                     <div class="flex-gap-2">
                         <label class="text-secondary">Sort by:</label>
                         <select id="taskSortOrder" onchange="Dashboard.tasks.sort()" class="input-sm">
                             <option value="memory-desc">Memory ↓</option>
                             <option value="memory-asc">Memory ↑</option>
                             <option value="peak-desc">Peak ↓</option>
-                            <option value="peak-asc">Peak ↑</option>
-                            <option value="allocations-desc">Allocs ↓</option>
-                            <option value="allocations-asc">Allocs ↑</option>
-                            <option value="duration-desc">Duration ↓</option>
                             <option value="efficiency-desc">Efficiency ↓</option>
+                            <option value="duration-desc">Duration ↓</option>
+                            <option value="allocations-desc">Allocs ↓</option>
+                        </select>
+                        <select id="taskFilterStatus" onchange="Dashboard.tasks.filter()" class="input-sm">
+                            <option value="all">All Tasks</option>
+                            <option value="active">Active Only</option>
+                            <option value="completed">Completed Only</option>
+                            <option value="leak">Potential Leaks</option>
                         </select>
                     </div>
                 </div>
-                <div class="table-wrapper">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Task ID</th>
-                                <th>Task Name</th>
-                                <th>Memory</th>
-                                <th>Peak</th>
-                                <th>Allocs</th>
-                                <th>Duration</th>
-                                <th>Efficiency</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody id="taskTableBody"></tbody>
-                    </table>
-                </div>
+                <div id="taskCardsContainer" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 12px;"></div>
             </div>
         </div>
 
@@ -1428,6 +1545,35 @@
 
             tasks: {
                 filteredData: [],
+                currentView: 'timeline',
+                
+                toggleView(view) {
+                    this.currentView = view;
+                    this.renderTimeline();
+                },
+                
+                filter() {
+                    const filterBy = document.getElementById('taskFilterStatus').value;
+                    const asyncTasks = data.async_tasks || [];
+                    
+                    switch(filterBy) {
+                        case 'active':
+                            this.filteredData = asyncTasks.filter(t => !t.is_completed);
+                            break;
+                        case 'completed':
+                            this.filteredData = asyncTasks.filter(t => t.is_completed);
+                            break;
+                        case 'leak':
+                            this.filteredData = asyncTasks.filter(t => t.has_potential_leak);
+                            break;
+                        default:
+                            this.filteredData = [...asyncTasks];
+                    }
+                    
+                    this.render();
+                    this.renderTimeline();
+                },
+                
                 sort() {
                     const sortBy = document.getElementById('taskSortOrder').value;
                     this.filteredData.sort((a, b) => {
@@ -1435,93 +1581,297 @@
                             case 'memory-desc': return (b.current_memory || 0) - (a.current_memory || 0);
                             case 'memory-asc': return (a.current_memory || 0) - (b.current_memory || 0);
                             case 'peak-desc': return (b.peak_memory || 0) - (a.peak_memory || 0);
-                            case 'peak-asc': return (a.peak_memory || 0) - (b.peak_memory || 0);
-                            case 'allocations-desc': return (b.total_allocations || 0) - (a.total_allocations || 0);
-                            case 'allocations-asc': return (a.total_allocations || 0) - (b.total_allocations || 0);
-                            case 'duration-desc': return (b.duration_ms || 0) - (a.duration_ms || 0);
                             case 'efficiency-desc': return (b.efficiency_score || 0) - (a.efficiency_score || 0);
+                            case 'duration-desc': return (b.duration_ms || 0) - (a.duration_ms || 0);
+                            case 'allocations-desc': return (b.total_allocations || 0) - (a.total_allocations || 0);
                             default: return 0;
                         }
                     });
                     this.render();
                 },
+                
                 render() {
-                    const tbody = document.getElementById('taskTableBody');
+                    const container = document.getElementById('taskCardsContainer');
                     if (this.filteredData.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No async task data</td></tr>';
+                        container.innerHTML = '<div class="empty-state">No async task data</div>';
                         return;
                     }
-                    tbody.innerHTML = this.filteredData.map(t => `
-                        <tr>
-                            <td><code>#${t.task_id}</code></td>
-                            <td>${t.task_name || 'Unknown'}</td>
-                            <td>${Utils.formatBytes(t.current_memory || 0)}</td>
-                            <td>${Utils.formatBytes(t.peak_memory || 0)}</td>
-                            <td>${t.total_allocations || 0}</td>
-                            <td>${(t.duration_ms || 0).toFixed(1)}ms</td>
-                            <td><span class="badge ${t.efficiency_score >= 0.8 ? 'badge-success' : t.efficiency_score >= 0.5 ? 'badge-warning' : 'badge-danger'}">${((t.efficiency_score || 0) * 100).toFixed(0)}%</span></td>
-                            <td>${t.is_completed ? '<span class="badge badge-success">Completed</span>' : '<span class="badge badge-info">Running</span>'}${t.has_potential_leak ? ' <span class="badge badge-warning">Leak?</span>' : ''}</td>
-                        </tr>
-                    `).join('');
+                    
+                    container.innerHTML = this.filteredData.map(t => {
+                        const statusClass = t.is_completed ? 'success' : 'info';
+                        const statusText = t.is_completed ? 'Completed' : 'Running';
+                        const leakBadge = t.has_potential_leak ? '<span class="badge badge-warning">⚠️ Leak?</span>' : '';
+                        const efficiencyClass = (t.efficiency_score || 0) >= 0.8 ? 'success' : (t.efficiency_score || 0) >= 0.5 ? 'warning' : 'danger';
+                        const taskType = t.task_type || 'Unknown';
+                        
+                        return `
+                            <div class="card" style="padding: 12px; margin: 0; border-left: 4px solid ${t.is_completed ? '#10b981' : '#3b82f6'};">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                    <div>
+                                        <span style="font-weight: 600; color: var(--primary);">#${t.task_id}</span>
+                                        <span style="margin-left: 8px; font-size: 0.9rem;">${t.task_name || 'Unknown'}</span>
+                                    </div>
+                                    <div>
+                                        <span class="badge badge-${statusClass}">${statusText}</span>
+                                        ${leakBadge}
+                                    </div>
+                                </div>
+                                
+                                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 8px; font-size: 0.85rem;">
+                                    <div>
+                                        <div style="color: var(--text2); font-size: 0.75rem;">💾 Current Memory</div>
+                                        <div style="font-weight: 600;">${Utils.formatBytes(t.current_memory || 0)}</div>
+                                    </div>
+                                    <div>
+                                        <div style="color: var(--text2); font-size: 0.75rem;">🏔️ Peak Memory</div>
+                                        <div style="font-weight: 600;">${Utils.formatBytes(t.peak_memory || 0)}</div>
+                                    </div>
+                                    <div>
+                                        <div style="color: var(--text2); font-size: 0.75rem;">📊 Allocations</div>
+                                        <div style="font-weight: 600;">${t.total_allocations || 0}</div>
+                                    </div>
+                                </div>
+                                
+                                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; font-size: 0.85rem;">
+                                    <div>
+                                        <div style="color: var(--text2); font-size: 0.75rem;">⏱️ Duration</div>
+                                        <div style="font-weight: 600;">${(t.duration_ms || 0).toFixed(1)}ms</div>
+                                    </div>
+                                    <div>
+                                        <div style="color: var(--text2); font-size: 0.75rem;">📈 Efficiency</div>
+                                        <div class="badge badge-${efficiencyClass}">${((t.efficiency_score || 0) * 100).toFixed(0)}%</div>
+                                    </div>
+                                    <div>
+                                        <div style="color: var(--text2); font-size: 0.75rem;">🏷️ Type</div>
+                                        <div style="font-weight: 600; font-size: 0.75rem;">${taskType}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
                 },
+                
+                renderTimeline() {
+                    const container = document.getElementById('taskTimeline');
+                    if (!container) return;
+                    
+                    const tasks = this.filteredData;
+                    if (tasks.length === 0) {
+                        container.innerHTML = '<div class="empty-state">No task data for timeline</div>';
+                        return;
+                    }
+                    
+                    if (this.currentView === 'gantt') {
+                        this.renderGanttChart(container, tasks);
+                    } else {
+                        this.renderTimelineView(container, tasks);
+                    }
+                },
+                
+                renderTimelineView(container, tasks) {
+                    const maxDuration = Math.max(...tasks.map(t => t.duration_ms || 0));
+                    
+                    container.innerHTML = `
+                        <div style="display: flex; flex-direction: column; gap: 8px;">
+                            ${tasks.slice(0, 15).map((t, i) => {
+                                const width = maxDuration > 0 ? ((t.duration_ms || 0) / maxDuration * 100) : 0;
+                                const statusColor = t.is_completed ? '#10b981' : '#3b82f6';
+                                const leakIndicator = t.has_potential_leak ? '⚠️' : '';
+                                
+                                return `
+                                    <div style="display: flex; align-items: center; gap: 12px;">
+                                        <div style="width: 120px; font-size: 0.85rem; font-weight: 600; color: var(--primary);">
+                                            #${t.task_id} ${leakIndicator}
+                                        </div>
+                                        <div style="flex: 1; height: 24px; background: var(--bg3); border-radius: 4px; overflow: hidden; position: relative;">
+                                            <div style="height: 100%; width: ${width}%; background: ${statusColor}; border-radius: 4px; transition: width 0.3s;"></div>
+                                            <div style="position: absolute; top: 50%; left: 8px; transform: translateY(-50%); font-size: 0.75rem; color: white; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,0.5);">
+                                                ${t.task_name || 'Unknown'} (${(t.duration_ms || 0).toFixed(1)}ms)
+                                            </div>
+                                        </div>
+                                        <div style="width: 80px; text-align: right; font-size: 0.75rem; color: var(--text2);">
+                                            ${Utils.formatBytes(t.peak_memory || 0)}
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    `;
+                },
+                
+                renderGanttChart(container, tasks) {
+                    const sortedTasks = [...tasks].sort((a, b) => (a.created_at_ms || 0) - (b.created_at_ms || 0));
+                    const minTime = Math.min(...sortedTasks.map(t => t.created_at_ms || 0));
+                    const maxTime = Math.max(...sortedTasks.map(t => (t.created_at_ms || 0) + (t.duration_ms || 0)));
+                    const timeRange = maxTime - minTime;
+                    
+                    container.innerHTML = `
+                        <div style="display: flex; flex-direction: column; gap: 6px;">
+                            ${sortedTasks.slice(0, 15).map((t, i) => {
+                                const start = ((t.created_at_ms || 0) - minTime) / timeRange * 100;
+                                const width = (t.duration_ms || 0) / timeRange * 100;
+                                const statusColor = t.is_completed ? '#10b981' : '#3b82f6';
+                                const leakIndicator = t.has_potential_leak ? 'border: 2px solid #f59e0b;' : '';
+                                
+                                return `
+                                    <div style="display: flex; align-items: center; gap: 12px; height: 28px;">
+                                        <div style="width: 100px; font-size: 0.8rem; font-weight: 600; color: var(--primary);">
+                                            #${t.task_id}
+                                        </div>
+                                        <div style="flex: 1; height: 20px; background: var(--bg3); border-radius: 4px; position: relative;">
+                                            <div style="position: absolute; left: ${start}%; width: ${Math.max(width, 2)}%; height: 100%; background: ${statusColor}; border-radius: 4px; ${leakIndicator} display: flex; align-items: center; padding: 0 8px;">
+                                                <span style="font-size: 0.7rem; color: white; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                                    ${t.task_name || 'Task'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    `;
+                },
+                
                 init() {
                     const asyncTasks = data.async_tasks || [];
                     const asyncSummary = data.async_summary || {};
                     this.filteredData = [...asyncTasks];
                     
+                    // Update stats
+                    const activeCount = asyncTasks.filter(t => !t.is_completed).length;
+                    const completedCount = asyncTasks.filter(t => t.is_completed).length;
+                    const leakCount = asyncTasks.filter(t => t.has_potential_leak).length;
+                    const avgEfficiency = asyncTasks.length > 0 
+                        ? (asyncTasks.reduce((sum, t) => sum + (t.efficiency_score || 0), 0) / asyncTasks.length * 100).toFixed(0)
+                        : 0;
+                    const totalMemory = asyncTasks.reduce((sum, t) => sum + (t.current_memory || 0), 0);
+                    const avgDuration = asyncTasks.length > 0
+                        ? (asyncTasks.reduce((sum, t) => sum + (t.duration_ms || 0), 0) / asyncTasks.length).toFixed(1)
+                        : 0;
+                    
                     document.getElementById('asyncTaskCount').textContent = (asyncSummary.total_tasks || asyncTasks.length) + ' tasks';
+                    document.getElementById('activeTaskCount').textContent = activeCount;
+                    document.getElementById('completedTaskCount').textContent = completedCount;
+                    document.getElementById('leakTaskCount').textContent = leakCount;
+                    document.getElementById('avgEfficiency').textContent = avgEfficiency + '%';
+                    document.getElementById('totalAsyncMemory').textContent = Utils.formatBytes(totalMemory);
+                    document.getElementById('avgDuration').textContent = avgDuration + 'ms';
                     
                     if (asyncTasks.length === 0) {
-                        document.getElementById('taskTableBody').innerHTML = '<tr><td colspan="8" class="empty-state">No async task data</td></tr>';
+                        document.getElementById('taskCardsContainer').innerHTML = '<div class="empty-state">No async task data</div>';
+                        document.getElementById('taskTimeline').innerHTML = '<div class="empty-state">No task data for timeline</div>';
                         return;
                     }
-                    this.sort();
-                    this.initDurationChart();
-                },
-                initDurationChart() {
-                    const ctx = document.getElementById('asyncDurationChart');
-                    if (!ctx) return;
                     
+                    this.sort();
+                    this.renderTimeline();
+                    this.initCharts();
+                },
+                
+                initCharts() {
                     const colors = Utils.getChartColors();
                     const tasks = this.filteredData.slice(0, 10);
                     
-                    new Chart(ctx, {
-                        type: 'bar',
-                        data: {
-                            labels: tasks.map(t => t.task_name || `Task ${t.task_id}`),
-                            datasets: [{
-                                label: 'Duration (ms)',
-                                data: tasks.map(t => t.duration_ms || 0),
-                                backgroundColor: colors.primary + '80',
-                                borderColor: colors.primary,
-                                borderWidth: 1
-                            }, {
-                                label: 'Efficiency %',
-                                data: tasks.map(t => (t.efficiency_score || 0) * 100),
-                                backgroundColor: '#10b98180',
-                                borderColor: '#10b981',
-                                borderWidth: 1
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            scales: {
-                                y: {
-                                    beginAtZero: true,
-                                    grid: { color: colors.grid },
-                                    ticks: { color: colors.text2 }
-                                },
-                                x: {
-                                    grid: { display: false },
-                                    ticks: { color: colors.text2, maxRotation: 45 }
-                                }
+                    // Duration Chart
+                    const durationCtx = document.getElementById('asyncDurationChart');
+                    if (durationCtx) {
+                        new Chart(durationCtx, {
+                            type: 'bar',
+                            data: {
+                                labels: tasks.map(t => t.task_name || `Task ${t.task_id}`),
+                                datasets: [{
+                                    label: 'Duration (ms)',
+                                    data: tasks.map(t => t.duration_ms || 0),
+                                    backgroundColor: colors.primary + '80',
+                                    borderColor: colors.primary,
+                                    borderWidth: 1
+                                }]
                             },
-                            plugins: {
-                                legend: { labels: { color: colors.text } }
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                scales: {
+                                    y: { beginAtZero: true, grid: { color: colors.grid }, ticks: { color: colors.text2 } },
+                                    x: { grid: { display: false }, ticks: { color: colors.text2, maxRotation: 45 } }
+                                },
+                                plugins: { legend: { labels: { color: colors.text } } }
                             }
-                        }
-                    });
+                        });
+                    }
+                    
+                    // Efficiency Chart
+                    const efficiencyCtx = document.getElementById('asyncEfficiencyChart');
+                    if (efficiencyCtx) {
+                        new Chart(efficiencyCtx, {
+                            type: 'doughnut',
+                            data: {
+                                labels: tasks.map(t => `#${t.task_id}`),
+                                datasets: [{
+                                    data: tasks.map(t => (t.efficiency_score || 0) * 100),
+                                    backgroundColor: tasks.map(t => 
+                                        (t.efficiency_score || 0) >= 0.8 ? '#10b981' : 
+                                        (t.efficiency_score || 0) >= 0.5 ? '#f59e0b' : '#ef4444'
+                                    )
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: { 
+                                    legend: { position: 'right', labels: { color: colors.text, font: { size: 10 } } }
+                                }
+                            }
+                        });
+                    }
+                    
+                    // Heatmap Chart
+                    const heatmapCtx = document.getElementById('asyncHeatmapChart');
+                    if (heatmapCtx) {
+                        const taskLabels = tasks.map(t => t.task_name || `Task ${t.task_id}`);
+                        new Chart(heatmapCtx, {
+                            type: 'bar',
+                            data: {
+                                labels: taskLabels,
+                                datasets: [
+                                    {
+                                        label: 'Memory %',
+                                        data: tasks.map(t => Math.min(100, ((t.peak_memory || 0) / 1024 / 1024) * 10)),
+                                        backgroundColor: '#3b82f680',
+                                        borderColor: '#3b82f6',
+                                        borderWidth: 1
+                                    },
+                                    {
+                                        label: 'CPU %',
+                                        data: tasks.map(t => Math.min(100, (t.total_allocations || 0) * 5)),
+                                        backgroundColor: '#10b98180',
+                                        borderColor: '#10b981',
+                                        borderWidth: 1
+                                    },
+                                    {
+                                        label: 'IO %',
+                                        data: tasks.map(t => Math.min(100, ((t.total_bytes || 0) / 1024) * 0.5)),
+                                        backgroundColor: '#f59e0b80',
+                                        borderColor: '#f59e0b',
+                                        borderWidth: 1
+                                    }
+                                ]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                scales: {
+                                    y: { 
+                                        beginAtZero: true,
+                                        max: 100,
+                                        grid: { color: colors.grid }, 
+                                        ticks: { color: colors.text2, callback: v => v + '%' }
+                                    },
+                                    x: { grid: { display: false }, ticks: { color: colors.text2, maxRotation: 45 } }
+                                },
+                                plugins: { legend: { labels: { color: colors.text } } }
+                            }
+                        });
+                    }
                 }
             },
 
@@ -2545,7 +2895,116 @@
             Dashboard.timetravel.init();
             Dashboard.tasks.init();
             populatePassports();
+            
+            // Initialize Quick Health Dashboard
+            updateQuickHealthDashboard();
+            updateCriticalAlerts();
         });
+        
+        function updateQuickHealthDashboard() {
+            const asyncTasks = data.async_tasks || [];
+            const activeCount = asyncTasks.filter(t => !t.is_completed).length;
+            const leakCount = data.leak_count || 0;
+            const unsafeCount = data.unsafe_count || 0;
+            
+            // Update active tasks
+            const activeTaskEl = document.getElementById('quickActiveTasks');
+            if (activeTaskEl) {
+                activeTaskEl.textContent = activeCount;
+            }
+            
+            // Update status badge
+            const statusBadge = document.getElementById('quickStatusBadge');
+            if (statusBadge) {
+                if (leakCount > 0) {
+                    statusBadge.className = 'badge badge-danger';
+                    statusBadge.textContent = `⚠️ ${leakCount} Leak${leakCount > 1 ? 's' : ''} Detected`;
+                } else if (unsafeCount > 0) {
+                    statusBadge.className = 'badge badge-warning';
+                    statusBadge.textContent = `⚡ ${unsafeCount} Unsafe Operation${unsafeCount > 1 ? 's' : ''}`;
+                } else {
+                    statusBadge.className = 'badge badge-success';
+                    statusBadge.textContent = '✅ Healthy';
+                }
+            }
+            
+            // Update health trend
+            const healthScore = parseInt(data.health_score) || 0;
+            const healthTrend = document.getElementById('healthTrend');
+            if (healthTrend) {
+                if (healthScore >= 80) {
+                    healthTrend.textContent = '✅';
+                } else if (healthScore >= 60) {
+                    healthTrend.textContent = '⚠️';
+                } else {
+                    healthTrend.textContent = '🚨';
+                }
+            }
+        }
+        
+        function updateCriticalAlerts() {
+            const alertsContainer = document.getElementById('criticalAlerts');
+            if (!alertsContainer) return;
+            
+            const alerts = [];
+            const leakCount = data.leak_count || 0;
+            const unsafeCount = data.unsafe_count || 0;
+            const ffiCount = data.ffi_count || 0;
+            const asyncTasks = data.async_tasks || [];
+            const leakyTasks = asyncTasks.filter(t => t.has_potential_leak).length;
+            
+            if (leakCount > 0) {
+                alerts.push({
+                    type: 'danger',
+                    icon: '🔴',
+                    message: `<strong>${leakCount} Memory Leak${leakCount > 1 ? 's' : ''}</strong> detected - Immediate attention required`,
+                    action: `onclick="showMode('passport')" style="cursor: pointer;"`
+                });
+            }
+            
+            if (leakyTasks > 0) {
+                alerts.push({
+                    type: 'warning',
+                    icon: '⚠️',
+                    message: `<strong>${leakyTasks} Async Task${leakyTasks > 1 ? 's' : ''}</strong> with potential memory leaks`,
+                    action: `onclick="showMode('task')" style="cursor: pointer;"`
+                });
+            }
+            
+            if (unsafeCount > 10) {
+                alerts.push({
+                    type: 'warning',
+                    icon: '⚡',
+                    message: `<strong>${unsafeCount} Unsafe Operations</strong> - Consider reviewing for safety`,
+                    action: `onclick="showMode('unsafe')" style="cursor: pointer;"`
+                });
+            }
+            
+            if (ffiCount > 20) {
+                alerts.push({
+                    type: 'info',
+                    icon: '🔗',
+                    message: `<strong>${ffiCount} FFI Calls</strong> - High cross-boundary activity`,
+                    action: `onclick="showMode('unsafe')" style="cursor: pointer;"`
+                });
+            }
+            
+            if (alerts.length === 0) {
+                alertsContainer.innerHTML = `
+                    <div style="background: rgba(16, 185, 129, 0.1); border-left: 4px solid #10b981; padding: 12px; border-radius: 4px;">
+                        <span style="font-size: 1.2rem;">✅</span>
+                        <span style="margin-left: 8px; font-weight: 600; color: #10b981;">All systems healthy - No critical issues detected</span>
+                    </div>
+                `;
+            } else {
+                alertsContainer.innerHTML = alerts.map(alert => `
+                    <div class="alert alert-${alert.type}" style="background: rgba(${alert.type === 'danger' ? '239, 68, 68' : alert.type === 'warning' ? '245, 158, 11' : '59, 130, 246'}, 0.1); border-left: 4px solid ${alert.type === 'danger' ? '#ef4444' : alert.type === 'warning' ? '#f59e0b' : '#3b82f6'}; padding: 12px; border-radius: 4px; margin-bottom: 8px;" ${alert.action}>
+                        <span style="font-size: 1.2rem;">${alert.icon}</span>
+                        <span style="margin-left: 8px;">${alert.message}</span>
+                    </div>
+                `).join('');
+            }
+        }
     </script>
 </body>
 </html>
