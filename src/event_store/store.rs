@@ -20,6 +20,7 @@ use std::sync::Arc;
 /// - Lock-free recording: Uses SegQueue for O(1) append without blocking
 /// - Thread-safe: All operations are safe for concurrent use
 /// - Efficient snapshots: Uses RwLock for fast read access
+/// - Clear-safe: Uses atomic flag to prevent event loss during clear operations
 #[derive(Debug)]
 pub struct EventStore {
     /// Lock-free queue for high-concurrency recording
@@ -28,6 +29,8 @@ pub struct EventStore {
     cache: RwLock<Vec<MemoryEvent>>,
     /// Approximate count of events (may be slightly stale)
     count: AtomicUsize,
+    /// Flag to indicate clear operation is in progress
+    clearing: AtomicUsize,
 }
 
 impl EventStore {
@@ -37,6 +40,7 @@ impl EventStore {
             queue: SegQueue::new(),
             cache: RwLock::new(Vec::new()),
             count: AtomicUsize::new(0),
+            clearing: AtomicUsize::new(0),
         }
     }
 
@@ -49,11 +53,17 @@ impl EventStore {
     /// * `event` - The memory event to record
     ///
     /// # Note
-    /// There is a potential race condition with `clear()`: if `clear()` is called
-    /// concurrently, events recorded during the clear operation may be lost.
-    /// This is acceptable for memory tracking use cases where exact counts are
-    /// not critical.
+    /// If a clear operation is in progress, this method will skip recording
+    /// the event to prevent data loss. This ensures consistency between
+    /// the event queue and the count.
     pub fn record(&self, event: MemoryEvent) {
+        // Check if clear operation is in progress
+        // If clearing flag is set (non-zero), skip recording to prevent event loss
+        if self.clearing.load(Ordering::Acquire) != 0 {
+            tracing::trace!("Skipping event recording due to clear operation in progress");
+            return;
+        }
+
         self.queue.push(event);
         // Use Release ordering to ensure the push is visible before the count increment
         self.count.fetch_add(1, Ordering::Release);
@@ -97,7 +107,11 @@ impl EventStore {
     ///
     /// This method removes all events from both the queue and cache.
     /// Uses write lock to ensure atomicity with concurrent record operations.
+    /// Sets a clearing flag to prevent record() operations during clear.
     pub fn clear(&self) {
+        // Set clearing flag to prevent concurrent record operations
+        self.clearing.store(1, Ordering::Release);
+
         // Acquire write lock first to prevent concurrent modifications
         let mut cache = self.cache.write();
 
@@ -109,6 +123,9 @@ impl EventStore {
 
         // Reset count last, while still holding the write lock
         self.count.store(0, Ordering::Release);
+
+        // Clear the clearing flag to allow record operations again
+        self.clearing.store(0, Ordering::Release);
     }
 }
 

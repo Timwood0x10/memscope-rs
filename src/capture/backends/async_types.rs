@@ -157,7 +157,7 @@ pub struct AsyncStats {
 }
 
 /// Async memory snapshot.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct AsyncSnapshot {
     /// Snapshot timestamp
     pub timestamp: u64,

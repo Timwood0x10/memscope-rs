@@ -356,9 +356,21 @@ impl SystemMonitor {
 impl Drop for SystemMonitor {
     fn drop(&mut self) {
         self.running.store(false, Ordering::Release);
+
         if let Ok(mut handle_guard) = self.handle.lock() {
             if let Some(handle) = handle_guard.take() {
-                let _ = handle.join();
+                std::thread::spawn(move || {
+                    let timeout = std::time::Duration::from_secs(2);
+                    let start = std::time::Instant::now();
+
+                    while start.elapsed() < timeout {
+                        if handle.is_finished() {
+                            let _ = handle.join();
+                            return;
+                        }
+                        std::thread::sleep(std::time::Duration::from_millis(50));
+                    }
+                });
             }
         }
     }

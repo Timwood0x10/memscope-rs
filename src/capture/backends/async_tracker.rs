@@ -260,24 +260,33 @@ impl AsyncTracker {
         };
 
         {
-            let mut allocations = self.allocations.lock().unwrap();
-            allocations.insert(ptr, allocation);
-        }
-
-        {
-            let mut profiles = self.profiles.lock().unwrap();
-            if let Some(profile) = profiles.get_mut(&task_id) {
-                profile.record_allocation(size as u64);
+            if let Ok(mut allocations) = self.allocations.lock() {
+                allocations.insert(ptr, allocation);
+            } else {
+                tracing::error!("Failed to acquire allocations lock during track_allocation");
             }
         }
 
         {
-            let mut stats = self.stats.lock().unwrap();
-            stats.total_allocations += 1;
-            stats.total_memory += size;
-            stats.active_memory += size;
-            if stats.active_memory > stats.peak_memory {
-                stats.peak_memory = stats.active_memory;
+            if let Ok(mut profiles) = self.profiles.lock() {
+                if let Some(profile) = profiles.get_mut(&task_id) {
+                    profile.record_allocation(size as u64);
+                }
+            } else {
+                tracing::error!("Failed to acquire profiles lock during track_allocation");
+            }
+        }
+
+        {
+            if let Ok(mut stats) = self.stats.lock() {
+                stats.total_allocations += 1;
+                stats.total_memory += size;
+                stats.active_memory += size;
+                if stats.active_memory > stats.peak_memory {
+                    stats.peak_memory = stats.active_memory;
+                }
+            } else {
+                tracing::error!("Failed to acquire stats lock during track_allocation");
             }
         }
     }
@@ -285,37 +294,57 @@ impl AsyncTracker {
     /// Track a deallocation associated with a task.
     pub fn track_deallocation(&self, ptr: usize) {
         let (task_id, size) = {
-            let mut allocations = self.allocations.lock().unwrap();
-            allocations
-                .remove(&ptr)
-                .map(|alloc| (alloc.task_id, alloc.size))
-                .unwrap_or((0, 0))
+            if let Ok(mut allocations) = self.allocations.lock() {
+                allocations
+                    .remove(&ptr)
+                    .map(|alloc| (alloc.task_id, alloc.size))
+                    .unwrap_or((0, 0))
+            } else {
+                tracing::error!("Failed to acquire allocations lock during track_deallocation");
+                (0, 0)
+            }
         };
 
         if task_id != 0 {
-            let mut profiles = self.profiles.lock().unwrap();
-            if let Some(profile) = profiles.get_mut(&task_id) {
-                profile.record_deallocation(size as u64);
+            if let Ok(mut profiles) = self.profiles.lock() {
+                if let Some(profile) = profiles.get_mut(&task_id) {
+                    profile.record_deallocation(size as u64);
+                }
+            } else {
+                tracing::error!("Failed to acquire profiles lock during track_deallocation");
             }
         }
 
         if size > 0 {
-            let mut stats = self.stats.lock().unwrap();
-            stats.active_memory = stats.active_memory.saturating_sub(size);
-            stats.total_deallocations += 1;
-            stats.total_deallocated += size as u64;
+            if let Ok(mut stats) = self.stats.lock() {
+                stats.active_memory = stats.active_memory.saturating_sub(size);
+                stats.total_deallocations += 1;
+                stats.total_deallocated += size as u64;
+            } else {
+                tracing::error!("Failed to acquire stats lock during track_deallocation");
+            }
         }
     }
 
     /// Get current statistics.
     pub fn get_stats(&self) -> AsyncStats {
-        let stats = self.stats.lock().unwrap();
-        stats.clone()
+        if let Ok(stats) = self.stats.lock() {
+            stats.clone()
+        } else {
+            tracing::error!("Failed to acquire stats lock in get_stats");
+            AsyncStats::default()
+        }
     }
 
     /// Take a snapshot of current state.
     pub fn snapshot(&self) -> AsyncSnapshot {
-        let profiles = self.profiles.lock().unwrap();
+        let profiles = if let Ok(p) = self.profiles.lock() {
+            p
+        } else {
+            tracing::error!("Failed to acquire profiles lock in snapshot");
+            return AsyncSnapshot::default();
+        };
+
         let tasks: Vec<super::async_types::TaskInfo> = profiles
             .values()
             .filter(|p| p.completed_at_ms.is_none())
@@ -331,8 +360,12 @@ impl AsyncTracker {
         drop(profiles);
 
         let allocations = {
-            let allocs = self.allocations.lock().unwrap();
-            allocs.values().cloned().collect()
+            if let Ok(allocs) = self.allocations.lock() {
+                allocs.values().cloned().collect()
+            } else {
+                tracing::error!("Failed to acquire allocations lock in snapshot");
+                Vec::new()
+            }
         };
 
         let stats = self.get_stats();
@@ -347,24 +380,41 @@ impl AsyncTracker {
 
     /// Get task memory profile
     pub fn get_task_profile(&self, task_id: u64) -> Option<TaskMemoryProfile> {
-        let profiles = self.profiles.lock().unwrap();
-        profiles.get(&task_id).cloned()
+        if let Ok(profiles) = self.profiles.lock() {
+            profiles.get(&task_id).cloned()
+        } else {
+            tracing::error!("Failed to acquire profiles lock in get_task_profile");
+            None
+        }
     }
 
     /// Get all task profiles
     pub fn get_all_profiles(&self) -> Vec<TaskMemoryProfile> {
-        let profiles = self.profiles.lock().unwrap();
-        profiles.values().cloned().collect()
+        if let Ok(profiles) = self.profiles.lock() {
+            profiles.values().cloned().collect()
+        } else {
+            tracing::error!("Failed to acquire profiles lock in get_all_profiles");
+            Vec::new()
+        }
     }
 
     /// Check if tracker is initialized
     pub fn is_initialized(&self) -> bool {
-        *self.initialized.lock().unwrap()
+        if let Ok(initialized) = self.initialized.lock() {
+            *initialized
+        } else {
+            tracing::error!("Failed to acquire initialized lock in is_initialized");
+            false
+        }
     }
 
     /// Mark tracker as initialized
     pub fn set_initialized(&self) {
-        *self.initialized.lock().unwrap() = true;
+        if let Ok(mut initialized) = self.initialized.lock() {
+            *initialized = true;
+        } else {
+            tracing::error!("Failed to acquire initialized lock in set_initialized");
+        }
     }
 
     /// Generate task efficiency report
@@ -558,8 +608,11 @@ pub fn shutdown() -> AsyncResult<()> {
 /// Reset global tracker state (for testing only)
 #[cfg(test)]
 pub fn reset_global_tracker() {
-    let mut global = GLOBAL_TRACKER.lock().unwrap();
-    *global = None;
+    if let Ok(mut global) = GLOBAL_TRACKER.lock() {
+        *global = None;
+    } else {
+        tracing::error!("Failed to acquire global tracker lock in reset_global_tracker");
+    }
 }
 
 /// Get the global async tracker

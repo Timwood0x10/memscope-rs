@@ -130,7 +130,13 @@ where
 
     /// Add a new entry to the history
     pub fn push(&self, data: T) -> bool {
-        let estimated_size = std::mem::size_of::<T>() + 64; // Basic estimation
+        // Improved memory estimation: calculate actual struct overhead
+        // TimestampedEntry contains: data (T) + timestamp (Instant) + estimated_size (usize)
+        let data_size = std::mem::size_of::<T>();
+        let timestamp_size = std::mem::size_of::<Instant>();
+        let size_field_size = std::mem::size_of::<usize>();
+        let estimated_size = data_size + timestamp_size + size_field_size;
+
         let entry = TimestampedEntry::new(data, estimated_size);
 
         if let (Ok(mut entries), Ok(mut usage)) =

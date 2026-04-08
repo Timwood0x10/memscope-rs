@@ -114,9 +114,35 @@ impl SnapshotEngine {
                     snapshot.stats.total_reallocations += 1;
                     snapshot.stats.total_allocated += event.size;
                     snapshot.stats.total_deallocated += old_size;
-                    current_memory = current_memory
-                        .saturating_sub(old_size)
-                        .saturating_add(event.size);
+
+                    // Validate memory calculation to detect potential bugs
+                    if old_size > current_memory {
+                        tracing::warn!(
+                            "Potential memory tracking bug detected: deallocating {} bytes but only {} bytes are currently tracked. ptr=0x{:x}",
+                            old_size, current_memory, event.ptr
+                        );
+                        // This could indicate a bug (double-free, incorrect tracking, etc.)
+                        // but we still want to update the calculation safely
+                        current_memory = current_memory
+                            .saturating_sub(old_size)
+                            .saturating_add(event.size);
+                    } else {
+                        // Normal case: safely perform the calculation
+                        current_memory =
+                            current_memory
+                                .checked_sub(old_size)
+                                .and_then(|v| v.checked_add(event.size))
+                                .unwrap_or_else(|| {
+                                    tracing::error!(
+                                    "Integer overflow detected in memory calculation: {} - {} + {}",
+                                    current_memory, old_size, event.size
+                                );
+                                    // Fallback to saturating operations to prevent panic
+                                    current_memory
+                                        .saturating_sub(old_size)
+                                        .saturating_add(event.size)
+                                });
+                    }
 
                     let thread_stat =
                         thread_stats

@@ -84,7 +84,11 @@ impl ThreadLocalTracker {
 
         let new_active = self.active_memory.fetch_add(size as u64, Ordering::Relaxed) + size as u64;
 
+        // CAS loop with exponential backoff to prevent CPU waste under high contention
         let mut current_peak = self.peak_memory.load(Ordering::Relaxed);
+        let mut backoff_count = 0u32;
+        const MAX_BACKOFF_ATTEMPTS: u32 = 10;
+
         while new_active > current_peak {
             match self.peak_memory.compare_exchange_weak(
                 current_peak,
@@ -93,7 +97,22 @@ impl ThreadLocalTracker {
                 Ordering::Relaxed,
             ) {
                 Ok(_) => break,
-                Err(actual) => current_peak = actual,
+                Err(actual) => {
+                    current_peak = actual;
+                    backoff_count += 1;
+
+                    // Exponential backoff strategy
+                    if backoff_count < MAX_BACKOFF_ATTEMPTS {
+                        // Short-term contention: use spin_loop for efficiency
+                        std::hint::spin_loop();
+                    } else if backoff_count < MAX_BACKOFF_ATTEMPTS * 2 {
+                        // Medium-term contention: yield to other threads
+                        std::thread::yield_now();
+                    } else {
+                        // Long-term contention: use small sleep to reduce CPU usage
+                        std::thread::sleep(std::time::Duration::from_micros(1));
+                    }
+                }
             }
         }
     }

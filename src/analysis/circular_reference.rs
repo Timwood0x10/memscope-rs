@@ -215,6 +215,14 @@ impl ReferenceGraph {
 
         if let Some(neighbors) = self.adjacency.get(&ptr) {
             for &neighbor in neighbors {
+                // Check for self-loop (node points to itself)
+                if neighbor == ptr {
+                    // Self-loop detected - record as a single-node cycle
+                    cycles.push(vec![ptr]);
+                    tracing::trace!("Self-loop detected at ptr=0x{:x}", ptr);
+                    continue;
+                }
+
                 if !visited.contains(&neighbor) {
                     self.dfs_detect_cycles(neighbor, visited, rec_stack, path, cycles);
                 } else if rec_stack.contains(&neighbor) {

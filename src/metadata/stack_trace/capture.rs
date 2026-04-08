@@ -77,10 +77,7 @@ impl StackTraceCapture {
 
         let mut frames = Vec::with_capacity(self.config.max_depth);
         let mut frame_count = 0;
-        #[cfg_attr(feature = "backtrace", allow(unused_variables))]
-        let skip_count = 0;
 
-        // Use backtrace crate for real stack trace capture
         #[cfg(feature = "backtrace")]
         {
             let bt = backtrace::Backtrace::new();
@@ -111,7 +108,7 @@ impl StackTraceCapture {
 
         #[cfg(not(feature = "backtrace"))]
         {
-            // Fallback: Use simulated stack walking when backtrace feature is not enabled
+            let mut skip_count = 0;
             let mut current_ip = self.get_current_instruction_pointer();
 
             while frame_count < self.config.max_depth {

@@ -142,7 +142,7 @@ impl Clone for Tracker {
             inner: self.inner.clone(),
             event_store: self.event_store.clone(),
             config: self.config.clone(),
-            start_time: self.start_time,
+            start_time: Instant::now(), // Use current time for cloned tracker
             system_snapshots: self.system_snapshots.clone(),
         }
     }

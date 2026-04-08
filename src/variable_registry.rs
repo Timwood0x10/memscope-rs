@@ -91,15 +91,35 @@ impl VariableRegistry {
             memory_usage: size as u64,
         };
 
-        if let Ok(mut registry) = get_global_registry().try_lock() {
-            registry.insert(address, var_info);
-        } else {
-            // Lock contention - in debug mode, warn that registration was dropped
-            #[cfg(debug_assertions)]
-            eprintln!(
-                "[memscope] Warning: Variable registration for '{}' dropped due to lock contention",
-                var_info.var_name
-            );
+        // Retry mechanism to prevent data loss under high contention
+        let mut retry_count = 0;
+        const MAX_RETRIES: usize = 5;
+        const INITIAL_BACKOFF_MS: u64 = 1;
+
+        loop {
+            if let Ok(mut registry) = get_global_registry().try_lock() {
+                registry.insert(address, var_info);
+                break;
+            } else {
+                retry_count += 1;
+                if retry_count >= MAX_RETRIES {
+                    // Log warning in both debug and release modes
+                    tracing::warn!(
+                        "Variable registration for '{}' dropped after {} retries due to lock contention. ptr=0x{:x}, size={}",
+                        var_info.var_name, MAX_RETRIES, address, size
+                    );
+                    #[cfg(debug_assertions)]
+                    eprintln!(
+                        "[memscope] Warning: Variable registration for '{}' dropped after {} retries due to lock contention",
+                        var_info.var_name, MAX_RETRIES
+                    );
+                    break;
+                }
+
+                // Exponential backoff: 1ms, 2ms, 4ms, 8ms, 16ms
+                let backoff_ms = INITIAL_BACKOFF_MS * (1 << (retry_count - 1));
+                std::thread::sleep(std::time::Duration::from_millis(backoff_ms));
+            }
         }
 
         Ok(())

@@ -728,7 +728,9 @@ pub fn export_unsafe_ffi_json<P: AsRef<Path>>(
         .filter(|p| {
             matches!(
                 p.status_at_shutdown,
-                PassportStatus::HandoverToFfi | PassportStatus::FreedByForeign
+                PassportStatus::HandoverToFfi
+                    | PassportStatus::InForeignCustody
+                    | PassportStatus::FreedByForeign
             )
         })
         .map(|p| {

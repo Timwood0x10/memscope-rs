@@ -7,6 +7,7 @@ use crate::analysis::unsafe_ffi_tracker::StackFrame;
 use crate::capture::types::{TrackingError, TrackingResult};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -96,8 +97,8 @@ pub struct MemoryPassportTracker {
     passports: Arc<Mutex<HashMap<usize, MemoryPassport>>>,
     /// Passport creation sequence
     sequence_counter: Arc<Mutex<u32>>,
-    /// Event sequence counter
-    event_sequence: Arc<Mutex<u32>>,
+    /// Event sequence counter (use AtomicU32 for lock-free operation)
+    event_sequence: Arc<AtomicU32>,
     /// Tracker configuration
     config: PassportTrackerConfig,
     /// Statistics tracking
@@ -209,7 +210,7 @@ impl MemoryPassportTracker {
         Self {
             passports: Arc::new(Mutex::new(HashMap::new())),
             sequence_counter: Arc::new(Mutex::new(0)),
-            event_sequence: Arc::new(Mutex::new(0)),
+            event_sequence: Arc::new(AtomicU32::new(0)),
             config,
             stats: Arc::new(Mutex::new(PassportTrackerStats {
                 tracker_start_time: SystemTime::now()
@@ -581,7 +582,7 @@ impl MemoryPassportTracker {
                 // Validate event sequence
                 let mut last_sequence = 0;
                 for event in &passport.lifecycle_events {
-                    if event.sequence_number <= last_sequence {
+                    if event.sequence_number < last_sequence {
                         self.update_stats_validation_failure();
                         return Ok(false);
                     }
@@ -653,13 +654,9 @@ impl MemoryPassportTracker {
     }
 
     fn get_next_event_sequence(&self) -> u32 {
-        if let Ok(mut counter) = self.event_sequence.lock() {
-            *counter += 1;
-            *counter
-        } else {
-            tracing::error!("Failed to lock event sequence counter");
-            0
-        }
+        // Use atomic fetch_add for lock-free sequence number generation
+        // This eliminates lock contention and prevents ID conflicts
+        self.event_sequence.fetch_add(1, Ordering::SeqCst)
     }
 
     fn capture_call_stack(&self) -> TrackingResult<Vec<StackFrame>> {

@@ -323,13 +323,19 @@ impl MemoryTracker {
         path: P,
     ) -> std::path::PathBuf {
         let path = path.as_ref();
-        let memory_analysis_dir = std::path::Path::new("MemoryAnalysis");
+        let base_dir = path
+            .parent()
+            .unwrap_or(std::path::Path::new("MemoryAnalysis"));
 
-        if let Err(e) = std::fs::create_dir_all(memory_analysis_dir) {
-            tracing::warn!("Failed to create MemoryAnalysis directory: {}", e);
+        if let Err(e) = std::fs::create_dir_all(base_dir) {
+            tracing::warn!("Failed to create directory {:?}: {}", base_dir, e);
         }
 
-        memory_analysis_dir.join(path)
+        if base_dir == std::path::Path::new("") {
+            std::path::Path::new("MemoryAnalysis").join(path.file_name().unwrap_or_default())
+        } else {
+            path.to_path_buf()
+        }
     }
 
     /// Ensure path uses .memscope extension and is in MemoryAnalysis directory.
@@ -395,6 +401,9 @@ impl Drop for MemoryTracker {
                 active_count
             );
         }
+
+        // Clear active_allocations to release memory
+        self.active_allocations.clear();
     }
 }
 

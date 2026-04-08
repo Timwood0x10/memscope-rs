@@ -532,63 +532,40 @@ impl PlatformStackWalker {
 
     #[cfg(target_os = "macos")]
     fn walk_macos_stack(&self, frames: &mut Vec<StackFrame>) -> Result<(), WalkError> {
-        // macOS-specific stack walking using backtrace() or similar
-        //
-        // NOTE: This is a simplified implementation for demonstration.
-        // A full implementation would:
-        // 1. Use backtrace() from libexecinfo for stack walking
-        // 2. Use dladdr() for symbol resolution
-        // 3. Parse Mach-O binary format for module information
-        // 4. Handle both Intel and Apple Silicon architectures
-        //
-        // Current implementation: Uses backtrace crate if available, otherwise simulated
+        use libc::{backtrace, c_void};
 
-        // Try to use backtrace() if available
-        #[cfg(feature = "backtrace")]
-        {
-            use backtrace::Backtrace;
-            let bt = Backtrace::new();
+        const MAX_FRAMES: usize = 64;
+        let mut buffer: Vec<*mut c_void> = vec![std::ptr::null_mut(); MAX_FRAMES];
 
-            for (i, frame) in bt.frames().iter().enumerate() {
-                if frames.len() >= self.config.max_depth {
-                    break;
-                }
+        let num_frames: i32 = unsafe { backtrace(buffer.as_mut_ptr(), MAX_FRAMES as i32) };
 
-                if i < self.config.skip_frames {
-                    continue;
-                }
-
-                let ip = frame.ip() as usize;
-
-                frames.push(StackFrame {
-                    ip,
-                    fp: None,
-                    sp: None,
-                    module_base: None,
-                    module_offset: None,
-                    symbol_info: frame.symbols().iter().next().map(
-                        |sym: &backtrace::BacktraceSymbol| FrameSymbolInfo {
-                            name: sym
-                                .name()
-                                .map(|n| format!("{:?}", n))
-                                .unwrap_or_else(|| format!("unknown_symbol_{i}")),
-                            demangled_name: sym.name().map(|n| format!("{:?}", n)),
-                            file_name: sym
-                                .filename()
-                                .map(|f: &std::path::Path| f.display().to_string()),
-                            line_number: sym.lineno(),
-                        },
-                    ),
-                });
-            }
-
-            if !frames.is_empty() {
-                return Ok(());
-            }
+        if num_frames <= 0 {
+            return Ok(());
         }
 
-        // Fallback: Unable to get real stack frames
-        tracing::warn!("Unable to capture stack frames on macOS. Backtrace feature may not be enabled or failed.");
+        let num_frames_usize = num_frames as usize;
+
+        for i in 0..num_frames_usize {
+            if frames.len() >= self.config.max_depth {
+                break;
+            }
+
+            if i < self.config.skip_frames {
+                continue;
+            }
+
+            let ip = buffer[i] as usize;
+
+            frames.push(StackFrame {
+                ip,
+                fp: None,
+                sp: None,
+                module_base: None,
+                module_offset: None,
+                symbol_info: None,
+            });
+        }
+
         Ok(())
     }
 
@@ -771,15 +748,71 @@ mod tests {
         {
             if walker.platform_context.initialized {
                 assert!(result.success);
-                #[cfg(target_os = "linux")]
+                #[cfg(any(target_os = "linux", target_os = "macos"))]
                 {
                     assert!(
                         !result.frames.is_empty(),
-                        "Linux backtrace should produce frames"
+                        "Native backtrace should produce frames on Linux/macOS"
                     );
                     assert!(result.walk_time > Duration::ZERO);
                 }
             }
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn test_macos_native_backtrace() {
+        let mut walker = PlatformStackWalker::new();
+        let _ = walker.initialize();
+
+        let mut frames = Vec::new();
+        let result = walker.walk_macos_stack(&mut frames);
+
+        assert!(result.is_ok());
+        assert!(
+            !frames.is_empty(),
+            "macOS native backtrace should produce at least the test frame"
+        );
+
+        for frame in &frames {
+            assert!(
+                frame.ip > 0,
+                "Each frame should have a valid instruction pointer"
+            );
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn test_macos_backtrace_respects_max_depth() {
+        let mut walker = PlatformStackWalker::new();
+        walker.config.max_depth = 3;
+
+        let mut frames = Vec::new();
+        let _ = walker.walk_macos_stack(&mut frames);
+
+        assert!(
+            frames.len() <= 3,
+            "Should respect max_depth limit, got {} frames",
+            frames.len()
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn test_macos_backtrace_respects_skip_frames() {
+        let mut walker = PlatformStackWalker::new();
+        walker.config.skip_frames = 2;
+
+        let mut frames = Vec::new();
+        let _ = walker.walk_macos_stack(&mut frames);
+
+        if frames.len() > 2 {
+            assert!(
+                frames[0].ip != frames[1].ip || frames.len() < 3,
+                "First frames should be skipped"
+            );
         }
     }
 

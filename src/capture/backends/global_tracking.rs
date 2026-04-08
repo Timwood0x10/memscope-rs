@@ -26,12 +26,12 @@ use crate::analysis::memory_passport_tracker::{MemoryPassportTracker, PassportTr
 use crate::capture::backends::async_tracker::AsyncTracker;
 use crate::tracker::{AnalysisReport, Tracker};
 use std::path::Path;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Instant;
 use thiserror::Error;
 use tracing::info;
 
-static GLOBAL_TRACKER: Mutex<Option<Arc<GlobalTracker>>> = Mutex::new(None);
+static GLOBAL_TRACKER: std::sync::RwLock<Option<Arc<GlobalTracker>>> = std::sync::RwLock::new(None);
 
 #[derive(Error, Debug)]
 pub enum GlobalTrackerError {
@@ -214,10 +214,15 @@ impl GlobalTracker {
     }
 
     pub fn export_html<P: AsRef<Path>>(&self, path: P) -> Result<(), GlobalTrackerError> {
-        use crate::render_engine::export::export_dashboard_html;
+        use crate::render_engine::export::export_dashboard_html_with_async;
 
         let path = path.as_ref();
-        export_dashboard_html(path, &self.tracker, &self.passport_tracker)?;
+        export_dashboard_html_with_async(
+            path,
+            &self.tracker,
+            &self.passport_tracker,
+            &self.async_tracker,
+        )?;
         Ok(())
     }
 }
@@ -243,7 +248,7 @@ pub struct GlobalTrackerStats {
 }
 
 pub fn init_global_tracking() -> Result<(), GlobalTrackerError> {
-    let mut guard = GLOBAL_TRACKER.lock().map_err(|_| {
+    let mut guard = GLOBAL_TRACKER.write().map_err(|_| {
         GlobalTrackerError::InternalError("Failed to acquire global tracker lock".to_string())
     })?;
 
@@ -259,7 +264,7 @@ pub fn init_global_tracking() -> Result<(), GlobalTrackerError> {
 pub fn init_global_tracking_with_config(
     config: GlobalTrackerConfig,
 ) -> Result<(), GlobalTrackerError> {
-    let mut guard = GLOBAL_TRACKER.lock().map_err(|_| {
+    let mut guard = GLOBAL_TRACKER.write().map_err(|_| {
         GlobalTrackerError::InternalError("Failed to acquire global tracker lock".to_string())
     })?;
 
@@ -274,14 +279,14 @@ pub fn init_global_tracking_with_config(
 
 pub fn is_initialized() -> bool {
     GLOBAL_TRACKER
-        .lock()
+        .read()
         .map(|guard| guard.is_some())
         .unwrap_or(false)
 }
 
 pub fn global_tracker() -> Result<Arc<GlobalTracker>, GlobalTrackerError> {
     GLOBAL_TRACKER
-        .lock()
+        .read()
         .map(|guard| {
             guard
                 .as_ref()
@@ -294,7 +299,7 @@ pub fn global_tracker() -> Result<Arc<GlobalTracker>, GlobalTrackerError> {
 }
 
 pub fn reset_global_tracking() {
-    if let Ok(mut guard) = GLOBAL_TRACKER.lock() {
+    if let Ok(mut guard) = GLOBAL_TRACKER.write() {
         *guard = None;
     }
 }
