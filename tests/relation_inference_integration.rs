@@ -23,6 +23,7 @@
 //! - True Negatives (TN): Correctly absent relationships
 //! - False Negatives (FN): Missed relationships
 
+#[allow(dead_code)]
 use memscope_rs::analysis::relation_inference::{Relation, RelationGraphBuilder};
 use memscope_rs::snapshot::types::ActiveAllocation;
 use std::time::{SystemTime, UNIX_EPOCH};
