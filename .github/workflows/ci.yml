@@ -198,7 +198,10 @@ jobs:
 
   coverage:
     name: Code Coverage
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v4
 
@@ -210,7 +213,7 @@ jobs:
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          key: coverage-${{ hashFiles('**/Cargo.lock') }}
+          key: coverage-${{ matrix.os }}-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Install cargo-llvm-cov
         run: cargo install cargo-llvm-cov

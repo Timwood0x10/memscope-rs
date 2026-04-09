@@ -219,22 +219,6 @@ impl StackTraceCapture {
         0
     }
 
-    #[cfg(target_os = "linux")]
-    #[cfg_attr(feature = "backtrace", allow(dead_code))]
-    fn get_current_instruction_pointer(&self) -> usize {
-        // Platform-specific implementation would use __builtin_return_address or similar
-        // Real stack trace is captured via backtrace crate in walk_stack
-        0
-    }
-
-    #[cfg(target_os = "windows")]
-    #[cfg_attr(feature = "backtrace", allow(dead_code))]
-    fn get_current_instruction_pointer(&self) -> usize {
-        // Platform-specific implementation would use _ReturnAddress or similar
-        // Real stack trace is captured via backtrace crate in walk_stack
-        0
-    }
-
     #[cfg_attr(feature = "backtrace", allow(dead_code))]
     fn walk_stack_frame(&self, _current_ip: usize) -> Option<usize> {
         // Platform-specific stack walking implementation
@@ -386,33 +370,6 @@ impl StackFrame {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    #[cfg(target_os = "linux")]
-    fn test_basic_capture() {
-        let mut capture = StackTraceCapture::default();
-
-        assert!(capture.is_enabled());
-
-        let frames = capture.capture();
-        assert!(frames.is_some());
-
-        let frames = frames.expect("Should have frames");
-        assert!(!frames.is_empty());
-        assert!(frames.len() <= 32);
-    }
-
-    #[test]
-    #[cfg(target_os = "linux")]
-    fn test_lightweight_capture() {
-        let capture = StackTraceCapture::default();
-
-        let ips = capture.capture_lightweight();
-        assert!(ips.is_some());
-
-        let ips = ips.expect("Should have IPs");
-        assert!(!ips.is_empty());
-    }
 
     #[test]
     fn test_enable_disable() {

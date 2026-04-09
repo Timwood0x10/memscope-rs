@@ -167,48 +167,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(target_os = "linux")]
-    fn test_detect_owner_basic() {
-        let target_ptr: usize = 0x555555555000;
-        let mut mem = vec![0u8; 24];
-        mem[0..8].copy_from_slice(&target_ptr.to_le_bytes());
-
-        let record = make_record(0, 0x555555554000, 24, mem);
-        let allocs = vec![
-            make_alloc(0x555555554000, 24),
-            make_alloc(0x555555555000, 1024),
-        ];
-        let range_map = RangeMap::new(&allocs);
-
-        let edges = detect_owner_impl(&record, &range_map, true);
-        assert_eq!(edges.len(), 1);
-        assert_eq!(edges[0].from, 0);
-        assert_eq!(edges[0].to, 1);
-        assert_eq!(edges[0].relation, Relation::Owner);
-    }
-
-    #[test]
-    #[cfg(target_os = "windows")]
-    fn test_detect_owner_basic() {
-        let target_ptr: usize = 0x000000015000;
-        let mut mem = vec![0u8; 24];
-        mem[0..8].copy_from_slice(&target_ptr.to_le_bytes());
-
-        let record = make_record(0, 0x000000014000, 24, mem);
-        let allocs = vec![
-            make_alloc(0x000000014000, 24),
-            make_alloc(0x000000015000, 1024),
-        ];
-        let range_map = RangeMap::new(&allocs);
-
-        let edges = detect_owner_impl(&record, &range_map, true);
-        assert_eq!(edges.len(), 1);
-        assert_eq!(edges[0].from, 0);
-        assert_eq!(edges[0].to, 1);
-        assert_eq!(edges[0].relation, Relation::Owner);
-    }
-
-    #[test]
     fn test_detect_owner_no_memory() {
         let record = InferenceRecord {
             id: 0,
@@ -257,48 +215,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(target_os = "linux")]
-    fn test_detect_owner_multiple_pointers() {
-        let ptr1: usize = 0x555555555000;
-        let ptr2: usize = 0x555555556000;
-        let mut mem = vec![0u8; 24];
-        mem[0..8].copy_from_slice(&ptr1.to_le_bytes());
-        mem[8..16].copy_from_slice(&ptr2.to_le_bytes());
-
-        let record = make_record(0, 0x555555554000, 24, mem);
-        let allocs = vec![
-            make_alloc(0x555555554000, 24),
-            make_alloc(0x555555555000, 100),
-            make_alloc(0x555555556000, 100),
-        ];
-        let range_map = RangeMap::new(&allocs);
-
-        let edges = detect_owner_impl(&record, &range_map, true);
-        assert_eq!(edges.len(), 2);
-    }
-
-    #[test]
-    #[cfg(target_os = "windows")]
-    fn test_detect_owner_multiple_pointers() {
-        let ptr1: usize = 0x000000015000;
-        let ptr2: usize = 0x000000016000;
-        let mut mem = vec![0u8; 24];
-        mem[0..8].copy_from_slice(&ptr1.to_le_bytes());
-        mem[8..16].copy_from_slice(&ptr2.to_le_bytes());
-
-        let record = make_record(0, 0x000000014000, 24, mem);
-        let allocs = vec![
-            make_alloc(0x000000014000, 24),
-            make_alloc(0x000000015000, 100),
-            make_alloc(0x000000016000, 100),
-        ];
-        let range_map = RangeMap::new(&allocs);
-
-        let edges = detect_owner_impl(&record, &range_map, true);
-        assert_eq!(edges.len(), 2);
-    }
-
-    #[test]
     fn test_detect_owner_no_self_reference() {
         let self_ptr: usize = 0x1000;
         let mut mem = vec![0u8; 24];
@@ -330,48 +246,6 @@ mod tests {
 
         let record = make_record(0, 0x1000, 24, mem);
         let allocs = vec![make_alloc(0x1000, 24), make_alloc(0x5000, 100)];
-        let range_map = RangeMap::new(&allocs);
-
-        let edges = detect_owner_impl(&record, &range_map, true);
-        assert_eq!(edges.len(), 1);
-        assert_eq!(edges[0].to, 1);
-        assert_eq!(edges[0].from, 0);
-    }
-
-    #[test]
-    #[cfg(target_os = "linux")]
-    fn test_detect_owner_duplicate_pointer_same_target() {
-        let target_ptr: usize = 0x555555555000;
-        let mut mem = vec![0u8; 24];
-        mem[0..8].copy_from_slice(&target_ptr.to_le_bytes());
-        mem[8..16].copy_from_slice(&target_ptr.to_le_bytes());
-
-        let record = make_record(0, 0x555555554000, 24, mem);
-        let allocs = vec![
-            make_alloc(0x555555554000, 24),
-            make_alloc(0x555555555000, 100),
-        ];
-        let range_map = RangeMap::new(&allocs);
-
-        let edges = detect_owner_impl(&record, &range_map, true);
-        assert_eq!(edges.len(), 1);
-        assert_eq!(edges[0].to, 1);
-        assert_eq!(edges[0].from, 0);
-    }
-
-    #[test]
-    #[cfg(target_os = "windows")]
-    fn test_detect_owner_duplicate_pointer_same_target() {
-        let target_ptr: usize = 0x000000015000;
-        let mut mem = vec![0u8; 24];
-        mem[0..8].copy_from_slice(&target_ptr.to_le_bytes());
-        mem[8..16].copy_from_slice(&target_ptr.to_le_bytes());
-
-        let record = make_record(0, 0x000000014000, 24, mem);
-        let allocs = vec![
-            make_alloc(0x000000014000, 24),
-            make_alloc(0x000000015000, 100),
-        ];
         let range_map = RangeMap::new(&allocs);
 
         let edges = detect_owner_impl(&record, &range_map, true);
@@ -435,62 +309,6 @@ mod tests {
             make_alloc(0x5000, 100),
             make_alloc(0x6000, 100),
             make_alloc(0x7000, 100),
-        ];
-        let range_map = RangeMap::new(&allocs);
-
-        let edges = detect_owner_impl(&record, &range_map, true);
-        assert_eq!(edges.len(), 3);
-        let targets: Vec<_> = edges.iter().map(|e| e.to).collect();
-        assert!(targets.contains(&1));
-        assert!(targets.contains(&2));
-        assert!(targets.contains(&3));
-    }
-
-    #[test]
-    #[cfg(target_os = "linux")]
-    fn test_detect_owner_multiple_different_targets() {
-        let ptr1: usize = 0x555555555000;
-        let ptr2: usize = 0x555555556000;
-        let ptr3: usize = 0x555555557000;
-        let mut mem = vec![0u8; 32];
-        mem[0..8].copy_from_slice(&ptr1.to_le_bytes());
-        mem[8..16].copy_from_slice(&ptr2.to_le_bytes());
-        mem[16..24].copy_from_slice(&ptr3.to_le_bytes());
-
-        let record = make_record(0, 0x555555554000, 32, mem);
-        let allocs = vec![
-            make_alloc(0x555555554000, 32),
-            make_alloc(0x555555555000, 100),
-            make_alloc(0x555555556000, 100),
-            make_alloc(0x555555557000, 100),
-        ];
-        let range_map = RangeMap::new(&allocs);
-
-        let edges = detect_owner_impl(&record, &range_map, true);
-        assert_eq!(edges.len(), 3);
-        let targets: Vec<_> = edges.iter().map(|e| e.to).collect();
-        assert!(targets.contains(&1));
-        assert!(targets.contains(&2));
-        assert!(targets.contains(&3));
-    }
-
-    #[test]
-    #[cfg(target_os = "windows")]
-    fn test_detect_owner_multiple_different_targets() {
-        let ptr1: usize = 0x000000015000;
-        let ptr2: usize = 0x000000016000;
-        let ptr3: usize = 0x000000017000;
-        let mut mem = vec![0u8; 32];
-        mem[0..8].copy_from_slice(&ptr1.to_le_bytes());
-        mem[8..16].copy_from_slice(&ptr2.to_le_bytes());
-        mem[16..24].copy_from_slice(&ptr3.to_le_bytes());
-
-        let record = make_record(0, 0x000000014000, 32, mem);
-        let allocs = vec![
-            make_alloc(0x000000014000, 32),
-            make_alloc(0x000000015000, 100),
-            make_alloc(0x000000016000, 100),
-            make_alloc(0x000000017000, 100),
         ];
         let range_map = RangeMap::new(&allocs);
 

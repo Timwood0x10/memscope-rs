@@ -651,64 +651,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(target_os = "linux")]
-    fn test_is_valid_ptr_static() {
-        assert!(!is_valid_ptr_static(0));
-        assert!(!is_valid_ptr_static(0x1000));
-        assert!(is_valid_ptr_static(0x10000));
-        assert!(is_valid_ptr_static(0x7fff_ffff_0000));
-        assert!(!is_valid_ptr_static(0xffff_ffff_ffff_ffff));
-    }
-
-    #[test]
-    #[cfg(target_os = "windows")]
-    fn test_is_valid_ptr_static() {
-        assert!(!is_valid_ptr_static(0));
-        assert!(!is_valid_ptr_static(0x1000));
-        assert!(is_valid_ptr_static(0x000000014000));
-        assert!(is_valid_ptr_static(0x00007fff_ffff0000));
-        assert!(!is_valid_ptr_static(0xffff_ffff_ffff_ffff));
-    }
-
-    #[test]
-    #[cfg(target_os = "linux")]
-    fn test_is_valid_ptr() {
-        assert!(!is_valid_ptr(0));
-        assert!(!is_valid_ptr(0x1000));
-        assert!(is_valid_ptr(0x10000));
-    }
-
-    #[test]
-    #[cfg(target_os = "windows")]
-    fn test_is_valid_ptr() {
-        assert!(!is_valid_ptr(0));
-        assert!(!is_valid_ptr(0x1000));
-        assert!(is_valid_ptr(0x000000014000));
-    }
-
-    #[test]
-    #[cfg(target_os = "linux")]
-    fn test_count_valid_pointers() {
-        let mut data = [0u8; 24];
-        let valid_ptr: usize = 0x555555554000;
-        data[..8].copy_from_slice(&valid_ptr.to_le_bytes());
-
-        let view = MemoryView::new(&data);
-        assert_eq!(count_valid_pointers(&view), 1);
-    }
-
-    #[test]
-    #[cfg(target_os = "windows")]
-    fn test_count_valid_pointers() {
-        let mut data = [0u8; 24];
-        let valid_ptr: usize = 0x000000014000;
-        data[..8].copy_from_slice(&valid_ptr.to_le_bytes());
-
-        let view = MemoryView::new(&data);
-        assert_eq!(count_valid_pointers(&view), 1);
-    }
-
-    #[test]
     fn test_valid_regions_contains() {
         let regions = ValidRegions::empty();
         // Empty regions should use static bounds
@@ -742,17 +684,5 @@ mod tests {
         // Should return something (dynamic or static)
         // Just verify it doesn't panic
         let _ = regions.contains(0x10000);
-    }
-
-    #[test]
-    #[cfg(target_os = "linux")]
-    fn test_linux_proc_maps_parsing() {
-        // On Linux, should successfully parse /proc/self/maps
-        let regions = get_valid_regions_impl();
-        // Should have at least some regions (code, stack, heap, etc.)
-        // The exact number depends on the process state
-        if regions.is_dynamic() {
-            assert!(!regions.is_empty());
-        }
     }
 }

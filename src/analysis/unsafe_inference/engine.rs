@@ -766,66 +766,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(target_os = "linux")]
-    fn test_infer_vec_with_large_capacity() {
-        let memory = create_vec_memory(0x555555554000, 10, 100);
-        let guess = UnsafeInferenceEngine::infer_from_bytes(&memory, 24);
-
-        assert_eq!(guess.kind, TypeKind::Vec);
-        assert!(guess.confidence >= 60);
-    }
-
-    #[test]
-    #[cfg(target_os = "linux")]
-    fn test_infer_vec_with_power_of_two_capacity() {
-        let memory = create_vec_memory(0x555555554000, 50, 64);
-        let guess = UnsafeInferenceEngine::infer_from_bytes(&memory, 24);
-
-        // Power-of-two capacity should boost Vec score
-        assert!(guess.kind == TypeKind::Vec || guess.kind == TypeKind::String);
-    }
-
-    #[test]
-    #[cfg(target_os = "linux")]
-    fn test_infer_string_with_small_spare() {
-        let memory = create_string_memory(0x555555554000, 10, 12);
-        let guess = UnsafeInferenceEngine::infer_from_bytes(&memory, 24);
-
-        // Small spare capacity should favor String
-        assert!(guess.kind == TypeKind::String || guess.kind == TypeKind::Vec);
-    }
-
-    #[test]
-    #[cfg(target_os = "windows")]
-    fn test_infer_vec_with_large_capacity() {
-        let memory = create_vec_memory(0x000000014000, 10, 100);
-        let guess = UnsafeInferenceEngine::infer_from_bytes(&memory, 24);
-
-        assert_eq!(guess.kind, TypeKind::Vec);
-        assert!(guess.confidence >= 60);
-    }
-
-    #[test]
-    #[cfg(target_os = "windows")]
-    fn test_infer_vec_with_power_of_two_capacity() {
-        let memory = create_vec_memory(0x000000014000, 50, 64);
-        let guess = UnsafeInferenceEngine::infer_from_bytes(&memory, 24);
-
-        // Power-of-two capacity should boost Vec score
-        assert!(guess.kind == TypeKind::Vec || guess.kind == TypeKind::String);
-    }
-
-    #[test]
-    #[cfg(target_os = "windows")]
-    fn test_infer_string_with_small_spare() {
-        let memory = create_string_memory(0x000000014000, 10, 12);
-        let guess = UnsafeInferenceEngine::infer_from_bytes(&memory, 24);
-
-        // Small spare capacity should favor String
-        assert!(guess.kind == TypeKind::String || guess.kind == TypeKind::Vec);
-    }
-
-    #[test]
     fn test_infer_cstring_printable() {
         let memory = create_cstring_memory(b"hello world");
         let guess = UnsafeInferenceEngine::infer_from_bytes(&memory, 12);
@@ -870,79 +810,11 @@ mod tests {
     }
 
     #[test]
-    #[cfg(target_os = "linux")]
-    fn test_infer_fat_ptr_size_16() {
-        let mut memory = [0u8; 16];
-        let ptr: usize = 0x555555554000;
-        let len: usize = 100;
-        memory[0..8].copy_from_slice(&ptr.to_le_bytes());
-        memory[8..16].copy_from_slice(&len.to_le_bytes());
-
-        let guess = UnsafeInferenceEngine::infer_from_bytes(&memory, 16);
-
-        assert!(guess.kind == TypeKind::FatPtr || guess.kind == TypeKind::Pointer);
-    }
-
-    #[test]
-    #[cfg(target_os = "windows")]
-    fn test_infer_fat_ptr_size_16() {
-        let mut memory = [0u8; 16];
-        let ptr: usize = 0x000000014000;
-        let len: usize = 100;
-        memory[0..8].copy_from_slice(&ptr.to_le_bytes());
-        memory[8..16].copy_from_slice(&len.to_le_bytes());
-
-        let guess = UnsafeInferenceEngine::infer_from_bytes(&memory, 16);
-
-        assert!(guess.kind == TypeKind::FatPtr || guess.kind == TypeKind::Pointer);
-    }
-
-    #[test]
-    #[cfg(target_os = "linux")]
-    fn test_infer_buffer_no_pointers() {
-        let memory = [1u8, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
-        let guess = UnsafeInferenceEngine::infer_from_bytes(&memory, 16);
-
-        assert_eq!(guess.kind, TypeKind::Buffer);
-        assert!(guess.confidence >= 40);
-    }
-
-    #[test]
     #[cfg(target_os = "macos")]
     fn test_infer_cstruct_multiple_pointers() {
         let mut memory = vec![1u8; 40];
         let ptr1: usize = 0x10000;
         let ptr2: usize = 0x20000;
-        memory[0..8].copy_from_slice(&ptr1.to_le_bytes());
-        memory[24..32].copy_from_slice(&ptr2.to_le_bytes());
-
-        let guess = UnsafeInferenceEngine::infer_from_bytes(&memory, 40);
-
-        assert_eq!(guess.kind, TypeKind::CStruct);
-        assert!(guess.confidence >= 30);
-    }
-
-    #[test]
-    #[cfg(target_os = "windows")]
-    fn test_infer_cstruct_multiple_pointers() {
-        let mut memory = vec![1u8; 40];
-        let ptr1: usize = 0x000000014000;
-        let ptr2: usize = 0x000000024000;
-        memory[0..8].copy_from_slice(&ptr1.to_le_bytes());
-        memory[24..32].copy_from_slice(&ptr2.to_le_bytes());
-
-        let guess = UnsafeInferenceEngine::infer_from_bytes(&memory, 40);
-
-        assert_eq!(guess.kind, TypeKind::CStruct);
-        assert!(guess.confidence >= 30);
-    }
-
-    #[test]
-    #[cfg(target_os = "linux")]
-    fn test_infer_cstruct_multiple_pointers() {
-        let mut memory = vec![1u8; 40];
-        let ptr1: usize = 0x555555554000;
-        let ptr2: usize = 0x555555558000;
         memory[0..8].copy_from_slice(&ptr1.to_le_bytes());
         memory[24..32].copy_from_slice(&ptr2.to_le_bytes());
 

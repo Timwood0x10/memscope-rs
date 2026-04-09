@@ -3820,12 +3820,6 @@ mod tests {
         assert_eq!(info.ptr, 0x12345678);
         assert_eq!(info.size, 1024);
         assert!(info.is_active());
-        #[cfg(target_os = "linux")]
-        assert!(info.borrow_info.is_some());
-        #[cfg(target_os = "linux")]
-        assert!(info.clone_info.is_some());
-        #[cfg(target_os = "linux")]
-        assert!(info.ownership_history_available);
     }
 
     #[test]

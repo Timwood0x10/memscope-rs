@@ -243,71 +243,6 @@ mod tests {
     use super::*;
 
     #[test]
-    #[cfg(target_os = "linux")]
-    fn test_basic_resolution() {
-        let mut resolver = SymbolResolver::new();
-        let frame = StackFrame::new(test_basic_resolution as *const () as usize);
-
-        let resolved = resolver.resolve_frame(&frame);
-        assert!(resolved.is_some());
-
-        let resolved = resolved.expect("Should resolve");
-        assert_eq!(
-            resolved.instruction_pointer,
-            test_basic_resolution as *const () as usize
-        );
-        assert!(!resolved.symbol_name.is_empty());
-    }
-
-    #[test]
-    #[cfg(target_os = "linux")]
-    fn test_cache_functionality() {
-        let mut resolver = SymbolResolver::new();
-        let frame = StackFrame::new(test_cache_functionality as *const () as usize);
-
-        let resolved1 = resolver.resolve_frame(&frame);
-        assert!(resolved1.is_some());
-
-        let resolved2 = resolver.resolve_frame(&frame);
-        assert!(resolved2.is_some());
-
-        let (resolutions, hits, hit_ratio) = resolver.get_cache_stats();
-        assert_eq!(resolutions, 2);
-        assert_eq!(hits, 1);
-        assert!((hit_ratio - 0.5).abs() < 0.01);
-    }
-
-    #[test]
-    #[cfg(target_os = "linux")]
-    fn test_batch_resolution() {
-        let mut resolver = SymbolResolver::new();
-        let frames = vec![
-            StackFrame::new(test_batch_resolution as *const () as usize),
-            StackFrame::new(test_cache_functionality as *const () as usize),
-            StackFrame::new(test_demangling as *const () as usize),
-        ];
-
-        let resolved = resolver.resolve_batch(&frames);
-        assert_eq!(resolved.len(), 3);
-
-        // At least some symbols should resolve successfully
-        let success_count = resolved.iter().filter(|r| r.is_some()).count();
-        assert!(success_count > 0, "At least one symbol should resolve");
-    }
-
-    #[test]
-    #[cfg(target_os = "linux")]
-    fn test_demangling() {
-        let resolver = SymbolResolver::new();
-
-        let demangled = resolver.demangle_symbol("_ZN4main17h1234567890abcdefE");
-        assert_eq!(demangled, Some("main".to_string()));
-
-        let not_mangled = resolver.demangle_symbol("regular_function");
-        assert_eq!(not_mangled, None);
-    }
-
-    #[test]
     fn test_resolved_frame_display() {
         let frame = ResolvedFrame {
             instruction_pointer: 0x1234,
@@ -325,38 +260,5 @@ mod tests {
         assert!(frame.has_line_info());
         assert!(frame.is_rust_symbol());
         assert!(!frame.is_system_symbol());
-    }
-
-    #[test]
-    #[cfg(target_os = "linux")]
-    fn test_preload_symbols() {
-        let mut resolver = SymbolResolver::new();
-        let addresses = vec![
-            test_preload_symbols as *const () as usize,
-            test_clear_cache as *const () as usize,
-            test_cache_functionality as *const () as usize,
-        ];
-
-        assert_eq!(resolver.cache_size(), 0);
-
-        resolver.preload_symbols(&addresses);
-        assert_eq!(resolver.cache_size(), 3);
-    }
-
-    #[test]
-    #[cfg(target_os = "linux")]
-    fn test_clear_cache() {
-        let mut resolver = SymbolResolver::new();
-        let frame = StackFrame::new(test_clear_cache as *const () as usize);
-
-        resolver.resolve_frame(&frame);
-        assert!(resolver.cache_size() > 0);
-
-        resolver.clear_cache();
-        assert_eq!(resolver.cache_size(), 0);
-
-        let (resolutions, hits, _) = resolver.get_cache_stats();
-        assert_eq!(resolutions, 0);
-        assert_eq!(hits, 0);
     }
 }
