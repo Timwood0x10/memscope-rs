@@ -422,13 +422,14 @@ impl PlatformSymbolResolver {
 
     #[cfg(target_os = "windows")]
     fn resolve_windows_symbol(&self, address: usize) -> Result<SymbolInfo, ResolveError> {
-        use windows_sys::Win32::Foundation::GetCurrentProcess;
         use windows_sys::Win32::Foundation::GetLastError;
         use windows_sys::Win32::System::Diagnostics::Debug::{
-            SymCleanup, SymFromAddrW, SymGetModuleBase64, SymInitializeW, SYMBOL_INFO,
+            SymCleanup, SymFromAddrW, SymGetModuleBase64, SymInitializeW, SymSetContext,
+            SYMBOL_INFO,
         };
+        use windows_sys::Win32::System::ProcessStatus::EnumProcessModules;
 
-        let process = GetCurrentProcess();
+        let process = windows_sys::Win32::Foundation::HANDLE(-1isize);
 
         unsafe {
             if SymInitializeW(process, std::ptr::null(), 1) == 0 {

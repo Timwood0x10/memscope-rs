@@ -533,8 +533,9 @@ impl PlatformMemoryInfo {
 
     #[cfg(target_os = "windows")]
     fn collect_windows_stats(&self) -> Result<MemoryStats, MemoryError> {
-        use windows_sys::Win32::System::Memory::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
-        use windows_sys::Win32::System::SystemInformation::{GetSystemInfo, SYSTEM_INFO};
+        use windows_sys::Win32::System::SystemInformation::{
+            GetSystemInfo, GlobalMemoryStatusEx, MEMORYSTATUSEX, SYSTEM_INFO,
+        };
 
         let mut mem_status: MEMORYSTATUSEX = unsafe { std::mem::zeroed() };
         mem_status.dwLength = std::mem::size_of::<MEMORYSTATUSEX>() as u32;
@@ -930,11 +931,11 @@ impl PlatformMemoryInfo {
         let page_size = sys_info.dwPageSize as u64;
         let cpu_cores = sys_info.dwNumberOfProcessors as u32;
 
-        let architecture = match sys_info.Anonymous.Anonymous.wProcessorArchitecture {
+        let architecture = match unsafe { sys_info.Anonymous.Anonymous.wProcessorArchitecture } {
             5 => "ARM",
             6 => "ARM64",
             9 => "x64",
-            12 => "ARM", // Windows on ARM
+            12 => "ARM",
             0 => "x86",
             _ => "Unknown",
         };
@@ -953,7 +954,10 @@ impl PlatformMemoryInfo {
             page_size,
             large_page_size: Some(sys_info.dwPageSize as u64),
             mmu_info: MmuInfo {
-                virtual_address_bits: if sys_info.Anonymous.Anonymous.wProcessorArchitecture == 9 {
+                virtual_address_bits: if unsafe {
+                    sys_info.Anonymous.Anonymous.wProcessorArchitecture
+                } == 9
+                {
                     48
                 } else {
                     32

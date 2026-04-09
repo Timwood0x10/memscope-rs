@@ -449,8 +449,6 @@ impl PlatformStackWalker {
             0
         }
 
-        extern "C" fn error_callback(_data: *mut c_void, _msg: *const libc::c_char) {}
-
         let mut frame_data = FrameData {
             frames: frames as *mut Vec<StackFrame>,
             max_depth: self.config.max_depth,

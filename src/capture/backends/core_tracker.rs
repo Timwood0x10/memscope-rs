@@ -569,10 +569,11 @@ mod tests {
         let tracker = MemoryTracker::new();
         tracker.track_allocation(0x1000, 1024).unwrap();
 
-        let result = tracker.export_to_json("test_export");
+        let test_id = std::process::id();
+        let result = tracker.export_to_json(format!("test_export_{}", test_id));
         assert!(result.is_ok());
 
-        std::fs::remove_file("MemoryAnalysis/test_export.json").ok();
+        std::fs::remove_file(format!("MemoryAnalysis/test_export_{}.json", test_id)).ok();
     }
 
     #[test]

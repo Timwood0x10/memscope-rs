@@ -151,7 +151,7 @@ fmt-check:
 .PHONY: clippy
 clippy:
 	@echo "$(BLUE)Running clippy...$(NC)"
-	$(CARGO) clippy --all-targets -- -D warnings
+	$(CARGO) clippy --all-targets --all-features -- -D warnings
 
 .PHONY: ci
 ci: fmt-check clippy test
