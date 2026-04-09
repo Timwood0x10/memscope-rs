@@ -1,20 +1,19 @@
 # memscope-rs
 
-[![Rust](https://img.shields.io/badge/rust-1.85+-orange.svg)](https://www.rust-lang.org)
-[![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE)
+[!\[Rust\](https://img.shields.io/badge/rust-1.85+-orange.svg null)](https://www.rust-lang.org)
+[!\[License\](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg null)](LICENSE)
 
 A high-performance memory tracking library for Rust applications with modular engine architecture.
 
 ## 🚀 v0.2.0 - Major Refactoring
 
 **Recent Changes:**
+
 - 🏗️ **Architecture Refactoring**: Migrated from monolithic to modular engine architecture
-- 📉 **Code Reduction**: ~75% code reduction (265K lines removed)
+- 📉 **Code Reduction**: \~75% code reduction (265K lines removed)
 - 🔒 **Enhanced Safety**: Eliminated all unsafe `unwrap()` calls
 - ⚡ **Performance**: Up to 98% improvement in concurrent tracking scenarios
 - 📊 **Code Stats**: 525 files changed, current codebase: 77,641 lines
-
-See [PR Summary](PR_SUMMARY_EN.md) for detailed changes and migration guide.
 
 ## Architecture
 
@@ -128,37 +127,34 @@ graph LR
 ## Quick Start
 
 ```rust
-use memscope_rs::tracker::{track_var, track_scope};
+use memscope_rs::{global_tracker, init_global_tracking, track, MemScopeResult};
 
-fn main() {
-    // Track a variable
-    let data = track_var!(vec![1, 2, 3, 4, 5]);
-    
-    // Track a scope
-    {
-        let _guard = track_scope!("processing");
-        // Your code here
-    }
-    
-    // Analyze memory usage
-    let tracker = memscope_rs::tracker::get_tracker();
+fn main() -> MemScopeResult<()> {
+    init_global_tracking()?;
+    let tracker = global_tracker()?;
+
+    let data = vec![1, 2, 3, 4, 5];
+    track!(tracker, data);
+
     let report = tracker.analyze();
     println!("Allocations: {}", report.total_allocations);
+    Ok(())
 }
 ```
 
 ## Tracking Backends
 
-| Backend      | Use Case            | Performance | Notes                          |
-| ------------ | ------------------- | ----------- | ------------------------------ |
-| CoreTracker  | Single-threaded     | ~23ns       | Simple, low overhead           |
-| LockfreeTracker | Multi-threaded   | ~39ns       | Lock-free, thread-local storage |
-| AsyncTracker | Async tasks         | ~23ns       | Task ID tracking               |
-| GlobalTracker | Global tracking    | Variable    | Shared across threads          |
+| Backend         | Use Case        | Performance | Notes                           |
+| --------------- | --------------- | ----------- | ------------------------------- |
+| CoreTracker     | Single-threaded | \~23ns      | Simple, low overhead            |
+| LockfreeTracker | Multi-threaded  | \~39ns      | Lock-free, thread-local storage |
+| AsyncTracker    | Async tasks     | \~23ns      | Task ID tracking                |
+| GlobalTracker   | Global tracking | Variable    | Shared across threads           |
 
 ## Engine Capabilities
 
 ### Analysis Engine
+
 - **Leak Detection** - Find unreleased allocations
 - **Use-After-Free Detection** - Detect UAF patterns
 - **Buffer Overflow Detection** - Find bounds violations
@@ -167,22 +163,25 @@ fn main() {
 - **Relation Inference** - Track variable relationships
 
 ### Capture Engine
+
 - **Multi-backend support** - Core, Lockfree, Async, Global
 - **Smart pointer tracking** - Rc/Arc/Box/Weak support
 - **Thread-local storage** - Efficient concurrent tracking
 - **FFI boundary tracking** - Memory passport for FFI calls
 
 ### Event Store Engine
+
 - **Lock-free queue** - High-throughput event storage
 - **Snapshot support** - Point-in-time views
 - **Thread-safe** - Concurrent read/write access
 
 ### Render Engine
+
 - **JSON Export** - Human-readable format
 - **HTML Dashboard** - Interactive visualization
-- **Binary Export** - Compact format for large datasets
 
 ### Other Engines
+
 - **Snapshot Engine** - Memory snapshot construction
 - **Timeline Engine** - Time-based memory analysis
 - **Query Engine** - Unified query interface
@@ -190,13 +189,13 @@ fn main() {
 
 ## Performance
 
-| Metric                    | Performance     | Improvement |
-| ------------------------- | -------------- | ----------- |
-| Concurrent Tracking (1)   | 98µs           | -98% ⚡      |
-| Concurrent Tracking (64)  | 1.9ms          | -25% ⚡      |
-| Analysis (100 elements)   | 30µs           | -91% ⚡      |
-| Lockfree Allocation       | 39ns           | -46% ⚡      |
-| Type Classification        | 40-56ns        | 1-21% ⚡     |
+| Metric                   | Performance | Improvement |
+| ------------------------ | ----------- | ----------- |
+| Concurrent Tracking (1)  | 98µs        | -98% ⚡      |
+| Concurrent Tracking (64) | 1.9ms       | -25% ⚡      |
+| Analysis (100 elements)  | 30µs        | -91% ⚡      |
+| Lockfree Allocation      | 39ns        | -46% ⚡      |
+| Type Classification      | 40-56ns     | 1-21% ⚡     |
 
 See [benchmarks/run.log](benches/run.log) for detailed performance data.
 
@@ -210,20 +209,20 @@ memscope-rs = "0.2.0"
 ## Migration from v0.1.x
 
 **Important Breaking Changes:**
+
 - Tracking API moved to `memscope_rs::tracker` module
 - Error handling system completely refactored
 - Some internal modules reorganized
 
 **Quick Migration:**
+
 ```rust
 // Old API (v0.1.x)
 use memscope_rs::{track, tracker};
 
 // New API (v0.2.0)
-use memscope_rs::tracker::{track_var, track_scope};
+use memscope_rs::{global_tracker, init_global_tracking, track, MemScopeResult};
 ```
-
-See [PR Summary](PR_SUMMARY_EN.md) for detailed migration guide.
 
 ## Examples
 
@@ -347,3 +346,4 @@ Licensed under MIT OR Apache-2.0.
 - Built with ❤️ for the Rust community
 - Inspired by existing memory tracking tools
 - Special thanks to all contributors
+

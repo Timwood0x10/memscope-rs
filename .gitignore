@@ -79,6 +79,8 @@ temp_*
 # Documentation build
 /target/doc/
 
+aim/
+
 # Subproject targets
 memscope-derive/target/
 doc-generator/target/
