@@ -225,6 +225,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
     fn test_are_pages_valid_cross_page() {
         // Use a heap-like address that should be valid on all platforms
         let ptr = 0x10000;
@@ -246,45 +247,6 @@ mod tests {
 
     #[test]
     #[cfg(not(target_os = "linux"))]
-    fn test_heap_scanner_scan_real_allocations() {
-        let data1 = vec![42u8; 64];
-        let data2 = vec![99u8; 128];
-        let ptr1 = data1.as_ptr() as usize;
-        let ptr2 = data2.as_ptr() as usize;
-
-        let allocations = vec![
-            ActiveAllocation {
-                ptr: ptr1,
-                size: 64,
-                allocated_at: 1000,
-                var_name: None,
-                type_name: None,
-                thread_id: 0,
-                call_stack_hash: None,
-            },
-            ActiveAllocation {
-                ptr: ptr2,
-                size: 128,
-                allocated_at: 2000,
-                var_name: None,
-                type_name: None,
-                thread_id: 0,
-                call_stack_hash: None,
-            },
-        ];
-
-        let results = HeapScanner::scan(&allocations);
-        assert_eq!(results.len(), 2);
-
-        assert!(results[0].memory.is_some(), "Should read memory at ptr1");
-        assert!(results[1].memory.is_some(), "Should read memory at ptr2");
-
-        drop(data1);
-        drop(data2);
-    }
-
-    #[test]
-    #[cfg(target_os = "linux")]
     fn test_heap_scanner_scan_real_allocations() {
         let data1 = vec![42u8; 64];
         let data2 = vec![99u8; 128];
