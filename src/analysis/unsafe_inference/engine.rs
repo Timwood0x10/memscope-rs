@@ -15,6 +15,7 @@
 //! - Enhanced CString detection with ASCII ratio
 //! - Shannon entropy analysis for binary data
 //! - Zero-fill detection
+#![allow(dead_code)]
 
 use super::memory_view::{count_valid_pointers, is_valid_ptr, MemoryView};
 
