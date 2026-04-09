@@ -269,6 +269,12 @@ pub fn init_global_tracking_with_config(config: GlobalTrackerConfig) -> MemScope
     Ok(())
 }
 
+pub fn reset_global_tracking() {
+    if let Ok(mut guard) = GLOBAL_TRACKER.write() {
+        *guard = None;
+    }
+}
+
 pub fn is_initialized() -> bool {
     GLOBAL_TRACKER
         .read()
@@ -295,12 +301,6 @@ pub fn global_tracker() -> MemScopeResult<Arc<GlobalTracker>> {
                 "Failed to acquire global tracker lock",
             )
         })?
-}
-
-pub fn reset_global_tracking() {
-    if let Ok(mut guard) = GLOBAL_TRACKER.write() {
-        *guard = None;
-    }
 }
 
 #[cfg(test)]

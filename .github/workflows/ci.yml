@@ -26,7 +26,14 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: stable
           components: rustfmt, clippy
+
+      - name: Verify toolchain
+        run: |
+          rustc --version
+          cargo --version
+          rustfmt --version
 
       - name: Handle Cargo.lock compatibility
         shell: bash

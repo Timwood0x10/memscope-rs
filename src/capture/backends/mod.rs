@@ -121,7 +121,7 @@ pub use unified_tracker::{
 // Re-export global tracking types
 pub use global_tracking::{
     global_tracker, init_global_tracking, init_global_tracking_with_config, is_initialized,
-    reset_global_tracking, GlobalTracker, GlobalTrackerConfig, GlobalTrackerStats,
+    GlobalTracker, GlobalTrackerConfig, GlobalTrackerStats,
 };
 
 /// Capture Backend trait

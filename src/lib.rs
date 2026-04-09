@@ -37,7 +37,7 @@ pub mod tracker;
 // Export simplified global tracking API
 pub use capture::backends::global_tracking::{
     global_tracker, init_global_tracking, init_global_tracking_with_config, is_initialized,
-    reset_global_tracking, GlobalTracker, GlobalTrackerConfig, GlobalTrackerStats, TrackerConfig,
+    GlobalTracker, GlobalTrackerConfig, GlobalTrackerStats, TrackerConfig,
 };
 
 /// Unified error handling and recovery system
