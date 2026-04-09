@@ -94,11 +94,11 @@ jobs:
           key: test-${{ matrix.os }}-${{ matrix.rust }}-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Run library tests
-        run: cargo test --lib --workspace
+        run: cargo test --lib --workspace -- --test-threads=1
         continue-on-error: ${{ matrix.experimental == true }}
 
       - name: Run integration tests
-        run: cargo test --test '*' --workspace
+        run: cargo test --test '*' --workspace -- --test-threads=1
         continue-on-error: ${{ matrix.experimental == true }}
 
       - name: Test examples

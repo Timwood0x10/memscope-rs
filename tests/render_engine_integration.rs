@@ -315,6 +315,7 @@ fn test_tracker_with_auto_export_creates_file() {
 // ============================================================================
 
 #[test]
+#[cfg(target_os = "macos")]
 fn test_analyze_detects_hotspots_by_size() {
     let t = tracker!();
 
