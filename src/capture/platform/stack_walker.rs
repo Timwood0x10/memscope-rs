@@ -545,7 +545,7 @@ impl PlatformStackWalker {
 
         let num_frames_usize = num_frames as usize;
 
-        for i in 0..num_frames_usize {
+        for (i, &frame) in buffer.iter().take(num_frames_usize).enumerate() {
             if frames.len() >= self.config.max_depth {
                 break;
             }
@@ -554,7 +554,7 @@ impl PlatformStackWalker {
                 continue;
             }
 
-            let ip = buffer[i] as usize;
+            let ip = frame as usize;
 
             frames.push(StackFrame {
                 ip,

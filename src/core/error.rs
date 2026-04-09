@@ -153,8 +153,8 @@ impl MemScopeError {
     /// Internal classification by module:
     /// - MemoryError: tracker, allocator, variable_registry, memory_tracker, capture
     /// - ExportError: export, render_engine, snapshot
-    /// - AnalysisError: ffi_function_resolver, call_stack_normalizer, analysis, lifecycle,
-    ///                  rule_engine, pattern_matcher, detector, unsafe_ffi_tracker
+    /// - AnalysisError: ffi_function_resolver, call_stack_normalizer, analysis,
+    ///   lifecycle, rule_engine, pattern_matcher, detector, unsafe_ffi_tracker
     /// - ConfigurationError: config, initialization
     /// - IoError: system errors (io, threading, locking, network, filesystem)
     /// - InternalError: fallback for unknown modules

@@ -3,7 +3,7 @@
 use crate::analysis::memory_passport_tracker::MemoryPassportTracker;
 use crate::tracker::Tracker;
 use handlebars::Handlebars;
-use mach2::mach_init::mach_host_self;
+#[cfg(target_os = "macos")]
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -1118,7 +1118,7 @@ impl DashboardRenderer {
                 let mut count = libc::HOST_VM_INFO64_COUNT;
                 let (available_physical, used_physical) = unsafe {
                     if libc::host_statistics64(
-                        mach_host_self(),
+                        mach2::mach_init::mach_host_self(),
                         libc::HOST_VM_INFO64,
                         &mut vm_stats as *mut _ as libc::host_info64_t,
                         &mut count,
@@ -1271,15 +1271,12 @@ impl DashboardRenderer {
                 let size = alloc.size;
 
                 // Generate ownership events from allocation info
-                let mut events = Vec::new();
-
-                // Add create event
-                events.push(crate::analysis::ownership_graph::OwnershipEvent::new(
+                let events = vec![crate::analysis::ownership_graph::OwnershipEvent::new(
                     alloc.allocated_at_ns,
                     OwnershipOp::Create,
                     id,
                     None,
-                ));
+                )];
 
                 (id, type_name, size, events)
             })

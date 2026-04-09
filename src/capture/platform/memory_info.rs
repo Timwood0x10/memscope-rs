@@ -650,7 +650,7 @@ impl PlatformMemoryInfo {
             let mut swap_usage: libc::xsw_usage = std::mem::zeroed();
             let mut size = std::mem::size_of::<libc::xsw_usage>();
             let result = libc::sysctlbyname(
-                b"vm.swapusage\0".as_ptr() as *const i8,
+                c"vm.swapusage".as_ptr(),
                 &mut swap_usage as *mut libc::xsw_usage as *mut libc::c_void,
                 &mut size,
                 std::ptr::null_mut(),

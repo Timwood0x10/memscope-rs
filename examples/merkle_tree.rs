@@ -31,18 +31,18 @@ impl Hash {
             let data_len = data.len();
 
             // Simple hash function (not cryptographically secure)
-            for i in 0..32 {
+            for (i, byte) in hash.iter_mut().enumerate() {
                 let mut byte_sum: u8 = 0;
                 let mut multiplier = 1u8;
 
                 for j in 0..data_len {
-                    let byte_ptr = data_ptr.add(j) as *const u8;
+                    let byte_ptr = data_ptr.add(j);
                     let byte_val = *byte_ptr;
                     byte_sum = byte_sum.wrapping_add(byte_val.wrapping_mul(multiplier));
                     multiplier = multiplier.wrapping_mul(17);
                 }
 
-                hash[i] = byte_sum.wrapping_add(i as u8);
+                *byte = byte_sum.wrapping_add(i as u8);
             }
         }
         Hash(hash)
@@ -69,6 +69,16 @@ impl MerkleNode {
         MerkleNode::Leaf(hash, data)
     }
 
+    /// # Safety
+    ///
+    /// This function performs unsafe raw pointer operations to manually combine hash values.
+    ///
+    /// # Safety Requirements
+    ///
+    /// - Both `left` and `right` must be valid MerkleNode instances
+    /// - The hash arrays in both nodes must be properly initialized
+    /// - Memory access patterns must be within bounds
+    /// - The function must only be called when direct memory manipulation is required
     pub unsafe fn branch_unsafe(left: MerkleNode, right: MerkleNode) -> Self {
         let left_hash = left.hash();
         let right_hash = right.hash();
@@ -102,10 +112,8 @@ impl MerkleNode {
         let right_hash = right.hash();
 
         let mut combined = [0u8; 64];
-        for i in 0..32 {
-            combined[i] = left_hash.0[i];
-            combined[i + 32] = right_hash.0[i];
-        }
+        combined[..32].copy_from_slice(&left_hash.0);
+        combined[32..(32 + 32)].copy_from_slice(&right_hash.0);
 
         let hash = Hash::from_data(&combined);
         MerkleNode::Branch(hash, Box::new(left), Box::new(right))
@@ -133,6 +141,16 @@ impl MerkleTree {
         }
     }
 
+    /// # Safety
+    ///
+    /// This function performs unsafe raw pointer operations to add leaf data to the tree.
+    ///
+    /// # Safety Requirements
+    ///
+    /// - `data` must be a valid Vec<u8> with properly allocated memory
+    /// - The data pointer must remain valid for the duration of the function call
+    /// - The function must only be called when direct memory manipulation is required
+    /// - The caller must ensure the data is properly owned and not used elsewhere
     pub unsafe fn add_leaf_unsafe(&mut self, data: Vec<u8>) {
         // Use raw pointer to manipulate leaves vector
         let data_ptr = data.as_ptr();
@@ -155,6 +173,17 @@ impl MerkleTree {
         self.rebuild_tree();
     }
 
+    /// # Safety
+    ///
+    /// This function performs unsafe raw pointer operations to rebuild the Merkle tree.
+    ///
+    /// # Safety Requirements
+    ///
+    /// - `self.leaves` must be a valid vector with properly allocated memory
+    /// - All leaf data must remain valid and not be modified during tree construction
+    /// - Raw pointer access to `current_level` must stay within bounds
+    /// - The function must only be called when direct memory manipulation is required
+    /// - The tree structure must be rebuildable from the current leaf data
     pub unsafe fn rebuild_tree_unsafe(&mut self) {
         if self.leaves.is_empty() {
             self.root = None;
@@ -243,6 +272,17 @@ impl MerkleTree {
         self.leaves.len()
     }
 
+    /// # Safety
+    ///
+    /// This function performs unsafe raw pointer operations to verify leaf hash.
+    ///
+    /// # Safety Requirements
+    ///
+    /// - `index` must be within bounds of `self.leaves` (0 <= index < leaves.len())
+    /// - `self.leaves` must be a valid vector with properly allocated memory
+    /// - The leaf data at the specified index must remain valid during verification
+    /// - Raw pointer access to leaves and hash arrays must stay within bounds
+    /// - The function must only be called when direct memory manipulation is required
     pub unsafe fn verify_leaf_unsafe(&self, index: usize, expected_hash: Hash) -> bool {
         if index >= self.leaves.len() {
             return false;

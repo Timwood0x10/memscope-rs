@@ -12,25 +12,13 @@ use super::types::MemScopeError;
 use crate::core::error::{ErrorContext, ErrorSeverity};
 
 /// Error statistics for monitoring and analysis
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ErrorStats {
     pub total_errors: u64,
     pub by_severity: HashMap<String, u64>,
     pub by_module: HashMap<String, u64>,
     pub by_kind: HashMap<String, u64>,
     pub recent_errors: Vec<ErrorRecord>,
-}
-
-impl Default for ErrorStats {
-    fn default() -> Self {
-        Self {
-            total_errors: 0,
-            by_severity: HashMap::new(),
-            by_module: HashMap::new(),
-            by_kind: HashMap::new(),
-            recent_errors: Vec::new(),
-        }
-    }
 }
 
 /// Individual error record for tracking
@@ -52,6 +40,12 @@ pub struct ErrorManager {
 }
 
 use std::sync::atomic::AtomicBool;
+
+impl Default for ErrorManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl ErrorManager {
     pub fn new() -> Self {

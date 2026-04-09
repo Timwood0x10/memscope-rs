@@ -1113,15 +1113,12 @@ fn build_ownership_graph_from_allocations(
             let size = alloc.size;
 
             // Generate ownership events from allocation info
-            let mut events = Vec::new();
-
-            // Add create event
-            events.push(crate::analysis::ownership_graph::OwnershipEvent::new(
+            let events = vec![crate::analysis::ownership_graph::OwnershipEvent::new(
                 alloc.timestamp_alloc,
                 OwnershipOp::Create,
                 id,
                 None,
-            ));
+            )];
 
             // Detect smart pointer clones from type name
             if type_name.contains("Arc<") || type_name.contains("Rc<") {

@@ -317,8 +317,8 @@ mod tests {
     fn test_clone_detection_partial_similarity() {
         let content_a = vec![0xAAu8; 64];
         let mut content_b = vec![0xAAu8; 64];
-        for i in 50..64 {
-            content_b[i] = 0xBB;
+        for item in content_b.iter_mut().skip(50).take(14) {
+            *item = 0xBB;
         }
 
         let records = vec![
@@ -402,8 +402,8 @@ mod tests {
     fn test_clone_detection_no_stack_hash_partial_similarity_rejected() {
         let content_a = vec![0xAAu8; 64];
         let mut content_b = vec![0xAAu8; 64];
-        for i in 60..64 {
-            content_b[i] = 0xBB;
+        for item in content_b.iter_mut().skip(60).take(4) {
+            *item = 0xBB;
         }
 
         let records = vec![

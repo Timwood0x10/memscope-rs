@@ -78,7 +78,7 @@ impl ErrorHandler {
     pub fn get_error_counts(&self) -> HashMap<ErrorKind, usize> {
         self.error_counts
             .iter()
-            .map(|(kind, count)| (kind.clone(), count.load(Ordering::Relaxed)))
+            .map(|(kind, count)| (*kind, count.load(Ordering::Relaxed)))
             .collect()
     }
 
@@ -109,7 +109,7 @@ impl ErrorHandler {
         let most_common = counts
             .iter()
             .max_by_key(|(_, count)| *count)
-            .map(|(kind, count)| (kind.clone(), *count));
+            .map(|(kind, count)| (*kind, *count));
 
         let error_rate = if let Ok(recent) = self.recent_errors.lock() {
             if recent.is_empty() {
@@ -310,9 +310,7 @@ impl ErrorFrequencyAnalysis {
 
     /// Get the most problematic error type
     pub fn get_primary_concern(&self) -> Option<ErrorKind> {
-        self.most_common_error
-            .as_ref()
-            .map(|(kind, _)| kind.clone())
+        self.most_common_error.as_ref().map(|(kind, _)| *kind)
     }
 
     /// Generate summary report

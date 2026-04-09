@@ -484,7 +484,7 @@ impl VariableRelationshipBuilder {
                 },
                 weak_count: None,
                 is_weak_reference: false,
-                is_data_owner: node_sp_info.ref_count.map_or(true, |c| c > 0),
+                is_data_owner: node_sp_info.ref_count.is_none_or(|c| c > 0),
                 is_implicitly_deallocated: false,
                 pointer_type: match node_sp_info.pointer_type.as_str() {
                     "Rc" => crate::capture::types::smart_pointer::SmartPointerType::Rc,
