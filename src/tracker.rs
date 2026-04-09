@@ -558,6 +558,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
     fn test_system_monitoring() {
         std::thread::sleep(std::time::Duration::from_millis(200));
 

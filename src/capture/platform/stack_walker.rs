@@ -404,6 +404,7 @@ impl PlatformStackWalker {
     }
 
     #[cfg(target_os = "linux")]
+    #[allow(dead_code)] // Fallback for when backtrace feature is disabled
     fn walk_linux_stack_fallback(&self, frames: &mut Vec<StackFrame>) -> Result<(), WalkError> {
         use libc::{backtrace, c_void};
 
@@ -430,14 +431,14 @@ impl PlatformStackWalker {
                 return 0;
             }
 
-            if (*frame_data).frames.is_null() {
+            if frame_data.frames.is_null() {
                 return -1;
             }
 
             let frames = unsafe { &mut *frame_data.frames };
             if frames.len() < frame_data.max_depth {
                 frames.push(StackFrame {
-                    ip: ip as usize,
+                    ip,
                     fp: None,
                     sp: None,
                     module_base: None,

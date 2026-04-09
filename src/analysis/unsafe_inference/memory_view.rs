@@ -215,14 +215,10 @@ fn get_valid_regions_impl() -> ValidRegions {
 /// Get conservative memory regions as fallback
 #[cfg(target_os = "linux")]
 fn get_conservative_regions() -> ValidRegions {
-    let mut regions = Vec::new();
-
-    // Add single wide region covering entire user-space
-    // On Linux, this covers both stack and heap
-    regions.push(MemoryRegion {
+    let regions = vec![MemoryRegion {
         start: 0x10000,
         end: 0x7FFF_FFFF_FFFF_FFFF, // x64 address space
-    });
+    }];
 
     ValidRegions::from_regions(regions)
 }
@@ -624,6 +620,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
     fn test_is_valid_ptr_static() {
         assert!(!is_valid_ptr_static(0));
         assert!(!is_valid_ptr_static(0x1000));
@@ -633,6 +630,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
     fn test_is_valid_ptr() {
         // Should work with either dynamic or static
         assert!(!is_valid_ptr(0));
@@ -642,9 +640,68 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
     fn test_count_valid_pointers() {
         let mut data = [0u8; 24];
         let valid_ptr: usize = 0x10000;
+        data[..8].copy_from_slice(&valid_ptr.to_le_bytes());
+
+        let view = MemoryView::new(&data);
+        assert_eq!(count_valid_pointers(&view), 1);
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn test_is_valid_ptr_static() {
+        assert!(!is_valid_ptr_static(0));
+        assert!(!is_valid_ptr_static(0x1000));
+        assert!(is_valid_ptr_static(0x10000));
+        assert!(is_valid_ptr_static(0x7fff_ffff_0000));
+        assert!(!is_valid_ptr_static(0xffff_ffff_ffff_ffff));
+    }
+
+    #[test]
+    #[cfg(target_os = "windows")]
+    fn test_is_valid_ptr_static() {
+        assert!(!is_valid_ptr_static(0));
+        assert!(!is_valid_ptr_static(0x1000));
+        assert!(is_valid_ptr_static(0x000000014000));
+        assert!(is_valid_ptr_static(0x00007fff_ffff0000));
+        assert!(!is_valid_ptr_static(0xffff_ffff_ffff_ffff));
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn test_is_valid_ptr() {
+        assert!(!is_valid_ptr(0));
+        assert!(!is_valid_ptr(0x1000));
+        assert!(is_valid_ptr(0x10000));
+    }
+
+    #[test]
+    #[cfg(target_os = "windows")]
+    fn test_is_valid_ptr() {
+        assert!(!is_valid_ptr(0));
+        assert!(!is_valid_ptr(0x1000));
+        assert!(is_valid_ptr(0x000000014000));
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn test_count_valid_pointers() {
+        let mut data = [0u8; 24];
+        let valid_ptr: usize = 0x555555554000;
+        data[..8].copy_from_slice(&valid_ptr.to_le_bytes());
+
+        let view = MemoryView::new(&data);
+        assert_eq!(count_valid_pointers(&view), 1);
+    }
+
+    #[test]
+    #[cfg(target_os = "windows")]
+    fn test_count_valid_pointers() {
+        let mut data = [0u8; 24];
+        let valid_ptr: usize = 0x000000014000;
         data[..8].copy_from_slice(&valid_ptr.to_le_bytes());
 
         let view = MemoryView::new(&data);

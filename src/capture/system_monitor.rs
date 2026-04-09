@@ -16,6 +16,7 @@
 
 #![allow(warnings, unused)]
 
+use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
@@ -378,7 +379,7 @@ impl Drop for SystemMonitor {
     }
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CorrelationAnalysis {
     pub cpu_memory_correlation: f64,
     pub io_intensity_mb_per_sec: f64,
@@ -387,7 +388,7 @@ pub struct CorrelationAnalysis {
     pub system_load_score: f64,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PerformanceScore {
     pub cpu_efficiency: f64,
     pub memory_efficiency: f64,

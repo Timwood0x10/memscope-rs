@@ -866,7 +866,7 @@ impl PlatformMemoryInfo {
                     if line.contains("cache size") {
                         // Format: "cache size : 6144 KB"
                         if let Some(kb_str) = line.split(':').nth(1) {
-                            if let Some(kb_val) = kb_str.trim().split_whitespace().next() {
+                            if let Some(kb_val) = kb_str.split_whitespace().next() {
                                 if let Ok(kb) = kb_val.parse::<u64>() {
                                     let bytes = kb * 1024;
                                     // Heuristic: L1 < 256KB, L2 < 4MB, L3 >= 4MB
