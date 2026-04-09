@@ -459,10 +459,13 @@ impl PlatformStackWalker {
         };
 
         unsafe {
-            let mut data = frame_data as *mut FrameData as *mut c_void;
-            let result = backtrace(callback, error_callback, &mut data);
-            if result < 0 {
-                return Err(WalkError::Unknown("backtrace failed".to_string()));
+            let mut buffer: [*mut libc::c_void; 64] = [std::ptr::null_mut(); 64];
+            let result = backtrace(buffer.as_mut_ptr(), buffer.len() as libc::c_int);
+            if result > 0 {
+                for i in 0..result {
+                    let ip = buffer[i as usize] as libc::uintptr_t;
+                    let _ = callback(&mut frame_data as *mut FrameData as *mut c_void, ip, 0, 0);
+                }
             }
         }
 

@@ -1,3 +1,5 @@
+#![allow(warnings, unused)]
+
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -397,7 +399,7 @@ impl PlatformSymbolResolver {
             };
 
             let base_address = info.dli_fbase as usize;
-            let offset = address.saturating_sub(base_address);
+            let _offset = address.saturating_sub(base_address);
 
             // Extract module_name before moving file_path
             let module_name = file_path
@@ -671,7 +673,7 @@ mod tests {
         let _ = resolver.initialize();
 
         let address = 0x12345678;
-        let _result = resolver.resolve_symbol(address);
+        let result = resolver.resolve_symbol(address);
 
         #[cfg(target_os = "linux")]
         {
@@ -692,10 +694,10 @@ mod tests {
         let address = 0x12345678;
 
         let _ = resolver.resolve_symbol(address);
-        let _stats1 = resolver.get_statistics();
+        let stats1 = resolver.get_statistics();
 
         let _ = resolver.resolve_symbol(address);
-        let _stats2 = resolver.get_statistics();
+        let stats2 = resolver.get_statistics();
 
         #[cfg(target_os = "linux")]
         {
@@ -732,7 +734,7 @@ mod tests {
         let _ = resolver.initialize();
 
         let address = 0x12345678;
-        let _module = resolver.get_module_info(address);
+        let module = resolver.get_module_info(address);
 
         #[cfg(target_os = "linux")]
         {

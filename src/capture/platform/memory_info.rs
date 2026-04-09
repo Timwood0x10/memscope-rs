@@ -29,8 +29,21 @@ pub struct MemoryStats {
     pub timestamp: Instant,
 }
 
+impl Default for MemoryStats {
+    fn default() -> Self {
+        MemoryStats {
+            virtual_memory: VirtualMemoryStats::default(),
+            physical_memory: PhysicalMemoryStats::default(),
+            process_memory: ProcessMemoryStats::default(),
+            system_memory: SystemMemoryStats::default(),
+            pressure_indicators: PressureIndicators::default(),
+            timestamp: Instant::now(),
+        }
+    }
+}
+
 /// Virtual memory statistics
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct VirtualMemoryStats {
     /// Total virtual address space
     pub total_virtual: u64,
@@ -45,7 +58,7 @@ pub struct VirtualMemoryStats {
 }
 
 /// Physical memory statistics
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct PhysicalMemoryStats {
     /// Total physical memory (RAM)
     pub total_physical: u64,
@@ -76,8 +89,20 @@ pub struct SwapStats {
     pub swap_out_rate: f64,
 }
 
+impl Default for SwapStats {
+    fn default() -> Self {
+        SwapStats {
+            total_swap: 0,
+            used_swap: 0,
+            available_swap: 0,
+            swap_in_rate: 0.0,
+            swap_out_rate: 0.0,
+        }
+    }
+}
+
 /// Process-specific memory statistics
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ProcessMemoryStats {
     /// Process virtual memory size
     pub virtual_size: u64,
@@ -116,8 +141,22 @@ pub struct SystemMemoryStats {
     pub large_pages: LargePageStats,
 }
 
+impl Default for SystemMemoryStats {
+    fn default() -> Self {
+        SystemMemoryStats {
+            allocation_count: 0,
+            deallocation_count: 0,
+            active_allocations: 0,
+            total_allocated: 0,
+            total_deallocated: 0,
+            fragmentation_level: 0.0,
+            large_pages: LargePageStats::default(),
+        }
+    }
+}
+
 /// Large page usage statistics
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct LargePageStats {
     /// Whether large pages are supported
     pub supported: bool,
@@ -144,10 +183,23 @@ pub struct PressureIndicators {
     pub gc_pressure: Option<f64>,
 }
 
+impl Default for PressureIndicators {
+    fn default() -> Self {
+        PressureIndicators {
+            pressure_level: PressureLevel::default(),
+            low_memory: false,
+            swapping_active: false,
+            allocation_failure_rate: 0.0,
+            gc_pressure: None,
+        }
+    }
+}
+
 /// Memory pressure levels
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub enum PressureLevel {
     /// Normal memory pressure
+    #[default]
     Normal,
     /// Moderate memory pressure
     Moderate,

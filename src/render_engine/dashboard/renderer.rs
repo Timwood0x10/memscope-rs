@@ -3,7 +3,6 @@
 use crate::analysis::memory_passport_tracker::MemoryPassportTracker;
 use crate::tracker::Tracker;
 use handlebars::Handlebars;
-#[cfg(target_os = "macos")]
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -1158,9 +1157,9 @@ impl DashboardRenderer {
                     "unknown".to_string(),
                     1,
                     4096,
-                    16 * 1024 * 1024 * 1024,
-                    8 * 1024 * 1024 * 1024,
-                    8 * 1024 * 1024 * 1024,
+                    16_u64 * 1024 * 1024 * 1024,
+                    8_u64 * 1024 * 1024 * 1024,
+                    8_u64 * 1024 * 1024 * 1024,
                 )
             }
         };

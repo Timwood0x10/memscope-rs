@@ -219,6 +219,14 @@ impl StackTraceCapture {
         0
     }
 
+    #[cfg(target_os = "linux")]
+    #[cfg_attr(feature = "backtrace", allow(dead_code))]
+    fn get_current_instruction_pointer(&self) -> usize {
+        // Platform-specific implementation would use __builtin_return_address or similar
+        // Real stack trace is captured via backtrace crate in walk_stack
+        0
+    }
+
     #[cfg_attr(feature = "backtrace", allow(dead_code))]
     fn walk_stack_frame(&self, _current_ip: usize) -> Option<usize> {
         // Platform-specific stack walking implementation
