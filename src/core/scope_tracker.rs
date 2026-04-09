@@ -1,6 +1,7 @@
 //! Scope tracking functionality for memory analysis
 
 use crate::core::types::*;
+use crate::core::{MemScopeError, MemScopeResult, SystemErrorType};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, RwLock};
@@ -53,17 +54,26 @@ impl ScopeTracker {
     }
 
     /// Enter a new scope
-    pub fn enter_scope(&self, name: String) -> TrackingResult<ScopeId> {
+    pub fn enter_scope(&self, name: String) -> MemScopeResult<ScopeId> {
         let scope_id = self.allocate_scope_id();
         let thread_id = format!("{:?}", std::thread::current().id());
         let timestamp = current_timestamp();
 
-        // Determine parent scope and depth
         let (parent_scope, depth) = {
-            let stack = self.scope_stack.read().unwrap();
+            let stack = self.scope_stack.read().map_err(|e| {
+                MemScopeError::system(
+                    SystemErrorType::Locking,
+                    format!("Failed to acquire scope_stack read lock: {}", e),
+                )
+            })?;
             if let Some(thread_stack) = stack.get(&thread_id) {
                 if let Some(&parent_id) = thread_stack.last() {
-                    let active = self.active_scopes.read().unwrap();
+                    let active = self.active_scopes.read().map_err(|e| {
+                        MemScopeError::system(
+                            SystemErrorType::Locking,
+                            format!("Failed to acquire active_scopes read lock: {}", e),
+                        )
+                    })?;
                     if let Some(parent) = active.get(&parent_id) {
                         (Some(parent.name.clone()), parent.depth + 1)
                     } else {
@@ -77,7 +87,6 @@ impl ScopeTracker {
             }
         };
 
-        // Create scope info
         let scope_info = ScopeInfo {
             name: name.clone(),
             parent: parent_scope.clone(),
@@ -97,21 +106,28 @@ impl ScopeTracker {
             parent_scope: parent_scope.clone(),
         };
 
-        // Add to active scopes
         self.active_scopes
             .write()
-            .unwrap()
+            .map_err(|e| {
+                MemScopeError::system(
+                    SystemErrorType::Locking,
+                    format!("Failed to acquire active_scopes write lock: {}", e),
+                )
+            })?
             .insert(scope_id, scope_info);
 
-        // Update scope stack
         self.scope_stack
             .write()
-            .unwrap()
+            .map_err(|e| {
+                MemScopeError::system(
+                    SystemErrorType::Locking,
+                    format!("Failed to acquire scope_stack write lock: {}", e),
+                )
+            })?
             .entry(thread_id.clone())
             .or_default()
             .push(scope_id);
 
-        // Update hierarchy
         if let Ok(mut hierarchy) = self.scope_hierarchy.lock() {
             hierarchy.depth_map.insert(name.clone(), depth);
 
@@ -130,25 +146,25 @@ impl ScopeTracker {
     }
 
     /// Exit a scope
-    pub fn exit_scope(&self, scope_id: ScopeId) -> TrackingResult<()> {
+    pub fn exit_scope(&self, scope_id: ScopeId) -> MemScopeResult<()> {
         let thread_id = format!("{:?}", std::thread::current().id());
         let timestamp = current_timestamp();
 
-        // Remove from active scopes and get scope info
         let mut scope_info = self
             .active_scopes
             .write()
-            .unwrap()
+            .map_err(|e| {
+                MemScopeError::system(
+                    SystemErrorType::Locking,
+                    format!("Failed to acquire active_scopes write lock: {}", e),
+                )
+            })?
             .remove(&scope_id)
-            .ok_or_else(|| {
-                TrackingError::InvalidPointer(format!("Invalid scope ID: {scope_id}"))
-            })?;
+            .ok_or_else(|| MemScopeError::internal(format!("Invalid scope ID: {scope_id}")))?;
 
-        // Update end time
         scope_info.end_time = Some(timestamp as u64);
         scope_info.lifetime_end = Some(timestamp as u64);
 
-        // Update scope stack
         if let Ok(mut stack) = self.scope_stack.write() {
             if let Some(thread_stack) = stack.get_mut(&thread_id) {
                 if let Some(pos) = thread_stack.iter().position(|&id| id == scope_id) {
@@ -157,7 +173,6 @@ impl ScopeTracker {
             }
         }
 
-        // Add to completed scopes
         if let Ok(mut completed_scopes) = self.completed_scopes.lock() {
             completed_scopes.push(scope_info);
         }
@@ -165,19 +180,22 @@ impl ScopeTracker {
         Ok(())
     }
 
-    /// Associate a variable with the current scope
     pub fn associate_variable(
         &self,
         variable_name: String,
         memory_size: usize,
-    ) -> TrackingResult<()> {
+    ) -> MemScopeResult<()> {
         let thread_id = format!("{:?}", std::thread::current().id());
 
-        // Find current scope for this thread
         let current_scope_id = self
             .scope_stack
             .read()
-            .unwrap()
+            .map_err(|e| {
+                MemScopeError::system(
+                    SystemErrorType::Locking,
+                    format!("Failed to acquire scope_stack read lock: {}", e),
+                )
+            })?
             .get(&thread_id)
             .and_then(|stack| stack.last().copied());
 
@@ -195,17 +213,20 @@ impl ScopeTracker {
         Ok(())
     }
 
-    /// Get current scope analysis
-    pub fn get_scope_analysis(&self) -> TrackingResult<ScopeAnalysis> {
+    pub fn get_scope_analysis(&self) -> MemScopeResult<ScopeAnalysis> {
         let mut all_scopes: Vec<ScopeInfo> = self
             .active_scopes
             .read()
-            .unwrap()
+            .map_err(|e| {
+                MemScopeError::system(
+                    SystemErrorType::Locking,
+                    format!("Failed to acquire active_scopes read lock: {}", e),
+                )
+            })?
             .values()
             .cloned()
             .collect();
 
-        // Add completed scopes
         if let Ok(completed_scopes) = self.completed_scopes.lock() {
             all_scopes.extend(completed_scopes.iter().cloned());
         }
@@ -235,8 +256,7 @@ impl ScopeTracker {
         })
     }
 
-    /// Get scope lifecycle metrics
-    pub fn get_scope_lifecycle_metrics(&self) -> TrackingResult<Vec<ScopeLifecycleMetrics>> {
+    pub fn get_scope_lifecycle_metrics(&self) -> MemScopeResult<Vec<ScopeLifecycleMetrics>> {
         let metrics = if let Ok(completed_scopes) = self.completed_scopes.lock() {
             completed_scopes
                 .iter()
@@ -285,15 +305,11 @@ impl ScopeTracker {
         Ok(metrics)
     }
 
-    /// Get all scopes (active and completed) for data localization
     pub fn get_all_scopes(&self) -> Vec<ScopeInfo> {
-        let mut all_scopes: Vec<ScopeInfo> = self
-            .active_scopes
-            .read()
-            .unwrap()
-            .values()
-            .cloned()
-            .collect();
+        let mut all_scopes: Vec<ScopeInfo> = match self.active_scopes.read() {
+            Ok(active) => active.values().cloned().collect(),
+            Err(_) => Vec::new(),
+        };
 
         if let Ok(completed_scopes) = self.completed_scopes.lock() {
             all_scopes.extend(completed_scopes.iter().cloned());
@@ -321,15 +337,13 @@ pub struct ScopeGuard {
 }
 
 impl ScopeGuard {
-    /// Enter a new scope with automatic cleanup
-    pub fn enter(name: &str) -> TrackingResult<Self> {
+    pub fn enter(name: &str) -> MemScopeResult<Self> {
         let tracker = get_global_scope_tracker();
         let scope_id = tracker.enter_scope(name.to_string())?;
 
         Ok(Self { scope_id, tracker })
     }
 
-    /// Get the scope ID
     pub fn scope_id(&self) -> ScopeId {
         self.scope_id
     }

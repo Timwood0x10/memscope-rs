@@ -360,8 +360,13 @@ impl PatternMatcher {
     }
 
     /// Get pattern statistics
-    pub fn get_stats(&self) -> PatternMatcherStats {
-        let cache = self.cache.lock().unwrap();
+    pub fn get_stats(&self) -> MemScopeResult<PatternMatcherStats> {
+        let cache = self.cache.lock().map_err(|e| {
+            MemScopeError::system(
+                crate::core::error::SystemErrorType::Locking,
+                format!("Failed to acquire pattern cache lock: {}", e),
+            )
+        })?;
         let total_patterns = self.patterns.len();
         let cached_inputs = cache.len();
 
@@ -372,12 +377,12 @@ impl PatternMatcher {
             }
         }
 
-        PatternMatcherStats {
+        Ok(PatternMatcherStats {
             total_patterns,
             cached_inputs,
             fuzzy_threshold: self.fuzzy_threshold,
             tag_distribution,
-        }
+        })
     }
 
     /// Get all pattern IDs

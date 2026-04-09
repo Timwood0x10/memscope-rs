@@ -1,3 +1,4 @@
+use crate::core::{MemScopeError, MemScopeResult};
 use regex::Regex;
 use std::collections::HashMap;
 use std::sync::OnceLock;
@@ -339,19 +340,24 @@ impl TypeClassifier {
     }
 
     /// Get statistics about type classification
-    pub fn get_stats(&self) -> ClassificationStats {
-        let cache = self.cache.lock().unwrap();
+    pub fn get_stats(&self) -> MemScopeResult<ClassificationStats> {
+        let cache = self.cache.lock().map_err(|e| {
+            MemScopeError::system(
+                crate::core::error::SystemErrorType::Locking,
+                format!("Failed to acquire classification cache lock: {}", e),
+            )
+        })?;
         let mut category_counts: HashMap<TypeCategory, usize> = HashMap::new();
 
         for category in cache.values() {
             *category_counts.entry(category.clone()).or_insert(0) += 1;
         }
 
-        ClassificationStats {
+        Ok(ClassificationStats {
             total_types_classified: cache.len(),
             category_counts,
-            cache_hit_ratio: 1.0, // Since we always cache results
-        }
+            cache_hit_ratio: 1.0,
+        })
     }
 
     /// Clear the classification cache
@@ -573,13 +579,11 @@ mod tests {
         classifier.classify("Vec<u8>");
         classifier.classify("Option<i32>");
 
-        let stats = classifier.get_stats();
+        let stats = classifier.get_stats().unwrap();
         assert_eq!(stats.total_types_classified, 4);
         assert!(stats.category_counts.contains_key(&TypeCategory::Primitive));
         assert!(stats.category_counts.contains_key(&TypeCategory::String));
-        assert!(stats
-            .category_counts
-            .contains_key(&TypeCategory::Collection));
+        assert!(stats.category_counts.contains_key(&TypeCategory::Collection));
         assert!(stats.category_counts.contains_key(&TypeCategory::Option));
     }
 }

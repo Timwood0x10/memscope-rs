@@ -3,6 +3,7 @@
 //! This module provides the TimelineEngine which is responsible for
 //! time-based analysis and replay of memory events.
 
+use crate::core::{MemScopeError, MemScopeResult};
 use crate::event_store::{MemoryEvent, SharedEventStore};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::RwLock;
@@ -22,25 +23,35 @@ impl TimelineEngine {
         }
     }
 
-    fn ensure_sorted_cache(&self) {
+    fn ensure_sorted_cache(&self) -> MemScopeResult<()> {
         // Double-check locking pattern to avoid TOCTOU race condition
         let current_count = self.event_store.len();
 
         // First check: read-only
         {
-            let cache = self.cached_events.read().unwrap();
+            let cache = self.cached_events.read().map_err(|e| {
+                MemScopeError::system(
+                    crate::core::error::SystemErrorType::Locking,
+                    format!("Failed to acquire cached_events read lock: {}", e),
+                )
+            })?;
             if cache.len() == current_count {
-                return;
+                return Ok(());
             }
         }
 
         // Second check: acquire write lock
         {
-            let mut cache = self.cached_events.write().unwrap();
+            let mut cache = self.cached_events.write().map_err(|e| {
+                MemScopeError::system(
+                    crate::core::error::SystemErrorType::Locking,
+                    format!("Failed to acquire cached_events write lock: {}", e),
+                )
+            })?;
 
             // Check again in case another thread already updated the cache
             if cache.len() == current_count {
-                return;
+                return Ok(());
             }
 
             // Rebuild cache
@@ -48,24 +59,30 @@ impl TimelineEngine {
             cache.sort_by_key(|e| e.timestamp);
             self.cache_version.fetch_add(1, Ordering::Relaxed);
         }
+        Ok(())
     }
 
-    pub fn get_events_in_range(&self, start: u64, end: u64) -> Vec<MemoryEvent> {
-        self.ensure_sorted_cache();
+    pub fn get_events_in_range(&self, start: u64, end: u64) -> MemScopeResult<Vec<MemoryEvent>> {
+        self.ensure_sorted_cache()?;
 
-        let cache = self.cached_events.read().unwrap();
+        let cache = self.cached_events.read().map_err(|e| {
+            MemScopeError::system(
+                crate::core::error::SystemErrorType::Locking,
+                format!("Failed to acquire cached_events read lock: {}", e),
+            )
+        })?;
         if cache.is_empty() {
-            return Vec::new();
+            return Ok(Vec::new());
         }
 
         let start_idx = cache.partition_point(|e| e.timestamp < start);
         let end_idx = cache.partition_point(|e| e.timestamp < end);
 
         if start_idx >= end_idx {
-            return Vec::new();
+            return Ok(Vec::new());
         }
 
-        cache[start_idx..end_idx].to_vec()
+        Ok(cache[start_idx..end_idx].to_vec())
     }
 
     pub fn get_events_for_pointer(&self, ptr: usize) -> Vec<MemoryEvent> {
@@ -97,7 +114,7 @@ impl TimelineEngine {
             .collect()
     }
 
-    pub fn replay_up_to(&self, timestamp: u64) -> Vec<MemoryEvent> {
+    pub fn replay_up_to(&self, timestamp: u64) -> MemScopeResult<Vec<MemoryEvent>> {
         self.get_events_in_range(0, timestamp)
     }
 
@@ -109,18 +126,23 @@ impl TimelineEngine {
         self.event_store.len()
     }
 
-    pub fn get_time_range(&self) -> Option<(u64, u64)> {
-        self.ensure_sorted_cache();
+    pub fn get_time_range(&self) -> MemScopeResult<Option<(u64, u64)>> {
+        self.ensure_sorted_cache()?;
 
-        let cache = self.cached_events.read().unwrap();
+        let cache = self.cached_events.read().map_err(|e| {
+            MemScopeError::system(
+                crate::core::error::SystemErrorType::Locking,
+                format!("Failed to acquire cached_events read lock: {}", e),
+            )
+        })?;
         if cache.is_empty() {
-            return None;
+            return Ok(None);
         }
 
-        Some((
+        Ok(Some((
             cache.first().unwrap().timestamp,
             cache.last().unwrap().timestamp,
-        ))
+        )))
     }
 }
 
@@ -135,7 +157,7 @@ mod tests {
         let event_store = Arc::new(EventStore::new());
         let engine = TimelineEngine::new(event_store);
         let events = engine.get_events_in_range(0, u64::MAX);
-        assert!(events.is_empty());
+        assert!(events.unwrap().is_empty());
     }
 
     #[test]
@@ -169,7 +191,7 @@ mod tests {
         event_store.record(MemoryEvent::allocate(0x2000, 2048, 1));
 
         let engine = TimelineEngine::new(event_store);
-        let events = engine.replay_up_to(u64::MAX);
+        let events = engine.replay_up_to(u64::MAX).unwrap();
 
         assert_eq!(events.len(), 2);
     }
@@ -186,7 +208,7 @@ mod tests {
 
         let engine = TimelineEngine::new(event_store);
 
-        let events = engine.get_events_in_range(100000, 200000);
+        let events = engine.get_events_in_range(100000, 200000).unwrap();
         assert_eq!(events.len(), 100);
 
         assert!(events.first().unwrap().timestamp >= 100000);
@@ -206,7 +228,7 @@ mod tests {
         event_store.record(e2);
 
         let engine = TimelineEngine::new(event_store);
-        let range = engine.get_time_range();
+        let range = engine.get_time_range().unwrap();
 
         assert_eq!(range, Some((100, 500)));
     }

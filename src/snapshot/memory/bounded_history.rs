@@ -4,6 +4,7 @@
 //! and age-based expiration, addressing the unlimited memory growth issue
 //! identified in the improvement plan.
 
+use crate::core::{MemScopeError, MemScopeResult};
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
@@ -113,8 +114,14 @@ where
         Self::with_config(BoundedHistoryConfig::default())
     }
 
-    pub fn last_cleanup(&self) -> Instant {
-        *self.last_cleanup.lock().unwrap()
+    pub fn last_cleanup(&self) -> MemScopeResult<Instant> {
+        let last = self.last_cleanup.lock().map_err(|e| {
+            MemScopeError::system(
+                crate::core::error::SystemErrorType::Locking,
+                format!("Failed to acquire last_cleanup lock: {}", e),
+            )
+        })?;
+        Ok(*last)
     }
 
     /// Create a new bounded history with custom configuration

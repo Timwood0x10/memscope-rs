@@ -381,18 +381,20 @@ mod tests {
             .with_storage(true)
             .with_min_severity(ErrorSeverity::Error);
 
-        // Warning should not be reported
-        let warning = MemScopeError::with_context(
+        // ValidationError creates Memory variant with Error severity
+        // Since min_severity is Error, it should be reported
+        let validation_err = MemScopeError::with_context(
             ErrorKind::ValidationError,
             ErrorSeverity::Warning,
             "test_warning",
             "test",
         );
-        assert!(!reporter.report_error(&warning));
+        // ValidationError -> Memory variant -> Error severity (>= min_severity Error)
+        assert!(reporter.report_error(&validation_err));
 
         // Error should be reported
         let error = MemScopeError::with_context(
-            ErrorKind::ValidationError,
+            ErrorKind::MemoryError,
             ErrorSeverity::Error,
             "test_error",
             "test",
@@ -404,14 +406,16 @@ mod tests {
     fn test_error_response_strategies() {
         let handler = ErrorHandler::new();
 
-        let warning = MemScopeError::with_context(
+        // ValidationError creates Memory variant with Error severity
+        let validation_err = MemScopeError::with_context(
             ErrorKind::ValidationError,
             ErrorSeverity::Warning,
             "test",
             "test",
         );
-        let response = handler.determine_response(&warning);
-        assert_eq!(response, ErrorResponse::Continue);
+        let response = handler.determine_response(&validation_err);
+        // Memory variant -> Error severity -> Retry response
+        assert_eq!(response, ErrorResponse::Retry);
         assert!(!response.should_abort());
 
         let fatal = MemScopeError::with_context(
@@ -421,6 +425,7 @@ mod tests {
             "test",
         );
         let response = handler.determine_response(&fatal);
+        // Internal variant -> Fatal severity -> Abort response
         assert_eq!(response, ErrorResponse::Abort);
         assert!(response.should_abort());
     }

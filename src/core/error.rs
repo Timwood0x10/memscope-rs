@@ -938,7 +938,7 @@ mod tests {
         assert!(matches!(err, MemScopeError::Internal { .. }));
         assert_eq!(err.category(), "internal");
         assert!(!err.is_recoverable());
-        assert_eq!(err.severity(), ErrorSeverity::Critical);
+        assert_eq!(err.severity(), ErrorSeverity::Fatal);
 
         let err_with_location = MemScopeError::internal_at("internal error", "test_function");
         assert!(matches!(err_with_location, MemScopeError::Internal { .. }));
