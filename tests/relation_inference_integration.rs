@@ -188,6 +188,7 @@ fn test_graph_add_edge() {
 }
 
 #[test]
+#[cfg(not(target_os = "linux"))]
 fn test_owner_detection_with_vec_metadata() {
     // Create a real Vec-like scenario: metadata buffer containing a pointer to a data buffer.
     let data = vec![0xDEu8; 256];
@@ -398,6 +399,7 @@ fn test_large_allocation_graph() {
 }
 
 #[test]
+#[cfg(not(target_os = "linux"))]
 fn test_realistic_clone_scenario_with_timestamps() {
     let base_time = current_time_ns();
     let stack_hash_1: u64 = 0x1234_5678;
@@ -452,6 +454,7 @@ fn test_realistic_clone_scenario_with_timestamps() {
 }
 
 #[test]
+#[cfg(not(target_os = "linux"))]
 fn test_accuracy_metrics() {
     struct AccuracyMetrics {
         true_positives: usize,

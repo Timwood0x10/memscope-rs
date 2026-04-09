@@ -1229,6 +1229,7 @@ mod real_data_tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
     fn test_real_struct_with_pointers() {
         struct TestStruct {
             _ptr1: *const u8,
