@@ -556,11 +556,11 @@ impl PlatformMemoryInfo {
         let total_virtual = mem_status.ullTotalVirtual;
         let available_virtual = mem_status.ullAvailVirtual;
 
-        let page_size = sys_info.dwPageSize as u64;
-        let total_memory_bytes = total_physical;
-        let available_memory_bytes = available_physical;
+        let _page_size = sys_info.dwPageSize as u64;
+        let _total_memory_bytes = total_physical;
+        let _available_memory_bytes = available_physical;
         let used_memory_bytes = total_physical.saturating_sub(available_physical);
-        let memory_usage_percent = if total_physical > 0 {
+        let _memory_usage_percent = if total_physical > 0 {
             (used_memory_bytes as f64 / total_physical as f64 * 100.0).round() as u32
         } else {
             0

@@ -840,8 +840,8 @@ mod tests {
         assert!(events[0].custom_drop);
         assert!(events[0].timestamp > 0);
         assert!(!events[0].thread_id.is_empty());
-        // Call stack may be empty on non-Linux platforms
-        #[cfg(target_os = "linux")]
+        // Call stack may be empty on non-Linux platforms or when backtrace feature is disabled
+        #[cfg(all(target_os = "linux", feature = "backtrace"))]
         assert!(!events[0].call_stack.is_empty());
     }
 
@@ -1399,13 +1399,23 @@ mod tests {
     #[cfg(target_os = "linux")]
     fn test_capture_call_stack() {
         let call_stack = capture_call_stack();
-        assert!(!call_stack.is_empty());
-        // Current implementation returns a placeholder — verify structure, not hard-coded value.
-        assert!(
-            call_stack[0].contains("placeholder") || !call_stack[0].is_empty(),
-            "call_stack[0] should be non-empty, got: {}",
-            call_stack[0]
-        );
+
+        #[cfg(feature = "backtrace")]
+        {
+            assert!(!call_stack.is_empty());
+            // Current implementation returns a placeholder — verify structure, not hard-coded value.
+            assert!(
+                call_stack[0].contains("placeholder") || !call_stack[0].is_empty(),
+                "call_stack[0] should be non-empty, got: {}",
+                call_stack[0]
+            );
+        }
+
+        #[cfg(not(feature = "backtrace"))]
+        {
+            // When backtrace feature is not enabled, we get an empty stack
+            assert!(call_stack.is_empty());
+        }
     }
 
     #[test]

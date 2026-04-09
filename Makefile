@@ -69,6 +69,11 @@ release:
 check:
 	@echo "$(BLUE)Checking $(PROJECT_NAME) for errors...$(NC)"
 	$(CARGO) check --workspace --all-targets --all-features
+	@echo "$(BLUE)Checking code formatting...$(NC)"
+	$(CARGO) fmt --all -- --check
+	@echo "$(BLUE)Running clippy linter...$(NC)"
+	$(CARGO) clippy --workspace --all-targets --all-features -- -D warnings
+	@echo "$(GREEN)✅ All checks completed!$(NC)"
 
 .PHONY: clean
 clean:
@@ -137,11 +142,16 @@ fmt-check:
 
 .PHONY: clippy
 clippy:
-	@echo "$(BLUE)Running clippy...$(NC)"
+	@echo "$(BLUE)Running clippy (strict mode for local dev)...$(NC)"
+	$(CARGO) clippy --workspace --all-targets --all-features -- -D warnings -W clippy::all -W clippy::perf -W clippy::style -W clippy::complexity -W clippy::suspicious -W clippy::correctness -A clippy::too_many_arguments -A clippy::type_complexity
+
+.PHONY: clippy-ci
+clippy-ci:
+	@echo "$(BLUE)Running clippy (CI mode - only compiler warnings)...$(NC)"
 	$(CARGO) clippy --workspace --all-targets --all-features -- -D warnings
 
 .PHONY: ci
-ci: fmt-check clippy check test-unit test-integration test-examples
+ci: fmt-check clippy-ci check test-unit test-integration test-examples
 	@echo "$(GREEN)CI pipeline completed$(NC)"
 
 .PHONY: test-examples

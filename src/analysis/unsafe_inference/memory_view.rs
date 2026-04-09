@@ -30,6 +30,13 @@ const MAX_USER_ADDR: usize = 0x0000_7fff_ffff_ffff;
 #[cfg(target_pointer_width = "32")]
 const MAX_USER_ADDR: usize = 0x7fff_ffff;
 
+// Windows-specific heap end addresses for 32-bit vs 64-bit
+#[cfg(all(target_os = "windows", target_pointer_width = "64"))]
+const MAX_HEAP_END: usize = 0x7FFF_FFFF_FFFF_FFFF;
+
+#[cfg(all(target_os = "windows", target_pointer_width = "32"))]
+const MAX_HEAP_END: usize = 0x7FFF_FFFF;
+
 const MIN_VALID_ADDR: usize = 0x1000;
 
 /// Represents a valid memory region from process memory map.
@@ -200,17 +207,8 @@ fn get_valid_regions_impl() -> ValidRegions {
         return get_conservative_regions();
     }
 
-    // Add conservative stack region as fallback for stack-allocated data
-    let stack_ptr = std::ptr::null_mut::<u8>() as usize;
-    regions.push(MemoryRegion {
-        start: stack_ptr.saturating_sub(8 * 1024 * 1024), // 8MB below current
-        end: stack_ptr.saturating_add(8 * 1024 * 1024),   // 8MB above current
-    });
-
-    // Re-sort and merge after adding stack region
-    regions.sort_by_key(|r| r.start);
-    regions = merge_regions(regions);
-
+    // /proc/self/maps already includes stack, heap, and all mapped regions
+    // No need to add additional regions
     ValidRegions::from_regions(regions)
 }
 
@@ -219,18 +217,11 @@ fn get_valid_regions_impl() -> ValidRegions {
 fn get_conservative_regions() -> ValidRegions {
     let mut regions = Vec::new();
 
-    // Add stack region (conservative estimate)
-    let stack_ptr = std::ptr::null_mut::<u8>() as usize;
-    regions.push(MemoryRegion {
-        start: stack_ptr.saturating_sub(8 * 1024 * 1024), // 8MB below current
-        end: stack_ptr.saturating_add(8 * 1024 * 1024),   // 8MB above current
-    });
-
-    // Add heap region (conservative estimate)
-    // On Linux, heap typically starts at a low address
+    // Add single wide region covering entire user-space
+    // On Linux, this covers both stack and heap
     regions.push(MemoryRegion {
         start: 0x10000,
-        end: 0x7FF_FFFFF_FFFF_FFFF,
+        end: 0x7FFF_FFFF_FFFF_FFFF, // x64 address space
     });
 
     ValidRegions::from_regions(regions)
@@ -239,25 +230,16 @@ fn get_conservative_regions() -> ValidRegions {
 /// Get valid memory regions for the current process (Windows).
 ///
 /// Uses a conservative approach to detect valid memory regions:
-/// - Stack region: 8MB below and above current stack pointer
-/// - Heap region: from 0x10000 to 0x7FFF_FFFFF_FFFF_FFFF
-/// - Additional heap regions for common allocators
+/// - Single wide region covering entire user-space address range
 #[cfg(target_os = "windows")]
 fn get_valid_regions_impl() -> ValidRegions {
     let mut regions = Vec::new();
 
-    // Add stack region (conservative estimate)
-    let stack_ptr = std::ptr::null_mut::<u8>() as usize;
-    regions.push(MemoryRegion {
-        start: stack_ptr.saturating_sub(8 * 1024 * 1024), // 8MB below current
-        end: stack_ptr.saturating_add(8 * 1024 * 1024),   // 8MB above current
-    });
-
-    // Add primary heap region (conservative estimate)
-    // Windows heap typically starts at a low address
+    // Add single wide region covering entire user-space
+    // Windows allocators can place memory anywhere in the address space
     regions.push(MemoryRegion {
         start: 0x10000,
-        end: 0x7FFF_FFFFF_FFFF_FFFF, // Large range for heap
+        end: MAX_HEAP_END, // Platform-specific: 64-bit or 32-bit
     });
 
     ValidRegions::from_regions(regions)
@@ -270,21 +252,17 @@ fn get_valid_regions_impl() -> ValidRegions {
 /// - Heap regions: multiple ranges to cover different allocators
 #[cfg(target_os = "macos")]
 fn get_valid_regions_impl() -> ValidRegions {
-    let mut regions = Vec::new();
-
-    // Add stack region (conservative estimate)
-    let stack_ptr = std::ptr::null_mut::<u8>() as usize;
-    regions.push(MemoryRegion {
-        start: stack_ptr.saturating_sub(8 * 1024 * 1024), // 8MB below current
-        end: stack_ptr.saturating_add(8 * 1024 * 1024),   // 8MB above current
-    });
-
     // Add very wide heap region to cover all possible allocations
     // macOS can allocate memory in various ranges depending on the allocator
-    regions.push(MemoryRegion {
+    // This covers the entire user-space address range
+    let regions = vec![MemoryRegion {
         start: 0x1000,              // Start from a low address
         end: 0x7FFF_FFFF_FFFF_FFFF, // Up to max 64-bit address
-    });
+    }];
+
+    // Note: We use a single wide region instead of separate stack/heap regions
+    // because macOS allocators can place memory anywhere in the address space.
+    // The stack is already covered by this wide range.
 
     ValidRegions::from_regions(regions)
 }
@@ -299,14 +277,7 @@ fn get_valid_regions_impl() -> ValidRegions {
 fn get_valid_regions_impl() -> ValidRegions {
     let mut regions = Vec::new();
 
-    // Add stack region (conservative estimate)
-    let stack_ptr = std::ptr::null_mut::<u8>() as usize;
-    regions.push(MemoryRegion {
-        start: stack_ptr.saturating_sub(8 * 1024 * 1024), // 8MB below current
-        end: stack_ptr.saturating_add(8 * 1024 * 1024),   // 8MB above current
-    });
-
-    // Add heap region (conservative estimate)
+    // Add single wide region covering entire user-space
     regions.push(MemoryRegion {
         start: 0x10000,
         end: 0x7FF_FFFFF_FFFF_FFFF,
@@ -421,6 +392,8 @@ pub struct MemoryView<'a> {
 /// This ensures safe access even with invalid offsets:
 ///
 /// ```rust
+/// use memscope_rs::unsafe_inference::OwnedMemoryView;
+///
 /// let view = OwnedMemoryView::new(vec![0u8; 4]);
 ///
 /// // This returns None (out of bounds)
@@ -441,6 +414,7 @@ impl OwnedMemoryView {
     /// # Example
     ///
     /// ```rust
+    /// use memscope_rs::unsafe_inference::OwnedMemoryView;
     /// let view = OwnedMemoryView::new(vec![1, 2, 3, 4]);
     /// assert_eq!(view.len(), 4);
     /// ```
@@ -453,6 +427,7 @@ impl OwnedMemoryView {
     /// # Example
     ///
     /// ```rust
+    /// use memscope_rs::unsafe_inference::OwnedMemoryView;
     /// let view = OwnedMemoryView::new(vec![1, 2, 3]);
     /// assert_eq!(view.len(), 3);
     /// ```
@@ -465,6 +440,7 @@ impl OwnedMemoryView {
     /// # Example
     ///
     /// ```rust
+    /// use memscope_rs::unsafe_inference::OwnedMemoryView;
     /// let view = OwnedMemoryView::new(vec![]);
     /// assert!(view.is_empty());
     /// ```
@@ -482,6 +458,7 @@ impl OwnedMemoryView {
     /// # Example
     ///
     /// ```rust
+    /// use memscope_rs::unsafe_inference::OwnedMemoryView;
     /// let data = vec![0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08];
     /// let view = OwnedMemoryView::new(data);
     ///
@@ -506,6 +483,7 @@ impl OwnedMemoryView {
     /// # Example
     ///
     /// ```rust
+    /// use memscope_rs::unsafe_inference::OwnedMemoryView;
     /// let view = OwnedMemoryView::new(vec![0x10, 0x20, 0x30]);
     ///
     /// assert_eq!(view.read_u8(0), Some(0x10));
@@ -523,6 +501,7 @@ impl OwnedMemoryView {
     /// # Example
     ///
     /// ```rust
+    /// use memscope_rs::unsafe_inference::OwnedMemoryView;
     /// let view = OwnedMemoryView::new(vec![1, 2, 3, 4, 5]);
     /// let slice = view.as_slice();
     /// assert_eq!(slice, &[1, 2, 3, 4, 5]);
@@ -538,6 +517,7 @@ impl OwnedMemoryView {
     /// # Example
     ///
     /// ```rust
+    /// use memscope_rs::unsafe_inference::OwnedMemoryView;
     /// let view = OwnedMemoryView::new(vec![1, 2, 3, 4, 5, 6]);
     /// let chunks: Vec<_> = view.chunks(2).collect();
     /// assert_eq!(chunks, vec![&[1, 2][..], &[3, 4], &[5, 6]]);
