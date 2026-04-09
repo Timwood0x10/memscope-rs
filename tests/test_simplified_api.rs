@@ -1,11 +1,12 @@
 // Test the simplified global_tracker API
-use memscope_rs::capture::backends::global_tracking::{global_tracker, init_global_tracking};
+use memscope_rs::capture::backends::global_tracking::{
+    global_tracker, init_global_tracking, reset_global_tracking,
+};
 use memscope_rs::MemScopeError;
 
 #[test]
 fn test_simplified_api() -> Result<(), MemScopeError> {
-    // Note: In concurrent test environment, global state may be pre-initialized
-    // This test handles both cases gracefully
+    reset_global_tracking();
     let tracker = match global_tracker() {
         Ok(t) => t,
         Err(_) => {
@@ -41,8 +42,7 @@ fn test_simplified_api() -> Result<(), MemScopeError> {
 
 #[test]
 fn test_init_twice() {
-    // Note: In concurrent environment, tracker may already be initialized
-    // This test verifies the initialization behavior
+    reset_global_tracking();
     let first_result = init_global_tracking();
 
     match first_result {
@@ -59,7 +59,7 @@ fn test_init_twice() {
 
 #[test]
 fn test_track_exact() -> Result<(), MemScopeError> {
-    // Note: In concurrent test environment, global state may be pre-initialized
+    reset_global_tracking();
     let tracker = match global_tracker() {
         Ok(t) => t,
         Err(_) => {
@@ -84,8 +84,7 @@ fn test_track_exact() -> Result<(), MemScopeError> {
 
 #[test]
 fn test_export_before_init() {
-    // Note: In concurrent test environment, global state behavior is unpredictable
-    // This test verifies error handling
+    reset_global_tracking();
     let result = global_tracker();
     match result {
         Ok(_) => {
@@ -99,7 +98,7 @@ fn test_export_before_init() {
 
 #[test]
 fn test_tracker_statistics() -> Result<(), MemScopeError> {
-    // Note: In concurrent test environment, global state may be pre-initialized
+    reset_global_tracking();
     let tracker = match global_tracker() {
         Ok(t) => t,
         Err(_) => {
@@ -122,7 +121,7 @@ fn test_tracker_statistics() -> Result<(), MemScopeError> {
 
 #[test]
 fn test_tracker_analysis() -> Result<(), MemScopeError> {
-    // Note: In concurrent test environment, global state may be pre-initialized
+    reset_global_tracking();
     let tracker = match global_tracker() {
         Ok(t) => t,
         Err(_) => {
@@ -144,7 +143,7 @@ fn test_tracker_analysis() -> Result<(), MemScopeError> {
 
 #[test]
 fn test_global_tracker_singleton() -> Result<(), MemScopeError> {
-    // Test that global_tracker returns the same instance
+    reset_global_tracking();
     let tracker1 = match global_tracker() {
         Ok(t) => t,
         Err(_) => {
