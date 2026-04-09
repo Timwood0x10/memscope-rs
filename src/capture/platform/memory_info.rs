@@ -541,7 +541,7 @@ impl PlatformMemoryInfo {
 
         unsafe {
             if GlobalMemoryStatusEx(&mut mem_status) == 0 {
-                return Err(MemoryError::Unknown(
+                return Err(MemoryError::SystemError(
                     "Failed to get memory status".to_string(),
                 ));
             }
@@ -608,7 +608,7 @@ impl PlatformMemoryInfo {
                     supported: true,
                     total_large_pages: 0,
                     used_large_pages: 0,
-                    page_size: sys_info.dwLargePageSize as u64,
+                    page_size: sys_info.dwPageSize as u64,
                 },
             },
             pressure_indicators: PressureIndicators {
@@ -922,9 +922,7 @@ impl PlatformMemoryInfo {
 
     #[cfg(target_os = "windows")]
     fn get_windows_system_info(&self) -> Result<SystemInfo, MemoryError> {
-        use windows_sys::Win32::System::SystemInformation::{
-            GetNativeSystemInfo, GetSystemInfo, SYSTEM_INFO,
-        };
+        use windows_sys::Win32::System::SystemInformation::{GetSystemInfo, SYSTEM_INFO};
 
         let mut sys_info: SYSTEM_INFO = unsafe { std::mem::zeroed() };
         unsafe { GetSystemInfo(&mut sys_info) };
@@ -932,7 +930,7 @@ impl PlatformMemoryInfo {
         let page_size = sys_info.dwPageSize as u64;
         let cpu_cores = sys_info.dwNumberOfProcessors as u32;
 
-        let architecture = match sys_info.wProcessorArchitecture {
+        let architecture = match sys_info.Anonymous.Anonymous.wProcessorArchitecture {
             5 => "ARM",
             6 => "ARM64",
             9 => "x64",
@@ -950,12 +948,12 @@ impl PlatformMemoryInfo {
                 l1_cache_size: 0,
                 l2_cache_size: 0,
                 l3_cache_size: None,
-                cache_line_size: page_size as u32,
+                cache_line_size: page_size,
             },
             page_size,
-            large_page_size: Some(sys_info.dwLargePageSize as u64),
+            large_page_size: Some(sys_info.dwPageSize as u64),
             mmu_info: MmuInfo {
-                virtual_address_bits: if sys_info.wProcessorArchitecture == 9 {
+                virtual_address_bits: if sys_info.Anonymous.Anonymous.wProcessorArchitecture == 9 {
                     48
                 } else {
                     32

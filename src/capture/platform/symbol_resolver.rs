@@ -422,16 +422,17 @@ impl PlatformSymbolResolver {
 
     #[cfg(target_os = "windows")]
     fn resolve_windows_symbol(&self, address: usize) -> Result<SymbolInfo, ResolveError> {
+        use windows_sys::Win32::Foundation::GetCurrentProcess;
         use windows_sys::Win32::Foundation::GetLastError;
         use windows_sys::Win32::System::Diagnostics::Debug::{
             SymCleanup, SymFromAddrW, SymGetModuleBase64, SymInitializeW, SYMBOL_INFO,
         };
 
-        let process = libc::GetCurrentProcess();
+        let process = GetCurrentProcess();
 
         unsafe {
             if SymInitializeW(process, std::ptr::null(), 1) == 0 {
-                return Err(ResolveError::SystemError(format!(
+                return Err(ResolveError::Unknown(format!(
                     "SymInitializeW failed: {}",
                     GetLastError()
                 )));
@@ -447,14 +448,17 @@ impl PlatformSymbolResolver {
                 process,
                 address as u64,
                 &mut displacement,
-                &mut symbol_info,
+                &mut symbol_info as *mut SYMBOL_INFO as *mut _,
             ) == 0
             {
                 Err(ResolveError::SymbolNotFound)
             } else {
                 let name = if symbol_info.Name[0] != 0 {
                     let name_len = symbol_info.NameLen as usize;
-                    String::from_utf16_lossy(&symbol_info.Name[..name_len])
+                    let name_bytes = &symbol_info.Name[..name_len.min(symbol_info.Name.len())];
+                    // Convert i8 to u16 for Windows API
+                    let name_u16: Vec<u16> = name_bytes.iter().map(|&b| b as u16).collect();
+                    String::from_utf16_lossy(&name_u16)
                 } else {
                     format!("unknown_0x{:x}", address)
                 };

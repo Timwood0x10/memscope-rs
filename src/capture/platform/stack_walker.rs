@@ -378,7 +378,7 @@ impl PlatformStackWalker {
                     sp: None,
                     module_base: None,
                     module_offset: None,
-                    symbol_info: frame.symbol().map(|sym| FrameSymbolInfo {
+                    symbol_info: frame.symbols().next().map(|sym| FrameSymbolInfo {
                         name: sym
                             .name()
                             .map(|n| format!("{:?}", n))
@@ -420,7 +420,7 @@ impl PlatformStackWalker {
             _sp: libc::uintptr_t,
             _fp: libc::uintptr_t,
         ) -> libc::c_int {
-            let frame_data = match unsafe { (data as *mut FrameData).as_ref() } {
+            let frame_data = match unsafe { (data as *mut FrameData).as_mut() } {
                 Some(fd) => fd,
                 None => return -1,
             };
@@ -451,7 +451,7 @@ impl PlatformStackWalker {
 
         extern "C" fn error_callback(_data: *mut c_void, _msg: *const libc::c_char) {}
 
-        let frame_data = FrameData {
+        let mut frame_data = FrameData {
             frames: frames as *mut Vec<StackFrame>,
             max_depth: self.config.max_depth,
             skip_frames: self.config.skip_frames,
@@ -473,7 +473,7 @@ impl PlatformStackWalker {
     }
 
     #[cfg(target_os = "windows")]
-    fn walk_windows_stack(&self, frames: &mut Vec<StackFrame>) -> Result<(), WalkError> {
+    fn walk_windows_stack(&self, _frames: &mut Vec<StackFrame>) -> Result<(), WalkError> {
         // Windows-specific stack walking using StackWalk64 or RtlCaptureStackBackTrace
         //
         // NOTE: This is a simplified implementation for demonstration.
@@ -508,7 +508,7 @@ impl PlatformStackWalker {
                     sp: None,
                     module_base: None,
                     module_offset: None,
-                    symbol_info: frame.symbol().map(|sym| FrameSymbolInfo {
+                    symbol_info: frame.symbols().next().map(|sym| FrameSymbolInfo {
                         name: sym
                             .name()
                             .map(|n| format!("{:?}", n))
