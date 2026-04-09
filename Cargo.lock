@@ -798,7 +798,7 @@ dependencies = [
 
 [[package]]
 name = "memscope-rs"
-version = "0.1.11"
+version = "0.2.0"
 dependencies = [
  "backtrace",
  "chrono",

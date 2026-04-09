@@ -583,7 +583,9 @@ mod tests {
         assert_eq!(stats.total_types_classified, 4);
         assert!(stats.category_counts.contains_key(&TypeCategory::Primitive));
         assert!(stats.category_counts.contains_key(&TypeCategory::String));
-        assert!(stats.category_counts.contains_key(&TypeCategory::Collection));
+        assert!(stats
+            .category_counts
+            .contains_key(&TypeCategory::Collection));
         assert!(stats.category_counts.contains_key(&TypeCategory::Option));
     }
 }

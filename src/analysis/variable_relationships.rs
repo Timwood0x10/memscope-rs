@@ -4,7 +4,7 @@
 //! building a comprehensive graph for visualization and analysis.
 
 use crate::capture::types::{AllocationInfo, TrackingResult};
-use crate::{analysis::CircularReferenceNode, variable_registry::VariableInfo};
+use crate::variable_registry::VariableInfo;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
@@ -322,8 +322,8 @@ impl VariableRelationshipBuilder {
         for cycle in &circular_analysis.circular_references {
             for window in cycle.cycle_path.windows(2) {
                 if let (Some(source), Some(target)) = (window.first(), window.last()) {
-                    let source_id = format!("0x{:p}", source as *const CircularReferenceNode);
-                    let target_id = format!("0x{:p}", target as *const CircularReferenceNode);
+                    let source_id = format!("0x{:x}", source.ptr);
+                    let target_id = format!("0x{:x}", target.ptr);
 
                     if self.nodes.contains_key(&source_id) && self.nodes.contains_key(&target_id) {
                         self.relationships.push(VariableRelationship {
@@ -461,8 +461,42 @@ impl VariableRelationshipBuilder {
     fn node_to_allocation_info(&self, node: &VariableNode) -> Option<AllocationInfo> {
         let ptr = usize::from_str_radix(&node.id[2..], 16).ok()?;
 
-        // Create a simplified AllocationInfo for compatibility
-        Some(AllocationInfo::new(ptr, node.size))
+        // Create AllocationInfo with basic information
+        let mut alloc = AllocationInfo::new(ptr, node.size);
+
+        // Preserve smart pointer information if available
+        if let Some(node_sp_info) = &node.smart_pointer_info {
+            let sp_info = crate::capture::types::smart_pointer::SmartPointerInfo {
+                data_ptr: node_sp_info.data_ptr.unwrap_or(ptr),
+                cloned_from: node_sp_info.cloned_from,
+                clones: node_sp_info.clones.clone(),
+                ref_count_history: if let Some(ref_count) = node_sp_info.ref_count {
+                    vec![crate::capture::types::smart_pointer::RefCountSnapshot {
+                        timestamp: std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .unwrap_or_default()
+                            .as_nanos() as u64,
+                        strong_count: ref_count,
+                        weak_count: 0,
+                    }]
+                } else {
+                    Vec::new()
+                },
+                weak_count: None,
+                is_weak_reference: false,
+                is_data_owner: node_sp_info.ref_count.map_or(true, |c| c > 0),
+                is_implicitly_deallocated: false,
+                pointer_type: match node_sp_info.pointer_type.as_str() {
+                    "Rc" => crate::capture::types::smart_pointer::SmartPointerType::Rc,
+                    "Arc" => crate::capture::types::smart_pointer::SmartPointerType::Arc,
+                    "Box" => crate::capture::types::smart_pointer::SmartPointerType::Box,
+                    _ => crate::capture::types::smart_pointer::SmartPointerType::Rc,
+                },
+            };
+            alloc.set_smart_pointer_info(sp_info);
+        }
+
+        Some(alloc)
     }
 
     /// Calculate graph statistics
@@ -1343,5 +1377,77 @@ mod tests {
             .find(|cluster| cluster.variables.len() > 1);
 
         assert!(main_cluster.is_some());
+    }
+
+    #[test]
+    fn test_circular_reference_relationships_use_ptr_not_stack_address() {
+        let allocations = vec![
+            create_smart_pointer_allocation(
+                0x1000,
+                64,
+                "rc1".to_string(),
+                "Rc<Data>".to_string(),
+                SmartPointerType::Rc,
+                0x5000,
+                vec![0x2000],
+                None,
+            ),
+            create_smart_pointer_allocation(
+                0x2000,
+                64,
+                "rc2".to_string(),
+                "Rc<Data>".to_string(),
+                SmartPointerType::Rc,
+                0x5000,
+                vec![],
+                Some(0x1000),
+            ),
+        ];
+
+        let registry = HashMap::new();
+
+        let graph = VariableRelationshipBuilder::new()
+            .add_allocations(&allocations, &registry)
+            .detect_references()
+            .detect_circular_references()
+            .build_graph();
+
+        let circular_rels: Vec<_> = graph
+            .relationships
+            .iter()
+            .filter(|rel| {
+                rel.metadata
+                    .get("circular_reference")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false)
+            })
+            .collect();
+
+        for rel in &circular_rels {
+            assert!(
+                rel.source.starts_with("0x"),
+                "Circular reference source should use pointer format '0x...', got: {}",
+                rel.source
+            );
+            assert!(
+                rel.target.starts_with("0x"),
+                "Circular reference target should use pointer format '0x...', got: {}",
+                rel.target
+            );
+            let source_addr: usize =
+                usize::from_str_radix(rel.source.trim_start_matches("0x"), 16).unwrap();
+            let target_addr: usize =
+                usize::from_str_radix(rel.target.trim_start_matches("0x"), 16).unwrap();
+            assert!(
+                source_addr == 0x1000 || source_addr == 0x2000,
+                "Circular reference source should be 0x1000 or 0x2000, got: {:#x}",
+                source_addr
+            );
+            assert!(
+                target_addr == 0x1000 || target_addr == 0x2000,
+                "Circular reference target should be 0x1000 or 0x2000, got: {:#x}",
+                target_addr
+            );
+        }
     }
 }

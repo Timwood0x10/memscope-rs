@@ -166,20 +166,17 @@ impl SnapshotEngine {
                     }
                 }
                 MemoryEventType::Deallocate => {
-                    // Remove allocation
                     if let Some(allocation) = ptr_to_allocation.remove(&event.ptr) {
-                        // Update stats
                         snapshot.stats.total_deallocations += 1;
                         snapshot.stats.total_deallocated += allocation.size;
-                        current_memory -= allocation.size;
+                        current_memory = current_memory.saturating_sub(allocation.size);
 
-                        // Update thread stats
                         if let Some(thread_stat) = thread_stats.get_mut(&event.thread_id) {
                             thread_stat.total_deallocated += allocation.size;
-                            thread_stat.current_memory -= allocation.size;
+                            thread_stat.current_memory =
+                                thread_stat.current_memory.saturating_sub(allocation.size);
                         }
                     } else {
-                        // Unmatched deallocation - no corresponding allocation found
                         snapshot.stats.unmatched_deallocations += 1;
                         tracing::debug!(
                             "Unmatched deallocation: ptr={:#x}, thread_id={}",
@@ -290,5 +287,19 @@ mod tests {
         let thread2 = snapshot.thread_stats.get(&2).unwrap();
         assert_eq!(thread2.allocation_count, 1);
         assert_eq!(thread2.total_allocated, 2048);
+    }
+
+    #[test]
+    fn test_deallocation_underflow_protection() {
+        let event_store = Arc::new(EventStore::new());
+        event_store.record(MemoryEvent::allocate(0x1000, 1024, 1));
+        event_store.record(MemoryEvent::deallocate(0x1000, 2048, 1));
+
+        let engine = SnapshotEngine::new(event_store);
+        let snapshot = engine.build_snapshot();
+
+        assert_eq!(snapshot.current_memory(), 0);
+        let thread1 = snapshot.thread_stats.get(&1).unwrap();
+        assert_eq!(thread1.current_memory, 0);
     }
 }

@@ -712,6 +712,11 @@ impl AllocationInfo {
         self.stack_trace.get_or_insert_with(Vec::new).push(frame);
     }
 
+    /// Set smart pointer information for this allocation.
+    pub fn set_smart_pointer_info(&mut self, info: SmartPointerInfo) {
+        self.smart_pointer_info = Some(info);
+    }
+
     /// Mark this allocation as deallocated with current timestamp.
     pub fn mark_deallocated(&mut self) {
         self.timestamp_dealloc = Some(
