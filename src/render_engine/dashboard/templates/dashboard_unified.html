@@ -7,9 +7,6 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://d3js.org/d3.v7.min.js"></script>
-    <script src="assets/dashboard-utils.js"></script>
-    <script src="assets/dashboard-health.js"></script>
-    <script src="assets/dashboard-tasks.js"></script>
     <style>
         :root {
             --primary: #3b82f6;
@@ -655,19 +652,78 @@
 
         <!-- Thread Mode -->
         <div id="mode-thread" class="mode-section">
+            <div class="card" style="background: linear-gradient(135deg, #10b98110 0%, #10b98120 100%); border: 2px solid #10b98160;">
+                <div class="card-header">
+                    <h2 class="card-title" style="color: #10b981;">🧵 Thread Activity Dashboard</h2>
+                    <span class="badge" style="background: #10b98130; color: #10b981;" id="threadCount">0 threads</span>
+                </div>
+                
+                <!-- Thread Activity Timeline -->
+                <div style="background: var(--bg2); border-radius: 8px; padding: 16px; margin-bottom: 16px; border: 1px solid var(--border);">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <span style="font-size: 2rem;">📊</span>
+                        <div>
+                            <div style="font-weight: 600; color: var(--primary);">Real-time Thread Activity</div>
+                            <div style="color: var(--text2); font-size: 0.85rem;">
+                                Monitor memory allocation patterns across all threads. Each bar represents memory activity over time.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px;">
+                    <div class="detail-panel" style="border-left: 4px solid #10b981; text-align: center;">
+                        <div style="font-size: 0.75rem; color: var(--text2);">🟢 Active Threads</div>
+                        <div class="stat-value" style="color: #10b981; font-size: 1.5rem;" id="activeThreadCount">0</div>
+                    </div>
+                    <div class="detail-panel" style="border-left: 4px solid #3b82f6; text-align: center;">
+                        <div style="font-size: 0.75rem; color: var(--text2);">💾 Total Memory</div>
+                        <div class="stat-value" style="color: #3b82f6; font-size: 1.5rem;" id="totalThreadMemory">0 B</div>
+                    </div>
+                    <div class="detail-panel" style="border-left: 4px solid #f59e0b; text-align: center;">
+                        <div style="font-size: 0.75rem; color: var(--text2);">🏔️ Peak Memory</div>
+                        <div class="stat-value" style="color: #f59e0b; font-size: 1.5rem;" id="peakThreadMemory">0 B</div>
+                    </div>
+                    <div class="detail-panel" style="border-left: 4px solid #8b5cf6; text-align: center;">
+                        <div style="font-size: 0.75rem; color: var(--text2);">📦 Total Allocs</div>
+                        <div class="stat-value" style="color: #8b5cf6; font-size: 1.5rem;" id="totalThreadAllocs">0</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Thread Memory Heatmap -->
             <div class="card">
                 <div class="card-header">
-                    <h2 class="card-title">🧵 Thread Distribution</h2>
-                    <span class="badge badge-info" id="threadCount">0 threads</span>
+                    <h2 class="card-title">🔥 Thread Memory Heatmap</h2>
+                    <div class="flex-gap-2">
+                        <button class="btn-sm" onclick="Dashboard.threads.toggleHeatmap('memory')">💾 Memory</button>
+                        <button class="btn-sm" onclick="Dashboard.threads.toggleHeatmap('allocs')">📦 Allocations</button>
+                    </div>
                 </div>
-                <div class="chart-container">
+                <div id="threadHeatmapContainer" style="min-height: 200px; background: var(--bg); border-radius: 8px; padding: 16px;"></div>
+            </div>
+
+            <!-- Thread Activity Timeline -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">📅 Thread Activity Timeline</h2>
+                </div>
+                <div id="threadTimelineContainer" style="min-height: 250px; background: var(--bg); border-radius: 8px; padding: 16px;"></div>
+            </div>
+
+            <!-- Thread Distribution Chart -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">📊 Memory Distribution</h2>
+                </div>
+                <div class="chart-container" style="height: 200px;">
                     <canvas id="threadChart"></canvas>
                 </div>
             </div>
 
             <div class="card">
                 <div class="card-header">
-                    <h2 class="card-title">📊 Memory Usage by Thread</h2>
+                    <h2 class="card-title">📋 Thread Details</h2>
                     <div class="flex-gap-2">
                         <label class="text-secondary">Sort by:</label>
                         <select id="threadSortOrder" onchange="Dashboard.threads.sort()" class="input-sm">
@@ -943,76 +999,111 @@
 
         <!-- Time Travel Mode -->
         <div id="mode-timetravel" class="mode-section">
-            <div class="card" style="background: linear-gradient(135deg, var(--bg2) 0%, var(--bg3) 100%);">
+            <div class="card" style="background: linear-gradient(135deg, #8b5cf610 0%, #8b5cf620 100%); border: 2px solid #8b5cf660;">
                 <div class="card-header">
-                    <h2 class="card-title">⏪ Time Travel Debugging</h2>
-                    <span class="badge badge-info">Simple & Powerful</span>
+                    <h2 class="card-title" style="color: #8b5cf6;">⏪ Time Travel Debugging</h2>
+                    <span class="badge" style="background: #8b5cf630; color: #8b5cf6;">Interactive Timeline</span>
                 </div>
-                <div style="background: linear-gradient(135deg, #3b82f610 0%, #3b82f620 100%); border-radius: 8px; padding: 16px; margin-bottom: 16px; border: 1px solid #3b82f640;">
+                
+                <div style="background: var(--bg2); border-radius: 8px; padding: 16px; margin-bottom: 16px; border: 1px solid var(--border);">
                     <div style="display: flex; align-items: center; gap: 12px;">
                         <span style="font-size: 2rem;">🎯</span>
                         <div>
                             <div style="font-weight: 600; color: var(--primary);">Time Travel Debugging</div>
                             <div style="color: var(--text2); font-size: 0.85rem;">
-                                Click any allocation to see its complete lifecycle. No complex setup, no configuration - just click and explore.
+                                Navigate through memory events like a time machine. Use the slider to explore allocation history.
                             </div>
                         </div>
                     </div>
                 </div>
-                <div class="detail-panel mb-4">
-                    <div class="flex-between flex-wrap gap-3 mb-3">
-                        <input type="text" class="search-box" placeholder="🔍 Search by address or variable..." id="timetravelSearch" oninput="Dashboard.timetravel.filter()">
-                        <div class="flex-gap-2">
-                            <select id="ttSortOrder" onchange="Dashboard.timetravel.sort()" class="input-sm">
-                                <option value="time-asc">⏱️ Oldest First</option>
-                                <option value="time-desc">⏱️ Newest First</option>
-                                <option value="size-desc">📦 Largest</option>
-                                <option value="lifetime-desc">⏳ Longest Life</option>
-                            </select>
-                            <button class="btn-sm" onclick="toggleTable('timetravelTableWrapper', this)">▼ Expand</button>
-                        </div>
+                
+                <!-- Stats Summary -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin-bottom: 16px;">
+                    <div class="detail-panel" style="border-left: 4px solid #10b981; text-align: center;">
+                        <div style="font-size: 0.75rem; color: var(--text2);">📦 Total Events</div>
+                        <div class="stat-value" style="color: #10b981; font-size: 1.25rem;" id="ttTotalEvents">0</div>
                     </div>
-                    <div class="table-wrapper" id="timetravelTableWrapper" style="max-height: 400px; overflow-y: auto;">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Address</th>
-                                    <th>Variable</th>
-                                    <th>Size</th>
-                                    <th>Source</th>
-                                    <th>Lifetime</th>
-                                    <th>Status</th>
-                                    <th>Action</th>
-                                </tr>
-                            </thead>
-                            <tbody id="timetravelBody"></tbody>
-                        </table>
+                    <div class="detail-panel" style="border-left: 4px solid #3b82f6; text-align: center;">
+                        <div style="font-size: 0.75rem; color: var(--text2);">🟢 Active</div>
+                        <div class="stat-value" style="color: #3b82f6; font-size: 1.25rem;" id="ttActiveCount">0</div>
+                    </div>
+                    <div class="detail-panel" style="border-left: 4px solid #f59e0b; text-align: center;">
+                        <div style="font-size: 0.75rem; color: var(--text2);">✅ Freed</div>
+                        <div class="stat-value" style="color: #f59e0b; font-size: 1.25rem;" id="ttFreedCount">0</div>
+                    </div>
+                    <div class="detail-panel" style="border-left: 4px solid #ef4444; text-align: center;">
+                        <div style="font-size: 0.75rem; color: var(--text2);">🚨 Leaked</div>
+                        <div class="stat-value" style="color: #ef4444; font-size: 1.25rem;" id="ttLeakedCount">0</div>
                     </div>
                 </div>
+            </div>
 
-                <div id="timetravelDetail" class="detail-panel mt-5" style="display: none; background: linear-gradient(135deg, var(--bg) 0%, var(--bg3) 100%); border: 2px solid var(--primary);">
-                    <h3 style="color: var(--primary); margin-top: 0;">📍 <span id="ttAddress"></span></h3>
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px;">
-                        <div class="detail-panel" style="border-left: 4px solid var(--primary);">
-                            <div class="detail-label">Variable</div>
-                            <div id="ttVarName" class="detail-value">-</div>
-                        </div>
-                        <div class="detail-panel" style="border-left: 4px solid var(--info);">
-                            <div class="detail-label">Type</div>
-                            <div id="ttType" class="detail-value">-</div>
-                        </div>
-                        <div class="detail-panel" style="border-left: 4px solid var(--warning);">
-                            <div class="detail-label">Size</div>
-                            <div id="ttSize" class="detail-value">-</div>
-                        </div>
-                        <div class="detail-panel" style="border-left: 4px solid var(--success);">
-                            <div class="detail-label">Status</div>
-                            <div id="ttStatus" class="detail-value">-</div>
-                        </div>
-                    </div>
-                    <h4 style="color: var(--text2); margin-bottom: 12px;">🔄 Lifecycle Events</h4>
-                    <div class="timeline" id="ttTimeline"></div>
+            <!-- Allocation Timeline Chart -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">📈 Allocation Timeline</h2>
                 </div>
+                <div class="chart-container" style="height: 200px;">
+                    <canvas id="ttTimelineChart"></canvas>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">🔍 Event Browser</h2>
+                    <div class="flex-gap-2">
+                        <input type="text" class="search-box" placeholder="🔍 Search..." id="timetravelSearch" oninput="Dashboard.timetravel.filter()" style="width: 200px;">
+                        <select id="ttSortOrder" onchange="Dashboard.timetravel.sort()" class="input-sm">
+                            <option value="time-asc">⏱️ Oldest First</option>
+                            <option value="time-desc">⏱️ Newest First</option>
+                            <option value="size-desc">📦 Largest</option>
+                            <option value="lifetime-desc">⏳ Longest Life</option>
+                        </select>
+                        <button class="btn-sm" onclick="toggleTable('timetravelTableWrapper', this)">▼ Expand</button>
+                    </div>
+                </div>
+                <div class="table-wrapper" id="timetravelTableWrapper" style="max-height: 400px; overflow-y: auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Address</th>
+                                <th>Variable</th>
+                                <th>Size</th>
+                                <th>Source</th>
+                                <th>Lifetime</th>
+                                <th>Status</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="timetravelBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="timetravelDetail" class="card" style="display: none; background: linear-gradient(135deg, var(--bg) 0%, var(--bg3) 100%); border: 2px solid var(--primary);">
+                <div class="card-header">
+                    <h3 style="color: var(--primary); margin: 0;">📍 Allocation Details: <span id="ttAddress"></span></h3>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px;">
+                    <div class="detail-panel" style="border-left: 4px solid var(--primary);">
+                        <div class="detail-label">Variable</div>
+                        <div id="ttVarName" class="detail-value">-</div>
+                    </div>
+                    <div class="detail-panel" style="border-left: 4px solid var(--info);">
+                        <div class="detail-label">Type</div>
+                        <div id="ttType" class="detail-value">-</div>
+                    </div>
+                    <div class="detail-panel" style="border-left: 4px solid var(--warning);">
+                        <div class="detail-label">Size</div>
+                        <div id="ttSize" class="detail-value">-</div>
+                    </div>
+                    <div class="detail-panel" style="border-left: 4px solid var(--success);">
+                        <div class="detail-label">Status</div>
+                        <div id="ttStatus" class="detail-value">-</div>
+                    </div>
+                </div>
+                <h4 style="color: var(--text2); margin-bottom: 12px;">🔄 Lifecycle Events</h4>
+                <div class="timeline" id="ttTimeline"></div>
             </div>
         </div>
 
@@ -1023,6 +1114,7 @@
                     <h2 class="card-title" style="color: #ef4444;">🛡️ Memory Safety Guardian</h2>
                     <span class="badge" style="background: #ef444430; color: #ef4444;" id="unsafeBadge">0 issues</span>
                 </div>
+                
                 <div style="background: var(--bg2); border-radius: 8px; padding: 16px; margin-bottom: 16px; border: 1px solid var(--border);">
                     <div style="display: flex; align-items: center; gap: 12px;">
                         <span style="font-size: 2rem;">🔒</span>
@@ -1034,25 +1126,87 @@
                         </div>
                     </div>
                 </div>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px;">
-                    <div class="detail-panel" style="border-left: 4px solid #10b981; text-align: center;">
-                        <div style="font-size: 0.75rem; color: var(--text2);">✅ Safe Code</div>
-                        <div class="stat-value" style="color: #10b981; font-size: 1.5rem;" id="safeCodePercent">{{safe_code_percent}}%</div>
+                
+                <!-- Safety Score Gauge -->
+                <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 16px; margin-bottom: 16px;">
+                    <div style="background: var(--bg); border-radius: 8px; padding: 16px; text-align: center;">
+                        <div style="font-size: 0.85rem; color: var(--text2); margin-bottom: 8px;">Safety Score</div>
+                        <div id="safetyGauge" style="position: relative; width: 120px; height: 60px; margin: 0 auto;">
+                            <svg viewBox="0 0 120 60" style="width: 100%; height: 100%;">
+                                <path d="M 10 55 A 50 50 0 0 1 110 55" fill="none" stroke="#374151" stroke-width="8" stroke-linecap="round"/>
+                                <path id="safetyArc" d="M 10 55 A 50 50 0 0 1 110 55" fill="none" stroke="#10b981" stroke-width="8" stroke-linecap="round" stroke-dasharray="157" stroke-dashoffset="0"/>
+                            </svg>
+                            <div style="position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); font-size: 1.5rem; font-weight: bold;" id="safetyScoreValue">100%</div>
+                        </div>
                     </div>
-                    <div class="detail-panel" style="border-left: 4px solid #f59e0b; text-align: center;">
-                        <div style="font-size: 0.75rem; color: var(--text2);">⚠️ Unsafe Blocks</div>
-                        <div class="stat-value" style="color: #f59e0b; font-size: 1.5rem;" id="unsafeBlockCount">{{unsafe_count}}</div>
-                    </div>
-                    <div class="detail-panel" style="border-left: 4px solid #3b82f6; text-align: center;">
-                        <div style="font-size: 0.75rem; color: var(--text2);">🔗 FFI Calls</div>
-                        <div class="stat-value" style="color: #3b82f6; font-size: 1.5rem;" id="ffiCallCount">{{ffi_count}}</div>
-                    </div>
-                    <div class="detail-panel" style="border-left: 4px solid #ef4444; text-align: center;">
-                        <div style="font-size: 0.75rem; color: var(--text2);">🚨 Critical</div>
-                        <div class="stat-value" style="color: #ef4444; font-size: 1.5rem;" id="criticalIssueCount">{{high_risk_count}}</div>
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
+                        <div class="detail-panel" style="border-left: 4px solid #10b981; text-align: center;">
+                            <div style="font-size: 0.75rem; color: var(--text2);">✅ Safe Code</div>
+                            <div class="stat-value" style="color: #10b981; font-size: 1.25rem;" id="safeCodePercent">{{safe_code_percent}}%</div>
+                        </div>
+                        <div class="detail-panel" style="border-left: 4px solid #f59e0b; text-align: center;">
+                            <div style="font-size: 0.75rem; color: var(--text2);">⚠️ Unsafe Blocks</div>
+                            <div class="stat-value" style="color: #f59e0b; font-size: 1.25rem;" id="unsafeBlockCount">{{unsafe_count}}</div>
+                        </div>
+                        <div class="detail-panel" style="border-left: 4px solid #3b82f6; text-align: center;">
+                            <div style="font-size: 0.75rem; color: var(--text2);">🔗 FFI Calls</div>
+                            <div class="stat-value" style="color: #3b82f6; font-size: 1.25rem;" id="ffiCallCount">{{ffi_count}}</div>
+                        </div>
+                        <div class="detail-panel" style="border-left: 4px solid #ef4444; text-align: center;">
+                            <div style="font-size: 0.75rem; color: var(--text2);">🚨 Critical</div>
+                            <div class="stat-value" style="color: #ef4444; font-size: 1.25rem;" id="criticalIssueCount">{{high_risk_count}}</div>
+                        </div>
                     </div>
                 </div>
-                <div class="chart-container">
+            </div>
+
+            <!-- Risk Heatmap -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">🔥 Risk Heatmap</h2>
+                    <div class="flex-gap-2">
+                        <button class="btn-sm" onclick="Dashboard.unsafe.toggleHeatmap('risk')">⚠️ Risk Level</button>
+                        <button class="btn-sm" onclick="Dashboard.unsafe.toggleHeatmap('type')">📦 By Type</button>
+                    </div>
+                </div>
+                <div id="unsafeHeatmapContainer" style="min-height: 200px; background: var(--bg); border-radius: 8px; padding: 16px;"></div>
+            </div>
+
+            <!-- Cross-Boundary Trace -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">🔀 Cross-Boundary Trace</h2>
+                    <span class="badge badge-info" id="boundaryEventCount">0 events</span>
+                </div>
+                <div style="background: linear-gradient(135deg, #8b5cf610 0%, #8b5cf620 100%); border-radius: 8px; padding: 12px; margin-bottom: 16px; border: 1px solid #8b5cf640;">
+                    <div style="color: var(--text2); font-size: 0.85rem;">
+                        <strong style="color: #8b5cf6;">VISA Flow:</strong> Track memory as it crosses between Rust ↔ FFI boundaries. Each crossing is logged like a visa stamp.
+                    </div>
+                </div>
+                <div id="crossBoundaryTrace" style="min-height: 150px; background: var(--bg); border-radius: 8px; padding: 16px;">
+                    <div style="display: flex; align-items: center; justify-content: space-around; height: 100%;">
+                        <div style="text-align: center;">
+                            <div style="font-size: 2rem;">🦀</div>
+                            <div style="font-weight: 600; color: #f59e0b;">Rust</div>
+                            <div style="font-size: 0.75rem; color: var(--text2);">Safe Zone</div>
+                        </div>
+                        <div style="flex: 1; display: flex; flex-direction: column; gap: 8px; padding: 0 20px;" id="boundaryEvents">
+                            <div style="text-align: center; color: var(--text2); font-size: 0.85rem;">No boundary events</div>
+                        </div>
+                        <div style="text-align: center;">
+                            <div style="font-size: 2rem;">🌐</div>
+                            <div style="font-weight: 600; color: #3b82f6;">FFI</div>
+                            <div style="font-size: 0.75rem; color: var(--text2);">External</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">📊 Risk Distribution</h2>
+                </div>
+                <div class="chart-container" style="height: 200px;">
                     <canvas id="unsafeChart"></canvas>
                 </div>
             </div>
@@ -1070,11 +1224,6 @@
                 <div class="card-header">
                     <h2 class="card-title">🔄 Memory Lifecycle Flow</h2>
                     <span class="badge badge-info" id="lifecycleFlowCount">0 flows</span>
-                </div>
-                <div style="background: linear-gradient(135deg, #8b5cf610 0%, #8b5cf620 100%); border-radius: 8px; padding: 12px; margin-bottom: 16px; border: 1px solid #8b5cf640;">
-                    <div style="color: var(--text2); font-size: 0.85rem;">
-                        <strong style="color: #8b5cf6;">VISA Flow:</strong> Track memory as it crosses between Rust and FFI boundaries. Each crossing is logged like a visa stamp.
-                    </div>
                 </div>
                 <div id="lifecycleFlowContainer" style="display: flex; flex-direction: column; gap: 12px;"></div>
             </div>
@@ -1219,6 +1368,108 @@
                     if (unsafeRiskCtx) {
                         const ffiCount = unsafeReports.filter(r => r.ffi_tracked).length;
                         this.instances.unsafeRisk = new Chart(unsafeRiskCtx, { type: 'doughnut', data: { labels: ['FFI Tracked', 'Native'], datasets: [{ data: [ffiCount, unsafeReports.length - ffiCount], backgroundColor: [colors.primary, '#10b981'] }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: colors.text } } } } });
+                    }
+                    
+                    // Time Travel Timeline Chart
+                    const ttTimelineCtx = document.getElementById('ttTimelineChart');
+                    if (ttTimelineCtx && allocations.length > 0) {
+                        // Sort allocations by timestamp
+                        const sortedAllocs = [...allocations].sort((a, b) => (a.timestamp_alloc || 0) - (b.timestamp_alloc || 0));
+                        
+                        // Group by time intervals (every 10% of time range)
+                        const minTime = Math.min(...sortedAllocs.map(a => (a.timestamp_alloc || 0) / 1000000));
+                        const maxTime = Math.max(...sortedAllocs.map(a => ((a.timestamp_alloc || 0) / 1000000) + (a.lifetime_ms || 0)));
+                        const timeRange = maxTime - minTime || 1;
+                        const interval = timeRange / 10;
+                        
+                        const timeLabels = [];
+                        const allocCounts = [];
+                        const memoryBytes = [];
+                        const freedCounts = [];
+                        
+                        for (let i = 0; i <= 10; i++) {
+                            const t = minTime + i * interval;
+                            timeLabels.push(`T+${Math.round(t - minTime)}ms`);
+                            
+                            let count = 0;
+                            let mem = 0;
+                            let freed = 0;
+                            
+                            sortedAllocs.forEach(a => {
+                                const allocMs = (a.timestamp_alloc || 0) / 1000000;
+                                const deallocMs = (a.timestamp_dealloc || 0) / 1000000;
+                                
+                                if (allocMs <= t) {
+                                    count++;
+                                    mem += parseInt(a.size) || 0;
+                                }
+                                if (deallocMs > 0 && deallocMs <= t) {
+                                    freed++;
+                                }
+                            });
+                            
+                            allocCounts.push(count);
+                            memoryBytes.push(mem / 1024); // KB
+                            freedCounts.push(freed);
+                        }
+                        
+                        this.instances.ttTimeline = new Chart(ttTimelineCtx, {
+                            type: 'line',
+                            data: {
+                                labels: timeLabels,
+                                datasets: [
+                                    {
+                                        label: 'Active Allocations',
+                                        data: allocCounts.map((a, i) => a - freedCounts[i]),
+                                        borderColor: '#3b82f6',
+                                        backgroundColor: '#3b82f633',
+                                        fill: false,
+                                        tension: 0.4,
+                                        yAxisID: 'y'
+                                    },
+                                    {
+                                        label: 'Memory (KB)',
+                                        data: memoryBytes,
+                                        borderColor: '#10b981',
+                                        backgroundColor: '#10b98133',
+                                        fill: false,
+                                        tension: 0.4,
+                                        yAxisID: 'y1'
+                                    }
+                                ]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                interaction: { mode: 'index', intersect: false },
+                                plugins: {
+                                    legend: { display: true, position: 'top', labels: { color: colors.text } },
+                                    title: { display: true, text: 'Memory Timeline', color: colors.text2 }
+                                },
+                                scales: {
+                                    y: {
+                                        type: 'linear',
+                                        display: true,
+                                        position: 'left',
+                                        grid: { color: colors.grid },
+                                        ticks: { color: colors.text2 },
+                                        title: { display: true, text: 'Allocations', color: colors.text2 }
+                                    },
+                                    y1: {
+                                        type: 'linear',
+                                        display: true,
+                                        position: 'right',
+                                        grid: { drawOnChartArea: false },
+                                        ticks: { color: colors.text2 },
+                                        title: { display: true, text: 'Memory (KB)', color: colors.text2 }
+                                    },
+                                    x: {
+                                        grid: { display: false },
+                                        ticks: { color: colors.text2 }
+                                    }
+                                }
+                            }
+                        });
                     }
                 }
             },
@@ -1433,8 +1684,92 @@
 
             threads: {
                 filteredData: [],
+                heatmapType: 'memory',
                 sort() { const sortBy = document.getElementById('threadSortOrder').value; this.filteredData.sort((a, b) => { switch (sortBy) { case 'alloc-desc': return (b.allocation_count || 0) - (a.allocation_count || 0); case 'alloc-asc': return (a.allocation_count || 0) - (b.allocation_count || 0); case 'memory-desc': return (b.current_memory_bytes || 0) - (a.current_memory_bytes || 0); case 'memory-asc': return (a.current_memory_bytes || 0) - (b.current_memory_bytes || 0); case 'thread-id': return (a.thread_id || '0').localeCompare(b.thread_id || '0'); default: return 0; } }); this.render(); },
-                render() { const tbody = document.getElementById('threadTableBody'); tbody.innerHTML = this.filteredData.map(t => `<tr><td><code title="${t.thread_id || ''}">${Utils.formatThreadId(t.thread_id)}</code></td><td><span class="text-secondary">${t.thread_summary || ''}</span></td><td>${t.allocation_count || 0}</td><td>${t.current_memory || '0 B'}</td><td>${t.peak_memory || '0 B'}</td><td><span class="badge badge-success">active</span></td></tr>`).join(''); },
+                render() { 
+                    const tbody = document.getElementById('threadTableBody'); 
+                    tbody.innerHTML = this.filteredData.map(t => `<tr><td><code title="${t.thread_id || ''}">${Utils.formatThreadId(t.thread_id)}</code></td><td><span class="text-secondary">${t.thread_summary || ''}</span></td><td>${t.allocation_count || 0}</td><td>${t.current_memory || '0 B'}</td><td>${t.peak_memory || '0 B'}</td><td><span class="badge badge-success">active</span></td></tr>`).join(''); 
+                    this.updateStats();
+                    this.renderHeatmap();
+                    this.renderTimeline();
+                },
+                updateStats() {
+                    const threads = this.filteredData;
+                    const activeCount = threads.length;
+                    const totalMemory = threads.reduce((sum, t) => sum + (t.current_memory_bytes || 0), 0);
+                    const peakMemory = threads.reduce((sum, t) => sum + (t.peak_memory_bytes || 0), 0);
+                    const totalAllocs = threads.reduce((sum, t) => sum + (t.allocation_count || 0), 0);
+                    
+                    const activeEl = document.getElementById('activeThreadCount');
+                    const totalMemEl = document.getElementById('totalThreadMemory');
+                    const peakMemEl = document.getElementById('peakThreadMemory');
+                    const totalAllocsEl = document.getElementById('totalThreadAllocs');
+                    
+                    if (activeEl) activeEl.textContent = activeCount;
+                    if (totalMemEl) totalMemEl.textContent = Utils.formatBytes(totalMemory);
+                    if (peakMemEl) peakMemEl.textContent = Utils.formatBytes(peakMemory);
+                    if (totalAllocsEl) totalAllocsEl.textContent = totalAllocs.toLocaleString();
+                },
+                toggleHeatmap(type) {
+                    this.heatmapType = type;
+                    this.renderHeatmap();
+                },
+                renderHeatmap() {
+                    const container = document.getElementById('threadHeatmapContainer');
+                    if (!container || this.filteredData.length === 0) {
+                        if (container) container.innerHTML = '<div class="empty-state">No thread data for heatmap</div>';
+                        return;
+                    }
+                    
+                    const maxVal = Math.max(...this.filteredData.map(t => 
+                        this.heatmapType === 'memory' ? (t.current_memory_bytes || 0) : (t.allocation_count || 0)
+                    ));
+                    
+                    container.innerHTML = `
+                        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 8px;">
+                            ${this.filteredData.map(t => {
+                                const val = this.heatmapType === 'memory' ? (t.current_memory_bytes || 0) : (t.allocation_count || 0);
+                                const intensity = maxVal > 0 ? val / maxVal : 0;
+                                const hue = 120 - (intensity * 120);
+                                const color = `hsl(${hue}, 70%, ${50 + intensity * 20}%)`;
+                                const tid = Utils.formatThreadId(t.thread_id);
+                                return `
+                                    <div style="background: ${color}; border-radius: 8px; padding: 12px; text-align: center; cursor: pointer;" title="${tid}: ${this.heatmapType === 'memory' ? Utils.formatBytes(val) : val + ' allocs'}">
+                                        <div style="font-weight: 600; font-size: 0.85rem;">${tid}</div>
+                                        <div style="font-size: 0.75rem; opacity: 0.9;">${this.heatmapType === 'memory' ? Utils.formatBytes(val) : val}</div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    `;
+                },
+                renderTimeline() {
+                    const container = document.getElementById('threadTimelineContainer');
+                    if (!container || this.filteredData.length === 0) {
+                        if (container) container.innerHTML = '<div class="empty-state">No thread timeline data</div>';
+                        return;
+                    }
+                    
+                    const maxAllocs = Math.max(...this.filteredData.map(t => t.allocation_count || 0));
+                    
+                    container.innerHTML = `
+                        <div style="display: flex; flex-direction: column; gap: 8px;">
+                            ${this.filteredData.slice(0, 10).map(t => {
+                                const width = maxAllocs > 0 ? ((t.allocation_count || 0) / maxAllocs * 100) : 0;
+                                const tid = Utils.formatThreadId(t.thread_id);
+                                return `
+                                    <div style="display: flex; align-items: center; gap: 12px;">
+                                        <div style="width: 60px; font-size: 0.85rem; font-weight: 500;">${tid}</div>
+                                        <div style="flex: 1; height: 24px; background: var(--bg3); border-radius: 4px; overflow: hidden;">
+                                            <div style="width: ${width}%; height: 100%; background: linear-gradient(90deg, #10b981, #3b82f6); border-radius: 4px;"></div>
+                                        </div>
+                                        <div style="width: 80px; font-size: 0.8rem; color: var(--text2);">${t.allocation_count || 0} allocs</div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    `;
+                },
                 init() { const threads = data.threads || []; this.filteredData = [...threads]; document.getElementById('threadCount').textContent = threads.length + ' threads'; const tbody = document.getElementById('threadTableBody'); if (threads.length === 0) { tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No thread data</td></tr>'; return; } this.sort(); }
             },
 
@@ -1516,6 +1851,7 @@
             },
 
             unsafe: {
+                heatmapType: 'risk',
                 init() {
                     const container = document.getElementById('unsafeReportsContainer');
                     const unsafeReports = data.unsafe_reports || [];
@@ -1534,6 +1870,137 @@
                     else flowContainer.innerHTML = lifecycleFlows.slice(0, 10).map(flow => { const flowSteps = flow.events.map((e, idx) => { const isLast = idx === flow.events.length - 1; const stepColor = e.color || '#64748b'; return `<div style="display: flex; align-items: center; gap: 8px;"><div style="width: 32px; height: 32px; border-radius: 50%; background: ${stepColor}; display: flex; align-items: center; justify-content: center; font-size: 14px;">${e.icon || '•'}</div><div style="flex: 1;"><div style="font-weight: 600; color: var(--text);">${e.context || e.event_type}</div><div style="font-size: 0.8rem; color: var(--text2);">${flow.var_name} | ${Utils.formatBytes(flow.size_bytes || 0)}</div></div>${!isLast ? '<div style="width: 2px; height: 24px; background: var(--border);"></div>' : ''}</div>`; }).join(''); return `<div class="detail-panel" style="border: 1px solid var(--border); border-radius: 8px; padding: 16px;"><div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;"><h4 style="color: var(--primary); margin: 0;">${flow.var_name}</h4><code style="font-size: 0.8rem; color: var(--text2);">${flow.allocation_ptr || 'N/A'}</code></div><div style="display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap;">${flowSteps}</div></div>`; }).join('');
                     if (ffiEvents.length === 0) ffiBody.innerHTML = '<tr><td colspan="5" class="empty-state">No FFI events</td></tr>';
                     else ffiBody.innerHTML = ffiEvents.slice(0, 50).map(e => `<tr><td><span class="badge badge-warning">${e.event_type || 'N/A'}</span></td><td>${e.from_context || 'N/A'}</td><td>${e.to_context || 'N/A'}</td><td>${e.timestamp || 0}</td><td>${e.icon || '→'}</td></tr>`).join('');
+                    
+                    this.updateSafetyGauge();
+                    this.renderHeatmap();
+                    this.renderCrossBoundaryTrace(ffiEvents);
+                },
+                updateSafetyGauge() {
+                    const unsafeReports = data.unsafe_reports || [];
+                    const highRisk = unsafeReports.filter(r => r.risk_level === 'high').length;
+                    const total = unsafeReports.length || 1;
+                    const safetyScore = Math.max(0, 100 - (highRisk / total * 100));
+                    
+                    const arc = document.getElementById('safetyArc');
+                    const valueEl = document.getElementById('safetyScoreValue');
+                    
+                    if (arc) {
+                        const dashOffset = 157 - (safetyScore / 100 * 157);
+                        arc.style.strokeDashoffset = dashOffset;
+                        arc.style.stroke = safetyScore >= 80 ? '#10b981' : safetyScore >= 50 ? '#f59e0b' : '#ef4444';
+                    }
+                    if (valueEl) {
+                        valueEl.textContent = Math.round(safetyScore) + '%';
+                        valueEl.style.color = safetyScore >= 80 ? '#10b981' : safetyScore >= 50 ? '#f59e0b' : '#ef4444';
+                    }
+                },
+                toggleHeatmap(type) {
+                    this.heatmapType = type;
+                    this.renderHeatmap();
+                },
+                renderHeatmap() {
+                    const container = document.getElementById('unsafeHeatmapContainer');
+                    const unsafeReports = data.unsafe_reports || [];
+                    
+                    if (!container || unsafeReports.length === 0) {
+                        if (container) container.innerHTML = '<div class="empty-state">No unsafe operations data</div>';
+                        return;
+                    }
+                    
+                    if (this.heatmapType === 'risk') {
+                        const riskGroups = { high: [], medium: [], low: [] };
+                        unsafeReports.forEach(r => {
+                            const level = r.risk_level || 'low';
+                            riskGroups[level].push(r);
+                        });
+                        
+                        container.innerHTML = `
+                            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
+                                <div style="background: #ef444420; border: 2px solid #ef4444; border-radius: 8px; padding: 16px;">
+                                    <div style="font-weight: 600; color: #ef4444; margin-bottom: 12px;">🚨 High Risk (${riskGroups.high.length})</div>
+                                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                                        ${riskGroups.high.slice(0, 5).map(r => `
+                                            <div style="background: #ef444410; border-radius: 4px; padding: 8px; font-size: 0.85rem;">
+                                                <div style="font-weight: 500;">${r.var_name || 'unknown'}</div>
+                                                <div style="color: var(--text2); font-size: 0.75rem;">${r.type_name || 'Unknown'}</div>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                                <div style="background: #f59e0b20; border: 2px solid #f59e0b; border-radius: 8px; padding: 16px;">
+                                    <div style="font-weight: 600; color: #f59e0b; margin-bottom: 12px;">⚠️ Medium Risk (${riskGroups.medium.length})</div>
+                                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                                        ${riskGroups.medium.slice(0, 5).map(r => `
+                                            <div style="background: #f59e0b10; border-radius: 4px; padding: 8px; font-size: 0.85rem;">
+                                                <div style="font-weight: 500;">${r.var_name || 'unknown'}</div>
+                                                <div style="color: var(--text2); font-size: 0.75rem;">${r.type_name || 'Unknown'}</div>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                                <div style="background: #10b98120; border: 2px solid #10b981; border-radius: 8px; padding: 16px;">
+                                    <div style="font-weight: 600; color: #10b981; margin-bottom: 12px;">✅ Low Risk (${riskGroups.low.length})</div>
+                                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                                        ${riskGroups.low.slice(0, 5).map(r => `
+                                            <div style="background: #10b98110; border-radius: 4px; padding: 8px; font-size: 0.85rem;">
+                                                <div style="font-weight: 500;">${r.var_name || 'unknown'}</div>
+                                                <div style="color: var(--text2); font-size: 0.75rem;">${r.type_name || 'Unknown'}</div>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        const typeCount = {};
+                        unsafeReports.forEach(r => {
+                            const type = r.type_name || 'Unknown';
+                            typeCount[type] = (typeCount[type] || 0) + 1;
+                        });
+                        
+                        const sortedTypes = Object.entries(typeCount).sort((a, b) => b[1] - a[1]);
+                        const maxCount = sortedTypes[0]?.[1] || 1;
+                        
+                        container.innerHTML = `
+                            <div style="display: flex; flex-direction: column; gap: 8px;">
+                                ${sortedTypes.slice(0, 10).map(([type, count]) => {
+                                    const width = (count / maxCount) * 100;
+                                    return `
+                                        <div style="display: flex; align-items: center; gap: 12px;">
+                                            <div style="width: 150px; font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${type}">${type}</div>
+                                            <div style="flex: 1; height: 24px; background: var(--bg3); border-radius: 4px; overflow: hidden;">
+                                                <div style="width: ${width}%; height: 100%; background: linear-gradient(90deg, #f59e0b, #ef4444); border-radius: 4px;"></div>
+                                            </div>
+                                            <div style="width: 50px; font-size: 0.8rem; color: var(--text2);">${count}</div>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        `;
+                    }
+                },
+                renderCrossBoundaryTrace(ffiEvents) {
+                    const container = document.getElementById('boundaryEvents');
+                    const countEl = document.getElementById('boundaryEventCount');
+                    
+                    if (!container) return;
+                    
+                    if (countEl) countEl.textContent = ffiEvents.length + ' events';
+                    
+                    if (ffiEvents.length === 0) {
+                        container.innerHTML = '<div style="text-align: center; color: var(--text2); font-size: 0.85rem;">No boundary events</div>';
+                        return;
+                    }
+                    
+                    container.innerHTML = ffiEvents.slice(0, 8).map(e => `
+                        <div style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--bg3); border-radius: 8px; font-size: 0.8rem;">
+                            <span style="font-size: 1rem;">${e.icon || '→'}</span>
+                            <div>
+                                <div style="font-weight: 500;">${e.event_type || 'Cross'}</div>
+                                <div style="color: var(--text2); font-size: 0.7rem;">${e.var_name || 'unknown'}</div>
+                            </div>
+                        </div>
+                    `).join('');
                 }
             },
 
@@ -1541,7 +2008,24 @@
                 filteredData: [],
                 filter() { const query = document.getElementById('timetravelSearch').value.toLowerCase(); this.filteredData = (data.allocations || []).filter(a => (a.address || '').toLowerCase().includes(query) || (a.var_name || '').toLowerCase().includes(query)); this.sort(); },
                 sort() { const sortBy = document.getElementById('ttSortOrder').value; this.filteredData.sort((a, b) => { switch (sortBy) { case 'time-asc': return (a.timestamp_alloc || 0) - (b.timestamp_alloc || 0); case 'time-desc': return (b.timestamp_alloc || 0) - (a.timestamp_alloc || 0); case 'size-desc': return (b.size || 0) - (a.size || 0); case 'size-asc': return (a.size || 0) - (b.size || 0); case 'lifetime-desc': return (b.lifetime_ms || 0) - (a.lifetime_ms || 0); default: return 0; } }); this.render(); },
-                render() { const tbody = document.getElementById('timetravelBody'); tbody.innerHTML = this.filteredData.slice(0, 100).map(a => { const sourceLoc = (a.source_file && a.source_line) ? `<a href="#" onclick="jumpToSource('${a.source_file}', ${a.source_line}); return false;" title="Jump to source" style="color: var(--primary); text-decoration: underline;">${a.source_file}:${a.source_line}</a>` : '<span style="color: var(--text2);">—</span>'; return `<tr onclick="Dashboard.timetravel.showDetail('${a.address}')" style="cursor: pointer;"><td><code>${a.address || '0x0'}</code></td><td>${a.var_name || 'unknown'}</td><td>${Utils.formatBytes(parseInt(a.size) || 0)}</td><td style="font-size: 0.85rem;">${sourceLoc}</td><td>${a.timestamp_alloc || 0}</td><td>${Utils.formatTime(parseInt(a.lifetime_ms || 0) * 1000000)}</td><td>${a.is_leaked ? '<span class="badge badge-danger">Leaked</span>' : a.timestamp_dealloc > 0 ? '<span class="badge badge-success">Freed</span>' : '<span class="badge badge-info">Active</span>'}</td><td><button class="btn-link">View History</button></td></tr>`; }).join(''); },
+                render() { const tbody = document.getElementById('timetravelBody'); tbody.innerHTML = this.filteredData.slice(0, 100).map(a => { const sourceLoc = (a.source_file && a.source_line) ? `<a href="#" onclick="jumpToSource('${a.source_file}', ${a.source_line}); return false;" title="Jump to source" style="color: var(--primary); text-decoration: underline;">${a.source_file}:${a.source_line}</a>` : '<span style="color: var(--text2);">—</span>'; return `<tr onclick="Dashboard.timetravel.showDetail('${a.address}')" style="cursor: pointer;"><td><code>${a.address || '0x0'}</code></td><td>${a.var_name || 'unknown'}</td><td>${Utils.formatBytes(parseInt(a.size) || 0)}</td><td style="font-size: 0.85rem;">${sourceLoc}</td><td>${a.timestamp_alloc || 0}</td><td>${Utils.formatTime(parseInt(a.lifetime_ms || 0) * 1000000)}</td><td>${a.is_leaked ? '<span class="badge badge-danger">Leaked</span>' : a.timestamp_dealloc > 0 ? '<span class="badge badge-success">Freed</span>' : '<span class="badge badge-info">Active</span>'}</td><td><button class="btn-link">View History</button></td></tr>`; }).join(''); this.updateStats(); },
+                updateStats() {
+                    const allocations = this.filteredData;
+                    const total = allocations.length;
+                    const active = allocations.filter(a => !a.timestamp_dealloc).length;
+                    const freed = allocations.filter(a => a.timestamp_dealloc > 0 && !a.is_leaked).length;
+                    const leaked = allocations.filter(a => a.is_leaked).length;
+                    
+                    const totalEl = document.getElementById('ttTotalEvents');
+                    const activeEl = document.getElementById('ttActiveCount');
+                    const freedEl = document.getElementById('ttFreedCount');
+                    const leakedEl = document.getElementById('ttLeakedCount');
+                    
+                    if (totalEl) totalEl.textContent = total;
+                    if (activeEl) activeEl.textContent = active;
+                    if (freedEl) freedEl.textContent = freed;
+                    if (leakedEl) leakedEl.textContent = leaked;
+                },
                 showDetail(address) { const alloc = data.allocations?.find(a => a.address === address); if (!alloc) { alert('Allocation not found: ' + address); return; } document.getElementById('timetravelDetail').style.display = 'block'; document.getElementById('ttAddress').textContent = address; document.getElementById('ttVarName').textContent = alloc.var_name || 'unknown'; document.getElementById('ttType').textContent = alloc.type_name || 'Unknown'; document.getElementById('ttSize').textContent = Utils.formatBytes(parseInt(alloc.size) || 0); document.getElementById('ttStatus').innerHTML = alloc.is_leaked ? '<span class="badge badge-danger">Leaked</span>' : '<span class="badge badge-success">Normal</span>'; const timeline = document.getElementById('ttTimeline'); const events = [{ type: 'alloc', time: alloc.timestamp_alloc || 0, desc: 'Allocation', icon: '➕' }]; if (alloc.timestamp_dealloc > 0) events.push({ type: 'dealloc', time: alloc.timestamp_dealloc, desc: 'Deallocation', icon: '➖' }); if (alloc.is_leaked) events.push({ type: 'leak', time: (alloc.timestamp_alloc || 0) + parseInt(alloc.lifetime_ms || 0) * 1000000, desc: 'Leak Detected', icon: '⚠️' }); timeline.innerHTML = events.map(e => `<div class="timeline-item ${e.type}"><strong>${e.icon} ${e.desc}</strong><div style="color: var(--text2); font-size: 0.85rem;">Timestamp: ${e.time} | Delta: +${Utils.formatTime(e.time - events[0].time)}</div></div>`).join(''); },
                 init() { const allocations = data.allocations || []; this.filteredData = [...allocations]; if (allocations.length === 0) { document.getElementById('timetravelBody').innerHTML = '<tr><td colspan="8" class="empty-state">No allocation data</td></tr>'; return; } this.sort(); }
             },

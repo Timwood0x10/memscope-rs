@@ -68,6 +68,7 @@ pub enum MemScopeError {
         operation: MemoryOperation,
         message: Arc<str>,
         context: Option<Arc<str>>,
+        error_kind: ErrorKind,
         error_context: ErrorContext,
     },
 
@@ -76,6 +77,7 @@ pub enum MemScopeError {
         analyzer: Arc<str>,
         message: Arc<str>,
         recoverable: bool,
+        error_kind: ErrorKind,
         error_context: ErrorContext,
     },
 
@@ -84,6 +86,7 @@ pub enum MemScopeError {
         format: Arc<str>,
         message: Arc<str>,
         partial_success: bool,
+        error_kind: ErrorKind,
         error_context: ErrorContext,
     },
 
@@ -91,6 +94,7 @@ pub enum MemScopeError {
     Configuration {
         component: Arc<str>,
         message: Arc<str>,
+        error_kind: ErrorKind,
         error_context: ErrorContext,
     },
 
@@ -99,6 +103,7 @@ pub enum MemScopeError {
         error_type: SystemErrorType,
         message: Arc<str>,
         source_message: Option<Arc<str>>,
+        error_kind: ErrorKind,
         error_context: ErrorContext,
     },
 
@@ -106,6 +111,7 @@ pub enum MemScopeError {
     Internal {
         message: Arc<str>,
         location: Option<Arc<str>>,
+        error_kind: ErrorKind,
         error_context: ErrorContext,
     },
 }
@@ -199,16 +205,60 @@ impl MemScopeError {
     /// Create a new error with the specified kind and message
     pub fn new(kind: ErrorKind, message: impl Into<Arc<str>>) -> Self {
         match kind {
-            ErrorKind::MemoryError => Self::memory(MemoryOperation::Tracking, message),
-            ErrorKind::ConfigurationError => Self::config("general", message),
-            ErrorKind::IoError => Self::system(SystemErrorType::Io, message),
-            ErrorKind::SymbolResolutionError => Self::analysis("symbol_resolution", message),
-            ErrorKind::StackTraceError => Self::analysis("stack_trace", message),
-            ErrorKind::CacheError => Self::system(SystemErrorType::Io, message),
-            ErrorKind::InternalError => Self::internal(message),
-            ErrorKind::ValidationError => Self::memory(MemoryOperation::Validation, message),
-            ErrorKind::AnalysisError => Self::analysis("general", message),
-            ErrorKind::ExportError => Self::export("general", message),
+            ErrorKind::MemoryError => Self::Memory {
+                operation: MemoryOperation::Tracking,
+                message: message.into(),
+                context: None,
+                error_kind: kind,
+                error_context: ErrorContext::new(),
+            },
+            ErrorKind::ValidationError => Self::Memory {
+                operation: MemoryOperation::Validation,
+                message: message.into(),
+                context: None,
+                error_kind: kind,
+                error_context: ErrorContext::new(),
+            },
+            ErrorKind::ConfigurationError => Self::Configuration {
+                component: "general".into(),
+                message: message.into(),
+                error_kind: kind,
+                error_context: ErrorContext::new(),
+            },
+            ErrorKind::IoError | ErrorKind::CacheError => Self::System {
+                error_type: SystemErrorType::Io,
+                message: message.into(),
+                source_message: None,
+                error_kind: kind,
+                error_context: ErrorContext::new(),
+            },
+            ErrorKind::SymbolResolutionError
+            | ErrorKind::StackTraceError
+            | ErrorKind::AnalysisError => Self::Analysis {
+                analyzer: match kind {
+                    ErrorKind::SymbolResolutionError => "symbol_resolution",
+                    ErrorKind::StackTraceError => "stack_trace",
+                    _ => "general",
+                }
+                .into(),
+                message: message.into(),
+                recoverable: true,
+                error_kind: kind,
+                error_context: ErrorContext::new(),
+            },
+            ErrorKind::ExportError => Self::Export {
+                format: "general".into(),
+                message: message.into(),
+                partial_success: false,
+                error_kind: kind,
+                error_context: ErrorContext::new(),
+            },
+            ErrorKind::InternalError => Self::Internal {
+                message: message.into(),
+                location: None,
+                error_kind: kind,
+                error_context: ErrorContext::new(),
+            },
         }
     }
 
@@ -240,6 +290,7 @@ impl MemScopeError {
             operation,
             message: message.into(),
             context: None,
+            error_kind: ErrorKind::MemoryError,
             error_context: ErrorContext::new(),
         }
     }
@@ -254,6 +305,7 @@ impl MemScopeError {
             operation,
             message: message.into(),
             context: Some(context.into()),
+            error_kind: ErrorKind::MemoryError,
             error_context: ErrorContext::new(),
         }
     }
@@ -264,6 +316,7 @@ impl MemScopeError {
             analyzer: analyzer.into(),
             message: message.into(),
             recoverable: true,
+            error_kind: ErrorKind::AnalysisError,
             error_context: ErrorContext::new(),
         }
     }
@@ -274,6 +327,7 @@ impl MemScopeError {
             analyzer: analyzer.into(),
             message: message.into(),
             recoverable: false,
+            error_kind: ErrorKind::AnalysisError,
             error_context: ErrorContext::new(),
         }
     }
@@ -284,6 +338,7 @@ impl MemScopeError {
             format: format.into(),
             message: message.into(),
             partial_success: false,
+            error_kind: ErrorKind::ExportError,
             error_context: ErrorContext::new(),
         }
     }
@@ -294,6 +349,7 @@ impl MemScopeError {
             format: format.into(),
             message: message.into(),
             partial_success: true,
+            error_kind: ErrorKind::ExportError,
             error_context: ErrorContext::new(),
         }
     }
@@ -308,6 +364,7 @@ impl MemScopeError {
             format: format.into(),
             message: format!("{} (source: {})", message.into(), source.as_ref()).into(),
             partial_success: false,
+            error_kind: ErrorKind::ExportError,
             error_context: ErrorContext::new(),
         }
     }
@@ -317,6 +374,7 @@ impl MemScopeError {
         Self::Configuration {
             component: component.into(),
             message: message.into(),
+            error_kind: ErrorKind::ConfigurationError,
             error_context: ErrorContext::new(),
         }
     }
@@ -327,6 +385,7 @@ impl MemScopeError {
             error_type,
             message: message.into(),
             source_message: None,
+            error_kind: ErrorKind::IoError,
             error_context: ErrorContext::new(),
         }
     }
@@ -341,6 +400,7 @@ impl MemScopeError {
             error_type,
             message: message.into(),
             source_message: Some(Arc::from(source.to_string())),
+            error_kind: ErrorKind::IoError,
             error_context: ErrorContext::new(),
         }
     }
@@ -350,6 +410,7 @@ impl MemScopeError {
         Self::Internal {
             message: message.into(),
             location: None,
+            error_kind: ErrorKind::InternalError,
             error_context: ErrorContext::new(),
         }
     }
@@ -359,6 +420,7 @@ impl MemScopeError {
         Self::Internal {
             message: message.into(),
             location: Some(location.into()),
+            error_kind: ErrorKind::InternalError,
             error_context: ErrorContext::new(),
         }
     }
@@ -383,20 +445,12 @@ impl MemScopeError {
     /// Get error kind for categorization and statistics
     pub fn kind(&self) -> ErrorKind {
         match self {
-            Self::Memory { .. } => ErrorKind::MemoryError,
-            Self::Analysis { .. } => ErrorKind::AnalysisError,
-            Self::Export { .. } => ErrorKind::ExportError,
-            Self::Configuration { .. } => ErrorKind::ConfigurationError,
-            Self::System { error_type, .. } => match error_type {
-                SystemErrorType::Io => ErrorKind::IoError,
-                SystemErrorType::Threading => ErrorKind::InternalError,
-                SystemErrorType::Locking => ErrorKind::InternalError,
-                SystemErrorType::Channel => ErrorKind::InternalError,
-                SystemErrorType::Serialization => ErrorKind::InternalError,
-                SystemErrorType::Network => ErrorKind::IoError,
-                SystemErrorType::FileSystem => ErrorKind::IoError,
-            },
-            Self::Internal { .. } => ErrorKind::InternalError,
+            Self::Memory { error_kind, .. } => *error_kind,
+            Self::Analysis { error_kind, .. } => *error_kind,
+            Self::Export { error_kind, .. } => *error_kind,
+            Self::Configuration { error_kind, .. } => *error_kind,
+            Self::System { error_kind, .. } => *error_kind,
+            Self::Internal { error_kind, .. } => *error_kind,
         }
     }
 
@@ -526,6 +580,7 @@ impl fmt::Display for MemScopeError {
                 operation,
                 message,
                 context,
+                error_kind: _,
                 error_context: _,
             } => {
                 write!(
@@ -546,7 +601,10 @@ impl fmt::Display for MemScopeError {
                 Ok(())
             }
             Self::Analysis {
-                analyzer, message, ..
+                analyzer,
+                message,
+                error_kind: _,
+                ..
             } => {
                 write!(f, "Analysis error in {analyzer}: {message}")
             }
@@ -554,6 +612,7 @@ impl fmt::Display for MemScopeError {
                 format,
                 message,
                 partial_success,
+                error_kind: _,
                 error_context: _,
             } => {
                 if *partial_success {
@@ -565,6 +624,7 @@ impl fmt::Display for MemScopeError {
             Self::Configuration {
                 component,
                 message,
+                error_kind: _,
                 error_context: _,
             } => {
                 write!(f, "Configuration error in {component}: {message}")
@@ -573,6 +633,7 @@ impl fmt::Display for MemScopeError {
                 error_type,
                 message,
                 source_message,
+                error_kind: _,
                 error_context: _,
             } => {
                 write!(
@@ -597,6 +658,7 @@ impl fmt::Display for MemScopeError {
             Self::Internal {
                 message,
                 location,
+                error_kind: _,
                 error_context: _,
             } => {
                 write!(f, "Internal error: {message}")?;

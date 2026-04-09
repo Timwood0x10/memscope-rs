@@ -1,9 +1,11 @@
 //! Unsafe Rust & FFI Memory Analysis - New API
 //!
 //! This example demonstrates unsafe Rust and FFI memory tracking with memory passport export.
+//! Also demonstrates variable relationships for the relationship graph.
 
 use memscope_rs::{global_tracker, init_global_tracking, track, MemScopeResult};
 use std::alloc::{alloc, dealloc, Layout};
+use std::sync::Arc;
 use std::time::Instant;
 
 fn main() -> MemScopeResult<()> {
@@ -25,7 +27,39 @@ fn main() -> MemScopeResult<()> {
     track!(tracker, safe_string);
     println!("   Tracked String with {} chars", safe_string.len());
 
-    println!("\n2. Unsafe Rust Allocations");
+    println!("\n2. Variable Relationships Demo");
+
+    // Owner relationship: Box contains pointer to heap allocation
+    let boxed_value = Box::new(42u64);
+    track!(tracker, boxed_value);
+    println!("   Box<u64> - Owner relationship");
+
+    // Shared relationship: Arc with multiple references
+    let shared_data = Arc::new(vec![1u64, 2, 3, 4, 5]);
+    track!(tracker, shared_data);
+    let shared_clone1 = Arc::clone(&shared_data);
+    let shared_clone2 = Arc::clone(&shared_data);
+    println!("   Arc<Vec<u64>> - Shared relationship (3 references)");
+
+    // Clone relationship: same type, size, stack
+    let original_vec = vec![10u64, 20, 30, 40, 50];
+    track!(tracker, original_vec);
+    let cloned_vec = original_vec.clone();
+    track!(tracker, cloned_vec);
+    println!("   Cloned Vec - Clone relationship");
+
+    // Slice relationship: slice pointing into another allocation
+    let large_array = vec![100u64, 200, 300, 400, 500, 600, 700, 800];
+    track!(tracker, large_array);
+    let slice_ref: &[u64] = &large_array[2..6];
+    println!("   Slice reference - Slice relationship");
+
+    // Nested structures with pointers
+    let outer = Box::new(vec![1000u64, 2000, 3000]);
+    track!(tracker, outer);
+    println!("   Box<Vec<u64>> - Nested ownership");
+
+    println!("\n3. Unsafe Rust Allocations");
     unsafe {
         let layout = Layout::new::<[i32; 10]>();
         let ptr = alloc(layout);
@@ -51,7 +85,7 @@ fn main() -> MemScopeResult<()> {
         }
     }
 
-    println!("\n3. FFI Memory Operations");
+    println!("\n4. FFI Memory Operations");
     extern "C" {
         fn malloc(size: usize) -> *mut std::ffi::c_void;
         fn free(ptr: *mut std::ffi::c_void);
@@ -91,20 +125,31 @@ fn main() -> MemScopeResult<()> {
         }
     }
 
+    // Keep some allocations alive for relationship detection
+    // NOTE: std::mem::forget is used here intentionally for demonstration purposes.
+    // This prevents the Arc clones from being dropped, keeping the reference count
+    // alive so that the relationship graph can show shared ownership relationships.
+    // In production code, you would use proper lifecycle management instead.
+    println!("\n5. Keeping allocations alive for analysis...");
+    std::mem::forget(shared_clone1);
+    std::mem::forget(shared_clone2);
+    // Suppress unused variable warning for slice reference (intentionally kept alive)
+    let _ = slice_ref;
+
     let duration = start_time.elapsed();
 
-    println!("\n4. Leak Detection");
+    println!("\n6. Leak Detection");
     let leak_result = tracker.passport_tracker().detect_leaks_at_shutdown();
     let stats = tracker.get_stats();
     println!("   Total passports created: {}", stats.passport_count);
     println!("   Leaks detected: {}", leak_result.total_leaks);
 
-    println!("\n5. Memory Analysis");
+    println!("\n7. Memory Analysis");
     println!("   Total allocations: {}", stats.total_allocations);
     println!("   Active allocations: {}", stats.active_allocations);
     println!("   Peak memory: {} bytes", stats.peak_memory_bytes);
 
-    println!("\n6. Exporting memory snapshot...");
+    println!("\n8. Exporting memory snapshot...");
     let output_path = "MemoryAnalysis/unsafe_ffi_new_api";
     tracker.export_json(output_path)?;
     println!("   memory_snapshots.json");
@@ -115,12 +160,17 @@ fn main() -> MemScopeResult<()> {
     println!("   async_analysis.json");
 
     // Export HTML dashboard
-    println!("\n7. Exporting HTML dashboard...");
+    println!("\n9. Exporting HTML dashboard...");
     tracker.export_html(output_path)?;
     println!("   dashboard.html");
 
     println!("\n============================================");
     println!("Duration: {:.2}ms", duration.as_secs_f64() * 1000.0);
+    println!("\nNote: Variable Relationship Graph should now show:");
+    println!("  - Owner relationships (Box<T>)");
+    println!("  - Shared relationships (Arc<T>)");
+    println!("  - Clone relationships (vec.clone())");
+    println!("  - Slice relationships (&[T])");
 
     Ok(())
 }

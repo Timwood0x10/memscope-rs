@@ -553,7 +553,7 @@ pub fn export_async_analysis_json<P: AsRef<Path>>(
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum DashboardTemplate {
     /// Unified dashboard (multi-mode in single HTML)
-     #[default]
+    #[default]
     Unified,
     /// Final dashboard (new investigation console)
     // #[default]

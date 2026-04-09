@@ -16,14 +16,8 @@ impl IntoMemScopeError for crate::capture::backends::async_types::AsyncError {
             AsyncError::Initialization {
                 component,
                 message,
-                recoverable,
-            } => {
-                if recoverable {
-                    MemScopeError::config(component, message.as_ref())
-                } else {
-                    MemScopeError::config(component, message.as_ref())
-                }
-            }
+                recoverable: _,
+            } => MemScopeError::config(component, message.as_ref()),
             AsyncError::TaskTracking {
                 operation,
                 message,
