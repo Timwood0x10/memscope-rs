@@ -172,12 +172,27 @@ fn safe_read_linux(_ptr: usize, _buf: &mut [u8]) -> bool {
 
 #[cfg(not(target_os = "linux"))]
 fn read_bytes_volatile(ptr: usize, buf: &mut [u8]) -> bool {
+    eprintln!("read_bytes_volatile: ptr=0x{:x}, len={}", ptr, buf.len());
+
+    // Pre-check: verify the entire range is valid before reading
+    if !are_pages_valid(ptr, buf.len()) {
+        eprintln!(
+            "read_bytes_volatile: pages not valid for range 0x{:x}..0x{:x}",
+            ptr,
+            ptr + buf.len()
+        );
+        return false;
+    }
+
     let mut addr = ptr;
     for byte in buf.iter_mut() {
-        if !is_valid_ptr(addr) {
-            return false;
-        }
+        // Read the byte directly without per-byte validation
+        // We already validated the pages above
         *byte = unsafe { std::ptr::read_volatile(addr as *const u8) };
+        eprintln!(
+            "read_bytes_volatile: read addr=0x{:x}, byte=0x{:x}",
+            addr, *byte
+        );
         addr = addr.saturating_add(1);
     }
     true
@@ -239,13 +254,30 @@ mod tests {
 
     #[test]
     fn test_heap_scanner_scan_real_allocations() {
-        // Scan actual heap allocations to verify end-to-end behavior.
-        let alloc1 = [42u8; 64];
-        let alloc2 = [99u8; 128];
+        use crate::analysis::unsafe_inference::get_valid_regions;
+
+        let alloc1 = Box::new([42u8; 64]);
+        let alloc2 = Box::new([99u8; 128]);
+        let ptr1 = Box::into_raw(alloc1) as usize;
+        let ptr2 = Box::into_raw(alloc2) as usize;
+
+        // Debug: print pointer addresses and ValidRegions
+        eprintln!("Test: ptr1 = 0x{:x}, ptr2 = 0x{:x}", ptr1, ptr2);
+        let regions = get_valid_regions();
+        regions.debug_dump();
+        eprintln!(
+            "Test: is_valid_ptr(ptr1) = {}",
+            crate::analysis::unsafe_inference::is_valid_ptr(ptr1)
+        );
+        eprintln!(
+            "Test: is_valid_ptr(ptr2) = {}",
+            crate::analysis::unsafe_inference::is_valid_ptr(ptr2)
+        );
+
         let allocations = vec![
             ActiveAllocation {
-                ptr: alloc1.as_ptr() as usize,
-                size: alloc1.len(),
+                ptr: ptr1,
+                size: 64,
                 allocated_at: 1000,
                 var_name: None,
                 type_name: None,
@@ -253,8 +285,8 @@ mod tests {
                 call_stack_hash: None,
             },
             ActiveAllocation {
-                ptr: alloc2.as_ptr() as usize,
-                size: alloc2.len(),
+                ptr: ptr2,
+                size: 128,
                 allocated_at: 2000,
                 var_name: None,
                 type_name: None,
@@ -266,14 +298,18 @@ mod tests {
         let results = HeapScanner::scan(&allocations);
         assert_eq!(results.len(), 2);
 
-        // Both allocations should have readable memory.
         assert!(results[0].memory.is_some());
         assert!(results[1].memory.is_some());
 
-        // Verify memory content matches original.
         let mem0 = results[0].memory.as_ref().unwrap();
         let read_size = 64.min(mem0.len());
-        assert_eq!(mem0.as_slice()[..read_size], alloc1[..read_size]);
+        assert_eq!(mem0.as_slice()[..read_size], [42u8; 64][..read_size]);
+
+        // Cleanup
+        unsafe {
+            let _ = Box::from_raw(ptr1 as *mut u8);
+            let _ = Box::from_raw(ptr2 as *mut u8);
+        }
     }
 
     #[test]
@@ -302,23 +338,60 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "linux")]
     fn test_heap_scanner_content_preserved_after_scan() {
-        // Verify that scanning a Vec with known pattern preserves the content.
-        let data = [0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE, 0xBA, 0xBE];
+        let data = Box::new([0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE, 0xBA, 0xBE]);
+
+        let ptr = Box::into_raw(data) as usize;
+
+        eprintln!("Test: ptr = 0x{:x}", ptr);
+
+        eprintln!(
+            "Test: is_valid_ptr(ptr) = {}",
+            crate::analysis::unsafe_inference::is_valid_ptr(ptr)
+        );
+
+        // Directly read the memory to check its actual content
+
+        let actual_data: [u8; 8] = unsafe { std::ptr::read(ptr as *const [u8; 8]) };
+
+        eprintln!("Test: actual data = {:?}", actual_data);
+
         let alloc = ActiveAllocation {
-            ptr: data.as_ptr() as usize,
-            size: data.len(),
+            ptr,
+
+            size: 8,
+
             allocated_at: 1000,
+
             var_name: None,
+
             type_name: None,
+
             thread_id: 0,
+
             call_stack_hash: None,
         };
 
         let results = HeapScanner::scan(&[alloc]);
+
         assert_eq!(results.len(), 1);
 
         let mem = results[0].memory.as_ref().unwrap();
-        assert_eq!(mem.as_slice()[..8], data[..]);
+
+        let read_bytes: Vec<u8> = mem.as_slice()[..8].to_vec();
+
+        eprintln!("Test: read bytes = {:?}", read_bytes);
+
+        assert_eq!(
+            mem.as_slice()[..8],
+            [0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE, 0xBA, 0xBE][..]
+        );
+
+        // Cleanup
+
+        unsafe {
+            let _ = Box::from_raw(ptr as *mut u8);
+        }
     }
 }

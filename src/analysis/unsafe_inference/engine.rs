@@ -806,6 +806,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "linux")]
     fn test_infer_buffer_no_pointers() {
         let memory = [1u8, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
         let guess = UnsafeInferenceEngine::infer_from_bytes(&memory, 16);

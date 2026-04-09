@@ -378,7 +378,7 @@ impl PlatformStackWalker {
                     sp: None,
                     module_base: None,
                     module_offset: None,
-                    symbol_info: frame.symbols().next().map(|sym| FrameSymbolInfo {
+                    symbol_info: frame.symbols().first().map(|sym| FrameSymbolInfo {
                         name: sym
                             .name()
                             .map(|n| format!("{:?}", n))
@@ -471,6 +471,7 @@ impl PlatformStackWalker {
     }
 
     #[cfg(target_os = "windows")]
+    #[cfg(target_os = "windows")]
     fn walk_windows_stack(&self, _frames: &mut Vec<StackFrame>) -> Result<(), WalkError> {
         // Windows-specific stack walking using StackWalk64 or RtlCaptureStackBackTrace
         //
@@ -490,7 +491,7 @@ impl PlatformStackWalker {
             let bt = Backtrace::new();
 
             for (i, frame) in bt.frames().iter().enumerate() {
-                if frames.len() >= self.config.max_depth {
+                if _frames.len() >= self.config.max_depth {
                     break;
                 }
 
@@ -500,13 +501,13 @@ impl PlatformStackWalker {
 
                 let ip = frame.ip() as usize;
 
-                frames.push(StackFrame {
+                _frames.push(StackFrame {
                     ip,
                     fp: None,
                     sp: None,
                     module_base: None,
                     module_offset: None,
-                    symbol_info: frame.symbols().next().map(|sym| FrameSymbolInfo {
+                    symbol_info: frame.symbols().first().map(|sym| FrameSymbolInfo {
                         name: sym
                             .name()
                             .map(|n| format!("{:?}", n))
@@ -518,7 +519,7 @@ impl PlatformStackWalker {
                 });
             }
 
-            if !frames.is_empty() {
+            if !_frames.is_empty() {
                 return Ok(());
             }
         }

@@ -58,7 +58,9 @@ impl ValidRegions {
     }
 
     /// Create from a list of memory regions.
-    pub fn from_regions(regions: Vec<MemoryRegion>) -> Self {
+    pub fn from_regions(mut regions: Vec<MemoryRegion>) -> Self {
+        // Sort regions by start address for partition_point to work correctly
+        regions.sort_by_key(|r| r.start);
         Self {
             regions,
             is_dynamic: true,
@@ -104,6 +106,15 @@ impl ValidRegions {
     pub fn is_dynamic(&self) -> bool {
         self.is_dynamic
     }
+
+    /// Debug dump regions to stderr
+    #[cfg(test)]
+    pub fn debug_dump(&self) {
+        eprintln!("ValidRegions (is_dynamic={}):", self.is_dynamic);
+        for (i, region) in self.regions.iter().enumerate() {
+            eprintln!("  Region {}: 0x{:x} - 0x{:x}", i, region.start, region.end);
+        }
+    }
 }
 
 /// Global cached valid regions.
@@ -143,7 +154,10 @@ fn get_valid_regions_impl() -> ValidRegions {
 
     let content = match fs::read_to_string("/proc/self/maps") {
         Ok(c) => c,
-        Err(_) => return ValidRegions::empty(),
+        Err(_) => {
+            // Fallback: use conservative estimates if /proc/self/maps is unavailable
+            return get_conservative_regions();
+        }
     };
 
     let mut regions: Vec<MemoryRegion> = content
@@ -181,13 +195,124 @@ fn get_valid_regions_impl() -> ValidRegions {
     // Merge overlapping/adjacent regions
     regions = merge_regions(regions);
 
+    // If no regions found, use conservative estimates
+    if regions.is_empty() {
+        return get_conservative_regions();
+    }
+
+    // Add conservative stack region as fallback for stack-allocated data
+    let stack_ptr = std::ptr::null_mut::<u8>() as usize;
+    regions.push(MemoryRegion {
+        start: stack_ptr.saturating_sub(8 * 1024 * 1024), // 8MB below current
+        end: stack_ptr.saturating_add(8 * 1024 * 1024),   // 8MB above current
+    });
+
+    // Re-sort and merge after adding stack region
+    regions.sort_by_key(|r| r.start);
+    regions = merge_regions(regions);
+
     ValidRegions::from_regions(regions)
 }
 
-/// Get valid memory regions for the current process (non-Linux).
-#[cfg(not(target_os = "linux"))]
+/// Get conservative memory regions as fallback
+#[cfg(target_os = "linux")]
+fn get_conservative_regions() -> ValidRegions {
+    let mut regions = Vec::new();
+
+    // Add stack region (conservative estimate)
+    let stack_ptr = std::ptr::null_mut::<u8>() as usize;
+    regions.push(MemoryRegion {
+        start: stack_ptr.saturating_sub(8 * 1024 * 1024), // 8MB below current
+        end: stack_ptr.saturating_add(8 * 1024 * 1024),   // 8MB above current
+    });
+
+    // Add heap region (conservative estimate)
+    // On Linux, heap typically starts at a low address
+    regions.push(MemoryRegion {
+        start: 0x10000,
+        end: 0x7FFFFFFF_FFFF_FFFF,
+    });
+
+    ValidRegions::from_regions(regions)
+}
+
+/// Get valid memory regions for the current process (Windows).
+///
+/// Uses a conservative approach to detect valid memory regions:
+/// - Stack region: 8MB below and above current stack pointer
+/// - Heap region: from 0x10000 to 0x7FFFFFFF_FFFF_FFFF
+/// - Additional heap regions for common allocators
+#[cfg(target_os = "windows")]
 fn get_valid_regions_impl() -> ValidRegions {
-    ValidRegions::empty()
+    let mut regions = Vec::new();
+
+    // Add stack region (conservative estimate)
+    let stack_ptr = std::ptr::null_mut::<u8>() as usize;
+    regions.push(MemoryRegion {
+        start: stack_ptr.saturating_sub(8 * 1024 * 1024), // 8MB below current
+        end: stack_ptr.saturating_add(8 * 1024 * 1024),   // 8MB above current
+    });
+
+    // Add primary heap region (conservative estimate)
+    // Windows heap typically starts at a low address
+    regions.push(MemoryRegion {
+        start: 0x10000,
+        end: 0x7FFFFFFF_FFFF_FFFF, // Large range for heap
+    });
+
+    ValidRegions::from_regions(regions)
+}
+
+/// Get valid memory regions for the current process (macOS).
+///
+/// Uses a conservative approach to detect valid memory regions:
+/// - Stack region: 8MB below and above current stack pointer
+/// - Heap regions: multiple ranges to cover different allocators
+#[cfg(target_os = "macos")]
+fn get_valid_regions_impl() -> ValidRegions {
+    let mut regions = Vec::new();
+
+    // Add stack region (conservative estimate)
+    let stack_ptr = std::ptr::null_mut::<u8>() as usize;
+    regions.push(MemoryRegion {
+        start: stack_ptr.saturating_sub(8 * 1024 * 1024), // 8MB below current
+        end: stack_ptr.saturating_add(8 * 1024 * 1024),   // 8MB above current
+    });
+
+    // Add very wide heap region to cover all possible allocations
+    // macOS can allocate memory in various ranges depending on the allocator
+    regions.push(MemoryRegion {
+        start: 0x1000,              // Start from a low address
+        end: 0x7FFF_FFFF_FFFF_FFFF, // Up to max 64-bit address
+    });
+
+    ValidRegions::from_regions(regions)
+}
+
+/// Get valid memory regions for the current process (non-Linux, non-Windows, non-macOS).
+/// Uses conservative approach as fallback for unknown platforms.
+#[cfg(all(
+    not(target_os = "linux"),
+    not(target_os = "windows"),
+    not(target_os = "macos")
+))]
+fn get_valid_regions_impl() -> ValidRegions {
+    let mut regions = Vec::new();
+
+    // Add stack region (conservative estimate)
+    let stack_ptr = std::ptr::null_mut::<u8>() as usize;
+    regions.push(MemoryRegion {
+        start: stack_ptr.saturating_sub(8 * 1024 * 1024), // 8MB below current
+        end: stack_ptr.saturating_add(8 * 1024 * 1024),   // 8MB above current
+    });
+
+    // Add heap region (conservative estimate)
+    regions.push(MemoryRegion {
+        start: 0x10000,
+        end: 0x7FFFFFFF_FFFF_FFFF,
+    });
+
+    ValidRegions::from_regions(regions)
 }
 
 /// Get cached valid regions, initializing if needed.

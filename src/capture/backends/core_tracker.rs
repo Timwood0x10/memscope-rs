@@ -569,11 +569,11 @@ mod tests {
         let tracker = MemoryTracker::new();
         tracker.track_allocation(0x1000, 1024).unwrap();
 
-        let test_id = std::process::id();
-        let result = tracker.export_to_json(format!("test_export_{}", test_id));
+        let temp_dir = tempfile::TempDir::new().expect("Failed to create temp dir");
+        let file_path = temp_dir.path().join("test_export.json");
+        let result = tracker.export_to_json(&file_path);
         assert!(result.is_ok());
-
-        std::fs::remove_file(format!("MemoryAnalysis/test_export_{}.json", test_id)).ok();
+        assert!(file_path.exists());
     }
 
     #[test]

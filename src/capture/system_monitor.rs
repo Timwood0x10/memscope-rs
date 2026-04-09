@@ -73,10 +73,10 @@ impl SystemMonitor {
             sys.refresh_all();
 
             let mut last_refresh = Instant::now();
-            let mut last_disk_read = 0u64;
-            let mut last_disk_write = 0u64;
-            let mut last_network_rx = 0u64;
-            let mut last_network_tx = 0u64;
+            let last_disk_read = 0u64;
+            let last_disk_write = 0u64;
+            let last_network_rx = 0u64;
+            let last_network_tx = 0u64;
 
             while running_clone.load(Ordering::Relaxed) {
                 let now = Instant::now();
