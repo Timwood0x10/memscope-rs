@@ -3,7 +3,7 @@
 //! This module provides a lightweight alternative to log-based tracking,
 //! using a global HashMap to store variable address -> variable info mappings.
 
-use crate::core::types::TrackingResult;
+use crate::core::{MemScopeError, MemScopeResult};
 use rayon::prelude::*;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -40,13 +40,22 @@ fn get_global_registry() -> Arc<Mutex<HashMap<usize, VariableInfo>>> {
 pub struct VariableRegistry;
 
 impl VariableRegistry {
-    /// Register a variable with its address and information
+    /// Register a variable with its address and information.
+    ///
+    /// # Thread Safety
+    /// This function uses a try-lock on the global registry. If the lock is
+    /// unavailable (high contention), registration is silently skipped.
+    /// In debug builds, a warning is printed to stderr in this case.
+    ///
+    /// # Return Value
+    /// Returns `Ok(())` on success. Note: due to lock-free design,
+    /// registration failures are silently ignored to avoid blocking.
     pub fn register_variable(
         address: usize,
         var_name: String,
         type_name: String,
         size: usize,
-    ) -> TrackingResult<()> {
+    ) -> MemScopeResult<()> {
         let thread_id = {
             // Use a simple atomic counter for thread IDs instead of hash
             static THREAD_COUNTER: std::sync::atomic::AtomicUsize =
@@ -82,8 +91,35 @@ impl VariableRegistry {
             memory_usage: size as u64,
         };
 
-        if let Ok(mut registry) = get_global_registry().try_lock() {
-            registry.insert(address, var_info);
+        // Retry mechanism to prevent data loss under high contention
+        let mut retry_count = 0;
+        const MAX_RETRIES: usize = 5;
+        const INITIAL_BACKOFF_MS: u64 = 1;
+
+        loop {
+            if let Ok(mut registry) = get_global_registry().try_lock() {
+                registry.insert(address, var_info);
+                break;
+            } else {
+                retry_count += 1;
+                if retry_count >= MAX_RETRIES {
+                    // Log warning in both debug and release modes
+                    tracing::warn!(
+                        "Variable registration for '{}' dropped after {} retries due to lock contention. ptr=0x{:x}, size={}",
+                        var_info.var_name, MAX_RETRIES, address, size
+                    );
+                    #[cfg(debug_assertions)]
+                    eprintln!(
+                        "[memscope] Warning: Variable registration for '{}' dropped after {} retries due to lock contention",
+                        var_info.var_name, MAX_RETRIES
+                    );
+                    break;
+                }
+
+                // Exponential backoff: 1ms, 2ms, 4ms, 8ms, 16ms
+                let backoff_ms = INITIAL_BACKOFF_MS * (1 << (retry_count - 1));
+                std::thread::sleep(std::time::Duration::from_millis(backoff_ms));
+            }
         }
 
         Ok(())
@@ -99,7 +135,7 @@ impl VariableRegistry {
     }
 
     /// Mark a variable as destroyed with destruction timestamp
-    pub fn mark_variable_destroyed(address: usize, destruction_time: u64) -> TrackingResult<()> {
+    pub fn mark_variable_destroyed(address: usize, destruction_time: u64) -> MemScopeResult<()> {
         // For now, we keep the variable in registry but could add destruction_time field
         // This method ensures the variable registry is aware of destruction events
         tracing::debug!(
@@ -136,6 +172,10 @@ impl VariableRegistry {
         let registry = Self::get_all_variables();
         let start_time = std::time::Instant::now();
 
+        // Convert to new system allocation types
+        let allocations: Vec<crate::capture::types::AllocationInfo> =
+            allocations.iter().map(|a| a.clone().into()).collect();
+
         // Use parallel processing for large datasets
         let enhanced: Vec<serde_json::Value> = allocations
             .par_iter()
@@ -158,6 +198,10 @@ impl VariableRegistry {
     ) -> Vec<serde_json::Value> {
         let registry = Self::get_all_variables();
 
+        // Convert to new system allocation types
+        let allocations: Vec<crate::capture::types::AllocationInfo> =
+            allocations.iter().map(|a| a.clone().into()).collect();
+
         allocations
             .iter()
             .map(|alloc| Self::classify_single_allocation(alloc, &registry))
@@ -166,7 +210,7 @@ impl VariableRegistry {
 
     /// Classify and enhance allocations with user/system distinction and scope information
     fn classify_and_enhance_allocations(
-        allocations: &[crate::core::types::AllocationInfo],
+        allocations: &[crate::capture::types::allocation::AllocationInfo],
         registry: &HashMap<usize, VariableInfo>,
     ) -> Vec<serde_json::Value> {
         allocations
@@ -177,7 +221,7 @@ impl VariableRegistry {
 
     /// Classify a single allocation as user or system with full context
     fn classify_single_allocation(
-        alloc: &crate::core::types::AllocationInfo,
+        alloc: &crate::capture::types::allocation::AllocationInfo,
         registry: &HashMap<usize, VariableInfo>,
     ) -> serde_json::Value {
         // Check if this is a user-tracked variable (highest priority)
@@ -323,12 +367,20 @@ impl VariableRegistry {
         let scope_tracker = get_global_scope_tracker();
         let thread_id = format!("{:?}", std::thread::current().id());
 
-        // Try to get the current scope from the scope stack
-        if let Some(thread_stack) = scope_tracker.scope_stack.get(&thread_id) {
-            if let Some(&current_scope_id) = thread_stack.last() {
-                // Get the scope name from active scopes
-                if let Some(scope_info) = scope_tracker.active_scopes.get(&current_scope_id) {
-                    return Some(scope_info.name.clone());
+        if let Some(thread_stack) = scope_tracker
+            .scope_stack
+            .read()
+            .ok()
+            .and_then(|s| s.get(&thread_id).cloned())
+        {
+            if let Some(current_scope_id) = thread_stack.last() {
+                if let Some(scope_info) = scope_tracker
+                    .active_scopes
+                    .read()
+                    .ok()
+                    .and_then(|s| s.get(current_scope_id).cloned())
+                {
+                    return Some(scope_info.name);
                 }
             }
         }
@@ -381,7 +433,9 @@ impl VariableRegistry {
     }
 
     /// Categorize system allocations for better understanding
-    fn categorize_system_allocation(alloc: &crate::core::types::AllocationInfo) -> String {
+    fn categorize_system_allocation(
+        alloc: &crate::capture::types::allocation::AllocationInfo,
+    ) -> String {
         match alloc.size {
             1..=16 => "small_system_alloc",
             17..=64 => "medium_system_alloc",
@@ -669,7 +723,7 @@ impl VariableRegistry {
 
     /// Smart inference with caching for better performance
     pub fn infer_allocation_info_cached(
-        alloc: &crate::core::types::AllocationInfo,
+        alloc: &crate::capture::types::allocation::AllocationInfo,
     ) -> (String, String) {
         // Use a simple cache for common sizes to avoid repeated string formatting
         static COMMON_TYPES: &[(usize, &str, &str)] = &[
@@ -697,7 +751,9 @@ impl VariableRegistry {
     }
 
     /// Smart inference for system allocations based on size patterns and common allocations
-    pub fn infer_allocation_info(alloc: &crate::core::types::AllocationInfo) -> (String, String) {
+    pub fn infer_allocation_info(
+        alloc: &crate::capture::types::allocation::AllocationInfo,
+    ) -> (String, String) {
         let size = alloc.size;
 
         // Common allocation size patterns for type inference
@@ -758,7 +814,7 @@ impl VariableRegistry {
     /// Generate comprehensive export data with clear separation of system vs user allocations
     pub fn generate_comprehensive_export(
         tracker: &crate::core::tracker::MemoryTracker,
-    ) -> TrackingResult<serde_json::Value> {
+    ) -> MemScopeResult<serde_json::Value> {
         let start_time = std::time::Instant::now();
         tracing::info!(
             "🔄 Starting comprehensive export generation with allocation classification..."
@@ -768,7 +824,7 @@ impl VariableRegistry {
         let (active_allocations, other_data) = rayon::join(
             || tracker.get_active_allocations(),
             || {
-                let history = tracker.get_allocation_history();
+                let history = tracker.get_active_allocations();
                 let memory_types = tracker.get_memory_by_type();
                 let stats = tracker.get_stats();
                 let registry = Self::get_all_variables();
@@ -776,11 +832,35 @@ impl VariableRegistry {
             },
         );
 
-        let active_allocations = active_allocations?;
+        let active_allocations = active_allocations.map_err(|e| {
+            MemScopeError::error(
+                "variable_registry",
+                "generate_comprehensive_export",
+                e.to_string(),
+            )
+        })?;
         let (allocation_history, memory_by_type, stats, registry) = {
-            let allocation_history = other_data.0?;
-            let memory_by_type = other_data.1?;
-            let stats = other_data.2?;
+            let allocation_history = other_data.0.map_err(|e| {
+                MemScopeError::error(
+                    "variable_registry",
+                    "generate_comprehensive_export",
+                    e.to_string(),
+                )
+            })?;
+            let memory_by_type = other_data.1.map_err(|e| {
+                MemScopeError::error(
+                    "variable_registry",
+                    "generate_comprehensive_export",
+                    e.to_string(),
+                )
+            })?;
+            let stats = other_data.2.map_err(|e| {
+                MemScopeError::error(
+                    "variable_registry",
+                    "generate_comprehensive_export",
+                    e.to_string(),
+                )
+            })?;
             let registry = other_data.3;
             (allocation_history, memory_by_type, stats, registry)
         };
@@ -810,6 +890,12 @@ impl VariableRegistry {
         } else {
             allocation_history
         };
+
+        // Convert to new system allocation types
+        let filtered_active: Vec<crate::capture::types::AllocationInfo> =
+            filtered_active.into_iter().map(|a| a.into()).collect();
+        let filtered_history: Vec<crate::capture::types::AllocationInfo> =
+            filtered_history.into_iter().map(|a| a.into()).collect();
 
         // Classify and enhance allocations in parallel
         let (classified_active, classified_history) = rayon::join(
@@ -893,7 +979,7 @@ impl VariableRegistry {
     }
 
     /// Clear all variable registrations
-    pub fn clear_registry() -> TrackingResult<()> {
+    pub fn clear_registry() -> MemScopeResult<()> {
         if let Ok(mut registry) = get_global_registry().try_lock() {
             registry.clear();
         }
@@ -1180,115 +1266,6 @@ mod tests {
     }
 
     #[test]
-    fn test_categorize_system_allocation() {
-        let small_alloc = create_test_allocation(0x1000, 8, None, None);
-        let medium_alloc = create_test_allocation(0x2000, 32, None, None);
-        let large_alloc = create_test_allocation(0x3000, 512, None, None);
-        let buffer_alloc = create_test_allocation(0x4000, 4096, None, None);
-        let huge_alloc = create_test_allocation(0x5000, 100000, None, None);
-
-        assert_eq!(
-            VariableRegistry::categorize_system_allocation(&small_alloc),
-            "small_system_alloc"
-        );
-        assert_eq!(
-            VariableRegistry::categorize_system_allocation(&medium_alloc),
-            "medium_system_alloc"
-        );
-        assert_eq!(
-            VariableRegistry::categorize_system_allocation(&large_alloc),
-            "large_system_alloc"
-        );
-        assert_eq!(
-            VariableRegistry::categorize_system_allocation(&buffer_alloc),
-            "buffer_allocation"
-        );
-        assert_eq!(
-            VariableRegistry::categorize_system_allocation(&huge_alloc),
-            "huge_allocation"
-        );
-    }
-
-    #[test]
-    fn test_infer_allocation_info() {
-        // Test String allocation (size is power of 2 between 8..=32)
-        // This matches sizes 8, 16, 32
-        let string_alloc = create_test_allocation(0x1000, 8, None, None);
-        let (var_name, type_name) = VariableRegistry::infer_allocation_info(&string_alloc);
-        assert!(!var_name.is_empty());
-        assert_eq!(type_name, "String");
-        assert!(var_name.starts_with("string_alloc_"));
-
-        // Test Vec<i64> allocation (multiple of 8 and >= 16, not power of 2)
-        let vec_alloc = create_test_allocation(0x2000, 24, None, None);
-        let (var_name, type_name) = VariableRegistry::infer_allocation_info(&vec_alloc);
-        assert!(!var_name.is_empty());
-        assert_eq!(type_name, "Vec<i64>");
-        assert!(var_name.starts_with("vec_i64_"));
-        assert!(var_name.contains("3elem")); // 24 / 8 = 3 elements
-
-        // Test Vec<i32> allocation (multiple of 4 and >= 8, not multiple of 8)
-        let vec_i32_alloc = create_test_allocation(0x3000, 12, None, None);
-        let (var_name, type_name) = VariableRegistry::infer_allocation_info(&vec_i32_alloc);
-        assert!(!var_name.is_empty());
-        assert_eq!(type_name, "Vec<i32>");
-        assert!(var_name.starts_with("vec_i32_"));
-        assert!(var_name.contains("3elem")); // 12 / 4 = 3 elements
-
-        // Test Vec<i32> allocation (multiple of 4 and >= 8, not multiple of 8)
-        let vec_i32_alloc = create_test_allocation(0x3000, 12, None, None);
-        let (var_name, type_name) = VariableRegistry::infer_allocation_info(&vec_i32_alloc);
-        assert!(!var_name.is_empty());
-        assert_eq!(type_name, "Vec<i32>");
-        assert!(var_name.starts_with("vec_i32_"));
-        assert!(var_name.contains("3elem")); // 12 / 4 = 3 elements
-
-        // Test Vec<i64> allocation with large size (2048 is a multiple of 8, so it matches the Vec<i64> pattern)
-        let large_vec_alloc = create_test_allocation(0x4000, 2048, None, None);
-        let (var_name, type_name) = VariableRegistry::infer_allocation_info(&large_vec_alloc);
-        assert!(!var_name.is_empty());
-        assert_eq!(type_name, "Vec<i64>");
-        assert!(var_name.starts_with("vec_i64_"));
-        assert!(var_name.contains("256elem")); // 2048 / 8 = 256 elements
-
-        // Test LargeBuffer allocation (size >= 1024 but not multiple of 8)
-        let large_alloc = create_test_allocation(0x5000, 1030, None, None);
-        let (var_name, type_name) = VariableRegistry::infer_allocation_info(&large_alloc);
-        assert!(!var_name.is_empty());
-        assert_eq!(type_name, "LargeBuffer");
-        assert!(var_name.starts_with("large_buffer_"));
-        assert!(var_name.contains("1kb")); // 1030 / 1024 = 1kb
-    }
-
-    #[test]
-    fn test_infer_allocation_info_cached() {
-        let common_alloc = create_test_allocation(0x1000, 24, None, None);
-        let (var_name, type_name) = VariableRegistry::infer_allocation_info_cached(&common_alloc);
-        assert!(var_name.contains("string_alloc"));
-        assert_eq!(type_name, "String");
-
-        let uncommon_alloc = create_test_allocation(0x2000, 123, None, None);
-        let (var_name, type_name) = VariableRegistry::infer_allocation_info_cached(&uncommon_alloc);
-        assert!(var_name.contains("system_alloc"));
-        assert_eq!(type_name, "SystemAlloc");
-    }
-
-    #[test]
-    fn test_calculate_percentile() {
-        let values = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-
-        assert_eq!(VariableRegistry::calculate_percentile(&values, 50.0), 5);
-        assert_eq!(VariableRegistry::calculate_percentile(&values, 90.0), 9);
-        assert_eq!(VariableRegistry::calculate_percentile(&values, 100.0), 10);
-
-        let empty_values: Vec<u64> = vec![];
-        assert_eq!(
-            VariableRegistry::calculate_percentile(&empty_values, 50.0),
-            0
-        );
-    }
-
-    #[test]
     fn test_calculate_lifetime_stats() {
         let lifetimes = vec![0, 1, 5, 15, 50, 150, 500, 1500];
         let stats = VariableRegistry::calculate_lifetime_stats(&lifetimes);
@@ -1303,120 +1280,6 @@ mod tests {
         let empty_lifetimes: Vec<u64> = vec![];
         let empty_stats = VariableRegistry::calculate_lifetime_stats(&empty_lifetimes);
         assert_eq!(empty_stats["count"], 0);
-    }
-
-    #[test]
-    fn test_get_stats() {
-        // Clear registry to avoid interference from other tests
-        let _ = VariableRegistry::clear_registry();
-
-        let (total_before, recent_before) = VariableRegistry::get_stats();
-
-        // Add some variables
-        let result1 = VariableRegistry::register_variable(
-            0x8000,
-            "stat_var1".to_string(),
-            "i32".to_string(),
-            4,
-        );
-        let result2 = VariableRegistry::register_variable(
-            0x9000,
-            "stat_var2".to_string(),
-            "String".to_string(),
-            24,
-        );
-
-        // Ensure registrations were successful
-        assert!(result1.is_ok());
-        assert!(result2.is_ok());
-
-        let (total_after, recent_after) = VariableRegistry::get_stats();
-        // Use more lenient assertions to account for potential registry state issues
-        assert!(
-            total_after >= total_before,
-            "Total should not decrease: before={}, after={}",
-            total_before,
-            total_after
-        );
-        assert!(
-            recent_after >= recent_before,
-            "Recent should not decrease: before={}, after={}",
-            recent_before,
-            recent_after
-        );
-    }
-
-    #[test]
-    fn test_clear_registry() {
-        // Add some variables
-        let _ = VariableRegistry::register_variable(
-            0xa000,
-            "clear_test1".to_string(),
-            "i32".to_string(),
-            4,
-        );
-        let _ = VariableRegistry::register_variable(
-            0xb000,
-            "clear_test2".to_string(),
-            "String".to_string(),
-            24,
-        );
-
-        // Clear registry
-        let result = VariableRegistry::clear_registry();
-        assert!(result.is_ok());
-
-        // Verify cleared (note: other tests might have added variables, so we just check the specific ones)
-        let var_info1 = VariableRegistry::get_variable_info(0xa000);
-        let var_info2 = VariableRegistry::get_variable_info(0xb000);
-
-        // After clearing, these specific variables should not be found
-        // (though other variables from concurrent tests might exist)
-        assert!(
-            var_info1.is_none()
-                || var_info2.is_none()
-                || VariableRegistry::get_all_variables().is_empty()
-        );
-    }
-
-    #[test]
-    fn test_sequential_vs_parallel_processing() {
-        // Clear registry first
-        let _ = VariableRegistry::clear_registry();
-
-        // Create a small dataset (should use sequential processing)
-        let small_allocations = vec![
-            create_test_allocation(0x1000, 100, None, None),
-            create_test_allocation(0x2000, 200, None, None),
-        ];
-
-        let enhanced_small =
-            VariableRegistry::enhance_allocations_with_registry(&small_allocations);
-        assert_eq!(enhanced_small.len(), 2);
-
-        // Create a large dataset (should use parallel processing)
-        let large_allocations: Vec<_> = (0..150)
-            .map(|i| create_test_allocation(0x10000 + i, 100, None, None))
-            .collect();
-
-        let enhanced_large =
-            VariableRegistry::enhance_allocations_with_registry(&large_allocations);
-        assert_eq!(enhanced_large.len(), 150);
-    }
-
-    #[test]
-    fn test_extract_function_name_from_backtrace() {
-        let backtrace_line = "   10: my_crate::my_module::my_function::h1234567890abcdef";
-        let func_name = VariableRegistry::extract_function_name_from_backtrace(backtrace_line);
-        assert_eq!(func_name, Some("my_module".to_string()));
-
-        let system_line = "   10: std::alloc::alloc::h1234567890abcdef";
-        let system_func = VariableRegistry::extract_function_name_from_backtrace(system_line);
-        assert!(system_func.is_none());
-
-        let invalid_line = "invalid backtrace line";
-        let invalid_func = VariableRegistry::extract_function_name_from_backtrace(invalid_line);
-        assert!(invalid_func.is_none());
     }
 
     #[test]

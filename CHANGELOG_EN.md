@@ -1,5 +1,199 @@
 # Changelog
 
+## [0.2.0] - 2026-04-09
+
+### 🏗️ **Major Architecture Refactoring: From Monolithic to Modular Engines**
+
+This release represents a complete architectural overhaul of memscope-rs, transitioning from a monolithic structure to a modular engine-based architecture. This refactoring significantly improves code maintainability, extensibility, and thread safety while reducing code size by approximately 75%.
+
+#### **Architecture Changes**
+
+- **BREAKING**: Complete migration from monolithic to 8-engine architecture
+  - **Analysis Engine**: Centralized memory analysis logic
+  - **Capture Engine**: Unified data collection and tracking
+  - **Event Store Engine**: Lock-free centralized event storage
+  - **Query Engine**: Unified query interface
+  - **Render Engine**: Output rendering and visualization
+  - **Snapshot Engine**: Snapshot construction and aggregation
+  - **Timeline Engine**: Time-based memory analysis
+  - **Metadata Engine**: Centralized metadata management
+- **BREAKING**: API changes - Tracking API moved to `memscope_rs::tracker` module
+- **BREAKING**: Complete error handling system refactoring
+- **BREAKING**: Module reorganization - Many internal modules moved/renamed
+
+#### **Code Quality Improvements**
+
+- **feat(error)**: Unified error handling system
+  - Eliminated all unsafe `unwrap()` calls (17+ instances)
+  - All lock operations now use `.map_err()` for error handling
+  - Added detailed error information for debugging
+  - Lock poisoning recovery mechanism
+- **feat(safety)**: Enhanced thread safety across all modules
+  - SystemMonitor Drop implementation changed to background thread waiting
+  - Atomic operations for optimized concurrency performance
+  - Thread-safe duplicate tracking prevention
+- **refactor(code)**: Massive code reduction
+  - Removed ~200,000 lines of redundant code
+  - Current codebase: 77,641 lines (down from ~270,000)
+  - Improved code density and maintainability
+
+#### **Smart Pointer Tracking Enhancement**
+
+- **fix(variable_relationships)**: Fixed `node_to_allocation_info` to preserve smart pointer information
+  - Now correctly retains Rc/Arc/Box/Weak pointer details
+  - Improved circular reference detection accuracy
+  - Enhanced relationship inference for smart pointers
+
+#### **Performance Improvements**
+
+- **perf(concurrent)**: Up to 98% improvement in concurrent tracking scenarios
+  - Concurrent tracking (1 thread): 5ms → 98µs (-98%)
+  - Concurrent tracking (64 threads): 2.5ms → 1.9ms (-25%)
+  - High concurrency (128 threads): -35% improvement
+- **perf(analysis)**: Analysis operations (small datasets): -91% improvement
+  - Analysis (100 elements): 340µs → 30µs (-91%)
+- **perf(backend)**: Lockfree allocation: -46% improvement
+  - Lockfree allocation: 73ns → 39ns
+- **perf(classification)**: Type classification: 1-21% improvement
+- **perf(stats)**: Statistics operations: 2-12% improvement
+
+#### **Performance Trade-offs**
+
+- ⚠️ **Regressions** in specific scenarios:
+  - Tracker creation: +559% (startup-only impact)
+  - Single tracking (small allocations): +11-16%
+  - Multi-variable tracking: +17-22%
+  - Analysis (large datasets): +333-8884% (needs optimization)
+- **Reason for regressions**: Enhanced error handling, detailed statistics collection, additional abstraction layers
+- **Net impact**: Most production use cases (high concurrency, realistic workloads) show net performance improvements
+
+#### **New Features**
+
+- **feat(smart_pointer)**: Comprehensive smart pointer tracking
+  - Support for Rc/Arc/Box/Weak smart pointers
+  - Reference count tracking
+  - Clone relationship detection
+  - Circular reference detection
+- **feat(event_store)**: Lock-free event storage
+  - High-throughput event recording
+  - Point-in-time snapshots
+  - Thread-safe concurrent access
+- **facade**: Unified facade API for simplified user experience
+  - Automatic backend selection
+  - Consistent interface across all tracking operations
+
+#### **Testing and Documentation**
+
+- **test**: Comprehensive test coverage across all engines
+  - Unit tests for all modules
+  - Integration tests
+  - Performance tests
+  - Boundary condition tests
+- **docs**: Updated documentation
+  - Architecture documentation reflecting new engine structure
+  - Migration guide for API changes
+  - Performance benchmarks and analysis
+  - Enhanced API documentation
+
+#### **Module Structure Changes**
+
+```
+src/
+├── analysis_engine/    # NEW: Analysis engine orchestration
+├── capture/            # REORG: Capture engine and backends
+│   ├── backends/       # Core, Lockfree, Async, Global trackers
+│   ├── types/          # Enhanced data types
+│   └── platform/       # Platform-specific implementations
+├── core/               # REORG: Core types and utilities
+├── error/              # NEW: Unified error handling
+├── event_store/        # NEW: Event storage engine
+├── metadata/           # NEW: Metadata engine
+├── query/              # NEW: Query engine
+├── render_engine/      # REORG: Output rendering
+├── snapshot/           # NEW: Snapshot engine
+├── timeline/           # NEW: Timeline engine
+└── tracker/            # NEW: Unified tracker API
+```
+
+#### **Statistics**
+
+- **525 files changed** with significant modifications
+- **66,398 lines added**, **265,022 lines removed**
+- **Net reduction**: ~198,624 lines (~75% code reduction)
+- **Current codebase**: 77,641 lines
+- **Test coverage**: Comprehensive across all modules
+- **Build status**: ✅ 0 errors, 0 warnings, all checks passing
+
+#### **Migration Guide**
+
+**Important Breaking Changes:**
+
+1. **API Changes**:
+```rust
+// Old API (v0.1.x)
+use memscope_rs::{track_var, track_scope};
+
+// New API (v0.2.0)
+use memscope_rs::tracker::{track_var, track_scope};
+```
+
+2. **Error Handling**:
+```rust
+// Old API
+let result = tracker.track_allocation(ptr, size)
+    .expect("Failed to track");
+
+// New API
+let result = tracker.track_allocation(ptr, size)
+    .map_err(|e| eprintln!("Tracking failed: {}", e))?;
+```
+
+3. **Module References**:
+```rust
+// Old API
+use memscope_rs::core::MemoryTracker;
+
+// New API
+use memscope_rs::capture::backends::CoreTracker;
+```
+
+See [PR Summary](PR_SUMMARY_EN.md) for detailed migration guide.
+
+#### **Known Issues**
+
+- Large dataset analysis performance regression (needs optimization in future releases)
+- Some analysis operations on small allocations have increased latency
+- Tracker creation overhead (startup-only impact)
+
+#### **Recommendations**
+
+**✅ Recommended for Upgrade:**
+- High-concurrency application scenarios
+- Applications requiring better error handling
+- Projects requiring long-term maintenance
+- Projects needing feature extensions
+
+**⚠️ Evaluate Carefully:**
+- Applications extremely sensitive to single-tracking latency
+- Large-scale memory analysis scenarios (needs further optimization)
+- Tracker creation in performance-critical paths
+
+#### **Future Optimization Plans**
+
+1. **Large Data Analysis Optimization**: Improve analysis engine performance for large datasets
+2. **Tracker Creation Optimization**: Reduce initialization overhead
+3. **Caching Strategy**: Enhance caching mechanisms to reduce redundant computations
+4. **Parallel Analysis**: Utilize multi-core for accelerated analysis operations
+
+#### **Credits**
+
+- Architecture refactoring: Major engineering effort
+- Performance analysis: Comprehensive benchmark suite
+- Documentation: Updated architecture and API guides
+- Testing: Extensive test coverage across all modules
+
+---
+
 ## Overview
 
 This changelog documents the changes between the `test_a` branch and `master` branch of memscope-rs. The test_a branch includes code reorganization, new experimental features, and various improvements.

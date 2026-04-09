@@ -1,18 +1,12 @@
 //! Custom global allocator for tracking memory allocations.
 
-use crate::core::enhanced_type_inference::TypeInferenceEngine;
 use std::alloc::{GlobalAlloc, Layout, System};
-use std::sync::Mutex;
 
 /// A custom allocator that tracks memory allocations and deallocations.
 ///
 /// This allocator wraps the system allocator and records all allocation
 /// and deallocation events through the global memory tracker.
 pub struct TrackingAllocator;
-
-// Global type inference engine for the allocator
-static _TYPE_INFERENCE_ENGINE: std::sync::LazyLock<Mutex<TypeInferenceEngine>> =
-    std::sync::LazyLock::new(|| Mutex::new(TypeInferenceEngine::new()));
 
 impl TrackingAllocator {
     /// Create a new tracking allocator instance.

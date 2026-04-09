@@ -3,7 +3,7 @@
 //! This module provides functionality to detect circular references in Rc/Arc
 //! smart pointers that can lead to memory leaks.
 
-use crate::core::types::{AllocationInfo, SmartPointerInfo, SmartPointerType};
+use crate::capture::types::{AllocationInfo, SmartPointerInfo, SmartPointerType};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
@@ -215,6 +215,14 @@ impl ReferenceGraph {
 
         if let Some(neighbors) = self.adjacency.get(&ptr) {
             for &neighbor in neighbors {
+                // Check for self-loop (node points to itself)
+                if neighbor == ptr {
+                    // Self-loop detected - record as a single-node cycle
+                    cycles.push(vec![ptr]);
+                    tracing::trace!("Self-loop detected at ptr=0x{:x}", ptr);
+                    continue;
+                }
+
                 if !visited.contains(&neighbor) {
                     self.dfs_detect_cycles(neighbor, visited, rec_stack, path, cycles);
                 } else if rec_stack.contains(&neighbor) {
@@ -393,7 +401,10 @@ fn generate_statistics(circular_references: &[CircularReference]) -> CircularRef
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::types::{RefCountSnapshot, SmartPointerInfo, SmartPointerType};
+    use crate::capture::types::{RefCountSnapshot, SmartPointerInfo, SmartPointerType};
+    use crate::utils::current_thread_id_u64;
+
+    use std::thread;
 
     #[test]
     fn test_circular_reference_node_creation() {
@@ -655,7 +666,8 @@ mod tests {
             scope_name: None,
             timestamp_alloc: 0,
             timestamp_dealloc: None,
-            thread_id: "main".to_string(),
+            thread_id: std::thread::current().id(),
+            thread_id_u64: current_thread_id_u64(),
             borrow_count: 0,
             stack_trace: None,
             is_leaked: false,
@@ -688,7 +700,8 @@ mod tests {
             scope_name: None,
             timestamp_alloc: 0,
             timestamp_dealloc: None,
-            thread_id: "main".to_string(),
+            thread_id: std::thread::current().id(),
+            thread_id_u64: current_thread_id_u64(),
             borrow_count: 0,
             stack_trace: None,
             is_leaked: false,
@@ -746,7 +759,13 @@ mod tests {
             scope_name: None,
             timestamp_alloc: 0,
             timestamp_dealloc: None,
-            thread_id: "main".to_string(),
+            thread_id: std::thread::current().id(),
+            thread_id_u64: {
+                use std::hash::{Hash, Hasher};
+                let mut hasher = std::collections::hash_map::DefaultHasher::new();
+                std::thread::current().id().hash(&mut hasher);
+                hasher.finish()
+            },
             borrow_count: 0,
             stack_trace: None,
             is_leaked: false,
@@ -804,7 +823,13 @@ mod tests {
             scope_name: None,
             timestamp_alloc: 0,
             timestamp_dealloc: None,
-            thread_id: "main".to_string(),
+            thread_id: thread::current().id(),
+            thread_id_u64: {
+                use std::hash::{Hash, Hasher};
+                let mut hasher = std::collections::hash_map::DefaultHasher::new();
+                thread::current().id().hash(&mut hasher);
+                hasher.finish()
+            },
             borrow_count: 0,
             stack_trace: None,
             is_leaked: false,
@@ -869,7 +894,13 @@ mod tests {
             scope_name: None,
             timestamp_alloc: 0,
             timestamp_dealloc: None,
-            thread_id: "main".to_string(),
+            thread_id: thread::current().id(),
+            thread_id_u64: {
+                use std::hash::{Hash, Hasher};
+                let mut hasher = std::collections::hash_map::DefaultHasher::new();
+                thread::current().id().hash(&mut hasher);
+                hasher.finish()
+            },
             borrow_count: 0,
             stack_trace: None,
             is_leaked: false,

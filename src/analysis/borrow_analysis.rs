@@ -241,13 +241,22 @@ impl BorrowAnalyzer {
 
     /// Analyze borrow patterns
     pub fn analyze_borrow_patterns(&self) -> BorrowPatternAnalysis {
-        let history = match self.borrow_history.safe_lock() {
-            Ok(h) => h,
-            Err(_) => return BorrowPatternAnalysis::default(),
+        // Collect data with individual locks to prevent deadlock
+        // Always acquire borrow_history first, then conflicts
+        let history_data: Vec<_> = {
+            let history = match self.borrow_history.safe_lock() {
+                Ok(h) => h,
+                Err(_) => return BorrowPatternAnalysis::default(),
+            };
+            history.iter().cloned().collect()
         };
-        let conflicts = match self.conflicts.safe_lock() {
-            Ok(c) => c,
-            Err(_) => return BorrowPatternAnalysis::default(),
+
+        let conflicts_data: Vec<_> = {
+            let conflicts = match self.conflicts.safe_lock() {
+                Ok(c) => c,
+                Err(_) => return BorrowPatternAnalysis::default(),
+            };
+            conflicts.iter().cloned().collect()
         };
 
         // Analyze common patterns
@@ -255,7 +264,7 @@ impl BorrowAnalyzer {
 
         // Pattern: Long-lived borrows
         let long_lived_threshold = 1_000_000; // 1ms in nanoseconds
-        let long_lived_count = history
+        let long_lived_count = history_data
             .iter()
             .filter(|event| {
                 if let Some(end_time) = event.borrow_info.end_time {
@@ -280,10 +289,10 @@ impl BorrowAnalyzer {
         }
 
         // Pattern: Frequent conflicts
-        if conflicts.len() > 5 {
+        if conflicts_data.len() > 5 {
             patterns.push(BorrowPattern {
                 pattern_type: BorrowPatternType::FrequentConflicts,
-                description: format!("{} borrow conflicts detected", conflicts.len()),
+                description: format!("{} borrow conflicts detected", conflicts_data.len()),
                 severity: PatternSeverity::Warning,
                 suggestion: "Review borrow patterns and consider refactoring to reduce conflicts"
                     .to_string(),
@@ -303,7 +312,7 @@ impl BorrowAnalyzer {
 
         BorrowPatternAnalysis {
             patterns,
-            total_events: history.len(),
+            total_events: history_data.len(),
             analysis_timestamp: current_timestamp(),
         }
     }
@@ -486,9 +495,28 @@ fn current_timestamp() -> u64 {
 
 /// Capture call stack (simplified)
 fn capture_call_stack() -> Vec<String> {
-    // In a real implementation, this would capture the actual call stack
-    // For now, return a placeholder
-    vec!["<call_stack_placeholder>".to_string()]
+    // Use backtrace crate to capture real call stack
+    #[cfg(feature = "backtrace")]
+    {
+        let bt = backtrace::Backtrace::new();
+        bt.frames()
+            .iter()
+            .skip(2) // Skip capture_call_stack and caller
+            .filter_map(|frame| {
+                frame
+                    .symbols()
+                    .first()
+                    .and_then(|sym| sym.name())
+                    .map(|name| name.to_string())
+            })
+            .collect()
+    }
+
+    #[cfg(not(feature = "backtrace"))]
+    {
+        // Return empty vector when backtrace feature is not enabled
+        Vec::new()
+    }
 }
 
 #[cfg(test)]

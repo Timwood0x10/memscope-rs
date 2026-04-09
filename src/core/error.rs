@@ -8,6 +8,54 @@
 
 use std::fmt;
 use std::sync::Arc;
+use std::time::SystemTime;
+
+/// Error context information for tracking and debugging
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ErrorContext {
+    /// Timestamp when the error occurred
+    pub timestamp: SystemTime,
+    /// File where the error originated
+    pub file: Option<String>,
+    /// Line number where the error originated
+    pub line: Option<u32>,
+    /// Additional context information
+    pub extra: Option<String>,
+}
+
+impl Default for ErrorContext {
+    fn default() -> Self {
+        Self {
+            timestamp: SystemTime::now(),
+            file: None,
+            line: None,
+            extra: None,
+        }
+    }
+}
+
+impl ErrorContext {
+    /// Create new error context
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Create error context with file and line information
+    pub fn with_location(file: impl Into<String>, line: u32) -> Self {
+        Self {
+            timestamp: SystemTime::now(),
+            file: Some(file.into()),
+            line: Some(line),
+            extra: None,
+        }
+    }
+
+    /// Add extra context information
+    pub fn with_extra(mut self, extra: impl Into<String>) -> Self {
+        self.extra = Some(extra.into());
+        self
+    }
+}
 
 /// Unified error type for the entire memscope-rs system
 ///
@@ -20,6 +68,8 @@ pub enum MemScopeError {
         operation: MemoryOperation,
         message: Arc<str>,
         context: Option<Arc<str>>,
+        error_kind: ErrorKind,
+        error_context: ErrorContext,
     },
 
     /// Analysis operations (fragmentation, lifecycle, etc.)
@@ -27,6 +77,8 @@ pub enum MemScopeError {
         analyzer: Arc<str>,
         message: Arc<str>,
         recoverable: bool,
+        error_kind: ErrorKind,
+        error_context: ErrorContext,
     },
 
     /// Export operations (JSON, binary, HTML, etc.)
@@ -34,12 +86,16 @@ pub enum MemScopeError {
         format: Arc<str>,
         message: Arc<str>,
         partial_success: bool,
+        error_kind: ErrorKind,
+        error_context: ErrorContext,
     },
 
     /// Configuration and initialization errors
     Configuration {
         component: Arc<str>,
         message: Arc<str>,
+        error_kind: ErrorKind,
+        error_context: ErrorContext,
     },
 
     /// System-level errors (IO, threading, etc.)
@@ -47,12 +103,16 @@ pub enum MemScopeError {
         error_type: SystemErrorType,
         message: Arc<str>,
         source_message: Option<Arc<str>>,
+        error_kind: ErrorKind,
+        error_context: ErrorContext,
     },
 
     /// Internal errors that should not normally occur
     Internal {
         message: Arc<str>,
         location: Option<Arc<str>>,
+        error_kind: ErrorKind,
+        error_context: ErrorContext,
     },
 }
 
@@ -78,16 +138,160 @@ pub enum SystemErrorType {
     FileSystem,
 }
 
-/// Result type for all memscope operations
+/// Result type alias for MemScopeError
 pub type Result<T> = std::result::Result<T, MemScopeError>;
 
+/// Result type alias for MemScopeError (alternative name)
+pub type MemScopeResult<T> = std::result::Result<T, MemScopeError>;
+
 impl MemScopeError {
+    /// Unified error creation - external modules only need to provide:
+    /// - module: which module the error occurred in (e.g., "variable_registry")
+    /// - method: which method/function (e.g., "register_variable")
+    /// - message: what went wrong
+    ///
+    /// Internal classification by module:
+    /// - MemoryError: tracker, allocator, variable_registry, memory_tracker, capture
+    /// - ExportError: export, render_engine, snapshot
+    /// - AnalysisError: ffi_function_resolver, call_stack_normalizer, analysis,
+    ///   lifecycle, rule_engine, pattern_matcher, detector, unsafe_ffi_tracker
+    /// - ConfigurationError: config, initialization
+    /// - IoError: system errors (io, threading, locking, network, filesystem)
+    /// - InternalError: fallback for unknown modules
+    pub fn error(module: &str, method: &str, message: impl Into<Arc<str>>) -> Self {
+        let kind = match module {
+            // Memory tracking modules
+            "tracker" | "allocator" | "variable_registry" | "memory_tracker" | "capture"
+            | "global_tracking" | "async_tracker" | "unified_tracker" | "core_tracker"
+            | "backends" | "platform" | "stack_walker" | "symbol_resolver" | "memory_info"
+            | "async_types" => ErrorKind::MemoryError,
+
+            // Export modules
+            "export" | "render_engine" | "snapshot" => ErrorKind::ExportError,
+
+            // Analysis modules
+            "ffi_function_resolver"
+            | "call_stack_normalizer"
+            | "analysis"
+            | "lifecycle"
+            | "lifecycle_analysis"
+            | "rule_engine"
+            | "pattern_matcher"
+            | "detector"
+            | "unsafe_ffi_tracker"
+            | "classification"
+            | "estimation"
+            | "metrics"
+            | "quality"
+            | "circular_reference"
+            | "memory_passport_tracker"
+            | "borrow_analysis"
+            | "async_analysis" => ErrorKind::AnalysisError,
+
+            // Configuration modules
+            "config" | "initialization" => ErrorKind::ConfigurationError,
+
+            // System errors
+            "system" | "io" | "threading" | "locking" | "network" | "filesystem"
+            | "serialization" => ErrorKind::IoError,
+
+            // Fallback
+            _ => ErrorKind::InternalError,
+        };
+        let full_message = format!("{}::{} - {}", module, method, message.into());
+        Self::new(kind, full_message)
+    }
+
+    /// Create a new error with the specified kind and message
+    pub fn new(kind: ErrorKind, message: impl Into<Arc<str>>) -> Self {
+        match kind {
+            ErrorKind::MemoryError => Self::Memory {
+                operation: MemoryOperation::Tracking,
+                message: message.into(),
+                context: None,
+                error_kind: kind,
+                error_context: ErrorContext::new(),
+            },
+            ErrorKind::ValidationError => Self::Memory {
+                operation: MemoryOperation::Validation,
+                message: message.into(),
+                context: None,
+                error_kind: kind,
+                error_context: ErrorContext::new(),
+            },
+            ErrorKind::ConfigurationError => Self::Configuration {
+                component: "general".into(),
+                message: message.into(),
+                error_kind: kind,
+                error_context: ErrorContext::new(),
+            },
+            ErrorKind::IoError | ErrorKind::CacheError => Self::System {
+                error_type: SystemErrorType::Io,
+                message: message.into(),
+                source_message: None,
+                error_kind: kind,
+                error_context: ErrorContext::new(),
+            },
+            ErrorKind::SymbolResolutionError
+            | ErrorKind::StackTraceError
+            | ErrorKind::AnalysisError => Self::Analysis {
+                analyzer: match kind {
+                    ErrorKind::SymbolResolutionError => "symbol_resolution",
+                    ErrorKind::StackTraceError => "stack_trace",
+                    _ => "general",
+                }
+                .into(),
+                message: message.into(),
+                recoverable: true,
+                error_kind: kind,
+                error_context: ErrorContext::new(),
+            },
+            ErrorKind::ExportError => Self::Export {
+                format: "general".into(),
+                message: message.into(),
+                partial_success: false,
+                error_kind: kind,
+                error_context: ErrorContext::new(),
+            },
+            ErrorKind::InternalError => Self::Internal {
+                message: message.into(),
+                location: None,
+                error_kind: kind,
+                error_context: ErrorContext::new(),
+            },
+        }
+    }
+
+    /// Create a new error with the specified kind, severity, and context
+    pub fn with_context(
+        kind: ErrorKind,
+        _severity: ErrorSeverity,
+        message: impl Into<Arc<str>>,
+        context: impl Into<Arc<str>>,
+    ) -> Self {
+        let mut error = Self::new(kind, message);
+        // Update error context with the provided context information
+        match &mut error {
+            Self::Memory { error_context, .. }
+            | Self::Analysis { error_context, .. }
+            | Self::Export { error_context, .. }
+            | Self::Configuration { error_context, .. }
+            | Self::System { error_context, .. }
+            | Self::Internal { error_context, .. } => {
+                error_context.extra = Some(context.into().to_string());
+            }
+        }
+        error
+    }
+
     /// Create a memory operation error
     pub fn memory(operation: MemoryOperation, message: impl Into<Arc<str>>) -> Self {
         Self::Memory {
             operation,
             message: message.into(),
             context: None,
+            error_kind: ErrorKind::MemoryError,
+            error_context: ErrorContext::new(),
         }
     }
 
@@ -101,6 +305,8 @@ impl MemScopeError {
             operation,
             message: message.into(),
             context: Some(context.into()),
+            error_kind: ErrorKind::MemoryError,
+            error_context: ErrorContext::new(),
         }
     }
 
@@ -110,6 +316,8 @@ impl MemScopeError {
             analyzer: analyzer.into(),
             message: message.into(),
             recoverable: true,
+            error_kind: ErrorKind::AnalysisError,
+            error_context: ErrorContext::new(),
         }
     }
 
@@ -119,6 +327,8 @@ impl MemScopeError {
             analyzer: analyzer.into(),
             message: message.into(),
             recoverable: false,
+            error_kind: ErrorKind::AnalysisError,
+            error_context: ErrorContext::new(),
         }
     }
 
@@ -128,6 +338,8 @@ impl MemScopeError {
             format: format.into(),
             message: message.into(),
             partial_success: false,
+            error_kind: ErrorKind::ExportError,
+            error_context: ErrorContext::new(),
         }
     }
 
@@ -137,6 +349,23 @@ impl MemScopeError {
             format: format.into(),
             message: message.into(),
             partial_success: true,
+            error_kind: ErrorKind::ExportError,
+            error_context: ErrorContext::new(),
+        }
+    }
+
+    /// Create an export error with source information
+    pub fn export_with_source(
+        format: impl Into<Arc<str>>,
+        message: impl Into<Arc<str>>,
+        source: impl AsRef<str>,
+    ) -> Self {
+        Self::Export {
+            format: format.into(),
+            message: format!("{} (source: {})", message.into(), source.as_ref()).into(),
+            partial_success: false,
+            error_kind: ErrorKind::ExportError,
+            error_context: ErrorContext::new(),
         }
     }
 
@@ -145,6 +374,8 @@ impl MemScopeError {
         Self::Configuration {
             component: component.into(),
             message: message.into(),
+            error_kind: ErrorKind::ConfigurationError,
+            error_context: ErrorContext::new(),
         }
     }
 
@@ -154,6 +385,8 @@ impl MemScopeError {
             error_type,
             message: message.into(),
             source_message: None,
+            error_kind: ErrorKind::IoError,
+            error_context: ErrorContext::new(),
         }
     }
 
@@ -167,6 +400,8 @@ impl MemScopeError {
             error_type,
             message: message.into(),
             source_message: Some(Arc::from(source.to_string())),
+            error_kind: ErrorKind::IoError,
+            error_context: ErrorContext::new(),
         }
     }
 
@@ -175,6 +410,8 @@ impl MemScopeError {
         Self::Internal {
             message: message.into(),
             location: None,
+            error_kind: ErrorKind::InternalError,
+            error_context: ErrorContext::new(),
         }
     }
 
@@ -183,6 +420,8 @@ impl MemScopeError {
         Self::Internal {
             message: message.into(),
             location: Some(location.into()),
+            error_kind: ErrorKind::InternalError,
+            error_context: ErrorContext::new(),
         }
     }
 
@@ -203,22 +442,34 @@ impl MemScopeError {
         }
     }
 
+    /// Get error kind for categorization and statistics
+    pub fn kind(&self) -> ErrorKind {
+        match self {
+            Self::Memory { error_kind, .. } => *error_kind,
+            Self::Analysis { error_kind, .. } => *error_kind,
+            Self::Export { error_kind, .. } => *error_kind,
+            Self::Configuration { error_kind, .. } => *error_kind,
+            Self::System { error_kind, .. } => *error_kind,
+            Self::Internal { error_kind, .. } => *error_kind,
+        }
+    }
+
     /// Get error severity level
     pub fn severity(&self) -> ErrorSeverity {
         match self {
-            Self::Memory { .. } => ErrorSeverity::Medium,
+            Self::Memory { .. } => ErrorSeverity::Error,
             Self::Analysis {
                 recoverable: false, ..
-            } => ErrorSeverity::High,
-            Self::Analysis { .. } => ErrorSeverity::Low,
+            } => ErrorSeverity::Critical,
+            Self::Analysis { .. } => ErrorSeverity::Warning,
             Self::Export {
                 partial_success: true,
                 ..
-            } => ErrorSeverity::Low,
-            Self::Export { .. } => ErrorSeverity::Medium,
-            Self::Configuration { .. } => ErrorSeverity::Medium,
-            Self::System { .. } => ErrorSeverity::Medium,
-            Self::Internal { .. } => ErrorSeverity::Critical,
+            } => ErrorSeverity::Warning,
+            Self::Export { .. } => ErrorSeverity::Error,
+            Self::Configuration { .. } => ErrorSeverity::Error,
+            Self::System { .. } => ErrorSeverity::Error,
+            Self::Internal { .. } => ErrorSeverity::Fatal,
         }
     }
 
@@ -245,15 +496,81 @@ impl MemScopeError {
             Self::Internal { .. } => "internal",
         }
     }
+
+    /// Get error context information
+    pub fn context(&self) -> &ErrorContext {
+        match self {
+            Self::Memory { error_context, .. } => error_context,
+            Self::Analysis { error_context, .. } => error_context,
+            Self::Export { error_context, .. } => error_context,
+            Self::Configuration { error_context, .. } => error_context,
+            Self::System { error_context, .. } => error_context,
+            Self::Internal { error_context, .. } => error_context,
+        }
+    }
+
+    /// Get a detailed error description
+    pub fn description(&self) -> String {
+        format!("{}", self)
+    }
+}
+
+/// Error kind classification for error tracking and statistics
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ErrorKind {
+    /// Memory-related errors
+    MemoryError,
+    /// Configuration errors
+    ConfigurationError,
+    /// I/O errors
+    IoError,
+    /// Symbol resolution errors
+    SymbolResolutionError,
+    /// Stack trace errors
+    StackTraceError,
+    /// Cache errors
+    CacheError,
+    /// Internal errors
+    InternalError,
+    /// Validation errors
+    ValidationError,
+    /// Analysis errors
+    AnalysisError,
+    /// Export errors
+    ExportError,
+}
+
+impl ErrorKind {
+    /// Get the default severity for this error kind
+    pub fn default_severity(self) -> ErrorSeverity {
+        match self {
+            ErrorKind::MemoryError => ErrorSeverity::Error,
+            ErrorKind::ConfigurationError => ErrorSeverity::Error,
+            ErrorKind::IoError => ErrorSeverity::Error,
+            ErrorKind::SymbolResolutionError => ErrorSeverity::Warning,
+            ErrorKind::StackTraceError => ErrorSeverity::Warning,
+            ErrorKind::CacheError => ErrorSeverity::Warning,
+            ErrorKind::InternalError => ErrorSeverity::Fatal,
+            ErrorKind::ValidationError => ErrorSeverity::Error,
+            ErrorKind::AnalysisError => ErrorSeverity::Warning,
+            ErrorKind::ExportError => ErrorSeverity::Error,
+        }
+    }
 }
 
 /// Error severity levels
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
 pub enum ErrorSeverity {
-    Low,
-    Medium,
-    High,
+    /// Non-critical issues that don't prevent operation
+    Warning,
+    /// Errors that prevent normal operation but may be recoverable
+    Error,
+    /// Critical errors that require immediate attention
     Critical,
+    /// Fatal errors that cannot be recovered from
+    Fatal,
 }
 
 impl fmt::Display for MemScopeError {
@@ -263,6 +580,8 @@ impl fmt::Display for MemScopeError {
                 operation,
                 message,
                 context,
+                error_kind: _,
+                error_context: _,
             } => {
                 write!(
                     f,
@@ -282,7 +601,10 @@ impl fmt::Display for MemScopeError {
                 Ok(())
             }
             Self::Analysis {
-                analyzer, message, ..
+                analyzer,
+                message,
+                error_kind: _,
+                ..
             } => {
                 write!(f, "Analysis error in {analyzer}: {message}")
             }
@@ -290,6 +612,8 @@ impl fmt::Display for MemScopeError {
                 format,
                 message,
                 partial_success,
+                error_kind: _,
+                error_context: _,
             } => {
                 if *partial_success {
                     write!(f, "Partial export error ({format}): {message}")
@@ -297,13 +621,20 @@ impl fmt::Display for MemScopeError {
                     write!(f, "Export error ({format}): {message}")
                 }
             }
-            Self::Configuration { component, message } => {
+            Self::Configuration {
+                component,
+                message,
+                error_kind: _,
+                error_context: _,
+            } => {
                 write!(f, "Configuration error in {component}: {message}")
             }
             Self::System {
                 error_type,
                 message,
                 source_message,
+                error_kind: _,
+                error_context: _,
             } => {
                 write!(
                     f,
@@ -324,7 +655,12 @@ impl fmt::Display for MemScopeError {
                 }
                 Ok(())
             }
-            Self::Internal { message, location } => {
+            Self::Internal {
+                message,
+                location,
+                error_kind: _,
+                error_context: _,
+            } => {
                 write!(f, "Internal error: {message}")?;
                 if let Some(loc) = location {
                     write!(f, " at {loc}")?;
@@ -358,43 +694,9 @@ impl From<serde_json::Error> for MemScopeError {
     }
 }
 
-// Backward compatibility: conversion from old TrackingError
-impl From<crate::core::types::TrackingError> for MemScopeError {
-    fn from(err: crate::core::types::TrackingError) -> Self {
-        use crate::core::types::TrackingError as TE;
-
-        match err {
-            TE::AllocationFailed(msg) => Self::memory(MemoryOperation::Allocation, msg),
-            TE::DeallocationFailed(msg) => Self::memory(MemoryOperation::Deallocation, msg),
-            TE::TrackingDisabled => Self::config("tracker", "Memory tracking is disabled"),
-            TE::InvalidPointer(msg) => Self::memory(MemoryOperation::Validation, msg),
-            TE::SerializationError(msg) => Self::system(SystemErrorType::Serialization, msg),
-            TE::VisualizationError(msg) => Self::export("visualization", msg),
-            TE::ThreadSafetyError(msg) => Self::system(SystemErrorType::Threading, msg),
-            TE::ConfigurationError(msg) => Self::config("general", msg),
-            TE::AnalysisError(msg) => Self::analysis("general", msg),
-            TE::ExportError(msg) => Self::export("general", msg),
-            TE::MemoryCorruption(msg) => Self::memory(MemoryOperation::Validation, msg),
-            TE::UnsafeOperationDetected(msg) => Self::analysis("unsafe", msg),
-            TE::FFIError(msg) => Self::analysis("ffi", msg),
-            TE::ScopeError(msg) => Self::memory(MemoryOperation::Tracking, msg),
-            TE::BorrowCheckError(msg) => Self::analysis("borrow", msg),
-            TE::LifetimeError(msg) => Self::analysis("lifetime", msg),
-            TE::TypeInferenceError(msg) => Self::analysis("type", msg),
-            TE::PerformanceError(msg) => Self::system(SystemErrorType::Io, msg),
-            TE::ResourceExhausted(msg) => Self::system(SystemErrorType::Io, msg),
-            TE::InternalError(msg) => Self::internal(msg),
-            TE::IoError(msg) => Self::system(SystemErrorType::Io, msg),
-            TE::LockError(msg) => Self::system(SystemErrorType::Locking, msg),
-            TE::ChannelError(msg) => Self::system(SystemErrorType::Channel, msg),
-            TE::ThreadError(msg) => Self::system(SystemErrorType::Threading, msg),
-            TE::InitializationError(msg) => Self::config("initialization", msg),
-            TE::NotImplemented(msg) => Self::internal(msg),
-            TE::ValidationError(msg) => Self::memory(MemoryOperation::Validation, msg),
-            TE::InvalidOperation(msg) => Self::memory(MemoryOperation::Tracking, msg),
-            TE::LockContention(msg) => Self::memory(MemoryOperation::Tracking, msg),
-            TE::DataError(msg) => Self::memory(MemoryOperation::Tracking, msg),
-        }
+impl From<crate::render_engine::export::ExportError> for MemScopeError {
+    fn from(err: crate::render_engine::export::ExportError) -> Self {
+        Self::error("export", "unknown", err.to_string())
     }
 }
 
@@ -422,7 +724,7 @@ pub trait ErrorRecovery {
     fn get_recovery_action(&self, error: &MemScopeError) -> Option<RecoveryAction>;
 
     /// Execute recovery action
-    fn execute_recovery(&self, action: &RecoveryAction) -> Result<()>;
+    fn execute_recovery(&self, action: &RecoveryAction) -> MemScopeResult<()>;
 }
 
 /// Default error recovery implementation
@@ -489,7 +791,7 @@ impl ErrorRecovery for DefaultErrorRecovery {
         }
     }
 
-    fn execute_recovery(&self, action: &RecoveryAction) -> Result<()> {
+    fn execute_recovery(&self, action: &RecoveryAction) -> MemScopeResult<()> {
         match action {
             RecoveryAction::Retry { delay_ms, .. } => {
                 if *delay_ms > 0 {
@@ -524,7 +826,7 @@ mod tests {
         assert_eq!(err.category(), "memory");
         assert_eq!(err.user_message(), "allocation failed");
         assert!(err.is_recoverable());
-        assert_eq!(err.severity(), ErrorSeverity::Medium);
+        assert_eq!(err.severity(), ErrorSeverity::Error);
 
         let err_with_context = MemScopeError::memory_with_context(
             MemoryOperation::Deallocation,
@@ -553,7 +855,7 @@ mod tests {
         ));
         assert_eq!(err.category(), "analysis");
         assert!(err.is_recoverable());
-        assert_eq!(err.severity(), ErrorSeverity::Low);
+        assert_eq!(err.severity(), ErrorSeverity::Warning);
 
         let fatal_err = MemScopeError::analysis_fatal("lifecycle", "critical analysis failed");
         assert!(matches!(
@@ -565,7 +867,7 @@ mod tests {
         ));
         assert_eq!(fatal_err.category(), "analysis");
         assert!(!fatal_err.is_recoverable());
-        assert_eq!(fatal_err.severity(), ErrorSeverity::High);
+        assert_eq!(fatal_err.severity(), ErrorSeverity::Critical);
     }
 
     #[test]
@@ -580,7 +882,7 @@ mod tests {
         ));
         assert_eq!(err.category(), "export");
         assert!(!err.is_recoverable());
-        assert_eq!(err.severity(), ErrorSeverity::Medium);
+        assert_eq!(err.severity(), ErrorSeverity::Error);
 
         let partial_err = MemScopeError::export_partial("html", "partial export");
         assert!(matches!(
@@ -592,7 +894,7 @@ mod tests {
         ));
         assert_eq!(partial_err.category(), "export");
         assert!(partial_err.is_recoverable());
-        assert_eq!(partial_err.severity(), ErrorSeverity::Low);
+        assert_eq!(partial_err.severity(), ErrorSeverity::Warning);
     }
 
     #[test]
@@ -601,7 +903,7 @@ mod tests {
         assert!(matches!(err, MemScopeError::Configuration { .. }));
         assert_eq!(err.category(), "config");
         assert!(!err.is_recoverable());
-        assert_eq!(err.severity(), ErrorSeverity::Medium);
+        assert_eq!(err.severity(), ErrorSeverity::Error);
     }
 
     #[test]
@@ -616,7 +918,7 @@ mod tests {
         ));
         assert_eq!(err.category(), "system");
         assert!(err.is_recoverable());
-        assert_eq!(err.severity(), ErrorSeverity::Medium);
+        assert_eq!(err.severity(), ErrorSeverity::Error);
 
         let io_err = io::Error::other("test io error");
         let converted_err: MemScopeError = io_err.into();
@@ -636,7 +938,7 @@ mod tests {
         assert!(matches!(err, MemScopeError::Internal { .. }));
         assert_eq!(err.category(), "internal");
         assert!(!err.is_recoverable());
-        assert_eq!(err.severity(), ErrorSeverity::Critical);
+        assert_eq!(err.severity(), ErrorSeverity::Fatal);
 
         let err_with_location = MemScopeError::internal_at("internal error", "test_function");
         assert!(matches!(err_with_location, MemScopeError::Internal { .. }));
@@ -688,9 +990,9 @@ mod tests {
 
     #[test]
     fn test_error_severity_ordering() {
-        assert!(ErrorSeverity::Low < ErrorSeverity::Medium);
-        assert!(ErrorSeverity::Medium < ErrorSeverity::High);
-        assert!(ErrorSeverity::High < ErrorSeverity::Critical);
+        assert!(ErrorSeverity::Warning < ErrorSeverity::Error);
+        assert!(ErrorSeverity::Error < ErrorSeverity::Critical);
+        assert!(ErrorSeverity::Critical < ErrorSeverity::Fatal);
     }
 
     #[test]
@@ -724,51 +1026,6 @@ mod tests {
         for error_type in error_types {
             let err = MemScopeError::system(error_type, "test");
             assert_eq!(err.category(), "system");
-        }
-    }
-
-    #[test]
-    fn test_backward_compatibility() {
-        use crate::core::types::TrackingError;
-
-        // Test conversion of all TrackingError variants
-        let test_cases = vec![
-            TrackingError::AllocationFailed("alloc".to_string()),
-            TrackingError::DeallocationFailed("dealloc".to_string()),
-            TrackingError::TrackingDisabled,
-            TrackingError::InvalidPointer("invalid ptr".to_string()),
-            TrackingError::SerializationError("serialize".to_string()),
-            TrackingError::VisualizationError("visualize".to_string()),
-            TrackingError::ThreadSafetyError("thread".to_string()),
-            TrackingError::ConfigurationError("config".to_string()),
-            TrackingError::AnalysisError("analysis".to_string()),
-            TrackingError::ExportError("export".to_string()),
-            TrackingError::MemoryCorruption("corruption".to_string()),
-            TrackingError::UnsafeOperationDetected("unsafe".to_string()),
-            TrackingError::FFIError("ffi".to_string()),
-            TrackingError::ScopeError("scope".to_string()),
-            TrackingError::BorrowCheckError("borrow".to_string()),
-            TrackingError::LifetimeError("lifetime".to_string()),
-            TrackingError::TypeInferenceError("type".to_string()),
-            TrackingError::PerformanceError("perf".to_string()),
-            TrackingError::ResourceExhausted("resource".to_string()),
-            TrackingError::InternalError("internal".to_string()),
-            TrackingError::IoError("io".to_string()),
-            TrackingError::LockError("lock".to_string()),
-            TrackingError::ChannelError("channel".to_string()),
-            TrackingError::ThreadError("thread".to_string()),
-            TrackingError::InitializationError("init".to_string()),
-            TrackingError::NotImplemented("not_impl".to_string()),
-            TrackingError::ValidationError("validation".to_string()),
-            TrackingError::InvalidOperation("invalid_op".to_string()),
-            TrackingError::LockContention("contention".to_string()),
-            TrackingError::DataError("data".to_string()),
-        ];
-
-        for old_err in test_cases {
-            let new_err: MemScopeError = old_err.into();
-            // Just ensure conversion doesn't panic and produces a valid error
-            assert!(!new_err.category().is_empty());
         }
     }
 
@@ -843,7 +1100,7 @@ mod tests {
 
     #[test]
     fn test_result_type_alias() {
-        fn test_function() -> Result<()> {
+        fn test_function() -> MemScopeResult<()> {
             Ok(())
         }
 

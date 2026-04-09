@@ -198,13 +198,10 @@ mod tests {
 
     #[test]
     fn test_safe_lock_macro() {
-        use crate::safe_lock;
-
         let mutex = Mutex::new(42);
 
-        // Test the macro - this should compile and work
         let result: Result<(), crate::core::types::TrackingError> = (|| {
-            let guard = safe_lock!(mutex);
+            let guard = crate::safe_lock!(mutex);
             assert_eq!(*guard, 42);
             Ok(())
         })();

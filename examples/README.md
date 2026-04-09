@@ -1,252 +1,157 @@
 # MemScope-rs Examples
 
-This directory contains comprehensive examples demonstrating different tracking strategies and use cases for memscope-rs.
+This directory contains examples demonstrating different tracking strategies using the **new unified API** (`tracker!()` + `track!()` macros).
 
-## 📁 Available Examples
+## Available Examples
 
-### Core Single-threaded Examples
+### Core Examples
+
 | Example | Description | Key Features |
 |---------|-------------|--------------|
-| [`basic_usage.rs`](basic_usage.rs) | Simple single-threaded tracking | Zero-overhead reference tracking |
+| [`basic_usage.rs`](basic_usage.rs) | Basic single-threaded tracking | Simple API usage, JSON export |
+| [`complex_lifecycle_showcase.rs`](complex_lifecycle_showcase.rs) | Variable lifecycle analysis | Built-in types, smart pointers, complex patterns |
+| [`merkle_tree.rs`](merkle_tree.rs) | Complex data structure tracking | HashMap, Vec, tree structures, ownership relationships |
 
-### Lock-free Multi-threaded Examples  
+### Multi-Threaded & Async Examples
+
 | Example | Description | Key Features |
 |---------|-------------|--------------|
-| [`complex_multithread_showcase.rs`](complex_multithread_showcase.rs) | High-concurrency demonstration (100+ threads) | Thread-local tracking, automatic cleanup |
-| [`enhanced_30_thread_demo.rs`](enhanced_30_thread_demo.rs) | ⭐ **Interactive HTML Dashboard** | Real-time visualization with JavaScript |
+| [`complex_multithread_showcase.rs`](complex_multithread_showcase.rs) | Multi-threaded tracking | 8 threads, 500 allocations/thread |
+| [`comprehensive_async_showcase.rs`](comprehensive_async_showcase.rs) | Async task tracking | Tokio async runtime |
 
-### Async Examples
+### FFI Examples
+
 | Example | Description | Key Features |
 |---------|-------------|--------------|
-| [`comprehensive_async_showcase.rs`](comprehensive_async_showcase.rs) | Task-aware async memory tracking | Context-based task tracking |
+| [`unsafe_ffi_demo.rs`](unsafe_ffi_demo.rs) | FFI boundary tracking | Memory Passport, leak detection |
 
-### Lifecycle & Analysis Examples
+### Global Tracker Examples
+
 | Example | Description | Key Features |
 |---------|-------------|--------------|
-| [`complex_lifecycle_showcase.rs`](complex_lifecycle_showcase.rs) | Variable lifecycle analysis | Drop tracking, reference counting |
-| [`performance_test_visualization.rs`](performance_test_visualization.rs) | Performance benchmarking | Timing analysis, bottleneck detection |
+| [`global_tracker_showcase.rs`](global_tracker_showcase.rs) | Global tracker unified API | Single-thread, multi-thread, async modes |
 
-### Advanced Features
-| Example | Description | Key Features |
-|---------|-------------|--------------|
-| [`unsafe_ffi_demo.rs`](unsafe_ffi_demo.rs) | FFI boundary tracking | C/C++ interop analysis |
-| [`large_binary.rs`](large_binary.rs) | Large dataset handling | Binary export, streaming |
-| [`verified_selective_demo.rs`](verified_selective_demo.rs) | Selective tracking strategies | Custom filtering |
-| [`comprehensive_binary_to_html_demo.rs`](comprehensive_binary_to_html_demo.rs) | Binary to HTML conversion | Format conversion pipeline |
+## Quick Start
 
-## 🌟 Featured Example: Enhanced 30-Thread Demo
-
-The [`enhanced_30_thread_demo.rs`](enhanced_30_thread_demo.rs) example creates an **interactive HTML dashboard** with real-time data visualization.
-
-### ⚠️ **Important Setup Requirement**
-
-For full interactivity, the generated HTML file **must be placed in the same directory** as the JavaScript files:
+### Run Examples
 
 ```bash
-# Run the example
-cargo run --example enhanced_30_thread_demo
-
-# This generates: enhanced_30_thread_demo.html
-
-# REQUIRED: Copy JavaScript dependencies to the same directory
-cp ./templates/hybrid_dashboard.js ./enhanced_30_thread_demo_files/
-cp ./templates/enhanced_diagnostics.js ./enhanced_30_thread_demo_files/
-
-# Now open enhanced_30_thread_demo.html in your browser
-```
-
-### Interactive Features (with JavaScript)
-- 📊 **Real-time Charts**: Dynamic memory usage visualization
-- 🔍 **Drill-down Analysis**: Click to explore detailed data
-- 📈 **Performance Metrics**: Live performance monitoring
-- 🧭 **Navigation**: Interactive timeline and filtering
-
-### Static View (without JavaScript)
-- 📋 **Summary Dashboard**: Basic statistics and overview
-- 📄 **Static Charts**: Non-interactive visualizations
-- 📝 **Text Reports**: Detailed textual analysis
-
-## 🚀 Quick Start
-
-### Single-threaded (Zero Overhead)
-```bash
+# Basic single-threaded
 cargo run --example basic_usage
-```
 
-### Multi-threaded (High Concurrency)
-```bash
-# Simple multi-threading
+# Multi-threaded
 cargo run --example complex_multithread_showcase
 
-# Interactive dashboard (remember to copy JS files!)
-cargo run --example enhanced_30_thread_demo
-```
-
-### Async Task Tracking
-```bash
+# Async tracking
 cargo run --example comprehensive_async_showcase
+
+# FFI tracking
+cargo run --example unsafe_ffi_demo
+
+# Variable relationships (ownership graph)
+cargo run --example merkle_tree
+
+# Global tracker (single-thread + multi-thread + async)
+cargo run --example global_tracker_showcase
+
+# Lifecycle analysis
+cargo run --example complex_lifecycle_showcase
 ```
 
-## 📊 Output Formats
+## New Unified API
 
-### JSON Export (Human-readable)
-```json
-{
-  "tracking_strategy": "lockfree",
-  "total_allocations": 12500,
-  "peak_memory": "2.4MB",
-  "threads_tracked": 30,
-  "analysis_duration": "15ms"
-}
-```
-
-### Binary Export (High Performance)
-- **Speed**: 5-10x faster than JSON
-- **Size**: 60-80% smaller files  
-- **Use case**: Large datasets, production monitoring
-
-### HTML Dashboard (Interactive)
-- **Real-time visualization**: Dynamic charts and graphs
-- **Detailed analysis**: Drill-down capabilities
-- **Cross-platform**: Works in any modern browser
-
-## 🎯 Tracking Strategies
-
-### 🧩 Core (Single-threaded)
 ```rust
-use memscope_rs::{track_var, export_user_variables_json};
+use memscope_rs::{track, tracker};
+use memscope_rs::render_engine::export::{export_snapshot_to_json, ExportJsonOptions};
+use memscope_rs::snapshot::MemorySnapshot;
 
-fn main() {
-    let data = vec![1, 2, 3];
-    track_var!(data);
-    export_user_variables_json("analysis.json").unwrap();
-}
+// 1. Initialize tracker
+let tracker = tracker!();
+
+// 2. Track variables
+let data = vec![1, 2, 3];
+track!(tracker, data);
+
+// 3. Get analysis report
+let report = tracker.analyze();
+println!("Total Allocations: {}", report.total_allocations);
+
+// 4. Export to JSON
+let allocations = tracker.inner().get_active_allocations().unwrap_or_default();
+let snapshot = MemorySnapshot::from_allocation_infos(allocations);
+export_snapshot_to_json(&snapshot, "output".as_ref(), &ExportJsonOptions::default())?;
 ```
-- **Overhead**: ~0% (zero-cost)
-- **Best for**: Development, debugging, precise analysis
 
-### 🔀 Lock-free (Multi-threaded)  
+### Global Tracker API (Lazy Init, Multi-Mode)
+
 ```rust
-use memscope_rs::lockfree;
+use memscope_rs::capture::backends::global_tracking::*;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    lockfree::initialize_lockfree_tracking()?;
-    
-    // Spawn 100+ threads - scales efficiently
-    // ... your multi-threaded code ...
-    
-    let analysis = lockfree::aggregate_all_threads()?;
-    lockfree::export_analysis(&analysis, "analysis")?;
-    Ok(())
-}
-```
-- **Overhead**: ~2-8% (adaptive sampling)
-- **Scalability**: 100+ threads with zero contention
-- **Best for**: High-concurrency production applications
+// 1. Initialize (optional - lazy by default)
+init_global_tracking().ok();
 
-### ⚡ Async (Task-aware)
-```rust
-use memscope_rs::async_memory;
+// 2. Get global tracker
+let tracker = global_tracker().unwrap();
+let passport_tracker = global_passport_tracker().unwrap();
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    async_memory::initialize().await?;
-    
-    // Track memory across async tasks
-    // ... your async code ...
-    
-    let analysis = async_memory::generate_analysis().await?;
-    async_memory::export_visualization(&analysis, "async_analysis").await?;
-    Ok(())
-}
-```
-- **Overhead**: <5ns per allocation
-- **Context-aware**: Tracks memory per async task
-- **Best for**: async/await applications, microservices
+// 3. Track allocations
+tracker.track_allocation(ptr, size).ok();
 
-## 🔧 Advanced Usage
+// 4. Export using global singleton (convenience)
+export_to_json("output").ok();
 
-### Custom Configuration
-```rust
-use memscope_rs::lockfree::{TrackerConfig, SamplingMode};
+// Or export with custom tracker (generic)
+export_all_json("output", &tracker, &passport_tracker).ok();
 
-let config = TrackerConfig {
-    sampling_mode: SamplingMode::Adaptive,
-    enable_advanced_analysis: true,
-    max_threads: 50,
-    ..Default::default()
-};
-
-lockfree::initialize_with_config(config)?;
+// 5. Individual exports
+export_memory_passports_json("output", &passport_tracker).ok();
+export_leak_detection_json("output", &passport_tracker).ok();
+export_unsafe_ffi_json("output", &passport_tracker).ok();
 ```
 
-### Performance Monitoring
-```rust
-// Check overhead impact
-let stats = lockfree::get_performance_stats()?;
-println!("CPU overhead: {:.2}%", stats.cpu_overhead_percent);
-println!("Memory overhead: {}MB", stats.memory_overhead_mb);
-```
+## Export Files
 
-## 📈 Performance Comparison
+Each example generates JSON files in `MemoryAnalysis/<example_name>/`.
 
-| Strategy | Memory Overhead | CPU Overhead | Concurrency | Best Use Case |
-|----------|-----------------|--------------|-------------|---------------|
-| **Core** | ~100 bytes/var | ~0% | Single thread | Development debugging |
-| **Lock-free** | Thread-local | ~2-8% | 100+ threads | Production monitoring |
-| **Async** | Task-local | <5ns/alloc | 50+ tasks | Async applications |
+### Global Tracker - 9 Files (`global_tracker_showcase`)
 
-## 🛠️ Development Workflow
+| File | Description |
+|------|-------------|
+| `memory_analysis.json` | All allocation details |
+| `lifetime.json` | Variable lifecycle and ownership history |
+| `thread_analysis.json` | Memory statistics by thread |
+| `ownership_graph.json` | Ownership graph with real pointer relationships |
+| `memory_passports.json` | Memory passport metadata |
+| `leak_detection.json` | Leak detection results |
+| `unsafe_ffi.json` | FFI boundary tracking data |
+| `system_resources.json` | System resource monitoring |
+| `async_analysis.json` | Async task analysis |
 
-### 1. Choose Your Strategy
-- **Debugging**: Start with `basic_usage.rs`
-- **Multi-threading**: Try `complex_multithread_showcase.rs`  
-- **Async**: Use `comprehensive_async_showcase.rs`
-- **Interactive analysis**: Run `enhanced_30_thread_demo.rs`
+### Other Examples - 4 Files
 
-### 2. Customize Configuration
-- Adjust sampling rates for performance
-- Enable/disable advanced features
-- Configure export formats
+| File | Description |
+|------|-------------|
+| `memory_analysis.json` | All allocation details |
+| `lifetime.json` | Lifecycle events |
+| `thread_analysis.json` | Thread statistics |
+| `ownership_graph.json` | Ownership graph |
 
-### 3. Analyze Results
-- Use HTML dashboards for interactive exploration
-- JSON for integration with other tools
-- Binary for high-performance scenarios
+## Variable Relationships
 
-## 💡 Best Practices
+The ownership graph in `ownership_graph.json` and the dashboard HTML contain real **ownership relationships** detected by analyzing heap memory:
 
-### Performance
-- **High-frequency allocations**: Enable adaptive sampling
-- **Memory-constrained environments**: Use binary export
-- **Real-time applications**: Monitor overhead continuously
+- **Owner** - A contains pointer to B (e.g., Vec metadata -> buffer)
+- **Slice** - A points into B's interior (e.g., slice metadata -> buffer)
+- **Clone** - A and B are copies with similar content
+- **Shared** - Multiple Arc/Rc pointing to same data
 
-### Development
-- **Start simple**: Begin with single-threaded examples
-- **Scale gradually**: Add complexity as needed
-- **Test thoroughly**: Verify tracking overhead in your specific use case
+Examples with rich variable relationships:
 
-### Production
-- **Monitor overhead**: Set acceptable performance thresholds
-- **Use sampling**: Reduce overhead with intelligent sampling
-- **Automate cleanup**: Enable automatic file cleanup for long-running apps
-
-## 🤝 Contributing
-
-Want to add a new example?
-
-1. **Follow naming convention**: `purpose_description.rs`
-2. **Add comprehensive docs**: Explain use case and expected output
-3. **Test across platforms**: Ensure compatibility
-4. **Update this README**: Add your example to the table above
-
-## 📚 Additional Resources
-
-- **[API Documentation](https://docs.rs/memscope-rs)**: Complete API reference
-- **[User Guide](../docs/user_guide.md)**: Detailed usage instructions  
-- **[Performance Guide](../docs/performance.md)**: Optimization techniques
-- **[GitHub Repository](https://github.com/TimWood0x10/memscope-rs)**: Source code and issues
+| Example | Relationships | Allocations |
+|---------|---------------|-------------|
+| merkle_tree | ~500 | ~1164 |
+| variable_relationships_showcase | ~265 | ~52 |
+| multithread_new_api | ~133 | ~82 |
+| complex_lifecycle_showcase | ~20 | ~18 |
 
 ---
-
-**Happy memory tracking! 🚀🦀**

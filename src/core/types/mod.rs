@@ -192,6 +192,25 @@ impl From<serde_json::Error> for TrackingError {
     }
 }
 
+impl From<crate::capture::backends::core_types::TrackingError> for TrackingError {
+    fn from(error: crate::capture::backends::core_types::TrackingError) -> Self {
+        match error {
+            crate::capture::backends::core_types::TrackingError::LockError(msg) => {
+                TrackingError::LockError(msg)
+            }
+            crate::capture::backends::core_types::TrackingError::InvalidPointer(msg) => {
+                TrackingError::InvalidPointer(msg)
+            }
+            crate::capture::backends::core_types::TrackingError::ExportError(msg) => {
+                TrackingError::ExportError(msg)
+            }
+            crate::capture::backends::core_types::TrackingError::SerializationError(msg) => {
+                TrackingError::SerializationError(msg)
+            }
+        }
+    }
+}
+
 /// Smart pointer specific information for Rc/Arc tracking
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct SmartPointerInfo {
@@ -483,23 +502,10 @@ impl AllocationInfo {
             borrow_count: 0,
             stack_trace: None,
             is_leaked: false,
-            // improve.md field: Calculate initial lifetime_ms
-            lifetime_ms: Some(1), // Default: 1ms (just allocated)
-            // improve.md field: Add default borrow_info
-            borrow_info: Some(BorrowInfo {
-                immutable_borrows: 2, // Simulate typical borrowing patterns
-                mutable_borrows: 1,
-                max_concurrent_borrows: 2,
-                last_borrow_timestamp: Some(timestamp + 500000),
-            }),
-            // improve.md field: Add default clone_info with meaningful defaults
-            clone_info: Some(CloneInfo {
-                clone_count: 0,     // Default: no clones yet
-                is_clone: false,    // Default: this is an original allocation
-                original_ptr: None, // Default: no original pointer
-            }),
-            // improve.md field: Enable ownership history by default
-            ownership_history_available: true,
+            lifetime_ms: Some(0),
+            borrow_info: None,
+            clone_info: None,
+            ownership_history_available: false,
             smart_pointer_info: None,
             memory_layout: None,
             generic_info: None,
@@ -516,6 +522,12 @@ impl AllocationInfo {
             access_tracking: None,
             drop_chain_analysis: None,
         }
+    }
+
+    /// Set source location (file and line) for this allocation.
+    pub fn set_source_location(&mut self, file: &str, line: u32) {
+        let frame = format!("{}:{}", file, line);
+        self.stack_trace.get_or_insert_with(Vec::new).push(frame);
     }
 
     /// Mark this allocation as deallocated with current timestamp
@@ -535,59 +547,49 @@ impl AllocationInfo {
 
     /// Update allocation with type-specific improve.md enhancements
     pub fn enhance_with_type_info(&mut self, type_name: &str) {
-        // Update lifetime_ms with current elapsed time
         if self.timestamp_dealloc.is_none() {
             let current_time = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
                 .as_nanos() as u64;
             let elapsed_ns = current_time.saturating_sub(self.timestamp_alloc);
-            let elapsed_ms = elapsed_ns / 1_000_000; // Convert to milliseconds
+            let elapsed_ms = elapsed_ns / 1_000_000;
             self.lifetime_ms = Some(if elapsed_ms == 0 { 1 } else { elapsed_ms });
-            // Minimum 1ms
         }
 
-        // Detect reference counting types (Rc, Arc)
         if type_name.contains("Rc<") || type_name.contains("Arc<") {
             self.clone_info = Some(CloneInfo {
-                clone_count: 2,  // Simulate that Rc/Arc types are typically cloned
-                is_clone: false, // This is the original
+                clone_count: 0,
+                is_clone: false,
                 original_ptr: None,
             });
-
-            // Update borrow_info for reference counted types
             self.borrow_info = Some(BorrowInfo {
-                immutable_borrows: 5, // Rc/Arc are often borrowed more
-                mutable_borrows: 0,   // Rc doesn't allow mutable borrows
-                max_concurrent_borrows: 5,
-                last_borrow_timestamp: Some(self.timestamp_alloc + 1000000),
+                immutable_borrows: 0,
+                mutable_borrows: 0,
+                max_concurrent_borrows: 0,
+                last_borrow_timestamp: None,
             });
-        }
-        // Detect collections that are commonly borrowed
-        else if type_name.contains("Vec<")
+        } else if type_name.contains("Vec<")
             || type_name.contains("String")
             || type_name.contains("HashMap")
         {
             self.borrow_info = Some(BorrowInfo {
-                immutable_borrows: 4, // Collections are frequently borrowed
-                mutable_borrows: 2,
-                max_concurrent_borrows: 3,
-                last_borrow_timestamp: Some(self.timestamp_alloc + 800000),
+                immutable_borrows: 0,
+                mutable_borrows: 0,
+                max_concurrent_borrows: 0,
+                last_borrow_timestamp: None,
             });
-        }
-        // Detect Box types
-        else if type_name.contains("Box<") {
+        } else if type_name.contains("Box<") {
             self.clone_info = Some(CloneInfo {
-                clone_count: 0, // Box typically doesn't clone, it moves
+                clone_count: 0,
                 is_clone: false,
                 original_ptr: None,
             });
-
             self.borrow_info = Some(BorrowInfo {
-                immutable_borrows: 2,
-                mutable_borrows: 1,
-                max_concurrent_borrows: 1,
-                last_borrow_timestamp: Some(self.timestamp_alloc + 300000),
+                immutable_borrows: 0,
+                mutable_borrows: 0,
+                max_concurrent_borrows: 0,
+                last_borrow_timestamp: None,
             });
         }
     }
@@ -3558,6 +3560,17 @@ pub struct CircularReferenceInfo {
     pub resolution_suggestion: String,
 }
 
+/// Pointer relationship between allocations (e.g., Rc/Arc internal pointers forming cycles)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PointerRelationship {
+    /// Source pointer address
+    pub from_ptr: usize,
+    /// Target pointer address
+    pub to_ptr: usize,
+    /// Relationship type (e.g., "next", "prev", "child", "parent")
+    pub relationship_type: String,
+}
+
 /// Types of circular references
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum CircularReferenceType {
@@ -3807,9 +3820,6 @@ mod tests {
         assert_eq!(info.ptr, 0x12345678);
         assert_eq!(info.size, 1024);
         assert!(info.is_active());
-        assert!(info.borrow_info.is_some());
-        assert!(info.clone_info.is_some());
-        assert!(info.ownership_history_available);
     }
 
     #[test]
@@ -3829,14 +3839,14 @@ mod tests {
         // Test with Rc type
         info.enhance_with_type_info("std::rc::Rc<String>");
         if let Some(clone_info) = &info.clone_info {
-            assert_eq!(clone_info.clone_count, 2);
+            assert_eq!(clone_info.clone_count, 0);
         }
 
         // Test with Vec type
         info.enhance_with_type_info("Vec<i32>");
         if let Some(borrow_info) = &info.borrow_info {
-            assert_eq!(borrow_info.immutable_borrows, 4);
-            assert_eq!(borrow_info.mutable_borrows, 2);
+            assert_eq!(borrow_info.immutable_borrows, 0);
+            assert_eq!(borrow_info.mutable_borrows, 0);
         }
     }
 

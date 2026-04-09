@@ -246,6 +246,7 @@ mod tests {
             let handle = thread::spawn(move || {
                 for _ in 0..1000 {
                     stats_clone.record_attempt();
+                    #[allow(clippy::manual_is_multiple_of)]
                     if thread_local_random() % 10 != 0 {
                         stats_clone.record_success();
                     } else {

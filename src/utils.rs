@@ -1,5 +1,7 @@
 //! Common utility functions shared across modules
 
+use std::hash::{Hash, Hasher};
+use std::thread::ThreadId;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Get current timestamp in nanoseconds since Unix epoch
@@ -10,14 +12,44 @@ pub fn current_timestamp_nanos() -> u64 {
         .as_nanos() as u64
 }
 
+/// Convert ThreadId to u64 for serialization and storage.
+///
+/// This uses a hash-based approach since ThreadId cannot be directly
+/// converted to u64. The hash is consistent for the same ThreadId.
+pub fn thread_id_to_u64(thread_id: ThreadId) -> u64 {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    thread_id.hash(&mut hasher);
+    hasher.finish()
+}
+
+/// Get the current thread's ID as u64.
+///
+/// Convenience function that combines getting the current ThreadId
+/// and converting it to u64.
+pub fn current_thread_id_u64() -> u64 {
+    thread_id_to_u64(std::thread::current().id())
+}
+
 /// Format bytes in a human-readable format
 pub fn format_bytes(bytes: usize) -> String {
     if bytes < 1024 {
         format!("{bytes}B")
     } else if bytes < 1024 * 1024 {
         format!("{:.1}KB", bytes as f64 / 1024.0)
-    } else {
+    } else if bytes < 1024 * 1024 * 1024 {
         format!("{:.1}MB", bytes as f64 / (1024.0 * 1024.0))
+    } else if bytes < 1024 * 1024 * 1024 * 1024 {
+        format!("{:.1}GB", bytes as f64 / (1024.0 * 1024.0 * 1024.0))
+    } else if bytes < 1024 * 1024 * 1024 * 1024 * 1024 {
+        format!(
+            "{:.1}TB",
+            bytes as f64 / (1024.0 * 1024.0 * 1024.0 * 1024.0)
+        )
+    } else {
+        format!(
+            "{:.1}PB",
+            bytes as f64 / (1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0)
+        )
     }
 }
 
@@ -35,12 +67,21 @@ pub fn simplify_type_name(type_name: &str) -> (String, String) {
     if clean_type.contains("Vec<") || clean_type.contains("vec::Vec") {
         let inner = extract_generic_type(clean_type, "Vec");
         (format!("Vec<{inner}>"), "Collections".to_string())
-    } else if clean_type.contains("String") || clean_type.contains("string::String") {
-        ("String".to_string(), "Basic Types".to_string())
+    } else if clean_type.contains("HashMap") || clean_type.contains("hash_map") {
+        ("HashMap<K,V>".to_string(), "Collections".to_string())
+    } else if clean_type.contains("BTreeMap") || clean_type.contains("btree_map") {
+        ("BTreeMap<K,V>".to_string(), "Collections".to_string())
+    } else if clean_type.contains("BTreeSet") || clean_type.contains("btree_set") {
+        ("BTreeSet<T>".to_string(), "Collections".to_string())
+    } else if clean_type.contains("HashSet") || clean_type.contains("hash_set") {
+        ("HashSet<T>".to_string(), "Collections".to_string())
+    } else if clean_type.contains("VecDeque") || clean_type.contains("vec_deque") {
+        ("VecDeque<T>".to_string(), "Collections".to_string())
     } else if clean_type.contains("Box<") || clean_type.contains("boxed::Box") {
         let inner = extract_generic_type(clean_type, "Box");
-        // Check if the inner type is a collection - if so, categorize as collection
-        if inner.contains("HashMap") || inner.contains("hash_map") {
+        if inner.contains("String") || inner.contains("string::String") {
+            ("String".to_string(), "Basic Types".to_string())
+        } else if inner.contains("HashMap") || inner.contains("hash_map") {
             ("HashMap<K,V>".to_string(), "Collections".to_string())
         } else if inner.contains("BTreeMap") || inner.contains("btree_map") {
             ("BTreeMap<K,V>".to_string(), "Collections".to_string())
@@ -58,20 +99,20 @@ pub fn simplify_type_name(type_name: &str) -> (String, String) {
         }
     } else if clean_type.contains("Rc<") || clean_type.contains("rc::Rc") {
         let inner = extract_generic_type(clean_type, "Rc");
-        (format!("Rc<{inner}>"), "Smart Pointers".to_string())
+        if inner.contains("String") || inner.contains("string::String") {
+            ("String".to_string(), "Basic Types".to_string())
+        } else {
+            (format!("Rc<{inner}>"), "Smart Pointers".to_string())
+        }
     } else if clean_type.contains("Arc<") || clean_type.contains("sync::Arc") {
         let inner = extract_generic_type(clean_type, "Arc");
-        (format!("Arc<{inner}>"), "Smart Pointers".to_string())
-    } else if clean_type.contains("HashMap") || clean_type.contains("hash_map") {
-        ("HashMap<K,V>".to_string(), "Collections".to_string())
-    } else if clean_type.contains("BTreeMap") || clean_type.contains("btree_map") {
-        ("BTreeMap<K,V>".to_string(), "Collections".to_string())
-    } else if clean_type.contains("BTreeSet") || clean_type.contains("btree_set") {
-        ("BTreeSet<T>".to_string(), "Collections".to_string())
-    } else if clean_type.contains("HashSet") || clean_type.contains("hash_set") {
-        ("HashSet<T>".to_string(), "Collections".to_string())
-    } else if clean_type.contains("VecDeque") || clean_type.contains("vec_deque") {
-        ("VecDeque<T>".to_string(), "Collections".to_string())
+        if inner.contains("String") || inner.contains("string::String") {
+            ("String".to_string(), "Basic Types".to_string())
+        } else {
+            (format!("Arc<{inner}>"), "Smart Pointers".to_string())
+        }
+    } else if clean_type.contains("String") || clean_type.contains("string::String") {
+        ("String".to_string(), "Basic Types".to_string())
     } else if clean_type.contains("LinkedList") {
         ("LinkedList<T>".to_string(), "Collections".to_string())
     } else if clean_type.contains("&str") || clean_type == "str" {
@@ -82,6 +123,10 @@ pub fn simplify_type_name(type_name: &str) -> (String, String) {
         ("OsString".to_string(), "Basic Types".to_string())
     } else if clean_type.contains("PathBuf") || clean_type.contains("Path") {
         ("PathBuf".to_string(), "Basic Types".to_string())
+    } else if clean_type.contains("Option<") {
+        ("Option<T>".to_string(), "Optionals".to_string())
+    } else if clean_type.contains("Result<") {
+        ("Result<T,E>".to_string(), "Results".to_string())
     } else if clean_type.matches("i32").count() > 0
         || clean_type.matches("u32").count() > 0
         || clean_type.matches("i64").count() > 0
@@ -103,10 +148,6 @@ pub fn simplify_type_name(type_name: &str) -> (String, String) {
         ("Array".to_string(), "Arrays".to_string())
     } else if clean_type.starts_with("(") && clean_type.ends_with(")") {
         ("Tuple".to_string(), "Tuples".to_string())
-    } else if clean_type.contains("Option<") {
-        ("Option<T>".to_string(), "Optionals".to_string())
-    } else if clean_type.contains("Result<") {
-        ("Result<T,E>".to_string(), "Results".to_string())
     } else if clean_type.contains("Mutex<") || clean_type.contains("RwLock<") {
         ("Mutex/RwLock".to_string(), "Synchronization".to_string())
     } else if clean_type.contains("Cell<") || clean_type.contains("RefCell<") {
@@ -190,10 +231,28 @@ pub fn simplify_type_name(type_name: &str) -> (String, String) {
 /// Extract generic type parameter for display
 pub fn extract_generic_type(type_name: &str, container: &str) -> String {
     if let Some(start) = type_name.find(&format!("{container}<")) {
-        let start = start + container.len() + 1;
-        if let Some(end) = type_name[start..].rfind('>') {
-            let inner = &type_name[start..start + end];
-            // Simplify the inner type too
+        let content_start = start + container.len() + 1;
+        let content = &type_name[content_start..];
+
+        let mut depth = 1;
+        let mut end = 0;
+
+        for (i, c) in content.char_indices() {
+            match c {
+                '<' => depth += 1,
+                '>' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        end = i;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        if end > 0 {
+            let inner = &content[..end];
             return inner.split("::").last().unwrap_or(inner).to_string();
         }
     }
@@ -512,7 +571,9 @@ pub fn is_primitive_type(type_name: &str) -> bool {
 pub fn extract_array_info(type_name: &str) -> String {
     if let Some(start) = type_name.find('[') {
         if let Some(end) = type_name.find(']') {
-            return type_name[start..=end].to_string();
+            if end > start {
+                return type_name[start..=end].to_string();
+            }
         }
     }
     "Array".to_string()
@@ -540,16 +601,16 @@ pub fn extract_std_module(type_name: &str) -> String {
 // Thread Utilities (merged from thread_utils.rs)
 // ============================================================================
 
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc,
-};
 use std::thread;
 use std::time::Duration;
 
 /// Extension trait for JoinHandle to add timeout functionality
 pub trait JoinHandleExt<T> {
     /// Join with a timeout, returning an error if the timeout is exceeded
+    ///
+    /// This implementation properly handles timeout by using a dedicated timeout thread
+    /// that will exit immediately, avoiding resource leaks. The original thread continues
+    /// running in the background if it doesn't finish within the timeout.
     fn join_timeout(self, timeout: Duration) -> Result<T, Box<dyn std::any::Any + Send + 'static>>;
 }
 
@@ -560,33 +621,28 @@ impl<T: Send + 'static> JoinHandleExt<T> for thread::JoinHandle<T> {
             return self.join().map_err(|e| Box::new(e) as _);
         }
 
-        // Create a flag to track if the thread completed
-        let completed = Arc::new(AtomicBool::new(false));
-        let completed_clone = completed.clone();
+        // Use a channel to communicate result or timeout
+        let (tx, rx) = std::sync::mpsc::channel();
 
-        // Spawn a thread that will wait for the original thread
-        let handle = thread::spawn(move || {
+        // Spawn a thread that will join the original thread and send the result
+        thread::spawn(move || {
             let result = self.join();
-            completed_clone.store(true, Ordering::SeqCst);
-            result
+            // Ignore send errors - the receiver might have been dropped due to timeout
+            let _ = tx.send(result);
         });
 
-        // Wait for the timeout or until the thread completes
-        let start = std::time::Instant::now();
-        while !completed.load(Ordering::SeqCst) && start.elapsed() < timeout {
-            thread::sleep(Duration::from_millis(10));
-        }
-
-        if completed.load(Ordering::SeqCst) {
-            // Thread completed within timeout
-            match handle.join() {
-                Ok(result) => result.map_err(|e| Box::new(e) as _),
-                Err(_) => Err(Box::new("Watcher thread panicked") as _),
+        // Wait for either the thread to finish or timeout to occur
+        match rx.recv_timeout(timeout) {
+            Ok(result) => result.map_err(|e| Box::new(e) as _),
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                // Timeout occurred - the original thread continues running in background
+                // This is unavoidable in Rust without thread cancellation
+                Err(Box::new("Thread join timed out") as _)
             }
-        } else {
-            // Timeout reached and thread is still running
-            // Return an error indicating timeout
-            Err(Box::new("Thread join timed out") as _)
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                // Sender disconnected unexpectedly
+                Err(Box::new("Thread communication error") as _)
+            }
         }
     }
 }
@@ -615,6 +671,12 @@ mod tests {
         assert_eq!(format_bytes(1536), "1.5KB");
         assert_eq!(format_bytes(1024 * 1024), "1.0MB");
         assert_eq!(format_bytes(1024 * 1024 + 512 * 1024), "1.5MB");
+        assert_eq!(format_bytes(1024 * 1024 * 1024), "1.0GB");
+        assert_eq!(format_bytes(1024 * 1024 * 1024 * 2), "2.0GB");
+        assert_eq!(format_bytes(1024usize.pow(4)), "1.0TB");
+        assert_eq!(format_bytes(1024usize.pow(4) * 5), "5.0TB");
+        assert_eq!(format_bytes(1024usize.pow(5)), "1.0PB");
+        assert_eq!(format_bytes(1024usize.pow(5) * 10), "10.0PB");
     }
 
     #[test]
@@ -642,18 +704,17 @@ mod tests {
         assert_eq!(simplified, "Vec<i32>");
         assert_eq!(category, "Collections");
 
-        // The function prioritizes String detection over HashMap
         let (simplified, category) = simplify_type_name("HashMap<String, i32>");
-        assert_eq!(simplified, "String");
-        assert_eq!(category, "Basic Types");
+        assert_eq!(simplified, "HashMap<K,V>");
+        assert_eq!(category, "Collections");
 
         let (simplified, category) = simplify_type_name("BTreeMap<String, i32>");
-        assert_eq!(simplified, "String");
-        assert_eq!(category, "Basic Types");
+        assert_eq!(simplified, "BTreeMap<K,V>");
+        assert_eq!(category, "Collections");
 
         let (simplified, category) = simplify_type_name("HashSet<String>");
-        assert_eq!(simplified, "String");
-        assert_eq!(category, "Basic Types");
+        assert_eq!(simplified, "HashSet<T>");
+        assert_eq!(category, "Collections");
     }
 
     #[test]
@@ -662,20 +723,17 @@ mod tests {
         assert_eq!(simplified, "Box<i32>");
         assert_eq!(category, "Smart Pointers");
 
-        // String detection takes priority
         let (simplified, category) = simplify_type_name("Rc<String>");
         assert_eq!(simplified, "String");
         assert_eq!(category, "Basic Types");
 
-        // The function returns the full Arc type
         let (simplified, category) = simplify_type_name("Arc<Mutex<i32>>");
         assert_eq!(simplified, "Arc<Mutex<i32>>");
         assert_eq!(category, "Smart Pointers");
 
-        // String detection takes priority over HashMap
         let (simplified, category) = simplify_type_name("Box<HashMap<String, i32>>");
-        assert_eq!(simplified, "String");
-        assert_eq!(category, "Basic Types");
+        assert_eq!(simplified, "HashMap<K,V>");
+        assert_eq!(category, "Collections");
     }
 
     #[test]
@@ -688,10 +746,9 @@ mod tests {
         assert_eq!(simplified, "Unknown Type");
         assert_eq!(category, "Unknown");
 
-        // i32 detection takes priority over Option
         let (simplified, category) = simplify_type_name("Option<i32>");
-        assert_eq!(simplified, "Option<i32>");
-        assert_eq!(category, "Basic Types");
+        assert_eq!(simplified, "Option<T>");
+        assert_eq!(category, "Optionals");
 
         // String detection takes priority
         let (simplified, category) = simplify_type_name("Result<String, Error>");
@@ -1023,12 +1080,12 @@ mod tests {
         assert_eq!(simplified, "String");
         assert_eq!(category, "Basic Types");
 
-        // Test complex nested types - the function returns the exact input
+        // Test complex nested types - correctly handles nested brackets
         let (simplified, category) = simplify_type_name("Box<Vec<HashMap<String, i32>>>");
-        assert_eq!(simplified, "Vec<HashMap<String, i32>>>");
+        assert_eq!(simplified, "Vec<HashMap<String, i32>>");
         assert_eq!(category, "Collections");
 
-        // Test weak pointers - String detection takes priority
+        // Test weak pointers
         let (simplified, category) = simplify_type_name("Weak<String>");
         assert_eq!(simplified, "String");
         assert_eq!(category, "Basic Types");

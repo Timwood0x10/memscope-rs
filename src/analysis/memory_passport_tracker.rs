@@ -4,14 +4,15 @@
 //! FFI boundaries, including lifecycle event recording and leak detection at shutdown.
 
 use crate::analysis::unsafe_ffi_tracker::StackFrame;
-use crate::core::types::{TrackingError, TrackingResult};
+use crate::capture::types::{TrackingError, TrackingResult};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Memory passport for tracking cross-FFI boundary memory
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct MemoryPassport {
     /// Unique passport identifier
     pub passport_id: String,
@@ -19,6 +20,10 @@ pub struct MemoryPassport {
     pub allocation_ptr: usize,
     /// Size in bytes
     pub size_bytes: usize,
+    /// Type name of the allocated memory
+    pub type_name: String,
+    /// Variable name if available
+    pub var_name: String,
     /// Current status at program shutdown
     pub status_at_shutdown: PassportStatus,
     /// Complete lifecycle events recorded
@@ -49,7 +54,7 @@ pub enum PassportStatus {
 }
 
 /// Lifecycle event in memory passport
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PassportEvent {
     /// Event type
     pub event_type: PassportEventType,
@@ -92,8 +97,8 @@ pub struct MemoryPassportTracker {
     passports: Arc<Mutex<HashMap<usize, MemoryPassport>>>,
     /// Passport creation sequence
     sequence_counter: Arc<Mutex<u32>>,
-    /// Event sequence counter
-    event_sequence: Arc<Mutex<u32>>,
+    /// Event sequence counter (use AtomicU32 for lock-free operation)
+    event_sequence: Arc<AtomicU32>,
     /// Tracker configuration
     config: PassportTrackerConfig,
     /// Statistics tracking
@@ -113,6 +118,13 @@ pub struct PassportTrackerConfig {
     pub enable_validation: bool,
     /// Maximum number of passports to track
     pub max_passports: usize,
+    /// Track Rust internal call stacks (e.g., std, core, alloc)
+    /// When false, only user code call stacks are tracked
+    pub track_rust_internal_stack: bool,
+    /// User code path prefixes for identifying user code
+    /// Call stacks from paths NOT starting with these prefixes are considered Rust internal
+    /// If empty, all paths are considered user code
+    pub user_code_prefixes: Vec<String>,
 }
 
 impl Default for PassportTrackerConfig {
@@ -123,6 +135,13 @@ impl Default for PassportTrackerConfig {
             enable_leak_detection: true,
             enable_validation: true,
             max_passports: 10000,
+            track_rust_internal_stack: false,
+            user_code_prefixes: vec![
+                "src/".to_string(),
+                "examples/".to_string(),
+                "tests/".to_string(),
+                "benches/".to_string(),
+            ],
         }
     }
 }
@@ -179,19 +198,19 @@ pub struct LeakDetail {
 impl MemoryPassportTracker {
     /// Create new memory passport tracker
     pub fn new(config: PassportTrackerConfig) -> Self {
-        tracing::info!("📋 Initializing Memory Passport Tracker");
-        tracing::info!("   • Detailed logging: {}", config.detailed_logging);
-        tracing::info!(
-            "   • Max events per passport: {}",
+        tracing::debug!("Initializing Memory Passport Tracker");
+        tracing::debug!("   Detailed logging: {}", config.detailed_logging);
+        tracing::debug!(
+            "   Max events per passport: {}",
             config.max_events_per_passport
         );
-        tracing::info!("   • Leak detection: {}", config.enable_leak_detection);
-        tracing::info!("   • Validation: {}", config.enable_validation);
+        tracing::debug!("   Leak detection: {}", config.enable_leak_detection);
+        tracing::debug!("   Validation: {}", config.enable_validation);
 
         Self {
             passports: Arc::new(Mutex::new(HashMap::new())),
             sequence_counter: Arc::new(Mutex::new(0)),
-            event_sequence: Arc::new(Mutex::new(0)),
+            event_sequence: Arc::new(AtomicU32::new(0)),
             config,
             stats: Arc::new(Mutex::new(PassportTrackerStats {
                 tracker_start_time: SystemTime::now()
@@ -203,12 +222,27 @@ impl MemoryPassportTracker {
         }
     }
 
+    /// Create memory passport for FFI boundary tracking (backward compatible).
+    ///
+    /// This is a convenience wrapper that calls `create_passport` with
+    /// `type_name` and `var_name` set to `None`.
+    pub fn create_passport_simple(
+        &self,
+        allocation_ptr: usize,
+        size_bytes: usize,
+        initial_context: String,
+    ) -> TrackingResult<String> {
+        self.create_passport(allocation_ptr, size_bytes, initial_context, None, None)
+    }
+
     /// Create memory passport for FFI boundary tracking
     pub fn create_passport(
         &self,
         allocation_ptr: usize,
         size_bytes: usize,
         initial_context: String,
+        type_name: Option<String>,
+        var_name: Option<String>,
     ) -> TrackingResult<String> {
         let passport_id = self.generate_passport_id(allocation_ptr)?;
         let current_time = SystemTime::now()
@@ -230,6 +264,8 @@ impl MemoryPassportTracker {
             passport_id: passport_id.clone(),
             allocation_ptr,
             size_bytes,
+            type_name: type_name.unwrap_or_else(|| "-".to_string()),
+            var_name: var_name.unwrap_or_else(|| "-".to_string()),
             status_at_shutdown: PassportStatus::Unknown,
             lifecycle_events: vec![initial_event],
             created_at: current_time,
@@ -256,8 +292,8 @@ impl MemoryPassportTracker {
         self.update_stats_passport_created();
 
         if self.config.detailed_logging {
-            tracing::info!(
-                "📋 Created passport: {} for 0x{:x} ({} bytes)",
+            tracing::debug!(
+                "Created passport: {} for 0x{:x} ({} bytes)",
                 passport_id,
                 allocation_ptr,
                 size_bytes
@@ -265,6 +301,34 @@ impl MemoryPassportTracker {
         }
 
         Ok(passport_id)
+    }
+
+    /// Create memory passport with automatic type inference
+    pub fn create_passport_with_inference(
+        &self,
+        allocation_ptr: usize,
+        size_bytes: usize,
+        memory: Option<&[u8]>,
+        initial_context: String,
+        var_name: Option<String>,
+    ) -> TrackingResult<String> {
+        let type_name = memory
+            .map(|m| {
+                let guess =
+                    crate::analysis::unsafe_inference::UnsafeInferenceEngine::infer_from_bytes(
+                        m, size_bytes,
+                    );
+                guess.display_with_confidence()
+            })
+            .unwrap_or_else(|| "-".to_string());
+
+        self.create_passport(
+            allocation_ptr,
+            size_bytes,
+            initial_context,
+            Some(type_name),
+            var_name,
+        )
     }
 
     /// Record HandoverToFfi event
@@ -357,8 +421,8 @@ impl MemoryPassportTracker {
                 self.update_stats_event_recorded();
 
                 if self.config.detailed_logging {
-                    tracing::info!(
-                        "📝 Recorded {:?} event for passport 0x{:x} in context: {}",
+                    tracing::debug!(
+                        "Recorded {:?} event for passport 0x{:x} in context: {}",
                         event_type,
                         allocation_ptr,
                         context
@@ -450,8 +514,8 @@ impl MemoryPassportTracker {
 
         let total_leaks = leaked_passports.len();
 
-        tracing::info!(
-            "🔍 Leak detection complete: {} leaks detected out of {} passports",
+        tracing::debug!(
+            "Leak detection complete: {} leaks detected out of {} passports",
             total_leaks,
             self.get_passport_count()
         );
@@ -473,9 +537,12 @@ impl MemoryPassportTracker {
     pub fn get_all_passports(&self) -> HashMap<usize, MemoryPassport> {
         self.passports
             .lock()
-            .unwrap_or_else(|_| {
-                tracing::error!("Failed to lock passports for reading");
-                std::process::exit(1);
+            .unwrap_or_else(|e| {
+                tracing::warn!(
+                    "Mutex poisoned in get_all_passports, recovering data: {}",
+                    e
+                );
+                e.into_inner()
             })
             .clone()
     }
@@ -497,9 +564,9 @@ impl MemoryPassportTracker {
     pub fn get_stats(&self) -> PassportTrackerStats {
         self.stats
             .lock()
-            .unwrap_or_else(|_| {
-                tracing::error!("Failed to lock stats");
-                std::process::exit(1);
+            .unwrap_or_else(|e| {
+                tracing::warn!("Mutex poisoned in get_stats, recovering data: {}", e);
+                e.into_inner()
             })
             .clone()
     }
@@ -515,7 +582,7 @@ impl MemoryPassportTracker {
                 // Validate event sequence
                 let mut last_sequence = 0;
                 for event in &passport.lifecycle_events {
-                    if event.sequence_number <= last_sequence {
+                    if event.sequence_number < last_sequence {
                         self.update_stats_validation_failure();
                         return Ok(false);
                     }
@@ -558,7 +625,7 @@ impl MemoryPassportTracker {
             };
         }
 
-        tracing::info!("🧹 Cleared all passports");
+        tracing::debug!("Cleared all passports");
     }
 
     // Private helper methods
@@ -587,50 +654,80 @@ impl MemoryPassportTracker {
     }
 
     fn get_next_event_sequence(&self) -> u32 {
-        if let Ok(mut counter) = self.event_sequence.lock() {
-            *counter += 1;
-            *counter
-        } else {
-            tracing::error!("Failed to lock event sequence counter");
-            0
-        }
+        // Use atomic fetch_add for lock-free sequence number generation
+        // This eliminates lock contention and prevents ID conflicts
+        self.event_sequence.fetch_add(1, Ordering::SeqCst)
     }
 
     fn capture_call_stack(&self) -> TrackingResult<Vec<StackFrame>> {
-        // Simplified call stack capture
-        // In a real implementation, this would use backtrace or similar
-        Ok(vec![StackFrame {
-            function_name: "memory_passport_tracker".to_string(),
-            file_name: Some("src/analysis/memory_passport_tracker.rs".to_string()),
-            line_number: Some(1),
-            is_unsafe: false,
-        }])
+        // Use backtrace crate to capture real call stack
+        #[cfg(feature = "backtrace")]
+        {
+            let backtrace = backtrace::Backtrace::new();
+            let mut frames = Vec::new();
+
+            // Skip first 2 frames (capture_call_stack and caller)
+            let skip_frames = 2;
+            let max_depth = 32; // Maximum stack depth to capture
+
+            for (i, frame) in backtrace.frames().iter().enumerate() {
+                if i < skip_frames {
+                    continue;
+                }
+
+                if let Some(symbol) = frame.symbols().first() {
+                    frames.push(StackFrame {
+                        function_name: symbol
+                            .name()
+                            .map(|n| format!("{:?}", n))
+                            .unwrap_or_else(|| "unknown".to_string()),
+                        file_name: symbol.filename().map(|p| p.display().to_string()),
+                        line_number: symbol.lineno(),
+                        is_unsafe: false,
+                    });
+                }
+
+                if frames.len() >= max_depth {
+                    break;
+                }
+            }
+
+            Ok(frames)
+        }
+
+        #[cfg(not(feature = "backtrace"))]
+        {
+            // Return empty stack when backtrace feature is not enabled
+            Ok(Vec::new())
+        }
     }
 
     fn determine_final_status(&self, events: &[PassportEvent]) -> PassportStatus {
         let mut has_handover = false;
         let mut has_reclaim = false;
         let mut has_foreign_free = false;
+        let mut has_corruption = false;
 
-        // Analyze events in chronological order
         for event in events {
             match event.event_type {
                 PassportEventType::HandoverToFfi => has_handover = true,
                 PassportEventType::ReclaimedByRust => {
                     has_reclaim = true;
-                    has_handover = false; // Reset handover status
+                    has_handover = false;
                 }
                 PassportEventType::FreedByForeign => {
                     has_foreign_free = true;
-                    has_handover = false; // Reset handover status
+                    has_handover = false;
                 }
+                PassportEventType::CorruptionDetected => has_corruption = true,
                 _ => {}
             }
         }
 
-        // Determine final status based on event history
-        if has_handover && !has_reclaim && !has_foreign_free {
-            PassportStatus::InForeignCustody // This is a confirmed leak
+        if has_corruption {
+            PassportStatus::Unknown
+        } else if has_handover && !has_reclaim && !has_foreign_free {
+            PassportStatus::InForeignCustody
         } else if has_foreign_free {
             PassportStatus::FreedByForeign
         } else if has_reclaim {
@@ -685,26 +782,32 @@ impl Default for MemoryPassportTracker {
     }
 }
 
-/// Global memory passport tracker instance
-static GLOBAL_PASSPORT_TRACKER: std::sync::OnceLock<Arc<MemoryPassportTracker>> =
+/// Global memory passport tracker instance (used as fallback for direct access)
+static GLOBAL_MEMORY_PASSPORT_TRACKER: std::sync::OnceLock<Arc<MemoryPassportTracker>> =
     std::sync::OnceLock::new();
 
 /// Get global memory passport tracker instance
+///
+/// # Note
+/// This function is deprecated. Use `global_passport_tracker()` from
+/// `memscope_rs::capture::backends::global_tracking` instead.
 pub fn get_global_passport_tracker() -> Arc<MemoryPassportTracker> {
-    GLOBAL_PASSPORT_TRACKER
+    GLOBAL_MEMORY_PASSPORT_TRACKER
         .get_or_init(|| Arc::new(MemoryPassportTracker::new(PassportTrackerConfig::default())))
         .clone()
 }
 
 /// Initialize global passport tracker with custom config
+///
+/// # Note  
+/// This function is deprecated. Use `init_global_tracking_with_config()` from
+/// `memscope_rs::capture::backends::global_tracking` instead.
 pub fn initialize_global_passport_tracker(
     config: PassportTrackerConfig,
 ) -> Arc<MemoryPassportTracker> {
-    let tracker = Arc::new(MemoryPassportTracker::new(config));
-    if GLOBAL_PASSPORT_TRACKER.set(tracker.clone()).is_err() {
-        tracing::warn!("Global passport tracker already initialized");
-    }
-    tracker
+    GLOBAL_MEMORY_PASSPORT_TRACKER
+        .get_or_init(|| Arc::new(MemoryPassportTracker::new(config)))
+        .clone()
 }
 
 #[cfg(test)]
@@ -718,7 +821,7 @@ mod tests {
         let size = 1024;
 
         let passport_id = tracker
-            .create_passport(ptr, size, "test_context".to_string())
+            .create_passport(ptr, size, "test_context".to_string(), None, None)
             .expect("Failed to create passport");
         assert!(!passport_id.is_empty());
 
@@ -738,7 +841,7 @@ mod tests {
         let ptr = 0x2000;
 
         tracker
-            .create_passport(ptr, 512, "rust_context".to_string())
+            .create_passport(ptr, 512, "rust_context".to_string(), None, None)
             .expect("Failed to create passport");
         tracker
             .record_handover_to_ffi(ptr, "ffi_context".to_string(), "malloc".to_string())
@@ -759,7 +862,7 @@ mod tests {
 
         // Create passport and hand over to FFI without reclaim
         tracker
-            .create_passport(ptr, 256, "rust_context".to_string())
+            .create_passport(ptr, 256, "rust_context".to_string(), None, None)
             .expect("Failed to create passport");
         tracker
             .record_handover_to_ffi(ptr, "ffi_context".to_string(), "malloc".to_string())
@@ -788,7 +891,7 @@ mod tests {
 
         // Create passport, hand over to FFI, then reclaim
         tracker
-            .create_passport(ptr, 128, "rust_context".to_string())
+            .create_passport(ptr, 128, "rust_context".to_string(), None, None)
             .expect("Failed to create passport");
         tracker
             .record_handover_to_ffi(ptr, "ffi_context".to_string(), "malloc".to_string())
@@ -813,7 +916,7 @@ mod tests {
         let ptr = 0x5000;
 
         tracker
-            .create_passport(ptr, 64, "test_context".to_string())
+            .create_passport(ptr, 64, "test_context".to_string(), None, None)
             .expect("Failed to create passport");
         tracker
             .record_handover_to_ffi(ptr, "ffi_context".to_string(), "test_func".to_string())
