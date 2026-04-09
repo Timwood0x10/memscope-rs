@@ -230,7 +230,7 @@ fn get_conservative_regions() -> ValidRegions {
     // On Linux, heap typically starts at a low address
     regions.push(MemoryRegion {
         start: 0x10000,
-        end: 0x7FFFFFFF_FFFF_FFFF,
+        end: 0x7FF_FFFFF_FFFF_FFFF,
     });
 
     ValidRegions::from_regions(regions)
@@ -240,7 +240,7 @@ fn get_conservative_regions() -> ValidRegions {
 ///
 /// Uses a conservative approach to detect valid memory regions:
 /// - Stack region: 8MB below and above current stack pointer
-/// - Heap region: from 0x10000 to 0x7FFFFFFF_FFFF_FFFF
+/// - Heap region: from 0x10000 to 0x7FFF_FFFFF_FFFF_FFFF
 /// - Additional heap regions for common allocators
 #[cfg(target_os = "windows")]
 fn get_valid_regions_impl() -> ValidRegions {
@@ -257,7 +257,7 @@ fn get_valid_regions_impl() -> ValidRegions {
     // Windows heap typically starts at a low address
     regions.push(MemoryRegion {
         start: 0x10000,
-        end: 0x7FFFFFFF_FFFF_FFFF, // Large range for heap
+        end: 0x7FFF_FFFFF_FFFF_FFFF, // Large range for heap
     });
 
     ValidRegions::from_regions(regions)
@@ -309,7 +309,7 @@ fn get_valid_regions_impl() -> ValidRegions {
     // Add heap region (conservative estimate)
     regions.push(MemoryRegion {
         start: 0x10000,
-        end: 0x7FFFFFFF_FFFF_FFFF,
+        end: 0x7FF_FFFFF_FFFF_FFFF,
     });
 
     ValidRegions::from_regions(regions)

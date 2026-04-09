@@ -572,7 +572,8 @@ impl PlatformMemoryInfo {
                 available_virtual,
                 used_virtual: total_virtual - available_virtual,
                 reserved: total_virtual / 4,
-                committed: mem_status.ullTotalCommit,
+                // Use total page file as an estimate for committed memory
+                committed: mem_status.ullTotalPageFile,
             },
             physical_memory: PhysicalMemoryStats {
                 total_physical,

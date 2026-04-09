@@ -96,10 +96,6 @@ jobs:
         run: cargo test --test '*' --workspace
         continue-on-error: ${{ matrix.experimental == true }}
 
-      - name: Test CLI binary
-        run: cargo test --bin '*' --workspace
-        continue-on-error: ${{ matrix.experimental == true }}
-
       - name: Test examples
         run: |
           cargo run --example basic_usage
@@ -223,74 +219,10 @@ jobs:
           files: lcov.info
           fail_ci_if_error: false
 
-  release:
-    name: Release
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [quality, test, docs, security]
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            name: memscope-rs-linux-x64
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            name: memscope-rs-windows-x64.exe
-          - os: macos-latest
-            target: x86_64-apple-darwin
-            name: memscope-rs-macos-x64
-          - os: macos-latest
-            target: aarch64-apple-darwin
-            name: memscope-rs-macos-arm64
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-
-      - name: Handle Cargo.lock compatibility
-        shell: bash
-        run: |
-          # Always regenerate Cargo.lock for CI to ensure compatibility
-          echo "Regenerating Cargo.lock for CI compatibility..."
-          rm -f Cargo.lock
-          cargo generate-lockfile
-          echo "Generated compatible Cargo.lock version: $(head -n1 Cargo.lock)"
-
-      - name: Cache dependencies
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: release-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Build release binary
-        run: cargo build --release --target ${{ matrix.target }} --bin memscope
-
-      - name: Prepare binary
-        shell: bash
-        run: |
-          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            cp target/${{ matrix.target }}/release/memscope.exe ${{ matrix.name }}
-          else
-            cp target/${{ matrix.target }}/release/memscope ${{ matrix.name }}
-          fi
-
-      - name: Create release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: ${{ matrix.name }}
-          draft: false
-          prerelease: ${{ contains(github.ref, '-alpha') || contains(github.ref, '-beta') || contains(github.ref, '-rc') }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   publish:
     name: Publish to crates.io
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [release]
+    needs: [quality, test, docs, security]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

@@ -429,7 +429,7 @@ impl PlatformSymbolResolver {
         };
         use windows_sys::Win32::System::ProcessStatus::EnumProcessModules;
 
-        let process = windows_sys::Win32::Foundation::HANDLE(-1isize);
+        let process: windows_sys::Win32::Foundation::HANDLE = -1isize as _;
 
         unsafe {
             if SymInitializeW(process, std::ptr::null(), 1) == 0 {

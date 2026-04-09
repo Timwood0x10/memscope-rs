@@ -27,8 +27,9 @@ help:
 	@echo ""
 	@echo "$(GREEN)Testing:$(NC)"
 	@echo "  test           - Run all tests"
-	@echo "  test-unit      - Run unit tests"
+	@echo "  test-unit      - Run unit tests (library)"
 	@echo "  test-integration - Run integration tests"
+	@echo "  test-examples  - Run example programs"
 	@echo "  test-verbose   - Run with verbose output"
 	@echo ""
 	@echo "$(GREEN)Benchmarking:$(NC)"
@@ -67,21 +68,7 @@ release:
 .PHONY: check
 check:
 	@echo "$(BLUE)Checking $(PROJECT_NAME) for errors...$(NC)"
-	$(CARGO) check --all-targets --all-features
-	@echo "$(BLUE)Checking code formatting...$(NC)"
-	$(CARGO) fmt --all -- --check
-	@echo "$(BLUE)Running clippy linter...$(NC)"
-	$(CARGO) clippy --all-targets --all-features -- \
-		-A clippy::all \
-		-W clippy::correctness \
-		-D clippy::suspicious
-	@echo "$(BLUE)Running security audit...$(NC)"
-	@if command -v cargo-audit >/dev/null 2>&1; then \
-		$(CARGO) audit || echo "$(YELLOW)⚠️  Some audit warnings may be acceptable$(NC)"; \
-	else \
-		echo "$(YELLOW)cargo-audit not installed. Install with: cargo install cargo-audit$(NC)"; \
-	fi
-	@echo "$(GREEN)✅ All quality checks completed!$(NC)"
+	$(CARGO) check --workspace --all-targets --all-features
 
 .PHONY: clean
 clean:
@@ -93,18 +80,18 @@ clean:
 # Testing
 .PHONY: test
 test:
-	@echo "$(BLUE)Running tests...$(NC)"
-	$(CARGO) test --tests -- --test-threads=1
+	@echo "$(BLUE)Running all tests...$(NC)"
+	$(CARGO) test --workspace -- --test-threads=1
 
 .PHONY: test-unit
 test-unit:
 	@echo "$(BLUE)Running unit tests...$(NC)"
-	$(CARGO) test --lib -- --test-threads=1
+	$(CARGO) test --lib --workspace -- --test-threads=1
 
 .PHONY: test-integration
 test-integration:
 	@echo "$(BLUE)Running integration tests...$(NC)"
-	$(CARGO) test --tests -- --test-threads=1
+	$(CARGO) test --test '*' --workspace -- --test-threads=1
 
 .PHONY: test-verbose
 test-verbose:
@@ -151,11 +138,19 @@ fmt-check:
 .PHONY: clippy
 clippy:
 	@echo "$(BLUE)Running clippy...$(NC)"
-	$(CARGO) clippy --all-targets --all-features -- -D warnings
+	$(CARGO) clippy --workspace --all-targets --all-features -- -D warnings
 
 .PHONY: ci
-ci: fmt-check clippy test
+ci: fmt-check clippy check test-unit test-integration test-examples
 	@echo "$(GREEN)CI pipeline completed$(NC)"
+
+.PHONY: test-examples
+test-examples:
+	@echo "$(BLUE)Testing examples...$(NC)"
+	@echo "$(BLUE)  Running basic_usage...$(NC)"
+	$(CARGO) run --example basic_usage
+	@echo "$(BLUE)  Running unsafe_ffi_demo...$(NC)"
+	$(CARGO) run --example unsafe_ffi_demo
 
 # Examples
 .PHONY: run-basic
