@@ -3,6 +3,7 @@
 //! Maps memory addresses to allocation indices using a sorted list
 //! and binary search, enabling O(log n) pointer-to-allocation lookup.
 
+use crate::analysis::VIRTUAL_PTR_BASE;
 use crate::snapshot::types::ActiveAllocation;
 
 /// A single entry in the range map.
@@ -39,10 +40,17 @@ impl RangeMap {
             .enumerate()
             .filter_map(|(id, alloc)| {
                 // Only include HeapOwner allocations with valid pointers
-                alloc.ptr.map(|ptr| RangeEntry {
-                    start: ptr,
-                    end: ptr.saturating_add(alloc.size),
-                    alloc_id: id,
+                // Skip virtual pointers used for Container types
+                alloc.ptr.and_then(|ptr| {
+                    if ptr < VIRTUAL_PTR_BASE {
+                        Some(RangeEntry {
+                            start: ptr,
+                            end: ptr.saturating_add(alloc.size),
+                            alloc_id: id,
+                        })
+                    } else {
+                        None
+                    }
                 })
             })
             .collect();
@@ -52,7 +60,6 @@ impl RangeMap {
 
         Self { entries }
     }
-
     /// Find the allocation ID that contains the given pointer.
     ///
     /// Returns `Some(alloc_id)` if `ptr` falls within `[start, end)` of

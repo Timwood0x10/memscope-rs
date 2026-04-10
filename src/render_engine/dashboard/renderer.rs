@@ -274,6 +274,10 @@ pub struct RelationshipInfo {
     pub color: String,
     /// Whether this relationship is part of a detected cycle (true) or not (false)
     pub is_part_of_cycle: bool,
+    /// Whether source is a Container type (no heap pointer)
+    pub is_container_source: bool,
+    /// Whether target is a Container type (no heap pointer)
+    pub is_container_target: bool,
 }
 
 /// Unsafe/FFI report
@@ -543,17 +547,18 @@ impl DashboardRenderer {
         let graph = RelationGraphBuilder::build(&active_allocations, None);
 
         // Build a pointer -> AllocationInfo map for efficient lookup
-        let alloc_info_by_ptr: std::collections::HashMap<usize, &AllocationInfo> =
-            alloc_info
-                .iter()
-                .filter_map(|a| {
-                    if a.address.starts_with("0x") {
-                        usize::from_str_radix(&a.address[2..], 16).ok().map(|ptr| (ptr, a))
-                    } else {
-                        None
-                    }
-                })
-                .collect();
+        let alloc_info_by_ptr: std::collections::HashMap<usize, &AllocationInfo> = alloc_info
+            .iter()
+            .filter_map(|a| {
+                if a.address.starts_with("0x") {
+                    usize::from_str_radix(&a.address[2..], 16)
+                        .ok()
+                        .map(|ptr| (ptr, a))
+                } else {
+                    None
+                }
+            })
+            .collect();
 
         let mut relationships = Vec::new();
 
@@ -562,13 +567,8 @@ impl DashboardRenderer {
             let from_alloc_raw = active_allocations.get(edge.from);
             let to_alloc_raw = active_allocations.get(edge.to);
 
-            let source_addr = from_alloc_raw
-                .and_then(|a| a.ptr)
-                .unwrap_or_else(|| edge.from);
-
-            let target_addr = to_alloc_raw
-                .and_then(|a| a.ptr)
-                .unwrap_or_else(|| edge.to);
+            let source_addr = from_alloc_raw.and_then(|a| a.ptr).unwrap_or(edge.from);
+            let target_addr = to_alloc_raw.and_then(|a| a.ptr).unwrap_or(edge.to);
 
             // Get detailed allocation info from alloc_info (limited set)
             let from_alloc = alloc_info_by_ptr.get(&source_addr).copied();
@@ -589,22 +589,48 @@ impl DashboardRenderer {
                 .or_else(|| from_alloc.map(|a| a.type_name.clone()))
                 .unwrap_or_else(|| "unknown".to_string());
 
+            // Detect Container types (ptr = 0 means no heap pointer)
+            let is_container_source = source_addr == 0;
+            let is_container_target = target_addr == 0;
+
             relationships.push(RelationshipInfo {
-                source_ptr: format!("0x{:x}", source_addr),
+                source_ptr: if is_container_source {
+                    format!("container_{}", edge.from)
+                } else {
+                    format!("0x{:x}", source_addr)
+                },
                 source_var_name: from_alloc_raw
                     .and_then(|a| a.var_name.clone())
                     .or_else(|| from_alloc.map(|a| a.var_name.clone()))
-                    .unwrap_or_else(|| format!("alloc_{}", source_addr)),
-                target_ptr: format!("0x{:x}", target_addr),
+                    .unwrap_or_else(|| {
+                        if is_container_source {
+                            format!("container_{}", edge.from)
+                        } else {
+                            format!("alloc_{}", source_addr)
+                        }
+                    }),
+                target_ptr: if is_container_target {
+                    format!("container_{}", edge.to)
+                } else {
+                    format!("0x{:x}", target_addr)
+                },
                 target_var_name: to_alloc_raw
                     .and_then(|a| a.var_name.clone())
                     .or_else(|| to_alloc.map(|a| a.var_name.clone()))
-                    .unwrap_or_else(|| format!("alloc_{}", target_addr)),
+                    .unwrap_or_else(|| {
+                        if is_container_target {
+                            format!("container_{}", edge.to)
+                        } else {
+                            format!("alloc_{}", target_addr)
+                        }
+                    }),
                 relationship_type: rel_type.to_string(),
                 strength,
                 type_name,
                 color: color.to_string(),
                 is_part_of_cycle: false,
+                is_container_source,
+                is_container_target,
             });
         }
 
@@ -680,12 +706,12 @@ impl DashboardRenderer {
         let mut all_allocations: Vec<_> = active_allocations.into_values().collect();
 
         // Assign virtual unique addresses to Container allocations
-        // Use 0x100000000 + index to avoid conflicts with real heap pointers
+        // Use 0x10000000000 + index to avoid conflicts with real heap pointers
         let container_allocations_with_virtual_ptrs: Vec<_> = container_allocations
             .into_iter()
             .enumerate()
             .map(|(index, mut alloc)| {
-                alloc.ptr = 0x100000000 + index;
+                alloc.ptr = 0x10000000000 + index;
                 alloc
             })
             .collect();
@@ -733,45 +759,17 @@ impl DashboardRenderer {
         passport_tracker: &Arc<MemoryPassportTracker>,
         async_tracker: Option<&Arc<crate::capture::backends::async_tracker::AsyncTracker>>,
     ) -> Result<DashboardContext, Box<dyn std::error::Error>> {
-        let allocations = tracker.inner().get_active_allocations().unwrap_or_default();
         let passports = passport_tracker.get_all_passports();
         let analysis = tracker.analyze();
 
-        // Extract Metadata events from event_store (contains Container types like HashMap)
+        // Use unified data source - same as JSON export
+        // This ensures Container allocations get virtual pointers consistently
         let events = tracker.event_store().snapshot();
-        let metadata_events: Vec<_> = events
-            .iter()
-            .filter(|e| e.event_type == crate::event_store::event::MemoryEventType::Metadata)
-            .collect();
+        let all_allocations = Self::rebuild_allocations_from_events(&events);
 
-        // Convert Metadata events to AllocationInfo format
-        let container_allocs: Vec<crate::capture::backends::core_types::AllocationInfo> =
-            metadata_events
-                .iter()
-                .enumerate()
-                .map(|(index, e)| {
-                    // Build stack_trace from source_file and source_line
-                    let stack_trace = if let (Some(file), Some(line)) = (&e.source_file, e.source_line) {
-                        Some(vec![format!("{}:{}", file, line)])
-                    } else {
-                        None
-                    };
-
-                    crate::capture::backends::core_types::AllocationInfo {
-                        ptr: 0x100000000 + index, // Assign virtual unique address
-                        size: e.size,
-                        allocated_at_ns: e.timestamp,
-                        var_name: e.var_name.clone(),
-                        type_name: e.type_name.clone(),
-                        thread_id: e.thread_id,
-                        stack_trace,
-                    }
-                })
-                .collect();
-
-        // Merge HeapOwner allocations with Container allocations
-        let all_allocations: Vec<crate::capture::backends::core_types::AllocationInfo> =
-            allocations.into_iter().chain(container_allocs).collect();
+        if all_allocations.is_empty() {
+            tracing::warn!("No allocations found in event store. Dashboard may show limited data.");
+        }
 
         let total_memory: usize = all_allocations.iter().map(|a| a.size).sum();
 

@@ -10,6 +10,7 @@ use dashmap::DashMap;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::thread;
+use tracing::warn;
 
 const STRATEGY_GLOBAL_SINGLETON: u64 = 0;
 const STRATEGY_THREAD_LOCAL: u64 = 1;
@@ -168,8 +169,8 @@ impl MemoryTracker {
             // Pointer not found - could be double-free or untracked allocation
             // Log warning in debug mode
             #[cfg(debug_assertions)]
-            eprintln!(
-                "[memscope] Warning: deallocation called for untracked pointer {:x}. \
+            warn!(
+                "deallocation called for untracked pointer {:x}. \
                  This may indicate a double-free or memory not tracked by memscope.",
                 ptr
             );

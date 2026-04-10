@@ -14,6 +14,7 @@
 
 use crate::analysis::relation_inference::{RangeMap, Relation, RelationEdge};
 use crate::analysis::unsafe_inference::{is_valid_ptr, OwnedMemoryView};
+use crate::analysis::VIRTUAL_PTR_BASE;
 
 const MIN_VALID_POINTER: usize = 0x1000;
 
@@ -88,6 +89,11 @@ fn detect_owner_impl(
         };
 
         if ptr_val == 0 || ptr_val < MIN_VALID_POINTER {
+            continue;
+        }
+
+        // Skip virtual pointers used for Container types
+        if ptr_val >= VIRTUAL_PTR_BASE {
             continue;
         }
 

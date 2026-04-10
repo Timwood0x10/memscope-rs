@@ -5,6 +5,7 @@
 //! atomic system calls for fault tolerance.
 
 use crate::analysis::unsafe_inference::is_valid_ptr;
+use crate::analysis::VIRTUAL_PTR_BASE;
 use crate::snapshot::types::ActiveAllocation;
 
 /// Maximum bytes to read per allocation. Metadata headers are always
@@ -73,19 +74,32 @@ impl HeapScanner {
     ///
     /// Filters for HeapOwner allocations and removes duplicates
     /// based on (ptr, size) pairs.
+    ///
+    /// Also skips virtual pointers (>= 0x10000000000) used for Container types.
+    /// This threshold is set high enough to avoid conflicts with real heap addresses
+    /// on all platforms (including macOS which can have addresses > 0x100000000).
     fn dedup_heap_regions(allocs: &[ActiveAllocation]) -> Vec<(usize, usize)> {
         use std::collections::HashSet;
+
         let mut seen = HashSet::new();
         let mut regions = Vec::new();
 
         for alloc in allocs {
             if let crate::core::types::TrackKind::HeapOwner { ptr, size } = alloc.kind {
+                // Skip virtual pointers used for Container types
+
+                if ptr >= VIRTUAL_PTR_BASE {
+                    continue;
+                }
+
                 let key = (ptr, size);
+
                 if seen.insert(key) {
                     regions.push(key);
                 }
             }
         }
+
         regions
     }
 }

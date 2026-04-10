@@ -52,6 +52,58 @@ pub mod utils;
 /// Variable registry for lightweight HashMap-based variable tracking
 pub mod variable_registry;
 
+/// Initialize logging system for memscope-rs.
+///
+/// This function sets up the tracing subscriber with appropriate filtering
+/// and formatting for memory tracking operations.
+///
+/// # Example
+///
+/// ```ignore
+/// use memscope_rs::init_logging;
+///
+/// init_logging();
+/// // Now logging is configured and ready to use
+/// ```
+///
+/// # Environment Variables
+///
+/// The logging level can be controlled via the `RUST_LOG` environment variable:
+///
+/// - `RUST_LOG=memscope_rs=error` - Only errors
+/// - `RUST_LOG=memscope_rs=warn` - Warnings and errors
+/// - `RUST_LOG=memscope_rs=info` - Info, warnings, and errors (default)
+/// - `RUST_LOG=memscope_rs=debug` - Debug, info, warnings, and errors
+///
+/// # Note
+///
+/// This function can be called multiple times safely; subsequent calls will be ignored.
+pub fn init_logging() {
+    use tracing_subscriber::{fmt, EnvFilter};
+
+    // Only initialize once
+    static INIT: std::sync::Once = std::sync::Once::new();
+
+    INIT.call_once(|| {
+        // Initialize tracing subscriber with environment variable support
+        // Default log level: INFO
+        // Can be overridden with RUST_LOG environment variable
+        let filter =
+            EnvFilter::from_default_env().add_directive("memscope_rs=info".parse().unwrap());
+
+        fmt()
+            .with_env_filter(filter)
+            .with_target(true)
+            .with_thread_ids(true)
+            .with_file(true)
+            .with_line_number(true)
+            .with_thread_names(true)
+            .init();
+
+        tracing::info!("memscope-rs logging initialized");
+    });
+}
+
 pub use analysis::*;
 pub use capture::backends::bottleneck_analysis::{BottleneckKind, PerformanceIssue};
 pub use capture::backends::hotspot_analysis::{CallStackHotspot, MemoryUsagePeak};

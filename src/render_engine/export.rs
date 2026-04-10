@@ -3,8 +3,11 @@
 //! This module provides export functionality for memory tracking data,
 //! including JSON export, lifetime analysis, and variable relationships.
 
+use tracing::{debug, warn};
+
 use crate::analysis::memory_passport_tracker::MemoryPassportTracker;
 use crate::analysis::ownership_graph::{EdgeKind, ObjectId, OwnershipGraph, OwnershipOp};
+use crate::analysis::VIRTUAL_PTR_BASE;
 use crate::capture::platform::memory_info::PlatformMemoryInfo;
 use crate::core::{MemScopeError, MemScopeResult};
 use crate::render_engine::dashboard::DashboardRenderer;
@@ -474,23 +477,64 @@ pub fn export_all_json<P: AsRef<Path>>(
     std::fs::create_dir_all(path_ref)
         .map_err(|e| MemScopeError::error("export", "export_all_json", e.to_string()))?;
 
+    debug!("Starting export_snapshot_to_json");
+
     export_snapshot_to_json(&snapshot, path_ref, &options)
         .map_err(|e| MemScopeError::error("export", "export_all_json", e.to_string()))?;
 
+    debug!("Completed export_snapshot_to_json");
+
+    debug!("Starting export_memory_passports_json");
+
     export_memory_passports_json(path_ref, passport_tracker)
         .map_err(|e| MemScopeError::error("export", "export_all_json", e.to_string()))?;
+
+    debug!("Completed export_memory_passports_json");
+
+    debug!("Starting export_leak_detection_json");
+
     export_leak_detection_json(path_ref, passport_tracker)
         .map_err(|e| MemScopeError::error("export", "export_all_json", e.to_string()))?;
+
+    debug!("Completed export_leak_detection_json");
+
+    debug!("Starting export_unsafe_ffi_json");
+
     export_unsafe_ffi_json(path_ref, passport_tracker)
         .map_err(|e| MemScopeError::error("export", "export_all_json", e.to_string()))?;
+
+    debug!("Completed export_unsafe_ffi_json");
+
+    debug!("Starting export_system_resources_json");
+
     export_system_resources_json(path_ref)
         .map_err(|e| MemScopeError::error("export", "export_all_json", e.to_string()))?;
+
+    debug!("Completed export_system_resources_json");
+
+    debug!("Starting export_async_analysis_json");
+
     export_async_analysis_json(path_ref, async_tracker)
         .map_err(|e| MemScopeError::error("export", "export_all_json", e.to_string()))?;
+
+    debug!("Completed export_async_analysis_json");
+
+    debug!("Starting export_ownership_graph_json");
+
     let typed_allocations: Vec<crate::capture::types::AllocationInfo> =
         allocations.clone().into_iter().map(|a| a.into()).collect();
+
+    debug!(
+        allocations = typed_allocations.len(),
+        "Converted allocations to typed format"
+    );
+
     export_ownership_graph_json(path_ref, &typed_allocations, tracker.event_store())
         .map_err(|e| MemScopeError::error("export", "export_all_json", e.to_string()))?;
+
+    debug!("Completed export_ownership_graph_json");
+
+    debug!("All exports completed successfully");
 
     Ok(())
 }
@@ -839,7 +883,7 @@ pub fn export_system_resources_json<P: AsRef<Path>>(base_path: P) -> MemScopeRes
     let memory_stats = match memory_info.collect_stats() {
         Ok(stats) => stats,
         Err(e) => {
-            eprintln!("Warning: Failed to collect memory stats: {}", e);
+            warn!(error = %e, "Failed to collect memory stats");
             return Err(MemScopeError::error(
                 "export",
                 "export_system_resources_json",
@@ -852,7 +896,7 @@ pub fn export_system_resources_json<P: AsRef<Path>>(base_path: P) -> MemScopeRes
     let system_info = match memory_info.get_system_info() {
         Ok(info) => info,
         Err(e) => {
-            eprintln!("Warning: Failed to collect system info: {}", e);
+            warn!(error = %e, "Failed to collect system info");
             return Err(MemScopeError::error(
                 "export",
                 "export_system_resources_json",
@@ -1103,11 +1147,16 @@ fn build_ownership_graph_from_allocations(
     allocations: &[crate::capture::types::AllocationInfo],
     event_store: &crate::event_store::EventStore,
 ) -> OwnershipGraph {
+    debug!(
+        allocations = allocations.len(),
+        "Starting build_ownership_graph"
+    );
     use crate::analysis::relation_inference::{detect_containers, Relation, RelationGraphBuilder};
     use crate::event_store::MemoryEventType;
 
     // Convert allocations to passport format for graph building
     // IMPORTANT: For allocations with ptr=0, assign virtual unique IDs to avoid collisions
+    debug!("Converting allocations to passports");
     let passports: Vec<(
         ObjectId,
         String,
@@ -1118,7 +1167,7 @@ fn build_ownership_graph_from_allocations(
         .enumerate()
         .map(|(idx, alloc)| {
             let unique_ptr = if alloc.ptr == 0 {
-                0x100000000u64 as usize + idx
+                crate::analysis::VIRTUAL_PTR_BASE + idx
             } else {
                 alloc.ptr
             };
@@ -1147,8 +1196,15 @@ fn build_ownership_graph_from_allocations(
             (id, type_name, size, events)
         })
         .collect();
+    debug!(passports = passports.len(), "Created passports");
 
+    debug!("Building initial ownership graph");
     let mut graph = OwnershipGraph::build(&passports);
+    debug!(
+        nodes = graph.nodes.len(),
+        edges = graph.edges.len(),
+        "Initial graph built"
+    );
 
     // Build separate lists for HeapOwner and Container allocations
     // with their original indices preserved for correct edge mapping
@@ -1161,39 +1217,29 @@ fn build_ownership_graph_from_allocations(
         .map(|(i, _)| i)
         .collect();
 
-    // Generate virtual pointers for allocations with ptr=0
-    let mut virtual_ptr_for_zero: std::collections::HashMap<usize, usize> =
-        std::collections::HashMap::new();
-    let mut next_virtual = 0x200000000u64 as usize;
-
     let heap_owner_allocations: Vec<ActiveAllocation> = allocations
         .iter()
         .enumerate()
         .filter(|(_, a)| a.timestamp_dealloc.is_none())
-        .map(|(idx, a)| {
-            let actual_ptr = a.ptr;
-            let unique_ptr = if actual_ptr == 0 {
-                *virtual_ptr_for_zero.entry(idx).or_insert_with(|| {
-                    let ptr = next_virtual;
-                    next_virtual += 1;
-                    ptr
-                })
-            } else {
-                actual_ptr
-            };
-            ActiveAllocation {
-                ptr: Some(unique_ptr),
+        .filter_map(|(_idx, a)| {
+            // Skip Container types (ptr is 0 or virtual pointer)
+            if a.ptr == 0 || a.ptr >= VIRTUAL_PTR_BASE {
+                return None;
+            }
+
+            Some(ActiveAllocation {
+                ptr: Some(a.ptr),
                 kind: crate::core::types::TrackKind::HeapOwner {
-                    ptr: unique_ptr,
+                    ptr: a.ptr,
                     size: a.size,
                 },
                 size: a.size,
                 allocated_at: a.timestamp_alloc,
                 var_name: a.var_name.clone(),
                 type_name: a.type_name.clone(),
-                thread_id: a.thread_id_u64, // Use u64 thread_id for consistency
+                thread_id: a.thread_id_u64,
                 call_stack_hash: None,
-            }
+            })
         })
         .collect();
 
@@ -1247,6 +1293,7 @@ fn build_ownership_graph_from_allocations(
     all_for_relation.extend(container_allocations.clone());
 
     // Step 4: Run container detection with appropriate config
+    debug!("Running container detection");
     let container_config = crate::analysis::relation_inference::ContainerConfig {
         time_window_ns: 10_000_000, // 10ms (more permissive for test scenarios)
         size_ratio: 10000,          // Allow very large ratio for containers with small size
@@ -1254,9 +1301,18 @@ fn build_ownership_graph_from_allocations(
     };
 
     let container_edges = detect_containers(&all_for_relation, Some(container_config));
+    debug!(
+        container_edges = container_edges.len(),
+        "Container detection completed"
+    );
 
     // Step 5: Run RelationGraphBuilder for HeapOwner edges (Owns, Shares, Clone)
+    debug!("Running RelationGraphBuilder");
     let relation_graph = RelationGraphBuilder::build(&heap_owner_allocations, None);
+    debug!(
+        edges = relation_graph.edges.len(),
+        "RelationGraphBuilder completed"
+    );
 
     // Step 6: Add Container nodes to graph
     let heap_owner_count = graph.nodes.len();
@@ -1318,5 +1374,10 @@ fn build_ownership_graph_from_allocations(
         });
     }
 
+    debug!(
+        nodes = graph.nodes.len(),
+        edges = graph.edges.len(),
+        "Final ownership graph built"
+    );
     graph
 }

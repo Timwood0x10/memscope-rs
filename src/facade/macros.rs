@@ -41,6 +41,14 @@ pub fn hash_thread_id() -> u64 {
 macro_rules! memscope_summary {
     () => {
         let summary = $crate::facade::compat::get_memory_summary();
+        info!(
+            "Memory Summary: {} allocations, {} active, {} bytes current, {} bytes peak, {} threads",
+            summary.total_allocations,
+            summary.active_allocations,
+            summary.current_memory,
+            summary.peak_memory,
+            summary.thread_count
+        );
         println!("Memory Summary:");
         println!("  Total Allocations: {}", summary.total_allocations);
         println!("  Active Allocations: {}", summary.active_allocations);
@@ -66,12 +74,14 @@ macro_rules! memscope_summary {
 macro_rules! show_top_allocations {
     ($limit:expr) => {
         let allocations = $crate::facade::compat::get_top_allocations($limit);
+        info!("Showing top {} allocations by size", $limit);
         println!("Top {} Allocations by Size:", $limit);
         for (i, alloc) in allocations.iter().enumerate() {
             let ptr_str = alloc
                 .ptr
                 .map(|p| format!("{:x}", p))
                 .unwrap_or_else(|| "None".to_string());
+            debug!("Allocation {}: {} bytes at {}", i + 1, alloc.size, ptr_str);
             println!("  {}. {} bytes at {}", i + 1, alloc.size, ptr_str);
         }
     };
@@ -94,11 +104,10 @@ macro_rules! export_memory_json {
     ($verbose:expr) => {
         match $crate::facade::compat::export_json($verbose) {
             Ok(json) => {
-                println!("Memory data exported to JSON:");
-                println!("{}", json);
+                tracing::info!("Memory data exported to JSON:\n{}", json);
             }
             Err(e) => {
-                eprintln!("Failed to export memory data: {}", e);
+                tracing::error!("Failed to export memory data: {}", e);
             }
         }
     };

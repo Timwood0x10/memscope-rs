@@ -103,15 +103,9 @@ impl VariableRegistry {
             } else {
                 retry_count += 1;
                 if retry_count >= MAX_RETRIES {
-                    // Log warning in both debug and release modes
                     tracing::warn!(
                         "Variable registration for '{}' dropped after {} retries due to lock contention. ptr=0x{:x}, size={}",
                         var_info.var_name, MAX_RETRIES, address, size
-                    );
-                    #[cfg(debug_assertions)]
-                    eprintln!(
-                        "[memscope] Warning: Variable registration for '{}' dropped after {} retries due to lock contention",
-                        var_info.var_name, MAX_RETRIES
                     );
                     break;
                 }

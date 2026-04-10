@@ -3,6 +3,8 @@
 //! Orchestrates HeapScanner, UTI Engine, and all relation detectors
 //! to produce a complete `RelationGraph` from active allocations.
 
+use tracing::debug;
+
 use crate::analysis::{
     heap_scanner::{HeapScanner, ScanResult},
     relation_inference::{
@@ -119,16 +121,25 @@ impl RelationGraphBuilder {
         }
 
         // Step 1: Scan heap memory for all allocations.
+        debug!(step = 1, "HeapScanner::scan");
         let scan_results = HeapScanner::scan(allocations);
+        debug!(
+            step = 1,
+            scan_results = scan_results.len(),
+            "HeapScanner completed"
+        );
 
         // Create a mapping from (ptr, size) to scan result
+        debug!(step = 2, "Building scan_map");
         let scan_map: std::collections::HashMap<(usize, usize), &ScanResult> = scan_results
             .iter()
             .map(|scan| ((scan.ptr, scan.size), scan))
             .collect();
+        debug!(step = 2, "scan_map completed");
 
         // Step 2: Run UTI Engine on each allocation.
         // We ensure records has the same length as allocations to maintain index consistency.
+        debug!(step = 3, "Running UTI Engine");
         let records: Vec<InferenceRecord> = allocations
             .iter()
             .enumerate()
@@ -158,39 +169,79 @@ impl RelationGraphBuilder {
                 }
             })
             .collect();
+        debug!(step = 3, records = records.len(), "UTI Engine completed");
 
         // Step 3: Build RangeMap for address → allocation lookup.
+        debug!(step = 4, "Building RangeMap");
         let range_map = RangeMap::new(allocations);
+        debug!(step = 4, "RangeMap completed");
 
         // Step 4: Run relation detectors.
         let mut graph = RelationGraph::new();
 
         // Owner detection: scan each allocation's memory for pointers.
+        debug!(step = 5, "detect_owner");
         for record in &records {
             let edges = detect_owner(record, &range_map);
             graph.add_edges(edges);
         }
+        debug!(
+            step = 5,
+            edges = graph.edge_count(),
+            "detect_owner completed"
+        );
 
         // Slice detection: check if each allocation points into another's interior.
+        debug!(step = 6, "detect_slice");
         let slice_edges = detect_slice(&records, allocations, &range_map);
         graph.add_edges(slice_edges);
+        debug!(
+            step = 6,
+            edges = graph.edge_count(),
+            "detect_slice completed"
+        );
 
         // Clone detection: batch comparison by (type, size, stack_hash).
+        debug!(step = 7, "detect_clones");
         let clone_edges = detect_clones(&records, &config.clone_config);
         graph.add_edges(clone_edges);
+        debug!(
+            step = 7,
+            edges = graph.edge_count(),
+            "detect_clones completed"
+        );
 
         // Container detection: infer Contains relationships using temporal locality.
+        debug!(step = 8, "detect_containers");
         let container_edges = detect_containers(allocations, Some(config.container_config));
         graph.add_edges(container_edges);
+        debug!(
+            step = 8,
+            edges = graph.edge_count(),
+            "detect_containers completed"
+        );
 
         // Variable name evolution detection: infer relationships for allocations with same variable name
+        debug!(step = 9, "detect_variable_evolution");
         let var_evolution_edges = detect_variable_evolution(allocations);
         graph.add_edges(var_evolution_edges);
+        debug!(
+            step = 9,
+            edges = graph.edge_count(),
+            "detect_variable_evolution completed"
+        );
 
         // Shared detection: find Arc/Rc shared ownership via Owner graph analysis.
+        debug!(step = 10, "detect_shared");
         let shared_edges = detect_shared(&records, &graph.edges);
         graph.add_edges(shared_edges);
+        debug!(
+            step = 10,
+            edges = graph.edge_count(),
+            "detect_shared completed"
+        );
 
+        debug!("RelationGraphBuilder all steps completed");
         graph
     }
 }

@@ -178,157 +178,229 @@ impl RelationGraph {
     }
 }
 
-#[cfg(test)]
 mod tests {
-    use super::*;
+    #[allow(unused_imports)]
+    use crate::{Relation, RelationEdge, RelationGraph};
 
     #[test]
     fn test_graph_add_edge() {
         let mut graph = RelationGraph::new();
+
         graph.add_edge(0, 1, Relation::Owns);
 
         assert_eq!(graph.edge_count(), 1);
+
         assert_eq!(graph.edges[0].from, 0);
+
         assert_eq!(graph.edges[0].to, 1);
+
         assert_eq!(graph.edges[0].relation, Relation::Owns);
     }
 
     #[test]
+
     fn test_graph_no_self_edges() {
         let mut graph = RelationGraph::new();
+
         graph.add_edge(0, 0, Relation::Owns);
+
         assert_eq!(graph.edge_count(), 0);
     }
 
     #[test]
+
     fn test_graph_no_duplicate_edges() {
         let mut graph = RelationGraph::new();
+
         graph.add_edge(0, 1, Relation::Owns);
+
         graph.add_edge(0, 1, Relation::Owns);
+
         assert_eq!(graph.edge_count(), 1);
     }
 
     #[test]
+
     fn test_graph_different_relations_allowed() {
         let mut graph = RelationGraph::new();
+
         graph.add_edge(0, 1, Relation::Owns);
+
         graph.add_edge(0, 1, Relation::Clone);
+
         assert_eq!(graph.edge_count(), 2);
     }
 
     #[test]
+
     fn test_graph_inbound_outbound_edges() {
         let mut graph = RelationGraph::new();
+
         graph.add_edge(0, 2, Relation::Owns);
+
         graph.add_edge(1, 2, Relation::Owns);
+
         graph.add_edge(2, 3, Relation::Slice);
 
         let inbound_to_2 = graph.get_inbound_edges(2);
+
         assert_eq!(inbound_to_2.len(), 2);
 
         let outbound_from_2 = graph.get_outbound_edges(2);
+
         assert_eq!(outbound_from_2.len(), 1);
     }
 
     #[test]
+
     fn test_graph_all_nodes() {
         let mut graph = RelationGraph::new();
+
         graph.add_edge(3, 1, Relation::Owns);
+
         graph.add_edge(1, 2, Relation::Slice);
 
         let nodes = graph.all_nodes();
+
         assert_eq!(nodes, vec![1, 2, 3]);
     }
 
     #[test]
+
     fn test_graph_add_edges_batch() {
         let mut graph = RelationGraph::new();
+
         graph.add_edges(vec![
             RelationEdge {
                 from: 0,
+
                 to: 1,
+
                 relation: Relation::Owns,
             },
             RelationEdge {
                 from: 1,
+
                 to: 2,
+
                 relation: Relation::Slice,
             },
         ]);
+
         assert_eq!(graph.edge_count(), 2);
     }
 
     #[test]
+
     fn test_graph_detect_cycles_none() {
         // Linear chain: 0 → 1 → 2 → no cycles.
+
         let mut graph = RelationGraph::new();
+
         graph.add_edge(0, 1, Relation::Owns);
+
         graph.add_edge(1, 2, Relation::Slice);
 
         let cycles = graph.detect_cycles();
+
         assert!(cycles.is_empty());
     }
 
     #[test]
+
     fn test_graph_detect_cycles_simple() {
         // Cycle: 0 → 1 → 0
+
         let mut graph = RelationGraph::new();
+
         graph.add_edge(0, 1, Relation::Owns);
+
         graph.add_edge(1, 0, Relation::Owns);
 
         let cycles = graph.detect_cycles();
+
         // Should detect at least one cycle edge.
+
         assert!(!cycles.is_empty());
+
         // Both edges should be part of the cycle.
+
         let edge_pairs: Vec<_> = cycles.iter().map(|(f, t, _)| (*f, *t)).collect();
+
         assert!(edge_pairs.contains(&(0, 1)) || edge_pairs.contains(&(1, 0)));
     }
 
     #[test]
+
     fn test_graph_detect_cycles_longer() {
         // Cycle: 0 → 1 → 2 → 0
+
         let mut graph = RelationGraph::new();
+
         graph.add_edge(0, 1, Relation::Owns);
+
         graph.add_edge(1, 2, Relation::Slice);
+
         graph.add_edge(2, 0, Relation::Clone);
 
         let cycles = graph.detect_cycles();
+
         assert!(!cycles.is_empty());
+
         // Verify the cycle includes the back-edge (2 → 0).
+
         let has_back_edge = cycles.iter().any(|(f, t, _)| *f == 2 && *t == 0);
+
         assert!(has_back_edge, "cycle should contain back-edge (2, 0)");
     }
 
     #[test]
+
     fn test_graph_detect_cycles_empty() {
         let graph = RelationGraph::new();
+
         let cycles = graph.detect_cycles();
+
         assert!(cycles.is_empty());
     }
 
     #[test]
+
     fn test_graph_detect_cycles_self_loop_blocked() {
         // Self-edges are blocked by add_edge, so no cycle possible.
+
         let mut graph = RelationGraph::new();
+
         graph.add_edge(0, 0, Relation::Owns);
+
         assert_eq!(graph.edge_count(), 0);
 
         let cycles = graph.detect_cycles();
+
         assert!(cycles.is_empty());
     }
 
     #[test]
+
     fn test_graph_detect_cycles_diamond() {
         // Diamond: 0 → 1, 0 → 2, 1 → 3, 2 → 3, 3 → 0
+
         // Cycles: 0→1→3→0 and 0→2→3→0
+
         let mut graph = RelationGraph::new();
+
         graph.add_edge(0, 1, Relation::Owns);
+
         graph.add_edge(0, 2, Relation::Owns);
+
         graph.add_edge(1, 3, Relation::Slice);
+
         graph.add_edge(2, 3, Relation::Slice);
+
         graph.add_edge(3, 0, Relation::Clone);
 
         let cycles = graph.detect_cycles();
+
         assert!(!cycles.is_empty());
     }
 }

@@ -11,6 +11,9 @@
 //! - Size estimation
 //! - Dedicated detectors (LeakDetector, UafDetector, etc.)
 
+// Node ID module - unified node identity system
+pub mod node_id;
+
 // Detector modules
 pub mod detectors;
 
@@ -52,7 +55,8 @@ pub use variable_relationships::{
     VariableRelationship, VariableRelationshipGraph,
 };
 
-// Relationship cycle detection
+// Re-export NodeID for backward compatibility
+pub use node_id::{NodeId, VIRTUAL_PTR_BASE};
 pub mod relationship_cycle_detector;
 pub use relationship_cycle_detector::{detect_cycles_in_relationships, CycleDetectionResult};
 

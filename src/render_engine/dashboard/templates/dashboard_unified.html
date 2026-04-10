@@ -1620,8 +1620,10 @@
                     relationships.forEach((r) => {
                         const sourceId = r.source_ptr;
                         const targetId = r.target_ptr;
-                        if (!nodeMap.has(sourceId)) nodeMap.set(sourceId, { id: sourceId, ptr: sourceId, name: r.source_var_name || ('Ptr ' + sourceId.slice(-6)), type: r.relationship_type, typeName: r.type_name || 'unknown', isSource: true, hasCycle: false, inDegree: 0, outDegree: 0 });
-                        if (!nodeMap.has(targetId)) nodeMap.set(targetId, { id: targetId, ptr: targetId, name: r.target_var_name || ('Ptr ' + targetId.slice(-6)), type: r.relationship_type, typeName: r.type_name || 'unknown', isSource: false, hasCycle: false, inDegree: 0, outDegree: 0 });
+                        const isSourceContainer = r.is_container_source || false;
+                        const isTargetContainer = r.is_container_target || false;
+                        if (!nodeMap.has(sourceId)) nodeMap.set(sourceId, { id: sourceId, ptr: sourceId, name: r.source_var_name || ('Ptr ' + sourceId.slice(-6)), type: r.relationship_type, typeName: r.type_name || 'unknown', isSource: true, hasCycle: false, inDegree: 0, outDegree: 0, isContainer: isSourceContainer });
+                        if (!nodeMap.has(targetId)) nodeMap.set(targetId, { id: targetId, ptr: targetId, name: r.target_var_name || ('Ptr ' + targetId.slice(-6)), type: r.relationship_type, typeName: r.type_name || 'unknown', isSource: false, hasCycle: false, inDegree: 0, outDegree: 0, isContainer: isTargetContainer });
                     });
                     const nodes = Array.from(nodeMap.values());
                     const nodeIds = new Set(nodes.map(n => n.id));
@@ -1658,6 +1660,7 @@
                             <div style="font-weight: 600; font-size: 14px; margin-bottom: 8px; color: var(--primary);">${d.name || 'Unknown'}</div>
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 12px;">
                                 <div style="color: var(--text2);">Type:</div><div>${d.typeName || 'unknown'}</div>
+                                <div style="color: var(--text2);">Node Kind:</div><div style="color: ${d.isContainer ? '#f59e0b' : '#64748b'};">${d.isContainer ? 'Container' : 'HeapOwner'}</div>
                                 <div style="color: var(--text2);">Relation:</div><div style="color: ${getColor(d.type)};">${getTypeLabel(d.type)}</div>
                                 <div style="color: var(--text2);">Incoming:</div><div>${d.inDegree} links</div>
                                 <div style="color: var(--text2);">Outgoing:</div><div>${d.outDegree} links</div>

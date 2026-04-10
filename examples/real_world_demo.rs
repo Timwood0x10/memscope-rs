@@ -6,7 +6,7 @@
 //! - Analyzing memory hotspots and patterns
 //! - Exporting comprehensive memory reports
 
-use memscope_rs::{global_tracker, init_global_tracking, track, MemScopeResult};
+use memscope_rs::{global_tracker, init_global_tracking, init_logging, track, MemScopeResult};
 use std::collections::HashMap;
 
 /// Simulates a web server cache that may leak memory.
@@ -201,6 +201,9 @@ fn simulate_batch_processing(tracker: &memscope_rs::GlobalTracker) -> MemScopeRe
 
 /// Main entry point for the real-world memory tracking demonstration.
 fn main() -> MemScopeResult<()> {
+    // Initialize logging system first
+    init_logging();
+
     println!("========================================");
     println!("  MemScope-RS Real-World Demonstration  ");
     println!("========================================");
