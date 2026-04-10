@@ -820,50 +820,36 @@ impl VariableRegistry {
             "🔄 Starting comprehensive export generation with allocation classification..."
         );
 
-        // Get tracker data in parallel where possible
-        let (active_allocations, other_data) = rayon::join(
-            || tracker.get_active_allocations(),
-            || {
-                let history = tracker.get_active_allocations();
-                let memory_types = tracker.get_memory_by_type();
-                let stats = tracker.get_stats();
-                let registry = Self::get_all_variables();
-                (history, memory_types, stats, registry)
-            },
-        );
-
-        let active_allocations = active_allocations.map_err(|e| {
+        // Get tracker data
+        let active_allocations = tracker.get_active_allocations().map_err(|e| {
             MemScopeError::error(
                 "variable_registry",
                 "generate_comprehensive_export",
                 e.to_string(),
             )
         })?;
-        let (allocation_history, memory_by_type, stats, registry) = {
-            let allocation_history = other_data.0.map_err(|e| {
-                MemScopeError::error(
-                    "variable_registry",
-                    "generate_comprehensive_export",
-                    e.to_string(),
-                )
-            })?;
-            let memory_by_type = other_data.1.map_err(|e| {
-                MemScopeError::error(
-                    "variable_registry",
-                    "generate_comprehensive_export",
-                    e.to_string(),
-                )
-            })?;
-            let stats = other_data.2.map_err(|e| {
-                MemScopeError::error(
-                    "variable_registry",
-                    "generate_comprehensive_export",
-                    e.to_string(),
-                )
-            })?;
-            let registry = other_data.3;
-            (allocation_history, memory_by_type, stats, registry)
-        };
+        let allocation_history = tracker.get_active_allocations().map_err(|e| {
+            MemScopeError::error(
+                "variable_registry",
+                "generate_comprehensive_export",
+                e.to_string(),
+            )
+        })?;
+        let memory_by_type = tracker.get_memory_by_type().map_err(|e| {
+            MemScopeError::error(
+                "variable_registry",
+                "generate_comprehensive_export",
+                e.to_string(),
+            )
+        })?;
+        let stats = tracker.get_stats().map_err(|e| {
+            MemScopeError::error(
+                "variable_registry",
+                "generate_comprehensive_export",
+                e.to_string(),
+            )
+        })?;
+        let registry = Self::get_all_variables();
 
         tracing::info!(
             "📊 Data loaded: {} active, {} history, {} registry entries",
@@ -892,10 +878,14 @@ impl VariableRegistry {
         };
 
         // Convert to new system allocation types
-        let filtered_active: Vec<crate::capture::types::AllocationInfo> =
-            filtered_active.into_iter().map(|a| a.into()).collect();
-        let filtered_history: Vec<crate::capture::types::AllocationInfo> =
-            filtered_history.into_iter().map(|a| a.into()).collect();
+        let filtered_active: Vec<crate::capture::types::AllocationInfo> = filtered_active
+            .into_iter()
+            .map(|a: crate::capture::backends::core_types::AllocationInfo| a.into())
+            .collect();
+        let filtered_history: Vec<crate::capture::types::AllocationInfo> = filtered_history
+            .into_iter()
+            .map(|a: crate::capture::backends::core_types::AllocationInfo| a.into())
+            .collect();
 
         // Classify and enhance allocations in parallel
         let (classified_active, classified_history) = rayon::join(

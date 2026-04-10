@@ -40,6 +40,7 @@
 use crate::capture::system_monitor;
 use crate::core::tracker::MemoryTracker;
 use crate::event_store::{EventStore, MemoryEvent};
+use crate::render_engine::dashboard::renderer::DashboardRenderer;
 use crate::render_engine::export::{export_snapshot_to_json, ExportJsonOptions};
 use crate::snapshot::MemorySnapshot;
 
@@ -265,6 +266,8 @@ impl Tracker {
                 let mut event = MemoryEvent::allocate(ptr, size, thread_id_u64);
                 event.var_name = Some(name.to_string());
                 event.type_name = Some(type_name.clone());
+                event.source_file = Some(file.to_string());
+                event.source_line = Some(line);
                 self.event_store.record(event);
 
                 if let Err(e) = self.inner.associate_var(
@@ -280,12 +283,14 @@ impl Tracker {
             crate::core::types::TrackKind::Container | crate::core::types::TrackKind::Value => {
                 // Container and Value record metadata events without heap allocation
                 // They will be tracked as graph nodes but not scanned by HeapScanner
-                let event = MemoryEvent::metadata(
+                let mut event = MemoryEvent::metadata(
                     name.to_string(),
                     type_name,
                     thread_id_u64,
                     var.get_size_estimate(),
                 );
+                event.source_file = Some(file.to_string());
+                event.source_line = Some(line);
                 self.event_store.record(event);
             }
         }
@@ -358,7 +363,8 @@ impl Tracker {
 
     pub fn analyze(&self) -> AnalysisReport {
         let stats = self.stats();
-        let allocations = self.inner.get_active_allocations().unwrap_or_default();
+        let events = self.event_store().snapshot();
+        let allocations = DashboardRenderer::rebuild_allocations_from_events(&events);
         let elapsed = self.start_time.elapsed().as_secs_f64();
 
         let current_memory: usize = allocations.iter().map(|a| a.size).sum();
@@ -465,7 +471,9 @@ impl Drop for Tracker {
         if let Ok(cfg) = self.config.lock() {
             if cfg.auto_export_on_drop {
                 if let Some(ref path) = cfg.export_path {
-                    let allocations = self.inner.get_active_allocations().unwrap_or_default();
+                    // Use event_store as unified data source (includes both HeapOwner and Container allocations)
+                    let events = self.event_store().snapshot();
+                    let allocations = DashboardRenderer::rebuild_allocations_from_events(&events);
                     let snapshot = MemorySnapshot::from_allocation_infos(allocations);
                     let options = ExportJsonOptions::default();
                     if let Err(e) =

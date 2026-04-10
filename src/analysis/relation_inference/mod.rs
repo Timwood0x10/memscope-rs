@@ -58,6 +58,8 @@ pub enum Relation {
     Slice,
     /// A is a copy of B (same type, size, stack, content).
     Clone,
+    /// A is a later evolution of B (same variable, later allocation, e.g., Vec reallocation).
+    Evolution,
 }
 
 impl std::fmt::Display for Relation {
@@ -68,6 +70,7 @@ impl std::fmt::Display for Relation {
             Relation::Shares => write!(f, "Shares"),
             Relation::Slice => write!(f, "Slice"),
             Relation::Clone => write!(f, "Clone"),
+            Relation::Evolution => write!(f, "Evolution"),
         }
     }
 }

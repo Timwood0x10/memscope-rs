@@ -20,6 +20,8 @@ fn test_reallocation_without_old_size_logs_warning() {
         type_name: None,
         call_stack_hash: None,
         thread_name: None,
+        source_file: None,
+        source_line: None,
     });
 
     let engine = SnapshotEngine::new(Arc::new(event_store));
@@ -48,6 +50,8 @@ fn test_reallocation_with_old_size() {
         type_name: None,
         call_stack_hash: None,
         thread_name: None,
+        source_file: None,
+        source_line: None,
     });
 
     let engine = SnapshotEngine::new(Arc::new(event_store));
@@ -76,6 +80,8 @@ fn test_reallocation_with_previous_allocation() {
         type_name: None,
         call_stack_hash: None,
         thread_name: None,
+        source_file: None,
+        source_line: None,
     });
 
     // Reallocation without old_size but with previous allocation
@@ -90,6 +96,8 @@ fn test_reallocation_with_previous_allocation() {
         type_name: None,
         call_stack_hash: None,
         thread_name: None,
+        source_file: None,
+        source_line: None,
     });
 
     let engine = SnapshotEngine::new(Arc::new(event_store));

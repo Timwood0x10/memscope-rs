@@ -879,6 +879,7 @@
                     <div class="legend-item"><div class="legend-color" style="background: #3b82f6; width: 12px; height: 12px; border-radius: 50%;"></div>Immutable &</div>
                     <div class="legend-item"><div class="legend-color" style="background: #f59e0b; width: 12px; height: 12px; border-radius: 50%;"></div>Mutable &mut</div>
                     <div class="legend-item"><div class="legend-color" style="background: #8b5cf6; width: 12px; height: 12px; border-radius: 50%;"></div>Arc/Rc</div>
+                    <div class="legend-item"><div class="legend-color" style="background: #06b6d4; width: 12px; height: 12px; border-radius: 50%;"></div>Variable Evolution</div>
                     <div class="legend-item"><div class="legend-color" style="background: #ef4444; width: 20px; height: 2px; border-style: dashed;"></div>Circular Ref</div>
                 </div>
                 <div class="graph-container" id="relationshipGraph" style="border: 1px solid var(--border); border-radius: 8px; background: var(--bg);"></div>
@@ -1639,8 +1640,8 @@
                         if (srcNode) srcNode.outDegree++;
                         if (tgtNode) tgtNode.inDegree++;
                     });
-                    const colorMap = { clone: '#10b981', ownership_transfer: '#dc2626', immutable_borrow: '#3b82f6', mutable_borrow: '#f59e0b', Arc: '#8b5cf6', Rc: '#8b5cf6', reference: '#64748b' };
-                    const typeLabels = { clone: 'Clone', ownership_transfer: 'Ownership Transfer', immutable_borrow: 'Immutable Borrow (&)', mutable_borrow: 'Mutable Borrow (&mut)', Arc: 'Arc Smart Pointer', Rc: 'Rc Smart Pointer', reference: 'Reference' };
+                    const colorMap = { clone: '#10b981', ownership_transfer: '#dc2626', immutable_borrow: '#3b82f6', mutable_borrow: '#f59e0b', Arc: '#8b5cf6', Rc: '#8b5cf6', reference: '#64748b', evolution: '#06b6d4', contains: '#f59e0b' };
+                    const typeLabels = { clone: 'Clone', ownership_transfer: 'Ownership Transfer', immutable_borrow: 'Immutable Borrow (&)', mutable_borrow: 'Mutable Borrow (&mut)', Arc: 'Arc Smart Pointer', Rc: 'Rc Smart Pointer', reference: 'Reference', evolution: 'Variable Evolution', contains: 'Contains' };
                     const getColor = (type) => colorMap[type] || '#64748b';
                     const getTypeLabel = (type) => typeLabels[type] || type;
                     const getLinkColor = (d) => d.isPartOfCycle ? '#ef4444' : getColor(d.type);

@@ -465,7 +465,9 @@ pub fn export_all_json<P: AsRef<Path>>(
 ) -> MemScopeResult<()> {
     let path_ref = path.as_ref();
 
-    let allocations = tracker.inner().get_active_allocations().unwrap_or_default();
+    // Use event_store as unified data source (includes both HeapOwner and Container allocations)
+    let events = tracker.event_store().snapshot();
+    let allocations = DashboardRenderer::rebuild_allocations_from_events(&events);
     let snapshot = MemorySnapshot::from_allocation_infos(allocations.clone());
     let options = ExportJsonOptions::default();
 
@@ -1105,6 +1107,7 @@ fn build_ownership_graph_from_allocations(
     use crate::event_store::MemoryEventType;
 
     // Convert allocations to passport format for graph building
+    // IMPORTANT: For allocations with ptr=0, assign virtual unique IDs to avoid collisions
     let passports: Vec<(
         ObjectId,
         String,
@@ -1112,8 +1115,14 @@ fn build_ownership_graph_from_allocations(
         Vec<crate::analysis::ownership_graph::OwnershipEvent>,
     )> = allocations
         .iter()
-        .map(|alloc| {
-            let id = ObjectId::from_ptr(alloc.ptr);
+        .enumerate()
+        .map(|(idx, alloc)| {
+            let unique_ptr = if alloc.ptr == 0 {
+                0x100000000u64 as usize + idx
+            } else {
+                alloc.ptr
+            };
+            let id = ObjectId::from_ptr(unique_ptr);
             let type_name = alloc
                 .type_name
                 .clone()
@@ -1152,15 +1161,30 @@ fn build_ownership_graph_from_allocations(
         .map(|(i, _)| i)
         .collect();
 
+    // Generate virtual pointers for allocations with ptr=0
+    let mut virtual_ptr_for_zero: std::collections::HashMap<usize, usize> =
+        std::collections::HashMap::new();
+    let mut next_virtual = 0x200000000u64 as usize;
+
     let heap_owner_allocations: Vec<ActiveAllocation> = allocations
         .iter()
         .enumerate()
         .filter(|(_, a)| a.timestamp_dealloc.is_none())
-        .map(|(_original_idx, a)| {
+        .map(|(idx, a)| {
+            let actual_ptr = a.ptr;
+            let unique_ptr = if actual_ptr == 0 {
+                *virtual_ptr_for_zero.entry(idx).or_insert_with(|| {
+                    let ptr = next_virtual;
+                    next_virtual += 1;
+                    ptr
+                })
+            } else {
+                actual_ptr
+            };
             ActiveAllocation {
-                ptr: Some(a.ptr),
+                ptr: Some(unique_ptr),
                 kind: crate::core::types::TrackKind::HeapOwner {
-                    ptr: a.ptr,
+                    ptr: unique_ptr,
                     size: a.size,
                 },
                 size: a.size,
@@ -1198,17 +1222,22 @@ fn build_ownership_graph_from_allocations(
         })
         .collect();
 
+    // Assign virtual pointers to Container allocations to avoid ptr=0 collisions
     let container_allocations: Vec<ActiveAllocation> = container_events
         .iter()
-        .map(|(e, type_name, var_name)| ActiveAllocation {
-            ptr: None,
-            kind: crate::core::types::TrackKind::Container,
-            size: e.size.max(1), // Ensure minimum size of 1 to avoid division by zero
-            allocated_at: e.timestamp,
-            var_name: Some(var_name.clone()),
-            type_name: Some(type_name.clone()),
-            thread_id: e.thread_id, // Use the actual thread_id from the event
-            call_stack_hash: None,
+        .enumerate()
+        .map(|(idx, (e, type_name, var_name))| {
+            let virtual_ptr = 0x300000000u64 as usize + idx;
+            ActiveAllocation {
+                ptr: Some(virtual_ptr),
+                kind: crate::core::types::TrackKind::Container,
+                size: e.size.max(1),
+                allocated_at: e.timestamp,
+                var_name: Some(var_name.clone()),
+                type_name: Some(type_name.clone()),
+                thread_id: e.thread_id,
+                call_stack_hash: None,
+            }
         })
         .collect();
 
@@ -1251,6 +1280,7 @@ fn build_ownership_graph_from_allocations(
             Relation::Slice => EdgeKind::Borrows,
             Relation::Clone => EdgeKind::RcClone,
             Relation::Shares => EdgeKind::ArcClone,
+            Relation::Evolution => EdgeKind::Contains,
         };
 
         graph.edges.push(crate::analysis::ownership_graph::Edge {

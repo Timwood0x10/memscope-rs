@@ -65,6 +65,10 @@ pub struct MemoryEvent {
     pub call_stack_hash: Option<u64>,
     /// Optional thread name
     pub thread_name: Option<String>,
+    /// Optional source file path
+    pub source_file: Option<String>,
+    /// Optional source line number
+    pub source_line: Option<u32>,
 }
 
 impl MemoryEvent {
@@ -81,6 +85,8 @@ impl MemoryEvent {
             type_name: None,
             call_stack_hash: None,
             thread_name: None,
+            source_file: None,
+            source_line: None,
         }
     }
 
@@ -97,6 +103,8 @@ impl MemoryEvent {
             type_name: None,
             call_stack_hash: None,
             thread_name: None,
+            source_file: None,
+            source_line: None,
         }
     }
 
@@ -113,6 +121,8 @@ impl MemoryEvent {
             type_name: None,
             call_stack_hash: None,
             thread_name: None,
+            source_file: None,
+            source_line: None,
         }
     }
 
@@ -129,6 +139,8 @@ impl MemoryEvent {
             type_name: Some(type_name),
             call_stack_hash: None,
             thread_name: None,
+            source_file: None,
+            source_line: None,
         }
     }
 
@@ -151,6 +163,18 @@ impl MemoryEvent {
     /// Set type name
     pub fn with_type_name(mut self, name: String) -> Self {
         self.type_name = Some(name);
+        self
+    }
+
+    /// Set source file path
+    pub fn with_source_file(mut self, file: String) -> Self {
+        self.source_file = Some(file);
+        self
+    }
+
+    /// Set source line number
+    pub fn with_source_line(mut self, line: u32) -> Self {
+        self.source_line = Some(line);
         self
     }
 

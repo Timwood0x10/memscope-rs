@@ -139,6 +139,8 @@ mod tests {
             type_name: Some("i32".to_string()),
             call_stack_hash: None,
             thread_name: None,
+            source_file: None,
+            source_line: None,
         };
 
         index.index_event(0, &event);

@@ -69,7 +69,6 @@ fn process_data_batch(batch_id: usize, item_count: usize) -> MemScopeResult<Vec<
     // Track the batch processing context.
     let batch_data: Vec<u8> = vec![0u8; 1024 * 100]; // 100 KB per batch
     track!(tracker, batch_data);
-
     // Process items and collect results.
     let results: Vec<usize> = (0..item_count)
         .map(|i| {
@@ -235,16 +234,36 @@ fn main() -> MemScopeResult<()> {
     tracker.export_json(output_path)?;
     println!("  JSON report: {}/memory_snapshots.json", output_path);
 
-    println!("  Calling export_html...");
+    println!("  Calling export_html (unified)...");
     tracker.export_html(output_path)?;
-    println!("  HTML dashboard: {}/dashboard.html", output_path);
+    println!(
+        "  HTML dashboard (unified): {}/dashboard_unified_dashboard.html",
+        output_path
+    );
+
+    println!("  Calling export_html (final)...");
+    tracker.export_html_with_template(
+        output_path,
+        memscope_rs::render_engine::export::DashboardTemplate::Final,
+    )?;
+    println!(
+        "  HTML dashboard (final): {}/dashboard_final_dashboard.html",
+        output_path
+    );
 
     println!("\n========================================");
     println!("  Demonstration Complete!               ");
     println!("========================================");
 
-    println!("\nOpen the HTML dashboard to visualize memory patterns.");
-    println!("Dashboard location: {}/dashboard.html", output_path);
+    println!("\nOpen the HTML dashboards to visualize memory patterns.");
+    println!(
+        "Unified dashboard: {}/dashboard_unified_dashboard.html",
+        output_path
+    );
+    println!(
+        "Final dashboard: {}/dashboard_final_dashboard.html",
+        output_path
+    );
 
     Ok(())
 }

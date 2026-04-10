@@ -203,6 +203,31 @@ impl GlobalTracker {
         .map_err(|e| MemScopeError::error("global_tracking", "export_html", e.to_string()))?;
         Ok(())
     }
+
+    pub fn export_html_with_template<P: AsRef<Path>>(
+        &self,
+        path: P,
+        template: crate::render_engine::export::DashboardTemplate,
+    ) -> MemScopeResult<()> {
+        use crate::render_engine::export::export_dashboard_html_with_template;
+
+        let path = path.as_ref();
+        export_dashboard_html_with_template(
+            path,
+            &self.tracker,
+            &self.passport_tracker,
+            template,
+            Some(&self.async_tracker),
+        )
+        .map_err(|e| {
+            MemScopeError::error(
+                "global_tracking",
+                "export_html_with_template",
+                e.to_string(),
+            )
+        })?;
+        Ok(())
+    }
 }
 
 impl Default for GlobalTracker {

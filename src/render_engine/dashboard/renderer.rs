@@ -542,11 +542,37 @@ impl DashboardRenderer {
 
         let graph = RelationGraphBuilder::build(&active_allocations, None);
 
+        // Build a pointer -> AllocationInfo map for efficient lookup
+        let alloc_info_by_ptr: std::collections::HashMap<usize, &AllocationInfo> =
+            alloc_info
+                .iter()
+                .filter_map(|a| {
+                    if a.address.starts_with("0x") {
+                        usize::from_str_radix(&a.address[2..], 16).ok().map(|ptr| (ptr, a))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
         let mut relationships = Vec::new();
 
         for edge in &graph.edges {
-            let from_alloc = alloc_info.get(edge.from);
-            let to_alloc = alloc_info.get(edge.to);
+            // Get source and target allocation info from allocations array
+            let from_alloc_raw = active_allocations.get(edge.from);
+            let to_alloc_raw = active_allocations.get(edge.to);
+
+            let source_addr = from_alloc_raw
+                .and_then(|a| a.ptr)
+                .unwrap_or_else(|| edge.from);
+
+            let target_addr = to_alloc_raw
+                .and_then(|a| a.ptr)
+                .unwrap_or_else(|| edge.to);
+
+            // Get detailed allocation info from alloc_info (limited set)
+            let from_alloc = alloc_info_by_ptr.get(&source_addr).copied();
+            let to_alloc = alloc_info_by_ptr.get(&target_addr).copied();
 
             let (rel_type, color, strength) = match edge.relation {
                 Relation::Owns => ("ownership_transfer", "#dc2626", 1.0),
@@ -554,42 +580,29 @@ impl DashboardRenderer {
                 Relation::Slice => ("immutable_borrow", "#3b82f6", 0.8),
                 Relation::Clone => ("clone", "#10b981", 0.9),
                 Relation::Shares => ("Arc", "#8b5cf6", 0.7),
+                Relation::Evolution => ("evolution", "#06b6d4", 0.5),
             };
 
-            let source_addr = from_alloc
-                .and_then(|a| {
-                    if a.address.starts_with("0x") {
-                        usize::from_str_radix(&a.address[2..], 16).ok()
-                    } else {
-                        None
-                    }
-                })
-                .unwrap_or(edge.from);
-
-            let target_addr = to_alloc
-                .and_then(|a| {
-                    if a.address.starts_with("0x") {
-                        usize::from_str_radix(&a.address[2..], 16).ok()
-                    } else {
-                        None
-                    }
-                })
-                .unwrap_or(edge.to);
+            // Get type_name from allocations (full set) first, then from alloc_info
+            let type_name = from_alloc_raw
+                .and_then(|a| a.type_name.clone())
+                .or_else(|| from_alloc.map(|a| a.type_name.clone()))
+                .unwrap_or_else(|| "unknown".to_string());
 
             relationships.push(RelationshipInfo {
                 source_ptr: format!("0x{:x}", source_addr),
-                source_var_name: from_alloc
-                    .map(|a| a.var_name.clone())
-                    .unwrap_or_else(|| format!("alloc_{}", edge.from)),
+                source_var_name: from_alloc_raw
+                    .and_then(|a| a.var_name.clone())
+                    .or_else(|| from_alloc.map(|a| a.var_name.clone()))
+                    .unwrap_or_else(|| format!("alloc_{}", source_addr)),
                 target_ptr: format!("0x{:x}", target_addr),
-                target_var_name: to_alloc
-                    .map(|a| a.var_name.clone())
-                    .unwrap_or_else(|| format!("alloc_{}", edge.to)),
+                target_var_name: to_alloc_raw
+                    .and_then(|a| a.var_name.clone())
+                    .or_else(|| to_alloc.map(|a| a.var_name.clone()))
+                    .unwrap_or_else(|| format!("alloc_{}", target_addr)),
                 relationship_type: rel_type.to_string(),
                 strength,
-                type_name: from_alloc
-                    .map(|a| a.type_name.clone())
-                    .unwrap_or_else(|| "unknown".to_string()),
+                type_name,
                 color: color.to_string(),
                 is_part_of_cycle: false,
             });
@@ -601,6 +614,84 @@ impl DashboardRenderer {
         }
 
         relationships
+    }
+
+    /// Rebuild all allocations from event_store (unified data source).
+    ///
+    /// This method reconstructs the complete allocation list from event_store,
+    /// including both HeapOwner and Container types.
+    ///
+    /// For Container types (ptr = 0), we assign virtual unique addresses
+    /// (0x100000000 + index) to enable proper relationship graph construction.
+    pub fn rebuild_allocations_from_events(
+        events: &[crate::event_store::event::MemoryEvent],
+    ) -> Vec<crate::capture::backends::core_types::AllocationInfo> {
+        use crate::event_store::event::MemoryEventType;
+
+        let mut active_allocations: std::collections::HashMap<
+            usize,
+            crate::capture::backends::core_types::AllocationInfo,
+        > = std::collections::HashMap::new();
+        let mut container_allocations: Vec<crate::capture::backends::core_types::AllocationInfo> =
+            Vec::new();
+
+        for event in events {
+            match event.event_type {
+                MemoryEventType::Allocate => {
+                    let stack_trace = event
+                        .source_file
+                        .as_ref()
+                        .map(|file| format!("{}:{}", file, event.source_line.unwrap_or(0)));
+                    let alloc = crate::capture::backends::core_types::AllocationInfo {
+                        ptr: event.ptr,
+                        size: event.size,
+                        allocated_at_ns: event.timestamp,
+                        var_name: event.var_name.clone(),
+                        type_name: event.type_name.clone(),
+                        thread_id: event.thread_id,
+                        stack_trace: stack_trace.map(|s| vec![s]),
+                    };
+                    active_allocations.insert(event.ptr, alloc);
+                }
+                MemoryEventType::Metadata => {
+                    // Container allocation (ptr is always 0)
+                    let stack_trace = event
+                        .source_file
+                        .as_ref()
+                        .map(|file| format!("{}:{}", file, event.source_line.unwrap_or(0)));
+                    let alloc = crate::capture::backends::core_types::AllocationInfo {
+                        ptr: 0,
+                        size: event.size,
+                        allocated_at_ns: event.timestamp,
+                        var_name: event.var_name.clone(),
+                        type_name: event.type_name.clone(),
+                        thread_id: event.thread_id,
+                        stack_trace: stack_trace.map(|s| vec![s]),
+                    };
+                    container_allocations.push(alloc);
+                }
+                MemoryEventType::Deallocate => {
+                    active_allocations.remove(&event.ptr);
+                }
+                _ => {}
+            }
+        }
+
+        let mut all_allocations: Vec<_> = active_allocations.into_values().collect();
+
+        // Assign virtual unique addresses to Container allocations
+        // Use 0x100000000 + index to avoid conflicts with real heap pointers
+        let container_allocations_with_virtual_ptrs: Vec<_> = container_allocations
+            .into_iter()
+            .enumerate()
+            .map(|(index, mut alloc)| {
+                alloc.ptr = 0x100000000 + index;
+                alloc
+            })
+            .collect();
+
+        all_allocations.extend(container_allocations_with_virtual_ptrs);
+        all_allocations
     }
 
     /// Infer type from size-based heuristics when type_name is unknown
@@ -657,14 +748,24 @@ impl DashboardRenderer {
         let container_allocs: Vec<crate::capture::backends::core_types::AllocationInfo> =
             metadata_events
                 .iter()
-                .map(|e| crate::capture::backends::core_types::AllocationInfo {
-                    ptr: 0, // Container has no heap pointer
-                    size: e.size,
-                    allocated_at_ns: e.timestamp,
-                    var_name: e.var_name.clone(),
-                    type_name: e.type_name.clone(),
-                    thread_id: e.thread_id,
-                    stack_trace: None,
+                .enumerate()
+                .map(|(index, e)| {
+                    // Build stack_trace from source_file and source_line
+                    let stack_trace = if let (Some(file), Some(line)) = (&e.source_file, e.source_line) {
+                        Some(vec![format!("{}:{}", file, line)])
+                    } else {
+                        None
+                    };
+
+                    crate::capture::backends::core_types::AllocationInfo {
+                        ptr: 0x100000000 + index, // Assign virtual unique address
+                        size: e.size,
+                        allocated_at_ns: e.timestamp,
+                        var_name: e.var_name.clone(),
+                        type_name: e.type_name.clone(),
+                        thread_id: e.thread_id,
+                        stack_trace,
+                    }
                 })
                 .collect();
 
@@ -677,8 +778,11 @@ impl DashboardRenderer {
         // Limit allocations to 50% to avoid performance issues and segmentation faults
         // Ensure at least 1 allocation is preserved when count is small
         let max_allocations = std::cmp::max(1, all_allocations.len() / 2);
-        let limited_allocations: Vec<_> =
-            all_allocations.iter().take(max_allocations).cloned().collect();
+        let limited_allocations: Vec<_> = all_allocations
+            .iter()
+            .take(max_allocations)
+            .cloned()
+            .collect();
 
         // Build allocation info
         let alloc_info: Vec<AllocationInfo> = limited_allocations
@@ -730,7 +834,8 @@ impl DashboardRenderer {
             .collect();
 
         // Build variable relationships using RelationGraphBuilder
-        let mut relationships = Self::build_relationships_from_inference(&all_allocations, &alloc_info);
+        let mut relationships =
+            Self::build_relationships_from_inference(&all_allocations, &alloc_info);
 
         // Detect cycles in relationships and mark cycle edges
         let cycle_edges: std::collections::HashSet<(String, String)> = {

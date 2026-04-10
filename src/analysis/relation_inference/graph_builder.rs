@@ -11,7 +11,7 @@ use crate::analysis::{
         pointer_scan::{detect_owner, InferenceRecord},
         shared_detector::detect_shared,
         slice_detector::detect_slice,
-        RangeMap, RelationGraph,
+        RangeMap, RelationEdge, RelationGraph,
     },
     unsafe_inference::{MemoryView, OwnedMemoryView, TypeKind, UnsafeInferenceEngine},
 };
@@ -183,12 +183,66 @@ impl RelationGraphBuilder {
         let container_edges = detect_containers(allocations, Some(config.container_config));
         graph.add_edges(container_edges);
 
+        // Variable name evolution detection: infer relationships for allocations with same variable name
+        let var_evolution_edges = detect_variable_evolution(allocations);
+        graph.add_edges(var_evolution_edges);
+
         // Shared detection: find Arc/Rc shared ownership via Owner graph analysis.
         let shared_edges = detect_shared(&records, &graph.edges);
         graph.add_edges(shared_edges);
 
         graph
     }
+}
+
+/// Detect variable evolution relationships based on variable names.
+///
+/// For allocations with the same variable name, this function infers
+/// evolution relationships indicating that the same variable was
+/// tracked multiple times (e.g., growing HashMap, reallocated Vec).
+fn detect_variable_evolution(allocations: &[ActiveAllocation]) -> Vec<RelationEdge> {
+    use crate::analysis::relation_inference::Relation;
+    use std::collections::HashMap;
+
+    // Group allocations by variable name
+    let mut var_groups: HashMap<String, Vec<usize>> = HashMap::new();
+    for (i, alloc) in allocations.iter().enumerate() {
+        if let Some(ref var_name) = alloc.var_name {
+            if !var_name.is_empty() && var_name != "unknown" {
+                var_groups.entry(var_name.clone()).or_default().push(i);
+            }
+        }
+    }
+
+    let mut edges = Vec::new();
+
+    // For each variable with multiple allocations, create evolution edges
+    for indices in var_groups.values() {
+        if indices.len() < 2 {
+            continue;
+        }
+
+        // Sort by allocation time
+        let mut sorted_indices: Vec<(usize, u64)> = indices
+            .iter()
+            .map(|&i| (i, allocations[i].allocated_at))
+            .collect();
+        sorted_indices.sort_by_key(|&(_, time)| time);
+
+        // Create edges from earlier to later allocations
+        for window in sorted_indices.windows(2) {
+            let (from_idx, _) = window[0];
+            let (to_idx, _) = window[1];
+
+            edges.push(RelationEdge {
+                from: from_idx,
+                to: to_idx,
+                relation: Relation::Evolution,
+            });
+        }
+    }
+
+    edges
 }
 
 #[cfg(test)]

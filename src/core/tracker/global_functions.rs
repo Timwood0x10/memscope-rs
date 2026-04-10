@@ -22,6 +22,11 @@ pub fn track_deallocation(ptr: usize) -> TrackingResult<bool> {
 }
 
 /// Get active allocations - convenience function
+///
+/// Note: This function calls the underlying tracker's `get_active_allocations()`
+/// method. For a unified data source that includes both HeapOwner and Container
+/// allocations, use `Tracker::event_store().snapshot()` and
+/// `DashboardRenderer::rebuild_allocations_from_events()`.
 pub fn get_active_allocations() -> TrackingResult<Vec<AllocationInfo>> {
     let tracker = get_tracker();
     tracker.get_active_allocations()
