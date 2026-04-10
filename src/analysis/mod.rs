@@ -62,7 +62,7 @@ pub use relationship_cycle_detector::{detect_cycles_in_relationships, CycleDetec
 
 // Ownership graph analysis
 pub mod ownership_graph;
-pub use ownership_graph::{Edge, EdgeKind, Node, ObjectId, OwnershipGraph, OwnershipOp};
+pub use ownership_graph::{Edge, EdgeKind, Node, OwnershipGraph, OwnershipOp};
 
 // Re-export new analysis modules
 pub use detectors::{

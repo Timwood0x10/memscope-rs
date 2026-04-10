@@ -16,6 +16,7 @@
 //! Graph → NodeID-based edges
 //! ```
 
+use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Unique node identifier
@@ -32,7 +33,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 /// let id2 = NodeId::new();
 /// assert_ne!(id1, id2);
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct NodeId(pub u64);
 
 impl NodeId {
@@ -74,6 +75,22 @@ impl NodeId {
     #[inline]
     pub const fn from_raw(value: u64) -> Self {
         Self(value)
+    }
+
+    /// Create NodeId from a pointer address
+    ///
+    /// This is useful when converting from memory addresses to node IDs.
+    ///
+    /// # Arguments
+    ///
+    /// * `ptr` - The pointer address as usize
+    ///
+    /// # Returns
+    ///
+    /// A `NodeId` with the pointer value.
+    #[inline]
+    pub fn from_ptr(ptr: usize) -> Self {
+        Self(ptr as u64)
     }
 
     /// Get the raw u64 value

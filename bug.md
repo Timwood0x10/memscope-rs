@@ -28,11 +28,11 @@ Container 类型的 ptr 被设置为虚拟指针（0x100000000 + index），而 
 
 **修改的文件**
 
-- `/Users/scc/code/rustcode/memscope-rs/src/analysis/heap_scanner/reader.rs`
-- `/Users/scc/code/rustcode/memscope-rs/src/analysis/relation_inference/pointer_scan.rs`
-- `/Users/scc/code/rustcode/memscope-rs/src/analysis/relation_inference/range_map.rs`
-- `/Users/scc/code/rustcode/memscope-rs/src/render_engine/export.rs`
-- `/Users/scc/code/rustcode/memscope-rs/src/render_engine/dashboard/renderer.rs`
+- `/memscope-rs/src/analysis/heap_scanner/reader.rs`
+- `/memscope-rs/src/analysis/relation_inference/pointer_scan.rs`
+- `/memscope-rs/src/analysis/relation_inference/range_map.rs`
+- `/memscope-rs/src/render_engine/export.rs`
+- `/memscope-rs/src/render_engine/dashboard/renderer.rs`
 
 **验证结果**
 

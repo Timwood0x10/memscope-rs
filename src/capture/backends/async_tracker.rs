@@ -5,6 +5,7 @@
 
 use std::collections::HashMap;
 use std::future::Future;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::ThreadId;
 
@@ -13,6 +14,54 @@ use super::async_types::{
     TrackedFuture,
 };
 use super::task_profile::{TaskMemoryProfile, TaskType};
+
+/// Global task ID counter for unique task identification.
+/// Tokio task IDs are recycled after task completion, so we need
+/// our own counter to ensure unique identification across all tasks.
+static TASK_COUNTER: AtomicU64 = AtomicU64::new(1);
+
+/// Generate a new unique task ID.
+/// This ID is never recycled, ensuring unique identification.
+pub fn generate_unique_task_id() -> u64 {
+    TASK_COUNTER.fetch_add(1, Ordering::Relaxed)
+}
+
+/// Global thread ID counter for unique thread identification.
+static THREAD_COUNTER: AtomicU64 = AtomicU64::new(1);
+
+thread_local! {
+    static THREAD_ID: u64 = THREAD_COUNTER.fetch_add(1, Ordering::Relaxed);
+}
+
+/// Get the current thread's unique ID.
+/// This ID is assigned once per thread and never changes.
+pub fn current_thread_id() -> u64 {
+    THREAD_ID.with(|id| *id)
+}
+
+/// Context for tracking memory allocations.
+/// Captures both thread and task information for accurate attribution.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct TrackerContext {
+    pub thread_id: u64,
+    pub task_id: Option<u64>,
+    pub tokio_task_id: Option<u64>,
+}
+
+impl TrackerContext {
+    /// Capture the current tracking context.
+    /// Returns thread ID and task ID (if in a task context).
+    pub fn capture() -> Self {
+        let task_id_from_context = TASK_CONTEXT.try_with(|ctx| *ctx).ok().flatten();
+        let tokio_task_id = tokio::task::try_id().and_then(|id| id.to_string().parse().ok());
+
+        Self {
+            thread_id: current_thread_id(),
+            task_id: task_id_from_context.or(CURRENT_TASK_ID.with(|cell| cell.get())),
+            tokio_task_id,
+        }
+    }
+}
 
 /// Task efficiency report
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -45,6 +94,10 @@ static GLOBAL_TRACKER: Mutex<Option<Arc<AsyncTracker>>> = Mutex::new(None);
 
 thread_local! {
     static CURRENT_TASK_ID: std::cell::Cell<Option<u64>> = const { std::cell::Cell::new(None) };
+}
+
+tokio::task_local! {
+    static TASK_CONTEXT: Option<u64>;
 }
 
 /// RAII guard for automatic task cleanup.
@@ -136,6 +189,10 @@ impl AsyncTracker {
         CURRENT_TASK_ID.with(|cell| cell.set(None));
     }
 
+    /// Get the current task ID from the thread-local storage.
+    ///
+    /// Note: This only returns the manually set task ID.
+    /// For automatic tokio task detection, use `track_in_tokio_task()`.
     pub fn get_current_task() -> Option<u64> {
         CURRENT_TASK_ID.with(|cell| cell.get())
     }
@@ -164,6 +221,25 @@ impl AsyncTracker {
         name: String,
         _thread_id: ThreadId,
     ) -> Result<(), AsyncError> {
+        self.track_task_start_internal(task_id, None, name)
+    }
+
+    pub fn track_task_start_with_tokio(
+        &self,
+        task_id: u64,
+        tokio_task_id: u64,
+        name: String,
+        _thread_id: ThreadId,
+    ) -> Result<(), AsyncError> {
+        self.track_task_start_internal(task_id, Some(tokio_task_id), name)
+    }
+
+    fn track_task_start_internal(
+        &self,
+        task_id: u64,
+        tokio_task_id: Option<u64>,
+        name: String,
+    ) -> Result<(), AsyncError> {
         {
             let mut profiles = self
                 .profiles
@@ -174,10 +250,13 @@ impl AsyncTracker {
                 return Err(AsyncError::duplicate_task(task_id));
             }
 
-            profiles.insert(
-                task_id,
-                TaskMemoryProfile::new(task_id, name, TaskType::default()),
-            );
+            let profile = match tokio_task_id {
+                Some(id) => {
+                    TaskMemoryProfile::with_tokio_id(task_id, id, name, TaskType::default())
+                }
+                None => TaskMemoryProfile::new(task_id, name, TaskType::default()),
+            };
+            profiles.insert(task_id, profile);
         }
 
         let mut stats = self
@@ -220,6 +299,73 @@ impl AsyncTracker {
         Self::clear_current_task();
 
         Ok(())
+    }
+
+    /// Execute an async block within a tokio task context.
+    ///
+    /// This method automatically detects the tokio task ID and sets up tracking.
+    /// When the future completes, the task is automatically marked as ended.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - Task name for identification
+    /// * `future` - The async block to execute
+    ///
+    /// # Returns
+    ///
+    /// A tuple of (unique_task_id, output).
+    /// The unique_task_id is our internal ID (not the tokio task ID).
+    pub async fn track_in_tokio_task<F, T>(&self, name: String, future: F) -> (u64, T)
+    where
+        F: Future<Output = T>,
+    {
+        let unique_task_id = generate_unique_task_id();
+        let tokio_task_id = tokio::task::try_id().and_then(|id| id.to_string().parse().ok());
+        let thread_id = std::thread::current().id();
+
+        if let Some(tokio_id) = tokio_task_id {
+            if let Err(e) =
+                self.track_task_start_with_tokio(unique_task_id, tokio_id, name.clone(), thread_id)
+            {
+                tracing::warn!("Failed to track task start: {e}");
+            }
+        } else {
+            if let Err(e) = self.track_task_start(unique_task_id, name.clone(), thread_id) {
+                tracing::warn!("Failed to track task start: {e}");
+            }
+        }
+
+        let output = future.await;
+
+        if let Err(e) = self.track_task_end(unique_task_id) {
+            tracing::warn!("Failed to track task end: {e}");
+        }
+
+        (unique_task_id, output)
+    }
+
+    /// Detect zombie tasks.
+    ///
+    /// A zombie task is a task that was started but never completed.
+    /// These tasks may indicate memory leaks or improper task cleanup.
+    ///
+    /// # Returns
+    ///
+    /// A vector of task IDs for zombie tasks.
+    pub fn detect_zombie_tasks(&self) -> Vec<u64> {
+        let profiles = self.profiles.lock().unwrap();
+        profiles
+            .iter()
+            .filter(|(_, p)| !p.is_completed())
+            .map(|(&id, _)| id)
+            .collect()
+    }
+
+    /// Get statistics about zombie tasks.
+    pub fn zombie_task_stats(&self) -> (usize, usize) {
+        let zombies = self.detect_zombie_tasks();
+        let total = self.profiles.lock().unwrap().len();
+        (zombies.len(), total)
     }
 
     pub fn track_allocation_auto(
@@ -637,12 +783,37 @@ where
     TrackedFuture::new(future)
 }
 
-/// Spawn a tracked async task
-pub fn spawn_tracked<F>(future: F) -> TrackedFuture<F>
+/// Spawn a tracked async task with automatic context management.
+///
+/// This function wraps a future with memscope tracking context.
+/// The task ID is automatically generated and managed, and the
+/// context is automatically cleaned up when the task completes.
+///
+/// # Arguments
+///
+/// * `future` - The async block to execute
+///
+/// # Returns
+///
+/// A `tokio::task::JoinHandle` that resolves to the future's output
+///
+/// # Example
+///
+/// ```ignore
+/// let handle = spawn_tracked(async {
+///     let data = vec![1u8; 1024];
+///     tracker.track_as(&data, "buffer", file!(), line!());
+///     // ... async work
+/// });
+/// ```
+pub fn spawn_tracked<F>(future: F) -> tokio::task::JoinHandle<F::Output>
 where
-    F: Future,
+    F: Future + Send + 'static,
+    F::Output: Send + 'static,
 {
-    create_tracked(future)
+    let task_id = generate_unique_task_id();
+
+    tokio::spawn(async move { TASK_CONTEXT.scope(Some(task_id), future).await })
 }
 
 /// Get current memory usage snapshot
@@ -875,5 +1046,180 @@ mod tests {
 
         assert!(result.is_err());
         assert!(AsyncTracker::get_current_task().is_none());
+    }
+
+    #[test]
+    fn test_generate_unique_task_id() {
+        let id1 = generate_unique_task_id();
+        let id2 = generate_unique_task_id();
+        let id3 = generate_unique_task_id();
+
+        assert!(id1 > 0);
+        assert!(id2 > id1);
+        assert!(id3 > id2);
+    }
+
+    #[test]
+    fn test_track_start_with_tokio() {
+        let tracker = AsyncTracker::new();
+        let thread_id = std::thread::current().id();
+
+        let result =
+            tracker.track_task_start_with_tokio(1, 100, "tokio_task".to_string(), thread_id);
+        assert!(result.is_ok());
+
+        let profile = tracker.get_task_profile(1);
+        assert!(profile.is_some());
+        let profile = profile.unwrap();
+        assert_eq!(profile.task_id, 1);
+        assert_eq!(profile.tokio_task_id, Some(100));
+        assert_eq!(profile.task_name, "tokio_task");
+    }
+
+    #[test]
+    fn test_track_task_internal_without_tokio() {
+        let tracker = AsyncTracker::new();
+        let thread_id = std::thread::current().id();
+
+        let result = tracker.track_task_start(2, "normal_task".to_string(), thread_id);
+        assert!(result.is_ok());
+
+        let profile = tracker.get_task_profile(2);
+        assert!(profile.is_some());
+        let profile = profile.unwrap();
+        assert_eq!(profile.task_id, 2);
+        assert_eq!(profile.tokio_task_id, None);
+    }
+
+    #[test]
+    fn test_detect_zombie_tasks() {
+        let tracker = AsyncTracker::new();
+        let thread_id = std::thread::current().id();
+
+        tracker
+            .track_task_start(1, "task1".to_string(), thread_id)
+            .unwrap();
+        tracker
+            .track_task_start(2, "task2".to_string(), thread_id)
+            .unwrap();
+        tracker
+            .track_task_start(3, "task3".to_string(), thread_id)
+            .unwrap();
+
+        tracker.track_task_end(1).unwrap();
+
+        let zombies = tracker.detect_zombie_tasks();
+        assert_eq!(zombies.len(), 2);
+        assert!(zombies.contains(&2));
+        assert!(zombies.contains(&3));
+    }
+
+    #[test]
+    fn test_zombie_task_stats() {
+        let tracker = AsyncTracker::new();
+        let thread_id = std::thread::current().id();
+
+        tracker
+            .track_task_start(1, "task1".to_string(), thread_id)
+            .unwrap();
+        tracker
+            .track_task_start(2, "task2".to_string(), thread_id)
+            .unwrap();
+
+        tracker.track_task_end(1).unwrap();
+
+        let (zombie_count, total) = tracker.zombie_task_stats();
+        assert_eq!(zombie_count, 1);
+        assert_eq!(total, 2);
+    }
+
+    #[test]
+    fn test_no_zombie_tasks_when_all_complete() {
+        let tracker = AsyncTracker::new();
+        let thread_id = std::thread::current().id();
+
+        tracker
+            .track_task_start(1, "task1".to_string(), thread_id)
+            .unwrap();
+        tracker
+            .track_task_start(2, "task2".to_string(), thread_id)
+            .unwrap();
+
+        tracker.track_task_end(1).unwrap();
+        tracker.track_task_end(2).unwrap();
+
+        let zombies = tracker.detect_zombie_tasks();
+        assert!(zombies.is_empty());
+    }
+
+    #[test]
+    fn test_task_memory_profile_with_tokio_id() {
+        let profile = TaskMemoryProfile::with_tokio_id(1, 999, "test".to_string(), TaskType::Mixed);
+
+        assert_eq!(profile.task_id, 1);
+        assert_eq!(profile.tokio_task_id, Some(999));
+        assert_eq!(profile.task_name, "test");
+        assert_eq!(profile.task_type, TaskType::Mixed);
+        assert!(!profile.is_completed());
+    }
+
+    #[tokio::test]
+    async fn test_track_in_tokio_task_basic() {
+        let tracker = AsyncTracker::new();
+
+        let (task_id, result) = tracker
+            .track_in_tokio_task("async_task".to_string(), async {
+                tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
+                42
+            })
+            .await;
+
+        assert!(task_id > 0);
+        assert_eq!(result, 42);
+
+        let profile = tracker.get_task_profile(task_id);
+        assert!(profile.is_some());
+        let profile = profile.unwrap();
+        assert_eq!(profile.task_name, "async_task");
+        assert!(profile.is_completed());
+    }
+
+    #[tokio::test]
+    async fn test_track_in_tokio_task_basic_functionality() {
+        let tracker = AsyncTracker::new();
+
+        let (task_id, result) = tracker
+            .track_in_tokio_task("test_task".to_string(), async {
+                tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
+                "completed"
+            })
+            .await;
+
+        assert!(task_id > 0);
+        assert_eq!(result, "completed");
+
+        let profile = tracker.get_task_profile(task_id);
+        assert!(profile.is_some());
+        let profile = profile.unwrap();
+        assert_eq!(profile.task_name, "test_task");
+        assert!(profile.is_completed());
+    }
+
+    #[test]
+    fn test_global_tracker_integration() {
+        reset_global_tracker();
+
+        let result = initialize();
+        assert!(result.is_ok());
+
+        let tracker = get_global_tracker();
+        assert!(tracker.is_ok());
+
+        let tracker = tracker.unwrap();
+        let stats = tracker.get_stats();
+        assert_eq!(stats.total_tasks, 0);
+        assert_eq!(stats.active_tasks, 0);
+
+        let _ = shutdown();
     }
 }

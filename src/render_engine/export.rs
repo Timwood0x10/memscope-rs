@@ -7,7 +7,8 @@ use tracing::{debug, warn};
 
 use crate::analysis::is_virtual_pointer;
 use crate::analysis::memory_passport_tracker::MemoryPassportTracker;
-use crate::analysis::ownership_graph::{EdgeKind, ObjectId, OwnershipGraph, OwnershipOp};
+use crate::analysis::node_id::NodeId;
+use crate::analysis::ownership_graph::{EdgeKind, OwnershipGraph, OwnershipOp};
 use crate::capture::platform::memory_info::PlatformMemoryInfo;
 use crate::core::{MemScopeError, MemScopeResult};
 use crate::render_engine::dashboard::DashboardRenderer;
@@ -1158,7 +1159,7 @@ fn build_ownership_graph_from_allocations(
     // IMPORTANT: For allocations with ptr=0, assign virtual unique IDs to avoid collisions
     debug!("Converting allocations to passports");
     let passports: Vec<(
-        ObjectId,
+        NodeId,
         String,
         usize,
         Vec<crate::analysis::ownership_graph::OwnershipEvent>,
@@ -1171,7 +1172,7 @@ fn build_ownership_graph_from_allocations(
             } else {
                 alloc.ptr
             };
-            let id = ObjectId::from_ptr(unique_ptr);
+            let id = NodeId::from_ptr(unique_ptr);
             let type_name = alloc
                 .type_name
                 .clone()
@@ -1315,9 +1316,11 @@ fn build_ownership_graph_from_allocations(
     );
 
     // Step 6: Add Container nodes to graph
+    // Use virtual pointer range for Container IDs to avoid collisions with HeapOwner IDs
+    const CONTAINER_PTR_BASE: usize = 0x300000000;
     let heap_owner_count = graph.nodes.len();
-    for (e, type_name, _var_name) in container_events.iter() {
-        let node_id = ObjectId(e.timestamp);
+    for (idx, (e, type_name, _var_name)) in container_events.iter().enumerate() {
+        let node_id = NodeId::from_ptr(CONTAINER_PTR_BASE + idx);
         graph.nodes.push(crate::analysis::ownership_graph::Node {
             id: node_id,
             type_name: type_name.clone(),

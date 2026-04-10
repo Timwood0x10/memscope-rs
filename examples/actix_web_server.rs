@@ -5,6 +5,13 @@
 //! - Handling HTTP requests with tracked allocations
 //! - Graceful shutdown and report generation
 //!
+//! ## New APIs Demonstrated
+//!
+//! - `spawn_tracked()`: Spawns server with automatic task context management
+//! - `TrackerContext::capture()`: Captures current thread + task context
+//! - `track_in_tokio_task()`: Wraps a future with automatic task tracking
+//! - `detect_zombie_tasks()`: Detects tasks that never completed
+//!
 //! ## Usage
 //!
 //! ```bash
@@ -12,7 +19,10 @@
 //! ```
 
 use actix_web::{get, post, web, App, HttpResponse, HttpServer};
-use memscope_rs::{global_tracker, init_global_tracking, track, MemScopeResult};
+use memscope_rs::{
+    capture::backends::async_tracker::{spawn_tracked, TrackerContext},
+    global_tracker, init_global_tracking, track, MemScopeResult,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -184,7 +194,15 @@ async fn simulate_client_requests(
 ) -> MemScopeResult<()> {
     println!("\n=== Simulating Client Requests ===\n");
 
-    // Simulate various request patterns.
+    // Demonstrate TrackerContext
+    let ctx = TrackerContext::capture();
+    println!(
+        "Client context - Thread: {}, Task: {:?}, Tokio: {:?}",
+        ctx.thread_id, ctx.task_id, ctx.tokio_task_id
+    );
+    println!();
+
+    // Simulate various request patterns using spawn_tracked
     let test_data = vec![
         ("user_1", "Alice's profile data with some extra information"),
         ("user_2", "Bob's profile data"),
@@ -193,32 +211,42 @@ async fn simulate_client_requests(
         ("config", "Application configuration settings"),
     ];
 
-    // Insert data items.
-    for (key, value) in &test_data {
-        let mut store = store.lock();
-        let data = value.as_bytes().to_vec();
-        track!(tracker, data);
-        store.insert(key.to_string(), data);
-
-        println!("  Inserted {}: {} bytes", key, value.len());
-    }
-
-    // Simulate repeated access patterns.
-    println!("\n  Simulating repeated access patterns...");
-    for i in 0..20 {
-        let key = format!("temp_{}", i);
-        let value = vec![i as u8; 1024]; // 1 KB per temp item
-
-        let mut store = store.lock();
-        track!(tracker, value);
-        store.insert(key, value);
-
-        if i % 5 == 0 {
-            println!("  Processed {} temporary items", i + 1);
+    // Spawn tracked task for data insertion
+    let store_for_insert = Arc::clone(&store);
+    let _insert_handle = spawn_tracked(async move {
+        let tracker = global_tracker().unwrap();
+        for (key, value) in &test_data {
+            let mut store = store_for_insert.lock();
+            let data = value.as_bytes().to_vec();
+            track!(tracker, data);
+            store.insert(key.to_string(), data);
+            println!("  Inserted {}: {} bytes", key, value.len());
         }
-    }
+    });
 
-    // Show final statistics.
+    let _ = _insert_handle.await;
+
+    // Simulate repeated access patterns in a tracked task
+    let store_for_access = Arc::clone(&store);
+    let _access_handle = spawn_tracked(async move {
+        let tracker = global_tracker().unwrap();
+        for i in 0..20 {
+            let key = format!("temp_{}", i);
+            let value = vec![i as u8; 1024]; // 1 KB per temp item
+
+            let mut store = store_for_access.lock();
+            track!(tracker, value);
+            store.insert(key, value);
+
+            if i % 5 == 0 {
+                println!("  Processed {} temporary items", i + 1);
+            }
+        }
+    });
+
+    let _ = _access_handle.await;
+
+    // Show final statistics
     let store = store.lock();
     println!(
         "\n  Final store: {} items, {} bytes",

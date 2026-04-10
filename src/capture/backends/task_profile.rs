@@ -65,8 +65,10 @@ impl TaskType {
 /// Memory usage profile for a single task
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaskMemoryProfile {
-    /// Unique task identifier
+    /// Unique task identifier (auto-generated, never reused)
     pub task_id: u64,
+    /// Tokio task ID (if running in tokio context)
+    pub tokio_task_id: Option<u64>,
     /// Task name for identification
     pub task_name: String,
     /// Task type classification
@@ -100,6 +102,7 @@ impl TaskMemoryProfile {
     pub fn new(task_id: u64, task_name: String, task_type: TaskType) -> Self {
         Self {
             task_id,
+            tokio_task_id: None,
             task_name,
             task_type,
             created_at_ms: Self::now_ms(),
@@ -114,6 +117,18 @@ impl TaskMemoryProfile {
             efficiency_score: 1.0,
             average_allocation_size: 0.0,
         }
+    }
+
+    /// Create new task profile with tokio task ID
+    pub fn with_tokio_id(
+        task_id: u64,
+        tokio_task_id: u64,
+        task_name: String,
+        task_type: TaskType,
+    ) -> Self {
+        let mut profile = Self::new(task_id, task_name, task_type);
+        profile.tokio_task_id = Some(tokio_task_id);
+        profile
     }
 
     /// Get current timestamp in milliseconds

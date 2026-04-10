@@ -36,6 +36,7 @@ dashmap = "6.0"
 parking_lot = "0.12.5"
 crossbeam = "0.8"
 memscope-derive = { path = "./memscope-derive", optional = true, version = "0.1.0" }
+tokio = { version = "1.51.0", features = ["rt"] }
 
 # Windows-specific dependencies
 [target.'cfg(windows)'.dependencies]

@@ -33,6 +33,7 @@ pub fn hash_thread_id() -> u64 {
 /// # Examples
 ///
 /// ```rust
+/// use tracing::{info, debug};
 /// use memscope_rs::memscope_summary;
 ///
 /// memscope_summary!();
@@ -66,6 +67,7 @@ macro_rules! memscope_summary {
 /// # Examples
 ///
 /// ```rust
+/// use tracing::{info, debug};
 /// use memscope_rs::show_top_allocations;
 ///
 /// show_top_allocations!(10);

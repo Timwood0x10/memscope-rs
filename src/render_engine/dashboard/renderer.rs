@@ -1399,20 +1399,19 @@ impl DashboardRenderer {
     fn build_ownership_graph_info(
         allocations: &[crate::capture::backends::core_types::AllocationInfo],
     ) -> OwnershipGraphInfo {
-        use crate::analysis::ownership_graph::{
-            DiagnosticIssue, ObjectId, OwnershipGraph, OwnershipOp,
-        };
+        use crate::analysis::node_id::NodeId;
+        use crate::analysis::ownership_graph::{DiagnosticIssue, OwnershipGraph, OwnershipOp};
 
         // Convert allocations to passport format for graph building
         let passports: Vec<(
-            ObjectId,
+            NodeId,
             String,
             usize,
             Vec<crate::analysis::ownership_graph::OwnershipEvent>,
         )> = allocations
             .iter()
             .map(|alloc| {
-                let id = ObjectId::from_ptr(alloc.ptr);
+                let id = NodeId::from_ptr(alloc.ptr);
                 let type_name = alloc
                     .type_name
                     .clone()

@@ -34,16 +34,15 @@
 
 use serde::{Deserialize, Serialize};
 
-/// Object identifier
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Serialize, Deserialize)]
-pub struct ObjectId(pub u64);
+use super::node_id::NodeId;
 
-impl ObjectId {
-    /// Create ObjectId from pointer address
-    pub fn from_ptr(ptr: usize) -> Self {
-        ObjectId(ptr as u64)
-    }
-}
+/// Object identifier - unified with NodeId.
+///
+/// This type alias provides backward compatibility.
+/// Previously, ObjectId was a separate struct that wrapped u64.
+/// Now it is unified with NodeId to avoid duplication.
+/// Use NodeId directly for new code.
+pub type ObjectId = NodeId;
 
 /// Ownership operation types - only track critical operations
 #[repr(u8)]
@@ -454,7 +453,7 @@ mod tests {
 
     #[test]
     fn test_ownership_event_creation() {
-        let id = ObjectId(0x1000);
+        let id = NodeId(0x1000);
         let event = OwnershipEvent::new(1000, OwnershipOp::Create, id, None);
         assert_eq!(event.ts, 1000);
         assert_eq!(event.op, OwnershipOp::Create);
@@ -462,7 +461,7 @@ mod tests {
 
     #[test]
     fn test_graph_build_empty() {
-        let passports: Vec<(ObjectId, String, usize, Vec<OwnershipEvent>)> = vec![];
+        let passports: Vec<(NodeId, String, usize, Vec<OwnershipEvent>)> = vec![];
         let graph = OwnershipGraph::build(&passports);
         assert!(graph.nodes.is_empty());
         assert!(graph.edges.is_empty());
@@ -471,8 +470,8 @@ mod tests {
 
     #[test]
     fn test_graph_build_rc_clone() {
-        let id1 = ObjectId(0x1000);
-        let id2 = ObjectId(0x2000);
+        let id1 = NodeId(0x1000);
+        let id2 = NodeId(0x2000);
         let events = vec![OwnershipEvent::new(
             1000,
             OwnershipOp::RcClone,
@@ -489,10 +488,10 @@ mod tests {
 
     #[test]
     fn test_graph_build_arc_clone_storm() {
-        let id1 = ObjectId(0x1000);
+        let id1 = NodeId(0x1000);
         let mut events = Vec::new();
         for i in 0..100 {
-            let dst = ObjectId(0x2000 + i);
+            let dst = NodeId(0x2000 + i);
             events.push(OwnershipEvent::new(
                 i,
                 OwnershipOp::ArcClone,
@@ -509,10 +508,10 @@ mod tests {
 
     #[test]
     fn test_compress_clone_chains() {
-        let id1 = ObjectId(0x1000);
-        let id2 = ObjectId(0x2000);
-        let id3 = ObjectId(0x3000);
-        let id4 = ObjectId(0x4000);
+        let id1 = NodeId(0x1000);
+        let id2 = NodeId(0x2000);
+        let id3 = NodeId(0x3000);
+        let id4 = NodeId(0x4000);
 
         let events = vec![
             OwnershipEvent::new(1000, OwnershipOp::ArcClone, id1, Some(id2)),
@@ -531,10 +530,10 @@ mod tests {
 
     #[test]
     fn test_diagnostics() {
-        let id1 = ObjectId(0x1000);
+        let id1 = NodeId(0x1000);
         let mut events = Vec::new();
         for i in 0..100 {
-            let dst = ObjectId(0x2000 + i);
+            let dst = NodeId(0x2000 + i);
             events.push(OwnershipEvent::new(
                 i,
                 OwnershipOp::ArcClone,
@@ -553,10 +552,10 @@ mod tests {
 
     #[test]
     fn test_root_cause_detection() {
-        let id1 = ObjectId(0x1000);
+        let id1 = NodeId(0x1000);
         let mut events = Vec::new();
         for i in 0..100 {
-            let dst = ObjectId(0x2000 + i);
+            let dst = NodeId(0x2000 + i);
             events.push(OwnershipEvent::new(
                 i,
                 OwnershipOp::ArcClone,

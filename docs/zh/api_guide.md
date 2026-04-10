@@ -378,3 +378,216 @@ let graph = RelationGraphBuilder::build(&allocations, Some(config));
 2. **Clone 检测**：依赖调用栈哈希，相同调用栈的分配会被分组比较
 3. **Shared 检测**：依赖 Owner 关系，需要先检测 Owner 后再检测 Shared
 4. **性能**：使用滑动时间窗口避免 O(n²) 复杂度
+
+## 异步任务追踪
+
+memscope-rs 提供了完整的异步任务内存追踪功能，可以追踪 tokio 任务的内存使用情况，并检测僵尸任务。
+
+### 核心概念
+
+| 概念 | 说明 |
+|------|------|
+| **Task ID** | 全局唯一任务 ID，永不回收，确保准确追踪 |
+| **Tokio Task ID** | Tokio 运行时的任务 ID，可能被回收，仅作为 metadata |
+| **Zombie Task** | 已启动但从未完成的任务，可能表示内存泄漏 |
+
+### API 选择指南
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                        何时使用哪个 API                               │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  场景 1: 在 async 代码中追踪                                         │
+│  ─────────────────────────────────────                              │
+│  ✅ 使用 track_in_tokio_task()                                       │
+│     自动检测 tokio task ID，无需手动设置                              │
+│                                                                     │
+│  let (task_id, result) = tracker.track_in_tokio_task(               │
+│      "my_task".to_string(),                                          │
+│      async move {                                                    │
+│          // 你的 async 代码                                          │
+│      }                                                               │
+│  ).await;                                                           │
+│                                                                     │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  场景 2: 在同步代码中手动设置 task context                            │
+│  ─────────────────────────────────────                              │
+│  ✅ 使用 enter_task() 或 with_task()                                  │
+│     手动设置 task ID，通常用于测试或特殊场景                           │
+│                                                                     │
+│  let task_id = 42u64;                                               │
+│  let guard = AsyncTracker::enter_task(task_id);                       │
+│  // 或                                                              │
+│  AsyncTracker::with_task(task_id, || {                               │
+│      // 同步代码                                                     │
+│  });                                                                │
+│                                                                     │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  场景 3: 在 tokio 上下文中自动工作                                    │
+│  ─────────────────────────────────────                              │
+│  ✅ track_as() 在 tokio 上下文中自动获取 task ID                      │
+│     但这需要用户在 async 入口处调用 enter_task() 设置 context          │
+│                                                                     │
+│  // 在 async handler 入口                                            │
+│  let task_id = generate_unique_task_id();                            │
+│  let _guard = AsyncTracker::enter_task(task_id);                     │
+│                                                                     │
+│  // 之后所有 track_as() 调用会自动关联到这个 task                      │
+│  tracker.track_as(&data, "my_data", file, line);                    │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### 使用示例
+
+#### 示例 1: track_in_tokio_task (推荐)
+
+```rust
+use memscope_rs::{global_tracker, init_global_tracking};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    init_global_tracking()?;
+    let tracker = global_tracker()?;
+
+    // 使用 track_in_tokio_task 自动追踪
+    let (task_id, result) = tracker
+        .async_tracker()
+        .track_in_tokio_task("http_handler".to_string(), async {
+            // 模拟处理请求
+            let data = vec![1u8; 1024];
+            tracker.track_as(&data, "request_data", file!(), line!());
+
+            // 模拟一些延迟
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+            "response"
+        })
+        .await;
+
+    println!("Task ID: {}, Result: {}", task_id, result);
+
+    // 导出数据
+    tracker.export_json("output")?;
+
+    Ok(())
+}
+```
+
+#### 示例 2: 手动设置 task context
+
+```rust
+use memscope_rs::{global_tracker, init_global_tracking, capture::backends::async_tracker::AsyncTracker};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    init_global_tracking()?;
+    let tracker = global_tracker()?;
+
+    // 生成唯一 task ID
+    let task_id = generate_unique_task_id();
+
+    // 设置 task context
+    let _guard = AsyncTracker::enter_task(task_id);
+
+    // 在这个 task context 中，所有 track_as() 调用都会关联到这个 task
+    let data = vec![1u8; 1024];
+    tracker.track_as(&data, "my_data", file!(), line!());
+
+    // 清理
+    drop(_guard);
+
+    Ok(())
+}
+```
+
+#### 示例 3: 检测僵尸任务
+
+```rust
+use memscope_rs::{global_tracker, init_global_tracking};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    init_global_tracking()?;
+    let tracker = global_tracker()?;
+
+    // 启动一些任务...
+    // ...
+
+    // 在程序结束时检测僵尸任务
+    let zombies = tracker.async_tracker().detect_zombie_tasks();
+
+    if !zombies.is_empty() {
+        println!("警告: 发现 {} 个僵尸任务!", zombies.len());
+        for task_id in &zombies {
+            println!("  - Task ID: {}", task_id);
+        }
+    }
+
+    // 获取僵尸任务统计
+    let (zombie_count, total_count) = tracker.async_tracker().zombie_task_stats();
+    println!(
+        "僵尸任务: {}/{} ({:.1}%)",
+        zombie_count,
+        total_count,
+        if total_count > 0 {
+            (zombie_count as f64 / total_count as f64) * 100.0
+        } else {
+            0.0
+        }
+    );
+
+    Ok(())
+}
+```
+
+### 数据流
+
+```
+track_in_tokio_task() 或 track_as()
+            │
+            ▼
+AsyncTracker::get_current_task()
+            │
+            ▼
+track_allocation_with_location()
+            │
+            ▼
+┌───────────────────────────────────────┐
+│         AsyncTracker 内部状态          │
+│  - allocations HashMap                │
+│  - profiles HashMap (TaskMemoryProfile)│
+│  - stats                              │
+└───────────────────────────────────────┘
+            │
+            ▼
+export_all_json() → async_analysis.json
+            │
+            ▼
+输出文件:
+  - task_profiles: 每个任务的内存使用情况
+  - summary: 统计摘要
+```
+
+### 任务 ID 设计说明
+
+ Tokio 的 task ID 会在任务完成后被回收复用，这可能导致 ID 冲突。
+ memscope-rs 使用双重 ID 系统解决这个问题：
+
+```rust
+struct TaskMemoryProfile {
+    task_id: u64,        // 全局唯一，永不回收 (TASK_COUNTER)
+    tokio_task_id: u64, // Tokio 运行时 ID，可能回收 (作为 metadata)
+}
+```
+
+这样既保证了追踪的准确性（使用永不回收的 task_id），又保留了调试信息（tokio_task_id 可以关联到 tokio runtime）。
+
+### 注意事项
+
+1. **性能影响**：异步追踪会带来一定开销，建议仅在开发和调试时启用
+2. **Task ID 唯一性**：使用 `generate_unique_task_id()` 生成的任务 ID 永不重复
+3. **生命周期**：确保 `track_task_end()` 在任务完成时被调用，以正确计算任务持续时间
+4. **僵尸任务**：未完成的任务会被标记为僵尸任务，可能表示资源泄漏
