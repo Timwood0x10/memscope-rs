@@ -4084,7 +4084,7 @@ mod tests {
         assert!(serialized.is_ok());
 
         // Test that serialized data contains expected fields
-        let json_str = serialized.expect("Serialization should succeed for valid AllocationInfo");
+        let json_str = serialized.expect("Failed to serialize AllocationInfo to JSON");
         assert!(json_str.contains("ptr"));
         assert!(json_str.contains("size"));
         assert!(json_str.contains("4096")); // 0x1000 in decimal is 4096

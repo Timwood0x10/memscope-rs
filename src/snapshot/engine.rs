@@ -293,11 +293,17 @@ mod tests {
 
         assert_eq!(snapshot.thread_stats.len(), 2);
 
-        let thread1 = snapshot.thread_stats.get(&1).unwrap();
+        let thread1 = snapshot
+            .thread_stats
+            .get(&1)
+            .expect("Thread 1 stats should exist");
         assert_eq!(thread1.allocation_count, 1);
         assert_eq!(thread1.total_allocated, 1024);
 
-        let thread2 = snapshot.thread_stats.get(&2).unwrap();
+        let thread2 = snapshot
+            .thread_stats
+            .get(&2)
+            .expect("Thread 2 stats should exist");
         assert_eq!(thread2.allocation_count, 1);
         assert_eq!(thread2.total_allocated, 2048);
     }
@@ -312,7 +318,10 @@ mod tests {
         let snapshot = engine.build_snapshot();
 
         assert_eq!(snapshot.current_memory(), 0);
-        let thread1 = snapshot.thread_stats.get(&1).unwrap();
+        let thread1 = snapshot
+            .thread_stats
+            .get(&1)
+            .expect("Thread 1 stats should exist");
         assert_eq!(thread1.current_memory, 0);
     }
 }

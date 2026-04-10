@@ -134,6 +134,15 @@ impl std::fmt::Display for NodeId {
 /// - Aligned to a large boundary for easy identification
 pub const VIRTUAL_PTR_BASE: usize = 0x10000000000;
 
+/// Check if a pointer is a virtual pointer used for Container types.
+///
+/// Returns `true` if the pointer is >= VIRTUAL_PTR_BASE (indicating it's
+/// a virtual pointer for Container types rather than a real heap address).
+#[inline]
+pub const fn is_virtual_pointer(ptr: usize) -> bool {
+    ptr >= VIRTUAL_PTR_BASE
+}
+
 /// Global node counter
 ///
 /// This atomic counter ensures that all NodeIDs are globally unique

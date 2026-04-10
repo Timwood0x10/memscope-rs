@@ -12,9 +12,9 @@
 //!
 //! These filters reduce false positives by ~30% compared to naive scanning.
 
+use crate::analysis::is_virtual_pointer;
 use crate::analysis::relation_inference::{RangeMap, Relation, RelationEdge};
 use crate::analysis::unsafe_inference::{is_valid_ptr, OwnedMemoryView};
-use crate::analysis::VIRTUAL_PTR_BASE;
 
 const MIN_VALID_POINTER: usize = 0x1000;
 
@@ -93,7 +93,7 @@ fn detect_owner_impl(
         }
 
         // Skip virtual pointers used for Container types
-        if ptr_val >= VIRTUAL_PTR_BASE {
+        if is_virtual_pointer(ptr_val) {
             continue;
         }
 

@@ -4,8 +4,8 @@
 //! while preventing segfaults through ValidRegions checks and
 //! atomic system calls for fault tolerance.
 
+use crate::analysis::is_virtual_pointer;
 use crate::analysis::unsafe_inference::is_valid_ptr;
-use crate::analysis::VIRTUAL_PTR_BASE;
 use crate::snapshot::types::ActiveAllocation;
 
 /// Maximum bytes to read per allocation. Metadata headers are always
@@ -86,9 +86,7 @@ impl HeapScanner {
 
         for alloc in allocs {
             if let crate::core::types::TrackKind::HeapOwner { ptr, size } = alloc.kind {
-                // Skip virtual pointers used for Container types
-
-                if ptr >= VIRTUAL_PTR_BASE {
+                if is_virtual_pointer(ptr) {
                     continue;
                 }
 

@@ -56,7 +56,7 @@ pub use variable_relationships::{
 };
 
 // Re-export NodeID for backward compatibility
-pub use node_id::{NodeId, VIRTUAL_PTR_BASE};
+pub use node_id::{is_virtual_pointer, NodeId, VIRTUAL_PTR_BASE};
 pub mod relationship_cycle_detector;
 pub use relationship_cycle_detector::{detect_cycles_in_relationships, CycleDetectionResult};
 

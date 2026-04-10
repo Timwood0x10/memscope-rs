@@ -5,9 +5,9 @@
 
 use tracing::{debug, warn};
 
+use crate::analysis::is_virtual_pointer;
 use crate::analysis::memory_passport_tracker::MemoryPassportTracker;
 use crate::analysis::ownership_graph::{EdgeKind, ObjectId, OwnershipGraph, OwnershipOp};
-use crate::analysis::VIRTUAL_PTR_BASE;
 use crate::capture::platform::memory_info::PlatformMemoryInfo;
 use crate::core::{MemScopeError, MemScopeResult};
 use crate::render_engine::dashboard::DashboardRenderer;
@@ -1223,7 +1223,7 @@ fn build_ownership_graph_from_allocations(
         .filter(|(_, a)| a.timestamp_dealloc.is_none())
         .filter_map(|(_idx, a)| {
             // Skip Container types (ptr is 0 or virtual pointer)
-            if a.ptr == 0 || a.ptr >= VIRTUAL_PTR_BASE {
+            if a.ptr == 0 || is_virtual_pointer(a.ptr) {
                 return None;
             }
 
