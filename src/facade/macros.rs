@@ -8,11 +8,11 @@ use std::thread;
 
 /// Helper function to hash thread ID
 #[doc(hidden)]
-pub fn get_heap_ptr_if_trackable<T>(_value: &T) -> Option<usize> {
-    // This function is a placeholder. In a real implementation,
-    // we would check if T implements Trackable and call get_heap_ptr()
-    // For now, we return None to indicate we should use stack address
-    None
+pub fn get_heap_ptr_if_trackable<T: crate::Trackable>(value: &T) -> Option<usize> {
+    match value.track_kind() {
+        crate::TrackKind::HeapOwner { ptr, size: _ } => Some(ptr),
+        crate::TrackKind::Container | crate::TrackKind::Value => None,
+    }
 }
 
 /// Helper function to hash thread ID
@@ -68,7 +68,11 @@ macro_rules! show_top_allocations {
         let allocations = $crate::facade::compat::get_top_allocations($limit);
         println!("Top {} Allocations by Size:", $limit);
         for (i, alloc) in allocations.iter().enumerate() {
-            println!("  {}. {} bytes at {:x}", i + 1, alloc.size, alloc.ptr);
+            let ptr_str = alloc
+                .ptr
+                .map(|p| format!("{:x}", p))
+                .unwrap_or_else(|| "None".to_string());
+            println!("  {}. {} bytes at {}", i + 1, alloc.size, ptr_str);
         }
     };
 }

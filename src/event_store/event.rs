@@ -21,6 +21,8 @@ pub enum MemoryEventType {
     Borrow,
     /// Memory return event
     Return,
+    /// Metadata event for Container/Value types (no heap allocation)
+    Metadata,
 }
 
 impl fmt::Display for MemoryEventType {
@@ -32,6 +34,7 @@ impl fmt::Display for MemoryEventType {
             MemoryEventType::Move => write!(f, "Move"),
             MemoryEventType::Borrow => write!(f, "Borrow"),
             MemoryEventType::Return => write!(f, "Return"),
+            MemoryEventType::Metadata => write!(f, "Metadata"),
         }
     }
 }
@@ -113,6 +116,22 @@ impl MemoryEvent {
         }
     }
 
+    /// Create a new metadata event for Container/Value types (no heap allocation)
+    pub fn metadata(var_name: String, type_name: String, thread_id: u64, size: usize) -> Self {
+        Self {
+            timestamp: Self::now(),
+            event_type: MemoryEventType::Metadata,
+            ptr: 0, // No heap pointer
+            size,
+            old_size: None,
+            thread_id,
+            var_name: Some(var_name),
+            type_name: Some(type_name),
+            call_stack_hash: None,
+            thread_name: None,
+        }
+    }
+
     /// Get current timestamp in nanoseconds
     /// Returns 0 if system time is before Unix epoch (should not happen in practice)
     pub fn now() -> u64 {
@@ -151,7 +170,7 @@ impl MemoryEvent {
     pub fn is_allocation(&self) -> bool {
         matches!(
             self.event_type,
-            MemoryEventType::Allocate | MemoryEventType::Reallocate
+            MemoryEventType::Allocate | MemoryEventType::Reallocate | MemoryEventType::Metadata
         )
     }
 

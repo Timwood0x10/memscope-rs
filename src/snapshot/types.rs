@@ -3,16 +3,19 @@
 //! This module defines the core data structures used by the
 //! SnapshotEngine for representing memory snapshots.
 
+use crate::core::types::TrackKind;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// Active allocation information in a snapshot
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ActiveAllocation {
-    /// Memory pointer address
-    pub ptr: usize,
+    /// Memory pointer address (None for Container/Value types)
+    pub ptr: Option<usize>,
     /// Allocation size in bytes
     pub size: usize,
+    /// Memory allocation semantic role
+    pub kind: TrackKind,
     /// Timestamp when this allocation was made
     pub allocated_at: u64,
     /// Optional variable name
@@ -104,8 +107,12 @@ impl MemorySnapshot {
             let thread_id = alloc.thread_id;
 
             let active_alloc = ActiveAllocation {
-                ptr: alloc.ptr,
+                ptr: Some(alloc.ptr),
                 size: alloc.size,
+                kind: TrackKind::HeapOwner {
+                    ptr: alloc.ptr,
+                    size: alloc.size,
+                },
                 allocated_at: alloc.allocated_at_ns,
                 var_name: alloc.var_name,
                 type_name: alloc.type_name,

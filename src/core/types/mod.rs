@@ -1,6 +1,14 @@
 // Types module - Refactored from the original monolithic types.rs
 // This module organizes types into logical groups for better maintainability
 
+// TrackKind and HeapPtr modules for three-layer object model
+pub mod heap_ptr;
+pub mod track_kind;
+
+// Re-export for easier access
+pub use heap_ptr::HeapPtr;
+pub use track_kind::TrackKind;
+
 // For now, we need to import the original types from the backup file
 // Since we removed types_original.rs, we need to recreate the essential types here
 

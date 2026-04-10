@@ -250,37 +250,44 @@ impl Tracker {
 
     fn track_inner<T: crate::Trackable>(&self, var: &T, name: &str, file: &str, line: u32) {
         let type_name = var.get_type_name().to_string();
-        let size = var.get_size_estimate();
-
-        let ptr = var.get_heap_ptr().unwrap_or_else(|| {
-            use std::cell::Cell;
-            thread_local! {
-                static COUNTER: Cell<u64> = const { Cell::new(0x8000_0000) };
-            }
-            COUNTER.with(|counter| {
-                let val = counter.get();
-                counter.set(val.wrapping_add(1));
-                val as usize
-            })
-        });
-
-        if let Err(e) = self.inner.track_allocation(ptr, size) {
-            tracing::error!("Failed to track allocation at ptr {:x}: {}", ptr, e);
-            return;
-        }
+        let kind = var.track_kind();
 
         let thread_id_u64 = crate::utils::current_thread_id_u64();
 
-        let mut event = MemoryEvent::allocate(ptr, size, thread_id_u64);
-        event.var_name = Some(name.to_string());
-        event.type_name = Some(type_name.clone());
-        self.event_store.record(event);
+        match kind {
+            crate::core::types::TrackKind::HeapOwner { ptr, size } => {
+                // Only HeapOwner gets tracked in inner tracker
+                if let Err(e) = self.inner.track_allocation(ptr, size) {
+                    tracing::error!("Failed to track allocation at ptr {:x}: {}", ptr, e);
+                    return;
+                }
 
-        if let Err(e) =
-            self.inner
-                .associate_var(ptr, name.to_string(), type_name, Some(file), Some(line))
-        {
-            tracing::error!("Failed to associate var '{}' at ptr {:x}: {}", name, ptr, e);
+                let mut event = MemoryEvent::allocate(ptr, size, thread_id_u64);
+                event.var_name = Some(name.to_string());
+                event.type_name = Some(type_name.clone());
+                self.event_store.record(event);
+
+                if let Err(e) = self.inner.associate_var(
+                    ptr,
+                    name.to_string(),
+                    type_name,
+                    Some(file),
+                    Some(line),
+                ) {
+                    tracing::error!("Failed to associate var '{}' at ptr {:x}: {}", name, ptr, e);
+                }
+            }
+            crate::core::types::TrackKind::Container | crate::core::types::TrackKind::Value => {
+                // Container and Value record metadata events without heap allocation
+                // They will be tracked as graph nodes but not scanned by HeapScanner
+                let event = MemoryEvent::metadata(
+                    name.to_string(),
+                    type_name,
+                    thread_id_u64,
+                    var.get_size_estimate(),
+                );
+                self.event_store.record(event);
+            }
         }
     }
 

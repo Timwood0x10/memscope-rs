@@ -51,7 +51,11 @@ impl SnapshotEngine {
             match event.event_type {
                 MemoryEventType::Allocate => {
                     let allocation = ActiveAllocation {
-                        ptr: event.ptr,
+                        ptr: Some(event.ptr),
+                        kind: crate::core::types::TrackKind::HeapOwner {
+                            ptr: event.ptr,
+                            size: event.size,
+                        },
                         size: event.size,
                         allocated_at: event.timestamp,
                         var_name: event.var_name,
@@ -98,7 +102,11 @@ impl SnapshotEngine {
                     });
 
                     let allocation = ActiveAllocation {
-                        ptr: event.ptr,
+                        ptr: Some(event.ptr),
+                        kind: crate::core::types::TrackKind::HeapOwner {
+                            ptr: event.ptr,
+                            size: event.size,
+                        },
                         size: event.size,
                         allocated_at: old_allocation
                             .map(|a| a.allocated_at)
@@ -188,6 +196,11 @@ impl SnapshotEngine {
                 MemoryEventType::Move | MemoryEventType::Borrow | MemoryEventType::Return => {
                     // These don't affect the current memory state
                     // but we may want to track them for analysis
+                }
+                MemoryEventType::Metadata => {
+                    // Container/Value types - no heap allocation, just metadata
+                    // These don't affect the current memory state
+                    // but we record them for analysis and graph generation
                 }
             }
 

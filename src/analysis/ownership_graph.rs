@@ -95,6 +95,8 @@ pub struct Node {
 pub enum EdgeKind {
     /// Owner relationship (A contains pointer to B)
     Owns,
+    /// Contains relationship (Container → HeapOwner, e.g., HashMap → Vec)
+    Contains,
     /// Borrow relationship (A borrows from B)
     Borrows,
     /// Rc clone edge

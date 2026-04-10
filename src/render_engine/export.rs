@@ -228,8 +228,13 @@ fn process_allocation_batch(allocations: &[&ActiveAllocation]) -> Vec<serde_json
                 0
             };
 
+            let address = match alloc.ptr {
+                Some(ptr) => format!("0x{:x}", ptr),
+                None => "N/A".to_string(),
+            };
+
             let mut entry = json!({
-                "address": format!("0x{:x}", alloc.ptr),
+                "address": address,
                 "size": alloc.size,
                 "type": type_info,
                 "timestamp": alloc.allocated_at,
@@ -480,10 +485,9 @@ pub fn export_all_json<P: AsRef<Path>>(
         .map_err(|e| MemScopeError::error("export", "export_all_json", e.to_string()))?;
     export_async_analysis_json(path_ref, async_tracker)
         .map_err(|e| MemScopeError::error("export", "export_all_json", e.to_string()))?;
-    // Convert core_types::AllocationInfo to types::AllocationInfo for ownership graph export
     let typed_allocations: Vec<crate::capture::types::AllocationInfo> =
         allocations.clone().into_iter().map(|a| a.into()).collect();
-    export_ownership_graph_json(path_ref, &typed_allocations)
+    export_ownership_graph_json(path_ref, &typed_allocations, tracker.event_store())
         .map_err(|e| MemScopeError::error("export", "export_all_json", e.to_string()))?;
 
     Ok(())
@@ -962,11 +966,12 @@ pub fn export_system_resources_json<P: AsRef<Path>>(base_path: P) -> MemScopeRes
 pub fn export_ownership_graph_json<P: AsRef<Path>>(
     base_path: P,
     allocations: &[crate::capture::types::AllocationInfo],
+    event_store: &crate::event_store::EventStore,
 ) -> MemScopeResult<()> {
     let base_path = base_path.as_ref();
 
     // Build ownership graph from allocations
-    let graph = build_ownership_graph_from_allocations(allocations);
+    let graph = build_ownership_graph_from_allocations(allocations, event_store);
 
     // Get diagnostics
     let diagnostics = graph.diagnostics(50);
@@ -994,6 +999,7 @@ pub fn export_ownership_graph_json<P: AsRef<Path>>(
                 "to": format!("0x{:x}", edge.to.0),
                 "kind": match edge.op {
                     EdgeKind::Owns => "Owns",
+                    EdgeKind::Contains => "Contains",
                     EdgeKind::Borrows => "Borrows",
                     EdgeKind::RcClone => "RcClone",
                     EdgeKind::ArcClone => "ArcClone",
@@ -1093,8 +1099,10 @@ pub fn export_ownership_graph_json<P: AsRef<Path>>(
 /// Build ownership graph from allocation data
 fn build_ownership_graph_from_allocations(
     allocations: &[crate::capture::types::AllocationInfo],
+    event_store: &crate::event_store::EventStore,
 ) -> OwnershipGraph {
-    use crate::analysis::relation_inference::{Relation, RelationGraphBuilder};
+    use crate::analysis::relation_inference::{detect_containers, Relation, RelationGraphBuilder};
+    use crate::event_store::MemoryEventType;
 
     // Convert allocations to passport format for graph building
     let passports: Vec<(
@@ -1133,39 +1141,150 @@ fn build_ownership_graph_from_allocations(
 
     let mut graph = OwnershipGraph::build(&passports);
 
-    // Use RelationGraphBuilder to detect relationships and add edges
-    let active_allocations: Vec<ActiveAllocation> = allocations
+    // Build separate lists for HeapOwner and Container allocations
+    // with their original indices preserved for correct edge mapping
+
+    // Step 1: Collect HeapOwner allocations
+    let _heap_owner_original_indices: Vec<usize> = allocations
         .iter()
-        .filter(|a| a.timestamp_dealloc.is_none())
-        .map(|a| ActiveAllocation {
-            ptr: a.ptr,
-            size: a.size,
-            allocated_at: a.timestamp_alloc,
-            var_name: a.var_name.clone(),
-            type_name: a.type_name.clone(),
-            thread_id: 0,
+        .enumerate()
+        .filter(|(_, a)| a.timestamp_dealloc.is_none())
+        .map(|(i, _)| i)
+        .collect();
+
+    let heap_owner_allocations: Vec<ActiveAllocation> = allocations
+        .iter()
+        .enumerate()
+        .filter(|(_, a)| a.timestamp_dealloc.is_none())
+        .map(|(_original_idx, a)| {
+            ActiveAllocation {
+                ptr: Some(a.ptr),
+                kind: crate::core::types::TrackKind::HeapOwner {
+                    ptr: a.ptr,
+                    size: a.size,
+                },
+                size: a.size,
+                allocated_at: a.timestamp_alloc,
+                var_name: a.var_name.clone(),
+                type_name: a.type_name.clone(),
+                thread_id: a.thread_id_u64, // Use u64 thread_id for consistency
+                call_stack_hash: None,
+            }
+        })
+        .collect();
+
+    // Step 2: Collect Container events from event_store
+    // IMPORTANT: Only include containers that match HeapOwner thread_id
+    let valid_thread_ids: std::collections::HashSet<u64> =
+        heap_owner_allocations.iter().map(|a| a.thread_id).collect();
+
+    let container_events: Vec<_> = event_store
+        .snapshot()
+        .into_iter()
+        .filter(|e| e.event_type == MemoryEventType::Metadata)
+        .filter(|e| valid_thread_ids.contains(&e.thread_id))
+        .filter_map(|e| {
+            let type_name = e.type_name.clone().unwrap_or_default();
+            let var_name = e.var_name.clone().unwrap_or_default();
+            let is_container = type_name.contains("HashMap")
+                || type_name.contains("BTreeMap")
+                || type_name.contains("VecDeque")
+                || type_name.contains("RefCell")
+                || type_name.contains("RwLock");
+            if is_container {
+                return Some((e, type_name, var_name));
+            }
+            None
+        })
+        .collect();
+
+    let container_allocations: Vec<ActiveAllocation> = container_events
+        .iter()
+        .map(|(e, type_name, var_name)| ActiveAllocation {
+            ptr: None,
+            kind: crate::core::types::TrackKind::Container,
+            size: e.size.max(1), // Ensure minimum size of 1 to avoid division by zero
+            allocated_at: e.timestamp,
+            var_name: Some(var_name.clone()),
+            type_name: Some(type_name.clone()),
+            thread_id: e.thread_id, // Use the actual thread_id from the event
             call_stack_hash: None,
         })
         .collect();
 
-    let relation_graph = RelationGraphBuilder::build(&active_allocations, None);
+    // Step 3: Combine for container detection: first HeapOwner, then Container
+    let mut all_for_relation: Vec<ActiveAllocation> = Vec::new();
+    all_for_relation.extend(heap_owner_allocations.clone());
+    all_for_relation.extend(container_allocations.clone());
 
-    // Add edges from relation inference
+    // Step 4: Run container detection with appropriate config
+    let container_config = crate::analysis::relation_inference::ContainerConfig {
+        time_window_ns: 10_000_000, // 10ms (more permissive for test scenarios)
+        size_ratio: 10000,          // Allow very large ratio for containers with small size
+        lookahead: 10,              // Look at more candidates
+    };
+
+    let container_edges = detect_containers(&all_for_relation, Some(container_config));
+
+    // Step 5: Run RelationGraphBuilder for HeapOwner edges (Owns, Shares, Clone)
+    let relation_graph = RelationGraphBuilder::build(&heap_owner_allocations, None);
+
+    // Step 6: Add Container nodes to graph
+    let heap_owner_count = graph.nodes.len();
+    for (e, type_name, _var_name) in container_events.iter() {
+        let node_id = ObjectId(e.timestamp);
+        graph.nodes.push(crate::analysis::ownership_graph::Node {
+            id: node_id,
+            type_name: type_name.clone(),
+            size: e.size,
+        });
+    }
+
+    // Step 7: Add HeapOwner edges (Owns, Shares, Clone)
     for edge in &relation_graph.edges {
-        let from_id = ObjectId(edge.from as u64);
-        let to_id = ObjectId(edge.to as u64);
+        let from_id = graph.nodes[edge.from].id;
+        let to_id = graph.nodes[edge.to].id;
 
         let edge_kind = match edge.relation {
-            Relation::Owner => EdgeKind::Owns,
+            Relation::Owns => EdgeKind::Owns,
+            Relation::Contains => EdgeKind::Contains,
             Relation::Slice => EdgeKind::Borrows,
             Relation::Clone => EdgeKind::RcClone,
-            Relation::Shared => EdgeKind::ArcClone,
+            Relation::Shares => EdgeKind::ArcClone,
         };
 
         graph.edges.push(crate::analysis::ownership_graph::Edge {
             from: from_id,
             to: to_id,
             op: edge_kind,
+        });
+    }
+
+    // Step 8: Add Container → HeapOwner edges (Contains)
+    for edge in &container_edges {
+        // edge.from is Container index in all_for_relation
+        // edge.to is HeapOwner index in all_for_relation
+        let from_all_idx = edge.from;
+        let to_all_idx = edge.to;
+
+        // Validate indices
+        if from_all_idx < heap_owner_count || to_all_idx >= heap_owner_count {
+            continue; // Invalid edge indices
+        }
+
+        // Convert from container index to graph node index
+        let container_graph_idx = from_all_idx - heap_owner_count;
+        if container_graph_idx >= container_events.len() {
+            continue; // Invalid container index
+        }
+
+        let from_id = graph.nodes[heap_owner_count + container_graph_idx].id;
+        let to_id = graph.nodes[to_all_idx].id;
+
+        graph.edges.push(crate::analysis::ownership_graph::Edge {
+            from: from_id,
+            to: to_id,
+            op: EdgeKind::Contains,
         });
     }
 

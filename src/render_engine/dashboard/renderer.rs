@@ -515,14 +515,28 @@ impl DashboardRenderer {
         // Convert AllocationInfo to ActiveAllocation
         let active_allocations: Vec<ActiveAllocation> = allocations
             .iter()
-            .map(|a| ActiveAllocation {
-                ptr: a.ptr,
-                size: a.size,
-                allocated_at: a.allocated_at_ns,
-                var_name: a.var_name.clone(),
-                type_name: a.type_name.clone(),
-                thread_id: a.thread_id,
-                call_stack_hash: None,
+            .map(|a| {
+                // Determine TrackKind based on ptr value
+                // ptr == 0 indicates Container type (no heap pointer)
+                let kind = if a.ptr == 0 {
+                    crate::core::types::TrackKind::Container
+                } else {
+                    crate::core::types::TrackKind::HeapOwner {
+                        ptr: a.ptr,
+                        size: a.size,
+                    }
+                };
+
+                ActiveAllocation {
+                    ptr: if a.ptr == 0 { None } else { Some(a.ptr) },
+                    kind,
+                    size: a.size,
+                    allocated_at: a.allocated_at_ns,
+                    var_name: a.var_name.clone(),
+                    type_name: a.type_name.clone(),
+                    thread_id: a.thread_id,
+                    call_stack_hash: None,
+                }
             })
             .collect();
 
@@ -535,10 +549,11 @@ impl DashboardRenderer {
             let to_alloc = alloc_info.get(edge.to);
 
             let (rel_type, color, strength) = match edge.relation {
-                Relation::Owner => ("ownership_transfer", "#dc2626", 1.0),
+                Relation::Owns => ("ownership_transfer", "#dc2626", 1.0),
+                Relation::Contains => ("contains", "#f59e0b", 0.6),
                 Relation::Slice => ("immutable_borrow", "#3b82f6", 0.8),
                 Relation::Clone => ("clone", "#10b981", 0.9),
-                Relation::Shared => ("Arc", "#8b5cf6", 0.7),
+                Relation::Shares => ("Arc", "#8b5cf6", 0.7),
             };
 
             let source_addr = from_alloc
@@ -631,10 +646,42 @@ impl DashboardRenderer {
         let passports = passport_tracker.get_all_passports();
         let analysis = tracker.analyze();
 
-        let total_memory: usize = allocations.iter().map(|a| a.size).sum();
+        // Extract Metadata events from event_store (contains Container types like HashMap)
+        let events = tracker.event_store().snapshot();
+        let metadata_events: Vec<_> = events
+            .iter()
+            .filter(|e| e.event_type == crate::event_store::event::MemoryEventType::Metadata)
+            .collect();
+
+        // Convert Metadata events to AllocationInfo format
+        let container_allocs: Vec<crate::capture::backends::core_types::AllocationInfo> =
+            metadata_events
+                .iter()
+                .map(|e| crate::capture::backends::core_types::AllocationInfo {
+                    ptr: 0, // Container has no heap pointer
+                    size: e.size,
+                    allocated_at_ns: e.timestamp,
+                    var_name: e.var_name.clone(),
+                    type_name: e.type_name.clone(),
+                    thread_id: e.thread_id,
+                    stack_trace: None,
+                })
+                .collect();
+
+        // Merge HeapOwner allocations with Container allocations
+        let all_allocations: Vec<crate::capture::backends::core_types::AllocationInfo> =
+            allocations.into_iter().chain(container_allocs).collect();
+
+        let total_memory: usize = all_allocations.iter().map(|a| a.size).sum();
+
+        // Limit allocations to 50% to avoid performance issues and segmentation faults
+        // Ensure at least 1 allocation is preserved when count is small
+        let max_allocations = std::cmp::max(1, all_allocations.len() / 2);
+        let limited_allocations: Vec<_> =
+            all_allocations.iter().take(max_allocations).cloned().collect();
 
         // Build allocation info
-        let alloc_info: Vec<AllocationInfo> = allocations
+        let alloc_info: Vec<AllocationInfo> = limited_allocations
             .iter()
             .map(|a| {
                 let original_type_name =
@@ -683,7 +730,7 @@ impl DashboardRenderer {
             .collect();
 
         // Build variable relationships using RelationGraphBuilder
-        let mut relationships = Self::build_relationships_from_inference(&allocations, &alloc_info);
+        let mut relationships = Self::build_relationships_from_inference(&all_allocations, &alloc_info);
 
         // Detect cycles in relationships and mark cycle edges
         let cycle_edges: std::collections::HashSet<(String, String)> = {
@@ -790,7 +837,7 @@ impl DashboardRenderer {
                 let var_name = if p.var_name != "-" {
                     p.var_name.clone()
                 } else {
-                    allocations.iter()
+                    all_allocations.iter()
                         .find(|a| a.ptr == p.allocation_ptr)
                         .and_then(|a| a.var_name.clone())
                         .unwrap_or_else(|| "-".to_string())
@@ -799,7 +846,7 @@ impl DashboardRenderer {
                 let type_name = if p.type_name != "-" {
                     p.type_name.clone()
                 } else {
-                    let from_alloc = allocations.iter()
+                    let from_alloc = all_allocations.iter()
                         .find(|a| a.ptr == p.allocation_ptr)
                         .and_then(|a| a.type_name.clone())
                         .unwrap_or_else(|| "-".to_string());
@@ -911,7 +958,7 @@ impl DashboardRenderer {
                 let var_name = if p.var_name != "-" {
                     p.var_name.clone()
                 } else {
-                    allocations.iter()
+                    all_allocations.iter()
                         .find(|a| a.ptr == p.allocation_ptr)
                         .and_then(|a| a.var_name.clone())
                         .unwrap_or_else(|| "-".to_string())
@@ -920,7 +967,7 @@ impl DashboardRenderer {
                 let type_name = if p.type_name != "-" {
                     p.type_name.clone()
                 } else {
-                    let from_alloc = allocations.iter()
+                    let from_alloc = all_allocations.iter()
                         .find(|a| a.ptr == p.allocation_ptr)
                         .and_then(|a| a.type_name.clone())
                         .unwrap_or_else(|| "-".to_string());
@@ -988,7 +1035,7 @@ impl DashboardRenderer {
 
         let async_tasks = Self::build_async_tasks(async_tracker);
         let async_summary = Self::build_async_summary(async_tracker);
-        let ownership_graph = Self::build_ownership_graph_info(&allocations);
+        let ownership_graph = Self::build_ownership_graph_info(&all_allocations);
         let data = DashboardData {
             allocations: &alloc_info,
             relationships: &relationships,
@@ -1239,7 +1286,7 @@ impl DashboardRenderer {
             leaked_passport_count,
             ffi_tracked_count,
             safe_code_percent,
-            ownership_graph: Self::build_ownership_graph_info(&allocations),
+            ownership_graph: Self::build_ownership_graph_info(&all_allocations),
         };
 
         Ok(context)

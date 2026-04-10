@@ -112,8 +112,8 @@ impl GlobalTracker {
         self.tracker.track_as(var, name, file, line);
 
         if let Some(task_id) = AsyncTracker::get_current_task() {
-            if let Some(ptr) = var.get_heap_ptr() {
-                let size = var.get_size_estimate();
+            let kind = var.track_kind();
+            if let crate::core::types::TrackKind::HeapOwner { ptr, size } = kind {
                 let type_name = var.get_type_name().to_string();
                 self.async_tracker.track_allocation_with_location(
                     ptr,

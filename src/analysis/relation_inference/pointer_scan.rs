@@ -108,7 +108,7 @@ fn detect_owner_impl(
                 relations.push(RelationEdge {
                     from: record.id,
                     to: target_id,
-                    relation: Relation::Owner,
+                    relation: Relation::Owns,
                 });
             }
         }
@@ -138,8 +138,9 @@ mod tests {
 
     fn make_alloc(ptr: usize, size: usize) -> ActiveAllocation {
         ActiveAllocation {
-            ptr,
+            ptr: Some(ptr),
             size,
+            kind: crate::core::types::TrackKind::HeapOwner { ptr, size },
             allocated_at: 0,
             var_name: None,
             type_name: None,
@@ -163,7 +164,7 @@ mod tests {
         assert_eq!(edges.len(), 1);
         assert_eq!(edges[0].from, 0);
         assert_eq!(edges[0].to, 1);
-        assert_eq!(edges[0].relation, Relation::Owner);
+        assert_eq!(edges[0].relation, Relation::Owns);
     }
 
     #[test]

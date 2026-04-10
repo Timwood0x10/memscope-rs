@@ -25,7 +25,7 @@ pub fn detect_shared(
 ) -> Vec<RelationEdge> {
     let mut owners_of: Vec<Vec<usize>> = vec![Vec::new(); records.len()];
     for edge in existing_edges {
-        if edge.relation == Relation::Owner {
+        if edge.relation == Relation::Owns {
             owners_of[edge.to].push(edge.from);
         }
     }
@@ -48,7 +48,7 @@ pub fn detect_shared(
                 relations.push(RelationEdge {
                     from: owners[i],
                     to: owners[j],
-                    relation: Relation::Shared,
+                    relation: Relation::Shares,
                 });
             }
         }
@@ -120,12 +120,12 @@ mod tests {
             RelationEdge {
                 from: 0,
                 to: 2,
-                relation: Relation::Owner,
+                relation: Relation::Owns,
             },
             RelationEdge {
                 from: 1,
                 to: 2,
-                relation: Relation::Owner,
+                relation: Relation::Owns,
             },
         ];
 
@@ -133,7 +133,7 @@ mod tests {
         assert_eq!(shared.len(), 1);
         assert_eq!(shared[0].from, 0);
         assert_eq!(shared[0].to, 1);
-        assert_eq!(shared[0].relation, Relation::Shared);
+        assert_eq!(shared[0].relation, Relation::Shares);
     }
 
     #[test]
@@ -150,7 +150,7 @@ mod tests {
         let existing_edges = vec![RelationEdge {
             from: 0,
             to: 1,
-            relation: Relation::Owner,
+            relation: Relation::Owns,
         }];
 
         let shared = detect_shared(&records, &existing_edges);
@@ -169,12 +169,12 @@ mod tests {
             RelationEdge {
                 from: 0,
                 to: 2,
-                relation: Relation::Owner,
+                relation: Relation::Owns,
             },
             RelationEdge {
                 from: 1,
                 to: 2,
-                relation: Relation::Owner,
+                relation: Relation::Owns,
             },
         ];
 
@@ -199,17 +199,17 @@ mod tests {
             RelationEdge {
                 from: 0,
                 to: 3,
-                relation: Relation::Owner,
+                relation: Relation::Owns,
             },
             RelationEdge {
                 from: 1,
                 to: 3,
-                relation: Relation::Owner,
+                relation: Relation::Owns,
             },
             RelationEdge {
                 from: 2,
                 to: 3,
-                relation: Relation::Owner,
+                relation: Relation::Owns,
             },
         ];
 
@@ -334,12 +334,12 @@ mod tests {
             RelationEdge {
                 from: 0,
                 to: 2,
-                relation: Relation::Owner,
+                relation: Relation::Owns,
             },
             RelationEdge {
                 from: 1,
                 to: 2,
-                relation: Relation::Owner,
+                relation: Relation::Owns,
             },
         ];
 
@@ -367,12 +367,12 @@ mod tests {
             RelationEdge {
                 from: 0,
                 to: 2,
-                relation: Relation::Owner,
+                relation: Relation::Owns,
             },
             RelationEdge {
                 from: 1,
                 to: 2,
-                relation: Relation::Owner,
+                relation: Relation::Owns,
             },
         ];
 
@@ -397,7 +397,7 @@ mod tests {
         let existing_edges = vec![RelationEdge {
             from: 0,
             to: 1,
-            relation: Relation::Owner,
+            relation: Relation::Owns,
         }];
 
         let shared = detect_shared(&records, &existing_edges);

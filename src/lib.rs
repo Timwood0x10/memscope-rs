@@ -5,6 +5,9 @@
 //! that tracks all heap allocations and deallocations, and provides utilities
 //! for exporting memory usage data in various formats.
 
+// Import TrackKind for three-layer object model
+use crate::core::types::TrackKind;
+
 /// Advanced memory analysis functionality
 pub mod analysis;
 /// Analysis Engine - Memory analysis logic
@@ -82,9 +85,16 @@ pub use snapshot::types::{ActiveAllocation, MemorySnapshot, MemoryStats, ThreadM
 #[global_allocator]
 pub static GLOBAL: TrackingAllocator = TrackingAllocator::new();
 /// Trait for types that can be tracked by the memory tracker.
+///
+/// This trait defines the interface for tracking memory allocations and their
+/// semantic roles in the three-layer object model (HeapOwner, Container, Value).
 pub trait Trackable {
-    /// Get the pointer to the heap allocation for this value.
-    fn get_heap_ptr(&self) -> Option<usize>;
+    /// Get the memory role classification for this value.
+    ///
+    /// Returns `TrackKind::HeapOwner` for types that own heap memory,
+    /// `TrackKind::Container` for types that organize data internally,
+    /// and `TrackKind::Value` for types without heap allocation.
+    fn track_kind(&self) -> TrackKind;
     /// Get the type name for this value.
     fn get_type_name(&self) -> &'static str;
     /// Get estimated size of the allocation.
@@ -100,8 +110,11 @@ pub trait Trackable {
 }
 
 impl<T> Trackable for Vec<T> {
-    fn get_heap_ptr(&self) -> Option<usize> {
-        Some(self.as_ptr() as usize)
+    fn track_kind(&self) -> TrackKind {
+        TrackKind::HeapOwner {
+            ptr: self.as_ptr() as usize,
+            size: self.capacity() * std::mem::size_of::<T>(),
+        }
     }
     fn get_type_name(&self) -> &'static str {
         "Vec<T>"
@@ -118,8 +131,11 @@ impl<T> Trackable for Vec<T> {
 }
 
 impl Trackable for String {
-    fn get_heap_ptr(&self) -> Option<usize> {
-        Some(self.as_ptr() as usize)
+    fn track_kind(&self) -> TrackKind {
+        TrackKind::HeapOwner {
+            ptr: self.as_ptr() as usize,
+            size: self.capacity(),
+        }
     }
     fn get_type_name(&self) -> &'static str {
         "String"
@@ -136,8 +152,8 @@ impl Trackable for String {
 }
 
 impl<K, V> Trackable for std::collections::HashMap<K, V> {
-    fn get_heap_ptr(&self) -> Option<usize> {
-        None
+    fn track_kind(&self) -> TrackKind {
+        TrackKind::Container
     }
     fn get_type_name(&self) -> &'static str {
         "HashMap<K, V>"
@@ -154,8 +170,8 @@ impl<K, V> Trackable for std::collections::HashMap<K, V> {
 }
 
 impl<K, V> Trackable for std::collections::BTreeMap<K, V> {
-    fn get_heap_ptr(&self) -> Option<usize> {
-        None
+    fn track_kind(&self) -> TrackKind {
+        TrackKind::Container
     }
     fn get_type_name(&self) -> &'static str {
         "BTreeMap<K, V>"
@@ -172,8 +188,8 @@ impl<K, V> Trackable for std::collections::BTreeMap<K, V> {
 }
 
 impl<T> Trackable for std::collections::VecDeque<T> {
-    fn get_heap_ptr(&self) -> Option<usize> {
-        None
+    fn track_kind(&self) -> TrackKind {
+        TrackKind::Container
     }
     fn get_type_name(&self) -> &'static str {
         "VecDeque<T>"
@@ -190,14 +206,17 @@ impl<T> Trackable for std::collections::VecDeque<T> {
 }
 
 impl<T> Trackable for Box<T> {
-    fn get_heap_ptr(&self) -> Option<usize> {
-        Some(&**self as *const T as usize)
+    fn track_kind(&self) -> TrackKind {
+        TrackKind::HeapOwner {
+            ptr: &**self as *const T as usize,
+            size: std::mem::size_of_val(&**self),
+        }
     }
     fn get_type_name(&self) -> &'static str {
         "Box<T>"
     }
     fn get_size_estimate(&self) -> usize {
-        std::mem::size_of::<T>()
+        std::mem::size_of_val(&**self)
     }
     fn get_data_ptr(&self) -> Option<usize> {
         Some(&**self as *const T as usize)
@@ -208,8 +227,11 @@ impl<T> Trackable for Box<T> {
 }
 
 impl<T> Trackable for std::rc::Rc<T> {
-    fn get_heap_ptr(&self) -> Option<usize> {
-        Some(&**self as *const T as usize)
+    fn track_kind(&self) -> TrackKind {
+        TrackKind::HeapOwner {
+            ptr: &**self as *const T as usize,
+            size: std::mem::size_of::<T>(),
+        }
     }
     fn get_type_name(&self) -> &'static str {
         "Rc<T>"
@@ -229,8 +251,11 @@ impl<T> Trackable for std::rc::Rc<T> {
 }
 
 impl<T> Trackable for std::sync::Arc<T> {
-    fn get_heap_ptr(&self) -> Option<usize> {
-        Some(&**self as *const T as usize)
+    fn track_kind(&self) -> TrackKind {
+        TrackKind::HeapOwner {
+            ptr: &**self as *const T as usize,
+            size: std::mem::size_of::<T>(),
+        }
     }
     fn get_type_name(&self) -> &'static str {
         "Arc<T>"
@@ -250,8 +275,8 @@ impl<T> Trackable for std::sync::Arc<T> {
 }
 
 impl<T: Trackable> Trackable for std::cell::RefCell<T> {
-    fn get_heap_ptr(&self) -> Option<usize> {
-        None
+    fn track_kind(&self) -> TrackKind {
+        TrackKind::Container
     }
     fn get_type_name(&self) -> &'static str {
         "RefCell<T>"
@@ -268,8 +293,8 @@ impl<T: Trackable> Trackable for std::cell::RefCell<T> {
 }
 
 impl<T: Trackable> Trackable for std::sync::RwLock<T> {
-    fn get_heap_ptr(&self) -> Option<usize> {
-        None
+    fn track_kind(&self) -> TrackKind {
+        TrackKind::Container
     }
     fn get_type_name(&self) -> &'static str {
         "RwLock<T>"

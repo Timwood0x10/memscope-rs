@@ -383,10 +383,11 @@ macro_rules! track_var_with_scope {
 
         // Also associate with current scope
         if result.is_ok() {
-            if let Some(size) = $crate::Trackable::get_heap_ptr(&$var) {
+            if let $crate::TrackKind::HeapOwner { ptr: _, size } =
+                $crate::Trackable::track_kind(&$var)
+            {
                 let scope_tracker = $crate::scope_tracker::get_global_scope_tracker();
-                let _ = scope_tracker
-                    .associate_variable(stringify!($var).to_string(), std::mem::size_of_val(&$var));
+                let _ = scope_tracker.associate_variable(stringify!($var).to_string(), size);
             }
         }
 

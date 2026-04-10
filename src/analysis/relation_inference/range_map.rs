@@ -37,10 +37,13 @@ impl RangeMap {
         let mut entries: Vec<RangeEntry> = allocations
             .iter()
             .enumerate()
-            .map(|(id, alloc)| RangeEntry {
-                start: alloc.ptr,
-                end: alloc.ptr.saturating_add(alloc.size),
-                alloc_id: id,
+            .filter_map(|(id, alloc)| {
+                // Only include HeapOwner allocations with valid pointers
+                alloc.ptr.map(|ptr| RangeEntry {
+                    start: ptr,
+                    end: ptr.saturating_add(alloc.size),
+                    alloc_id: id,
+                })
             })
             .collect();
 
@@ -99,10 +102,12 @@ impl RangeMap {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::types::TrackKind::HeapOwner;
 
     fn make_alloc(ptr: usize, size: usize) -> ActiveAllocation {
         ActiveAllocation {
-            ptr,
+            kind: HeapOwner { ptr, size },
+            ptr: Some(ptr),
             size,
             allocated_at: 0,
             var_name: None,

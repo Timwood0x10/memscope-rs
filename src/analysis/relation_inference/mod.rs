@@ -30,6 +30,7 @@
 //! ```
 
 mod clone_detector;
+mod container_detector;
 mod graph_builder;
 mod pointer_scan;
 mod range_map;
@@ -37,6 +38,7 @@ mod shared_detector;
 mod slice_detector;
 
 pub use clone_detector::{detect_clones, CloneConfig};
+pub use container_detector::{detect_containers, ContainerConfig};
 pub use graph_builder::{GraphBuilderConfig, RelationGraphBuilder};
 pub use pointer_scan::{detect_owner, InferenceRecord};
 pub use range_map::RangeMap;
@@ -46,23 +48,26 @@ pub use slice_detector::detect_slice;
 /// A relationship between two allocations in the graph.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Relation {
-    /// A owns or points into B (e.g., Vec metadata → heap buffer).
-    Owner,
+    /// A owns heap memory (HeapOwner → heap).
+    Owns,
+    /// A contains B (Container → HeapOwner).
+    Contains,
+    /// A and B share ownership (Arc/Rc).
+    Shares,
     /// A is a view into a sub-region of B (e.g., &[T] into Vec).
     Slice,
     /// A is a copy of B (same type, size, stack, content).
     Clone,
-    /// A and B share ownership of the same Arc/Rc inner data.
-    Shared,
 }
 
 impl std::fmt::Display for Relation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Relation::Owner => write!(f, "Owner"),
+            Relation::Owns => write!(f, "Owns"),
+            Relation::Contains => write!(f, "Contains"),
+            Relation::Shares => write!(f, "Shares"),
             Relation::Slice => write!(f, "Slice"),
             Relation::Clone => write!(f, "Clone"),
-            Relation::Shared => write!(f, "Shared"),
         }
     }
 }
@@ -177,33 +182,33 @@ mod tests {
     #[test]
     fn test_graph_add_edge() {
         let mut graph = RelationGraph::new();
-        graph.add_edge(0, 1, Relation::Owner);
+        graph.add_edge(0, 1, Relation::Owns);
 
         assert_eq!(graph.edge_count(), 1);
         assert_eq!(graph.edges[0].from, 0);
         assert_eq!(graph.edges[0].to, 1);
-        assert_eq!(graph.edges[0].relation, Relation::Owner);
+        assert_eq!(graph.edges[0].relation, Relation::Owns);
     }
 
     #[test]
     fn test_graph_no_self_edges() {
         let mut graph = RelationGraph::new();
-        graph.add_edge(0, 0, Relation::Owner);
+        graph.add_edge(0, 0, Relation::Owns);
         assert_eq!(graph.edge_count(), 0);
     }
 
     #[test]
     fn test_graph_no_duplicate_edges() {
         let mut graph = RelationGraph::new();
-        graph.add_edge(0, 1, Relation::Owner);
-        graph.add_edge(0, 1, Relation::Owner);
+        graph.add_edge(0, 1, Relation::Owns);
+        graph.add_edge(0, 1, Relation::Owns);
         assert_eq!(graph.edge_count(), 1);
     }
 
     #[test]
     fn test_graph_different_relations_allowed() {
         let mut graph = RelationGraph::new();
-        graph.add_edge(0, 1, Relation::Owner);
+        graph.add_edge(0, 1, Relation::Owns);
         graph.add_edge(0, 1, Relation::Clone);
         assert_eq!(graph.edge_count(), 2);
     }
@@ -211,8 +216,8 @@ mod tests {
     #[test]
     fn test_graph_inbound_outbound_edges() {
         let mut graph = RelationGraph::new();
-        graph.add_edge(0, 2, Relation::Owner);
-        graph.add_edge(1, 2, Relation::Owner);
+        graph.add_edge(0, 2, Relation::Owns);
+        graph.add_edge(1, 2, Relation::Owns);
         graph.add_edge(2, 3, Relation::Slice);
 
         let inbound_to_2 = graph.get_inbound_edges(2);
@@ -225,7 +230,7 @@ mod tests {
     #[test]
     fn test_graph_all_nodes() {
         let mut graph = RelationGraph::new();
-        graph.add_edge(3, 1, Relation::Owner);
+        graph.add_edge(3, 1, Relation::Owns);
         graph.add_edge(1, 2, Relation::Slice);
 
         let nodes = graph.all_nodes();
@@ -239,7 +244,7 @@ mod tests {
             RelationEdge {
                 from: 0,
                 to: 1,
-                relation: Relation::Owner,
+                relation: Relation::Owns,
             },
             RelationEdge {
                 from: 1,
@@ -254,7 +259,7 @@ mod tests {
     fn test_graph_detect_cycles_none() {
         // Linear chain: 0 → 1 → 2 → no cycles.
         let mut graph = RelationGraph::new();
-        graph.add_edge(0, 1, Relation::Owner);
+        graph.add_edge(0, 1, Relation::Owns);
         graph.add_edge(1, 2, Relation::Slice);
 
         let cycles = graph.detect_cycles();
@@ -265,8 +270,8 @@ mod tests {
     fn test_graph_detect_cycles_simple() {
         // Cycle: 0 → 1 → 0
         let mut graph = RelationGraph::new();
-        graph.add_edge(0, 1, Relation::Owner);
-        graph.add_edge(1, 0, Relation::Owner);
+        graph.add_edge(0, 1, Relation::Owns);
+        graph.add_edge(1, 0, Relation::Owns);
 
         let cycles = graph.detect_cycles();
         // Should detect at least one cycle edge.
@@ -280,7 +285,7 @@ mod tests {
     fn test_graph_detect_cycles_longer() {
         // Cycle: 0 → 1 → 2 → 0
         let mut graph = RelationGraph::new();
-        graph.add_edge(0, 1, Relation::Owner);
+        graph.add_edge(0, 1, Relation::Owns);
         graph.add_edge(1, 2, Relation::Slice);
         graph.add_edge(2, 0, Relation::Clone);
 
@@ -302,7 +307,7 @@ mod tests {
     fn test_graph_detect_cycles_self_loop_blocked() {
         // Self-edges are blocked by add_edge, so no cycle possible.
         let mut graph = RelationGraph::new();
-        graph.add_edge(0, 0, Relation::Owner);
+        graph.add_edge(0, 0, Relation::Owns);
         assert_eq!(graph.edge_count(), 0);
 
         let cycles = graph.detect_cycles();
@@ -314,8 +319,8 @@ mod tests {
         // Diamond: 0 → 1, 0 → 2, 1 → 3, 2 → 3, 3 → 0
         // Cycles: 0→1→3→0 and 0→2→3→0
         let mut graph = RelationGraph::new();
-        graph.add_edge(0, 1, Relation::Owner);
-        graph.add_edge(0, 2, Relation::Owner);
+        graph.add_edge(0, 1, Relation::Owns);
+        graph.add_edge(0, 2, Relation::Owns);
         graph.add_edge(1, 3, Relation::Slice);
         graph.add_edge(2, 3, Relation::Slice);
         graph.add_edge(3, 0, Relation::Clone);
