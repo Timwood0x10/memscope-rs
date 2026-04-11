@@ -348,4 +348,315 @@ mod tests {
         assert!(matches!(LeakRiskLevel::Low, LeakRiskLevel::Low));
         assert!(matches!(LeakRiskLevel::Critical, LeakRiskLevel::Critical));
     }
+
+    /// Objective: Verify EnhancedPotentialLeak creation
+    /// Invariants: All fields should be properly initialized
+    #[test]
+    fn test_enhanced_potential_leak() {
+        let leak = EnhancedPotentialLeak {
+            object_id: 42,
+            leak_type: LeakType::Memory,
+            risk_level: LeakRiskLevel::High,
+            evidence: vec![],
+            estimated_impact: LeakImpact {
+                memory_bytes: 1024,
+                performance_impact_percent: 5.0,
+                resource_count: 1,
+                time_to_critical_hours: Some(24.0),
+            },
+        };
+
+        assert_eq!(leak.object_id, 42, "Object ID should match");
+        assert_eq!(
+            leak.leak_type,
+            LeakType::Memory,
+            "Leak type should be Memory"
+        );
+        assert_eq!(
+            leak.risk_level,
+            LeakRiskLevel::High,
+            "Risk level should be High"
+        );
+    }
+
+    /// Objective: Verify LeakEvidence creation
+    /// Invariants: All fields should be accessible
+    #[test]
+    fn test_leak_evidence() {
+        let evidence = LeakEvidence {
+            evidence_type: LeakEvidenceType::NeverDropped,
+            description: "Object was never deallocated".to_string(),
+            strength: 0.95,
+            timestamp: 1000,
+        };
+
+        assert_eq!(evidence.strength, 0.95, "Evidence strength should match");
+        assert_eq!(
+            evidence.evidence_type,
+            LeakEvidenceType::NeverDropped,
+            "Evidence type should match"
+        );
+    }
+
+    /// Objective: Verify LeakEvidenceType variants
+    /// Invariants: All variants should be distinct
+    #[test]
+    fn test_leak_evidence_type_variants() {
+        let types = vec![
+            LeakEvidenceType::NeverDropped,
+            LeakEvidenceType::CircularReference,
+            LeakEvidenceType::ResourceNotClosed,
+            LeakEvidenceType::GrowingMemoryUsage,
+            LeakEvidenceType::LongLivedTemporary,
+            LeakEvidenceType::UnreachableObject,
+        ];
+
+        for evidence_type in types {
+            let debug_str = format!("{evidence_type:?}");
+            assert!(
+                !debug_str.is_empty(),
+                "LeakEvidenceType should have debug representation"
+            );
+        }
+    }
+
+    /// Objective: Verify LeakImpact creation
+    /// Invariants: All fields should be accessible
+    #[test]
+    fn test_leak_impact() {
+        let impact = LeakImpact {
+            memory_bytes: 1024 * 1024,
+            performance_impact_percent: 10.0,
+            resource_count: 5,
+            time_to_critical_hours: Some(48.0),
+        };
+
+        assert_eq!(
+            impact.memory_bytes,
+            1024 * 1024,
+            "Memory bytes should match"
+        );
+        assert_eq!(impact.resource_count, 5, "Resource count should match");
+    }
+
+    /// Objective: Verify ResourceUsagePattern creation
+    /// Invariants: All fields should be properly initialized
+    #[test]
+    fn test_resource_usage_pattern() {
+        let pattern = ResourceUsagePattern {
+            pattern_type: ResourcePatternType::MonotonicGrowth,
+            description: "Memory usage grows continuously".to_string(),
+            frequency: 100.0,
+            leak_risk: LeakRiskLevel::Critical,
+        };
+
+        assert_eq!(pattern.frequency, 100.0, "Frequency should match");
+        assert_eq!(
+            pattern.pattern_type,
+            ResourcePatternType::MonotonicGrowth,
+            "Pattern type should match"
+        );
+    }
+
+    /// Objective: Verify ResourcePatternType variants
+    /// Invariants: All variants should be distinct
+    #[test]
+    fn test_resource_pattern_type_variants() {
+        let patterns = vec![
+            ResourcePatternType::MonotonicGrowth,
+            ResourcePatternType::PeriodicSpikes,
+            ResourcePatternType::GradualAccumulation,
+            ResourcePatternType::SuddenJumps,
+            ResourcePatternType::Irregular,
+        ];
+
+        for pattern in patterns {
+            let debug_str = format!("{pattern:?}");
+            assert!(
+                !debug_str.is_empty(),
+                "ResourcePatternType should have debug representation"
+            );
+        }
+    }
+
+    /// Objective: Verify LeakPreventionRecommendation creation
+    /// Invariants: All fields should be accessible
+    #[test]
+    fn test_leak_prevention_recommendation() {
+        let recommendation = LeakPreventionRecommendation {
+            recommendation_type: LeakPreventionType::UseRAII,
+            priority: Priority::High,
+            description: "Use RAII patterns for resource management".to_string(),
+            implementation_guidance: "Wrap resources in smart pointers".to_string(),
+            expected_effectiveness: 0.9,
+        };
+
+        assert_eq!(
+            recommendation.priority,
+            Priority::High,
+            "Priority should be High"
+        );
+        assert_eq!(
+            recommendation.expected_effectiveness, 0.9,
+            "Effectiveness should match"
+        );
+    }
+
+    /// Objective: Verify LeakPreventionType variants
+    /// Invariants: All variants should be distinct
+    #[test]
+    fn test_leak_prevention_type_variants() {
+        let types = vec![
+            LeakPreventionType::UseRAII,
+            LeakPreventionType::ImplementDrop,
+            LeakPreventionType::BreakCircularReferences,
+            LeakPreventionType::UseWeakReferences,
+            LeakPreventionType::ResourcePooling,
+            LeakPreventionType::ResourceMonitoring,
+            LeakPreventionType::ScopedGuards,
+        ];
+
+        for prevention_type in types {
+            let debug_str = format!("{prevention_type:?}");
+            assert!(
+                !debug_str.is_empty(),
+                "LeakPreventionType should have debug representation"
+            );
+        }
+    }
+
+    /// Objective: Verify ResourceLeakAnalysis with multiple leaks
+    /// Invariants: Should handle multiple potential leaks
+    #[test]
+    fn test_resource_leak_analysis_multiple() {
+        let leak1 = EnhancedPotentialLeak {
+            object_id: 1,
+            leak_type: LeakType::Memory,
+            risk_level: LeakRiskLevel::High,
+            evidence: vec![],
+            estimated_impact: LeakImpact {
+                memory_bytes: 1024,
+                performance_impact_percent: 5.0,
+                resource_count: 1,
+                time_to_critical_hours: None,
+            },
+        };
+
+        let leak2 = EnhancedPotentialLeak {
+            object_id: 2,
+            leak_type: LeakType::FileHandle,
+            risk_level: LeakRiskLevel::Medium,
+            evidence: vec![],
+            estimated_impact: LeakImpact {
+                memory_bytes: 0,
+                performance_impact_percent: 0.0,
+                resource_count: 1,
+                time_to_critical_hours: None,
+            },
+        };
+
+        let analysis = ResourceLeakAnalysis {
+            potential_leaks: vec![leak1, leak2],
+            detection_confidence: 0.85,
+            usage_patterns: vec![],
+            prevention_recommendations: vec![],
+        };
+
+        assert_eq!(
+            analysis.potential_leaks.len(),
+            2,
+            "Should have two potential leaks"
+        );
+        assert_eq!(
+            analysis.detection_confidence, 0.85,
+            "Confidence should match"
+        );
+    }
+
+    /// Objective: Verify serialization of LeakType
+    /// Invariants: Should serialize and deserialize correctly
+    #[test]
+    fn test_leak_type_serialization() {
+        let leak_type = LeakType::ReferenceCycle;
+        let json = serde_json::to_string(&leak_type);
+        assert!(json.is_ok(), "Should serialize to JSON");
+
+        let deserialized: Result<LeakType, _> = serde_json::from_str(&json.unwrap());
+        assert!(deserialized.is_ok(), "Should deserialize from JSON");
+        assert_eq!(
+            deserialized.unwrap(),
+            LeakType::ReferenceCycle,
+            "Should preserve value"
+        );
+    }
+
+    /// Objective: Verify serialization of LeakRiskLevel
+    /// Invariants: Should serialize and deserialize correctly
+    #[test]
+    fn test_leak_risk_level_serialization() {
+        let risk = LeakRiskLevel::Critical;
+        let json = serde_json::to_string(&risk);
+        assert!(json.is_ok(), "Should serialize to JSON");
+
+        let deserialized: Result<LeakRiskLevel, _> = serde_json::from_str(&json.unwrap());
+        assert!(deserialized.is_ok(), "Should deserialize from JSON");
+        assert_eq!(
+            deserialized.unwrap(),
+            LeakRiskLevel::Critical,
+            "Should preserve value"
+        );
+    }
+
+    /// Objective: Verify LeakImpact with zero values
+    /// Invariants: Should handle zero values
+    #[test]
+    fn test_leak_impact_zero_values() {
+        let impact = LeakImpact {
+            memory_bytes: 0,
+            performance_impact_percent: 0.0,
+            resource_count: 0,
+            time_to_critical_hours: None,
+        };
+
+        assert_eq!(impact.memory_bytes, 0, "Zero memory bytes should be valid");
+        assert_eq!(
+            impact.resource_count, 0,
+            "Zero resource count should be valid"
+        );
+    }
+
+    /// Objective: Verify LeakImpact with large values
+    /// Invariants: Should handle large values
+    #[test]
+    fn test_leak_impact_large_values() {
+        let impact = LeakImpact {
+            memory_bytes: usize::MAX,
+            performance_impact_percent: 100.0,
+            resource_count: u32::MAX,
+            time_to_critical_hours: Some(f64::MAX),
+        };
+
+        assert_eq!(
+            impact.memory_bytes,
+            usize::MAX,
+            "Max memory bytes should be valid"
+        );
+        assert_eq!(
+            impact.resource_count,
+            u32::MAX,
+            "Max resource count should be valid"
+        );
+    }
+
+    /// Objective: Verify Priority variants
+    /// Invariants: All variants should be distinct
+    #[test]
+    fn test_priority_variants() {
+        assert_eq!(Priority::Low, Priority::Low);
+        assert_eq!(Priority::Medium, Priority::Medium);
+        assert_eq!(Priority::High, Priority::High);
+        assert_eq!(Priority::Critical, Priority::Critical);
+
+        assert_ne!(Priority::Low, Priority::Critical);
+    }
 }

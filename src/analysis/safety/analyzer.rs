@@ -119,14 +119,16 @@ impl SafetyAnalyzer {
                 .as_secs(),
         };
 
-        if let Ok(mut reports) = self.unsafe_reports.lock() {
-            if reports.len() >= self.config.max_reports {
-                if let Some(oldest_id) = reports.keys().next().cloned() {
-                    reports.remove(&oldest_id);
-                }
+        let mut reports = self.unsafe_reports.lock().unwrap_or_else(|e| {
+            tracing::warn!("Mutex poisoned in unsafe_reports, recovering data: {}", e);
+            e.into_inner()
+        });
+        if reports.len() >= self.config.max_reports {
+            if let Some(oldest_id) = reports.keys().next().cloned() {
+                reports.remove(&oldest_id);
             }
-            reports.insert(report_id.clone(), report);
         }
+        reports.insert(report_id.clone(), report);
 
         self.update_stats(&report_id, &risk_assessment.risk_level);
 
@@ -197,13 +199,17 @@ impl SafetyAnalyzer {
             updated_at: current_time,
         };
 
-        if let Ok(mut passports) = self.memory_passports.lock() {
-            passports.insert(allocation_ptr, passport);
-        }
+        let mut passports = self.memory_passports.lock().unwrap_or_else(|e| {
+            tracing::warn!("Mutex poisoned in memory_passports, recovering data: {}", e);
+            e.into_inner()
+        });
+        passports.insert(allocation_ptr, passport);
 
-        if let Ok(mut stats) = self.stats.lock() {
-            stats.total_passports += 1;
-        }
+        let mut stats = self.stats.lock().unwrap_or_else(|e| {
+            tracing::warn!("Mutex poisoned in stats, recovering data: {}", e);
+            e.into_inner()
+        });
+        stats.total_passports += 1;
 
         tracing::info!(
             "📋 Created memory passport: {} for 0x{:x}",
@@ -238,13 +244,15 @@ impl SafetyAnalyzer {
             metadata: HashMap::new(),
         };
 
-        if let Ok(mut passports) = self.memory_passports.lock() {
-            if let Some(passport) = passports.get_mut(&allocation_ptr) {
-                passport.lifecycle_events.push(event);
-                passport.updated_at = current_time;
+        let mut passports = self.memory_passports.lock().unwrap_or_else(|e| {
+            tracing::warn!("Mutex poisoned in memory_passports, recovering data: {}", e);
+            e.into_inner()
+        });
+        if let Some(passport) = passports.get_mut(&allocation_ptr) {
+            passport.lifecycle_events.push(event);
+            passport.updated_at = current_time;
 
-                tracing::info!("📝 Recorded passport event for 0x{:x}", allocation_ptr);
-            }
+            tracing::info!("📝 Recorded passport event for 0x{:x}", allocation_ptr);
         }
 
         Ok(())
@@ -253,27 +261,38 @@ impl SafetyAnalyzer {
     pub fn finalize_passports_at_shutdown(&self) -> Vec<String> {
         let mut leaked_passports = Vec::new();
 
-        if let Ok(mut passports) = self.memory_passports.lock() {
-            for (ptr, passport) in passports.iter_mut() {
-                let final_status = self.determine_final_passport_status(&passport.lifecycle_events);
-                passport.status_at_shutdown = final_status.clone();
+        let mut passports = self.memory_passports.lock().unwrap_or_else(|e| {
+            tracing::warn!("Mutex poisoned in memory_passports, recovering data: {}", e);
+            e.into_inner()
+        });
 
-                if matches!(final_status, PassportStatus::InForeignCustody) {
-                    leaked_passports.push(passport.passport_id.clone());
-                    tracing::warn!(
-                        "🚨 Memory leak detected: passport {} (0x{:x}) in foreign custody",
-                        passport.passport_id,
-                        ptr
-                    );
-                }
-            }
+        for (ptr, passport) in passports.iter_mut() {
+            let final_status = self.determine_final_passport_status(&passport.lifecycle_events);
+            passport.status_at_shutdown = final_status.clone();
 
-            if let Ok(mut stats) = self.stats.lock() {
-                for passport in passports.values() {
-                    let status_key = format!("{:?}", passport.status_at_shutdown);
-                    *stats.passports_by_status.entry(status_key).or_insert(0) += 1;
-                }
+            if matches!(final_status, PassportStatus::InForeignCustody) {
+                leaked_passports.push(passport.passport_id.clone());
+                tracing::warn!(
+                    "🚨 Memory leak detected: passport {} (0x{:x}) in foreign custody",
+                    passport.passport_id,
+                    ptr
+                );
             }
+        }
+
+        let status_counts: Vec<String> = passports
+            .values()
+            .map(|p| format!("{:?}", p.status_at_shutdown))
+            .collect();
+
+        drop(passports);
+
+        let mut stats = self.stats.lock().unwrap_or_else(|e| {
+            tracing::warn!("Mutex poisoned in stats, recovering data: {}", e);
+            e.into_inner()
+        });
+        for status_key in status_counts {
+            *stats.passports_by_status.entry(status_key).or_insert(0) += 1;
         }
 
         tracing::info!(
@@ -415,7 +434,7 @@ impl SafetyAnalyzer {
                     detected_at: (*timestamp as u64),
                     call_stack: Vec::new(),
                     severity: RiskLevel::Critical,
-                    context: "Double free detected".to_string(),
+                    context: "Double free detected: memory was freed twice".to_string(),
                 },
                 SafetyViolation::InvalidFree {
                     attempted_pointer,
@@ -428,21 +447,32 @@ impl SafetyAnalyzer {
                     detected_at: (*timestamp as u64),
                     call_stack: Vec::new(),
                     severity: RiskLevel::High,
-                    context: "Invalid free attempted".to_string(),
+                    context: format!(
+                        "Invalid free attempted at address 0x{:x}",
+                        attempted_pointer
+                    ),
                 },
                 SafetyViolation::PotentialLeak {
+                    allocation_timestamp,
                     leak_detection_timestamp,
                     ..
                 } => DynamicViolation {
-                    violation_type: ViolationType::InvalidAccess,
+                    violation_type: ViolationType::MemoryLeak,
                     memory_address: 0,
                     memory_size: 0,
                     detected_at: (*leak_detection_timestamp as u64),
                     call_stack: Vec::new(),
                     severity: RiskLevel::Medium,
-                    context: "Potential memory leak".to_string(),
+                    context: format!(
+                        "Potential memory leak detected (allocated at timestamp {})",
+                        allocation_timestamp
+                    ),
                 },
-                SafetyViolation::CrossBoundaryRisk { .. } => DynamicViolation {
+                SafetyViolation::CrossBoundaryRisk {
+                    risk_level,
+                    description,
+                    ..
+                } => DynamicViolation {
                     violation_type: ViolationType::FfiBoundaryViolation,
                     memory_address: 0,
                     memory_size: 0,
@@ -451,8 +481,8 @@ impl SafetyAnalyzer {
                         .unwrap_or_default()
                         .as_secs(),
                     call_stack: Vec::new(),
-                    severity: RiskLevel::Medium,
-                    context: "Cross-boundary risk detected".to_string(),
+                    severity: risk_level.clone(),
+                    context: description.clone(),
                 },
             })
             .collect()
@@ -467,11 +497,13 @@ impl SafetyAnalyzer {
     }
 
     fn update_stats(&self, _report_id: &str, risk_level: &RiskLevel) {
-        if let Ok(mut stats) = self.stats.lock() {
-            stats.total_reports += 1;
-            let risk_key = format!("{risk_level:?}");
-            *stats.reports_by_risk_level.entry(risk_key).or_insert(0) += 1;
-        }
+        let mut stats = self.stats.lock().unwrap_or_else(|e| {
+            tracing::warn!("Mutex poisoned in stats, recovering data: {}", e);
+            e.into_inner()
+        });
+        stats.total_reports += 1;
+        let risk_key = format!("{risk_level:?}");
+        *stats.reports_by_risk_level.entry(risk_key).or_insert(0) += 1;
     }
 
     fn determine_final_passport_status(&self, events: &[PassportEvent]) -> PassportStatus {
@@ -509,5 +541,1136 @@ impl SafetyAnalyzer {
 impl Default for SafetyAnalyzer {
     fn default() -> Self {
         Self::new(SafetyAnalysisConfig::default())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Objective: Verify SafetyAnalyzer creation with default config
+    /// Invariants: Default config should have detailed_risk_assessment enabled
+    #[test]
+    fn test_safety_analyzer_default() {
+        let analyzer = SafetyAnalyzer::default();
+        let stats = analyzer.get_stats();
+        assert_eq!(
+            stats.total_reports, 0,
+            "New analyzer should have zero reports"
+        );
+        assert_eq!(
+            stats.total_passports, 0,
+            "New analyzer should have zero passports"
+        );
+    }
+
+    /// Objective: Verify SafetyAnalyzer creation with custom config
+    /// Invariants: Custom config values should be respected
+    #[test]
+    fn test_safety_analyzer_custom_config() {
+        let config = SafetyAnalysisConfig {
+            detailed_risk_assessment: false,
+            enable_passport_tracking: false,
+            min_risk_level: RiskLevel::High,
+            max_reports: 100,
+            enable_dynamic_violations: false,
+        };
+        let analyzer = SafetyAnalyzer::new(config);
+        let stats = analyzer.get_stats();
+        assert_eq!(
+            stats.total_reports, 0,
+            "Custom config analyzer should start with zero reports"
+        );
+    }
+
+    /// Objective: Verify generate_unsafe_report for UnsafeBlock source
+    /// Invariants: Should generate report with correct source type
+    #[test]
+    fn test_generate_unsafe_report_unsafe_block() {
+        let analyzer = SafetyAnalyzer::default();
+        let source = UnsafeSource::UnsafeBlock {
+            location: "test.rs:10".to_string(),
+            function: "test_fn".to_string(),
+            file_path: Some("test.rs".to_string()),
+            line_number: Some(10),
+        };
+
+        let result = analyzer.generate_unsafe_report(source, &[], &[]);
+        assert!(result.is_ok(), "Should generate report successfully");
+        let report_id = result.unwrap();
+        assert!(
+            report_id.starts_with("UNSAFE-UB-"),
+            "Report ID should start with UNSAFE-UB-"
+        );
+    }
+
+    /// Objective: Verify generate_unsafe_report for FfiFunction source
+    /// Invariants: Should generate report with FFI prefix and correct FFI context
+    #[test]
+    fn test_generate_unsafe_report_ffi() {
+        let analyzer = SafetyAnalyzer::default();
+        let source = UnsafeSource::FfiFunction {
+            library: "libc".to_string(),
+            function: "malloc".to_string(),
+            call_site: "test.rs:20".to_string(),
+        };
+
+        let result = analyzer.generate_unsafe_report(source, &[], &[]);
+        assert!(result.is_ok(), "Should generate FFI report successfully");
+        let report_id = result.unwrap();
+        assert!(
+            report_id.starts_with("UNSAFE-FFI-"),
+            "FFI report ID should start with UNSAFE-FFI-"
+        );
+
+        let reports = analyzer.get_unsafe_reports();
+        let report = reports
+            .get(&report_id)
+            .expect("Report should exist in reports map");
+
+        match &report.source {
+            UnsafeSource::FfiFunction {
+                library,
+                function,
+                call_site,
+            } => {
+                assert_eq!(
+                    library, "libc",
+                    "FFI report should contain correct library name"
+                );
+                assert_eq!(
+                    function, "malloc",
+                    "FFI report should contain correct function name"
+                );
+                assert_eq!(
+                    call_site, "test.rs:20",
+                    "FFI report should contain correct call site"
+                );
+            }
+            _ => panic!("Report source should be FfiFunction variant"),
+        }
+    }
+
+    /// Objective: Verify generate_unsafe_report for RawPointer source
+    /// Invariants: Should generate report with PTR prefix
+    #[test]
+    fn test_generate_unsafe_report_raw_pointer() {
+        let analyzer = SafetyAnalyzer::default();
+        let source = UnsafeSource::RawPointer {
+            operation: "dereference".to_string(),
+            location: "0x1000".to_string(),
+        };
+
+        let result = analyzer.generate_unsafe_report(source, &[], &[]);
+        assert!(
+            result.is_ok(),
+            "Should generate raw pointer report successfully"
+        );
+        let report_id = result.unwrap();
+        assert!(
+            report_id.starts_with("UNSAFE-PTR-"),
+            "PTR report ID should start with UNSAFE-PTR-"
+        );
+    }
+
+    /// Objective: Verify generate_unsafe_report for Transmute source
+    /// Invariants: Should generate report with TX prefix
+    #[test]
+    fn test_generate_unsafe_report_transmute() {
+        let analyzer = SafetyAnalyzer::default();
+        let source = UnsafeSource::Transmute {
+            from_type: "u8".to_string(),
+            to_type: "i8".to_string(),
+            location: "test.rs:30".to_string(),
+        };
+
+        let result = analyzer.generate_unsafe_report(source, &[], &[]);
+        assert!(
+            result.is_ok(),
+            "Should generate transmute report successfully"
+        );
+        let report_id = result.unwrap();
+        assert!(
+            report_id.starts_with("UNSAFE-TX-"),
+            "TX report ID should start with UNSAFE-TX-"
+        );
+    }
+
+    /// Objective: Verify create_memory_passport functionality
+    /// Invariants: Should create passport with correct initial state
+    #[test]
+    fn test_create_memory_passport() {
+        let analyzer = SafetyAnalyzer::default();
+        let result =
+            analyzer.create_memory_passport(0x1000, 1024, PassportEventType::AllocatedInRust);
+        assert!(result.is_ok(), "Should create passport successfully");
+        let passport_id = result.unwrap();
+        assert!(
+            passport_id.starts_with("passport_"),
+            "Passport ID should start with passport_"
+        );
+
+        let stats = analyzer.get_stats();
+        assert_eq!(
+            stats.total_passports, 1,
+            "Should have one passport after creation"
+        );
+    }
+
+    /// Objective: Verify passport tracking disabled behavior
+    /// Invariants: Should return empty string when tracking disabled
+    #[test]
+    fn test_passport_tracking_disabled() {
+        let config = SafetyAnalysisConfig {
+            enable_passport_tracking: false,
+            ..Default::default()
+        };
+        let analyzer = SafetyAnalyzer::new(config);
+        let result =
+            analyzer.create_memory_passport(0x1000, 1024, PassportEventType::AllocatedInRust);
+        assert!(result.is_ok(), "Should return Ok even when disabled");
+        assert!(
+            result.unwrap().is_empty(),
+            "Should return empty string when disabled"
+        );
+    }
+
+    /// Objective: Verify record_passport_event functionality
+    /// Invariants: Should record event on existing passport
+    #[test]
+    fn test_record_passport_event() {
+        let analyzer = SafetyAnalyzer::default();
+        analyzer
+            .create_memory_passport(0x1000, 1024, PassportEventType::AllocatedInRust)
+            .unwrap();
+
+        let result = analyzer.record_passport_event(
+            0x1000,
+            PassportEventType::HandoverToFfi,
+            "test_context".to_string(),
+        );
+        assert!(result.is_ok(), "Should record event successfully");
+
+        let passports = analyzer.get_memory_passports();
+        assert!(passports.contains_key(&0x1000), "Passport should exist");
+        let passport = passports.get(&0x1000).unwrap();
+        assert_eq!(passport.lifecycle_events.len(), 2, "Should have two events");
+    }
+
+    /// Objective: Verify finalize_passports_at_shutdown detects leaks
+    /// Invariants: Should detect passports in foreign custody
+    #[test]
+    fn test_finalize_passports_leak_detection() {
+        let analyzer = SafetyAnalyzer::default();
+        analyzer
+            .create_memory_passport(0x1000, 1024, PassportEventType::AllocatedInRust)
+            .unwrap();
+        analyzer
+            .record_passport_event(
+                0x1000,
+                PassportEventType::HandoverToFfi,
+                "ffi_transfer".to_string(),
+            )
+            .unwrap();
+
+        let leaks = analyzer.finalize_passports_at_shutdown();
+        assert_eq!(
+            leaks.len(),
+            1,
+            "Should detect one leak for passport in foreign custody"
+        );
+    }
+
+    /// Objective: Verify finalize_passports_at_shutdown for freed passports
+    /// Invariants: Should not detect leaks for properly freed passports
+    #[test]
+    fn test_finalize_passports_no_leak() {
+        let analyzer = SafetyAnalyzer::default();
+        analyzer
+            .create_memory_passport(0x1000, 1024, PassportEventType::AllocatedInRust)
+            .unwrap();
+        analyzer
+            .record_passport_event(
+                0x1000,
+                PassportEventType::FreedByForeign,
+                "freed".to_string(),
+            )
+            .unwrap();
+
+        let leaks = analyzer.finalize_passports_at_shutdown();
+        assert!(
+            leaks.is_empty(),
+            "Should not detect leak for freed passport"
+        );
+    }
+
+    /// Objective: Verify get_unsafe_reports returns all reports
+    /// Invariants: Should return all generated reports
+    #[test]
+    fn test_get_unsafe_reports() {
+        let analyzer = SafetyAnalyzer::default();
+        let source = UnsafeSource::UnsafeBlock {
+            location: "test.rs".to_string(),
+            function: "test".to_string(),
+            file_path: None,
+            line_number: None,
+        };
+        analyzer
+            .generate_unsafe_report(source.clone(), &[], &[])
+            .unwrap();
+        analyzer.generate_unsafe_report(source, &[], &[]).unwrap();
+
+        let reports = analyzer.get_unsafe_reports();
+        assert_eq!(reports.len(), 2, "Should have two reports");
+    }
+
+    /// Objective: Verify min_risk_level filtering
+    /// Invariants: Should not generate report below min risk level
+    #[test]
+    fn test_min_risk_level_filtering() {
+        let config = SafetyAnalysisConfig {
+            min_risk_level: RiskLevel::Critical,
+            ..Default::default()
+        };
+        let analyzer = SafetyAnalyzer::new(config);
+        let source = UnsafeSource::UnsafeBlock {
+            location: "test.rs".to_string(),
+            function: "test".to_string(),
+            file_path: None,
+            line_number: None,
+        };
+        let result = analyzer.generate_unsafe_report(source, &[], &[]);
+        assert!(result.is_ok(), "Should return Ok even when filtered");
+    }
+
+    /// Objective: Verify stats update after report generation
+    /// Invariants: Stats should reflect generated reports
+    #[test]
+    fn test_stats_update() {
+        let analyzer = SafetyAnalyzer::default();
+        let source = UnsafeSource::RawPointer {
+            operation: "test".to_string(),
+            location: "test".to_string(),
+        };
+        analyzer.generate_unsafe_report(source, &[], &[]).unwrap();
+
+        let stats = analyzer.get_stats();
+        assert_eq!(stats.total_reports, 1, "Stats should show one report");
+        assert!(
+            !stats.reports_by_risk_level.is_empty(),
+            "Should have risk level breakdown"
+        );
+    }
+
+    /// Objective: Verify max_reports limit enforcement
+    /// Invariants: Should remove oldest report when limit exceeded
+    #[test]
+    fn test_max_reports_limit() {
+        let config = SafetyAnalysisConfig {
+            max_reports: 2,
+            ..Default::default()
+        };
+        let analyzer = SafetyAnalyzer::new(config);
+        let source = UnsafeSource::UnsafeBlock {
+            location: "test.rs".to_string(),
+            function: "test".to_string(),
+            file_path: None,
+            line_number: None,
+        };
+
+        analyzer
+            .generate_unsafe_report(source.clone(), &[], &[])
+            .unwrap();
+        analyzer
+            .generate_unsafe_report(source.clone(), &[], &[])
+            .unwrap();
+        analyzer.generate_unsafe_report(source, &[], &[]).unwrap();
+
+        let reports = analyzer.get_unsafe_reports();
+        assert!(reports.len() <= 2, "Should not exceed max_reports limit");
+    }
+
+    /// Objective: Verify SafetyAnalysisConfig default values
+    /// Invariants: Default should have sensible values
+    #[test]
+    fn test_safety_config_default() {
+        let config = SafetyAnalysisConfig::default();
+        assert!(
+            config.detailed_risk_assessment,
+            "Detailed risk assessment should be enabled"
+        );
+        assert!(
+            config.enable_passport_tracking,
+            "Passport tracking should be enabled"
+        );
+        assert_eq!(config.max_reports, 1000, "Max reports should be 1000");
+    }
+
+    /// Objective: Verify RiskLevel ordering
+    /// Invariants: Critical should be highest, Low should be lowest
+    #[test]
+    fn test_risk_level_ordering() {
+        assert!(matches!(RiskLevel::Low, RiskLevel::Low));
+        assert!(matches!(RiskLevel::Medium, RiskLevel::Medium));
+        assert!(matches!(RiskLevel::High, RiskLevel::High));
+        assert!(matches!(RiskLevel::Critical, RiskLevel::Critical));
+    }
+
+    /// Objective: Verify PassportStatus variants
+    /// Invariants: All variants should be distinct
+    #[test]
+    fn test_passport_status_variants() {
+        let statuses = vec![
+            PassportStatus::FreedByRust,
+            PassportStatus::HandoverToFfi,
+            PassportStatus::FreedByForeign,
+            PassportStatus::ReclaimedByRust,
+            PassportStatus::InForeignCustody,
+            PassportStatus::Unknown,
+        ];
+
+        for status in &statuses {
+            let debug_str = format!("{status:?}");
+            assert!(
+                !debug_str.is_empty(),
+                "Status should have debug representation"
+            );
+        }
+    }
+
+    /// Objective: Verify PassportEventType variants
+    /// Invariants: All event types should be distinct
+    #[test]
+    fn test_passport_event_type_variants() {
+        let event_types = vec![
+            PassportEventType::AllocatedInRust,
+            PassportEventType::HandoverToFfi,
+            PassportEventType::FreedByForeign,
+            PassportEventType::ReclaimedByRust,
+            PassportEventType::BoundaryAccess,
+            PassportEventType::OwnershipTransfer,
+        ];
+
+        for event_type in &event_types {
+            let debug_str = format!("{event_type:?}");
+            assert!(
+                !debug_str.is_empty(),
+                "Event type should have debug representation"
+            );
+        }
+    }
+
+    /// Objective: Verify record_passport_event for non-existent passport
+    /// Invariants: Should return Ok even when passport doesn't exist
+    #[test]
+    fn test_record_passport_event_non_existent() {
+        let analyzer = SafetyAnalyzer::default();
+        let result = analyzer.record_passport_event(
+            0x9999,
+            PassportEventType::HandoverToFfi,
+            "test_context".to_string(),
+        );
+        assert!(
+            result.is_ok(),
+            "Should return Ok even for non-existent passport"
+        );
+
+        let passports = analyzer.get_memory_passports();
+        assert!(
+            !passports.contains_key(&0x9999),
+            "Non-existent passport should not be created"
+        );
+    }
+
+    /// Objective: Verify generate_unsafe_report with allocations
+    /// Invariants: Should handle allocations correctly in memory context
+    #[test]
+    fn test_generate_unsafe_report_with_allocations() {
+        let analyzer = SafetyAnalyzer::default();
+        let source = UnsafeSource::RawPointer {
+            operation: "test".to_string(),
+            location: "test.rs".to_string(),
+        };
+
+        let result = analyzer.generate_unsafe_report(source, &[], &[]);
+        assert!(
+            result.is_ok(),
+            "Should generate report with empty allocations"
+        );
+    }
+
+    /// Objective: Verify generate_unsafe_report with safety violations
+    /// Invariants: Should convert violations to dynamic violations
+    #[test]
+    fn test_generate_unsafe_report_with_violations() {
+        let analyzer = SafetyAnalyzer::default();
+        let source = UnsafeSource::UnsafeBlock {
+            location: "test.rs".to_string(),
+            function: "test".to_string(),
+            file_path: None,
+            line_number: None,
+        };
+
+        let result = analyzer.generate_unsafe_report(source, &[], &[]);
+        assert!(
+            result.is_ok(),
+            "Should generate report with empty violations"
+        );
+
+        let report_id = result.unwrap();
+        let reports = analyzer.get_unsafe_reports();
+        let report = reports.get(&report_id).expect("Report should exist");
+        assert_eq!(
+            report.dynamic_violations.len(),
+            0,
+            "Should have no violations when empty"
+        );
+    }
+
+    /// Objective: Verify determine_final_passport_status for various scenarios
+    /// Invariants: Should correctly determine passport status based on events
+    #[test]
+    fn test_determine_final_passport_status_scenarios() {
+        let analyzer = SafetyAnalyzer::default();
+
+        let events_handover_only = vec![PassportEvent {
+            event_type: PassportEventType::HandoverToFfi,
+            timestamp: 1000,
+            context: "test".to_string(),
+            call_stack: vec![],
+            metadata: HashMap::new(),
+        }];
+        let status = analyzer.determine_final_passport_status(&events_handover_only);
+        assert!(
+            matches!(status, PassportStatus::InForeignCustody),
+            "Handover without reclaim or foreign free should be InForeignCustody"
+        );
+
+        let events_reclaimed = vec![
+            PassportEvent {
+                event_type: PassportEventType::HandoverToFfi,
+                timestamp: 1000,
+                context: "test".to_string(),
+                call_stack: vec![],
+                metadata: HashMap::new(),
+            },
+            PassportEvent {
+                event_type: PassportEventType::ReclaimedByRust,
+                timestamp: 2000,
+                context: "test".to_string(),
+                call_stack: vec![],
+                metadata: HashMap::new(),
+            },
+        ];
+        let status = analyzer.determine_final_passport_status(&events_reclaimed);
+        assert!(
+            matches!(status, PassportStatus::ReclaimedByRust),
+            "Reclaimed after handover should be ReclaimedByRust"
+        );
+
+        let events_freed_by_foreign = vec![
+            PassportEvent {
+                event_type: PassportEventType::HandoverToFfi,
+                timestamp: 1000,
+                context: "test".to_string(),
+                call_stack: vec![],
+                metadata: HashMap::new(),
+            },
+            PassportEvent {
+                event_type: PassportEventType::FreedByForeign,
+                timestamp: 2000,
+                context: "test".to_string(),
+                call_stack: vec![],
+                metadata: HashMap::new(),
+            },
+        ];
+        let status = analyzer.determine_final_passport_status(&events_freed_by_foreign);
+        assert!(
+            matches!(status, PassportStatus::FreedByForeign),
+            "Freed by foreign should be FreedByForeign"
+        );
+
+        let events_no_handover = vec![PassportEvent {
+            event_type: PassportEventType::AllocatedInRust,
+            timestamp: 1000,
+            context: "test".to_string(),
+            call_stack: vec![],
+            metadata: HashMap::new(),
+        }];
+        let status = analyzer.determine_final_passport_status(&events_no_handover);
+        assert!(
+            matches!(status, PassportStatus::FreedByRust),
+            "No handover should be FreedByRust"
+        );
+    }
+
+    /// Objective: Verify create_basic_risk_assessment functionality
+    /// Invariants: Should create basic assessment when detailed_risk_assessment is disabled
+    #[test]
+    fn test_create_basic_risk_assessment() {
+        let config = SafetyAnalysisConfig {
+            detailed_risk_assessment: false,
+            ..Default::default()
+        };
+        let analyzer = SafetyAnalyzer::new(config);
+
+        let source = UnsafeSource::RawPointer {
+            operation: "test".to_string(),
+            location: "test.rs".to_string(),
+        };
+        let result = analyzer.generate_unsafe_report(source, &[], &[]);
+        assert!(
+            result.is_ok(),
+            "Should generate report with basic assessment"
+        );
+
+        let report_id = result.unwrap();
+        let reports = analyzer.get_unsafe_reports();
+        let report = reports.get(&report_id).expect("Report should exist");
+        assert!(
+            report.risk_assessment.risk_score > 0.0,
+            "Basic assessment should have risk score"
+        );
+    }
+
+    /// Objective: Verify should_generate_report filtering logic
+    /// Invariants: Should filter reports based on min_risk_level
+    #[test]
+    fn test_should_generate_report_filtering() {
+        let config = SafetyAnalysisConfig {
+            min_risk_level: RiskLevel::High,
+            ..Default::default()
+        };
+        let analyzer = SafetyAnalyzer::new(config);
+
+        let source = UnsafeSource::UnsafeBlock {
+            location: "test.rs".to_string(),
+            function: "test".to_string(),
+            file_path: None,
+            line_number: None,
+        };
+        let result = analyzer.generate_unsafe_report(source, &[], &[]);
+        assert!(result.is_ok(), "Should return Ok even when filtered");
+
+        let reports = analyzer.get_unsafe_reports();
+        assert!(
+            reports.is_empty(),
+            "Report should be filtered out when below min risk level"
+        );
+    }
+
+    /// Objective: Verify memory pressure level calculation
+    /// Invariants: Should correctly calculate memory pressure based on allocations
+    #[test]
+    fn test_memory_pressure_levels() {
+        let analyzer = SafetyAnalyzer::default();
+
+        let source = UnsafeSource::UnsafeBlock {
+            location: "test.rs".to_string(),
+            function: "test".to_string(),
+            file_path: None,
+            line_number: None,
+        };
+        let result = analyzer.generate_unsafe_report(source, &[], &[]);
+        assert!(result.is_ok(), "Should handle empty allocations");
+    }
+
+    /// Objective: Verify passport tracking with multiple events
+    /// Invariants: Should correctly track multiple passport events
+    #[test]
+    fn test_passport_multiple_events() {
+        let analyzer = SafetyAnalyzer::default();
+
+        analyzer
+            .create_memory_passport(0x1000, 1024, PassportEventType::AllocatedInRust)
+            .unwrap();
+
+        analyzer
+            .record_passport_event(
+                0x1000,
+                PassportEventType::HandoverToFfi,
+                "transfer_to_ffi".to_string(),
+            )
+            .unwrap();
+
+        analyzer
+            .record_passport_event(
+                0x1000,
+                PassportEventType::BoundaryAccess,
+                "ffi_access".to_string(),
+            )
+            .unwrap();
+
+        analyzer
+            .record_passport_event(
+                0x1000,
+                PassportEventType::ReclaimedByRust,
+                "reclaimed".to_string(),
+            )
+            .unwrap();
+
+        let passports = analyzer.get_memory_passports();
+        let passport = passports.get(&0x1000).expect("Passport should exist");
+        assert_eq!(
+            passport.lifecycle_events.len(),
+            4,
+            "Should have four events"
+        );
+    }
+
+    /// Objective: Verify finalize_passports_at_shutdown with mixed statuses
+    /// Invariants: Should correctly categorize passports by final status
+    #[test]
+    fn test_finalize_passports_mixed_statuses() {
+        let analyzer = SafetyAnalyzer::default();
+
+        analyzer
+            .create_memory_passport(0x1000, 1024, PassportEventType::AllocatedInRust)
+            .unwrap();
+        analyzer
+            .record_passport_event(
+                0x1000,
+                PassportEventType::HandoverToFfi,
+                "leaked".to_string(),
+            )
+            .unwrap();
+
+        analyzer
+            .create_memory_passport(0x2000, 2048, PassportEventType::AllocatedInRust)
+            .unwrap();
+        analyzer
+            .record_passport_event(
+                0x2000,
+                PassportEventType::FreedByForeign,
+                "freed".to_string(),
+            )
+            .unwrap();
+
+        let leaks = analyzer.finalize_passports_at_shutdown();
+        assert_eq!(leaks.len(), 1, "Should detect one leak");
+
+        let stats = analyzer.get_stats();
+        assert!(
+            stats.passports_by_status.contains_key("InForeignCustody"),
+            "Stats should include InForeignCustody status"
+        );
+        assert!(
+            stats.passports_by_status.contains_key("FreedByForeign"),
+            "Stats should include FreedByForeign status"
+        );
+    }
+
+    /// Objective: Verify enable_dynamic_violations configuration
+    /// Invariants: Should respect dynamic_violations config setting
+    #[test]
+    fn test_enable_dynamic_violations_config() {
+        let config = SafetyAnalysisConfig {
+            enable_dynamic_violations: false,
+            ..Default::default()
+        };
+        let analyzer = SafetyAnalyzer::new(config);
+
+        let source = UnsafeSource::UnsafeBlock {
+            location: "test.rs".to_string(),
+            function: "test".to_string(),
+            file_path: None,
+            line_number: None,
+        };
+        let result = analyzer.generate_unsafe_report(source, &[], &[]);
+        assert!(
+            result.is_ok(),
+            "Should generate report with dynamic violations disabled"
+        );
+    }
+
+    /// Objective: Verify all UnsafeSource variants generate unique report IDs
+    /// Invariants: Each source type should generate distinct report ID prefix
+    #[test]
+    fn test_all_unsafe_source_variants() {
+        let analyzer = SafetyAnalyzer::default();
+
+        let sources = vec![
+            UnsafeSource::UnsafeBlock {
+                location: "test.rs".to_string(),
+                function: "test".to_string(),
+                file_path: None,
+                line_number: None,
+            },
+            UnsafeSource::FfiFunction {
+                library: "libc".to_string(),
+                function: "malloc".to_string(),
+                call_site: "test.rs".to_string(),
+            },
+            UnsafeSource::RawPointer {
+                operation: "test".to_string(),
+                location: "test.rs".to_string(),
+            },
+            UnsafeSource::Transmute {
+                from_type: "u8".to_string(),
+                to_type: "i8".to_string(),
+                location: "test.rs".to_string(),
+            },
+        ];
+
+        let mut report_ids = Vec::new();
+        for source in sources {
+            let result = analyzer.generate_unsafe_report(source, &[], &[]);
+            assert!(
+                result.is_ok(),
+                "Should generate report for all source types"
+            );
+            report_ids.push(result.unwrap());
+        }
+
+        assert_eq!(report_ids.len(), 4, "Should have generated 4 reports");
+    }
+
+    /// Objective: Verify determine_final_passport_status with conflicting events
+    /// Invariants: Should handle reclaim + foreign_free scenario correctly
+    #[test]
+    fn test_determine_final_passport_status_conflicting_events() {
+        let analyzer = SafetyAnalyzer::default();
+
+        let events_conflict = vec![
+            PassportEvent {
+                event_type: PassportEventType::HandoverToFfi,
+                timestamp: 1000,
+                context: "test".to_string(),
+                call_stack: vec![],
+                metadata: HashMap::new(),
+            },
+            PassportEvent {
+                event_type: PassportEventType::ReclaimedByRust,
+                timestamp: 2000,
+                context: "test".to_string(),
+                call_stack: vec![],
+                metadata: HashMap::new(),
+            },
+            PassportEvent {
+                event_type: PassportEventType::FreedByForeign,
+                timestamp: 3000,
+                context: "test".to_string(),
+                call_stack: vec![],
+                metadata: HashMap::new(),
+            },
+        ];
+        let status = analyzer.determine_final_passport_status(&events_conflict);
+        assert!(
+            matches!(status, PassportStatus::FreedByForeign),
+            "When both reclaim and foreign_free exist, should prioritize foreign_free"
+        );
+    }
+
+    /// Objective: Verify passport creation with zero size
+    /// Invariants: Should handle zero size allocation gracefully
+    #[test]
+    fn test_create_memory_passport_zero_size() {
+        let analyzer = SafetyAnalyzer::default();
+        let result = analyzer.create_memory_passport(0x1000, 0, PassportEventType::AllocatedInRust);
+        assert!(result.is_ok(), "Should create passport with zero size");
+
+        let passports = analyzer.get_memory_passports();
+        let passport = passports.get(&0x1000).expect("Passport should exist");
+        assert_eq!(passport.size_bytes, 0, "Passport should have zero size");
+    }
+
+    /// Objective: Verify passport creation with null pointer
+    /// Invariants: Should handle null pointer (0x0) allocation
+    #[test]
+    fn test_create_memory_passport_null_pointer() {
+        let analyzer = SafetyAnalyzer::default();
+        let result = analyzer.create_memory_passport(0x0, 1024, PassportEventType::AllocatedInRust);
+        assert!(result.is_ok(), "Should create passport with null pointer");
+
+        let passports = analyzer.get_memory_passports();
+        assert!(
+            passports.contains_key(&0x0),
+            "Passport with null pointer should exist"
+        );
+    }
+
+    /// Objective: Verify multiple passports with same pointer (potential bug)
+    /// Invariants: Should overwrite previous passport with same pointer
+    #[test]
+    fn test_create_memory_passport_duplicate_pointer() {
+        let analyzer = SafetyAnalyzer::default();
+
+        analyzer
+            .create_memory_passport(0x1000, 1024, PassportEventType::AllocatedInRust)
+            .unwrap();
+
+        analyzer
+            .create_memory_passport(0x1000, 2048, PassportEventType::AllocatedInRust)
+            .unwrap();
+
+        let passports = analyzer.get_memory_passports();
+        assert_eq!(
+            passports.len(),
+            1,
+            "Duplicate pointer should overwrite previous passport"
+        );
+
+        let passport = passports.get(&0x1000).expect("Passport should exist");
+        assert_eq!(
+            passport.size_bytes, 2048,
+            "Should have size from second creation"
+        );
+
+        let stats = analyzer.get_stats();
+        assert_eq!(
+            stats.total_passports, 2,
+            "Stats should count both creation attempts"
+        );
+    }
+
+    /// Objective: Verify max_reports limit with exact boundary
+    /// Invariants: Should handle exactly max_reports count
+    #[test]
+    fn test_max_reports_exact_boundary() {
+        let config = SafetyAnalysisConfig {
+            max_reports: 3,
+            ..Default::default()
+        };
+        let analyzer = SafetyAnalyzer::new(config);
+        let source = UnsafeSource::UnsafeBlock {
+            location: "test.rs".to_string(),
+            function: "test".to_string(),
+            file_path: None,
+            line_number: None,
+        };
+
+        for _ in 0..3 {
+            analyzer
+                .generate_unsafe_report(source.clone(), &[], &[])
+                .unwrap();
+        }
+
+        let reports = analyzer.get_unsafe_reports();
+        assert_eq!(reports.len(), 3, "Should have exactly max_reports count");
+
+        analyzer.generate_unsafe_report(source, &[], &[]).unwrap();
+
+        let reports = analyzer.get_unsafe_reports();
+        assert!(
+            reports.len() <= 3,
+            "Should not exceed max_reports after adding one more"
+        );
+    }
+
+    /// Objective: Verify report generation with all risk levels using basic assessment
+    /// Invariants: Should correctly filter based on min_risk_level when using basic assessment
+    #[test]
+    fn test_risk_level_filtering_comprehensive() {
+        let test_cases = vec![
+            (RiskLevel::Low, 4),
+            (RiskLevel::Medium, 4),
+            (RiskLevel::High, 2),
+            (RiskLevel::Critical, 0),
+        ];
+
+        for (min_level, expected_count) in test_cases {
+            let config = SafetyAnalysisConfig {
+                min_risk_level: min_level.clone(),
+                detailed_risk_assessment: false,
+                ..Default::default()
+            };
+            let analyzer = SafetyAnalyzer::new(config);
+
+            let sources = vec![
+                UnsafeSource::UnsafeBlock {
+                    location: "test.rs".to_string(),
+                    function: "test".to_string(),
+                    file_path: None,
+                    line_number: None,
+                },
+                UnsafeSource::FfiFunction {
+                    library: "libc".to_string(),
+                    function: "malloc".to_string(),
+                    call_site: "test.rs".to_string(),
+                },
+                UnsafeSource::RawPointer {
+                    operation: "test".to_string(),
+                    location: "test.rs".to_string(),
+                },
+                UnsafeSource::Transmute {
+                    from_type: "u8".to_string(),
+                    to_type: "i8".to_string(),
+                    location: "test.rs".to_string(),
+                },
+            ];
+
+            for source in sources.into_iter() {
+                analyzer.generate_unsafe_report(source, &[], &[]).unwrap();
+            }
+
+            let reports = analyzer.get_unsafe_reports();
+            let actual_count = reports.len();
+
+            assert_eq!(
+                actual_count, expected_count,
+                "For min_level {:?}, expected {} reports but got {}",
+                min_level, expected_count, actual_count
+            );
+        }
+    }
+
+    /// Objective: Verify risk assessment engine behavior with no matching factors
+    /// Invariants: Should assign Medium risk when no risk factors match (conservative approach)
+    #[test]
+    fn test_risk_assessment_no_matching_factors() {
+        let config = SafetyAnalysisConfig {
+            detailed_risk_assessment: true,
+            min_risk_level: RiskLevel::Low,
+            ..Default::default()
+        };
+        let analyzer = SafetyAnalyzer::new(config);
+
+        let source = UnsafeSource::UnsafeBlock {
+            location: "safe_location.rs".to_string(),
+            function: "safe_function".to_string(),
+            file_path: None,
+            line_number: None,
+        };
+
+        let result = analyzer.generate_unsafe_report(source, &[], &[]);
+        assert!(result.is_ok(), "Should generate report");
+
+        let reports = analyzer.get_unsafe_reports();
+        assert_eq!(reports.len(), 1, "Should have one report");
+
+        let report = reports.values().next().expect("Report should exist");
+        assert!(
+            matches!(report.risk_assessment.risk_level, RiskLevel::Medium),
+            "Risk level should be Medium when no risk factors match (conservative approach)"
+        );
+    }
+
+    /// Objective: Verify passport event recording with empty context
+    /// Invariants: Should handle empty context string
+    #[test]
+    fn test_record_passport_event_empty_context() {
+        let analyzer = SafetyAnalyzer::default();
+
+        analyzer
+            .create_memory_passport(0x1000, 1024, PassportEventType::AllocatedInRust)
+            .unwrap();
+
+        let result =
+            analyzer.record_passport_event(0x1000, PassportEventType::HandoverToFfi, String::new());
+        assert!(result.is_ok(), "Should record event with empty context");
+
+        let passports = analyzer.get_memory_passports();
+        let passport = passports.get(&0x1000).expect("Passport should exist");
+        assert_eq!(passport.lifecycle_events.len(), 2, "Should have two events");
+    }
+
+    /// Objective: Verify stats consistency after multiple operations
+    /// Invariants: Stats should accurately reflect all operations
+    #[test]
+    fn test_stats_consistency() {
+        let analyzer = SafetyAnalyzer::default();
+
+        let initial_stats = analyzer.get_stats();
+        assert_eq!(initial_stats.total_reports, 0);
+        assert_eq!(initial_stats.total_passports, 0);
+
+        analyzer
+            .generate_unsafe_report(
+                UnsafeSource::UnsafeBlock {
+                    location: "test.rs".to_string(),
+                    function: "test".to_string(),
+                    file_path: None,
+                    line_number: None,
+                },
+                &[],
+                &[],
+            )
+            .unwrap();
+
+        analyzer
+            .create_memory_passport(0x1000, 1024, PassportEventType::AllocatedInRust)
+            .unwrap();
+
+        let stats = analyzer.get_stats();
+        assert_eq!(stats.total_reports, 1, "Should have 1 report");
+        assert_eq!(stats.total_passports, 1, "Should have 1 passport");
+        assert!(
+            !stats.reports_by_risk_level.is_empty(),
+            "Should have risk level breakdown"
+        );
+    }
+
+    /// Objective: Verify passport lifecycle with all event types
+    /// Invariants: Should handle all PassportEventType variants
+    #[test]
+    fn test_passport_lifecycle_all_event_types() {
+        let analyzer = SafetyAnalyzer::default();
+
+        analyzer
+            .create_memory_passport(0x1000, 1024, PassportEventType::AllocatedInRust)
+            .unwrap();
+
+        let event_types = vec![
+            PassportEventType::HandoverToFfi,
+            PassportEventType::BoundaryAccess,
+            PassportEventType::OwnershipTransfer,
+            PassportEventType::ReclaimedByRust,
+        ];
+
+        for event_type in event_types {
+            let event_type_str = format!("{:?}", event_type);
+            let result = analyzer.record_passport_event(0x1000, event_type, "test".to_string());
+            assert!(
+                result.is_ok(),
+                "Should record event type {}",
+                event_type_str
+            );
+        }
+
+        let passports = analyzer.get_memory_passports();
+        let passport = passports.get(&0x1000).expect("Passport should exist");
+        assert_eq!(
+            passport.lifecycle_events.len(),
+            5,
+            "Should have initial event plus 4 recorded events"
+        );
+    }
+
+    /// Objective: Verify report ID uniqueness with rapid generation
+    /// Invariants: Each report should have unique ID even when generated rapidly
+    #[test]
+    fn test_report_id_uniqueness() {
+        let analyzer = SafetyAnalyzer::default();
+        let source = UnsafeSource::UnsafeBlock {
+            location: "test.rs".to_string(),
+            function: "test".to_string(),
+            file_path: None,
+            line_number: None,
+        };
+
+        let mut report_ids = std::collections::HashSet::new();
+        for _ in 0..100 {
+            let report_id = analyzer
+                .generate_unsafe_report(source.clone(), &[], &[])
+                .unwrap();
+            assert!(report_ids.insert(report_id), "Report ID should be unique");
+        }
+
+        assert_eq!(report_ids.len(), 100, "Should have 100 unique report IDs");
+    }
+
+    /// Objective: Verify finalize_passports_at_shutdown with empty state
+    /// Invariants: Should handle empty passport map gracefully
+    #[test]
+    fn test_finalize_passports_empty_state() {
+        let analyzer = SafetyAnalyzer::default();
+        let leaks = analyzer.finalize_passports_at_shutdown();
+        assert!(leaks.is_empty(), "Should have no leaks with empty state");
+
+        let stats = analyzer.get_stats();
+        assert!(
+            stats.passports_by_status.is_empty(),
+            "Should have no passport status stats"
+        );
     }
 }

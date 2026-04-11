@@ -194,7 +194,14 @@ impl ReferenceGraph {
 
         for &ptr in self.smart_pointers.keys() {
             if !visited.contains(&ptr) {
-                self.dfs_detect_cycles(ptr, &mut visited, &mut rec_stack, &mut path, &mut path_index, &mut cycles);
+                self.dfs_detect_cycles(
+                    ptr,
+                    &mut visited,
+                    &mut rec_stack,
+                    &mut path,
+                    &mut path_index,
+                    &mut cycles,
+                );
             }
         }
 

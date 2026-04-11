@@ -183,4 +183,158 @@ mod tests {
         let filtered = builder.apply();
         assert_eq!(filtered.len(), 1);
     }
+
+    #[test]
+    fn test_filter_by_type_no_match() {
+        let events =
+            vec![MemoryEvent::allocate(0x1000, 64, 1).with_type_name("Vec<i32>".to_string())];
+        let view = MemoryView::from_events(events);
+        let builder = view.filter().by_type("HashMap");
+        let filtered = builder.apply();
+        assert_eq!(filtered.len(), 0);
+    }
+
+    #[test]
+    fn test_filter_by_type_none_type_name() {
+        let events = vec![MemoryEvent::allocate(0x1000, 64, 1)];
+        let view = MemoryView::from_events(events);
+        let builder = view.filter().by_type("Vec");
+        let filtered = builder.apply();
+        assert_eq!(filtered.len(), 0);
+    }
+
+    #[test]
+    fn test_filter_by_address_range() {
+        let events = vec![
+            MemoryEvent::allocate(0x1000, 64, 1),
+            MemoryEvent::allocate(0x2000, 128, 1),
+            MemoryEvent::allocate(0x3000, 256, 1),
+        ];
+        let view = MemoryView::from_events(events);
+        let builder = view.filter().by_address_range(0x1500, 0x2500);
+        let filtered = builder.apply();
+        assert_eq!(filtered.len(), 1);
+    }
+
+    #[test]
+    fn test_filter_by_min_size() {
+        let events = vec![
+            MemoryEvent::allocate(0x1000, 64, 1),
+            MemoryEvent::allocate(0x2000, 128, 1),
+            MemoryEvent::allocate(0x3000, 256, 1),
+        ];
+        let view = MemoryView::from_events(events);
+        let builder = view.filter().by_min_size(100);
+        let filtered = builder.apply();
+        assert_eq!(filtered.len(), 2);
+    }
+
+    #[test]
+    fn test_filter_by_max_size() {
+        let events = vec![
+            MemoryEvent::allocate(0x1000, 64, 1),
+            MemoryEvent::allocate(0x2000, 128, 1),
+            MemoryEvent::allocate(0x3000, 256, 1),
+        ];
+        let view = MemoryView::from_events(events);
+        let builder = view.filter().by_max_size(100);
+        let filtered = builder.apply();
+        assert_eq!(filtered.len(), 1);
+    }
+
+    #[test]
+    fn test_filter_push() {
+        let events = vec![
+            MemoryEvent::allocate(0x1000, 64, 1),
+            MemoryEvent::allocate(0x2000, 128, 2),
+        ];
+        let view = MemoryView::from_events(events);
+        let builder = view.filter().push(ViewFilter::ByThread(1));
+        let filtered = builder.apply();
+        assert_eq!(filtered.len(), 1);
+    }
+
+    #[test]
+    fn test_filter_count() {
+        let events = vec![
+            MemoryEvent::allocate(0x1000, 64, 1),
+            MemoryEvent::allocate(0x2000, 128, 2),
+        ];
+        let view = MemoryView::from_events(events);
+        let count = view.filter().by_thread(1).count();
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn test_filter_total_size() {
+        let events = vec![
+            MemoryEvent::allocate(0x1000, 64, 1),
+            MemoryEvent::allocate(0x2000, 128, 1),
+        ];
+        let view = MemoryView::from_events(events);
+        let total = view.filter().by_thread(1).total_size();
+        assert_eq!(total, 192);
+    }
+
+    #[test]
+    fn test_filter_thread_ids() {
+        let events = vec![
+            MemoryEvent::allocate(0x1000, 64, 1),
+            MemoryEvent::allocate(0x2000, 128, 2),
+            MemoryEvent::allocate(0x3000, 256, 1),
+        ];
+        let view = MemoryView::from_events(events);
+        let ids = view.filter().thread_ids();
+        assert_eq!(ids.len(), 2);
+        assert!(ids.contains(&1));
+        assert!(ids.contains(&2));
+    }
+
+    #[test]
+    fn test_filter_type_names() {
+        let events = vec![
+            MemoryEvent::allocate(0x1000, 64, 1).with_type_name("Vec<i32>".to_string()),
+            MemoryEvent::allocate(0x2000, 128, 2).with_type_name("String".to_string()),
+        ];
+        let view = MemoryView::from_events(events);
+        let types = view.filter().type_names();
+        assert_eq!(types.len(), 2);
+        assert!(types.contains(&"Vec<i32>".to_string()));
+        assert!(types.contains(&"String".to_string()));
+    }
+
+    #[test]
+    fn test_filter_empty_view() {
+        let events: Vec<MemoryEvent> = vec![];
+        let view = MemoryView::from_events(events);
+        let binding = view.filter().by_thread(1);
+        let filtered = binding.apply();
+        assert_eq!(filtered.len(), 0);
+    }
+
+    #[test]
+    fn test_filter_no_filters() {
+        let events = vec![
+            MemoryEvent::allocate(0x1000, 64, 1),
+            MemoryEvent::allocate(0x2000, 128, 2),
+        ];
+        let view = MemoryView::from_events(events);
+        let binding = view.filter();
+        let filtered = binding.apply();
+        assert_eq!(filtered.len(), 2);
+    }
+
+    #[test]
+    fn test_filter_multiple_chained() {
+        let events = vec![
+            MemoryEvent::allocate(0x1000, 64, 1).with_type_name("Vec<i32>".to_string()),
+            MemoryEvent::allocate(0x2000, 128, 1).with_type_name("String".to_string()),
+            MemoryEvent::allocate(0x3000, 256, 1).with_type_name("Vec<i32>".to_string()),
+            MemoryEvent::allocate(0x4000, 64, 2).with_type_name("Vec<i32>".to_string()),
+        ];
+        let view = MemoryView::from_events(events);
+        let binding = view.filter().by_thread(1).by_type("Vec").by_max_size(100);
+        let filtered = binding.apply();
+        assert_eq!(filtered.len(), 1);
+    }
 }

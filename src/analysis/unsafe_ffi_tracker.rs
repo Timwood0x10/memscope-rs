@@ -105,7 +105,7 @@ pub enum SafetyViolation {
 }
 
 /// Risk levels for safety violations
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum RiskLevel {
     /// Low risk - minor issues that are unlikely to cause problems
     Low,

@@ -84,7 +84,9 @@ fn dfs_detect_cycles(
     if let Some(neighbors) = graph.get(node) {
         for neighbor in neighbors {
             if !visited.contains(neighbor) {
-                dfs_detect_cycles(neighbor, graph, visited, rec_stack, path, path_index, cycles);
+                dfs_detect_cycles(
+                    neighbor, graph, visited, rec_stack, path, path_index, cycles,
+                );
             } else if rec_stack.contains(neighbor) {
                 // O(1) lookup using HashMap instead of O(n) position search
                 if let Some(&cycle_start) = path_index.get(neighbor) {

@@ -4,6 +4,7 @@
 CARGO := cargo
 PROJECT_NAME := memscope-rs
 VERSION := $(shell grep '^version' Cargo.toml | sed 's/.*"\(.*\)".*/\1/')
+COVERAGE_DIR := aim/coverage
 
 # Colors
 RED := \033[0;31m
@@ -45,11 +46,9 @@ help:
 	@echo "  ci             - Run CI pipeline"
 	@echo ""
 	@echo "$(GREEN)Coverage:$(NC)"
-	@echo "  coverage       - Run test coverage (cargo-llvm-cov)"
-	@echo "  coverage-html  - Generate HTML coverage report"
-	@echo "  coverage-open  - Generate and open HTML report"
-	@echo "  coverage-tarpaulin - Run coverage with tarpaulin"
-	@echo "  coverage-tarpaulin-html - Generate HTML report (tarpaulin)"
+	@echo "  coverage       - Generate test coverage report (tarpaulin)"
+	@echo "  coverage-llvm  - Generate LLVM coverage report (HTML)"
+	@echo "  coverage-summary - Generate LLVM coverage summary (console)"
 	@echo ""
 	@echo "$(GREEN)Examples:$(NC)"
 	@echo "  run-basic      - Run basic usage example"
@@ -158,32 +157,35 @@ clippy-ci:
 	$(CARGO) clippy --workspace --all-targets --all-features -- -D warnings
 
 # Coverage
-.PHONY: coverage
+.PHONY: coverage coverage-llvm coverage-summary
 coverage:
-	@echo "$(BLUE)Running test coverage with cargo-llvm-cov...$(NC)"
-	cargo llvm-cov --lib
+	@echo "$(BLUE)Generating test coverage report...$(NC)"
+	@if command -v cargo-tarpaulin >/dev/null 2>&1; then \
+		mkdir -p $(COVERAGE_DIR); \
+		$(CARGO) tarpaulin --out Html --output-dir $(COVERAGE_DIR); \
+		echo "$(GREEN)Coverage report generated in $(COVERAGE_DIR)/tarpaulin-report.html$(NC)"; \
+	else \
+		echo "$(YELLOW)cargo-tarpaulin not installed. Install with: cargo install cargo-tarpaulin$(NC)"; \
+	fi
 
-.PHONY: coverage-html
-coverage-html:
-	@echo "$(BLUE)Generating HTML coverage report...$(NC)"
-	cargo llvm-cov --lib --html --output-dir ./target/coverage/html
-	@echo "$(GREEN)Coverage report generated at: target/coverage/html/index.html$(NC)"
+coverage-llvm:
+	@echo "$(BLUE)Generating LLVM coverage report...$(NC)"
+	@if command -v cargo-llvm-cov >/dev/null 2>&1; then \
+		mkdir -p $(COVERAGE_DIR); \
+		$(CARGO) llvm-cov --html --output-dir $(COVERAGE_DIR) --lib --tests -- --test-thread=1; \
+		echo "$(GREEN)LLVM coverage report generated in $(COVERAGE_DIR)/index.html$(NC)"; \
+	else \
+		echo "$(YELLOW)cargo-llvm-cov not installed. Install with: cargo install cargo-llvm-cov$(NC)"; \
+	fi
 
-.PHONY: coverage-open
-coverage-open:
-	@echo "$(BLUE)Opening HTML coverage report...$(NC)"
-	cargo llvm-cov --lib --html --output-dir ./target/coverage/html --open
+coverage-summary:
+	@echo "$(BLUE)Generating LLVM coverage summary...$(NC)"
+	@if command -v cargo-llvm-cov >/dev/null 2>&1; then \
+		$(CARGO) llvm-cov  --summary-only  --lib --tests -- --test-threads=1; \
+	else \
+		echo "$(YELLOW)cargo-llvm-cov not installed. Install with: cargo install cargo-llvm-cov$(NC)"; \
+	fi
 
-.PHONY: coverage-tarpaulin
-coverage-tarpaulin:
-	@echo "$(BLUE)Running test coverage with cargo-tarpaulin...$(NC)"
-	cargo tarpaulin --lib --output-dir ./target/tarpaulin
-
-.PHONY: coverage-tarpaulin-html
-coverage-tarpaulin-html:
-	@echo "$(BLUE)Generating HTML coverage report with cargo-tarpaulin...$(NC)"
-	cargo tarpaulin --lib --output-dir ./target/tarpaulin --out Html
-	@echo "$(GREEN)Coverage report generated at: target/tarpaulin/index.html$(NC)"
 
 .PHONY: ci
 ci: fmt-check clippy-ci check test-unit test-integration test-examples

@@ -485,3 +485,136 @@ impl Default for SecurityViolationAnalyzer {
         Self::new(AnalysisConfig::default())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Objective: Verify SecurityViolationAnalyzer creation with default config
+    /// Invariants: Default config should have correlation analysis enabled
+    #[test]
+    fn test_security_analyzer_default() {
+        let analyzer = SecurityViolationAnalyzer::default();
+        let reports = analyzer.get_all_reports();
+        assert!(reports.is_empty(), "New analyzer should have no reports");
+    }
+
+    /// Objective: Verify SecurityViolationAnalyzer creation with custom config
+    /// Invariants: Custom config values should be respected
+    #[test]
+    fn test_security_analyzer_custom_config() {
+        let config = AnalysisConfig {
+            max_related_allocations: 5,
+            max_stack_depth: 10,
+            enable_correlation_analysis: false,
+            include_low_severity: false,
+            generate_integrity_hashes: false,
+        };
+        let analyzer = SecurityViolationAnalyzer::new(config);
+        let reports = analyzer.get_all_reports();
+        assert!(
+            reports.is_empty(),
+            "Custom config analyzer should start empty"
+        );
+    }
+
+    /// Objective: Verify generate_security_summary with no violations
+    /// Invariants: Should produce valid JSON summary with zero violations
+    #[test]
+    fn test_generate_security_summary_empty() {
+        let analyzer = SecurityViolationAnalyzer::default();
+        let summary = analyzer.generate_security_summary();
+        assert!(summary.is_object(), "Summary should be a JSON object");
+
+        let obj = summary.as_object().unwrap();
+        assert!(
+            obj.contains_key("security_analysis_summary"),
+            "Should have analysis summary"
+        );
+    }
+
+    /// Objective: Verify clear_reports functionality
+    /// Invariants: Should work on empty analyzer
+    #[test]
+    fn test_clear_reports_empty() {
+        let mut analyzer = SecurityViolationAnalyzer::default();
+        analyzer.clear_reports();
+        assert!(
+            analyzer.get_all_reports().is_empty(),
+            "Should have no reports after clear"
+        );
+    }
+
+    /// Objective: Verify get_reports_by_severity with no reports
+    /// Invariants: Should return empty vector
+    #[test]
+    fn test_get_reports_by_severity_empty() {
+        let analyzer = SecurityViolationAnalyzer::default();
+        let reports = analyzer.get_reports_by_severity(ViolationSeverity::Critical);
+        assert!(reports.is_empty(), "Should have no reports");
+    }
+
+    /// Objective: Verify update_allocations functionality
+    /// Invariants: Should accept empty vector
+    #[test]
+    fn test_update_allocations_empty() {
+        let mut analyzer = SecurityViolationAnalyzer::default();
+        analyzer.update_allocations(vec![]);
+        let summary = analyzer.generate_security_summary();
+        assert!(summary.is_object(), "Summary should still be valid JSON");
+    }
+
+    /// Objective: Verify ViolationSeverity score values
+    /// Invariants: Critical should be highest, Info should be lowest
+    #[test]
+    fn test_violation_severity_scores() {
+        assert_eq!(
+            ViolationSeverity::Critical.score(),
+            100,
+            "Critical score should be 100"
+        );
+        assert_eq!(
+            ViolationSeverity::High.score(),
+            75,
+            "High score should be 75"
+        );
+        assert_eq!(
+            ViolationSeverity::Medium.score(),
+            50,
+            "Medium score should be 50"
+        );
+        assert_eq!(ViolationSeverity::Low.score(), 25, "Low score should be 25");
+        assert_eq!(
+            ViolationSeverity::Info.score(),
+            10,
+            "Info score should be 10"
+        );
+    }
+
+    /// Objective: Verify AnalysisConfig default values
+    /// Invariants: Default should have sensible values
+    #[test]
+    fn test_analysis_config_default() {
+        let config = AnalysisConfig::default();
+        assert_eq!(
+            config.max_related_allocations, 10,
+            "Default max related should be 10"
+        );
+        assert_eq!(
+            config.max_stack_depth, 20,
+            "Default max stack depth should be 20"
+        );
+        assert!(
+            config.enable_correlation_analysis,
+            "Correlation should be enabled by default"
+        );
+        assert!(
+            config.include_low_severity,
+            "Low severity should be included by default"
+        );
+        assert!(
+            config.generate_integrity_hashes,
+            "Integrity hashes should be enabled by default"
+        );
+    }
+}

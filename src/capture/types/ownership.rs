@@ -494,4 +494,312 @@ mod tests {
         assert_eq!(weak_ref.upgrade_attempts, 5);
         assert!(weak_ref.target_alive);
     }
+
+    /// Objective: Verify OwnershipNode creation with nested children
+    /// Invariants: Should handle nested ownership hierarchy
+    #[test]
+    fn test_ownership_node_nested() {
+        let child = OwnershipNode {
+            object_id: 2,
+            type_name: "Child".to_string(),
+            ownership_type: OwnershipType::Unique,
+            owned_objects: vec![],
+            reference_count: None,
+            weak_reference_count: None,
+        };
+
+        let parent = OwnershipNode {
+            object_id: 1,
+            type_name: "Parent".to_string(),
+            ownership_type: OwnershipType::SharedMultiThreaded,
+            owned_objects: vec![child],
+            reference_count: Some(3),
+            weak_reference_count: Some(1),
+        };
+
+        assert_eq!(
+            parent.owned_objects.len(),
+            1,
+            "Parent should have one child"
+        );
+        assert_eq!(
+            parent.reference_count,
+            Some(3),
+            "Reference count should be 3"
+        );
+    }
+
+    /// Objective: Verify OwnershipTransferEvent creation
+    /// Invariants: All fields should be accessible
+    #[test]
+    fn test_ownership_transfer_event() {
+        let event = OwnershipTransferEvent {
+            source_object: 1,
+            target_object: 2,
+            transfer_type: OwnershipTransferType::Move,
+            timestamp: 1000,
+            mechanism: "std::move".to_string(),
+        };
+
+        assert_eq!(event.source_object, 1, "Source should match");
+        assert_eq!(event.target_object, 2, "Target should match");
+        assert_eq!(
+            event.transfer_type,
+            OwnershipTransferType::Move,
+            "Transfer type should be Move"
+        );
+    }
+
+    /// Objective: Verify OwnershipTransferType variants
+    /// Invariants: All variants should be distinct
+    #[test]
+    fn test_ownership_transfer_type_variants() {
+        let variants = vec![
+            OwnershipTransferType::Move,
+            OwnershipTransferType::Clone,
+            OwnershipTransferType::Borrow,
+            OwnershipTransferType::ReferenceIncrement,
+            OwnershipTransferType::ReferenceDecrement,
+        ];
+
+        for variant in &variants {
+            let debug_str = format!("{variant:?}");
+            assert!(
+                !debug_str.is_empty(),
+                "Variant should have debug representation"
+            );
+        }
+    }
+
+    /// Objective: Verify CircularReferenceInfo creation
+    /// Invariants: All fields should be properly initialized
+    #[test]
+    fn test_circular_reference_info() {
+        let circular = CircularReferenceInfo {
+            cycle_objects: vec![1, 2, 3],
+            detection_timestamp: 1000,
+            cycle_type: CircularReferenceType::Indirect,
+            leak_risk: LeakRiskLevel::High,
+            resolution_suggestion: "Use Weak references".to_string(),
+        };
+
+        assert_eq!(
+            circular.cycle_objects.len(),
+            3,
+            "Should have 3 objects in cycle"
+        );
+        assert_eq!(
+            circular.cycle_type,
+            CircularReferenceType::Indirect,
+            "Cycle type should be Indirect"
+        );
+    }
+
+    /// Objective: Verify CircularReferenceType variants
+    /// Invariants: All variants should be distinct
+    #[test]
+    fn test_circular_reference_type_variants() {
+        assert_eq!(CircularReferenceType::Direct, CircularReferenceType::Direct);
+        assert_eq!(
+            CircularReferenceType::Indirect,
+            CircularReferenceType::Indirect
+        );
+        assert_eq!(
+            CircularReferenceType::SelfReferential,
+            CircularReferenceType::SelfReferential
+        );
+        assert_eq!(
+            CircularReferenceType::Complex,
+            CircularReferenceType::Complex
+        );
+
+        assert_ne!(
+            CircularReferenceType::Direct,
+            CircularReferenceType::Indirect
+        );
+    }
+
+    /// Objective: Verify TypeRelationshipInfo creation
+    /// Invariants: All fields should be accessible
+    #[test]
+    fn test_type_relationship_info() {
+        let info = TypeRelationshipInfo {
+            type_name: "MyStruct".to_string(),
+            parent_types: vec![],
+            child_types: vec![],
+            composed_types: vec![],
+            complexity_score: 10,
+            inheritance_depth: 2,
+            composition_breadth: 5,
+        };
+
+        assert_eq!(info.type_name, "MyStruct", "Type name should match");
+        assert_eq!(info.complexity_score, 10, "Complexity score should match");
+    }
+
+    /// Objective: Verify ParentTypeInfo creation
+    /// Invariants: All fields should be properly initialized
+    #[test]
+    fn test_parent_type_info() {
+        let parent = ParentTypeInfo {
+            type_name: "ParentTrait".to_string(),
+            relationship_type: RelationshipType::TraitImplementation,
+            inheritance_level: 1,
+            memory_impact: MemoryImpact::None,
+        };
+
+        assert_eq!(
+            parent.type_name, "ParentTrait",
+            "Parent type name should match"
+        );
+        assert_eq!(parent.inheritance_level, 1, "Inheritance level should be 1");
+    }
+
+    /// Objective: Verify RelationshipType variants
+    /// Invariants: All variants should be distinct
+    #[test]
+    fn test_relationship_type_variants() {
+        let variants = vec![
+            RelationshipType::TraitImplementation,
+            RelationshipType::TraitBound,
+            RelationshipType::Inheritance,
+            RelationshipType::Association,
+            RelationshipType::Composition,
+            RelationshipType::Dependency,
+        ];
+
+        for variant in &variants {
+            let debug_str = format!("{variant:?}");
+            assert!(
+                !debug_str.is_empty(),
+                "Variant should have debug representation"
+            );
+        }
+    }
+
+    /// Objective: Verify CompositionType variants
+    /// Invariants: All variants should be distinct
+    #[test]
+    fn test_composition_type_variants() {
+        let variants = vec![
+            CompositionType::Field,
+            CompositionType::AssociatedType,
+            CompositionType::GenericParameter,
+            CompositionType::NestedType,
+            CompositionType::Reference,
+            CompositionType::SmartPointer,
+        ];
+
+        for variant in &variants {
+            let debug_str = format!("{variant:?}");
+            assert!(
+                !debug_str.is_empty(),
+                "Variant should have debug representation"
+            );
+        }
+    }
+
+    /// Objective: Verify ComposedTypeInfo creation
+    /// Invariants: All fields should be accessible
+    #[test]
+    fn test_composed_type_info() {
+        let composed = ComposedTypeInfo {
+            type_name: "InnerType".to_string(),
+            field_name: "inner".to_string(),
+            composition_type: CompositionType::Field,
+            memory_offset: Some(16),
+            access_frequency: 100,
+        };
+
+        assert_eq!(composed.field_name, "inner", "Field name should match");
+        assert_eq!(
+            composed.memory_offset,
+            Some(16),
+            "Memory offset should be 16"
+        );
+    }
+
+    /// Objective: Verify OwnershipHierarchy with multiple root owners
+    /// Invariants: Should handle multiple root owners
+    #[test]
+    fn test_ownership_hierarchy_multiple_roots() {
+        let root1 = OwnershipNode {
+            object_id: 1,
+            type_name: "Root1".to_string(),
+            ownership_type: OwnershipType::Unique,
+            owned_objects: vec![],
+            reference_count: None,
+            weak_reference_count: None,
+        };
+
+        let root2 = OwnershipNode {
+            object_id: 2,
+            type_name: "Root2".to_string(),
+            ownership_type: OwnershipType::SharedSingleThreaded,
+            owned_objects: vec![],
+            reference_count: Some(2),
+            weak_reference_count: None,
+        };
+
+        let hierarchy = OwnershipHierarchy {
+            root_owners: vec![root1, root2],
+            max_depth: 5,
+            total_objects: 10,
+            transfer_events: vec![],
+            weak_references: vec![],
+            circular_references: vec![],
+        };
+
+        assert_eq!(
+            hierarchy.root_owners.len(),
+            2,
+            "Should have two root owners"
+        );
+    }
+
+    /// Objective: Verify serialization of OwnershipType
+    /// Invariants: Should serialize and deserialize correctly
+    #[test]
+    fn test_ownership_type_serialization() {
+        let ownership = OwnershipType::SharedMultiThreaded;
+        let json = serde_json::to_string(&ownership);
+        assert!(json.is_ok(), "Should serialize to JSON");
+
+        let deserialized: Result<OwnershipType, _> = serde_json::from_str(&json.unwrap());
+        assert!(deserialized.is_ok(), "Should deserialize from JSON");
+        assert_eq!(
+            deserialized.unwrap(),
+            OwnershipType::SharedMultiThreaded,
+            "Should preserve value"
+        );
+    }
+
+    /// Objective: Verify WeakReferenceType variants
+    /// Invariants: All variants should be distinct
+    #[test]
+    fn test_weak_reference_type_variants() {
+        assert_eq!(WeakReferenceType::RcWeak, WeakReferenceType::RcWeak);
+        assert_eq!(WeakReferenceType::ArcWeak, WeakReferenceType::ArcWeak);
+        assert_eq!(WeakReferenceType::Custom, WeakReferenceType::Custom);
+
+        assert_ne!(WeakReferenceType::RcWeak, WeakReferenceType::ArcWeak);
+    }
+
+    /// Objective: Verify ChildTypeInfo creation
+    /// Invariants: All fields should be accessible
+    #[test]
+    fn test_child_type_info() {
+        let child = ChildTypeInfo {
+            type_name: "ChildStruct".to_string(),
+            relationship_type: RelationshipType::Association,
+            specialization_level: 2,
+            usage_frequency: 50,
+        };
+
+        assert_eq!(
+            child.type_name, "ChildStruct",
+            "Child type name should match"
+        );
+        assert_eq!(child.usage_frequency, 50, "Usage frequency should match");
+    }
 }
