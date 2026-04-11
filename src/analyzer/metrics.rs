@@ -3,6 +3,7 @@
 use crate::analyzer::report::{MetricsReport, TypeMetric};
 use crate::view::MemoryView;
 use std::collections::HashMap;
+use tracing::debug;
 
 /// Metrics analysis module.
 ///
@@ -14,30 +15,43 @@ pub struct MetricsAnalysis {
 impl MetricsAnalysis {
     /// Create from view.
     pub fn from_view(view: &MemoryView) -> Self {
+        debug!("Creating MetricsAnalysis with {} allocations", view.len());
         Self { view: view.clone() }
     }
 
     /// Get metrics summary.
     pub fn summary(&self) -> MetricsReport {
+        debug!("Computing metrics summary");
         let stats = self.view.snapshot();
-        MetricsReport {
+        let report = MetricsReport {
             allocation_count: stats.stats.active_allocations,
             total_bytes: stats.stats.current_memory,
             peak_bytes: stats.stats.peak_memory,
             thread_count: stats.thread_stats.len(),
             by_type: self.by_type(),
-        }
+        };
+        debug!(
+            "Metrics summary: {} allocations, {} bytes, {} types, {} threads",
+            report.allocation_count,
+            report.total_bytes,
+            report.by_type.len(),
+            report.thread_count
+        );
+        report
     }
 
     /// Get top allocations by size.
     pub fn top_by_size(&self, n: usize) -> Vec<AllocationMetric> {
+        debug!("Getting top {} allocations by size", n);
         let mut allocs: Vec<_> = self.view.allocations();
         allocs.sort_by(|a, b| b.size.cmp(&a.size));
-        allocs
+        let result: Vec<AllocationMetric> = allocs
             .into_iter()
             .take(n)
             .map(AllocationMetric::from_allocation)
-            .collect()
+            .collect();
+        debug!("Returning {} top allocations", result.len());
+        result
     }
 
     /// Get allocations by type.
@@ -49,6 +63,7 @@ impl MetricsAnalysis {
             entry.count += 1;
             entry.total_bytes += a.size;
         }
+        debug!("Computed metrics for {} types", types.len());
         types
     }
 
@@ -61,6 +76,7 @@ impl MetricsAnalysis {
             entry.allocation_count += 1;
             entry.total_bytes += a.size;
         }
+        debug!("Computed metrics for {} threads", threads.len());
         threads
     }
 
@@ -70,6 +86,7 @@ impl MetricsAnalysis {
         let sizes: Vec<usize> = allocations.iter().map(|a| a.size).collect();
 
         if sizes.is_empty() {
+            debug!("Size distribution: no allocations");
             return SizeDistribution::default();
         }
 
@@ -77,6 +94,7 @@ impl MetricsAnalysis {
         let max = *sizes.iter().max().unwrap_or(&0);
         let avg = sizes.iter().sum::<usize>() / sizes.len();
 
+        debug!("Size distribution: min={}, max={}, avg={}", min, max, avg);
         SizeDistribution { min, max, avg }
     }
 }

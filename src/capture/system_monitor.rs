@@ -478,8 +478,9 @@ fn collect_nvidia_gpu() -> Result<GpuInfo, Box<dyn std::error::Error>> {
             let parts: Vec<&str> = stdout.trim().split(',').collect();
             if parts.len() >= 3 {
                 let usage = parts[0].trim().parse::<f64>()?;
-                let memory_used = parts[1].trim().parse::<u64>()? * 1024 * 1024;
-                let memory_total = parts[2].trim().parse::<u64>()? * 1024 * 1024;
+                // Use saturating_mul to prevent overflow for large memory values
+                let memory_used = parts[1].trim().parse::<u64>()?.saturating_mul(1024 * 1024);
+                let memory_total = parts[2].trim().parse::<u64>()?.saturating_mul(1024 * 1024);
                 return Ok(GpuInfo {
                     usage,
                     memory_used,

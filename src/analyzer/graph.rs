@@ -4,7 +4,7 @@ use crate::analysis::relation_inference::{Relation, RelationGraph};
 use crate::analyzer::report::{CycleInfo, CycleReport};
 use crate::view::MemoryView;
 use std::collections::HashSet;
-use tracing::info;
+use tracing::{debug, info, warn};
 
 /// Relationship edge information for visualization.
 #[derive(Debug, Clone)]
@@ -40,6 +40,7 @@ pub struct GraphAnalysis {
 impl GraphAnalysis {
     /// Create from view.
     pub fn from_view(view: &MemoryView) -> Self {
+        debug!("Creating GraphAnalysis with {} allocations", view.len());
         Self {
             view: view.clone(),
             relation_graph: None,
@@ -67,6 +68,7 @@ impl GraphAnalysis {
     pub fn cycles(&mut self) -> CycleReport {
         let allocations = self.view.allocations();
         if allocations.is_empty() {
+            debug!("Cycle detection: no allocations, returning empty report");
             return CycleReport::empty();
         }
 
@@ -74,8 +76,11 @@ impl GraphAnalysis {
         let cycle_edges = relation_graph.detect_cycles();
 
         if cycle_edges.is_empty() {
+            debug!("Cycle detection: no cycles found");
             return CycleReport::empty();
         }
+
+        info!("Cycle detection: found {} cycles", cycle_edges.len());
 
         let cycles: Vec<CycleInfo> = cycle_edges
             .iter()
@@ -151,6 +156,8 @@ impl GraphAnalysis {
         let relation_graph = self.relation_graph();
         let edges = &relation_graph.edges;
 
+        debug!("Building relationships from {} edges", edges.len());
+
         let mut relationships: Vec<RelationshipEdge> = edges
             .iter()
             .filter_map(|edge| {
@@ -181,9 +188,14 @@ impl GraphAnalysis {
 
         // Limit relationships to avoid performance issues
         if relationships.len() > 500 {
+            warn!(
+                "Relationship count ({}) exceeds limit, truncating to 500",
+                relationships.len()
+            );
             relationships.truncate(500);
         }
 
+        debug!("Returning {} relationships", relationships.len());
         relationships
     }
 }

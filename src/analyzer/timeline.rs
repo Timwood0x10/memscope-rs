@@ -2,6 +2,7 @@
 
 use crate::event_store::{MemoryEvent, MemoryEventType};
 use crate::view::MemoryView;
+use tracing::debug;
 
 /// Timeline analysis module.
 ///
@@ -13,11 +14,16 @@ pub struct TimelineAnalysis {
 impl TimelineAnalysis {
     /// Create from view.
     pub fn from_view(view: &MemoryView) -> Self {
+        debug!(
+            "Creating TimelineAnalysis with {} events",
+            view.events().len()
+        );
         Self { view: view.clone() }
     }
 
     /// Query events in time range.
     pub fn query(&self, start: u64, end: u64) -> TimelineResult {
+        debug!("Querying events in time range [{}, {}]", start, end);
         let events: Vec<&MemoryEvent> = self
             .view
             .events()
@@ -25,16 +31,19 @@ impl TimelineAnalysis {
             .filter(|e| e.timestamp >= start && e.timestamp <= end)
             .collect();
 
-        TimelineResult {
+        let result = TimelineResult {
             event_count: events.len(),
             start,
             end,
-        }
+        };
+        debug!("Query returned {} events", result.event_count);
+        result
     }
 
     /// Get event timeline.
     pub fn timeline(&self) -> Vec<TimelineEvent> {
-        self.view
+        let events: Vec<TimelineEvent> = self
+            .view
             .events()
             .iter()
             .map(|e| TimelineEvent {
@@ -44,7 +53,9 @@ impl TimelineAnalysis {
                 size: e.size,
                 thread_id: e.thread_id,
             })
-            .collect()
+            .collect();
+        debug!("Timeline has {} events", events.len());
+        events
     }
 
     /// Get allocation rate over time.
@@ -52,8 +63,10 @@ impl TimelineAnalysis {
     /// Groups allocations into time buckets and calculates the rate
     /// for each bucket. Returns a vector of allocation rates per bucket.
     pub fn allocation_rate(&self, bucket_ms: u64) -> Vec<AllocationRate> {
+        debug!("Computing allocation rate with {}ms buckets", bucket_ms);
         let events = self.view.events();
         if events.is_empty() || bucket_ms == 0 {
+            debug!("Allocation rate: no events or invalid bucket size");
             return vec![];
         }
 
@@ -67,7 +80,10 @@ impl TimelineAnalysis {
         let num_buckets = ((time_range / bucket_ns) + 1) as usize;
 
         if num_buckets == 0 || num_buckets > 10000 {
-            // Prevent excessive memory usage
+            debug!(
+                "Allocation rate: bucket count {} exceeds limit or is zero",
+                num_buckets
+            );
             return vec![];
         }
 
@@ -82,14 +98,24 @@ impl TimelineAnalysis {
             .collect();
 
         // Fill buckets
+        let mut skipped_count = 0usize;
         for event in events {
             if event.event_type == MemoryEventType::Allocate {
                 let bucket_idx = ((event.timestamp.saturating_sub(min_time)) / bucket_ns) as usize;
                 if bucket_idx < buckets.len() {
                     buckets[bucket_idx].count += 1;
                     buckets[bucket_idx].bytes += event.size;
+                } else {
+                    skipped_count += 1;
                 }
             }
+        }
+
+        if skipped_count > 0 {
+            debug!(
+                "Allocation rate: {} events skipped due to bucket index out of range",
+                skipped_count
+            );
         }
 
         // Filter out empty buckets at the end
@@ -97,6 +123,7 @@ impl TimelineAnalysis {
             buckets.pop();
         }
 
+        debug!("Allocation rate: {} buckets computed", buckets.len());
         buckets
     }
 }

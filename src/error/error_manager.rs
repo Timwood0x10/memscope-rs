@@ -113,7 +113,7 @@ impl ErrorManager {
             // Maintain recent errors list
             stats.recent_errors.push(record);
             if stats.recent_errors.len() > self.max_recent_errors {
-                stats.recent_errors.remove(0);
+                stats.recent_errors.drain(0..1);
             }
         }
     }

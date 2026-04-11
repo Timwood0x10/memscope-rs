@@ -4,7 +4,9 @@ use handlebars::{Context, Handlebars, Helper, HelperResult, Output, RenderContex
 
 /// Format thread ID from raw format to user-friendly format.
 pub fn format_thread_id(raw: &str) -> String {
-    if raw.starts_with("ThreadId(") && raw.ends_with(')') {
+    // Check for "ThreadId(n)" format with sufficient length
+    // "ThreadId(" is 9 chars, ")" is 1 char, so minimum length is 11 (e.g., "ThreadId(0)")
+    if raw.starts_with("ThreadId(") && raw.ends_with(')') && raw.len() > 10 {
         let num = &raw[9..raw.len() - 1];
         format!("Thread-{}", num)
     } else {

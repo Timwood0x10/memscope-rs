@@ -362,10 +362,13 @@ impl AsyncTracker {
     }
 
     /// Get statistics about zombie tasks.
+    ///
+    /// Optimized to acquire the lock only once.
     pub fn zombie_task_stats(&self) -> (usize, usize) {
-        let zombies = self.detect_zombie_tasks();
-        let total = self.profiles.lock().unwrap().len();
-        (zombies.len(), total)
+        let profiles = self.profiles.lock().unwrap();
+        let zombies = profiles.iter().filter(|(_, p)| !p.is_completed()).count();
+        let total = profiles.len();
+        (zombies, total)
     }
 
     pub fn track_allocation_auto(

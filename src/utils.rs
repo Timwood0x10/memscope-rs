@@ -32,24 +32,24 @@ pub fn current_thread_id_u64() -> u64 {
 
 /// Format bytes in a human-readable format
 pub fn format_bytes(bytes: usize) -> String {
-    if bytes < 1024 {
+    const KB: usize = 1024;
+    const MB: usize = KB * 1024;
+    const GB: usize = MB * 1024;
+    const TB: usize = GB * 1024;
+    const PB: usize = TB * 1024;
+
+    if bytes < KB {
         format!("{bytes}B")
-    } else if bytes < 1024 * 1024 {
-        format!("{:.1}KB", bytes as f64 / 1024.0)
-    } else if bytes < 1024 * 1024 * 1024 {
-        format!("{:.1}MB", bytes as f64 / (1024.0 * 1024.0))
-    } else if bytes < 1024 * 1024 * 1024 * 1024 {
-        format!("{:.1}GB", bytes as f64 / (1024.0 * 1024.0 * 1024.0))
-    } else if bytes < 1024 * 1024 * 1024 * 1024 * 1024 {
-        format!(
-            "{:.1}TB",
-            bytes as f64 / (1024.0 * 1024.0 * 1024.0 * 1024.0)
-        )
+    } else if bytes < MB {
+        format!("{:.1}KB", bytes as f64 / KB as f64)
+    } else if bytes < GB {
+        format!("{:.1}MB", bytes as f64 / MB as f64)
+    } else if bytes < TB {
+        format!("{:.1}GB", bytes as f64 / GB as f64)
+    } else if bytes < PB {
+        format!("{:.1}TB", bytes as f64 / TB as f64)
     } else {
-        format!(
-            "{:.1}PB",
-            bytes as f64 / (1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0)
-        )
+        format!("{:.1}PB", bytes as f64 / PB as f64)
     }
 }
 

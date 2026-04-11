@@ -208,17 +208,35 @@ impl OwnershipGraph {
         }
     }
 
-    /// Compress consecutive clone chains to reduce UI complexity
+    /// Compress consecutive clone chains to reduce UI complexity.
+    ///
+    /// Uses a new vector to collect merged edges, avoiding O(n^2) complexity from repeated remove() calls.
     fn compress_clone_chains(edges: &mut Vec<Edge>) {
+        if edges.len() < 2 {
+            return;
+        }
+
+        let mut result: Vec<Edge> = Vec::with_capacity(edges.len());
         let mut i = 0;
-        while i + 1 < edges.len() {
-            if edges[i].op == edges[i + 1].op && edges[i].to == edges[i + 1].from {
-                edges[i].to = edges[i + 1].to;
-                edges.remove(i + 1);
-            } else {
+
+        while i < edges.len() {
+            let mut current = edges[i].clone();
+
+            // Try to merge with subsequent edges
+            while i + 1 < edges.len()
+                && current.op == edges[i + 1].op
+                && current.to == edges[i + 1].from
+            {
+                // Merge: extend current edge to skip the next one
+                current.to = edges[i + 1].to;
                 i += 1;
             }
+
+            result.push(current);
+            i += 1;
         }
+
+        *edges = result;
     }
 
     /// Detect cycles using existing DFS implementation

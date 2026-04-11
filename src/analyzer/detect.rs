@@ -3,6 +3,7 @@
 use crate::analyzer::report::{LeakInfo, LeakReport, SafetyReport, UafReport};
 use crate::snapshot::ActiveAllocation;
 use crate::view::MemoryView;
+use tracing::{debug, info, warn};
 
 /// Detection analysis module.
 ///
@@ -14,6 +15,7 @@ pub struct DetectionAnalysis {
 impl DetectionAnalysis {
     /// Create from view.
     pub fn from_view(view: &MemoryView) -> Self {
+        debug!("Creating DetectionAnalysis with {} allocations", view.len());
         Self { view: view.clone() }
     }
 
@@ -37,9 +39,21 @@ impl DetectionAnalysis {
             .filter(|a| a.ptr.is_some())
             .collect();
 
+        let leak_count = leaked.len();
+        let total_bytes: usize = leaked.iter().map(|a| a.size).sum();
+
+        if leak_count > 0 {
+            info!(
+                "Leak detection: found {} leaks totaling {} bytes",
+                leak_count, total_bytes
+            );
+        } else {
+            debug!("Leak detection: no leaks found");
+        }
+
         LeakReport {
-            leak_count: leaked.len(),
-            total_leaked_bytes: leaked.iter().map(|a| a.size).sum(),
+            leak_count,
+            total_leaked_bytes: total_bytes,
             leaked_allocations: leaked.into_iter().map(LeakInfo::from).collect(),
         }
     }
@@ -68,6 +82,7 @@ impl DetectionAnalysis {
         //
         // For proper UAF detection, consider using sanitizers like ASAN
         // or instrumenting memory access at runtime.
+        debug!("UAF detection: not implemented, returning empty report");
         UafReport::empty()
     }
 
@@ -76,7 +91,14 @@ impl DetectionAnalysis {
     /// Checks for common safety issues.
     pub fn safety(&self) -> SafetyReport {
         let allocations = self.view.allocations();
-        SafetyReport::from_allocations(&allocations)
+        let report = SafetyReport::from_allocations(&allocations);
+        if report.issue_count > 0 {
+            warn!(
+                "Safety analysis: found {} potential safety issues",
+                report.issue_count
+            );
+        }
+        report
     }
 
     /// Get detection summary.

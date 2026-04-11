@@ -135,7 +135,11 @@ fn merge_regions(regions: Vec<MemoryRegion>) -> Vec<MemoryRegion> {
     }
 
     let mut merged: Vec<MemoryRegion> = Vec::with_capacity(regions.len());
-    let mut current = regions[0].clone();
+    // Use first() for safer access pattern
+    let mut current = regions
+        .first()
+        .expect("regions should not be empty after is_empty check")
+        .clone();
 
     for region in regions.into_iter().skip(1) {
         if region.start < current.end {
@@ -175,19 +179,18 @@ fn get_valid_regions_impl() -> ValidRegions {
                 return None;
             }
 
+            // Parse address range (e.g., "7f1234567000-7f1234568000")
             let range: Vec<&str> = parts[0].split('-').collect();
-            if range.len() != 2 {
-                return None;
-            }
+            let (start_str, end_str) = match (range.first(), range.get(1)) {
+                (Some(&s), Some(&e)) => (s, e),
+                _ => return None,
+            };
 
-            let start = usize::from_str_radix(range[0], 16).ok()?;
-            let end = usize::from_str_radix(range[1], 16).ok()?;
+            let start = usize::from_str_radix(start_str, 16).ok()?;
+            let end = usize::from_str_radix(end_str, 16).ok()?;
 
             // Filter to readable regions only (r-- or r-x or rw-)
-            if parts.len() < 2 {
-                return None;
-            }
-            let perms = parts[1];
+            let perms = parts.get(1)?;
             if !perms.starts_with('r') {
                 return None;
             }

@@ -44,6 +44,13 @@ help:
 	@echo "  clippy         - Run clippy"
 	@echo "  ci             - Run CI pipeline"
 	@echo ""
+	@echo "$(GREEN)Coverage:$(NC)"
+	@echo "  coverage       - Run test coverage (cargo-llvm-cov)"
+	@echo "  coverage-html  - Generate HTML coverage report"
+	@echo "  coverage-open  - Generate and open HTML report"
+	@echo "  coverage-tarpaulin - Run coverage with tarpaulin"
+	@echo "  coverage-tarpaulin-html - Generate HTML report (tarpaulin)"
+	@echo ""
 	@echo "$(GREEN)Examples:$(NC)"
 	@echo "  run-basic      - Run basic usage example"
 	@echo "  run-showcase   - Run global tracker showcase"
@@ -79,7 +86,7 @@ check:
 clean:
 	@echo "$(YELLOW)Cleaning...$(NC)"
 	$(CARGO) clean
-	rm -rf target/coverage MemoryAnalysis/
+	rm -rf target/coverage target/tarpaulin MemoryAnalysis/
 	@echo "$(GREEN)Done$(NC)"
 
 # Testing
@@ -149,6 +156,34 @@ clippy:
 clippy-ci:
 	@echo "$(BLUE)Running clippy (CI mode - only compiler warnings)...$(NC)"
 	$(CARGO) clippy --workspace --all-targets --all-features -- -D warnings
+
+# Coverage
+.PHONY: coverage
+coverage:
+	@echo "$(BLUE)Running test coverage with cargo-llvm-cov...$(NC)"
+	cargo llvm-cov --lib --workspace -- --test-threads=1
+
+.PHONY: coverage-html
+coverage-html:
+	@echo "$(BLUE)Generating HTML coverage report...$(NC)"
+	cargo llvm-cov --lib --workspace --html --output-dir ./target/coverage/html -- --test-threads=1
+	@echo "$(GREEN)Coverage report generated at: target/coverage/html/index.html$(NC)"
+
+.PHONY: coverage-open
+coverage-open:
+	@echo "$(BLUE)Opening HTML coverage report...$(NC)"
+	cargo llvm-cov --lib --workspace --html --output-dir ./target/coverage/html --open -- --test-threads=1
+
+.PHONY: coverage-tarpaulin
+coverage-tarpaulin:
+	@echo "$(BLUE)Running test coverage with cargo-tarpaulin...$(NC)"
+	cargo tarpaulin --lib --workspace --output-dir ./target/tarpaulin -- --test-threads=1
+
+.PHONY: coverage-tarpaulin-html
+coverage-tarpaulin-html:
+	@echo "$(BLUE)Generating HTML coverage report with cargo-tarpaulin...$(NC)"
+	cargo tarpaulin --lib --workspace --output-dir ./target/tarpaulin --output-html -- --test-threads=1
+	@echo "$(GREEN)Coverage report generated at: target/tarpaulin/tarpaulin-report.html$(NC)"
 
 .PHONY: ci
 ci: fmt-check clippy-ci check test-unit test-integration test-examples

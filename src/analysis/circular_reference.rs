@@ -190,10 +190,11 @@ impl ReferenceGraph {
         let mut visited = HashSet::new();
         let mut rec_stack = HashSet::new();
         let mut path = Vec::new();
+        let mut path_index = HashMap::new();
 
         for &ptr in self.smart_pointers.keys() {
             if !visited.contains(&ptr) {
-                self.dfs_detect_cycles(ptr, &mut visited, &mut rec_stack, &mut path, &mut cycles);
+                self.dfs_detect_cycles(ptr, &mut visited, &mut rec_stack, &mut path, &mut path_index, &mut cycles);
             }
         }
 
@@ -207,10 +208,12 @@ impl ReferenceGraph {
         visited: &mut HashSet<usize>,
         rec_stack: &mut HashSet<usize>,
         path: &mut Vec<usize>,
+        path_index: &mut HashMap<usize, usize>,
         cycles: &mut Vec<Vec<usize>>,
     ) {
         visited.insert(ptr);
         rec_stack.insert(ptr);
+        path_index.insert(ptr, path.len());
         path.push(ptr);
 
         if let Some(neighbors) = self.adjacency.get(&ptr) {
@@ -224,10 +227,11 @@ impl ReferenceGraph {
                 }
 
                 if !visited.contains(&neighbor) {
-                    self.dfs_detect_cycles(neighbor, visited, rec_stack, path, cycles);
+                    self.dfs_detect_cycles(neighbor, visited, rec_stack, path, path_index, cycles);
                 } else if rec_stack.contains(&neighbor) {
                     // Found a cycle - extract the cycle path
-                    if let Some(cycle_start) = path.iter().position(|&x| x == neighbor) {
+                    // O(1) lookup using HashMap instead of O(n) position search
+                    if let Some(&cycle_start) = path_index.get(&neighbor) {
                         let cycle = path[cycle_start..].to_vec();
                         cycles.push(cycle);
                     }
@@ -236,6 +240,7 @@ impl ReferenceGraph {
         }
 
         path.pop();
+        path_index.remove(&ptr);
         rec_stack.remove(&ptr);
     }
 }

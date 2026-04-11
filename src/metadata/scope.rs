@@ -2,10 +2,16 @@
 //!
 //! This module provides scope tracking and metadata management
 //! for the MetadataEngine.
+//!
+//! # Concurrency Safety
+//!
+//! All scope-related data is protected by a single `Mutex<ScopeData>` to prevent
+//! deadlock. The lock order is always: `scope_data` (single lock).
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use tracing::debug;
 
 /// Unique identifier for scopes
 pub type ScopeId = u64;
@@ -48,78 +54,75 @@ pub struct ScopeHierarchy {
     pub total_scopes: usize,
 }
 
+/// Internal data structure protected by a single lock.
+/// This prevents deadlock by ensuring all related data is accessed atomically.
+#[derive(Debug)]
+struct ScopeData {
+    /// Active scopes
+    active_scopes: HashMap<ScopeId, ScopeInfo>,
+    /// Scope stack per thread
+    scope_stack: HashMap<String, Vec<ScopeId>>,
+    /// Next available scope ID
+    next_scope_id: u64,
+    /// Scope hierarchy
+    hierarchy: ScopeHierarchy,
+}
+
+impl ScopeData {
+    fn new() -> Self {
+        Self {
+            active_scopes: HashMap::new(),
+            scope_stack: HashMap::new(),
+            next_scope_id: 1,
+            hierarchy: ScopeHierarchy {
+                root_scopes: Vec::new(),
+                scope_tree: HashMap::new(),
+                max_depth: 0,
+                total_scopes: 0,
+            },
+        }
+    }
+}
+
 /// Scope Tracker - manages scope hierarchy and metadata
 #[derive(Debug)]
 pub struct ScopeTracker {
-    /// Active scopes
-    active_scopes: Arc<Mutex<HashMap<ScopeId, ScopeInfo>>>,
-    /// Scope stack per thread
-    scope_stack: Arc<Mutex<HashMap<String, Vec<ScopeId>>>>,
-    /// Next available scope ID
-    next_scope_id: Arc<Mutex<u64>>,
-    /// Scope hierarchy
-    hierarchy: Arc<Mutex<ScopeHierarchy>>,
+    /// All scope data protected by a single lock to prevent deadlock
+    data: Arc<Mutex<ScopeData>>,
 }
 
 impl ScopeTracker {
     /// Create a new ScopeTracker
     pub fn new() -> Self {
+        debug!("Creating new ScopeTracker");
         Self {
-            active_scopes: Arc::new(Mutex::new(HashMap::new())),
-            scope_stack: Arc::new(Mutex::new(HashMap::new())),
-            next_scope_id: Arc::new(Mutex::new(1)),
-            hierarchy: Arc::new(Mutex::new(ScopeHierarchy {
-                root_scopes: Vec::new(),
-                scope_tree: HashMap::new(),
-                max_depth: 0,
-                total_scopes: 0,
-            })),
+            data: Arc::new(Mutex::new(ScopeData::new())),
         }
     }
 
     /// Enter a new scope
     pub fn enter_scope(&self, name: String) -> ScopeId {
-        let scope_id = {
-            let mut id = self
-                .next_scope_id
-                .lock()
-                .expect("Failed to acquire next_scope_id lock");
-            let id_val = *id;
-            *id += 1;
-            id_val
-        };
-
         let thread_id = format!("{:?}", std::thread::current().id());
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_nanos() as u64;
 
+        // Acquire lock once and do all operations atomically
+        let mut data = self.data.lock().expect("Failed to acquire scope_data lock");
+
+        // Generate scope ID
+        let scope_id = data.next_scope_id;
+        data.next_scope_id += 1;
+
         // Determine parent scope and depth
-        let (parent, depth) = {
-            let stack = self
-                .scope_stack
-                .lock()
-                .expect("Failed to acquire scope_stack lock");
-            if let Some(thread_stack) = stack.get(&thread_id) {
-                if let Some(&parent_id) = thread_stack.last() {
-                    if let Some(active) = self
-                        .active_scopes
-                        .lock()
-                        .expect("Failed to acquire active_scopes lock")
-                        .get(&parent_id)
-                    {
-                        (Some(active.name.clone()), active.depth + 1)
-                    } else {
-                        (None, 0)
-                    }
-                } else {
-                    (None, 0)
-                }
-            } else {
-                (None, 0)
-            }
-        };
+        let (parent, depth) = data
+            .scope_stack
+            .get(&thread_id)
+            .and_then(|thread_stack| thread_stack.last())
+            .and_then(|&parent_id| data.active_scopes.get(&parent_id))
+            .map(|active| (Some(active.name.clone()), active.depth + 1))
+            .unwrap_or((None, 0));
 
         let scope_info = ScopeInfo {
             name: name.clone(),
@@ -135,42 +138,32 @@ impl ScopeTracker {
         };
 
         // Add to active scopes
-        self.active_scopes
-            .lock()
-            .expect("Failed to acquire active_scopes lock")
-            .insert(scope_id, scope_info.clone());
+        data.active_scopes.insert(scope_id, scope_info.clone());
 
         // Push to scope stack
-        self.scope_stack
-            .lock()
-            .expect("Failed to acquire scope_stack lock")
+        data.scope_stack
             .entry(thread_id)
             .or_default()
             .push(scope_id);
 
         // Update hierarchy
-        {
-            let mut hierarchy = self
-                .hierarchy
-                .lock()
-                .expect("Failed to acquire hierarchy lock");
-            if let Some(parent_name) = &parent {
-                hierarchy
-                    .scope_tree
-                    .entry(parent_name.clone())
-                    .or_default()
-                    .push(name.clone());
-            } else {
-                if !hierarchy.root_scopes.contains(&name) {
-                    hierarchy.root_scopes.push(name);
-                }
-            }
-            hierarchy.total_scopes += 1;
-            if depth > hierarchy.max_depth {
-                hierarchy.max_depth = depth;
+        if let Some(parent_name) = &parent {
+            data.hierarchy
+                .scope_tree
+                .entry(parent_name.clone())
+                .or_default()
+                .push(name.clone());
+        } else {
+            if !data.hierarchy.root_scopes.contains(&name) {
+                data.hierarchy.root_scopes.push(name.clone());
             }
         }
+        data.hierarchy.total_scopes += 1;
+        if depth > data.hierarchy.max_depth {
+            data.hierarchy.max_depth = depth;
+        }
 
+        debug!("Entered scope '{}' with id {}", name, scope_id);
         scope_id
     }
 
@@ -182,48 +175,36 @@ impl ScopeTracker {
             .unwrap_or_default()
             .as_nanos() as u64;
 
-        let scope_id = {
-            let mut stack = self
-                .scope_stack
-                .lock()
-                .expect("Failed to acquire scope_stack lock");
-            if let Some(thread_stack) = stack.get_mut(&thread_id) {
-                thread_stack.pop()
-            } else {
-                None
-            }
-        };
+        let mut data = self.data.lock().expect("Failed to acquire scope_data lock");
+
+        let scope_id = data
+            .scope_stack
+            .get_mut(&thread_id)
+            .and_then(|thread_stack| thread_stack.pop());
 
         if let Some(scope_id) = scope_id {
-            if let Some(scope) = self
-                .active_scopes
-                .lock()
-                .expect("Failed to acquire active_scopes lock")
-                .get_mut(&scope_id)
-            {
+            if let Some(scope) = data.active_scopes.get_mut(&scope_id) {
                 scope.lifetime_end = Some(timestamp);
                 scope.is_active = false;
             }
+            debug!("Exited scope with id {}", scope_id);
             Some(scope_id)
         } else {
+            debug!("No scope to exit for thread {}", thread_id);
             None
         }
     }
 
     /// Get scope information by ID
     pub fn get_scope(&self, scope_id: ScopeId) -> Option<ScopeInfo> {
-        self.active_scopes
-            .lock()
-            .expect("Failed to acquire active_scopes lock")
-            .get(&scope_id)
-            .cloned()
+        let data = self.data.lock().expect("Failed to acquire scope_data lock");
+        data.active_scopes.get(&scope_id).cloned()
     }
 
     /// Get all scopes
     pub fn get_all_scopes(&self) -> Vec<(ScopeId, ScopeInfo)> {
-        self.active_scopes
-            .lock()
-            .expect("Failed to acquire active_scopes lock")
+        let data = self.data.lock().expect("Failed to acquire scope_data lock");
+        data.active_scopes
             .iter()
             .map(|(k, v)| (*k, v.clone()))
             .collect()
@@ -231,26 +212,23 @@ impl ScopeTracker {
 
     /// Get scope hierarchy
     pub fn get_hierarchy(&self) -> ScopeHierarchy {
-        self.hierarchy
-            .lock()
-            .expect("Failed to acquire hierarchy lock")
-            .clone()
+        let data = self.data.lock().expect("Failed to acquire scope_data lock");
+        data.hierarchy.clone()
     }
 
     /// Clear all scopes
     pub fn clear(&self) {
-        self.active_scopes
-            .lock()
-            .expect("Failed to acquire active_scopes lock")
-            .clear();
-        self.scope_stack
-            .lock()
-            .expect("Failed to acquire scope_stack lock")
-            .clear();
-        *self
-            .next_scope_id
-            .lock()
-            .expect("Failed to acquire next_scope_id lock") = 1;
+        let mut data = self.data.lock().expect("Failed to acquire scope_data lock");
+        data.active_scopes.clear();
+        data.scope_stack.clear();
+        data.next_scope_id = 1;
+        data.hierarchy = ScopeHierarchy {
+            root_scopes: Vec::new(),
+            scope_tree: HashMap::new(),
+            max_depth: 0,
+            total_scopes: 0,
+        };
+        debug!("Cleared all scopes");
     }
 }
 

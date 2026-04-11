@@ -4,6 +4,7 @@ use crate::analyzer::report::{
     AnalysisReport, CycleReport, LeakReport, MemoryStatsReport, MetricsReport,
 };
 use crate::view::MemoryView;
+use tracing::{debug, info};
 
 use super::{DetectionAnalysis, ExportEngine, GraphAnalysis, MetricsAnalysis, TimelineAnalysis};
 
@@ -24,11 +25,14 @@ impl Analyzer {
     pub fn from_tracker(
         tracker: &crate::capture::backends::global_tracking::GlobalTracker,
     ) -> Self {
+        info!("Creating Analyzer from GlobalTracker");
         Self::from_view(MemoryView::from_tracker(tracker))
     }
 
     /// Create analyzer from view.
     pub fn from_view(view: MemoryView) -> Self {
+        let alloc_count = view.len();
+        info!("Creating Analyzer with {} allocations", alloc_count);
         Self {
             view,
             graph: None,
@@ -41,6 +45,7 @@ impl Analyzer {
     /// Get graph analysis (lazy).
     pub fn graph(&mut self) -> &mut GraphAnalysis {
         if self.graph.is_none() {
+            debug!("Initializing GraphAnalysis (lazy)");
             self.graph = Some(GraphAnalysis::from_view(&self.view));
         }
         self.graph
@@ -51,6 +56,7 @@ impl Analyzer {
     /// Get detection analysis (lazy).
     pub fn detect(&mut self) -> &DetectionAnalysis {
         if self.detect.is_none() {
+            debug!("Initializing DetectionAnalysis (lazy)");
             self.detect = Some(DetectionAnalysis::from_view(&self.view));
         }
         self.detect
@@ -61,6 +67,7 @@ impl Analyzer {
     /// Get metrics analysis (lazy).
     pub fn metrics(&mut self) -> &MetricsAnalysis {
         if self.metrics.is_none() {
+            debug!("Initializing MetricsAnalysis (lazy)");
             self.metrics = Some(MetricsAnalysis::from_view(&self.view));
         }
         self.metrics
@@ -71,6 +78,7 @@ impl Analyzer {
     /// Get timeline analysis (lazy).
     pub fn timeline(&mut self) -> &TimelineAnalysis {
         if self.timeline.is_none() {
+            debug!("Initializing TimelineAnalysis (lazy)");
             self.timeline = Some(TimelineAnalysis::from_view(&self.view));
         }
         self.timeline
@@ -141,16 +149,39 @@ impl Analyzer {
     /// - `cycles`: Reference cycle detection results
     /// - `metrics`: Aggregated metrics summary
     pub fn analyze(&mut self) -> AnalysisReport {
+        info!("Starting full analysis");
+        let stats = MemoryStatsReport {
+            allocation_count: self.view.len(),
+            total_bytes: self.view.total_memory(),
+            peak_bytes: self.view.snapshot().stats.peak_memory,
+            thread_count: self.view.snapshot().thread_stats.len(),
+        };
+        debug!(
+            "Stats: {} allocations, {} bytes, {} threads",
+            stats.allocation_count, stats.total_bytes, stats.thread_count
+        );
+
+        let leaks = self.detect().leaks();
+        if leaks.leak_count > 0 {
+            info!(
+                "Leak detection found {} leaks ({} bytes)",
+                leaks.leak_count, leaks.total_leaked_bytes
+            );
+        }
+
+        let cycles = self.graph().cycles();
+        if cycles.cycle_count > 0 {
+            info!("Cycle detection found {} cycles", cycles.cycle_count);
+        }
+
+        let metrics = self.metrics().summary();
+        info!("Analysis complete");
+
         AnalysisReport {
-            stats: MemoryStatsReport {
-                allocation_count: self.view.len(),
-                total_bytes: self.view.total_memory(),
-                peak_bytes: self.view.snapshot().stats.peak_memory,
-                thread_count: self.view.snapshot().thread_stats.len(),
-            },
-            leaks: self.detect().leaks(),
-            cycles: self.graph().cycles(),
-            metrics: self.metrics().summary(),
+            stats,
+            leaks,
+            cycles,
+            metrics,
         }
     }
 

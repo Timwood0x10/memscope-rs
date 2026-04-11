@@ -7,6 +7,13 @@ use super::*;
 use crate::core::types::AllocationInfo;
 use serde_json::json;
 
+/// Memory size constants to avoid integer overflow in test expressions
+const KB: u64 = 1024;
+const MB: u64 = KB * 1024;
+const GB: u64 = MB * 1024;
+const TB: u64 = GB * 1024;
+const PB: u64 = TB * 1024;
+
 /// Create a mock allocation for testing purposes
 fn create_mock_allocation(
     address: usize,
@@ -48,14 +55,11 @@ mod tests {
         assert_eq!(format_bytes(1024 * 1024 * 1024), "1.00 GB");
         assert_eq!(format_bytes(1536 * 1024 * 1024), "1.50 GB");
 
-        // Test terabytes
-        assert_eq!(format_bytes(1024 * 1024 * 1024 * 1024), "1.00 TB");
+        // Test terabytes (use u64 constant to avoid overflow)
+        assert_eq!(format_bytes(TB as usize), "1.00 TB");
 
-        // Test petabytes
-        assert_eq!(
-            format_bytes(1024 * 1024 * 1024 * 1024 * 1024),
-            "1.00 PB"
-        );
+        // Test petabytes (use u64 constant to avoid overflow)
+        assert_eq!(format_bytes(PB as usize), "1.00 PB");
     }
 
     /// Test format_bytes_helper function for Handlebars templates

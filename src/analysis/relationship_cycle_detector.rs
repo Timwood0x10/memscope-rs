@@ -37,6 +37,7 @@ pub fn detect_cycles_in_relationships(
     let mut visited: HashSet<String> = HashSet::new();
     let mut rec_stack: HashSet<String> = HashSet::new();
     let mut path: Vec<String> = Vec::new();
+    let mut path_index: HashMap<String, usize> = HashMap::new();
 
     for node in graph.keys() {
         if !visited.contains(node) {
@@ -46,6 +47,7 @@ pub fn detect_cycles_in_relationships(
                 &mut visited,
                 &mut rec_stack,
                 &mut path,
+                &mut path_index,
                 &mut cycles,
             );
         }
@@ -71,18 +73,21 @@ fn dfs_detect_cycles(
     visited: &mut HashSet<String>,
     rec_stack: &mut HashSet<String>,
     path: &mut Vec<String>,
+    path_index: &mut HashMap<String, usize>,
     cycles: &mut Vec<Vec<String>>,
 ) {
     visited.insert(node.to_string());
     rec_stack.insert(node.to_string());
+    path_index.insert(node.to_string(), path.len());
     path.push(node.to_string());
 
     if let Some(neighbors) = graph.get(node) {
         for neighbor in neighbors {
             if !visited.contains(neighbor) {
-                dfs_detect_cycles(neighbor, graph, visited, rec_stack, path, cycles);
+                dfs_detect_cycles(neighbor, graph, visited, rec_stack, path, path_index, cycles);
             } else if rec_stack.contains(neighbor) {
-                if let Some(cycle_start) = path.iter().position(|p| p == neighbor) {
+                // O(1) lookup using HashMap instead of O(n) position search
+                if let Some(&cycle_start) = path_index.get(neighbor) {
                     let cycle: Vec<String> = path[cycle_start..].to_vec();
                     cycles.push(cycle);
                 }
@@ -91,6 +96,7 @@ fn dfs_detect_cycles(
     }
 
     path.pop();
+    path_index.remove(node);
     rec_stack.remove(node);
 }
 
