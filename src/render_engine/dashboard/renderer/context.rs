@@ -54,6 +54,15 @@ pub fn build_context_from_tracker_with_async(
     let async_summary = build_async_summary(async_tracker);
     let ownership_graph = build_ownership_graph_info(&all_allocations);
 
+    let system_info = get_system_info();
+
+    let health_info = calculate_health_info(
+        &unsafe_reports,
+        &passport_details,
+        leak_count,
+        alloc_info.len(),
+    );
+
     let json_data = build_json_data(
         &alloc_info,
         &relationships,
@@ -66,16 +75,8 @@ pub fn build_context_from_tracker_with_async(
         &async_tasks,
         &async_summary,
         &ownership_graph,
+        health_info.health_score,
     )?;
-
-    let system_info = get_system_info();
-
-    let health_info = calculate_health_info(
-        &unsafe_reports,
-        &passport_details,
-        leak_count,
-        alloc_info.len(),
-    );
 
     Ok(DashboardContext {
         title: "MemScope Dashboard".to_string(),
@@ -767,6 +768,7 @@ fn build_json_data(
     async_tasks: &[AsyncTaskInfo],
     async_summary: &AsyncSummary,
     ownership_graph: &OwnershipGraphInfo,
+    health_score: u32,
 ) -> Result<String, Box<dyn std::error::Error>> {
     #[derive(serde::Serialize)]
     struct DashboardData<'a> {
@@ -781,6 +783,7 @@ fn build_json_data(
         async_tasks: &'a [AsyncTaskInfo],
         async_summary: &'a AsyncSummary,
         ownership_graph: &'a OwnershipGraphInfo,
+        health_score: u32,
     }
 
     let data = DashboardData {
@@ -795,6 +798,7 @@ fn build_json_data(
         async_tasks,
         async_summary,
         ownership_graph,
+        health_score,
     };
 
     Ok(serde_json::to_string(&data)?)

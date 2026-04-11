@@ -161,29 +161,29 @@ clippy-ci:
 .PHONY: coverage
 coverage:
 	@echo "$(BLUE)Running test coverage with cargo-llvm-cov...$(NC)"
-	cargo llvm-cov --lib --workspace -- --test-threads=1
+	cargo llvm-cov --lib
 
 .PHONY: coverage-html
 coverage-html:
 	@echo "$(BLUE)Generating HTML coverage report...$(NC)"
-	cargo llvm-cov --lib --workspace --html --output-dir ./target/coverage/html -- --test-threads=1
+	cargo llvm-cov --lib --html --output-dir ./target/coverage/html
 	@echo "$(GREEN)Coverage report generated at: target/coverage/html/index.html$(NC)"
 
 .PHONY: coverage-open
 coverage-open:
 	@echo "$(BLUE)Opening HTML coverage report...$(NC)"
-	cargo llvm-cov --lib --workspace --html --output-dir ./target/coverage/html --open -- --test-threads=1
+	cargo llvm-cov --lib --html --output-dir ./target/coverage/html --open
 
 .PHONY: coverage-tarpaulin
 coverage-tarpaulin:
 	@echo "$(BLUE)Running test coverage with cargo-tarpaulin...$(NC)"
-	cargo tarpaulin --lib --workspace --output-dir ./target/tarpaulin -- --test-threads=1
+	cargo tarpaulin --lib --output-dir ./target/tarpaulin
 
 .PHONY: coverage-tarpaulin-html
 coverage-tarpaulin-html:
 	@echo "$(BLUE)Generating HTML coverage report with cargo-tarpaulin...$(NC)"
-	cargo tarpaulin --lib --workspace --output-dir ./target/tarpaulin --output-html -- --test-threads=1
-	@echo "$(GREEN)Coverage report generated at: target/tarpaulin/tarpaulin-report.html$(NC)"
+	cargo tarpaulin --lib --output-dir ./target/tarpaulin --out Html
+	@echo "$(GREEN)Coverage report generated at: target/tarpaulin/index.html$(NC)"
 
 .PHONY: ci
 ci: fmt-check clippy-ci check test-unit test-integration test-examples
