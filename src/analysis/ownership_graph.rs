@@ -129,6 +129,28 @@ pub struct OwnershipGraph {
 }
 
 impl OwnershipGraph {
+    /// Build ownership graph from MemoryView.
+    ///
+    /// Creates an ownership graph from the allocations in a MemoryView.
+    /// This is a convenience method for the unified analyzer API.
+    pub fn from_view(view: &crate::view::MemoryView) -> Self {
+        let allocations = view.allocations();
+        let passports: Vec<(ObjectId, String, usize, Vec<OwnershipEvent>)> = allocations
+            .iter()
+            .filter_map(|a| {
+                a.ptr.map(|ptr| {
+                    let id = ObjectId::from_ptr(ptr);
+                    let type_name = a.type_name.clone().unwrap_or_else(|| "unknown".to_string());
+                    // Create a basic create event for each allocation
+                    let event = OwnershipEvent::new(a.allocated_at, OwnershipOp::Create, id, None);
+                    (id, type_name, a.size, vec![event])
+                })
+            })
+            .collect();
+
+        Self::build(&passports)
+    }
+
     /// Build ownership graph from passports with ownership events
     pub fn build<T: AsRef<[OwnershipEvent]>>(passports: &[(ObjectId, String, usize, T)]) -> Self {
         let mut nodes = Vec::new();

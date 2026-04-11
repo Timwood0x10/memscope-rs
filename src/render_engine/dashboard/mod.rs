@@ -4,4 +4,4 @@
 
 pub mod renderer;
 
-pub use renderer::{DashboardContext, DashboardRenderer};
+pub use renderer::{rebuild_allocations_from_events, DashboardContext, DashboardRenderer};

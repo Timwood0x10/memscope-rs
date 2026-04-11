@@ -1,8 +1,7 @@
 //! Complex Multi-Thread Memory Tracking Showcase - New API
 //!
 //! This example demonstrates multi-thread memory tracking using the new unified API.
-
-use memscope_rs::{global_tracker, init_global_tracking, MemScopeResult};
+use memscope_rs::{analyzer, global_tracker, init_global_tracking, MemScopeResult};
 use std::thread;
 use std::time::Instant;
 
@@ -69,6 +68,28 @@ fn main() -> MemScopeResult<()> {
     );
     println!("  Duration: {:.2}ms", duration.as_secs_f64() * 1000.0);
     println!("  Throughput: {:.0} allocs/sec", throughput);
+
+    // Use the unified Analyzer API
+    println!("\n=== Unified Analyzer API ===\n");
+    let mut az = analyzer(&tracker)?;
+
+    // Full analysis
+    let report = az.analyze();
+    println!("Analysis Report:");
+    println!("  Allocations: {}", report.stats.allocation_count);
+    println!("  Total Bytes: {}", report.stats.total_bytes);
+    println!("  Peak Bytes: {}", report.stats.peak_bytes);
+
+    // Leak detection
+    let leaks = az.detect().leaks();
+    println!("\nLeak Detection:");
+    println!("  Leak Count: {}", leaks.leak_count);
+    println!("  Leaked Bytes: {}", leaks.total_leaked_bytes);
+
+    // Metrics
+    let metrics = az.metrics().summary();
+    println!("\nMetrics:");
+    println!("  Types: {}", metrics.by_type.len());
 
     println!("\nExporting memory snapshot...");
     let output_path = "MemoryAnalysis/multithread_new_api";

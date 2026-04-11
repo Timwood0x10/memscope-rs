@@ -11,7 +11,7 @@ use crate::analysis::node_id::NodeId;
 use crate::analysis::ownership_graph::{EdgeKind, OwnershipGraph, OwnershipOp};
 use crate::capture::platform::memory_info::PlatformMemoryInfo;
 use crate::core::{MemScopeError, MemScopeResult};
-use crate::render_engine::dashboard::DashboardRenderer;
+use crate::render_engine::dashboard::{rebuild_allocations_from_events, DashboardRenderer};
 use crate::snapshot::{ActiveAllocation, MemorySnapshot, ThreadMemoryStats};
 use crate::tracker::Tracker;
 use rayon::prelude::*;
@@ -471,7 +471,7 @@ pub fn export_all_json<P: AsRef<Path>>(
 
     // Use event_store as unified data source (includes both HeapOwner and Container allocations)
     let events = tracker.event_store().snapshot();
-    let allocations = DashboardRenderer::rebuild_allocations_from_events(&events);
+    let allocations = rebuild_allocations_from_events(&events);
     let snapshot = MemorySnapshot::from_allocation_infos(allocations.clone());
     let options = ExportJsonOptions::default();
 

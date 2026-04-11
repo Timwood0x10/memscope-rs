@@ -40,7 +40,7 @@
 use crate::capture::system_monitor;
 use crate::core::tracker::MemoryTracker;
 use crate::event_store::{EventStore, MemoryEvent};
-use crate::render_engine::dashboard::renderer::DashboardRenderer;
+use crate::render_engine::dashboard::renderer::rebuild_allocations_from_events;
 use crate::render_engine::export::{export_snapshot_to_json, ExportJsonOptions};
 use crate::snapshot::MemorySnapshot;
 
@@ -364,7 +364,7 @@ impl Tracker {
     pub fn analyze(&self) -> AnalysisReport {
         let stats = self.stats();
         let events = self.event_store().snapshot();
-        let allocations = DashboardRenderer::rebuild_allocations_from_events(&events);
+        let allocations = rebuild_allocations_from_events(&events);
         let elapsed = self.start_time.elapsed().as_secs_f64();
 
         let current_memory: usize = allocations.iter().map(|a| a.size).sum();
@@ -473,7 +473,7 @@ impl Drop for Tracker {
                 if let Some(ref path) = cfg.export_path {
                     // Use event_store as unified data source (includes both HeapOwner and Container allocations)
                     let events = self.event_store().snapshot();
-                    let allocations = DashboardRenderer::rebuild_allocations_from_events(&events);
+                    let allocations = rebuild_allocations_from_events(&events);
                     let snapshot = MemorySnapshot::from_allocation_infos(allocations);
                     let options = ExportJsonOptions::default();
                     if let Err(e) =

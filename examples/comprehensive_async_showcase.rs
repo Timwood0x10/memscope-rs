@@ -12,6 +12,7 @@
 //! - `zombie_task_stats()`: Gets zombie task statistics
 
 use memscope_rs::{
+    analyzer,
     capture::backends::async_tracker::{spawn_tracked, TrackerContext},
     global_tracker, init_global_tracking, track, MemScopeResult,
 };
@@ -35,7 +36,6 @@ async fn main() -> MemScopeResult<()> {
         "Main context - Thread: {}, Task: {:?}, Tokio: {:?}",
         ctx.thread_id, ctx.task_id, ctx.tokio_task_id
     );
-    println!();
 
     println!("Starting async tasks with spawn_tracked()...\n");
 
@@ -108,10 +108,8 @@ async fn main() -> MemScopeResult<()> {
         .collect();
 
     // Wait for all tasks to complete
-    let mut total_bytes = 0usize;
     for (i, handle) in handles.into_iter().enumerate() {
         if let Ok(result) = handle.await {
-            total_bytes += result;
             println!("Task {} returned: {} bytes", i, result);
         }
     }
@@ -146,6 +144,28 @@ async fn main() -> MemScopeResult<()> {
     println!("  Active allocations: {}", stats.active_allocations);
     println!("  Peak memory: {} bytes", stats.peak_memory_bytes);
     println!("  Duration: {:.2}ms", duration.as_secs_f64() * 1000.0);
+
+    // Use the unified Analyzer API
+    println!("\n=== Unified Analyzer API ===\n");
+    let mut az = analyzer(&tracker)?;
+
+    // Full analysis
+    let report = az.analyze();
+    println!("Analysis Report:");
+    println!("  Allocations: {}", report.stats.allocation_count);
+    println!("  Total Bytes: {}", report.stats.total_bytes);
+    println!("  Peak Bytes: {}", report.stats.peak_bytes);
+
+    // Leak detection
+    let leaks = az.detect().leaks();
+    println!("\nLeak Detection:");
+    println!("  Leak Count: {}", leaks.leak_count);
+    println!("  Leaked Bytes: {}", leaks.total_leaked_bytes);
+
+    // Metrics
+    let metrics = az.metrics().summary();
+    println!("\nMetrics:");
+    println!("  Types: {}", metrics.by_type.len());
 
     println!("\nExporting memory data...");
     let output_path = "MemoryAnalysis/async_showcase_new_api";

@@ -142,6 +142,71 @@ fn main() -> MemScopeResult<()> {
 }
 ```
 
+## Unified Analysis API (v0.2.0)
+
+memscope-rs v0.2.0 introduces a unified analysis API that integrates all memory analysis functionality through a single, efficient interface.
+
+### Key Features
+
+- **Unified Entry Point**: Single `analyzer()` function for all analysis operations
+- **MemoryView**: Read-only model that reuses snapshots to avoid duplicate allocation rebuilding
+- **Lazy Initialization**: Analysis modules are initialized on-demand for better performance
+- **Comprehensive Analysis**: Graph, Detection, Metrics, Timeline, Classification, and Safety analysis
+
+### Example
+
+```rust
+use memscope_rs::{global_tracker, init_global_tracking, analyzer, MemScopeResult};
+
+fn main() -> MemScopeResult<()> {
+    init_global_tracking()?;
+    let tracker = global_tracker()?;
+
+    let data = vec![1, 2, 3, 4, 5];
+    tracker.track(&data);
+
+    // Create unified analyzer
+    let mut az = analyzer(&tracker)?;
+
+    // Run full analysis
+    let report = az.analyze();
+    println!("{}", report.summary());
+
+    // Or use specific analysis modules
+    let leaks = az.quick_leak_check();
+    println!("Leaks: {}", leaks.leak_count);
+
+    let cycles = az.quick_cycle_check();
+    println!("Cycles: {}", cycles.cycle_count);
+
+    let metrics = az.quick_metrics();
+    println!("Allocations: {}", metrics.allocation_count);
+
+    // Export results
+    az.export().json("output/analysis.json")?;
+    az.export().html("output/dashboard.html")?;
+
+    Ok(())
+}
+```
+
+### Analysis Modules
+
+| Module | Function | API |
+|--------|----------|-----|
+| **GraphAnalysis** | Graph analysis and cycle detection | `az.graph()` |
+| **DetectionAnalysis** | Leak detection, UAF detection, safety analysis | `az.detect()` |
+| **MetricsAnalysis** | Metrics analysis and statistics | `az.metrics()` |
+| **TimelineAnalysis** | Timeline analysis and event querying | `az.timeline()` |
+| **ClassificationAnalysis** | Type classification | `az.classify()` |
+| **SafetyAnalysis** | Safety analysis | `az.safety()` |
+
+### Documentation
+
+- [Analyzer Module Guide (Chinese)](docs/zh/modules/analyzer.md)
+- [View Module Guide (Chinese)](docs/zh/modules/view.md)
+- [API Guide (Chinese)](docs/zh/api_guide.md)
+
 ## Tracking Backends
 
 | Backend         | Use Case        | Performance | Notes                           |
@@ -251,12 +316,17 @@ cargo run --example unsafe_ffi_demo
 
 ## Documentation
 
+- [API Guide (Chinese)](docs/zh/api_guide.md)
 - [API Guide (English)](docs/en/api_guide.md)
+- [Architecture (Chinese)](docs/zh/architecture.md)
 - [Architecture (English)](docs/en/architecture.md)
+- [Module Documentation (Chinese)](docs/zh/modules/)
 - [Module Documentation (English)](docs/en/modules/)
 
 ### Key Modules
 
+- [Analyzer Module (Chinese)](docs/zh/modules/analyzer.md) - Unified analysis entry point
+- [View Module (Chinese)](docs/zh/modules/view.md) - Unified read-only access
 - [Analysis Module](docs/en/modules/analysis.md) - Leak detection, relation inference, safety analysis
 - [Tracker Module](docs/en/modules/tracker.md) - Core tracking API
 - [Capture Module](docs/en/modules/capture.md) - Memory capture backends
@@ -273,6 +343,20 @@ src/
 │   ├── classification/  # Type classification
 │   └── ...            # Other analysis modules
 ├── analysis_engine/    # Analysis engine orchestration
+├── analyzer/           # Unified analysis entry point (v0.2.0)
+│   ├── core.rs         # Analyzer core
+│   ├── graph.rs        # Graph analysis
+│   ├── detect.rs       # Detection analysis
+│   ├── metrics.rs      # Metrics analysis
+│   ├── timeline.rs     # Timeline analysis
+│   ├── classify.rs     # Classification analysis
+│   ├── safety.rs       # Safety analysis
+│   ├── export.rs       # Export engine
+│   └── report.rs       # Report types
+├── view/               # Unified read-only access (v0.2.0)
+│   ├── memory_view.rs  # MemoryView core
+│   ├── filters.rs      # Filter builder
+│   └── stats.rs        # View statistics
 ├── capture/            # Capture engine and backends
 │   ├── backends/       # Core, Lockfree, Async, Global trackers
 │   ├── types/          # Capture data types

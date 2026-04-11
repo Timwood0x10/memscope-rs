@@ -6,7 +6,9 @@
 //! - Analyzing memory hotspots and patterns
 //! - Exporting comprehensive memory reports
 
-use memscope_rs::{global_tracker, init_global_tracking, init_logging, track, MemScopeResult};
+use memscope_rs::{
+    analyzer, global_tracker, init_global_tracking, init_logging, track, MemScopeResult,
+};
 use std::collections::HashMap;
 
 /// Simulates a web server cache that may leak memory.
@@ -227,6 +229,28 @@ fn main() -> MemScopeResult<()> {
     println!("  Active allocations: {}", stats.active_allocations);
     println!("  Peak memory usage: {} bytes", stats.peak_memory_bytes);
     println!("  Current memory: {} bytes", stats.current_memory_bytes);
+
+    // Use the unified Analyzer API
+    println!("\n=== Unified Analyzer API ===\n");
+    let mut az = analyzer(&tracker)?;
+
+    // Full analysis
+    let report = az.analyze();
+    println!("Analysis Report:");
+    println!("  Allocations: {}", report.stats.allocation_count);
+    println!("  Total Bytes: {}", report.stats.total_bytes);
+    println!("  Peak Bytes: {}", report.stats.peak_bytes);
+
+    // Leak detection
+    let leaks = az.detect().leaks();
+    println!("\nLeak Detection:");
+    println!("  Leak Count: {}", leaks.leak_count);
+    println!("  Leaked Bytes: {}", leaks.total_leaked_bytes);
+
+    // Metrics
+    let metrics = az.metrics().summary();
+    println!("\nMetrics:");
+    println!("  Types: {}", metrics.by_type.len());
 
     // Export comprehensive reports.
     println!("\n=== Exporting Reports ===\n");

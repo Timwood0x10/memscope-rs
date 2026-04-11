@@ -3,7 +3,7 @@
 //! This example demonstrates a Merkle Tree implementation using unsafe Rust
 //! with memscope memory tracking and HTML dashboard export.
 
-use memscope_rs::{global_tracker, init_global_tracking, track, MemScopeResult};
+use memscope_rs::{analyzer, global_tracker, init_global_tracking, track, MemScopeResult};
 use std::fmt;
 
 /// Hash type (256-bit)
@@ -520,6 +520,28 @@ fn main() -> MemScopeResult<()> {
     println!("  Total passports created: {}", stats.passport_count);
     println!("  Active passports: {}", stats.active_passports);
     println!("  Leaks detected: {}", stats.leaks_detected);
+
+    // Use the unified Analyzer API
+    println!("\n=== Unified Analyzer API ===\n");
+    let mut az = analyzer(&tracker)?;
+
+    // Full analysis
+    let report = az.analyze();
+    println!("Analysis Report:");
+    println!("  Allocations: {}", report.stats.allocation_count);
+    println!("  Total Bytes: {}", report.stats.total_bytes);
+    println!("  Peak Bytes: {}", report.stats.peak_bytes);
+
+    // Leak detection
+    let leaks = az.detect().leaks();
+    println!("\nLeak Detection:");
+    println!("  Leak Count: {}", leaks.leak_count);
+    println!("  Leaked Bytes: {}", leaks.total_leaked_bytes);
+
+    // Metrics
+    let metrics = az.metrics().summary();
+    println!("\nMetrics:");
+    println!("  Types: {}", metrics.by_type.len());
 
     // Export HTML dashboard
     println!("\n🎨 Exporting HTML dashboard...");

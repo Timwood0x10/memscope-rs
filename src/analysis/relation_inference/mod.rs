@@ -99,6 +99,19 @@ impl RelationGraph {
         Self::default()
     }
 
+    /// Build relation graph from MemoryView.
+    ///
+    /// Creates a relation graph from the allocations in a MemoryView.
+    /// This is a convenience method for the unified analyzer API.
+    pub fn from_view(view: &crate::view::MemoryView) -> Self {
+        use crate::snapshot::types::ActiveAllocation;
+
+        let allocations: Vec<ActiveAllocation> =
+            view.allocations().iter().map(|a| (*a).clone()).collect();
+
+        RelationGraphBuilder::build(&allocations, None)
+    }
+
     /// Add a single edge to the graph.
     ///
     /// Does not add duplicate edges (same from/to/relation).

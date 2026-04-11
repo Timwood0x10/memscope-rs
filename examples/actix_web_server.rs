@@ -20,6 +20,7 @@
 
 use actix_web::{get, post, web, App, HttpResponse, HttpServer};
 use memscope_rs::{
+    analyzer,
     capture::backends::async_tracker::{spawn_tracked, TrackerContext},
     global_tracker, init_global_tracking, track, MemScopeResult,
 };
@@ -189,7 +190,7 @@ async fn get(
 
 /// Simulates client requests to the server.
 async fn simulate_client_requests(
-    tracker: Arc<memscope_rs::GlobalTracker>,
+    _tracker: Arc<memscope_rs::GlobalTracker>,
     store: Arc<parking_lot::Mutex<DataStore>>,
 ) -> MemScopeResult<()> {
     println!("\n=== Simulating Client Requests ===\n");
@@ -387,6 +388,28 @@ async fn main() -> MemScopeResult<()> {
     println!("  Active allocations: {}", mem_stats.active_allocations);
     println!("  Peak memory usage: {} bytes", mem_stats.peak_memory_bytes);
     println!("  Current memory: {} bytes", mem_stats.current_memory_bytes);
+
+    // Use the unified Analyzer API
+    println!("\n=== Unified Analyzer API ===\n");
+    let mut az = analyzer(&tracker)?;
+
+    // Full analysis
+    let report = az.analyze();
+    println!("Analysis Report:");
+    println!("  Allocations: {}", report.stats.allocation_count);
+    println!("  Total Bytes: {}", report.stats.total_bytes);
+    println!("  Peak Bytes: {}", report.stats.peak_bytes);
+
+    // Leak detection
+    let leaks = az.detect().leaks();
+    println!("\nLeak Detection:");
+    println!("  Leak Count: {}", leaks.leak_count);
+    println!("  Leaked Bytes: {}", leaks.total_leaked_bytes);
+
+    // Metrics
+    let metrics = az.metrics().summary();
+    println!("\nMetrics:");
+    println!("  Types: {}", metrics.by_type.len());
 
     // Export reports.
     println!("\n=== Exporting Reports ===\n");

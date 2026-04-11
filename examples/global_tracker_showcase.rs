@@ -6,7 +6,7 @@
 //! - Async mode
 //! - Unsafe/FFI mode
 
-use memscope_rs::{global_tracker, init_global_tracking, MemScopeResult};
+use memscope_rs::{analyzer, global_tracker, init_global_tracking, MemScopeResult};
 
 use memscope_rs::track;
 
@@ -200,7 +200,30 @@ fn main() -> MemScopeResult<()> {
     );
     println!("✓ Memory passports: {}", stats.passport_count);
 
-    println!("\n📦 Section 6: Export (simplified API)\n");
+    // Use the unified Analyzer API
+    println!("\n📦 Section 7: Unified Analyzer API\n");
+    let mut az = analyzer(&tracker)?;
+
+    // Full analysis
+    let report = az.analyze();
+    println!("Analysis Report:");
+    println!("  Allocations: {}", report.stats.allocation_count);
+    println!("  Total Bytes: {}", report.stats.total_bytes);
+    println!("  Peak Bytes: {}", report.stats.peak_bytes);
+    println!("  Threads: {}", report.stats.thread_count);
+
+    // Leak detection
+    let leaks = az.detect().leaks();
+    println!("\nLeak Detection:");
+    println!("  Leak Count: {}", leaks.leak_count);
+    println!("  Leaked Bytes: {}", leaks.total_leaked_bytes);
+
+    // Metrics
+    let metrics = az.metrics().summary();
+    println!("\nMetrics:");
+    println!("  Types: {}", metrics.by_type.len());
+
+    println!("\n📦 Section 8: Export (simplified API)\n");
     let output_path = "MemoryAnalysis/global_tracker_showcase";
 
     let tracker = global_tracker()?;

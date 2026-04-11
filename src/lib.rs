@@ -43,6 +43,8 @@ pub use capture::backends::global_tracking::{
     GlobalTracker, GlobalTrackerConfig, GlobalTrackerStats, TrackerConfig,
 };
 
+/// Analyzer Module - Unified analysis entry point
+pub mod analyzer;
 /// Unified error handling and recovery system
 pub mod error;
 /// Memory allocation tracking statistics and monitoring
@@ -51,6 +53,8 @@ pub mod tracking;
 pub mod utils;
 /// Variable registry for lightweight HashMap-based variable tracking
 pub mod variable_registry;
+/// View Module - Unified read-only access to memory data
+pub mod view;
 
 /// Initialize logging system for memscope-rs.
 ///
@@ -124,6 +128,56 @@ pub use core::allocator::TrackingAllocator;
 pub use core::tracker::{get_tracker, MemoryTracker};
 pub use core::{ExportMode, ExportOptions};
 pub use core::{MemScopeError, MemScopeResult};
+
+// Re-export unified analyzer interface
+pub use analyzer::{
+    AnalysisReport, Analyzer, ClassificationAnalysis, ClassificationSummary, CycleReport,
+    DetectionAnalysis, ExportEngine, GraphAnalysis, LeakReport, MetricsAnalysis, MetricsReport,
+    SafetyAnalysis, SafetySummary, TimelineAnalysis, TypeCategory, TypeClassification,
+};
+pub use view::{FilterBuilder, MemoryView, ViewStats};
+
+/// Create analyzer from GlobalTracker (recommended entry point).
+///
+/// Returns an error if the tracker is not initialized or contains invalid data.
+///
+/// # Errors
+///
+/// Returns `MemScopeError` if:
+/// - The tracker has not been initialized
+/// - The tracker contains corrupted event data
+///
+/// # Example
+///
+/// ```ignore
+/// use memscope_rs::{init_global_tracking, global_tracker, analyzer};
+///
+/// init_global_tracking().unwrap();
+/// let tracker = global_tracker().unwrap();
+///
+/// let mut az = analyzer(&tracker).expect("Failed to create analyzer");
+/// let report = az.analyze();
+/// println!("{}", report.summary());
+/// ```
+pub fn analyzer(tracker: &GlobalTracker) -> MemScopeResult<Analyzer> {
+    // Validate tracker has valid data
+    let events = tracker.tracker().events();
+
+    // Basic validation: check for obviously corrupted data
+    for event in &events {
+        if event.size > isize::MAX as usize {
+            return Err(MemScopeError::new(
+                crate::core::error::ErrorKind::ValidationError,
+                format!(
+                    "Invalid allocation size: {} bytes (exceeds maximum)",
+                    event.size
+                ),
+            ));
+        }
+    }
+
+    Ok(Analyzer::from_tracker(tracker))
+}
 #[cfg(feature = "derive")]
 pub use memscope_derive::Trackable;
 pub use snapshot::engine::SnapshotEngine;

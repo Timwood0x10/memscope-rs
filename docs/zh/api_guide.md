@@ -591,3 +591,264 @@ struct TaskMemoryProfile {
 2. **Task ID 唯一性**：使用 `generate_unique_task_id()` 生成的任务 ID 永不重复
 3. **生命周期**：确保 `track_task_end()` 在任务完成时被调用，以正确计算任务持续时间
 4. **僵尸任务**：未完成的任务会被标记为僵尸任务，可能表示资源泄漏
+
+## 统一分析 API (v0.2.0 新增)
+
+memscope-rs v0.2.0 引入了全新的统一分析 API，提供了一个简洁、高效的分析入口。
+
+### 核心概念
+
+| 概念 | 说明 |
+|------|------|
+| **Analyzer** | 统一分析入口，整合所有分析功能 |
+| **MemoryView** | 统一读模型，复用 Snapshot 避免重复构建 |
+| **Lazy Initialization** | 延迟初始化，按需加载分析模块 |
+
+### 快速开始
+
+```rust
+use memscope_rs::{global_tracker, init_global_tracking, analyzer};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // 初始化追踪器
+    init_global_tracking()?;
+    let tracker = global_tracker()?;
+
+    // 追踪一些数据
+    let data = vec![1, 2, 3, 4, 5];
+    tracker.track(&data);
+
+    // 创建统一分析器
+    let mut az = analyzer(&tracker)?;
+
+    // 运行完整分析
+    let report = az.analyze();
+    println!("{}", report.summary());
+
+    // 或使用特定的分析功能
+    let leaks = az.quick_leak_check();
+    println!("泄漏数量: {}", leaks.leak_count);
+
+    let cycles = az.quick_cycle_check();
+    println!("循环引用数量: {}", cycles.cycle_count);
+
+    let metrics = az.quick_metrics();
+    println!("分配总数: {}", metrics.allocation_count);
+
+    Ok(())
+}
+```
+
+### 详细 API
+
+#### 1. 创建 Analyzer
+
+```rust
+use memscope_rs::{global_tracker, init_global_tracking, analyzer};
+
+init_global_tracking()?;
+let tracker = global_tracker()?;
+
+// 创建分析器（推荐方式）
+let mut az = analyzer(&tracker)?;
+
+// 或从 MemoryView 创建
+use memscope_rs::view::MemoryView;
+let view = MemoryView::from_tracker(tracker);
+let mut az = memscope_rs::Analyzer::from_view(view);
+```
+
+#### 2. 图分析
+
+```rust
+// 获取图分析（延迟初始化）
+let graph = az.graph();
+
+// 检测循环引用
+let cycles = graph.cycles();
+println!("循环引用数量: {}", cycles.cycle_count);
+
+// 获取所有权统计
+let stats = graph.ownership_stats();
+println!("对象总数: {}", stats.total_objects);
+println!("总字节数: {}", stats.total_bytes);
+println!("唯一类型数: {}", stats.unique_types);
+
+// 获取关系统计
+let relations = graph.relationship_stats();
+println!("所有权边: {}", relations.ownership_edges);
+println!("借用边: {}", relations.borrow_edges);
+println!("克隆边: {}", relations.clone_edges);
+```
+
+#### 3. 检测分析
+
+```rust
+// 获取检测分析（延迟初始化）
+let detect = az.detect();
+
+// 泄漏检测
+let leaks = detect.leaks();
+println!("泄漏数量: {}", leaks.leak_count);
+println!("泄漏字节数: {}", leaks.total_leaked_bytes);
+
+// 使用后释放检测
+let uaf = detect.uaf();
+println!("UAF 数量: {}", uaf.uaf_count);
+
+// 安全分析
+let safety = detect.safety();
+println!("安全问题数量: {}", safety.issue_count);
+
+// 获取摘要
+let summary = detect.summary();
+println!("泄漏数量: {}", summary.leak_count);
+println!("安全问题数量: {}", summary.safety_issues);
+```
+
+#### 4. 指标分析
+
+```rust
+// 获取指标分析（延迟初始化）
+let metrics = az.metrics();
+
+// 获取摘要
+let summary = metrics.summary();
+println!("分配总数: {}", summary.allocation_count);
+println!("总字节数: {}", summary.total_bytes);
+println!("峰值内存: {}", summary.peak_bytes);
+println!("线程数: {}", summary.thread_count);
+
+// 按大小排序
+let top_allocations = metrics.top_by_size(10);
+for alloc in top_allocations {
+    println!("  {} bytes - {}", alloc.size, alloc.type_name.unwrap_or_else(|| "unknown".to_string()));
+}
+
+// 按类型统计
+let by_type = metrics.by_type();
+for (type_name, metric) in by_type {
+    println!("  {} - {} 个分配, {} 字节", type_name, metric.count, metric.total_bytes);
+}
+
+// 按线程统计
+let by_thread = metrics.by_thread();
+for (thread_id, metric) in by_thread {
+    println!("  线程 {} - {} 个分配, {} 字节", thread_id, metric.allocation_count, metric.total_bytes);
+}
+
+// 获取大小分布
+let distribution = metrics.size_distribution();
+println!("  最小: {} 字节", distribution.min);
+println!("  最大: {} 字节", distribution.max);
+println!("  平均: {} 字节", distribution.avg);
+```
+
+#### 5. 时间线分析
+
+```rust
+// 获取时间线分析（延迟初始化）
+let timeline = az.timeline();
+
+// 查询特定时间范围的事件
+let events = timeline.query(start_time, end_time);
+println!("时间范围内的分配数量: {}", events.len());
+
+// 获取分配速率
+let rate = timeline.allocation_rate(time_window_ns);
+println!("分配速率: {} 分配/秒", rate.allocations_per_sec);
+println!("字节速率: {} 字节/秒", rate.bytes_per_sec);
+```
+
+#### 6. 导出
+
+```rust
+// 获取导出引擎
+let exporter = az.export();
+
+// 导出为 JSON
+exporter.json("output/memory_analysis.json")?;
+
+// 导出为 HTML
+exporter.html("output/dashboard.html")?;
+
+// 生成 JSON 字符串
+let json = exporter.to_json()?;
+println!("{}", json);
+
+// 生成 HTML 字符串
+let html = exporter.to_html()?;
+println!("{}", html);
+```
+
+### 架构优势
+
+```mermaid
+graph TB
+    A[用户代码] --> B[analyzer 函数]
+    B --> C[Analyzer 统一入口]
+    C --> D[MemoryView 统一读模型]
+    D --> E[EventStore 事件存储]
+    
+    C --> F[GraphAnalysis]
+    C --> G[DetectionAnalysis]
+    C --> H[MetricsAnalysis]
+    C --> I[TimelineAnalysis]
+    C --> J[ClassificationAnalysis]
+    C --> K[SafetyAnalysis]
+    
+    C --> L[ExportEngine]
+    L --> M[JSON/HTML 导出]
+    
+    style C fill:#4CAF50
+    style D fill:#2196F3
+    style E fill:#FF9800
+```
+
+### 设计原则
+
+| 原则 | 说明 |
+|------|------|
+| **数据源唯一** | MemoryView 是唯一的数据源，避免重复构建 |
+| **复用快照** | 复用 MemorySnapshot，提高效率 |
+| **入口统一** | Analyzer 统一所有分析功能 |
+| **职责分离** | 每个分析模块职责明确 |
+| **延迟初始化** | 按需加载，减少不必要的计算 |
+| **零破坏** | 完全兼容现有 API |
+
+### 性能优化
+
+1. **Lazy Initialization** - 分析模块只在首次访问时初始化
+2. **Snapshot 复用** - MemoryView 复用 MemorySnapshot，避免重复构建 allocations
+3. **高效过滤** - FilterBuilder 提供高效的过滤功能
+
+### 使用建议
+
+1. **推荐使用** `analyzer(&tracker)` 作为统一入口
+2. **对于简单场景**，使用快速检查方法（`quick_leak_check`, `quick_cycle_check` 等）
+3. **对于复杂场景**，使用完整分析（`az.analyze()`）
+4. **对于特定需求**，使用特定的分析模块（`az.graph()`, `az.detect()` 等）
+
+### 迁移指南
+
+如果你使用的是旧版 API，可以轻松迁移到新的统一分析 API：
+
+```rust
+// 旧版 API
+let tracker = global_tracker()?;
+let stats = tracker.get_stats();
+let leaks = tracker.passport_tracker().detect_leaks_at_shutdown();
+
+// 新版 API
+let mut az = analyzer(&tracker)?;
+let stats = az.quick_metrics();
+let leaks = az.quick_leak_check();
+```
+
+### 更多示例
+
+查看 `examples/` 目录中的示例代码：
+
+- `basic_usage.rs` - 基本用法
+- `real_world_demo.rs` - 真实世界示例
+- 展示如何使用新的 analyzer API
