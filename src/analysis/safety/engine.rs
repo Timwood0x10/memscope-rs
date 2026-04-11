@@ -79,7 +79,7 @@ impl RiskAssessmentEngine {
         total_risk_score *= pressure_multiplier;
 
         let risk_level = if risk_factors.is_empty() {
-            crate::analysis::unsafe_ffi_tracker::RiskLevel::Medium
+            crate::analysis::unsafe_ffi_tracker::RiskLevel::Low
         } else if total_risk_score >= 80.0 {
             crate::analysis::unsafe_ffi_tracker::RiskLevel::Critical
         } else if total_risk_score >= 60.0 {
