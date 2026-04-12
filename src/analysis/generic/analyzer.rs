@@ -317,3 +317,643 @@ fn current_timestamp() -> u64 {
         .unwrap_or_default()
         .as_secs()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Objective: Verify GenericAnalyzer creation with default values
+    /// Invariants: New analyzer should have empty collections
+    #[test]
+    fn test_generic_analyzer_creation() {
+        let analyzer = GenericAnalyzer::new();
+
+        let instances = analyzer.generic_instances.lock().unwrap();
+        let violations = analyzer.constraint_violations.lock().unwrap();
+        let events = analyzer.instantiation_events.lock().unwrap();
+
+        assert!(
+            instances.is_empty(),
+            "New analyzer should have no instances"
+        );
+        assert!(
+            violations.is_empty(),
+            "New analyzer should have no violations"
+        );
+        assert!(events.is_empty(), "New analyzer should have no events");
+    }
+
+    /// Objective: Verify Default trait implementation
+    /// Invariants: Default should create same as new()
+    #[test]
+    fn test_generic_analyzer_default() {
+        let analyzer = GenericAnalyzer::default();
+
+        let instances = analyzer.generic_instances.lock().unwrap();
+        assert!(
+            instances.is_empty(),
+            "Default analyzer should have no instances"
+        );
+    }
+
+    /// Objective: Verify track_generic_instantiation functionality
+    /// Invariants: Should add instance and event correctly
+    #[test]
+    fn test_track_generic_instantiation() {
+        let analyzer = GenericAnalyzer::new();
+
+        analyzer.track_generic_instantiation("Vec", vec!["i32".to_string()], 0x1000);
+
+        let instances = analyzer.generic_instances.lock().unwrap();
+        assert!(instances.contains_key("Vec"), "Should contain Vec instance");
+        assert_eq!(
+            instances.get("Vec").unwrap().len(),
+            1,
+            "Should have one Vec instance"
+        );
+
+        let events = analyzer.instantiation_events.lock().unwrap();
+        assert_eq!(events.len(), 1, "Should have one event");
+    }
+
+    /// Objective: Verify track_generic_instantiation_with_name functionality
+    /// Invariants: Should track instance with custom name
+    #[test]
+    fn test_track_generic_instantiation_with_name() {
+        let analyzer = GenericAnalyzer::new();
+
+        analyzer.track_generic_instantiation_with_name(
+            "MyVec",
+            "Vec",
+            vec!["String".to_string()],
+            0x2000,
+        );
+
+        let instances = analyzer.generic_instances.lock().unwrap();
+        assert!(
+            instances.contains_key("MyVec"),
+            "Should contain MyVec instance"
+        );
+
+        let instance = &instances.get("MyVec").unwrap()[0];
+        assert_eq!(instance.name, "MyVec", "Name should be MyVec");
+        assert_eq!(instance.base_type, "Vec", "Base type should be Vec");
+        assert!(instance.is_type_alias, "Should be marked as type alias");
+    }
+
+    /// Objective: Verify track_type_alias_instantiation functionality
+    /// Invariants: Should track type alias correctly
+    #[test]
+    fn test_track_type_alias_instantiation() {
+        let analyzer = GenericAnalyzer::new();
+
+        analyzer.track_type_alias_instantiation("StringList", "Vec<String>", vec![], 0x3000);
+
+        let instances = analyzer.generic_instances.lock().unwrap();
+        assert!(
+            instances.contains_key("StringList"),
+            "Should contain StringList instance"
+        );
+
+        let instance = &instances.get("StringList").unwrap()[0];
+        assert_eq!(instance.name, "StringList", "Name should be StringList");
+        assert_eq!(
+            instance.underlying_type, "Vec<String>",
+            "Underlying type should be Vec<String>"
+        );
+        assert!(instance.is_type_alias, "Should be marked as type alias");
+    }
+
+    /// Objective: Verify analyze_constraints functionality
+    /// Invariants: Should extract constraints from type name
+    #[test]
+    fn test_analyze_constraints() {
+        let analyzer = GenericAnalyzer::new();
+
+        let constraints = analyzer.analyze_constraints("Vec<T: Clone>");
+
+        assert!(
+            !constraints.is_empty(),
+            "Should have constraints for Vec<T: Clone>"
+        );
+    }
+
+    /// Objective: Verify check_constraint_violations with valid params
+    /// Invariants: Should return empty violations for valid params
+    #[test]
+    fn test_check_constraint_violations_valid() {
+        let analyzer = GenericAnalyzer::new();
+
+        let violations = analyzer.check_constraint_violations("Vec<T>", &["i32".to_string()]);
+
+        assert!(
+            violations.is_empty(),
+            "Should have no violations for valid params"
+        );
+    }
+
+    /// Objective: Verify get_generic_statistics with no data
+    /// Invariants: Should return zero statistics
+    #[test]
+    fn test_get_generic_statistics_empty() {
+        let analyzer = GenericAnalyzer::new();
+
+        let stats = analyzer.get_generic_statistics();
+
+        assert_eq!(stats.total_instances, 0, "Should have 0 total instances");
+        assert_eq!(
+            stats.unique_base_types, 0,
+            "Should have 0 unique base types"
+        );
+        assert_eq!(
+            stats.total_instantiations, 0,
+            "Should have 0 instantiations"
+        );
+        assert_eq!(stats.constraint_violations, 0, "Should have 0 violations");
+    }
+
+    /// Objective: Verify get_generic_statistics with data
+    /// Invariants: Should return correct statistics
+    #[test]
+    fn test_get_generic_statistics_with_data() {
+        let analyzer = GenericAnalyzer::new();
+
+        analyzer.track_generic_instantiation("Vec", vec!["i32".to_string()], 0x1000);
+        analyzer.track_generic_instantiation("Vec", vec!["String".to_string()], 0x2000);
+        analyzer.track_generic_instantiation(
+            "HashMap",
+            vec!["String".to_string(), "i32".to_string()],
+            0x3000,
+        );
+
+        let stats = analyzer.get_generic_statistics();
+
+        assert_eq!(stats.total_instances, 3, "Should have 3 total instances");
+        assert_eq!(
+            stats.unique_base_types, 2,
+            "Should have 2 unique base types (Vec, HashMap)"
+        );
+        assert_eq!(
+            stats.total_instantiations, 3,
+            "Should have 3 instantiations"
+        );
+    }
+
+    /// Objective: Verify get_type_aliases with no aliases
+    /// Invariants: Should return empty list
+    #[test]
+    fn test_get_type_aliases_empty() {
+        let analyzer = GenericAnalyzer::new();
+
+        analyzer.track_generic_instantiation("Vec", vec!["i32".to_string()], 0x1000);
+
+        let aliases = analyzer.get_type_aliases();
+
+        assert!(aliases.is_empty(), "Should have no type aliases");
+    }
+
+    /// Objective: Verify get_type_aliases with aliases
+    /// Invariants: Should return correct alias info
+    #[test]
+    fn test_get_type_aliases_with_data() {
+        let analyzer = GenericAnalyzer::new();
+
+        analyzer.track_type_alias_instantiation("StringList", "Vec<String>", vec![], 0x1000);
+        analyzer.track_type_alias_instantiation("StringList", "Vec<String>", vec![], 0x2000);
+
+        let aliases = analyzer.get_type_aliases();
+
+        assert_eq!(aliases.len(), 1, "Should have 1 type alias");
+        assert_eq!(
+            aliases[0].alias_name, "StringList",
+            "Alias name should be StringList"
+        );
+        assert_eq!(aliases[0].usage_count, 2, "Usage count should be 2");
+    }
+
+    /// Objective: Verify resolve_type_alias functionality
+    /// Invariants: Should resolve alias to underlying type
+    #[test]
+    fn test_resolve_type_alias() {
+        let analyzer = GenericAnalyzer::new();
+
+        analyzer.track_type_alias_instantiation("IntList", "Vec<i32>", vec![], 0x1000);
+
+        let resolved = analyzer.resolve_type_alias("IntList");
+
+        assert!(resolved.is_some(), "Should resolve IntList");
+        assert_eq!(resolved.unwrap(), "Vec<i32>", "Should resolve to Vec<i32>");
+    }
+
+    /// Objective: Verify resolve_type_alias for non-existent alias
+    /// Invariants: Should return None
+    #[test]
+    fn test_resolve_type_alias_nonexistent() {
+        let analyzer = GenericAnalyzer::new();
+
+        let resolved = analyzer.resolve_type_alias("NonExistent");
+
+        assert!(
+            resolved.is_none(),
+            "Should return None for non-existent alias"
+        );
+    }
+
+    /// Objective: Verify type_implements_trait for Clone
+    /// Invariants: Should correctly identify Clone types
+    #[test]
+    fn test_type_implements_trait_clone() {
+        let analyzer = GenericAnalyzer::new();
+
+        assert!(
+            analyzer.type_implements_trait(&["i32".to_string()], "Clone"),
+            "i32 should implement Clone"
+        );
+        assert!(
+            analyzer.type_implements_trait(&["String".to_string()], "Clone"),
+            "String should implement Clone"
+        );
+        assert!(
+            !analyzer.type_implements_trait(&["Mutex<i32>".to_string()], "Clone"),
+            "Mutex should not implement Clone"
+        );
+    }
+
+    /// Objective: Verify type_implements_trait for Debug
+    /// Invariants: Should correctly identify Debug types
+    #[test]
+    fn test_type_implements_trait_debug() {
+        let analyzer = GenericAnalyzer::new();
+
+        assert!(
+            analyzer.type_implements_trait(&["i32".to_string()], "Debug"),
+            "i32 should implement Debug"
+        );
+        assert!(
+            !analyzer.type_implements_trait(&["fn()".to_string()], "Debug"),
+            "fn() should not implement Debug"
+        );
+    }
+
+    /// Objective: Verify type_implements_trait for Default
+    /// Invariants: Should correctly identify Default types
+    #[test]
+    fn test_type_implements_trait_default() {
+        let analyzer = GenericAnalyzer::new();
+
+        assert!(
+            analyzer.type_implements_trait(&["Vec<i32>".to_string()], "Default"),
+            "Vec should implement Default"
+        );
+        assert!(
+            analyzer.type_implements_trait(&["String".to_string()], "Default"),
+            "String should implement Default"
+        );
+        assert!(
+            !analyzer.type_implements_trait(&["i32".to_string()], "Default"),
+            "i32 should not implement Default"
+        );
+    }
+
+    /// Objective: Verify type_implements_trait for PartialEq
+    /// Invariants: Should correctly identify PartialEq types
+    #[test]
+    fn test_type_implements_trait_partial_eq() {
+        let analyzer = GenericAnalyzer::new();
+
+        assert!(
+            analyzer.type_implements_trait(&["i32".to_string()], "PartialEq"),
+            "i32 should implement PartialEq"
+        );
+        assert!(
+            !analyzer.type_implements_trait(&["fn()".to_string()], "PartialEq"),
+            "fn() should not implement PartialEq"
+        );
+    }
+
+    /// Objective: Verify type_is_send functionality
+    /// Invariants: Should correctly identify Send types
+    #[test]
+    fn test_type_is_send() {
+        let analyzer = GenericAnalyzer::new();
+
+        assert!(
+            analyzer.type_is_send(&["i32".to_string()]),
+            "i32 should be Send"
+        );
+        assert!(
+            analyzer.type_is_send(&["Arc<i32>".to_string()]),
+            "Arc should be Send"
+        );
+        assert!(
+            !analyzer.type_is_send(&["Rc<i32>".to_string()]),
+            "Rc should not be Send"
+        );
+        assert!(
+            !analyzer.type_is_send(&["RefCell<i32>".to_string()]),
+            "RefCell should not be Send"
+        );
+    }
+
+    /// Objective: Verify type_is_sync functionality
+    /// Invariants: Should correctly identify Sync types
+    #[test]
+    fn test_type_is_sync() {
+        let analyzer = GenericAnalyzer::new();
+
+        assert!(
+            analyzer.type_is_sync(&["i32".to_string()]),
+            "i32 should be Sync"
+        );
+        assert!(
+            analyzer.type_is_sync(&["Arc<i32>".to_string()]),
+            "Arc should be Sync"
+        );
+        assert!(
+            !analyzer.type_is_sync(&["Cell<i32>".to_string()]),
+            "Cell should not be Sync"
+        );
+        assert!(
+            !analyzer.type_is_sync(&["RefCell<i32>".to_string()]),
+            "RefCell should not be Sync"
+        );
+    }
+
+    /// Objective: Verify is_cloneable_type functionality
+    /// Invariants: Should correctly identify cloneable types
+    #[test]
+    fn test_is_cloneable_type() {
+        let analyzer = GenericAnalyzer::new();
+
+        assert!(analyzer.is_cloneable_type("i32"), "i32 should be cloneable");
+        assert!(
+            analyzer.is_cloneable_type("String"),
+            "String should be cloneable"
+        );
+        assert!(
+            !analyzer.is_cloneable_type("Mutex<i32>"),
+            "Mutex should not be cloneable"
+        );
+        assert!(
+            !analyzer.is_cloneable_type("File"),
+            "File should not be cloneable"
+        );
+    }
+
+    /// Objective: Verify is_debug_type functionality
+    /// Invariants: Should correctly identify Debug types
+    #[test]
+    fn test_is_debug_type() {
+        let analyzer = GenericAnalyzer::new();
+
+        assert!(analyzer.is_debug_type("i32"), "i32 should be Debug");
+        assert!(analyzer.is_debug_type("String"), "String should be Debug");
+        assert!(
+            !analyzer.is_debug_type("fn() -> i32"),
+            "fn() should not be Debug"
+        );
+    }
+
+    /// Objective: Verify is_default_type functionality
+    /// Invariants: Should correctly identify Default types
+    #[test]
+    fn test_is_default_type() {
+        let analyzer = GenericAnalyzer::new();
+
+        assert!(
+            analyzer.is_default_type("Vec<i32>"),
+            "Vec should be Default"
+        );
+        assert!(
+            analyzer.is_default_type("HashMap<String, i32>"),
+            "HashMap should be Default"
+        );
+        assert!(
+            analyzer.is_default_type("String"),
+            "String should be Default"
+        );
+        assert!(
+            !analyzer.is_default_type("i32"),
+            "i32 should not be Default"
+        );
+    }
+
+    /// Objective: Verify is_partial_eq_type functionality
+    /// Invariants: Should correctly identify PartialEq types
+    #[test]
+    fn test_is_partial_eq_type() {
+        let analyzer = GenericAnalyzer::new();
+
+        assert!(
+            analyzer.is_partial_eq_type("i32"),
+            "i32 should be PartialEq"
+        );
+        assert!(
+            analyzer.is_partial_eq_type("String"),
+            "String should be PartialEq"
+        );
+        assert!(
+            !analyzer.is_partial_eq_type("fn()"),
+            "fn() should not be PartialEq"
+        );
+        assert!(
+            !analyzer.is_partial_eq_type("Mutex<i32>"),
+            "Mutex should not be PartialEq"
+        );
+    }
+
+    /// Objective: Verify get_global_generic_analyzer singleton
+    /// Invariants: Should return same instance
+    #[test]
+    fn test_global_generic_analyzer_singleton() {
+        let analyzer1 = get_global_generic_analyzer();
+        let analyzer2 = get_global_generic_analyzer();
+
+        assert!(
+            Arc::ptr_eq(&analyzer1, &analyzer2),
+            "Should return same instance"
+        );
+    }
+
+    /// Objective: Verify current_timestamp returns valid value
+    /// Invariants: Timestamp should be positive
+    #[test]
+    fn test_current_timestamp() {
+        let ts = current_timestamp();
+        assert!(ts > 0, "Timestamp should be positive");
+    }
+
+    /// Objective: Verify multiple instantiations of same type
+    /// Invariants: Should track all instances
+    #[test]
+    fn test_multiple_instantiations_same_type() {
+        let analyzer = GenericAnalyzer::new();
+
+        for i in 0..5 {
+            analyzer.track_generic_instantiation("Vec", vec!["i32".to_string()], 0x1000 + i);
+        }
+
+        let instances = analyzer.generic_instances.lock().unwrap();
+        assert_eq!(
+            instances.get("Vec").unwrap().len(),
+            5,
+            "Should have 5 Vec instances"
+        );
+
+        let events = analyzer.instantiation_events.lock().unwrap();
+        assert_eq!(events.len(), 5, "Should have 5 events");
+    }
+
+    /// Objective: Verify validate_constraint for Sized
+    /// Invariants: Should correctly validate Sized constraint
+    #[test]
+    fn test_validate_constraint_sized() {
+        let analyzer = GenericAnalyzer::new();
+
+        let sized_constraint = GenericConstraint {
+            constraint_type: ConstraintType::Sized,
+            parameter_name: "T".to_string(),
+            description: String::new(),
+        };
+
+        assert!(
+            analyzer.validate_constraint(&sized_constraint, &["i32".to_string()]),
+            "i32 should be Sized"
+        );
+        assert!(
+            !analyzer.validate_constraint(&sized_constraint, &["dyn Any".to_string()]),
+            "dyn Any should not be Sized"
+        );
+        assert!(
+            !analyzer.validate_constraint(&sized_constraint, &["?Sized".to_string()]),
+            "?Sized should not satisfy Sized constraint"
+        );
+    }
+
+    /// Objective: Verify validate_constraint for Lifetime
+    /// Invariants: Should always return true for Lifetime constraint
+    #[test]
+    fn test_validate_constraint_lifetime() {
+        let analyzer = GenericAnalyzer::new();
+
+        let lifetime_constraint = GenericConstraint {
+            constraint_type: ConstraintType::Lifetime,
+            parameter_name: "'a".to_string(),
+            description: String::new(),
+        };
+
+        assert!(
+            analyzer.validate_constraint(&lifetime_constraint, &["i32".to_string()]),
+            "Lifetime constraint should always be valid"
+        );
+    }
+
+    /// Objective: Verify validate_constraint for Send
+    /// Invariants: Should correctly validate Send constraint
+    #[test]
+    fn test_validate_constraint_send() {
+        let analyzer = GenericAnalyzer::new();
+
+        let send_constraint = GenericConstraint {
+            constraint_type: ConstraintType::Send,
+            parameter_name: "T".to_string(),
+            description: String::new(),
+        };
+
+        assert!(
+            analyzer.validate_constraint(&send_constraint, &["i32".to_string()]),
+            "i32 should be Send"
+        );
+        assert!(
+            !analyzer.validate_constraint(&send_constraint, &["Rc<i32>".to_string()]),
+            "Rc should not be Send"
+        );
+    }
+
+    /// Objective: Verify validate_constraint for Sync
+    /// Invariants: Should correctly validate Sync constraint
+    #[test]
+    fn test_validate_constraint_sync() {
+        let analyzer = GenericAnalyzer::new();
+
+        let sync_constraint = GenericConstraint {
+            constraint_type: ConstraintType::Sync,
+            parameter_name: "T".to_string(),
+            description: String::new(),
+        };
+
+        assert!(
+            analyzer.validate_constraint(&sync_constraint, &["i32".to_string()]),
+            "i32 should be Sync"
+        );
+        assert!(
+            !analyzer.validate_constraint(&sync_constraint, &["Cell<i32>".to_string()]),
+            "Cell should not be Sync"
+        );
+    }
+
+    /// Objective: Verify type_implements_trait for unknown trait
+    /// Invariants: Should return true for unknown traits
+    #[test]
+    fn test_type_implements_trait_unknown() {
+        let analyzer = GenericAnalyzer::new();
+
+        assert!(
+            analyzer.type_implements_trait(&["i32".to_string()], "UnknownTrait"),
+            "Unknown traits should return true by default"
+        );
+    }
+
+    /// Objective: Verify concurrent access to GenericAnalyzer
+    /// Invariants: Should handle concurrent operations safely
+    #[test]
+    fn test_concurrent_access() {
+        use std::sync::Arc;
+        use std::thread;
+
+        let analyzer = Arc::new(GenericAnalyzer::new());
+        let mut handles = vec![];
+
+        for i in 0..5 {
+            let analyzer_clone = analyzer.clone();
+            let handle = thread::spawn(move || {
+                analyzer_clone.track_generic_instantiation(
+                    "Vec",
+                    vec![format!("Type{}", i)],
+                    0x1000 + i,
+                );
+            });
+            handles.push(handle);
+        }
+
+        for handle in handles {
+            handle.join().unwrap();
+        }
+
+        let instances = analyzer.generic_instances.lock().unwrap();
+        assert_eq!(
+            instances.get("Vec").unwrap().len(),
+            5,
+            "Should have 5 instances from 5 threads"
+        );
+    }
+
+    /// Objective: Verify statistics with type aliases
+    /// Invariants: Should correctly count type aliases
+    #[test]
+    fn test_statistics_with_type_aliases() {
+        let analyzer = GenericAnalyzer::new();
+
+        analyzer.track_generic_instantiation("Vec", vec!["i32".to_string()], 0x1000);
+        analyzer.track_type_alias_instantiation("IntVec", "Vec<i32>", vec![], 0x2000);
+        analyzer.track_type_alias_instantiation("IntVec", "Vec<i32>", vec![], 0x3000);
+
+        let stats = analyzer.get_generic_statistics();
+
+        assert_eq!(stats.total_instances, 3, "Should have 3 total instances");
+        assert_eq!(
+            stats.type_aliases_count, 2,
+            "Should have 2 type alias instances"
+        );
+    }
+}

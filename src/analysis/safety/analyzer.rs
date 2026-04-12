@@ -2796,12 +2796,12 @@ mod tests {
 
         let cloned = config.clone();
 
-        assert_eq!(
-            cloned.detailed_risk_assessment, false,
+        assert!(
+            !cloned.detailed_risk_assessment,
             "Cloned detailed_risk_assessment should match"
         );
-        assert_eq!(
-            cloned.enable_passport_tracking, false,
+        assert!(
+            !cloned.enable_passport_tracking,
             "Cloned enable_passport_tracking should match"
         );
         assert_eq!(cloned.max_reports, 500, "Cloned max_reports should match");

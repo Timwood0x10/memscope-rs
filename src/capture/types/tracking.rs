@@ -567,4 +567,598 @@ mod tests {
             assert!(!format!("{pattern:?}").is_empty());
         }
     }
+
+    #[test]
+    fn test_all_leak_potential_variants() {
+        let potentials = [
+            LeakPotential::Low,
+            LeakPotential::Medium,
+            LeakPotential::High,
+            LeakPotential::Critical,
+        ];
+
+        for potential in potentials {
+            let pattern = MemoryUsagePattern {
+                peak_memory_usage: 1024,
+                avg_memory_usage: 512,
+                allocation_frequency: 10.0,
+                deallocation_frequency: 8.0,
+                leak_potential: potential.clone(),
+            };
+            assert_eq!(pattern.leak_potential, potential);
+        }
+    }
+
+    #[test]
+    fn test_all_stack_overflow_risk_variants() {
+        let risks = [
+            StackOverflowRisk::Low,
+            StackOverflowRisk::Medium,
+            StackOverflowRisk::High,
+            StackOverflowRisk::Critical,
+        ];
+
+        for risk in risks {
+            let info = CallStackInfo {
+                max_stack_depth: 10,
+                avg_stack_depth: 5.0,
+                common_call_sequences: vec![],
+                recursive_calls: vec![],
+                stack_overflow_risk: risk.clone(),
+            };
+            assert_eq!(info.stack_overflow_risk, risk);
+        }
+    }
+
+    #[test]
+    fn test_all_thread_safety_level_variants() {
+        let levels = [
+            ThreadSafetyLevel::ThreadSafe,
+            ThreadSafetyLevel::ConditionallyThreadSafe,
+            ThreadSafetyLevel::NotThreadSafe,
+            ThreadSafetyLevel::Unknown,
+        ];
+
+        for level in levels.clone() {
+            let chars = ConcurrencyCharacteristics {
+                thread_safety_level: level.clone(),
+                lock_contention_frequency: 0.5,
+                parallel_execution_potential: 0.8,
+                synchronization_overhead_ns: 100.0,
+                deadlock_risk: DeadlockRisk::None,
+            };
+            assert_eq!(chars.thread_safety_level, level);
+        }
+    }
+
+    #[test]
+    fn test_all_deadlock_risk_variants() {
+        let risks = [
+            DeadlockRisk::None,
+            DeadlockRisk::Low,
+            DeadlockRisk::Medium,
+            DeadlockRisk::High,
+        ];
+
+        for risk in risks {
+            let chars = ConcurrencyCharacteristics {
+                thread_safety_level: ThreadSafetyLevel::ThreadSafe,
+                lock_contention_frequency: 0.5,
+                parallel_execution_potential: 0.8,
+                synchronization_overhead_ns: 100.0,
+                deadlock_risk: risk.clone(),
+            };
+            assert_eq!(chars.deadlock_risk, risk);
+        }
+    }
+
+    #[test]
+    fn test_all_call_pattern_type_variants() {
+        let patterns = [
+            CallPatternType::Sequential,
+            CallPatternType::Recursive,
+            CallPatternType::Iterative,
+            CallPatternType::Conditional,
+            CallPatternType::Parallel,
+            CallPatternType::Asynchronous,
+            CallPatternType::Callback,
+            CallPatternType::EventDriven,
+        ];
+
+        for pattern in patterns {
+            let cp = CallPattern {
+                pattern_type: pattern.clone(),
+                description: "Test pattern".to_string(),
+                frequency: 10,
+                performance_impact: 0.5,
+                optimization_potential: 0.3,
+            };
+            assert_eq!(cp.pattern_type, pattern);
+        }
+    }
+
+    #[test]
+    fn test_call_stack_info_creation() {
+        let info = CallStackInfo {
+            max_stack_depth: 100,
+            avg_stack_depth: 45.5,
+            common_call_sequences: vec![CallSequence {
+                function_sequence: vec!["main".to_string(), "foo".to_string()],
+                frequency: 50,
+                avg_execution_time_ns: 5000.0,
+                memory_usage_pattern: MemoryUsagePattern {
+                    peak_memory_usage: 2048,
+                    avg_memory_usage: 1024,
+                    allocation_frequency: 5.0,
+                    deallocation_frequency: 5.0,
+                    leak_potential: LeakPotential::Low,
+                },
+            }],
+            recursive_calls: vec![],
+            stack_overflow_risk: StackOverflowRisk::Medium,
+        };
+
+        assert_eq!(info.max_stack_depth, 100);
+        assert_eq!(info.common_call_sequences.len(), 1);
+    }
+
+    #[test]
+    fn test_recursive_call_info_creation() {
+        let info = RecursiveCallInfo {
+            function_name: "fibonacci".to_string(),
+            max_recursion_depth: 50,
+            avg_recursion_depth: 25.5,
+            tail_recursion_potential: true,
+            stack_usage_per_level: 64,
+            recursion_performance_impact: RecursionPerformanceImpact {
+                stack_overhead_per_call: 64,
+                call_overhead_ns: 10.0,
+                cache_impact: 0.2,
+                optimization_recommendations: vec!["Convert to iterative".to_string()],
+            },
+        };
+
+        assert_eq!(info.function_name, "fibonacci");
+        assert!(info.tail_recursion_potential);
+    }
+
+    #[test]
+    fn test_memory_usage_pattern_creation() {
+        let pattern = MemoryUsagePattern {
+            peak_memory_usage: 10240,
+            avg_memory_usage: 5120,
+            allocation_frequency: 100.0,
+            deallocation_frequency: 95.0,
+            leak_potential: LeakPotential::High,
+        };
+
+        assert_eq!(pattern.peak_memory_usage, 10240);
+        assert!(matches!(pattern.leak_potential, LeakPotential::High));
+    }
+
+    #[test]
+    fn test_function_memory_characteristics_creation() {
+        let chars = FunctionMemoryCharacteristics {
+            stack_memory_usage: 2048,
+            heap_allocations: 10,
+            access_pattern: MemoryAccessPattern::Random,
+            cache_efficiency: 0.75,
+            memory_bandwidth_utilization: 0.6,
+        };
+
+        assert_eq!(chars.stack_memory_usage, 2048);
+        assert!(matches!(chars.access_pattern, MemoryAccessPattern::Random));
+    }
+
+    #[test]
+    fn test_io_characteristics_creation() {
+        let chars = IOCharacteristics {
+            file_io_operations: 100,
+            network_io_operations: 50,
+            avg_io_wait_time_ns: 5000.0,
+            io_throughput_bytes_per_sec: 1024000.0,
+            io_efficiency_score: 0.85,
+        };
+
+        assert_eq!(chars.file_io_operations, 100);
+        assert_eq!(chars.network_io_operations, 50);
+    }
+
+    #[test]
+    fn test_call_sequence_creation() {
+        let seq = CallSequence {
+            function_sequence: vec!["a".to_string(), "b".to_string(), "c".to_string()],
+            frequency: 25,
+            avg_execution_time_ns: 15000.0,
+            memory_usage_pattern: MemoryUsagePattern {
+                peak_memory_usage: 4096,
+                avg_memory_usage: 2048,
+                allocation_frequency: 2.0,
+                deallocation_frequency: 2.0,
+                leak_potential: LeakPotential::Low,
+            },
+        };
+
+        assert_eq!(seq.function_sequence.len(), 3);
+        assert_eq!(seq.frequency, 25);
+    }
+
+    #[test]
+    fn test_call_pattern_creation() {
+        let pattern = CallPattern {
+            pattern_type: CallPatternType::Recursive,
+            description: "Recursive tree traversal".to_string(),
+            frequency: 100,
+            performance_impact: 0.4,
+            optimization_potential: 0.7,
+        };
+
+        assert!(matches!(pattern.pattern_type, CallPatternType::Recursive));
+        assert_eq!(pattern.optimization_potential, 0.7);
+    }
+
+    #[test]
+    fn test_function_call_tracking_info_serialization() {
+        let info = FunctionCallTrackingInfo {
+            function_name: "serialize_test".to_string(),
+            module_path: "test::serialize".to_string(),
+            total_call_count: 50,
+            call_frequency_per_sec: 5.0,
+            avg_execution_time_ns: 2000.0,
+            total_execution_time_ns: 100000,
+            call_stack_info: CallStackInfo {
+                max_stack_depth: 3,
+                avg_stack_depth: 2.0,
+                common_call_sequences: vec![],
+                recursive_calls: vec![],
+                stack_overflow_risk: StackOverflowRisk::Low,
+            },
+            memory_allocations_per_call: 1.5,
+            performance_characteristics: FunctionPerformanceCharacteristics {
+                cpu_usage_percent: 10.0,
+                memory_characteristics: FunctionMemoryCharacteristics {
+                    stack_memory_usage: 512,
+                    heap_allocations: 2,
+                    access_pattern: MemoryAccessPattern::Sequential,
+                    cache_efficiency: 0.9,
+                    memory_bandwidth_utilization: 0.4,
+                },
+                io_characteristics: IOCharacteristics {
+                    file_io_operations: 0,
+                    network_io_operations: 0,
+                    avg_io_wait_time_ns: 0.0,
+                    io_throughput_bytes_per_sec: 0.0,
+                    io_efficiency_score: 1.0,
+                },
+                concurrency_characteristics: ConcurrencyCharacteristics {
+                    thread_safety_level: ThreadSafetyLevel::ThreadSafe,
+                    lock_contention_frequency: 0.0,
+                    parallel_execution_potential: 0.9,
+                    synchronization_overhead_ns: 0.0,
+                    deadlock_risk: DeadlockRisk::None,
+                },
+                bottlenecks: vec![],
+            },
+            call_patterns: vec![],
+        };
+
+        let json = serde_json::to_string(&info).unwrap();
+        let deserialized: FunctionCallTrackingInfo = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.function_name, info.function_name);
+        assert_eq!(deserialized.total_call_count, info.total_call_count);
+    }
+
+    #[test]
+    fn test_leak_potential_serialization() {
+        let potentials = vec![
+            LeakPotential::Low,
+            LeakPotential::Medium,
+            LeakPotential::High,
+            LeakPotential::Critical,
+        ];
+
+        for potential in potentials {
+            let json = serde_json::to_string(&potential).unwrap();
+            let deserialized: LeakPotential = serde_json::from_str(&json).unwrap();
+            assert_eq!(deserialized, potential);
+        }
+    }
+
+    #[test]
+    fn test_stack_overflow_risk_serialization() {
+        let risks = vec![
+            StackOverflowRisk::Low,
+            StackOverflowRisk::Medium,
+            StackOverflowRisk::High,
+            StackOverflowRisk::Critical,
+        ];
+
+        for risk in risks {
+            let json = serde_json::to_string(&risk).unwrap();
+            let deserialized: StackOverflowRisk = serde_json::from_str(&json).unwrap();
+            assert_eq!(deserialized, risk);
+        }
+    }
+
+    #[test]
+    fn test_thread_safety_level_serialization() {
+        let levels = vec![
+            ThreadSafetyLevel::ThreadSafe,
+            ThreadSafetyLevel::ConditionallyThreadSafe,
+            ThreadSafetyLevel::NotThreadSafe,
+            ThreadSafetyLevel::Unknown,
+        ];
+
+        for level in levels {
+            let json = serde_json::to_string(&level).unwrap();
+            let deserialized: ThreadSafetyLevel = serde_json::from_str(&json).unwrap();
+            assert_eq!(deserialized, level);
+        }
+    }
+
+    #[test]
+    fn test_deadlock_risk_serialization() {
+        let risks = vec![
+            DeadlockRisk::None,
+            DeadlockRisk::Low,
+            DeadlockRisk::Medium,
+            DeadlockRisk::High,
+        ];
+
+        for risk in risks {
+            let json = serde_json::to_string(&risk).unwrap();
+            let deserialized: DeadlockRisk = serde_json::from_str(&json).unwrap();
+            assert_eq!(deserialized, risk);
+        }
+    }
+
+    #[test]
+    fn test_call_pattern_type_serialization() {
+        let patterns = vec![
+            CallPatternType::Sequential,
+            CallPatternType::Recursive,
+            CallPatternType::Iterative,
+            CallPatternType::Conditional,
+            CallPatternType::Parallel,
+            CallPatternType::Asynchronous,
+            CallPatternType::Callback,
+            CallPatternType::EventDriven,
+        ];
+
+        for pattern in patterns {
+            let json = serde_json::to_string(&pattern).unwrap();
+            let deserialized: CallPatternType = serde_json::from_str(&json).unwrap();
+            assert_eq!(deserialized, pattern);
+        }
+    }
+
+    #[test]
+    fn test_function_call_tracking_info_clone() {
+        let info = FunctionCallTrackingInfo {
+            function_name: "clone_test".to_string(),
+            module_path: "test::clone".to_string(),
+            total_call_count: 10,
+            call_frequency_per_sec: 1.0,
+            avg_execution_time_ns: 100.0,
+            total_execution_time_ns: 1000,
+            call_stack_info: CallStackInfo {
+                max_stack_depth: 1,
+                avg_stack_depth: 1.0,
+                common_call_sequences: vec![],
+                recursive_calls: vec![],
+                stack_overflow_risk: StackOverflowRisk::Low,
+            },
+            memory_allocations_per_call: 0.0,
+            performance_characteristics: FunctionPerformanceCharacteristics {
+                cpu_usage_percent: 0.0,
+                memory_characteristics: FunctionMemoryCharacteristics {
+                    stack_memory_usage: 0,
+                    heap_allocations: 0,
+                    access_pattern: MemoryAccessPattern::Sequential,
+                    cache_efficiency: 0.0,
+                    memory_bandwidth_utilization: 0.0,
+                },
+                io_characteristics: IOCharacteristics {
+                    file_io_operations: 0,
+                    network_io_operations: 0,
+                    avg_io_wait_time_ns: 0.0,
+                    io_throughput_bytes_per_sec: 0.0,
+                    io_efficiency_score: 0.0,
+                },
+                concurrency_characteristics: ConcurrencyCharacteristics {
+                    thread_safety_level: ThreadSafetyLevel::Unknown,
+                    lock_contention_frequency: 0.0,
+                    parallel_execution_potential: 0.0,
+                    synchronization_overhead_ns: 0.0,
+                    deadlock_risk: DeadlockRisk::None,
+                },
+                bottlenecks: vec![],
+            },
+            call_patterns: vec![],
+        };
+
+        let cloned = info.clone();
+        assert_eq!(cloned.function_name, info.function_name);
+        assert_eq!(cloned.total_call_count, info.total_call_count);
+    }
+
+    #[test]
+    fn test_function_call_tracking_info_debug() {
+        let info = FunctionCallTrackingInfo {
+            function_name: "debug_test".to_string(),
+            module_path: "test::debug".to_string(),
+            total_call_count: 1,
+            call_frequency_per_sec: 1.0,
+            avg_execution_time_ns: 1.0,
+            total_execution_time_ns: 1,
+            call_stack_info: CallStackInfo {
+                max_stack_depth: 1,
+                avg_stack_depth: 1.0,
+                common_call_sequences: vec![],
+                recursive_calls: vec![],
+                stack_overflow_risk: StackOverflowRisk::Low,
+            },
+            memory_allocations_per_call: 0.0,
+            performance_characteristics: FunctionPerformanceCharacteristics {
+                cpu_usage_percent: 0.0,
+                memory_characteristics: FunctionMemoryCharacteristics {
+                    stack_memory_usage: 0,
+                    heap_allocations: 0,
+                    access_pattern: MemoryAccessPattern::Sequential,
+                    cache_efficiency: 0.0,
+                    memory_bandwidth_utilization: 0.0,
+                },
+                io_characteristics: IOCharacteristics {
+                    file_io_operations: 0,
+                    network_io_operations: 0,
+                    avg_io_wait_time_ns: 0.0,
+                    io_throughput_bytes_per_sec: 0.0,
+                    io_efficiency_score: 0.0,
+                },
+                concurrency_characteristics: ConcurrencyCharacteristics {
+                    thread_safety_level: ThreadSafetyLevel::Unknown,
+                    lock_contention_frequency: 0.0,
+                    parallel_execution_potential: 0.0,
+                    synchronization_overhead_ns: 0.0,
+                    deadlock_risk: DeadlockRisk::None,
+                },
+                bottlenecks: vec![],
+            },
+            call_patterns: vec![],
+        };
+
+        let debug_str = format!("{:?}", info);
+        assert!(debug_str.contains("FunctionCallTrackingInfo"));
+        assert!(debug_str.contains("function_name"));
+    }
+
+    #[test]
+    fn test_recursion_performance_impact_creation() {
+        let impact = RecursionPerformanceImpact {
+            stack_overhead_per_call: 128,
+            call_overhead_ns: 15.0,
+            cache_impact: 0.35,
+            optimization_recommendations: vec![
+                "Use tail recursion".to_string(),
+                "Convert to iteration".to_string(),
+            ],
+        };
+
+        assert_eq!(impact.stack_overhead_per_call, 128);
+        assert_eq!(impact.optimization_recommendations.len(), 2);
+    }
+
+    #[test]
+    fn test_memory_access_pattern_variants() {
+        let patterns = [
+            MemoryAccessPattern::Sequential,
+            MemoryAccessPattern::Random,
+            MemoryAccessPattern::Strided { stride: 64 },
+            MemoryAccessPattern::Clustered,
+            MemoryAccessPattern::Mixed,
+        ];
+
+        for pattern in patterns {
+            let chars = FunctionMemoryCharacteristics {
+                stack_memory_usage: 1024,
+                heap_allocations: 5,
+                access_pattern: pattern.clone(),
+                cache_efficiency: 0.8,
+                memory_bandwidth_utilization: 0.5,
+            };
+            assert_eq!(chars.access_pattern, pattern);
+        }
+    }
+
+    #[test]
+    fn test_performance_bottleneck_in_function() {
+        let bottleneck = PerformanceBottleneck {
+            bottleneck_type: BottleneckType::MemoryAllocation,
+            location: "test_function:42".to_string(),
+            severity: ImpactLevel::High,
+            description: "Excessive memory allocations".to_string(),
+            optimization_suggestion: "Use object pool".to_string(),
+        };
+
+        let chars = FunctionPerformanceCharacteristics {
+            cpu_usage_percent: 50.0,
+            memory_characteristics: FunctionMemoryCharacteristics {
+                stack_memory_usage: 2048,
+                heap_allocations: 100,
+                access_pattern: MemoryAccessPattern::Random,
+                cache_efficiency: 0.5,
+                memory_bandwidth_utilization: 0.8,
+            },
+            io_characteristics: IOCharacteristics {
+                file_io_operations: 0,
+                network_io_operations: 0,
+                avg_io_wait_time_ns: 0.0,
+                io_throughput_bytes_per_sec: 0.0,
+                io_efficiency_score: 1.0,
+            },
+            concurrency_characteristics: ConcurrencyCharacteristics {
+                thread_safety_level: ThreadSafetyLevel::ThreadSafe,
+                lock_contention_frequency: 0.0,
+                parallel_execution_potential: 0.5,
+                synchronization_overhead_ns: 0.0,
+                deadlock_risk: DeadlockRisk::None,
+            },
+            bottlenecks: vec![bottleneck],
+        };
+
+        assert_eq!(chars.bottlenecks.len(), 1);
+        assert!(matches!(
+            chars.bottlenecks[0].bottleneck_type,
+            BottleneckType::MemoryAllocation
+        ));
+    }
+
+    #[test]
+    fn test_boundary_values_call_count() {
+        let info = FunctionCallTrackingInfo {
+            function_name: "boundary_test".to_string(),
+            module_path: "test::boundary".to_string(),
+            total_call_count: u64::MAX,
+            call_frequency_per_sec: f64::MAX,
+            avg_execution_time_ns: f64::MIN,
+            total_execution_time_ns: u64::MAX,
+            call_stack_info: CallStackInfo {
+                max_stack_depth: u32::MAX,
+                avg_stack_depth: f64::MAX,
+                common_call_sequences: vec![],
+                recursive_calls: vec![],
+                stack_overflow_risk: StackOverflowRisk::Critical,
+            },
+            memory_allocations_per_call: f64::INFINITY,
+            performance_characteristics: FunctionPerformanceCharacteristics {
+                cpu_usage_percent: 100.0,
+                memory_characteristics: FunctionMemoryCharacteristics {
+                    stack_memory_usage: usize::MAX,
+                    heap_allocations: u32::MAX,
+                    access_pattern: MemoryAccessPattern::Mixed,
+                    cache_efficiency: 1.0,
+                    memory_bandwidth_utilization: 1.0,
+                },
+                io_characteristics: IOCharacteristics {
+                    file_io_operations: u32::MAX,
+                    network_io_operations: u32::MAX,
+                    avg_io_wait_time_ns: f64::MAX,
+                    io_throughput_bytes_per_sec: f64::MAX,
+                    io_efficiency_score: 0.0,
+                },
+                concurrency_characteristics: ConcurrencyCharacteristics {
+                    thread_safety_level: ThreadSafetyLevel::NotThreadSafe,
+                    lock_contention_frequency: f64::MAX,
+                    parallel_execution_potential: 0.0,
+                    synchronization_overhead_ns: f64::MAX,
+                    deadlock_risk: DeadlockRisk::High,
+                },
+                bottlenecks: vec![],
+            },
+            call_patterns: vec![],
+        };
+
+        assert_eq!(info.total_call_count, u64::MAX);
+        assert_eq!(info.call_stack_info.max_stack_depth, u32::MAX);
+    }
 }

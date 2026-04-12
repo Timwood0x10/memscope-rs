@@ -356,48 +356,361 @@ impl From<TrackingError> for crate::core::types::TrackingError {
 mod tests {
     use super::*;
 
+    /// Objective: Verify TrackingError creation with various variants
+    /// Invariants: Each variant should format correctly
     #[test]
     fn test_tracking_error_creation() {
         let error = TrackingError::AllocationFailed("test error".to_string());
-        assert!(error.to_string().contains("test error"));
+        assert!(
+            error.to_string().contains("test error"),
+            "Should contain error message"
+        );
+        assert!(
+            error.to_string().contains("Allocation failed"),
+            "Should contain error type"
+        );
 
         let error2 = TrackingError::TrackingDisabled;
-        assert!(error2.to_string().contains("disabled"));
+        assert!(
+            error2.to_string().contains("disabled"),
+            "Should indicate tracking disabled"
+        );
     }
 
+    /// Objective: Verify TrackingError clone functionality
+    /// Invariants: Cloned error should have same string representation
     #[test]
     fn test_tracking_error_clone() {
         let original = TrackingError::InvalidPointer("null pointer".to_string());
         let cloned = original.clone();
 
-        assert_eq!(original.to_string(), cloned.to_string());
+        assert_eq!(
+            original.to_string(),
+            cloned.to_string(),
+            "Cloned error should have same string representation"
+        );
     }
 
+    /// Objective: Verify TrackingResult type alias
+    /// Invariants: Should work as Result<T, TrackingError>
     #[test]
     fn test_tracking_result_type() {
         let success: TrackingResult<i32> = Ok(42);
         let failure: TrackingResult<i32> = Err(TrackingError::TrackingDisabled);
 
-        assert!(success.is_ok());
-        assert!(failure.is_err());
+        assert!(success.is_ok(), "Should be Ok");
+        assert!(failure.is_err(), "Should be Err");
     }
 
+    /// Objective: Verify From<std::io::Error> conversion
+    /// Invariants: IO error should convert to IoError variant
     #[test]
     fn test_from_io_error() {
         let io_error = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
         let tracking_error: TrackingError = io_error.into();
 
-        assert!(matches!(tracking_error, TrackingError::IoError(_)));
+        assert!(
+            matches!(tracking_error, TrackingError::IoError(_)),
+            "Should convert to IoError"
+        );
+        assert!(
+            tracking_error.to_string().contains("file not found"),
+            "Should preserve error message"
+        );
     }
 
+    /// Objective: Verify From<serde_json::Error> conversion
+    /// Invariants: JSON error should convert to SerializationError variant
     #[test]
     fn test_from_serde_error() {
         let json_error = serde_json::from_str::<i32>("not a number").unwrap_err();
         let tracking_error: TrackingError = json_error.into();
 
-        assert!(matches!(
-            tracking_error,
-            TrackingError::SerializationError(_)
-        ));
+        assert!(
+            matches!(tracking_error, TrackingError::SerializationError(_)),
+            "Should convert to SerializationError"
+        );
+        assert!(
+            tracking_error.to_string().contains("JSON error"),
+            "Should indicate JSON error"
+        );
+    }
+
+    /// Objective: Verify Display implementation for all error variants
+    /// Invariants: Each variant should have meaningful display output
+    #[test]
+    fn test_display_all_variants() {
+        let errors = vec![
+            (
+                TrackingError::AllocationFailed("alloc".into()),
+                "Allocation failed",
+            ),
+            (
+                TrackingError::DeallocationFailed("dealloc".into()),
+                "Deallocation failed",
+            ),
+            (TrackingError::TrackingDisabled, "disabled"),
+            (
+                TrackingError::InvalidPointer("ptr".into()),
+                "Invalid pointer",
+            ),
+            (
+                TrackingError::SerializationError("ser".into()),
+                "Serialization error",
+            ),
+            (
+                TrackingError::VisualizationError("viz".into()),
+                "Visualization error",
+            ),
+            (
+                TrackingError::ThreadSafetyError("thread".into()),
+                "Thread safety error",
+            ),
+            (
+                TrackingError::ConfigurationError("config".into()),
+                "Configuration error",
+            ),
+            (
+                TrackingError::AnalysisError("analysis".into()),
+                "Analysis error",
+            ),
+            (TrackingError::ExportError("export".into()), "Export error"),
+            (
+                TrackingError::MemoryCorruption("corrupt".into()),
+                "Memory corruption",
+            ),
+            (
+                TrackingError::UnsafeOperationDetected("unsafe".into()),
+                "Unsafe operation",
+            ),
+            (TrackingError::FFIError("ffi".into()), "FFI error"),
+            (TrackingError::ScopeError("scope".into()), "Scope error"),
+            (
+                TrackingError::BorrowCheckError("borrow".into()),
+                "Borrow check error",
+            ),
+            (
+                TrackingError::LifetimeError("lifetime".into()),
+                "Lifetime error",
+            ),
+            (
+                TrackingError::TypeInferenceError("type".into()),
+                "Type inference error",
+            ),
+            (
+                TrackingError::PerformanceError("perf".into()),
+                "Performance error",
+            ),
+            (
+                TrackingError::ResourceExhausted("resource".into()),
+                "Resource exhausted",
+            ),
+            (
+                TrackingError::InternalError("internal".into()),
+                "Internal error",
+            ),
+            (TrackingError::IoError("io".into()), "IO error"),
+            (TrackingError::LockError("lock".into()), "Lock error"),
+            (
+                TrackingError::ChannelError("channel".into()),
+                "Channel error",
+            ),
+            (TrackingError::ThreadError("thread".into()), "Thread error"),
+            (
+                TrackingError::InitializationError("init".into()),
+                "Initialization error",
+            ),
+            (
+                TrackingError::NotImplemented("not impl".into()),
+                "Not implemented",
+            ),
+            (
+                TrackingError::ValidationError("validation".into()),
+                "Validation error",
+            ),
+            (
+                TrackingError::InvalidOperation("invalid".into()),
+                "Invalid operation",
+            ),
+            (
+                TrackingError::LockContention("contention".into()),
+                "Lock contention",
+            ),
+            (TrackingError::DataError("data".into()), "Data error"),
+        ];
+
+        for (error, expected_fragment) in errors {
+            let display = error.to_string();
+            assert!(
+                display.contains(expected_fragment),
+                "Error {:?} should contain '{}', got: {}",
+                error,
+                expected_fragment,
+                display
+            );
+        }
+    }
+
+    /// Objective: Verify Clone implementation for all error variants
+    /// Invariants: All variants should be cloneable
+    #[test]
+    fn test_clone_all_variants() {
+        let errors: Vec<TrackingError> = vec![
+            TrackingError::AllocationFailed("test".into()),
+            TrackingError::DeallocationFailed("test".into()),
+            TrackingError::TrackingDisabled,
+            TrackingError::InvalidPointer("test".into()),
+            TrackingError::SerializationError("test".into()),
+            TrackingError::VisualizationError("test".into()),
+            TrackingError::ThreadSafetyError("test".into()),
+            TrackingError::ConfigurationError("test".into()),
+            TrackingError::AnalysisError("test".into()),
+            TrackingError::ExportError("test".into()),
+            TrackingError::MemoryCorruption("test".into()),
+            TrackingError::UnsafeOperationDetected("test".into()),
+            TrackingError::FFIError("test".into()),
+            TrackingError::ScopeError("test".into()),
+            TrackingError::BorrowCheckError("test".into()),
+            TrackingError::LifetimeError("test".into()),
+            TrackingError::TypeInferenceError("test".into()),
+            TrackingError::PerformanceError("test".into()),
+            TrackingError::ResourceExhausted("test".into()),
+            TrackingError::InternalError("test".into()),
+            TrackingError::IoError("test".into()),
+            TrackingError::LockError("test".into()),
+            TrackingError::ChannelError("test".into()),
+            TrackingError::ThreadError("test".into()),
+            TrackingError::InitializationError("test".into()),
+            TrackingError::NotImplemented("test".into()),
+            TrackingError::ValidationError("test".into()),
+            TrackingError::InvalidOperation("test".into()),
+            TrackingError::LockContention("test".into()),
+            TrackingError::DataError("test".into()),
+        ];
+
+        for error in errors {
+            let cloned = error.clone();
+            assert_eq!(
+                error.to_string(),
+                cloned.to_string(),
+                "Cloned error should match original"
+            );
+        }
+    }
+
+    /// Objective: Verify std::error::Error implementation
+    /// Invariants: TrackingError should implement Error trait
+    #[test]
+    fn test_error_trait() {
+        let error = TrackingError::InvalidPointer("test".into());
+        let _: &dyn std::error::Error = &error;
+    }
+
+    /// Objective: Verify Debug implementation
+    /// Invariants: Debug output should contain variant name
+    #[test]
+    fn test_debug_implementation() {
+        let error = TrackingError::AllocationFailed("test".into());
+        let debug_str = format!("{:?}", error);
+        assert!(
+            debug_str.contains("AllocationFailed"),
+            "Debug should contain variant name"
+        );
+    }
+
+    /// Objective: Verify error chain with source()
+    /// Invariants: TrackingError should not have a source
+    #[test]
+    fn test_error_source() {
+        let error = TrackingError::InternalError("test".into());
+        assert!(
+            std::error::Error::source(&error).is_none(),
+            "TrackingError should not have a source"
+        );
+    }
+
+    /// Objective: Verify error can be used in Result context
+    /// Invariants: Should work with ? operator
+    #[test]
+    fn test_result_context() -> TrackingResult<()> {
+        fn inner_function() -> TrackingResult<()> {
+            Err(TrackingError::NotImplemented("test".into()))
+        }
+
+        let result = inner_function();
+        assert!(result.is_err(), "Should propagate error");
+
+        let error = result.unwrap_err();
+        assert!(
+            matches!(error, TrackingError::NotImplemented(_)),
+            "Should be NotImplemented error"
+        );
+        Ok(())
+    }
+
+    /// Objective: Verify error comparison through string representation
+    /// Invariants: Same errors should have same string representation
+    #[test]
+    fn test_error_equality_via_string() {
+        let error1 = TrackingError::InvalidPointer("null".into());
+        let error2 = TrackingError::InvalidPointer("null".into());
+
+        assert_eq!(
+            error1.to_string(),
+            error2.to_string(),
+            "Same errors should have same string representation"
+        );
+    }
+
+    /// Objective: Verify error message preservation
+    /// Invariants: Error message should be preserved through conversions
+    #[test]
+    fn test_message_preservation() {
+        let msg = "custom error message with special chars: \n\t\"quotes\"";
+        let error = TrackingError::AnalysisError(msg.to_string());
+        let display = error.to_string();
+
+        assert!(
+            display.contains(msg),
+            "Original message should be preserved in display"
+        );
+    }
+
+    /// Objective: Verify empty error message handling
+    /// Invariants: Should handle empty messages gracefully
+    #[test]
+    fn test_empty_message() {
+        let error = TrackingError::InvalidPointer("".into());
+        let display = error.to_string();
+
+        assert!(
+            display.contains("Invalid pointer"),
+            "Should still show error type even with empty message"
+        );
+    }
+
+    /// Objective: Verify error with long message
+    /// Invariants: Should handle long messages
+    #[test]
+    fn test_long_message() {
+        let long_msg = "x".repeat(1000);
+        let error = TrackingError::InternalError(long_msg.clone());
+        let display = error.to_string();
+
+        assert!(display.contains(&long_msg), "Should preserve long message");
+    }
+
+    /// Objective: Verify error with unicode message
+    /// Invariants: Should handle unicode characters
+    #[test]
+    fn test_unicode_message() {
+        let unicode_msg = "错误信息 🎯 日本語 العربية";
+        let error = TrackingError::ValidationError(unicode_msg.to_string());
+        let display = error.to_string();
+
+        assert!(
+            display.contains(unicode_msg),
+            "Should preserve unicode characters"
+        );
     }
 }

@@ -72,6 +72,9 @@ temp_*
 
 !benches/run.log
 
+
+*.profraw
+
 # Backup files
 *.bak
 *.backup

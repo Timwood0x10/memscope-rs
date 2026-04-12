@@ -622,4 +622,519 @@ mod tests {
         assert_eq!(stats.issues_by_category(IssueCategory::Leak), 2);
         assert_eq!(stats.issues_by_category(IssueCategory::Uaf), 1);
     }
+
+    #[test]
+    fn test_issue_critical_helper() {
+        let issue = Issue::critical(
+            "CRIT-001".to_string(),
+            IssueCategory::Leak,
+            "Critical memory leak".to_string(),
+        );
+
+        assert_eq!(issue.severity, IssueSeverity::Critical);
+        assert_eq!(issue.id, "CRIT-001");
+    }
+
+    #[test]
+    fn test_issue_high_helper() {
+        let issue = Issue::high(
+            "HIGH-001".to_string(),
+            IssueCategory::Uaf,
+            "Use after free detected".to_string(),
+        );
+
+        assert_eq!(issue.severity, IssueSeverity::High);
+        assert_eq!(issue.category, IssueCategory::Uaf);
+    }
+
+    #[test]
+    fn test_issue_medium_helper() {
+        let issue = Issue::medium(
+            "MED-001".to_string(),
+            IssueCategory::Performance,
+            "Inefficient allocation pattern".to_string(),
+        );
+
+        assert_eq!(issue.severity, IssueSeverity::Medium);
+        assert_eq!(issue.category, IssueCategory::Performance);
+    }
+
+    #[test]
+    fn test_issue_low_helper() {
+        let issue = Issue::low(
+            "LOW-001".to_string(),
+            IssueCategory::Type,
+            "Type could be optimized".to_string(),
+        );
+
+        assert_eq!(issue.severity, IssueSeverity::Low);
+        assert_eq!(issue.category, IssueCategory::Type);
+    }
+
+    #[test]
+    fn test_issue_severity_display() {
+        assert_eq!(format!("{}", IssueSeverity::Critical), "CRITICAL");
+        assert_eq!(format!("{}", IssueSeverity::High), "HIGH");
+        assert_eq!(format!("{}", IssueSeverity::Medium), "MEDIUM");
+        assert_eq!(format!("{}", IssueSeverity::Low), "LOW");
+        assert_eq!(format!("{}", IssueSeverity::Info), "INFO");
+    }
+
+    #[test]
+    fn test_issue_category_display() {
+        assert_eq!(format!("{}", IssueCategory::Leak), "Leak");
+        assert_eq!(format!("{}", IssueCategory::Uaf), "Use-After-Free");
+        assert_eq!(format!("{}", IssueCategory::Overflow), "Overflow");
+        assert_eq!(format!("{}", IssueCategory::Safety), "Safety");
+        assert_eq!(format!("{}", IssueCategory::Performance), "Performance");
+        assert_eq!(format!("{}", IssueCategory::Lifetime), "Lifetime");
+        assert_eq!(format!("{}", IssueCategory::Concurrency), "Concurrency");
+        assert_eq!(format!("{}", IssueCategory::Type), "Type");
+        assert_eq!(format!("{}", IssueCategory::Other), "Other");
+    }
+
+    #[test]
+    fn test_issue_display() {
+        let issue = Issue::new(
+            "TEST-001".to_string(),
+            IssueSeverity::High,
+            IssueCategory::Leak,
+            "Memory leak detected".to_string(),
+        );
+
+        let display = format!("{}", issue);
+        assert!(display.contains("High"));
+        assert!(display.contains("TEST-001"));
+        assert!(display.contains("Memory leak detected"));
+    }
+
+    #[test]
+    fn test_detection_result_display() {
+        let result = DetectionResult::new(
+            "LeakDetector".to_string(),
+            vec![Issue::new(
+                "L1".to_string(),
+                IssueSeverity::Medium,
+                IssueCategory::Leak,
+                "Test".to_string(),
+            )],
+            DetectionStatistics::default(),
+            50,
+        );
+
+        let display = format!("{}", result);
+        assert!(display.contains("LeakDetector"));
+        assert!(display.contains("1 issues"));
+        assert!(display.contains("50ms"));
+    }
+
+    #[test]
+    fn test_detection_result_no_critical_issues() {
+        let result = DetectionResult::new(
+            "TestDetector".to_string(),
+            vec![
+                Issue::medium("1".to_string(), IssueCategory::Leak, "Test".to_string()),
+                Issue::low(
+                    "2".to_string(),
+                    IssueCategory::Performance,
+                    "Test".to_string(),
+                ),
+            ],
+            DetectionStatistics::default(),
+            10,
+        );
+
+        assert!(!result.has_critical_issues());
+    }
+
+    #[test]
+    fn test_detection_result_issues_by_category() {
+        let result = DetectionResult::new(
+            "TestDetector".to_string(),
+            vec![
+                Issue::medium("1".to_string(), IssueCategory::Leak, "Test".to_string()),
+                Issue::medium("2".to_string(), IssueCategory::Leak, "Test".to_string()),
+                Issue::medium("3".to_string(), IssueCategory::Uaf, "Test".to_string()),
+                Issue::low(
+                    "4".to_string(),
+                    IssueCategory::Performance,
+                    "Test".to_string(),
+                ),
+            ],
+            DetectionStatistics::default(),
+            10,
+        );
+
+        assert_eq!(result.issues_by_category(IssueCategory::Leak).len(), 2);
+        assert_eq!(result.issues_by_category(IssueCategory::Uaf).len(), 1);
+        assert_eq!(
+            result.issues_by_category(IssueCategory::Performance).len(),
+            1
+        );
+        assert_eq!(result.issues_by_category(IssueCategory::Safety).len(), 0);
+    }
+
+    #[test]
+    fn test_location_display_no_line() {
+        let location = Location::new("src/main.rs".to_string());
+        let display = format!("{}", location);
+        assert_eq!(display, "src/main.rs");
+    }
+
+    #[test]
+    fn test_location_display_with_line_only() {
+        let location = Location::new("src/main.rs".to_string()).with_line(42);
+        let display = format!("{}", location);
+        assert_eq!(display, "src/main.rs:42");
+    }
+
+    #[test]
+    fn test_location_display_no_function() {
+        let location = Location::new("src/main.rs".to_string())
+            .with_line(42)
+            .with_column(10);
+        let display = format!("{}", location);
+        assert_eq!(display, "src/main.rs:42:10");
+    }
+
+    #[test]
+    fn test_detector_error_all_variants() {
+        let config_err = DetectorError::ConfigError("config issue".to_string());
+        let detection_err = DetectorError::DetectionError("detection failed".to_string());
+        let invalid_err = DetectorError::InvalidInput("bad input".to_string());
+        let internal_err = DetectorError::InternalError("internal bug".to_string());
+
+        assert!(format!("{}", config_err).contains("Configuration error"));
+        assert!(format!("{}", detection_err).contains("Detection error"));
+        assert!(format!("{}", invalid_err).contains("Invalid input"));
+        assert!(format!("{}", internal_err).contains("Internal error"));
+    }
+
+    #[test]
+    fn test_detector_config_new() {
+        let config = DetectorConfig::new();
+        assert!(config.enabled);
+        assert_eq!(config.max_reported_issues, 100);
+    }
+
+    #[test]
+    fn test_detector_config_disabled() {
+        let config = DetectorConfig {
+            enabled: false,
+            ..Default::default()
+        };
+        assert!(!config.enabled);
+    }
+
+    #[test]
+    fn test_detector_config_max_issues() {
+        let config = DetectorConfig {
+            max_reported_issues: 50,
+            ..Default::default()
+        };
+        assert_eq!(config.max_reported_issues, 50);
+    }
+
+    #[test]
+    fn test_detector_config_no_details() {
+        let config = DetectorConfig {
+            include_details: false,
+            ..Default::default()
+        };
+        assert!(!config.include_details);
+    }
+
+    #[test]
+    fn test_detection_statistics_default() {
+        let stats = DetectionStatistics::default();
+        assert_eq!(stats.total_allocations, 0);
+        assert_eq!(stats.allocations_with_issues, 0);
+        assert_eq!(stats.total_memory_analyzed, 0);
+        assert_eq!(stats.memory_affected, 0);
+        assert!(stats.severity_breakdown.is_empty());
+        assert!(stats.category_breakdown.is_empty());
+    }
+
+    #[test]
+    fn test_detection_statistics_with_values() {
+        let mut stats = DetectionStatistics::new();
+        stats.total_allocations = 1000;
+        stats.allocations_with_issues = 50;
+        stats.total_memory_analyzed = 1024 * 1024;
+        stats.memory_affected = 512 * 1024;
+
+        assert_eq!(stats.total_allocations, 1000);
+        assert_eq!(stats.allocations_with_issues, 50);
+    }
+
+    #[test]
+    fn test_detection_statistics_multiple_updates() {
+        let mut stats = DetectionStatistics::new();
+
+        for _ in 0..10 {
+            stats.update_severity(IssueSeverity::Low);
+        }
+        for _ in 0..5 {
+            stats.update_severity(IssueSeverity::Medium);
+        }
+        for _ in 0..3 {
+            stats.update_category(IssueCategory::Performance);
+        }
+
+        assert_eq!(stats.issues_by_severity(IssueSeverity::Low), 10);
+        assert_eq!(stats.issues_by_severity(IssueSeverity::Medium), 5);
+        assert_eq!(stats.issues_by_category(IssueCategory::Performance), 3);
+    }
+
+    #[test]
+    fn test_issue_severity_default() {
+        let severity = IssueSeverity::default();
+        assert_eq!(severity, IssueSeverity::Info);
+    }
+
+    #[test]
+    fn test_issue_category_default() {
+        let category = IssueCategory::default();
+        assert_eq!(category, IssueCategory::Other);
+    }
+
+    #[test]
+    fn test_issue_severity_equality() {
+        assert_eq!(IssueSeverity::Critical, IssueSeverity::Critical);
+        assert_ne!(IssueSeverity::Critical, IssueSeverity::High);
+    }
+
+    #[test]
+    fn test_issue_category_equality() {
+        assert_eq!(IssueCategory::Leak, IssueCategory::Leak);
+        assert_ne!(IssueCategory::Leak, IssueCategory::Uaf);
+    }
+
+    #[test]
+    fn test_issue_severity_hash() {
+        use std::collections::HashSet;
+        let mut set = HashSet::new();
+        set.insert(IssueSeverity::Critical);
+        set.insert(IssueSeverity::High);
+        set.insert(IssueSeverity::Critical);
+
+        assert_eq!(set.len(), 2);
+    }
+
+    #[test]
+    fn test_issue_category_hash() {
+        use std::collections::HashSet;
+        let mut set = HashSet::new();
+        set.insert(IssueCategory::Leak);
+        set.insert(IssueCategory::Uaf);
+        set.insert(IssueCategory::Leak);
+
+        assert_eq!(set.len(), 2);
+    }
+
+    #[test]
+    fn test_detection_result_serialization() {
+        let result = DetectionResult::new(
+            "TestDetector".to_string(),
+            vec![],
+            DetectionStatistics::default(),
+            100,
+        );
+
+        let json = serde_json::to_string(&result).unwrap();
+        assert!(json.contains("TestDetector"));
+        assert!(json.contains("100"));
+    }
+
+    #[test]
+    fn test_issue_serialization() {
+        let issue = Issue::new(
+            "SER-001".to_string(),
+            IssueSeverity::High,
+            IssueCategory::Leak,
+            "Serialized issue".to_string(),
+        );
+
+        let json = serde_json::to_string(&issue).unwrap();
+        let deserialized: Issue = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.id, issue.id);
+        assert_eq!(deserialized.severity, issue.severity);
+    }
+
+    #[test]
+    fn test_location_serialization() {
+        let location = Location::new("test.rs".to_string())
+            .with_line(10)
+            .with_column(5)
+            .with_function("test_func".to_string());
+
+        let json = serde_json::to_string(&location).unwrap();
+        let deserialized: Location = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.file, location.file);
+        assert_eq!(deserialized.line, location.line);
+    }
+
+    #[test]
+    fn test_detector_config_serialization() {
+        let mut config = DetectorConfig::default();
+        config.set_custom_option("key".to_string(), "value".to_string());
+
+        let json = serde_json::to_string(&config).unwrap();
+        let deserialized: DetectorConfig = serde_json::from_str(&json).unwrap();
+        assert!(deserialized.enabled);
+        assert_eq!(
+            deserialized.get_custom_option("key"),
+            Some(&"value".to_string())
+        );
+    }
+
+    #[test]
+    fn test_issue_severity_serialization() {
+        let severities = vec![
+            IssueSeverity::Info,
+            IssueSeverity::Low,
+            IssueSeverity::Medium,
+            IssueSeverity::High,
+            IssueSeverity::Critical,
+        ];
+
+        for severity in severities {
+            let json = serde_json::to_string(&severity).unwrap();
+            let deserialized: IssueSeverity = serde_json::from_str(&json).unwrap();
+            assert_eq!(deserialized, severity);
+        }
+    }
+
+    #[test]
+    fn test_issue_category_serialization() {
+        let categories = vec![
+            IssueCategory::Leak,
+            IssueCategory::Uaf,
+            IssueCategory::Overflow,
+            IssueCategory::Safety,
+            IssueCategory::Performance,
+            IssueCategory::Lifetime,
+            IssueCategory::Concurrency,
+            IssueCategory::Type,
+            IssueCategory::Other,
+        ];
+
+        for category in categories {
+            let json = serde_json::to_string(&category).unwrap();
+            let deserialized: IssueCategory = serde_json::from_str(&json).unwrap();
+            assert_eq!(deserialized, category);
+        }
+    }
+
+    #[test]
+    fn test_detection_statistics_serialization() {
+        let mut stats = DetectionStatistics::new();
+        stats.total_allocations = 100;
+        stats.update_severity(IssueSeverity::High);
+
+        let json = serde_json::to_string(&stats).unwrap();
+        let deserialized: DetectionStatistics = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.total_allocations, 100);
+    }
+
+    #[test]
+    fn test_issue_clone() {
+        let issue = Issue::new(
+            "CLONE-001".to_string(),
+            IssueSeverity::Medium,
+            IssueCategory::Performance,
+            "Clone test".to_string(),
+        );
+
+        let cloned = issue.clone();
+        assert_eq!(cloned.id, issue.id);
+        assert_eq!(cloned.severity, issue.severity);
+    }
+
+    #[test]
+    fn test_detection_result_clone() {
+        let result = DetectionResult::new(
+            "CloneDetector".to_string(),
+            vec![],
+            DetectionStatistics::default(),
+            50,
+        );
+
+        let cloned = result.clone();
+        assert_eq!(cloned.detector_name, result.detector_name);
+    }
+
+    #[test]
+    fn test_location_clone() {
+        let location = Location::new("clone.rs".to_string()).with_line(100);
+        let cloned = location.clone();
+        assert_eq!(cloned.file, location.file);
+        assert_eq!(cloned.line, location.line);
+    }
+
+    #[test]
+    fn test_detector_config_clone() {
+        let mut config = DetectorConfig::default();
+        config.set_custom_option("test".to_string(), "value".to_string());
+        let cloned = config.clone();
+        assert_eq!(cloned.get_custom_option("test"), Some(&"value".to_string()));
+    }
+
+    #[test]
+    fn test_issue_debug() {
+        let issue = Issue::new(
+            "DEBUG-001".to_string(),
+            IssueSeverity::High,
+            IssueCategory::Leak,
+            "Debug test".to_string(),
+        );
+
+        let debug_str = format!("{:?}", issue);
+        assert!(debug_str.contains("Issue"));
+        assert!(debug_str.contains("DEBUG-001"));
+    }
+
+    #[test]
+    fn test_detection_result_debug() {
+        let result = DetectionResult::new(
+            "DebugDetector".to_string(),
+            vec![],
+            DetectionStatistics::default(),
+            25,
+        );
+
+        let debug_str = format!("{:?}", result);
+        assert!(debug_str.contains("DetectionResult"));
+        assert!(debug_str.contains("DebugDetector"));
+    }
+
+    #[test]
+    fn test_location_debug() {
+        let location = Location::new("debug.rs".to_string()).with_line(50);
+        let debug_str = format!("{:?}", location);
+        assert!(debug_str.contains("Location"));
+        assert!(debug_str.contains("debug.rs"));
+    }
+
+    #[test]
+    fn test_detector_config_debug() {
+        let config = DetectorConfig::default();
+        let debug_str = format!("{:?}", config);
+        assert!(debug_str.contains("DetectorConfig"));
+        assert!(debug_str.contains("enabled"));
+    }
+
+    #[test]
+    fn test_detector_error_debug() {
+        let error = DetectorError::ConfigError("test".to_string());
+        let debug_str = format!("{:?}", error);
+        assert!(debug_str.contains("ConfigError"));
+    }
+
+    #[test]
+    fn test_detection_statistics_debug() {
+        let stats = DetectionStatistics::new();
+        let debug_str = format!("{:?}", stats);
+        assert!(debug_str.contains("DetectionStatistics"));
+    }
 }
