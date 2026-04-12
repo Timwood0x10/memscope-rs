@@ -1090,4 +1090,22 @@ mod tests {
         assert_eq!(simplified, "String");
         assert_eq!(category, "Basic Types");
     }
+
+    #[test]
+    fn test_thread_id_to_u64() {
+        let id1 = thread::current().id();
+        let id2 = thread::current().id();
+        assert_eq!(thread_id_to_u64(id1), thread_id_to_u64(id2));
+
+        let handle = thread::spawn(|| thread_id_to_u64(thread::current().id()));
+        let other_id = handle.join().unwrap();
+        assert_ne!(thread_id_to_u64(thread::current().id()), other_id);
+    }
+
+    #[test]
+    fn test_current_thread_id_u64() {
+        let id1 = current_thread_id_u64();
+        let id2 = current_thread_id_u64();
+        assert_eq!(id1, id2);
+    }
 }

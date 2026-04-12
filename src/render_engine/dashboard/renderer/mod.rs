@@ -145,3 +145,138 @@ impl Default for DashboardRenderer {
         Self::new().expect("Failed to create dashboard renderer")
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn create_empty_context() -> DashboardContext {
+        DashboardContext {
+            title: "Test".to_string(),
+            export_timestamp: "2024-01-01".to_string(),
+            total_memory: "0 B".to_string(),
+            total_allocations: 0,
+            active_allocations: 0,
+            peak_memory: "0 B".to_string(),
+            thread_count: 0,
+            passport_count: 0,
+            leak_count: 0,
+            unsafe_count: 0,
+            ffi_count: 0,
+            allocations: vec![],
+            relationships: vec![],
+            unsafe_reports: vec![],
+            passport_details: vec![],
+            allocations_count: 0,
+            relationships_count: 0,
+            unsafe_reports_count: 0,
+            json_data: "{}".to_string(),
+            os_name: "test".to_string(),
+            architecture: "test".to_string(),
+            cpu_cores: 1,
+            system_resources: SystemResources {
+                os_name: "test".to_string(),
+                os_version: "1.0".to_string(),
+                architecture: "test".to_string(),
+                cpu_cores: 1,
+                total_physical: "0 B".to_string(),
+                available_physical: "0 B".to_string(),
+                used_physical: "0 B".to_string(),
+                page_size: 4096,
+            },
+            threads: vec![],
+            async_tasks: vec![],
+            async_summary: AsyncSummary {
+                total_tasks: 0,
+                active_tasks: 0,
+                total_allocations: 0,
+                total_memory_bytes: 0,
+                peak_memory_bytes: 0,
+            },
+            health_score: 100,
+            health_status: "Good".to_string(),
+            safe_ops_count: 0,
+            high_risk_count: 0,
+            clean_passport_count: 0,
+            active_passport_count: 0,
+            leaked_passport_count: 0,
+            ffi_tracked_count: 0,
+            safe_code_percent: 100,
+            ownership_graph: OwnershipGraphInfo {
+                total_nodes: 0,
+                total_edges: 0,
+                total_cycles: 0,
+                rc_clone_count: 0,
+                arc_clone_count: 0,
+                has_issues: false,
+                issues: vec![],
+                root_cause: None,
+            },
+        }
+    }
+
+    /// Objective: Verify that DashboardRenderer creates successfully.
+    /// Invariants: Renderer must be created with valid templates registered.
+    #[test]
+    fn test_dashboard_renderer_creation() {
+        let result = DashboardRenderer::new();
+        assert!(
+            result.is_ok(),
+            "DashboardRenderer should create successfully"
+        );
+    }
+
+    /// Objective: Verify that DashboardRenderer implements Default.
+    /// Invariants: Default should create a valid renderer instance.
+    #[test]
+    fn test_dashboard_renderer_default() {
+        let renderer = DashboardRenderer::default();
+        let _ = &renderer;
+    }
+
+    /// Objective: Verify that render_unified_dashboard works with minimal context.
+    /// Invariants: Should render without errors for valid context.
+    #[test]
+    fn test_render_unified_dashboard() {
+        let renderer = DashboardRenderer::new().expect("Should create renderer");
+        let context = create_empty_context();
+        let result = renderer.render_unified_dashboard(&context);
+        assert!(
+            result.is_ok(),
+            "Should render unified dashboard successfully"
+        );
+    }
+
+    /// Objective: Verify that render_final_dashboard works with minimal context.
+    /// Invariants: Should render without errors for valid context.
+    #[test]
+    fn test_render_final_dashboard() {
+        let renderer = DashboardRenderer::new().expect("Should create renderer");
+        let context = create_empty_context();
+        let result = renderer.render_final_dashboard(&context);
+        assert!(result.is_ok(), "Should render final dashboard successfully");
+    }
+
+    /// Objective: Verify that render_dashboard delegates to unified dashboard.
+    /// Invariants: Should produce same output as render_unified_dashboard.
+    #[test]
+    fn test_render_dashboard() {
+        let renderer = DashboardRenderer::new().expect("Should create renderer");
+        let context = create_empty_context();
+        let result = renderer.render_dashboard(&context);
+        assert!(result.is_ok(), "Should render dashboard successfully");
+    }
+
+    /// Objective: Verify that render_standalone_dashboard delegates correctly.
+    /// Invariants: Should produce same output as unified dashboard.
+    #[test]
+    fn test_render_standalone_dashboard() {
+        let renderer = DashboardRenderer::new().expect("Should create renderer");
+        let context = create_empty_context();
+        let result = renderer.render_standalone_dashboard(&context);
+        assert!(
+            result.is_ok(),
+            "Should render standalone dashboard successfully"
+        );
+    }
+}

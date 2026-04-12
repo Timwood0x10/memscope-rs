@@ -1384,3 +1384,237 @@ fn build_ownership_graph_from_allocations(
     );
     graph
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Objective: Verify that OptimizationLevel enum variants exist.
+    /// Invariants: All variants should be accessible.
+    #[test]
+    fn test_optimization_level_variants() {
+        let _low = OptimizationLevel::Low;
+        let _medium = OptimizationLevel::Medium;
+        let _high = OptimizationLevel::High;
+        let _maximum = OptimizationLevel::Maximum;
+    }
+
+    /// Objective: Verify that OptimizationLevel default is Medium.
+    /// Invariants: Default should return Medium variant.
+    #[test]
+    fn test_optimization_level_default() {
+        let level = OptimizationLevel::default();
+        assert!(
+            matches!(level, OptimizationLevel::Medium),
+            "Default should be Medium"
+        );
+    }
+
+    /// Objective: Verify that SchemaValidator creates with default settings.
+    /// Invariants: New validator should have strict_mode disabled.
+    #[test]
+    fn test_schema_validator_new() {
+        let validator = SchemaValidator::new();
+        let data = serde_json::json!({"test": "value"});
+        let result = validator.validate(&data);
+        assert!(result.is_ok(), "Validation should pass for any object");
+    }
+
+    /// Objective: Verify that SchemaValidator with strict mode validates required fields.
+    /// Invariants: Strict mode should require timestamp, allocations, stats fields.
+    #[test]
+    fn test_schema_validator_strict_mode() {
+        let validator = SchemaValidator::new().with_strict_mode(true);
+
+        let missing_fields = serde_json::json!({"other": "data"});
+        let result = validator.validate(&missing_fields);
+        assert!(result.is_err(), "Should fail with missing required fields");
+
+        let valid_data = serde_json::json!({
+            "timestamp": 123,
+            "allocations": [],
+            "stats": {}
+        });
+        let result = validator.validate(&valid_data);
+        assert!(result.is_ok(), "Should pass with all required fields");
+    }
+
+    /// Objective: Verify that SchemaValidator rejects non-object data.
+    /// Invariants: Non-object JSON should be rejected.
+    #[test]
+    fn test_schema_validator_non_object() {
+        let validator = SchemaValidator::new();
+        let data = serde_json::json!("not an object");
+        let result = validator.validate(&data);
+        assert!(result.is_err(), "Should reject non-object data");
+    }
+
+    /// Objective: Verify that ExportJsonOptions has correct defaults.
+    /// Invariants: Default options should enable parallel processing and streaming.
+    #[test]
+    fn test_export_json_options_default() {
+        let options = ExportJsonOptions::default();
+        assert!(
+            options.parallel_processing,
+            "parallel_processing should be true by default"
+        );
+        assert!(
+            options.streaming_writer,
+            "streaming_writer should be true by default"
+        );
+        assert!(
+            options.enable_type_cache,
+            "enable_type_cache should be true by default"
+        );
+        assert!(
+            options.adaptive_optimization,
+            "adaptive_optimization should be true by default"
+        );
+        assert!(
+            !options.schema_validation,
+            "schema_validation should be false by default"
+        );
+        assert!(
+            !options.security_analysis,
+            "security_analysis should be false by default"
+        );
+    }
+
+    /// Objective: Verify that ExportJsonOptions builder methods work.
+    /// Invariants: Builder methods should set corresponding fields.
+    #[test]
+    fn test_export_json_options_builders() {
+        let options = ExportJsonOptions::default()
+            .fast_export_mode(true)
+            .security_analysis(true)
+            .streaming_writer(false)
+            .schema_validation(true)
+            .integrity_hashes(true)
+            .batch_size(500)
+            .adaptive_optimization(false)
+            .max_cache_size(5000)
+            .include_low_severity(true)
+            .thread_count(Some(4));
+
+        assert!(options.fast_export_mode, "fast_export_mode should be true");
+        assert!(
+            options.security_analysis,
+            "security_analysis should be true"
+        );
+        assert!(
+            !options.streaming_writer,
+            "streaming_writer should be false"
+        );
+        assert!(
+            options.schema_validation,
+            "schema_validation should be true"
+        );
+        assert!(options.integrity_hashes, "integrity_hashes should be true");
+        assert_eq!(options.batch_size, 500, "batch_size should be 500");
+        assert!(
+            !options.adaptive_optimization,
+            "adaptive_optimization should be false"
+        );
+        assert_eq!(
+            options.max_cache_size, 5000,
+            "max_cache_size should be 5000"
+        );
+        assert!(
+            options.include_low_severity,
+            "include_low_severity should be true"
+        );
+        assert_eq!(
+            options.thread_count,
+            Some(4),
+            "thread_count should be Some(4)"
+        );
+    }
+
+    /// Objective: Verify that ExportError variants exist and display correctly.
+    /// Invariants: Error variants should be displayable.
+    #[test]
+    fn test_export_error_variants() {
+        let io_err = ExportError::Io(std::io::Error::new(std::io::ErrorKind::NotFound, "test"));
+        let json_err = ExportError::Json(serde_json::from_str::<i32>("invalid").unwrap_err());
+        let export_err = ExportError::ExportFailed("test error".to_string());
+
+        assert!(
+            format!("{}", io_err).contains("IO error"),
+            "Should contain IO error"
+        );
+        assert!(
+            format!("{}", json_err).contains("JSON error"),
+            "Should contain JSON error"
+        );
+        assert!(
+            format!("{}", export_err).contains("Export failed"),
+            "Should contain Export failed"
+        );
+    }
+
+    /// Objective: Verify that estimate_json_size works for different JSON types.
+    /// Invariants: Size estimation should be reasonable.
+    #[test]
+    fn test_estimate_json_size() {
+        let string_val = serde_json::json!("hello world");
+        let num_val = serde_json::json!(42);
+        let array_val = serde_json::json!([1, 2, 3]);
+        let object_val = serde_json::json!({"key": "value"});
+
+        let string_size = estimate_json_size(&string_val);
+        let num_size = estimate_json_size(&num_val);
+        let array_size = estimate_json_size(&array_val);
+        let object_size = estimate_json_size(&object_val);
+
+        assert!(string_size > 0, "String size should be positive");
+        assert!(num_size > 0, "Number size should be positive");
+        assert!(array_size > 0, "Array size should be positive");
+        assert!(object_size > 0, "Object size should be positive");
+    }
+
+    /// Objective: Verify that get_or_compute_type_info categorizes types correctly.
+    /// Invariants: Type categorization should match expected patterns.
+    #[test]
+    fn test_get_or_compute_type_info() {
+        assert_eq!(
+            get_or_compute_type_info("Vec<i32>", 100),
+            "dynamic_array",
+            "Vec should be dynamic_array"
+        );
+        assert_eq!(
+            get_or_compute_type_info("String", 24),
+            "string",
+            "String should be string"
+        );
+        assert_eq!(
+            get_or_compute_type_info("Box<i32>", 8),
+            "smart_pointer",
+            "Box should be smart_pointer"
+        );
+        assert_eq!(
+            get_or_compute_type_info("Rc<String>", 8),
+            "smart_pointer",
+            "Rc should be smart_pointer"
+        );
+        assert_eq!(
+            get_or_compute_type_info("Arc<i32>", 16),
+            "smart_pointer",
+            "Arc should be smart_pointer"
+        );
+        assert_eq!(
+            get_or_compute_type_info("[u8; 100]", 100),
+            "byte_array",
+            "u8 array should be byte_array"
+        );
+        assert_eq!(
+            get_or_compute_type_info("CustomType", 1024 * 1024 * 2),
+            "large_buffer",
+            "Large allocation should be large_buffer"
+        );
+        assert_eq!(
+            get_or_compute_type_info("MyType", 100),
+            "custom",
+            "Unknown type should be custom"
+        );
+    }
+}

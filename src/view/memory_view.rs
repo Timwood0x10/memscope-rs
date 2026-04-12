@@ -126,4 +126,152 @@ mod tests {
         assert!(view.is_empty());
         assert_eq!(view.total_memory(), 0);
     }
+
+    #[test]
+    fn test_default_view() {
+        let view = MemoryView::default();
+        assert!(view.is_empty());
+        assert_eq!(view.len(), 0);
+        assert_eq!(view.total_memory(), 0);
+    }
+
+    #[test]
+    fn test_get_allocation_existing() {
+        let events = vec![MemoryEvent::allocate(0x1000, 128, 1)];
+        let view = MemoryView::from_events(events);
+
+        let alloc = view.get_allocation(0x1000);
+        assert!(alloc.is_some());
+        assert_eq!(alloc.unwrap().size, 128);
+    }
+
+    #[test]
+    fn test_get_allocation_not_found() {
+        let events = vec![MemoryEvent::allocate(0x1000, 64, 1)];
+        let view = MemoryView::from_events(events);
+
+        let alloc = view.get_allocation(0x2000);
+        assert!(alloc.is_none());
+    }
+
+    #[test]
+    fn test_allocations_multiple() {
+        let events = vec![
+            MemoryEvent::allocate(0x1000, 64, 1),
+            MemoryEvent::allocate(0x2000, 128, 1),
+            MemoryEvent::allocate(0x3000, 256, 1),
+        ];
+        let view = MemoryView::from_events(events);
+
+        let allocs = view.allocations();
+        assert_eq!(allocs.len(), 3);
+    }
+
+    #[test]
+    fn test_events_access() {
+        let events = vec![
+            MemoryEvent::allocate(0x1000, 64, 1),
+            MemoryEvent::deallocate(0x1000, 64, 1),
+        ];
+        let view = MemoryView::from_events(events);
+
+        let view_events = view.events();
+        assert_eq!(view_events.len(), 2);
+    }
+
+    #[test]
+    fn test_snapshot_access() {
+        let events = vec![MemoryEvent::allocate(0x1000, 64, 1)];
+        let view = MemoryView::from_events(events);
+
+        let snapshot = view.snapshot();
+        assert_eq!(snapshot.active_allocations.len(), 1);
+    }
+
+    #[test]
+    fn test_stats() {
+        let events = vec![
+            MemoryEvent::allocate(0x1000, 64, 1),
+            MemoryEvent::allocate(0x2000, 128, 1),
+        ];
+        let view = MemoryView::from_events(events);
+
+        let stats = view.stats();
+        assert_eq!(stats.allocation_count, 2);
+        assert_eq!(stats.total_bytes, 192);
+    }
+
+    #[test]
+    fn test_thread_ids() {
+        let events = vec![
+            MemoryEvent::allocate(0x1000, 64, 1),
+            MemoryEvent::allocate(0x2000, 128, 2),
+            MemoryEvent::allocate(0x3000, 256, 1),
+        ];
+        let view = MemoryView::from_events(events);
+
+        let threads = view.thread_ids();
+        assert_eq!(threads.len(), 2);
+        assert!(threads.contains(&1));
+        assert!(threads.contains(&2));
+    }
+
+    #[test]
+    fn test_filter_builder() {
+        let events = vec![
+            MemoryEvent::allocate(0x1000, 64, 1),
+            MemoryEvent::allocate(0x2000, 128, 2),
+        ];
+        let view = MemoryView::from_events(events);
+
+        let _filter = view.filter();
+    }
+
+    #[test]
+    fn test_clone() {
+        let events = vec![MemoryEvent::allocate(0x1000, 64, 1)];
+        let view = MemoryView::from_events(events);
+
+        let cloned = view.clone();
+        assert_eq!(cloned.len(), 1);
+        assert_eq!(cloned.total_memory(), 64);
+    }
+
+    #[test]
+    fn test_new_constructor() {
+        let events = vec![MemoryEvent::allocate(0x1000, 64, 1)];
+        let snapshot = build_snapshot_from_events(&events);
+        let view = MemoryView::new(snapshot, events);
+
+        assert_eq!(view.len(), 1);
+    }
+
+    #[test]
+    fn test_multiple_allocations_same_thread() {
+        let events = vec![
+            MemoryEvent::allocate(0x1000, 64, 1),
+            MemoryEvent::allocate(0x2000, 128, 1),
+            MemoryEvent::allocate(0x3000, 256, 1),
+        ];
+        let view = MemoryView::from_events(events);
+
+        assert_eq!(view.len(), 3);
+        assert_eq!(view.total_memory(), 448);
+
+        let threads = view.thread_ids();
+        assert_eq!(threads.len(), 1);
+    }
+
+    #[test]
+    fn test_partial_deallocation() {
+        let events = vec![
+            MemoryEvent::allocate(0x1000, 64, 1),
+            MemoryEvent::allocate(0x2000, 128, 1),
+            MemoryEvent::deallocate(0x1000, 64, 1),
+        ];
+        let view = MemoryView::from_events(events);
+
+        assert_eq!(view.len(), 1);
+        assert_eq!(view.total_memory(), 128);
+    }
 }

@@ -958,3 +958,577 @@ fn c(s: &str) -> *const libc::c_char {
         _ => std::ptr::null(),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Objective: Verify that infer_type_from_size returns correct types.
+    /// Invariants: Size 8 should return pointer type, 24 should return Vec/String.
+    #[test]
+    fn test_infer_type_from_size() {
+        assert!(
+            infer_type_from_size(8).contains("c_void"),
+            "Size 8 should be pointer type"
+        );
+        assert!(
+            infer_type_from_size(16).contains("[T]"),
+            "Size 16 should be slice type"
+        );
+        assert!(
+            infer_type_from_size(24).contains("Vec"),
+            "Size 24 should be Vec/String type"
+        );
+        assert!(
+            infer_type_from_size(32).contains("CStruct"),
+            "Size 32 should be CStruct"
+        );
+        assert!(
+            infer_type_from_size(48).contains("CStruct"),
+            "Size 48 should be CStruct"
+        );
+        assert!(
+            infer_type_from_size(64).contains("CStruct"),
+            "Size 64 should be CStruct"
+        );
+        assert!(
+            infer_type_from_size(128).contains("Vec"),
+            "Size 128 should be Vec type"
+        );
+        assert!(
+            infer_type_from_size(100).contains("[u8]"),
+            "Size 100 should be byte array"
+        );
+        assert_eq!(
+            infer_type_from_size(17),
+            "unknown",
+            "Size 17 should be unknown"
+        );
+    }
+
+    /// Objective: Verify that get_inferred_type_name prefers explicit type name.
+    /// Invariants: Non-empty type name should be returned as-is.
+    #[test]
+    fn test_get_inferred_type_name_explicit() {
+        let result = get_inferred_type_name("MyType", 100);
+        assert_eq!(result, "MyType", "Should return explicit type name");
+    }
+
+    /// Objective: Verify that get_inferred_type_name infers for unknown types.
+    /// Invariants: Unknown type should trigger size-based inference.
+    #[test]
+    fn test_get_inferred_type_name_unknown() {
+        let result = get_inferred_type_name("unknown", 24);
+        assert!(result.contains("Vec"), "Should infer Vec type for size 24");
+
+        let result = get_inferred_type_name("-", 8);
+        assert!(
+            result.contains("c_void"),
+            "Should infer pointer type for size 8"
+        );
+
+        let result = get_inferred_type_name("", 16);
+        assert!(
+            result.contains("[T]"),
+            "Should infer slice type for size 16"
+        );
+    }
+
+    /// Objective: Verify that HealthInfo struct can be created.
+    /// Invariants: All fields should be accessible.
+    #[test]
+    fn test_health_info_creation() {
+        let info = HealthInfo {
+            health_score: 85,
+            health_status: "Good".to_string(),
+            safe_ops_count: 100,
+            high_risk_count: 5,
+            clean_passport_count: 50,
+            active_passport_count: 10,
+            leaked_passport_count: 2,
+            ffi_tracked_count: 15,
+            safe_code_percent: 95,
+        };
+
+        assert_eq!(info.health_score, 85, "health_score should be 85");
+        assert_eq!(info.health_status, "Good", "health_status should be Good");
+        assert_eq!(info.safe_ops_count, 100, "safe_ops_count should be 100");
+        assert_eq!(info.high_risk_count, 5, "high_risk_count should be 5");
+    }
+
+    /// Objective: Verify that AsyncSummary can be created.
+    /// Invariants: All fields should be properly set.
+    #[test]
+    fn test_async_summary_creation() {
+        let summary = AsyncSummary {
+            total_tasks: 10,
+            active_tasks: 5,
+            total_allocations: 100,
+            total_memory_bytes: 10240,
+            peak_memory_bytes: 5120,
+        };
+
+        assert_eq!(summary.total_tasks, 10, "total_tasks should match");
+        assert_eq!(summary.active_tasks, 5, "active_tasks should match");
+        assert_eq!(
+            summary.total_allocations, 100,
+            "total_allocations should match"
+        );
+    }
+
+    /// Objective: Verify that OwnershipGraphInfo can be created.
+    /// Invariants: All fields should be properly set.
+    #[test]
+    fn test_ownership_graph_info_creation() {
+        let info = OwnershipGraphInfo {
+            total_nodes: 10,
+            total_edges: 15,
+            total_cycles: 2,
+            rc_clone_count: 5,
+            arc_clone_count: 3,
+            has_issues: true,
+            issues: vec![OwnershipIssue {
+                issue_type: "cycle".to_string(),
+                severity: "warning".to_string(),
+                description: "Cycle detected".to_string(),
+            }],
+            root_cause: Some(RootCauseInfo {
+                cause: "circular_reference".to_string(),
+                description: "Circular reference detected".to_string(),
+                impact: "Memory leak potential".to_string(),
+            }),
+        };
+
+        assert_eq!(info.total_nodes, 10, "total_nodes should match");
+        assert_eq!(info.total_edges, 15, "total_edges should match");
+        assert!(info.has_issues, "has_issues should be true");
+    }
+
+    /// Objective: Verify that OwnershipIssue can be created.
+    /// Invariants: All fields should be properly set.
+    #[test]
+    fn test_ownership_issue_creation() {
+        let issue = OwnershipIssue {
+            issue_type: "cycle".to_string(),
+            severity: "error".to_string(),
+            description: "Reference cycle detected".to_string(),
+        };
+
+        assert_eq!(issue.issue_type, "cycle", "issue_type should match");
+        assert_eq!(issue.severity, "error", "severity should match");
+    }
+
+    /// Objective: Verify that RootCauseInfo can be created.
+    /// Invariants: All fields should be properly set.
+    #[test]
+    fn test_root_cause_info_creation() {
+        let info = RootCauseInfo {
+            cause: "circular_reference".to_string(),
+            description: "A references B, B references A".to_string(),
+            impact: "Memory will not be freed".to_string(),
+        };
+
+        assert_eq!(info.cause, "circular_reference", "cause should match");
+        assert_eq!(
+            info.description, "A references B, B references A",
+            "description should match"
+        );
+    }
+
+    /// Objective: Verify that SystemResources can be created.
+    /// Invariants: All fields should be properly set.
+    #[test]
+    fn test_system_resources_creation() {
+        let resources = SystemResources {
+            os_name: "macOS".to_string(),
+            os_version: "14.0".to_string(),
+            architecture: "arm64".to_string(),
+            cpu_cores: 8,
+            total_physical: "16 GB".to_string(),
+            available_physical: "8 GB".to_string(),
+            used_physical: "8 GB".to_string(),
+            page_size: 4096,
+        };
+
+        assert_eq!(resources.os_name, "macOS", "os_name should match");
+        assert_eq!(resources.cpu_cores, 8, "cpu_cores should match");
+        assert_eq!(resources.page_size, 4096, "page_size should match");
+    }
+
+    /// Objective: Verify that ThreadStats can be created.
+    /// Invariants: All fields should be properly set.
+    #[test]
+    fn test_thread_stats_creation() {
+        let stats = ThreadStats {
+            id: 1,
+            allocations: 10,
+            memory: 1024,
+            peak: 512,
+            status: "active".to_string(),
+        };
+
+        assert_eq!(stats.id, 1, "id should match");
+        assert_eq!(stats.allocations, 10, "allocations should match");
+        assert_eq!(stats.memory, 1024, "memory should match");
+    }
+
+    /// Objective: Verify that TimelineAllocation can be created.
+    /// Invariants: All fields should be properly set.
+    #[test]
+    fn test_timeline_allocation_creation() {
+        let alloc = TimelineAllocation {
+            timestamp: 1000,
+            thread_id: 1,
+            size: 1024,
+            var_name: Some("buffer".to_string()),
+        };
+
+        assert_eq!(alloc.timestamp, 1000, "timestamp should match");
+        assert_eq!(alloc.thread_id, 1, "thread_id should match");
+        assert_eq!(alloc.size, 1024, "size should match");
+    }
+
+    /// Objective: Verify that ThreadConflict can be created.
+    /// Invariants: All fields should be properly set.
+    #[test]
+    fn test_thread_conflict_creation() {
+        let conflict = ThreadConflict {
+            description: "Data race detected".to_string(),
+            threads: "Thread-1, Thread-2".to_string(),
+            conflict_type: "data_race".to_string(),
+        };
+
+        assert_eq!(
+            conflict.description, "Data race detected",
+            "description should match"
+        );
+        assert_eq!(
+            conflict.threads, "Thread-1, Thread-2",
+            "threads should match"
+        );
+    }
+
+    /// Objective: Verify that extract_user_source_file extracts user code correctly.
+    /// Invariants: Should return None for std/rustc frames, Some for user frames.
+    #[test]
+    fn test_extract_user_source_file() {
+        let std_frames = Some(vec![
+            "/rustc/library/alloc/src/vec.rs:100".to_string(),
+            "/library/std/src/thread.rs:50".to_string(),
+        ]);
+        assert!(
+            extract_user_source_file(&std_frames).is_none(),
+            "Should return None for std frames"
+        );
+
+        let user_frames = Some(vec![
+            "/rustc/library/alloc/src/vec.rs:100".to_string(),
+            "/Users/test/my_project/src/main.rs:42".to_string(),
+        ]);
+        let result = extract_user_source_file(&user_frames);
+        assert!(result.is_some(), "Should return Some for user frames");
+        assert!(
+            result.unwrap().contains("main.rs"),
+            "Should contain main.rs"
+        );
+    }
+
+    /// Objective: Verify that extract_user_source_line extracts line number correctly.
+    /// Invariants: Should return None for std/rustc frames, Some for user frames.
+    #[test]
+    fn test_extract_user_source_line() {
+        let std_frames = Some(vec![
+            "/rustc/library/alloc/src/vec.rs:100".to_string(),
+            "/library/std/src/thread.rs:50".to_string(),
+        ]);
+        assert!(
+            extract_user_source_line(&std_frames).is_none(),
+            "Should return None for std frames"
+        );
+
+        let user_frames = Some(vec![
+            "/rustc/library/alloc/src/vec.rs:100".to_string(),
+            "/Users/test/my_project/src/main.rs:42".to_string(),
+        ]);
+        let result = extract_user_source_line(&user_frames);
+        assert!(result.is_some(), "Should return Some for user frames");
+        assert_eq!(result.unwrap(), 42, "Should extract line number 42");
+    }
+
+    /// Objective: Verify that calculate_health_info returns correct health score.
+    /// Invariants: Health score should be calculated correctly based on inputs.
+    #[test]
+    fn test_calculate_health_info_empty() {
+        let health = calculate_health_info(&[], &[], 0, 0);
+        assert!(health.health_score > 0, "Health score should be positive");
+        assert!(
+            health.health_status.contains("Excellent") || health.health_status.contains("Good"),
+            "Empty data should have good health status"
+        );
+    }
+
+    /// Objective: Verify that calculate_health_info handles leaks correctly.
+    /// Invariants: Leaks should reduce health score.
+    #[test]
+    fn test_calculate_health_info_with_leaks() {
+        let health_no_leaks = calculate_health_info(&[], &[], 0, 100);
+        let health_with_leaks = calculate_health_info(&[], &[], 50, 100);
+
+        assert!(
+            health_no_leaks.health_score > health_with_leaks.health_score,
+            "Leaks should reduce health score"
+        );
+    }
+
+    /// Objective: Verify that calculate_health_info handles unsafe reports correctly.
+    /// Invariants: High risk reports should reduce health score.
+    #[test]
+    fn test_calculate_health_info_with_unsafe() {
+        let safe_report = UnsafeReport {
+            passport_id: "1".to_string(),
+            allocation_ptr: "0x1000".to_string(),
+            var_name: "var".to_string(),
+            type_name: "i32".to_string(),
+            size_bytes: 4,
+            created_at: 0,
+            updated_at: 0,
+            status: "active".to_string(),
+            lifecycle_events: vec![],
+            cross_boundary_events: vec![],
+            is_leaked: false,
+            risk_level: "low".to_string(),
+            risk_factors: vec![],
+        };
+
+        let high_risk_report = UnsafeReport {
+            passport_id: "2".to_string(),
+            allocation_ptr: "0x2000".to_string(),
+            var_name: "var2".to_string(),
+            type_name: "i32".to_string(),
+            size_bytes: 4,
+            created_at: 0,
+            updated_at: 0,
+            status: "active".to_string(),
+            lifecycle_events: vec![],
+            cross_boundary_events: vec![],
+            is_leaked: false,
+            risk_level: "high".to_string(),
+            risk_factors: vec![],
+        };
+
+        let health_safe = calculate_health_info(&[safe_report], &[], 0, 100);
+        let health_high_risk = calculate_health_info(&[high_risk_report], &[], 0, 100);
+
+        assert!(
+            health_safe.health_score > health_high_risk.health_score,
+            "High risk should reduce health score"
+        );
+    }
+
+    /// Objective: Verify that LifecycleEventInfo can be created.
+    /// Invariants: All fields should be properly set.
+    #[test]
+    fn test_lifecycle_event_info_creation() {
+        let event = LifecycleEventInfo {
+            timestamp: 1000,
+            event_type: "AllocatedInRust".to_string(),
+            icon: "🟢".to_string(),
+            color: "#10b981".to_string(),
+            context: "Rust Allocation".to_string(),
+        };
+
+        assert_eq!(event.timestamp, 1000, "timestamp should match");
+        assert_eq!(
+            event.event_type, "AllocatedInRust",
+            "event_type should match"
+        );
+        assert_eq!(event.icon, "🟢", "icon should match");
+    }
+
+    /// Objective: Verify that PassportDetail can be created.
+    /// Invariants: All fields should be properly set.
+    #[test]
+    fn test_passport_detail_creation() {
+        let detail = PassportDetail {
+            passport_id: "passport-1".to_string(),
+            allocation_ptr: "0x1000".to_string(),
+            var_name: "buffer".to_string(),
+            type_name: "Vec<u8>".to_string(),
+            size_bytes: 1024,
+            status: "active".to_string(),
+            created_at: 1000,
+            updated_at: 2000,
+            is_leaked: false,
+            ffi_tracked: false,
+            lifecycle_events: vec![],
+            cross_boundary_events: vec![],
+            risk_level: "low".to_string(),
+            risk_confidence: 0.85,
+        };
+
+        assert_eq!(detail.passport_id, "passport-1", "passport_id should match");
+        assert_eq!(detail.size_bytes, 1024, "size_bytes should match");
+        assert_eq!(detail.status, "active", "status should match");
+    }
+
+    /// Objective: Verify that UnsafeReport can be created.
+    /// Invariants: All fields should be properly set.
+    #[test]
+    fn test_unsafe_report_creation() {
+        let report = UnsafeReport {
+            passport_id: "passport-1".to_string(),
+            allocation_ptr: "0x1000".to_string(),
+            var_name: "buffer".to_string(),
+            type_name: "Vec<u8>".to_string(),
+            size_bytes: 1024,
+            created_at: 1000,
+            updated_at: 2000,
+            status: "active".to_string(),
+            lifecycle_events: vec![],
+            cross_boundary_events: vec![],
+            is_leaked: false,
+            risk_level: "medium".to_string(),
+            risk_factors: vec!["FFI boundary".to_string()],
+        };
+
+        assert_eq!(report.passport_id, "passport-1", "passport_id should match");
+        assert_eq!(report.risk_level, "medium", "risk_level should match");
+    }
+
+    /// Objective: Verify that BoundaryEventInfo can be created.
+    /// Invariants: All fields should be properly set.
+    #[test]
+    fn test_boundary_event_info_creation() {
+        let event = BoundaryEventInfo {
+            event_type: "RustToFfi".to_string(),
+            from_context: "Rust".to_string(),
+            to_context: "FFI".to_string(),
+            timestamp: 1000,
+            icon: "⬇️".to_string(),
+            color: "#f59e0b".to_string(),
+        };
+
+        assert_eq!(event.event_type, "RustToFfi", "event_type should match");
+        assert_eq!(event.from_context, "Rust", "from_context should match");
+        assert_eq!(event.to_context, "FFI", "to_context should match");
+    }
+
+    /// Objective: Verify that extract_user_source_file handles memscope frames correctly.
+    /// Invariants: Should return None for memscope internal frames.
+    #[test]
+    fn test_extract_user_source_file_memscope() {
+        let memscope_frames = Some(vec![
+            "/Users/test/memscope/src/tracker.rs:100".to_string(),
+            "/Users/test/.cargo/registry/src/memscope-rs/src/lib.rs:50".to_string(),
+        ]);
+        assert!(
+            extract_user_source_file(&memscope_frames).is_none(),
+            "Should return None for memscope frames"
+        );
+    }
+
+    /// Objective: Verify that extract_user_source_line handles memscope frames correctly.
+    /// Invariants: Should return None for memscope internal frames.
+    #[test]
+    fn test_extract_user_source_line_memscope() {
+        let memscope_frames = Some(vec![
+            "/Users/test/memscope/src/tracker.rs:100".to_string(),
+            "/Users/test/.cargo/registry/src/memscope-rs/src/lib.rs:50".to_string(),
+        ]);
+        assert!(
+            extract_user_source_line(&memscope_frames).is_none(),
+            "Should return None for memscope frames"
+        );
+    }
+
+    /// Objective: Verify that extract_user_source_file handles None stack trace.
+    /// Invariants: Should return None for None stack trace.
+    #[test]
+    fn test_extract_user_source_file_none() {
+        assert!(
+            extract_user_source_file(&None).is_none(),
+            "Should return None for None stack trace"
+        );
+    }
+
+    /// Objective: Verify that extract_user_source_line handles None stack trace.
+    /// Invariants: Should return None for None stack trace.
+    #[test]
+    fn test_extract_user_source_line_none() {
+        assert!(
+            extract_user_source_line(&None).is_none(),
+            "Should return None for None stack trace"
+        );
+    }
+
+    /// Objective: Verify that calculate_health_info handles passport details correctly.
+    /// Invariants: Leaked passports should affect health score.
+    #[test]
+    fn test_calculate_health_info_with_passports() {
+        let leaked_passport = PassportDetail {
+            passport_id: "1".to_string(),
+            allocation_ptr: "0x1000".to_string(),
+            var_name: "var".to_string(),
+            type_name: "i32".to_string(),
+            size_bytes: 4,
+            status: "leaked".to_string(),
+            created_at: 0,
+            updated_at: 0,
+            is_leaked: true,
+            ffi_tracked: false,
+            lifecycle_events: vec![],
+            cross_boundary_events: vec![],
+            risk_level: "high".to_string(),
+            risk_confidence: 0.9,
+        };
+
+        let clean_passport = PassportDetail {
+            passport_id: "2".to_string(),
+            allocation_ptr: "0x2000".to_string(),
+            var_name: "var2".to_string(),
+            type_name: "i32".to_string(),
+            size_bytes: 4,
+            status: "active".to_string(),
+            created_at: 0,
+            updated_at: 0,
+            is_leaked: false,
+            ffi_tracked: false,
+            lifecycle_events: vec![],
+            cross_boundary_events: vec![],
+            risk_level: "low".to_string(),
+            risk_confidence: 0.5,
+        };
+
+        let health_clean = calculate_health_info(&[], &[clean_passport], 0, 100);
+        let health_leaked = calculate_health_info(&[], &[leaked_passport], 1, 100);
+
+        assert!(
+            health_clean.clean_passport_count >= health_leaked.clean_passport_count,
+            "Clean passport count should be higher for clean passports"
+        );
+    }
+
+    /// Objective: Verify that ThreadInfo can be created with all fields.
+    /// Invariants: All fields should be properly set.
+    #[test]
+    fn test_thread_info_creation() {
+        let info = ThreadInfo {
+            thread_id: "Thread-1".to_string(),
+            thread_summary: "10 allocs, 1.5KB".to_string(),
+            allocation_count: 10,
+            current_memory: "1.5 KB".to_string(),
+            peak_memory: "2.0 KB".to_string(),
+            total_allocated: "5.0 KB".to_string(),
+            current_memory_bytes: 1536,
+            peak_memory_bytes: 2048,
+            total_allocated_bytes: 5120,
+        };
+
+        assert_eq!(info.thread_id, "Thread-1", "thread_id should match");
+        assert_eq!(info.allocation_count, 10, "allocation_count should match");
+        assert_eq!(
+            info.current_memory_bytes, 1536,
+            "current_memory_bytes should match"
+        );
+    }
+}

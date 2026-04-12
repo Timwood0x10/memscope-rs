@@ -207,4 +207,79 @@ mod tests {
         let snapshot = store.snapshot();
         assert_eq!(snapshot.len(), 1000);
     }
+
+    #[test]
+    fn test_event_store_default() {
+        let store = EventStore::default();
+        assert!(store.is_empty());
+    }
+
+    #[test]
+    fn test_event_store_debug() {
+        let store = EventStore::new();
+        let debug_str = format!("{:?}", store);
+        assert!(debug_str.contains("EventStore"));
+    }
+
+    #[test]
+    fn test_multiple_record_snapshot() {
+        let store = EventStore::new();
+        for i in 0..100 {
+            let event = MemoryEvent::allocate(0x1000 + i, 1024, 1);
+            store.record(event);
+        }
+
+        let snapshot = store.snapshot();
+        assert_eq!(snapshot.len(), 100);
+    }
+
+    #[test]
+    fn test_clear_and_record() {
+        let store = EventStore::new();
+        store.record(MemoryEvent::allocate(0x1000, 1024, 1));
+        store.clear();
+        assert!(store.is_empty());
+
+        store.record(MemoryEvent::allocate(0x2000, 2048, 1));
+        assert_eq!(store.len(), 1);
+    }
+
+    #[test]
+    fn test_event_types() {
+        let store = EventStore::new();
+        store.record(MemoryEvent::allocate(0x1000, 1024, 1));
+        store.record(MemoryEvent::deallocate(0x1000, 1024, 1));
+        store.record(MemoryEvent::reallocate(0x1000, 1024, 2048, 1));
+
+        let snapshot = store.snapshot();
+        assert_eq!(snapshot.len(), 3);
+    }
+
+    #[test]
+    fn test_snapshot_consistency() {
+        let store = EventStore::new();
+        store.record(MemoryEvent::allocate(0x1000, 1024, 1));
+        store.record(MemoryEvent::allocate(0x2000, 2048, 1));
+
+        let snapshot1 = store.snapshot();
+        let snapshot2 = store.snapshot();
+
+        assert_eq!(snapshot1.len(), snapshot2.len());
+    }
+
+    #[test]
+    fn test_empty_snapshot() {
+        let store = EventStore::new();
+        let snapshot = store.snapshot();
+        assert!(snapshot.is_empty());
+    }
+
+    #[test]
+    fn test_large_number_of_events() {
+        let store = EventStore::new();
+        for i in 0..10000 {
+            store.record(MemoryEvent::allocate(i, 1024, 1));
+        }
+        assert_eq!(store.len(), 10000);
+    }
 }

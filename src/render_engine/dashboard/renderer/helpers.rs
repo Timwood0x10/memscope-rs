@@ -114,3 +114,70 @@ fn json_helper(
     out.write(&json_string)?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_format_thread_id_valid() {
+        assert_eq!(format_thread_id("ThreadId(1)"), "Thread-1");
+        assert_eq!(format_thread_id("ThreadId(123)"), "Thread-123");
+        assert_eq!(format_thread_id("ThreadId(0)"), "Thread-0");
+    }
+
+    #[test]
+    fn test_format_thread_id_invalid() {
+        assert_eq!(format_thread_id("ThreadId()"), "ThreadId()");
+        assert_eq!(format_thread_id("ThreadId(1"), "ThreadId(1");
+        assert_eq!(format_thread_id("ThreadId1)"), "ThreadId1)");
+        assert_eq!(format_thread_id("Thread(1)"), "Thread(1)");
+        assert_eq!(format_thread_id("custom_name"), "custom_name");
+        assert_eq!(format_thread_id(""), "");
+    }
+
+    #[test]
+    fn test_format_bytes_bytes() {
+        assert_eq!(format_bytes(0), "0 bytes");
+        assert_eq!(format_bytes(100), "100 bytes");
+        assert_eq!(format_bytes(1023), "1023 bytes");
+    }
+
+    #[test]
+    fn test_format_bytes_kb() {
+        assert_eq!(format_bytes(1024), "1.00 KB");
+        assert_eq!(format_bytes(1536), "1.50 KB");
+        assert_eq!(format_bytes(10240), "10.00 KB");
+    }
+
+    #[test]
+    fn test_format_bytes_mb() {
+        assert_eq!(format_bytes(1024 * 1024), "1.00 MB");
+        assert_eq!(format_bytes(1024 * 1024 * 2), "2.00 MB");
+        assert_eq!(format_bytes(1536 * 1024), "1.50 MB");
+    }
+
+    #[test]
+    fn test_format_bytes_gb() {
+        assert_eq!(format_bytes(1024 * 1024 * 1024), "1.00 GB");
+        assert_eq!(format_bytes(1024 * 1024 * 1024 * 5), "5.00 GB");
+    }
+
+    #[test]
+    fn test_format_bytes_tb() {
+        assert_eq!(format_bytes(1024usize.pow(4)), "1.00 TB");
+        assert_eq!(format_bytes(1024usize.pow(4) * 3), "3.00 TB");
+    }
+
+    #[test]
+    fn test_format_bytes_pb() {
+        assert_eq!(format_bytes(1024usize.pow(5)), "1.00 PB");
+        assert_eq!(format_bytes(1024usize.pow(5) * 10), "10.00 PB");
+    }
+
+    #[test]
+    fn test_register_helpers() {
+        let mut handlebars = Handlebars::new();
+        register_helpers(&mut handlebars);
+    }
+}

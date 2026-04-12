@@ -46,9 +46,10 @@ help:
 	@echo "  ci             - Run CI pipeline"
 	@echo ""
 	@echo "$(GREEN)Coverage:$(NC)"
-	@echo "  coverage       - Generate test coverage report (tarpaulin)"
-	@echo "  coverage-llvm  - Generate LLVM coverage report (HTML)"
+	@echo "  coverage         - Generate test coverage summary (LLVM, default)"
+	@echo "  coverage-html    - Generate LLVM coverage HTML report"
 	@echo "  coverage-summary - Generate LLVM coverage summary (console)"
+	@echo "  coverage-tarpaulin - Generate tarpaulin coverage report (alternative)"
 	@echo ""
 	@echo "$(GREEN)Examples:$(NC)"
 	@echo "  run-basic      - Run basic usage example"
@@ -157,22 +158,22 @@ clippy-ci:
 	$(CARGO) clippy --workspace --all-targets --all-features -- -D warnings
 
 # Coverage
-.PHONY: coverage coverage-llvm coverage-summary
+.PHONY: coverage coverage-html coverage-summary coverage-tarpaulin
 coverage:
-	@echo "$(BLUE)Generating test coverage report...$(NC)"
-	@if command -v cargo-tarpaulin >/dev/null 2>&1; then \
-		mkdir -p $(COVERAGE_DIR); \
-		$(CARGO) tarpaulin --out Html --output-dir $(COVERAGE_DIR); \
-		echo "$(GREEN)Coverage report generated in $(COVERAGE_DIR)/tarpaulin-report.html$(NC)"; \
-	else \
-		echo "$(YELLOW)cargo-tarpaulin not installed. Install with: cargo install cargo-tarpaulin$(NC)"; \
-	fi
-
-coverage-llvm:
-	@echo "$(BLUE)Generating LLVM coverage report...$(NC)"
+	@echo "$(BLUE)Generating test coverage report (LLVM)...$(NC)"
 	@if command -v cargo-llvm-cov >/dev/null 2>&1; then \
 		mkdir -p $(COVERAGE_DIR); \
-		$(CARGO) llvm-cov --html --output-dir $(COVERAGE_DIR) --lib --tests -- --test-thread=1; \
+		$(CARGO) llvm-cov --workspace --ignore-filename-regex="(tests/|_test\\.rs$$)" --summary-only; \
+		echo "$(GREEN)Coverage report generated$(NC)"; \
+	else \
+		echo "$(YELLOW)cargo-llvm-cov not installed. Install with: cargo install cargo-llvm-cov$(NC)"; \
+	fi
+
+coverage-html:
+	@echo "$(BLUE)Generating LLVM coverage HTML report...$(NC)"
+	@if command -v cargo-llvm-cov >/dev/null 2>&1; then \
+		mkdir -p $(COVERAGE_DIR); \
+		$(CARGO) llvm-cov --workspace --ignore-filename-regex="(tests/|_test\\.rs$$)" --html --output-dir $(COVERAGE_DIR); \
 		echo "$(GREEN)LLVM coverage report generated in $(COVERAGE_DIR)/index.html$(NC)"; \
 	else \
 		echo "$(YELLOW)cargo-llvm-cov not installed. Install with: cargo install cargo-llvm-cov$(NC)"; \
@@ -181,9 +182,19 @@ coverage-llvm:
 coverage-summary:
 	@echo "$(BLUE)Generating LLVM coverage summary...$(NC)"
 	@if command -v cargo-llvm-cov >/dev/null 2>&1; then \
-		$(CARGO) llvm-cov  --summary-only  --lib --tests -- --test-threads=1; \
+		$(CARGO) llvm-cov --workspace --ignore-filename-regex="(tests/|_test\\.rs$$)" --summary-only; \
 	else \
 		echo "$(YELLOW)cargo-llvm-cov not installed. Install with: cargo install cargo-llvm-cov$(NC)"; \
+	fi
+
+coverage-tarpaulin:
+	@echo "$(BLUE)Generating tarpaulin coverage report...$(NC)"
+	@if command -v cargo-tarpaulin >/dev/null 2>&1; then \
+		mkdir -p $(COVERAGE_DIR); \
+		$(CARGO) tarpaulin --out Html --output-dir $(COVERAGE_DIR); \
+		echo "$(GREEN)Coverage report generated in $(COVERAGE_DIR)/tarpaulin-report.html$(NC)"; \
+	else \
+		echo "$(YELLOW)cargo-tarpaulin not installed. Install with: cargo install cargo-tarpaulin$(NC)"; \
 	fi
 
 

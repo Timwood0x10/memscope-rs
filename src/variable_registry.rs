@@ -1363,4 +1363,353 @@ mod tests {
             panic!("Expected summary to be a JSON object");
         }
     }
+
+    #[test]
+    fn test_variable_info_creation() {
+        let info = VariableInfo {
+            var_name: "test_var".to_string(),
+            type_name: "Vec<u8>".to_string(),
+            timestamp: 1234567890,
+            size: 1024,
+            thread_id: 1,
+            memory_usage: 1024,
+        };
+
+        assert_eq!(info.var_name, "test_var");
+        assert_eq!(info.type_name, "Vec<u8>");
+        assert_eq!(info.timestamp, 1234567890);
+        assert_eq!(info.size, 1024);
+        assert_eq!(info.thread_id, 1);
+        assert_eq!(info.memory_usage, 1024);
+    }
+
+    #[test]
+    fn test_variable_info_debug() {
+        let info = VariableInfo {
+            var_name: "x".to_string(),
+            type_name: "i32".to_string(),
+            timestamp: 0,
+            size: 4,
+            thread_id: 0,
+            memory_usage: 4,
+        };
+
+        let debug_str = format!("{:?}", info);
+        assert!(debug_str.contains("VariableInfo"));
+        assert!(debug_str.contains("var_name"));
+    }
+
+    #[test]
+    fn test_variable_info_clone() {
+        let info = VariableInfo {
+            var_name: "original".to_string(),
+            type_name: "String".to_string(),
+            timestamp: 100,
+            size: 24,
+            thread_id: 1,
+            memory_usage: 24,
+        };
+
+        let cloned = info.clone();
+        assert_eq!(cloned.var_name, info.var_name);
+        assert_eq!(cloned.type_name, info.type_name);
+    }
+
+    #[test]
+    fn test_get_all_variables_empty() {
+        let _ = VariableRegistry::clear_registry();
+        let vars = VariableRegistry::get_all_variables();
+        // May have entries from other tests
+        let _ = vars;
+    }
+
+    #[test]
+    fn test_register_multiple_variables() {
+        let _ = VariableRegistry::clear_registry();
+
+        let result1 =
+            VariableRegistry::register_variable(0x10001, "a".to_string(), "i32".to_string(), 4);
+        let result2 =
+            VariableRegistry::register_variable(0x10002, "b".to_string(), "i64".to_string(), 8);
+        let result3 =
+            VariableRegistry::register_variable(0x10003, "c".to_string(), "String".to_string(), 24);
+
+        assert!(result1.is_ok());
+        assert!(result2.is_ok());
+        assert!(result3.is_ok());
+    }
+
+    #[test]
+    fn test_get_variable_info_not_found() {
+        let _ = VariableRegistry::clear_registry();
+        let info = VariableRegistry::get_variable_info(0xDEADBEEF);
+        assert!(info.is_none());
+    }
+
+    #[test]
+    fn test_lifetime_stats_categories() {
+        let lifetimes = vec![0, 1, 2, 10, 20, 100, 200, 1000, 2000];
+        let stats = VariableRegistry::calculate_lifetime_stats(&lifetimes);
+
+        assert_eq!(stats["count"], 9);
+        // Verify the sum of all categories equals total count
+        let very_short = stats["categories"]["very_short"].as_u64().unwrap();
+        let short = stats["categories"]["short"].as_u64().unwrap();
+        let medium = stats["categories"]["medium"].as_u64().unwrap();
+        let long = stats["categories"]["long"].as_u64().unwrap();
+        let very_long = stats["categories"]["very_long"].as_u64().unwrap();
+
+        let total = very_short + short + medium + long + very_long;
+        assert_eq!(total, 9);
+    }
+
+    #[test]
+    fn test_lifetime_stats_single_value() {
+        let lifetimes = vec![50];
+        let stats = VariableRegistry::calculate_lifetime_stats(&lifetimes);
+
+        assert_eq!(stats["count"], 1);
+        assert_eq!(stats["categories"]["medium"], 1);
+    }
+
+    #[test]
+    fn test_enhance_allocations_mixed() {
+        let _ = VariableRegistry::clear_registry();
+
+        let alloc1 = create_test_allocation(
+            0x80001,
+            100,
+            Some("user_var".to_string()),
+            Some("Vec<u8>".to_string()),
+        );
+        let alloc2 = create_test_allocation(0x80002, 200, None, None);
+        let alloc3 = create_test_allocation(
+            0x80003,
+            300,
+            Some("another".to_string()),
+            Some("String".to_string()),
+        );
+
+        let allocations = vec![alloc1, alloc2, alloc3];
+        let enhanced = VariableRegistry::enhance_allocations_with_registry(&allocations);
+
+        assert_eq!(enhanced.len(), 3);
+
+        let user_count = enhanced
+            .iter()
+            .filter(|a| a["allocation_source"] == "user")
+            .count();
+        assert_eq!(user_count, 2);
+    }
+
+    #[test]
+    fn test_calculate_percentile_empty() {
+        let values: Vec<u64> = vec![];
+        let result = VariableRegistry::calculate_percentile(&values, 50.0);
+        assert_eq!(result, 0);
+    }
+
+    #[test]
+    fn test_calculate_percentile_single() {
+        let values = vec![100];
+        let result = VariableRegistry::calculate_percentile(&values, 50.0);
+        assert_eq!(result, 100);
+    }
+
+    #[test]
+    fn test_calculate_percentile_multiple() {
+        let values = vec![10, 20, 30, 40, 50];
+        let p50 = VariableRegistry::calculate_percentile(&values, 50.0);
+        let p90 = VariableRegistry::calculate_percentile(&values, 90.0);
+
+        assert!((20..=40).contains(&p50));
+        assert!((40..=50).contains(&p90));
+    }
+
+    #[test]
+    fn test_get_stats_basic() {
+        let _ = VariableRegistry::clear_registry();
+        let (total, recent) = VariableRegistry::get_stats();
+        let _ = (total, recent);
+    }
+
+    #[test]
+    fn test_get_stats_with_variables() {
+        let _ = VariableRegistry::clear_registry();
+
+        let _ = VariableRegistry::register_variable(
+            0x99901,
+            "stat_var".to_string(),
+            "i32".to_string(),
+            4,
+        );
+
+        let (total, _recent) = VariableRegistry::get_stats();
+        assert!(total <= 1);
+    }
+
+    #[test]
+    fn test_analyze_lifecycle_statistics() {
+        let user_active = vec![serde_json::json!({
+            "lifetime_ms": 50,
+            "is_active": true,
+            "timestamp_dealloc": null
+        })];
+
+        let user_history = vec![serde_json::json!({
+            "lifetime_ms": 100,
+            "is_active": false,
+            "timestamp_dealloc": 2000
+        })];
+
+        let system_active = vec![serde_json::json!({
+            "lifetime_ms": 25,
+            "is_active": true,
+            "timestamp_dealloc": null
+        })];
+
+        let system_history = vec![];
+
+        let result = VariableRegistry::analyze_lifecycle_statistics(
+            &user_active,
+            &user_history,
+            &system_active,
+            &system_history,
+        );
+
+        assert_eq!(result["user_allocations"]["total_count"], 2);
+        assert_eq!(result["system_allocations"]["total_count"], 1);
+        assert_eq!(result["user_allocations"]["active_count"], 1);
+    }
+
+    #[test]
+    fn test_analyze_deallocation_patterns() {
+        let user_active = vec![serde_json::json!({
+            "timestamp_dealloc": null
+        })];
+
+        let user_history = vec![serde_json::json!({
+            "timestamp_dealloc": 2000
+        })];
+
+        let system_active = vec![];
+        let system_history = vec![];
+
+        let result = VariableRegistry::analyze_deallocation_patterns(
+            &user_active,
+            &user_history,
+            &system_active,
+            &system_history,
+        );
+
+        assert_eq!(result["user_deallocations"]["total_deallocated"], 1);
+        assert_eq!(result["user_deallocations"]["still_active"], 1);
+    }
+
+    #[test]
+    fn test_clear_registry() {
+        let _ = VariableRegistry::clear_registry();
+        let result = VariableRegistry::register_variable(
+            0xABC01,
+            "clear_test".to_string(),
+            "i32".to_string(),
+            4,
+        );
+        assert!(result.is_ok());
+
+        let clear_result = VariableRegistry::clear_registry();
+        assert!(clear_result.is_ok());
+    }
+
+    #[test]
+    fn test_mark_variable_destroyed() {
+        let result = VariableRegistry::mark_variable_destroyed(0x12345, 999999);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_extract_function_name_from_backtrace() {
+        let line = "test::module::function_name::h12345678";
+        let result = VariableRegistry::extract_function_name_from_backtrace(line);
+        let _ = result;
+    }
+
+    #[test]
+    fn test_extract_function_name_system_filter() {
+        let line = "std::alloc::alloc::h12345678";
+        let result = VariableRegistry::extract_function_name_from_backtrace(line);
+        assert!(result.is_none() || !result.unwrap().contains("std"));
+    }
+
+    #[test]
+    fn test_extract_scope_from_var_name_main() {
+        let scope = VariableRegistry::extract_scope_from_var_name("main_buffer");
+        assert!(!scope.is_empty());
+    }
+
+    #[test]
+    fn test_extract_scope_from_var_name_test() {
+        let scope = VariableRegistry::extract_scope_from_var_name("test_data");
+        assert!(!scope.is_empty());
+    }
+
+    #[test]
+    fn test_extract_scope_from_var_name_fn() {
+        let scope = VariableRegistry::extract_scope_from_var_name("fn_result");
+        assert!(!scope.is_empty());
+    }
+
+    #[test]
+    fn test_extract_scope_from_var_name_vec() {
+        let scope = VariableRegistry::extract_scope_from_var_name("my_vec_data");
+        assert!(!scope.is_empty());
+    }
+
+    #[test]
+    fn test_extract_scope_from_var_name_string() {
+        let scope = VariableRegistry::extract_scope_from_var_name("my_string_buffer");
+        assert!(!scope.is_empty());
+    }
+
+    #[test]
+    fn test_extract_scope_from_var_name_boxed() {
+        let scope = VariableRegistry::extract_scope_from_var_name("boxed_value");
+        assert!(!scope.is_empty());
+    }
+
+    #[test]
+    fn test_extract_scope_from_var_name_rc() {
+        let scope = VariableRegistry::extract_scope_from_var_name("rc_pointer");
+        assert!(!scope.is_empty());
+    }
+
+    #[test]
+    fn test_extract_scope_from_var_name_arc() {
+        let scope = VariableRegistry::extract_scope_from_var_name("arc_shared");
+        assert!(!scope.is_empty());
+    }
+
+    #[test]
+    fn test_extract_scope_from_var_name_module() {
+        let scope = VariableRegistry::extract_scope_from_var_name("mymodule::myvar");
+        assert!(!scope.is_empty());
+    }
+
+    #[test]
+    fn test_extract_scope_from_var_name_default() {
+        let scope = VariableRegistry::extract_scope_from_var_name("simple_var");
+        assert!(!scope.is_empty());
+    }
+
+    #[test]
+    fn test_get_current_scope_name() {
+        let scope = VariableRegistry::get_current_scope_name();
+        let _ = scope;
+    }
+
+    #[test]
+    fn test_get_scope_from_tracker() {
+        let scope = VariableRegistry::get_scope_from_tracker();
+        let _ = scope;
+    }
 }

@@ -3,18 +3,21 @@ use memscope_rs::capture::backends::global_tracking::{
     global_tracker, init_global_tracking, reset_global_tracking,
 };
 use memscope_rs::MemScopeError;
+use serial_test::serial;
+
+fn get_tracker() -> Result<
+    std::sync::Arc<memscope_rs::capture::backends::global_tracking::GlobalTracker>,
+    MemScopeError,
+> {
+    reset_global_tracking();
+    init_global_tracking()?;
+    global_tracker()
+}
 
 #[test]
+#[serial]
 fn test_simplified_api() -> Result<(), MemScopeError> {
-    reset_global_tracking();
-    let tracker = match global_tracker() {
-        Ok(t) => t,
-        Err(_) => {
-            // Initialize if not already done
-            init_global_tracking()?;
-            global_tracker()?
-        }
-    };
+    let tracker = get_tracker()?;
 
     // Get initial stats
     let initial_stats = tracker.get_stats();
@@ -41,6 +44,7 @@ fn test_simplified_api() -> Result<(), MemScopeError> {
 }
 
 #[test]
+#[serial]
 fn test_init_twice() {
     reset_global_tracking();
     let first_result = init_global_tracking();
@@ -58,15 +62,9 @@ fn test_init_twice() {
 }
 
 #[test]
+#[serial]
 fn test_track_exact() -> Result<(), MemScopeError> {
-    reset_global_tracking();
-    let tracker = match global_tracker() {
-        Ok(t) => t,
-        Err(_) => {
-            init_global_tracking()?;
-            global_tracker()?
-        }
-    };
+    let tracker = get_tracker()?;
 
     // Get initial stats
     let initial_stats = tracker.get_stats();
@@ -83,6 +81,7 @@ fn test_track_exact() -> Result<(), MemScopeError> {
 }
 
 #[test]
+#[serial]
 fn test_export_before_init() {
     reset_global_tracking();
     let result = global_tracker();
@@ -97,15 +96,9 @@ fn test_export_before_init() {
 }
 
 #[test]
+#[serial]
 fn test_tracker_statistics() -> Result<(), MemScopeError> {
-    reset_global_tracking();
-    let tracker = match global_tracker() {
-        Ok(t) => t,
-        Err(_) => {
-            init_global_tracking()?;
-            global_tracker()?
-        }
-    };
+    let tracker = get_tracker()?;
 
     let initial_stats = tracker.get_stats();
 
@@ -120,15 +113,9 @@ fn test_tracker_statistics() -> Result<(), MemScopeError> {
 }
 
 #[test]
+#[serial]
 fn test_tracker_analysis() -> Result<(), MemScopeError> {
-    reset_global_tracking();
-    let tracker = match global_tracker() {
-        Ok(t) => t,
-        Err(_) => {
-            init_global_tracking()?;
-            global_tracker()?
-        }
-    };
+    let tracker = get_tracker()?;
 
     let data = vec![1, 2, 3, 4, 5];
     tracker.track(&data);
@@ -142,19 +129,13 @@ fn test_tracker_analysis() -> Result<(), MemScopeError> {
 }
 
 #[test]
+#[serial]
 fn test_global_tracker_singleton() -> Result<(), MemScopeError> {
-    reset_global_tracking();
-    let tracker1 = match global_tracker() {
-        Ok(t) => t,
-        Err(_) => {
-            init_global_tracking()?;
-            global_tracker()?
-        }
-    };
+    let tracker = get_tracker()?;
 
     let tracker2 = global_tracker()?;
     assert!(
-        std::ptr::eq(&*tracker1, &*tracker2),
+        std::ptr::eq(&*tracker, &*tracker2),
         "Should return same instance"
     );
 

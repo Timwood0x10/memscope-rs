@@ -117,4 +117,165 @@ mod tests {
         assert_eq!(stats.total_bytes, 192);
         assert_eq!(stats.thread_count, 2);
     }
+
+    #[test]
+    fn test_view_stats_default() {
+        let stats = ViewStats::default();
+        assert!(stats.is_empty());
+        assert_eq!(stats.allocation_count, 0);
+        assert_eq!(stats.event_count, 0);
+        assert_eq!(stats.total_bytes, 0);
+        assert_eq!(stats.peak_bytes, 0);
+        assert_eq!(stats.thread_count, 0);
+        assert_eq!(stats.type_count, 0);
+    }
+
+    #[test]
+    fn test_view_stats_clone() {
+        let stats = ViewStats {
+            allocation_count: 10,
+            event_count: 20,
+            total_bytes: 1024,
+            peak_bytes: 2048,
+            thread_count: 4,
+            type_count: 5,
+            deallocation_count: 2,
+            reallocation_count: 1,
+        };
+
+        let cloned = stats.clone();
+        assert_eq!(cloned.allocation_count, 10);
+        assert_eq!(cloned.event_count, 20);
+        assert_eq!(cloned.total_bytes, 1024);
+    }
+
+    #[test]
+    fn test_view_stats_debug() {
+        let stats = ViewStats {
+            allocation_count: 5,
+            event_count: 10,
+            total_bytes: 512,
+            peak_bytes: 1024,
+            thread_count: 2,
+            type_count: 3,
+            deallocation_count: 1,
+            reallocation_count: 0,
+        };
+
+        let debug_str = format!("{:?}", stats);
+        assert!(debug_str.contains("ViewStats"));
+        assert!(debug_str.contains("allocation_count"));
+    }
+
+    #[test]
+    fn test_view_stats_display() {
+        let stats = ViewStats {
+            allocation_count: 5,
+            event_count: 10,
+            total_bytes: 512,
+            peak_bytes: 1024,
+            thread_count: 2,
+            type_count: 3,
+            deallocation_count: 1,
+            reallocation_count: 0,
+        };
+
+        let display_str = format!("{}", stats);
+        assert!(display_str.contains("allocations: 5"));
+        assert!(display_str.contains("events: 10"));
+        assert!(display_str.contains("bytes: 512"));
+    }
+
+    #[test]
+    fn test_avg_allocation_size_zero() {
+        let stats = ViewStats::default();
+        assert_eq!(stats.avg_allocation_size(), 0);
+    }
+
+    #[test]
+    fn test_avg_allocation_size_nonzero() {
+        let stats = ViewStats {
+            allocation_count: 4,
+            total_bytes: 100,
+            ..Default::default()
+        };
+        assert_eq!(stats.avg_allocation_size(), 25);
+    }
+
+    #[test]
+    fn test_memory_efficiency_zero_peak() {
+        let stats = ViewStats {
+            peak_bytes: 0,
+            total_bytes: 100,
+            ..Default::default()
+        };
+        assert_eq!(stats.memory_efficiency(), 1.0);
+    }
+
+    #[test]
+    fn test_memory_efficiency_half() {
+        let stats = ViewStats {
+            peak_bytes: 100,
+            total_bytes: 50,
+            ..Default::default()
+        };
+        assert!((stats.memory_efficiency() - 0.5).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_memory_efficiency_full() {
+        let stats = ViewStats {
+            peak_bytes: 100,
+            total_bytes: 100,
+            ..Default::default()
+        };
+        assert!((stats.memory_efficiency() - 1.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_view_stats_serialization() {
+        let stats = ViewStats {
+            allocation_count: 10,
+            event_count: 20,
+            total_bytes: 1024,
+            peak_bytes: 2048,
+            thread_count: 4,
+            type_count: 5,
+            deallocation_count: 2,
+            reallocation_count: 1,
+        };
+
+        let json = serde_json::to_string(&stats);
+        assert!(json.is_ok());
+
+        let deserialized: Result<ViewStats, _> = serde_json::from_str(&json.unwrap());
+        assert!(deserialized.is_ok());
+    }
+
+    #[test]
+    fn test_from_snapshot() {
+        let events = vec![
+            MemoryEvent::allocate(0x1000, 64, 1),
+            MemoryEvent::allocate(0x2000, 128, 2),
+        ];
+        let view = super::super::MemoryView::from_events(events);
+        let stats = ViewStats::from_snapshot(view.snapshot());
+
+        assert_eq!(stats.allocation_count, 2);
+        assert_eq!(stats.total_bytes, 192);
+        assert_eq!(stats.event_count, 0); // from_snapshot doesn't set event_count
+    }
+
+    #[test]
+    fn test_from_view_event_count() {
+        let events = vec![
+            MemoryEvent::allocate(0x1000, 64, 1),
+            MemoryEvent::allocate(0x2000, 128, 2),
+            MemoryEvent::deallocate(0x1000, 64, 1),
+        ];
+        let view = super::super::MemoryView::from_events(events);
+        let stats = ViewStats::from_view(&view);
+
+        assert_eq!(stats.event_count, 3);
+    }
 }

@@ -179,4 +179,130 @@ mod tests {
         let range_events = index.get_by_time_range(0, u64::MAX);
         assert_eq!(range_events.len(), 3);
     }
+
+    #[test]
+    fn test_timeline_index_default() {
+        let index = TimelineIndex::default();
+        assert!(index.by_ptr.is_empty());
+        assert!(index.by_thread.is_empty());
+        assert!(index.by_scope.is_empty());
+        assert!(index.by_task.is_empty());
+        assert!(index.by_time.is_empty());
+    }
+
+    #[test]
+    fn test_timeline_index_clear() {
+        let mut index = TimelineIndex::new();
+        let event = MemoryEvent::allocate(0x1000, 1024, 1);
+        index.index_event(0, &event);
+
+        assert!(!index.by_ptr.is_empty());
+
+        index.clear();
+
+        assert!(index.by_ptr.is_empty());
+        assert!(index.by_thread.is_empty());
+        assert!(index.by_scope.is_empty());
+        assert!(index.by_task.is_empty());
+        assert!(index.by_time.is_empty());
+    }
+
+    #[test]
+    fn test_get_by_ptr_not_found() {
+        let index = TimelineIndex::new();
+        assert!(index.get_by_ptr(0xDEADBEEF).is_none());
+    }
+
+    #[test]
+    fn test_get_by_thread_not_found() {
+        let index = TimelineIndex::new();
+        assert!(index.get_by_thread(999).is_none());
+    }
+
+    #[test]
+    fn test_get_by_scope_not_found() {
+        let index = TimelineIndex::new();
+        assert!(index.get_by_scope("nonexistent").is_none());
+    }
+
+    #[test]
+    fn test_index_event_without_var_name() {
+        let mut index = TimelineIndex::new();
+        let mut event = MemoryEvent::allocate(0x1000, 1024, 1);
+        event.var_name = None;
+
+        index.index_event(0, &event);
+
+        assert!(index.get_by_ptr(0x1000).is_some());
+        assert!(index.by_scope.is_empty());
+    }
+
+    #[test]
+    fn test_get_by_time_range_empty() {
+        let index = TimelineIndex::new();
+        let range_events = index.get_by_time_range(0, 1000);
+        assert!(range_events.is_empty());
+    }
+
+    #[test]
+    fn test_get_by_time_range_partial() {
+        let mut index = TimelineIndex::new();
+        let mut event1 = MemoryEvent::allocate(0x1000, 1024, 1);
+        event1.timestamp = 100;
+        let mut event2 = MemoryEvent::allocate(0x2000, 2048, 1);
+        event2.timestamp = 200;
+        let mut event3 = MemoryEvent::allocate(0x3000, 4096, 1);
+        event3.timestamp = 300;
+
+        index.index_event(0, &event1);
+        index.index_event(1, &event2);
+        index.index_event(2, &event3);
+
+        let range_events = index.get_by_time_range(150, 250);
+        assert_eq!(range_events.len(), 1);
+    }
+
+    #[test]
+    fn test_timeline_index_clone() {
+        let mut index = TimelineIndex::new();
+        let event = MemoryEvent::allocate(0x1000, 1024, 1);
+        index.index_event(0, &event);
+
+        let cloned = index.clone();
+        assert!(cloned.get_by_ptr(0x1000).is_some());
+    }
+
+    #[test]
+    fn test_timeline_index_debug() {
+        let index = TimelineIndex::new();
+        let debug_str = format!("{:?}", index);
+        assert!(debug_str.contains("TimelineIndex"));
+    }
+
+    #[test]
+    fn test_index_multiple_threads() {
+        let mut index = TimelineIndex::new();
+        let event1 = MemoryEvent::allocate(0x1000, 1024, 1);
+        let event2 = MemoryEvent::allocate(0x2000, 2048, 2);
+        let event3 = MemoryEvent::allocate(0x3000, 4096, 1);
+
+        index.index_events(&[event1, event2, event3]);
+
+        assert_eq!(index.get_by_thread(1).unwrap().len(), 2);
+        assert_eq!(index.get_by_thread(2).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn test_index_same_ptr_multiple_times() {
+        let mut index = TimelineIndex::new();
+        let event1 = MemoryEvent::allocate(0x1000, 1024, 1);
+        let event2 = MemoryEvent::deallocate(0x1000, 1024, 1);
+
+        index.index_events(&[event1, event2]);
+
+        let ptr_events = index.get_by_ptr(0x1000).unwrap();
+        assert_eq!(ptr_events.len(), 2);
+        assert_eq!(ptr_events[0], 0);
+        assert_eq!(ptr_events[1], 1);
+    }
 }
