@@ -1,3 +1,87 @@
+## [0.2.1] - 2026-04-12
+
+### 📊 **Benchmark优化与文档完善**
+
+本次更新主要针对benchmark系统进行优化，并完善了项目文档体系。
+
+#### **Benchmark优化**
+
+- **feat(bench)**: 添加快速模式支持
+  - 新增环境变量 `QUICK_BENCH` 控制运行模式
+  - 快速模式运行时间：~5分钟（原40分钟）
+  - 采样数：10次（原100次）
+  - 预热时间：100ms（原3秒）
+  - 测量时间：500ms（原5秒）
+  - 性能提升：约13倍
+
+- **feat(bench)**: 新增benchmark测试场景
+  - 内存分配器对比测试（3个测试）
+  - 长期运行稳定性测试（3个测试）
+  - 边缘情况测试（5个测试）
+  - 性能回归检测测试（3个测试）
+  - 总计新增14个测试场景
+
+- **feat(makefile)**: Makefile支持多种benchmark模式
+  - `make bench-quick`: 快速模式（~5分钟）
+  - `make bench`: 完整模式（~60分钟）
+  - `make bench-save`: 运行并保存结果
+  - `make bench-allocator`: 分配器对比测试
+  - `make bench-stability`: 稳定性测试
+  - `make bench-edge`: 边缘情况测试
+  - `make bench-regression`: 回归检测测试
+
+#### **文档完善**
+
+- **docs(structure)**: 重组文档目录结构
+  - 创建 `docs/` 目录统一管理所有文档
+  - 移动benchmark指南和性能分析报告到docs目录
+  - 创建文档索引 `docs/README.md`
+
+- **docs(architecture)**: 完善架构文档
+  - 新增Analysis模块详细架构说明（14个子模块）
+  - 新增Capture模块详细架构说明（3个子模块）
+  - 新增Unified Analyzer架构说明
+  - 添加多个mermaid架构图
+  - 说明各子模块的功能和性能特征
+
+- **docs(modules)**: 补充缺失的模块文档
+  - 新增 `tracking` 模块文档（中英文）
+  - 新增 `analyzer` 模块英文文档
+  - 新增 `view` 模块英文文档
+  - 所有文档包含架构图、API参考、使用示例
+
+- **docs(coverage)**: 创建文档覆盖率报告
+  - 分析现有文档覆盖情况
+  - 识别缺失的文档
+  - 提供优先级建议
+
+#### **性能数据**
+
+- **test environment**: Apple M3 Max, macOS Sonoma
+- **backend performance**: 21-40ns延迟
+- **tracking overhead**: 528ns - 4.72µs
+- **analysis performance**: 250ns - 35.7ms
+- **concurrency**: 最优4-8线程，效率最高139%
+
+#### **文件变更**
+
+- 新增文件：
+  - `docs/README.md`: 文档索引
+  - `docs/DOCUMENTATION_COVERAGE.md`: 文档覆盖率报告
+  - `docs/en/modules/tracking.md`: Tracking模块英文文档
+  - `docs/zh/modules/tracking.md`: Tracking模块中文文档
+  - `docs/en/modules/analyzer.md`: Analyzer模块英文文档
+  - `docs/en/modules/view.md`: View模块英文文档
+  - `benches/benchmark_results_quick.log`: 快速模式benchmark结果
+
+- 更新文件：
+  - `README.md`: 添加架构改进和性能数据
+  - `docs/ARCHITECTURE.md`: 新增详细模块架构说明
+  - `Makefile`: 添加多种benchmark模式支持
+  - `benches/comprehensive_benchmarks.rs`: 添加快速模式和新增测试
+
+---
+
 ## [0.2.0] - 2026-04-09
 
 ### 🏗️ **重大架构重构：从单体架构到模块化引擎**

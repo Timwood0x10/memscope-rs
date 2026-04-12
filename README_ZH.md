@@ -14,6 +14,39 @@
 - ⚡ **性能提升**：并发追踪场景性能提升高达 98%
 - 📊 **代码统计**：525 个文件修改，当前代码库：77,641 行
 
+### 架构改进（对比 master 分支）
+
+与 `master` 分支相比，`improve` 分支引入了重要的架构增强：
+
+#### 1. 三层对象模型
+- **第一层**：用户 API（tracker 宏、全局/本地追踪器）
+- **第二层**：核心引擎（可插拔后端、事件处理）
+- **第三层**：分析引擎（检测器、分类器、指标）
+
+#### 2. 统一节点身份系统
+- 所有组件使用单一的 `NodeId` 系统
+- 从分配到分析的一致身份追踪
+- 跨模块的内存事件轻松关联
+
+#### 3. 模块化后端架构
+- **4 种后端类型**（master 分支仅 1 种）：
+  - Core Backend: ~21ns 延迟
+  - Async Backend: ~21ns 延迟
+  - Lockfree Backend: ~40ns 延迟
+  - Unified Backend: ~40ns 延迟
+
+#### 4. 事件驱动架构
+- 集中式 `EventStore` 存储所有内存事件
+- 组件间松耦合
+- 易于扩展新的分析模块
+
+#### 5. 完整的分析模块
+- **10+ 分析模块**（master 分支仅 3 个）
+- **5 个检测器**（master 分支仅 2 个）
+- 高级类型分类和模式匹配
+
+详见 [架构文档](docs/ARCHITECTURE.md) 查看详细图表和说明。
+
 详见 [PR 摘要](PR_SUMMARY.md) 了解详细变更和迁移指南。
 
 ## 架构
@@ -156,6 +189,67 @@ fn main() {
 | AsyncTracker  | 异步任务           | ~23ns   | 任务 ID 追踪                 |
 | GlobalTracker | 全局追踪           | 可变    | 跨线程共享                    |
 
+## 性能
+
+### 测试环境
+- **硬件**: Apple M3 Max
+- **操作系统**: macOS Sonoma
+- **Rust**: 1.85+
+
+### 核心性能指标
+
+#### 后端性能
+| 后端 | 分配 | 释放 | 重分配 | 移动 |
+|------|------|------|--------|------|
+| **Core** | 21 ns | 21 ns | 21 ns | 21 ns |
+| **Async** | 21 ns | 21 ns | 21 ns | 21 ns |
+| **Lockfree** | 40 ns | 40 ns | 40 ns | 40 ns |
+| **Unified** | 40 ns | 40 ns | 40 ns | 40 ns |
+
+#### 追踪开销
+| 操作 | 延迟 | 吞吐量 |
+|------|------|--------|
+| 单次追踪 (64B) | 528 ns | 115.55 MiB/s |
+| 单次追踪 (1KB) | 544 ns | 1.75 GiB/s |
+| 单次追踪 (1MB) | 4.72 µs | 206.74 GiB/s |
+| 批量追踪 (1000) | 541 µs | 1.85 Melem/s |
+
+#### 分析性能
+| 分析类型 | 规模 | 延迟 |
+|---------|------|------|
+| 统计查询 | 任意 | 250 ns |
+| 小规模分析 | 1,000 次分配 | 536 µs |
+| 中等规模分析 | 10,000 次分配 | 5.85 ms |
+| 大规模分析 | 50,000 次分配 | 35.7 ms |
+
+#### 并发性能
+| 线程数 | 延迟 | 效率 |
+|--------|------|------|
+| 1 | 19.3 µs | 100% |
+| 4 | 55.7 µs | **139%** ⚡ |
+| 8 | 138 µs | 112% |
+| 16 | 475 µs | 65% |
+| 32 | 1.04 ms | 59% |
+
+**最优并发**: 4-8 线程
+
+### 性能改进（对比 master）
+
+| 指标 | Master | Improve | 改进 |
+|------|--------|---------|------|
+| 并发追踪 (1) | 98µs | 19.3µs | **-80%** ⚡ |
+| 并发追踪 (64) | 1.9ms | 1.04ms | **-45%** ⚡ |
+| 分析 (100 元素) | 30µs | 5.9µs | **-80%** ⚡ |
+| Lockfree 分配 | 39ns | 40ns | 稳定 |
+| 类型分类 | 40-56ns | 40-56ns | 稳定 |
+
+### Benchmark 模式
+
+- **快速模式** (~5 分钟): `make bench-quick`
+- **完整模式** (~60 分钟): `make bench`
+
+详见 [Benchmark 指南](docs/BENCHMARK_GUIDE.md) 和 [性能分析](docs/PERFORMANCE_ANALYSIS.md) 查看详细报告。
+
 ## 引擎能力
 
 ### 分析引擎
@@ -252,17 +346,30 @@ cargo run --example unsafe_ffi_demo
 
 ## 文档
 
-- [API 指南（中文）](docs/zh/api_guide.md)
-- [架构文档（中文）](docs/zh/architecture.md)
-- [模块文档（中文）](docs/zh/modules/)
+#### 架构与设计
+- [架构概览](docs/ARCHITECTURE.md) - 详细架构和图表
+- [文档覆盖率报告](docs/DOCUMENTATION_COVERAGE.md) - 文档状态
 
-### 关键模块
+#### 性能与 Benchmark
+- [性能分析报告](docs/PERFORMANCE_ANALYSIS.md) - 详细性能分析
+- [Benchmark 使用指南](docs/BENCHMARK_GUIDE.md) - Benchmark 使用说明
 
-- [分析模块](docs/zh/modules/analysis.md) - 泄漏检测、关系推断、安全分析
-- [追踪器模块](docs/zh/modules/tracker.md) - 核心追踪 API
-- [捕获模块](docs/zh/modules/capture.md) - 内存捕获后端
-- [渲染引擎](docs/zh/modules/render_engine.md) - 导出和可视化
-- [核心模块](docs/zh/modules/core.md) - 核心类型和工具
+#### 模块文档（中文）
+- [API 指南](docs/zh/api_guide.md) - API 使用指南
+- [分析器模块](docs/zh/modules/analyzer.md) - Analyzer 模块
+- [视图模块](docs/zh/modules/view.md) - View 模块
+- [追踪模块](docs/zh/modules/tracking.md) - Tracking 模块
+
+#### 模块文档（英文）
+- [API Guide](docs/en/api_guide.md) - API usage guide
+- [Analyzer Module](docs/en/modules/analyzer.md) - Analyzer module
+- [View Module](docs/en/modules/view.md) - View module
+- [Tracking Module](docs/en/modules/tracking.md) - Tracking module
+- [Analysis Module](docs/en/modules/analysis.md) - Analysis module
+- [Tracker Module](docs/en/modules/tracker.md) - Tracker module
+- [Capture Module](docs/en/modules/capture.md) - Capture module
+- [Render Engine](docs/en/modules/render_engine.md) - Render engine
+- [Core Module](docs/en/modules/core.md) - Core module
 
 ## 项目结构
 

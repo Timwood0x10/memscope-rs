@@ -34,11 +34,17 @@ help:
 	@echo "  test-verbose   - Run with verbose output"
 	@echo ""
 	@echo "$(GREEN)Benchmarking:$(NC)"
-	@echo "  bench          - Run all benchmarks"
-	@echo "  bench-tracker  - Run tracker benchmarks"
+	@echo "  bench            - Run all benchmarks (full mode, ~40 min)"
+	@echo "  bench-quick      - Run quick benchmarks (~5 min)"
+	@echo "  bench-tracker    - Run tracker benchmarks"
 	@echo "  bench-concurrent - Run concurrent benchmarks"
-	@echo "  bench-io       - Run IO benchmarks"
-	@echo "  bench-stress   - Run stress tests"
+	@echo "  bench-io         - Run IO benchmarks"
+	@echo "  bench-stress     - Run stress tests"
+	@echo "  bench-allocator  - Run allocator comparison benchmarks"
+	@echo "  bench-stability  - Run stability benchmarks"
+	@echo "  bench-edge       - Run edge case benchmarks"
+	@echo "  bench-regression - Run regression detection benchmarks"
+	@echo "  bench-save       - Run quick benchmarks and save results"
 	@echo ""
 	@echo "$(GREEN)Quality:$(NC)"
 	@echo "  fmt            - Format code"
@@ -113,8 +119,13 @@ test-verbose:
 # Benchmarking
 .PHONY: bench
 bench:
-	@echo "$(BLUE)Running benchmarks...$(NC)"
+	@echo "$(BLUE)Running all benchmarks (full mode, ~40 min)...$(NC)"
 	$(CARGO) bench --bench comprehensive_benchmarks
+
+.PHONY: bench-quick
+bench-quick:
+	@echo "$(BLUE)Running quick benchmarks (~5 min)...$(NC)"
+	QUICK_BENCH=1 $(CARGO) bench --bench comprehensive_benchmarks
 
 .PHONY: bench-tracker
 bench-tracker:
@@ -135,6 +146,33 @@ bench-io:
 bench-stress:
 	@echo "$(BLUE)Running stress tests...$(NC)"
 	$(CARGO) bench -- stress_benches
+
+.PHONY: bench-allocator
+bench-allocator:
+	@echo "$(BLUE)Running allocator comparison benchmarks...$(NC)"
+	$(CARGO) bench -- allocator_benches
+
+.PHONY: bench-stability
+bench-stability:
+	@echo "$(BLUE)Running stability benchmarks...$(NC)"
+	$(CARGO) bench -- stability_benches
+
+.PHONY: bench-edge
+bench-edge:
+	@echo "$(BLUE)Running edge case benchmarks...$(NC)"
+	$(CARGO) bench -- edge_case_benches
+
+.PHONY: bench-regression
+bench-regression:
+	@echo "$(BLUE)Running regression detection benchmarks...$(NC)"
+	$(CARGO) bench -- regression_benches
+
+.PHONY: bench-save
+bench-save:
+	@echo "$(BLUE)Running quick benchmarks and saving results...$(NC)"
+	@mkdir -p benches
+	QUICK_BENCH=1 $(CARGO) bench --bench comprehensive_benchmarks 2>&1 | tee benches/benchmark_results_quick_$$(date +%Y%m%d_%H%M%S).log
+	@echo "$(GREEN)Results saved to benches/benchmark_results_quick_*.log$(NC)"
 
 # Quality
 .PHONY: fmt
