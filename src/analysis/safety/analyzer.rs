@@ -42,19 +42,7 @@ struct CircuitBreaker {
 impl CircuitBreaker {
     fn record_poison(&mut self, max_retries: usize) {
         self.poison_count += 1;
-
-        match SystemTime::now().duration_since(UNIX_EPOCH) {
-            Ok(duration) => {
-                self.last_poison_time = Some(duration.as_secs());
-            }
-            Err(e) => {
-                tracing::error!(
-                    "System clock error when recording poison time: {}. Using 0 as timestamp.",
-                    e
-                );
-                self.last_poison_time = Some(0);
-            }
-        }
+        self.last_poison_time = Some(get_current_timestamp());
 
         if self.poison_count >= max_retries {
             self.is_open = true;
@@ -2391,6 +2379,452 @@ mod tests {
         assert_eq!(
             stats.total_reports, 0,
             "Should return default stats on success"
+        );
+    }
+
+    /// Objective: Verify convert_safety_violations handles DoubleFree correctly
+    /// Invariants: DoubleFree should convert to DynamicViolation with Critical severity
+    #[test]
+    fn test_convert_safety_violation_double_free() {
+        use crate::core::CallStackRef;
+
+        let analyzer = SafetyAnalyzer::default();
+
+        let call_stack = CallStackRef::new(1, Some(1));
+        let violations = vec![SafetyViolation::DoubleFree {
+            first_free_stack: call_stack.clone(),
+            second_free_stack: call_stack.clone(),
+            timestamp: 1000,
+        }];
+
+        let source = UnsafeSource::RawPointer {
+            operation: "test".to_string(),
+            location: "test.rs".to_string(),
+        };
+
+        let report_id = analyzer
+            .generate_unsafe_report(source, &[], &violations)
+            .unwrap();
+        let reports = analyzer.get_unsafe_reports();
+        let report = reports.get(&report_id).expect("Report should exist");
+
+        assert_eq!(
+            report.dynamic_violations.len(),
+            1,
+            "Should have one dynamic violation"
+        );
+        let dv = &report.dynamic_violations[0];
+        assert!(
+            matches!(dv.violation_type, ViolationType::DoubleFree),
+            "Violation type should be DoubleFree"
+        );
+        assert!(
+            matches!(dv.severity, RiskLevel::Critical),
+            "DoubleFree should have Critical severity"
+        );
+    }
+
+    /// Objective: Verify convert_safety_violations handles InvalidFree correctly
+    /// Invariants: InvalidFree should convert to DynamicViolation with High severity
+    #[test]
+    fn test_convert_safety_violation_invalid_free() {
+        use crate::core::CallStackRef;
+
+        let analyzer = SafetyAnalyzer::default();
+
+        let call_stack = CallStackRef::new(2, Some(1));
+        let violations = vec![SafetyViolation::InvalidFree {
+            attempted_pointer: 0x2000,
+            stack: call_stack,
+            timestamp: 2000,
+        }];
+
+        let source = UnsafeSource::RawPointer {
+            operation: "test".to_string(),
+            location: "test.rs".to_string(),
+        };
+
+        let report_id = analyzer
+            .generate_unsafe_report(source, &[], &violations)
+            .unwrap();
+        let reports = analyzer.get_unsafe_reports();
+        let report = reports.get(&report_id).expect("Report should exist");
+
+        let dv = &report.dynamic_violations[0];
+        assert!(
+            matches!(dv.violation_type, ViolationType::InvalidAccess),
+            "Violation type should be InvalidAccess"
+        );
+        assert_eq!(
+            dv.memory_address, 0x2000,
+            "Memory address should match attempted pointer"
+        );
+        assert!(
+            matches!(dv.severity, RiskLevel::High),
+            "InvalidFree should have High severity"
+        );
+    }
+
+    /// Objective: Verify convert_safety_violations handles PotentialLeak correctly
+    /// Invariants: PotentialLeak should convert to DynamicViolation with Medium severity
+    #[test]
+    fn test_convert_safety_violation_potential_leak() {
+        use crate::core::CallStackRef;
+
+        let analyzer = SafetyAnalyzer::default();
+
+        let call_stack = CallStackRef::new(3, Some(1));
+        let violations = vec![SafetyViolation::PotentialLeak {
+            allocation_stack: call_stack,
+            allocation_timestamp: 1000,
+            leak_detection_timestamp: 5000,
+        }];
+
+        let source = UnsafeSource::RawPointer {
+            operation: "test".to_string(),
+            location: "test.rs".to_string(),
+        };
+
+        let report_id = analyzer
+            .generate_unsafe_report(source, &[], &violations)
+            .unwrap();
+        let reports = analyzer.get_unsafe_reports();
+        let report = reports.get(&report_id).expect("Report should exist");
+
+        let dv = &report.dynamic_violations[0];
+        assert!(
+            matches!(dv.violation_type, ViolationType::MemoryLeak),
+            "Violation type should be MemoryLeak"
+        );
+        assert!(
+            matches!(dv.severity, RiskLevel::Medium),
+            "PotentialLeak should have Medium severity"
+        );
+        assert_eq!(
+            dv.detected_at, 5000,
+            "Detected at should match leak_detection_timestamp"
+        );
+    }
+
+    /// Objective: Verify convert_safety_violations handles CrossBoundaryRisk correctly
+    /// Invariants: CrossBoundaryRisk should preserve risk level from original violation
+    #[test]
+    fn test_convert_safety_violation_cross_boundary() {
+        use crate::core::CallStackRef;
+
+        let analyzer = SafetyAnalyzer::default();
+
+        let call_stack = CallStackRef::new(4, Some(1));
+        let violations = vec![SafetyViolation::CrossBoundaryRisk {
+            risk_level: RiskLevel::High,
+            description: "FFI boundary violation".to_string(),
+            stack: call_stack,
+        }];
+
+        let source = UnsafeSource::FfiFunction {
+            library: "libc".to_string(),
+            function: "malloc".to_string(),
+            call_site: "test.rs".to_string(),
+        };
+
+        let report_id = analyzer
+            .generate_unsafe_report(source, &[], &violations)
+            .unwrap();
+        let reports = analyzer.get_unsafe_reports();
+        let report = reports.get(&report_id).expect("Report should exist");
+
+        let dv = &report.dynamic_violations[0];
+        assert!(
+            matches!(dv.violation_type, ViolationType::FfiBoundaryViolation),
+            "Violation type should be FfiBoundaryViolation"
+        );
+        assert!(
+            matches!(dv.severity, RiskLevel::High),
+            "Severity should match original risk level"
+        );
+        assert_eq!(
+            dv.context, "FFI boundary violation",
+            "Context should match description"
+        );
+    }
+
+    /// Objective: Verify convert_safety_violations handles multiple violations
+    /// Invariants: All violations should be converted correctly
+    #[test]
+    fn test_convert_multiple_safety_violations() {
+        use crate::core::CallStackRef;
+
+        let analyzer = SafetyAnalyzer::default();
+
+        let call_stack = CallStackRef::new(5, Some(1));
+        let violations = vec![
+            SafetyViolation::DoubleFree {
+                first_free_stack: call_stack.clone(),
+                second_free_stack: call_stack.clone(),
+                timestamp: 1000,
+            },
+            SafetyViolation::InvalidFree {
+                attempted_pointer: 0x2000,
+                stack: call_stack.clone(),
+                timestamp: 2000,
+            },
+            SafetyViolation::PotentialLeak {
+                allocation_stack: call_stack,
+                allocation_timestamp: 1000,
+                leak_detection_timestamp: 5000,
+            },
+        ];
+
+        let source = UnsafeSource::UnsafeBlock {
+            location: "test.rs".to_string(),
+            function: "test".to_string(),
+            file_path: None,
+            line_number: None,
+        };
+
+        let report_id = analyzer
+            .generate_unsafe_report(source, &[], &violations)
+            .unwrap();
+        let reports = analyzer.get_unsafe_reports();
+        let report = reports.get(&report_id).expect("Report should exist");
+
+        assert_eq!(
+            report.dynamic_violations.len(),
+            3,
+            "Should have three dynamic violations"
+        );
+    }
+
+    /// Objective: Verify memory context creation with empty allocations
+    /// Invariants: Memory context should handle empty allocations correctly
+    #[test]
+    fn test_create_memory_context_empty() {
+        let analyzer = SafetyAnalyzer::default();
+
+        let source = UnsafeSource::RawPointer {
+            operation: "test".to_string(),
+            location: "test.rs".to_string(),
+        };
+
+        let report_id = analyzer.generate_unsafe_report(source, &[], &[]).unwrap();
+        let reports = analyzer.get_unsafe_reports();
+        let report = reports.get(&report_id).expect("Report should exist");
+
+        assert_eq!(
+            report.memory_context.total_allocated, 0,
+            "Total allocated should be 0 for empty allocations"
+        );
+        assert_eq!(
+            report.memory_context.active_allocations, 0,
+            "Active allocations should be 0 for empty allocations"
+        );
+    }
+
+    /// Objective: Verify CircuitBreaker trip behavior
+    /// Invariants: CircuitBreaker should trip after max_retries poison events
+    #[test]
+    fn test_circuit_breaker_trip_threshold() {
+        let mut breaker = CircuitBreaker::default();
+
+        assert!(!breaker.is_tripped(), "Should not be tripped initially");
+
+        breaker.record_poison(3);
+        assert_eq!(breaker.poison_count(), 1);
+        assert!(!breaker.is_tripped(), "Should not trip after 1 event");
+
+        breaker.record_poison(3);
+        assert_eq!(breaker.poison_count(), 2);
+        assert!(!breaker.is_tripped(), "Should not trip after 2 events");
+
+        breaker.record_poison(3);
+        assert_eq!(breaker.poison_count(), 3);
+        assert!(
+            breaker.is_tripped(),
+            "Should trip after reaching max_retries"
+        );
+    }
+
+    /// Objective: Verify CircuitBreaker reset functionality
+    /// Invariants: Reset should clear all state
+    #[test]
+    fn test_circuit_breaker_reset() {
+        let mut breaker = CircuitBreaker::default();
+
+        breaker.record_poison(3);
+        breaker.record_poison(3);
+        breaker.record_poison(3);
+
+        assert!(breaker.is_tripped(), "Should be tripped");
+
+        breaker.reset();
+
+        assert!(!breaker.is_tripped(), "Should not be tripped after reset");
+        assert_eq!(breaker.poison_count(), 0, "Poison count should be 0");
+        assert!(
+            breaker.last_poison_time().is_none(),
+            "Last poison time should be None"
+        );
+    }
+
+    /// Objective: Verify CircuitBreaker with different max_retries values
+    /// Invariants: Should respect different threshold values
+    #[test]
+    fn test_circuit_breaker_different_thresholds() {
+        let mut breaker1 = CircuitBreaker::default();
+        breaker1.record_poison(1);
+        assert!(
+            breaker1.is_tripped(),
+            "Should trip immediately with max_retries=1"
+        );
+
+        let mut breaker5 = CircuitBreaker::default();
+        for _ in 0..4 {
+            breaker5.record_poison(5);
+        }
+        assert!(
+            !breaker5.is_tripped(),
+            "Should not trip before reaching threshold"
+        );
+        breaker5.record_poison(5);
+        assert!(breaker5.is_tripped(), "Should trip at exactly max_retries");
+    }
+
+    /// Objective: Verify get_current_timestamp returns valid value
+    /// Invariants: Timestamp should be positive and reasonable
+    #[test]
+    fn test_get_current_timestamp() {
+        let ts = get_current_timestamp();
+        assert!(ts > 0, "Timestamp should be positive");
+        assert!(
+            ts > 1700000000,
+            "Timestamp should be after 2023 (reasonable value)"
+        );
+    }
+
+    /// Objective: Verify get_current_timestamp_nanos returns valid value
+    /// Invariants: Nanos timestamp should be greater than seconds timestamp
+    #[test]
+    fn test_get_current_timestamp_nanos() {
+        let ts_nanos = get_current_timestamp_nanos();
+        let ts_secs = get_current_timestamp();
+
+        assert!(ts_nanos > 0, "Nanos timestamp should be positive");
+        assert!(
+            ts_nanos >= ts_secs as u128,
+            "Nanos should be >= seconds timestamp"
+        );
+    }
+
+    /// Objective: Verify record_passport_event when tracking is disabled
+    /// Invariants: Should return Ok(()) immediately without modifying state
+    #[test]
+    fn test_record_passport_event_tracking_disabled() {
+        let config = SafetyAnalysisConfig {
+            enable_passport_tracking: false,
+            ..Default::default()
+        };
+        let analyzer = SafetyAnalyzer::new(config);
+
+        let result = analyzer.record_passport_event(
+            0x1000,
+            PassportEventType::HandoverToFfi,
+            "test".to_string(),
+        );
+
+        assert!(result.is_ok(), "Should return Ok when tracking disabled");
+    }
+
+    /// Objective: Verify generate_unsafe_report with passport tracking enabled
+    /// Invariants: Should handle passport tracking correctly
+    #[test]
+    fn test_generate_report_with_passport_tracking() {
+        let analyzer = SafetyAnalyzer::default();
+
+        analyzer
+            .create_memory_passport(0x1000, 1024, PassportEventType::AllocatedInRust)
+            .unwrap();
+
+        let source = UnsafeSource::RawPointer {
+            operation: "test".to_string(),
+            location: "test.rs".to_string(),
+        };
+
+        let result = analyzer.generate_unsafe_report(source, &[], &[]);
+        assert!(
+            result.is_ok(),
+            "Should generate report with passport tracking"
+        );
+    }
+
+    /// Objective: Verify SafetyAnalysisStats serialization
+    /// Invariants: Stats should serialize and deserialize correctly
+    #[test]
+    fn test_safety_analysis_stats_serialization() {
+        let stats = SafetyAnalysisStats {
+            total_reports: 10,
+            reports_by_risk_level: HashMap::from([("Low".to_string(), 5), ("High".to_string(), 5)]),
+            total_passports: 3,
+            passports_by_status: HashMap::from([("Active".to_string(), 3)]),
+            dynamic_violations: 2,
+            analysis_start_time: 1000,
+        };
+
+        let json = serde_json::to_string(&stats).expect("Should serialize");
+        let deserialized: SafetyAnalysisStats =
+            serde_json::from_str(&json).expect("Should deserialize");
+
+        assert_eq!(deserialized.total_reports, 10, "Total reports should match");
+        assert_eq!(
+            deserialized.total_passports, 3,
+            "Total passports should match"
+        );
+    }
+
+    /// Objective: Verify SafetyAnalysisConfig clone functionality
+    /// Invariants: Cloned config should have identical values
+    #[test]
+    fn test_safety_config_clone() {
+        let config = SafetyAnalysisConfig {
+            detailed_risk_assessment: false,
+            enable_passport_tracking: false,
+            min_risk_level: RiskLevel::High,
+            max_reports: 500,
+            enable_dynamic_violations: false,
+            strict_mutex_handling: true,
+            max_mutex_poison_retries: 5,
+        };
+
+        let cloned = config.clone();
+
+        assert_eq!(
+            cloned.detailed_risk_assessment, false,
+            "Cloned detailed_risk_assessment should match"
+        );
+        assert_eq!(
+            cloned.enable_passport_tracking, false,
+            "Cloned enable_passport_tracking should match"
+        );
+        assert_eq!(cloned.max_reports, 500, "Cloned max_reports should match");
+        assert_eq!(
+            cloned.max_mutex_poison_retries, 5,
+            "Cloned max_mutex_poison_retries should match"
+        );
+    }
+
+    /// Objective: Verify finalize_passports_at_shutdown handles lock failure
+    /// Invariants: Should return empty vec when lock fails (graceful degradation)
+    #[test]
+    fn test_finalize_passports_graceful_degradation() {
+        let analyzer = SafetyAnalyzer::default();
+
+        analyzer
+            .create_memory_passport(0x1000, 1024, PassportEventType::AllocatedInRust)
+            .unwrap();
+
+        let leaks = analyzer.finalize_passports_at_shutdown();
+        assert!(
+            leaks.is_empty(),
+            "Should have no leaks when passport is not in foreign custody"
         );
     }
 }

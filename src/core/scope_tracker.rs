@@ -399,34 +399,301 @@ macro_rules! track_var_with_scope {
 mod tests {
     use super::*;
 
+    /// Objective: Verify ScopeTracker creation with default values
+    /// Invariants: New tracker should have empty collections and next_scope_id = 1
     #[test]
     fn test_scope_tracker_creation() {
         let tracker = ScopeTracker::new();
-        assert_eq!(tracker.next_scope_id.load(Ordering::SeqCst), 1);
+        assert_eq!(
+            tracker.next_scope_id.load(Ordering::SeqCst),
+            1,
+            "Next scope ID should start at 1"
+        );
+        assert!(
+            tracker.active_scopes.read().unwrap().is_empty(),
+            "Active scopes should be empty"
+        );
+        assert!(
+            tracker.completed_scopes.lock().unwrap().is_empty(),
+            "Completed scopes should be empty"
+        );
     }
 
+    /// Objective: Verify Default trait implementation
+    /// Invariants: Default should create same as new()
+    #[test]
+    fn test_scope_tracker_default() {
+        let tracker = ScopeTracker::default();
+        assert_eq!(
+            tracker.next_scope_id.load(Ordering::SeqCst),
+            1,
+            "Default should start with ID 1"
+        );
+    }
+
+    /// Objective: Verify enter and exit scope functionality
+    /// Invariants: Scope should be active after enter, moved to completed after exit
     #[test]
     fn test_enter_and_exit_scope() {
         let tracker = ScopeTracker::new();
-        let scope_id = tracker.enter_scope("test_scope".to_string()).unwrap();
+        let scope_id = tracker
+            .enter_scope("test_scope".to_string())
+            .expect("Should enter scope");
 
-        // Check scope is active
-        assert!(tracker
-            .active_scopes
-            .read()
-            .unwrap()
-            .get(&scope_id)
-            .is_some());
+        assert!(
+            tracker
+                .active_scopes
+                .read()
+                .unwrap()
+                .get(&scope_id)
+                .is_some(),
+            "Scope should be active"
+        );
 
-        // Exit scope
-        tracker.exit_scope(scope_id).unwrap();
+        tracker.exit_scope(scope_id).expect("Should exit scope");
 
-        // Check scope is no longer active
-        assert!(tracker
-            .active_scopes
-            .read()
-            .unwrap()
-            .get(&scope_id)
-            .is_none());
+        assert!(
+            tracker
+                .active_scopes
+                .read()
+                .unwrap()
+                .get(&scope_id)
+                .is_none(),
+            "Scope should no longer be active"
+        );
+        assert_eq!(
+            tracker.completed_scopes.lock().unwrap().len(),
+            1,
+            "Should have one completed scope"
+        );
+    }
+
+    /// Objective: Verify scope ID allocation is sequential
+    /// Invariants: Each enter_scope should return incrementing IDs
+    #[test]
+    fn test_sequential_scope_ids() {
+        let tracker = ScopeTracker::new();
+
+        let id1 = tracker.enter_scope("scope1".to_string()).unwrap();
+        let id2 = tracker.enter_scope("scope2".to_string()).unwrap();
+        let id3 = tracker.enter_scope("scope3".to_string()).unwrap();
+
+        assert!(id1 < id2, "IDs should be sequential");
+        assert!(id2 < id3, "IDs should be sequential");
+    }
+
+    /// Objective: Verify nested scope tracking
+    /// Invariants: Child scope should have correct parent and depth
+    #[test]
+    fn test_nested_scopes() {
+        let tracker = ScopeTracker::new();
+
+        let parent_id = tracker.enter_scope("parent".to_string()).unwrap();
+        let child_id = tracker.enter_scope("child".to_string()).unwrap();
+
+        let active = tracker.active_scopes.read().unwrap();
+        let parent_scope = active.get(&parent_id).expect("Parent should exist");
+        let child_scope = active.get(&child_id).expect("Child should exist");
+
+        assert_eq!(parent_scope.depth, 0, "Parent should have depth 0");
+        assert_eq!(child_scope.depth, 1, "Child should have depth 1");
+        assert_eq!(
+            child_scope.parent_scope,
+            Some("parent".to_string()),
+            "Child should have parent"
+        );
+    }
+
+    /// Objective: Verify associate_variable functionality
+    /// Invariants: Variable should be associated with current scope
+    #[test]
+    fn test_associate_variable() {
+        let tracker = ScopeTracker::new();
+        let _scope_id = tracker.enter_scope("test".to_string()).unwrap();
+
+        tracker
+            .associate_variable("my_var".to_string(), 1024)
+            .expect("Should associate variable");
+
+        let active = tracker.active_scopes.read().unwrap();
+        let scope = active.values().next().expect("Should have scope");
+
+        assert!(
+            scope.variables.contains(&"my_var".to_string()),
+            "Variable should be in scope"
+        );
+        assert_eq!(scope.memory_usage, 1024, "Memory usage should be updated");
+        assert_eq!(scope.allocation_count, 1, "Allocation count should be 1");
+    }
+
+    /// Objective: Verify peak memory tracking
+    /// Invariants: Peak memory should track maximum usage
+    #[test]
+    fn test_peak_memory_tracking() {
+        let tracker = ScopeTracker::new();
+        let _scope_id = tracker.enter_scope("test".to_string()).unwrap();
+
+        tracker.associate_variable("var1".to_string(), 100).unwrap();
+        tracker.associate_variable("var2".to_string(), 200).unwrap();
+
+        let active = tracker.active_scopes.read().unwrap();
+        let scope = active.values().next().expect("Should have scope");
+
+        assert_eq!(scope.memory_usage, 300, "Total memory should be 300");
+        assert_eq!(scope.peak_memory, 300, "Peak memory should be 300");
+    }
+
+    /// Objective: Verify get_scope_analysis functionality
+    /// Invariants: Should return analysis with all scopes
+    #[test]
+    fn test_get_scope_analysis() {
+        let tracker = ScopeTracker::new();
+
+        let id1 = tracker.enter_scope("scope1".to_string()).unwrap();
+        let _id2 = tracker.enter_scope("scope2".to_string()).unwrap();
+        tracker.exit_scope(id1).unwrap();
+
+        let analysis = tracker.get_scope_analysis().expect("Should get analysis");
+
+        assert_eq!(analysis.total_scopes, 2, "Should have 2 scopes total");
+        assert!(
+            analysis.active_scopes >= 1,
+            "Should have at least 1 active scope"
+        );
+    }
+
+    /// Objective: Verify get_all_scopes returns all scopes
+    /// Invariants: Should include both active and completed scopes
+    #[test]
+    fn test_get_all_scopes() {
+        let tracker = ScopeTracker::new();
+
+        let id1 = tracker.enter_scope("scope1".to_string()).unwrap();
+        let _id2 = tracker.enter_scope("scope2".to_string()).unwrap();
+        tracker.exit_scope(id1).unwrap();
+
+        let all_scopes = tracker.get_all_scopes();
+
+        assert_eq!(all_scopes.len(), 2, "Should have 2 scopes");
+    }
+
+    /// Objective: Verify get_scope_lifecycle_metrics functionality
+    /// Invariants: Should return metrics for completed scopes
+    #[test]
+    fn test_get_scope_lifecycle_metrics() {
+        let tracker = ScopeTracker::new();
+
+        let id = tracker.enter_scope("test".to_string()).unwrap();
+        tracker.associate_variable("var".to_string(), 100).unwrap();
+        tracker.exit_scope(id).unwrap();
+
+        let metrics = tracker
+            .get_scope_lifecycle_metrics()
+            .expect("Should get metrics");
+
+        assert_eq!(metrics.len(), 1, "Should have 1 metric");
+        assert_eq!(metrics[0].scope_name, "test", "Scope name should match");
+        assert_eq!(metrics[0].variable_count, 1, "Should have 1 variable");
+    }
+
+    /// Objective: Verify ScopeGuard RAII behavior
+    /// Invariants: Scope should be exited when guard is dropped
+    #[test]
+    fn test_scope_guard() {
+        let tracker = get_global_scope_tracker();
+
+        let guard = ScopeGuard::enter("test_guard").expect("Should enter");
+        let scope_id = guard.scope_id();
+
+        let active = tracker.active_scopes.read().unwrap();
+        assert!(active.contains_key(&scope_id), "Scope should be active");
+        drop(active);
+
+        drop(guard);
+
+        let active = tracker.active_scopes.read().unwrap();
+        assert!(
+            !active.contains_key(&scope_id),
+            "Scope should be exited after guard drop"
+        );
+    }
+
+    /// Objective: Verify ScopeGuard scope_id method
+    /// Invariants: Should return the scope ID
+    #[test]
+    fn test_scope_guard_id() {
+        let guard = ScopeGuard::enter("test").expect("Should enter");
+        let id = guard.scope_id();
+        assert!(id > 0, "Scope ID should be positive");
+    }
+
+    /// Objective: Verify exiting invalid scope returns error
+    /// Invariants: Should return error for non-existent scope
+    #[test]
+    fn test_exit_invalid_scope() {
+        let tracker = ScopeTracker::new();
+        let result = tracker.exit_scope(999);
+
+        assert!(result.is_err(), "Should return error for invalid scope");
+    }
+
+    /// Objective: Verify scope hierarchy tracking
+    /// Invariants: Hierarchy should track parent-child relationships
+    #[test]
+    fn test_scope_hierarchy() {
+        let tracker = ScopeTracker::new();
+
+        let _parent = tracker.enter_scope("parent".to_string()).unwrap();
+        let _child = tracker.enter_scope("child".to_string()).unwrap();
+
+        let hierarchy = tracker.scope_hierarchy.lock().unwrap();
+        assert!(
+            hierarchy.relationships.contains_key("parent"),
+            "Should have parent relationship"
+        );
+        assert!(
+            hierarchy.depth_map.contains_key("parent"),
+            "Should have parent depth"
+        );
+        assert!(
+            hierarchy.depth_map.contains_key("child"),
+            "Should have child depth"
+        );
+    }
+
+    /// Objective: Verify multiple variables in scope
+    /// Invariants: All variables should be tracked
+    #[test]
+    fn test_multiple_variables() {
+        let tracker = ScopeTracker::new();
+        let _scope_id = tracker.enter_scope("test".to_string()).unwrap();
+
+        tracker.associate_variable("var1".to_string(), 100).unwrap();
+        tracker.associate_variable("var2".to_string(), 200).unwrap();
+        tracker.associate_variable("var3".to_string(), 300).unwrap();
+
+        let active = tracker.active_scopes.read().unwrap();
+        let scope = active.values().next().expect("Should have scope");
+
+        assert_eq!(scope.variables.len(), 3, "Should have 3 variables");
+        assert_eq!(scope.allocation_count, 3, "Should have 3 allocations");
+    }
+
+    /// Objective: Verify current_timestamp returns valid value
+    /// Invariants: Timestamp should be positive
+    #[test]
+    fn test_current_timestamp() {
+        let ts = current_timestamp();
+        assert!(ts > 0, "Timestamp should be positive");
+    }
+
+    /// Objective: Verify global scope tracker singleton
+    /// Invariants: Multiple calls should return same instance
+    #[test]
+    fn test_global_scope_tracker_singleton() {
+        let tracker1 = get_global_scope_tracker();
+        let tracker2 = get_global_scope_tracker();
+
+        assert!(Arc::ptr_eq(&tracker1, &tracker2));
     }
 }
