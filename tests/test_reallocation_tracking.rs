@@ -20,6 +20,8 @@ fn test_reallocation_updates_thread_stats() {
         type_name: Some("Vec<i32>".to_string()),
         call_stack_hash: None,
         thread_name: None,
+        source_file: None,
+        source_line: None,
     });
 
     // Reallocation - increase size
@@ -34,6 +36,8 @@ fn test_reallocation_updates_thread_stats() {
         type_name: Some("Vec<i32>".to_string()),
         call_stack_hash: None,
         thread_name: None,
+        source_file: None,
+        source_line: None,
     });
 
     // Build snapshot from events
@@ -64,6 +68,8 @@ fn test_deallocation_updates_thread_stats() {
         type_name: Some("Vec<i32>".to_string()),
         call_stack_hash: None,
         thread_name: None,
+        source_file: None,
+        source_line: None,
     });
 
     // Deallocate
@@ -78,6 +84,8 @@ fn test_deallocation_updates_thread_stats() {
         type_name: Some("Vec<i32>".to_string()),
         call_stack_hash: None,
         thread_name: None,
+        source_file: None,
+        source_line: None,
     });
 
     // Build snapshot from events

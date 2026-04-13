@@ -24,13 +24,18 @@
 //! - False Negatives (FN): Missed relationships
 
 #![allow(dead_code)]
-use memscope_rs::analysis::relation_inference::{Relation, RelationGraphBuilder};
-use memscope_rs::snapshot::types::ActiveAllocation;
+use memscope_rs::{
+    analysis::relation_inference::{Relation, RelationGraphBuilder},
+    core::types::TrackKind::HeapOwner,
+    snapshot::types::ActiveAllocation,
+};
+
 use std::time::{SystemTime, UNIX_EPOCH};
 
 fn make_alloc(ptr: usize, size: usize) -> ActiveAllocation {
     ActiveAllocation {
-        ptr,
+        ptr: Some(ptr),
+        kind: HeapOwner { ptr, size },
         size,
         allocated_at: 0,
         var_name: None,
@@ -47,7 +52,8 @@ fn make_alloc_with_metadata(
     call_stack_hash: Option<u64>,
 ) -> ActiveAllocation {
     ActiveAllocation {
-        ptr,
+        ptr: Some(ptr),
+        kind: HeapOwner { ptr, size },
         size,
         allocated_at,
         var_name: None,
@@ -152,7 +158,7 @@ fn test_multiple_allocations_graph() {
 fn test_cycle_detection_in_graph() {
     let mut graph = RelationGraphBuilder::build(&[], None);
 
-    graph.add_edge(0, 1, Relation::Owner);
+    graph.add_edge(0, 1, Relation::Owns);
     graph.add_edge(1, 2, Relation::Slice);
     graph.add_edge(2, 0, Relation::Clone);
 
@@ -165,7 +171,7 @@ fn test_cycle_detection_in_graph() {
 fn test_no_false_positive_cycles() {
     let mut graph = RelationGraphBuilder::build(&[], None);
 
-    graph.add_edge(0, 1, Relation::Owner);
+    graph.add_edge(0, 1, Relation::Owns);
     graph.add_edge(1, 2, Relation::Slice);
     graph.add_edge(0, 2, Relation::Clone);
 
@@ -181,7 +187,7 @@ fn test_no_false_positive_cycles() {
 fn test_graph_add_edge() {
     let mut graph = RelationGraphBuilder::build(&[], None);
 
-    graph.add_edge(0, 1, Relation::Owner);
+    graph.add_edge(0, 1, Relation::Owns);
     graph.add_edge(1, 2, Relation::Slice);
 
     assert_eq!(graph.edge_count(), 2);
@@ -207,7 +213,7 @@ fn test_owner_detection_with_vec_metadata() {
     let owner_edges: Vec<_> = graph
         .edges
         .iter()
-        .filter(|e| e.relation == Relation::Owner && e.from == 0 && e.to == 1)
+        .filter(|e| e.relation == Relation::Owns && e.from == 0 && e.to == 1)
         .collect();
 
     assert!(
@@ -362,7 +368,7 @@ fn test_string_vs_bytes() {
 fn test_graph_all_nodes_dedup() {
     let mut graph = RelationGraphBuilder::build(&[], None);
 
-    graph.add_edge(0, 1, Relation::Owner);
+    graph.add_edge(0, 1, Relation::Owns);
     graph.add_edge(0, 2, Relation::Slice);
     graph.add_edge(1, 2, Relation::Clone);
 
@@ -561,7 +567,7 @@ fn test_owner_detection_accuracy() {
     let owner_edges: Vec<_> = graph
         .edges
         .iter()
-        .filter(|e| e.relation == Relation::Owner)
+        .filter(|e| e.relation == Relation::Owns)
         .collect();
 
     println!("\n=== Owner Detection Accuracy ===");
@@ -601,7 +607,7 @@ fn test_no_false_positive_owner_different_types() {
     let owner_edges: Vec<_> = graph
         .edges
         .iter()
-        .filter(|e| e.relation == Relation::Owner)
+        .filter(|e| e.relation == Relation::Owns)
         .collect();
 
     println!("\n=== No False Positive Owner Test ===");

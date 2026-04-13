@@ -32,24 +32,24 @@ pub fn current_thread_id_u64() -> u64 {
 
 /// Format bytes in a human-readable format
 pub fn format_bytes(bytes: usize) -> String {
-    if bytes < 1024 {
+    const KB: usize = 1024;
+    const MB: usize = KB * 1024;
+    const GB: usize = MB * 1024;
+    const TB: usize = GB * 1024;
+    const PB: usize = TB * 1024;
+
+    if bytes < KB {
         format!("{bytes}B")
-    } else if bytes < 1024 * 1024 {
-        format!("{:.1}KB", bytes as f64 / 1024.0)
-    } else if bytes < 1024 * 1024 * 1024 {
-        format!("{:.1}MB", bytes as f64 / (1024.0 * 1024.0))
-    } else if bytes < 1024 * 1024 * 1024 * 1024 {
-        format!("{:.1}GB", bytes as f64 / (1024.0 * 1024.0 * 1024.0))
-    } else if bytes < 1024 * 1024 * 1024 * 1024 * 1024 {
-        format!(
-            "{:.1}TB",
-            bytes as f64 / (1024.0 * 1024.0 * 1024.0 * 1024.0)
-        )
+    } else if bytes < MB {
+        format!("{:.1}KB", bytes as f64 / KB as f64)
+    } else if bytes < GB {
+        format!("{:.1}MB", bytes as f64 / MB as f64)
+    } else if bytes < TB {
+        format!("{:.1}GB", bytes as f64 / GB as f64)
+    } else if bytes < PB {
+        format!("{:.1}TB", bytes as f64 / TB as f64)
     } else {
-        format!(
-            "{:.1}PB",
-            bytes as f64 / (1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0)
-        )
+        format!("{:.1}PB", bytes as f64 / PB as f64)
     }
 }
 
@@ -1089,5 +1089,23 @@ mod tests {
         let (simplified, category) = simplify_type_name("Weak<String>");
         assert_eq!(simplified, "String");
         assert_eq!(category, "Basic Types");
+    }
+
+    #[test]
+    fn test_thread_id_to_u64() {
+        let id1 = thread::current().id();
+        let id2 = thread::current().id();
+        assert_eq!(thread_id_to_u64(id1), thread_id_to_u64(id2));
+
+        let handle = thread::spawn(|| thread_id_to_u64(thread::current().id()));
+        let other_id = handle.join().unwrap();
+        assert_ne!(thread_id_to_u64(thread::current().id()), other_id);
+    }
+
+    #[test]
+    fn test_current_thread_id_u64() {
+        let id1 = current_thread_id_u64();
+        let id2 = current_thread_id_u64();
+        assert_eq!(id1, id2);
     }
 }

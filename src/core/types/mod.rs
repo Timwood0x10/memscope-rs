@@ -1,6 +1,14 @@
 // Types module - Refactored from the original monolithic types.rs
 // This module organizes types into logical groups for better maintainability
 
+// TrackKind and HeapPtr modules for three-layer object model
+pub mod heap_ptr;
+pub mod track_kind;
+
+// Re-export for easier access
+pub use heap_ptr::HeapPtr;
+pub use track_kind::TrackKind;
+
 // For now, we need to import the original types from the backup file
 // Since we removed types_original.rs, we need to recreate the essential types here
 
@@ -4076,7 +4084,7 @@ mod tests {
         assert!(serialized.is_ok());
 
         // Test that serialized data contains expected fields
-        let json_str = serialized.expect("Serialization should succeed for valid AllocationInfo");
+        let json_str = serialized.expect("Failed to serialize AllocationInfo to JSON");
         assert!(json_str.contains("ptr"));
         assert!(json_str.contains("size"));
         assert!(json_str.contains("4096")); // 0x1000 in decimal is 4096

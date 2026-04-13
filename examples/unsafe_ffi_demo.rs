@@ -3,7 +3,7 @@
 //! This example demonstrates unsafe Rust and FFI memory tracking with memory passport export.
 //! Also demonstrates variable relationships for the relationship graph.
 
-use memscope_rs::{global_tracker, init_global_tracking, track, MemScopeResult};
+use memscope_rs::{analyzer, global_tracker, init_global_tracking, track, MemScopeResult};
 use std::alloc::{alloc, dealloc, Layout};
 use std::sync::Arc;
 use std::time::Instant;
@@ -148,6 +148,28 @@ fn main() -> MemScopeResult<()> {
     println!("   Total allocations: {}", stats.total_allocations);
     println!("   Active allocations: {}", stats.active_allocations);
     println!("   Peak memory: {} bytes", stats.peak_memory_bytes);
+
+    // Use the unified Analyzer API
+    println!("\n=== Unified Analyzer API ===\n");
+    let mut az = analyzer(&tracker)?;
+
+    // Full analysis
+    let report = az.analyze();
+    println!("Analysis Report:");
+    println!("  Allocations: {}", report.stats.allocation_count);
+    println!("  Total Bytes: {}", report.stats.total_bytes);
+    println!("  Peak Bytes: {}", report.stats.peak_bytes);
+
+    // Leak detection
+    let leaks = az.detect().leaks();
+    println!("\nLeak Detection:");
+    println!("  Leak Count: {}", leaks.leak_count);
+    println!("  Leaked Bytes: {}", leaks.total_leaked_bytes);
+
+    // Metrics
+    let metrics = az.metrics().summary();
+    println!("\nMetrics:");
+    println!("  Types: {}", metrics.by_type.len());
 
     println!("\n8. Exporting memory snapshot...");
     let output_path = "MemoryAnalysis/unsafe_ffi_new_api";

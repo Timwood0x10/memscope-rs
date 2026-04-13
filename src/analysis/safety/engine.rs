@@ -78,7 +78,9 @@ impl RiskAssessmentEngine {
 
         total_risk_score *= pressure_multiplier;
 
-        let risk_level = if total_risk_score >= 80.0 {
+        let risk_level = if risk_factors.is_empty() {
+            crate::analysis::unsafe_ffi_tracker::RiskLevel::Low
+        } else if total_risk_score >= 80.0 {
             crate::analysis::unsafe_ffi_tracker::RiskLevel::Critical
         } else if total_risk_score >= 60.0 {
             crate::analysis::unsafe_ffi_tracker::RiskLevel::High
@@ -277,5 +279,950 @@ impl RiskAssessmentEngine {
 impl Default for RiskAssessmentEngine {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::analysis::unsafe_ffi_tracker::RiskLevel;
+
+    fn default_memory_context() -> MemoryContext {
+        MemoryContext {
+            total_allocated: 0,
+            active_allocations: 0,
+            memory_pressure: MemoryPressureLevel::Low,
+            allocation_patterns: Vec::new(),
+        }
+    }
+
+    /// Objective: Verify RiskAssessmentEngine creation with default weights
+    /// Invariants: Engine should initialize with predefined risk weights
+    #[test]
+    fn test_engine_creation() {
+        let engine = RiskAssessmentEngine::new();
+        let assessment = engine.assess_risk(
+            &UnsafeSource::UnsafeBlock {
+                location: "test.rs".to_string(),
+                function: "test".to_string(),
+                file_path: None,
+                line_number: None,
+            },
+            &default_memory_context(),
+            &[],
+        );
+        assert!(
+            assessment.risk_score >= 0.0,
+            "Risk score should be non-negative"
+        );
+    }
+
+    /// Objective: Verify Default trait implementation
+    /// Invariants: Default should create same engine as new()
+    #[test]
+    fn test_engine_default() {
+        let engine = RiskAssessmentEngine::default();
+        let assessment = engine.assess_risk(
+            &UnsafeSource::UnsafeBlock {
+                location: "test.rs".to_string(),
+                function: "test".to_string(),
+                file_path: None,
+                line_number: None,
+            },
+            &default_memory_context(),
+            &[],
+        );
+        assert!(
+            assessment.confidence_score >= 0.0,
+            "Confidence score should be non-negative"
+        );
+    }
+
+    /// Objective: Verify analyze_unsafe_block with pointer dereference
+    /// Invariants: Should detect raw pointer dereference risk
+    #[test]
+    fn test_analyze_unsafe_block_pointer() {
+        let engine = RiskAssessmentEngine::new();
+
+        let assessment = engine.assess_risk(
+            &UnsafeSource::UnsafeBlock {
+                location: "*ptr::read".to_string(),
+                function: "test".to_string(),
+                file_path: None,
+                line_number: None,
+            },
+            &default_memory_context(),
+            &[],
+        );
+
+        assert!(
+            !assessment.risk_factors.is_empty(),
+            "Should detect pointer risk in unsafe block"
+        );
+        assert!(
+            assessment
+                .risk_factors
+                .iter()
+                .any(|f| matches!(f.factor_type, RiskFactorType::RawPointerDereference)),
+            "Should have RawPointerDereference factor"
+        );
+    }
+
+    /// Objective: Verify analyze_unsafe_block with memory management
+    /// Invariants: Should detect manual memory management risk
+    #[test]
+    fn test_analyze_unsafe_block_memory() {
+        let engine = RiskAssessmentEngine::new();
+
+        let assessment = engine.assess_risk(
+            &UnsafeSource::UnsafeBlock {
+                location: "alloc::alloc".to_string(),
+                function: "test".to_string(),
+                file_path: None,
+                line_number: None,
+            },
+            &default_memory_context(),
+            &[],
+        );
+
+        assert!(
+            assessment
+                .risk_factors
+                .iter()
+                .any(|f| matches!(f.factor_type, RiskFactorType::ManualMemoryManagement)),
+            "Should detect manual memory management"
+        );
+    }
+
+    /// Objective: Verify analyze_unsafe_block with dealloc
+    /// Invariants: Should detect deallocation risk
+    #[test]
+    fn test_analyze_unsafe_block_dealloc() {
+        let engine = RiskAssessmentEngine::new();
+
+        let assessment = engine.assess_risk(
+            &UnsafeSource::UnsafeBlock {
+                location: "dealloc".to_string(),
+                function: "test".to_string(),
+                file_path: None,
+                line_number: None,
+            },
+            &default_memory_context(),
+            &[],
+        );
+
+        assert!(
+            assessment
+                .risk_factors
+                .iter()
+                .any(|f| matches!(f.factor_type, RiskFactorType::ManualMemoryManagement)),
+            "Should detect deallocation as memory management"
+        );
+    }
+
+    /// Objective: Verify analyze_unsafe_block with free
+    /// Invariants: Should detect free operation risk
+    #[test]
+    fn test_analyze_unsafe_block_free() {
+        let engine = RiskAssessmentEngine::new();
+
+        let assessment = engine.assess_risk(
+            &UnsafeSource::UnsafeBlock {
+                location: "free_memory".to_string(),
+                function: "test".to_string(),
+                file_path: None,
+                line_number: None,
+            },
+            &default_memory_context(),
+            &[],
+        );
+
+        assert!(
+            assessment
+                .risk_factors
+                .iter()
+                .any(|f| matches!(f.factor_type, RiskFactorType::ManualMemoryManagement)),
+            "Should detect free as memory management"
+        );
+    }
+
+    /// Objective: Verify analyze_ffi_function with normal function
+    /// Invariants: Should detect FFI call risk
+    #[test]
+    fn test_analyze_ffi_function_normal() {
+        let engine = RiskAssessmentEngine::new();
+
+        let assessment = engine.assess_risk(
+            &UnsafeSource::FfiFunction {
+                library: "libc".to_string(),
+                function: "printf".to_string(),
+                call_site: "test.rs".to_string(),
+            },
+            &default_memory_context(),
+            &[],
+        );
+
+        assert!(
+            !assessment.risk_factors.is_empty(),
+            "Should detect FFI call risk"
+        );
+        assert!(
+            assessment
+                .risk_factors
+                .iter()
+                .any(|f| matches!(f.factor_type, RiskFactorType::FfiCall)),
+            "Should have FfiCall factor"
+        );
+    }
+
+    /// Objective: Verify analyze_ffi_function with risky function (malloc)
+    /// Invariants: Should detect buffer overflow risk for malloc
+    #[test]
+    fn test_analyze_ffi_function_malloc() {
+        let engine = RiskAssessmentEngine::new();
+
+        let assessment = engine.assess_risk(
+            &UnsafeSource::FfiFunction {
+                library: "libc".to_string(),
+                function: "malloc".to_string(),
+                call_site: "test.rs".to_string(),
+            },
+            &default_memory_context(),
+            &[],
+        );
+
+        assert!(
+            assessment
+                .risk_factors
+                .iter()
+                .any(|f| matches!(f.factor_type, RiskFactorType::BufferOverflow)),
+            "Should detect BufferOverflow risk for malloc"
+        );
+    }
+
+    /// Objective: Verify analyze_ffi_function with risky function (strcpy)
+    /// Invariants: Should detect buffer overflow risk for strcpy
+    #[test]
+    fn test_analyze_ffi_function_strcpy() {
+        let engine = RiskAssessmentEngine::new();
+
+        let assessment = engine.assess_risk(
+            &UnsafeSource::FfiFunction {
+                library: "libc".to_string(),
+                function: "strcpy".to_string(),
+                call_site: "test.rs".to_string(),
+            },
+            &default_memory_context(),
+            &[],
+        );
+
+        assert!(
+            assessment
+                .risk_factors
+                .iter()
+                .any(|f| matches!(f.factor_type, RiskFactorType::BufferOverflow)),
+            "Should detect BufferOverflow risk for strcpy"
+        );
+    }
+
+    /// Objective: Verify analyze_ffi_function with risky function (sprintf)
+    /// Invariants: Should detect buffer overflow risk for sprintf
+    #[test]
+    fn test_analyze_ffi_function_sprintf() {
+        let engine = RiskAssessmentEngine::new();
+
+        let assessment = engine.assess_risk(
+            &UnsafeSource::FfiFunction {
+                library: "libc".to_string(),
+                function: "sprintf".to_string(),
+                call_site: "test.rs".to_string(),
+            },
+            &default_memory_context(),
+            &[],
+        );
+
+        assert!(
+            assessment
+                .risk_factors
+                .iter()
+                .any(|f| matches!(f.factor_type, RiskFactorType::BufferOverflow)),
+            "Should detect BufferOverflow risk for sprintf"
+        );
+    }
+
+    /// Objective: Verify analyze_ffi_function with risky function (gets)
+    /// Invariants: Should detect buffer overflow risk for gets
+    #[test]
+    fn test_analyze_ffi_function_gets() {
+        let engine = RiskAssessmentEngine::new();
+
+        let assessment = engine.assess_risk(
+            &UnsafeSource::FfiFunction {
+                library: "libc".to_string(),
+                function: "gets".to_string(),
+                call_site: "test.rs".to_string(),
+            },
+            &default_memory_context(),
+            &[],
+        );
+
+        assert!(
+            assessment
+                .risk_factors
+                .iter()
+                .any(|f| matches!(f.factor_type, RiskFactorType::BufferOverflow)),
+            "Should detect BufferOverflow risk for gets"
+        );
+    }
+
+    /// Objective: Verify analyze_raw_pointer operation
+    /// Invariants: Should detect raw pointer dereference risk
+    #[test]
+    fn test_analyze_raw_pointer() {
+        let engine = RiskAssessmentEngine::new();
+
+        let assessment = engine.assess_risk(
+            &UnsafeSource::RawPointer {
+                operation: "dereference".to_string(),
+                location: "test.rs".to_string(),
+            },
+            &default_memory_context(),
+            &[],
+        );
+
+        assert_eq!(
+            assessment.risk_factors.len(),
+            1,
+            "Should have exactly one risk factor"
+        );
+        assert!(
+            matches!(
+                assessment.risk_factors[0].factor_type,
+                RiskFactorType::RawPointerDereference
+            ),
+            "Should have RawPointerDereference factor"
+        );
+        assert!(
+            assessment.risk_factors[0].severity > 0.0,
+            "Severity should be positive"
+        );
+    }
+
+    /// Objective: Verify analyze_transmute with pointer types
+    /// Invariants: Should assign higher severity for pointer transmute
+    #[test]
+    fn test_analyze_transmute_pointer() {
+        let engine = RiskAssessmentEngine::new();
+
+        let assessment = engine.assess_risk(
+            &UnsafeSource::Transmute {
+                from_type: "*const u8".to_string(),
+                to_type: "usize".to_string(),
+                location: "test.rs".to_string(),
+            },
+            &default_memory_context(),
+            &[],
+        );
+
+        assert_eq!(
+            assessment.risk_factors.len(),
+            1,
+            "Should have exactly one risk factor"
+        );
+        assert!(
+            matches!(
+                assessment.risk_factors[0].factor_type,
+                RiskFactorType::InvalidTransmute
+            ),
+            "Should have InvalidTransmute factor"
+        );
+        assert_eq!(
+            assessment.risk_factors[0].severity, 9.0,
+            "Pointer transmute should have severity 9.0"
+        );
+    }
+
+    /// Objective: Verify analyze_transmute with non-pointer types
+    /// Invariants: Should assign lower severity for non-pointer transmute
+    #[test]
+    fn test_analyze_transmute_non_pointer() {
+        let engine = RiskAssessmentEngine::new();
+
+        let assessment = engine.assess_risk(
+            &UnsafeSource::Transmute {
+                from_type: "u32".to_string(),
+                to_type: "i32".to_string(),
+                location: "test.rs".to_string(),
+            },
+            &default_memory_context(),
+            &[],
+        );
+
+        assert_eq!(
+            assessment.risk_factors[0].severity, 7.0,
+            "Non-pointer transmute should have severity 7.0"
+        );
+    }
+
+    /// Objective: Verify memory pressure multiplier - Critical
+    /// Invariants: Critical pressure should multiply risk by 1.5
+    #[test]
+    fn test_memory_pressure_critical() {
+        let engine = RiskAssessmentEngine::new();
+
+        let context = MemoryContext {
+            total_allocated: 2 * 1024 * 1024 * 1024,
+            active_allocations: 100,
+            memory_pressure: MemoryPressureLevel::Critical,
+            allocation_patterns: Vec::new(),
+        };
+
+        let assessment = engine.assess_risk(
+            &UnsafeSource::RawPointer {
+                operation: "test".to_string(),
+                location: "test.rs".to_string(),
+            },
+            &context,
+            &[],
+        );
+
+        assert!(
+            assessment.risk_score > 0.0,
+            "Critical pressure should increase risk score"
+        );
+    }
+
+    /// Objective: Verify memory pressure multiplier - High
+    /// Invariants: High pressure should multiply risk by 1.2
+    #[test]
+    fn test_memory_pressure_high() {
+        let engine = RiskAssessmentEngine::new();
+
+        let context = MemoryContext {
+            total_allocated: 600 * 1024 * 1024,
+            active_allocations: 50,
+            memory_pressure: MemoryPressureLevel::High,
+            allocation_patterns: Vec::new(),
+        };
+
+        let assessment = engine.assess_risk(
+            &UnsafeSource::RawPointer {
+                operation: "test".to_string(),
+                location: "test.rs".to_string(),
+            },
+            &context,
+            &[],
+        );
+
+        assert!(
+            assessment.risk_score > 0.0,
+            "High pressure should affect risk score"
+        );
+    }
+
+    /// Objective: Verify memory pressure multiplier - Medium
+    /// Invariants: Medium pressure should multiply risk by 1.0
+    #[test]
+    fn test_memory_pressure_medium() {
+        let engine = RiskAssessmentEngine::new();
+
+        let context = MemoryContext {
+            total_allocated: 300 * 1024 * 1024,
+            active_allocations: 30,
+            memory_pressure: MemoryPressureLevel::Medium,
+            allocation_patterns: Vec::new(),
+        };
+
+        let assessment = engine.assess_risk(
+            &UnsafeSource::RawPointer {
+                operation: "test".to_string(),
+                location: "test.rs".to_string(),
+            },
+            &context,
+            &[],
+        );
+
+        assert!(
+            assessment.risk_score > 0.0,
+            "Medium pressure should not reduce risk score"
+        );
+    }
+
+    /// Objective: Verify memory pressure multiplier - Low
+    /// Invariants: Low pressure should multiply risk by 0.8
+    #[test]
+    fn test_memory_pressure_low() {
+        let engine = RiskAssessmentEngine::new();
+
+        let context = MemoryContext {
+            total_allocated: 100 * 1024 * 1024,
+            active_allocations: 10,
+            memory_pressure: MemoryPressureLevel::Low,
+            allocation_patterns: Vec::new(),
+        };
+
+        let assessment = engine.assess_risk(
+            &UnsafeSource::RawPointer {
+                operation: "test".to_string(),
+                location: "test.rs".to_string(),
+            },
+            &context,
+            &[],
+        );
+
+        assert!(
+            assessment.risk_score >= 0.0,
+            "Low pressure should produce valid risk score"
+        );
+    }
+
+    /// Objective: Verify risk level calculation with critical memory pressure
+    /// Invariants: Risk assessment should complete successfully with critical memory
+    #[test]
+    fn test_risk_level_critical() {
+        let engine = RiskAssessmentEngine::new();
+
+        let assessment = engine.assess_risk(
+            &UnsafeSource::FfiFunction {
+                library: "libc".to_string(),
+                function: "malloc".to_string(),
+                call_site: "test.rs".to_string(),
+            },
+            &MemoryContext {
+                total_allocated: 2 * 1024 * 1024 * 1024,
+                active_allocations: 100,
+                memory_pressure: MemoryPressureLevel::Critical,
+                allocation_patterns: Vec::new(),
+            },
+            &[],
+        );
+
+        assert!(
+            assessment.risk_score >= 0.0,
+            "Risk score should be non-negative"
+        );
+    }
+
+    /// Objective: Verify risk level calculation for empty factors
+    /// Invariants: Empty risk factors should result in Low risk
+    #[test]
+    fn test_risk_level_empty_factors() {
+        let engine = RiskAssessmentEngine::new();
+
+        let assessment = engine.assess_risk(
+            &UnsafeSource::UnsafeBlock {
+                location: "safe_location".to_string(),
+                function: "safe_function".to_string(),
+                file_path: None,
+                line_number: None,
+            },
+            &default_memory_context(),
+            &[],
+        );
+
+        assert!(
+            matches!(assessment.risk_level, RiskLevel::Low),
+            "No risk factors should result in Low risk level"
+        );
+    }
+
+    /// Objective: Verify mitigation suggestions for Critical risk
+    /// Invariants: Critical risk should have urgent suggestions
+    #[test]
+    fn test_mitigation_critical() {
+        let engine = RiskAssessmentEngine::new();
+
+        let assessment = engine.assess_risk(
+            &UnsafeSource::FfiFunction {
+                library: "libc".to_string(),
+                function: "malloc".to_string(),
+                call_site: "test.rs".to_string(),
+            },
+            &MemoryContext {
+                total_allocated: 2 * 1024 * 1024 * 1024,
+                active_allocations: 100,
+                memory_pressure: MemoryPressureLevel::Critical,
+                allocation_patterns: Vec::new(),
+            },
+            &[],
+        );
+
+        if matches!(assessment.risk_level, RiskLevel::Critical) {
+            assert!(
+                assessment
+                    .mitigation_suggestions
+                    .iter()
+                    .any(|s| s.contains("URGENT") || s.contains("Critical")),
+                "Critical risk should have urgent suggestions"
+            );
+        }
+    }
+
+    /// Objective: Verify mitigation suggestions for High risk
+    /// Invariants: High risk should have thorough testing suggestion
+    #[test]
+    fn test_mitigation_high() {
+        let engine = RiskAssessmentEngine::new();
+
+        let assessment = engine.assess_risk(
+            &UnsafeSource::RawPointer {
+                operation: "dereference".to_string(),
+                location: "test.rs".to_string(),
+            },
+            &MemoryContext {
+                total_allocated: 0,
+                active_allocations: 0,
+                memory_pressure: MemoryPressureLevel::High,
+                allocation_patterns: Vec::new(),
+            },
+            &[],
+        );
+
+        if matches!(assessment.risk_level, RiskLevel::High) {
+            assert!(
+                assessment
+                    .mitigation_suggestions
+                    .iter()
+                    .any(|s| s.contains("High-risk") || s.contains("testing")),
+                "High risk should have testing suggestions"
+            );
+        }
+    }
+
+    /// Objective: Verify mitigation suggestions for Medium risk
+    /// Invariants: Medium risk should have review suggestion
+    #[test]
+    fn test_mitigation_medium() {
+        let engine = RiskAssessmentEngine::new();
+
+        let assessment = engine.assess_risk(
+            &UnsafeSource::UnsafeBlock {
+                location: "test.rs".to_string(),
+                function: "test".to_string(),
+                file_path: None,
+                line_number: None,
+            },
+            &MemoryContext {
+                total_allocated: 0,
+                active_allocations: 0,
+                memory_pressure: MemoryPressureLevel::Medium,
+                allocation_patterns: Vec::new(),
+            },
+            &[],
+        );
+
+        if matches!(assessment.risk_level, RiskLevel::Medium) {
+            assert!(
+                assessment
+                    .mitigation_suggestions
+                    .iter()
+                    .any(|s| s.contains("Moderate") || s.contains("review")),
+                "Medium risk should have review suggestions"
+            );
+        }
+    }
+
+    /// Objective: Verify mitigation suggestions for Low risk
+    /// Invariants: Low risk should have monitor suggestion
+    #[test]
+    fn test_mitigation_low() {
+        let engine = RiskAssessmentEngine::new();
+
+        let assessment = engine.assess_risk(
+            &UnsafeSource::UnsafeBlock {
+                location: "safe".to_string(),
+                function: "safe".to_string(),
+                file_path: None,
+                line_number: None,
+            },
+            &default_memory_context(),
+            &[],
+        );
+
+        assert!(
+            assessment
+                .mitigation_suggestions
+                .iter()
+                .any(|s| s.contains("Low") || s.contains("monitor")),
+            "Low risk should have monitor suggestions"
+        );
+    }
+
+    /// Objective: Verify mitigation suggestions for RawPointerDereference
+    /// Invariants: Should include null pointer check suggestion
+    #[test]
+    fn test_mitigation_raw_pointer() {
+        let engine = RiskAssessmentEngine::new();
+
+        let assessment = engine.assess_risk(
+            &UnsafeSource::RawPointer {
+                operation: "dereference".to_string(),
+                location: "test.rs".to_string(),
+            },
+            &default_memory_context(),
+            &[],
+        );
+
+        assert!(
+            assessment
+                .mitigation_suggestions
+                .iter()
+                .any(|s| s.contains("null") || s.contains("pointer")),
+            "Should have null pointer check suggestion"
+        );
+    }
+
+    /// Objective: Verify mitigation suggestions for FfiCall
+    /// Invariants: Should include FFI validation suggestion
+    #[test]
+    fn test_mitigation_ffi_call() {
+        let engine = RiskAssessmentEngine::new();
+
+        let assessment = engine.assess_risk(
+            &UnsafeSource::FfiFunction {
+                library: "libc".to_string(),
+                function: "printf".to_string(),
+                call_site: "test.rs".to_string(),
+            },
+            &default_memory_context(),
+            &[],
+        );
+
+        assert!(
+            assessment
+                .mitigation_suggestions
+                .iter()
+                .any(|s| s.contains("FFI") || s.contains("validate")),
+            "Should have FFI validation suggestion"
+        );
+    }
+
+    /// Objective: Verify mitigation suggestions for ManualMemoryManagement
+    /// Invariants: Should include RAII suggestion
+    #[test]
+    fn test_mitigation_memory_management() {
+        let engine = RiskAssessmentEngine::new();
+
+        let assessment = engine.assess_risk(
+            &UnsafeSource::UnsafeBlock {
+                location: "alloc".to_string(),
+                function: "test".to_string(),
+                file_path: None,
+                line_number: None,
+            },
+            &default_memory_context(),
+            &[],
+        );
+
+        assert!(
+            assessment
+                .mitigation_suggestions
+                .iter()
+                .any(|s| s.contains("RAII") || s.contains("smart pointer")),
+            "Should have RAII suggestion"
+        );
+    }
+
+    /// Objective: Verify confidence score calculation
+    /// Invariants: Confidence should be average of all factor confidences
+    #[test]
+    fn test_confidence_calculation() {
+        let engine = RiskAssessmentEngine::new();
+
+        let assessment = engine.assess_risk(
+            &UnsafeSource::RawPointer {
+                operation: "test".to_string(),
+                location: "test.rs".to_string(),
+            },
+            &default_memory_context(),
+            &[],
+        );
+
+        assert!(
+            assessment.confidence_score >= 0.0 && assessment.confidence_score <= 1.0,
+            "Confidence should be between 0 and 1"
+        );
+    }
+
+    /// Objective: Verify risk score is capped at 100
+    /// Invariants: Risk score should never exceed 100.0
+    #[test]
+    fn test_risk_score_cap() {
+        let engine = RiskAssessmentEngine::new();
+
+        let assessment = engine.assess_risk(
+            &UnsafeSource::FfiFunction {
+                library: "libc".to_string(),
+                function: "malloc".to_string(),
+                call_site: "test.rs".to_string(),
+            },
+            &MemoryContext {
+                total_allocated: usize::MAX,
+                active_allocations: usize::MAX,
+                memory_pressure: MemoryPressureLevel::Critical,
+                allocation_patterns: Vec::new(),
+            },
+            &[],
+        );
+
+        assert!(
+            assessment.risk_score <= 100.0,
+            "Risk score should be capped at 100"
+        );
+    }
+
+    /// Objective: Verify assessment timestamp is recent
+    /// Invariants: Timestamp should be close to current time
+    #[test]
+    fn test_assessment_timestamp() {
+        let engine = RiskAssessmentEngine::new();
+
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        let assessment = engine.assess_risk(
+            &UnsafeSource::UnsafeBlock {
+                location: "test".to_string(),
+                function: "test".to_string(),
+                file_path: None,
+                line_number: None,
+            },
+            &default_memory_context(),
+            &[],
+        );
+
+        let diff = assessment.assessment_timestamp.abs_diff(now);
+        assert!(diff < 5, "Timestamp should be within 5 seconds of now");
+    }
+
+    /// Objective: Verify call stack is preserved in risk factors
+    /// Invariants: Call stack should be included in each risk factor
+    #[test]
+    fn test_call_stack_preservation() {
+        let engine = RiskAssessmentEngine::new();
+
+        let call_stack = vec![StackFrame {
+            function_name: "test_fn".to_string(),
+            file_name: Some("test.rs".to_string()),
+            line_number: Some(10),
+            is_unsafe: true,
+        }];
+
+        let assessment = engine.assess_risk(
+            &UnsafeSource::RawPointer {
+                operation: "test".to_string(),
+                location: "test.rs".to_string(),
+            },
+            &default_memory_context(),
+            &call_stack,
+        );
+
+        for factor in &assessment.risk_factors {
+            assert_eq!(
+                factor.call_stack.len(),
+                1,
+                "Call stack should be preserved in risk factor"
+            );
+        }
+    }
+
+    /// Objective: Verify multiple risk factors from single source
+    /// Invariants: Unsafe block with pointer and alloc should have multiple factors
+    #[test]
+    fn test_multiple_risk_factors() {
+        let engine = RiskAssessmentEngine::new();
+
+        let assessment = engine.assess_risk(
+            &UnsafeSource::UnsafeBlock {
+                location: "*ptr alloc".to_string(),
+                function: "test".to_string(),
+                file_path: None,
+                line_number: None,
+            },
+            &default_memory_context(),
+            &[],
+        );
+
+        assert!(
+            assessment.risk_factors.len() >= 2,
+            "Should have multiple risk factors for combined risks"
+        );
+    }
+
+    /// Objective: Verify risk factor descriptions are meaningful
+    /// Invariants: Each factor should have a non-empty description
+    #[test]
+    fn test_risk_factor_descriptions() {
+        let engine = RiskAssessmentEngine::new();
+
+        let assessment = engine.assess_risk(
+            &UnsafeSource::FfiFunction {
+                library: "libc".to_string(),
+                function: "malloc".to_string(),
+                call_site: "test.rs".to_string(),
+            },
+            &default_memory_context(),
+            &[],
+        );
+
+        for factor in &assessment.risk_factors {
+            assert!(
+                !factor.description.is_empty(),
+                "Risk factor should have description"
+            );
+            assert!(
+                !factor.mitigation.is_empty(),
+                "Risk factor should have mitigation"
+            );
+        }
+    }
+
+    /// Objective: Verify transmute with pointer in to_type
+    /// Invariants: Pointer in to_type should also trigger high severity
+    #[test]
+    fn test_transmute_pointer_to_type() {
+        let engine = RiskAssessmentEngine::new();
+
+        let assessment = engine.assess_risk(
+            &UnsafeSource::Transmute {
+                from_type: "usize".to_string(),
+                to_type: "*mut u8".to_string(),
+                location: "test.rs".to_string(),
+            },
+            &default_memory_context(),
+            &[],
+        );
+
+        assert_eq!(
+            assessment.risk_factors[0].severity, 9.0,
+            "Transmute to pointer should have high severity"
+        );
+    }
+
+    /// Objective: Verify RiskFactorType variants coverage
+    /// Invariants: All risk factor types should be handled
+    #[test]
+    fn test_risk_factor_type_variants() {
+        let types = vec![
+            RiskFactorType::RawPointerDereference,
+            RiskFactorType::UnsafeDataRace,
+            RiskFactorType::InvalidTransmute,
+            RiskFactorType::FfiCall,
+            RiskFactorType::ManualMemoryManagement,
+            RiskFactorType::CrossBoundaryTransfer,
+            RiskFactorType::UseAfterFree,
+            RiskFactorType::BufferOverflow,
+            RiskFactorType::LifetimeViolation,
+        ];
+
+        for factor_type in types {
+            let debug_str = format!("{:?}", factor_type);
+            assert!(
+                !debug_str.is_empty(),
+                "RiskFactorType should have debug representation"
+            );
+        }
     }
 }

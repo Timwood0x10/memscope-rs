@@ -713,4 +713,629 @@ mod tests {
         assert!(result.summary.quality_score >= 0.0);
         assert!(result.summary.quality_score <= 1.0);
     }
+
+    #[test]
+    fn test_validator_default() {
+        let validator = QualityValidator::default();
+        assert!(!validator.rules.is_empty());
+    }
+
+    #[test]
+    fn test_validator_with_config() {
+        let config = ValidationConfig {
+            fail_fast: true,
+            max_validation_time: Duration::from_secs(5),
+            enable_deep_checks: false,
+            min_severity: ValidationSeverity::Warning,
+        };
+        let validator = QualityValidator::with_config(config);
+        assert!(!validator.rules.is_empty());
+    }
+
+    #[test]
+    fn test_validation_config_default() {
+        let config = ValidationConfig::default();
+        assert!(!config.fail_fast);
+        assert_eq!(config.max_validation_time, Duration::from_secs(10));
+        assert!(config.enable_deep_checks);
+        assert_eq!(config.min_severity, ValidationSeverity::Info);
+    }
+
+    #[test]
+    fn test_set_rule_enabled() {
+        let mut validator = QualityValidator::new();
+
+        assert!(validator.set_rule_enabled("memory_leak_check", false));
+        let rule = validator
+            .rules
+            .iter()
+            .find(|r| r.id == "memory_leak_check")
+            .unwrap();
+        assert!(!rule.enabled);
+
+        assert!(validator.set_rule_enabled("memory_leak_check", true));
+        let rule = validator
+            .rules
+            .iter()
+            .find(|r| r.id == "memory_leak_check")
+            .unwrap();
+        assert!(rule.enabled);
+
+        assert!(!validator.set_rule_enabled("nonexistent_rule", true));
+    }
+
+    #[test]
+    fn test_get_rule_statistics() {
+        let mut validator = QualityValidator::new();
+        let context = create_passing_context();
+
+        validator.validate(&context);
+
+        let stats = validator.get_rule_statistics();
+        assert!(!stats.is_empty());
+    }
+
+    #[test]
+    fn test_reset_statistics() {
+        let mut validator = QualityValidator::new();
+        let context = create_passing_context();
+
+        validator.validate(&context);
+        assert!(!validator.rule_stats.is_empty());
+
+        validator.reset_statistics();
+        assert!(validator.rule_stats.is_empty());
+    }
+
+    #[test]
+    fn test_validate_memory_leaks_high_growth_rate() {
+        let mut context = create_passing_context();
+        context.memory_info.growth_rate = 20.0 * 1024.0 * 1024.0; // 20MB/sec
+
+        let result = validate_memory_leaks(&context);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .message
+            .contains("High memory growth rate"));
+    }
+
+    #[test]
+    fn test_validate_memory_leaks_high_fragmentation() {
+        let mut context = create_passing_context();
+        context.memory_info.fragmentation_ratio = 0.6;
+
+        let result = validate_memory_leaks(&context);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .message
+            .contains("High memory fragmentation"));
+    }
+
+    #[test]
+    fn test_validate_memory_leaks_passing() {
+        let context = create_passing_context();
+        let result = validate_memory_leaks(&context);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_allocation_overhead_high() {
+        let mut context = create_passing_context();
+        context.metrics.peak_memory = 500 * 1024; // High overhead
+        context.memory_info.current_usage = 1024;
+
+        let result = validate_allocation_overhead(&context);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .message
+            .contains("High tracking overhead"));
+    }
+
+    #[test]
+    fn test_validate_allocation_overhead_passing() {
+        let context = create_passing_context();
+        let result = validate_allocation_overhead(&context);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_tracking_latency_high() {
+        let mut context = create_passing_context();
+        context.metrics.avg_duration = Duration::from_micros(200);
+
+        let result = validate_tracking_latency(&context);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .message
+            .contains("High tracking latency"));
+    }
+
+    #[test]
+    fn test_validate_tracking_latency_passing() {
+        let context = create_passing_context();
+        let result = validate_tracking_latency(&context);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_symbol_performance_slow() {
+        let mut context = create_passing_context();
+        context.operation_name = "symbol_resolution".to_string();
+        context.metrics.avg_duration = Duration::from_millis(20);
+
+        let result = validate_symbol_performance(&context);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .message
+            .contains("Slow symbol resolution"));
+    }
+
+    #[test]
+    fn test_validate_symbol_performance_passing() {
+        let mut context = create_passing_context();
+        context.operation_name = "symbol_resolution".to_string();
+        context.metrics.avg_duration = Duration::from_millis(5);
+
+        let result = validate_symbol_performance(&context);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_error_handling_low_coverage() {
+        let mut context = create_passing_context();
+        context.error_handling.error_points = 10;
+        context.error_handling.handled_error_points = 5; // 50% coverage
+
+        let result = validate_error_handling(&context);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .message
+            .contains("Low error handling coverage"));
+    }
+
+    #[test]
+    fn test_validate_error_handling_critical_no_recovery() {
+        let mut context = create_passing_context();
+        context.operation_name = "critical_operation".to_string();
+        context.error_handling.has_recovery = false;
+
+        let result = validate_error_handling(&context);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .message
+            .contains("Critical operation lacks recovery"));
+    }
+
+    #[test]
+    fn test_validate_error_handling_passing() {
+        let context = create_passing_context();
+        let result = validate_error_handling(&context);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_thread_safety_not_safe() {
+        let mut context = create_passing_context();
+        context.thread_safety.is_thread_safe = false;
+        context.thread_safety.shared_resources = 2;
+
+        let result = validate_thread_safety(&context);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .message
+            .contains("shared resources without thread safety"));
+    }
+
+    #[test]
+    fn test_validate_thread_safety_high_contention() {
+        let mut context = create_passing_context();
+        context.thread_safety.contention_level = 0.5;
+
+        let result = validate_thread_safety(&context);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().message.contains("High lock contention"));
+    }
+
+    #[test]
+    fn test_validate_thread_safety_passing() {
+        let context = create_passing_context();
+        let result = validate_thread_safety(&context);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validation_status_critical() {
+        let mut validator = QualityValidator::new();
+        let mut context = create_passing_context();
+        context.memory_info.growth_rate = 20.0 * 1024.0 * 1024.0;
+
+        let result = validator.validate(&context);
+        assert_eq!(result.status, ValidationStatus::CriticalIssuesFound);
+        assert!(result.summary.critical_issues > 0);
+    }
+
+    #[test]
+    fn test_validation_status_errors_found() {
+        let mut validator = QualityValidator::new();
+        let mut context = create_passing_context();
+        context.metrics.avg_duration = Duration::from_micros(200);
+
+        let result = validator.validate(&context);
+        assert!(matches!(
+            result.status,
+            ValidationStatus::ErrorsFound | ValidationStatus::CriticalIssuesFound
+        ));
+    }
+
+    #[test]
+    fn test_validation_status_warnings_found() {
+        let mut validator = QualityValidator::new();
+        let mut context = create_passing_context();
+        context.metrics.peak_memory = 500 * 1024;
+        context.memory_info.current_usage = 1024;
+
+        let result = validator.validate(&context);
+        assert!(matches!(
+            result.status,
+            ValidationStatus::WarningsFound | ValidationStatus::Passed
+        ));
+    }
+
+    #[test]
+    fn test_validation_status_passed() {
+        let mut validator = QualityValidator::new();
+        let context = create_passing_context();
+
+        let result = validator.validate(&context);
+        assert!(matches!(
+            result.status,
+            ValidationStatus::Passed | ValidationStatus::WarningsFound
+        ));
+    }
+
+    #[test]
+    fn test_fail_fast_config() {
+        let config = ValidationConfig {
+            fail_fast: true,
+            ..Default::default()
+        };
+        let mut validator = QualityValidator::with_config(config);
+        let mut context = create_passing_context();
+        context.memory_info.growth_rate = 20.0 * 1024.0 * 1024.0;
+
+        let result = validator.validate(&context);
+        assert_eq!(result.status, ValidationStatus::CriticalIssuesFound);
+    }
+
+    #[test]
+    fn test_rule_category_variants() {
+        let categories = vec![
+            RuleCategory::MemorySafety,
+            RuleCategory::Performance,
+            RuleCategory::CodeStyle,
+            RuleCategory::ErrorHandling,
+            RuleCategory::ThreadSafety,
+            RuleCategory::ResourceManagement,
+        ];
+
+        for category in categories {
+            let rule = ValidationRule {
+                id: "test".to_string(),
+                name: "Test".to_string(),
+                description: String::new(),
+                category: category.clone(),
+                severity: ValidationSeverity::Info,
+                enabled: true,
+                validator: |_| Ok(()),
+            };
+            assert_eq!(rule.category, category);
+        }
+    }
+
+    #[test]
+    fn test_validation_severity_ordering() {
+        assert!(ValidationSeverity::Critical > ValidationSeverity::Error);
+        assert!(ValidationSeverity::Error > ValidationSeverity::Warning);
+        assert!(ValidationSeverity::Warning > ValidationSeverity::Style);
+        assert!(ValidationSeverity::Style > ValidationSeverity::Info);
+    }
+
+    #[test]
+    fn test_validation_severity_equality() {
+        assert_eq!(ValidationSeverity::Critical, ValidationSeverity::Critical);
+        assert_ne!(ValidationSeverity::Critical, ValidationSeverity::Error);
+    }
+
+    #[test]
+    fn test_validation_error_creation() {
+        let error = ValidationError {
+            message: "Test error".to_string(),
+            suggestion: Some("Fix it".to_string()),
+            location: Some("test.rs:10".to_string()),
+        };
+
+        assert_eq!(error.message, "Test error");
+        assert!(error.suggestion.is_some());
+        assert!(error.location.is_some());
+    }
+
+    #[test]
+    fn test_validation_error_no_suggestion() {
+        let error = ValidationError {
+            message: "Test error".to_string(),
+            suggestion: None,
+            location: None,
+        };
+
+        assert!(error.suggestion.is_none());
+        assert!(error.location.is_none());
+    }
+
+    #[test]
+    fn test_rule_result_passed() {
+        let result = RuleResult {
+            rule_id: "test_rule".to_string(),
+            passed: true,
+            error: None,
+            execution_time: Duration::from_micros(10),
+        };
+
+        assert!(result.passed);
+        assert!(result.error.is_none());
+    }
+
+    #[test]
+    fn test_rule_result_failed() {
+        let result = RuleResult {
+            rule_id: "test_rule".to_string(),
+            passed: false,
+            error: Some(ValidationError {
+                message: "Failed".to_string(),
+                suggestion: None,
+                location: None,
+            }),
+            execution_time: Duration::from_micros(10),
+        };
+
+        assert!(!result.passed);
+        assert!(result.error.is_some());
+    }
+
+    #[test]
+    fn test_validation_summary_creation() {
+        let summary = ValidationSummary {
+            total_rules: 10,
+            passed_rules: 8,
+            failed_rules: 2,
+            critical_issues: 1,
+            errors: 1,
+            warnings: 0,
+            quality_score: 0.8,
+        };
+
+        assert_eq!(summary.total_rules, 10);
+        assert_eq!(summary.passed_rules, 8);
+        assert!((summary.quality_score - 0.8).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_operation_metrics_creation() {
+        let metrics = OperationMetrics {
+            avg_duration: Duration::from_micros(50),
+            peak_memory: 1024,
+            success_rate: 0.95,
+            allocation_count: 100,
+            cpu_usage: 5.0,
+        };
+
+        assert_eq!(metrics.avg_duration, Duration::from_micros(50));
+        assert_eq!(metrics.allocation_count, 100);
+    }
+
+    #[test]
+    fn test_memory_info_creation() {
+        let info = MemoryInfo {
+            current_usage: 1024,
+            peak_usage: 2048,
+            active_allocations: 10,
+            fragmentation_ratio: 0.1,
+            growth_rate: 100.0,
+        };
+
+        assert_eq!(info.current_usage, 1024);
+        assert_eq!(info.peak_usage, 2048);
+    }
+
+    #[test]
+    fn test_error_handling_info_creation() {
+        let info = ErrorHandlingInfo {
+            has_error_handling: true,
+            error_points: 5,
+            handled_error_points: 4,
+            has_recovery: true,
+        };
+
+        assert!(info.has_error_handling);
+        assert_eq!(info.error_points, 5);
+    }
+
+    #[test]
+    fn test_thread_safety_info_creation() {
+        let info = ThreadSafetyInfo {
+            is_thread_safe: true,
+            shared_resources: 3,
+            has_synchronization: true,
+            contention_level: 0.1,
+        };
+
+        assert!(info.is_thread_safe);
+        assert_eq!(info.shared_resources, 3);
+    }
+
+    #[test]
+    fn test_validation_result_creation() {
+        let result = ValidationResult {
+            status: ValidationStatus::Passed,
+            rule_results: vec![],
+            summary: ValidationSummary {
+                total_rules: 0,
+                passed_rules: 0,
+                failed_rules: 0,
+                critical_issues: 0,
+                errors: 0,
+                warnings: 0,
+                quality_score: 1.0,
+            },
+            validation_overhead: Duration::from_micros(100),
+        };
+
+        assert_eq!(result.status, ValidationStatus::Passed);
+        assert!(result.rule_results.is_empty());
+    }
+
+    #[test]
+    fn test_validation_status_equality() {
+        assert_eq!(ValidationStatus::Passed, ValidationStatus::Passed);
+        assert_ne!(ValidationStatus::Passed, ValidationStatus::ErrorsFound);
+    }
+
+    #[test]
+    fn test_rule_stats_creation() {
+        let stats = RuleStats {
+            execution_count: 10,
+            total_time: Duration::from_millis(100),
+            failure_count: 2,
+            avg_time: Duration::from_millis(10),
+        };
+
+        assert_eq!(stats.execution_count, 10);
+        assert_eq!(stats.failure_count, 2);
+    }
+
+    #[test]
+    fn test_disabled_rule_not_executed() {
+        let mut validator = QualityValidator::new();
+        validator.set_rule_enabled("memory_leak_check", false);
+
+        let mut context = create_passing_context();
+        context.memory_info.growth_rate = 20.0 * 1024.0 * 1024.0;
+
+        let result = validator.validate(&context);
+        assert_ne!(result.status, ValidationStatus::CriticalIssuesFound);
+    }
+
+    #[test]
+    fn test_multiple_validations_accumulate_stats() {
+        let mut validator = QualityValidator::new();
+        let context = create_passing_context();
+
+        validator.validate(&context);
+        validator.validate(&context);
+        validator.validate(&context);
+
+        let stats = validator.get_rule_statistics();
+        for stat in stats.values() {
+            assert_eq!(stat.execution_count, 3);
+        }
+    }
+
+    #[test]
+    fn test_validation_rule_debug() {
+        let rule = ValidationRule {
+            id: "test".to_string(),
+            name: "Test".to_string(),
+            description: String::new(),
+            category: RuleCategory::MemorySafety,
+            severity: ValidationSeverity::Info,
+            enabled: true,
+            validator: |_| Ok(()),
+        };
+
+        let debug_str = format!("{:?}", rule);
+        assert!(debug_str.contains("ValidationRule"));
+    }
+
+    #[test]
+    fn test_validation_rule_clone() {
+        let rule = ValidationRule {
+            id: "test".to_string(),
+            name: "Test".to_string(),
+            description: String::new(),
+            category: RuleCategory::MemorySafety,
+            severity: ValidationSeverity::Info,
+            enabled: true,
+            validator: |_| Ok(()),
+        };
+
+        let cloned = rule.clone();
+        assert_eq!(cloned.id, rule.id);
+        assert_eq!(cloned.severity, rule.severity);
+    }
+
+    #[test]
+    fn test_validation_context_debug() {
+        let context = create_passing_context();
+        let debug_str = format!("{:?}", context);
+        assert!(debug_str.contains("ValidationContext"));
+    }
+
+    #[test]
+    fn test_zero_error_points_coverage() {
+        let mut context = create_passing_context();
+        context.error_handling.error_points = 0;
+        context.error_handling.handled_error_points = 0;
+
+        let result = validate_error_handling(&context);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_quality_score_calculation() {
+        let mut validator = QualityValidator::new();
+        let context = create_passing_context();
+
+        let result = validator.validate(&context);
+        let expected_score = result.summary.passed_rules as f64 / result.summary.total_rules as f64;
+        assert!((result.summary.quality_score - expected_score).abs() < f64::EPSILON);
+    }
+
+    fn create_passing_context() -> ValidationContext {
+        ValidationContext {
+            operation_name: "test_operation".to_string(),
+            metrics: OperationMetrics {
+                avg_duration: Duration::from_micros(10),
+                peak_memory: 100,
+                success_rate: 0.99,
+                allocation_count: 10,
+                cpu_usage: 1.0,
+            },
+            memory_info: MemoryInfo {
+                current_usage: 1024 * 1024,
+                peak_usage: 2 * 1024 * 1024,
+                active_allocations: 10,
+                fragmentation_ratio: 0.1,
+                growth_rate: 0.0,
+            },
+            error_handling: ErrorHandlingInfo {
+                has_error_handling: true,
+                error_points: 10,
+                handled_error_points: 10,
+                has_recovery: true,
+            },
+            thread_safety: ThreadSafetyInfo {
+                is_thread_safe: true,
+                shared_resources: 0,
+                has_synchronization: true,
+                contention_level: 0.0,
+            },
+        }
+    }
 }

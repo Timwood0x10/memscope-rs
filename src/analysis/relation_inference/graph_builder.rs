@@ -3,15 +3,21 @@
 //! Orchestrates HeapScanner, UTI Engine, and all relation detectors
 //! to produce a complete `RelationGraph` from active allocations.
 
-use crate::analysis::heap_scanner::HeapScanner;
-use crate::analysis::relation_inference::clone_detector::{detect_clones, CloneConfig};
-use crate::analysis::relation_inference::pointer_scan::{detect_owner, InferenceRecord};
-use crate::analysis::relation_inference::shared_detector::detect_shared;
-use crate::analysis::relation_inference::slice_detector::detect_slice;
-use crate::analysis::relation_inference::{RangeMap, RelationGraph};
-use crate::analysis::unsafe_inference::{
-    MemoryView, OwnedMemoryView, TypeKind, UnsafeInferenceEngine,
+use tracing::debug;
+
+use crate::analysis::{
+    heap_scanner::{HeapScanner, ScanResult},
+    relation_inference::{
+        clone_detector::{detect_clones, CloneConfig},
+        container_detector::{detect_containers, ContainerConfig},
+        pointer_scan::{detect_owner, InferenceRecord},
+        shared_detector::detect_shared,
+        slice_detector::detect_slice,
+        RangeMap, RelationEdge, RelationGraph,
+    },
+    unsafe_inference::{MemoryView, OwnedMemoryView, TypeKind, UnsafeInferenceEngine},
 };
+
 use crate::snapshot::types::ActiveAllocation;
 
 /// Configuration for the relation graph builder.
@@ -59,6 +65,17 @@ pub struct GraphBuilderConfig {
     /// - 10ms time window
     /// - 64 bytes comparison
     pub clone_config: CloneConfig,
+
+    /// Configuration for container relation detection.
+    ///
+    /// Controls how the system infers `Contains` relationships between
+    /// Container types (HashMap, BTreeMap) and HeapOwner types (Vec, Box).
+    ///
+    /// Default values use temporal locality with 1ms time window:
+    /// - 1ms time window
+    /// - 10x size ratio limit
+    /// - 5 candidate lookahead
+    pub container_config: ContainerConfig,
 }
 
 /// Builds a relation graph from active allocations.
@@ -104,71 +121,192 @@ impl RelationGraphBuilder {
         }
 
         // Step 1: Scan heap memory for all allocations.
+        debug!(step = 1, "HeapScanner::scan");
         let scan_results = HeapScanner::scan(allocations);
+        debug!(
+            step = 1,
+            scan_results = scan_results.len(),
+            "HeapScanner completed"
+        );
+
+        // Create a mapping from (ptr, size) to scan result
+        debug!(step = 2, "Building scan_map");
+        let scan_map: std::collections::HashMap<(usize, usize), &ScanResult> = scan_results
+            .iter()
+            .map(|scan| ((scan.ptr, scan.size), scan))
+            .collect();
+        debug!(step = 2, "scan_map completed");
 
         // Step 2: Run UTI Engine on each allocation.
-        let records: Vec<InferenceRecord> = scan_results
-            .into_iter()
+        // We ensure records has the same length as allocations to maintain index consistency.
+        debug!(step = 3, "Running UTI Engine");
+        let records: Vec<InferenceRecord> = allocations
+            .iter()
             .enumerate()
-            .map(|(id, scan)| {
-                let (type_kind, confidence) = if let Some(ref memory) = scan.memory {
-                    let view = MemoryView::new(memory);
-                    let guess = UnsafeInferenceEngine::infer_single(&view, scan.size);
-                    (guess.kind, guess.confidence)
-                } else {
-                    (TypeKind::Unknown, 0)
-                };
+            .map(|(id, alloc)| {
+                let scan = scan_map.get(&(alloc.ptr.unwrap_or(0), alloc.size));
+
+                let (type_kind, confidence) =
+                    if let Some(memory) = scan.and_then(|s| s.memory.as_deref()) {
+                        let view = MemoryView::new(memory);
+                        let guess = UnsafeInferenceEngine::infer_single(&view, alloc.size);
+                        (guess.kind, guess.confidence)
+                    } else {
+                        (TypeKind::Unknown, 0)
+                    };
 
                 InferenceRecord {
                     id,
-                    ptr: scan.ptr,
-                    size: scan.size,
-                    memory: scan.memory.map(OwnedMemoryView::new),
+                    ptr: alloc.ptr.unwrap_or(0),
+                    size: alloc.size,
+                    memory: scan
+                        .and_then(|s| s.memory.clone())
+                        .map(OwnedMemoryView::new),
                     type_kind,
                     confidence,
-                    call_stack_hash: allocations[id].call_stack_hash,
-                    alloc_time: allocations[id].allocated_at,
+                    call_stack_hash: alloc.call_stack_hash,
+                    alloc_time: alloc.allocated_at,
                 }
             })
             .collect();
+        debug!(step = 3, records = records.len(), "UTI Engine completed");
 
         // Step 3: Build RangeMap for address → allocation lookup.
+        debug!(step = 4, "Building RangeMap");
         let range_map = RangeMap::new(allocations);
+        debug!(step = 4, "RangeMap completed");
 
         // Step 4: Run relation detectors.
         let mut graph = RelationGraph::new();
 
         // Owner detection: scan each allocation's memory for pointers.
+        debug!(step = 5, "detect_owner");
         for record in &records {
             let edges = detect_owner(record, &range_map);
             graph.add_edges(edges);
         }
+        debug!(
+            step = 5,
+            edges = graph.edge_count(),
+            "detect_owner completed"
+        );
 
         // Slice detection: check if each allocation points into another's interior.
+        debug!(step = 6, "detect_slice");
         let slice_edges = detect_slice(&records, allocations, &range_map);
         graph.add_edges(slice_edges);
+        debug!(
+            step = 6,
+            edges = graph.edge_count(),
+            "detect_slice completed"
+        );
 
         // Clone detection: batch comparison by (type, size, stack_hash).
+        debug!(step = 7, "detect_clones");
         let clone_edges = detect_clones(&records, &config.clone_config);
         graph.add_edges(clone_edges);
+        debug!(
+            step = 7,
+            edges = graph.edge_count(),
+            "detect_clones completed"
+        );
+
+        // Container detection: infer Contains relationships using temporal locality.
+        debug!(step = 8, "detect_containers");
+        let container_edges = detect_containers(allocations, Some(config.container_config));
+        graph.add_edges(container_edges);
+        debug!(
+            step = 8,
+            edges = graph.edge_count(),
+            "detect_containers completed"
+        );
+
+        // Variable name evolution detection: infer relationships for allocations with same variable name
+        debug!(step = 9, "detect_variable_evolution");
+        let var_evolution_edges = detect_variable_evolution(allocations);
+        graph.add_edges(var_evolution_edges);
+        debug!(
+            step = 9,
+            edges = graph.edge_count(),
+            "detect_variable_evolution completed"
+        );
 
         // Shared detection: find Arc/Rc shared ownership via Owner graph analysis.
+        debug!(step = 10, "detect_shared");
         let shared_edges = detect_shared(&records, &graph.edges);
         graph.add_edges(shared_edges);
+        debug!(
+            step = 10,
+            edges = graph.edge_count(),
+            "detect_shared completed"
+        );
 
+        debug!("RelationGraphBuilder all steps completed");
         graph
     }
+}
+
+/// Detect variable evolution relationships based on variable names.
+///
+/// For allocations with the same variable name, this function infers
+/// evolution relationships indicating that the same variable was
+/// tracked multiple times (e.g., growing HashMap, reallocated Vec).
+fn detect_variable_evolution(allocations: &[ActiveAllocation]) -> Vec<RelationEdge> {
+    use crate::analysis::relation_inference::Relation;
+    use std::collections::HashMap;
+
+    // Group allocations by variable name
+    let mut var_groups: HashMap<String, Vec<usize>> = HashMap::new();
+    for (i, alloc) in allocations.iter().enumerate() {
+        if let Some(ref var_name) = alloc.var_name {
+            if !var_name.is_empty() && var_name != "unknown" {
+                var_groups.entry(var_name.clone()).or_default().push(i);
+            }
+        }
+    }
+
+    let mut edges = Vec::new();
+
+    // For each variable with multiple allocations, create evolution edges
+    for indices in var_groups.values() {
+        if indices.len() < 2 {
+            continue;
+        }
+
+        // Sort by allocation time
+        let mut sorted_indices: Vec<(usize, u64)> = indices
+            .iter()
+            .map(|&i| (i, allocations[i].allocated_at))
+            .collect();
+        sorted_indices.sort_by_key(|&(_, time)| time);
+
+        // Create edges from earlier to later allocations
+        for window in sorted_indices.windows(2) {
+            let (from_idx, _) = window[0];
+            let (to_idx, _) = window[1];
+
+            edges.push(RelationEdge {
+                from: from_idx,
+                to: to_idx,
+                relation: Relation::Evolution,
+            });
+        }
+    }
+
+    edges
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::analysis::relation_inference::Relation;
+    use crate::core::types::TrackKind;
 
     fn make_alloc(ptr: usize, size: usize) -> ActiveAllocation {
         ActiveAllocation {
-            ptr,
+            ptr: Some(ptr),
             size,
+            kind: TrackKind::HeapOwner { ptr, size },
             allocated_at: 1000,
             var_name: None,
             type_name: None,
@@ -242,7 +380,7 @@ mod tests {
     #[test]
     fn test_graph_node_count() {
         let mut graph = RelationGraph::new();
-        graph.add_edge(0, 1, Relation::Owner);
+        graph.add_edge(0, 1, Relation::Owns);
         graph.add_edge(1, 2, Relation::Slice);
 
         let nodes = graph.all_nodes();

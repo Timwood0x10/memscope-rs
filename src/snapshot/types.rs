@@ -3,16 +3,19 @@
 //! This module defines the core data structures used by the
 //! SnapshotEngine for representing memory snapshots.
 
+use crate::core::types::TrackKind;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// Active allocation information in a snapshot
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ActiveAllocation {
-    /// Memory pointer address
-    pub ptr: usize,
+    /// Memory pointer address (None for Container/Value types)
+    pub ptr: Option<usize>,
     /// Allocation size in bytes
     pub size: usize,
+    /// Memory allocation semantic role
+    pub kind: TrackKind,
     /// Timestamp when this allocation was made
     pub allocated_at: u64,
     /// Optional variable name
@@ -104,8 +107,12 @@ impl MemorySnapshot {
             let thread_id = alloc.thread_id;
 
             let active_alloc = ActiveAllocation {
-                ptr: alloc.ptr,
+                ptr: Some(alloc.ptr),
                 size: alloc.size,
+                kind: TrackKind::HeapOwner {
+                    ptr: alloc.ptr,
+                    size: alloc.size,
+                },
                 allocated_at: alloc.allocated_at_ns,
                 var_name: alloc.var_name,
                 type_name: alloc.type_name,
@@ -160,5 +167,238 @@ impl MemorySnapshot {
     /// Get the peak memory usage
     pub fn peak_memory(&self) -> usize {
         self.stats.peak_memory
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_memory_snapshot_new() {
+        let snapshot = MemorySnapshot::new();
+        assert!(snapshot.timestamp > 0);
+        assert_eq!(snapshot.stats.total_allocations, 0);
+        assert!(snapshot.active_allocations.is_empty());
+    }
+
+    #[test]
+    fn test_memory_snapshot_default() {
+        let snapshot = MemorySnapshot::default();
+        assert_eq!(snapshot.timestamp, 0);
+        assert_eq!(snapshot.stats.total_allocations, 0);
+    }
+
+    #[test]
+    fn test_active_allocation_creation() {
+        let alloc = ActiveAllocation {
+            ptr: Some(0x1000),
+            size: 1024,
+            kind: TrackKind::HeapOwner {
+                ptr: 0x1000,
+                size: 1024,
+            },
+            allocated_at: 1000,
+            var_name: Some("test".to_string()),
+            type_name: Some("Vec<u8>".to_string()),
+            thread_id: 1,
+            call_stack_hash: None,
+        };
+
+        assert_eq!(alloc.ptr, Some(0x1000));
+        assert_eq!(alloc.size, 1024);
+        assert_eq!(alloc.var_name, Some("test".to_string()));
+    }
+
+    #[test]
+    fn test_active_allocation_clone() {
+        let alloc = ActiveAllocation {
+            ptr: Some(0x1000),
+            size: 1024,
+            kind: TrackKind::HeapOwner {
+                ptr: 0x1000,
+                size: 1024,
+            },
+            allocated_at: 1000,
+            var_name: None,
+            type_name: None,
+            thread_id: 1,
+            call_stack_hash: None,
+        };
+
+        let cloned = alloc.clone();
+        assert_eq!(cloned.size, alloc.size);
+    }
+
+    #[test]
+    fn test_active_allocation_debug() {
+        let alloc = ActiveAllocation {
+            ptr: Some(0x1000),
+            size: 1024,
+            kind: TrackKind::HeapOwner {
+                ptr: 0x1000,
+                size: 1024,
+            },
+            allocated_at: 1000,
+            var_name: None,
+            type_name: None,
+            thread_id: 1,
+            call_stack_hash: None,
+        };
+
+        let debug_str = format!("{:?}", alloc);
+        assert!(debug_str.contains("ActiveAllocation"));
+    }
+
+    #[test]
+    fn test_memory_stats_default() {
+        let stats = MemoryStats::default();
+        assert_eq!(stats.total_allocations, 0);
+        assert_eq!(stats.total_reallocations, 0);
+        assert_eq!(stats.total_deallocations, 0);
+        assert_eq!(stats.active_allocations, 0);
+        assert_eq!(stats.current_memory, 0);
+        assert_eq!(stats.peak_memory, 0);
+    }
+
+    #[test]
+    fn test_memory_stats_clone() {
+        let stats = MemoryStats {
+            total_allocations: 100,
+            total_reallocations: 10,
+            total_deallocations: 50,
+            unmatched_deallocations: 2,
+            active_allocations: 50,
+            total_allocated: 1024 * 1024,
+            total_deallocated: 512 * 1024,
+            current_memory: 512 * 1024,
+            peak_memory: 1024 * 1024,
+        };
+
+        let cloned = stats.clone();
+        assert_eq!(cloned.total_allocations, 100);
+        assert_eq!(cloned.peak_memory, 1024 * 1024);
+    }
+
+    #[test]
+    fn test_thread_memory_stats_default() {
+        let stats = ThreadMemoryStats::default();
+        assert_eq!(stats.thread_id, 0);
+        assert_eq!(stats.allocation_count, 0);
+        assert_eq!(stats.current_memory, 0);
+    }
+
+    #[test]
+    fn test_thread_memory_stats_clone() {
+        let stats = ThreadMemoryStats {
+            thread_id: 1,
+            allocation_count: 50,
+            total_allocated: 4096,
+            total_deallocated: 2048,
+            current_memory: 2048,
+            peak_memory: 4096,
+        };
+
+        let cloned = stats.clone();
+        assert_eq!(cloned.thread_id, 1);
+        assert_eq!(cloned.allocation_count, 50);
+    }
+
+    #[test]
+    fn test_memory_snapshot_active_count() {
+        let mut snapshot = MemorySnapshot::new();
+        assert_eq!(snapshot.active_count(), 0);
+
+        snapshot.active_allocations.insert(
+            0x1000,
+            ActiveAllocation {
+                ptr: Some(0x1000),
+                size: 1024,
+                kind: TrackKind::HeapOwner {
+                    ptr: 0x1000,
+                    size: 1024,
+                },
+                allocated_at: 1000,
+                var_name: None,
+                type_name: None,
+                thread_id: 1,
+                call_stack_hash: None,
+            },
+        );
+
+        assert_eq!(snapshot.active_count(), 1);
+    }
+
+    #[test]
+    fn test_memory_snapshot_current_memory() {
+        let mut snapshot = MemorySnapshot::new();
+        assert_eq!(snapshot.current_memory(), 0);
+
+        snapshot.stats.current_memory = 4096;
+        assert_eq!(snapshot.current_memory(), 4096);
+    }
+
+    #[test]
+    fn test_memory_snapshot_peak_memory() {
+        let mut snapshot = MemorySnapshot::new();
+        assert_eq!(snapshot.peak_memory(), 0);
+
+        snapshot.stats.peak_memory = 8192;
+        assert_eq!(snapshot.peak_memory(), 8192);
+    }
+
+    #[test]
+    fn test_memory_snapshot_serialization() {
+        let snapshot = MemorySnapshot::new();
+
+        let json = serde_json::to_string(&snapshot);
+        assert!(json.is_ok());
+
+        let deserialized: Result<MemorySnapshot, _> = serde_json::from_str(&json.unwrap());
+        assert!(deserialized.is_ok());
+    }
+
+    #[test]
+    fn test_active_allocation_serialization() {
+        let alloc = ActiveAllocation {
+            ptr: Some(0x1000),
+            size: 1024,
+            kind: TrackKind::HeapOwner {
+                ptr: 0x1000,
+                size: 1024,
+            },
+            allocated_at: 1000,
+            var_name: Some("test".to_string()),
+            type_name: Some("i32".to_string()),
+            thread_id: 1,
+            call_stack_hash: Some(12345),
+        };
+
+        let json = serde_json::to_string(&alloc);
+        assert!(json.is_ok());
+
+        let deserialized: Result<ActiveAllocation, _> = serde_json::from_str(&json.unwrap());
+        assert!(deserialized.is_ok());
+    }
+
+    #[test]
+    fn test_memory_stats_serialization() {
+        let stats = MemoryStats {
+            total_allocations: 100,
+            total_reallocations: 10,
+            total_deallocations: 50,
+            unmatched_deallocations: 2,
+            active_allocations: 50,
+            total_allocated: 1024,
+            total_deallocated: 512,
+            current_memory: 512,
+            peak_memory: 1024,
+        };
+
+        let json = serde_json::to_string(&stats);
+        assert!(json.is_ok());
+
+        let deserialized: Result<MemoryStats, _> = serde_json::from_str(&json.unwrap());
+        assert!(deserialized.is_ok());
     }
 }

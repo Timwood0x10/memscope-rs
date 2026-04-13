@@ -261,4 +261,276 @@ mod tests {
         assert!(frame.is_rust_symbol());
         assert!(!frame.is_system_symbol());
     }
+
+    #[test]
+    fn test_resolved_frame_display_no_column() {
+        let frame = ResolvedFrame {
+            instruction_pointer: 0x1234,
+            symbol_name: "test_func".to_string(),
+            demangled_name: Some("test_func".to_string()),
+            filename: Some("lib.rs".to_string()),
+            line_number: Some(10),
+            column: None,
+            module_name: None,
+            offset: None,
+        };
+
+        assert_eq!(frame.display_name(), "test_func at lib.rs:10");
+    }
+
+    #[test]
+    fn test_resolved_frame_display_no_line_info() {
+        let frame = ResolvedFrame {
+            instruction_pointer: 0x5678,
+            symbol_name: "unknown_func".to_string(),
+            demangled_name: None,
+            filename: None,
+            line_number: None,
+            column: None,
+            module_name: None,
+            offset: None,
+        };
+
+        assert_eq!(frame.display_name(), "unknown_func");
+        assert_eq!(frame.short_display(), "unknown_func");
+        assert!(!frame.has_line_info());
+    }
+
+    #[test]
+    fn test_resolved_frame_is_rust_symbol_mangled() {
+        let frame = ResolvedFrame {
+            instruction_pointer: 0x1000,
+            symbol_name: "_ZN4test4main17habcdef123456E".to_string(),
+            demangled_name: None,
+            filename: None,
+            line_number: None,
+            column: None,
+            module_name: None,
+            offset: None,
+        };
+
+        assert!(frame.is_rust_symbol());
+    }
+
+    #[test]
+    fn test_resolved_frame_is_rust_symbol_demangled() {
+        let frame = ResolvedFrame {
+            instruction_pointer: 0x1000,
+            symbol_name: "func".to_string(),
+            demangled_name: Some("std::collections::HashMap::new".to_string()),
+            filename: None,
+            line_number: None,
+            column: None,
+            module_name: None,
+            offset: None,
+        };
+
+        assert!(frame.is_rust_symbol());
+    }
+
+    #[test]
+    fn test_resolved_frame_is_system_symbol_libc() {
+        let frame = ResolvedFrame {
+            instruction_pointer: 0x2000,
+            symbol_name: "malloc".to_string(),
+            demangled_name: None,
+            filename: None,
+            line_number: None,
+            column: None,
+            module_name: Some("libc.so.6".to_string()),
+            offset: None,
+        };
+
+        assert!(frame.is_system_symbol());
+    }
+
+    #[test]
+    fn test_resolved_frame_is_system_symbol_pthread() {
+        let frame = ResolvedFrame {
+            instruction_pointer: 0x3000,
+            symbol_name: "pthread_create".to_string(),
+            demangled_name: None,
+            filename: None,
+            line_number: None,
+            column: None,
+            module_name: Some("libpthread.so.0".to_string()),
+            offset: None,
+        };
+
+        assert!(frame.is_system_symbol());
+    }
+
+    #[test]
+    fn test_resolved_frame_is_system_symbol_ld() {
+        let frame = ResolvedFrame {
+            instruction_pointer: 0x4000,
+            symbol_name: "_start".to_string(),
+            demangled_name: None,
+            filename: None,
+            line_number: None,
+            column: None,
+            module_name: Some("ld-linux-x86-64.so.2".to_string()),
+            offset: None,
+        };
+
+        assert!(frame.is_system_symbol());
+    }
+
+    #[test]
+    fn test_resolved_frame_not_system_symbol() {
+        let frame = ResolvedFrame {
+            instruction_pointer: 0x5000,
+            symbol_name: "my_function".to_string(),
+            demangled_name: None,
+            filename: None,
+            line_number: None,
+            column: None,
+            module_name: Some("my_app".to_string()),
+            offset: None,
+        };
+
+        assert!(!frame.is_system_symbol());
+    }
+
+    #[test]
+    fn test_symbol_resolver_new() {
+        let resolver = SymbolResolver::new();
+        assert!(resolver.symbol_cache.is_empty());
+        assert_eq!(resolver.cache_size(), 0);
+    }
+
+    #[test]
+    fn test_symbol_resolver_default() {
+        let resolver = SymbolResolver::default();
+        assert!(resolver.symbol_cache.is_empty());
+    }
+
+    #[test]
+    fn test_symbol_resolver_with_options() {
+        let resolver = SymbolResolver::with_options(false, false);
+        assert!(!resolver.enable_demangling);
+        assert!(!resolver.enable_line_info);
+    }
+
+    #[test]
+    fn test_symbol_resolver_cache_stats_initial() {
+        let resolver = SymbolResolver::new();
+        let (resolutions, hits, ratio) = resolver.get_cache_stats();
+
+        assert_eq!(resolutions, 0);
+        assert_eq!(hits, 0);
+        assert_eq!(ratio, 0.0);
+    }
+
+    #[test]
+    fn test_symbol_resolver_clear_cache() {
+        let mut resolver = SymbolResolver::new();
+        resolver.resolution_count.store(10, Ordering::Relaxed);
+        resolver.cache_hits.store(5, Ordering::Relaxed);
+
+        resolver.clear_cache();
+
+        let (resolutions, hits, _) = resolver.get_cache_stats();
+        assert_eq!(resolutions, 0);
+        assert_eq!(hits, 0);
+        assert_eq!(resolver.cache_size(), 0);
+    }
+
+    #[test]
+    fn test_symbol_resolver_resolve_frame_no_symbol() {
+        let mut resolver = SymbolResolver::new();
+        let frame = StackFrame::new(0x12345678);
+
+        let result = resolver.resolve_frame(&frame);
+        assert!(result.is_none());
+
+        let (resolutions, hits, _) = resolver.get_cache_stats();
+        assert_eq!(resolutions, 1);
+        assert_eq!(hits, 0);
+    }
+
+    #[test]
+    fn test_symbol_resolver_resolve_batch() {
+        let mut resolver = SymbolResolver::new();
+        let frames = vec![
+            StackFrame::new(0x1000),
+            StackFrame::new(0x2000),
+            StackFrame::new(0x3000),
+        ];
+
+        let results = resolver.resolve_batch(&frames);
+        assert_eq!(results.len(), 3);
+        assert!(results.iter().all(|r| r.is_none()));
+    }
+
+    #[test]
+    fn test_symbol_resolver_resolve_addresses() {
+        let mut resolver = SymbolResolver::new();
+        let addresses = vec![0x1000, 0x2000, 0x3000];
+
+        let results = resolver.resolve_addresses(&addresses);
+        assert_eq!(results.len(), 3);
+        assert!(results.iter().all(|r| r.is_none()));
+    }
+
+    #[test]
+    fn test_symbol_resolver_preload_symbols() {
+        let mut resolver = SymbolResolver::new();
+        let addresses = vec![0x1000, 0x2000];
+
+        resolver.preload_symbols(&addresses);
+        assert_eq!(resolver.cache_size(), 0);
+    }
+
+    #[test]
+    fn test_resolved_frame_clone() {
+        let frame = ResolvedFrame {
+            instruction_pointer: 0x1234,
+            symbol_name: "test".to_string(),
+            demangled_name: Some("test_demangled".to_string()),
+            filename: Some("test.rs".to_string()),
+            line_number: Some(1),
+            column: Some(2),
+            module_name: Some("test_mod".to_string()),
+            offset: Some(3),
+        };
+
+        let cloned = frame.clone();
+        assert_eq!(cloned.instruction_pointer, frame.instruction_pointer);
+        assert_eq!(cloned.symbol_name, frame.symbol_name);
+    }
+
+    #[test]
+    fn test_resolved_frame_debug() {
+        let frame = ResolvedFrame {
+            instruction_pointer: 0x1234,
+            symbol_name: "test".to_string(),
+            demangled_name: None,
+            filename: None,
+            line_number: None,
+            column: None,
+            module_name: None,
+            offset: None,
+        };
+
+        let debug_str = format!("{:?}", frame);
+        assert!(debug_str.contains("ResolvedFrame"));
+        assert!(debug_str.contains("instruction_pointer"));
+    }
+
+    #[test]
+    fn test_resolved_frame_core_symbol() {
+        let frame = ResolvedFrame {
+            instruction_pointer: 0x1000,
+            symbol_name: "core_func".to_string(),
+            demangled_name: Some("core::ptr::drop_in_place".to_string()),
+            filename: None,
+            line_number: None,
+            column: None,
+            module_name: None,
+            offset: None,
+        };
+
+        assert!(frame.is_rust_symbol());
+    }
 }

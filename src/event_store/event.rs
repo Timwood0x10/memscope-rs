@@ -21,6 +21,8 @@ pub enum MemoryEventType {
     Borrow,
     /// Memory return event
     Return,
+    /// Metadata event for Container/Value types (no heap allocation)
+    Metadata,
 }
 
 impl fmt::Display for MemoryEventType {
@@ -32,6 +34,7 @@ impl fmt::Display for MemoryEventType {
             MemoryEventType::Move => write!(f, "Move"),
             MemoryEventType::Borrow => write!(f, "Borrow"),
             MemoryEventType::Return => write!(f, "Return"),
+            MemoryEventType::Metadata => write!(f, "Metadata"),
         }
     }
 }
@@ -62,6 +65,10 @@ pub struct MemoryEvent {
     pub call_stack_hash: Option<u64>,
     /// Optional thread name
     pub thread_name: Option<String>,
+    /// Optional source file path
+    pub source_file: Option<String>,
+    /// Optional source line number
+    pub source_line: Option<u32>,
 }
 
 impl MemoryEvent {
@@ -78,6 +85,8 @@ impl MemoryEvent {
             type_name: None,
             call_stack_hash: None,
             thread_name: None,
+            source_file: None,
+            source_line: None,
         }
     }
 
@@ -94,6 +103,8 @@ impl MemoryEvent {
             type_name: None,
             call_stack_hash: None,
             thread_name: None,
+            source_file: None,
+            source_line: None,
         }
     }
 
@@ -110,6 +121,26 @@ impl MemoryEvent {
             type_name: None,
             call_stack_hash: None,
             thread_name: None,
+            source_file: None,
+            source_line: None,
+        }
+    }
+
+    /// Create a new metadata event for Container/Value types (no heap allocation)
+    pub fn metadata(var_name: String, type_name: String, thread_id: u64, size: usize) -> Self {
+        Self {
+            timestamp: Self::now(),
+            event_type: MemoryEventType::Metadata,
+            ptr: 0, // No heap pointer
+            size,
+            old_size: None,
+            thread_id,
+            var_name: Some(var_name),
+            type_name: Some(type_name),
+            call_stack_hash: None,
+            thread_name: None,
+            source_file: None,
+            source_line: None,
         }
     }
 
@@ -135,6 +166,18 @@ impl MemoryEvent {
         self
     }
 
+    /// Set source file path
+    pub fn with_source_file(mut self, file: String) -> Self {
+        self.source_file = Some(file);
+        self
+    }
+
+    /// Set source line number
+    pub fn with_source_line(mut self, line: u32) -> Self {
+        self.source_line = Some(line);
+        self
+    }
+
     /// Set call stack hash
     pub fn with_call_stack_hash(mut self, hash: u64) -> Self {
         self.call_stack_hash = Some(hash);
@@ -151,7 +194,7 @@ impl MemoryEvent {
     pub fn is_allocation(&self) -> bool {
         matches!(
             self.event_type,
-            MemoryEventType::Allocate | MemoryEventType::Reallocate
+            MemoryEventType::Allocate | MemoryEventType::Reallocate | MemoryEventType::Metadata
         )
     }
 

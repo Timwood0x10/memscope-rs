@@ -4,7 +4,7 @@
 //! including cloning, borrowing, ownership transfers, and lifetime analysis.
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Global event ID generator
@@ -13,7 +13,7 @@ static EVENT_ID_GENERATOR: AtomicU64 = AtomicU64::new(1);
 /// Ownership history recorder for tracking detailed ownership events
 pub struct OwnershipHistoryRecorder {
     /// Map from allocation pointer to its ownership events
-    ownership_events: HashMap<usize, Vec<OwnershipEvent>>,
+    ownership_events: HashMap<usize, VecDeque<OwnershipEvent>>,
     /// Map from allocation pointer to its current ownership summary
     ownership_summaries: HashMap<usize, OwnershipSummary>,
     /// Configuration for history recording
@@ -200,11 +200,11 @@ impl OwnershipHistoryRecorder {
 
         // Add event to history
         let events = self.ownership_events.entry(ptr).or_default();
-        events.push(event);
+        events.push_back(event);
 
         // Limit the number of events per allocation
         if events.len() > self.config.max_events_per_allocation {
-            events.remove(0); // Remove oldest event
+            events.pop_front(); // Remove oldest event (O(1) for VecDeque)
         }
 
         // Update ownership summary
@@ -358,7 +358,7 @@ impl OwnershipHistoryRecorder {
     }
 
     /// Get ownership events for a specific allocation
-    pub fn get_events(&self, ptr: usize) -> Option<&Vec<OwnershipEvent>> {
+    pub fn get_events(&self, ptr: usize) -> Option<&VecDeque<OwnershipEvent>> {
         self.ownership_events.get(&ptr)
     }
 
@@ -465,7 +465,7 @@ impl Default for OwnershipHistoryRecorder {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OwnershipHistoryExport {
     pub summaries: HashMap<usize, OwnershipSummary>,
-    pub detailed_events: HashMap<usize, Vec<OwnershipEvent>>,
+    pub detailed_events: HashMap<usize, VecDeque<OwnershipEvent>>,
     pub export_timestamp: u64,
     pub config: HistoryConfig,
 }

@@ -603,4 +603,444 @@ mod tests {
         clear_current_task();
         assert!(!get_current_task().has_tracking_id());
     }
+
+    #[test]
+    fn test_extended_task_info_default() {
+        let info = ExtendedTaskInfo::default();
+        assert_eq!(info.waker_id, 0);
+        assert!(info.span_id.is_none());
+        assert_eq!(info.created_at, 0);
+        assert!(!info.has_tracking_id());
+    }
+
+    #[test]
+    fn test_extended_task_info_no_span() {
+        let info = ExtendedTaskInfo::new(12345, None);
+        assert!(info.has_tracking_id());
+        assert_eq!(info.primary_id(), 12345);
+    }
+
+    #[test]
+    fn test_extended_task_info_zero_waker() {
+        let info = ExtendedTaskInfo::new(0, Some(67890));
+        assert!(info.has_tracking_id());
+        assert_eq!(info.primary_id(), 67890);
+    }
+
+    #[test]
+    fn test_extended_task_info_both_zero() {
+        let info = ExtendedTaskInfo::new(0, None);
+        assert!(!info.has_tracking_id());
+        assert_eq!(info.primary_id(), 0);
+    }
+
+    #[test]
+    fn test_source_location_new() {
+        let loc = SourceLocation::new("test.rs", 10, 5, "test_fn", "test::module");
+        assert_eq!(loc.file, "test.rs");
+        assert_eq!(loc.line, 10);
+        assert_eq!(loc.column, 5);
+        assert_eq!(loc.function, "test_fn");
+        assert_eq!(loc.module_path, "test::module");
+    }
+
+    #[test]
+    fn test_source_location_display() {
+        let loc = SourceLocation::new("src/main.rs", 42, 10, "main", "main");
+        let display = format!("{}", loc);
+        assert!(display.contains("src/main.rs"));
+        assert!(display.contains("42"));
+        assert!(display.contains("10"));
+        assert!(display.contains("main"));
+    }
+
+    #[test]
+    fn test_source_location_serialization() {
+        let loc = SourceLocation::new("lib.rs", 100, 20, "test_func", "my_lib");
+        let json = serde_json::to_string(&loc).unwrap();
+        let deserialized: SourceLocation = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.file, loc.file);
+        assert_eq!(deserialized.line, loc.line);
+    }
+
+    #[test]
+    fn test_async_stats_with_values() {
+        let stats = AsyncStats {
+            total_tasks: 10,
+            total_allocations: 100,
+            total_memory: 10240,
+            total_deallocations: 80,
+            total_deallocated: 8192,
+            active_memory: 2048,
+            peak_memory: 4096,
+            active_tasks: 5,
+        };
+
+        assert_eq!(stats.total_tasks, 10);
+        assert_eq!(stats.active_memory, 2048);
+    }
+
+    #[test]
+    fn test_async_snapshot_default() {
+        let snapshot = AsyncSnapshot::default();
+        assert_eq!(snapshot.timestamp, 0);
+        assert!(snapshot.tasks.is_empty());
+        assert!(snapshot.allocations.is_empty());
+        assert_eq!(snapshot.stats.total_tasks, 0);
+    }
+
+    #[test]
+    fn test_async_snapshot_with_values() {
+        let snapshot = AsyncSnapshot {
+            timestamp: 1234567890,
+            tasks: vec![TaskInfo {
+                task_id: 1,
+                name: "task1".to_string(),
+                thread_id: std::thread::current().id(),
+                created_at: 100,
+                active_allocations: 5,
+                total_memory: 1024,
+            }],
+            allocations: vec![],
+            stats: AsyncStats::default(),
+        };
+
+        assert_eq!(snapshot.timestamp, 1234567890);
+        assert_eq!(snapshot.tasks.len(), 1);
+    }
+
+    #[test]
+    fn test_async_error_initialization() {
+        let error = AsyncError::initialization("test_component", "test message", false);
+        assert!(!error.is_recoverable());
+        assert_eq!(error.message(), "test message");
+    }
+
+    #[test]
+    fn test_async_error_duplicate_task() {
+        let error = AsyncError::duplicate_task(12345);
+        assert!(error.is_recoverable());
+        assert!(error.message().contains("12345"));
+    }
+
+    #[test]
+    fn test_async_error_task_not_found() {
+        let error = AsyncError::task_not_found(999);
+        assert!(error.is_recoverable());
+        assert!(error.message().contains("999"));
+    }
+
+    #[test]
+    fn test_async_error_mutex_lock_failed() {
+        let error = AsyncError::mutex_lock_failed("test_lock", "poisoned");
+        assert!(!error.is_recoverable());
+        assert!(error.message().contains("test_lock"));
+    }
+
+    #[test]
+    fn test_async_error_display_initialization() {
+        let error = AsyncError::initialization("comp", "msg", true);
+        let display = format!("{}", error);
+        assert!(display.contains("initialization failed"));
+        assert!(display.contains("comp"));
+        assert!(display.contains("recoverable"));
+    }
+
+    #[test]
+    fn test_async_error_display_task_tracking() {
+        let error = AsyncError::duplicate_task(123);
+        let display = format!("{}", error);
+        assert!(display.contains("Task tracking error"));
+        assert!(display.contains("123"));
+    }
+
+    #[test]
+    fn test_async_error_display_allocation() {
+        let error = AsyncError::AllocationTracking {
+            event_type: AllocationEventType::Allocation,
+            message: Arc::from("test error"),
+            allocation_size: Some(1024),
+        };
+        let display = format!("{}", error);
+        assert!(display.contains("Allocation tracking error"));
+        assert!(display.contains("1024B"));
+    }
+
+    #[test]
+    fn test_async_error_display_system() {
+        let error = AsyncError::System {
+            operation: Arc::from("test_op"),
+            message: Arc::from("test_msg"),
+        };
+        let display = format!("{}", error);
+        assert!(display.contains("System error"));
+        assert!(display.contains("test_op"));
+    }
+
+    #[test]
+    fn test_task_operation_variants() {
+        let operations = vec![
+            TaskOperation::IdGeneration,
+            TaskOperation::Propagation,
+            TaskOperation::Registration,
+            TaskOperation::Cleanup,
+            TaskOperation::Duplicate,
+            TaskOperation::TaskNotFound,
+        ];
+
+        for op in operations {
+            let error = AsyncError::TaskTracking {
+                operation: op,
+                message: Arc::from("test"),
+                task_id: None,
+            };
+            assert_eq!(error.message(), "test");
+        }
+    }
+
+    #[test]
+    fn test_allocation_event_type_variants() {
+        let types = vec![
+            AllocationEventType::Allocation,
+            AllocationEventType::Deallocation,
+            AllocationEventType::BufferWrite,
+            AllocationEventType::Processing,
+        ];
+
+        for event_type in types {
+            let error = AsyncError::AllocationTracking {
+                event_type,
+                message: Arc::from("test"),
+                allocation_size: None,
+            };
+            assert!(error.is_recoverable());
+        }
+    }
+
+    #[test]
+    fn test_async_memory_snapshot_good_quality() {
+        let snapshot = AsyncMemorySnapshot {
+            active_task_count: 5,
+            total_allocated_bytes: 10000,
+            allocation_events: 1000,
+            events_dropped: 10,
+            buffer_utilization: 0.8,
+        };
+
+        assert!(snapshot.has_good_data_quality());
+        assert!(snapshot.data_quality_warning().is_none());
+    }
+
+    #[test]
+    fn test_async_memory_snapshot_poor_quality() {
+        let snapshot = AsyncMemorySnapshot {
+            active_task_count: 5,
+            total_allocated_bytes: 10000,
+            allocation_events: 100,
+            events_dropped: 10,
+            buffer_utilization: 0.95,
+        };
+
+        assert!(!snapshot.has_good_data_quality());
+        assert!(snapshot.data_quality_warning().is_some());
+    }
+
+    #[test]
+    fn test_async_memory_snapshot_no_events() {
+        let snapshot = AsyncMemorySnapshot {
+            active_task_count: 0,
+            total_allocated_bytes: 0,
+            allocation_events: 0,
+            events_dropped: 0,
+            buffer_utilization: 0.0,
+        };
+
+        assert!(snapshot.has_good_data_quality());
+    }
+
+    #[test]
+    fn test_async_memory_snapshot_total_allocated() {
+        let snapshot = AsyncMemorySnapshot {
+            active_task_count: 1,
+            total_allocated_bytes: 5000,
+            allocation_events: 50,
+            events_dropped: 0,
+            buffer_utilization: 0.5,
+        };
+
+        assert_eq!(snapshot.total_allocated(), 5000);
+    }
+
+    #[test]
+    fn test_tracked_future_new() {
+        let future = async { 42 };
+        let tracked = TrackedFuture::new(future);
+        assert!(tracked.task_name().is_none());
+    }
+
+    #[test]
+    fn test_tracked_future_with_name() {
+        let future = async { 42 };
+        let tracked = TrackedFuture::with_name(future, "test_future".to_string());
+        assert_eq!(tracked.task_name(), Some("test_future"));
+    }
+
+    #[test]
+    fn test_task_info_clone() {
+        let task = TaskInfo {
+            task_id: 1,
+            name: "test".to_string(),
+            thread_id: std::thread::current().id(),
+            created_at: 100,
+            active_allocations: 5,
+            total_memory: 1024,
+        };
+
+        let cloned = task.clone();
+        assert_eq!(cloned.task_id, task.task_id);
+        assert_eq!(cloned.name, task.name);
+    }
+
+    #[test]
+    fn test_async_allocation_clone() {
+        let alloc = AsyncAllocation {
+            ptr: 0x1000,
+            size: 1024,
+            timestamp: 1000,
+            task_id: 1,
+            var_name: Some("test".to_string()),
+            type_name: Some("i32".to_string()),
+            source_location: None,
+        };
+
+        let cloned = alloc.clone();
+        assert_eq!(cloned.ptr, alloc.ptr);
+        assert_eq!(cloned.size, alloc.size);
+    }
+
+    #[test]
+    fn test_async_stats_clone() {
+        let stats = AsyncStats {
+            total_tasks: 10,
+            total_allocations: 100,
+            total_memory: 1000,
+            total_deallocations: 50,
+            total_deallocated: 500,
+            active_memory: 500,
+            peak_memory: 800,
+            active_tasks: 5,
+        };
+
+        let cloned = stats.clone();
+        assert_eq!(cloned.total_tasks, stats.total_tasks);
+    }
+
+    #[test]
+    fn test_extended_task_info_clone() {
+        let info = ExtendedTaskInfo::new(123, Some(456));
+        let cloned = info;
+        assert_eq!(cloned.waker_id, info.waker_id);
+        assert_eq!(cloned.span_id, info.span_id);
+    }
+
+    #[test]
+    fn test_async_snapshot_clone() {
+        let snapshot = AsyncSnapshot {
+            timestamp: 1000,
+            tasks: vec![],
+            allocations: vec![],
+            stats: AsyncStats::default(),
+        };
+
+        let cloned = snapshot.clone();
+        assert_eq!(cloned.timestamp, snapshot.timestamp);
+    }
+
+    #[test]
+    fn test_async_error_clone() {
+        let error = AsyncError::duplicate_task(123);
+        let cloned = error.clone();
+        assert_eq!(cloned.message(), error.message());
+    }
+
+    #[test]
+    fn test_async_memory_snapshot_clone() {
+        let snapshot = AsyncMemorySnapshot {
+            active_task_count: 3,
+            total_allocated_bytes: 5000,
+            allocation_events: 100,
+            events_dropped: 5,
+            buffer_utilization: 0.75,
+        };
+
+        let cloned = snapshot.clone();
+        assert_eq!(cloned.active_task_count, snapshot.active_task_count);
+    }
+
+    #[test]
+    fn test_task_info_debug() {
+        let task = TaskInfo {
+            task_id: 1,
+            name: "debug_test".to_string(),
+            thread_id: std::thread::current().id(),
+            created_at: 0,
+            active_allocations: 0,
+            total_memory: 0,
+        };
+
+        let debug_str = format!("{:?}", task);
+        assert!(debug_str.contains("TaskInfo"));
+        assert!(debug_str.contains("task_id"));
+    }
+
+    #[test]
+    fn test_async_allocation_debug() {
+        let alloc = AsyncAllocation {
+            ptr: 0x1000,
+            size: 1024,
+            timestamp: 0,
+            task_id: 0,
+            var_name: None,
+            type_name: None,
+            source_location: None,
+        };
+
+        let debug_str = format!("{:?}", alloc);
+        assert!(debug_str.contains("AsyncAllocation"));
+    }
+
+    #[test]
+    fn test_async_stats_debug() {
+        let stats = AsyncStats::default();
+        let debug_str = format!("{:?}", stats);
+        assert!(debug_str.contains("AsyncStats"));
+    }
+
+    #[test]
+    fn test_extended_task_info_debug() {
+        let info = ExtendedTaskInfo::default();
+        let debug_str = format!("{:?}", info);
+        assert!(debug_str.contains("ExtendedTaskInfo"));
+    }
+
+    #[test]
+    fn test_async_error_debug() {
+        let error = AsyncError::duplicate_task(1);
+        let debug_str = format!("{:?}", error);
+        assert!(debug_str.contains("TaskTracking"));
+    }
+
+    #[test]
+    fn test_async_memory_snapshot_debug() {
+        let snapshot = AsyncMemorySnapshot {
+            active_task_count: 0,
+            total_allocated_bytes: 0,
+            allocation_events: 0,
+            events_dropped: 0,
+            buffer_utilization: 0.0,
+        };
+
+        let debug_str = format!("{:?}", snapshot);
+        assert!(debug_str.contains("AsyncMemorySnapshot"));
+    }
 }

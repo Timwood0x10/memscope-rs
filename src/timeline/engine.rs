@@ -232,4 +232,124 @@ mod tests {
 
         assert_eq!(range, Some((100, 500)));
     }
+
+    #[test]
+    fn test_get_time_range_empty() {
+        let event_store = Arc::new(EventStore::new());
+        let engine = TimelineEngine::new(event_store);
+        let range = engine.get_time_range().unwrap();
+        assert!(range.is_none());
+    }
+
+    #[test]
+    fn test_get_events_for_scope() {
+        let event_store = Arc::new(EventStore::new());
+
+        let mut event1 = MemoryEvent::allocate(0x1000, 1024, 1);
+        event1.var_name = Some("scope_a".to_string());
+
+        let mut event2 = MemoryEvent::allocate(0x2000, 2048, 1);
+        event2.var_name = Some("scope_b".to_string());
+
+        event_store.record(event1);
+        event_store.record(event2);
+
+        let engine = TimelineEngine::new(event_store);
+        let events = engine.get_events_for_scope("scope_a");
+
+        assert_eq!(events.len(), 1);
+    }
+
+    #[test]
+    fn test_get_events_for_scope_not_found() {
+        let event_store = Arc::new(EventStore::new());
+        event_store.record(MemoryEvent::allocate(0x1000, 1024, 1));
+
+        let engine = TimelineEngine::new(event_store);
+        let events = engine.get_events_for_scope("nonexistent");
+
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn test_get_event_count() {
+        let event_store = Arc::new(EventStore::new());
+        let engine = TimelineEngine::new(event_store.clone());
+        assert_eq!(engine.get_event_count(), 0);
+
+        event_store.record(MemoryEvent::allocate(0x1000, 1024, 1));
+        assert_eq!(engine.get_event_count(), 1);
+
+        event_store.record(MemoryEvent::allocate(0x2000, 2048, 1));
+        assert_eq!(engine.get_event_count(), 2);
+    }
+
+    #[test]
+    fn test_invalidate_cache() {
+        let event_store = Arc::new(EventStore::new());
+        event_store.record(MemoryEvent::allocate(0x1000, 1024, 1));
+
+        let engine = TimelineEngine::new(event_store);
+        engine.invalidate_cache();
+
+        // Should still work after cache invalidation
+        let events = engine.get_events_in_range(0, u64::MAX).unwrap();
+        assert_eq!(events.len(), 1);
+    }
+
+    #[test]
+    fn test_get_events_in_range_empty() {
+        let event_store = Arc::new(EventStore::new());
+        let engine = TimelineEngine::new(event_store);
+
+        let events = engine.get_events_in_range(0, 1000).unwrap();
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn test_get_events_in_range_no_match() {
+        let event_store = Arc::new(EventStore::new());
+
+        let mut event = MemoryEvent::allocate(0x1000, 1024, 1);
+        event.timestamp = 5000;
+        event_store.record(event);
+
+        let engine = TimelineEngine::new(event_store);
+        let events = engine.get_events_in_range(0, 1000).unwrap();
+
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn test_get_events_for_thread_multiple() {
+        let event_store = Arc::new(EventStore::new());
+        event_store.record(MemoryEvent::allocate(0x1000, 1024, 1));
+        event_store.record(MemoryEvent::allocate(0x2000, 2048, 1));
+        event_store.record(MemoryEvent::allocate(0x3000, 4096, 2));
+
+        let engine = TimelineEngine::new(event_store);
+        let events = engine.get_events_for_thread(1);
+
+        assert_eq!(events.len(), 2);
+    }
+
+    #[test]
+    fn test_get_events_for_pointer_not_found() {
+        let event_store = Arc::new(EventStore::new());
+        event_store.record(MemoryEvent::allocate(0x1000, 1024, 1));
+
+        let engine = TimelineEngine::new(event_store);
+        let events = engine.get_events_for_pointer(0x2000);
+
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn test_replay_up_to_empty() {
+        let event_store = Arc::new(EventStore::new());
+        let engine = TimelineEngine::new(event_store);
+
+        let events = engine.replay_up_to(1000).unwrap();
+        assert!(events.is_empty());
+    }
 }

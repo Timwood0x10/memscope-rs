@@ -304,6 +304,8 @@ impl From<crate::core::types::DropChainAnalysis> for DropChainAnalysis {
 mod tests {
     use super::*;
 
+    /// Objective: Verify DropChainNode creation with all fields
+    /// Invariants: All fields should be properly initialized
     #[test]
     fn test_drop_chain_node() {
         let node = DropChainNode {
@@ -324,15 +326,439 @@ mod tests {
             },
         };
 
-        assert_eq!(node.object_id, 1);
-        assert_eq!(node.type_name, "String");
+        assert_eq!(node.object_id, 1, "Object ID should match");
+        assert_eq!(node.type_name, "String", "Type name should match");
+        assert_eq!(
+            node.drop_impl_type,
+            DropImplementationType::Automatic,
+            "Drop impl type should be Automatic"
+        );
     }
 
+    /// Objective: Verify DropImplementationType variants
+    /// Invariants: All variants should be distinct
     #[test]
     fn test_drop_implementation_type() {
         let auto = DropImplementationType::Automatic;
         let custom = DropImplementationType::Custom;
-        assert!(matches!(auto, DropImplementationType::Automatic));
-        assert!(matches!(custom, DropImplementationType::Custom));
+        assert!(
+            matches!(auto, DropImplementationType::Automatic),
+            "Should match Automatic"
+        );
+        assert!(
+            matches!(custom, DropImplementationType::Custom),
+            "Should match Custom"
+        );
+    }
+
+    /// Objective: Verify all DropImplementationType variants
+    /// Invariants: All variants should have debug representation
+    #[test]
+    fn test_drop_implementation_type_all_variants() {
+        let variants = vec![
+            DropImplementationType::Automatic,
+            DropImplementationType::Custom,
+            DropImplementationType::SmartPointer,
+            DropImplementationType::Collection,
+            DropImplementationType::ResourceHandle,
+            DropImplementationType::NoOp,
+        ];
+
+        for variant in &variants {
+            let debug_str = format!("{variant:?}");
+            assert!(
+                !debug_str.is_empty(),
+                "Variant should have debug representation"
+            );
+        }
+    }
+
+    /// Objective: Verify DropChainNode with nested children
+    /// Invariants: Should handle nested drop chain hierarchy
+    #[test]
+    fn test_drop_chain_node_nested() {
+        let child = DropChainNode {
+            object_id: 2,
+            type_name: "i32".to_string(),
+            drop_timestamp: 1001,
+            drop_duration_ns: 100,
+            children: vec![],
+            drop_impl_type: DropImplementationType::Automatic,
+            cleanup_actions: vec![],
+            performance_characteristics: DropPerformanceCharacteristics {
+                execution_time_ns: 100,
+                cpu_usage_percent: 0.0,
+                memory_operations: 0,
+                io_operations: 0,
+                system_calls: 0,
+                impact_level: ImpactLevel::Low,
+            },
+        };
+
+        let parent = DropChainNode {
+            object_id: 1,
+            type_name: "Vec<i32>".to_string(),
+            drop_timestamp: 1000,
+            drop_duration_ns: 500,
+            children: vec![child],
+            drop_impl_type: DropImplementationType::Collection,
+            cleanup_actions: vec![],
+            performance_characteristics: DropPerformanceCharacteristics {
+                execution_time_ns: 500,
+                cpu_usage_percent: 0.1,
+                memory_operations: 10,
+                io_operations: 0,
+                system_calls: 0,
+                impact_level: ImpactLevel::Low,
+            },
+        };
+
+        assert_eq!(parent.children.len(), 1, "Parent should have one child");
+        assert_eq!(
+            parent.children[0].object_id, 2,
+            "Child object ID should match"
+        );
+    }
+
+    /// Objective: Verify CleanupAction creation
+    /// Invariants: All fields should be accessible
+    #[test]
+    fn test_cleanup_action() {
+        let action = CleanupAction {
+            action_type: CleanupActionType::MemoryDeallocation,
+            timestamp: 1000,
+            duration_ns: 500,
+            resource_description: "Heap memory block".to_string(),
+            success: true,
+        };
+
+        assert_eq!(
+            action.action_type,
+            CleanupActionType::MemoryDeallocation,
+            "Action type should match"
+        );
+        assert!(action.success, "Action should be successful");
+    }
+
+    /// Objective: Verify CleanupActionType variants
+    /// Invariants: All variants should be distinct
+    #[test]
+    fn test_cleanup_action_type_variants() {
+        let variants = vec![
+            CleanupActionType::MemoryDeallocation,
+            CleanupActionType::FileHandleClosure,
+            CleanupActionType::NetworkConnectionClosure,
+            CleanupActionType::LockRelease,
+            CleanupActionType::ThreadCleanup,
+            CleanupActionType::ReferenceCountDecrement,
+            CleanupActionType::CustomCleanup,
+        ];
+
+        for variant in &variants {
+            let debug_str = format!("{variant:?}");
+            assert!(
+                !debug_str.is_empty(),
+                "CleanupActionType should have debug representation"
+            );
+        }
+    }
+
+    /// Objective: Verify DropChainPerformanceMetrics creation
+    /// Invariants: All fields should be properly initialized
+    #[test]
+    fn test_drop_chain_performance_metrics() {
+        let metrics = DropChainPerformanceMetrics {
+            total_objects: 100,
+            max_depth: 5,
+            avg_drop_time_ns: 1000.0,
+            slowest_drop_ns: 5000,
+            efficiency_score: 85.0,
+            bottlenecks: vec![],
+        };
+
+        assert_eq!(metrics.total_objects, 100, "Total objects should match");
+        assert_eq!(metrics.max_depth, 5, "Max depth should match");
+        assert_eq!(
+            metrics.efficiency_score, 85.0,
+            "Efficiency score should match"
+        );
+    }
+
+    /// Objective: Verify DropPerformanceBottleneck creation
+    /// Invariants: All fields should be accessible
+    #[test]
+    fn test_drop_performance_bottleneck() {
+        let bottleneck = DropPerformanceBottleneck {
+            object_id: 42,
+            bottleneck_type: DropBottleneckType::SlowCustomDrop,
+            severity: ImpactLevel::High,
+            description: "Custom drop takes too long".to_string(),
+            optimization_suggestion: "Consider async cleanup".to_string(),
+        };
+
+        assert_eq!(bottleneck.object_id, 42, "Object ID should match");
+        assert_eq!(
+            bottleneck.bottleneck_type,
+            DropBottleneckType::SlowCustomDrop,
+            "Bottleneck type should match"
+        );
+        assert_eq!(
+            bottleneck.severity,
+            ImpactLevel::High,
+            "Severity should be High"
+        );
+    }
+
+    /// Objective: Verify DropBottleneckType variants
+    /// Invariants: All variants should be distinct
+    #[test]
+    fn test_drop_bottleneck_type_variants() {
+        let variants = vec![
+            DropBottleneckType::SlowCustomDrop,
+            DropBottleneckType::DeepOwnershipHierarchy,
+            DropBottleneckType::LargeCollectionCleanup,
+            DropBottleneckType::ResourceHandleDelay,
+            DropBottleneckType::LockContention,
+            DropBottleneckType::MemoryFragmentation,
+        ];
+
+        for variant in &variants {
+            let debug_str = format!("{variant:?}");
+            assert!(
+                !debug_str.is_empty(),
+                "DropBottleneckType should have debug representation"
+            );
+        }
+    }
+
+    /// Objective: Verify DropPerformanceCharacteristics creation
+    /// Invariants: All fields should be accessible
+    #[test]
+    fn test_drop_performance_characteristics() {
+        let chars = DropPerformanceCharacteristics {
+            execution_time_ns: 1000,
+            cpu_usage_percent: 50.0,
+            memory_operations: 10,
+            io_operations: 2,
+            system_calls: 1,
+            impact_level: ImpactLevel::Medium,
+        };
+
+        assert_eq!(chars.execution_time_ns, 1000, "Execution time should match");
+        assert_eq!(chars.cpu_usage_percent, 50.0, "CPU usage should match");
+        assert_eq!(
+            chars.impact_level,
+            ImpactLevel::Medium,
+            "Impact level should be Medium"
+        );
+    }
+
+    /// Objective: Verify ImpactLevel variants
+    /// Invariants: All variants should be distinct
+    #[test]
+    fn test_impact_level_variants() {
+        assert_eq!(ImpactLevel::Low, ImpactLevel::Low);
+        assert_eq!(ImpactLevel::Medium, ImpactLevel::Medium);
+        assert_eq!(ImpactLevel::High, ImpactLevel::High);
+        assert_eq!(ImpactLevel::Critical, ImpactLevel::Critical);
+
+        assert_ne!(ImpactLevel::Low, ImpactLevel::Critical);
+    }
+
+    /// Objective: Verify DropChainAnalysis creation
+    /// Invariants: All fields should be properly initialized
+    #[test]
+    fn test_drop_chain_analysis() {
+        let root = DropChainNode {
+            object_id: 1,
+            type_name: "Root".to_string(),
+            drop_timestamp: 1000,
+            drop_duration_ns: 500,
+            children: vec![],
+            drop_impl_type: DropImplementationType::Custom,
+            cleanup_actions: vec![],
+            performance_characteristics: DropPerformanceCharacteristics {
+                execution_time_ns: 500,
+                cpu_usage_percent: 0.1,
+                memory_operations: 1,
+                io_operations: 0,
+                system_calls: 0,
+                impact_level: ImpactLevel::Low,
+            },
+        };
+
+        let analysis = DropChainAnalysis {
+            root_object: root.clone(),
+            drop_sequence: vec![root],
+            total_duration_ns: 1000,
+            performance_metrics: DropChainPerformanceMetrics {
+                total_objects: 1,
+                max_depth: 1,
+                avg_drop_time_ns: 500.0,
+                slowest_drop_ns: 500,
+                efficiency_score: 100.0,
+                bottlenecks: vec![],
+            },
+            ownership_hierarchy: OwnershipHierarchy {
+                root_owners: vec![],
+                max_depth: 0,
+                total_objects: 0,
+                transfer_events: vec![],
+                weak_references: vec![],
+                circular_references: vec![],
+            },
+            leak_detection: ResourceLeakAnalysis {
+                potential_leaks: vec![],
+                detection_confidence: 1.0,
+                usage_patterns: vec![],
+                prevention_recommendations: vec![],
+            },
+        };
+
+        assert_eq!(
+            analysis.total_duration_ns, 1000,
+            "Total duration should match"
+        );
+        assert_eq!(
+            analysis.drop_sequence.len(),
+            1,
+            "Drop sequence should have one node"
+        );
+    }
+
+    /// Objective: Verify serialization of DropImplementationType
+    /// Invariants: Should serialize and deserialize correctly
+    #[test]
+    fn test_drop_implementation_type_serialization() {
+        let drop_type = DropImplementationType::SmartPointer;
+        let json = serde_json::to_string(&drop_type);
+        assert!(json.is_ok(), "Should serialize to JSON");
+
+        let deserialized: Result<DropImplementationType, _> = serde_json::from_str(&json.unwrap());
+        assert!(deserialized.is_ok(), "Should deserialize from JSON");
+        assert_eq!(
+            deserialized.unwrap(),
+            DropImplementationType::SmartPointer,
+            "Should preserve value"
+        );
+    }
+
+    /// Objective: Verify serialization of CleanupActionType
+    /// Invariants: Should serialize and deserialize correctly
+    #[test]
+    fn test_cleanup_action_type_serialization() {
+        let action_type = CleanupActionType::FileHandleClosure;
+        let json = serde_json::to_string(&action_type);
+        assert!(json.is_ok(), "Should serialize to JSON");
+
+        let deserialized: Result<CleanupActionType, _> = serde_json::from_str(&json.unwrap());
+        assert!(deserialized.is_ok(), "Should deserialize from JSON");
+        assert_eq!(
+            deserialized.unwrap(),
+            CleanupActionType::FileHandleClosure,
+            "Should preserve value"
+        );
+    }
+
+    /// Objective: Verify DropChainNode clone functionality
+    /// Invariants: Cloned node should have same values
+    #[test]
+    fn test_drop_chain_node_clone() {
+        let original = DropChainNode {
+            object_id: 1,
+            type_name: "Test".to_string(),
+            drop_timestamp: 1000,
+            drop_duration_ns: 500,
+            children: vec![],
+            drop_impl_type: DropImplementationType::Automatic,
+            cleanup_actions: vec![],
+            performance_characteristics: DropPerformanceCharacteristics {
+                execution_time_ns: 500,
+                cpu_usage_percent: 0.1,
+                memory_operations: 1,
+                io_operations: 0,
+                system_calls: 0,
+                impact_level: ImpactLevel::Low,
+            },
+        };
+
+        let cloned = original.clone();
+
+        assert_eq!(
+            original.object_id, cloned.object_id,
+            "Object ID should match"
+        );
+        assert_eq!(
+            original.type_name, cloned.type_name,
+            "Type name should match"
+        );
+    }
+
+    /// Objective: Verify DropChainPerformanceMetrics with bottlenecks
+    /// Invariants: Should handle multiple bottlenecks
+    #[test]
+    fn test_drop_chain_performance_metrics_with_bottlenecks() {
+        let bottleneck1 = DropPerformanceBottleneck {
+            object_id: 1,
+            bottleneck_type: DropBottleneckType::SlowCustomDrop,
+            severity: ImpactLevel::High,
+            description: "Slow drop".to_string(),
+            optimization_suggestion: "Optimize".to_string(),
+        };
+
+        let bottleneck2 = DropPerformanceBottleneck {
+            object_id: 2,
+            bottleneck_type: DropBottleneckType::LargeCollectionCleanup,
+            severity: ImpactLevel::Medium,
+            description: "Large collection".to_string(),
+            optimization_suggestion: "Use smaller batches".to_string(),
+        };
+
+        let metrics = DropChainPerformanceMetrics {
+            total_objects: 100,
+            max_depth: 5,
+            avg_drop_time_ns: 1000.0,
+            slowest_drop_ns: 5000,
+            efficiency_score: 60.0,
+            bottlenecks: vec![bottleneck1, bottleneck2],
+        };
+
+        assert_eq!(metrics.bottlenecks.len(), 2, "Should have two bottlenecks");
+    }
+
+    /// Objective: Verify CleanupAction with failure status
+    /// Invariants: Should handle failed cleanup actions
+    #[test]
+    fn test_cleanup_action_failure() {
+        let action = CleanupAction {
+            action_type: CleanupActionType::FileHandleClosure,
+            timestamp: 1000,
+            duration_ns: 500,
+            resource_description: "Failed to close file".to_string(),
+            success: false,
+        };
+
+        assert!(!action.success, "Action should be marked as failed");
+    }
+
+    /// Objective: Verify DropPerformanceCharacteristics with high impact
+    /// Invariants: Should handle critical impact level
+    #[test]
+    fn test_drop_performance_characteristics_critical() {
+        let chars = DropPerformanceCharacteristics {
+            execution_time_ns: 1000000,
+            cpu_usage_percent: 100.0,
+            memory_operations: 1000,
+            io_operations: 100,
+            system_calls: 50,
+            impact_level: ImpactLevel::Critical,
+        };
+
+        assert_eq!(
+            chars.impact_level,
+            ImpactLevel::Critical,
+            "Impact level should be Critical"
+        );
+        assert_eq!(chars.cpu_usage_percent, 100.0, "CPU usage should be 100%");
     }
 }

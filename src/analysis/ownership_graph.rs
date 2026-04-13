@@ -34,16 +34,15 @@
 
 use serde::{Deserialize, Serialize};
 
-/// Object identifier
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Serialize, Deserialize)]
-pub struct ObjectId(pub u64);
+use super::node_id::NodeId;
 
-impl ObjectId {
-    /// Create ObjectId from pointer address
-    pub fn from_ptr(ptr: usize) -> Self {
-        ObjectId(ptr as u64)
-    }
-}
+/// Object identifier - unified with NodeId.
+///
+/// This type alias provides backward compatibility.
+/// Previously, ObjectId was a separate struct that wrapped u64.
+/// Now it is unified with NodeId to avoid duplication.
+/// Use NodeId directly for new code.
+pub type ObjectId = NodeId;
 
 /// Ownership operation types - only track critical operations
 #[repr(u8)]
@@ -95,6 +94,8 @@ pub struct Node {
 pub enum EdgeKind {
     /// Owner relationship (A contains pointer to B)
     Owns,
+    /// Contains relationship (Container → HeapOwner, e.g., HashMap → Vec)
+    Contains,
     /// Borrow relationship (A borrows from B)
     Borrows,
     /// Rc clone edge
@@ -128,6 +129,28 @@ pub struct OwnershipGraph {
 }
 
 impl OwnershipGraph {
+    /// Build ownership graph from MemoryView.
+    ///
+    /// Creates an ownership graph from the allocations in a MemoryView.
+    /// This is a convenience method for the unified analyzer API.
+    pub fn from_view(view: &crate::view::MemoryView) -> Self {
+        let allocations = view.allocations();
+        let passports: Vec<(ObjectId, String, usize, Vec<OwnershipEvent>)> = allocations
+            .iter()
+            .filter_map(|a| {
+                a.ptr.map(|ptr| {
+                    let id = ObjectId::from_ptr(ptr);
+                    let type_name = a.type_name.clone().unwrap_or_else(|| "unknown".to_string());
+                    // Create a basic create event for each allocation
+                    let event = OwnershipEvent::new(a.allocated_at, OwnershipOp::Create, id, None);
+                    (id, type_name, a.size, vec![event])
+                })
+            })
+            .collect();
+
+        Self::build(&passports)
+    }
+
     /// Build ownership graph from passports with ownership events
     pub fn build<T: AsRef<[OwnershipEvent]>>(passports: &[(ObjectId, String, usize, T)]) -> Self {
         let mut nodes = Vec::new();
@@ -185,17 +208,35 @@ impl OwnershipGraph {
         }
     }
 
-    /// Compress consecutive clone chains to reduce UI complexity
+    /// Compress consecutive clone chains to reduce UI complexity.
+    ///
+    /// Uses a new vector to collect merged edges, avoiding O(n^2) complexity from repeated remove() calls.
     fn compress_clone_chains(edges: &mut Vec<Edge>) {
+        if edges.len() < 2 {
+            return;
+        }
+
+        let mut result: Vec<Edge> = Vec::with_capacity(edges.len());
         let mut i = 0;
-        while i + 1 < edges.len() {
-            if edges[i].op == edges[i + 1].op && edges[i].to == edges[i + 1].from {
-                edges[i].to = edges[i + 1].to;
-                edges.remove(i + 1);
-            } else {
+
+        while i < edges.len() {
+            let mut current = edges[i].clone();
+
+            // Try to merge with subsequent edges
+            while i + 1 < edges.len()
+                && current.op == edges[i + 1].op
+                && current.to == edges[i + 1].from
+            {
+                // Merge: extend current edge to skip the next one
+                current.to = edges[i + 1].to;
                 i += 1;
             }
+
+            result.push(current);
+            i += 1;
         }
+
+        *edges = result;
     }
 
     /// Detect cycles using existing DFS implementation
@@ -452,7 +493,7 @@ mod tests {
 
     #[test]
     fn test_ownership_event_creation() {
-        let id = ObjectId(0x1000);
+        let id = NodeId(0x1000);
         let event = OwnershipEvent::new(1000, OwnershipOp::Create, id, None);
         assert_eq!(event.ts, 1000);
         assert_eq!(event.op, OwnershipOp::Create);
@@ -460,7 +501,7 @@ mod tests {
 
     #[test]
     fn test_graph_build_empty() {
-        let passports: Vec<(ObjectId, String, usize, Vec<OwnershipEvent>)> = vec![];
+        let passports: Vec<(NodeId, String, usize, Vec<OwnershipEvent>)> = vec![];
         let graph = OwnershipGraph::build(&passports);
         assert!(graph.nodes.is_empty());
         assert!(graph.edges.is_empty());
@@ -469,8 +510,8 @@ mod tests {
 
     #[test]
     fn test_graph_build_rc_clone() {
-        let id1 = ObjectId(0x1000);
-        let id2 = ObjectId(0x2000);
+        let id1 = NodeId(0x1000);
+        let id2 = NodeId(0x2000);
         let events = vec![OwnershipEvent::new(
             1000,
             OwnershipOp::RcClone,
@@ -487,10 +528,10 @@ mod tests {
 
     #[test]
     fn test_graph_build_arc_clone_storm() {
-        let id1 = ObjectId(0x1000);
+        let id1 = NodeId(0x1000);
         let mut events = Vec::new();
         for i in 0..100 {
-            let dst = ObjectId(0x2000 + i);
+            let dst = NodeId(0x2000 + i);
             events.push(OwnershipEvent::new(
                 i,
                 OwnershipOp::ArcClone,
@@ -507,10 +548,10 @@ mod tests {
 
     #[test]
     fn test_compress_clone_chains() {
-        let id1 = ObjectId(0x1000);
-        let id2 = ObjectId(0x2000);
-        let id3 = ObjectId(0x3000);
-        let id4 = ObjectId(0x4000);
+        let id1 = NodeId(0x1000);
+        let id2 = NodeId(0x2000);
+        let id3 = NodeId(0x3000);
+        let id4 = NodeId(0x4000);
 
         let events = vec![
             OwnershipEvent::new(1000, OwnershipOp::ArcClone, id1, Some(id2)),
@@ -529,10 +570,10 @@ mod tests {
 
     #[test]
     fn test_diagnostics() {
-        let id1 = ObjectId(0x1000);
+        let id1 = NodeId(0x1000);
         let mut events = Vec::new();
         for i in 0..100 {
-            let dst = ObjectId(0x2000 + i);
+            let dst = NodeId(0x2000 + i);
             events.push(OwnershipEvent::new(
                 i,
                 OwnershipOp::ArcClone,
@@ -551,10 +592,10 @@ mod tests {
 
     #[test]
     fn test_root_cause_detection() {
-        let id1 = ObjectId(0x1000);
+        let id1 = NodeId(0x1000);
         let mut events = Vec::new();
         for i in 0..100 {
-            let dst = ObjectId(0x2000 + i);
+            let dst = NodeId(0x2000 + i);
             events.push(OwnershipEvent::new(
                 i,
                 OwnershipOp::ArcClone,

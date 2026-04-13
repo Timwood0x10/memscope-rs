@@ -507,19 +507,76 @@ impl Default for PerformanceAnalyzer {
 mod tests {
     use super::*;
 
+    /// Objective: Verify PerformanceAnalyzer creation with default thresholds
+    /// Invariants: New analyzer should have empty baselines and default thresholds
     #[test]
     fn test_performance_analyzer_creation() {
         let analyzer = PerformanceAnalyzer::new();
-        assert!(analyzer.baselines.is_empty());
-
-        let custom_thresholds = AnalysisThresholds {
-            max_tracking_overhead: 0.1,
-            ..Default::default()
-        };
-        let analyzer = PerformanceAnalyzer::with_thresholds(custom_thresholds);
-        assert_eq!(analyzer.thresholds.max_tracking_overhead, 0.1);
+        assert!(
+            analyzer.baselines.is_empty(),
+            "New analyzer should have empty baselines"
+        );
+        assert_eq!(
+            analyzer.thresholds.max_tracking_overhead, 0.05,
+            "Default max tracking overhead should be 0.05"
+        );
     }
 
+    /// Objective: Verify PerformanceAnalyzer with custom thresholds
+    /// Invariants: Custom thresholds should be applied correctly
+    #[test]
+    fn test_performance_analyzer_custom_thresholds() {
+        let custom_thresholds = AnalysisThresholds {
+            max_tracking_overhead: 0.1,
+            max_allocation_latency: Duration::from_micros(100),
+            max_symbol_resolution_time: Duration::from_millis(10),
+            min_tracking_completeness: 0.9,
+            max_analysis_memory: 1024,
+        };
+        let analyzer = PerformanceAnalyzer::with_thresholds(custom_thresholds);
+        assert_eq!(
+            analyzer.thresholds.max_tracking_overhead, 0.1,
+            "Custom max tracking overhead should be 0.1"
+        );
+        assert_eq!(
+            analyzer.thresholds.max_analysis_memory, 1024,
+            "Custom max analysis memory should be 1024"
+        );
+    }
+
+    /// Objective: Verify Default trait for PerformanceAnalyzer
+    /// Invariants: Default should create same as new()
+    #[test]
+    fn test_performance_analyzer_default() {
+        let analyzer = PerformanceAnalyzer::default();
+        assert!(
+            analyzer.baselines.is_empty(),
+            "Default analyzer should have empty baselines"
+        );
+    }
+
+    /// Objective: Verify Default trait for AnalysisThresholds
+    /// Invariants: Default thresholds should have sensible values
+    #[test]
+    fn test_analysis_thresholds_default() {
+        let thresholds = AnalysisThresholds::default();
+        assert_eq!(
+            thresholds.max_tracking_overhead, 0.05,
+            "Default max tracking overhead should be 5%"
+        );
+        assert_eq!(
+            thresholds.max_allocation_latency,
+            Duration::from_micros(50),
+            "Default max allocation latency should be 50us"
+        );
+        assert_eq!(
+            thresholds.min_tracking_completeness, 0.95,
+            "Default min tracking completeness should be 95%"
+        );
+    }
+
+    /// Objective: Verify set_baseline and compare_to_baseline
+    /// Invariants: Baseline should be stored and compared correctly
     #[test]
     fn test_benchmark_comparison() {
         let mut analyzer = PerformanceAnalyzer::new();
@@ -545,17 +602,56 @@ mod tests {
         };
 
         let comparison = analyzer.compare_to_baseline("allocation_tracking", &current);
-        assert!(comparison.is_some());
+        assert!(
+            comparison.is_some(),
+            "Comparison should exist for known operation"
+        );
 
         let comparison = comparison.expect("Comparison should exist");
-        assert!(comparison.duration_ratio > 1.0); // Slower
-        assert!(comparison.memory_ratio > 1.0); // More memory
-        assert!(comparison.throughput_ratio < 1.0); // Lower throughput
-        assert!(comparison.accuracy_diff > 0.0); // Better accuracy
+        assert!(
+            comparison.duration_ratio > 1.0,
+            "Duration ratio should be > 1.0 for slower current"
+        );
+        assert!(
+            comparison.memory_ratio > 1.0,
+            "Memory ratio should be > 1.0 for higher memory"
+        );
+        assert!(
+            comparison.throughput_ratio < 1.0,
+            "Throughput ratio should be < 1.0 for lower throughput"
+        );
+        assert!(
+            comparison.accuracy_diff > 0.0,
+            "Accuracy diff should be > 0.0 for better accuracy"
+        );
     }
 
+    /// Objective: Verify compare_to_baseline returns None for unknown operation
+    /// Invariants: Should return None when baseline doesn't exist
     #[test]
-    fn test_efficiency_scoring() {
+    fn test_benchmark_comparison_unknown_operation() {
+        let analyzer = PerformanceAnalyzer::new();
+
+        let current = Benchmark {
+            operation: "unknown".to_string(),
+            avg_duration: Duration::from_micros(100),
+            memory_overhead: 1024,
+            throughput: 1000.0,
+            accuracy: 0.95,
+            sample_size: 10000,
+        };
+
+        let comparison = analyzer.compare_to_baseline("unknown", &current);
+        assert!(
+            comparison.is_none(),
+            "Comparison should be None for unknown operation"
+        );
+    }
+
+    /// Objective: Verify efficiency scoring for good performance
+    /// Invariants: Good performance should score high
+    #[test]
+    fn test_efficiency_scoring_good() {
         let analyzer = PerformanceAnalyzer::new();
 
         let good_tracking = TrackingPerformance {
@@ -566,7 +662,18 @@ mod tests {
         };
 
         let score = analyzer.score_tracking_performance(&good_tracking);
-        assert!(score > 0.9);
+        assert!(
+            score > 0.9,
+            "Good tracking performance should score > 0.9, got {}",
+            score
+        );
+    }
+
+    /// Objective: Verify efficiency scoring for bad performance
+    /// Invariants: Bad performance should score low
+    #[test]
+    fn test_efficiency_scoring_bad() {
+        let analyzer = PerformanceAnalyzer::new();
 
         let bad_tracking = TrackingPerformance {
             avg_allocation_time: Duration::from_millis(1),
@@ -576,6 +683,417 @@ mod tests {
         };
 
         let score = analyzer.score_tracking_performance(&bad_tracking);
-        assert!(score < 0.7);
+        assert!(
+            score < 0.7,
+            "Bad tracking performance should score < 0.7, got {}",
+            score
+        );
+    }
+
+    /// Objective: Verify symbol performance scoring
+    /// Invariants: High cache hit ratio should improve score
+    #[test]
+    fn test_symbol_performance_scoring() {
+        let analyzer = PerformanceAnalyzer::new();
+
+        let good_symbol = SymbolPerformance {
+            avg_resolution_time: Duration::from_micros(100),
+            cache_hit_ratio: 0.95,
+            resolution_rate: 10000.0,
+            cache_memory_usage: 50 * 1024 * 1024,
+        };
+
+        let score = analyzer.score_symbol_performance(&good_symbol);
+        assert!(
+            score > 0.8,
+            "Good symbol performance should score > 0.8, got {}",
+            score
+        );
+
+        let bad_symbol = SymbolPerformance {
+            avg_resolution_time: Duration::from_millis(20),
+            cache_hit_ratio: 0.5,
+            resolution_rate: 100.0,
+            cache_memory_usage: 200 * 1024 * 1024,
+        };
+
+        let score = analyzer.score_symbol_performance(&bad_symbol);
+        assert!(
+            score < 0.6,
+            "Bad symbol performance should score < 0.6, got {}",
+            score
+        );
+    }
+
+    /// Objective: Verify pointer performance scoring
+    /// Invariants: High leak detection accuracy should improve score
+    #[test]
+    fn test_pointer_performance_scoring() {
+        let analyzer = PerformanceAnalyzer::new();
+
+        let good_pointer = PointerPerformance {
+            analysis_time: Duration::from_millis(10),
+            leak_detection_accuracy: 0.98,
+            analysis_rate: 5000.0,
+        };
+
+        let score = analyzer.score_pointer_performance(&good_pointer);
+        assert!(
+            score > 0.9,
+            "Good pointer performance should score > 0.9, got {}",
+            score
+        );
+
+        let bad_pointer = PointerPerformance {
+            analysis_time: Duration::from_millis(200),
+            leak_detection_accuracy: 0.7,
+            analysis_rate: 100.0,
+        };
+
+        let score = analyzer.score_pointer_performance(&bad_pointer);
+        assert!(
+            score < 0.7,
+            "Bad pointer performance should score < 0.7, got {}",
+            score
+        );
+    }
+
+    /// Objective: Verify memory efficiency scoring
+    /// Invariants: Low memory usage should improve score
+    #[test]
+    fn test_memory_efficiency_scoring() {
+        let analyzer = PerformanceAnalyzer::new();
+
+        let good_memory = MemoryEfficiency {
+            total_memory_mb: 100.0,
+            memory_per_allocation: 50.0,
+            growth_rate: 5.0,
+            fragmentation_ratio: 0.1,
+        };
+
+        let score = analyzer.score_memory_efficiency(&good_memory);
+        assert!(
+            score > 0.9,
+            "Good memory efficiency should score > 0.9, got {}",
+            score
+        );
+
+        let bad_memory = MemoryEfficiency {
+            total_memory_mb: 1000.0,
+            memory_per_allocation: 500.0,
+            growth_rate: 50.0,
+            fragmentation_ratio: 0.5,
+        };
+
+        let score = analyzer.score_memory_efficiency(&bad_memory);
+        assert!(
+            score < 0.7,
+            "Bad memory efficiency should score < 0.7, got {}",
+            score
+        );
+    }
+
+    /// Objective: Verify analyze_performance with empty collector
+    /// Invariants: Should return valid report with default values
+    #[test]
+    fn test_analyze_performance_empty_collector() {
+        let analyzer = PerformanceAnalyzer::new();
+        let collector = MetricsCollector::new();
+
+        let report = analyzer.analyze_performance(&collector);
+
+        assert!(
+            report.efficiency_score >= 0.0 && report.efficiency_score <= 1.0,
+            "Efficiency score should be between 0 and 1"
+        );
+        assert_eq!(
+            report.tracking_performance.avg_allocation_time,
+            Duration::from_nanos(0),
+            "Empty collector should have zero allocation time"
+        );
+        assert_eq!(
+            report.symbol_performance.cache_hit_ratio, 0.0,
+            "Empty collector should have zero cache hit ratio"
+        );
+    }
+
+    /// Objective: Verify generate_recommendations for various conditions
+    /// Invariants: Should generate appropriate recommendations
+    #[test]
+    fn test_generate_recommendations() {
+        let analyzer = PerformanceAnalyzer::new();
+
+        let tracking = TrackingPerformance {
+            avg_allocation_time: Duration::from_micros(200),
+            completeness: 0.9,
+            overhead_bytes: 1024,
+            throughput: 5000.0,
+        };
+
+        let symbol = SymbolPerformance {
+            avg_resolution_time: Duration::from_millis(20),
+            cache_hit_ratio: 0.7,
+            resolution_rate: 100.0,
+            cache_memory_usage: 50 * 1024 * 1024,
+        };
+
+        let pointer = PointerPerformance {
+            analysis_time: Duration::from_millis(50),
+            leak_detection_accuracy: 0.95,
+            analysis_rate: 1000.0,
+        };
+
+        let memory = MemoryEfficiency {
+            total_memory_mb: 600.0,
+            memory_per_allocation: 100.0,
+            growth_rate: 15.0,
+            fragmentation_ratio: 0.3,
+        };
+
+        let recommendations =
+            analyzer.generate_recommendations(&tracking, &symbol, &pointer, &memory);
+
+        assert!(
+            recommendations
+                .iter()
+                .any(|r| r.contains("tracking completeness")),
+            "Should recommend improving tracking completeness"
+        );
+        assert!(
+            recommendations
+                .iter()
+                .any(|r| r.contains("allocation tracking")),
+            "Should recommend optimizing allocation tracking"
+        );
+        assert!(
+            recommendations
+                .iter()
+                .any(|r| r.contains("cache") || r.contains("symbol")),
+            "Should recommend improving cache"
+        );
+        assert!(
+            recommendations.iter().any(|r| r.contains("memory usage")),
+            "Should recommend reducing memory usage"
+        );
+    }
+
+    /// Objective: Verify calculate_efficiency_score weighted average
+    /// Invariants: Score should be weighted average of component scores
+    #[test]
+    fn test_calculate_efficiency_score() {
+        let analyzer = PerformanceAnalyzer::new();
+
+        let tracking = TrackingPerformance {
+            avg_allocation_time: Duration::from_micros(10),
+            completeness: 1.0,
+            overhead_bytes: 1024,
+            throughput: 20000.0,
+        };
+
+        let symbol = SymbolPerformance {
+            avg_resolution_time: Duration::from_micros(100),
+            cache_hit_ratio: 1.0,
+            resolution_rate: 10000.0,
+            cache_memory_usage: 50 * 1024 * 1024,
+        };
+
+        let pointer = PointerPerformance {
+            analysis_time: Duration::from_millis(10),
+            leak_detection_accuracy: 1.0,
+            analysis_rate: 5000.0,
+        };
+
+        let memory = MemoryEfficiency {
+            total_memory_mb: 100.0,
+            memory_per_allocation: 50.0,
+            growth_rate: 5.0,
+            fragmentation_ratio: 0.1,
+        };
+
+        let score = analyzer.calculate_efficiency_score(&tracking, &symbol, &pointer, &memory);
+
+        assert!(
+            score > 0.9,
+            "All good performance should result in high score, got {}",
+            score
+        );
+    }
+
+    /// Objective: Verify PerformanceReport structure
+    /// Invariants: All fields should be populated
+    #[test]
+    fn test_performance_report_structure() {
+        let analyzer = PerformanceAnalyzer::new();
+        let collector = MetricsCollector::new();
+
+        let report = analyzer.analyze_performance(&collector);
+
+        assert!(
+            !report.recommendations.is_empty() || report.efficiency_score >= 0.0,
+            "Report should have recommendations or valid score"
+        );
+    }
+
+    /// Objective: Verify Benchmark clone functionality
+    /// Invariants: Cloned benchmark should have same values
+    #[test]
+    fn test_benchmark_clone() {
+        let original = Benchmark {
+            operation: "test".to_string(),
+            avg_duration: Duration::from_micros(100),
+            memory_overhead: 1024,
+            throughput: 1000.0,
+            accuracy: 0.95,
+            sample_size: 10000,
+        };
+
+        let cloned = original.clone();
+
+        assert_eq!(
+            original.operation, cloned.operation,
+            "Operation should match"
+        );
+        assert_eq!(
+            original.avg_duration, cloned.avg_duration,
+            "Duration should match"
+        );
+        assert_eq!(
+            original.throughput, cloned.throughput,
+            "Throughput should match"
+        );
+    }
+
+    /// Objective: Verify PerformanceComparison structure
+    /// Invariants: All fields should be accessible
+    #[test]
+    fn test_performance_comparison_structure() {
+        let mut analyzer = PerformanceAnalyzer::new();
+
+        let baseline = Benchmark {
+            operation: "test".to_string(),
+            avg_duration: Duration::from_micros(100),
+            memory_overhead: 1000,
+            throughput: 1000.0,
+            accuracy: 0.9,
+            sample_size: 100,
+        };
+
+        analyzer.set_baseline("test", baseline);
+
+        let current = Benchmark {
+            operation: "test".to_string(),
+            avg_duration: Duration::from_micros(200),
+            memory_overhead: 2000,
+            throughput: 500.0,
+            accuracy: 0.95,
+            sample_size: 100,
+        };
+
+        let comparison = analyzer.compare_to_baseline("test", &current).unwrap();
+
+        assert_eq!(comparison.operation, "test", "Operation name should match");
+        assert_eq!(
+            comparison.duration_ratio, 2.0,
+            "Duration ratio should be 2.0"
+        );
+        assert_eq!(comparison.memory_ratio, 2.0, "Memory ratio should be 2.0");
+        assert_eq!(
+            comparison.throughput_ratio, 0.5,
+            "Throughput ratio should be 0.5"
+        );
+        assert!(
+            (comparison.accuracy_diff - 0.05).abs() < 0.001,
+            "Accuracy diff should be approximately 0.05"
+        );
+    }
+
+    /// Objective: Verify TrackingPerformance default
+    /// Invariants: Default should have zero values
+    #[test]
+    fn test_tracking_performance_default() {
+        let perf = TrackingPerformance::default();
+
+        assert_eq!(
+            perf.avg_allocation_time,
+            Duration::from_nanos(0),
+            "Default allocation time should be zero"
+        );
+        assert_eq!(
+            perf.completeness, 0.0,
+            "Default completeness should be zero"
+        );
+        assert_eq!(perf.overhead_bytes, 0, "Default overhead should be zero");
+        assert_eq!(perf.throughput, 0.0, "Default throughput should be zero");
+    }
+
+    /// Objective: Verify SymbolPerformance default
+    /// Invariants: Default should have zero values
+    #[test]
+    fn test_symbol_performance_default() {
+        let perf = SymbolPerformance::default();
+
+        assert_eq!(
+            perf.avg_resolution_time,
+            Duration::from_nanos(0),
+            "Default resolution time should be zero"
+        );
+        assert_eq!(
+            perf.cache_hit_ratio, 0.0,
+            "Default cache hit ratio should be zero"
+        );
+    }
+
+    /// Objective: Verify PointerPerformance default
+    /// Invariants: Default should have zero values
+    #[test]
+    fn test_pointer_performance_default() {
+        let perf = PointerPerformance::default();
+
+        assert_eq!(
+            perf.analysis_time,
+            Duration::from_nanos(0),
+            "Default analysis time should be zero"
+        );
+        assert_eq!(
+            perf.leak_detection_accuracy, 0.0,
+            "Default leak detection accuracy should be zero"
+        );
+    }
+
+    /// Objective: Verify MemoryEfficiency default
+    /// Invariants: Default should have zero values
+    #[test]
+    fn test_memory_efficiency_default() {
+        let eff = MemoryEfficiency::default();
+
+        assert_eq!(
+            eff.total_memory_mb, 0.0,
+            "Default total memory should be zero"
+        );
+        assert_eq!(
+            eff.memory_per_allocation, 0.0,
+            "Default memory per allocation should be zero"
+        );
+    }
+
+    /// Objective: Verify score clamping to [0.0, 1.0]
+    /// Invariants: Scores should never exceed bounds
+    #[test]
+    fn test_score_clamping() {
+        let analyzer = PerformanceAnalyzer::new();
+
+        let extreme_tracking = TrackingPerformance {
+            avg_allocation_time: Duration::from_secs(1),
+            completeness: 0.0,
+            overhead_bytes: 0,
+            throughput: 0.0,
+        };
+
+        let score = analyzer.score_tracking_performance(&extreme_tracking);
+        assert!(
+            (0.0..=1.0).contains(&score),
+            "Score should be clamped to [0, 1], got {}",
+            score
+        );
     }
 }

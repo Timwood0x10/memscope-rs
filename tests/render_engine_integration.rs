@@ -364,7 +364,9 @@ fn test_hashmap_tracking() {
     track!(t, map);
 
     let report = t.analyze();
-    assert!(report.total_allocations >= 1);
+    // HashMap is a Container type, not a HeapOwner, so it doesn't create heap allocations
+    // It is tracked as a graph node but not counted in total_allocations
+    assert_eq!(report.total_allocations, 0);
 }
 
 #[test]

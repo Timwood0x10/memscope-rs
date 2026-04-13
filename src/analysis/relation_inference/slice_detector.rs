@@ -66,8 +66,11 @@ pub fn detect_slice(
         }
 
         let target = &allocations[target_id];
-        let target_start = target.ptr;
-        let target_end = target.ptr.saturating_add(target.size);
+        let target_start = match target.ptr {
+            Some(p) => p,
+            None => continue, // Skip allocations without heap pointer
+        };
+        let target_end = target_start.saturating_add(target.size);
 
         if ptr == target_start {
             continue;
@@ -95,7 +98,8 @@ mod tests {
 
     fn make_alloc(ptr: usize, size: usize) -> crate::snapshot::types::ActiveAllocation {
         crate::snapshot::types::ActiveAllocation {
-            ptr,
+            ptr: Some(ptr),
+            kind: crate::core::types::TrackKind::HeapOwner { ptr, size },
             size,
             allocated_at: 0,
             var_name: None,

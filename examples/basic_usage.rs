@@ -2,17 +2,17 @@
 //!
 //! This example demonstrates the new unified API with:
 //! - tracker!() and track!() macros
-//! - MemorySnapshot for snapshot building
-//! - global_tracking::export_all_json for data export
+//! - Analyzer for unified analysis
+//! - Export for data visualization
 
-use memscope_rs::{global_tracker, init_global_tracking, track, MemScopeResult};
+use memscope_rs::{analyzer, global_tracker, init_global_tracking, track, MemScopeResult};
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Instant;
 
 fn main() -> MemScopeResult<()> {
-    println!("Basic Usage Example - New API");
-    println!("================================\n");
+    println!("Basic Usage Example - Unified API");
+    println!("==================================\n");
 
     let start_time = Instant::now();
     init_global_tracking()?;
@@ -35,31 +35,50 @@ fn main() -> MemScopeResult<()> {
 
     let duration = start_time.elapsed();
 
-    let stats = tracker.get_stats();
-    println!("\nMemory Analysis Results:");
-    println!("  Active allocations: {}", stats.active_allocations);
-    println!("  Total allocations: {}", stats.total_allocations);
-    println!("  Peak memory: {} bytes", stats.peak_memory_bytes);
+    // Use the unified Analyzer API
+    println!("\n=== Unified Analyzer API ===\n");
 
-    println!("\nExporting memory snapshot using new API...");
+    let mut az = analyzer(&tracker)?;
 
-    let output_path = "MemoryAnalysis/basic_usage_new_api";
+    // Full analysis
+    let report = az.analyze();
+    println!("Analysis Report:");
+    println!("  Allocations: {}", report.stats.allocation_count);
+    println!("  Total Bytes: {}", report.stats.total_bytes);
+    println!("  Peak Bytes: {}", report.stats.peak_bytes);
+    println!("  Threads: {}", report.stats.thread_count);
+    println!();
 
+    // Leak detection
+    let leaks = az.detect().leaks();
+    println!("Leak Detection:");
+    println!("  Leak Count: {}", leaks.leak_count);
+    println!("  Leaked Bytes: {}", leaks.total_leaked_bytes);
+    println!();
+
+    // Metrics
+    let metrics = az.metrics().summary();
+    println!("Metrics:");
+    println!("  Allocation Count: {}", metrics.allocation_count);
+    println!("  Total Bytes: {}", metrics.total_bytes);
+    println!("  Types: {}", metrics.by_type.len());
+    println!();
+
+    // Export
+    println!("Export:");
+    match az.export().to_json() {
+        Ok(json) => println!("  JSON length: {} bytes", json.len()),
+        Err(e) => println!("  JSON error: {}", e),
+    }
+    println!();
+
+    // Export to files
+    let output_path = "MemoryAnalysis/basic_usage_unified";
     tracker.export_json(output_path)?;
-
-    // Also export HTML dashboard
-    println!("\nExporting HTML dashboard...");
     tracker.export_html(output_path)?;
 
     println!("Export successful!");
     println!("Files saved to {}/", output_path);
-    println!("  memory_snapshots.json");
-    println!("  memory_passports.json");
-    println!("  leak_detection.json");
-    println!("  unsafe_ffi_analysis.json");
-    println!("  system_resources.json");
-    println!("  async_analysis.json");
-    println!("  dashboard.html");
 
     println!(
         "\nExample finished in {:.2}ms",

@@ -112,8 +112,8 @@ impl GlobalTracker {
         self.tracker.track_as(var, name, file, line);
 
         if let Some(task_id) = AsyncTracker::get_current_task() {
-            if let Some(ptr) = var.get_heap_ptr() {
-                let size = var.get_size_estimate();
+            let kind = var.track_kind();
+            if let crate::core::types::TrackKind::HeapOwner { ptr, size } = kind {
                 let type_name = var.get_type_name().to_string();
                 self.async_tracker.track_allocation_with_location(
                     ptr,
@@ -201,6 +201,31 @@ impl GlobalTracker {
             &self.async_tracker,
         )
         .map_err(|e| MemScopeError::error("global_tracking", "export_html", e.to_string()))?;
+        Ok(())
+    }
+
+    pub fn export_html_with_template<P: AsRef<Path>>(
+        &self,
+        path: P,
+        template: crate::render_engine::export::DashboardTemplate,
+    ) -> MemScopeResult<()> {
+        use crate::render_engine::export::export_dashboard_html_with_template;
+
+        let path = path.as_ref();
+        export_dashboard_html_with_template(
+            path,
+            &self.tracker,
+            &self.passport_tracker,
+            template,
+            Some(&self.async_tracker),
+        )
+        .map_err(|e| {
+            MemScopeError::error(
+                "global_tracking",
+                "export_html_with_template",
+                e.to_string(),
+            )
+        })?;
         Ok(())
     }
 }
@@ -306,6 +331,11 @@ pub fn global_tracker() -> MemScopeResult<Arc<GlobalTracker>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::Duration;
+
+    fn reset_global_state() {
+        reset_global_tracking();
+    }
 
     #[test]
     fn test_unified_tracker() {
@@ -314,5 +344,254 @@ mod tests {
 
         let stats = tracker.get_stats();
         assert_eq!(stats.total_allocations, 0);
+    }
+
+    #[test]
+    fn test_tracker_config_default() {
+        let config = TrackerConfig::default();
+        assert_eq!(config.max_allocations, 1_000_000);
+        assert!(config.enable_statistics);
+    }
+
+    #[test]
+    fn test_tracker_config_clone() {
+        let config = TrackerConfig {
+            max_allocations: 500,
+            enable_statistics: false,
+        };
+        let cloned = config.clone();
+        assert_eq!(cloned.max_allocations, 500);
+        assert!(!cloned.enable_statistics);
+    }
+
+    #[test]
+    fn test_tracker_config_debug() {
+        let config = TrackerConfig::default();
+        let debug_str = format!("{:?}", config);
+        assert!(debug_str.contains("TrackerConfig"));
+        assert!(debug_str.contains("max_allocations"));
+        assert!(debug_str.contains("enable_statistics"));
+    }
+
+    #[test]
+    fn test_global_tracker_config_default() {
+        let config = GlobalTrackerConfig::default();
+        assert_eq!(config.tracker.max_allocations, 1_000_000);
+        assert!(config.tracker.enable_statistics);
+    }
+
+    #[test]
+    fn test_global_tracker_config_clone() {
+        let config = GlobalTrackerConfig {
+            tracker: TrackerConfig {
+                max_allocations: 100,
+                enable_statistics: false,
+            },
+            passport: PassportTrackerConfig::default(),
+        };
+        let cloned = config.clone();
+        assert_eq!(cloned.tracker.max_allocations, 100);
+        assert!(!cloned.tracker.enable_statistics);
+    }
+
+    #[test]
+    fn test_global_tracker_config_debug() {
+        let config = GlobalTrackerConfig::default();
+        let debug_str = format!("{:?}", config);
+        assert!(debug_str.contains("GlobalTrackerConfig"));
+    }
+
+    #[test]
+    fn test_global_tracker_new() {
+        let tracker = GlobalTracker::new();
+        assert!(tracker.elapsed() < Duration::from_secs(1));
+        assert!(tracker.tracker().analyze().total_allocations == 0);
+    }
+
+    #[test]
+    fn test_global_tracker_with_config() {
+        let config = GlobalTrackerConfig {
+            tracker: TrackerConfig {
+                max_allocations: 100,
+                enable_statistics: true,
+            },
+            passport: PassportTrackerConfig::default(),
+        };
+        let tracker = GlobalTracker::with_config(config);
+        assert!(tracker.tracker().analyze().total_allocations == 0);
+    }
+
+    #[test]
+    fn test_global_tracker_default() {
+        let tracker = GlobalTracker::default();
+        assert!(tracker.tracker().analyze().total_allocations == 0);
+    }
+
+    #[test]
+    fn test_global_tracker_debug() {
+        let tracker = GlobalTracker::new();
+        let debug_str = format!("{:?}", tracker);
+        assert!(debug_str.contains("GlobalTracker"));
+        assert!(debug_str.contains("start_time"));
+    }
+
+    #[test]
+    fn test_global_tracker_elapsed() {
+        let tracker = GlobalTracker::new();
+        std::thread::sleep(Duration::from_millis(10));
+        let elapsed = tracker.elapsed();
+        assert!(elapsed >= Duration::from_millis(10));
+    }
+
+    #[test]
+    fn test_global_tracker_tracker_accessor() {
+        let tracker = GlobalTracker::new();
+        let inner_tracker = tracker.tracker();
+        assert!(inner_tracker.analyze().total_allocations == 0);
+    }
+
+    #[test]
+    fn test_global_tracker_passport_tracker_accessor() {
+        let tracker = GlobalTracker::new();
+        let passport = tracker.passport_tracker();
+        let stats = passport.get_stats();
+        assert_eq!(stats.total_passports_created, 0);
+    }
+
+    #[test]
+    fn test_global_tracker_async_tracker_accessor() {
+        let tracker = GlobalTracker::new();
+        let async_tracker = tracker.async_tracker();
+        let stats = async_tracker.get_stats();
+        assert_eq!(stats.total_tasks, 0);
+    }
+
+    #[test]
+    fn test_global_tracker_analyze() {
+        let tracker = GlobalTracker::new();
+        let report = tracker.analyze();
+        assert_eq!(report.total_allocations, 0);
+        assert_eq!(report.active_allocations, 0);
+    }
+
+    #[test]
+    fn test_global_tracker_stats() {
+        let tracker = GlobalTracker::new();
+        let stats = tracker.get_stats();
+        assert_eq!(stats.total_allocations, 0);
+        assert_eq!(stats.active_allocations, 0);
+        assert_eq!(stats.peak_memory_bytes, 0);
+        assert_eq!(stats.current_memory_bytes, 0);
+        assert_eq!(stats.passport_count, 0);
+        assert_eq!(stats.active_passports, 0);
+        assert_eq!(stats.leaks_detected, 0);
+        assert_eq!(stats.async_task_count, 0);
+        assert_eq!(stats.active_async_tasks, 0);
+        assert!(stats.uptime < Duration::from_secs(1));
+    }
+
+    #[test]
+    fn test_global_tracker_stats_debug() {
+        let tracker = GlobalTracker::new();
+        let stats = tracker.get_stats();
+        let debug_str = format!("{:?}", stats);
+        assert!(debug_str.contains("GlobalTrackerStats"));
+        assert!(debug_str.contains("total_allocations"));
+    }
+
+    #[test]
+    fn test_global_tracker_stats_clone() {
+        let tracker = GlobalTracker::new();
+        let stats = tracker.get_stats();
+        let cloned = stats.clone();
+        assert_eq!(cloned.total_allocations, stats.total_allocations);
+        assert_eq!(cloned.active_allocations, stats.active_allocations);
+    }
+
+    #[test]
+    fn test_init_global_tracking_double_init() {
+        reset_global_state();
+        let result1 = init_global_tracking();
+        assert!(result1.is_ok(), "First init should succeed");
+        let result2 = init_global_tracking();
+        assert!(result2.is_err(), "Second init should fail");
+        reset_global_state();
+    }
+
+    #[test]
+    fn test_init_global_tracking_with_config_double_init() {
+        reset_global_state();
+        let config = GlobalTrackerConfig::default();
+        let result1 = init_global_tracking_with_config(config);
+        assert!(result1.is_ok(), "First init should succeed");
+        let config2 = GlobalTrackerConfig::default();
+        let result2 = init_global_tracking_with_config(config2);
+        assert!(result2.is_err(), "Second init should fail");
+        reset_global_state();
+    }
+
+    #[test]
+    fn test_global_tracker_accessor_not_initialized() {
+        reset_global_state();
+        let result = global_tracker();
+        assert!(result.is_err(), "Should fail when not initialized");
+        reset_global_state();
+    }
+
+    #[test]
+    fn test_reset_global_tracking() {
+        reset_global_state();
+        init_global_tracking().unwrap();
+        assert!(is_initialized());
+        reset_global_tracking();
+        assert!(!is_initialized());
+    }
+
+    #[test]
+    fn test_global_tracker_create_passport() {
+        let tracker = GlobalTracker::new();
+        let result = tracker.create_passport(0x1000, 64, "test_context".to_string());
+        assert!(result.is_ok());
+        let passport_id = result.unwrap();
+        assert!(!passport_id.is_empty());
+    }
+
+    #[test]
+    fn test_global_tracker_detect_leaks() {
+        let tracker = GlobalTracker::new();
+        let result = tracker.detect_leaks();
+        assert_eq!(result.total_leaks, 0);
+    }
+
+    #[test]
+    fn test_global_tracker_record_handover() {
+        let tracker = GlobalTracker::new();
+        tracker
+            .create_passport(0x2000, 128, "test".to_string())
+            .unwrap();
+        tracker.record_handover(0x2000, "context".to_string(), "function".to_string());
+    }
+
+    #[test]
+    fn test_global_tracker_record_free() {
+        let tracker = GlobalTracker::new();
+        tracker
+            .create_passport(0x3000, 256, "test".to_string())
+            .unwrap();
+        tracker.record_free(0x3000, "context".to_string(), "function".to_string());
+    }
+
+    #[test]
+    fn test_global_tracker_track_simple() {
+        let tracker = GlobalTracker::new();
+        let value = String::from("test");
+        tracker.track(&value);
+    }
+
+    #[test]
+    fn test_global_tracker_track_as() {
+        let tracker = GlobalTracker::new();
+        let value = String::from("test_value");
+        tracker.track_as(&value, "test_var", "test.rs", 10);
     }
 }

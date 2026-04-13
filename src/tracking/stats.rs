@@ -1,5 +1,6 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
+use tracing::warn;
 
 /// Memory tracking statistics
 ///
@@ -109,8 +110,8 @@ impl TrackingStats {
 
                 if should_warn {
                     let stats = self.get_detailed_stats();
-                    eprintln!(
-                        "WARNING: Memory tracking completeness: {:.1}% ({}/{} successful, {} missed due to contention)",
+                    warn!(
+                        "Memory tracking completeness: {:.1}% ({}/{} successful, {} missed due to contention)",
                         completeness * 100.0,
                         stats.successful_tracks,
                         stats.total_attempts,

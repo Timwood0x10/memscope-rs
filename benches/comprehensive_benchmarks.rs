@@ -1,6 +1,9 @@
 //! Comprehensive benchmarks for memscope-rs
 //!
 //! Run with: cargo bench
+//!
+//! Quick mode (fast, ~5 minutes): QUICK_BENCH=1 cargo bench
+//! Full mode (comprehensive, ~40 minutes): cargo bench
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use memscope_rs::capture::backends::{
@@ -17,6 +20,28 @@ use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
+
+fn is_quick_mode() -> bool {
+    std::env::var("QUICK_BENCH")
+        .map(|v| v == "1" || v == "true")
+        .unwrap_or(false)
+}
+
+fn configure_criterion() -> Criterion {
+    let criterion = Criterion::default();
+
+    if is_quick_mode() {
+        criterion
+            .sample_size(10)
+            .warm_up_time(Duration::from_millis(100))
+            .measurement_time(Duration::from_millis(500))
+    } else {
+        criterion
+            .sample_size(100)
+            .warm_up_time(Duration::from_secs(3))
+            .measurement_time(Duration::from_secs(5))
+    }
+}
 
 // ============================================================================
 // Tracker Benchmarks
@@ -47,6 +72,277 @@ fn benchmark_track_single(c: &mut Criterion) {
     }
 
     group.finish();
+}
+
+// ============================================================================
+// Memory Allocator Comparison Benchmarks
+// ============================================================================
+
+fn benchmark_allocator_comparison(c: &mut Criterion) {
+    let mut group = c.benchmark_group("allocator_comparison");
+
+    group.bench_function("system_allocator_baseline", |b| {
+        b.iter(|| {
+            for _ in 0..1000 {
+                let data = vec![0u8; 1024];
+                black_box(data);
+            }
+        });
+    });
+
+    group.bench_function("tracking_overhead", |b| {
+        let t = tracker!();
+        b.iter(|| {
+            for i in 0..1000 {
+                let data = vec![i as u8; 1024];
+                track!(t, data);
+            }
+        });
+    });
+
+    group.bench_function("memory_fragmentation_pattern", |b| {
+        b.iter(|| {
+            let mut allocations = Vec::new();
+            for i in 0..100 {
+                let size = match i % 5 {
+                    0 => 16,
+                    1 => 64,
+                    2 => 256,
+                    3 => 1024,
+                    _ => 4096,
+                };
+                allocations.push(vec![i as u8; size]);
+            }
+            drop(allocations);
+        });
+    });
+
+    group.finish();
+}
+
+// ============================================================================
+// Long-Running Stability Benchmarks
+// ============================================================================
+
+fn benchmark_long_running_stability(c: &mut Criterion) {
+    let mut group = c.benchmark_group("long_running_stability");
+
+    group.bench_function("sustained_load_10k_iterations", |b| {
+        let t = tracker!();
+        b.iter(|| {
+            for i in 0..10000 {
+                let data = vec![i as u8; 128];
+                track!(t, data);
+                if i % 1000 == 0 {
+                    let _ = t.stats();
+                }
+            }
+        });
+    });
+
+    group.bench_function("memory_leak_detection_pattern", |b| {
+        let t = tracker!();
+        let mut keep_alive = Vec::new();
+
+        b.iter(|| {
+            for i in 0..100 {
+                let data = vec![i as u8; 256];
+                track!(t, data);
+                if i % 10 == 0 {
+                    keep_alive.push(data);
+                }
+            }
+
+            if keep_alive.len() > 1000 {
+                keep_alive.clear();
+            }
+        });
+
+        std::mem::forget(keep_alive);
+    });
+
+    group.bench_function("periodic_analysis_overhead", |b| {
+        let t = tracker!();
+        let mut iteration = 0u64;
+
+        b.iter(|| {
+            for i in 0..100 {
+                let data = vec![i as u8; 64];
+                track!(t, data);
+            }
+
+            iteration += 1;
+            if iteration.is_multiple_of(10) {
+                let _ = t.analyze();
+            }
+        });
+    });
+
+    group.finish();
+}
+
+// ============================================================================
+// Edge Cases and Error Handling Benchmarks
+// ============================================================================
+
+fn benchmark_edge_cases(c: &mut Criterion) {
+    let mut group = c.benchmark_group("edge_cases");
+
+    group.bench_function("zero_size_allocation", |b| {
+        let t = tracker!();
+        b.iter(|| {
+            for _ in 0..1000 {
+                let data: Vec<u8> = Vec::new();
+                track!(t, data);
+            }
+        });
+    });
+
+    group.bench_function("very_large_allocation", |b| {
+        let t = tracker!();
+        b.iter(|| {
+            let data = vec![0u8; 10 * 1024 * 1024]; // 10MB
+            track!(t, data);
+        });
+    });
+
+    group.bench_function("rapid_allocation_deallocation", |b| {
+        let t = tracker!();
+        b.iter(|| {
+            for _ in 0..1000 {
+                let data1 = vec![0u8; 1024];
+                track!(t, data1);
+                let data2 = vec![1u8; 2048];
+                track!(t, data2);
+                drop(data1);
+                drop(data2);
+            }
+        });
+    });
+
+    group.bench_function("extreme_thread_contention", |b| {
+        let t = Arc::new(tracker!());
+
+        b.iter(|| {
+            let mut handles = vec![];
+
+            for _ in 0..16 {
+                let t_clone = Arc::clone(&t);
+                let handle = thread::spawn(move || {
+                    for i in 0..100 {
+                        let data = vec![i as u8; 64];
+                        track!(t_clone, data);
+                    }
+                });
+                handles.push(handle);
+            }
+
+            for handle in handles {
+                handle.join().unwrap();
+            }
+        });
+    });
+
+    group.bench_function("nested_tracking_scenarios", |b| {
+        let t = tracker!();
+
+        b.iter(|| {
+            for i in 0..100 {
+                let outer = vec![i as u8; 256];
+                track!(t, outer);
+
+                {
+                    let inner = vec![(i + 1) as u8; 128];
+                    track!(t, inner);
+                }
+            }
+        });
+    });
+
+    group.finish();
+}
+
+// ============================================================================
+// Performance Regression Detection Benchmarks
+// ============================================================================
+
+fn benchmark_regression_detection(c: &mut Criterion) {
+    let mut group = c.benchmark_group("regression_detection");
+
+    group.bench_function("baseline_tracker_overhead", |b| {
+        b.iter(|| {
+            let t = tracker!();
+            for i in 0..100 {
+                let data = vec![i as u8; 64];
+                track!(t, data);
+            }
+        });
+    });
+
+    group.bench_function("baseline_analyze_performance", |b| {
+        let t = tracker!();
+        for i in 0..1000 {
+            let data = vec![i as u8; 64];
+            track!(t, data);
+        }
+
+        b.iter(|| {
+            let _ = t.analyze();
+        });
+    });
+
+    group.bench_function("baseline_concurrent_performance", |b| {
+        let t = Arc::new(tracker!());
+
+        b.iter(|| {
+            let mut handles = vec![];
+
+            for _ in 0..4 {
+                let t_clone = Arc::clone(&t);
+                let handle = thread::spawn(move || {
+                    for i in 0..100 {
+                        let data = vec![i as u8; 64];
+                        track!(t_clone, data);
+                    }
+                });
+                handles.push(handle);
+            }
+
+            for handle in handles {
+                handle.join().unwrap();
+            }
+        });
+    });
+
+    group.finish();
+}
+
+// ============================================================================
+// Additional Criterion Groups
+// ============================================================================
+
+criterion_group! {
+    name = allocator_benches;
+    config = configure_criterion();
+    targets = benchmark_allocator_comparison,
+}
+
+criterion_group! {
+    name = stability_benches;
+    config = configure_criterion();
+    targets = benchmark_long_running_stability,
+}
+
+criterion_group! {
+    name = edge_case_benches;
+    config = configure_criterion();
+    targets = benchmark_edge_cases,
+}
+
+criterion_group! {
+    name = regression_benches;
+    config = configure_criterion();
+    targets = benchmark_regression_detection,
 }
 
 fn benchmark_track_multiple(c: &mut Criterion) {
@@ -1017,54 +1313,88 @@ fn benchmark_stress_tests(c: &mut Criterion) {
 // Criterion Groups
 // ============================================================================
 
-criterion_group!(
-    tracker_benches,
-    benchmark_tracker_creation,
-    benchmark_track_single,
-    benchmark_track_multiple,
-    benchmark_tracker_analyze,
-    benchmark_tracker_stats,
-    benchmark_tracker_clone,
-);
-criterion_group!(
-    backend_benches,
-    benchmark_backend_alloc,
-    benchmark_backend_dealloc,
-    benchmark_backend_realloc,
-    benchmark_backend_move,
-);
+criterion_group! {
+    name = tracker_benches;
+    config = configure_criterion();
+    targets =
+        benchmark_tracker_creation,
+        benchmark_track_single,
+        benchmark_track_multiple,
+        benchmark_tracker_analyze,
+        benchmark_tracker_stats,
+        benchmark_tracker_clone,
+}
+criterion_group! {
+    name = backend_benches;
+    config = configure_criterion();
+    targets =
+        benchmark_backend_alloc,
+        benchmark_backend_dealloc,
+        benchmark_backend_realloc,
+        benchmark_backend_move,
+}
 
-criterion_group!(
-    classification_benches,
-    benchmark_type_classification,
-    benchmark_type_classification_cached,
-);
+criterion_group! {
+    name = classification_benches;
+    config = configure_criterion();
+    targets =
+        benchmark_type_classification,
+        benchmark_type_classification_cached,
+}
 
-criterion_group!(
-    concurrent_benches,
-    benchmark_concurrent_tracking,
-    benchmark_parallel_track,
-    benchmark_shared_tracker_concurrent,
-    benchmark_50_variables_concurrent,
-);
+criterion_group! {
+    name = concurrent_benches;
+    config = configure_criterion();
+    targets =
+        benchmark_concurrent_tracking,
+        benchmark_parallel_track,
+        benchmark_shared_tracker_concurrent,
+        benchmark_50_variables_concurrent,
+}
 
-criterion_group!(pressure_benches, benchmark_memory_pressure,);
+criterion_group! {
+    name = pressure_benches;
+    config = configure_criterion();
+    targets = benchmark_memory_pressure,
+}
 
-criterion_group!(scenario_benches, benchmark_realistic_scenarios,);
+criterion_group! {
+    name = scenario_benches;
+    config = configure_criterion();
+    targets = benchmark_realistic_scenarios,
+}
 
-criterion_group!(pattern_benches, benchmark_allocation_patterns,);
+criterion_group! {
+    name = pattern_benches;
+    config = configure_criterion();
+    targets = benchmark_allocation_patterns,
+}
 
-criterion_group!(analysis_benches, benchmark_analysis_operations,);
+criterion_group! {
+    name = analysis_benches;
+    config = configure_criterion();
+    targets = benchmark_analysis_operations,
+}
 
-criterion_group!(stats_benches, benchmark_tracking_stats,);
+criterion_group! {
+    name = stats_benches;
+    config = configure_criterion();
+    targets = benchmark_tracking_stats,
+}
 
-criterion_group!(
-    io_benches,
-    benchmark_io_operations,
-    benchmark_mixed_operations,
-);
+criterion_group! {
+    name = io_benches;
+    config = configure_criterion();
+    targets =
+        benchmark_io_operations,
+        benchmark_mixed_operations,
+}
 
-criterion_group!(stress_benches, benchmark_stress_tests,);
+criterion_group! {
+    name = stress_benches;
+    config = configure_criterion();
+    targets = benchmark_stress_tests,
+}
 
 criterion_main!(
     tracker_benches,
@@ -1078,4 +1408,8 @@ criterion_main!(
     stats_benches,
     io_benches,
     stress_benches,
+    allocator_benches,
+    stability_benches,
+    edge_case_benches,
+    regression_benches,
 );

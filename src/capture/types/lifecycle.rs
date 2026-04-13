@@ -418,6 +418,8 @@ impl From<crate::core::types::ObjectLifecycleInfo> for ObjectLifecycleInfo {
 mod tests {
     use super::*;
 
+    /// Objective: Verify ObjectLifecycleInfo creation with all fields
+    /// Invariants: All fields should be properly initialized
     #[test]
     fn test_object_lifecycle_info() {
         let info = ObjectLifecycleInfo {
@@ -436,20 +438,499 @@ mod tests {
             lifecycle_patterns: vec![],
         };
 
-        assert_eq!(info.object_id, 1);
-        assert_eq!(info.type_name, "String");
+        assert_eq!(info.object_id, 1, "Object ID should match");
+        assert_eq!(info.type_name, "String", "Type name should match");
+        assert_eq!(
+            info.total_lifetime_ns,
+            Some(1000000),
+            "Total lifetime should match"
+        );
     }
 
+    /// Objective: Verify LifecycleEventType variants
+    /// Invariants: All variants should have debug representation
     #[test]
     fn test_lifecycle_event_type() {
         let events = vec![
             LifecycleEventType::Creation,
+            LifecycleEventType::Initialization,
             LifecycleEventType::FirstUse,
+            LifecycleEventType::Move,
+            LifecycleEventType::Copy,
+            LifecycleEventType::Clone,
+            LifecycleEventType::Borrow,
+            LifecycleEventType::MutableBorrow,
+            LifecycleEventType::BorrowRelease,
+            LifecycleEventType::Modification,
+            LifecycleEventType::LastUse,
             LifecycleEventType::Drop,
+            LifecycleEventType::Destruction,
+            LifecycleEventType::MemoryReclaim,
         ];
 
         for event in events {
-            assert!(!format!("{event:?}").is_empty());
+            let debug_str = format!("{event:?}");
+            assert!(
+                !debug_str.is_empty(),
+                "LifecycleEventType should have debug representation"
+            );
         }
+    }
+
+    /// Objective: Verify LifecycleEvent creation
+    /// Invariants: All fields should be accessible
+    #[test]
+    fn test_lifecycle_event() {
+        let event = LifecycleEvent {
+            event_type: LifecycleEventType::Creation,
+            timestamp: 1000,
+            location: SourceLocation {
+                file: "test.rs".to_string(),
+                line: 10,
+                column: 5,
+            },
+            memory_state: MemoryState {
+                memory_location: MemoryLocationType::Heap,
+                memory_address: 0x1000,
+                object_size: 64,
+                reference_count: Some(1),
+                borrow_state: BorrowState::NotBorrowed,
+            },
+            performance_metrics: EventPerformanceMetrics {
+                cpu_cycles: 1000,
+                memory_bandwidth_bytes: 64,
+                cache_misses: 2,
+                processing_time_ns: 500,
+            },
+            call_stack: vec!["main".to_string(), "test".to_string()],
+        };
+
+        assert_eq!(
+            event.event_type,
+            LifecycleEventType::Creation,
+            "Event type should be Creation"
+        );
+        assert_eq!(event.timestamp, 1000, "Timestamp should match");
+        assert_eq!(event.call_stack.len(), 2, "Call stack should have 2 frames");
+    }
+
+    /// Objective: Verify MemoryState creation
+    /// Invariants: All fields should be accessible
+    #[test]
+    fn test_memory_state() {
+        let state = MemoryState {
+            memory_location: MemoryLocationType::Stack,
+            memory_address: 0x7fff0000,
+            object_size: 32,
+            reference_count: None,
+            borrow_state: BorrowState::SharedBorrow { count: 3 },
+        };
+
+        assert_eq!(
+            state.memory_location,
+            MemoryLocationType::Stack,
+            "Memory location should be Stack"
+        );
+        assert_eq!(
+            state.borrow_state,
+            BorrowState::SharedBorrow { count: 3 },
+            "Borrow state should be SharedBorrow with count 3"
+        );
+    }
+
+    /// Objective: Verify BorrowState variants
+    /// Invariants: All variants should be distinct
+    #[test]
+    fn test_borrow_state_variants() {
+        let states = vec![
+            BorrowState::NotBorrowed,
+            BorrowState::SharedBorrow { count: 1 },
+            BorrowState::MutableBorrow,
+            BorrowState::MovedOut,
+        ];
+
+        for state in &states {
+            let debug_str = format!("{state:?}");
+            assert!(
+                !debug_str.is_empty(),
+                "BorrowState should have debug representation"
+            );
+        }
+
+        assert_eq!(BorrowState::NotBorrowed, BorrowState::NotBorrowed);
+        assert_ne!(BorrowState::NotBorrowed, BorrowState::MutableBorrow);
+    }
+
+    /// Objective: Verify MemoryLocationType variants
+    /// Invariants: All variants should be distinct
+    #[test]
+    fn test_memory_location_type_variants() {
+        let locations = vec![
+            MemoryLocationType::Stack,
+            MemoryLocationType::Heap,
+            MemoryLocationType::Register,
+            MemoryLocationType::Static,
+            MemoryLocationType::ThreadLocal,
+        ];
+
+        for location in &locations {
+            let debug_str = format!("{location:?}");
+            assert!(
+                !debug_str.is_empty(),
+                "MemoryLocationType should have debug representation"
+            );
+        }
+    }
+
+    /// Objective: Verify EventPerformanceMetrics creation
+    /// Invariants: All fields should be accessible
+    #[test]
+    fn test_event_performance_metrics() {
+        let metrics = EventPerformanceMetrics {
+            cpu_cycles: 5000,
+            memory_bandwidth_bytes: 1024,
+            cache_misses: 10,
+            processing_time_ns: 2000,
+        };
+
+        assert_eq!(metrics.cpu_cycles, 5000, "CPU cycles should match");
+        assert_eq!(
+            metrics.memory_bandwidth_bytes, 1024,
+            "Memory bandwidth should match"
+        );
+        assert_eq!(metrics.cache_misses, 10, "Cache misses should match");
+    }
+
+    /// Objective: Verify LifecycleStageDurations creation
+    /// Invariants: All fields should be accessible
+    #[test]
+    fn test_lifecycle_stage_durations() {
+        let durations = LifecycleStageDurations {
+            creation_to_first_use_ns: Some(100),
+            active_use_duration_ns: Some(1000),
+            last_use_to_destruction_ns: Some(50),
+            borrowed_duration_ns: 200,
+            idle_duration_ns: 100,
+        };
+
+        assert_eq!(
+            durations.creation_to_first_use_ns,
+            Some(100),
+            "Creation to first use should match"
+        );
+        assert_eq!(
+            durations.active_use_duration_ns,
+            Some(1000),
+            "Active use duration should match"
+        );
+    }
+
+    /// Objective: Verify LifecycleEfficiencyMetrics default
+    /// Invariants: Default should have zero values
+    #[test]
+    fn test_lifecycle_efficiency_metrics_default() {
+        let metrics = LifecycleEfficiencyMetrics::default();
+
+        assert_eq!(
+            metrics.utilization_ratio, 0.0,
+            "Utilization ratio should be 0"
+        );
+        assert_eq!(
+            metrics.memory_efficiency, 0.0,
+            "Memory efficiency should be 0"
+        );
+        assert_eq!(
+            metrics.performance_efficiency, 0.0,
+            "Performance efficiency should be 0"
+        );
+        assert_eq!(
+            metrics.resource_waste.wasted_memory_percent, 0.0,
+            "Wasted memory should be 0"
+        );
+    }
+
+    /// Objective: Verify LifecycleEfficiencyMetrics with values
+    /// Invariants: Should handle populated metrics
+    #[test]
+    fn test_lifecycle_efficiency_metrics_with_values() {
+        let metrics = LifecycleEfficiencyMetrics {
+            utilization_ratio: 0.85,
+            memory_efficiency: 0.9,
+            performance_efficiency: 0.95,
+            resource_waste: ResourceWasteAssessment {
+                wasted_memory_percent: 5.0,
+                wasted_cpu_percent: 3.0,
+                premature_destructions: 2,
+                unused_instances: 5,
+                optimization_opportunities: vec!["Use pool".to_string()],
+            },
+        };
+
+        assert_eq!(
+            metrics.utilization_ratio, 0.85,
+            "Utilization ratio should match"
+        );
+        assert_eq!(
+            metrics.resource_waste.premature_destructions, 2,
+            "Premature destructions should match"
+        );
+        assert_eq!(
+            metrics.resource_waste.optimization_opportunities.len(),
+            1,
+            "Should have one optimization opportunity"
+        );
+    }
+
+    /// Objective: Verify ResourceWasteAssessment creation
+    /// Invariants: All fields should be accessible
+    #[test]
+    fn test_resource_waste_assessment() {
+        let assessment = ResourceWasteAssessment {
+            wasted_memory_percent: 10.0,
+            wasted_cpu_percent: 5.0,
+            premature_destructions: 3,
+            unused_instances: 10,
+            optimization_opportunities: vec!["Optimize A".to_string(), "Optimize B".to_string()],
+        };
+
+        assert_eq!(
+            assessment.wasted_memory_percent, 10.0,
+            "Wasted memory percent should match"
+        );
+        assert_eq!(
+            assessment.unused_instances, 10,
+            "Unused instances should match"
+        );
+    }
+
+    /// Objective: Verify LifecyclePattern creation
+    /// Invariants: All fields should be accessible
+    #[test]
+    fn test_lifecycle_pattern() {
+        let pattern = LifecyclePattern {
+            pattern_type: LifecyclePatternType::ShortLived,
+            frequency: 100,
+            efficiency_score: 0.8,
+            performance_impact: 0.2,
+            optimization_suggestions: vec!["Consider pooling".to_string()],
+        };
+
+        assert_eq!(
+            pattern.pattern_type,
+            LifecyclePatternType::ShortLived,
+            "Pattern type should match"
+        );
+        assert_eq!(pattern.frequency, 100, "Frequency should match");
+    }
+
+    /// Objective: Verify LifecyclePatternType variants
+    /// Invariants: All variants should be distinct
+    #[test]
+    fn test_lifecycle_pattern_type_variants() {
+        let patterns = vec![
+            LifecyclePatternType::ShortLived,
+            LifecyclePatternType::LongLived,
+            LifecyclePatternType::Cyclical,
+            LifecyclePatternType::OnDemand,
+            LifecyclePatternType::Cached,
+            LifecyclePatternType::Pooled,
+            LifecyclePatternType::Singleton,
+            LifecyclePatternType::Factory,
+            LifecyclePatternType::RAII,
+        ];
+
+        for pattern in &patterns {
+            let debug_str = format!("{pattern:?}");
+            assert!(
+                !debug_str.is_empty(),
+                "LifecyclePatternType should have debug representation"
+            );
+        }
+    }
+
+    /// Objective: Verify SimpleLifecyclePattern variants
+    /// Invariants: All variants should be distinct
+    #[test]
+    fn test_simple_lifecycle_pattern_variants() {
+        let patterns = vec![
+            SimpleLifecyclePattern::Instant,
+            SimpleLifecyclePattern::ShortLived,
+            SimpleLifecyclePattern::MediumLived,
+            SimpleLifecyclePattern::LongLived,
+            SimpleLifecyclePattern::Persistent,
+        ];
+
+        for pattern in &patterns {
+            let debug_str = format!("{pattern:?}");
+            assert!(
+                !debug_str.is_empty(),
+                "SimpleLifecyclePattern should have debug representation"
+            );
+        }
+    }
+
+    /// Objective: Verify serialization of LifecycleEventType
+    /// Invariants: Should serialize and deserialize correctly
+    #[test]
+    fn test_lifecycle_event_type_serialization() {
+        let event_type = LifecycleEventType::Clone;
+        let json = serde_json::to_string(&event_type);
+        assert!(json.is_ok(), "Should serialize to JSON");
+
+        let deserialized: Result<LifecycleEventType, _> = serde_json::from_str(&json.unwrap());
+        assert!(deserialized.is_ok(), "Should deserialize from JSON");
+        assert_eq!(
+            deserialized.unwrap(),
+            LifecycleEventType::Clone,
+            "Should preserve value"
+        );
+    }
+
+    /// Objective: Verify serialization of BorrowState
+    /// Invariants: Should serialize and deserialize correctly
+    #[test]
+    fn test_borrow_state_serialization() {
+        let state = BorrowState::SharedBorrow { count: 5 };
+        let json = serde_json::to_string(&state);
+        assert!(json.is_ok(), "Should serialize to JSON");
+
+        let deserialized: Result<BorrowState, _> = serde_json::from_str(&json.unwrap());
+        assert!(deserialized.is_ok(), "Should deserialize from JSON");
+        assert_eq!(
+            deserialized.unwrap(),
+            BorrowState::SharedBorrow { count: 5 },
+            "Should preserve value"
+        );
+    }
+
+    /// Objective: Verify serialization of MemoryLocationType
+    /// Invariants: Should serialize and deserialize correctly
+    #[test]
+    fn test_memory_location_type_serialization() {
+        let location = MemoryLocationType::Heap;
+        let json = serde_json::to_string(&location);
+        assert!(json.is_ok(), "Should serialize to JSON");
+
+        let deserialized: Result<MemoryLocationType, _> = serde_json::from_str(&json.unwrap());
+        assert!(deserialized.is_ok(), "Should deserialize from JSON");
+        assert_eq!(
+            deserialized.unwrap(),
+            MemoryLocationType::Heap,
+            "Should preserve value"
+        );
+    }
+
+    /// Objective: Verify ObjectLifecycleInfo with events
+    /// Invariants: Should handle multiple lifecycle events
+    #[test]
+    fn test_object_lifecycle_info_with_events() {
+        let events = vec![
+            LifecycleEvent {
+                event_type: LifecycleEventType::Creation,
+                timestamp: 0,
+                location: SourceLocation {
+                    file: "test.rs".to_string(),
+                    line: 1,
+                    column: 1,
+                },
+                memory_state: MemoryState {
+                    memory_location: MemoryLocationType::Heap,
+                    memory_address: 0x1000,
+                    object_size: 64,
+                    reference_count: None,
+                    borrow_state: BorrowState::NotBorrowed,
+                },
+                performance_metrics: EventPerformanceMetrics {
+                    cpu_cycles: 100,
+                    memory_bandwidth_bytes: 64,
+                    cache_misses: 0,
+                    processing_time_ns: 50,
+                },
+                call_stack: vec![],
+            },
+            LifecycleEvent {
+                event_type: LifecycleEventType::Drop,
+                timestamp: 1000000,
+                location: SourceLocation {
+                    file: "test.rs".to_string(),
+                    line: 10,
+                    column: 1,
+                },
+                memory_state: MemoryState {
+                    memory_location: MemoryLocationType::Heap,
+                    memory_address: 0x1000,
+                    object_size: 64,
+                    reference_count: None,
+                    borrow_state: BorrowState::NotBorrowed,
+                },
+                performance_metrics: EventPerformanceMetrics {
+                    cpu_cycles: 50,
+                    memory_bandwidth_bytes: 0,
+                    cache_misses: 0,
+                    processing_time_ns: 25,
+                },
+                call_stack: vec![],
+            },
+        ];
+
+        let info = ObjectLifecycleInfo {
+            object_id: 1,
+            type_name: "String".to_string(),
+            lifecycle_events: events,
+            total_lifetime_ns: Some(1000000),
+            stage_durations: LifecycleStageDurations {
+                creation_to_first_use_ns: None,
+                active_use_duration_ns: None,
+                last_use_to_destruction_ns: None,
+                borrowed_duration_ns: 0,
+                idle_duration_ns: 0,
+            },
+            efficiency_metrics: LifecycleEfficiencyMetrics::default(),
+            lifecycle_patterns: vec![],
+        };
+
+        assert_eq!(info.lifecycle_events.len(), 2, "Should have 2 events");
+        assert_eq!(
+            info.lifecycle_events[0].event_type,
+            LifecycleEventType::Creation,
+            "First event should be Creation"
+        );
+        assert_eq!(
+            info.lifecycle_events[1].event_type,
+            LifecycleEventType::Drop,
+            "Second event should be Drop"
+        );
+    }
+
+    /// Objective: Verify Clone implementation for ObjectLifecycleInfo
+    /// Invariants: Cloned object should have same values
+    #[test]
+    fn test_object_lifecycle_info_clone() {
+        let original = ObjectLifecycleInfo {
+            object_id: 42,
+            type_name: "Vec<u8>".to_string(),
+            lifecycle_events: vec![],
+            total_lifetime_ns: Some(5000),
+            stage_durations: LifecycleStageDurations {
+                creation_to_first_use_ns: Some(100),
+                active_use_duration_ns: Some(4000),
+                last_use_to_destruction_ns: Some(900),
+                borrowed_duration_ns: 500,
+                idle_duration_ns: 200,
+            },
+            efficiency_metrics: LifecycleEfficiencyMetrics::default(),
+            lifecycle_patterns: vec![],
+        };
+
+        let cloned = original.clone();
+
+        assert_eq!(
+            original.object_id, cloned.object_id,
+            "Object ID should match"
+        );
+        assert_eq!(
+            original.type_name, cloned.type_name,
+            "Type name should match"
+        );
     }
 }

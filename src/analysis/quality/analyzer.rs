@@ -908,4 +908,727 @@ mod tests {
         assert!(QualityGrade::B > QualityGrade::C);
         assert!(QualityGrade::F < QualityGrade::D);
     }
+
+    #[test]
+    fn test_code_analyzer_default() {
+        let analyzer = CodeAnalyzer::default();
+        assert_eq!(analyzer.config.analysis_depth, AnalysisDepth::Standard);
+    }
+
+    #[test]
+    fn test_code_analyzer_with_config() {
+        let config = AnalyzerConfig {
+            analysis_depth: AnalysisDepth::Deep,
+            track_trends: false,
+            max_analysis_time: Duration::from_secs(60),
+            thresholds: QualityThresholds::default(),
+        };
+        let analyzer = CodeAnalyzer::with_config(config.clone());
+        assert_eq!(analyzer.config.analysis_depth, AnalysisDepth::Deep);
+        assert!(!analyzer.config.track_trends);
+    }
+
+    #[test]
+    fn test_analyzer_config_default() {
+        let config = AnalyzerConfig::default();
+        assert_eq!(config.analysis_depth, AnalysisDepth::Standard);
+        assert!(config.track_trends);
+        assert_eq!(config.max_analysis_time, Duration::from_secs(30));
+    }
+
+    #[test]
+    fn test_quality_thresholds_default() {
+        let thresholds = QualityThresholds::default();
+        assert!((thresholds.min_quality_score - 0.8).abs() < f64::EPSILON);
+        assert_eq!(thresholds.max_complexity, 10);
+        assert!((thresholds.min_coverage - 0.8).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_analysis_depth_variants() {
+        let depths = vec![
+            AnalysisDepth::Surface,
+            AnalysisDepth::Standard,
+            AnalysisDepth::Deep,
+            AnalysisDepth::Exhaustive,
+        ];
+
+        for depth in depths {
+            let config = AnalyzerConfig {
+                analysis_depth: depth.clone(),
+                ..Default::default()
+            };
+            assert_eq!(config.analysis_depth, depth);
+        }
+    }
+
+    #[test]
+    fn test_metric_category_variants() {
+        let categories = vec![
+            MetricCategory::Performance,
+            MetricCategory::Reliability,
+            MetricCategory::Maintainability,
+            MetricCategory::Security,
+            MetricCategory::Efficiency,
+        ];
+
+        for category in categories {
+            let metric = QualityMetric {
+                name: String::new(),
+                category: category.clone(),
+                value: 0.0,
+                target: 0.0,
+                meets_target: false,
+                weight: 0.0,
+                trend: TrendDirection::Unknown,
+            };
+            assert_eq!(metric.category, category);
+        }
+    }
+
+    #[test]
+    fn test_issue_severity_ordering() {
+        assert!(IssueSeverity::Blocker > IssueSeverity::Critical);
+        assert!(IssueSeverity::Critical > IssueSeverity::Major);
+        assert!(IssueSeverity::Major > IssueSeverity::Moderate);
+        assert!(IssueSeverity::Moderate > IssueSeverity::Minor);
+    }
+
+    #[test]
+    fn test_issue_category_variants() {
+        let categories = vec![
+            IssueCategory::MemoryManagement,
+            IssueCategory::Performance,
+            IssueCategory::ThreadSafety,
+            IssueCategory::ErrorHandling,
+            IssueCategory::CodeStyle,
+            IssueCategory::Design,
+        ];
+
+        for category in categories {
+            let issue = QualityIssue {
+                id: String::new(),
+                title: String::new(),
+                description: String::new(),
+                severity: IssueSeverity::Minor,
+                category: category.clone(),
+                location: None,
+                fix_effort: FixEffort::Trivial,
+                impact: ImpactLevel::Minimal,
+            };
+            assert_eq!(issue.category, category);
+        }
+    }
+
+    #[test]
+    fn test_fix_effort_variants() {
+        let efforts = vec![
+            FixEffort::Trivial,
+            FixEffort::Easy,
+            FixEffort::Medium,
+            FixEffort::Hard,
+            FixEffort::VeryHard,
+        ];
+
+        for effort in efforts {
+            let issue = QualityIssue {
+                id: String::new(),
+                title: String::new(),
+                description: String::new(),
+                severity: IssueSeverity::Minor,
+                category: IssueCategory::CodeStyle,
+                location: None,
+                fix_effort: effort.clone(),
+                impact: ImpactLevel::Minimal,
+            };
+            assert_eq!(issue.fix_effort, effort);
+        }
+    }
+
+    #[test]
+    fn test_impact_level_ordering() {
+        assert!(ImpactLevel::Critical > ImpactLevel::High);
+        assert!(ImpactLevel::High > ImpactLevel::Medium);
+        assert!(ImpactLevel::Medium > ImpactLevel::Low);
+        assert!(ImpactLevel::Low > ImpactLevel::Minimal);
+    }
+
+    #[test]
+    fn test_trend_direction_variants() {
+        let trends = vec![
+            TrendDirection::Improving,
+            TrendDirection::Stable,
+            TrendDirection::Declining,
+            TrendDirection::Unknown,
+        ];
+
+        for trend in trends {
+            let metric = QualityMetric {
+                name: String::new(),
+                category: MetricCategory::Performance,
+                value: 0.0,
+                target: 0.0,
+                meets_target: false,
+                weight: 0.0,
+                trend: trend.clone(),
+            };
+            assert_eq!(metric.trend, trend);
+        }
+    }
+
+    #[test]
+    fn test_bottleneck_type_variants() {
+        let types = vec![
+            BottleneckType::CpuBound,
+            BottleneckType::MemoryBound,
+            BottleneckType::IoBound,
+            BottleneckType::LockContention,
+            BottleneckType::CacheMiss,
+            BottleneckType::AlgorithmInefficiency,
+        ];
+
+        for bottleneck_type in types {
+            let bottleneck = PerformanceBottleneck {
+                location: String::new(),
+                bottleneck_type: bottleneck_type.clone(),
+                severity: 0.0,
+                description: String::new(),
+                optimization: String::new(),
+            };
+            assert_eq!(bottleneck.bottleneck_type, bottleneck_type);
+        }
+    }
+
+    #[test]
+    fn test_scaling_behavior_variants() {
+        let behaviors = vec![
+            ScalingBehavior::Constant,
+            ScalingBehavior::Linear,
+            ScalingBehavior::Logarithmic,
+            ScalingBehavior::Quadratic,
+            ScalingBehavior::Exponential,
+        ];
+
+        for behavior in behaviors {
+            let assessment = ScalabilityAssessment {
+                score: 0.0,
+                scaling_behavior: behavior.clone(),
+                resource_scaling: ResourceScaling {
+                    memory_factor: 0.0,
+                    cpu_factor: 0.0,
+                    network_factor: 0.0,
+                },
+                limitations: vec![],
+            };
+            assert_eq!(assessment.scaling_behavior, behavior);
+        }
+    }
+
+    #[test]
+    fn test_recommendation_priority_ordering() {
+        assert!(RecommendationPriority::Critical > RecommendationPriority::High);
+        assert!(RecommendationPriority::High > RecommendationPriority::Medium);
+        assert!(RecommendationPriority::Medium > RecommendationPriority::Low);
+    }
+
+    #[test]
+    fn test_set_baseline() {
+        let mut analyzer = CodeAnalyzer::new();
+        let baseline = QualityBaseline {
+            component: "test_component".to_string(),
+            quality_score: 0.9,
+            complexity: 5,
+            performance: BaselinePerformance {
+                avg_execution_time: Duration::from_millis(100),
+                memory_per_operation: 1024,
+                error_rate: 0.01,
+            },
+            timestamp: Instant::now(),
+        };
+
+        analyzer.set_baseline("test_component", baseline);
+    }
+
+    #[test]
+    fn test_analyze_quality_basic() {
+        let mut analyzer = CodeAnalyzer::new();
+        let context = AnalysisContext {
+            performance_data: PerformanceData {
+                avg_latency: Duration::from_micros(50),
+                cpu_usage: 50.0,
+                allocation_efficiency: 0.95,
+                throughput: 1000.0,
+            },
+            memory_data: MemoryData {
+                current_usage: 1024 * 1024,
+                growth_rate: 100.0,
+                efficiency_ratio: 0.9,
+                fragmentation_ratio: 0.1,
+            },
+            reliability_data: ReliabilityData {
+                error_rate: 0.005,
+                success_rate: 0.995,
+                mtbf: Duration::from_secs(3600),
+            },
+        };
+
+        let report = analyzer.analyze_quality("test_component", &context);
+
+        assert_eq!(report.component, "test_component");
+        assert!(!report.metrics.is_empty());
+        assert!(report.trend_analysis.is_some());
+    }
+
+    #[test]
+    fn test_analyze_quality_no_trends() {
+        let config = AnalyzerConfig {
+            track_trends: false,
+            ..Default::default()
+        };
+        let mut analyzer = CodeAnalyzer::with_config(config);
+        let context = AnalysisContext {
+            performance_data: PerformanceData {
+                avg_latency: Duration::from_micros(50),
+                cpu_usage: 50.0,
+                allocation_efficiency: 0.95,
+                throughput: 1000.0,
+            },
+            memory_data: MemoryData {
+                current_usage: 1024 * 1024,
+                growth_rate: 100.0,
+                efficiency_ratio: 0.9,
+                fragmentation_ratio: 0.1,
+            },
+            reliability_data: ReliabilityData {
+                error_rate: 0.005,
+                success_rate: 0.995,
+                mtbf: Duration::from_secs(3600),
+            },
+        };
+
+        let report = analyzer.analyze_quality("test_component", &context);
+
+        assert!(report.trend_analysis.is_none());
+    }
+
+    #[test]
+    fn test_analyze_quality_memory_leak_detection() {
+        let mut analyzer = CodeAnalyzer::new();
+        let context = AnalysisContext {
+            performance_data: PerformanceData {
+                avg_latency: Duration::from_micros(50),
+                cpu_usage: 50.0,
+                allocation_efficiency: 0.95,
+                throughput: 1000.0,
+            },
+            memory_data: MemoryData {
+                current_usage: 1024 * 1024,
+                growth_rate: 2.0 * 1024.0 * 1024.0,
+                efficiency_ratio: 0.9,
+                fragmentation_ratio: 0.1,
+            },
+            reliability_data: ReliabilityData {
+                error_rate: 0.005,
+                success_rate: 0.995,
+                mtbf: Duration::from_secs(3600),
+            },
+        };
+
+        let report = analyzer.analyze_quality("test_component", &context);
+
+        assert!(!report.issues.is_empty());
+        assert!(report.issues.iter().any(|i| i.id == "memory_leak_detected"));
+    }
+
+    #[test]
+    fn test_analyze_quality_high_latency_detection() {
+        let mut analyzer = CodeAnalyzer::new();
+        let context = AnalysisContext {
+            performance_data: PerformanceData {
+                avg_latency: Duration::from_micros(200),
+                cpu_usage: 50.0,
+                allocation_efficiency: 0.95,
+                throughput: 1000.0,
+            },
+            memory_data: MemoryData {
+                current_usage: 1024 * 1024,
+                growth_rate: 100.0,
+                efficiency_ratio: 0.9,
+                fragmentation_ratio: 0.1,
+            },
+            reliability_data: ReliabilityData {
+                error_rate: 0.005,
+                success_rate: 0.995,
+                mtbf: Duration::from_secs(3600),
+            },
+        };
+
+        let report = analyzer.analyze_quality("test_component", &context);
+
+        assert!(!report.issues.is_empty());
+        assert!(report.issues.iter().any(|i| i.id == "high_latency"));
+    }
+
+    #[test]
+    fn test_analyze_quality_cpu_bottleneck() {
+        let mut analyzer = CodeAnalyzer::new();
+        let context = AnalysisContext {
+            performance_data: PerformanceData {
+                avg_latency: Duration::from_micros(50),
+                cpu_usage: 90.0,
+                allocation_efficiency: 0.95,
+                throughput: 1000.0,
+            },
+            memory_data: MemoryData {
+                current_usage: 1024 * 1024,
+                growth_rate: 100.0,
+                efficiency_ratio: 0.9,
+                fragmentation_ratio: 0.1,
+            },
+            reliability_data: ReliabilityData {
+                error_rate: 0.005,
+                success_rate: 0.995,
+                mtbf: Duration::from_secs(3600),
+            },
+        };
+
+        let report = analyzer.analyze_quality("test_component", &context);
+
+        assert!(!report.performance_analysis.bottlenecks.is_empty());
+        assert!(report
+            .performance_analysis
+            .bottlenecks
+            .iter()
+            .any(|b| matches!(b.bottleneck_type, BottleneckType::CpuBound)));
+    }
+
+    #[test]
+    fn test_analyze_quality_memory_bottleneck() {
+        let mut analyzer = CodeAnalyzer::new();
+        let context = AnalysisContext {
+            performance_data: PerformanceData {
+                avg_latency: Duration::from_micros(50),
+                cpu_usage: 50.0,
+                allocation_efficiency: 0.95,
+                throughput: 1000.0,
+            },
+            memory_data: MemoryData {
+                current_usage: 1024 * 1024,
+                growth_rate: 100.0,
+                efficiency_ratio: 0.9,
+                fragmentation_ratio: 0.5,
+            },
+            reliability_data: ReliabilityData {
+                error_rate: 0.005,
+                success_rate: 0.995,
+                mtbf: Duration::from_secs(3600),
+            },
+        };
+
+        let report = analyzer.analyze_quality("test_component", &context);
+
+        assert!(!report.performance_analysis.bottlenecks.is_empty());
+        assert!(report
+            .performance_analysis
+            .bottlenecks
+            .iter()
+            .any(|b| matches!(b.bottleneck_type, BottleneckType::MemoryBound)));
+    }
+
+    #[test]
+    fn test_quality_metric_creation() {
+        let metric = QualityMetric {
+            name: "test_metric".to_string(),
+            category: MetricCategory::Performance,
+            value: 0.85,
+            target: 0.9,
+            meets_target: false,
+            weight: 0.25,
+            trend: TrendDirection::Improving,
+        };
+
+        assert_eq!(metric.name, "test_metric");
+        assert!(!metric.meets_target);
+    }
+
+    #[test]
+    fn test_quality_issue_creation() {
+        let issue = QualityIssue {
+            id: "ISSUE-001".to_string(),
+            title: "Test Issue".to_string(),
+            description: "Test description".to_string(),
+            severity: IssueSeverity::Major,
+            category: IssueCategory::MemoryManagement,
+            location: Some("src/main.rs:42".to_string()),
+            fix_effort: FixEffort::Medium,
+            impact: ImpactLevel::High,
+        };
+
+        assert_eq!(issue.id, "ISSUE-001");
+        assert!(issue.location.is_some());
+    }
+
+    #[test]
+    fn test_performance_bottleneck_creation() {
+        let bottleneck = PerformanceBottleneck {
+            location: "hot_function".to_string(),
+            bottleneck_type: BottleneckType::CpuBound,
+            severity: 0.8,
+            description: "High CPU usage".to_string(),
+            optimization: "Use caching".to_string(),
+        };
+
+        assert_eq!(bottleneck.location, "hot_function");
+        assert!((bottleneck.severity - 0.8).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_recommendation_creation() {
+        let recommendation = Recommendation {
+            title: "Fix memory leak".to_string(),
+            description: "Address memory leak in module X".to_string(),
+            priority: RecommendationPriority::Critical,
+            impact: ImpactLevel::Critical,
+            effort: FixEffort::Hard,
+            related_issues: vec!["ISSUE-001".to_string()],
+        };
+
+        assert_eq!(recommendation.priority, RecommendationPriority::Critical);
+        assert_eq!(recommendation.related_issues.len(), 1);
+    }
+
+    #[test]
+    fn test_quality_baseline_creation() {
+        let baseline = QualityBaseline {
+            component: "module_a".to_string(),
+            quality_score: 0.85,
+            complexity: 7,
+            performance: BaselinePerformance {
+                avg_execution_time: Duration::from_millis(50),
+                memory_per_operation: 2048,
+                error_rate: 0.02,
+            },
+            timestamp: Instant::now(),
+        };
+
+        assert_eq!(baseline.component, "module_a");
+        assert!((baseline.quality_score - 0.85).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_baseline_performance_creation() {
+        let perf = BaselinePerformance {
+            avg_execution_time: Duration::from_millis(100),
+            memory_per_operation: 4096,
+            error_rate: 0.01,
+        };
+
+        assert_eq!(perf.memory_per_operation, 4096);
+        assert!((perf.error_rate - 0.01).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_scalability_assessment_creation() {
+        let assessment = ScalabilityAssessment {
+            score: 0.75,
+            scaling_behavior: ScalingBehavior::Linear,
+            resource_scaling: ResourceScaling {
+                memory_factor: 1.5,
+                cpu_factor: 1.2,
+                network_factor: 1.0,
+            },
+            limitations: vec!["Memory bandwidth".to_string()],
+        };
+
+        assert!((assessment.score - 0.75).abs() < f64::EPSILON);
+        assert_eq!(assessment.limitations.len(), 1);
+    }
+
+    #[test]
+    fn test_resource_scaling_creation() {
+        let scaling = ResourceScaling {
+            memory_factor: 2.0,
+            cpu_factor: 1.5,
+            network_factor: 1.0,
+        };
+
+        assert!((scaling.memory_factor - 2.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_trend_analysis_creation() {
+        let trend = TrendAnalysis {
+            quality_trend: TrendDirection::Improving,
+            performance_trend: TrendDirection::Stable,
+            complexity_trend: TrendDirection::Declining,
+            confidence: 0.85,
+            time_period: Duration::from_secs(3600),
+        };
+
+        assert_eq!(trend.quality_trend, TrendDirection::Improving);
+        assert!((trend.confidence - 0.85).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_analysis_context_creation() {
+        let context = AnalysisContext {
+            performance_data: PerformanceData {
+                avg_latency: Duration::from_micros(100),
+                cpu_usage: 60.0,
+                allocation_efficiency: 0.9,
+                throughput: 500.0,
+            },
+            memory_data: MemoryData {
+                current_usage: 2048,
+                growth_rate: 50.0,
+                efficiency_ratio: 0.85,
+                fragmentation_ratio: 0.15,
+            },
+            reliability_data: ReliabilityData {
+                error_rate: 0.01,
+                success_rate: 0.99,
+                mtbf: Duration::from_secs(7200),
+            },
+        };
+
+        assert!((context.performance_data.cpu_usage - 60.0).abs() < f64::EPSILON);
+        assert_eq!(context.memory_data.current_usage, 2048);
+    }
+
+    #[test]
+    fn test_performance_data_creation() {
+        let data = PerformanceData {
+            avg_latency: Duration::from_micros(75),
+            cpu_usage: 45.0,
+            allocation_efficiency: 0.92,
+            throughput: 750.0,
+        };
+
+        assert_eq!(data.avg_latency, Duration::from_micros(75));
+    }
+
+    #[test]
+    fn test_memory_data_creation() {
+        let data = MemoryData {
+            current_usage: 4096,
+            growth_rate: 100.0,
+            efficiency_ratio: 0.88,
+            fragmentation_ratio: 0.12,
+        };
+
+        assert_eq!(data.current_usage, 4096);
+    }
+
+    #[test]
+    fn test_reliability_data_creation() {
+        let data = ReliabilityData {
+            error_rate: 0.005,
+            success_rate: 0.995,
+            mtbf: Duration::from_secs(86400),
+        };
+
+        assert!((data.error_rate - 0.005).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_quality_grade_equality() {
+        assert_eq!(QualityGrade::A, QualityGrade::A);
+        assert_ne!(QualityGrade::A, QualityGrade::B);
+    }
+
+    #[test]
+    fn test_quality_grade_ord() {
+        let grades = vec![
+            QualityGrade::F,
+            QualityGrade::D,
+            QualityGrade::C,
+            QualityGrade::B,
+            QualityGrade::A,
+        ];
+        let mut sorted = grades.clone();
+        sorted.sort();
+        assert_eq!(
+            sorted,
+            vec![
+                QualityGrade::F,
+                QualityGrade::D,
+                QualityGrade::C,
+                QualityGrade::B,
+                QualityGrade::A
+            ]
+        );
+    }
+
+    #[test]
+    fn test_analysis_report_creation() {
+        let report = AnalysisReport {
+            component: "test".to_string(),
+            quality_assessment: QualityAssessment {
+                overall_score: 0.85,
+                grade: QualityGrade::B,
+                confidence: 0.9,
+                strengths: vec!["Good performance".to_string()],
+                weaknesses: vec![],
+            },
+            metrics: vec![],
+            issues: vec![],
+            performance_analysis: PerformanceAnalysis {
+                score: 0.8,
+                bottlenecks: vec![],
+                memory_efficiency: 0.85,
+                cpu_efficiency: 0.75,
+                scalability: ScalabilityAssessment {
+                    score: 0.7,
+                    scaling_behavior: ScalingBehavior::Linear,
+                    resource_scaling: ResourceScaling {
+                        memory_factor: 1.0,
+                        cpu_factor: 1.0,
+                        network_factor: 1.0,
+                    },
+                    limitations: vec![],
+                },
+            },
+            recommendations: vec![],
+            trend_analysis: None,
+            analysis_duration: Duration::from_millis(100),
+        };
+
+        assert_eq!(report.component, "test");
+    }
+
+    #[test]
+    fn test_quality_assessment_creation() {
+        let assessment = QualityAssessment {
+            overall_score: 0.92,
+            grade: QualityGrade::A,
+            confidence: 0.95,
+            strengths: vec!["Fast execution".to_string(), "Low memory".to_string()],
+            weaknesses: vec!["Complex code".to_string()],
+        };
+
+        assert_eq!(assessment.strengths.len(), 2);
+        assert_eq!(assessment.weaknesses.len(), 1);
+    }
+
+    #[test]
+    fn test_performance_analysis_creation() {
+        let analysis = PerformanceAnalysis {
+            score: 0.88,
+            bottlenecks: vec![],
+            memory_efficiency: 0.9,
+            cpu_efficiency: 0.85,
+            scalability: ScalabilityAssessment {
+                score: 0.8,
+                scaling_behavior: ScalingBehavior::Logarithmic,
+                resource_scaling: ResourceScaling {
+                    memory_factor: 1.2,
+                    cpu_factor: 1.1,
+                    network_factor: 1.0,
+                },
+                limitations: vec![],
+            },
+        };
+
+        assert!((analysis.score - 0.88).abs() < f64::EPSILON);
+    }
 }

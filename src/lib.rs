@@ -5,6 +5,9 @@
 //! that tracks all heap allocations and deallocations, and provides utilities
 //! for exporting memory usage data in various formats.
 
+// Import TrackKind for three-layer object model
+use crate::core::types::TrackKind;
+
 /// Advanced memory analysis functionality
 pub mod analysis;
 /// Analysis Engine - Memory analysis logic
@@ -40,6 +43,8 @@ pub use capture::backends::global_tracking::{
     GlobalTracker, GlobalTrackerConfig, GlobalTrackerStats, TrackerConfig,
 };
 
+/// Analyzer Module - Unified analysis entry point
+pub mod analyzer;
 /// Unified error handling and recovery system
 pub mod error;
 /// Memory allocation tracking statistics and monitoring
@@ -48,6 +53,60 @@ pub mod tracking;
 pub mod utils;
 /// Variable registry for lightweight HashMap-based variable tracking
 pub mod variable_registry;
+/// View Module - Unified read-only access to memory data
+pub mod view;
+
+/// Initialize logging system for memscope-rs.
+///
+/// This function sets up the tracing subscriber with appropriate filtering
+/// and formatting for memory tracking operations.
+///
+/// # Example
+///
+/// ```ignore
+/// use memscope_rs::init_logging;
+///
+/// init_logging();
+/// // Now logging is configured and ready to use
+/// ```
+///
+/// # Environment Variables
+///
+/// The logging level can be controlled via the `RUST_LOG` environment variable:
+///
+/// - `RUST_LOG=memscope_rs=error` - Only errors
+/// - `RUST_LOG=memscope_rs=warn` - Warnings and errors
+/// - `RUST_LOG=memscope_rs=info` - Info, warnings, and errors (default)
+/// - `RUST_LOG=memscope_rs=debug` - Debug, info, warnings, and errors
+///
+/// # Note
+///
+/// This function can be called multiple times safely; subsequent calls will be ignored.
+pub fn init_logging() {
+    use tracing_subscriber::{fmt, EnvFilter};
+
+    // Only initialize once
+    static INIT: std::sync::Once = std::sync::Once::new();
+
+    INIT.call_once(|| {
+        // Initialize tracing subscriber with environment variable support
+        // Default log level: INFO
+        // Can be overridden with RUST_LOG environment variable
+        let filter =
+            EnvFilter::from_default_env().add_directive("memscope_rs=info".parse().unwrap());
+
+        fmt()
+            .with_env_filter(filter)
+            .with_target(true)
+            .with_thread_ids(true)
+            .with_file(true)
+            .with_line_number(true)
+            .with_thread_names(true)
+            .init();
+
+        tracing::info!("memscope-rs logging initialized");
+    });
+}
 
 pub use analysis::*;
 pub use capture::backends::bottleneck_analysis::{BottleneckKind, PerformanceIssue};
@@ -69,6 +128,56 @@ pub use core::allocator::TrackingAllocator;
 pub use core::tracker::{get_tracker, MemoryTracker};
 pub use core::{ExportMode, ExportOptions};
 pub use core::{MemScopeError, MemScopeResult};
+
+// Re-export unified analyzer interface
+pub use analyzer::{
+    AnalysisReport, Analyzer, ClassificationAnalysis, ClassificationSummary, CycleReport,
+    DetectionAnalysis, ExportEngine, GraphAnalysis, LeakReport, MetricsAnalysis, MetricsReport,
+    SafetyAnalysis, SafetySummary, TimelineAnalysis, TypeCategory, TypeClassification,
+};
+pub use view::{FilterBuilder, MemoryView, ViewStats};
+
+/// Create analyzer from GlobalTracker (recommended entry point).
+///
+/// Returns an error if the tracker is not initialized or contains invalid data.
+///
+/// # Errors
+///
+/// Returns `MemScopeError` if:
+/// - The tracker has not been initialized
+/// - The tracker contains corrupted event data
+///
+/// # Example
+///
+/// ```ignore
+/// use memscope_rs::{init_global_tracking, global_tracker, analyzer};
+///
+/// init_global_tracking().unwrap();
+/// let tracker = global_tracker().unwrap();
+///
+/// let mut az = analyzer(&tracker).expect("Failed to create analyzer");
+/// let report = az.analyze();
+/// println!("{}", report.summary());
+/// ```
+pub fn analyzer(tracker: &GlobalTracker) -> MemScopeResult<Analyzer> {
+    // Validate tracker has valid data
+    let events = tracker.tracker().events();
+
+    // Basic validation: check for obviously corrupted data
+    for event in &events {
+        if event.size > isize::MAX as usize {
+            return Err(MemScopeError::new(
+                crate::core::error::ErrorKind::ValidationError,
+                format!(
+                    "Invalid allocation size: {} bytes (exceeds maximum)",
+                    event.size
+                ),
+            ));
+        }
+    }
+
+    Ok(Analyzer::from_tracker(tracker))
+}
 #[cfg(feature = "derive")]
 pub use memscope_derive::Trackable;
 pub use snapshot::engine::SnapshotEngine;
@@ -82,9 +191,16 @@ pub use snapshot::types::{ActiveAllocation, MemorySnapshot, MemoryStats, ThreadM
 #[global_allocator]
 pub static GLOBAL: TrackingAllocator = TrackingAllocator::new();
 /// Trait for types that can be tracked by the memory tracker.
+///
+/// This trait defines the interface for tracking memory allocations and their
+/// semantic roles in the three-layer object model (HeapOwner, Container, Value).
 pub trait Trackable {
-    /// Get the pointer to the heap allocation for this value.
-    fn get_heap_ptr(&self) -> Option<usize>;
+    /// Get the memory role classification for this value.
+    ///
+    /// Returns `TrackKind::HeapOwner` for types that own heap memory,
+    /// `TrackKind::Container` for types that organize data internally,
+    /// and `TrackKind::Value` for types without heap allocation.
+    fn track_kind(&self) -> TrackKind;
     /// Get the type name for this value.
     fn get_type_name(&self) -> &'static str;
     /// Get estimated size of the allocation.
@@ -100,8 +216,11 @@ pub trait Trackable {
 }
 
 impl<T> Trackable for Vec<T> {
-    fn get_heap_ptr(&self) -> Option<usize> {
-        Some(self.as_ptr() as usize)
+    fn track_kind(&self) -> TrackKind {
+        TrackKind::HeapOwner {
+            ptr: self.as_ptr() as usize,
+            size: self.capacity() * std::mem::size_of::<T>(),
+        }
     }
     fn get_type_name(&self) -> &'static str {
         "Vec<T>"
@@ -118,8 +237,11 @@ impl<T> Trackable for Vec<T> {
 }
 
 impl Trackable for String {
-    fn get_heap_ptr(&self) -> Option<usize> {
-        Some(self.as_ptr() as usize)
+    fn track_kind(&self) -> TrackKind {
+        TrackKind::HeapOwner {
+            ptr: self.as_ptr() as usize,
+            size: self.capacity(),
+        }
     }
     fn get_type_name(&self) -> &'static str {
         "String"
@@ -136,8 +258,8 @@ impl Trackable for String {
 }
 
 impl<K, V> Trackable for std::collections::HashMap<K, V> {
-    fn get_heap_ptr(&self) -> Option<usize> {
-        None
+    fn track_kind(&self) -> TrackKind {
+        TrackKind::Container
     }
     fn get_type_name(&self) -> &'static str {
         "HashMap<K, V>"
@@ -154,8 +276,8 @@ impl<K, V> Trackable for std::collections::HashMap<K, V> {
 }
 
 impl<K, V> Trackable for std::collections::BTreeMap<K, V> {
-    fn get_heap_ptr(&self) -> Option<usize> {
-        None
+    fn track_kind(&self) -> TrackKind {
+        TrackKind::Container
     }
     fn get_type_name(&self) -> &'static str {
         "BTreeMap<K, V>"
@@ -172,8 +294,8 @@ impl<K, V> Trackable for std::collections::BTreeMap<K, V> {
 }
 
 impl<T> Trackable for std::collections::VecDeque<T> {
-    fn get_heap_ptr(&self) -> Option<usize> {
-        None
+    fn track_kind(&self) -> TrackKind {
+        TrackKind::Container
     }
     fn get_type_name(&self) -> &'static str {
         "VecDeque<T>"
@@ -190,14 +312,17 @@ impl<T> Trackable for std::collections::VecDeque<T> {
 }
 
 impl<T> Trackable for Box<T> {
-    fn get_heap_ptr(&self) -> Option<usize> {
-        Some(&**self as *const T as usize)
+    fn track_kind(&self) -> TrackKind {
+        TrackKind::HeapOwner {
+            ptr: &**self as *const T as usize,
+            size: std::mem::size_of_val(&**self),
+        }
     }
     fn get_type_name(&self) -> &'static str {
         "Box<T>"
     }
     fn get_size_estimate(&self) -> usize {
-        std::mem::size_of::<T>()
+        std::mem::size_of_val(&**self)
     }
     fn get_data_ptr(&self) -> Option<usize> {
         Some(&**self as *const T as usize)
@@ -208,8 +333,11 @@ impl<T> Trackable for Box<T> {
 }
 
 impl<T> Trackable for std::rc::Rc<T> {
-    fn get_heap_ptr(&self) -> Option<usize> {
-        Some(&**self as *const T as usize)
+    fn track_kind(&self) -> TrackKind {
+        TrackKind::HeapOwner {
+            ptr: &**self as *const T as usize,
+            size: std::mem::size_of::<T>(),
+        }
     }
     fn get_type_name(&self) -> &'static str {
         "Rc<T>"
@@ -229,8 +357,11 @@ impl<T> Trackable for std::rc::Rc<T> {
 }
 
 impl<T> Trackable for std::sync::Arc<T> {
-    fn get_heap_ptr(&self) -> Option<usize> {
-        Some(&**self as *const T as usize)
+    fn track_kind(&self) -> TrackKind {
+        TrackKind::HeapOwner {
+            ptr: &**self as *const T as usize,
+            size: std::mem::size_of::<T>(),
+        }
     }
     fn get_type_name(&self) -> &'static str {
         "Arc<T>"
@@ -250,8 +381,8 @@ impl<T> Trackable for std::sync::Arc<T> {
 }
 
 impl<T: Trackable> Trackable for std::cell::RefCell<T> {
-    fn get_heap_ptr(&self) -> Option<usize> {
-        None
+    fn track_kind(&self) -> TrackKind {
+        TrackKind::Container
     }
     fn get_type_name(&self) -> &'static str {
         "RefCell<T>"
@@ -268,8 +399,8 @@ impl<T: Trackable> Trackable for std::cell::RefCell<T> {
 }
 
 impl<T: Trackable> Trackable for std::sync::RwLock<T> {
-    fn get_heap_ptr(&self) -> Option<usize> {
-        None
+    fn track_kind(&self) -> TrackKind {
+        TrackKind::Container
     }
     fn get_type_name(&self) -> &'static str {
         "RwLock<T>"

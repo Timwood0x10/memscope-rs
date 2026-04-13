@@ -181,4 +181,354 @@ mod tests {
         assert_eq!(vtable.method_count, 3);
         assert_eq!(vtable.methods.len(), 1);
     }
+
+    #[test]
+    fn test_vtable_method_creation() {
+        let method = VTableMethod {
+            name: "fmt".to_string(),
+            signature: "fn(&self, &mut Formatter) -> Result".to_string(),
+            vtable_offset: 8,
+        };
+
+        assert_eq!(method.name, "fmt");
+        assert_eq!(method.vtable_offset, 8);
+    }
+
+    #[test]
+    fn test_vtable_info_multiple_methods() {
+        let vtable = VTableInfo {
+            vtable_size: 128,
+            method_count: 5,
+            vtable_ptr_offset: 0,
+            methods: vec![
+                VTableMethod {
+                    name: "drop".to_string(),
+                    signature: "fn(&mut self)".to_string(),
+                    vtable_offset: 0,
+                },
+                VTableMethod {
+                    name: "clone".to_string(),
+                    signature: "fn(&self) -> Self".to_string(),
+                    vtable_offset: 8,
+                },
+                VTableMethod {
+                    name: "eq".to_string(),
+                    signature: "fn(&self, &Self) -> bool".to_string(),
+                    vtable_offset: 16,
+                },
+            ],
+        };
+
+        assert_eq!(vtable.methods.len(), 3);
+        assert_eq!(vtable.methods[1].name, "clone");
+    }
+
+    #[test]
+    fn test_dispatch_overhead_creation() {
+        let overhead = DispatchOverhead {
+            indirect_call_overhead_ns: 10.0,
+            cache_miss_probability: 0.15,
+            branch_misprediction_rate: 0.08,
+            performance_impact: PerformanceImpact::Moderate,
+        };
+
+        assert!((overhead.indirect_call_overhead_ns - 10.0).abs() < f64::EPSILON);
+        assert!((overhead.cache_miss_probability - 0.15).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_performance_impact_variants() {
+        let impacts = vec![
+            PerformanceImpact::Negligible,
+            PerformanceImpact::Minor,
+            PerformanceImpact::Moderate,
+            PerformanceImpact::Significant,
+            PerformanceImpact::Severe,
+        ];
+
+        for impact in impacts {
+            let overhead = DispatchOverhead {
+                indirect_call_overhead_ns: 0.0,
+                cache_miss_probability: 0.0,
+                branch_misprediction_rate: 0.0,
+                performance_impact: impact.clone(),
+            };
+            assert_eq!(overhead.performance_impact, impact);
+        }
+    }
+
+    #[test]
+    fn test_type_erasure_info_creation() {
+        let info = TypeErasureInfo {
+            type_info_recoverable: false,
+            size_info: None,
+            alignment_info: None,
+            destructor_info: Some("custom_drop".to_string()),
+        };
+
+        assert!(!info.type_info_recoverable);
+        assert!(info.size_info.is_none());
+        assert!(info.destructor_info.is_some());
+    }
+
+    #[test]
+    fn test_type_erasure_info_full() {
+        let info = TypeErasureInfo {
+            type_info_recoverable: true,
+            size_info: Some(32),
+            alignment_info: Some(8),
+            destructor_info: Some("drop_in_place".to_string()),
+        };
+
+        assert!(info.type_info_recoverable);
+        assert_eq!(info.size_info, Some(32));
+        assert_eq!(info.alignment_info, Some(8));
+    }
+
+    #[test]
+    fn test_dynamic_type_info_no_concrete_type() {
+        let info = DynamicTypeInfo {
+            trait_name: "Iterator".to_string(),
+            vtable_info: VTableInfo {
+                vtable_size: 48,
+                method_count: 2,
+                vtable_ptr_offset: 0,
+                methods: vec![],
+            },
+            concrete_type: None,
+            dispatch_overhead: DispatchOverhead {
+                indirect_call_overhead_ns: 15.0,
+                cache_miss_probability: 0.25,
+                branch_misprediction_rate: 0.12,
+                performance_impact: PerformanceImpact::Significant,
+            },
+            type_erasure_info: TypeErasureInfo {
+                type_info_recoverable: false,
+                size_info: None,
+                alignment_info: None,
+                destructor_info: None,
+            },
+        };
+
+        assert!(info.concrete_type.is_none());
+        assert!(matches!(
+            info.dispatch_overhead.performance_impact,
+            PerformanceImpact::Significant
+        ));
+    }
+
+    #[test]
+    fn test_dynamic_type_info_serialization() {
+        let info = DynamicTypeInfo {
+            trait_name: "Debug".to_string(),
+            vtable_info: VTableInfo {
+                vtable_size: 16,
+                method_count: 1,
+                vtable_ptr_offset: 0,
+                methods: vec![],
+            },
+            concrete_type: Some("i32".to_string()),
+            dispatch_overhead: DispatchOverhead {
+                indirect_call_overhead_ns: 2.0,
+                cache_miss_probability: 0.01,
+                branch_misprediction_rate: 0.005,
+                performance_impact: PerformanceImpact::Negligible,
+            },
+            type_erasure_info: TypeErasureInfo {
+                type_info_recoverable: true,
+                size_info: Some(4),
+                alignment_info: Some(4),
+                destructor_info: None,
+            },
+        };
+
+        let json = serde_json::to_string(&info).unwrap();
+        let deserialized: DynamicTypeInfo = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.trait_name, info.trait_name);
+    }
+
+    #[test]
+    fn test_vtable_info_serialization() {
+        let vtable = VTableInfo {
+            vtable_size: 64,
+            method_count: 2,
+            vtable_ptr_offset: 8,
+            methods: vec![VTableMethod {
+                name: "test".to_string(),
+                signature: "fn()".to_string(),
+                vtable_offset: 0,
+            }],
+        };
+
+        let json = serde_json::to_string(&vtable).unwrap();
+        let deserialized: VTableInfo = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.vtable_size, vtable.vtable_size);
+    }
+
+    #[test]
+    fn test_performance_impact_serialization() {
+        let impacts = vec![
+            PerformanceImpact::Negligible,
+            PerformanceImpact::Minor,
+            PerformanceImpact::Moderate,
+            PerformanceImpact::Significant,
+            PerformanceImpact::Severe,
+        ];
+
+        for impact in impacts {
+            let json = serde_json::to_string(&impact).unwrap();
+            let deserialized: PerformanceImpact = serde_json::from_str(&json).unwrap();
+            assert_eq!(deserialized, impact);
+        }
+    }
+
+    #[test]
+    fn test_dispatch_overhead_serialization() {
+        let overhead = DispatchOverhead {
+            indirect_call_overhead_ns: 5.5,
+            cache_miss_probability: 0.1,
+            branch_misprediction_rate: 0.05,
+            performance_impact: PerformanceImpact::Minor,
+        };
+
+        let json = serde_json::to_string(&overhead).unwrap();
+        let deserialized: DispatchOverhead = serde_json::from_str(&json).unwrap();
+        assert!(
+            (deserialized.indirect_call_overhead_ns - overhead.indirect_call_overhead_ns).abs()
+                < f64::EPSILON
+        );
+    }
+
+    #[test]
+    fn test_type_erasure_info_serialization() {
+        let info = TypeErasureInfo {
+            type_info_recoverable: true,
+            size_info: Some(16),
+            alignment_info: Some(8),
+            destructor_info: Some("drop".to_string()),
+        };
+
+        let json = serde_json::to_string(&info).unwrap();
+        let deserialized: TypeErasureInfo = serde_json::from_str(&json).unwrap();
+        assert_eq!(
+            deserialized.type_info_recoverable,
+            info.type_info_recoverable
+        );
+    }
+
+    #[test]
+    fn test_vtable_method_serialization() {
+        let method = VTableMethod {
+            name: "execute".to_string(),
+            signature: "fn(&mut self, Args) -> Result".to_string(),
+            vtable_offset: 24,
+        };
+
+        let json = serde_json::to_string(&method).unwrap();
+        let deserialized: VTableMethod = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.name, method.name);
+    }
+
+    #[test]
+    fn test_dynamic_type_info_clone() {
+        let info = DynamicTypeInfo {
+            trait_name: "Clone".to_string(),
+            vtable_info: VTableInfo {
+                vtable_size: 8,
+                method_count: 1,
+                vtable_ptr_offset: 0,
+                methods: vec![],
+            },
+            concrete_type: None,
+            dispatch_overhead: DispatchOverhead {
+                indirect_call_overhead_ns: 0.0,
+                cache_miss_probability: 0.0,
+                branch_misprediction_rate: 0.0,
+                performance_impact: PerformanceImpact::Negligible,
+            },
+            type_erasure_info: TypeErasureInfo {
+                type_info_recoverable: true,
+                size_info: None,
+                alignment_info: None,
+                destructor_info: None,
+            },
+        };
+
+        let cloned = info.clone();
+        assert_eq!(cloned.trait_name, info.trait_name);
+    }
+
+    #[test]
+    fn test_dynamic_type_info_debug() {
+        let info = DynamicTypeInfo {
+            trait_name: "Debug".to_string(),
+            vtable_info: VTableInfo {
+                vtable_size: 8,
+                method_count: 0,
+                vtable_ptr_offset: 0,
+                methods: vec![],
+            },
+            concrete_type: None,
+            dispatch_overhead: DispatchOverhead {
+                indirect_call_overhead_ns: 0.0,
+                cache_miss_probability: 0.0,
+                branch_misprediction_rate: 0.0,
+                performance_impact: PerformanceImpact::Negligible,
+            },
+            type_erasure_info: TypeErasureInfo {
+                type_info_recoverable: false,
+                size_info: None,
+                alignment_info: None,
+                destructor_info: None,
+            },
+        };
+
+        let debug_str = format!("{:?}", info);
+        assert!(debug_str.contains("DynamicTypeInfo"));
+        assert!(debug_str.contains("trait_name"));
+    }
+
+    #[test]
+    fn test_vtable_info_equality() {
+        let vtable1 = VTableInfo {
+            vtable_size: 32,
+            method_count: 2,
+            vtable_ptr_offset: 0,
+            methods: vec![],
+        };
+        let vtable2 = VTableInfo {
+            vtable_size: 32,
+            method_count: 2,
+            vtable_ptr_offset: 0,
+            methods: vec![],
+        };
+
+        assert_eq!(vtable1, vtable2);
+    }
+
+    #[test]
+    fn test_boundary_values_vtable() {
+        let vtable = VTableInfo {
+            vtable_size: usize::MAX,
+            method_count: usize::MAX,
+            vtable_ptr_offset: usize::MAX,
+            methods: vec![],
+        };
+
+        assert_eq!(vtable.vtable_size, usize::MAX);
+        assert_eq!(vtable.method_count, usize::MAX);
+    }
+
+    #[test]
+    fn test_boundary_values_dispatch_overhead() {
+        let overhead = DispatchOverhead {
+            indirect_call_overhead_ns: f64::MAX,
+            cache_miss_probability: 1.0,
+            branch_misprediction_rate: 1.0,
+            performance_impact: PerformanceImpact::Severe,
+        };
+
+        assert!(overhead.indirect_call_overhead_ns.is_finite());
+        assert!((overhead.cache_miss_probability - 1.0).abs() < f64::EPSILON);
+    }
 }

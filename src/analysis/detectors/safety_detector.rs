@@ -771,6 +771,8 @@ mod tests {
             clone_count: 3,
             is_clone: true,
             original_ptr: Some(0x1000),
+            _source: None,
+            _confidence: None,
         });
 
         // Create another allocation with a different thread ID to simulate multi-threading

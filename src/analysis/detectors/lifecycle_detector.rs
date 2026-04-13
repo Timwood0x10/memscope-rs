@@ -711,6 +711,8 @@ mod tests {
             clone_count: 50, // Excessive cloning
             is_clone: true,
             original_ptr: Some(0x1000),
+            _source: None,
+            _confidence: None,
         });
 
         let issues =
@@ -736,6 +738,8 @@ mod tests {
             mutable_borrows: 2, // Concurrent mutable borrows
             max_concurrent_borrows: 2,
             last_borrow_timestamp: Some(1000),
+            _source: None,
+            _confidence: None,
         });
 
         let issues =
@@ -818,5 +822,570 @@ mod tests {
         assert!(issues
             .iter()
             .any(|i| i.description.contains("Large allocation")));
+    }
+
+    #[test]
+    fn test_lifecycle_detector_config_default() {
+        let config = LifecycleDetectorConfig::default();
+
+        assert!(config.enable_drop_trait_analysis);
+        assert!(config.enable_borrow_violation_detection);
+        assert!(config.enable_lifetime_violation_detection);
+        assert!(config.enable_ownership_pattern_detection);
+        assert_eq!(config.max_lifetime_analysis_depth, 100);
+    }
+
+    #[test]
+    fn test_lifecycle_detector_update_config() {
+        let config = LifecycleDetectorConfig::default();
+        let mut detector = LifecycleDetector::new(config);
+
+        let new_config = LifecycleDetectorConfig {
+            enable_drop_trait_analysis: false,
+            enable_borrow_violation_detection: true,
+            enable_lifetime_violation_detection: true,
+            enable_ownership_pattern_detection: false,
+            max_lifetime_analysis_depth: 200,
+        };
+
+        detector.update_lifecycle_config(new_config.clone());
+        assert!(!detector.lifecycle_config().enable_drop_trait_analysis);
+        assert_eq!(detector.lifecycle_config().max_lifetime_analysis_depth, 200);
+    }
+
+    #[test]
+    fn test_detector_config_update() {
+        let config = LifecycleDetectorConfig::default();
+        let mut detector = LifecycleDetector::new(config);
+
+        let new_base_config = DetectorConfig {
+            enabled: false,
+            ..Default::default()
+        };
+
+        let result = detector.update_config(new_base_config);
+        assert!(result.is_ok());
+        assert!(!detector.config().enabled);
+    }
+
+    #[test]
+    fn test_detect_empty_allocations() {
+        let config = LifecycleDetectorConfig::default();
+        let detector = LifecycleDetector::new(config);
+
+        let allocations: Vec<AllocationInfo> = vec![];
+        let result = detector.detect(&allocations);
+
+        assert_eq!(result.statistics.total_allocations, 0);
+        assert!(result.issues.is_empty());
+    }
+
+    #[test]
+    fn test_detect_expensive_clone() {
+        let config = LifecycleDetectorConfig::default();
+        let detector = LifecycleDetector::new(config);
+
+        let mut allocations = vec![AllocationInfo::new(0x1000, 2 * 1024 * 1024)]; // 2MB
+
+        use crate::capture::types::CloneInfo;
+        allocations[0].clone_info = Some(CloneInfo {
+            clone_count: 5,
+            is_clone: true,
+            original_ptr: Some(0x2000),
+            _source: None,
+            _confidence: None,
+        });
+
+        let issues =
+            detector.detect_ownership_patterns(&allocations, &mut DetectionStatistics::new());
+
+        assert!(issues
+            .iter()
+            .any(|i| i.description.contains("Expensive clone")));
+    }
+
+    #[test]
+    fn test_detect_excessive_borrows() {
+        let config = LifecycleDetectorConfig::default();
+        let detector = LifecycleDetector::new(config);
+
+        let mut allocations = vec![AllocationInfo::new(0x1000, 1024)];
+
+        use crate::capture::types::BorrowInfo;
+        allocations[0].borrow_info = Some(BorrowInfo {
+            immutable_borrows: 40,
+            mutable_borrows: 20,
+            max_concurrent_borrows: 60,
+            last_borrow_timestamp: Some(1000),
+            _source: None,
+            _confidence: None,
+        });
+
+        let issues =
+            detector.detect_borrow_violations(&allocations, &mut DetectionStatistics::new());
+
+        assert!(issues
+            .iter()
+            .any(|i| i.description.contains("Excessive borrows")));
+    }
+
+    #[test]
+    fn test_detect_high_ref_count_history() {
+        let config = LifecycleDetectorConfig::default();
+        let detector = LifecycleDetector::new(config);
+
+        let mut allocations = vec![AllocationInfo::new(0x1000, 1024)];
+
+        use crate::capture::types::{RefCountSnapshot, SmartPointerInfo};
+        let history: Vec<RefCountSnapshot> = (0..150)
+            .map(|i| RefCountSnapshot {
+                timestamp: i as u64 * 100,
+                strong_count: i + 1,
+                weak_count: 0,
+            })
+            .collect();
+
+        allocations[0].smart_pointer_info = Some(SmartPointerInfo {
+            data_ptr: 0x1000,
+            cloned_from: None,
+            clones: vec![],
+            ref_count_history: history,
+            weak_count: Some(0),
+            is_weak_reference: false,
+            is_data_owner: true,
+            is_implicitly_deallocated: false,
+            pointer_type: crate::capture::types::SmartPointerType::Arc,
+        });
+
+        let issues =
+            detector.detect_ownership_patterns(&allocations, &mut DetectionStatistics::new());
+
+        assert!(issues
+            .iter()
+            .any(|i| i.description.contains("High reference count history")));
+    }
+
+    #[test]
+    fn test_detect_reference_cycle() {
+        let config = LifecycleDetectorConfig::default();
+        let detector = LifecycleDetector::new(config);
+
+        let mut allocations = vec![AllocationInfo::new(0x1000, 1024)];
+
+        use crate::capture::types::{RefCountSnapshot, SmartPointerInfo};
+        allocations[0].smart_pointer_info = Some(SmartPointerInfo {
+            data_ptr: 0x1000,
+            cloned_from: None,
+            clones: vec![],
+            ref_count_history: vec![
+                RefCountSnapshot {
+                    timestamp: 0,
+                    strong_count: 1,
+                    weak_count: 0,
+                },
+                RefCountSnapshot {
+                    timestamp: 100,
+                    strong_count: 2,
+                    weak_count: 0,
+                },
+                RefCountSnapshot {
+                    timestamp: 200,
+                    strong_count: 1,
+                    weak_count: 0,
+                },
+                RefCountSnapshot {
+                    timestamp: 300,
+                    strong_count: 2,
+                    weak_count: 0,
+                },
+            ],
+            weak_count: Some(0),
+            is_weak_reference: false,
+            is_data_owner: true,
+            is_implicitly_deallocated: false,
+            pointer_type: crate::capture::types::SmartPointerType::Rc,
+        });
+
+        let issues =
+            detector.detect_ownership_patterns(&allocations, &mut DetectionStatistics::new());
+
+        assert!(issues
+            .iter()
+            .any(|i| i.description.contains("reference cycle")));
+    }
+
+    #[test]
+    fn test_detect_move_semantics_violation() {
+        let config = LifecycleDetectorConfig::default();
+        let detector = LifecycleDetector::new(config);
+
+        let mut allocations = vec![AllocationInfo::new(0x1000, 1024)];
+
+        use crate::capture::types::CloneInfo;
+        allocations[0].clone_info = Some(CloneInfo {
+            clone_count: 1,
+            is_clone: true,
+            original_ptr: Some(0x2000),
+            _source: None,
+            _confidence: None,
+        });
+
+        let issues =
+            detector.detect_ownership_patterns(&allocations, &mut DetectionStatistics::new());
+
+        assert!(issues
+            .iter()
+            .any(|i| i.description.contains("Move semantics violation")));
+    }
+
+    #[test]
+    fn test_detect_borrow_after_move() {
+        let config = LifecycleDetectorConfig::default();
+        let detector = LifecycleDetector::new(config);
+
+        let mut allocations = vec![AllocationInfo::new(0x1000, 1024)];
+        allocations[0].borrow_count = 5;
+
+        use crate::capture::types::CloneInfo;
+        allocations[0].clone_info = Some(CloneInfo {
+            clone_count: 1,
+            is_clone: true,
+            original_ptr: Some(0x2000),
+            _source: None,
+            _confidence: None,
+        });
+
+        let issues =
+            detector.detect_borrow_violations(&allocations, &mut DetectionStatistics::new());
+
+        assert!(issues
+            .iter()
+            .any(|i| i.description.contains("Borrow after move")));
+    }
+
+    #[test]
+    fn test_assess_clone_severity_critical() {
+        let config = LifecycleDetectorConfig::default();
+        let detector = LifecycleDetector::new(config);
+
+        assert_eq!(
+            detector.assess_clone_severity(2000),
+            IssueSeverity::Critical
+        );
+    }
+
+    #[test]
+    fn test_assess_clone_severity_high() {
+        let config = LifecycleDetectorConfig::default();
+        let detector = LifecycleDetector::new(config);
+
+        assert_eq!(detector.assess_clone_severity(500), IssueSeverity::High);
+    }
+
+    #[test]
+    fn test_estimate_scope_lifetime_function() {
+        let config = LifecycleDetectorConfig::default();
+        let detector = LifecycleDetector::new(config);
+
+        assert_eq!(detector.estimate_scope_lifetime("fn test_function"), 100);
+        assert_eq!(detector.estimate_scope_lifetime("fn main()"), 100);
+    }
+
+    #[test]
+    fn test_estimate_scope_lifetime_module() {
+        let config = LifecycleDetectorConfig::default();
+        let detector = LifecycleDetector::new(config);
+
+        assert_eq!(
+            detector.estimate_scope_lifetime("module::submodule::function"),
+            1000
+        );
+        assert_eq!(detector.estimate_scope_lifetime("crate::module::fn"), 1000);
+    }
+
+    #[test]
+    fn test_estimate_scope_lifetime_block() {
+        let config = LifecycleDetectorConfig::default();
+        let detector = LifecycleDetector::new(config);
+
+        assert_eq!(detector.estimate_scope_lifetime("block_scope"), 500);
+        assert_eq!(detector.estimate_scope_lifetime("unknown"), 500);
+    }
+
+    #[test]
+    fn test_detection_time_measurement() {
+        let config = LifecycleDetectorConfig::default();
+        let detector = LifecycleDetector::new(config);
+
+        let allocations: Vec<AllocationInfo> = (0..100)
+            .map(|i| AllocationInfo::new(0x1000 + i * 1024, 1024))
+            .collect();
+
+        let result = detector.detect(&allocations);
+
+        assert!(result.detection_time_ms < 1000); // Should be fast
+    }
+
+    #[test]
+    fn test_lifecycle_detector_debug() {
+        let config = LifecycleDetectorConfig::default();
+        let detector = LifecycleDetector::new(config);
+
+        let debug_str = format!("{:?}", detector);
+        assert!(debug_str.contains("LifecycleDetector"));
+    }
+
+    #[test]
+    fn test_lifecycle_config_debug() {
+        let config = LifecycleDetectorConfig::default();
+        let debug_str = format!("{:?}", config);
+
+        assert!(debug_str.contains("enable_drop_trait_analysis"));
+        assert!(debug_str.contains("enable_borrow_violation_detection"));
+    }
+
+    #[test]
+    fn test_lifecycle_config_clone() {
+        let config = LifecycleDetectorConfig::default();
+        let cloned = config.clone();
+
+        assert_eq!(
+            config.enable_drop_trait_analysis,
+            cloned.enable_drop_trait_analysis
+        );
+        assert_eq!(
+            config.max_lifetime_analysis_depth,
+            cloned.max_lifetime_analysis_depth
+        );
+    }
+
+    #[test]
+    fn test_has_reference_cycle_true() {
+        let config = LifecycleDetectorConfig::default();
+        let detector = LifecycleDetector::new(config);
+
+        use crate::capture::types::{RefCountSnapshot, SmartPointerInfo};
+        let info = SmartPointerInfo {
+            data_ptr: 0x1000,
+            cloned_from: None,
+            clones: vec![],
+            ref_count_history: vec![
+                RefCountSnapshot {
+                    timestamp: 0,
+                    strong_count: 1,
+                    weak_count: 0,
+                },
+                RefCountSnapshot {
+                    timestamp: 100,
+                    strong_count: 2,
+                    weak_count: 0,
+                },
+                RefCountSnapshot {
+                    timestamp: 200,
+                    strong_count: 1,
+                    weak_count: 0,
+                },
+            ],
+            weak_count: Some(0),
+            is_weak_reference: false,
+            is_data_owner: true,
+            is_implicitly_deallocated: false,
+            pointer_type: crate::capture::types::SmartPointerType::Rc,
+        };
+
+        assert!(detector.has_reference_cycle(&info));
+    }
+
+    #[test]
+    fn test_has_reference_cycle_false() {
+        let config = LifecycleDetectorConfig::default();
+        let detector = LifecycleDetector::new(config);
+
+        use crate::capture::types::{RefCountSnapshot, SmartPointerInfo};
+        let info = SmartPointerInfo {
+            data_ptr: 0x1000,
+            cloned_from: None,
+            clones: vec![],
+            ref_count_history: vec![
+                RefCountSnapshot {
+                    timestamp: 0,
+                    strong_count: 1,
+                    weak_count: 0,
+                },
+                RefCountSnapshot {
+                    timestamp: 100,
+                    strong_count: 2,
+                    weak_count: 0,
+                },
+                RefCountSnapshot {
+                    timestamp: 200,
+                    strong_count: 3,
+                    weak_count: 0,
+                },
+            ],
+            weak_count: Some(0),
+            is_weak_reference: false,
+            is_data_owner: true,
+            is_implicitly_deallocated: false,
+            pointer_type: crate::capture::types::SmartPointerType::Arc,
+        };
+
+        assert!(!detector.has_reference_cycle(&info));
+    }
+
+    #[test]
+    fn test_is_move_semantics_violation_true() {
+        let config = LifecycleDetectorConfig::default();
+        let detector = LifecycleDetector::new(config);
+
+        let mut alloc = AllocationInfo::new(0x1000, 1024);
+        use crate::capture::types::CloneInfo;
+        alloc.clone_info = Some(CloneInfo {
+            clone_count: 1,
+            is_clone: true,
+            original_ptr: Some(0x2000),
+            _source: None,
+            _confidence: None,
+        });
+
+        assert!(detector.is_move_semantics_violation(&alloc));
+    }
+
+    #[test]
+    fn test_is_move_semantics_violation_false() {
+        let config = LifecycleDetectorConfig::default();
+        let detector = LifecycleDetector::new(config);
+
+        let alloc = AllocationInfo::new(0x1000, 1024);
+        assert!(!detector.is_move_semantics_violation(&alloc));
+    }
+
+    #[test]
+    fn test_is_borrow_after_move_true() {
+        let config = LifecycleDetectorConfig::default();
+        let detector = LifecycleDetector::new(config);
+
+        let mut alloc = AllocationInfo::new(0x1000, 1024);
+        alloc.borrow_count = 5;
+        use crate::capture::types::CloneInfo;
+        alloc.clone_info = Some(CloneInfo {
+            clone_count: 1,
+            is_clone: true,
+            original_ptr: None,
+            _source: None,
+            _confidence: None,
+        });
+
+        assert!(detector.is_borrow_after_move(&alloc));
+    }
+
+    #[test]
+    fn test_is_borrow_after_move_false() {
+        let config = LifecycleDetectorConfig::default();
+        let detector = LifecycleDetector::new(config);
+
+        let alloc = AllocationInfo::new(0x1000, 1024);
+        assert!(!detector.is_borrow_after_move(&alloc));
+    }
+
+    #[test]
+    fn test_detect_only_lifetime_issues() {
+        let config = LifecycleDetectorConfig {
+            enable_lifetime_violation_detection: true,
+            enable_ownership_pattern_detection: false,
+            enable_drop_trait_analysis: false,
+            enable_borrow_violation_detection: false,
+            max_lifetime_analysis_depth: 100,
+        };
+        let detector = LifecycleDetector::new(config);
+
+        let mut allocations = vec![AllocationInfo::new(0x1000, 1024)];
+        allocations[0].scope_name = Some("fn main".to_string());
+        allocations[0].lifetime_ms = Some(5000);
+
+        let result = detector.detect(&allocations);
+
+        assert!(result.issues.iter().all(|i| {
+            i.description.contains("Scope lifetime violation") || i.description.contains("lifetime")
+        }));
+    }
+
+    #[test]
+    fn test_detect_only_ownership_issues() {
+        let config = LifecycleDetectorConfig {
+            enable_lifetime_violation_detection: false,
+            enable_ownership_pattern_detection: true,
+            enable_drop_trait_analysis: false,
+            enable_borrow_violation_detection: false,
+            max_lifetime_analysis_depth: 100,
+        };
+        let detector = LifecycleDetector::new(config);
+
+        let mut allocations = vec![AllocationInfo::new(0x1000, 1024)];
+        use crate::capture::types::CloneInfo;
+        allocations[0].clone_info = Some(CloneInfo {
+            clone_count: 50,
+            is_clone: true,
+            original_ptr: Some(0x1000),
+            _source: None,
+            _confidence: None,
+        });
+
+        let result = detector.detect(&allocations);
+
+        assert!(result.issues.iter().all(|i| {
+            i.description.contains("cloning") || i.description.contains("Move semantics")
+        }));
+    }
+
+    #[test]
+    fn test_detect_only_drop_issues() {
+        let config = LifecycleDetectorConfig {
+            enable_lifetime_violation_detection: false,
+            enable_ownership_pattern_detection: false,
+            enable_drop_trait_analysis: true,
+            enable_borrow_violation_detection: false,
+            max_lifetime_analysis_depth: 100,
+        };
+        let detector = LifecycleDetector::new(config);
+
+        let allocations = vec![AllocationInfo::new(0x1000, 20 * 1024 * 1024)];
+
+        let result = detector.detect(&allocations);
+
+        assert!(result
+            .issues
+            .iter()
+            .all(|i| i.description.contains("Large allocation") || i.description.contains("drop")));
+    }
+
+    #[test]
+    fn test_detect_only_borrow_issues() {
+        let config = LifecycleDetectorConfig {
+            enable_lifetime_violation_detection: false,
+            enable_ownership_pattern_detection: false,
+            enable_drop_trait_analysis: false,
+            enable_borrow_violation_detection: true,
+            max_lifetime_analysis_depth: 100,
+        };
+        let detector = LifecycleDetector::new(config);
+
+        let mut allocations = vec![AllocationInfo::new(0x1000, 1024)];
+        use crate::capture::types::BorrowInfo;
+        allocations[0].borrow_info = Some(BorrowInfo {
+            immutable_borrows: 0,
+            mutable_borrows: 3,
+            max_concurrent_borrows: 3,
+            last_borrow_timestamp: Some(1000),
+            _source: None,
+            _confidence: None,
+        });
+
+        let result = detector.detect(&allocations);
+
+        assert!(result
+            .issues
+            .iter()
+            .all(|i| i.description.contains("borrow")));
     }
 }

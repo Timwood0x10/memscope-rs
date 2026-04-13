@@ -3,6 +3,7 @@
 //! Maps memory addresses to allocation indices using a sorted list
 //! and binary search, enabling O(log n) pointer-to-allocation lookup.
 
+use crate::analysis::is_virtual_pointer;
 use crate::snapshot::types::ActiveAllocation;
 
 /// A single entry in the range map.
@@ -37,10 +38,20 @@ impl RangeMap {
         let mut entries: Vec<RangeEntry> = allocations
             .iter()
             .enumerate()
-            .map(|(id, alloc)| RangeEntry {
-                start: alloc.ptr,
-                end: alloc.ptr.saturating_add(alloc.size),
-                alloc_id: id,
+            .filter_map(|(id, alloc)| {
+                // Only include HeapOwner allocations with valid pointers
+                // Skip virtual pointers used for Container types
+                alloc.ptr.and_then(|ptr| {
+                    if !is_virtual_pointer(ptr) {
+                        Some(RangeEntry {
+                            start: ptr,
+                            end: ptr.saturating_add(alloc.size),
+                            alloc_id: id,
+                        })
+                    } else {
+                        None
+                    }
+                })
             })
             .collect();
 
@@ -49,7 +60,6 @@ impl RangeMap {
 
         Self { entries }
     }
-
     /// Find the allocation ID that contains the given pointer.
     ///
     /// Returns `Some(alloc_id)` if `ptr` falls within `[start, end)` of
@@ -99,10 +109,12 @@ impl RangeMap {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::types::TrackKind::HeapOwner;
 
     fn make_alloc(ptr: usize, size: usize) -> ActiveAllocation {
         ActiveAllocation {
-            ptr,
+            kind: HeapOwner { ptr, size },
+            ptr: Some(ptr),
             size,
             allocated_at: 0,
             var_name: None,

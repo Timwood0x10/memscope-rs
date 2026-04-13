@@ -328,4 +328,260 @@ mod tests {
             assert!(!format!("{reason:?}").is_empty());
         }
     }
+
+    #[test]
+    fn test_scope_info_creation() {
+        let scope = ScopeInfo {
+            name: "main".to_string(),
+            parent: None,
+            children: vec![],
+            depth: 0,
+            variables: vec!["x".to_string(), "y".to_string()],
+            total_memory: 1024,
+            peak_memory: 2048,
+            allocation_count: 5,
+            lifetime_start: Some(0),
+            lifetime_end: Some(1000),
+            is_active: false,
+            start_time: 0,
+            end_time: Some(1000),
+            memory_usage: 1024,
+            child_scopes: vec![],
+            parent_scope: None,
+        };
+
+        assert_eq!(scope.name, "main");
+        assert_eq!(scope.variables.len(), 2);
+        assert_eq!(scope.total_memory, 1024);
+    }
+
+    #[test]
+    fn test_scope_info_with_parent() {
+        let scope = ScopeInfo {
+            name: "inner".to_string(),
+            parent: Some("main".to_string()),
+            children: vec![],
+            depth: 1,
+            variables: vec![],
+            total_memory: 0,
+            peak_memory: 0,
+            allocation_count: 0,
+            lifetime_start: None,
+            lifetime_end: None,
+            is_active: true,
+            start_time: 100,
+            end_time: None,
+            memory_usage: 0,
+            child_scopes: vec![],
+            parent_scope: Some("main".to_string()),
+        };
+
+        assert_eq!(scope.depth, 1);
+        assert!(scope.is_active);
+        assert_eq!(scope.parent, Some("main".to_string()));
+    }
+
+    #[test]
+    fn test_scope_hierarchy_default() {
+        let hierarchy = ScopeHierarchy::default();
+
+        assert!(hierarchy.root_scopes.is_empty());
+        assert!(hierarchy.scope_tree.is_empty());
+        assert_eq!(hierarchy.max_depth, 0);
+        assert_eq!(hierarchy.total_scopes, 0);
+    }
+
+    #[test]
+    fn test_scope_hierarchy_with_scopes() {
+        let mut scope_tree = HashMap::new();
+        scope_tree.insert(
+            "main".to_string(),
+            ScopeInfo {
+                name: "main".to_string(),
+                parent: None,
+                children: vec!["inner".to_string()],
+                depth: 0,
+                variables: vec![],
+                total_memory: 1024,
+                peak_memory: 1024,
+                allocation_count: 1,
+                lifetime_start: None,
+                lifetime_end: None,
+                is_active: true,
+                start_time: 0,
+                end_time: None,
+                memory_usage: 1024,
+                child_scopes: vec!["inner".to_string()],
+                parent_scope: None,
+            },
+        );
+
+        let hierarchy = ScopeHierarchy {
+            root_scopes: vec!["main".to_string()],
+            scope_tree,
+            max_depth: 1,
+            total_scopes: 2,
+            relationships: HashMap::new(),
+            depth_map: HashMap::new(),
+        };
+
+        assert_eq!(hierarchy.root_scopes.len(), 1);
+        assert_eq!(hierarchy.total_scopes, 2);
+    }
+
+    #[test]
+    fn test_type_lifecycle_pattern_creation() {
+        let pattern = TypeLifecyclePattern {
+            type_name: "Vec<u8>".to_string(),
+            average_lifetime_ms: 500.0,
+            typical_size: 1024,
+            growth_pattern: "exponential".to_string(),
+            risk_level: "low".to_string(),
+            instance_count: 100,
+        };
+
+        assert_eq!(pattern.type_name, "Vec<u8>");
+        assert_eq!(pattern.average_lifetime_ms, 500.0);
+    }
+
+    #[test]
+    fn test_growth_event_creation() {
+        let event = GrowthEvent {
+            timestamp: 1000,
+            old_size: 1024,
+            new_size: 2048,
+            growth_factor: 2.0,
+            reason: GrowthReason::Expansion,
+            var_name: "buffer".to_string(),
+        };
+
+        assert_eq!(event.growth_factor, 2.0);
+        assert_eq!(event.reason, GrowthReason::Expansion);
+    }
+
+    #[test]
+    fn test_borrow_event_creation() {
+        let event = BorrowEvent {
+            timestamp: 100,
+            ptr: 0x1000,
+            borrow_type: "immutable".to_string(),
+            duration_ms: 50,
+            var_name: "data".to_string(),
+        };
+
+        assert_eq!(event.borrow_type, "immutable");
+        assert_eq!(event.duration_ms, 50);
+    }
+
+    #[test]
+    fn test_move_event_creation() {
+        let event = MoveEvent {
+            timestamp: 200,
+            from_ptr: 0x1000,
+            to_ptr: 0x2000,
+            size: 1024,
+            var_name: "value".to_string(),
+        };
+
+        assert_eq!(event.from_ptr, 0x1000);
+        assert_eq!(event.to_ptr, 0x2000);
+    }
+
+    #[test]
+    fn test_variable_relationship_creation() {
+        let rel = VariableRelationship {
+            source_var: "parent".to_string(),
+            target_var: "child".to_string(),
+            relationship_type: "ownership".to_string(),
+            strength: 0.9,
+        };
+
+        assert_eq!(rel.relationship_type, "ownership");
+        assert_eq!(rel.strength, 0.9);
+    }
+
+    #[test]
+    fn test_potential_leak_creation() {
+        let leak = PotentialLeak {
+            ptr: 0x1000,
+            size: 1024,
+            age_ms: 5000,
+            var_name: Some("leaked".to_string()),
+            type_name: Some("String".to_string()),
+            severity: "high".to_string(),
+        };
+
+        assert_eq!(leak.ptr, 0x1000);
+        assert_eq!(leak.severity, "high");
+    }
+
+    #[test]
+    fn test_scope_analysis_default() {
+        let analysis = ScopeAnalysis::default();
+
+        assert_eq!(analysis.total_scopes, 0);
+        assert_eq!(analysis.active_scopes, 0);
+        assert_eq!(analysis.max_depth, 0);
+    }
+
+    #[test]
+    fn test_scope_lifecycle_metrics_default() {
+        let metrics = ScopeLifecycleMetrics::default();
+
+        assert!(metrics.scope_name.is_empty());
+        assert_eq!(metrics.variable_count, 0);
+        assert_eq!(metrics.average_lifetime_ms, 0.0);
+    }
+
+    #[test]
+    fn test_scope_lifecycle_metrics_with_values() {
+        let metrics = ScopeLifecycleMetrics {
+            scope_name: "test_scope".to_string(),
+            variable_count: 10,
+            average_lifetime_ms: 100.0,
+            total_memory_usage: 4096,
+            peak_memory_usage: 8192,
+            allocation_frequency: 50.0,
+            deallocation_efficiency: 0.95,
+            completed_allocations: 100,
+            memory_growth_events: 5,
+            peak_concurrent_variables: 20,
+            memory_efficiency_ratio: 0.85,
+            ownership_transfer_events: 10,
+            fragmentation_score: 0.1,
+            instant_allocations: 30,
+            short_term_allocations: 40,
+            medium_term_allocations: 20,
+            long_term_allocations: 10,
+            suspected_leaks: 1,
+            risk_distribution: RiskDistribution::default(),
+            scope_metrics: vec![],
+            type_lifecycle_patterns: vec![],
+        };
+
+        assert_eq!(metrics.scope_name, "test_scope");
+        assert_eq!(metrics.variable_count, 10);
+        assert_eq!(metrics.total_memory_usage, 4096);
+    }
+
+    #[test]
+    fn test_allocation_event_type_equality() {
+        assert_eq!(AllocationEventType::Allocate, AllocationEventType::Allocate);
+        assert_ne!(
+            AllocationEventType::Allocate,
+            AllocationEventType::Deallocate
+        );
+    }
+
+    #[test]
+    fn test_scope_event_type_equality() {
+        assert_eq!(ScopeEventType::Enter, ScopeEventType::Enter);
+        assert_ne!(ScopeEventType::Enter, ScopeEventType::Exit);
+    }
+
+    #[test]
+    fn test_growth_reason_equality() {
+        assert_eq!(GrowthReason::Initial, GrowthReason::Initial);
+        assert_ne!(GrowthReason::Initial, GrowthReason::Expansion);
+    }
 }

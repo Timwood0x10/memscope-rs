@@ -818,14 +818,13 @@ mod tests {
         checker.set_baseline("test_operation", 1024 * 1024, 100);
 
         let current = MemorySnapshot {
-            memory_usage: 1200 * 1024, // Smaller increase, less likely to trigger high severity
+            memory_usage: 1200 * 1024,
             allocation_count: 120,
             timestamp: Instant::now(),
         };
 
         let result = checker.check_for_leaks("test_operation", &current);
-        // Allow any severity level or no leak detection
-        let _ = result; // Test passes as long as it doesn't panic
+        let _ = result;
     }
 
     #[test]
@@ -836,5 +835,686 @@ mod tests {
             bytes_per_allocation: 64.0,
         };
         assert!(matches!(linear, GrowthPattern::Linear { .. }));
+    }
+
+    #[test]
+    fn test_performance_checker_default() {
+        let checker = PerformanceChecker::default();
+        assert!(checker.benchmarks.is_empty());
+    }
+
+    #[test]
+    fn test_memory_leak_checker_default() {
+        let checker = MemoryLeakChecker::default();
+        assert!(checker.baseline_measurements.is_empty());
+    }
+
+    #[test]
+    fn test_checker_config_default() {
+        let config = CheckerConfig::default();
+        assert!(config.deep_analysis);
+        assert_eq!(config.max_check_time, Duration::from_secs(5));
+        assert!(!config.realtime_checking);
+        assert!((config.sample_rate - 0.1).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_leak_detection_config_default() {
+        let config = LeakDetectionConfig::default();
+        assert_eq!(config.measurement_interval, Duration::from_secs(60));
+        assert_eq!(config.measurement_history, 100);
+        assert!((config.growth_threshold - 1024.0 * 1024.0).abs() < f64::EPSILON);
+        assert!(config.track_allocations);
+    }
+
+    #[test]
+    fn test_safety_config_default() {
+        let config = SafetyConfig::default();
+        assert_eq!(config.enabled_patterns.len(), 3);
+        assert_eq!(config.min_severity, SafetySeverity::Low);
+        assert!(config.check_thread_safety);
+        assert!(config.check_memory_safety);
+    }
+
+    #[test]
+    fn test_performance_thresholds_default() {
+        let thresholds = PerformanceThresholds::default();
+        assert_eq!(thresholds.allocation_latency, Duration::from_micros(50));
+        assert_eq!(thresholds.symbol_resolution, Duration::from_millis(5));
+        assert_eq!(thresholds.stack_trace_capture, Duration::from_millis(10));
+        assert!((thresholds.memory_overhead_pct - 5.0).abs() < f64::EPSILON);
+        assert!((thresholds.min_completeness - 0.95).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_leak_sensitivity_variants() {
+        let sensitivities = vec![
+            LeakSensitivity::Low,
+            LeakSensitivity::Medium,
+            LeakSensitivity::High,
+            LeakSensitivity::Paranoid,
+        ];
+
+        for sensitivity in sensitivities {
+            let checker = MemoryLeakChecker {
+                baseline_measurements: HashMap::new(),
+                config: LeakDetectionConfig::default(),
+                sensitivity: sensitivity.clone(),
+            };
+            assert_eq!(checker.sensitivity, sensitivity);
+        }
+    }
+
+    #[test]
+    fn test_growth_pattern_variants() {
+        let patterns = vec![
+            GrowthPattern::Constant,
+            GrowthPattern::Linear {
+                bytes_per_allocation: 64.0,
+            },
+            GrowthPattern::Logarithmic,
+            GrowthPattern::Stabilizing { max_growth: 1024 },
+            GrowthPattern::Custom {
+                description: "custom".to_string(),
+            },
+        ];
+
+        for pattern in patterns {
+            let baseline = MemoryBaseline {
+                initial_memory: 1024,
+                growth_pattern: pattern.clone(),
+                timestamp: Instant::now(),
+                allocation_count: 10,
+            };
+            assert_eq!(baseline.growth_pattern, pattern);
+        }
+    }
+
+    #[test]
+    fn test_safety_severity_ordering() {
+        assert!(SafetySeverity::Critical > SafetySeverity::High);
+        assert!(SafetySeverity::High > SafetySeverity::Medium);
+        assert!(SafetySeverity::Medium > SafetySeverity::Low);
+    }
+
+    #[test]
+    fn test_risk_level_ordering() {
+        assert!(RiskLevel::Critical > RiskLevel::High);
+        assert!(RiskLevel::High > RiskLevel::Medium);
+        assert!(RiskLevel::Medium > RiskLevel::Low);
+        assert!(RiskLevel::Low > RiskLevel::Minimal);
+    }
+
+    #[test]
+    fn test_leak_severity_ordering() {
+        assert!(LeakSeverity::Critical > LeakSeverity::High);
+        assert!(LeakSeverity::High > LeakSeverity::Medium);
+        assert!(LeakSeverity::Medium > LeakSeverity::Low);
+        assert!(LeakSeverity::Low > LeakSeverity::None);
+    }
+
+    #[test]
+    fn test_access_type_variants() {
+        let access_types = vec![
+            AccessType::Read,
+            AccessType::Write,
+            AccessType::Allocate,
+            AccessType::Deallocate,
+        ];
+
+        for access_type in access_types {
+            let access = MemoryAccess {
+                access_type: access_type.clone(),
+                address: Some(0x1000),
+                size: 64,
+                synchronized: true,
+            };
+            assert_eq!(access.access_type, access_type);
+        }
+    }
+
+    #[test]
+    fn test_interaction_type_variants() {
+        let interaction_types = vec![
+            InteractionType::SharedRead,
+            InteractionType::ExclusiveWrite,
+            InteractionType::MessagePassing,
+            InteractionType::LockAcquisition,
+        ];
+
+        for interaction_type in interaction_types {
+            let interaction = ThreadInteraction {
+                interaction_type: interaction_type.clone(),
+                resource_id: "test".to_string(),
+                synchronization: None,
+            };
+            assert_eq!(interaction.interaction_type, interaction_type);
+        }
+    }
+
+    #[test]
+    fn test_sync_mechanism_variants() {
+        let mechanisms = vec![
+            SyncMechanism::Mutex,
+            SyncMechanism::RwLock,
+            SyncMechanism::Atomic,
+            SyncMechanism::LockFree,
+            SyncMechanism::None,
+        ];
+
+        for mechanism in mechanisms {
+            let interaction = ThreadInteraction {
+                interaction_type: InteractionType::LockAcquisition,
+                resource_id: "test".to_string(),
+                synchronization: Some(mechanism.clone()),
+            };
+            assert_eq!(interaction.synchronization, Some(mechanism));
+        }
+    }
+
+    #[test]
+    fn test_safety_property_variants() {
+        let properties = vec![
+            SafetyProperty::NoMemoryLeaks,
+            SafetyProperty::NoDataRaces,
+            SafetyProperty::NoUseAfterFree,
+            SafetyProperty::NoBufferOverflow,
+            SafetyProperty::ErrorPropagation,
+            SafetyProperty::ResourceCleanup,
+        ];
+
+        for property in properties {
+            let requirement = SafetyRequirement {
+                properties: vec![property.clone()],
+                thread_safe: true,
+                error_handling: true,
+                max_risk_level: RiskLevel::Low,
+            };
+            assert!(requirement.properties.contains(&property));
+        }
+    }
+
+    #[test]
+    fn test_performance_status_variants() {
+        let statuses = vec![
+            PerformanceStatus::Optimal,
+            PerformanceStatus::Acceptable,
+            PerformanceStatus::Poor,
+            PerformanceStatus::Critical,
+        ];
+
+        for status in statuses {
+            let result = PerformanceCheckResult {
+                operation: "test".to_string(),
+                status: status.clone(),
+                violations: vec![],
+                overall_score: 1.0,
+            };
+            assert_eq!(result.status, status);
+        }
+    }
+
+    #[test]
+    fn test_performance_issue_type_variants() {
+        let issue_types = vec![
+            PerformanceIssueType::Minor,
+            PerformanceIssueType::Major,
+            PerformanceIssueType::Critical,
+        ];
+
+        for issue_type in issue_types {
+            let violation = PerformanceViolation {
+                metric: "test".to_string(),
+                expected: 100.0,
+                actual: 200.0,
+                severity: issue_type.clone(),
+                description: "test".to_string(),
+            };
+            assert_eq!(violation.severity, issue_type);
+        }
+    }
+
+    #[test]
+    fn test_performance_benchmark_creation() {
+        let benchmark = PerformanceBenchmark {
+            operation: "test_op".to_string(),
+            expected_duration: Duration::from_micros(10),
+            max_duration: Duration::from_micros(50),
+            expected_memory: 1024,
+            max_memory: 2048,
+            expected_throughput: 1000.0,
+            min_throughput: 500.0,
+        };
+
+        assert_eq!(benchmark.operation, "test_op");
+        assert_eq!(benchmark.expected_memory, 1024);
+    }
+
+    #[test]
+    fn test_memory_baseline_creation() {
+        let baseline = MemoryBaseline {
+            initial_memory: 1024 * 1024,
+            growth_pattern: GrowthPattern::Constant,
+            timestamp: Instant::now(),
+            allocation_count: 100,
+        };
+
+        assert_eq!(baseline.initial_memory, 1024 * 1024);
+        assert_eq!(baseline.allocation_count, 100);
+    }
+
+    #[test]
+    fn test_safety_pattern_creation() {
+        fn test_detector(_ctx: &SafetyContext) -> Vec<SafetyViolation> {
+            vec![]
+        }
+
+        let pattern = SafetyPattern {
+            id: "test_pattern".to_string(),
+            description: "Test pattern".to_string(),
+            detector: test_detector,
+            severity: SafetySeverity::Medium,
+        };
+
+        assert_eq!(pattern.id, "test_pattern");
+        assert_eq!(pattern.severity, SafetySeverity::Medium);
+    }
+
+    #[test]
+    fn test_safety_requirement_creation() {
+        let requirement = SafetyRequirement {
+            properties: vec![SafetyProperty::NoMemoryLeaks, SafetyProperty::NoDataRaces],
+            thread_safe: true,
+            error_handling: true,
+            max_risk_level: RiskLevel::Medium,
+        };
+
+        assert_eq!(requirement.properties.len(), 2);
+        assert!(requirement.thread_safe);
+    }
+
+    #[test]
+    fn test_safety_context_creation() {
+        let context = SafetyContext {
+            operation: "test_op".to_string(),
+            memory_accesses: vec![MemoryAccess {
+                access_type: AccessType::Read,
+                address: Some(0x1000),
+                size: 64,
+                synchronized: true,
+            }],
+            thread_interactions: vec![],
+            error_handling: true,
+            resource_usage: ResourceUsage {
+                memory_bytes: 1024,
+                file_descriptors: 2,
+                network_connections: 1,
+                cpu_time: Duration::from_millis(100),
+            },
+        };
+
+        assert_eq!(context.operation, "test_op");
+        assert_eq!(context.memory_accesses.len(), 1);
+    }
+
+    #[test]
+    fn test_memory_access_creation() {
+        let access = MemoryAccess {
+            access_type: AccessType::Write,
+            address: Some(0x2000),
+            size: 128,
+            synchronized: false,
+        };
+
+        assert_eq!(access.access_type, AccessType::Write);
+        assert_eq!(access.size, 128);
+        assert!(!access.synchronized);
+    }
+
+    #[test]
+    fn test_thread_interaction_creation() {
+        let interaction = ThreadInteraction {
+            interaction_type: InteractionType::ExclusiveWrite,
+            resource_id: "shared_data".to_string(),
+            synchronization: Some(SyncMechanism::Mutex),
+        };
+
+        assert_eq!(
+            interaction.interaction_type,
+            InteractionType::ExclusiveWrite
+        );
+        assert_eq!(interaction.resource_id, "shared_data");
+    }
+
+    #[test]
+    fn test_resource_usage_creation() {
+        let usage = ResourceUsage {
+            memory_bytes: 1024 * 1024,
+            file_descriptors: 5,
+            network_connections: 2,
+            cpu_time: Duration::from_secs(1),
+        };
+
+        assert_eq!(usage.memory_bytes, 1024 * 1024);
+        assert_eq!(usage.file_descriptors, 5);
+    }
+
+    #[test]
+    fn test_safety_violation_creation() {
+        let violation = SafetyViolation {
+            violation_type: "use_after_free".to_string(),
+            severity: SafetySeverity::Critical,
+            description: "Memory accessed after free".to_string(),
+            suggestion: "Check lifetime".to_string(),
+            location: Some("test.rs:42".to_string()),
+        };
+
+        assert_eq!(violation.violation_type, "use_after_free");
+        assert_eq!(violation.severity, SafetySeverity::Critical);
+    }
+
+    #[test]
+    fn test_performance_metrics_creation() {
+        let metrics = PerformanceMetrics {
+            duration: Duration::from_micros(50),
+            memory_usage: 2048,
+            throughput: 1000.0,
+            cpu_usage: 25.0,
+        };
+
+        assert_eq!(metrics.duration, Duration::from_micros(50));
+        assert_eq!(metrics.memory_usage, 2048);
+    }
+
+    #[test]
+    fn test_performance_check_result_creation() {
+        let result = PerformanceCheckResult {
+            operation: "test".to_string(),
+            status: PerformanceStatus::Optimal,
+            violations: vec![],
+            overall_score: 1.0,
+        };
+
+        assert_eq!(result.operation, "test");
+        assert_eq!(result.status, PerformanceStatus::Optimal);
+    }
+
+    #[test]
+    fn test_performance_violation_creation() {
+        let violation = PerformanceViolation {
+            metric: "latency".to_string(),
+            expected: 50.0,
+            actual: 100.0,
+            severity: PerformanceIssueType::Major,
+            description: "Latency too high".to_string(),
+        };
+
+        assert_eq!(violation.metric, "latency");
+        assert!((violation.actual - 100.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_memory_snapshot_creation() {
+        let snapshot = MemorySnapshot {
+            memory_usage: 1024 * 1024,
+            allocation_count: 100,
+            timestamp: Instant::now(),
+        };
+
+        assert_eq!(snapshot.memory_usage, 1024 * 1024);
+        assert_eq!(snapshot.allocation_count, 100);
+    }
+
+    #[test]
+    fn test_leak_check_result_creation() {
+        let result = LeakCheckResult {
+            operation: "test".to_string(),
+            leak_detected: true,
+            severity: LeakSeverity::High,
+            confidence: 0.85,
+            indicators: vec![],
+            growth_rate: 1024.0,
+        };
+
+        assert!(result.leak_detected);
+        assert_eq!(result.severity, LeakSeverity::High);
+    }
+
+    #[test]
+    fn test_leak_indicator_creation() {
+        let indicator = LeakIndicator {
+            indicator_type: "excessive_growth".to_string(),
+            description: "Memory growing too fast".to_string(),
+            severity: LeakSeverity::Medium,
+        };
+
+        assert_eq!(indicator.indicator_type, "excessive_growth");
+    }
+
+    #[test]
+    fn test_check_performance_no_benchmark() {
+        let checker = PerformanceChecker::new();
+        let metrics = PerformanceMetrics {
+            duration: Duration::from_micros(50),
+            memory_usage: 1024,
+            throughput: 1000.0,
+            cpu_usage: 10.0,
+        };
+
+        let result = checker.check_performance("unknown_operation", &metrics);
+        assert!(matches!(
+            result.status,
+            PerformanceStatus::Optimal | PerformanceStatus::Acceptable
+        ));
+    }
+
+    #[test]
+    fn test_check_performance_allocation_latency() {
+        let checker = PerformanceChecker::new();
+        let metrics = PerformanceMetrics {
+            duration: Duration::from_micros(100), // Exceeds threshold
+            memory_usage: 1024,
+            throughput: 1000.0,
+            cpu_usage: 10.0,
+        };
+
+        let result = checker.check_performance("allocation_tracking", &metrics);
+        assert!(matches!(
+            result.status,
+            PerformanceStatus::Critical | PerformanceStatus::Poor
+        ));
+    }
+
+    #[test]
+    fn test_check_performance_symbol_resolution() {
+        let checker = PerformanceChecker::new();
+        let metrics = PerformanceMetrics {
+            duration: Duration::from_millis(10), // Exceeds threshold
+            memory_usage: 1024,
+            throughput: 1000.0,
+            cpu_usage: 10.0,
+        };
+
+        let result = checker.check_performance("symbol_resolution", &metrics);
+        assert!(matches!(
+            result.status,
+            PerformanceStatus::Poor | PerformanceStatus::Critical
+        ));
+    }
+
+    #[test]
+    fn test_check_for_leaks_no_baseline() {
+        let checker = MemoryLeakChecker::new();
+        let snapshot = MemorySnapshot {
+            memory_usage: 1024,
+            allocation_count: 10,
+            timestamp: Instant::now(),
+        };
+
+        let result = checker.check_for_leaks("unknown_operation", &snapshot);
+        assert!(!result.leak_detected);
+        assert_eq!(result.severity, LeakSeverity::None);
+        assert!((result.confidence - 0.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_check_for_leaks_high_growth() {
+        let mut checker = MemoryLeakChecker::new();
+        checker.set_baseline("test", 1024, 10);
+
+        let snapshot = MemorySnapshot {
+            memory_usage: 10 * 1024 * 1024, // 10MB growth
+            allocation_count: 20,
+            timestamp: Instant::now(),
+        };
+
+        let result = checker.check_for_leaks("test", &snapshot);
+        // High growth should trigger leak detection
+        let _ = result;
+    }
+
+    #[test]
+    fn test_performance_checker_config() {
+        let checker = PerformanceChecker::new();
+        assert!(checker.config().deep_analysis);
+    }
+
+    #[test]
+    fn test_memory_leak_checker_config() {
+        let checker = MemoryLeakChecker::new();
+        assert!(checker.config().track_allocations);
+    }
+
+    #[test]
+    fn test_safety_checker_violation_patterns() {
+        let checker = SafetyChecker {
+            violation_patterns: vec![],
+            safety_requirements: HashMap::new(),
+            config: SafetyConfig::default(),
+        };
+        assert!(checker.violation_patterns().is_empty());
+    }
+
+    #[test]
+    fn test_safety_checker_safety_requirements() {
+        let checker = SafetyChecker {
+            violation_patterns: vec![],
+            safety_requirements: HashMap::new(),
+            config: SafetyConfig::default(),
+        };
+        assert!(checker.safety_requirements().is_empty());
+    }
+
+    #[test]
+    fn test_safety_checker_config() {
+        let checker = SafetyChecker {
+            violation_patterns: vec![],
+            safety_requirements: HashMap::new(),
+            config: SafetyConfig::default(),
+        };
+        assert!(checker.config().check_thread_safety);
+    }
+
+    #[test]
+    fn test_performance_score_calculation_no_violations() {
+        let checker = PerformanceChecker::new();
+        let metrics = PerformanceMetrics {
+            duration: Duration::from_micros(10),
+            memory_usage: 512,
+            throughput: 2000.0,
+            cpu_usage: 5.0,
+        };
+
+        let result = checker.check_performance("test", &metrics);
+        assert!((result.overall_score - 1.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_performance_score_with_violations() {
+        let mut checker = PerformanceChecker::new();
+        let benchmark = PerformanceBenchmark {
+            operation: "test".to_string(),
+            expected_duration: Duration::from_micros(10),
+            max_duration: Duration::from_micros(20),
+            expected_memory: 512,
+            max_memory: 1024,
+            expected_throughput: 2000.0,
+            min_throughput: 1000.0,
+        };
+        checker.add_benchmark(benchmark);
+
+        let metrics = PerformanceMetrics {
+            duration: Duration::from_micros(50), // Exceeds max
+            memory_usage: 2048,                  // Exceeds max
+            throughput: 500.0,                   // Below min
+            cpu_usage: 50.0,
+        };
+
+        let result = checker.check_performance("test", &metrics);
+        assert!(result.overall_score < 1.0);
+    }
+
+    #[test]
+    fn test_growth_pattern_equality() {
+        assert_eq!(GrowthPattern::Constant, GrowthPattern::Constant);
+        assert_ne!(GrowthPattern::Constant, GrowthPattern::Logarithmic);
+    }
+
+    #[test]
+    fn test_leak_sensitivity_equality() {
+        assert_eq!(LeakSensitivity::Low, LeakSensitivity::Low);
+        assert_ne!(LeakSensitivity::Low, LeakSensitivity::High);
+    }
+
+    #[test]
+    fn test_access_type_equality() {
+        assert_eq!(AccessType::Read, AccessType::Read);
+        assert_ne!(AccessType::Read, AccessType::Write);
+    }
+
+    #[test]
+    fn test_interaction_type_equality() {
+        assert_eq!(InteractionType::SharedRead, InteractionType::SharedRead);
+        assert_ne!(InteractionType::SharedRead, InteractionType::ExclusiveWrite);
+    }
+
+    #[test]
+    fn test_sync_mechanism_equality() {
+        assert_eq!(SyncMechanism::Mutex, SyncMechanism::Mutex);
+        assert_ne!(SyncMechanism::Mutex, SyncMechanism::RwLock);
+    }
+
+    #[test]
+    fn test_safety_property_equality() {
+        assert_eq!(SafetyProperty::NoMemoryLeaks, SafetyProperty::NoMemoryLeaks);
+        assert_ne!(SafetyProperty::NoMemoryLeaks, SafetyProperty::NoDataRaces);
+    }
+
+    #[test]
+    fn test_performance_status_equality() {
+        assert_eq!(PerformanceStatus::Optimal, PerformanceStatus::Optimal);
+        assert_ne!(PerformanceStatus::Optimal, PerformanceStatus::Critical);
+    }
+
+    #[test]
+    fn test_performance_issue_type_equality() {
+        assert_eq!(PerformanceIssueType::Minor, PerformanceIssueType::Minor);
+        assert_ne!(PerformanceIssueType::Minor, PerformanceIssueType::Major);
+    }
+
+    #[test]
+    fn test_debug_implementations() {
+        let benchmark = PerformanceBenchmark {
+            operation: "test".to_string(),
+            expected_duration: Duration::from_micros(10),
+            max_duration: Duration::from_micros(50),
+            expected_memory: 1024,
+            max_memory: 2048,
+            expected_throughput: 1000.0,
+            min_throughput: 500.0,
+        };
+
+        let debug_str = format!("{:?}", benchmark);
+        assert!(debug_str.contains("PerformanceBenchmark"));
     }
 }

@@ -376,3 +376,339 @@ impl UnknownMemoryAnalyzer {
             .collect()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn create_test_allocation(ptr: usize, size: usize) -> AllocationInfo {
+        AllocationInfo {
+            ptr,
+            size,
+            var_name: None,
+            type_name: None,
+            scope_name: None,
+            timestamp_alloc: 1000,
+            timestamp_dealloc: None,
+            thread_id: std::thread::current().id(),
+            thread_id_u64: 1,
+            borrow_count: 0,
+            stack_trace: None,
+            is_leaked: false,
+            lifetime_ms: None,
+            borrow_info: None,
+            clone_info: None,
+            ownership_history_available: false,
+            smart_pointer_info: None,
+            memory_layout: None,
+            generic_info: None,
+            dynamic_type_info: None,
+            runtime_state: None,
+            stack_allocation: None,
+            temporary_object: None,
+            fragmentation_analysis: None,
+            generic_instantiation: None,
+            type_relationships: None,
+            type_usage: None,
+            function_call_tracking: None,
+            lifecycle_tracking: None,
+            access_tracking: None,
+            drop_chain_analysis: None,
+        }
+    }
+
+    /// Objective: Verify UnknownMemoryAnalyzer creation with default
+    /// Invariants: All internal maps should be empty
+    #[test]
+    fn test_analyzer_new() {
+        let analyzer = UnknownMemoryAnalyzer::new();
+        assert!(
+            analyzer.known_system_regions.is_empty(),
+            "System regions should be empty"
+        );
+        assert!(
+            analyzer.library_mappings.is_empty(),
+            "Library mappings should be empty"
+        );
+        assert!(
+            analyzer.thread_memory_ranges.is_empty(),
+            "Thread ranges should be empty"
+        );
+    }
+
+    /// Objective: Verify Default trait implementation
+    /// Invariants: Default should be equivalent to new()
+    #[test]
+    fn test_analyzer_default() {
+        let analyzer = UnknownMemoryAnalyzer::default();
+        assert!(
+            analyzer.known_system_regions.is_empty(),
+            "Default should create empty analyzer"
+        );
+    }
+
+    /// Objective: Verify analyze_unknown_regions with empty allocations
+    /// Invariants: Should return zero unknown bytes, percentage may be NaN for empty input
+    #[test]
+    fn test_analyze_empty_allocations() {
+        let mut analyzer = UnknownMemoryAnalyzer::new();
+        let result = analyzer.analyze_unknown_regions(&[]);
+        assert_eq!(
+            result.total_unknown_bytes, 0,
+            "Empty input should have zero unknown bytes"
+        );
+        assert!(
+            result.unknown_percentage.is_nan() || result.unknown_percentage == 0.0,
+            "Empty input should have NaN or 0% unknown"
+        );
+    }
+
+    /// Objective: Verify analyze_unknown_regions with single allocation
+    /// Invariants: Should categorize unknown allocation correctly
+    #[test]
+    fn test_analyze_single_allocation() {
+        let mut analyzer = UnknownMemoryAnalyzer::new();
+        let allocations = vec![create_test_allocation(0x10000, 1024)];
+        let result = analyzer.analyze_unknown_regions(&allocations);
+        assert!(
+            result.total_unknown_bytes > 0,
+            "Should detect unknown bytes"
+        );
+        assert!(
+            result.unknown_percentage > 0.0,
+            "Should have unknown percentage"
+        );
+    }
+
+    /// Objective: Verify mmap allocation detection
+    /// Invariants: Page-aligned allocations >= 4096 should be detected as mmap
+    #[test]
+    fn test_mmap_detection() {
+        let mut analyzer = UnknownMemoryAnalyzer::new();
+        let allocations = vec![create_test_allocation(0x1000, 4096)];
+        let result = analyzer.analyze_unknown_regions(&allocations);
+        let mmap_category = result
+            .unknown_categories
+            .iter()
+            .find(|c| matches!(c.category_type, UnknownRegionType::MemoryMappedRegions));
+        assert!(
+            mmap_category.is_some(),
+            "Should detect memory-mapped region"
+        );
+    }
+
+    /// Objective: Verify FFI allocation detection
+    /// Invariants: Allocations without type_name should be detected as FFI
+    #[test]
+    fn test_ffi_detection() {
+        let mut analyzer = UnknownMemoryAnalyzer::new();
+        let allocations = vec![create_test_allocation(0x10000, 512)];
+        let result = analyzer.analyze_unknown_regions(&allocations);
+        let ffi_category = result.unknown_categories.iter().find(|c| {
+            matches!(
+                c.category_type,
+                UnknownRegionType::ExternalLibraryAllocations
+            )
+        });
+        assert!(ffi_category.is_some(), "Should detect FFI allocation");
+    }
+
+    /// Objective: Verify system allocation detection
+    /// Invariants: Low addresses should be detected as system regions
+    #[test]
+    fn test_system_region_detection() {
+        let mut analyzer = UnknownMemoryAnalyzer::new();
+        let allocations = vec![create_test_allocation(0x100, 256)];
+        let result = analyzer.analyze_unknown_regions(&allocations);
+        let system_category = result
+            .unknown_categories
+            .iter()
+            .find(|c| matches!(c.category_type, UnknownRegionType::SystemReservedRegions));
+        assert!(system_category.is_some(), "Should detect system region");
+    }
+
+    /// Objective: Verify pre-tracking allocation detection
+    /// Invariants: Allocations with timestamp < 1000 should be pre-tracking
+    #[test]
+    fn test_pre_tracking_detection() {
+        let mut analyzer = UnknownMemoryAnalyzer::new();
+        let mut alloc = create_test_allocation(0x10000, 1024);
+        alloc.timestamp_alloc = 500;
+        let result = analyzer.analyze_unknown_regions(&[alloc]);
+        let pre_tracking = result
+            .unknown_categories
+            .iter()
+            .find(|c| matches!(c.category_type, UnknownRegionType::PreTrackingAllocations));
+        assert!(
+            pre_tracking.is_some(),
+            "Should detect pre-tracking allocation"
+        );
+    }
+
+    /// Objective: Verify known system region exclusion
+    /// Invariants: Known regions should not be marked as unknown
+    #[test]
+    fn test_known_system_region_exclusion() {
+        let mut analyzer = UnknownMemoryAnalyzer::new();
+        analyzer.known_system_regions.insert(
+            (0x10000, 0x20000),
+            SystemRegionInfo {
+                region_type: "test".to_string(),
+                description: "test region".to_string(),
+                read_only: false,
+            },
+        );
+        let allocations = vec![create_test_allocation(0x15000, 1024)];
+        let result = analyzer.analyze_unknown_regions(&allocations);
+        assert_eq!(
+            result.total_unknown_bytes, 0,
+            "Known region should not be unknown"
+        );
+    }
+
+    /// Objective: Verify library mapping detection
+    /// Invariants: Allocations in library range should be detected
+    #[test]
+    fn test_library_mapping_detection() {
+        let mut analyzer = UnknownMemoryAnalyzer::new();
+        analyzer.library_mappings.insert(
+            "test_lib".to_string(),
+            LibraryMappingInfo {
+                start_address: 0x10000,
+                end_address: 0x20000,
+                permissions: "r-x".to_string(),
+                file_path: "/lib/test.so".to_string(),
+            },
+        );
+        let allocations = vec![create_test_allocation(0x15000, 1024)];
+        let result = analyzer.analyze_unknown_regions(&allocations);
+        let lib_category = result
+            .unknown_categories
+            .iter()
+            .find(|c| matches!(c.category_type, UnknownRegionType::DynamicLibraryRegions));
+        assert!(lib_category.is_some(), "Should detect library allocation");
+    }
+
+    /// Objective: Verify thread memory range detection
+    /// Invariants: Allocations in thread range should be detected as TLS
+    #[test]
+    fn test_thread_range_detection() {
+        let mut analyzer = UnknownMemoryAnalyzer::new();
+        analyzer
+            .thread_memory_ranges
+            .insert(1, vec![(0x10000, 0x20000)]);
+        let allocations = vec![create_test_allocation(0x15000, 512)];
+        let result = analyzer.analyze_unknown_regions(&allocations);
+        let tls_category = result
+            .unknown_categories
+            .iter()
+            .find(|c| matches!(c.category_type, UnknownRegionType::ThreadLocalStorage));
+        assert!(tls_category.is_some(), "Should detect TLS allocation");
+    }
+
+    /// Objective: Verify reduction strategies are generated
+    /// Invariants: Should always return strategies
+    #[test]
+    fn test_reduction_strategies() {
+        let mut analyzer = UnknownMemoryAnalyzer::new();
+        let result = analyzer.analyze_unknown_regions(&[]);
+        assert!(
+            !result.reduction_strategies.is_empty(),
+            "Should generate strategies"
+        );
+        assert!(
+            result.reduction_strategies.iter().any(|s| matches!(
+                s.strategy_type,
+                ReductionStrategyType::EnhancedInstrumentation
+            )),
+            "Should include enhanced instrumentation strategy"
+        );
+    }
+
+    /// Objective: Verify potential causes are identified
+    /// Invariants: Should identify causes for unknown allocations
+    #[test]
+    fn test_potential_causes() {
+        let mut analyzer = UnknownMemoryAnalyzer::new();
+        let allocations = vec![create_test_allocation(0x10000, 512)];
+        let result = analyzer.analyze_unknown_regions(&allocations);
+        assert!(
+            !result.potential_causes.is_empty(),
+            "Should identify potential causes"
+        );
+    }
+
+    /// Objective: Verify multiple allocations handling
+    /// Invariants: Should correctly sum unknown bytes
+    #[test]
+    fn test_multiple_allocations() {
+        let mut analyzer = UnknownMemoryAnalyzer::new();
+        let allocations = vec![
+            create_test_allocation(0x10000, 1024),
+            create_test_allocation(0x20000, 2048),
+            create_test_allocation(0x30000, 4096),
+        ];
+        let result = analyzer.analyze_unknown_regions(&allocations);
+        assert_eq!(
+            result.total_unknown_bytes, 7168,
+            "Should sum all unknown bytes"
+        );
+    }
+
+    /// Objective: Verify LibraryMappingInfo contains_address
+    /// Invariants: Should correctly check address bounds
+    #[test]
+    fn test_library_mapping_contains() {
+        let mapping = LibraryMappingInfo {
+            start_address: 0x1000,
+            end_address: 0x2000,
+            permissions: "r-x".to_string(),
+            file_path: "/test.so".to_string(),
+        };
+        assert!(
+            mapping.contains_address(0x1000),
+            "Start address should be contained"
+        );
+        assert!(
+            mapping.contains_address(0x1500),
+            "Middle address should be contained"
+        );
+        assert!(
+            !mapping.contains_address(0x2000),
+            "End address should not be contained"
+        );
+        assert!(
+            !mapping.contains_address(0x500),
+            "Address before range should not be contained"
+        );
+    }
+
+    /// Objective: Verify large allocation handling
+    /// Invariants: Should handle large sizes without overflow
+    #[test]
+    fn test_large_allocation() {
+        let mut analyzer = UnknownMemoryAnalyzer::new();
+        let allocations = vec![create_test_allocation(0x100000, usize::MAX / 4)];
+        let result = analyzer.analyze_unknown_regions(&allocations);
+        assert!(
+            result.total_unknown_bytes > 0,
+            "Should handle large allocation"
+        );
+    }
+
+    /// Objective: Verify unknown percentage calculation
+    /// Invariants: Percentage should be between 0 and 100
+    #[test]
+    fn test_percentage_bounds() {
+        let mut analyzer = UnknownMemoryAnalyzer::new();
+        let allocations = vec![
+            create_test_allocation(0x10000, 1024),
+            create_test_allocation(0x20000, 2048),
+        ];
+        let result = analyzer.analyze_unknown_regions(&allocations);
+        assert!(
+            result.unknown_percentage >= 0.0 && result.unknown_percentage <= 100.0,
+            "Percentage should be between 0 and 100"
+        );
+    }
+}

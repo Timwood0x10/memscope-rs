@@ -3,11 +3,15 @@
 //! This module provides export functionality for memory tracking data,
 //! including JSON export, lifetime analysis, and variable relationships.
 
+use tracing::{debug, warn};
+
+use crate::analysis::is_virtual_pointer;
 use crate::analysis::memory_passport_tracker::MemoryPassportTracker;
-use crate::analysis::ownership_graph::{EdgeKind, ObjectId, OwnershipGraph, OwnershipOp};
+use crate::analysis::node_id::NodeId;
+use crate::analysis::ownership_graph::{EdgeKind, OwnershipGraph, OwnershipOp};
 use crate::capture::platform::memory_info::PlatformMemoryInfo;
 use crate::core::{MemScopeError, MemScopeResult};
-use crate::render_engine::dashboard::DashboardRenderer;
+use crate::render_engine::dashboard::{rebuild_allocations_from_events, DashboardRenderer};
 use crate::snapshot::{ActiveAllocation, MemorySnapshot, ThreadMemoryStats};
 use crate::tracker::Tracker;
 use rayon::prelude::*;
@@ -228,8 +232,13 @@ fn process_allocation_batch(allocations: &[&ActiveAllocation]) -> Vec<serde_json
                 0
             };
 
+            let address = match alloc.ptr {
+                Some(ptr) => format!("0x{:x}", ptr),
+                None => "N/A".to_string(),
+            };
+
             let mut entry = json!({
-                "address": format!("0x{:x}", alloc.ptr),
+                "address": address,
                 "size": alloc.size,
                 "type": type_info,
                 "timestamp": alloc.allocated_at,
@@ -460,31 +469,73 @@ pub fn export_all_json<P: AsRef<Path>>(
 ) -> MemScopeResult<()> {
     let path_ref = path.as_ref();
 
-    let allocations = tracker.inner().get_active_allocations().unwrap_or_default();
+    // Use event_store as unified data source (includes both HeapOwner and Container allocations)
+    let events = tracker.event_store().snapshot();
+    let allocations = rebuild_allocations_from_events(&events);
     let snapshot = MemorySnapshot::from_allocation_infos(allocations.clone());
     let options = ExportJsonOptions::default();
 
     std::fs::create_dir_all(path_ref)
         .map_err(|e| MemScopeError::error("export", "export_all_json", e.to_string()))?;
 
+    debug!("Starting export_snapshot_to_json");
+
     export_snapshot_to_json(&snapshot, path_ref, &options)
         .map_err(|e| MemScopeError::error("export", "export_all_json", e.to_string()))?;
 
+    debug!("Completed export_snapshot_to_json");
+
+    debug!("Starting export_memory_passports_json");
+
     export_memory_passports_json(path_ref, passport_tracker)
         .map_err(|e| MemScopeError::error("export", "export_all_json", e.to_string()))?;
+
+    debug!("Completed export_memory_passports_json");
+
+    debug!("Starting export_leak_detection_json");
+
     export_leak_detection_json(path_ref, passport_tracker)
         .map_err(|e| MemScopeError::error("export", "export_all_json", e.to_string()))?;
+
+    debug!("Completed export_leak_detection_json");
+
+    debug!("Starting export_unsafe_ffi_json");
+
     export_unsafe_ffi_json(path_ref, passport_tracker)
         .map_err(|e| MemScopeError::error("export", "export_all_json", e.to_string()))?;
+
+    debug!("Completed export_unsafe_ffi_json");
+
+    debug!("Starting export_system_resources_json");
+
     export_system_resources_json(path_ref)
         .map_err(|e| MemScopeError::error("export", "export_all_json", e.to_string()))?;
+
+    debug!("Completed export_system_resources_json");
+
+    debug!("Starting export_async_analysis_json");
+
     export_async_analysis_json(path_ref, async_tracker)
         .map_err(|e| MemScopeError::error("export", "export_all_json", e.to_string()))?;
-    // Convert core_types::AllocationInfo to types::AllocationInfo for ownership graph export
+
+    debug!("Completed export_async_analysis_json");
+
+    debug!("Starting export_ownership_graph_json");
+
     let typed_allocations: Vec<crate::capture::types::AllocationInfo> =
         allocations.clone().into_iter().map(|a| a.into()).collect();
-    export_ownership_graph_json(path_ref, &typed_allocations)
+
+    debug!(
+        allocations = typed_allocations.len(),
+        "Converted allocations to typed format"
+    );
+
+    export_ownership_graph_json(path_ref, &typed_allocations, tracker.event_store())
         .map_err(|e| MemScopeError::error("export", "export_all_json", e.to_string()))?;
+
+    debug!("Completed export_ownership_graph_json");
+
+    debug!("All exports completed successfully");
 
     Ok(())
 }
@@ -833,7 +884,7 @@ pub fn export_system_resources_json<P: AsRef<Path>>(base_path: P) -> MemScopeRes
     let memory_stats = match memory_info.collect_stats() {
         Ok(stats) => stats,
         Err(e) => {
-            eprintln!("Warning: Failed to collect memory stats: {}", e);
+            warn!(error = %e, "Failed to collect memory stats");
             return Err(MemScopeError::error(
                 "export",
                 "export_system_resources_json",
@@ -846,7 +897,7 @@ pub fn export_system_resources_json<P: AsRef<Path>>(base_path: P) -> MemScopeRes
     let system_info = match memory_info.get_system_info() {
         Ok(info) => info,
         Err(e) => {
-            eprintln!("Warning: Failed to collect system info: {}", e);
+            warn!(error = %e, "Failed to collect system info");
             return Err(MemScopeError::error(
                 "export",
                 "export_system_resources_json",
@@ -962,11 +1013,12 @@ pub fn export_system_resources_json<P: AsRef<Path>>(base_path: P) -> MemScopeRes
 pub fn export_ownership_graph_json<P: AsRef<Path>>(
     base_path: P,
     allocations: &[crate::capture::types::AllocationInfo],
+    event_store: &crate::event_store::EventStore,
 ) -> MemScopeResult<()> {
     let base_path = base_path.as_ref();
 
     // Build ownership graph from allocations
-    let graph = build_ownership_graph_from_allocations(allocations);
+    let graph = build_ownership_graph_from_allocations(allocations, event_store);
 
     // Get diagnostics
     let diagnostics = graph.diagnostics(50);
@@ -994,6 +1046,7 @@ pub fn export_ownership_graph_json<P: AsRef<Path>>(
                 "to": format!("0x{:x}", edge.to.0),
                 "kind": match edge.op {
                     EdgeKind::Owns => "Owns",
+                    EdgeKind::Contains => "Contains",
                     EdgeKind::Borrows => "Borrows",
                     EdgeKind::RcClone => "RcClone",
                     EdgeKind::ArcClone => "ArcClone",
@@ -1093,19 +1146,33 @@ pub fn export_ownership_graph_json<P: AsRef<Path>>(
 /// Build ownership graph from allocation data
 fn build_ownership_graph_from_allocations(
     allocations: &[crate::capture::types::AllocationInfo],
+    event_store: &crate::event_store::EventStore,
 ) -> OwnershipGraph {
-    use crate::analysis::relation_inference::{Relation, RelationGraphBuilder};
+    debug!(
+        allocations = allocations.len(),
+        "Starting build_ownership_graph"
+    );
+    use crate::analysis::relation_inference::{detect_containers, Relation, RelationGraphBuilder};
+    use crate::event_store::MemoryEventType;
 
     // Convert allocations to passport format for graph building
+    // IMPORTANT: For allocations with ptr=0, assign virtual unique IDs to avoid collisions
+    debug!("Converting allocations to passports");
     let passports: Vec<(
-        ObjectId,
+        NodeId,
         String,
         usize,
         Vec<crate::analysis::ownership_graph::OwnershipEvent>,
     )> = allocations
         .iter()
-        .map(|alloc| {
-            let id = ObjectId::from_ptr(alloc.ptr);
+        .enumerate()
+        .map(|(idx, alloc)| {
+            let unique_ptr = if alloc.ptr == 0 {
+                crate::analysis::VIRTUAL_PTR_BASE + idx
+            } else {
+                alloc.ptr
+            };
+            let id = NodeId::from_ptr(unique_ptr);
             let type_name = alloc
                 .type_name
                 .clone()
@@ -1130,36 +1197,149 @@ fn build_ownership_graph_from_allocations(
             (id, type_name, size, events)
         })
         .collect();
+    debug!(passports = passports.len(), "Created passports");
 
+    debug!("Building initial ownership graph");
     let mut graph = OwnershipGraph::build(&passports);
+    debug!(
+        nodes = graph.nodes.len(),
+        edges = graph.edges.len(),
+        "Initial graph built"
+    );
 
-    // Use RelationGraphBuilder to detect relationships and add edges
-    let active_allocations: Vec<ActiveAllocation> = allocations
+    // Build separate lists for HeapOwner and Container allocations
+    // with their original indices preserved for correct edge mapping
+
+    // Step 1: Collect HeapOwner allocations
+    let _heap_owner_original_indices: Vec<usize> = allocations
         .iter()
-        .filter(|a| a.timestamp_dealloc.is_none())
-        .map(|a| ActiveAllocation {
-            ptr: a.ptr,
-            size: a.size,
-            allocated_at: a.timestamp_alloc,
-            var_name: a.var_name.clone(),
-            type_name: a.type_name.clone(),
-            thread_id: 0,
-            call_stack_hash: None,
+        .enumerate()
+        .filter(|(_, a)| a.timestamp_dealloc.is_none())
+        .map(|(i, _)| i)
+        .collect();
+
+    let heap_owner_allocations: Vec<ActiveAllocation> = allocations
+        .iter()
+        .enumerate()
+        .filter(|(_, a)| a.timestamp_dealloc.is_none())
+        .filter_map(|(_idx, a)| {
+            // Skip Container types (ptr is 0 or virtual pointer)
+            if a.ptr == 0 || is_virtual_pointer(a.ptr) {
+                return None;
+            }
+
+            Some(ActiveAllocation {
+                ptr: Some(a.ptr),
+                kind: crate::core::types::TrackKind::HeapOwner {
+                    ptr: a.ptr,
+                    size: a.size,
+                },
+                size: a.size,
+                allocated_at: a.timestamp_alloc,
+                var_name: a.var_name.clone(),
+                type_name: a.type_name.clone(),
+                thread_id: a.thread_id_u64,
+                call_stack_hash: None,
+            })
         })
         .collect();
 
-    let relation_graph = RelationGraphBuilder::build(&active_allocations, None);
+    // Step 2: Collect Container events from event_store
+    // IMPORTANT: Only include containers that match HeapOwner thread_id
+    let valid_thread_ids: std::collections::HashSet<u64> =
+        heap_owner_allocations.iter().map(|a| a.thread_id).collect();
 
-    // Add edges from relation inference
+    let container_events: Vec<_> = event_store
+        .snapshot()
+        .into_iter()
+        .filter(|e| e.event_type == MemoryEventType::Metadata)
+        .filter(|e| valid_thread_ids.contains(&e.thread_id))
+        .filter_map(|e| {
+            let type_name = e.type_name.clone().unwrap_or_default();
+            let var_name = e.var_name.clone().unwrap_or_default();
+            let is_container = type_name.contains("HashMap")
+                || type_name.contains("BTreeMap")
+                || type_name.contains("VecDeque")
+                || type_name.contains("RefCell")
+                || type_name.contains("RwLock");
+            if is_container {
+                return Some((e, type_name, var_name));
+            }
+            None
+        })
+        .collect();
+
+    // Assign virtual pointers to Container allocations to avoid ptr=0 collisions
+    let container_allocations: Vec<ActiveAllocation> = container_events
+        .iter()
+        .enumerate()
+        .map(|(idx, (e, type_name, var_name))| {
+            let virtual_ptr = 0x300000000u64 as usize + idx;
+            ActiveAllocation {
+                ptr: Some(virtual_ptr),
+                kind: crate::core::types::TrackKind::Container,
+                size: e.size.max(1),
+                allocated_at: e.timestamp,
+                var_name: Some(var_name.clone()),
+                type_name: Some(type_name.clone()),
+                thread_id: e.thread_id,
+                call_stack_hash: None,
+            }
+        })
+        .collect();
+
+    // Step 3: Combine for container detection: first HeapOwner, then Container
+    let mut all_for_relation: Vec<ActiveAllocation> = Vec::new();
+    all_for_relation.extend(heap_owner_allocations.clone());
+    all_for_relation.extend(container_allocations.clone());
+
+    // Step 4: Run container detection with appropriate config
+    debug!("Running container detection");
+    let container_config = crate::analysis::relation_inference::ContainerConfig {
+        time_window_ns: 10_000_000, // 10ms (more permissive for test scenarios)
+        size_ratio: 10000,          // Allow very large ratio for containers with small size
+        lookahead: 10,              // Look at more candidates
+    };
+
+    let container_edges = detect_containers(&all_for_relation, Some(container_config));
+    debug!(
+        container_edges = container_edges.len(),
+        "Container detection completed"
+    );
+
+    // Step 5: Run RelationGraphBuilder for HeapOwner edges (Owns, Shares, Clone)
+    debug!("Running RelationGraphBuilder");
+    let relation_graph = RelationGraphBuilder::build(&heap_owner_allocations, None);
+    debug!(
+        edges = relation_graph.edges.len(),
+        "RelationGraphBuilder completed"
+    );
+
+    // Step 6: Add Container nodes to graph
+    // Use virtual pointer range for Container IDs to avoid collisions with HeapOwner IDs
+    const CONTAINER_PTR_BASE: usize = 0x300000000;
+    let heap_owner_count = graph.nodes.len();
+    for (idx, (e, type_name, _var_name)) in container_events.iter().enumerate() {
+        let node_id = NodeId::from_ptr(CONTAINER_PTR_BASE + idx);
+        graph.nodes.push(crate::analysis::ownership_graph::Node {
+            id: node_id,
+            type_name: type_name.clone(),
+            size: e.size,
+        });
+    }
+
+    // Step 7: Add HeapOwner edges (Owns, Shares, Clone)
     for edge in &relation_graph.edges {
-        let from_id = ObjectId(edge.from as u64);
-        let to_id = ObjectId(edge.to as u64);
+        let from_id = graph.nodes[edge.from].id;
+        let to_id = graph.nodes[edge.to].id;
 
         let edge_kind = match edge.relation {
-            Relation::Owner => EdgeKind::Owns,
+            Relation::Owns => EdgeKind::Owns,
+            Relation::Contains => EdgeKind::Contains,
             Relation::Slice => EdgeKind::Borrows,
             Relation::Clone => EdgeKind::RcClone,
-            Relation::Shared => EdgeKind::ArcClone,
+            Relation::Shares => EdgeKind::ArcClone,
+            Relation::Evolution => EdgeKind::Contains,
         };
 
         graph.edges.push(crate::analysis::ownership_graph::Edge {
@@ -1169,5 +1349,272 @@ fn build_ownership_graph_from_allocations(
         });
     }
 
+    // Step 8: Add Container → HeapOwner edges (Contains)
+    for edge in &container_edges {
+        // edge.from is Container index in all_for_relation
+        // edge.to is HeapOwner index in all_for_relation
+        let from_all_idx = edge.from;
+        let to_all_idx = edge.to;
+
+        // Validate indices
+        if from_all_idx < heap_owner_count || to_all_idx >= heap_owner_count {
+            continue; // Invalid edge indices
+        }
+
+        // Convert from container index to graph node index
+        let container_graph_idx = from_all_idx - heap_owner_count;
+        if container_graph_idx >= container_events.len() {
+            continue; // Invalid container index
+        }
+
+        let from_id = graph.nodes[heap_owner_count + container_graph_idx].id;
+        let to_id = graph.nodes[to_all_idx].id;
+
+        graph.edges.push(crate::analysis::ownership_graph::Edge {
+            from: from_id,
+            to: to_id,
+            op: EdgeKind::Contains,
+        });
+    }
+
+    debug!(
+        nodes = graph.nodes.len(),
+        edges = graph.edges.len(),
+        "Final ownership graph built"
+    );
     graph
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Objective: Verify that OptimizationLevel enum variants exist.
+    /// Invariants: All variants should be accessible.
+    #[test]
+    fn test_optimization_level_variants() {
+        let _low = OptimizationLevel::Low;
+        let _medium = OptimizationLevel::Medium;
+        let _high = OptimizationLevel::High;
+        let _maximum = OptimizationLevel::Maximum;
+    }
+
+    /// Objective: Verify that OptimizationLevel default is Medium.
+    /// Invariants: Default should return Medium variant.
+    #[test]
+    fn test_optimization_level_default() {
+        let level = OptimizationLevel::default();
+        assert!(
+            matches!(level, OptimizationLevel::Medium),
+            "Default should be Medium"
+        );
+    }
+
+    /// Objective: Verify that SchemaValidator creates with default settings.
+    /// Invariants: New validator should have strict_mode disabled.
+    #[test]
+    fn test_schema_validator_new() {
+        let validator = SchemaValidator::new();
+        let data = serde_json::json!({"test": "value"});
+        let result = validator.validate(&data);
+        assert!(result.is_ok(), "Validation should pass for any object");
+    }
+
+    /// Objective: Verify that SchemaValidator with strict mode validates required fields.
+    /// Invariants: Strict mode should require timestamp, allocations, stats fields.
+    #[test]
+    fn test_schema_validator_strict_mode() {
+        let validator = SchemaValidator::new().with_strict_mode(true);
+
+        let missing_fields = serde_json::json!({"other": "data"});
+        let result = validator.validate(&missing_fields);
+        assert!(result.is_err(), "Should fail with missing required fields");
+
+        let valid_data = serde_json::json!({
+            "timestamp": 123,
+            "allocations": [],
+            "stats": {}
+        });
+        let result = validator.validate(&valid_data);
+        assert!(result.is_ok(), "Should pass with all required fields");
+    }
+
+    /// Objective: Verify that SchemaValidator rejects non-object data.
+    /// Invariants: Non-object JSON should be rejected.
+    #[test]
+    fn test_schema_validator_non_object() {
+        let validator = SchemaValidator::new();
+        let data = serde_json::json!("not an object");
+        let result = validator.validate(&data);
+        assert!(result.is_err(), "Should reject non-object data");
+    }
+
+    /// Objective: Verify that ExportJsonOptions has correct defaults.
+    /// Invariants: Default options should enable parallel processing and streaming.
+    #[test]
+    fn test_export_json_options_default() {
+        let options = ExportJsonOptions::default();
+        assert!(
+            options.parallel_processing,
+            "parallel_processing should be true by default"
+        );
+        assert!(
+            options.streaming_writer,
+            "streaming_writer should be true by default"
+        );
+        assert!(
+            options.enable_type_cache,
+            "enable_type_cache should be true by default"
+        );
+        assert!(
+            options.adaptive_optimization,
+            "adaptive_optimization should be true by default"
+        );
+        assert!(
+            !options.schema_validation,
+            "schema_validation should be false by default"
+        );
+        assert!(
+            !options.security_analysis,
+            "security_analysis should be false by default"
+        );
+    }
+
+    /// Objective: Verify that ExportJsonOptions builder methods work.
+    /// Invariants: Builder methods should set corresponding fields.
+    #[test]
+    fn test_export_json_options_builders() {
+        let options = ExportJsonOptions::default()
+            .fast_export_mode(true)
+            .security_analysis(true)
+            .streaming_writer(false)
+            .schema_validation(true)
+            .integrity_hashes(true)
+            .batch_size(500)
+            .adaptive_optimization(false)
+            .max_cache_size(5000)
+            .include_low_severity(true)
+            .thread_count(Some(4));
+
+        assert!(options.fast_export_mode, "fast_export_mode should be true");
+        assert!(
+            options.security_analysis,
+            "security_analysis should be true"
+        );
+        assert!(
+            !options.streaming_writer,
+            "streaming_writer should be false"
+        );
+        assert!(
+            options.schema_validation,
+            "schema_validation should be true"
+        );
+        assert!(options.integrity_hashes, "integrity_hashes should be true");
+        assert_eq!(options.batch_size, 500, "batch_size should be 500");
+        assert!(
+            !options.adaptive_optimization,
+            "adaptive_optimization should be false"
+        );
+        assert_eq!(
+            options.max_cache_size, 5000,
+            "max_cache_size should be 5000"
+        );
+        assert!(
+            options.include_low_severity,
+            "include_low_severity should be true"
+        );
+        assert_eq!(
+            options.thread_count,
+            Some(4),
+            "thread_count should be Some(4)"
+        );
+    }
+
+    /// Objective: Verify that ExportError variants exist and display correctly.
+    /// Invariants: Error variants should be displayable.
+    #[test]
+    fn test_export_error_variants() {
+        let io_err = ExportError::Io(std::io::Error::new(std::io::ErrorKind::NotFound, "test"));
+        let json_err = ExportError::Json(serde_json::from_str::<i32>("invalid").unwrap_err());
+        let export_err = ExportError::ExportFailed("test error".to_string());
+
+        assert!(
+            format!("{}", io_err).contains("IO error"),
+            "Should contain IO error"
+        );
+        assert!(
+            format!("{}", json_err).contains("JSON error"),
+            "Should contain JSON error"
+        );
+        assert!(
+            format!("{}", export_err).contains("Export failed"),
+            "Should contain Export failed"
+        );
+    }
+
+    /// Objective: Verify that estimate_json_size works for different JSON types.
+    /// Invariants: Size estimation should be reasonable.
+    #[test]
+    fn test_estimate_json_size() {
+        let string_val = serde_json::json!("hello world");
+        let num_val = serde_json::json!(42);
+        let array_val = serde_json::json!([1, 2, 3]);
+        let object_val = serde_json::json!({"key": "value"});
+
+        let string_size = estimate_json_size(&string_val);
+        let num_size = estimate_json_size(&num_val);
+        let array_size = estimate_json_size(&array_val);
+        let object_size = estimate_json_size(&object_val);
+
+        assert!(string_size > 0, "String size should be positive");
+        assert!(num_size > 0, "Number size should be positive");
+        assert!(array_size > 0, "Array size should be positive");
+        assert!(object_size > 0, "Object size should be positive");
+    }
+
+    /// Objective: Verify that get_or_compute_type_info categorizes types correctly.
+    /// Invariants: Type categorization should match expected patterns.
+    #[test]
+    fn test_get_or_compute_type_info() {
+        assert_eq!(
+            get_or_compute_type_info("Vec<i32>", 100),
+            "dynamic_array",
+            "Vec should be dynamic_array"
+        );
+        assert_eq!(
+            get_or_compute_type_info("String", 24),
+            "string",
+            "String should be string"
+        );
+        assert_eq!(
+            get_or_compute_type_info("Box<i32>", 8),
+            "smart_pointer",
+            "Box should be smart_pointer"
+        );
+        assert_eq!(
+            get_or_compute_type_info("Rc<String>", 8),
+            "smart_pointer",
+            "Rc should be smart_pointer"
+        );
+        assert_eq!(
+            get_or_compute_type_info("Arc<i32>", 16),
+            "smart_pointer",
+            "Arc should be smart_pointer"
+        );
+        assert_eq!(
+            get_or_compute_type_info("[u8; 100]", 100),
+            "byte_array",
+            "u8 array should be byte_array"
+        );
+        assert_eq!(
+            get_or_compute_type_info("CustomType", 1024 * 1024 * 2),
+            "large_buffer",
+            "Large allocation should be large_buffer"
+        );
+        assert_eq!(
+            get_or_compute_type_info("MyType", 100),
+            "custom",
+            "Unknown type should be custom"
+        );
+    }
 }

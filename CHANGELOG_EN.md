@@ -1,5 +1,89 @@
 # Changelog
 
+## [0.2.1] - 2026-04-12
+
+### 📊 **Benchmark Optimization and Documentation Enhancement**
+
+This update focuses on optimizing the benchmark system and completing the project documentation.
+
+#### **Benchmark Optimization**
+
+- **feat(bench)**: Added quick mode support
+  - New environment variable `QUICK_BENCH` to control execution mode
+  - Quick mode runtime: ~5 minutes (vs 40 minutes)
+  - Sample size: 10 (vs 100)
+  - Warm-up time: 100ms (vs 3s)
+  - Measurement time: 500ms (vs 5s)
+  - Performance improvement: ~13x faster
+
+- **feat(bench)**: Added new benchmark scenarios
+  - Memory allocator comparison tests (3 tests)
+  - Long-running stability tests (3 tests)
+  - Edge case tests (5 tests)
+  - Performance regression detection tests (3 tests)
+  - Total: 14 new test scenarios
+
+- **feat(makefile)**: Makefile support for multiple benchmark modes
+  - `make bench-quick`: Quick mode (~5 minutes)
+  - `make bench`: Full mode (~60 minutes)
+  - `make bench-save`: Run and save results
+  - `make bench-allocator`: Allocator comparison tests
+  - `make bench-stability`: Stability tests
+  - `make bench-edge`: Edge case tests
+  - `make bench-regression`: Regression detection tests
+
+#### **Documentation Enhancement**
+
+- **docs(structure)**: Reorganized documentation directory structure
+  - Created `docs/` directory for centralized documentation management
+  - Moved benchmark guides and performance reports to docs directory
+  - Created documentation index `docs/README.md`
+
+- **docs(architecture)**: Enhanced architecture documentation
+  - Added detailed Analysis module architecture (14 submodules)
+  - Added detailed Capture module architecture (3 submodules)
+  - Added Unified Analyzer architecture explanation
+  - Added multiple mermaid architecture diagrams
+  - Documented functionality and performance characteristics of each submodule
+
+- **docs(modules)**: Added missing module documentation
+  - Added `tracking` module documentation (Chinese & English)
+  - Added `analyzer` module English documentation
+  - Added `view` module English documentation
+  - All documentation includes architecture diagrams, API references, and usage examples
+
+- **docs(coverage)**: Created documentation coverage report
+  - Analyzed existing documentation coverage
+  - Identified missing documentation
+  - Provided prioritized recommendations
+
+#### **Performance Data**
+
+- **Test Environment**: Apple M3 Max, macOS Sonoma
+- **Backend Performance**: 21-40ns latency
+- **Tracking Overhead**: 528ns - 4.72µs
+- **Analysis Performance**: 250ns - 35.7ms
+- **Concurrency**: Optimal at 4-8 threads, max efficiency 139%
+
+#### **File Changes**
+
+- New Files:
+  - `docs/README.md`: Documentation index
+  - `docs/DOCUMENTATION_COVERAGE.md`: Documentation coverage report
+  - `docs/en/modules/tracking.md`: Tracking module English documentation
+  - `docs/zh/modules/tracking.md`: Tracking module Chinese documentation
+  - `docs/en/modules/analyzer.md`: Analyzer module English documentation
+  - `docs/en/modules/view.md`: View module English documentation
+  - `benches/benchmark_results_quick.log`: Quick mode benchmark results
+
+- Updated Files:
+  - `README.md`: Added architecture improvements and performance data
+  - `docs/ARCHITECTURE.md`: Added detailed module architecture explanations
+  - `Makefile`: Added multiple benchmark mode support
+  - `benches/comprehensive_benchmarks.rs`: Added quick mode and new tests
+
+---
+
 ## [0.2.0] - 2026-04-09
 
 ### 🏗️ **Major Architecture Refactoring: From Monolithic to Modular Engines**

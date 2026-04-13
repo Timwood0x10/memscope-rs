@@ -4,6 +4,7 @@
 //! while preventing segfaults through ValidRegions checks and
 //! atomic system calls for fault tolerance.
 
+use crate::analysis::is_virtual_pointer;
 use crate::analysis::unsafe_inference::is_valid_ptr;
 use crate::snapshot::types::ActiveAllocation;
 
@@ -34,8 +35,11 @@ pub struct HeapScanner;
 impl HeapScanner {
     /// Scan a list of active allocations, reading their memory content.
     ///
-    /// Returns a `ScanResult` for each allocation. Allocations whose pointers
-    /// fall outside valid regions will have `memory: None`.
+    /// Only scans HeapOwner allocations and performs deduplication
+    /// to avoid redundant scanning of duplicate heap regions.
+    ///
+    /// Returns a `ScanResult` for each unique heap region. Allocations whose
+    /// pointers fall outside valid regions will have `memory: None`.
     ///
     /// # Arguments
     ///
@@ -53,17 +57,48 @@ impl HeapScanner {
     /// }
     /// ```
     pub fn scan(allocations: &[ActiveAllocation]) -> Vec<ScanResult> {
-        allocations
+        // Step 1: Filter HeapOwner + deduplicate regions
+        let regions = Self::dedup_heap_regions(allocations);
+
+        // Step 2: Scan deduplicated regions
+        regions
             .iter()
-            .map(|alloc| {
-                let memory = safe_read_memory(alloc.ptr, alloc.size);
-                ScanResult {
-                    ptr: alloc.ptr,
-                    size: alloc.size,
-                    memory,
-                }
+            .map(|&(ptr, size)| {
+                let memory = safe_read_memory(ptr, size);
+                ScanResult { ptr, size, memory }
             })
             .collect()
+    }
+
+    /// Deduplicate heap regions to avoid redundant scanning.
+    ///
+    /// Filters for HeapOwner allocations and removes duplicates
+    /// based on (ptr, size) pairs.
+    ///
+    /// Also skips virtual pointers (>= 0x10000000000) used for Container types.
+    /// This threshold is set high enough to avoid conflicts with real heap addresses
+    /// on all platforms (including macOS which can have addresses > 0x100000000).
+    fn dedup_heap_regions(allocs: &[ActiveAllocation]) -> Vec<(usize, usize)> {
+        use std::collections::HashSet;
+
+        let mut seen = HashSet::new();
+        let mut regions = Vec::new();
+
+        for alloc in allocs {
+            if let crate::core::types::TrackKind::HeapOwner { ptr, size } = alloc.kind {
+                if is_virtual_pointer(ptr) {
+                    continue;
+                }
+
+                let key = (ptr, size);
+
+                if seen.insert(key) {
+                    regions.push(key);
+                }
+            }
+        }
+
+        regions
     }
 }
 
@@ -207,6 +242,7 @@ fn are_pages_valid(ptr: usize, size: usize) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::types::TrackKind;
 
     #[test]
     fn test_safe_read_memory_zero_size() {
@@ -255,8 +291,12 @@ mod tests {
 
         let allocations = vec![
             ActiveAllocation {
-                ptr: ptr1,
+                ptr: Some(ptr1),
                 size: 64,
+                kind: TrackKind::HeapOwner {
+                    ptr: ptr1,
+                    size: 64,
+                },
                 allocated_at: 1000,
                 var_name: None,
                 type_name: None,
@@ -264,8 +304,12 @@ mod tests {
                 call_stack_hash: None,
             },
             ActiveAllocation {
-                ptr: ptr2,
+                ptr: Some(ptr2),
                 size: 128,
+                kind: TrackKind::HeapOwner {
+                    ptr: ptr2,
+                    size: 128,
+                },
                 allocated_at: 2000,
                 var_name: None,
                 type_name: None,
@@ -294,8 +338,12 @@ mod tests {
     #[test]
     fn test_heap_scanner_scan_zero_size_allocation() {
         let allocations = vec![ActiveAllocation {
-            ptr: 0x10000,
+            ptr: Some(0x10000),
             size: 0,
+            kind: TrackKind::HeapOwner {
+                ptr: 0x10000,
+                size: 0,
+            },
             allocated_at: 1000,
             var_name: None,
             type_name: None,
@@ -317,8 +365,9 @@ mod tests {
         let size = data.len();
 
         let alloc = ActiveAllocation {
-            ptr,
+            ptr: Some(ptr),
             size,
+            kind: TrackKind::HeapOwner { ptr, size },
             allocated_at: 1000,
             var_name: None,
             type_name: None,

@@ -222,6 +222,8 @@ impl CaptureBackend for CoreBackend {
             type_name: None,
             call_stack_hash: None,
             thread_name: None,
+            source_file: None,
+            source_line: None,
         }
     }
 }
@@ -271,6 +273,8 @@ impl CaptureBackend for LockfreeBackend {
             type_name: None,
             call_stack_hash: Some(self.hash_call_stack()),
             thread_name: None,
+            source_file: None,
+            source_line: None,
         }
     }
 }
@@ -344,6 +348,8 @@ impl CaptureBackend for AsyncBackend {
             type_name: None,
             call_stack_hash: None,
             thread_name: None,
+            source_file: None,
+            source_line: None,
         }
     }
 }

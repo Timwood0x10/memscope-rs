@@ -3,7 +3,7 @@
 //! This example demonstrates the new unified API with various built-in types,
 //! custom types, and complex memory patterns.
 
-use memscope_rs::{global_tracker, init_global_tracking, track, MemScopeResult};
+use memscope_rs::{analyzer, global_tracker, init_global_tracking, track, MemScopeResult};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::rc::Rc;
@@ -49,6 +49,28 @@ fn main() -> MemScopeResult<()> {
         stats.peak_memory_bytes,
         stats.peak_memory_bytes as f64 / 1024.0 / 1024.0
     );
+
+    // Use the unified Analyzer API
+    println!("\n=== Unified Analyzer API ===\n");
+    let mut az = analyzer(&tracker)?;
+
+    // Full analysis
+    let report = az.analyze();
+    println!("Analysis Report:");
+    println!("  Allocations: {}", report.stats.allocation_count);
+    println!("  Total Bytes: {}", report.stats.total_bytes);
+    println!("  Peak Bytes: {}", report.stats.peak_bytes);
+
+    // Leak detection
+    let leaks = az.detect().leaks();
+    println!("\nLeak Detection:");
+    println!("  Leak Count: {}", leaks.leak_count);
+    println!("  Leaked Bytes: {}", leaks.total_leaked_bytes);
+
+    // Metrics
+    let metrics = az.metrics().summary();
+    println!("\nMetrics:");
+    println!("  Types: {}", metrics.by_type.len());
 
     println!("\nExporting memory snapshot...");
     let output_path = "MemoryAnalysis/complex_lifecycle_new_api";

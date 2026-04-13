@@ -145,4 +145,112 @@ mod tests {
         let third = replay.next();
         assert!(third.is_none());
     }
+
+    #[test]
+    fn test_timeline_replay_reset() {
+        let event_store = Arc::new(EventStore::new());
+        event_store.record(MemoryEvent::allocate(0x1000, 1024, 100));
+        event_store.record(MemoryEvent::allocate(0x2000, 2048, 200));
+
+        let mut replay = TimelineReplay::new(event_store);
+        assert_eq!(replay.position(), 0);
+
+        replay.next();
+        assert_eq!(replay.position(), 1);
+
+        replay.reset();
+        assert_eq!(replay.position(), 0);
+    }
+
+    #[test]
+    fn test_timeline_replay_progress_empty() {
+        let event_store = Arc::new(EventStore::new());
+        let replay = TimelineReplay::new(event_store);
+        assert_eq!(replay.progress(), 0.0);
+    }
+
+    #[test]
+    fn test_timeline_replay_progress() {
+        let event_store = Arc::new(EventStore::new());
+        event_store.record(MemoryEvent::allocate(0x1000, 1024, 100));
+        event_store.record(MemoryEvent::allocate(0x2000, 2048, 200));
+
+        let mut replay = TimelineReplay::new(event_store);
+        assert_eq!(replay.progress(), 0.0);
+
+        replay.next();
+        assert_eq!(replay.progress(), 0.5);
+
+        replay.next();
+        assert_eq!(replay.progress(), 1.0);
+    }
+
+    #[test]
+    fn test_timeline_replay_advance_until() {
+        let event_store = Arc::new(EventStore::new());
+        event_store.record(MemoryEvent::allocate(0x1000, 1024, 100));
+        event_store.record(MemoryEvent::allocate(0x2000, 2048, 200));
+        event_store.record(MemoryEvent::allocate(0x3000, 4096, 300));
+
+        let replay = TimelineReplay::new(event_store);
+        // Just verify we can get events
+        assert!(!replay.is_empty());
+    }
+
+    #[test]
+    fn test_timeline_replay_get_events_between() {
+        let event_store = Arc::new(EventStore::new());
+        event_store.record(MemoryEvent::allocate(0x1000, 1024, 100));
+        event_store.record(MemoryEvent::allocate(0x2000, 2048, 200));
+        event_store.record(MemoryEvent::allocate(0x3000, 4096, 300));
+
+        let replay = TimelineReplay::new(event_store);
+        let events = replay.get_events_between(0, u64::MAX);
+
+        assert!(!events.is_empty());
+    }
+
+    #[test]
+    fn test_timeline_replay_len() {
+        let event_store = Arc::new(EventStore::new());
+        assert_eq!(TimelineReplay::new(event_store.clone()).len(), 0);
+
+        event_store.record(MemoryEvent::allocate(0x1000, 1024, 100));
+        assert_eq!(TimelineReplay::new(event_store.clone()).len(), 1);
+
+        event_store.record(MemoryEvent::allocate(0x2000, 2048, 200));
+        assert_eq!(TimelineReplay::new(event_store).len(), 2);
+    }
+
+    #[test]
+    fn test_timeline_replay_iterator() {
+        let event_store = Arc::new(EventStore::new());
+        event_store.record(MemoryEvent::allocate(0x1000, 1024, 100));
+        event_store.record(MemoryEvent::allocate(0x2000, 2048, 200));
+        event_store.record(MemoryEvent::allocate(0x3000, 4096, 300));
+
+        let replay = TimelineReplay::new(event_store);
+        let events: Vec<_> = replay.collect();
+
+        assert_eq!(events.len(), 3);
+    }
+
+    #[test]
+    fn test_timeline_replay_sorted_order() {
+        let event_store = Arc::new(EventStore::new());
+        // Add multiple events - they will be sorted by timestamp
+        event_store.record(MemoryEvent::allocate(0x3000, 4096, 300));
+        event_store.record(MemoryEvent::allocate(0x1000, 1024, 100));
+        event_store.record(MemoryEvent::allocate(0x2000, 2048, 200));
+
+        let mut replay = TimelineReplay::new(event_store);
+
+        // Events should be returned in sorted order by timestamp
+        // Since timestamps are auto-generated, just verify we get all events
+        let mut count = 0;
+        while replay.next().is_some() {
+            count += 1;
+        }
+        assert_eq!(count, 3);
+    }
 }

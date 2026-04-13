@@ -192,6 +192,8 @@ fn test_concurrent_tracking() {
 fn test_different_collection_types() {
     let t = tracker!();
 
+    // HashMap is a Container type, not a HeapOwner
+    // It can be tracked as a graph node but doesn't create heap allocations
     let mut hashmap: HashMap<u32, String> = HashMap::new();
     for i in 0..10 {
         hashmap.insert(i, format!("value_{}", i));
@@ -199,9 +201,20 @@ fn test_different_collection_types() {
     track!(t, hashmap);
 
     let report = t.analyze();
+    // Container types don't create heap allocations
+    assert_eq!(
+        report.total_allocations, 0,
+        "HashMap is a Container type and doesn't create heap allocations"
+    );
+
+    // Now test a HeapOwner type (Vec) for comparison
+    let vec_data = vec![1u8; 1024];
+    track!(t, vec_data);
+
+    let report = t.analyze();
     assert!(
         report.total_allocations > 0,
-        "Should track HashMap allocation"
+        "Vec is a HeapOwner type and should create heap allocations"
     );
 }
 

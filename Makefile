@@ -4,6 +4,7 @@
 CARGO := cargo
 PROJECT_NAME := memscope-rs
 VERSION := $(shell grep '^version' Cargo.toml | sed 's/.*"\(.*\)".*/\1/')
+COVERAGE_DIR := aim/coverage
 
 # Colors
 RED := \033[0;31m
@@ -33,16 +34,28 @@ help:
 	@echo "  test-verbose   - Run with verbose output"
 	@echo ""
 	@echo "$(GREEN)Benchmarking:$(NC)"
-	@echo "  bench          - Run all benchmarks"
-	@echo "  bench-tracker  - Run tracker benchmarks"
+	@echo "  bench            - Run all benchmarks (full mode, ~40 min)"
+	@echo "  bench-quick      - Run quick benchmarks (~5 min)"
+	@echo "  bench-tracker    - Run tracker benchmarks"
 	@echo "  bench-concurrent - Run concurrent benchmarks"
-	@echo "  bench-io       - Run IO benchmarks"
-	@echo "  bench-stress   - Run stress tests"
+	@echo "  bench-io         - Run IO benchmarks"
+	@echo "  bench-stress     - Run stress tests"
+	@echo "  bench-allocator  - Run allocator comparison benchmarks"
+	@echo "  bench-stability  - Run stability benchmarks"
+	@echo "  bench-edge       - Run edge case benchmarks"
+	@echo "  bench-regression - Run regression detection benchmarks"
+	@echo "  bench-save       - Run quick benchmarks and save results"
 	@echo ""
 	@echo "$(GREEN)Quality:$(NC)"
 	@echo "  fmt            - Format code"
 	@echo "  clippy         - Run clippy"
 	@echo "  ci             - Run CI pipeline"
+	@echo ""
+	@echo "$(GREEN)Coverage:$(NC)"
+	@echo "  coverage         - Generate test coverage summary (LLVM, default)"
+	@echo "  coverage-html    - Generate LLVM coverage HTML report"
+	@echo "  coverage-summary - Generate LLVM coverage summary (console)"
+	@echo "  coverage-tarpaulin - Generate tarpaulin coverage report (alternative)"
 	@echo ""
 	@echo "$(GREEN)Examples:$(NC)"
 	@echo "  run-basic      - Run basic usage example"
@@ -79,7 +92,7 @@ check:
 clean:
 	@echo "$(YELLOW)Cleaning...$(NC)"
 	$(CARGO) clean
-	rm -rf target/coverage MemoryAnalysis/
+	rm -rf target/coverage target/tarpaulin MemoryAnalysis/
 	@echo "$(GREEN)Done$(NC)"
 
 # Testing
@@ -106,8 +119,13 @@ test-verbose:
 # Benchmarking
 .PHONY: bench
 bench:
-	@echo "$(BLUE)Running benchmarks...$(NC)"
+	@echo "$(BLUE)Running all benchmarks (full mode, ~40 min)...$(NC)"
 	$(CARGO) bench --bench comprehensive_benchmarks
+
+.PHONY: bench-quick
+bench-quick:
+	@echo "$(BLUE)Running quick benchmarks (~5 min)...$(NC)"
+	QUICK_BENCH=1 $(CARGO) bench --bench comprehensive_benchmarks
 
 .PHONY: bench-tracker
 bench-tracker:
@@ -129,6 +147,33 @@ bench-stress:
 	@echo "$(BLUE)Running stress tests...$(NC)"
 	$(CARGO) bench -- stress_benches
 
+.PHONY: bench-allocator
+bench-allocator:
+	@echo "$(BLUE)Running allocator comparison benchmarks...$(NC)"
+	$(CARGO) bench -- allocator_benches
+
+.PHONY: bench-stability
+bench-stability:
+	@echo "$(BLUE)Running stability benchmarks...$(NC)"
+	$(CARGO) bench -- stability_benches
+
+.PHONY: bench-edge
+bench-edge:
+	@echo "$(BLUE)Running edge case benchmarks...$(NC)"
+	$(CARGO) bench -- edge_case_benches
+
+.PHONY: bench-regression
+bench-regression:
+	@echo "$(BLUE)Running regression detection benchmarks...$(NC)"
+	$(CARGO) bench -- regression_benches
+
+.PHONY: bench-save
+bench-save:
+	@echo "$(BLUE)Running quick benchmarks and saving results...$(NC)"
+	@mkdir -p benches
+	QUICK_BENCH=1 $(CARGO) bench --bench comprehensive_benchmarks 2>&1 | tee benches/benchmark_results_quick_$$(date +%Y%m%d_%H%M%S).log
+	@echo "$(GREEN)Results saved to benches/benchmark_results_quick_*.log$(NC)"
+
 # Quality
 .PHONY: fmt
 fmt:
@@ -149,6 +194,47 @@ clippy:
 clippy-ci:
 	@echo "$(BLUE)Running clippy (CI mode - only compiler warnings)...$(NC)"
 	$(CARGO) clippy --workspace --all-targets --all-features -- -D warnings
+
+# Coverage
+.PHONY: coverage coverage-html coverage-summary coverage-tarpaulin
+coverage:
+	@echo "$(BLUE)Generating test coverage report (LLVM)...$(NC)"
+	@if command -v cargo-llvm-cov >/dev/null 2>&1; then \
+		mkdir -p $(COVERAGE_DIR); \
+		$(CARGO) llvm-cov --workspace --ignore-filename-regex="(tests/|_test\\.rs$$)" --summary-only; \
+		echo "$(GREEN)Coverage report generated$(NC)"; \
+	else \
+		echo "$(YELLOW)cargo-llvm-cov not installed. Install with: cargo install cargo-llvm-cov$(NC)"; \
+	fi
+
+coverage-html:
+	@echo "$(BLUE)Generating LLVM coverage HTML report...$(NC)"
+	@if command -v cargo-llvm-cov >/dev/null 2>&1; then \
+		mkdir -p $(COVERAGE_DIR); \
+		$(CARGO) llvm-cov --workspace --ignore-filename-regex="(tests/|_test\\.rs$$)" --html --output-dir $(COVERAGE_DIR); \
+		echo "$(GREEN)LLVM coverage report generated in $(COVERAGE_DIR)/index.html$(NC)"; \
+	else \
+		echo "$(YELLOW)cargo-llvm-cov not installed. Install with: cargo install cargo-llvm-cov$(NC)"; \
+	fi
+
+coverage-summary:
+	@echo "$(BLUE)Generating LLVM coverage summary...$(NC)"
+	@if command -v cargo-llvm-cov >/dev/null 2>&1; then \
+		$(CARGO) llvm-cov --workspace --ignore-filename-regex="(tests/|_test\\.rs$$)" --summary-only; \
+	else \
+		echo "$(YELLOW)cargo-llvm-cov not installed. Install with: cargo install cargo-llvm-cov$(NC)"; \
+	fi
+
+coverage-tarpaulin:
+	@echo "$(BLUE)Generating tarpaulin coverage report...$(NC)"
+	@if command -v cargo-tarpaulin >/dev/null 2>&1; then \
+		mkdir -p $(COVERAGE_DIR); \
+		$(CARGO) tarpaulin --out Html --output-dir $(COVERAGE_DIR); \
+		echo "$(GREEN)Coverage report generated in $(COVERAGE_DIR)/tarpaulin-report.html$(NC)"; \
+	else \
+		echo "$(YELLOW)cargo-tarpaulin not installed. Install with: cargo install cargo-tarpaulin$(NC)"; \
+	fi
+
 
 .PHONY: ci
 ci: fmt-check clippy-ci check test-unit test-integration test-examples

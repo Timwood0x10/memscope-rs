@@ -2,6 +2,7 @@ use crate::core::error::{ErrorKind, ErrorSeverity, MemScopeError};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
+use tracing::error;
 
 /// Type alias for error handler function
 type ErrorHandlerFn = Box<dyn Fn(&MemScopeError) + Send + Sync>;
@@ -190,7 +191,7 @@ impl ErrorHandler {
 
     fn log_response(&self, error: &MemScopeError, response: &ErrorResponse) {
         if self.reporter.log_to_stderr {
-            eprintln!(
+            error!(
                 "ErrorHandler: {} -> Response: {:?}",
                 error.description(),
                 response
@@ -250,7 +251,7 @@ impl ErrorReporter {
 
         // Log to stderr if configured
         if self.log_to_stderr {
-            eprintln!("MemScope Error: {}", error);
+            error!("MemScope Error: {}", error);
         }
 
         true

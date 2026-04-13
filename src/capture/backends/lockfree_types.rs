@@ -484,6 +484,7 @@ impl LockfreeAnalysis {
 
 #[cfg(test)]
 mod tests {
+    use super::super::bottleneck_analysis::{BottleneckKind, BottleneckMetrics};
     use super::*;
 
     #[test]
@@ -554,5 +555,530 @@ mod tests {
         };
         assert_eq!(snapshot.current_mb, 10.0);
         assert_eq!(snapshot.active_threads, 2);
+    }
+
+    #[test]
+    fn test_event_type_variants() {
+        assert_eq!(EventType::Allocation, EventType::Allocation);
+        assert_eq!(EventType::Deallocation, EventType::Deallocation);
+        assert_ne!(EventType::Allocation, EventType::Deallocation);
+    }
+
+    #[test]
+    fn test_event_metadata_creation() {
+        let metadata = EventMetadata {
+            var_name: Some("test_var".to_string()),
+            type_name: Some("Vec<u8>".to_string()),
+        };
+
+        assert_eq!(metadata.var_name, Some("test_var".to_string()));
+        assert_eq!(metadata.type_name, Some("Vec<u8>".to_string()));
+    }
+
+    #[test]
+    fn test_event_with_metadata() {
+        let thread_id = std::thread::current().id();
+        let mut event = Event::allocation(0x2000, 2048, 54321, thread_id);
+        event.metadata = Some(EventMetadata {
+            var_name: Some("buffer".to_string()),
+            type_name: None,
+        });
+
+        assert!(event.metadata.is_some());
+        assert_eq!(
+            event.metadata.as_ref().unwrap().var_name,
+            Some("buffer".to_string())
+        );
+    }
+
+    #[test]
+    fn test_frequency_data_creation() {
+        let freq = FrequencyData {
+            call_stack_hash: 12345,
+            count: 100,
+            total_size: 10240,
+            first_timestamp: 1000,
+            last_timestamp: 5000,
+        };
+
+        assert_eq!(freq.call_stack_hash, 12345);
+        assert_eq!(freq.count, 100);
+        assert_eq!(freq.total_size, 10240);
+    }
+
+    #[test]
+    fn test_memory_stats_with_values() {
+        let stats = MemoryStats {
+            total_allocations: 1000,
+            total_allocated: 1024000,
+            total_deallocations: 800,
+            total_deallocated: 819200,
+            peak_memory: 204800,
+            active_memory: 204800,
+        };
+
+        assert_eq!(stats.total_allocations, 1000);
+        assert_eq!(stats.active_memory, 204800);
+    }
+
+    #[test]
+    fn test_real_call_stack_creation() {
+        let stack = RealCallStack {
+            frames: vec![
+                StackFrame {
+                    ip: 0x1000,
+                    function_name: Some("main".to_string()),
+                    file_name: Some("main.rs".to_string()),
+                    line_number: Some(10),
+                },
+                StackFrame {
+                    ip: 0x2000,
+                    function_name: Some("foo".to_string()),
+                    file_name: Some("lib.rs".to_string()),
+                    line_number: Some(42),
+                },
+            ],
+            hash: 98765,
+        };
+
+        assert_eq!(stack.frames.len(), 2);
+        assert_eq!(stack.hash, 98765);
+    }
+
+    #[test]
+    fn test_stack_frame_creation() {
+        let frame = StackFrame {
+            ip: 0x1234,
+            function_name: Some("test_fn".to_string()),
+            file_name: Some("test.rs".to_string()),
+            line_number: Some(100),
+        };
+
+        assert_eq!(frame.ip, 0x1234);
+        assert_eq!(frame.function_name, Some("test_fn".to_string()));
+    }
+
+    #[test]
+    fn test_system_metrics_creation() {
+        let metrics = SystemMetrics {
+            cpu_usage: 45.5,
+            memory_usage: 60.2,
+            active_threads: 8,
+        };
+
+        assert!((metrics.cpu_usage - 45.5).abs() < f64::EPSILON);
+        assert_eq!(metrics.active_threads, 8);
+    }
+
+    #[test]
+    fn test_system_metrics_default() {
+        let metrics = SystemMetrics::default();
+        assert_eq!(metrics.cpu_usage, 0.0);
+        assert_eq!(metrics.memory_usage, 0.0);
+        assert_eq!(metrics.active_threads, 0);
+    }
+
+    #[test]
+    fn test_analysis_data_default() {
+        let data = AnalysisData::default();
+        assert_eq!(data.stats.total_allocations, 0);
+        assert_eq!(data.system_metrics.cpu_usage, 0.0);
+        assert!(data.frequency_data.is_empty());
+        assert_eq!(data.timestamp, 0);
+    }
+
+    #[test]
+    fn test_analysis_data_with_values() {
+        let data = AnalysisData {
+            stats: MemoryStats {
+                total_allocations: 100,
+                total_allocated: 1024,
+                total_deallocations: 50,
+                total_deallocated: 512,
+                peak_memory: 512,
+                active_memory: 512,
+            },
+            system_metrics: SystemMetrics {
+                cpu_usage: 50.0,
+                memory_usage: 75.0,
+                active_threads: 4,
+            },
+            frequency_data: vec![FrequencyData {
+                call_stack_hash: 1,
+                count: 10,
+                total_size: 100,
+                first_timestamp: 0,
+                last_timestamp: 100,
+            }],
+            timestamp: 1234567890,
+        };
+
+        assert_eq!(data.stats.total_allocations, 100);
+        assert_eq!(data.frequency_data.len(), 1);
+    }
+
+    #[test]
+    fn test_frequency_pattern_variants() {
+        let patterns = vec![
+            FrequencyPattern::None,
+            FrequencyPattern::FrequentSmall,
+            FrequencyPattern::InfrequentLarge,
+            FrequencyPattern::Mixed,
+        ];
+
+        for pattern in patterns {
+            assert!(!format!("{pattern:?}").is_empty());
+        }
+    }
+
+    #[test]
+    fn test_access_pattern_variants() {
+        let patterns = vec![
+            AccessPattern::Sequential,
+            AccessPattern::Random,
+            AccessPattern::Unknown,
+        ];
+
+        for pattern in patterns {
+            assert!(!format!("{pattern:?}").is_empty());
+        }
+    }
+
+    #[test]
+    fn test_sampling_config_validate_valid() {
+        let config = SamplingConfig::default();
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_sampling_config_validate_invalid_large_rate() {
+        let config = SamplingConfig {
+            large_allocation_rate: 1.5,
+            ..Default::default()
+        };
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_sampling_config_validate_invalid_medium_rate() {
+        let config = SamplingConfig {
+            medium_allocation_rate: -0.1,
+            ..Default::default()
+        };
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_sampling_config_validate_invalid_thresholds() {
+        let config = SamplingConfig {
+            large_threshold: 100,
+            medium_threshold: 200,
+            ..Default::default()
+        };
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_sampling_config_validate_zero_medium_threshold() {
+        let config = SamplingConfig {
+            medium_threshold: 0,
+            ..Default::default()
+        };
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_sampling_config_frequency_multiplier() {
+        let config = SamplingConfig::default();
+
+        let mult1 = config.frequency_multiplier(5);
+        assert!((mult1 - 1.0).abs() < f64::EPSILON);
+
+        let mult2 = config.frequency_multiplier(20);
+        assert!(mult2 > 1.0);
+
+        let mult3 = config.frequency_multiplier(1000);
+        assert!((mult3 - 10.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_thread_stats_creation() {
+        let mut freq = std::collections::HashMap::new();
+        freq.insert(12345, 100);
+
+        let stats = ThreadStats {
+            thread_id: 1,
+            total_allocations: 500,
+            total_deallocations: 400,
+            peak_memory: 10240,
+            total_allocated: 51200,
+            allocation_frequency: freq,
+            avg_allocation_size: 102.4,
+        };
+
+        assert_eq!(stats.thread_id, 1);
+        assert_eq!(stats.allocation_frequency.len(), 1);
+    }
+
+    #[test]
+    fn test_interaction_type_variants() {
+        let types = vec![
+            InteractionType::SimilarPatterns,
+            InteractionType::MemorySharing,
+            InteractionType::ProducerConsumer,
+        ];
+
+        for interaction_type in types {
+            assert!(!format!("{interaction_type:?}").is_empty());
+        }
+    }
+
+    #[test]
+    fn test_thread_interaction_creation() {
+        let interaction = ThreadInteraction {
+            thread_a: 1,
+            thread_b: 2,
+            shared_patterns: vec![100, 200, 300],
+            interaction_strength: 50,
+            interaction_type: InteractionType::ProducerConsumer,
+        };
+
+        assert_eq!(interaction.thread_a, 1);
+        assert_eq!(interaction.thread_b, 2);
+        assert_eq!(interaction.shared_patterns.len(), 3);
+    }
+
+    #[test]
+    fn test_analysis_summary_creation() {
+        let summary = AnalysisSummary {
+            total_threads: 4,
+            total_allocations: 1000,
+            total_deallocations: 800,
+            peak_memory_usage: 10240,
+            total_memory_allocated: 51200,
+            unique_call_stacks: 25,
+            analysis_duration_ms: 150,
+            sampling_effectiveness: 0.85,
+        };
+
+        assert_eq!(summary.total_threads, 4);
+        assert!((summary.sampling_effectiveness - 0.85).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_lockfree_analysis_new() {
+        let analysis = LockfreeAnalysis::new();
+
+        assert!(analysis.thread_stats.is_empty());
+        assert!(analysis.hottest_call_stacks.is_empty());
+        assert!(analysis.thread_interactions.is_empty());
+        assert!(analysis.memory_peaks.is_empty());
+        assert!(analysis.performance_bottlenecks.is_empty());
+        assert_eq!(analysis.summary.total_threads, 0);
+    }
+
+    #[test]
+    fn test_lockfree_analysis_default() {
+        let analysis = LockfreeAnalysis::default();
+        assert!(analysis.thread_stats.is_empty());
+    }
+
+    #[test]
+    fn test_lockfree_analysis_get_most_active_threads() {
+        let mut analysis = LockfreeAnalysis::new();
+
+        analysis.thread_stats.insert(
+            1,
+            ThreadStats {
+                thread_id: 1,
+                total_allocations: 100,
+                total_deallocations: 80,
+                peak_memory: 1024,
+                total_allocated: 10240,
+                allocation_frequency: std::collections::HashMap::new(),
+                avg_allocation_size: 102.4,
+            },
+        );
+
+        analysis.thread_stats.insert(
+            2,
+            ThreadStats {
+                thread_id: 2,
+                total_allocations: 200,
+                total_deallocations: 150,
+                peak_memory: 2048,
+                total_allocated: 20480,
+                allocation_frequency: std::collections::HashMap::new(),
+                avg_allocation_size: 102.4,
+            },
+        );
+
+        let active = analysis.get_most_active_threads(1);
+        assert_eq!(active.len(), 1);
+        assert_eq!(active[0].0, 2);
+    }
+
+    #[test]
+    fn test_lockfree_analysis_get_highest_memory_threads() {
+        let mut analysis = LockfreeAnalysis::new();
+
+        analysis.thread_stats.insert(
+            1,
+            ThreadStats {
+                thread_id: 1,
+                total_allocations: 100,
+                total_deallocations: 80,
+                peak_memory: 1024,
+                total_allocated: 10240,
+                allocation_frequency: std::collections::HashMap::new(),
+                avg_allocation_size: 102.4,
+            },
+        );
+
+        analysis.thread_stats.insert(
+            2,
+            ThreadStats {
+                thread_id: 2,
+                total_allocations: 50,
+                total_deallocations: 40,
+                peak_memory: 4096,
+                total_allocated: 40960,
+                allocation_frequency: std::collections::HashMap::new(),
+                avg_allocation_size: 819.2,
+            },
+        );
+
+        let highest = analysis.get_highest_memory_threads(1);
+        assert_eq!(highest.len(), 1);
+        assert_eq!(highest[0].0, 2);
+    }
+
+    #[test]
+    fn test_lockfree_analysis_get_critical_bottlenecks() {
+        let mut analysis = LockfreeAnalysis::new();
+
+        analysis.performance_bottlenecks = vec![
+            PerformanceIssue {
+                bottleneck_type: BottleneckKind::Cpu,
+                task_id: 1,
+                task_name: "task1".to_string(),
+                severity: 0.9,
+                description: "High CPU".to_string(),
+                suggestion: "Optimize".to_string(),
+                timestamp_ms: 1000,
+                metrics: BottleneckMetrics {
+                    cpu_usage_percent: 90.0,
+                    memory_usage_percent: 0.0,
+                    io_bytes_processed: 0,
+                    network_bytes_transferred: 0,
+                    lock_wait_time_ns: 0,
+                    allocation_frequency: 0.0,
+                    average_allocation_size: 0.0,
+                },
+            },
+            PerformanceIssue {
+                bottleneck_type: BottleneckKind::Cpu,
+                task_id: 2,
+                task_name: "task2".to_string(),
+                severity: 0.3,
+                description: "Low CPU".to_string(),
+                suggestion: "Ignore".to_string(),
+                timestamp_ms: 2000,
+                metrics: BottleneckMetrics {
+                    cpu_usage_percent: 30.0,
+                    memory_usage_percent: 0.0,
+                    io_bytes_processed: 0,
+                    network_bytes_transferred: 0,
+                    lock_wait_time_ns: 0,
+                    allocation_frequency: 0.0,
+                    average_allocation_size: 0.0,
+                },
+            },
+        ];
+
+        let critical = analysis.get_critical_bottlenecks(0.5);
+        assert_eq!(critical.len(), 1);
+    }
+
+    #[test]
+    fn test_event_clone() {
+        let thread_id = std::thread::current().id();
+        let event = Event::allocation(0x1000, 1024, 12345, thread_id);
+        let cloned = event.clone();
+
+        assert_eq!(cloned.ptr, event.ptr);
+        assert_eq!(cloned.size, event.size);
+        assert_eq!(cloned.event_type, event.event_type);
+    }
+
+    #[test]
+    fn test_memory_stats_clone() {
+        let stats = MemoryStats {
+            total_allocations: 100,
+            total_allocated: 1024,
+            total_deallocations: 50,
+            total_deallocated: 512,
+            peak_memory: 512,
+            active_memory: 512,
+        };
+
+        let cloned = stats.clone();
+        assert_eq!(cloned.total_allocations, stats.total_allocations);
+    }
+
+    #[test]
+    fn test_sampling_config_clone() {
+        let config = SamplingConfig::high_precision();
+        let cloned = config.clone();
+
+        assert_eq!(cloned.large_allocation_rate, config.large_allocation_rate);
+    }
+
+    #[test]
+    fn test_memory_snapshot_clone() {
+        let snapshot = MemorySnapshot {
+            current_mb: 10.0,
+            peak_mb: 20.0,
+            allocations: 100,
+            deallocations: 50,
+            active_threads: 2,
+        };
+
+        let cloned = snapshot.clone();
+        assert_eq!(cloned.current_mb, snapshot.current_mb);
+    }
+
+    #[test]
+    fn test_event_debug() {
+        let thread_id = std::thread::current().id();
+        let event = Event::allocation(0x1000, 1024, 12345, thread_id);
+        let debug_str = format!("{:?}", event);
+
+        assert!(debug_str.contains("Event"));
+        assert!(debug_str.contains("Allocation"));
+    }
+
+    #[test]
+    fn test_memory_stats_debug() {
+        let stats = MemoryStats::default();
+        let debug_str = format!("{:?}", stats);
+
+        assert!(debug_str.contains("MemoryStats"));
+    }
+
+    #[test]
+    fn test_sampling_config_debug() {
+        let config = SamplingConfig::default();
+        let debug_str = format!("{:?}", config);
+
+        assert!(debug_str.contains("SamplingConfig"));
+    }
+
+    #[test]
+    fn test_lockfree_analysis_debug() {
+        let analysis = LockfreeAnalysis::new();
+        let debug_str = format!("{:?}", analysis);
+
+        assert!(debug_str.contains("LockfreeAnalysis"));
     }
 }

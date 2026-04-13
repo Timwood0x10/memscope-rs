@@ -56,8 +56,16 @@ impl MemScope {
         // This is a known limitation that requires tracking ThreadId at allocation time.
         let thread_id = std::thread::current().id();
 
+        // For Container/Value types, ptr is None (no real heap allocation).
+        // We use 0 as a sentinel value, which indicates "not a real pointer".
+        // Callers should check TrackKind to determine if this is a real allocation.
+        let ptr = match active.kind {
+            crate::core::types::TrackKind::HeapOwner { ptr, .. } => ptr,
+            crate::core::types::TrackKind::Container | crate::core::types::TrackKind::Value => 0,
+        };
+
         crate::capture::types::AllocationInfo {
-            ptr: active.ptr,
+            ptr,
             size: active.size,
             var_name: active.var_name.clone(),
             type_name: active.type_name.clone(),

@@ -411,7 +411,7 @@ impl MemoryPassportTracker {
             if let Some(passport) = passports.get_mut(&allocation_ptr) {
                 // Limit events per passport
                 if passport.lifecycle_events.len() >= self.config.max_events_per_passport {
-                    passport.lifecycle_events.remove(0); // Remove oldest event
+                    passport.lifecycle_events.drain(0..1); // Remove oldest event
                 }
 
                 passport.lifecycle_events.push(event);

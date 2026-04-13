@@ -35,6 +35,13 @@ pub struct BorrowInfo {
     pub max_concurrent_borrows: usize,
     /// Timestamp of the last borrow event.
     pub last_borrow_timestamp: Option<u64>,
+
+    /// Source of this data (captured or inferred)
+    #[serde(default)]
+    pub _source: Option<String>,
+    /// Confidence level for inferred data
+    #[serde(default)]
+    pub _confidence: Option<String>,
 }
 
 /// Enhanced cloning information for allocations.
@@ -49,6 +56,13 @@ pub struct CloneInfo {
     pub is_clone: bool,
     /// If is_clone is true, points to the original object's pointer.
     pub original_ptr: Option<usize>,
+
+    /// Source of this data (captured or inferred)
+    #[serde(default)]
+    pub _source: Option<String>,
+    /// Confidence level for inferred data
+    #[serde(default)]
+    pub _confidence: Option<String>,
 }
 
 /// Information about a memory allocation.
@@ -133,6 +147,8 @@ impl From<crate::core::types::AllocationInfo> for AllocationInfo {
             mutable_borrows: b.mutable_borrows,
             max_concurrent_borrows: b.max_concurrent_borrows,
             last_borrow_timestamp: b.last_borrow_timestamp,
+            _source: None,
+            _confidence: None,
         });
 
         // Convert clone_info
@@ -140,6 +156,8 @@ impl From<crate::core::types::AllocationInfo> for AllocationInfo {
             clone_count: c.clone_count,
             is_clone: c.is_clone,
             original_ptr: c.original_ptr,
+            _source: None,
+            _confidence: None,
         });
 
         // For complex nested types, we set them to None to avoid complex conversions
@@ -686,6 +704,8 @@ impl AllocationInfo {
                 clone_count: 0,
                 is_clone: false,
                 original_ptr: None,
+                _source: None,
+                _confidence: None,
             }),
             ownership_history_available: false, // Not available without tracking
             smart_pointer_info: None,
@@ -732,11 +752,13 @@ impl AllocationInfo {
         self.timestamp_dealloc.is_none()
     }
 
-    /// Update allocation with type-specific enhancements.
+    /// Update allocation with type-specific enhancements using inference engine.
+    ///
+    /// ⚠️ WARNING: This method uses inference/heuristics. Data may be WRONG.
+    /// All inferred data is marked with `_source: "inferred"` and confidence level.
     ///
     /// Detects common patterns for Rc/Arc, Vec, String, HashMap, and Box types.
     pub fn enhance_with_type_info(&mut self, type_name: &str) {
-        // Update lifetime_ms with current elapsed time
         if self.timestamp_dealloc.is_none() {
             let current_time = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -747,12 +769,15 @@ impl AllocationInfo {
             self.lifetime_ms = Some(if elapsed_ms == 0 { 1 } else { elapsed_ms });
         }
 
-        // Detect reference counting types (Rc, Arc)
+        // Use inference engine for borrow and clone info
+        // ⚠️ All data below is INFERRED, not captured
         if type_name.contains("Rc<") || type_name.contains("Arc<") {
             self.clone_info = Some(CloneInfo {
                 clone_count: 2,
                 is_clone: false,
                 original_ptr: None,
+                _source: Some("inferred".to_string()),
+                _confidence: Some("low".to_string()),
             });
 
             self.borrow_info = Some(BorrowInfo {
@@ -760,10 +785,10 @@ impl AllocationInfo {
                 mutable_borrows: 0,
                 max_concurrent_borrows: 5,
                 last_borrow_timestamp: Some(self.timestamp_alloc + 1000000),
+                _source: Some("inferred".to_string()),
+                _confidence: Some("low".to_string()),
             });
-        }
-        // Detect collections that are commonly borrowed
-        else if type_name.contains("Vec<")
+        } else if type_name.contains("Vec<")
             || type_name.contains("String")
             || type_name.contains("HashMap")
         {
@@ -772,14 +797,16 @@ impl AllocationInfo {
                 mutable_borrows: 2,
                 max_concurrent_borrows: 3,
                 last_borrow_timestamp: Some(self.timestamp_alloc + 800000),
+                _source: Some("inferred".to_string()),
+                _confidence: Some("low".to_string()),
             });
-        }
-        // Detect Box types
-        else if type_name.contains("Box<") {
+        } else if type_name.contains("Box<") {
             self.clone_info = Some(CloneInfo {
                 clone_count: 0,
                 is_clone: false,
                 original_ptr: None,
+                _source: Some("inferred".to_string()),
+                _confidence: Some("low".to_string()),
             });
 
             self.borrow_info = Some(BorrowInfo {
@@ -787,6 +814,36 @@ impl AllocationInfo {
                 mutable_borrows: 1,
                 max_concurrent_borrows: 1,
                 last_borrow_timestamp: Some(self.timestamp_alloc + 300000),
+                _source: Some("inferred".to_string()),
+                _confidence: Some("low".to_string()),
+            });
+        }
+    }
+
+    /// Enhance with inference engine (explicit inference)
+    ///
+    /// ⚠️ WARNING: All data from this method is INFERRED.
+    pub fn enhance_with_inference(&mut self, engine: &crate::capture::inference::InferenceEngine) {
+        let type_name = self.type_name.as_deref();
+
+        let inferred_borrow = engine.infer_borrow_info(type_name);
+        self.borrow_info = Some(BorrowInfo {
+            immutable_borrows: inferred_borrow.immutable_borrows,
+            mutable_borrows: inferred_borrow.mutable_borrows,
+            max_concurrent_borrows: inferred_borrow.max_concurrent_borrows,
+            last_borrow_timestamp: None,
+            _source: Some("inferred".to_string()),
+            _confidence: Some(format!("{:?}", inferred_borrow._confidence).to_lowercase()),
+        });
+
+        let inferred_sp = engine.infer_smart_pointer(type_name);
+        if inferred_sp.pointer_type != crate::capture::inference::SmartPointerType::Unknown {
+            self.clone_info = Some(CloneInfo {
+                clone_count: inferred_sp.ref_count.unwrap_or(0),
+                is_clone: false,
+                original_ptr: None,
+                _source: Some("inferred".to_string()),
+                _confidence: Some(format!("{:?}", inferred_sp._confidence).to_lowercase()),
             });
         }
     }
@@ -1055,7 +1112,7 @@ mod tests {
         assert!(serialized.is_ok());
 
         // Test that serialized data contains expected fields
-        let json_str = serialized.expect("Serialization should succeed for valid AllocationInfo");
+        let json_str = serialized.expect("Failed to serialize AllocationInfo to JSON");
         assert!(json_str.contains("ptr"));
         assert!(json_str.contains("size"));
     }

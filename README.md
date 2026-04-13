@@ -1,19 +1,162 @@
 # memscope-rs
 
-[!\[Rust\](https://img.shields.io/badge/rust-1.85+-orange.svg null)](https://www.rust-lang.org)
-[!\[License\](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg null)](LICENSE)
+> **🔬 Research Project** | A Rust memory analyzer that tries its best. Sometimes succeeds.
 
-A high-performance memory tracking library for Rust applications with modular engine architecture.
+---
 
-## 🚀 v0.2.0 - Major Refactoring
+## The Honest Truth
 
-**Recent Changes:**
+After pouring countless hours into this project, I've come to a humbling realization:
 
-- 🏗️ **Architecture Refactoring**: Migrated from monolithic to modular engine architecture
-- 📉 **Code Reduction**: \~75% code reduction (265K lines removed)
-- 🔒 **Enhanced Safety**: Eliminated all unsafe `unwrap()` calls
-- ⚡ **Performance**: Up to 98% improvement in concurrent tracking scenarios
-- 📊 **Code Stats**: 525 files changed, current codebase: 77,641 lines
+> **You can't track what Rust doesn't let you track.**
+
+I started with dreams of building the "perfect memory analyzer" — one that would capture every borrow, every move, every drop. Rust's ownership system would be laid bare before my eyes.
+
+*Reality had other plans.*
+
+Rust's runtime provides exactly zero hooks for `&T`/`&mut T` creation. No callbacks for `Rc::clone`. No way to observe ownership transfers. The compiler knows everything; the runtime knows nothing.
+
+So here we are: a project that does what it can, admits what it can't, and tries to be useful anyway.
+
+---
+
+## What We Actually Capture (The Real Stuff)
+
+These are **100% real, no guessing**:
+
+| Data | Source |
+|------|--------|
+| Pointer address | GlobalAlloc hook |
+| Allocation size | GlobalAlloc hook |
+| Thread ID | Runtime |
+| Timestamps | Runtime |
+| Alloc/Free events | GlobalAlloc hook |
+
+This is the ground truth. Everything else? Well...
+
+---
+
+## What We Infer (The "Trust at Your Own Risk" Stuff)
+
+For data we *can't* capture, we use an **Inference Engine**:
+
+- Borrow counts
+- Smart pointer relationships  
+- Ownership patterns
+- Async task migrations
+
+**Important**: All inferred data is clearly marked:
+```json
+{
+  "borrow_info": {
+    "immutable_borrows": 5,
+    "_source": "inferred",
+    "_confidence": "low"
+  }
+}
+```
+
+Is it accurate? *Sometimes.* Is it better than nothing? *That's for you to decide.*
+
+---
+
+## Known Limitations
+
+Let's be upfront about what this tool **cannot** do:
+
+1. **No Borrow Tracking** — Rust doesn't expose `&T`/`&mut T` creation. We guess based on heuristics.
+
+2. **No True Ownership Model** — We can't observe moves. The ownership graph is inferred, not captured.
+
+3. **Async is Hard** — Task IDs are unstable. Cross-thread migrations are fuzzy at best.
+
+4. **Arc/Rc Sharing** — We can't tell who "really" owns shared data. Nobody can, really.
+
+5. **Address Reuse** — Pointers get recycled. We use generation counters, but it's a heuristic.
+
+---
+
+## Why This Project Still Matters
+
+Despite the limitations, this project serves a purpose:
+
+**1. Explores the Boundaries**
+> What *can* a runtime memory tracker actually do in Rust? Now we know.
+
+**2. Validates Architecture**
+> Event → State → Analysis works. The design is sound.
+
+**3. Performance Experiments**
+> Lock-free structures, O(1) aggregation, high-throughput event systems — all battle-tested.
+
+**4. Paves the Way**
+> This project directly informs my next-generation tools based on LLVM/compile-time analysis.
+
+---
+
+## Quick Start
+
+```rust
+use memscope_rs::{global_tracker, init_global_tracking, track, MemScopeResult};
+
+fn main() -> MemScopeResult<()> {
+    init_global_tracking()?;
+    let tracker = global_tracker()?;
+
+    let data = vec![1, 2, 3, 4, 5];
+    track!(tracker, data);
+
+    let report = tracker.analyze();
+    println!("Allocations: {}", report.total_allocations);
+    Ok(())
+}
+```
+
+---
+
+## Performance
+
+Tested on **Apple M3 Max**, macOS Sonoma, Rust 1.85+.
+
+### Backend Performance
+
+| Backend | Allocation | Deallocation | Reallocation | Move |
+|---------|-----------|--------------|--------------|------|
+| **Core** | 21 ns | 21 ns | 21 ns | 21 ns |
+| **Async** | 21 ns | 21 ns | 21 ns | 21 ns |
+| **Lockfree** | 40 ns | 40 ns | 40 ns | 40 ns |
+| **Unified** | 40 ns | 40 ns | 40 ns | 40 ns |
+
+### Tracking Overhead
+
+| Operation | Latency | Throughput |
+|-----------|---------|------------|
+| Single Track (64B) | 528 ns | 115.55 MiB/s |
+| Single Track (1KB) | 544 ns | 1.75 GiB/s |
+| Single Track (1MB) | 4.72 µs | 206.74 GiB/s |
+| Batch Track (1000) | 541 µs | 1.85 Melem/s |
+
+### Analysis Performance
+
+| Analysis Type | Scale | Latency |
+|--------------|-------|---------|
+| Stats Query | Any | 250 ns |
+| Small Analysis | 1,000 allocs | 536 µs |
+| Medium Analysis | 10,000 allocs | 5.85 ms |
+| Large Analysis | 50,000 allocs | 35.7 ms |
+
+### Concurrency Performance
+
+| Threads | Latency | Efficiency |
+|---------|---------|-----------|
+| 1 | 19.3 µs | 100% |
+| 4 | 55.7 µs | **139%** ⚡ |
+| 8 | 138 µs | 112% |
+| 16 | 475 µs | 65% |
+
+**Optimal Concurrency**: 4-8 threads
+
+---
 
 ## Architecture
 
@@ -62,234 +205,7 @@ graph TB
     J --> K
 ```
 
-## Data Flow
-
-```mermaid
-sequenceDiagram
-    participant User as User Code
-    participant Facade as Facade API
-    participant Capture as Capture Engine
-    participant EventStore as Event Store Engine
-    participant Analysis as Analysis Engine
-    participant Render as Render Engine
-
-    User->>Facade: track_var!(data)
-    Facade->>Capture: capture_alloc(ptr, size)
-    Capture->>EventStore: store event
-    User->>Facade: analyze()
-    Facade->>Analysis: detect issues
-    Analysis->>EventStore: read events
-    Analysis-->>Facade: report
-    User->>Facade: export_json()
-    Facade->>Render: render data
-    Render-->>User: output file
-```
-
-## Module Overview
-
-```mermaid
-graph LR
-    subgraph "Core Layer"
-        facade[facade/]
-        tracker[tracker/]
-    end
-
-    subgraph "Engine Layer"
-        capture[capture/]
-        analysis[analysis_engine/]
-        event[event_store/]
-        render[render_engine/]
-        snapshot[snapshot/]
-        timeline[timeline/]
-        query[query/]
-        metadata[metadata/]
-    end
-
-    subgraph "Analysis Modules"
-        detectors[detectors/]
-        safety[safety/]
-        classification[classification/]
-    end
-
-    facade --> tracker
-    tracker --> capture
-    capture --> event
-    capture --> analysis
-    analysis --> detectors
-    analysis --> safety
-    analysis --> classification
-    analysis --> snapshot
-    analysis --> timeline
-    event --> query
-    event --> render
-```
-
-## Quick Start
-
-```rust
-use memscope_rs::{global_tracker, init_global_tracking, track, MemScopeResult};
-
-fn main() -> MemScopeResult<()> {
-    init_global_tracking()?;
-    let tracker = global_tracker()?;
-
-    let data = vec![1, 2, 3, 4, 5];
-    track!(tracker, data);
-
-    let report = tracker.analyze();
-    println!("Allocations: {}", report.total_allocations);
-    Ok(())
-}
-```
-
-## Tracking Backends
-
-| Backend         | Use Case        | Performance | Notes                           |
-| --------------- | --------------- | ----------- | ------------------------------- |
-| CoreTracker     | Single-threaded | \~23ns      | Simple, low overhead            |
-| LockfreeTracker | Multi-threaded  | \~39ns      | Lock-free, thread-local storage |
-| AsyncTracker    | Async tasks     | \~23ns      | Task ID tracking                |
-| GlobalTracker   | Global tracking | Variable    | Shared across threads           |
-
-## Engine Capabilities
-
-### Analysis Engine
-
-- **Leak Detection** - Find unreleased allocations
-- **Use-After-Free Detection** - Detect UAF patterns
-- **Buffer Overflow Detection** - Find bounds violations
-- **Safety Analysis** - Risk assessment for unsafe code
-- **Circular Reference Detection** - Detect reference cycles
-- **Relation Inference** - Track variable relationships
-
-### Capture Engine
-
-- **Multi-backend support** - Core, Lockfree, Async, Global
-- **Smart pointer tracking** - Rc/Arc/Box/Weak support
-- **Thread-local storage** - Efficient concurrent tracking
-- **FFI boundary tracking** - Memory passport for FFI calls
-
-### Event Store Engine
-
-- **Lock-free queue** - High-throughput event storage
-- **Snapshot support** - Point-in-time views
-- **Thread-safe** - Concurrent read/write access
-
-### Render Engine
-
-- **JSON Export** - Human-readable format
-- **HTML Dashboard** - Interactive visualization
-
-### Other Engines
-
-- **Snapshot Engine** - Memory snapshot construction
-- **Timeline Engine** - Time-based memory analysis
-- **Query Engine** - Unified query interface
-- **Metadata Engine** - Centralized metadata management
-
-## Performance
-
-| Metric                   | Performance | Improvement |
-| ------------------------ | ----------- | ----------- |
-| Concurrent Tracking (1)  | 98µs        | -98% ⚡      |
-| Concurrent Tracking (64) | 1.9ms       | -25% ⚡      |
-| Analysis (100 elements)  | 30µs        | -91% ⚡      |
-| Lockfree Allocation      | 39ns        | -46% ⚡      |
-| Type Classification      | 40-56ns     | 1-21% ⚡     |
-
-See [benchmarks/run.log](benches/run.log) for detailed performance data.
-
-## Installation
-
-```toml
-[dependencies]
-memscope-rs = "0.2.0"
-```
-
-## Migration from v0.1.x
-
-**Important Breaking Changes:**
-
-- Tracking API moved to `memscope_rs::tracker` module
-- Error handling system completely refactored
-- Some internal modules reorganized
-
-**Quick Migration:**
-
-```rust
-// Old API (v0.1.x)
-use memscope_rs::{track, tracker};
-
-// New API (v0.2.0)
-use memscope_rs::{global_tracker, init_global_tracking, track, MemScopeResult};
-```
-
-## Examples
-
-```bash
-# Basic usage
-cargo run --example basic_usage
-
-# Multi-threaded
-cargo run --example complex_multithread_showcase
-
-# Async
-cargo run --example comprehensive_async_showcase
-
-# Full showcase with dashboard
-cargo run --example global_tracker_showcase
-
-# Merkle tree example
-cargo run --example merkle_tree
-
-# Variable relationships
-cargo run --example variable_relationships_showcase
-
-# Unsafe FFI demo
-cargo run --example unsafe_ffi_demo
-```
-
-## Documentation
-
-- [API Guide (English)](docs/en/api_guide.md)
-- [Architecture (English)](docs/en/architecture.md)
-- [Module Documentation (English)](docs/en/modules/)
-
-### Key Modules
-
-- [Analysis Module](docs/en/modules/analysis.md) - Leak detection, relation inference, safety analysis
-- [Tracker Module](docs/en/modules/tracker.md) - Core tracking API
-- [Capture Module](docs/en/modules/capture.md) - Memory capture backends
-- [Render Engine](docs/en/modules/render_engine.md) - Export and visualization
-- [Core Module](docs/en/modules/core.md) - Core types and utilities
-
-## Project Structure
-
-```
-src/
-├── analysis/           # Analysis modules
-│   ├── detectors/      # Leak, UAF, Overflow detectors
-│   ├── safety/         # Safety analyzer
-│   ├── classification/  # Type classification
-│   └── ...            # Other analysis modules
-├── analysis_engine/    # Analysis engine orchestration
-├── capture/            # Capture engine and backends
-│   ├── backends/       # Core, Lockfree, Async, Global trackers
-│   ├── types/          # Capture data types
-│   └── platform/       # Platform-specific implementations
-├── core/               # Core types and utilities
-├── error/              # Unified error handling
-├── event_store/        # Event storage engine
-├── render_engine/      # Output rendering
-│   └── dashboard/      # HTML templates
-├── snapshot/           # Snapshot engine
-├── timeline/           # Timeline engine
-├── query/              # Query engine
-├── metadata/           # Metadata engine
-├── tracker/            # Unified tracker API
-├── facade/             # Facade API
-└── lib.rs              # Public API
-```
+---
 
 ## Comparison with Other Tools
 
@@ -297,7 +213,7 @@ src/
 | -------------------- | ----------- | ------------- | ---------------- | --------- |
 | **Language**         | Rust native | C/C++         | C/C++/Rust       | C/C++     |
 | **Runtime**          | In-process  | External      | In-process       | External  |
-| **Overhead**         | Low         | High (10-50x) | Medium (2x)      | Medium    |
+| **Overhead**         | Low (<5%)   | High (10-50x) | Medium (2x)      | Medium    |
 | **Variable Names**   | ✅           | ❌             | ❌                | ❌         |
 | **Source Location**  | ✅           | ✅             | ✅                | ✅         |
 | **Leak Detection**   | ✅           | ✅             | ✅                | ✅         |
@@ -307,43 +223,50 @@ src/
 | **Async Support**    | ✅           | ❌             | ❌                | ❌         |
 | **FFI Tracking**     | ✅           | ⚠️            | ⚠️               | ⚠️        |
 | **HTML Dashboard**   | ✅           | ❌             | ❌                | ⚠️        |
-| **Production Ready** | ⚠️          | ❌             | ❌                | ⚠️        |
+| **Data Accuracy**    | ⚠️ Mixed    | ✅ High        | ✅ High           | ✅ High   |
 
-### When to Use memscope-rs
+> ⚠️ memscope-rs has mixed accuracy: real data for alloc/free, inferred data for borrows/ownership.
+
+---
+
+## When to Use This
 
 **Good fit:**
-
-- Rust projects needing variable-level tracking
-- Async/await applications
-- Development and debugging
-- Understanding memory patterns
-- Smart pointer analysis
+- You want variable-level tracking in Rust
+- You're debugging memory patterns
+- You accept that some data is inferred
 
 **Consider alternatives:**
+- **Valgrind** — When you need 100% accuracy
+- **AddressSanitizer** — For production-grade UAF detection
+- **Heaptrack** — For C/C++ projects
 
-- **Valgrind** - Deep memory debugging, mature tooling
-- **AddressSanitizer** - Production-grade UAF/overflow detection
-- **Heaptrack** - C/C++ projects, mature profiler
+---
 
-### Limitations
+## The Bottom Line
 
-- Buffer overflow detection is pattern-based, not runtime enforcement
-- Not a replacement for ASAN/Valgrind in production
-- Requires code instrumentation (track! macros)
-- Performance overhead varies by use case
-- Large dataset analysis may have performance impact (see PR Summary)
+This is a **research project**. It's honest about its limitations. It tries to be useful despite Rust's runtime constraints.
 
-## Contributing
+If you need perfect accuracy, look elsewhere. If you want to explore what's possible, welcome aboard.
 
-Contributions are welcome! Please read our contributing guidelines and submit pull requests to our repository.
+---
+
+## Documentation
+
+- [LIMITATIONS.md](docs/LIMITATIONS.md) — The full list of what we can't do
+- [Architecture](docs/ARCHITECTURE.md) — How it works (the parts that do)
+- [API Guide](docs/en/api_guide.md) — How to use it
+
+---
 
 ## License
 
-Licensed under MIT OR Apache-2.0.
+MIT OR Apache-2.0. Use at your own risk.
+
+---
 
 ## Acknowledgments
 
-- Built with ❤️ for the Rust community
-- Inspired by existing memory tracking tools
-- Special thanks to all contributors
+Built with ❤️ (and a fair amount of frustration) for the Rust community.
 
+*Special thanks to Rust for teaching me the difference between "impossible" and "really, genuinely impossible."*
