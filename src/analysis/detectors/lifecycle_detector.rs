@@ -711,6 +711,8 @@ mod tests {
             clone_count: 50, // Excessive cloning
             is_clone: true,
             original_ptr: Some(0x1000),
+            _source: None,
+            _confidence: None,
         });
 
         let issues =
@@ -736,6 +738,8 @@ mod tests {
             mutable_borrows: 2, // Concurrent mutable borrows
             max_concurrent_borrows: 2,
             last_borrow_timestamp: Some(1000),
+            _source: None,
+            _confidence: None,
         });
 
         let issues =
@@ -888,6 +892,8 @@ mod tests {
             clone_count: 5,
             is_clone: true,
             original_ptr: Some(0x2000),
+            _source: None,
+            _confidence: None,
         });
 
         let issues =
@@ -911,6 +917,8 @@ mod tests {
             mutable_borrows: 20,
             max_concurrent_borrows: 60,
             last_borrow_timestamp: Some(1000),
+            _source: None,
+            _confidence: None,
         });
 
         let issues =
@@ -1018,6 +1026,8 @@ mod tests {
             clone_count: 1,
             is_clone: true,
             original_ptr: Some(0x2000),
+            _source: None,
+            _confidence: None,
         });
 
         let issues =
@@ -1041,6 +1051,8 @@ mod tests {
             clone_count: 1,
             is_clone: true,
             original_ptr: Some(0x2000),
+            _source: None,
+            _confidence: None,
         });
 
         let issues =
@@ -1232,6 +1244,8 @@ mod tests {
             clone_count: 1,
             is_clone: true,
             original_ptr: Some(0x2000),
+            _source: None,
+            _confidence: None,
         });
 
         assert!(detector.is_move_semantics_violation(&alloc));
@@ -1258,6 +1272,8 @@ mod tests {
             clone_count: 1,
             is_clone: true,
             original_ptr: None,
+            _source: None,
+            _confidence: None,
         });
 
         assert!(detector.is_borrow_after_move(&alloc));
@@ -1311,6 +1327,8 @@ mod tests {
             clone_count: 50,
             is_clone: true,
             original_ptr: Some(0x1000),
+            _source: None,
+            _confidence: None,
         });
 
         let result = detector.detect(&allocations);
@@ -1359,6 +1377,8 @@ mod tests {
             mutable_borrows: 3,
             max_concurrent_borrows: 3,
             last_borrow_timestamp: Some(1000),
+            _source: None,
+            _confidence: None,
         });
 
         let result = detector.detect(&allocations);

@@ -814,6 +814,8 @@ mod tests {
             clone_count: 3, // 3 * 512KB = 1.5MB > max_array_size
             is_clone: true,
             original_ptr: Some(0x1000),
+            _source: None,
+            _confidence: None,
         });
 
         let issues =

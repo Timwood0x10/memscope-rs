@@ -7,12 +7,19 @@
 
 pub mod backends;
 pub mod engine;
+pub mod inference;
 pub mod platform;
 pub mod system_monitor;
 pub mod types;
 
 pub use backends::{CaptureBackend, CaptureBackendType};
 pub use engine::CaptureEngine;
+
+// Re-export inference types
+pub use inference::{
+    Confidence, DataSource, InferenceEngine, InferenceRule, InferredBorrowInfo,
+    InferredSmartPointerInfo, SmartPointerType as InferredSmartPointerType,
+};
 
 // Re-export common types for convenience
 pub use types::{

@@ -468,6 +468,8 @@ mod tests {
             mutable_borrows: 2,
             max_concurrent_borrows: 2,
             last_borrow_timestamp: Some(1000),
+            _source: None,
+            _confidence: None,
         });
 
         let issues = detector.detect_raw_pointer_uaf(&allocations, &mut DetectionStatistics::new());
