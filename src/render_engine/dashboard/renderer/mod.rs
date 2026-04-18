@@ -149,6 +149,10 @@ impl Default for DashboardRenderer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::render_engine::dashboard::renderer::types::{
+        AsyncSummary, CircularReferenceReport, DashboardContext, OwnershipGraphInfo,
+        SystemResources,
+    };
 
     fn create_empty_context() -> DashboardContext {
         DashboardContext {
@@ -215,6 +219,13 @@ mod tests {
             top_allocation_sites: vec![],
             top_leaked_allocations: vec![],
             top_temporary_churn: vec![],
+            circular_references: CircularReferenceReport {
+                count: 0,
+                total_leaked_memory: 0,
+                pointers_in_cycles: 0,
+                total_smart_pointers: 0,
+                has_cycles: false,
+            },
         }
     }
 

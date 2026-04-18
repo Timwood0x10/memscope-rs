@@ -5,6 +5,7 @@
 
 use super::*;
 use crate::core::types::AllocationInfo;
+use crate::render_engine::dashboard::renderer::types::CircularReferenceReport;
 use serde_json::json;
 
 /// Memory size constants to avoid integer overflow in test expressions
@@ -301,6 +302,13 @@ mod tests {
                 issues: vec![],
                 root_cause: None,
             },
+            circular_references: CircularReferenceReport {
+                count: 0,
+                total_leaked_memory: 0,
+                pointers_in_cycles: 0,
+                total_smart_pointers: 0,
+                has_cycles: false,
+            },
         };
 
         assert_eq!(context.title, "Test Dashboard");
@@ -372,6 +380,13 @@ mod tests {
                 has_issues: false,
                 issues: vec![],
                 root_cause: None,
+            },
+            circular_references: CircularReferenceReport {
+                count: 0,
+                total_leaked_memory: 0,
+                pointers_in_cycles: 0,
+                total_smart_pointers: 0,
+                has_cycles: false,
             },
         };
 

@@ -514,6 +514,18 @@ impl Default for Tracker {
 
 impl Drop for Tracker {
     fn drop(&mut self) {
+        // Auto-record deallocation for all active allocations
+        let events = self.event_store().snapshot();
+        let allocations = rebuild_allocations_from_events(&events);
+
+        // Record deallocation events for all active allocations
+        let thread_id_u64 = crate::utils::current_thread_id_u64();
+
+        for alloc in &allocations {
+            let event = MemoryEvent::deallocate(alloc.ptr, alloc.size, thread_id_u64);
+            self.event_store().record(event);
+        }
+
         if let Ok(cfg) = self.config.lock() {
             if cfg.auto_export_on_drop {
                 if let Some(ref path) = cfg.export_path {

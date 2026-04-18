@@ -98,15 +98,13 @@ impl MemorySnapshot {
     }
 
     /// Build a MemorySnapshot from a list of AllocationInfo (capture module type)
-    pub fn from_allocation_infos(
-        allocations: Vec<crate::capture::backends::core_types::AllocationInfo>,
-    ) -> Self {
+    pub fn from_allocation_infos(allocations: Vec<crate::capture::types::AllocationInfo>) -> Self {
         let mut snapshot = Self::new();
         let mut thread_stats: HashMap<u64, ThreadMemoryStats> = HashMap::new();
         let mut current_memory: usize = 0;
 
         for alloc in allocations {
-            let thread_id = alloc.thread_id;
+            let thread_id = alloc.thread_id_u64;
 
             let active_alloc = ActiveAllocation {
                 ptr: Some(alloc.ptr),
@@ -115,7 +113,7 @@ impl MemorySnapshot {
                     ptr: alloc.ptr,
                     size: alloc.size,
                 },
-                allocated_at: alloc.allocated_at_ns,
+                allocated_at: alloc.timestamp_alloc,
                 var_name: alloc.var_name,
                 type_name: alloc.type_name,
                 thread_id,

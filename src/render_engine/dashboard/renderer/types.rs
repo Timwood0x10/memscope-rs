@@ -85,8 +85,10 @@ pub struct DashboardContext {
     pub top_allocation_sites: Vec<TopAllocationSite>,
     /// Top N leaked allocations
     pub top_leaked_allocations: Vec<TopLeakedAllocation>,
-    /// Top N temporary churn
+    /// Top N temporary churn (short-lived allocations)
     pub top_temporary_churn: Vec<TopTemporaryChurn>,
+    /// Circular reference analysis
+    pub circular_references: CircularReferenceReport,
 }
 
 /// Ownership graph information for dashboard
@@ -470,4 +472,19 @@ pub struct TopTemporaryChurn {
     pub total_bytes: usize,
     /// Average lifetime in milliseconds
     pub average_lifetime_ms: f64,
+}
+
+/// Circular reference report for dashboard
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CircularReferenceReport {
+    /// Number of circular references detected
+    pub count: usize,
+    /// Total estimated leaked memory
+    pub total_leaked_memory: usize,
+    /// Number of smart pointers involved in cycles
+    pub pointers_in_cycles: usize,
+    /// Total number of smart pointers analyzed
+    pub total_smart_pointers: usize,
+    /// Whether any circular references were detected
+    pub has_cycles: bool,
 }

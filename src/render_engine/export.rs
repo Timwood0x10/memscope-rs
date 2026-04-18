@@ -573,7 +573,7 @@ pub fn export_all_json<P: AsRef<Path>>(
     debug!("Starting export_ownership_graph_json");
 
     let typed_allocations: Vec<crate::capture::types::AllocationInfo> =
-        allocations.clone().into_iter().map(|a| a.into()).collect();
+        allocations.clone().into_iter().collect();
 
     debug!(
         allocations = typed_allocations.len(),
