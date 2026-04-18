@@ -254,9 +254,59 @@ fn process_allocation_batch(allocations: &[&ActiveAllocation]) -> Vec<serde_json
                 entry["type_name"] = serde_json::json!(type_name);
             }
 
+            if let Some(ref module_path) = alloc.module_path {
+                // Filter out library paths, only show user project paths
+                if !is_library_module_path(module_path) {
+                    entry["module_path"] = serde_json::json!(module_path);
+                }
+            }
+
             entry
         })
         .collect()
+}
+
+/// Check if a module path belongs to a library (std, core, alloc, or external crates)
+fn is_library_module_path(module_path: &str) -> bool {
+    // Filter out standard library paths
+    if module_path.starts_with("std::")
+        || module_path.starts_with("core::")
+        || module_path.starts_with("alloc::")
+    {
+        return true;
+    }
+
+    // Filter out memscope_rs library paths
+    if module_path.starts_with("memscope_rs::") {
+        return true;
+    }
+
+    // Filter out other common library prefixes
+    let library_prefixes = [
+        "tokio::",
+        "serde::",
+        "async_trait::",
+        "futures::",
+        "log::",
+        "tracing::",
+        "chrono::",
+        "indexmap::",
+        "rustc_hash::",
+        "parking_lot::",
+        "crossbeam::",
+        "rayon::",
+        "dashmap::",
+        "ahash::",
+        "hashbrown::",
+    ];
+
+    for prefix in library_prefixes.iter() {
+        if module_path.starts_with(prefix) {
+            return true;
+        }
+    }
+
+    false
 }
 
 fn get_or_compute_type_info(type_name: &str, size: usize) -> String {
@@ -1240,6 +1290,7 @@ fn build_ownership_graph_from_allocations(
                 type_name: a.type_name.clone(),
                 thread_id: a.thread_id_u64,
                 call_stack_hash: None,
+                module_path: a.module_path.clone(),
             })
         })
         .collect();
@@ -1284,6 +1335,7 @@ fn build_ownership_graph_from_allocations(
                 type_name: Some(type_name.clone()),
                 thread_id: e.thread_id,
                 call_stack_hash: None,
+                module_path: None,
             }
         })
         .collect();

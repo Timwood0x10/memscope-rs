@@ -107,6 +107,8 @@ pub struct AllocationInfo {
     pub smart_pointer_info: Option<SmartPointerInfo>,
     /// Detailed memory layout information.
     pub memory_layout: Option<MemoryLayoutInfo>,
+    /// Module path (from module_path!())
+    pub module_path: Option<String>,
     /// Generic type information.
     pub generic_info: Option<GenericTypeInfo>,
     /// Dynamic type information (trait objects).
@@ -239,6 +241,7 @@ impl From<crate::core::types::AllocationInfo> for AllocationInfo {
             lifecycle_tracking: old.lifecycle_tracking.map(Into::into),
             access_tracking: old.access_tracking.map(Into::into),
             drop_chain_analysis: old.drop_chain_analysis.map(Into::into),
+            module_path: None, // core::types::AllocationInfo doesn't have module_path
         }
     }
 }
@@ -259,6 +262,7 @@ impl From<crate::capture::backends::core_types::AllocationInfo> for AllocationIn
             stack_trace: info.stack_trace,
             is_leaked: false,
             lifetime_ms: None,
+            module_path: None,
             borrow_info: None,
             clone_info: None,
             ownership_history_available: false,
@@ -563,6 +567,7 @@ impl Serialize for AllocationInfo {
         state.serialize_field("lifecycle_tracking", &self.lifecycle_tracking)?;
         state.serialize_field("access_tracking", &self.access_tracking)?;
         state.serialize_field("drop_chain_analysis", &self.drop_chain_analysis)?;
+        state.serialize_field("module_path", &self.module_path)?;
         state.end()
     }
 }
@@ -608,6 +613,7 @@ impl<'de> Deserialize<'de> for AllocationInfo {
             lifecycle_tracking: Option<ObjectLifecycleInfo>,
             access_tracking: Option<MemoryAccessTrackingInfo>,
             drop_chain_analysis: Option<DropChainAnalysis>,
+            module_path: Option<String>,
         }
 
         let helper = AllocationInfoHelper::deserialize(deserializer)?;
@@ -652,6 +658,7 @@ impl<'de> Deserialize<'de> for AllocationInfo {
             lifecycle_tracking: helper.lifecycle_tracking,
             access_tracking: helper.access_tracking,
             drop_chain_analysis: helper.drop_chain_analysis,
+            module_path: helper.module_path,
         })
     }
 }
@@ -723,6 +730,7 @@ impl AllocationInfo {
             lifecycle_tracking: None,
             access_tracking: None,
             drop_chain_analysis: None,
+            module_path: None,
         }
     }
 

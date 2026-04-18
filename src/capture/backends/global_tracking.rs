@@ -105,11 +105,18 @@ impl GlobalTracker {
     }
 
     pub fn track<T: crate::Trackable>(&self, var: &T) {
-        self.track_as(var, "unknown", "", 0);
+        self.track_as(var, "unknown", "", 0, "");
     }
 
-    pub fn track_as<T: crate::Trackable>(&self, var: &T, name: &str, file: &str, line: u32) {
-        self.tracker.track_as(var, name, file, line);
+    pub fn track_as<T: crate::Trackable>(
+        &self,
+        var: &T,
+        name: &str,
+        file: &str,
+        line: u32,
+        module_path: &str,
+    ) {
+        self.tracker.track_as(var, name, file, line, module_path);
 
         if let Some(task_id) = AsyncTracker::get_current_task() {
             let kind = var.track_kind();
@@ -592,6 +599,6 @@ mod tests {
     fn test_global_tracker_track_as() {
         let tracker = GlobalTracker::new();
         let value = String::from("test_value");
-        tracker.track_as(&value, "test_var", "test.rs", 10);
+        tracker.track_as(&value, "test_var", "test.rs", 10, "test_module");
     }
 }

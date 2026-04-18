@@ -684,6 +684,7 @@ mod tests {
             stack_trace: None,
             is_leaked: false,
             lifetime_ms: None,
+            module_path: None,
             borrow_info: None,
             clone_info: None,
             ownership_history_available: false,
@@ -718,6 +719,7 @@ mod tests {
             stack_trace: None,
             is_leaked: false,
             lifetime_ms: None,
+            module_path: None,
             borrow_info: None,
             clone_info: None,
             ownership_history_available: false,
@@ -802,6 +804,7 @@ mod tests {
             lifecycle_tracking: None,
             access_tracking: None,
             drop_chain_analysis: None,
+            module_path: None,
         }];
         let graph = ReferenceGraph::new(&allocations_without_smart);
 
@@ -864,6 +867,7 @@ mod tests {
             lifecycle_tracking: None,
             access_tracking: None,
             drop_chain_analysis: None,
+            module_path: None,
         }];
 
         let graph = ReferenceGraph::new(&allocations_with_smart);
@@ -935,6 +939,7 @@ mod tests {
             lifecycle_tracking: None,
             access_tracking: None,
             drop_chain_analysis: None,
+            module_path: None,
         }];
 
         let graph = ReferenceGraph::new(&allocations_with_weak);

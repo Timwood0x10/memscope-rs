@@ -212,6 +212,9 @@ mod tests {
                 issues: vec![],
                 root_cause: None,
             },
+            top_allocation_sites: vec![],
+            top_leaked_allocations: vec![],
+            top_temporary_churn: vec![],
         }
     }
 

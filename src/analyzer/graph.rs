@@ -272,6 +272,7 @@ mod tests {
                 type_name: None,
                 thread_id: 1,
                 call_stack_hash: None,
+                module_path: None,
             },
             ActiveAllocation {
                 ptr: Some(ptr2),
@@ -285,6 +286,7 @@ mod tests {
                 type_name: None,
                 thread_id: 1,
                 call_stack_hash: None,
+                module_path: None,
             },
         ];
 

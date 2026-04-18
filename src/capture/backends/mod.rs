@@ -224,6 +224,9 @@ impl CaptureBackend for CoreBackend {
             thread_name: None,
             source_file: None,
             source_line: None,
+            module_path: None,
+            clone_source_ptr: None,
+            clone_target_ptr: None,
         }
     }
 }
@@ -275,6 +278,9 @@ impl CaptureBackend for LockfreeBackend {
             thread_name: None,
             source_file: None,
             source_line: None,
+            module_path: None,
+            clone_source_ptr: None,
+            clone_target_ptr: None,
         }
     }
 }
@@ -350,6 +356,9 @@ impl CaptureBackend for AsyncBackend {
             thread_name: None,
             source_file: None,
             source_line: None,
+            module_path: None,
+            clone_source_ptr: None,
+            clone_target_ptr: None,
         }
     }
 }

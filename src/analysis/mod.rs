@@ -39,6 +39,7 @@ pub mod ffi_function_resolver;
 pub mod lifecycle;
 pub mod lifecycle_analysis;
 pub mod memory_passport_tracker;
+pub mod top_n;
 
 // Integrated analysis submodules
 pub mod classification;

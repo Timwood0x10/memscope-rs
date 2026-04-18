@@ -26,6 +26,8 @@ pub struct ActiveAllocation {
     pub thread_id: u64,
     /// Optional call stack hash for clone detection
     pub call_stack_hash: Option<u64>,
+    /// Module path (from module_path!())
+    pub module_path: Option<String>,
 }
 
 /// Memory statistics for a snapshot
@@ -118,6 +120,7 @@ impl MemorySnapshot {
                 type_name: alloc.type_name,
                 thread_id,
                 call_stack_hash: None,
+                module_path: alloc.module_path,
             };
 
             current_memory += alloc.size;
@@ -203,6 +206,7 @@ mod tests {
             type_name: Some("Vec<u8>".to_string()),
             thread_id: 1,
             call_stack_hash: None,
+            module_path: None,
         };
 
         assert_eq!(alloc.ptr, Some(0x1000));
@@ -224,6 +228,7 @@ mod tests {
             type_name: None,
             thread_id: 1,
             call_stack_hash: None,
+            module_path: None,
         };
 
         let cloned = alloc.clone();
@@ -244,6 +249,7 @@ mod tests {
             type_name: None,
             thread_id: 1,
             call_stack_hash: None,
+            module_path: None,
         };
 
         let debug_str = format!("{:?}", alloc);
@@ -323,6 +329,7 @@ mod tests {
                 type_name: None,
                 thread_id: 1,
                 call_stack_hash: None,
+                module_path: None,
             },
         );
 
@@ -372,6 +379,7 @@ mod tests {
             type_name: Some("i32".to_string()),
             thread_id: 1,
             call_stack_hash: Some(12345),
+            module_path: Some("test_module".to_string()),
         };
 
         let json = serde_json::to_string(&alloc);

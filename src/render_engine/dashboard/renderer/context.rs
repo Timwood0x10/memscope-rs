@@ -6,6 +6,7 @@ use super::types::*;
 use crate::analysis::memory_passport_tracker::{
     MemoryPassportTracker, PassportEventType, PassportStatus,
 };
+use crate::analysis::top_n::TopNAnalyzer;
 use crate::analyzer::Analyzer;
 use crate::tracker::Tracker;
 use crate::view::MemoryView;
@@ -53,6 +54,9 @@ pub fn build_context_from_tracker_with_async(
     let async_tasks = build_async_tasks(async_tracker);
     let async_summary = build_async_summary(async_tracker);
     let ownership_graph = build_ownership_graph_info(&all_allocations);
+
+    // Build Top N reports
+    let top_n_reports = build_top_n_reports(&all_allocations);
 
     let system_info = get_system_info();
 
@@ -117,7 +121,80 @@ pub fn build_context_from_tracker_with_async(
         ffi_tracked_count: health_info.ffi_tracked_count,
         safe_code_percent: health_info.safe_code_percent,
         ownership_graph,
+        top_allocation_sites: top_n_reports.top_allocation_sites,
+        top_leaked_allocations: top_n_reports.top_leaked_allocations,
+        top_temporary_churn: top_n_reports.top_temporary_churn,
     })
+}
+
+/// Build Top N reports from allocations
+fn build_top_n_reports(
+    allocations: &[crate::capture::backends::core_types::AllocationInfo],
+) -> TopNReports {
+    // Convert core_types::AllocationInfo to allocation::AllocationInfo for TopNAnalyzer
+    let converted_allocations: Vec<crate::capture::types::AllocationInfo> = allocations
+        .iter()
+        .map(|alloc| {
+            let mut info = crate::capture::types::AllocationInfo::new(alloc.ptr, alloc.size);
+            info.timestamp_alloc = alloc.allocated_at_ns;
+            info.var_name = alloc.var_name.clone();
+            info.type_name = alloc.type_name.clone();
+            info.stack_trace = alloc.stack_trace.clone();
+            info.module_path = alloc.module_path.clone();
+            info
+        })
+        .collect();
+
+    let analyzer = TopNAnalyzer::new(converted_allocations);
+
+    let top_allocation_sites = analyzer
+        .top_allocation_sites(10)
+        .iter()
+        .map(|site| TopAllocationSite {
+            name: site.name.clone(),
+            total_bytes: site.total_bytes,
+            allocation_count: site.allocation_count,
+        })
+        .collect();
+
+    let top_leaked_allocations = analyzer
+        .top_leaked_bytes(10)
+        .iter()
+        .map(|leaked| TopLeakedAllocation {
+            address: format!("0x{:x}", leaked.ptr),
+            size: leaked.size,
+            type_name: leaked
+                .type_name
+                .clone()
+                .unwrap_or_else(|| "unknown".to_string()),
+            timestamp_alloc: leaked.timestamp_alloc,
+            stack_trace: leaked.stack_trace.clone(),
+        })
+        .collect();
+
+    let top_temporary_churn = analyzer
+        .top_temporary_churn(10, 100) // 100ms threshold
+        .iter()
+        .map(|churn| TopTemporaryChurn {
+            name: churn.name.clone(),
+            allocation_count: churn.allocation_count,
+            total_bytes: churn.total_bytes,
+            average_lifetime_ms: churn.average_lifetime_ms,
+        })
+        .collect();
+
+    TopNReports {
+        top_allocation_sites,
+        top_leaked_allocations,
+        top_temporary_churn,
+    }
+}
+
+/// Top N reports container
+struct TopNReports {
+    top_allocation_sites: Vec<TopAllocationSite>,
+    top_leaked_allocations: Vec<TopLeakedAllocation>,
+    top_temporary_churn: Vec<TopTemporaryChurn>,
 }
 
 /// Rebuild all allocations from event_store (unified data source).
@@ -132,6 +209,7 @@ pub fn rebuild_allocations_from_events(
     > = HashMap::new();
     let mut container_allocations: Vec<crate::capture::backends::core_types::AllocationInfo> =
         Vec::new();
+    let mut clone_info_map: HashMap<usize, crate::capture::types::CloneInfo> = HashMap::new();
 
     for event in events {
         match event.event_type {
@@ -148,6 +226,7 @@ pub fn rebuild_allocations_from_events(
                     type_name: event.type_name.clone(),
                     thread_id: event.thread_id,
                     stack_trace: stack_trace.map(|s| vec![s]),
+                    module_path: event.module_path.clone(),
                 };
                 active_allocations.insert(event.ptr, alloc);
             }
@@ -164,8 +243,42 @@ pub fn rebuild_allocations_from_events(
                     type_name: event.type_name.clone(),
                     thread_id: event.thread_id,
                     stack_trace: stack_trace.map(|s| vec![s]),
+                    module_path: event.module_path.clone(),
                 };
                 container_allocations.push(alloc);
+            }
+            MemoryEventType::Clone => {
+                // Track clone information
+                if let (Some(source_ptr), Some(target_ptr)) =
+                    (event.clone_source_ptr, event.clone_target_ptr)
+                {
+                    // Increment clone count for source
+                    clone_info_map
+                        .entry(source_ptr)
+                        .and_modify(|info| info.clone_count += 1)
+                        .or_insert(crate::capture::types::CloneInfo {
+                            clone_count: 1,
+                            is_clone: false,
+                            original_ptr: None,
+                            _source: None,
+                            _confidence: None,
+                        });
+
+                    // Mark target as a clone
+                    clone_info_map
+                        .entry(target_ptr)
+                        .and_modify(|info| {
+                            info.is_clone = true;
+                            info.original_ptr = Some(source_ptr);
+                        })
+                        .or_insert(crate::capture::types::CloneInfo {
+                            clone_count: 0,
+                            is_clone: true,
+                            original_ptr: Some(source_ptr),
+                            _source: None,
+                            _confidence: None,
+                        });
+                }
             }
             MemoryEventType::Deallocate => {
                 active_allocations.remove(&event.ptr);
@@ -231,6 +344,7 @@ fn build_allocation_info(
                 smart_pointer_type,
                 source_file: extract_user_source_file(&a.stack_trace),
                 source_line: extract_user_source_line(&a.stack_trace),
+                module_path: a.module_path.clone(),
             }
         })
         .collect()

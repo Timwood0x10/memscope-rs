@@ -23,6 +23,8 @@ pub struct AllocationInfo {
     pub thread_id: u64,
     /// Stack trace (source location)
     pub stack_trace: Option<Vec<String>>,
+    /// Module path (from module_path!())
+    pub module_path: Option<String>,
 }
 
 impl AllocationInfo {
@@ -37,6 +39,7 @@ impl AllocationInfo {
             allocated_at_ns: Self::now_ns(),
             thread_id: Self::current_thread_id(),
             stack_trace: None,
+            module_path: None,
         }
     }
 

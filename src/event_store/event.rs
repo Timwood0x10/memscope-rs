@@ -23,6 +23,8 @@ pub enum MemoryEventType {
     Return,
     /// Metadata event for Container/Value types (no heap allocation)
     Metadata,
+    /// Clone event
+    Clone,
 }
 
 impl fmt::Display for MemoryEventType {
@@ -35,6 +37,7 @@ impl fmt::Display for MemoryEventType {
             MemoryEventType::Borrow => write!(f, "Borrow"),
             MemoryEventType::Return => write!(f, "Return"),
             MemoryEventType::Metadata => write!(f, "Metadata"),
+            MemoryEventType::Clone => write!(f, "Clone"),
         }
     }
 }
@@ -69,6 +72,12 @@ pub struct MemoryEvent {
     pub source_file: Option<String>,
     /// Optional source line number
     pub source_line: Option<u32>,
+    /// Optional module path
+    pub module_path: Option<String>,
+    /// Clone source pointer (for Clone events)
+    pub clone_source_ptr: Option<usize>,
+    /// Clone target pointer (for Clone events)
+    pub clone_target_ptr: Option<usize>,
 }
 
 impl MemoryEvent {
@@ -87,6 +96,9 @@ impl MemoryEvent {
             thread_name: None,
             source_file: None,
             source_line: None,
+            module_path: None,
+            clone_source_ptr: None,
+            clone_target_ptr: None,
         }
     }
 
@@ -105,6 +117,9 @@ impl MemoryEvent {
             thread_name: None,
             source_file: None,
             source_line: None,
+            module_path: None,
+            clone_source_ptr: None,
+            clone_target_ptr: None,
         }
     }
 
@@ -123,6 +138,9 @@ impl MemoryEvent {
             thread_name: None,
             source_file: None,
             source_line: None,
+            module_path: None,
+            clone_source_ptr: None,
+            clone_target_ptr: None,
         }
     }
 
@@ -141,6 +159,37 @@ impl MemoryEvent {
             thread_name: None,
             source_file: None,
             source_line: None,
+            module_path: None,
+            clone_source_ptr: None,
+            clone_target_ptr: None,
+        }
+    }
+
+    /// Create a new clone event
+    pub fn clone_event(
+        source_ptr: usize,
+        target_ptr: usize,
+        size: usize,
+        thread_id: u64,
+        var_name: Option<String>,
+        type_name: Option<String>,
+    ) -> Self {
+        Self {
+            timestamp: Self::now(),
+            event_type: MemoryEventType::Clone,
+            ptr: target_ptr,
+            size,
+            old_size: None,
+            thread_id,
+            var_name,
+            type_name,
+            call_stack_hash: None,
+            thread_name: None,
+            source_file: None,
+            source_line: None,
+            module_path: None,
+            clone_source_ptr: Some(source_ptr),
+            clone_target_ptr: Some(target_ptr),
         }
     }
 

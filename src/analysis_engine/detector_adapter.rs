@@ -40,6 +40,7 @@ fn active_to_allocation_info(active: &ActiveAllocation) -> AllocationInfo {
         stack_trace: None,
         is_leaked: false,
         lifetime_ms: None,
+        module_path: None,
         borrow_info: None,
         clone_info: None,
         ownership_history_available: false,
@@ -179,6 +180,7 @@ mod tests {
             type_name: Some("Vec<u8>".to_string()),
             thread_id: 42,
             call_stack_hash: None,
+            module_path: None,
         };
 
         let alloc = active_to_allocation_info(&active);

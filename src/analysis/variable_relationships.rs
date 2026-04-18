@@ -604,6 +604,7 @@ mod tests {
             stack_trace: Some(vec!["test_function".to_string()]),
             is_leaked: false,
             lifetime_ms: None,
+            module_path: None,
             borrow_info: None,
             clone_info: None,
             ownership_history_available: false,

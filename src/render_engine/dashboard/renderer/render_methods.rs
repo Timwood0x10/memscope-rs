@@ -564,6 +564,9 @@ mod tests {
                 issues: vec![],
                 root_cause: None,
             },
+            top_allocation_sites: vec![],
+            top_leaked_allocations: vec![],
+            top_temporary_churn: vec![],
         }
     }
 
@@ -759,6 +762,7 @@ mod tests {
             smart_pointer_type: String::new(),
             source_file: None,
             source_line: None,
+            module_path: None,
         }];
 
         let data = to_legacy_binary_data(&context);

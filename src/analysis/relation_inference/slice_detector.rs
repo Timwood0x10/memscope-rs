@@ -106,6 +106,7 @@ mod tests {
             type_name: None,
             thread_id: 0,
             call_stack_hash: None,
+            module_path: None,
         }
     }
 

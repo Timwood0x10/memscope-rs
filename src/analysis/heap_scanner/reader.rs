@@ -302,6 +302,7 @@ mod tests {
                 type_name: None,
                 thread_id: 0,
                 call_stack_hash: None,
+                module_path: None,
             },
             ActiveAllocation {
                 ptr: Some(ptr2),
@@ -315,6 +316,7 @@ mod tests {
                 type_name: None,
                 thread_id: 0,
                 call_stack_hash: None,
+                module_path: None,
             },
         ];
 
@@ -349,6 +351,7 @@ mod tests {
             type_name: None,
             thread_id: 0,
             call_stack_hash: None,
+            module_path: None,
         }];
 
         let results = HeapScanner::scan(&allocations);
@@ -373,6 +376,7 @@ mod tests {
             type_name: None,
             thread_id: 0,
             call_stack_hash: None,
+            module_path: None,
         };
 
         let results = HeapScanner::scan(&[alloc]);

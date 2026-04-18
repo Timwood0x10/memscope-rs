@@ -236,17 +236,12 @@ mod tests {
             type_name: None,
             thread_id: thread,
             call_stack_hash: None,
+            module_path: None,
         }
     }
 
     /// Helper to create a test HeapOwner allocation.
-    fn make_heap_owner(
-        _id: usize,
-        ptr: usize,
-        size: usize,
-        time: u64,
-        thread: u64,
-    ) -> ActiveAllocation {
+    fn make_heap_owner(ptr: usize, size: usize, time: u64, thread: u64) -> ActiveAllocation {
         ActiveAllocation {
             ptr: Some(ptr),
             size,
@@ -256,6 +251,7 @@ mod tests {
             type_name: None,
             thread_id: thread,
             call_stack_hash: None,
+            module_path: None,
         }
     }
 
@@ -275,7 +271,7 @@ mod tests {
 
     #[test]
     fn test_detect_containers_single_heap_owner() {
-        let allocs = vec![make_heap_owner(0, 0x1000, 64, 1000, 1)];
+        let allocs = vec![make_heap_owner(0x1000, 64, 1000, 1)];
         let edges = detect_containers(&allocs, None);
         assert_eq!(edges.len(), 0);
     }
@@ -284,7 +280,7 @@ mod tests {
     fn test_detect_containers_basic() {
         let allocs = vec![
             make_container(0, 64, 1000, 1),
-            make_heap_owner(1, 0x2000, 128, 100500, 1),
+            make_heap_owner(0x2000, 128, 100500, 1),
         ];
 
         let edges = detect_containers(&allocs, None);
@@ -298,7 +294,7 @@ mod tests {
     fn test_detect_containers_time_window() {
         let allocs = vec![
             make_container(0, 64, 1000, 1),
-            make_heap_owner(1, 0x2000, 128, 2_000_000, 1), // 2ms later - beyond default 1ms window
+            make_heap_owner(0x2000, 128, 2_000_000, 1), // 2ms later - beyond default 1ms window
         ];
 
         let edges = detect_containers(&allocs, None);
@@ -309,7 +305,7 @@ mod tests {
     fn test_detect_containers_custom_time_window() {
         let allocs = vec![
             make_container(0, 64, 1000, 1),
-            make_heap_owner(1, 0x2000, 128, 2_000_000, 1), // 2ms later
+            make_heap_owner(0x2000, 128, 2_000_000, 1), // 2ms later
         ];
 
         let config = ContainerConfig {
@@ -325,7 +321,7 @@ mod tests {
     fn test_detect_containers_different_threads() {
         let allocs = vec![
             make_container(0, 64, 1000, 1),
-            make_heap_owner(1, 0x2000, 128, 100500, 2), // Different thread
+            make_heap_owner(0x2000, 128, 100500, 2), // Different thread
         ];
 
         let edges = detect_containers(&allocs, None);
@@ -336,7 +332,7 @@ mod tests {
     fn test_detect_containers_size_ratio_filter() {
         let allocs = vec![
             make_container(0, 64, 1000, 1),
-            make_heap_owner(1, 0x2000, 1280, 100500, 1), // 20x container size
+            make_heap_owner(0x2000, 1280, 100500, 1), // 20x container size
         ];
 
         let edges = detect_containers(&allocs, None);
@@ -347,7 +343,7 @@ mod tests {
     fn test_detect_containers_custom_size_ratio() {
         let allocs = vec![
             make_container(0, 64, 1000, 1),
-            make_heap_owner(1, 0x2000, 1280, 100500, 1), // 20x container size
+            make_heap_owner(0x2000, 1280, 100500, 1), // 20x container size
         ];
 
         let config = ContainerConfig {
@@ -363,9 +359,9 @@ mod tests {
     fn test_detect_containers_multiple_candidates() {
         let allocs = vec![
             make_container(0, 64, 1000, 1),
-            make_heap_owner(1, 0x2000, 64, 100500, 1),
-            make_heap_owner(2, 0x3000, 64, 100600, 1),
-            make_heap_owner(3, 0x4000, 64, 100700, 1),
+            make_heap_owner(0x2000, 64, 100500, 1),
+            make_heap_owner(0x3000, 64, 100600, 1),
+            make_heap_owner(0x4000, 64, 100700, 1),
         ];
 
         let edges = detect_containers(&allocs, None);
@@ -377,11 +373,11 @@ mod tests {
     fn test_detect_containers_lookahead_limit() {
         let allocs = vec![
             make_container(0, 64, 1000, 1),
-            make_heap_owner(1, 0x2000, 64, 100500, 1),
-            make_heap_owner(2, 0x3000, 64, 100600, 1),
-            make_heap_owner(3, 0x4000, 64, 100700, 1),
-            make_heap_owner(4, 0x5000, 64, 100800, 1),
-            make_heap_owner(5, 0x6000, 64, 100900, 1), // Beyond default lookahead of 5
+            make_heap_owner(0x2000, 64, 100500, 1),
+            make_heap_owner(0x3000, 64, 100600, 1),
+            make_heap_owner(0x4000, 64, 100700, 1),
+            make_heap_owner(0x5000, 64, 100800, 1),
+            make_heap_owner(0x6000, 64, 100900, 1), // Beyond default lookahead of 5
         ];
 
         let edges = detect_containers(&allocs, None);
@@ -394,8 +390,8 @@ mod tests {
         let allocs = vec![
             make_container(0, 64, 1000, 1),
             make_container(1, 64, 2_000_000, 1), // 2ms later (beyond 1ms window)
-            make_heap_owner(2, 0x2000, 64, 100500, 1), // Near container 0 (within 1ms)
-            make_heap_owner(3, 0x3000, 64, 2_100_000, 1), // Near container 1 (within 1ms)
+            make_heap_owner(0x2000, 64, 100500, 1), // Near container 0 (within 1ms)
+            make_heap_owner(0x3000, 64, 2_100_000, 1), // Near container 1 (within 1ms)
         ];
 
         let edges = detect_containers(&allocs, None);
@@ -421,6 +417,7 @@ mod tests {
                 type_name: None,
                 thread_id: 1,
                 call_stack_hash: None,
+                module_path: None,
             },
         ];
 
@@ -431,8 +428,8 @@ mod tests {
     #[test]
     fn test_detect_containers_unsorted_input() {
         let allocs = vec![
-            make_heap_owner(1, 0x2000, 64, 100500, 1), // Later in time (original index 0)
-            make_container(0, 64, 1000, 1),            // Earlier in time (original index 1)
+            make_heap_owner(0x2000, 64, 100500, 1), // Later in time (original index 0)
+            make_container(0, 64, 1000, 1),         // Earlier in time (original index 1)
         ];
 
         let edges = detect_containers(&allocs, None);

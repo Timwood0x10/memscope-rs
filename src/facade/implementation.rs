@@ -78,6 +78,7 @@ impl MemScope {
             stack_trace: None,
             is_leaked: false,
             lifetime_ms: None,
+            module_path: None,
             borrow_info: None,
             clone_info: None,
             ownership_history_available: false,

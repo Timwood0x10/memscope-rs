@@ -42,6 +42,7 @@ fn make_alloc(ptr: usize, size: usize) -> ActiveAllocation {
         type_name: None,
         thread_id: 0,
         call_stack_hash: None,
+        module_path: None,
     }
 }
 
@@ -60,6 +61,7 @@ fn make_alloc_with_metadata(
         type_name: None,
         thread_id: 0,
         call_stack_hash,
+        module_path: None,
     }
 }
 
