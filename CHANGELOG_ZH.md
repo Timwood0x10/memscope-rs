@@ -4,61 +4,49 @@
 
 本次更新实现了完整的任务跟踪系统，支持任务层次结构跟踪和内存分配关联，并在 Dashboard 中提供 Task Graph 可视化。
 
-#### **任务注册系统**
+#### **数据收集升级策略**
 
-- **feat(task_registry)**: 实现 `TaskIdRegistry` 全局单例
-  - `TaskMeta` 存储任务元数据（id、parent、name、status、memory_usage、allocation_count）
-  - `TaskGraph`、`TaskNode`、`TaskEdge` 结构用于导出任务关系图
+- **数据维度扩展**：添加任务维度到内存跟踪系统
+  - `MemoryEvent` 添加 `task_id: Option<u64>` 字段，记录分配所属任务
+  - `AllocationInfo` 添加 `task_id: Option<u64>` 字段，支持按任务分组分析
+  - `TaskMeta` 新增 `memory_usage` 和 `allocation_count` 字段，实时统计任务内存使用
+
+- **任务注册系统**：实现 `TaskIdRegistry` 全局单例
   - 线程本地存储 `current_task_id` 实现零成本访问
   - `spawn_task()` 和 `complete_task()` 管理任务生命周期
-  - `record_allocation()` 记录每个任务的内存使用统计
+  - `record_allocation()` 自动更新任务内存统计
+  - 碰撞检测机制确保任务 ID 唯一性
 
-- **feat(event)**: `MemoryEvent` 添加 `task_id: Option<u64>` 字段
-  - 自动关联内存分配与当前任务
-  - 在 `allocate()` 构造函数中调用 `TaskIdRegistry::record_allocation()`
-
-- **feat(allocation)**: `AllocationInfo` 添加 `task_id: Option<u64>` 字段
-  - 支持按任务分组内存分配
-  - 在 `new()` 构造函数中调用 `TaskIdRegistry::record_allocation()`
-
-#### **Task Graph 导出**
-
-- **feat(export)**: 添加 `export_task_graph_json()` 函数
-  - 导出任务关系图 JSON（nodes 和 edges）
-  - 包含每个任务的 memory_usage 和 allocation_count 统计
-  - 集成到 `export_all_json()` 流程
-
-- **feat(context)**: Dashboard context 添加 `task_graph_json` 字段
-  - `build_task_graph_json()` 从全局 registry 生成 JSON
-  - 集成到 `build_json_data()` 和 `DashboardContext`
+- **数据导出增强**：支持任务关系图导出
+  - `export_task_graph_json()` 导出节点和边数据
+  - 节点包含 memory_usage 和 allocation_count 实际统计值
+  - 集成到 `export_all_json()` 和 Dashboard context
 
 #### **Dashboard Task Graph 可视化**
 
-- **feat(dashboard)**: 添加 "Task Graph" tab 和可视化
+- **feat(dashboard)**: 添加 "Task Graph" tab 和 D3.js 树状图
   - HTML 模板添加 Task Graph tab 按钮
-  - 添加 Task Graph mode section（任务层次结构树状图）
-  - D3.js 树状图渲染（`Dashboard.taskGraph` 对象）
+  - D3.js 树状图渲染任务层次结构
   - 点击任务查看内存详情面板
   - 空状态提示和任务计数显示
 
 - **fix(dashboard)**: 修复 JavaScript 语法错误
-  - 修复压缩在一行的方法格式（threads、relationships、passports、allocations、timetravel）
-  - 添加 DOM 元素空值检查（sort 方法）
-  - 删除重复的 `task_graph_json` 变量声明，从 `data.task_graph_json` 读取
+  - 修复压缩在一行的方法格式
+  - 添加 DOM 元素空值检查
+  - 删除重复的 `task_graph_json` 变量声明
+
+#### **API 简化**
+
+- **feat(task_registry)**: 添加 `TaskGuard` RAII 结构
+  - `task_scope()` 方法返回 `TaskGuard`，自动管理任务生命周期
+  - 自动设置 parent 关系（从当前 task_id 获取）
+  - 简化 API：只需声明 registry，调用 task_scope，自动完成和导出
 
 #### **示例和演示**
 
 - **feat(examples)**: `global_tracker_showcase` 添加 Task Registry 演示
   - Section 6: Task Tracking with TaskIdRegistry
-  - 演示任务层次结构（main -> worker -> sub_worker）
-  - 每个任务的内存分配跟踪
-
-#### **Bug 修复**
-
-- **fix(task_registry)**: 修复 task graph JSON 中 memory_usage 和 allocation_count 为 0 的问题
-  - 在 `TaskMeta` 中添加 `memory_usage` 和 `allocation_count` 字段
-  - `export_graph()` 使用实际统计值而不是硬编码的 0
-  - 在分配内存时调用 `record_allocation()` 更新统计
+  - 演示任务层次结构和内存分配跟踪
 
 ---
 

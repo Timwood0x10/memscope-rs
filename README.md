@@ -31,6 +31,9 @@ These are **100% real, no guessing**:
 | Thread ID | Runtime |
 | Timestamps | Runtime |
 | Alloc/Free events | GlobalAlloc hook |
+| Task ID | TaskIdRegistry (manual tracking) |
+| Task hierarchy | TaskIdRegistry (parent-child relationships) |
+| Per-task memory | TaskIdRegistry (allocation tracking) |
 
 This is the ground truth. Everything else? Well...
 
@@ -109,6 +112,31 @@ fn main() -> MemScopeResult<()> {
     let report = tracker.analyze();
     println!("Allocations: {}", report.total_allocations);
     Ok(())
+}
+```
+
+### Task Tracking (New)
+
+```rust
+use memscope_rs::task_registry::global_registry;
+
+fn main() {
+    let registry = global_registry();
+
+    // Simplified API - automatic lifecycle management
+    {
+        let _main = registry.task_scope("main_process");
+        let data = vec![1, 2, 3]; // Automatically attributed to main_process
+
+        {
+            let _worker = registry.task_scope("worker"); // Parent is automatically main_process
+            let more_data = vec![4, 5, 6]; // Automatically attributed to worker
+        } // worker automatically completed
+    } // main automatically completed
+
+    // Export task graph
+    let graph = registry.export_graph();
+    println!("Tasks: {}", graph.nodes.len());
 }
 ```
 

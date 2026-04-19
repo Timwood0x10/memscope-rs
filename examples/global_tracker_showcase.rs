@@ -7,8 +7,8 @@
 //! - Unsafe/FFI mode
 //! - Task tracking with TaskIdRegistry
 
-use memscope_rs::{analyzer, global_tracker, init_global_tracking, MemScopeResult};
 use memscope_rs::task_registry::global_registry;
+use memscope_rs::{analyzer, global_tracker, init_global_tracking, MemScopeResult};
 
 use memscope_rs::track;
 
@@ -199,34 +199,33 @@ fn main() -> MemScopeResult<()> {
 
         println!("  Demonstrating task hierarchy tracking...");
 
-        // Spawn main task
-        let main_task = registry.spawn_task(None, "main_process".to_string());
-        println!("  ✓ Spawned main task: {}", main_task);
+        // Simplified API - automatic lifecycle management
+        {
+            let _main = registry.task_scope("main_process");
+            println!("  ✓ Created main task");
 
-        // Allocate memory in main task
-        let main_data = vec![1i32, 2, 3, 4, 5];
-        track!(tracker, main_data);
+            // Allocate memory in main task
+            let main_data = vec![1i32, 2, 3, 4, 5];
+            track!(tracker, main_data);
 
-        // Spawn child task
-        let child_task = registry.spawn_task(Some(main_task), "worker_thread".to_string());
-        println!("  ✓ Spawned child task: {}", child_task);
+            {
+                let _worker = registry.task_scope("worker_thread");
+                println!("  ✓ Created child task (parent: main)");
 
-        // Allocate memory in child task
-        let child_data = vec![10i32, 20, 30];
-        track!(tracker, child_data);
+                // Allocate memory in child task
+                let child_data = vec![10i32, 20, 30];
+                track!(tracker, child_data);
 
-        // Spawn grandchild task
-        let grandchild_task = registry.spawn_task(Some(child_task), "sub_worker".to_string());
-        println!("  ✓ Spawned grandchild task: {}", grandchild_task);
+                {
+                    let _sub_worker = registry.task_scope("sub_worker");
+                    println!("  ✓ Created grandchild task (parent: worker)");
 
-        // Allocate memory in grandchild task
-        let grandchild_data = String::from("Grandchild data");
-        track!(tracker, grandchild_data);
-
-        // Complete tasks
-        registry.complete_task(grandchild_task);
-        registry.complete_task(child_task);
-        registry.complete_task(main_task);
+                    // Allocate memory in grandchild task
+                    let grandchild_data = String::from("Grandchild data");
+                    track!(tracker, grandchild_data);
+                } // sub_worker automatically completed
+            } // worker automatically completed
+        } // main automatically completed
 
         println!("  ✓ Created task hierarchy: main -> worker -> sub_worker");
     }

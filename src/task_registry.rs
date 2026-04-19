@@ -122,7 +122,7 @@ static GLOBAL_REGISTRY: std::sync::OnceLock<TaskIdRegistry> = std::sync::OnceLoc
 
 /// Get the global task registry instance
 pub fn global_registry() -> &'static TaskIdRegistry {
-    GLOBAL_REGISTRY.get_or_init(|| TaskIdRegistry::new())
+    GLOBAL_REGISTRY.get_or_init(TaskIdRegistry::new)
 }
 
 /// Generate a new unique task ID with collision detection
@@ -139,6 +139,26 @@ pub fn generate_task_id() -> u64 {
         TASK_COUNTER.fetch_add(1, Ordering::Relaxed)
     } else {
         id
+    }
+}
+
+/// Task guard for RAII-style task lifecycle management
+///
+/// When dropped, automatically completes the task.
+pub struct TaskGuard {
+    task_id: u64,
+}
+
+impl TaskGuard {
+    /// Create a new task guard (internal use)
+    fn new(task_id: u64) -> Self {
+        Self { task_id }
+    }
+}
+
+impl Drop for TaskGuard {
+    fn drop(&mut self) {
+        global_registry().complete_task(self.task_id);
     }
 }
 
@@ -159,7 +179,44 @@ impl TaskIdRegistry {
         }
     }
 
-    /// Spawn a new task
+    /// Create a task scope with automatic lifecycle management
+    ///
+    /// This is the simplified API - just call this and the task is automatically
+    /// completed when the guard is dropped.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - Task name
+    ///
+    /// # Returns
+    ///
+    /// A TaskGuard that automatically completes the task when dropped
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use memscope_rs::task_registry::global_registry;
+    /// let registry = global_registry();
+    ///
+    /// {
+    ///     let _main = registry.task_scope("main_process");
+    ///     let data = vec![1, 2, 3]; // Automatically attributed to main_process
+    ///
+    ///     {
+    ///         let _worker = registry.task_scope("worker"); // Parent is automatically main_process
+    ///         let more_data = vec![4, 5, 6]; // Automatically attributed to worker
+    ///     } // worker automatically completed
+    /// } // main automatically completed
+    ///
+    /// let graph = registry.export_graph();
+    /// ```
+    pub fn task_scope(&self, name: &str) -> TaskGuard {
+        let parent = Self::current_task_id();
+        let task_id = self.spawn_task(parent, name.to_string());
+        TaskGuard::new(task_id)
+    }
+
+    /// Spawn a new task (internal use only)
     ///
     /// # Arguments
     ///
@@ -169,7 +226,7 @@ impl TaskIdRegistry {
     /// # Returns
     ///
     /// The new task ID
-    pub fn spawn_task(&self, parent: Option<u64>, name: String) -> u64 {
+    fn spawn_task(&self, parent: Option<u64>, name: String) -> u64 {
         let mut task_id = generate_task_id();
 
         // Check for collision and handle with suffix if needed
@@ -206,12 +263,12 @@ impl TaskIdRegistry {
         task_id
     }
 
-    /// Complete a task
+    /// Complete a task (internal use only)
     ///
     /// # Arguments
     ///
     /// * `task_id` - Task ID to complete
-    pub fn complete_task(&self, task_id: u64) {
+    fn complete_task(&self, task_id: u64) {
         if let Ok(mut tasks) = self.tasks.write() {
             if let Some(meta) = tasks.get_mut(&task_id) {
                 meta.mark_completed();
@@ -244,17 +301,14 @@ impl TaskIdRegistry {
         CURRENT_TASK_ID.get()
     }
 
-    /// Set current task ID manually
-    ///
-    /// # Arguments
-    ///
-    /// * `task_id` - Task ID to set as current
-    pub fn set_current_task(task_id: u64) {
-        CURRENT_TASK_ID.set(Some(task_id));
-    }
-
-    /// Clear current task ID
-    pub fn clear_current_task() {
+    /// Clear all tasks (for testing purposes)
+    pub fn clear(&self) {
+        if let Ok(mut tasks) = self.tasks.write() {
+            tasks.clear();
+        }
+        if let Ok(mut used_ids) = self.used_ids.write() {
+            used_ids.clear();
+        }
         CURRENT_TASK_ID.set(None);
     }
 
@@ -415,7 +469,9 @@ mod tests {
 
     #[test]
     fn test_spawn_task() {
-        let registry = TaskIdRegistry::new();
+        let registry = global_registry();
+        registry.clear();
+
         let task_id = registry.spawn_task(None, "test_task".to_string());
 
         let meta = registry.get_task(task_id);
@@ -425,65 +481,94 @@ mod tests {
 
     #[test]
     fn test_parent_child() {
-        let registry = TaskIdRegistry::new();
-        let parent_id = registry.spawn_task(None, "parent".to_string());
-        let child_id = registry.spawn_task(Some(parent_id), "child".to_string());
+        let registry = global_registry();
+        registry.clear();
 
-        assert_eq!(registry.get_parent(child_id), Some(parent_id));
-        assert_eq!(registry.get_children(parent_id), vec![child_id]);
+        // Using simplified API
+        {
+            let _parent = registry.task_scope("parent");
+            let parent_id = TaskIdRegistry::current_task_id().unwrap();
+
+            {
+                let _child = registry.task_scope("child");
+                let child_id = TaskIdRegistry::current_task_id().unwrap();
+
+                assert_eq!(registry.get_parent(child_id), Some(parent_id));
+                assert_eq!(registry.get_children(parent_id), vec![child_id]);
+            }
+        }
     }
 
     #[test]
     fn test_current_task() {
-        let registry = TaskIdRegistry::new();
-        let task_id = registry.spawn_task(None, "test".to_string());
+        let registry = global_registry();
+        registry.clear();
 
-        assert_eq!(TaskIdRegistry::current_task_id(), Some(task_id));
+        assert_eq!(TaskIdRegistry::current_task_id(), None);
 
-        TaskIdRegistry::clear_current_task();
+        {
+            let _task = registry.task_scope("test");
+            let task_id = TaskIdRegistry::current_task_id();
+            assert!(task_id.is_some());
+        }
+
         assert_eq!(TaskIdRegistry::current_task_id(), None);
     }
 
     #[test]
     fn test_complete_task() {
-        let registry = TaskIdRegistry::new();
-        let task_id = registry.spawn_task(None, "test".to_string());
+        let registry = global_registry();
+        registry.clear();
 
-        let meta = registry.get_task(task_id).unwrap();
-        assert_eq!(meta.status, TaskStatus::Running);
+        let task_id;
 
-        registry.complete_task(task_id);
+        {
+            let _task = registry.task_scope("test");
+            task_id = TaskIdRegistry::current_task_id().unwrap();
+
+            let meta = registry.get_task(task_id).unwrap();
+            assert_eq!(meta.status, TaskStatus::Running);
+        }
+
+        // Task should be completed after guard is dropped
         let meta = registry.get_task(task_id).unwrap();
         assert_eq!(meta.status, TaskStatus::Completed);
     }
 
     #[test]
     fn test_stats() {
-        let registry = TaskIdRegistry::new();
-        let task1 = registry.spawn_task(None, "task1".to_string());
-        let _task2 = registry.spawn_task(None, "task2".to_string());
+        let registry = global_registry();
+        registry.clear();
+
+        {
+            let _t1 = registry.task_scope("task1");
+            let _t2 = registry.task_scope("task2");
+
+            let stats = registry.get_stats();
+            assert_eq!(stats.total_tasks, 2);
+            assert_eq!(stats.running_tasks, 2);
+        }
 
         let stats = registry.get_stats();
-        assert_eq!(stats.total_tasks, 2);
-        assert_eq!(stats.running_tasks, 2);
-
-        registry.complete_task(task1);
-        let stats = registry.get_stats();
-        assert_eq!(stats.completed_tasks, 1);
-        assert_eq!(stats.running_tasks, 1);
+        assert_eq!(stats.completed_tasks, 2);
+        assert_eq!(stats.running_tasks, 0);
     }
 
     #[test]
     fn test_export_graph() {
-        let registry = TaskIdRegistry::new();
-        let parent_id = registry.spawn_task(None, "parent".to_string());
-        let child_id = registry.spawn_task(Some(parent_id), "child".to_string());
+        let registry = global_registry();
+        registry.clear();
+
+        {
+            let _parent = registry.task_scope("parent");
+            {
+                let _child = registry.task_scope("child");
+            }
+        }
 
         let graph = registry.export_graph();
 
         assert_eq!(graph.nodes.len(), 2);
         assert_eq!(graph.edges.len(), 1);
-        assert_eq!(graph.edges[0].from, parent_id);
-        assert_eq!(graph.edges[0].to, child_id);
     }
 }

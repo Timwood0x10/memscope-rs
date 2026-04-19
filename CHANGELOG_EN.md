@@ -6,61 +6,49 @@
 
 This update implements a complete task tracking system with task hierarchy tracking and memory allocation association, providing Task Graph visualization in the Dashboard.
 
-#### **Task Registry System**
+#### **Data Collection Upgrade Strategy**
 
-- **feat(task_registry)**: Implemented `TaskIdRegistry` global singleton
-  - `TaskMeta` stores task metadata (id, parent, name, status, memory_usage, allocation_count)
-  - `TaskGraph`, `TaskNode`, `TaskEdge` structures for exporting task relationship graphs
+- **Data Dimension Expansion**: Added task dimension to memory tracking system
+  - `MemoryEvent` added `task_id: Option<u64>` field to record allocation task association
+  - `AllocationInfo` added `task_id: Option<u64>` field to support task-grouped analysis
+  - `TaskMeta` added `memory_usage` and `allocation_count` fields for real-time task memory statistics
+
+- **Task Registry System**: Implemented `TaskIdRegistry` global singleton
   - Thread-local storage `current_task_id` for zero-cost access
   - `spawn_task()` and `complete_task()` manage task lifecycle
-  - `record_allocation()` records memory usage statistics per task
+  - `record_allocation()` automatically updates task memory statistics
+  - Collision detection mechanism ensures task ID uniqueness
 
-- **feat(event)**: `MemoryEvent` added `task_id: Option<u64>` field
-  - Automatically associates memory allocations with current task
-  - Calls `TaskIdRegistry::record_allocation()` in `allocate()` constructor
-
-- **feat(allocation)**: `AllocationInfo` added `task_id: Option<u64>` field
-  - Supports grouping memory allocations by task
-  - Calls `TaskIdRegistry::record_allocation()` in `new()` constructor
-
-#### **Task Graph Export**
-
-- **feat(export)**: Added `export_task_graph_json()` function
-  - Exports task relationship graph JSON (nodes and edges)
-  - Includes memory_usage and allocation_count statistics per task
-  - Integrated into `export_all_json()` workflow
-
-- **feat(context)**: Dashboard context added `task_graph_json` field
-  - `build_task_graph_json()` generates JSON from global registry
-  - Integrated into `build_json_data()` and `DashboardContext`
+- **Data Export Enhancement**: Added task relationship graph export
+  - `export_task_graph_json()` exports nodes and edges data
+  - Nodes include actual memory_usage and allocation_count statistics
+  - Integrated into `export_all_json()` and Dashboard context
 
 #### **Dashboard Task Graph Visualization**
 
-- **feat(dashboard)**: Added "Task Graph" tab and visualization
+- **feat(dashboard)**: Added "Task Graph" tab and D3.js tree view
   - HTML template added Task Graph tab button
-  - Added Task Graph mode section (task hierarchy tree view)
-  - D3.js tree rendering (`Dashboard.taskGraph` object)
+  - D3.js tree rendering for task hierarchy
   - Click task to view memory details panel
   - Empty state hints and task count display
 
 - **fix(dashboard)**: Fixed JavaScript syntax errors
-  - Fixed compressed one-line method formatting (threads, relationships, passports, allocations, timetravel)
-  - Added DOM element null checks (sort methods)
-  - Removed duplicate `task_graph_json` variable declaration, read from `data.task_graph_json`
+  - Fixed compressed one-line method formatting
+  - Added DOM element null checks
+  - Removed duplicate `task_graph_json` variable declaration
+
+#### **API Simplification**
+
+- **feat(task_registry)**: Added `TaskGuard` RAII structure
+  - `task_scope()` method returns `TaskGuard` for automatic task lifecycle management
+  - Automatically sets parent relationship (from current task_id)
+  - Simplified API: just declare registry, call task_scope, auto-complete and export
 
 #### **Examples and Demos**
 
 - **feat(examples)**: `global_tracker_showcase` added Task Registry demo
   - Section 6: Task Tracking with TaskIdRegistry
-  - Demonstrates task hierarchy (main -> worker -> sub_worker)
-  - Memory allocation tracking per task
-
-#### **Bug Fixes**
-
-- **fix(task_registry)**: Fixed task graph JSON memory_usage and allocation_count being 0
-  - Added `memory_usage` and `allocation_count` fields to `TaskMeta`
-  - `export_graph()` uses actual statistics instead of hardcoded 0
-  - Calls `record_allocation()` on memory allocation to update statistics
+  - Demonstrates task hierarchy and memory allocation tracking
 
 ---
 
