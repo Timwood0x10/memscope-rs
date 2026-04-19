@@ -81,21 +81,32 @@ pub mod view;
 /// - `RUST_LOG=memscope_rs=info` - Info, warnings, and errors (default)
 /// - `RUST_LOG=memscope_rs=debug` - Debug, info, warnings, and errors
 ///
+/// # Errors
+///
+/// Returns an error if the log filter directive cannot be parsed.
+///
 /// # Note
 ///
 /// This function can be called multiple times safely; subsequent calls will be ignored.
-pub fn init_logging() {
+pub fn init_logging() -> MemScopeResult<()> {
     use tracing_subscriber::{fmt, EnvFilter};
 
-    // Only initialize once
     static INIT: std::sync::Once = std::sync::Once::new();
 
+    let mut result = Ok(());
     INIT.call_once(|| {
-        // Initialize tracing subscriber with environment variable support
-        // Default log level: INFO
-        // Can be overridden with RUST_LOG environment variable
-        let filter =
-            EnvFilter::from_default_env().add_directive("memscope_rs=info".parse().unwrap());
+        let filter = match "memscope_rs=info".parse::<tracing::Level>() {
+            Ok(level) => EnvFilter::from_default_env()
+                .add_directive(tracing::Level::INFO.into())
+                .add_directive(level.into()),
+            Err(_) => {
+                result = Err(MemScopeError::config(
+                    "logging",
+                    "Failed to parse default log level directive",
+                ));
+                return;
+            }
+        };
 
         fmt()
             .with_env_filter(filter)
@@ -108,6 +119,7 @@ pub fn init_logging() {
 
         tracing::info!("memscope-rs logging initialized");
     });
+    result
 }
 
 pub use analysis::*;

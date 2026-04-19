@@ -1101,6 +1101,10 @@ pub fn export_ownership_graph_json<P: AsRef<Path>>(
     // Get diagnostics
     let diagnostics = graph.diagnostics(50);
 
+    // Get borrow history from global BorrowAnalyzer for integration
+    let borrow_analyzer = crate::analysis::borrow_analysis::get_global_borrow_analyzer();
+    let borrow_history = borrow_analyzer.get_borrow_history();
+
     // Convert nodes to JSON
     let nodes_json: Vec<_> = graph
         .nodes
@@ -1115,8 +1119,8 @@ pub fn export_ownership_graph_json<P: AsRef<Path>>(
         })
         .collect();
 
-    // Convert edges to JSON
-    let edges_json: Vec<_> = graph
+    // Convert edges to JSON (including borrow edges from BorrowAnalyzer)
+    let mut edges_json: Vec<_> = graph
         .edges
         .iter()
         .map(|edge| {
@@ -1136,6 +1140,25 @@ pub fn export_ownership_graph_json<P: AsRef<Path>>(
             })
         })
         .collect();
+
+    // Add borrow edges from BorrowAnalyzer
+    for event in &borrow_history {
+        let edge_kind = match event.borrow_info.borrow_type {
+            crate::analysis::borrow_analysis::BorrowType::Immutable => "SharedBorrow",
+            crate::analysis::borrow_analysis::BorrowType::Mutable => "MutBorrow",
+            crate::analysis::borrow_analysis::BorrowType::Shared => "Borrows",
+            crate::analysis::borrow_analysis::BorrowType::Weak => "Borrows",
+        };
+
+        edges_json.push(json!({
+            "from": format!("0x{:x}", event.borrow_info.ptr),
+            "to": format!("0x{:x}", event.borrow_info.ptr),
+            "kind": edge_kind,
+            "var_name": event.borrow_info.var_name,
+            "thread_id": event.borrow_info.thread_id,
+            "borrow_id": format!("{:?}", event.borrow_info.id),
+        }));
+    }
 
     // Convert cycles to JSON
     let cycles_json: Vec<_> = graph

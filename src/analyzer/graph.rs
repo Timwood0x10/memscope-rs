@@ -197,6 +197,39 @@ impl GraphAnalysis {
             relationships.truncate(500);
         }
 
+        // Integrate borrow edges from BorrowAnalyzer
+        let borrow_analyzer = crate::analysis::borrow_analysis::get_global_borrow_analyzer();
+        let borrow_history = borrow_analyzer.get_borrow_history();
+
+        for event in &borrow_history {
+            let borrow_relation = match event.borrow_info.borrow_type {
+                crate::analysis::borrow_analysis::BorrowType::Immutable => {
+                    crate::analysis::relation_inference::Relation::Slice
+                }
+                crate::analysis::borrow_analysis::BorrowType::Mutable => {
+                    crate::analysis::relation_inference::Relation::Owns
+                }
+                crate::analysis::borrow_analysis::BorrowType::Shared => {
+                    crate::analysis::relation_inference::Relation::Shares
+                }
+                crate::analysis::borrow_analysis::BorrowType::Weak => {
+                    crate::analysis::relation_inference::Relation::Contains
+                }
+            };
+
+            relationships.push(RelationshipEdge {
+                from_ptr: event.borrow_info.ptr,
+                to_ptr: event.borrow_info.ptr,
+                from_var_name: Some(event.borrow_info.var_name.clone()),
+                to_var_name: Some(format!("borrow_{:?}", event.borrow_info.id)),
+                from_type_name: Some(format!("{:?}", event.borrow_info.borrow_type)),
+                to_type_name: Some(format!("{:?}", event.borrow_info.borrow_type)),
+                relation: borrow_relation,
+                is_container_source: false,
+                is_container_target: false,
+            });
+        }
+
         debug!("Returning {} relationships", relationships.len());
         relationships
     }

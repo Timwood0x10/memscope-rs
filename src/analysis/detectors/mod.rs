@@ -36,10 +36,14 @@
 //! - [`OverflowDetector`](overflow_detector::OverflowDetector) - Buffer overflow detection
 //! - [`SafetyDetector`](safety_detector::SafetyDetector) - Unified safety violations
 //! - [`LifecycleDetector`](lifecycle_detector::LifecycleDetector) - Lifecycle pattern detection
+//! - [`DoubleFreeDetector`](double_free_detector::DoubleFreeDetector) - Double-free detection
+//! - [`DataRaceDetector`](data_race_detector::DataRaceDetector) - Data race detection
 
 pub mod types;
 
 // Detector implementations
+pub mod data_race_detector;
+pub mod double_free_detector;
 pub mod leak_detector;
 pub mod lifecycle_detector;
 pub mod overflow_detector;
@@ -53,6 +57,8 @@ pub use types::{
 };
 
 // Re-export detectors
+pub use data_race_detector::{DataRaceDetector, DataRaceDetectorWithEvents, DataRaceConfig};
+pub use double_free_detector::{DoubleFreeDetector, DoubleFreeDetectorWithEvents, DoubleFreeConfig};
 pub use leak_detector::{LeakDetector, LeakDetectorConfig};
 pub use lifecycle_detector::{LifecycleDetector, LifecycleDetectorConfig};
 pub use overflow_detector::{OverflowDetector, OverflowDetectorConfig};

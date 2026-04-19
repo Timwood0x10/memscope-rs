@@ -132,6 +132,18 @@ impl GlobalTracker {
                 );
             }
         }
+
+        let kind = var.track_kind();
+        if let crate::core::types::TrackKind::HeapOwner { ptr, size: _ } = kind {
+            let borrow_analyzer = crate::analysis::borrow_analysis::get_global_borrow_analyzer();
+            let type_name = var.get_type_name();
+            let borrow_type = if type_name.contains("Mutex") || type_name.contains("Cell") {
+                crate::analysis::borrow_analysis::BorrowType::Mutable
+            } else {
+                crate::analysis::borrow_analysis::BorrowType::Immutable
+            };
+            let _ = borrow_analyzer.track_borrow(ptr, borrow_type, name);
+        }
     }
 
     pub fn create_passport(

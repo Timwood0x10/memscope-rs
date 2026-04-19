@@ -210,6 +210,33 @@ impl MemoryEvent {
         }
     }
 
+    /// Create a new borrow event
+    pub fn borrow(ptr: usize, size: usize, thread_id: u64, is_mutable: bool) -> Self {
+        Self {
+            timestamp: Self::now(),
+            event_type: MemoryEventType::Borrow,
+            ptr,
+            size,
+            old_size: None,
+            thread_id,
+            var_name: None,
+            type_name: Some(if is_mutable {
+                " borrow".to_string()
+            } else {
+                " borrow".to_string()
+            }),
+            call_stack_hash: None,
+            thread_name: None,
+            source_file: None,
+            source_line: None,
+            module_path: None,
+            clone_source_ptr: None,
+            clone_target_ptr: None,
+            stack_ptr: None,
+            task_id: crate::task_registry::TaskIdRegistry::current_task_id(),
+        }
+    }
+
     /// Get current timestamp in nanoseconds
     /// Returns 0 if system time is before Unix epoch (should not happen in practice)
     pub fn now() -> u64 {
