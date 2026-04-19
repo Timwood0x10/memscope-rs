@@ -585,7 +585,35 @@ pub fn export_all_json<P: AsRef<Path>>(
 
     debug!("Completed export_ownership_graph_json");
 
+    // Export task graph JSON
+    export_task_graph_json(path_ref)
+        .map_err(|e| MemScopeError::error("export", "export_all_json", e.to_string()))?;
+
+    debug!("Completed export_task_graph_json");
+
     debug!("All exports completed successfully");
+
+    Ok(())
+}
+
+/// Export task graph JSON
+///
+/// This function exports the task graph including nodes (tasks) and edges (parent-child relationships).
+pub fn export_task_graph_json<P: AsRef<Path>>(base_path: P) -> MemScopeResult<()> {
+    use crate::task_registry::global_registry;
+
+    let base_path = base_path.as_ref();
+    let registry = global_registry();
+    let graph = registry.export_graph();
+
+    let json_string = serde_json::to_string_pretty(&graph)
+        .map_err(|e| MemScopeError::error("export", "export_task_graph_json", e.to_string()))?;
+
+    let file_path = base_path.join("task_graph.json");
+    std::fs::write(&file_path, json_string)
+        .map_err(|e| MemScopeError::error("export", "export_task_graph_json", e.to_string()))?;
+
+    tracing::info!("✅ Task graph JSON exported to: {:?}", file_path);
 
     Ok(())
 }

@@ -89,6 +89,8 @@ pub struct DashboardContext {
     pub top_temporary_churn: Vec<TopTemporaryChurn>,
     /// Circular reference analysis
     pub circular_references: CircularReferenceReport,
+    /// Task graph JSON string
+    pub task_graph_json: String,
 }
 
 /// Ownership graph information for dashboard

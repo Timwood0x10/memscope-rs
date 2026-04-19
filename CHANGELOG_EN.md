@@ -1,5 +1,69 @@
 # Changelog
 
+## [0.2.3] - 2026-04-19
+
+### 🌳 **Task Tracking and Task Graph Visualization**
+
+This update implements a complete task tracking system with task hierarchy tracking and memory allocation association, providing Task Graph visualization in the Dashboard.
+
+#### **Task Registry System**
+
+- **feat(task_registry)**: Implemented `TaskIdRegistry` global singleton
+  - `TaskMeta` stores task metadata (id, parent, name, status, memory_usage, allocation_count)
+  - `TaskGraph`, `TaskNode`, `TaskEdge` structures for exporting task relationship graphs
+  - Thread-local storage `current_task_id` for zero-cost access
+  - `spawn_task()` and `complete_task()` manage task lifecycle
+  - `record_allocation()` records memory usage statistics per task
+
+- **feat(event)**: `MemoryEvent` added `task_id: Option<u64>` field
+  - Automatically associates memory allocations with current task
+  - Calls `TaskIdRegistry::record_allocation()` in `allocate()` constructor
+
+- **feat(allocation)**: `AllocationInfo` added `task_id: Option<u64>` field
+  - Supports grouping memory allocations by task
+  - Calls `TaskIdRegistry::record_allocation()` in `new()` constructor
+
+#### **Task Graph Export**
+
+- **feat(export)**: Added `export_task_graph_json()` function
+  - Exports task relationship graph JSON (nodes and edges)
+  - Includes memory_usage and allocation_count statistics per task
+  - Integrated into `export_all_json()` workflow
+
+- **feat(context)**: Dashboard context added `task_graph_json` field
+  - `build_task_graph_json()` generates JSON from global registry
+  - Integrated into `build_json_data()` and `DashboardContext`
+
+#### **Dashboard Task Graph Visualization**
+
+- **feat(dashboard)**: Added "Task Graph" tab and visualization
+  - HTML template added Task Graph tab button
+  - Added Task Graph mode section (task hierarchy tree view)
+  - D3.js tree rendering (`Dashboard.taskGraph` object)
+  - Click task to view memory details panel
+  - Empty state hints and task count display
+
+- **fix(dashboard)**: Fixed JavaScript syntax errors
+  - Fixed compressed one-line method formatting (threads, relationships, passports, allocations, timetravel)
+  - Added DOM element null checks (sort methods)
+  - Removed duplicate `task_graph_json` variable declaration, read from `data.task_graph_json`
+
+#### **Examples and Demos**
+
+- **feat(examples)**: `global_tracker_showcase` added Task Registry demo
+  - Section 6: Task Tracking with TaskIdRegistry
+  - Demonstrates task hierarchy (main -> worker -> sub_worker)
+  - Memory allocation tracking per task
+
+#### **Bug Fixes**
+
+- **fix(task_registry)**: Fixed task graph JSON memory_usage and allocation_count being 0
+  - Added `memory_usage` and `allocation_count` fields to `TaskMeta`
+  - `export_graph()` uses actual statistics instead of hardcoded 0
+  - Calls `record_allocation()` on memory allocation to update statistics
+
+---
+
 ## [0.2.2] - 2026-04-19
 
 ### 🎯 **Arc Clone Detection Enhancement**

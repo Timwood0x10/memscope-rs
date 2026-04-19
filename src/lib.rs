@@ -32,6 +32,8 @@ pub mod snapshot;
 pub mod memory {
     pub use crate::snapshot::memory::*;
 }
+/// Task Registry - Unified task tracking and relationship management
+pub mod task_registry;
 /// Timeline Engine - Time-based memory analysis
 pub mod timeline;
 /// Unified Tracker API - Simple, unified interface for memory tracking

@@ -526,6 +526,7 @@ mod tests {
             access_tracking: None,
             drop_chain_analysis: None,
             stack_ptr: None,
+            task_id: None,
         }
     }
 

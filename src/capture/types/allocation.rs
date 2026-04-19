@@ -111,6 +111,8 @@ pub struct AllocationInfo {
     pub module_path: Option<String>,
     /// Stack pointer (for StackOwner types like Arc/Rc)
     pub stack_ptr: Option<usize>,
+    /// Task ID (for task-aware memory tracking)
+    pub task_id: Option<u64>,
     /// Generic type information.
     pub generic_info: Option<GenericTypeInfo>,
     /// Dynamic type information (trait objects).
@@ -245,6 +247,7 @@ impl From<crate::core::types::AllocationInfo> for AllocationInfo {
             drop_chain_analysis: old.drop_chain_analysis.map(Into::into),
             module_path: None, // core::types::AllocationInfo doesn't have module_path
             stack_ptr: None,
+            task_id: None,
         }
     }
 }
@@ -284,7 +287,8 @@ impl From<crate::capture::backends::core_types::AllocationInfo> for AllocationIn
             lifecycle_tracking: None,
             access_tracking: None,
             drop_chain_analysis: None,
-            stack_ptr: None, // <--- Added this line
+            stack_ptr: None,
+            task_id: None,
         }
     }
 }
@@ -664,6 +668,7 @@ impl<'de> Deserialize<'de> for AllocationInfo {
             drop_chain_analysis: helper.drop_chain_analysis,
             module_path: helper.module_path,
             stack_ptr: None,
+            task_id: None,
         })
     }
 }
@@ -687,6 +692,9 @@ impl AllocationInfo {
     /// assert!(info.is_active());
     /// ```
     pub fn new(ptr: usize, size: usize) -> Self {
+        // Record allocation in task registry
+        crate::task_registry::global_registry().record_allocation(size);
+
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
@@ -737,6 +745,7 @@ impl AllocationInfo {
             drop_chain_analysis: None,
             module_path: None,
             stack_ptr: None,
+            task_id: crate::task_registry::TaskIdRegistry::current_task_id(),
         }
     }
 

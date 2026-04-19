@@ -228,6 +228,7 @@ impl CaptureBackend for CoreBackend {
             clone_source_ptr: None,
             clone_target_ptr: None,
             stack_ptr: None,
+            task_id: None,
         }
     }
 }
@@ -283,6 +284,7 @@ impl CaptureBackend for LockfreeBackend {
             clone_source_ptr: None,
             clone_target_ptr: None,
             stack_ptr: None,
+            task_id: None,
         }
     }
 }
@@ -362,6 +364,7 @@ impl CaptureBackend for AsyncBackend {
             clone_source_ptr: None,
             clone_target_ptr: None,
             stack_ptr: None,
+            task_id: None,
         }
     }
 }

@@ -63,6 +63,8 @@ pub fn build_context_from_tracker_with_async(
 
     let system_info = get_system_info();
 
+    let task_graph_json = build_task_graph_json()?;
+
     let health_info = calculate_health_info(
         &unsafe_reports,
         &passport_details,
@@ -83,6 +85,7 @@ pub fn build_context_from_tracker_with_async(
         &async_summary,
         &ownership_graph,
         health_info.health_score,
+        &task_graph_json,
     )?;
 
     Ok(DashboardContext {
@@ -128,7 +131,16 @@ pub fn build_context_from_tracker_with_async(
         top_leaked_allocations: top_n_reports.top_leaked_allocations,
         top_temporary_churn: top_n_reports.top_temporary_churn,
         circular_references,
+        task_graph_json: build_task_graph_json()?,
     })
+}
+
+/// Build task graph JSON string
+fn build_task_graph_json() -> Result<String, Box<dyn std::error::Error>> {
+    use crate::task_registry::global_registry;
+    let registry = global_registry();
+    let graph = registry.export_graph();
+    serde_json::to_string(&graph).map_err(|e| e.into())
 }
 
 /// Build Top N reports from allocations
@@ -913,6 +925,7 @@ fn build_json_data(
     async_summary: &AsyncSummary,
     ownership_graph: &OwnershipGraphInfo,
     health_score: u32,
+    task_graph_json: &str,
 ) -> Result<String, Box<dyn std::error::Error>> {
     #[derive(serde::Serialize)]
     struct DashboardData<'a> {
@@ -928,6 +941,7 @@ fn build_json_data(
         async_summary: &'a AsyncSummary,
         ownership_graph: &'a OwnershipGraphInfo,
         health_score: u32,
+        task_graph_json: &'a str,
     }
 
     let data = DashboardData {
@@ -943,6 +957,7 @@ fn build_json_data(
         async_summary,
         ownership_graph,
         health_score,
+        task_graph_json,
     };
 
     Ok(serde_json::to_string(&data)?)

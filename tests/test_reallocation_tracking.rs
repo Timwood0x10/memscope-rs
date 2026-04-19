@@ -26,6 +26,7 @@ fn test_reallocation_updates_thread_stats() {
         clone_source_ptr: None,
         clone_target_ptr: None,
         stack_ptr: None,
+        task_id: None,
     });
 
     // Reallocation - increase size
@@ -46,6 +47,7 @@ fn test_reallocation_updates_thread_stats() {
         clone_source_ptr: None,
         clone_target_ptr: None,
         stack_ptr: None,
+        task_id: None,
     });
 
     // Build snapshot from events
@@ -82,6 +84,7 @@ fn test_deallocation_updates_thread_stats() {
         clone_source_ptr: None,
         clone_target_ptr: None,
         stack_ptr: None,
+        task_id: None,
     });
 
     // Deallocate
@@ -102,6 +105,7 @@ fn test_deallocation_updates_thread_stats() {
         clone_source_ptr: None,
         clone_target_ptr: None,
         stack_ptr: None,
+        task_id: None,
     });
 
     // Build snapshot from events

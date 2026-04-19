@@ -226,6 +226,7 @@ mod tests {
                 total_smart_pointers: 0,
                 has_cycles: false,
             },
+            task_graph_json: "{}".to_string(),
         }
     }
 
