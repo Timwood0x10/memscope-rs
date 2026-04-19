@@ -56,6 +56,12 @@ pub enum OwnershipOp {
     RcClone,
     /// Arc clone operation
     ArcClone,
+    /// Move operation (value transfer)
+    Move,
+    /// Shared borrow operation (&T)
+    SharedBorrow,
+    /// Mutable borrow operation (&mut T)
+    MutBorrow,
 }
 
 /// Ownership event recorded in passport
@@ -87,6 +93,8 @@ pub struct Node {
     pub type_name: String,
     /// Size in bytes
     pub size: usize,
+    /// Stack pointer (for StackOwner types like Arc/Rc)
+    pub stack_ptr: Option<usize>,
 }
 
 /// Edge kind
@@ -102,6 +110,12 @@ pub enum EdgeKind {
     RcClone,
     /// Arc clone edge
     ArcClone,
+    /// Move edge (ownership transfer)
+    Move,
+    /// Shared borrow edge (&T)
+    SharedBorrow,
+    /// Mutable borrow edge (&mut T)
+    MutBorrow,
 }
 
 /// Edge in ownership graph
@@ -153,9 +167,53 @@ impl OwnershipGraph {
 
     /// Build ownership graph from passports with ownership events
     pub fn build<T: AsRef<[OwnershipEvent]>>(passports: &[(ObjectId, String, usize, T)]) -> Self {
+        Self::build_with_analysis(passports, None, None)
+    }
+
+    /// Build ownership graph with four-layer analysis architecture
+    ///
+    /// This method integrates:
+    /// 1. rustdoc JSON - type information for move vs copy judgment
+    /// 2. syn AST - parse source code to identify ownership events
+    /// 3. Static inference - ownership state tracking
+    /// 4. Runtime tracing (optional)
+    ///
+    /// # Arguments
+    ///
+    /// * `passports` - Object passports with ownership events
+    /// * `rustdoc_json_path` - Optional path to rustdoc JSON for type info
+    /// * `source_code` - Optional source code for AST analysis
+    pub fn build_with_analysis<T: AsRef<[OwnershipEvent]>>(
+        passports: &[(ObjectId, String, usize, T)],
+        rustdoc_json_path: Option<&str>,
+        source_code: Option<&str>,
+    ) -> Self {
         let mut nodes = Vec::new();
         let mut edges = Vec::new();
         let mut arc_clone_count = 0;
+
+        // Layer 1: Extract type information from rustdoc JSON
+        let type_db = if let Some(path) = rustdoc_json_path {
+            use crate::analysis::ownership_analyzer::RustdocExtractor;
+            use std::path::PathBuf;
+            let extractor = RustdocExtractor::new(PathBuf::from(path));
+            extractor.extract().ok()
+        } else {
+            None
+        };
+
+        // Layer 2: Analyze source code for ownership operations
+        let ast_ops = if let Some(code) = source_code {
+            use crate::analysis::ownership_analyzer::AstAnalyzer;
+            let analyzer = AstAnalyzer::new(code.to_string());
+            Some(analyzer.analyze())
+        } else {
+            None
+        };
+
+        // Layer 3: Simple ownership state tracking
+        let mut ownership_state: std::collections::HashMap<NodeId, bool> =
+            std::collections::HashMap::new();
 
         for (id, type_name, size, events) in passports {
             // Add node
@@ -163,7 +221,21 @@ impl OwnershipGraph {
                 id: *id,
                 type_name: type_name.clone(),
                 size: *size,
+                stack_ptr: None,
             });
+
+            // Check if type is Copy using rustdoc info
+            let is_copy_type = if let Some(ref db) = type_db {
+                db.types.get(type_name).map(|t| t.is_copy).unwrap_or(false)
+            } else {
+                // Default heuristic: primitives are Copy
+                type_name.contains("i32")
+                    || type_name.contains("i64")
+                    || type_name.contains("f32")
+                    || type_name.contains("f64")
+                    || type_name.contains("bool")
+                    || type_name.contains("usize")
+            };
 
             // Process events
             for event in events.as_ref() {
@@ -187,8 +259,65 @@ impl OwnershipGraph {
                             });
                         }
                     }
+                    OwnershipOp::Move => {
+                        if let Some(dst) = event.dst {
+                            // Only create Move edge if type is not Copy
+                            if !is_copy_type {
+                                edges.push(Edge {
+                                    from: event.src,
+                                    to: dst,
+                                    op: EdgeKind::Move,
+                                });
+                                // Track ownership transfer
+                                ownership_state.insert(event.src, false); // Source no longer owns
+                                ownership_state.insert(dst, true); // Destination now owns
+                            }
+                        }
+                    }
+                    OwnershipOp::SharedBorrow => {
+                        if let Some(dst) = event.dst {
+                            edges.push(Edge {
+                                from: event.src,
+                                to: dst,
+                                op: EdgeKind::SharedBorrow,
+                            });
+                        }
+                    }
+                    OwnershipOp::MutBorrow => {
+                        if let Some(dst) = event.dst {
+                            edges.push(Edge {
+                                from: event.src,
+                                to: dst,
+                                op: EdgeKind::MutBorrow,
+                            });
+                        }
+                    }
                     OwnershipOp::Create | OwnershipOp::Drop => {
                         // These don't create edges
+                    }
+                }
+            }
+        }
+
+        // Layer 4: Add edges from AST analysis (if available)
+        if let Some(ref ops) = ast_ops {
+            use crate::analysis::ownership_analyzer::OwnershipOp as AstOwnershipOp;
+            for op in ops {
+                match op {
+                    AstOwnershipOp::Move {
+                        target: _,
+                        source: _,
+                        line: _,
+                    } => {
+                        // Try to find corresponding object IDs
+                        // This is a simplified approach - in practice, you'd need a mapping from variable names to object IDs
+                        // For now, we skip this as it requires additional context
+                    }
+                    AstOwnershipOp::CallMove { .. } => {
+                        // Function call moves - requires more context
+                    }
+                    AstOwnershipOp::Borrow { .. } => {
+                        // Borrow operations - requires more context
                     }
                 }
             }
@@ -323,9 +452,10 @@ impl OwnershipGraph {
         }
 
         // Check for Arc clone storm
-        if self.has_arc_clone_storm(arc_storm_threshold) {
+        let arc_clone_count = self.arc_clones().len();
+        if arc_clone_count > arc_storm_threshold {
             issues.push(DiagnosticIssue::ArcCloneStorm {
-                clone_count: self.arc_clone_count,
+                clone_count: arc_clone_count,
                 threshold: arc_storm_threshold,
             });
         }
@@ -335,7 +465,7 @@ impl OwnershipGraph {
             total_nodes: self.nodes.len(),
             total_edges: self.edges.len(),
             rc_clone_count: self.rc_clones().len(),
-            arc_clone_count: self.arc_clone_count,
+            arc_clone_count,
         }
     }
 
@@ -611,5 +741,70 @@ mod tests {
         assert!(root_cause.is_some());
         let chain = root_cause.unwrap();
         assert_eq!(chain.root_cause, RootCause::ArcCloneStorm);
+    }
+
+    #[test]
+    fn test_ownership_op_move() {
+        let id1 = NodeId(0x1000);
+        let id2 = NodeId(0x2000);
+        let events = vec![OwnershipEvent::new(1000, OwnershipOp::Move, id1, Some(id2))];
+        let passports = vec![(id1, "String".to_string(), 24, events)];
+
+        let graph = OwnershipGraph::build(&passports);
+        assert_eq!(graph.edges.len(), 1);
+        assert_eq!(graph.edges[0].op, EdgeKind::Move);
+    }
+
+    #[test]
+    fn test_ownership_op_shared_borrow() {
+        let id1 = NodeId(0x1000);
+        let id2 = NodeId(0x2000);
+        let events = vec![OwnershipEvent::new(
+            1000,
+            OwnershipOp::SharedBorrow,
+            id1,
+            Some(id2),
+        )];
+        let passports = vec![(id1, "String".to_string(), 24, events)];
+
+        let graph = OwnershipGraph::build(&passports);
+        assert_eq!(graph.edges.len(), 1);
+        assert_eq!(graph.edges[0].op, EdgeKind::SharedBorrow);
+    }
+
+    #[test]
+    fn test_ownership_op_mut_borrow() {
+        let id1 = NodeId(0x1000);
+        let id2 = NodeId(0x2000);
+        let events = vec![OwnershipEvent::new(
+            1000,
+            OwnershipOp::MutBorrow,
+            id1,
+            Some(id2),
+        )];
+        let passports = vec![(id1, "String".to_string(), 24, events)];
+
+        let graph = OwnershipGraph::build(&passports);
+        assert_eq!(graph.edges.len(), 1);
+        assert_eq!(graph.edges[0].op, EdgeKind::MutBorrow);
+    }
+
+    #[test]
+    fn test_mixed_ownership_operations() {
+        let id1 = NodeId(0x1000);
+        let id2 = NodeId(0x2000);
+        let id3 = NodeId(0x3000);
+        let events = vec![
+            OwnershipEvent::new(1000, OwnershipOp::Create, id1, None),
+            OwnershipEvent::new(1100, OwnershipOp::Move, id1, Some(id2)),
+            OwnershipEvent::new(1200, OwnershipOp::SharedBorrow, id2, Some(id3)),
+            OwnershipEvent::new(1300, OwnershipOp::Drop, id3, None),
+        ];
+        let passports = vec![(id1, "String".to_string(), 24, events)];
+
+        let graph = OwnershipGraph::build(&passports);
+        assert_eq!(graph.edges.len(), 2);
+        assert_eq!(graph.edges[0].op, EdgeKind::Move);
+        assert_eq!(graph.edges[1].op, EdgeKind::SharedBorrow);
     }
 }

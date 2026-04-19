@@ -73,6 +73,14 @@ pub enum EventType {
     Allocation,
     /// Memory deallocation event
     Deallocation,
+    /// Clone event (Rc/Arc clone)
+    Clone,
+    /// Move event
+    Move,
+    /// Borrow event
+    Borrow,
+    /// Mutable borrow event
+    MutBorrow,
 }
 
 /// Event metadata
@@ -561,7 +569,12 @@ mod tests {
     fn test_event_type_variants() {
         assert_eq!(EventType::Allocation, EventType::Allocation);
         assert_eq!(EventType::Deallocation, EventType::Deallocation);
+        assert_eq!(EventType::Clone, EventType::Clone);
+        assert_eq!(EventType::Move, EventType::Move);
+        assert_eq!(EventType::Borrow, EventType::Borrow);
+        assert_eq!(EventType::MutBorrow, EventType::MutBorrow);
         assert_ne!(EventType::Allocation, EventType::Deallocation);
+        assert_ne!(EventType::Clone, EventType::Move);
     }
 
     #[test]

@@ -40,6 +40,8 @@ pub struct InferenceRecord {
     pub call_stack_hash: Option<u64>,
     /// Allocation timestamp (nanoseconds).
     pub alloc_time: u64,
+    /// Stack pointer (for StackOwner types like Arc/Rc).
+    pub stack_ptr: Option<usize>,
 }
 
 /// Detect Owner relationships by scanning an allocation's memory for pointers.
@@ -139,6 +141,7 @@ mod tests {
             confidence: 0,
             call_stack_hash: None,
             alloc_time: 0,
+            stack_ptr: None,
         }
     }
 
@@ -153,6 +156,7 @@ mod tests {
             thread_id: 0,
             call_stack_hash: None,
             module_path: None,
+            stack_ptr: None,
         }
     }
 
@@ -185,6 +189,7 @@ mod tests {
             confidence: 0,
             call_stack_hash: None,
             alloc_time: 0,
+            stack_ptr: None,
         };
         let range_map = RangeMap::new(&[]);
         let edges = detect_owner_impl(&record, &range_map, true);

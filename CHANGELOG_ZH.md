@@ -1,3 +1,87 @@
+## [0.2.2] - 2026-04-19
+
+### 🎯 **Arc 克隆检测增强**
+
+本次更新通过栈分配跟踪功能，添加了全面的 Arc/Rc 克隆检测能力。
+
+#### **栈分配跟踪**
+
+- **feat(tracker)**: 为智能指针添加 `StackOwner` 跟踪类型
+  - `TrackKind::StackOwner` 跟踪栈分配的智能指针（Arc、Rc）及其堆目标
+  - 捕获 `stack_ptr`（智能指针的栈地址）和 `heap_ptr`（它指向的堆分配）
+  - 通过识别指向同一堆分配的多个栈指针来检测 Arc/Rc 克隆
+
+- **feat(types)**: 扩展 `MemoryEvent`、`AllocationInfo`、`ActiveAllocation`、`InferenceRecord` 添加 `stack_ptr` 字段
+  - `stack_ptr: Option<usize>` 存储 StackOwner 对象的栈地址
+  - 在整个分析管道中保留克隆检测元数据
+
+- **feat(lib)**: 为 `Arc<T>` 和 `Rc<T>` 实现 `Trackable`
+  - 返回带有 stack_ptr 和 heap_ptr 的 `TrackKind::StackOwner`
+  - 正确识别这些为指向堆数据的栈分配智能指针
+
+#### **关系推断增强**
+
+- **feat(relation)**: 添加 `ArcClone` 和 `RcClone` 关系变体
+  - `Relation::ArcClone` 用于 Arc 特定的克隆关系
+  - `Relation::RcClone` 用于 Rc 特定的克隆关系
+  - 在所有权图中区分不同的智能指针类型
+
+- **feat(shared_detector)**: 增强共享引用检测
+  - 策略 2：基于 StackOwner 的克隆检测
+  - 按 heap_ptr 对 StackOwner 分配进行分组
+  - 为指向同一堆分配的多个 Arc 对象生成 `ArcClone` 边
+  - 不依赖 type_kind 推断（UTI Engine 可能将 Arc 误分类为 Vec）
+
+- **fix(shared_detector)**: 将 StackOwner 基础检测从 `Relation::Shares` 改为 `Relation::ArcClone`
+  - 更准确地表示 Arc 克隆关系
+  - 在仪表板中实现正确的计数和可视化
+
+#### **图和可视化**
+
+- **fix(graph)**: 更新 `get_relationship_stats` 处理 `ArcClone` 和 `RcClone`
+  - 两者都计为克隆边
+
+- **fix(export)**: 更新 `build_ownership_graph_from_allocations` 边映射
+  - `Relation::ArcClone` → `EdgeKind::ArcClone`
+  - `Relation::RcClone` → `EdgeKind::RcClone`
+
+- **fix(dashboard)**: 更新 `build_relationships` 显示属性
+  - `ArcClone`：紫色 (#8b5cf6)，强度 0.7
+  - `RcClone`：绿色 (#10b981)，强度 0.9
+
+- **fix(ownership_graph)**: 修复 `diagnostics` 方法
+  - 从使用 `self.arc_clone_count`（仅由 `OwnershipOp::ArcClone` 事件设置）
+  - 改为使用 `self.arc_clones().len()`（计算 `EdgeKind::ArcClone` 边）
+  - 确保 Arc 克隆计数反映关系推断结果
+
+#### **Bug 修复**
+
+- **fix(tracker)**: StackOwner 分配跟踪
+  - 使用 `stack_ptr` 作为 `track_allocation` 的键以避免覆盖 Arc 克隆
+  - 允许内部 tracker 计算分配数同时保留克隆检测能力
+  - 修复 `test_smart_pointer_tracking` 测试失败
+
+- **fix(example)**: 更新 `variable_relationships_showcase` 示例
+  - 使用 `global.tracker()` 获取内部 `Tracker` 而不是 `GlobalTracker`
+  - 确保跟踪和分析的正确方法调用
+
+#### **测试**
+
+- **test(shared_detector)**: 添加 `test_stackowner_arc_clone_detection`
+  - 使用真实数据验证基于 StackOwner 的 Arc 克隆检测
+  - 测试检测 3 个指向同一堆分配的 Arc 克隆
+  - 确认 `ArcClone` 边被正确生成
+
+- **fix(compilation)**: 为所有 `AllocationInfo` 和 `ActiveAllocation` 初始化器添加 `stack_ptr: None`
+  - 修复多个测试文件中的编译错误
+  - 更新文件：relation_inference_integration、circular_reference、heap_scanner、container_detector、variable_relationships、closure/analyzer、security/analyzer、unknown/analyzer、snapshot/types
+
+#### **验证**
+
+- 示例 `variable_relationships_showcase` 现在显示 `arc_clone_count: 57`（之前为 0）
+- 单元测试 `test_stackowner_arc_clone_detection` 通过
+- 所有 2449 个单元测试通过
+
 ## [0.2.1] - 2026-04-12
 
 ### 📊 **Benchmark优化与文档完善**

@@ -35,6 +35,7 @@ pub fn build_snapshot_from_events(events: &[MemoryEvent]) -> MemorySnapshot {
                     thread_id: event.thread_id,
                     call_stack_hash: event.call_stack_hash,
                     module_path: event.module_path.clone(),
+                    stack_ptr: event.stack_ptr,
                 };
 
                 ptr_to_allocation.insert(event.ptr, allocation);
@@ -92,6 +93,7 @@ pub fn build_snapshot_from_events(events: &[MemoryEvent]) -> MemorySnapshot {
                     thread_id: event.thread_id,
                     call_stack_hash: event.call_stack_hash,
                     module_path: event.module_path.clone(),
+                    stack_ptr: event.stack_ptr,
                 };
 
                 ptr_to_allocation.insert(event.ptr, allocation);

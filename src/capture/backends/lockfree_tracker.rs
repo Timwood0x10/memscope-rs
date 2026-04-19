@@ -188,6 +188,10 @@ impl ThreadLocalTracker {
         let event_type_byte = match event.event_type {
             EventType::Allocation => 1u8,
             EventType::Deallocation => 2u8,
+            EventType::Clone => 3u8,
+            EventType::Move => 4u8,
+            EventType::Borrow => 5u8,
+            EventType::MutBorrow => 6u8,
         };
         file.write_all(&event_type_byte.to_le_bytes())?;
         file.write_all(&event.timestamp.to_le_bytes())?;

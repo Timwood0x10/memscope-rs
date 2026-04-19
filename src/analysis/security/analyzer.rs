@@ -525,6 +525,7 @@ mod tests {
             lifecycle_tracking: None,
             access_tracking: None,
             drop_chain_analysis: None,
+            stack_ptr: None,
         }
     }
 

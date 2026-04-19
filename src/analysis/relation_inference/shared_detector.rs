@@ -13,6 +13,10 @@
 //!    with small integer patterns in the first 16 bytes), its owners share it.
 //! 3. Add Shared edges between all pairs of owners.
 //!
+//! 4. Arc-specific detection: Find all allocations that look like Arc pointers
+//!    (size = 8, pointing to a valid address with ArcInner pattern).
+//!    Group them by the target address and add Shared edges.
+//!
 //! This avoids fragile offset assumptions and works with any Rust version.
 
 use crate::analysis::relation_inference::{InferenceRecord, Relation, RelationEdge};
@@ -23,14 +27,15 @@ pub fn detect_shared(
     records: &[InferenceRecord],
     existing_edges: &[RelationEdge],
 ) -> Vec<RelationEdge> {
+    let mut relations = Vec::new();
+
+    // Strategy 1: Owner-based detection (for Rc)
     let mut owners_of: Vec<Vec<usize>> = vec![Vec::new(); records.len()];
     for edge in existing_edges {
         if edge.relation == Relation::Owns {
             owners_of[edge.to].push(edge.from);
         }
     }
-
-    let mut relations = Vec::new();
 
     for (target_id, owners) in owners_of.iter().enumerate() {
         if owners.len() < MIN_SHARED_OWNERS {
@@ -50,6 +55,46 @@ pub fn detect_shared(
                     to: owners[j],
                     relation: Relation::Shares,
                 });
+            }
+        }
+    }
+
+    // Strategy 2: StackOwner-based detection (for Arc/Rc)
+    // Find all StackOwner allocations (Arc/Rc) and group them by their heap_ptr
+    // Since Arc/Rc objects are on stack (8 bytes) but point to heap, we can detect
+    // clones by finding multiple StackOwner objects pointing to the same heap allocation
+    // Note: We don't rely on type_kind here because UTI Engine may misclassify Arc as Vec
+    let mut stack_owners: Vec<(usize, usize)> = Vec::new(); // (record_id, heap_ptr)
+    for (i, record) in records.iter().enumerate() {
+        // Check if this allocation has stack_ptr metadata
+        // This indicates it's a StackOwner (Arc/Rc) tracked via the new StackOwner track_kind
+        if let Some(stack_ptr) = record.stack_ptr {
+            if stack_ptr > 0x1000 {
+                // Group by heap_ptr (record.ptr) which is the heap allocation
+                stack_owners.push((i, record.ptr));
+            }
+        }
+    }
+
+    // Group StackOwner allocations by heap pointer
+    let mut heap_to_records: std::collections::HashMap<usize, Vec<usize>> =
+        std::collections::HashMap::new();
+    for (record_id, heap_ptr) in stack_owners {
+        heap_to_records.entry(heap_ptr).or_default().push(record_id);
+    }
+
+    // Add ArcClone edges for StackOwner objects pointing to the same heap allocation
+    for (_heap_ptr, record_ids) in heap_to_records {
+        if record_ids.len() >= 2 {
+            for i in 0..record_ids.len() {
+                for j in (i + 1)..record_ids.len() {
+                    // Use ArcClone for StackOwner-based clone detection
+                    relations.push(RelationEdge {
+                        from: record_ids[i],
+                        to: record_ids[j],
+                        relation: Relation::ArcClone,
+                    });
+                }
             }
         }
     }
@@ -74,8 +119,9 @@ fn looks_like_arc_rc(record: &InferenceRecord) -> bool {
     let strong = memory.read_usize(0).unwrap_or(usize::MAX);
     let weak = memory.read_usize(8).unwrap_or(usize::MAX);
 
-    let strong_valid = (1..=1000).contains(&strong);
-    let weak_valid = weak <= 100;
+    // 放宽阈值，增加检测范围
+    let strong_valid = (1..=10000).contains(&strong); // 从 1000 提升到 10000
+    let weak_valid = weak <= 1000; // 从 100 提升到 1000
 
     strong_valid && weak_valid
 }
@@ -98,9 +144,31 @@ mod tests {
             size,
             memory: memory.map(OwnedMemoryView::new),
             type_kind,
-            confidence: 80,
+            confidence: 100,
             call_stack_hash: None,
             alloc_time: 0,
+            stack_ptr: None,
+        }
+    }
+
+    fn make_record_with_stack_ptr(
+        id: usize,
+        ptr: usize,
+        stack_ptr: usize,
+        size: usize,
+        memory: Option<Vec<u8>>,
+        type_kind: TypeKind,
+    ) -> InferenceRecord {
+        InferenceRecord {
+            id,
+            ptr,
+            size,
+            memory: memory.map(OwnedMemoryView::new),
+            type_kind,
+            confidence: 100,
+            call_stack_hash: None,
+            alloc_time: 0,
+            stack_ptr: Some(stack_ptr),
         }
     }
 
@@ -277,10 +345,10 @@ mod tests {
     }
 
     #[test]
-    fn test_looks_like_arc_rc_strong_count_boundary_1000() {
-        // strong_count = 1000 should be valid (upper boundary).
+    fn test_looks_like_arc_rc_strong_count_boundary_10000() {
+        // strong_count = 10000 should be valid (upper boundary).
         let mut data = vec![0u8; 48];
-        data[0..8].copy_from_slice(&1000usize.to_le_bytes());
+        data[0..8].copy_from_slice(&10000usize.to_le_bytes());
         data[8..16].copy_from_slice(&0usize.to_le_bytes());
 
         let record = make_record(0, 0x1000, 48, Some(data), TypeKind::Buffer);
@@ -288,10 +356,10 @@ mod tests {
     }
 
     #[test]
-    fn test_looks_like_arc_rc_strong_count_exceeds_1000() {
-        // strong_count = 1001 should be invalid.
+    fn test_looks_like_arc_rc_strong_count_exceeds_10000() {
+        // strong_count = 10001 should be invalid.
         let mut data = vec![0u8; 48];
-        data[0..8].copy_from_slice(&1001usize.to_le_bytes());
+        data[0..8].copy_from_slice(&10001usize.to_le_bytes());
         data[8..16].copy_from_slice(&0usize.to_le_bytes());
 
         let record = make_record(0, 0x1000, 48, Some(data), TypeKind::Buffer);
@@ -299,22 +367,22 @@ mod tests {
     }
 
     #[test]
-    fn test_looks_like_arc_rc_weak_count_boundary_100() {
-        // weak_count = 100 should be valid.
+    fn test_looks_like_arc_rc_weak_count_boundary_1000() {
+        // weak_count = 1000 should be valid.
         let mut data = vec![0u8; 48];
         data[0..8].copy_from_slice(&1usize.to_le_bytes());
-        data[8..16].copy_from_slice(&100usize.to_le_bytes());
+        data[8..16].copy_from_slice(&1000usize.to_le_bytes());
 
         let record = make_record(0, 0x1000, 48, Some(data), TypeKind::Buffer);
         assert!(looks_like_arc_rc(&record));
     }
 
     #[test]
-    fn test_looks_like_arc_rc_weak_count_exceeds_100() {
-        // weak_count = 101 should be invalid.
+    fn test_looks_like_arc_rc_weak_count_exceeds_1000() {
+        // weak_count = 1001 should be invalid.
         let mut data = vec![0u8; 48];
         data[0..8].copy_from_slice(&1usize.to_le_bytes());
-        data[8..16].copy_from_slice(&101usize.to_le_bytes());
+        data[8..16].copy_from_slice(&1001usize.to_le_bytes());
 
         let record = make_record(0, 0x1000, 48, Some(data), TypeKind::Buffer);
         assert!(!looks_like_arc_rc(&record));
@@ -380,6 +448,50 @@ mod tests {
         assert_eq!(shared.len(), 1, "Rc-like data should produce Shared edge");
         assert_eq!(shared[0].from, 0);
         assert_eq!(shared[0].to, 1);
+    }
+
+    #[test]
+    fn test_stackowner_arc_clone_detection() {
+        // Test StackOwner-based Arc clone detection
+        // Multiple Arc objects on stack pointing to the same heap allocation
+        let heap_ptr = 0x3000; // ArcInner address
+        let stack_ptr1 = 0x7ff0000; // First Arc object on stack
+        let stack_ptr2 = 0x7ff0008; // Second Arc object on stack
+        let stack_ptr3 = 0x7ff0010; // Third Arc object on stack
+
+        let records = vec![
+            // Arc clone 1: stack_ptr1 -> heap_ptr
+            make_record_with_stack_ptr(0, heap_ptr, stack_ptr1, 48, None, TypeKind::Buffer),
+            // Arc clone 2: stack_ptr2 -> heap_ptr
+            make_record_with_stack_ptr(1, heap_ptr, stack_ptr2, 48, None, TypeKind::Buffer),
+            // Arc clone 3: stack_ptr3 -> heap_ptr
+            make_record_with_stack_ptr(2, heap_ptr, stack_ptr3, 48, None, TypeKind::Buffer),
+            // Unrelated allocation
+            make_record(3, 0x4000, 24, None, TypeKind::Vec),
+        ];
+
+        let existing_edges = vec![];
+
+        let shared = detect_shared(&records, &existing_edges);
+
+        // Should detect Arc clones and return ArcClone edges
+        // With 3 Arc clones pointing to the same heap, we should get edges between them
+        assert!(
+            !shared.is_empty(),
+            "StackOwner Arc clones should be detected"
+        );
+
+        // Verify that the edges are ArcClone type
+        let arc_clone_edges: Vec<_> = shared
+            .iter()
+            .filter(|e| matches!(e.relation, Relation::ArcClone))
+            .collect();
+        assert!(!arc_clone_edges.is_empty(), "Should have ArcClone edges");
+
+        println!(
+            "Detected {} ArcClone edges from 3 Arc clones",
+            arc_clone_edges.len()
+        );
     }
 
     #[test]

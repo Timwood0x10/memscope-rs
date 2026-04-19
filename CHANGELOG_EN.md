@@ -1,5 +1,89 @@
 # Changelog
 
+## [0.2.2] - 2026-04-19
+
+### 🎯 **Arc Clone Detection Enhancement**
+
+This update adds comprehensive Arc/Rc clone detection capability through stack allocation tracking.
+
+#### **Stack Allocation Tracking**
+
+- **feat(tracker)**: Added `StackOwner` track kind for smart pointers
+  - `TrackKind::StackOwner` tracks stack-allocated smart pointers (Arc, Rc) with their heap targets
+  - Captures both `stack_ptr` (stack address of the smart pointer) and `heap_ptr` (heap allocation it points to)
+  - Enables detection of Arc/Rc clones by identifying multiple stack pointers pointing to the same heap allocation
+
+- **feat(types)**: Extended `MemoryEvent`, `AllocationInfo`, `ActiveAllocation`, `InferenceRecord` with `stack_ptr` field
+  - `stack_ptr: Option<usize>` stores the stack address of StackOwner objects
+  - Preserves clone detection metadata through the entire analysis pipeline
+
+- **feat(lib)**: Implemented `Trackable` for `Arc<T>` and `Rc<T>`
+  - Returns `TrackKind::StackOwner` with stack_ptr and heap_ptr
+  - Correctly identifies these as stack-allocated smart pointers pointing to heap data
+
+#### **Relation Inference Enhancement**
+
+- **feat(relation)**: Added `ArcClone` and `RcClone` relation variants
+  - `Relation::ArcClone` for Arc-specific clone relationships
+  - `Relation::RcClone` for Rc-specific clone relationships
+  - Distinguishes between different smart pointer types in the ownership graph
+
+- **feat(shared_detector)**: Enhanced shared reference detection
+  - Strategy 2: StackOwner-based clone detection
+  - Groups StackOwner allocations by their heap_ptr
+  - Generates `ArcClone` edges for multiple Arc objects pointing to the same heap allocation
+  - Does not rely on type_kind inference (UTI Engine may misclassify Arc as Vec)
+
+- **fix(shared_detector)**: Changed from `Relation::Shares` to `Relation::ArcClone` for StackOwner-based detection
+  - More accurate representation of Arc clone relationships
+  - Enables proper counting and visualization in the dashboard
+
+#### **Graph and Visualization**
+
+- **fix(graph)**: Updated `get_relationship_stats` to handle `ArcClone` and `RcClone`
+  - Both counted as clone edges in statistics
+
+- **fix(export)**: Updated `build_ownership_graph_from_allocations` edge mapping
+  - `Relation::ArcClone` → `EdgeKind::ArcClone`
+  - `Relation::RcClone` → `EdgeKind::RcClone`
+
+- **fix(dashboard)**: Updated `build_relationships` display properties
+  - `ArcClone`: purple color (#8b5cf6), strength 0.7
+  - `RcClone`: green color (#10b981), strength 0.9
+
+- **fix(ownership_graph)**: Fixed `diagnostics` method
+  - Changed from using `self.arc_clone_count` (only set by `OwnershipOp::ArcClone` events)
+  - To using `self.arc_clones().len()` (counts `EdgeKind::ArcClone` edges)
+  - Ensures Arc clone count reflects relation inference results
+
+#### **Bug Fixes**
+
+- **fix(tracker)**: StackOwner allocation tracking
+  - Uses `stack_ptr` as key for `track_allocation` to avoid overwriting Arc clones
+  - Allows inner tracker to count allocations while preserving clone detection capability
+  - Fixed `test_smart_pointer_tracking` test failure
+
+- **fix(example)**: Updated `variable_relationships_showcase` example
+  - Uses `global.tracker()` to get the internal `Tracker` instead of `GlobalTracker`
+  - Ensures correct method calls for tracking and analysis
+
+#### **Testing**
+
+- **test(shared_detector)**: Added `test_stackowner_arc_clone_detection`
+  - Validates StackOwner-based Arc clone detection with real data
+  - Tests detection of 3 Arc clones pointing to the same heap allocation
+  - Confirms `ArcClone` edges are correctly generated
+
+- **fix(compilation)**: Added `stack_ptr: None` to all `AllocationInfo` and `ActiveAllocation` initializers
+  - Fixed compilation errors across multiple test files
+  - Updated: relation_inference_integration, circular_reference, heap_scanner, container_detector, variable_relationships, closure/analyzer, security/analyzer, unknown/analyzer, snapshot/types
+
+#### **Verification**
+
+- Example `variable_relationships_showcase` now shows `arc_clone_count: 57` (previously 0)
+- Unit test `test_stackowner_arc_clone_detection` passes
+- All 2449 unit tests pass
+
 ## [0.2.1] - 2026-04-12
 
 ### 📊 **Benchmark Optimization and Documentation Enhancement**

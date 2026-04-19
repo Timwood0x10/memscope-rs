@@ -144,6 +144,7 @@ mod tests {
             module_path: None,
             clone_source_ptr: None,
             clone_target_ptr: None,
+            stack_ptr: None,
         };
 
         index.index_event(0, &event);

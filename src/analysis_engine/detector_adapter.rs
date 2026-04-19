@@ -23,6 +23,7 @@ fn active_to_allocation_info(active: &ActiveAllocation) -> AllocationInfo {
     // Callers should check TrackKind to determine if this is a real allocation.
     let ptr = match active.kind {
         crate::core::types::TrackKind::HeapOwner { ptr, .. } => ptr,
+        crate::core::types::TrackKind::StackOwner { heap_ptr, .. } => heap_ptr,
         crate::core::types::TrackKind::Container | crate::core::types::TrackKind::Value => 0,
     };
 
@@ -59,6 +60,7 @@ fn active_to_allocation_info(active: &ActiveAllocation) -> AllocationInfo {
         lifecycle_tracking: None,
         access_tracking: None,
         drop_chain_analysis: None,
+        stack_ptr: active.stack_ptr,
     }
 }
 
@@ -181,6 +183,7 @@ mod tests {
             thread_id: 42,
             call_stack_hash: None,
             module_path: None,
+            stack_ptr: None,
         };
 
         let alloc = active_to_allocation_info(&active);

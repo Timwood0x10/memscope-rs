@@ -109,6 +109,8 @@ pub struct AllocationInfo {
     pub memory_layout: Option<MemoryLayoutInfo>,
     /// Module path (from module_path!())
     pub module_path: Option<String>,
+    /// Stack pointer (for StackOwner types like Arc/Rc)
+    pub stack_ptr: Option<usize>,
     /// Generic type information.
     pub generic_info: Option<GenericTypeInfo>,
     /// Dynamic type information (trait objects).
@@ -242,6 +244,7 @@ impl From<crate::core::types::AllocationInfo> for AllocationInfo {
             access_tracking: old.access_tracking.map(Into::into),
             drop_chain_analysis: old.drop_chain_analysis.map(Into::into),
             module_path: None, // core::types::AllocationInfo doesn't have module_path
+            stack_ptr: None,
         }
     }
 }
@@ -281,6 +284,7 @@ impl From<crate::capture::backends::core_types::AllocationInfo> for AllocationIn
             lifecycle_tracking: None,
             access_tracking: None,
             drop_chain_analysis: None,
+            stack_ptr: None, // <--- Added this line
         }
     }
 }
@@ -659,6 +663,7 @@ impl<'de> Deserialize<'de> for AllocationInfo {
             access_tracking: helper.access_tracking,
             drop_chain_analysis: helper.drop_chain_analysis,
             module_path: helper.module_path,
+            stack_ptr: None,
         })
     }
 }
@@ -731,6 +736,7 @@ impl AllocationInfo {
             access_tracking: None,
             drop_chain_analysis: None,
             module_path: None,
+            stack_ptr: None,
         }
     }
 

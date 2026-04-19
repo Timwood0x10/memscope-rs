@@ -28,6 +28,8 @@ pub struct ActiveAllocation {
     pub call_stack_hash: Option<u64>,
     /// Module path (from module_path!())
     pub module_path: Option<String>,
+    /// Stack pointer (for StackOwner types like Arc/Rc)
+    pub stack_ptr: Option<usize>,
 }
 
 /// Memory statistics for a snapshot
@@ -119,6 +121,7 @@ impl MemorySnapshot {
                 thread_id,
                 call_stack_hash: None,
                 module_path: alloc.module_path,
+                stack_ptr: None,
             };
 
             current_memory += alloc.size;
@@ -205,6 +208,7 @@ mod tests {
             thread_id: 1,
             call_stack_hash: None,
             module_path: None,
+            stack_ptr: None,
         };
 
         assert_eq!(alloc.ptr, Some(0x1000));
@@ -227,6 +231,7 @@ mod tests {
             thread_id: 1,
             call_stack_hash: None,
             module_path: None,
+            stack_ptr: None,
         };
 
         let cloned = alloc.clone();
@@ -248,6 +253,7 @@ mod tests {
             thread_id: 1,
             call_stack_hash: None,
             module_path: None,
+            stack_ptr: None,
         };
 
         let debug_str = format!("{:?}", alloc);
@@ -328,6 +334,7 @@ mod tests {
                 thread_id: 1,
                 call_stack_hash: None,
                 module_path: None,
+                stack_ptr: Some(0x2000), // Add stack_ptr field
             },
         );
 
@@ -378,6 +385,7 @@ mod tests {
             thread_id: 1,
             call_stack_hash: Some(12345),
             module_path: Some("test_module".to_string()),
+            stack_ptr: None,
         };
 
         let json = serde_json::to_string(&alloc);

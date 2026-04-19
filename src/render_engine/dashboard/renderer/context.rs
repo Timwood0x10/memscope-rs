@@ -209,8 +209,7 @@ pub fn rebuild_allocations_from_events(
 ) -> Vec<crate::capture::types::AllocationInfo> {
     use crate::event_store::event::MemoryEventType;
 
-    let mut active_allocations: HashMap<usize, crate::capture::types::AllocationInfo> =
-        HashMap::new();
+    let mut active_allocations: Vec<crate::capture::types::AllocationInfo> = Vec::new();
     let mut container_allocations: Vec<crate::capture::types::AllocationInfo> = Vec::new();
     let mut clone_info_map: HashMap<usize, crate::capture::types::CloneInfo> = HashMap::new();
 
@@ -229,7 +228,8 @@ pub fn rebuild_allocations_from_events(
                 alloc.thread_id_u64 = event.thread_id;
                 alloc.stack_trace = stack_trace.map(|s| vec![s]);
                 alloc.module_path = event.module_path.clone();
-                active_allocations.insert(event.ptr, alloc);
+                alloc.stack_ptr = event.stack_ptr;
+                active_allocations.push(alloc);
             }
             MemoryEventType::Metadata => {
                 let stack_trace = event
@@ -280,13 +280,14 @@ pub fn rebuild_allocations_from_events(
                 }
             }
             MemoryEventType::Deallocate => {
-                active_allocations.remove(&event.ptr);
+                // Remove all allocations with this ptr (for StackOwner, multiple allocations may have same heap_ptr)
+                active_allocations.retain(|alloc| alloc.ptr != event.ptr);
             }
             _ => {}
         }
     }
 
-    let mut all_allocations: Vec<_> = active_allocations.into_values().collect();
+    let mut all_allocations = active_allocations;
 
     // Auto-detect smart pointers and fill smart_pointer_info
     for alloc in &mut all_allocations {
@@ -447,6 +448,8 @@ fn build_relationships(az: &mut Analyzer) -> Vec<RelationshipInfo> {
                 crate::analyzer::Relation::Clone => ("clone", "#10b981", 0.9),
                 crate::analyzer::Relation::Shares => ("Arc", "#8b5cf6", 0.7),
                 crate::analyzer::Relation::Evolution => ("evolution", "#06b6d4", 0.5),
+                crate::analyzer::Relation::ArcClone => ("Arc_clone", "#8b5cf6", 0.7),
+                crate::analyzer::Relation::RcClone => ("Rc_clone", "#10b981", 0.9),
             };
 
             let type_name = edge

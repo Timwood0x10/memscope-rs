@@ -27,7 +27,8 @@ fn main() -> MemScopeResult<()> {
     println!("===================================\n");
 
     init_global_tracking()?;
-    let tracker = global_tracker()?;
+    let global = global_tracker()?;
+    let tracker = global.tracker();
 
     // 1. Clone relationships - same type and size
     println!("1. Clone Relationships (same type Vec<i32>)");
@@ -153,15 +154,15 @@ fn main() -> MemScopeResult<()> {
     println!("✓ Created {} Box<i32> instances", boxes.len());
 
     // Get statistics
-    let stats = tracker.get_stats();
+    let stats = tracker.stats();
     println!("\n📊 Statistics:");
     println!("  Total allocations: {}", stats.total_allocations);
     println!("  Active allocations: {}", stats.active_allocations);
-    println!("  Peak memory: {} bytes", stats.peak_memory_bytes);
+    println!("  Peak memory: {} bytes", stats.total_allocated);
 
     // Use the unified Analyzer API
     println!("\n=== Unified Analyzer API ===\n");
-    let mut az = analyzer(&tracker)?;
+    let mut az = analyzer(&global)?;
 
     // Full analysis
     let report = az.analyze();
@@ -183,8 +184,8 @@ fn main() -> MemScopeResult<()> {
 
     // Export results
     let output_path = "MemoryAnalysis/variable_relationships_showcase";
-    tracker.export_html(output_path)?;
-    tracker.export_json(output_path)?;
+    global.export_html(output_path)?;
+    global.export_json(output_path)?;
 
     println!("\n✅ Export successful!");
     println!("📁 Results saved to: {}", output_path);

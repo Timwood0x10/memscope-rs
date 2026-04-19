@@ -78,6 +78,8 @@ pub struct MemoryEvent {
     pub clone_source_ptr: Option<usize>,
     /// Clone target pointer (for Clone events)
     pub clone_target_ptr: Option<usize>,
+    /// Stack pointer (for StackOwner types like Arc/Rc)
+    pub stack_ptr: Option<usize>,
 }
 
 impl MemoryEvent {
@@ -99,6 +101,7 @@ impl MemoryEvent {
             module_path: None,
             clone_source_ptr: None,
             clone_target_ptr: None,
+            stack_ptr: None,
         }
     }
 
@@ -120,6 +123,7 @@ impl MemoryEvent {
             module_path: None,
             clone_source_ptr: None,
             clone_target_ptr: None,
+            stack_ptr: None,
         }
     }
 
@@ -141,6 +145,7 @@ impl MemoryEvent {
             module_path: None,
             clone_source_ptr: None,
             clone_target_ptr: None,
+            stack_ptr: None,
         }
     }
 
@@ -162,6 +167,7 @@ impl MemoryEvent {
             module_path: None,
             clone_source_ptr: None,
             clone_target_ptr: None,
+            stack_ptr: None,
         }
     }
 
@@ -190,6 +196,7 @@ impl MemoryEvent {
             module_path: None,
             clone_source_ptr: Some(source_ptr),
             clone_target_ptr: Some(target_ptr),
+            stack_ptr: None,
         }
     }
 

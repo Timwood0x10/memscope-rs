@@ -1082,6 +1082,7 @@ pub fn export_ownership_graph_json<P: AsRef<Path>>(
                 "id": format!("0x{:x}", node.id.0),
                 "type_name": node.type_name,
                 "size": node.size,
+                "stack_ptr": node.stack_ptr.map(|p| format!("0x{:x}", p)),
             })
         })
         .collect();
@@ -1100,6 +1101,9 @@ pub fn export_ownership_graph_json<P: AsRef<Path>>(
                     EdgeKind::Borrows => "Borrows",
                     EdgeKind::RcClone => "RcClone",
                     EdgeKind::ArcClone => "ArcClone",
+                    EdgeKind::Move => "Move",
+                    EdgeKind::SharedBorrow => "SharedBorrow",
+                    EdgeKind::MutBorrow => "MutBorrow",
                 },
             })
         })
@@ -1291,9 +1295,17 @@ fn build_ownership_graph_from_allocations(
                 thread_id: a.thread_id_u64,
                 call_stack_hash: None,
                 module_path: a.module_path.clone(),
+                stack_ptr: a.stack_ptr,
             })
         })
         .collect();
+
+    // Update stack_ptr for HeapOwner nodes from AllocationInfo
+    for (i, alloc) in heap_owner_allocations.iter().enumerate() {
+        if i < graph.nodes.len() {
+            graph.nodes[i].stack_ptr = alloc.stack_ptr;
+        }
+    }
 
     // Step 2: Collect Container events from event_store
     // IMPORTANT: Only include containers that match HeapOwner thread_id
@@ -1334,13 +1346,13 @@ fn build_ownership_graph_from_allocations(
                 var_name: Some(var_name.clone()),
                 type_name: Some(type_name.clone()),
                 thread_id: e.thread_id,
-                call_stack_hash: None,
-                module_path: None,
+                call_stack_hash: e.call_stack_hash,
+                module_path: e.module_path.clone(),
+                stack_ptr: None,
             }
         })
         .collect();
 
-    // Step 3: Combine for container detection: first HeapOwner, then Container
     let mut all_for_relation: Vec<ActiveAllocation> = Vec::new();
     all_for_relation.extend(heap_owner_allocations.clone());
     all_for_relation.extend(container_allocations.clone());
@@ -1377,6 +1389,7 @@ fn build_ownership_graph_from_allocations(
             id: node_id,
             type_name: type_name.clone(),
             size: e.size,
+            stack_ptr: None,
         });
     }
 
@@ -1392,6 +1405,8 @@ fn build_ownership_graph_from_allocations(
             Relation::Clone => EdgeKind::RcClone,
             Relation::Shares => EdgeKind::ArcClone,
             Relation::Evolution => EdgeKind::Contains,
+            Relation::ArcClone => EdgeKind::ArcClone,
+            Relation::RcClone => EdgeKind::RcClone,
         };
 
         graph.edges.push(crate::analysis::ownership_graph::Edge {

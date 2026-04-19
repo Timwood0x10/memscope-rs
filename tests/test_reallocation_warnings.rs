@@ -25,6 +25,7 @@ fn test_reallocation_without_old_size_logs_warning() {
         module_path: None,
         clone_source_ptr: None,
         clone_target_ptr: None,
+        stack_ptr: None,
     });
 
     let engine = SnapshotEngine::new(Arc::new(event_store));
@@ -58,6 +59,7 @@ fn test_reallocation_with_old_size() {
         module_path: None,
         clone_source_ptr: None,
         clone_target_ptr: None,
+        stack_ptr: None,
     });
 
     let engine = SnapshotEngine::new(Arc::new(event_store));
@@ -91,6 +93,7 @@ fn test_reallocation_with_previous_allocation() {
         module_path: None,
         clone_source_ptr: None,
         clone_target_ptr: None,
+        stack_ptr: None,
     });
 
     // Reallocation without old_size but with previous allocation
@@ -110,6 +113,7 @@ fn test_reallocation_with_previous_allocation() {
         module_path: None,
         clone_source_ptr: None,
         clone_target_ptr: None,
+        stack_ptr: None,
     });
 
     let engine = SnapshotEngine::new(Arc::new(event_store));

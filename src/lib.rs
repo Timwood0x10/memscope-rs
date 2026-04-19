@@ -334,8 +334,12 @@ impl<T> Trackable for Box<T> {
 
 impl<T> Trackable for std::rc::Rc<T> {
     fn track_kind(&self) -> TrackKind {
-        TrackKind::HeapOwner {
-            ptr: &**self as *const T as usize,
+        // Rc is a StackOwner: it's allocated on stack (8 bytes pointer) but points to heap
+        let stack_ptr = self as *const _ as usize;
+        let heap_ptr = &**self as *const T as usize;
+        TrackKind::StackOwner {
+            ptr: stack_ptr,
+            heap_ptr,
             size: std::mem::size_of::<T>(),
         }
     }
@@ -358,8 +362,12 @@ impl<T> Trackable for std::rc::Rc<T> {
 
 impl<T> Trackable for std::sync::Arc<T> {
     fn track_kind(&self) -> TrackKind {
-        TrackKind::HeapOwner {
-            ptr: &**self as *const T as usize,
+        // Arc is a StackOwner: it's allocated on stack (8 bytes pointer) but points to heap
+        let stack_ptr = self as *const _ as usize;
+        let heap_ptr = &**self as *const T as usize;
+        TrackKind::StackOwner {
+            ptr: stack_ptr,
+            heap_ptr,
             size: std::mem::size_of::<T>(),
         }
     }

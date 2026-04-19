@@ -325,6 +325,45 @@ impl Tracker {
                     tracing::error!("Failed to associate var '{}' at ptr {:x}: {}", name, ptr, e);
                 }
             }
+            crate::core::types::TrackKind::StackOwner {
+                ptr: stack_ptr,
+                heap_ptr,
+                size,
+            } => {
+                // StackOwner records stack pointer metadata for clone detection
+                // Use stack_ptr as key for track_allocation to avoid overwriting Arc clones
+                // This allows inner tracker to count allocations while preserving clone detection
+
+                if let Err(e) = self.inner.track_allocation(stack_ptr, size) {
+                    tracing::error!("Failed to track allocation at ptr {:x}: {}", stack_ptr, e);
+                    return;
+                }
+
+                let mut event = MemoryEvent::allocate(heap_ptr, size, thread_id_u64);
+                event.var_name = Some(name.to_string());
+                event.type_name = Some(type_name.clone());
+                event.source_file = Some(file.to_string());
+                event.source_line = Some(line);
+                event.module_path = Some(module_path.to_string());
+                // Store stack pointer in custom metadata for clone detection
+                event.stack_ptr = Some(stack_ptr);
+                self.event_store.record(event);
+
+                if let Err(e) = self.inner.associate_var(
+                    heap_ptr,
+                    name.to_string(),
+                    type_name,
+                    Some(file),
+                    Some(line),
+                ) {
+                    tracing::error!(
+                        "Failed to associate var '{}' at ptr {:x}: {}",
+                        name,
+                        heap_ptr,
+                        e
+                    );
+                }
+            }
             crate::core::types::TrackKind::Container | crate::core::types::TrackKind::Value => {
                 // Container and Value record metadata events without heap allocation
                 // They will be tracked as graph nodes but not scanned by HeapScanner

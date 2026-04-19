@@ -122,6 +122,7 @@ mod tests {
             thread_id: 0,
             call_stack_hash: None,
             module_path: None,
+            stack_ptr: None,
         }
     }
 

@@ -107,6 +107,7 @@ mod tests {
             thread_id: 0,
             call_stack_hash: None,
             module_path: None,
+            stack_ptr: None,
         }
     }
 
@@ -117,9 +118,10 @@ mod tests {
             size,
             memory: None,
             type_kind: TypeKind::FatPtr,
-            confidence: 80,
+            confidence: 100,
             call_stack_hash: None,
             alloc_time: 0,
+            stack_ptr: None,
         }
     }
 

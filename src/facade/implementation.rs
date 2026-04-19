@@ -61,6 +61,7 @@ impl MemScope {
         // Callers should check TrackKind to determine if this is a real allocation.
         let ptr = match active.kind {
             crate::core::types::TrackKind::HeapOwner { ptr, .. } => ptr,
+            crate::core::types::TrackKind::StackOwner { heap_ptr, .. } => heap_ptr,
             crate::core::types::TrackKind::Container | crate::core::types::TrackKind::Value => 0,
         };
 
@@ -97,6 +98,7 @@ impl MemScope {
             lifecycle_tracking: None,
             access_tracking: None,
             drop_chain_analysis: None,
+            stack_ptr: active.stack_ptr,
         }
     }
 

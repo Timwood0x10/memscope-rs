@@ -237,6 +237,7 @@ mod tests {
             thread_id: thread,
             call_stack_hash: None,
             module_path: None,
+            stack_ptr: None,
         }
     }
 
@@ -252,6 +253,7 @@ mod tests {
             thread_id: thread,
             call_stack_hash: None,
             module_path: None,
+            stack_ptr: None,
         }
     }
 
@@ -418,6 +420,7 @@ mod tests {
                 thread_id: 1,
                 call_stack_hash: None,
                 module_path: None,
+                stack_ptr: None,
             },
         ];
 

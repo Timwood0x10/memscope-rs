@@ -128,6 +128,8 @@ impl GraphAnalysis {
                 Relation::Slice => slice_edges += 1,
                 Relation::Clone => clone_edges += 1,
                 Relation::Evolution => {}
+                Relation::ArcClone => clone_edges += 1,
+                Relation::RcClone => clone_edges += 1,
             }
         }
 
@@ -273,6 +275,7 @@ mod tests {
                 thread_id: 1,
                 call_stack_hash: None,
                 module_path: None,
+                stack_ptr: None,
             },
             ActiveAllocation {
                 ptr: Some(ptr2),
@@ -287,6 +290,7 @@ mod tests {
                 thread_id: 1,
                 call_stack_hash: None,
                 module_path: None,
+                stack_ptr: None,
             },
         ];
 
