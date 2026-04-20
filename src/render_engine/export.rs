@@ -254,9 +254,59 @@ fn process_allocation_batch(allocations: &[&ActiveAllocation]) -> Vec<serde_json
                 entry["type_name"] = serde_json::json!(type_name);
             }
 
+            if let Some(ref module_path) = alloc.module_path {
+                // Filter out library paths, only show user project paths
+                if !is_library_module_path(module_path) {
+                    entry["module_path"] = serde_json::json!(module_path);
+                }
+            }
+
             entry
         })
         .collect()
+}
+
+/// Check if a module path belongs to a library (std, core, alloc, or external crates)
+fn is_library_module_path(module_path: &str) -> bool {
+    // Filter out standard library paths
+    if module_path.starts_with("std::")
+        || module_path.starts_with("core::")
+        || module_path.starts_with("alloc::")
+    {
+        return true;
+    }
+
+    // Filter out memscope_rs library paths
+    if module_path.starts_with("memscope_rs::") {
+        return true;
+    }
+
+    // Filter out other common library prefixes
+    let library_prefixes = [
+        "tokio::",
+        "serde::",
+        "async_trait::",
+        "futures::",
+        "log::",
+        "tracing::",
+        "chrono::",
+        "indexmap::",
+        "rustc_hash::",
+        "parking_lot::",
+        "crossbeam::",
+        "rayon::",
+        "dashmap::",
+        "ahash::",
+        "hashbrown::",
+    ];
+
+    for prefix in library_prefixes.iter() {
+        if module_path.starts_with(prefix) {
+            return true;
+        }
+    }
+
+    false
 }
 
 fn get_or_compute_type_info(type_name: &str, size: usize) -> String {
@@ -523,7 +573,7 @@ pub fn export_all_json<P: AsRef<Path>>(
     debug!("Starting export_ownership_graph_json");
 
     let typed_allocations: Vec<crate::capture::types::AllocationInfo> =
-        allocations.clone().into_iter().map(|a| a.into()).collect();
+        allocations.clone().into_iter().collect();
 
     debug!(
         allocations = typed_allocations.len(),
@@ -535,7 +585,35 @@ pub fn export_all_json<P: AsRef<Path>>(
 
     debug!("Completed export_ownership_graph_json");
 
+    // Export task graph JSON
+    export_task_graph_json(path_ref)
+        .map_err(|e| MemScopeError::error("export", "export_all_json", e.to_string()))?;
+
+    debug!("Completed export_task_graph_json");
+
     debug!("All exports completed successfully");
+
+    Ok(())
+}
+
+/// Export task graph JSON
+///
+/// This function exports the task graph including nodes (tasks) and edges (parent-child relationships).
+pub fn export_task_graph_json<P: AsRef<Path>>(base_path: P) -> MemScopeResult<()> {
+    use crate::task_registry::global_registry;
+
+    let base_path = base_path.as_ref();
+    let registry = global_registry();
+    let graph = registry.export_graph();
+
+    let json_string = serde_json::to_string_pretty(&graph)
+        .map_err(|e| MemScopeError::error("export", "export_task_graph_json", e.to_string()))?;
+
+    let file_path = base_path.join("task_graph.json");
+    std::fs::write(&file_path, json_string)
+        .map_err(|e| MemScopeError::error("export", "export_task_graph_json", e.to_string()))?;
+
+    tracing::info!("✅ Task graph JSON exported to: {:?}", file_path);
 
     Ok(())
 }
@@ -1023,6 +1101,10 @@ pub fn export_ownership_graph_json<P: AsRef<Path>>(
     // Get diagnostics
     let diagnostics = graph.diagnostics(50);
 
+    // Get borrow history from global BorrowAnalyzer for integration
+    let borrow_analyzer = crate::analysis::borrow_analysis::get_global_borrow_analyzer();
+    let borrow_history = borrow_analyzer.get_borrow_history();
+
     // Convert nodes to JSON
     let nodes_json: Vec<_> = graph
         .nodes
@@ -1032,12 +1114,13 @@ pub fn export_ownership_graph_json<P: AsRef<Path>>(
                 "id": format!("0x{:x}", node.id.0),
                 "type_name": node.type_name,
                 "size": node.size,
+                "stack_ptr": node.stack_ptr.map(|p| format!("0x{:x}", p)),
             })
         })
         .collect();
 
-    // Convert edges to JSON
-    let edges_json: Vec<_> = graph
+    // Convert edges to JSON (including borrow edges from BorrowAnalyzer)
+    let mut edges_json: Vec<_> = graph
         .edges
         .iter()
         .map(|edge| {
@@ -1050,10 +1133,32 @@ pub fn export_ownership_graph_json<P: AsRef<Path>>(
                     EdgeKind::Borrows => "Borrows",
                     EdgeKind::RcClone => "RcClone",
                     EdgeKind::ArcClone => "ArcClone",
+                    EdgeKind::Move => "Move",
+                    EdgeKind::SharedBorrow => "SharedBorrow",
+                    EdgeKind::MutBorrow => "MutBorrow",
                 },
             })
         })
         .collect();
+
+    // Add borrow edges from BorrowAnalyzer
+    for event in &borrow_history {
+        let edge_kind = match event.borrow_info.borrow_type {
+            crate::analysis::borrow_analysis::BorrowType::Immutable => "SharedBorrow",
+            crate::analysis::borrow_analysis::BorrowType::Mutable => "MutBorrow",
+            crate::analysis::borrow_analysis::BorrowType::Shared => "Borrows",
+            crate::analysis::borrow_analysis::BorrowType::Weak => "Borrows",
+        };
+
+        edges_json.push(json!({
+            "from": format!("0x{:x}", event.borrow_info.ptr),
+            "to": format!("0x{:x}", event.borrow_info.ptr),
+            "kind": edge_kind,
+            "var_name": event.borrow_info.var_name,
+            "thread_id": event.borrow_info.thread_id,
+            "borrow_id": format!("{:?}", event.borrow_info.id),
+        }));
+    }
 
     // Convert cycles to JSON
     let cycles_json: Vec<_> = graph
@@ -1240,9 +1345,18 @@ fn build_ownership_graph_from_allocations(
                 type_name: a.type_name.clone(),
                 thread_id: a.thread_id_u64,
                 call_stack_hash: None,
+                module_path: a.module_path.clone(),
+                stack_ptr: a.stack_ptr,
             })
         })
         .collect();
+
+    // Update stack_ptr for HeapOwner nodes from AllocationInfo
+    for (i, alloc) in heap_owner_allocations.iter().enumerate() {
+        if i < graph.nodes.len() {
+            graph.nodes[i].stack_ptr = alloc.stack_ptr;
+        }
+    }
 
     // Step 2: Collect Container events from event_store
     // IMPORTANT: Only include containers that match HeapOwner thread_id
@@ -1283,12 +1397,13 @@ fn build_ownership_graph_from_allocations(
                 var_name: Some(var_name.clone()),
                 type_name: Some(type_name.clone()),
                 thread_id: e.thread_id,
-                call_stack_hash: None,
+                call_stack_hash: e.call_stack_hash,
+                module_path: e.module_path.clone(),
+                stack_ptr: None,
             }
         })
         .collect();
 
-    // Step 3: Combine for container detection: first HeapOwner, then Container
     let mut all_for_relation: Vec<ActiveAllocation> = Vec::new();
     all_for_relation.extend(heap_owner_allocations.clone());
     all_for_relation.extend(container_allocations.clone());
@@ -1325,6 +1440,7 @@ fn build_ownership_graph_from_allocations(
             id: node_id,
             type_name: type_name.clone(),
             size: e.size,
+            stack_ptr: None,
         });
     }
 
@@ -1340,6 +1456,10 @@ fn build_ownership_graph_from_allocations(
             Relation::Clone => EdgeKind::RcClone,
             Relation::Shares => EdgeKind::ArcClone,
             Relation::Evolution => EdgeKind::Contains,
+            Relation::ArcClone => EdgeKind::ArcClone,
+            Relation::RcClone => EdgeKind::RcClone,
+            Relation::ImmutableBorrow => EdgeKind::SharedBorrow,
+            Relation::MutableBorrow => EdgeKind::MutBorrow,
         };
 
         graph.edges.push(crate::analysis::ownership_graph::Edge {

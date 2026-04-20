@@ -81,6 +81,16 @@ pub struct DashboardContext {
     pub safe_code_percent: u32,
     /// Ownership graph information
     pub ownership_graph: OwnershipGraphInfo,
+    /// Top N allocation sites
+    pub top_allocation_sites: Vec<TopAllocationSite>,
+    /// Top N leaked allocations
+    pub top_leaked_allocations: Vec<TopLeakedAllocation>,
+    /// Top N temporary churn (short-lived allocations)
+    pub top_temporary_churn: Vec<TopTemporaryChurn>,
+    /// Circular reference analysis
+    pub circular_references: CircularReferenceReport,
+    /// Task graph JSON string
+    pub task_graph_json: String,
 }
 
 /// Ownership graph information for dashboard
@@ -207,6 +217,8 @@ pub struct AllocationInfo {
     pub source_file: Option<String>,
     /// Source line where allocation occurred
     pub source_line: Option<u32>,
+    /// Module path where allocation occurred
+    pub module_path: Option<String>,
 }
 
 /// Thread statistics for multithread dashboard
@@ -423,4 +435,58 @@ pub struct ThreadAggregator {
     pub current_memory: usize,
     pub peak_memory: usize,
     pub total_allocated: usize,
+}
+
+/// Top N allocation site for dashboard
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TopAllocationSite {
+    /// Site name (usually from stack trace)
+    pub name: String,
+    /// Total bytes allocated at this site
+    pub total_bytes: usize,
+    /// Number of allocations at this site
+    pub allocation_count: usize,
+}
+
+/// Top N leaked allocation for dashboard
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TopLeakedAllocation {
+    /// Memory address
+    pub address: String,
+    /// Size in bytes
+    pub size: usize,
+    /// Type name
+    pub type_name: String,
+    /// Allocation timestamp
+    pub timestamp_alloc: u64,
+    /// Stack trace
+    pub stack_trace: Option<Vec<String>>,
+}
+
+/// Top N temporary churn for dashboard
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TopTemporaryChurn {
+    /// Site name
+    pub name: String,
+    /// Number of allocations
+    pub allocation_count: usize,
+    /// Total bytes allocated
+    pub total_bytes: usize,
+    /// Average lifetime in milliseconds
+    pub average_lifetime_ms: f64,
+}
+
+/// Circular reference report for dashboard
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CircularReferenceReport {
+    /// Number of circular references detected
+    pub count: usize,
+    /// Total estimated leaked memory
+    pub total_leaked_memory: usize,
+    /// Number of smart pointers involved in cycles
+    pub pointers_in_cycles: usize,
+    /// Total number of smart pointers analyzed
+    pub total_smart_pointers: usize,
+    /// Whether any circular references were detected
+    pub has_cycles: bool,
 }

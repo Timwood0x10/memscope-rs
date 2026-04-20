@@ -23,6 +23,8 @@ pub enum MemoryEventType {
     Return,
     /// Metadata event for Container/Value types (no heap allocation)
     Metadata,
+    /// Clone event
+    Clone,
 }
 
 impl fmt::Display for MemoryEventType {
@@ -35,6 +37,7 @@ impl fmt::Display for MemoryEventType {
             MemoryEventType::Borrow => write!(f, "Borrow"),
             MemoryEventType::Return => write!(f, "Return"),
             MemoryEventType::Metadata => write!(f, "Metadata"),
+            MemoryEventType::Clone => write!(f, "Clone"),
         }
     }
 }
@@ -69,11 +72,24 @@ pub struct MemoryEvent {
     pub source_file: Option<String>,
     /// Optional source line number
     pub source_line: Option<u32>,
+    /// Optional module path
+    pub module_path: Option<String>,
+    /// Clone source pointer (for Clone events)
+    pub clone_source_ptr: Option<usize>,
+    /// Clone target pointer (for Clone events)
+    pub clone_target_ptr: Option<usize>,
+    /// Stack pointer (for StackOwner types like Arc/Rc)
+    pub stack_ptr: Option<usize>,
+    /// Task ID (for task-aware memory tracking)
+    pub task_id: Option<u64>,
 }
 
 impl MemoryEvent {
     /// Create a new allocation event
     pub fn allocate(ptr: usize, size: usize, thread_id: u64) -> Self {
+        // Record allocation in task registry
+        crate::task_registry::global_registry().record_allocation(size);
+
         Self {
             timestamp: Self::now(),
             event_type: MemoryEventType::Allocate,
@@ -87,6 +103,11 @@ impl MemoryEvent {
             thread_name: None,
             source_file: None,
             source_line: None,
+            module_path: None,
+            clone_source_ptr: None,
+            clone_target_ptr: None,
+            stack_ptr: None,
+            task_id: crate::task_registry::TaskIdRegistry::current_task_id(),
         }
     }
 
@@ -105,6 +126,11 @@ impl MemoryEvent {
             thread_name: None,
             source_file: None,
             source_line: None,
+            module_path: None,
+            clone_source_ptr: None,
+            clone_target_ptr: None,
+            stack_ptr: None,
+            task_id: crate::task_registry::TaskIdRegistry::current_task_id(),
         }
     }
 
@@ -123,6 +149,11 @@ impl MemoryEvent {
             thread_name: None,
             source_file: None,
             source_line: None,
+            module_path: None,
+            clone_source_ptr: None,
+            clone_target_ptr: None,
+            stack_ptr: None,
+            task_id: crate::task_registry::TaskIdRegistry::current_task_id(),
         }
     }
 
@@ -141,6 +172,68 @@ impl MemoryEvent {
             thread_name: None,
             source_file: None,
             source_line: None,
+            module_path: None,
+            clone_source_ptr: None,
+            clone_target_ptr: None,
+            stack_ptr: None,
+            task_id: crate::task_registry::TaskIdRegistry::current_task_id(),
+        }
+    }
+
+    /// Create a new clone event
+    pub fn clone_event(
+        source_ptr: usize,
+        target_ptr: usize,
+        size: usize,
+        thread_id: u64,
+        var_name: Option<String>,
+        type_name: Option<String>,
+    ) -> Self {
+        Self {
+            timestamp: Self::now(),
+            event_type: MemoryEventType::Clone,
+            ptr: target_ptr,
+            size,
+            old_size: None,
+            thread_id,
+            var_name,
+            type_name,
+            call_stack_hash: None,
+            thread_name: None,
+            source_file: None,
+            source_line: None,
+            module_path: None,
+            clone_source_ptr: Some(source_ptr),
+            clone_target_ptr: Some(target_ptr),
+            stack_ptr: None,
+            task_id: crate::task_registry::TaskIdRegistry::current_task_id(),
+        }
+    }
+
+    /// Create a new borrow event
+    pub fn borrow(ptr: usize, size: usize, thread_id: u64, is_mutable: bool) -> Self {
+        Self {
+            timestamp: Self::now(),
+            event_type: MemoryEventType::Borrow,
+            ptr,
+            size,
+            old_size: None,
+            thread_id,
+            var_name: None,
+            type_name: Some(if is_mutable {
+                "mutable borrow".to_string()
+            } else {
+                "immutable borrow".to_string()
+            }),
+            call_stack_hash: None,
+            thread_name: None,
+            source_file: None,
+            source_line: None,
+            module_path: None,
+            clone_source_ptr: None,
+            clone_target_ptr: None,
+            stack_ptr: None,
+            task_id: crate::task_registry::TaskIdRegistry::current_task_id(),
         }
     }
 

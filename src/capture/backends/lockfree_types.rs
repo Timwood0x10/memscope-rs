@@ -73,6 +73,14 @@ pub enum EventType {
     Allocation,
     /// Memory deallocation event
     Deallocation,
+    /// Clone event (Rc/Arc clone)
+    Clone,
+    /// Move event
+    Move,
+    /// Borrow event
+    Borrow,
+    /// Mutable borrow event
+    MutBorrow,
 }
 
 /// Event metadata
@@ -455,7 +463,7 @@ impl LockfreeAnalysis {
             .map(|(&thread_id, stats)| (thread_id, stats.total_allocations))
             .collect();
 
-        thread_activity.sort_by(|a, b| b.1.cmp(&a.1));
+        thread_activity.sort_by_key(|b| std::cmp::Reverse(b.1));
         thread_activity.truncate(limit);
         thread_activity
     }
@@ -468,7 +476,7 @@ impl LockfreeAnalysis {
             .map(|(&thread_id, stats)| (thread_id, stats.peak_memory))
             .collect();
 
-        thread_memory.sort_by(|a, b| b.1.cmp(&a.1));
+        thread_memory.sort_by_key(|b| std::cmp::Reverse(b.1));
         thread_memory.truncate(limit);
         thread_memory
     }
@@ -561,7 +569,12 @@ mod tests {
     fn test_event_type_variants() {
         assert_eq!(EventType::Allocation, EventType::Allocation);
         assert_eq!(EventType::Deallocation, EventType::Deallocation);
+        assert_eq!(EventType::Clone, EventType::Clone);
+        assert_eq!(EventType::Move, EventType::Move);
+        assert_eq!(EventType::Borrow, EventType::Borrow);
+        assert_eq!(EventType::MutBorrow, EventType::MutBorrow);
         assert_ne!(EventType::Allocation, EventType::Deallocation);
+        assert_ne!(EventType::Clone, EventType::Move);
     }
 
     #[test]

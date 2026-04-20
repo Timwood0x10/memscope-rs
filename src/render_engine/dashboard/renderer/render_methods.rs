@@ -500,6 +500,11 @@ pub fn render_performance_dashboard(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::render_engine::dashboard::renderer::types::{
+        AllocationInfo, AsyncSummary, CircularReferenceReport, DashboardContext,
+        OwnershipGraphInfo, PassportDetail, RelationshipInfo, SystemResources, ThreadInfo,
+        UnsafeReport,
+    };
     use std::collections::BTreeMap;
 
     fn create_empty_context() -> DashboardContext {
@@ -564,6 +569,17 @@ mod tests {
                 issues: vec![],
                 root_cause: None,
             },
+            top_allocation_sites: vec![],
+            top_leaked_allocations: vec![],
+            top_temporary_churn: vec![],
+            circular_references: CircularReferenceReport {
+                count: 0,
+                total_leaked_memory: 0,
+                pointers_in_cycles: 0,
+                total_smart_pointers: 0,
+                has_cycles: false,
+            },
+            task_graph_json: "{}".to_string(),
         }
     }
 
@@ -759,6 +775,7 @@ mod tests {
             smart_pointer_type: String::new(),
             source_file: None,
             source_line: None,
+            module_path: None,
         }];
 
         let data = to_legacy_binary_data(&context);

@@ -39,6 +39,7 @@ pub mod ffi_function_resolver;
 pub mod lifecycle;
 pub mod lifecycle_analysis;
 pub mod memory_passport_tracker;
+pub mod top_n;
 
 // Integrated analysis submodules
 pub mod classification;
@@ -63,6 +64,9 @@ pub use relationship_cycle_detector::{detect_cycles_in_relationships, CycleDetec
 // Ownership graph analysis
 pub mod ownership_graph;
 pub use ownership_graph::{Edge, EdgeKind, Node, OwnershipGraph, OwnershipOp};
+
+// Ownership analyzer - static analysis for ownership semantics
+pub mod ownership_analyzer;
 
 // Re-export new analysis modules
 pub use detectors::{

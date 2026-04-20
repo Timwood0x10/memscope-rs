@@ -204,7 +204,7 @@ fn simulate_batch_processing(tracker: &memscope_rs::GlobalTracker) -> MemScopeRe
 /// Main entry point for the real-world memory tracking demonstration.
 fn main() -> MemScopeResult<()> {
     // Initialize logging system first
-    init_logging();
+    init_logging()?;
 
     println!("========================================");
     println!("  MemScope-RS Real-World Demonstration  ");

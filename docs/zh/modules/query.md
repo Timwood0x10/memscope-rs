@@ -43,7 +43,7 @@ impl QueryEngine {
         let mut allocations: Vec<_> = snapshot.active_allocations.values().cloned().collect();
 
         // 按大小降序排序
-        allocations.sort_by(|a, b| b.size.cmp(&a.size));
+        allocations.sort_by_key(|b| std::cmp::Reverse(b.size));
 
         // 限制结果
         allocations.truncate(limit);

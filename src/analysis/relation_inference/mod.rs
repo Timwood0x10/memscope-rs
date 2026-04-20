@@ -60,6 +60,14 @@ pub enum Relation {
     Clone,
     /// A is a later evolution of B (same variable, later allocation, e.g., Vec reallocation).
     Evolution,
+    /// A is an Arc clone of B (StackOwner-based Arc clone detection).
+    ArcClone,
+    /// A is an Rc clone of B (StackOwner-based Rc clone detection).
+    RcClone,
+    /// A is an immutable borrow of B (&T).
+    ImmutableBorrow,
+    /// A is a mutable borrow of B (&mut T).
+    MutableBorrow,
 }
 
 impl std::fmt::Display for Relation {
@@ -71,6 +79,10 @@ impl std::fmt::Display for Relation {
             Relation::Slice => write!(f, "Slice"),
             Relation::Clone => write!(f, "Clone"),
             Relation::Evolution => write!(f, "Evolution"),
+            Relation::ArcClone => write!(f, "ArcClone"),
+            Relation::RcClone => write!(f, "RcClone"),
+            Relation::ImmutableBorrow => write!(f, "ImmutableBorrow"),
+            Relation::MutableBorrow => write!(f, "MutableBorrow"),
         }
     }
 }

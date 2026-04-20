@@ -684,6 +684,7 @@ mod tests {
             stack_trace: None,
             is_leaked: false,
             lifetime_ms: None,
+            module_path: None,
             borrow_info: None,
             clone_info: None,
             ownership_history_available: false,
@@ -701,6 +702,8 @@ mod tests {
             lifecycle_tracking: None,
             access_tracking: None,
             drop_chain_analysis: None,
+            stack_ptr: None,
+            task_id: None,
         };
 
         let allocation_b = AllocationInfo {
@@ -718,6 +721,7 @@ mod tests {
             stack_trace: None,
             is_leaked: false,
             lifetime_ms: None,
+            module_path: None,
             borrow_info: None,
             clone_info: None,
             ownership_history_available: false,
@@ -735,6 +739,8 @@ mod tests {
             lifecycle_tracking: None,
             access_tracking: None,
             drop_chain_analysis: None,
+            stack_ptr: None,
+            task_id: None,
         };
 
         graph.smart_pointers.insert(0x1000, smart_info_a);
@@ -802,6 +808,9 @@ mod tests {
             lifecycle_tracking: None,
             access_tracking: None,
             drop_chain_analysis: None,
+            module_path: None,
+            stack_ptr: None,
+            task_id: None,
         }];
         let graph = ReferenceGraph::new(&allocations_without_smart);
 
@@ -864,6 +873,9 @@ mod tests {
             lifecycle_tracking: None,
             access_tracking: None,
             drop_chain_analysis: None,
+            module_path: None,
+            stack_ptr: None,
+            task_id: None,
         }];
 
         let graph = ReferenceGraph::new(&allocations_with_smart);
@@ -935,6 +947,9 @@ mod tests {
             lifecycle_tracking: None,
             access_tracking: None,
             drop_chain_analysis: None,
+            module_path: None,
+            stack_ptr: None,
+            task_id: None,
         }];
 
         let graph = ReferenceGraph::new(&allocations_with_weak);

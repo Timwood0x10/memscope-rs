@@ -1,4 +1,128 @@
-## [0.2.1] - 2026-04-12
+## \[0.2.3] - 2026-04-19
+
+### 🌳 **任务跟踪和 Task Graph 可视化**
+
+本次更新实现了完整的任务跟踪系统，支持任务层次结构跟踪和内存分配关联，并在 Dashboard 中提供 Task Graph 可视化。
+
+#### **数据收集升级策略**
+
+- **数据维度扩展**：添加任务维度到内存跟踪系统
+  - `MemoryEvent` 添加 `task_id: Option<u64>` 字段，记录分配所属任务
+  - `AllocationInfo` 添加 `task_id: Option<u64>` 字段，支持按任务分组分析
+  - `TaskMeta` 新增 `memory_usage` 和 `allocation_count` 字段，实时统计任务内存使用
+- **任务注册系统**：实现 `TaskIdRegistry` 全局单例
+  - 线程本地存储 `current_task_id` 实现零成本访问
+  - `spawn_task()` 和 `complete_task()` 管理任务生命周期
+  - `record_allocation()` 自动更新任务内存统计
+  - 碰撞检测机制确保任务 ID 唯一性
+- **数据导出增强**：支持任务关系图导出
+  - `export_task_graph_json()` 导出节点和边数据
+  - 节点包含 memory\_usage 和 allocation\_count 实际统计值
+  - 集成到 `export_all_json()` 和 Dashboard context
+
+#### **Dashboard Task Graph 可视化**
+
+- **feat(dashboard)**: 添加 "Task Graph" tab 和 D3.js 树状图
+  - HTML 模板添加 Task Graph tab 按钮
+  - D3.js 树状图渲染任务层次结构
+  - 点击任务查看内存详情面板
+  - 空状态提示和任务计数显示
+- **fix(dashboard)**: 修复 JavaScript 语法错误
+  - 修复压缩在一行的方法格式
+  - 添加 DOM 元素空值检查
+  - 删除重复的 `task_graph_json` 变量声明
+
+#### **API 简化**
+
+- **feat(task\_registry)**: 添加 `TaskGuard` RAII 结构
+  - `task_scope()` 方法返回 `TaskGuard`，自动管理任务生命周期
+  - 自动设置 parent 关系（从当前 task\_id 获取）
+  - 简化 API：只需声明 registry，调用 task\_scope，自动完成和导出
+
+#### **示例和演示**
+
+- **feat(examples)**: `global_tracker_showcase` 添加 Task Registry 演示
+  - Section 6: Task Tracking with TaskIdRegistry
+  - 演示任务层次结构和内存分配跟踪
+
+***
+
+## \[0.2.2] - 2026-04-17
+
+### 🎯 **Arc 克隆检测增强**
+
+本次更新通过栈分配跟踪功能，添加了全面的 Arc/Rc 克隆检测能力。
+
+#### **栈分配跟踪**
+
+- **feat(tracker)**: 为智能指针添加 `StackOwner` 跟踪类型
+  - `TrackKind::StackOwner` 跟踪栈分配的智能指针（Arc、Rc）及其堆目标
+  - 捕获 `stack_ptr`（智能指针的栈地址）和 `heap_ptr`（它指向的堆分配）
+  - 通过识别指向同一堆分配的多个栈指针来检测 Arc/Rc 克隆
+- **feat(types)**: 扩展 `MemoryEvent`、`AllocationInfo`、`ActiveAllocation`、`InferenceRecord` 添加 `stack_ptr` 字段
+  - `stack_ptr: Option<usize>` 存储 StackOwner 对象的栈地址
+  - 在整个分析管道中保留克隆检测元数据
+- **feat(lib)**: 为 `Arc<T>` 和 `Rc<T>` 实现 `Trackable`
+  - 返回带有 stack\_ptr 和 heap\_ptr 的 `TrackKind::StackOwner`
+  - 正确识别这些为指向堆数据的栈分配智能指针
+
+#### **关系推断增强**
+
+- **feat(relation)**: 添加 `ArcClone` 和 `RcClone` 关系变体
+  - `Relation::ArcClone` 用于 Arc 特定的克隆关系
+  - `Relation::RcClone` 用于 Rc 特定的克隆关系
+  - 在所有权图中区分不同的智能指针类型
+- **feat(shared\_detector)**: 增强共享引用检测
+  - 策略 2：基于 StackOwner 的克隆检测
+  - 按 heap\_ptr 对 StackOwner 分配进行分组
+  - 为指向同一堆分配的多个 Arc 对象生成 `ArcClone` 边
+  - 不依赖 type\_kind 推断（UTI Engine 可能将 Arc 误分类为 Vec）
+- **fix(shared\_detector)**: 将 StackOwner 基础检测从 `Relation::Shares` 改为 `Relation::ArcClone`
+  - 更准确地表示 Arc 克隆关系
+  - 在仪表板中实现正确的计数和可视化
+
+#### **图和可视化**
+
+- **fix(graph)**: 更新 `get_relationship_stats` 处理 `ArcClone` 和 `RcClone`
+  - 两者都计为克隆边
+- **fix(export)**: 更新 `build_ownership_graph_from_allocations` 边映射
+  - `Relation::ArcClone` → `EdgeKind::ArcClone`
+  - `Relation::RcClone` → `EdgeKind::RcClone`
+- **fix(dashboard)**: 更新 `build_relationships` 显示属性
+  - `ArcClone`：紫色 (#8b5cf6)，强度 0.7
+  - `RcClone`：绿色 (#10b981)，强度 0.9
+- **fix(ownership\_graph)**: 修复 `diagnostics` 方法
+  - 从使用 `self.arc_clone_count`（仅由 `OwnershipOp::ArcClone` 事件设置）
+  - 改为使用 `self.arc_clones().len()`（计算 `EdgeKind::ArcClone` 边）
+  - 确保 Arc 克隆计数反映关系推断结果
+
+#### **Bug 修复**
+
+- **fix(tracker)**: StackOwner 分配跟踪
+  - 使用 `stack_ptr` 作为 `track_allocation` 的键以避免覆盖 Arc 克隆
+  - 允许内部 tracker 计算分配数同时保留克隆检测能力
+  - 修复 `test_smart_pointer_tracking` 测试失败
+- **fix(example)**: 更新 `variable_relationships_showcase` 示例
+  - 使用 `global.tracker()` 获取内部 `Tracker` 而不是 `GlobalTracker`
+  - 确保跟踪和分析的正确方法调用
+
+#### **测试**
+
+- **test(shared\_detector)**: 添加 `test_stackowner_arc_clone_detection`
+  - 使用真实数据验证基于 StackOwner 的 Arc 克隆检测
+  - 测试检测 3 个指向同一堆分配的 Arc 克隆
+  - 确认 `ArcClone` 边被正确生成
+- **fix(compilation)**: 为所有 `AllocationInfo` 和 `ActiveAllocation` 初始化器添加 `stack_ptr: None`
+  - 修复多个测试文件中的编译错误
+  - 更新文件：relation\_inference\_integration、circular\_reference、heap\_scanner、container\_detector、variable\_relationships、closure/analyzer、security/analyzer、unknown/analyzer、snapshot/types
+
+#### **验证**
+
+- 示例 `variable_relationships_showcase` 现在显示 `arc_clone_count: 57`（之前为 0）
+- 单元测试 `test_stackowner_arc_clone_detection` 通过
+- 所有 2449 个单元测试通过
+
+## \[0.2.1] - 2026-04-12
 
 ### 📊 **Benchmark优化与文档完善**
 
@@ -8,22 +132,20 @@
 
 - **feat(bench)**: 添加快速模式支持
   - 新增环境变量 `QUICK_BENCH` 控制运行模式
-  - 快速模式运行时间：~5分钟（原40分钟）
+  - 快速模式运行时间：\~5分钟（原40分钟）
   - 采样数：10次（原100次）
   - 预热时间：100ms（原3秒）
   - 测量时间：500ms（原5秒）
   - 性能提升：约13倍
-
 - **feat(bench)**: 新增benchmark测试场景
   - 内存分配器对比测试（3个测试）
   - 长期运行稳定性测试（3个测试）
   - 边缘情况测试（5个测试）
   - 性能回归检测测试（3个测试）
   - 总计新增14个测试场景
-
 - **feat(makefile)**: Makefile支持多种benchmark模式
-  - `make bench-quick`: 快速模式（~5分钟）
-  - `make bench`: 完整模式（~60分钟）
+  - `make bench-quick`: 快速模式（\~5分钟）
+  - `make bench`: 完整模式（\~60分钟）
   - `make bench-save`: 运行并保存结果
   - `make bench-allocator`: 分配器对比测试
   - `make bench-stability`: 稳定性测试
@@ -36,20 +158,17 @@
   - 创建 `docs/` 目录统一管理所有文档
   - 移动benchmark指南和性能分析报告到docs目录
   - 创建文档索引 `docs/README.md`
-
 - **docs(architecture)**: 完善架构文档
   - 新增Analysis模块详细架构说明（14个子模块）
   - 新增Capture模块详细架构说明（3个子模块）
   - 新增Unified Analyzer架构说明
   - 添加多个mermaid架构图
   - 说明各子模块的功能和性能特征
-
 - **docs(modules)**: 补充缺失的模块文档
   - 新增 `tracking` 模块文档（中英文）
   - 新增 `analyzer` 模块英文文档
   - 新增 `view` 模块英文文档
   - 所有文档包含架构图、API参考、使用示例
-
 - **docs(coverage)**: 创建文档覆盖率报告
   - 分析现有文档覆盖情况
   - 识别缺失的文档
@@ -73,16 +192,15 @@
   - `docs/en/modules/analyzer.md`: Analyzer模块英文文档
   - `docs/en/modules/view.md`: View模块英文文档
   - `benches/benchmark_results_quick.log`: 快速模式benchmark结果
-
 - 更新文件：
   - `README.md`: 添加架构改进和性能数据
   - `docs/ARCHITECTURE.md`: 新增详细模块架构说明
   - `Makefile`: 添加多种benchmark模式支持
   - `benches/comprehensive_benchmarks.rs`: 添加快速模式和新增测试
 
----
+***
 
-## [0.2.0] - 2026-04-09
+## \[0.2.0] - 2026-04-09
 
 ### 🏗️ **重大架构重构：从单体架构到模块化引擎**
 
@@ -121,7 +239,7 @@
 
 #### **智能指针追踪增强**
 
-- **fix(variable_relationships)**: 修复 `node_to_allocation_info` 以保留智能指针信息
+- **fix(variable\_relationships)**: 修复 `node_to_allocation_info` 以保留智能指针信息
   - 现在正确保留 Rc/Arc/Box/Weak 指针详情
   - 提高循环引用检测准确性
   - 增强智能指针的关系推断
@@ -151,12 +269,12 @@
 
 #### **新功能**
 
-- **feat(smart_pointer)**: 全面的智能指针追踪
+- **feat(smart\_pointer)**: 全面的智能指针追踪
   - 支持 Rc/Arc/Box/Weak 智能指针
   - 引用计数追踪
   - 克隆关系检测
   - 循环引用检测
-- **feat(event_store)**: 无锁事件存储
+- **feat(event\_store)**: 无锁事件存储
   - 高吞吐量事件记录
   - 时间点快照
   - 线程安全的并发访问
@@ -201,7 +319,7 @@ src/
 
 - **525 个文件修改**，包含重大变更
 - **新增 66,398 行**，**删除 265,022 行**
-- **净减少**: 约 198,624 行（~75% 代码减少）
+- **净减少**: 约 198,624 行（\~75% 代码减少）
 - **当前代码库**: 77,641 行
 - **测试覆盖**: 所有模块的全面覆盖
 - **构建状态**: ✅ 0 错误，0 警告，所有检查通过
@@ -211,6 +329,7 @@ src/
 **重要的破坏性变更：**
 
 1. **API 变更**:
+
 ```rust
 // 旧 API (v0.1.x)
 use memscope_rs::{track_var, track_scope};
@@ -219,7 +338,8 @@ use memscope_rs::{track_var, track_scope};
 use memscope_rs::tracker::{track_var, track_scope};
 ```
 
-2. **错误处理**:
+1. **错误处理**:
+
 ```rust
 // 旧 API
 let result = tracker.track_allocation(ptr, size)
@@ -230,7 +350,8 @@ let result = tracker.track_allocation(ptr, size)
     .map_err(|e| eprintln!("Tracking failed: {}", e))?;
 ```
 
-3. **模块引用**:
+1. **模块引用**:
+
 ```rust
 // 旧 API
 use memscope_rs::core::MemoryTracker;
@@ -250,12 +371,14 @@ use memscope_rs::capture::backends::CoreTracker;
 #### **建议**
 
 **✅ 推荐升级**:
+
 - 高并发应用场景
 - 需要更好错误处理的应用
 - 需要长期维护的项目
 - 需要功能扩展的项目
 
 **⚠️ 谨慎评估**:
+
 - 对单次追踪延迟极其敏感的应用
 - 大规模内存分析场景（需要进一步优化）
 - 性能关键路径上的追踪器创建
@@ -274,9 +397,9 @@ use memscope_rs::capture::backends::CoreTracker;
 - 文档: 更新的架构和 API 指南
 - 测试: 所有模块的广泛测试覆盖
 
----
+***
 
-## [0.1.10] - 2025-10-15
+## \[0.1.10] - 2025-10-15
 
 ### 🔥 Phase 1: 关键问题修复完成
 
@@ -294,7 +417,7 @@ use memscope_rs::capture::backends::CoreTracker;
 
 #### 内存无界增长问题解决
 
-- **feat(memory/bounded_history)**: 智能有界历史记录器
+- **feat(memory/bounded\_history)**: 智能有界历史记录器
   - 基于时间、条目数量、内存使用的三重限制
   - 自动过期清理和内存压力管理
   - 支持可配置的内存限制策略
@@ -308,13 +431,13 @@ use memscope_rs::capture::backends::CoreTracker;
 
 #### 智能大小估算系统
 
-- **feat(estimation/size_estimator)**: 动态智能大小估算器 `SmartSizeEstimator`
+- **feat(estimation/size\_estimator)**: 动态智能大小估算器 `SmartSizeEstimator`
   - 基础类型精确大小支持
   - 正则表达式模式匹配估算
   - 动态学习和自适应估算
   - 平台特定大小适配
   - 估算准确性提升到 >90%
-- **feat(estimation/type_classifier)**: 统一类型分类系统
+- **feat(estimation/type\_classifier)**: 统一类型分类系统
   - 支持Primitive、Collection、SmartPointer等分类
   - 正则表达式规则引擎
   - 优先级和置信度机制
@@ -341,7 +464,7 @@ use memscope_rs::capture::backends::CoreTracker;
 
 #### 数据精度和显示优化
 
-- **fix(lockfree_test)**: CPU数据精度格式化
+- **fix(lockfree\_test)**: CPU数据精度格式化
   - 实现真实系统资源收集器集成
   - CPU使用率精确到2位小数显示
   - 真实CPU核心数检测替代硬编码
@@ -350,14 +473,14 @@ use memscope_rs::capture::backends::CoreTracker;
   - 所有中文注释替换为英文
   - 保持功能完整性的同时提升代码质量
 
-## [0.1.7~0.1.9]-2025-10-12
+## \[0.1.7\~0.1.9]-2025-10-12
 
 小更新
 
 - 修复混合模式下生成html数据采集和展示不准确的问题。
 - 将原先的外部html模版，改为嵌入的模版。
 
-## [0.1.6] - 2025-10-02
+## \[0.1.6] - 2025-10-02
 
 ### 🚀 重大功能特性
 
@@ -376,16 +499,16 @@ use memscope_rs::capture::backends::CoreTracker;
 
 #### 异步任务中心内存跟踪模块
 
-- **feat(async_memory)**: 零开销异步任务内存跟踪系统
+- **feat(async\_memory)**: 零开销异步任务内存跟踪系统
   - 每次分配跟踪开销 < 5ns
   - 典型工作负载CPU开销 < 0.1%
   - 每线程内存开销 < 1MB
   - 无锁、无unwrap、无clone设计
-- **feat(async_memory/tracker)**: 基于Context waker地址的任务感知内存跟踪
-- **feat(async_memory/buffer)**: 带质量监控的无锁事件缓冲
-- **feat(async_memory/resource_monitor)**: 全面异步资源监控（1,254行代码）
-- **feat(async_memory/visualization)**: 高级可视化生成器（1,616行代码）
-- **feat(async_memory/api)**: 生产级API，集成TrackedFuture
+- **feat(async\_memory/tracker)**: 基于Context waker地址的任务感知内存跟踪
+- **feat(async\_memory/buffer)**: 带质量监控的无锁事件缓冲
+- **feat(async\_memory/resource\_monitor)**: 全面异步资源监控（1,254行代码）
+- **feat(async\_memory/visualization)**: 高级可视化生成器（1,616行代码）
+- **feat(async\_memory/api)**: 生产级API，集成TrackedFuture
 
 #### 统一后端系统
 
@@ -393,30 +516,30 @@ use memscope_rs::capture::backends::CoreTracker;
   - 自动环境检测和策略选择
   - 动态策略切换和组合
   - 与现有核心系统完全兼容
-- **feat(unified/environment_detector)**: 运行时环境自动检测
-- **feat(unified/tracking_dispatcher)**: 高级策略调度器（762行代码）
+- **feat(unified/environment\_detector)**: 运行时环境自动检测
+- **feat(unified/tracking\_dispatcher)**: 高级策略调度器（762行代码）
 - **feat(unified/strategies)**: 多种跟踪策略（异步、混合、单线程、多线程）
 
 ### ✨ 功能增强
 
 #### 核心系统改进
 
-- **feat(core/sampling_tracker)**: 可配置采样率的高级采样跟踪器
-- **feat(core/thread_registry)**: 线程注册和管理系统
-- **feat(analysis/competition_detector)**: 资源竞争检测
-- **feat(analysis/cross_process_analyzer)**: 跨进程分析能力
-- **feat(analysis/variable_relationship_mapper)**: 变量关系映射
+- **feat(core/sampling\_tracker)**: 可配置采样率的高级采样跟踪器
+- **feat(core/thread\_registry)**: 线程注册和管理系统
+- **feat(analysis/competition\_detector)**: 资源竞争检测
+- **feat(analysis/cross\_process\_analyzer)**: 跨进程分析能力
+- **feat(analysis/variable\_relationship\_mapper)**: 变量关系映射
 
 #### 高级可视化
 
-- **feat(templates/hybrid_dashboard)**: 综合混合仪表板（5,382行代码）
-- **feat(templates/performance_dashboard)**: 实时性能监控
-- **feat(export/fixed_hybrid_template)**: 固定混合模板系统
+- **feat(templates/hybrid\_dashboard)**: 综合混合仪表板（5,382行代码）
+- **feat(templates/performance\_dashboard)**: 实时性能监控
+- **feat(export/fixed\_hybrid\_template)**: 固定混合模板系统
 - **feat(visualizer)**: 多维数据可视化
 
 #### CLI 和工具
 
-- **feat(cli/html_from_json)**: 从JSON数据生成综合HTML
+- **feat(cli/html\_from\_json)**: 从JSON数据生成综合HTML
 - **feat(cli/commands)**: 增强的命令行界面，包含analyze、generate-report、test命令
 - **feat(bin)**: 多个专业诊断和基准测试工具
 
@@ -424,23 +547,23 @@ use memscope_rs::capture::backends::CoreTracker;
 
 - **feat(export/streaming)**: 高性能流式JSON导出
 - **feat(export/binary)**: 支持选择性读取的高级二进制格式
-- **feat(analysis/enhanced_ffi)**: 增强的FFI函数解析和安全分析
-- **feat(analysis/memory_passport)**: 内存护照跟踪系统
+- **feat(analysis/enhanced\_ffi)**: 增强的FFI函数解析和安全分析
+- **feat(analysis/memory\_passport)**: 内存护照跟踪系统
 
 ### 🔧 技术改进
 
 #### 性能优化
 
-- **perf(core/optimized_locks)**: 高性能分片锁定机制
-- **perf(core/string_pool)**: 字符串池化内存优化
-- **perf(export/batch_processor)**: 批处理提高吞吐量
+- **perf(core/optimized\_locks)**: 高性能分片锁定机制
+- **perf(core/string\_pool)**: 字符串池化内存优化
+- **perf(export/batch\_processor)**: 批处理提高吞吐量
 - **perf(lockfree/sampling)**: 智能采样减少开销
 
 #### API设计增强
 
-- **feat(api/clean_unified)**: 清洁统一API设计
-- **feat(api/enhanced_tracking)**: 增强跟踪API，更好的人机工程学
-- **feat(macros/advanced_trackable)**: 高级可跟踪宏系统
+- **feat(api/clean\_unified)**: 清洁统一API设计
+- **feat(api/enhanced\_tracking)**: 增强跟踪API，更好的人机工程学
+- **feat(macros/advanced\_trackable)**: 高级可跟踪宏系统
 
 #### 文档和示例
 
@@ -453,8 +576,8 @@ use memscope_rs::capture::backends::CoreTracker;
 #### Drop逻辑和智能指针处理
 
 - **fix(drop)**: 通过原子保护修复重复drop调用
-- **fix(smart_pointers)**: 集中化智能指针检测和处理
-- **fix(error_handling)**: 增强错误报告和防panic的drop逻辑
+- **fix(smart\_pointers)**: 集中化智能指针检测和处理
+- **fix(error\_handling)**: 增强错误报告和防panic的drop逻辑
 - **fix(performance)**: 从MemoryTracker drop逻辑中移除自动导出
 
 #### 并发性和线程安全
@@ -470,7 +593,7 @@ use memscope_rs::capture::backends::CoreTracker;
 - **新增63,905行，删除3,469行**（净增60,436行）
 - **完整模块重构**，提高可维护性
 
-## [0.1.5] - 2025-09-14
+## \[0.1.5] - 2025-09-14
 
 ### Added
 
@@ -499,7 +622,7 @@ use memscope_rs::capture::backends::CoreTracker;
 
 ## 概述
 
-本更新日志记录了 memscope-rs 项目中 `test_a` 分支相对于 `master` 分支的变化。test_a 分支包含代码重组、新的实验性功能和各种改进。
+本更新日志记录了 memscope-rs 项目中 `test_a` 分支相对于 `master` 分支的变化。test\_a 分支包含代码重组、新的实验性功能和各种改进。
 
 ## 🛡️ **最新改进（Drop 逻辑与智能指针处理）**
 
@@ -526,7 +649,7 @@ use memscope_rs::capture::backends::CoreTracker;
 - **新增 63,905 行代码，删除 3,469 行**（净增 +60,436 行）
 - **代码重组**，采用模块化结构
 
----
+***
 
 ## 🏗️ **架构与项目结构**
 
@@ -535,7 +658,7 @@ use memscope_rs::capture::backends::CoreTracker;
 #### **1. 模块结构变化**
 
 - **之前（Master）**：简单结构，基础模块
-- **之后（Test_A）**：重组为专业化模块
+- **之后（Test\_A）**：重组为专业化模块
 
 **新模块组织：**
 
@@ -566,7 +689,7 @@ src/
 - **新增**: 常见类型的基本智能指针支持
 - **改进**: 类型跟踪能力
 
----
+***
 
 ## 🔧 **核心功能变化**
 
@@ -608,7 +731,7 @@ src/
 - **模式分析**: 简单的释放后使用模式分析
 - **合规性**: 基本的安全合规报告
 
----
+***
 
 ## 📊 **导出与可视化**
 
@@ -640,7 +763,7 @@ src/
 - **JavaScript**: 交互式仪表板功能
 - **CSS**: 仪表板组件样式
 
----
+***
 
 ## 🛠️ **开发工具**
 
@@ -660,7 +783,7 @@ src/
 - **CI/CD**: 改进的 GitHub Actions 工作流
 - **依赖**: 更新的依赖管理
 
----
+***
 
 ## 📈 **性能考虑**
 
@@ -676,7 +799,7 @@ src/
 - **内存跟踪**: 跟踪本身消耗内存
 - **大数据集**: 非常大的数据集可能导致性能下降
 
----
+***
 
 ## 🚀 **新功能**
 
@@ -693,7 +816,7 @@ src/
 - **性能指南**: 基本的性能文档
 - **跟踪指南**: 跟踪功能用户指南
 
----
+***
 
 ## 当前限制与改进方向
 
@@ -712,7 +835,7 @@ src/
 - **API 设计**: 一些 API 需要更好的设计和一致性
 - **内存使用**: 跟踪开销需要优化
 
-## [未发布版本] - 当前分支重大改进
+## \[未发布版本] - 当前分支重大改进
 
 ### 🎯 数据收集策略的革命性改进
 
@@ -775,7 +898,7 @@ src/
 
 #### 新增 - 多层次性能优化架构
 
-- **OptimizedMutex**: 使用parking_lot替代标准库锁（速度提升60-80%）
+- **OptimizedMutex**: 使用parking\_lot替代标准库锁（速度提升60-80%）
 - **ShardedLocks**: 在分片层减少锁竞争
 - **AdaptiveHashMap**: 智能存储策略选择
 - **LockFreeCounter**: 关键路径的无锁实现

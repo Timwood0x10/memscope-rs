@@ -166,6 +166,7 @@ impl RelationGraphBuilder {
                     confidence,
                     call_stack_hash: alloc.call_stack_hash,
                     alloc_time: alloc.allocated_at,
+                    stack_ptr: alloc.stack_ptr,
                 }
             })
             .collect();
@@ -312,6 +313,8 @@ mod tests {
             type_name: None,
             thread_id: 0,
             call_stack_hash: None,
+            module_path: None,
+            stack_ptr: None,
         }
     }
 

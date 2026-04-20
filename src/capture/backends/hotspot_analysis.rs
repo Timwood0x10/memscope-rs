@@ -297,7 +297,7 @@ impl HotspotAnalyzer {
             })
             .collect();
 
-        stacks.sort_by(|a, b| b.impact_score.cmp(&a.impact_score));
+        stacks.sort_by_key(|b| std::cmp::Reverse(b.impact_score));
         stacks.truncate(self.config.max_hot_call_stacks);
         stacks
     }
@@ -310,7 +310,7 @@ impl HotspotAnalyzer {
     /// Get memory peaks sorted by memory usage
     pub fn get_memory_peaks(&self) -> Vec<&MemoryUsagePeak> {
         let mut peaks: Vec<&MemoryUsagePeak> = self.memory_peaks.iter().collect();
-        peaks.sort_by(|a, b| b.memory_usage.cmp(&a.memory_usage));
+        peaks.sort_by_key(|b| std::cmp::Reverse(b.memory_usage));
         peaks
     }
 

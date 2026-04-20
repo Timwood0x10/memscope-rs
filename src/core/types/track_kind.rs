@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 /// - **HeapOwner**: Objects that truly own heap memory (Vec, Box, Arc, Rc, String)
 /// - **Container**: Objects that organize data but don't directly expose heap (HashMap, BTreeMap)
 /// - **Value**: Plain data without heap allocation (primitive types, structs)
+/// - **StackOwner**: Objects that are allocated on the stack but contain pointers to heap (Arc, Rc)
 ///
 /// # Examples
 ///
@@ -24,6 +25,10 @@ use serde::{Deserialize, Serialize};
 /// // HashMap is a Container - it organizes data internally
 /// let mut map: HashMap<&str, i32> = HashMap::new();
 /// assert_eq!(map.track_kind(), TrackKind::Container);
+///
+/// // Arc is a StackOwner - it's on stack but points to heap
+/// let arc = Arc::new(42);
+/// assert!(matches!(arc.track_kind(), TrackKind::StackOwner { .. }));
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum TrackKind {
@@ -47,6 +52,16 @@ pub enum TrackKind {
     /// but don't participate in heap scanning or pointer analysis.
     /// Examples include primitive types, simple structs, enums.
     Value,
+
+    /// Objects allocated on stack that contain pointers to heap
+    ///
+    /// These types are allocated on the stack (8 bytes for pointer) but point to
+    /// heap allocations. Examples include Arc and Rc smart pointers.
+    StackOwner {
+        ptr: usize,
+        heap_ptr: usize,
+        size: usize,
+    },
 }
 
 impl TrackKind {
@@ -65,10 +80,29 @@ impl TrackKind {
         matches!(self, TrackKind::Value)
     }
 
+    /// Check if this is a StackOwner allocation
+    pub fn is_stack_owner(&self) -> bool {
+        matches!(self, TrackKind::StackOwner { .. })
+    }
+
     /// Get heap pointer and size if this is a HeapOwner
     pub fn as_heap_owner(&self) -> Option<(usize, usize)> {
         if let TrackKind::HeapOwner { ptr, size } = self {
             Some((*ptr, *size))
+        } else {
+            None
+        }
+    }
+
+    /// Get stack pointer, heap pointer, and size if this is a StackOwner
+    pub fn as_stack_owner(&self) -> Option<(usize, usize, usize)> {
+        if let TrackKind::StackOwner {
+            ptr,
+            heap_ptr,
+            size,
+        } = self
+        {
+            Some((*ptr, *heap_ptr, *size))
         } else {
             None
         }

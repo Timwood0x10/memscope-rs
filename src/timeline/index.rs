@@ -141,6 +141,11 @@ mod tests {
             thread_name: None,
             source_file: None,
             source_line: None,
+            module_path: None,
+            clone_source_ptr: None,
+            clone_target_ptr: None,
+            stack_ptr: None,
+            task_id: None,
         };
 
         index.index_event(0, &event);

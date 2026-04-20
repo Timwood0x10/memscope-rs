@@ -239,6 +239,14 @@ impl BorrowAnalyzer {
             .unwrap_or_default()
     }
 
+    /// Get borrow history for export/integration with ownership graph
+    pub fn get_borrow_history(&self) -> Vec<BorrowEvent> {
+        self.borrow_history
+            .safe_lock()
+            .map(|h| h.clone())
+            .unwrap_or_default()
+    }
+
     /// Analyze borrow patterns
     pub fn analyze_borrow_patterns(&self) -> BorrowPatternAnalysis {
         // Collect data with individual locks to prevent deadlock

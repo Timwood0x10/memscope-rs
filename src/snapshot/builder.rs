@@ -34,6 +34,8 @@ pub fn build_snapshot_from_events(events: &[MemoryEvent]) -> MemorySnapshot {
                     type_name: event.type_name.clone(),
                     thread_id: event.thread_id,
                     call_stack_hash: event.call_stack_hash,
+                    module_path: event.module_path.clone(),
+                    stack_ptr: event.stack_ptr,
                 };
 
                 ptr_to_allocation.insert(event.ptr, allocation);
@@ -90,6 +92,8 @@ pub fn build_snapshot_from_events(events: &[MemoryEvent]) -> MemorySnapshot {
                     type_name: event.type_name.clone(),
                     thread_id: event.thread_id,
                     call_stack_hash: event.call_stack_hash,
+                    module_path: event.module_path.clone(),
+                    stack_ptr: event.stack_ptr,
                 };
 
                 ptr_to_allocation.insert(event.ptr, allocation);
@@ -143,7 +147,10 @@ pub fn build_snapshot_from_events(events: &[MemoryEvent]) -> MemorySnapshot {
                     );
                 }
             }
-            MemoryEventType::Move | MemoryEventType::Borrow | MemoryEventType::Return => {
+            MemoryEventType::Move
+            | MemoryEventType::Borrow
+            | MemoryEventType::Return
+            | MemoryEventType::Clone => {
                 // These don't affect the current memory state
             }
             MemoryEventType::Metadata => {

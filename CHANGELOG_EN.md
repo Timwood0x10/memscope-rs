@@ -1,6 +1,130 @@
 # Changelog
 
-## [0.2.1] - 2026-04-12
+## \[0.2.3] - 2026-04-19
+
+### 🌳 **Task Tracking and Task Graph Visualization**
+
+This update implements a complete task tracking system with task hierarchy tracking and memory allocation association, providing Task Graph visualization in the Dashboard.
+
+#### **Data Collection Upgrade Strategy**
+
+- **Data Dimension Expansion**: Added task dimension to memory tracking system
+  - `MemoryEvent` added `task_id: Option<u64>` field to record allocation task association
+  - `AllocationInfo` added `task_id: Option<u64>` field to support task-grouped analysis
+  - `TaskMeta` added `memory_usage` and `allocation_count` fields for real-time task memory statistics
+- **Task Registry System**: Implemented `TaskIdRegistry` global singleton
+  - Thread-local storage `current_task_id` for zero-cost access
+  - `spawn_task()` and `complete_task()` manage task lifecycle
+  - `record_allocation()` automatically updates task memory statistics
+  - Collision detection mechanism ensures task ID uniqueness
+- **Data Export Enhancement**: Added task relationship graph export
+  - `export_task_graph_json()` exports nodes and edges data
+  - Nodes include actual memory\_usage and allocation\_count statistics
+  - Integrated into `export_all_json()` and Dashboard context
+
+#### **Dashboard Task Graph Visualization**
+
+- **feat(dashboard)**: Added "Task Graph" tab and D3.js tree view
+  - HTML template added Task Graph tab button
+  - D3.js tree rendering for task hierarchy
+  - Click task to view memory details panel
+  - Empty state hints and task count display
+- **fix(dashboard)**: Fixed JavaScript syntax errors
+  - Fixed compressed one-line method formatting
+  - Added DOM element null checks
+  - Removed duplicate `task_graph_json` variable declaration
+
+#### **API Simplification**
+
+- **feat(task\_registry)**: Added `TaskGuard` RAII structure
+  - `task_scope()` method returns `TaskGuard` for automatic task lifecycle management
+  - Automatically sets parent relationship (from current task\_id)
+  - Simplified API: just declare registry, call task\_scope, auto-complete and export
+
+#### **Examples and Demos**
+
+- **feat(examples)**: `global_tracker_showcase` added Task Registry demo
+  - Section 6: Task Tracking with TaskIdRegistry
+  - Demonstrates task hierarchy and memory allocation tracking
+
+***
+
+## \[0.2.2] - 2026-04-17
+
+### 🎯 **Arc Clone Detection Enhancement**
+
+This update adds comprehensive Arc/Rc clone detection capability through stack allocation tracking.
+
+#### **Stack Allocation Tracking**
+
+- **feat(tracker)**: Added `StackOwner` track kind for smart pointers
+  - `TrackKind::StackOwner` tracks stack-allocated smart pointers (Arc, Rc) with their heap targets
+  - Captures both `stack_ptr` (stack address of the smart pointer) and `heap_ptr` (heap allocation it points to)
+  - Enables detection of Arc/Rc clones by identifying multiple stack pointers pointing to the same heap allocation
+- **feat(types)**: Extended `MemoryEvent`, `AllocationInfo`, `ActiveAllocation`, `InferenceRecord` with `stack_ptr` field
+  - `stack_ptr: Option<usize>` stores the stack address of StackOwner objects
+  - Preserves clone detection metadata through the entire analysis pipeline
+- **feat(lib)**: Implemented `Trackable` for `Arc<T>` and `Rc<T>`
+  - Returns `TrackKind::StackOwner` with stack\_ptr and heap\_ptr
+  - Correctly identifies these as stack-allocated smart pointers pointing to heap data
+
+#### **Relation Inference Enhancement**
+
+- **feat(relation)**: Added `ArcClone` and `RcClone` relation variants
+  - `Relation::ArcClone` for Arc-specific clone relationships
+  - `Relation::RcClone` for Rc-specific clone relationships
+  - Distinguishes between different smart pointer types in the ownership graph
+- **feat(shared\_detector)**: Enhanced shared reference detection
+  - Strategy 2: StackOwner-based clone detection
+  - Groups StackOwner allocations by their heap\_ptr
+  - Generates `ArcClone` edges for multiple Arc objects pointing to the same heap allocation
+  - Does not rely on type\_kind inference (UTI Engine may misclassify Arc as Vec)
+- **fix(shared\_detector)**: Changed from `Relation::Shares` to `Relation::ArcClone` for StackOwner-based detection
+  - More accurate representation of Arc clone relationships
+  - Enables proper counting and visualization in the dashboard
+
+#### **Graph and Visualization**
+
+- **fix(graph)**: Updated `get_relationship_stats` to handle `ArcClone` and `RcClone`
+  - Both counted as clone edges in statistics
+- **fix(export)**: Updated `build_ownership_graph_from_allocations` edge mapping
+  - `Relation::ArcClone` → `EdgeKind::ArcClone`
+  - `Relation::RcClone` → `EdgeKind::RcClone`
+- **fix(dashboard)**: Updated `build_relationships` display properties
+  - `ArcClone`: purple color (#8b5cf6), strength 0.7
+  - `RcClone`: green color (#10b981), strength 0.9
+- **fix(ownership\_graph)**: Fixed `diagnostics` method
+  - Changed from using `self.arc_clone_count` (only set by `OwnershipOp::ArcClone` events)
+  - To using `self.arc_clones().len()` (counts `EdgeKind::ArcClone` edges)
+  - Ensures Arc clone count reflects relation inference results
+
+#### **Bug Fixes**
+
+- **fix(tracker)**: StackOwner allocation tracking
+  - Uses `stack_ptr` as key for `track_allocation` to avoid overwriting Arc clones
+  - Allows inner tracker to count allocations while preserving clone detection capability
+  - Fixed `test_smart_pointer_tracking` test failure
+- **fix(example)**: Updated `variable_relationships_showcase` example
+  - Uses `global.tracker()` to get the internal `Tracker` instead of `GlobalTracker`
+  - Ensures correct method calls for tracking and analysis
+
+#### **Testing**
+
+- **test(shared\_detector)**: Added `test_stackowner_arc_clone_detection`
+  - Validates StackOwner-based Arc clone detection with real data
+  - Tests detection of 3 Arc clones pointing to the same heap allocation
+  - Confirms `ArcClone` edges are correctly generated
+- **fix(compilation)**: Added `stack_ptr: None` to all `AllocationInfo` and `ActiveAllocation` initializers
+  - Fixed compilation errors across multiple test files
+  - Updated: relation\_inference\_integration, circular\_reference, heap\_scanner, container\_detector, variable\_relationships, closure/analyzer, security/analyzer, unknown/analyzer, snapshot/types
+
+#### **Verification**
+
+- Example `variable_relationships_showcase` now shows `arc_clone_count: 57` (previously 0)
+- Unit test `test_stackowner_arc_clone_detection` passes
+- All 2449 unit tests pass
+
+## \[0.2.1] - 2026-04-12
 
 ### 📊 **Benchmark Optimization and Documentation Enhancement**
 
@@ -10,22 +134,20 @@ This update focuses on optimizing the benchmark system and completing the projec
 
 - **feat(bench)**: Added quick mode support
   - New environment variable `QUICK_BENCH` to control execution mode
-  - Quick mode runtime: ~5 minutes (vs 40 minutes)
+  - Quick mode runtime: \~5 minutes (vs 40 minutes)
   - Sample size: 10 (vs 100)
   - Warm-up time: 100ms (vs 3s)
   - Measurement time: 500ms (vs 5s)
-  - Performance improvement: ~13x faster
-
+  - Performance improvement: \~13x faster
 - **feat(bench)**: Added new benchmark scenarios
   - Memory allocator comparison tests (3 tests)
   - Long-running stability tests (3 tests)
   - Edge case tests (5 tests)
   - Performance regression detection tests (3 tests)
   - Total: 14 new test scenarios
-
 - **feat(makefile)**: Makefile support for multiple benchmark modes
-  - `make bench-quick`: Quick mode (~5 minutes)
-  - `make bench`: Full mode (~60 minutes)
+  - `make bench-quick`: Quick mode (\~5 minutes)
+  - `make bench`: Full mode (\~60 minutes)
   - `make bench-save`: Run and save results
   - `make bench-allocator`: Allocator comparison tests
   - `make bench-stability`: Stability tests
@@ -38,20 +160,17 @@ This update focuses on optimizing the benchmark system and completing the projec
   - Created `docs/` directory for centralized documentation management
   - Moved benchmark guides and performance reports to docs directory
   - Created documentation index `docs/README.md`
-
 - **docs(architecture)**: Enhanced architecture documentation
   - Added detailed Analysis module architecture (14 submodules)
   - Added detailed Capture module architecture (3 submodules)
   - Added Unified Analyzer architecture explanation
   - Added multiple mermaid architecture diagrams
   - Documented functionality and performance characteristics of each submodule
-
 - **docs(modules)**: Added missing module documentation
   - Added `tracking` module documentation (Chinese & English)
   - Added `analyzer` module English documentation
   - Added `view` module English documentation
   - All documentation includes architecture diagrams, API references, and usage examples
-
 - **docs(coverage)**: Created documentation coverage report
   - Analyzed existing documentation coverage
   - Identified missing documentation
@@ -75,16 +194,15 @@ This update focuses on optimizing the benchmark system and completing the projec
   - `docs/en/modules/analyzer.md`: Analyzer module English documentation
   - `docs/en/modules/view.md`: View module English documentation
   - `benches/benchmark_results_quick.log`: Quick mode benchmark results
-
 - Updated Files:
   - `README.md`: Added architecture improvements and performance data
   - `docs/ARCHITECTURE.md`: Added detailed module architecture explanations
   - `Makefile`: Added multiple benchmark mode support
   - `benches/comprehensive_benchmarks.rs`: Added quick mode and new tests
 
----
+***
 
-## [0.2.0] - 2026-04-09
+## \[0.2.0] - 2026-04-09
 
 ### 🏗️ **Major Architecture Refactoring: From Monolithic to Modular Engines**
 
@@ -117,13 +235,13 @@ This release represents a complete architectural overhaul of memscope-rs, transi
   - Atomic operations for optimized concurrency performance
   - Thread-safe duplicate tracking prevention
 - **refactor(code)**: Massive code reduction
-  - Removed ~200,000 lines of redundant code
-  - Current codebase: 77,641 lines (down from ~270,000)
+  - Removed \~200,000 lines of redundant code
+  - Current codebase: 77,641 lines (down from \~270,000)
   - Improved code density and maintainability
 
 #### **Smart Pointer Tracking Enhancement**
 
-- **fix(variable_relationships)**: Fixed `node_to_allocation_info` to preserve smart pointer information
+- **fix(variable\_relationships)**: Fixed `node_to_allocation_info` to preserve smart pointer information
   - Now correctly retains Rc/Arc/Box/Weak pointer details
   - Improved circular reference detection accuracy
   - Enhanced relationship inference for smart pointers
@@ -153,12 +271,12 @@ This release represents a complete architectural overhaul of memscope-rs, transi
 
 #### **New Features**
 
-- **feat(smart_pointer)**: Comprehensive smart pointer tracking
+- **feat(smart\_pointer)**: Comprehensive smart pointer tracking
   - Support for Rc/Arc/Box/Weak smart pointers
   - Reference count tracking
   - Clone relationship detection
   - Circular reference detection
-- **feat(event_store)**: Lock-free event storage
+- **feat(event\_store)**: Lock-free event storage
   - High-throughput event recording
   - Point-in-time snapshots
   - Thread-safe concurrent access
@@ -203,7 +321,7 @@ src/
 
 - **525 files changed** with significant modifications
 - **66,398 lines added**, **265,022 lines removed**
-- **Net reduction**: ~198,624 lines (~75% code reduction)
+- **Net reduction**: \~198,624 lines (\~75% code reduction)
 - **Current codebase**: 77,641 lines
 - **Test coverage**: Comprehensive across all modules
 - **Build status**: ✅ 0 errors, 0 warnings, all checks passing
@@ -213,6 +331,7 @@ src/
 **Important Breaking Changes:**
 
 1. **API Changes**:
+
 ```rust
 // Old API (v0.1.x)
 use memscope_rs::{track_var, track_scope};
@@ -221,7 +340,8 @@ use memscope_rs::{track_var, track_scope};
 use memscope_rs::tracker::{track_var, track_scope};
 ```
 
-2. **Error Handling**:
+1. **Error Handling**:
+
 ```rust
 // Old API
 let result = tracker.track_allocation(ptr, size)
@@ -232,7 +352,8 @@ let result = tracker.track_allocation(ptr, size)
     .map_err(|e| eprintln!("Tracking failed: {}", e))?;
 ```
 
-3. **Module References**:
+1. **Module References**:
+
 ```rust
 // Old API
 use memscope_rs::core::MemoryTracker;
@@ -252,12 +373,14 @@ See [PR Summary](PR_SUMMARY_EN.md) for detailed migration guide.
 #### **Recommendations**
 
 **✅ Recommended for Upgrade:**
+
 - High-concurrency application scenarios
 - Applications requiring better error handling
 - Projects requiring long-term maintenance
 - Projects needing feature extensions
 
 **⚠️ Evaluate Carefully:**
+
 - Applications extremely sensitive to single-tracking latency
 - Large-scale memory analysis scenarios (needs further optimization)
 - Tracker creation in performance-critical paths
@@ -276,11 +399,11 @@ See [PR Summary](PR_SUMMARY_EN.md) for detailed migration guide.
 - Documentation: Updated architecture and API guides
 - Testing: Extensive test coverage across all modules
 
----
+***
 
 ## Overview
 
-This changelog documents the changes between the `test_a` branch and `master` branch of memscope-rs. The test_a branch includes code reorganization, new experimental features, and various improvements.
+This changelog documents the changes between the `test_a` branch and `master` branch of memscope-rs. The test\_a branch includes code reorganization, new experimental features, and various improvements.
 
 ## 🛡️ **Latest Improvements (Drop Logic & Smart Pointer Handling)**
 
@@ -307,7 +430,7 @@ This changelog documents the changes between the `test_a` branch and `master` br
 - **63,905 lines added, 3,469 lines removed** (net +60,436 lines)
 - **Code reorganization** with modular structure
 
----
+***
 
 ## 🏗️ **Architecture & Project Structure**
 
@@ -316,7 +439,7 @@ This changelog documents the changes between the `test_a` branch and `master` br
 #### **1. Module Structure Changes**
 
 - **Before (Master)**: Simple structure with basic modules
-- **After (Test_A)**: Reorganized into specialized modules
+- **After (Test\_A)**: Reorganized into specialized modules
 
 **New Module Organization:**
 
@@ -347,7 +470,7 @@ src/
 - **Added**: Basic smart pointer support for common types
 - **Improved**: Type tracking capabilities
 
----
+***
 
 ## 🔧 **Core Functionality Changes**
 
@@ -389,7 +512,7 @@ src/
 - **Pattern Analysis**: Simple use-after-free pattern analysis
 - **Compliance**: Basic security compliance reporting
 
----
+***
 
 ## 📊 **Export & Visualization**
 
@@ -421,7 +544,7 @@ src/
 - **JavaScript**: Interactive dashboard functionality
 - **CSS**: Styling for dashboard components
 
----
+***
 
 ## 🛠️ **Development Tools**
 
@@ -441,7 +564,7 @@ src/
 - **CI/CD**: Improved GitHub Actions workflow
 - **Dependencies**: Updated dependency management
 
----
+***
 
 ## 📈 **Performance Considerations**
 
@@ -457,7 +580,7 @@ src/
 - **Memory Tracking**: Tracking itself consumes memory
 - **Large Datasets**: Performance may degrade with very large datasets
 
----
+***
 
 ## 🚀 **New Features**
 
@@ -472,11 +595,11 @@ src/
 
 - **README Updates**: Enhanced documentation
 - **Performance Guide**: Basic performance documentation
-  -- **Tracking Guide**: User guide for tracking features
+  \-- **Tracking Guide**: User guide for tracking features
 
----
+***
 
-## [0.1.5] - 2025-09-16
+## \[0.1.5] - 2025-09-16
 
 ### Added
 
@@ -501,7 +624,7 @@ src/
 - **Concurrency Issues:** Replaced previous locking mechanisms with sharded locks and optimized mutexes to significantly reduce thread contention and improve stability in multi-threaded applications.
 - **Inaccurate Lifecycle Tracking:** The new ownership-based tracking (`track_var_owned!`) and improved smart pointer logic provide more precise and reliable variable lifecycle analysis.
 
----
+***
 
 ## Current Limitations & Areas for Improvement
 
@@ -541,7 +664,7 @@ src/
 
 **Note**: This project is currently experimental and not recommended for production use. We are committed to honest development and will update this status as the project matures.
 
-## [0.1.6] - 2025-10-02
+## \[0.1.6] - 2025-10-02
 
 ### Added
 
@@ -560,16 +683,16 @@ src/
 
 #### Async Task-Centric Memory Tracking Module
 
-- **feat(async_memory)**: Zero-overhead async task memory tracking system
+- **feat(async\_memory)**: Zero-overhead async task memory tracking system
   - < 5ns per allocation tracking overhead
   - < 0.1% CPU overhead in typical workloads
   - < 1MB memory overhead per thread
   - Lock-free, unwrap-free, clone-free design
-- **feat(async_memory/tracker)**: Task-aware memory tracking using Context waker addresses
-- **feat(async_memory/buffer)**: Lock-free event buffering with quality monitoring
-- **feat(async_memory/resource_monitor)**: Comprehensive async resource monitoring (1,254 lines)
-- **feat(async_memory/visualization)**: Advanced visualization generator (1,616 lines)
-- **feat(async_memory/api)**: Production-grade API with TrackedFuture integration
+- **feat(async\_memory/tracker)**: Task-aware memory tracking using Context waker addresses
+- **feat(async\_memory/buffer)**: Lock-free event buffering with quality monitoring
+- **feat(async\_memory/resource\_monitor)**: Comprehensive async resource monitoring (1,254 lines)
+- **feat(async\_memory/visualization)**: Advanced visualization generator (1,616 lines)
+- **feat(async\_memory/api)**: Production-grade API with TrackedFuture integration
 
 #### Unified Backend System
 
@@ -577,25 +700,25 @@ src/
   - Automatic environment detection and strategy selection
   - Dynamic strategy switching and combination
   - Full compatibility with existing core systems
-- **feat(unified/environment_detector)**: Runtime environment auto-detection
-- **feat(unified/tracking_dispatcher)**: Advanced strategy dispatcher (762 lines)
+- **feat(unified/environment\_detector)**: Runtime environment auto-detection
+- **feat(unified/tracking\_dispatcher)**: Advanced strategy dispatcher (762 lines)
 - **feat(unified/strategies)**: Multiple tracking strategies (async, hybrid, single-thread, multi-thread)
 
 ### ✨ Enhanced Features
 
 #### Core System Improvements
 
-- **feat(core/sampling_tracker)**: Advanced sampling tracker with configurable rates
-- **feat(core/thread_registry)**: Thread registration and management system
-- **feat(analysis/competition_detector)**: Resource competition detection
-- **feat(analysis/cross_process_analyzer)**: Cross-process analysis capabilities
-- **feat(analysis/variable_relationship_mapper)**: Variable relationship mapping
+- **feat(core/sampling\_tracker)**: Advanced sampling tracker with configurable rates
+- **feat(core/thread\_registry)**: Thread registration and management system
+- **feat(analysis/competition\_detector)**: Resource competition detection
+- **feat(analysis/cross\_process\_analyzer)**: Cross-process analysis capabilities
+- **feat(analysis/variable\_relationship\_mapper)**: Variable relationship mapping
 
 #### Advanced Visualization
 
-- **feat(templates/hybrid_dashboard)**: Comprehensive hybrid dashboard (5,382 lines)
-- **feat(templates/performance_dashboard)**: Real-time performance monitoring
-- **feat(export/fixed_hybrid_template)**: Fixed hybrid template system
+- **feat(templates/hybrid\_dashboard)**: Comprehensive hybrid dashboard (5,382 lines)
+- **feat(templates/performance\_dashboard)**: Real-time performance monitoring
+- **feat(export/fixed\_hybrid\_template)**: Fixed hybrid template system
 - **feat(visualizer)**: Multi-dimensional data visualization
   - Memory distribution heatmaps
   - Task lifecycle timelines
@@ -604,11 +727,11 @@ src/
 
 #### Enhanced Examples and Demos
 
-- **feat(examples/complex_multithread_showcase)**: Complex multi-threading demonstration (25,116 lines)
-- **feat(examples/comprehensive_async_showcase)**: Comprehensive async demonstration (24,888 lines)
-- **feat(examples/enhanced_30_thread_demo)**: Enhanced 30-thread performance demo
-- **feat(examples/performance_test_visualization)**: Performance testing visualization
-- **feat(examples/verified_selective_demo)**: Verified selective tracking demo
+- **feat(examples/complex\_multithread\_showcase)**: Complex multi-threading demonstration (25,116 lines)
+- **feat(examples/comprehensive\_async\_showcase)**: Comprehensive async demonstration (24,888 lines)
+- **feat(examples/enhanced\_30\_thread\_demo)**: Enhanced 30-thread performance demo
+- **feat(examples/performance\_test\_visualization)**: Performance testing visualization
+- **feat(examples/verified\_selective\_demo)**: Verified selective tracking demo
 
 ### 🔧 Technical Improvements
 
@@ -703,10 +826,7 @@ use memscope_rs::async_memory;
 - Use `unified` for automatic strategy selection
 - Use core modules for single-threaded precise tracking
 
-
-
-
-## [0.1.10] - 2025-10-15
+## \[0.1.10] - 2025-10-15
 
 ## 🔧 Code Quality and Engineering Improvements
 
@@ -722,7 +842,7 @@ use memscope_rs::async_memory;
 
 #### Data Precision and Display Improvements
 
-- **fix(lockfree_test)**: Enhanced CPU data precision formatting
+- **fix(lockfree\_test)**: Enhanced CPU data precision formatting
   - Integrated real system resource collector (`PlatformResourceCollector`)
   - Implemented 2-decimal precision for CPU usage display (e.g., `36.83%` instead of `36.83333206176758%`)
   - Added real CPU core count detection replacing hardcoded values
@@ -743,7 +863,7 @@ use memscope_rs::async_memory;
 
 #### Bounded Memory Management
 
-- **feat(memory/bounded_history)**: Smart bounded history recorder
+- **feat(memory/bounded\_history)**: Smart bounded history recorder
   - Triple-constraint system: time-based, entry-count, and memory-usage limits
   - Automatic expiration cleanup and memory pressure management
   - Configurable memory limit strategies for production environments
@@ -754,12 +874,12 @@ use memscope_rs::async_memory;
 
 #### Size Estimation System
 
-- **feat(estimation/size_estimator)**: Dynamic smart size estimator
+- **feat(estimation/size\_estimator)**: Dynamic smart size estimator
   - Precise size support for basic types
   - Regex pattern matching estimation for complex types
   - Dynamic learning and adaptive estimation capabilities
   - Platform-specific size adaptation
-- **feat(estimation/type_classifier)**: Unified type classification system
+- **feat(estimation/type\_classifier)**: Unified type classification system
   - Support for Primitive, Collection, SmartPointer categories
   - Regex rule engine with priority and confidence mechanisms
 
@@ -778,3 +898,4 @@ use memscope_rs::async_memory;
 - **Security**: Security audit passed
 - **Formatting**: Consistent code style across codebase
 - **Internationalization**: 100% English source code
+

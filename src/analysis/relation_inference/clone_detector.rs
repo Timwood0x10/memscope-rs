@@ -36,6 +36,15 @@ pub struct CloneConfig {
     /// Maximum clone edges per node to prevent explosion.
     /// Default: 10.
     pub max_clone_edges_per_node: usize,
+    /// Enable smart pointer type detection (Arc/Rc).
+    /// Default: true.
+    pub detect_smart_pointers: bool,
+    /// Similarity threshold for Arc clones (0.0 - 1.0).
+    /// Default: 0.7 (70%) - Arc clones may have slight differences.
+    pub arc_threshold: f64,
+    /// Similarity threshold for Rc clones (0.0 - 1.0).
+    /// Default: 0.85 (85%) - Rc clones are more consistent.
+    pub rc_threshold: f64,
 }
 
 impl Default for CloneConfig {
@@ -46,6 +55,9 @@ impl Default for CloneConfig {
             min_similarity: 0.8,
             min_similarity_no_stack_hash: 0.95,
             max_clone_edges_per_node: 10,
+            detect_smart_pointers: true,
+            arc_threshold: 0.7,
+            rc_threshold: 0.85,
         }
     }
 }
@@ -115,7 +127,20 @@ pub fn detect_clones(records: &[InferenceRecord], config: &CloneConfig) -> Vec<R
                     continue;
                 }
 
-                if content_similarity(a, b, config.compare_bytes) >= min_similarity {
+                // Use smart pointer type detection if enabled
+                let threshold = if config.detect_smart_pointers {
+                    if is_arc_like(a, b) {
+                        config.arc_threshold
+                    } else if is_rc_like(a, b) {
+                        config.rc_threshold
+                    } else {
+                        min_similarity
+                    }
+                } else {
+                    min_similarity
+                };
+
+                if content_similarity(a, b, config.compare_bytes) >= threshold {
                     relations.push(RelationEdge {
                         from: a.id,
                         to: b.id,
@@ -162,6 +187,48 @@ fn content_similarity(a: &InferenceRecord, b: &InferenceRecord, max_bytes: usize
     matching as f64 / len as f64
 }
 
+/// Check if records look like Arc clones (thread-safe reference counting).
+fn is_arc_like(a: &InferenceRecord, b: &InferenceRecord) -> bool {
+    // Arc has a specific memory layout with strong/weak counts
+    // Check if both records have memory and look like Arc control blocks
+    let has_arc_pattern = |record: &InferenceRecord| -> bool {
+        let memory = match &record.memory {
+            Some(m) => m,
+            None => return false,
+        };
+        if memory.len() < 16 {
+            return false;
+        }
+        let strong = memory.read_usize(0).unwrap_or(usize::MAX);
+        let weak = memory.read_usize(8).unwrap_or(usize::MAX);
+        // Arc typically has strong >= 1 and weak >= 0
+        (1..=10000).contains(&strong) && weak <= 1000
+    };
+
+    has_arc_pattern(a) && has_arc_pattern(b)
+}
+
+/// Check if records look like Rc clones (single-threaded reference counting).
+fn is_rc_like(a: &InferenceRecord, b: &InferenceRecord) -> bool {
+    // Rc has the same memory layout as Arc but is single-threaded
+    // Check if both records have memory and look like Rc control blocks
+    let has_rc_pattern = |record: &InferenceRecord| -> bool {
+        let memory = match &record.memory {
+            Some(m) => m,
+            None => return false,
+        };
+        if memory.len() < 16 {
+            return false;
+        }
+        let strong = memory.read_usize(0).unwrap_or(usize::MAX);
+        let weak = memory.read_usize(8).unwrap_or(usize::MAX);
+        // Rc typically has strong >= 1 and weak >= 0
+        (1..=10000).contains(&strong) && weak <= 1000
+    };
+
+    has_rc_pattern(a) && has_rc_pattern(b)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -182,9 +249,10 @@ mod tests {
             size,
             memory: Some(OwnedMemoryView::new(memory)),
             type_kind,
-            confidence: 80,
+            confidence: 100,
             call_stack_hash: stack_hash,
             alloc_time,
+            stack_ptr: None,
         }
     }
 
@@ -296,6 +364,7 @@ mod tests {
                 confidence: 80,
                 call_stack_hash: Some(123),
                 alloc_time: 1000,
+                stack_ptr: None,
             },
             InferenceRecord {
                 id: 1,
@@ -306,6 +375,7 @@ mod tests {
                 confidence: 80,
                 call_stack_hash: Some(123),
                 alloc_time: 5000,
+                stack_ptr: None,
             },
         ];
 

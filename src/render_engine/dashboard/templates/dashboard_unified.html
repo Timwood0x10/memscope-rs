@@ -440,6 +440,7 @@
             <button class="mode-tab active" onclick="showMode('overview')">📊 Overview</button>
             <button class="mode-tab" onclick="showMode('thread')">🧵 Thread View</button>
             <button class="mode-tab" onclick="showMode('task')">⚡ Async View</button>
+            <button class="mode-tab" onclick="showMode('taskgraph')">🌳 Task Graph</button>
             <button class="mode-tab" onclick="showMode('variable')">📦 Variable View</button>
             <button class="mode-tab" onclick="showMode('passport')">🛂 Memory Passport</button>
             <button class="mode-tab" onclick="showMode('timetravel')">⏪ Time Travel</button>
@@ -853,6 +854,44 @@
                     </div>
                 </div>
                 <div id="taskCardsContainer" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 12px;"></div>
+            </div>
+        </div>
+
+        <!-- Task Graph Mode -->
+        <div id="mode-taskgraph" class="mode-section">
+            <div class="card" style="background: linear-gradient(135deg, #10b98110 0%, #10b98120 100%); border: 2px solid #10b98160;">
+                <div class="card-header">
+                    <h2 class="card-title" style="color: #10b981;">🌳 Task Relationship Graph</h2>
+                    <span class="badge" style="background: #10b98130; color: #10b981;" id="taskGraphCount">0 tasks</span>
+                </div>
+                <div style="background: linear-gradient(135deg, #10b98110 0%, #10b98120 100%); border-radius: 8px; padding: 12px; margin-bottom: 12px; border: 1px solid #10b98140;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <span style="font-size: 1.5rem;">🌳</span>
+                        <div>
+                            <div style="font-weight: 600; color: #10b981;">Task Hierarchy Visualization</div>
+                            <div style="color: var(--text2); font-size: 0.85rem;">
+                                Click on a task to see its memory usage • Tree view shows parent-child relationships
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="graph-container" id="taskGraphContainer" style="border: 1px solid var(--border); border-radius: 8px; background: var(--bg); min-height: 400px;">
+                    <div id="taskGraphEmptyState" class="empty-state" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 40px;">
+                        <div style="font-size: 3rem; margin-bottom: 16px;">🌳</div>
+                        <div style="font-size: 1.1rem; font-weight: 600; margin-bottom: 8px;">No Task Data Available</div>
+                        <div style="color: var(--text2); font-size: 0.9rem; max-width: 400px; text-align: center;">
+                            Task tracking requires integration with TaskIdRegistry. Use the API to spawn tasks and track memory allocations per task.
+                        </div>
+                    </div>
+                    <div id="taskGraphSvg" style="display: none;"></div>
+                </div>
+                <div id="taskGraphDetails" class="card" style="display: none; margin-top: 16px; background: linear-gradient(135deg, var(--bg2) 0%, var(--bg3) 100%);">
+                    <div class="card-header">
+                        <h2 class="card-title">📊 Task Memory Details</h2>
+                        <button class="btn-sm" onclick="document.getElementById('taskGraphDetails').style.display='none'">✕ Close</button>
+                    </div>
+                    <div id="taskGraphDetailsContent"></div>
+                </div>
             </div>
         </div>
 
@@ -1678,18 +1717,112 @@
             },
 
             allocations: {
-                showAll: false, currentPage: 1, pageSize: 100, filteredData: [],
-                toggle() { const wrapper = document.getElementById('allocationsWrapper'); const btn = document.getElementById('toggleAllocBtn'); const pagination = document.getElementById('allocationsPagination'); this.showAll = !this.showAll; if (this.showAll) { wrapper.style.maxHeight = 'none'; wrapper.style.overflow = 'visible'; btn.textContent = '▲ Collapse'; if (this.filteredData.length > this.pageSize) pagination.style.display = 'flex'; } else { wrapper.style.maxHeight = '400px'; wrapper.style.overflow = 'auto'; btn.textContent = '▼ Show All'; pagination.style.display = 'none'; this.renderPage(1); } },
-                renderPage(page) { const tbody = document.getElementById('allocationsBody'); const start = (page - 1) * this.pageSize; const end = start + this.pageSize; const pageData = this.filteredData.slice(start, end); tbody.innerHTML = pageData.map(a => { const sourceLoc = (a.source_file && a.source_line) ? `<span style="font-family: monospace; font-size: 0.8rem; color: var(--primary);">${a.source_file.split('/').pop()}:${a.source_line}</span>` : '<span style="color: var(--text2);">—</span>'; return `<tr><td><code>${a.address || '0x0'}</code></td><td>${a.var_name || 'unknown'}</td><td style="font-family: monospace; font-size: 0.8rem;">${a.type_name || 'Unknown'}</td><td>${Utils.formatBytes(parseInt(a.size) || 0)}</td><td>${sourceLoc}</td><td><code title="${a.thread_id || ''}">${Utils.formatThreadId(a.thread_id)}</code></td><td>${Utils.formatTime(parseInt(a.lifetime_ms || 0) * 1000000)}</td><td>${a.is_leaked ? '<span class="badge badge-danger">Leaked</span>' : a.timestamp_dealloc > 0 ? '<span class="badge badge-success">Freed</span>' : '<span class="badge badge-info">Active</span>'}</td></tr>`; }).join(''); this.currentPage = page; const totalPages = Math.ceil(this.filteredData.length / this.pageSize); document.getElementById('allocPageInfo').textContent = `Page ${page} of ${totalPages}`; document.getElementById('prevAllocBtn').disabled = page <= 1; document.getElementById('nextAllocBtn').disabled = page >= totalPages; },
-                prevPage() { if (this.currentPage > 1) this.renderPage(this.currentPage - 1); },
-                nextPage() { const totalPages = Math.ceil(this.filteredData.length / this.pageSize); if (this.currentPage < totalPages) this.renderPage(this.currentPage + 1); },
-                init() { const data_list = data.allocations || []; this.filteredData = data_list; document.getElementById('allocCount').textContent = data_list.length + ' items'; const tbody = document.getElementById('allocationsBody'); if (data_list.length === 0) { tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No allocation data</td></tr>'; return; } if (data_list.length <= this.pageSize) { tbody.innerHTML = data_list.map(a => { const sourceLoc = (a.source_file && a.source_line) ? `<span style="font-family: monospace; font-size: 0.8rem; color: var(--primary);">${a.source_file.split('/').pop()}:${a.source_line}</span>` : '<span style="color: var(--text2);">—</span>'; return `<tr><td><code>${a.address || '0x0'}</code></td><td>${a.var_name || 'unknown'}</td><td style="font-family: monospace; font-size: 0.8rem;">${a.type_name || 'Unknown'}</td><td>${Utils.formatBytes(parseInt(a.size) || 0)}</td><td>${sourceLoc}</td><td><code title="${a.thread_id || ''}">${Utils.formatThreadId(a.thread_id)}</code></td><td>${Utils.formatTime(parseInt(a.lifetime_ms || 0) * 1000000)}</td><td>${a.is_leaked ? '<span class="badge badge-danger">Leaked</span>' : a.timestamp_dealloc > 0 ? '<span class="badge badge-success">Freed</span>' : '<span class="badge badge-info">Active</span>'}</td></tr>`; }).join(''); } else this.renderPage(1); }
+                showAll: false,
+                currentPage: 1,
+                pageSize: 100,
+                filteredData: [],
+                toggle() {
+                    const wrapper = document.getElementById('allocationsWrapper');
+                    const btn = document.getElementById('toggleAllocBtn');
+                    const pagination = document.getElementById('allocationsPagination');
+                    this.showAll = !this.showAll;
+                    if (this.showAll) {
+                        wrapper.style.maxHeight = 'none';
+                        wrapper.style.overflow = 'visible';
+                        btn.textContent = '▲ Collapse';
+                        if (this.filteredData.length > this.pageSize) pagination.style.display = 'flex';
+                    } else {
+                        wrapper.style.maxHeight = '400px';
+                        wrapper.style.overflow = 'auto';
+                        btn.textContent = '▼ Expand';
+                        pagination.style.display = 'none';
+                        this.currentPage = 1;
+                    }
+                    this.render();
+                },
+                sort() {
+                    const sortEl = document.getElementById('allocSortOrder');
+                    if (!sortEl) return;
+                    const sortBy = sortEl.value;
+                    this.filteredData.sort((a, b) => {
+                        switch (sortBy) {
+                            case 'size-desc':
+                                return (b.size || 0) - (a.size || 0);
+                            case 'size-asc':
+                                return (a.size || 0) - (b.size || 0);
+                            case 'time-desc':
+                                return (b.timestamp || 0) - (a.timestamp || 0);
+                            case 'time-asc':
+                                return (a.timestamp || 0) - (b.timestamp || 0);
+                            case 'type':
+                                return (a.type_name || '').localeCompare(b.type_name || '');
+                            case 'var':
+                                return (a.var_name || '').localeCompare(b.var_name || '');
+                            default:
+                                return 0;
+                        }
+                    });
+                    this.renderPage(this.currentPage);
+                },
+                renderPage(page) {
+                    const start = (page - 1) * this.pageSize;
+                    const end = start + this.pageSize;
+                    const pageData = this.filteredData.slice(start, end);
+                    const tbody = document.getElementById('allocationsBody');
+                    tbody.innerHTML = pageData.map(a =>
+                        `<tr><td><a href="#" onclick="Dashboard.timetravel.showDetail('${a.address}'); return false;">${a.address}</a></td><td>${Utils.formatBytes(parseInt(a.size) || 0)}</td><td>${a.var_name || 'unknown'}</td><td>${a.type_name || 'Unknown'}</td><td><span class="badge ${a.is_leaked ? 'badge-danger' : 'badge-success'}">${a.is_leaked ? 'Leaked' : 'Normal'}</span></td><td>${Utils.formatTime(parseInt(a.timestamp) || 0)}</td></tr>`
+                    ).join('');
+                    const totalPages = Math.ceil(this.filteredData.length / this.pageSize);
+                    document.getElementById('allocPageInfo').textContent = `Page ${page} of ${totalPages} (${this.filteredData.length} total)`;
+                    document.getElementById('allocPrevBtn').disabled = page <= 1;
+                    document.getElementById('allocNextBtn').disabled = page >= totalPages;
+                },
+                prevPage() {
+                    if (this.currentPage > 1) this.renderPage(this.currentPage - 1);
+                },
+                nextPage() {
+                    const totalPages = Math.ceil(this.filteredData.length / this.pageSize);
+                    if (this.currentPage < totalPages) this.renderPage(this.currentPage + 1);
+                },
+                render() {
+                    this.renderPage(this.currentPage);
+                },
+                init() {
+                    const allocations = data.allocations || [];
+                    this.filteredData = [...allocations];
+                    if (allocations.length === 0) {
+                        document.getElementById('allocationsBody').innerHTML = '<tr><td colspan="6" class="empty-state">No allocation data</td></tr>';
+                        return;
+                    }
+                    this.sort();
+                }
             },
 
             threads: {
                 filteredData: [],
                 heatmapType: 'memory',
-                sort() { const sortBy = document.getElementById('threadSortOrder').value; this.filteredData.sort((a, b) => { switch (sortBy) { case 'alloc-desc': return (b.allocation_count || 0) - (a.allocation_count || 0); case 'alloc-asc': return (a.allocation_count || 0) - (b.allocation_count || 0); case 'memory-desc': return (b.current_memory_bytes || 0) - (a.current_memory_bytes || 0); case 'memory-asc': return (a.current_memory_bytes || 0) - (b.current_memory_bytes || 0); case 'thread-id': return (a.thread_id || '0').localeCompare(b.thread_id || '0'); default: return 0; } }); this.render(); },
+                sort() {
+                    const sortEl = document.getElementById('threadSortOrder');
+                    if (!sortEl) return;
+                    const sortBy = sortEl.value;
+                    this.filteredData.sort((a, b) => {
+                        switch (sortBy) {
+                            case 'alloc-desc':
+                                return (b.allocation_count || 0) - (a.allocation_count || 0);
+                            case 'alloc-asc':
+                                return (a.allocation_count || 0) - (b.allocation_count || 0);
+                            case 'memory-desc':
+                                return (b.current_memory_bytes || 0) - (a.current_memory_bytes || 0);
+                            case 'memory-asc':
+                                return (a.current_memory_bytes || 0) - (b.current_memory_bytes || 0);
+                            case 'thread-id':
+                                return (a.thread_id || '0').localeCompare(b.thread_id || '0');
+                            default:
+                                return 0;
+                        }
+                    });
+                    this.render();
+                },
                 render() { 
                     const tbody = document.getElementById('threadTableBody'); 
                     tbody.innerHTML = this.filteredData.map(t => `<tr><td><code title="${t.thread_id || ''}">${Utils.formatThreadId(t.thread_id)}</code></td><td><span class="text-secondary">${t.thread_summary || ''}</span></td><td>${t.allocation_count || 0}</td><td>${t.current_memory || '0 B'}</td><td>${t.peak_memory || '0 B'}</td><td><span class="badge badge-success">active</span></td></tr>`).join(''); 
@@ -1774,20 +1907,292 @@
                         </div>
                     `;
                 },
-                init() { const threads = data.threads || []; this.filteredData = [...threads]; document.getElementById('threadCount').textContent = threads.length + ' threads'; const tbody = document.getElementById('threadTableBody'); if (threads.length === 0) { tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No thread data</td></tr>'; return; } this.sort(); }
+                init() {
+                    const threads = data.threads || [];
+                    this.filteredData = [...threads];
+                    document.getElementById('threadCount').textContent = threads.length + ' threads';
+                    const tbody = document.getElementById('threadTableBody');
+                    if (threads.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No thread data</td></tr>';
+                        return;
+                    }
+                    this.sort();
+                }
+            },
+
+            taskGraph: {
+                init() {
+                    const container = document.getElementById('taskGraphContainer');
+                    const emptyState = document.getElementById('taskGraphEmptyState');
+                    const svgContainer = document.getElementById('taskGraphSvg');
+                    const countBadge = document.getElementById('taskGraphCount');
+
+                    if (!container) return;
+
+                    let taskGraphData = null;
+                    try {
+                        if (typeof data.task_graph_json !== 'undefined' && data.task_graph_json) {
+                            taskGraphData = JSON.parse(data.task_graph_json);
+                        }
+                    } catch (e) {
+                        console.error('Failed to parse task_graph_json:', e);
+                    }
+
+                    if (!taskGraphData || !taskGraphData.nodes || taskGraphData.nodes.length === 0) {
+                        emptyState.style.display = 'flex';
+                        svgContainer.style.display = 'none';
+                        countBadge.textContent = '0 tasks';
+                        return;
+                    }
+
+                    emptyState.style.display = 'none';
+                    svgContainer.style.display = 'block';
+                    countBadge.textContent = taskGraphData.nodes.length + ' tasks';
+
+                    this.renderTree(taskGraphData);
+                },
+
+                renderTree(graphData) {
+                    const container = document.getElementById('taskGraphSvg');
+                    if (!container) return;
+
+                    const width = container.clientWidth || 800;
+                    const height = 400;
+
+                    container.innerHTML = '';
+
+                    const svg = d3.select(container)
+                        .append('svg')
+                        .attr('width', '100%')
+                        .attr('height', height)
+                        .attr('viewBox', [0, 0, width, height]);
+
+                    const nodes = graphData.nodes || [];
+                    const edges = graphData.edges || [];
+
+                    const childIds = new Set(edges.map(e => e.to));
+                    const rootNodes = nodes.filter(n => !childIds.has(n.id));
+
+                    const buildTree = (nodeId) => {
+                        const node = nodes.find(n => n.id === nodeId);
+                        if (!node) return null;
+
+                        const children = edges
+                            .filter(e => e.from === nodeId)
+                            .map(e => buildTree(e.to))
+                            .filter(n => n !== null);
+
+                        return {
+                            id: node.id,
+                            name: node.name,
+                            memory_usage: node.memory_usage || 0,
+                            allocation_count: node.allocation_count || 0,
+                            status: node.status,
+                            children: children
+                        };
+                    };
+
+                    const trees = rootNodes.map(n => buildTree(n.id)).filter(t => t !== null);
+
+                    if (trees.length === 0) {
+                        container.innerHTML = '<div class="empty-state">No valid task hierarchy</div>';
+                        return;
+                    }
+
+                    this.renderSimpleTree(svg, trees, width, height, 0, 0);
+                },
+
+                renderSimpleTree(svg, trees, width, height, xOffset, yOffset) {
+                    const nodeWidth = 200;
+                    const nodeHeight = 60;
+                    const horizontalGap = 40;
+                    const verticalGap = 80;
+
+                    let currentX = xOffset;
+                    let currentY = yOffset;
+
+                    const renderNode = (node, x, y) => {
+                        const g = svg.append('g')
+                            .attr('transform', `translate(${x}, ${y})`)
+                            .style('cursor', 'pointer')
+                            .on('click', () => this.showTaskDetails(node));
+
+                        g.append('rect')
+                            .attr('width', nodeWidth)
+                            .attr('height', nodeHeight)
+                            .attr('rx', 8)
+                            .attr('fill', node.status === 'Running' ? '#10b981' : '#64748b')
+                            .attr('opacity', 0.2);
+
+                        g.append('rect')
+                            .attr('width', nodeWidth)
+                            .attr('height', nodeHeight)
+                            .attr('rx', 8)
+                            .attr('fill', 'none')
+                            .attr('stroke', node.status === 'Running' ? '#10b981' : '#64748b')
+                            .attr('stroke-width', 2);
+
+                        g.append('text')
+                            .attr('x', nodeWidth / 2)
+                            .attr('y', 25)
+                            .attr('text-anchor', 'middle')
+                            .attr('fill', 'currentColor')
+                            .style('font-size', '14px')
+                            .style('font-weight', '600')
+                            .text(node.name || `Task ${node.id}`);
+
+                        g.append('text')
+                            .attr('x', nodeWidth / 2)
+                            .attr('y', 45)
+                            .attr('text-anchor', 'middle')
+                            .attr('fill', 'var(--text2)')
+                            .style('font-size', '12px')
+                            .text(`${Utils.formatBytes(node.memory_usage)} • ${node.allocation_count} allocs`);
+
+                        return nodeWidth + horizontalGap;
+                    };
+
+                    const renderTreeRecursive = (node, x, y) => {
+                        const nextX = renderNode(node, x, y);
+
+                        if (node.children && node.children.length > 0) {
+                            let childX = x;
+                            let childY = y + nodeHeight + verticalGap;
+
+                            node.children.forEach(child => {
+                                svg.append('line')
+                                    .attr('x1', x + nodeWidth / 2)
+                                    .attr('y1', y + nodeHeight)
+                                    .attr('x2', childX + nodeWidth / 2)
+                                    .attr('y2', childY)
+                                    .attr('stroke', '#10b981')
+                                    .attr('stroke-width', 2)
+                                    .attr('stroke-dasharray', '5,5');
+
+                                childX = renderTreeRecursive(child, childX, childY);
+                            });
+                        }
+
+                        return nextX;
+                    };
+
+                    trees.forEach(tree => {
+                        currentX = renderTreeRecursive(tree, currentX, currentY);
+                        currentY += nodeHeight + verticalGap + 50;
+                    });
+                },
+
+                showTaskDetails(node) {
+                    const detailsPanel = document.getElementById('taskGraphDetails');
+                    const detailsContent = document.getElementById('taskGraphDetailsContent');
+
+                    if (!detailsPanel || !detailsContent) return;
+
+                    detailsPanel.style.display = 'block';
+                    detailsContent.innerHTML = `
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+                            <div class="detail-panel" style="border-left: 4px solid #10b981;">
+                                <div class="detail-label">Task ID</div>
+                                <div class="stat-value">${node.id}</div>
+                            </div>
+                            <div class="detail-panel" style="border-left: 4px solid #3b82f6;">
+                                <div class="detail-label">Task Name</div>
+                                <div class="stat-value" style="font-size: 1.2rem;">${node.name || 'N/A'}</div>
+                            </div>
+                            <div class="detail-panel" style="border-left: 4px solid #f59e0b;">
+                                <div class="detail-label">Memory Usage</div>
+                                <div class="stat-value">${Utils.formatBytes(node.memory_usage)}</div>
+                            </div>
+                            <div class="detail-panel" style="border-left: 4px solid #8b5cf6;">
+                                <div class="detail-label">Allocations</div>
+                                <div class="stat-value">${node.allocation_count}</div>
+                            </div>
+                            <div class="detail-panel" style="border-left: 4px solid #10b981;">
+                                <div class="detail-label">Status</div>
+                                <div class="stat-value" style="color: ${node.status === 'Running' ? '#10b981' : '#64748b'};">${node.status}</div>
+                            </div>
+                        </div>
+                    `;
+                }
             },
 
             relationships: {
-                showAll: false, filteredData: [],
-                toggle() { const wrapper = document.getElementById('relTableWrapper'); const btn = document.getElementById('toggleRelBtn'); this.showAll = !this.showAll; if (this.showAll) { wrapper.style.maxHeight = 'none'; wrapper.style.overflow = 'visible'; btn.textContent = '▲ Collapse'; } else { wrapper.style.maxHeight = '300px'; wrapper.style.overflow = 'auto'; btn.textContent = '▼ Expand'; } },
-                sort() { const sortBy = document.getElementById('relSortOrder').value; this.filteredData.sort((a, b) => { switch (sortBy) { case 'strength-desc': return (b.strength || 0.5) - (a.strength || 0.5); case 'strength-asc': return (a.strength || 0.5) - (b.strength || 0.5); case 'type': return (a.relationship_type || '').localeCompare(b.relationship_type || ''); case 'source': return (a.source_var_name || '').localeCompare(b.source_var_name || ''); default: return 0; } }); this.render(); },
-                render() { const tbody = document.getElementById('relationshipsBody'); tbody.innerHTML = this.filteredData.map(r => `<tr><td>${r.source_var_name || ('Ptr ' + r.source_ptr) || 'N/A'}</td><td>${r.target_var_name || ('Ptr ' + r.target_ptr) || 'N/A'}</td><td><span class="badge badge-info">${r.relationship_type || 'reference'}</span></td><td>${r.type_name || 'Unknown'}</td><td>${(((r.strength || 0.5) * 100)).toFixed(0)}%</td></tr>`).join(''); },
-                init() { const relationships = data.relationships || []; this.filteredData = [...relationships]; document.getElementById('relationshipCount2').textContent = relationships.length + ' relationships'; if (relationships.length === 0) { document.getElementById('relationshipsBody').innerHTML = '<tr><td colspan="5" class="empty-state">No relationship data</td></tr>'; return; } this.sort(); }
+                showAll: false,
+                filteredData: [],
+                toggle() {
+                    const wrapper = document.getElementById('relTableWrapper');
+                    const btn = document.getElementById('toggleRelBtn');
+                    this.showAll = !this.showAll;
+                    if (this.showAll) {
+                        wrapper.style.maxHeight = 'none';
+                        wrapper.style.overflow = 'visible';
+                        btn.textContent = '▲ Collapse';
+                    } else {
+                        wrapper.style.maxHeight = '300px';
+                        wrapper.style.overflow = 'auto';
+                        btn.textContent = '▼ Expand';
+                    }
+                },
+                sort() {
+                    const sortEl = document.getElementById('relSortOrder');
+                    if (!sortEl) return;
+                    const sortBy = sortEl.value;
+                    this.filteredData.sort((a, b) => {
+                        switch (sortBy) {
+                            case 'strength-desc':
+                                return (b.strength || 0.5) - (a.strength || 0.5);
+                            case 'strength-asc':
+                                return (a.strength || 0.5) - (b.strength || 0.5);
+                            case 'type':
+                                return (a.relationship_type || '').localeCompare(b.relationship_type || '');
+                            case 'source':
+                                return (a.source_var_name || '').localeCompare(b.source_var_name || '');
+                            default:
+                                return 0;
+                        }
+                    });
+                    this.render();
+                },
+                render() {
+                    const tbody = document.getElementById('relationshipsBody');
+                    tbody.innerHTML = this.filteredData.map(r =>
+                        `<tr><td>${r.source_var_name || ('Ptr ' + r.source_ptr) || 'N/A'}</td><td>${r.target_var_name || ('Ptr ' + r.target_ptr) || 'N/A'}</td><td><span class="badge badge-info">${r.relationship_type || 'reference'}</span></td><td>${r.type_name || 'Unknown'}</td><td>${(((r.strength || 0.5) * 100)).toFixed(0)}%</td></tr>`
+                    ).join('');
+                },
+                init() {
+                    const relationships = data.relationships || [];
+                    this.filteredData = [...relationships];
+                    document.getElementById('relationshipCount2').textContent = relationships.length + ' relationships';
+                    if (relationships.length === 0) {
+                        document.getElementById('relationshipsBody').innerHTML = '<tr><td colspan="5" class="empty-state">No relationship data</td></tr>';
+                        return;
+                    }
+                    this.sort();
+                }
             },
 
             passports: {
                 filteredData: [],
-                sort() { const sortBy = document.getElementById('passportSortOrder').value; this.filteredData.sort((a, b) => { switch (sortBy) { case 'size-desc': return (b.size_bytes || 0) - (a.size_bytes || 0); case 'size-asc': return (a.size_bytes || 0) - (b.size_bytes || 0); case 'lifetime-desc': return (b.lifetime_ms || 0) - (a.lifetime_ms || 0); case 'lifetime-asc': return (a.lifetime_ms || 0) - (b.lifetime_ms || 0); default: return 0; } }); this.render(); },
+                sort() {
+                    const sortEl = document.getElementById('passportSortOrder');
+                    if (!sortEl) return;
+                    const sortBy = sortEl.value;
+                    this.filteredData.sort((a, b) => {
+                        switch (sortBy) {
+                            case 'size-desc':
+                                return (b.size_bytes || 0) - (a.size_bytes || 0);
+                            case 'size-asc':
+                                return (a.size_bytes || 0) - (b.size_bytes || 0);
+                            case 'lifetime-desc':
+                                return (b.lifetime_ms || 0) - (a.lifetime_ms || 0);
+                            case 'lifetime-asc':
+                                return (a.lifetime_ms || 0) - (b.lifetime_ms || 0);
+                            default:
+                                return 0;
+                        }
+                    });
+                    this.render();
+                },
                 render() {
                     const container = document.getElementById('passportCardContainer');
                     const timeline = document.getElementById('passportTimeline');
@@ -1851,7 +2256,16 @@
                         });
                     }
                 },
-                init() { const passports = data.passport_details || []; this.filteredData = [...passports]; document.getElementById('passportBadge').textContent = passports.length + ' passports'; if (passports.length === 0) { document.getElementById('passportCardContainer').innerHTML = '<div class="empty-state">No passport data</div>'; return; } this.render(); }
+                init() {
+                    const passports = data.passport_details || [];
+                    this.filteredData = [...passports];
+                    document.getElementById('passportBadge').textContent = passports.length + ' passports';
+                    if (passports.length === 0) {
+                        document.getElementById('passportCardContainer').innerHTML = '<div class="empty-state">No passport data</div>';
+                        return;
+                    }
+                    this.render();
+                }
             },
 
             unsafe: {
@@ -1860,7 +2274,12 @@
                     const container = document.getElementById('unsafeReportsContainer');
                     const unsafeReports = data.unsafe_reports || [];
                     document.getElementById('unsafeBadge').textContent = unsafeReports.length + ' reports';
-                    if (unsafeReports.length === 0) { container.innerHTML = '<div class="empty-state">✅ No high risk operations detected</div>'; document.getElementById('lifecycleFlowContainer').innerHTML = '<div class="empty-state">No lifecycle data available</div>'; document.getElementById('lifecycleFlowCount').textContent = '0 flows'; return; }
+                    if (unsafeReports.length === 0) {
+                        container.innerHTML = '<div class="empty-state">✅ No high risk operations detected</div>';
+                        document.getElementById('lifecycleFlowContainer').innerHTML = '<div class="empty-state">No lifecycle data available</div>';
+                        document.getElementById('lifecycleFlowCount').textContent = '0 flows';
+                        return;
+                    }
                     const highRisk = unsafeReports.filter(r => r.risk_level === 'high').slice(0, 10);
                     if (highRisk.length === 0) container.innerHTML = '<div class="empty-state">✅ No high risk operations</div>';
                     else container.innerHTML = highRisk.map(r => `<div class="detail-panel" style="border-left: 4px solid var(--danger); margin-bottom: 12px;"><div style="display: flex; justify-content: space-between; align-items: center;"><h4 style="color: var(--danger); margin: 0;">⚠️ ${r.var_name || 'unknown'}</h4><span class="badge badge-danger">High Risk</span></div><div style="margin-top: 12px; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px;"><div><span class="detail-label">Address</span><div class="detail-value">${r.allocation_ptr || 'N/A'}</div></div><div><span class="detail-label">Type</span><div class="detail-value">${r.type_name || 'Unknown'}</div></div><div><span class="detail-label">Size</span><div class="detail-value">${Utils.formatBytes(parseInt(r.size_bytes) || 0)}</div></div><div><span class="detail-label">Status</span><div class="detail-value">${r.status || 'unknown'}</div></div></div>${r.risk_factors && r.risk_factors.length > 0 ? `<div style="margin-top: 12px;"><span class="detail-label">Risk Factors:</span><ul style="margin: 8px 0 0 20px; color: var(--danger);">${r.risk_factors.map(f => `<li>${f}</li>`).join('')}</ul></div>` : ''}</div>`).join('');
@@ -2031,7 +2450,15 @@
                     if (leakedEl) leakedEl.textContent = leaked;
                 },
                 showDetail(address) { const alloc = data.allocations?.find(a => a.address === address); if (!alloc) { alert('Allocation not found: ' + address); return; } document.getElementById('timetravelDetail').style.display = 'block'; document.getElementById('ttAddress').textContent = address; document.getElementById('ttVarName').textContent = alloc.var_name || 'unknown'; document.getElementById('ttType').textContent = alloc.type_name || 'Unknown'; document.getElementById('ttSize').textContent = Utils.formatBytes(parseInt(alloc.size) || 0); document.getElementById('ttStatus').innerHTML = alloc.is_leaked ? '<span class="badge badge-danger">Leaked</span>' : '<span class="badge badge-success">Normal</span>'; const timeline = document.getElementById('ttTimeline'); const events = [{ type: 'alloc', time: alloc.timestamp_alloc || 0, desc: 'Allocation', icon: '➕' }]; if (alloc.timestamp_dealloc > 0) events.push({ type: 'dealloc', time: alloc.timestamp_dealloc, desc: 'Deallocation', icon: '➖' }); if (alloc.is_leaked) events.push({ type: 'leak', time: (alloc.timestamp_alloc || 0) + parseInt(alloc.lifetime_ms || 0) * 1000000, desc: 'Leak Detected', icon: '⚠️' }); timeline.innerHTML = events.map(e => `<div class="timeline-item ${e.type}"><strong>${e.icon} ${e.desc}</strong><div style="color: var(--text2); font-size: 0.85rem;">Timestamp: ${e.time} | Delta: +${Utils.formatTime(e.time - events[0].time)}</div></div>`).join(''); },
-                init() { const allocations = data.allocations || []; this.filteredData = [...allocations]; if (allocations.length === 0) { document.getElementById('timetravelBody').innerHTML = '<tr><td colspan="8" class="empty-state">No allocation data</td></tr>'; return; } this.sort(); }
+                init() {
+                    const allocations = data.allocations || [];
+                    this.filteredData = [...allocations];
+                    if (allocations.length === 0) {
+                        document.getElementById('timetravelBody').innerHTML = '<tr><td colspan="8" class="empty-state">No allocation data</td></tr>';
+                        return;
+                    }
+                    this.sort();
+                }
             },
 
             tasks: {
@@ -2421,6 +2848,9 @@
 
             if (mode === 'variable') {
                 setTimeout(() => Dashboard.variableGraph.init(), 100);
+            }
+            if (mode === 'taskgraph') {
+                setTimeout(() => Dashboard.taskGraph.init(), 100);
             }
         }
 

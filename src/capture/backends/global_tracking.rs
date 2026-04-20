@@ -105,11 +105,18 @@ impl GlobalTracker {
     }
 
     pub fn track<T: crate::Trackable>(&self, var: &T) {
-        self.track_as(var, "unknown", "", 0);
+        self.track_as(var, "unknown", "", 0, "");
     }
 
-    pub fn track_as<T: crate::Trackable>(&self, var: &T, name: &str, file: &str, line: u32) {
-        self.tracker.track_as(var, name, file, line);
+    pub fn track_as<T: crate::Trackable>(
+        &self,
+        var: &T,
+        name: &str,
+        file: &str,
+        line: u32,
+        module_path: &str,
+    ) {
+        self.tracker.track_as(var, name, file, line, module_path);
 
         if let Some(task_id) = AsyncTracker::get_current_task() {
             let kind = var.track_kind();
@@ -124,6 +131,18 @@ impl GlobalTracker {
                     None,
                 );
             }
+        }
+
+        let kind = var.track_kind();
+        if let crate::core::types::TrackKind::HeapOwner { ptr, size: _ } = kind {
+            let borrow_analyzer = crate::analysis::borrow_analysis::get_global_borrow_analyzer();
+            let type_name = var.get_type_name();
+            let borrow_type = if type_name.contains("Mutex") || type_name.contains("Cell") {
+                crate::analysis::borrow_analysis::BorrowType::Mutable
+            } else {
+                crate::analysis::borrow_analysis::BorrowType::Immutable
+            };
+            let _ = borrow_analyzer.track_borrow(ptr, borrow_type, name);
         }
     }
 
@@ -592,6 +611,6 @@ mod tests {
     fn test_global_tracker_track_as() {
         let tracker = GlobalTracker::new();
         let value = String::from("test_value");
-        tracker.track_as(&value, "test_var", "test.rs", 10);
+        tracker.track_as(&value, "test_var", "test.rs", 10, "test_module");
     }
 }

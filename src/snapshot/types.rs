@@ -26,6 +26,10 @@ pub struct ActiveAllocation {
     pub thread_id: u64,
     /// Optional call stack hash for clone detection
     pub call_stack_hash: Option<u64>,
+    /// Module path (from module_path!())
+    pub module_path: Option<String>,
+    /// Stack pointer (for StackOwner types like Arc/Rc)
+    pub stack_ptr: Option<usize>,
 }
 
 /// Memory statistics for a snapshot
@@ -96,15 +100,13 @@ impl MemorySnapshot {
     }
 
     /// Build a MemorySnapshot from a list of AllocationInfo (capture module type)
-    pub fn from_allocation_infos(
-        allocations: Vec<crate::capture::backends::core_types::AllocationInfo>,
-    ) -> Self {
+    pub fn from_allocation_infos(allocations: Vec<crate::capture::types::AllocationInfo>) -> Self {
         let mut snapshot = Self::new();
         let mut thread_stats: HashMap<u64, ThreadMemoryStats> = HashMap::new();
         let mut current_memory: usize = 0;
 
         for alloc in allocations {
-            let thread_id = alloc.thread_id;
+            let thread_id = alloc.thread_id_u64;
 
             let active_alloc = ActiveAllocation {
                 ptr: Some(alloc.ptr),
@@ -113,11 +115,13 @@ impl MemorySnapshot {
                     ptr: alloc.ptr,
                     size: alloc.size,
                 },
-                allocated_at: alloc.allocated_at_ns,
+                allocated_at: alloc.timestamp_alloc,
                 var_name: alloc.var_name,
                 type_name: alloc.type_name,
                 thread_id,
                 call_stack_hash: None,
+                module_path: alloc.module_path,
+                stack_ptr: None,
             };
 
             current_memory += alloc.size;
@@ -203,6 +207,8 @@ mod tests {
             type_name: Some("Vec<u8>".to_string()),
             thread_id: 1,
             call_stack_hash: None,
+            module_path: None,
+            stack_ptr: None,
         };
 
         assert_eq!(alloc.ptr, Some(0x1000));
@@ -224,6 +230,8 @@ mod tests {
             type_name: None,
             thread_id: 1,
             call_stack_hash: None,
+            module_path: None,
+            stack_ptr: None,
         };
 
         let cloned = alloc.clone();
@@ -244,6 +252,8 @@ mod tests {
             type_name: None,
             thread_id: 1,
             call_stack_hash: None,
+            module_path: None,
+            stack_ptr: None,
         };
 
         let debug_str = format!("{:?}", alloc);
@@ -323,6 +333,8 @@ mod tests {
                 type_name: None,
                 thread_id: 1,
                 call_stack_hash: None,
+                module_path: None,
+                stack_ptr: Some(0x2000), // Add stack_ptr field
             },
         );
 
@@ -372,6 +384,8 @@ mod tests {
             type_name: Some("i32".to_string()),
             thread_id: 1,
             call_stack_hash: Some(12345),
+            module_path: Some("test_module".to_string()),
+            stack_ptr: None,
         };
 
         let json = serde_json::to_string(&alloc);

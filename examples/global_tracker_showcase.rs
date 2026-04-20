@@ -5,7 +5,9 @@
 //! - Multi-threaded mode
 //! - Async mode
 //! - Unsafe/FFI mode
+//! - Task tracking with TaskIdRegistry
 
+use memscope_rs::task_registry::global_registry;
 use memscope_rs::{analyzer, global_tracker, init_global_tracking, MemScopeResult};
 
 use memscope_rs::track;
@@ -189,7 +191,50 @@ fn main() -> MemScopeResult<()> {
         cycle_start.elapsed().as_secs_f64() * 1000.0
     );
 
-    println!("📦 Section 6: Statistics\n");
+    println!("📦 Section 6: Task Tracking with TaskIdRegistry\n");
+    let registry = global_registry();
+    let task_start = Instant::now();
+    {
+        let tracker = global_tracker()?;
+
+        println!("  Demonstrating task hierarchy tracking...");
+
+        // Simplified API - automatic lifecycle management
+        {
+            let _main = registry.task_scope("main_process");
+            println!("  ✓ Created main task");
+
+            // Allocate memory in main task
+            let main_data = vec![1i32, 2, 3, 4, 5];
+            track!(tracker, main_data);
+
+            {
+                let _worker = registry.task_scope("worker_thread");
+                println!("  ✓ Created child task (parent: main)");
+
+                // Allocate memory in child task
+                let child_data = vec![10i32, 20, 30];
+                track!(tracker, child_data);
+
+                {
+                    let _sub_worker = registry.task_scope("sub_worker");
+                    println!("  ✓ Created grandchild task (parent: worker)");
+
+                    // Allocate memory in grandchild task
+                    let grandchild_data = String::from("Grandchild data");
+                    track!(tracker, grandchild_data);
+                } // sub_worker automatically completed
+            } // worker automatically completed
+        } // main automatically completed
+
+        println!("  ✓ Created task hierarchy: main -> worker -> sub_worker");
+    }
+    println!(
+        "  Duration: {:.2}ms\n",
+        task_start.elapsed().as_secs_f64() * 1000.0
+    );
+
+    println!("📦 Section 7: Statistics\n");
     let tracker = global_tracker()?;
     let stats = tracker.get_stats();
     println!("✓ Total allocations: {}", stats.total_allocations);
@@ -231,8 +276,15 @@ fn main() -> MemScopeResult<()> {
     // Export JSON files (simplified)
     tracker.export_json(output_path)?;
 
-    // Export HTML dashboard (simplified)
-    tracker.export_html(output_path)?;
+    // Export HTML dashboards (both templates)
+    tracker.export_html_with_template(
+        output_path,
+        memscope_rs::render_engine::export::DashboardTemplate::Unified,
+    )?;
+    tracker.export_html_with_template(
+        output_path,
+        memscope_rs::render_engine::export::DashboardTemplate::Final,
+    )?;
 
     println!("✓ Export successful!");
     println!("  memory_snapshots.json");
@@ -241,7 +293,8 @@ fn main() -> MemScopeResult<()> {
     println!("  unsafe_ffi_analysis.json");
     println!("  system_resources.json");
     println!("  async_analysis.json");
-    println!("  dashboard.html");
+    println!("  dashboard_unified_dashboard.html");
+    println!("  dashboard_final_dashboard.html");
 
     println!("\n✓ All modes completed successfully!");
     println!(

@@ -506,6 +506,7 @@ mod tests {
             stack_trace: None,
             is_leaked: false,
             lifetime_ms: None,
+            module_path: None,
             borrow_info: None,
             clone_info: None,
             ownership_history_available: false,
@@ -524,6 +525,8 @@ mod tests {
             lifecycle_tracking: None,
             access_tracking: None,
             drop_chain_analysis: None,
+            stack_ptr: None,
+            task_id: None,
         }
     }
 

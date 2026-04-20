@@ -419,11 +419,10 @@ impl AggregatedTaskStats {
         format!(
             "Tasks: {} ({}% complete), Memory: {:.2}MB allocated, {:.2}MB current, {:.1}% efficiency, {} potential leaks",
             self.total_tasks,
-            if self.total_tasks > 0 {
-                self.completed_tasks * 100 / self.total_tasks
-            } else {
-                0
-            },
+            self.completed_tasks
+                .checked_mul(100)
+                .and_then(|v| v.checked_div(self.total_tasks))
+                .unwrap_or(0),
             self.total_memory_allocated as f64 / 1_048_576.0,
             self.current_memory_usage as f64 / 1_048_576.0,
             self.overall_efficiency * 100.0,

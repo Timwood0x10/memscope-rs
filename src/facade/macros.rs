@@ -11,6 +11,7 @@ use std::thread;
 pub fn get_heap_ptr_if_trackable<T: crate::Trackable>(value: &T) -> Option<usize> {
     match value.track_kind() {
         crate::TrackKind::HeapOwner { ptr, size: _ } => Some(ptr),
+        crate::TrackKind::StackOwner { heap_ptr, .. } => Some(heap_ptr),
         crate::TrackKind::Container | crate::TrackKind::Value => None,
     }
 }

@@ -221,7 +221,14 @@ impl Tracker {
         self
     }
 
-    pub fn track_as<T: crate::Trackable>(&self, var: &T, name: &str, file: &str, line: u32) {
+    pub fn track_as<T: crate::Trackable>(
+        &self,
+        var: &T,
+        name: &str,
+        file: &str,
+        line: u32,
+        module_path: &str,
+    ) {
         if let Ok(cfg) = self.config.lock() {
             if cfg.sampling.sample_rate < 1.0 {
                 use std::collections::hash_map::DefaultHasher;
@@ -246,10 +253,47 @@ impl Tracker {
             }
         }
 
-        self.track_inner(var, name, file, line);
+        self.track_inner(var, name, file, line, module_path);
     }
 
-    fn track_inner<T: crate::Trackable>(&self, var: &T, name: &str, file: &str, line: u32) {
+    #[allow(clippy::too_many_arguments)]
+    /// Track a clone operation
+    pub fn track_clone(
+        &self,
+        source_ptr: usize,
+        target_ptr: usize,
+        size: usize,
+        var_name: Option<String>,
+        type_name: Option<String>,
+        file: &str,
+        line: u32,
+        module_path: &str,
+    ) {
+        let thread_id_u64 = crate::utils::current_thread_id_u64();
+
+        let mut event = crate::event_store::MemoryEvent::clone_event(
+            source_ptr,
+            target_ptr,
+            size,
+            thread_id_u64,
+            var_name,
+            type_name,
+        );
+        event.source_file = Some(file.to_string());
+        event.source_line = Some(line);
+        event.module_path = Some(module_path.to_string());
+
+        self.event_store.record(event);
+    }
+
+    fn track_inner<T: crate::Trackable>(
+        &self,
+        var: &T,
+        name: &str,
+        file: &str,
+        line: u32,
+        module_path: &str,
+    ) {
         let type_name = var.get_type_name().to_string();
         let kind = var.track_kind();
 
@@ -268,6 +312,7 @@ impl Tracker {
                 event.type_name = Some(type_name.clone());
                 event.source_file = Some(file.to_string());
                 event.source_line = Some(line);
+                event.module_path = Some(module_path.to_string());
                 self.event_store.record(event);
 
                 if let Err(e) = self.inner.associate_var(
@@ -278,6 +323,45 @@ impl Tracker {
                     Some(line),
                 ) {
                     tracing::error!("Failed to associate var '{}' at ptr {:x}: {}", name, ptr, e);
+                }
+            }
+            crate::core::types::TrackKind::StackOwner {
+                ptr: stack_ptr,
+                heap_ptr,
+                size,
+            } => {
+                // StackOwner records stack pointer metadata for clone detection
+                // Use stack_ptr as key for track_allocation to avoid overwriting Arc clones
+                // This allows inner tracker to count allocations while preserving clone detection
+
+                if let Err(e) = self.inner.track_allocation(stack_ptr, size) {
+                    tracing::error!("Failed to track allocation at ptr {:x}: {}", stack_ptr, e);
+                    return;
+                }
+
+                let mut event = MemoryEvent::allocate(heap_ptr, size, thread_id_u64);
+                event.var_name = Some(name.to_string());
+                event.type_name = Some(type_name.clone());
+                event.source_file = Some(file.to_string());
+                event.source_line = Some(line);
+                event.module_path = Some(module_path.to_string());
+                // Store stack pointer in custom metadata for clone detection
+                event.stack_ptr = Some(stack_ptr);
+                self.event_store.record(event);
+
+                if let Err(e) = self.inner.associate_var(
+                    heap_ptr,
+                    name.to_string(),
+                    type_name,
+                    Some(file),
+                    Some(line),
+                ) {
+                    tracing::error!(
+                        "Failed to associate var '{}' at ptr {:x}: {}",
+                        name,
+                        heap_ptr,
+                        e
+                    );
                 }
             }
             crate::core::types::TrackKind::Container | crate::core::types::TrackKind::Value => {
@@ -291,6 +375,7 @@ impl Tracker {
                 );
                 event.source_file = Some(file.to_string());
                 event.source_line = Some(line);
+                event.module_path = Some(module_path.to_string());
                 self.event_store.record(event);
             }
         }
@@ -468,6 +553,18 @@ impl Default for Tracker {
 
 impl Drop for Tracker {
     fn drop(&mut self) {
+        // Auto-record deallocation for all active allocations
+        let events = self.event_store().snapshot();
+        let allocations = rebuild_allocations_from_events(&events);
+
+        // Record deallocation events for all active allocations
+        let thread_id_u64 = crate::utils::current_thread_id_u64();
+
+        for alloc in &allocations {
+            let event = MemoryEvent::deallocate(alloc.ptr, alloc.size, thread_id_u64);
+            self.event_store().record(event);
+        }
+
         if let Ok(cfg) = self.config.lock() {
             if cfg.auto_export_on_drop {
                 if let Some(ref path) = cfg.export_path {
@@ -534,7 +631,28 @@ macro_rules! tracker {
 macro_rules! track {
     ($tracker:expr, $var:expr) => {{
         let var_name = stringify!($var);
-        $tracker.track_as(&$var, var_name, file!(), line!());
+        $tracker.track_as(&$var, var_name, file!(), line!(), module_path!());
+    }};
+}
+
+#[macro_export]
+macro_rules! track_clone {
+    ($tracker:expr, $source:expr, $target:expr) => {{
+        let source_name = stringify!($source);
+        let target_name = stringify!($target);
+        let source_ptr = &$source as *const _ as usize;
+        let target_ptr = &$target as *const _ as usize;
+        let type_name = $crate::utils::type_of(&$target);
+        $tracker.track_clone(
+            source_ptr,
+            target_ptr,
+            std::mem::size_of_val(&$target),
+            Some(target_name.to_string()),
+            Some(type_name.to_string()),
+            file!(),
+            line!(),
+            module_path!(),
+        );
     }};
 }
 
@@ -801,7 +919,7 @@ mod tests {
     fn test_tracker_with_sampling() {
         let tracker = Tracker::new().with_sampling(SamplingConfig::high_performance());
         let data = vec![1, 2, 3];
-        tracker.track_as(&data, "data", "test.rs", 1);
+        tracker.track_as(&data, "data", "test.rs", 1, "test_module");
     }
 
     #[test]
@@ -823,8 +941,8 @@ mod tests {
         let tracker = Tracker::new();
         let data = vec![1, 2, 3, 4, 5];
 
-        tracker.track_as(&data, "my_vec", "test.rs", 10);
-        tracker.track_as(&data, "my_vec", "test.rs", 20);
+        tracker.track_as(&data, "my_vec", "test.rs", 10, "test_module");
+        tracker.track_as(&data, "my_vec", "test.rs", 20, "test_module");
 
         let report = tracker.analyze();
         let _ = report.total_allocations;
@@ -873,7 +991,7 @@ mod tests {
             .with_system_monitoring();
 
         let data = vec![1, 2, 3];
-        tracker.track_as(&data, "data", "test.rs", 1);
+        tracker.track_as(&data, "data", "test.rs", 1, "test_module");
 
         let snapshot = tracker.current_system_snapshot();
         assert!(snapshot.cpu_usage_percent >= 0.0);
@@ -883,7 +1001,7 @@ mod tests {
     fn test_tracker_events() {
         let tracker = Tracker::new();
         let data = vec![1, 2, 3];
-        tracker.track_as(&data, "test_data", "test.rs", 1);
+        tracker.track_as(&data, "test_data", "test.rs", 1, "test_module");
 
         let events = tracker.events();
         assert!(!events.is_empty());
@@ -908,7 +1026,7 @@ mod tests {
     fn test_tracker_stats_with_data() {
         let tracker = Tracker::new();
         let data = vec![1u8; 1024];
-        tracker.track_as(&data, "buffer", "test.rs", 1);
+        tracker.track_as(&data, "buffer", "test.rs", 1, "test_module");
 
         let stats = tracker.stats();
         assert!(
@@ -934,7 +1052,7 @@ mod tests {
     fn test_tracker_with_auto_export() {
         let tracker = Tracker::new().with_auto_export("/tmp/test_export");
         let data = vec![1, 2, 3];
-        tracker.track_as(&data, "test", "test.rs", 1);
+        tracker.track_as(&data, "test", "test.rs", 1, "test_module");
     }
 
     #[test]
@@ -947,7 +1065,7 @@ mod tests {
 
         let tracker = Tracker::new().with_sampling(config);
         let data = vec![1, 2, 3];
-        tracker.track_as(&data, "test", "test.rs", 1);
+        tracker.track_as(&data, "test", "test.rs", 1, "test_module");
     }
 
     #[test]
@@ -1002,9 +1120,9 @@ mod tests {
         let data2 = vec![2u8; 200];
         let data3 = vec![3u8; 300];
 
-        tracker.track_as(&data1, "buffer1", "test.rs", 1);
-        tracker.track_as(&data2, "buffer2", "test.rs", 2);
-        tracker.track_as(&data3, "buffer3", "test.rs", 3);
+        tracker.track_as(&data1, "buffer1", "test.rs", 1, "test_module");
+        tracker.track_as(&data2, "buffer2", "test.rs", 2, "test_module");
+        tracker.track_as(&data3, "buffer3", "test.rs", 3, "test_module");
 
         let report = tracker.analyze();
         assert!(

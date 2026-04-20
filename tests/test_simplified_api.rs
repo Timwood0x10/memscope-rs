@@ -71,7 +71,13 @@ fn test_track_exact() -> Result<(), MemScopeError> {
 
     // Track with exact name
     let important_data = vec![10, 20, 30];
-    tracker.track_as(&important_data, "important_data", "test.rs", 42);
+    tracker.track_as(
+        &important_data,
+        "important_data",
+        "test.rs",
+        42,
+        "test_module",
+    );
 
     let stats = tracker.get_stats();
     // Verify that at least one allocation was tracked
