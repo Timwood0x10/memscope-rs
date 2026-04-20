@@ -152,7 +152,11 @@ impl DoubleFreeDetectorWithEvents {
                 } else {
                     freed_pointers.insert(
                         event.ptr,
-                        (event.timestamp, event.source_file.clone(), event.source_line),
+                        (
+                            event.timestamp,
+                            event.source_file.clone(),
+                            event.source_line,
+                        ),
                     );
                 }
             }

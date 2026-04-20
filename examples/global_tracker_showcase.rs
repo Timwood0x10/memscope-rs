@@ -276,8 +276,15 @@ fn main() -> MemScopeResult<()> {
     // Export JSON files (simplified)
     tracker.export_json(output_path)?;
 
-    // Export HTML dashboard (simplified)
-    tracker.export_html(output_path)?;
+    // Export HTML dashboards (both templates)
+    tracker.export_html_with_template(
+        output_path,
+        memscope_rs::render_engine::export::DashboardTemplate::Unified,
+    )?;
+    tracker.export_html_with_template(
+        output_path,
+        memscope_rs::render_engine::export::DashboardTemplate::Final,
+    )?;
 
     println!("✓ Export successful!");
     println!("  memory_snapshots.json");
@@ -286,7 +293,8 @@ fn main() -> MemScopeResult<()> {
     println!("  unsafe_ffi_analysis.json");
     println!("  system_resources.json");
     println!("  async_analysis.json");
-    println!("  dashboard.html");
+    println!("  dashboard_unified_dashboard.html");
+    println!("  dashboard_final_dashboard.html");
 
     println!("\n✓ All modes completed successfully!");
     println!(

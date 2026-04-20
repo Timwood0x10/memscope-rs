@@ -57,8 +57,10 @@ pub use types::{
 };
 
 // Re-export detectors
-pub use data_race_detector::{DataRaceDetector, DataRaceDetectorWithEvents, DataRaceConfig};
-pub use double_free_detector::{DoubleFreeDetector, DoubleFreeDetectorWithEvents, DoubleFreeConfig};
+pub use data_race_detector::{DataRaceConfig, DataRaceDetector, DataRaceDetectorWithEvents};
+pub use double_free_detector::{
+    DoubleFreeConfig, DoubleFreeDetector, DoubleFreeDetectorWithEvents,
+};
 pub use leak_detector::{LeakDetector, LeakDetectorConfig};
 pub use lifecycle_detector::{LifecycleDetector, LifecycleDetectorConfig};
 pub use overflow_detector::{OverflowDetector, OverflowDetectorConfig};

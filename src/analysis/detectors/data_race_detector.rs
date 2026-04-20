@@ -74,23 +74,22 @@ impl DataRaceDetector {
                     break;
                 }
 
-                if access1.thread_id != access2.thread_id {
-                    if access1.access_type == MemoryAccessType::Write
-                        || access2.access_type == MemoryAccessType::Write
-                    {
-                        return Some(Issue::critical(
-                            format!("DR-{:08x}", ptr),
-                            IssueCategory::Concurrency,
-                            format!(
-                                "Potential data race on pointer {:x}: thread {} and thread {} accessed concurrently within {}ns",
-                                ptr, access1.thread_id, access2.thread_id, time_diff
-                            ),
-                        )
-                        .with_allocation_ptr(ptr)
-                        .with_suggested_fix(
-                            "Use proper synchronization (Mutex, RwLock, atomic operations) or ensure proper memory ordering.".to_string(),
-                        ));
-                    }
+                if access1.thread_id != access2.thread_id
+                    && (access1.access_type == MemoryAccessType::Write
+                        || access2.access_type == MemoryAccessType::Write)
+                {
+                    return Some(Issue::critical(
+                        format!("DR-{:08x}", ptr),
+                        IssueCategory::Concurrency,
+                        format!(
+                            "Potential data race on pointer {:x}: thread {} and thread {} accessed concurrently within {}ns",
+                            ptr, access1.thread_id, access2.thread_id, time_diff
+                        ),
+                    )
+                    .with_allocation_ptr(ptr)
+                    .with_suggested_fix(
+                        "Use proper synchronization (Mutex, RwLock, atomic operations) or ensure proper memory ordering.".to_string(),
+                    ));
                 }
             }
         }
@@ -178,7 +177,9 @@ impl DataRaceDetectorWithEvents {
         let mut pointer_accesses: HashMap<usize, Vec<AccessRecord>> = HashMap::new();
 
         for event in events {
-            if event.event_type == MemoryEventType::Allocate || event.event_type == MemoryEventType::Deallocate {
+            if event.event_type == MemoryEventType::Allocate
+                || event.event_type == MemoryEventType::Deallocate
+            {
                 let access_type = match event.event_type {
                     MemoryEventType::Allocate => MemoryAccessType::Write,
                     _ => MemoryAccessType::Write,

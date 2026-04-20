@@ -64,6 +64,10 @@ pub enum Relation {
     ArcClone,
     /// A is an Rc clone of B (StackOwner-based Rc clone detection).
     RcClone,
+    /// A is an immutable borrow of B (&T).
+    ImmutableBorrow,
+    /// A is a mutable borrow of B (&mut T).
+    MutableBorrow,
 }
 
 impl std::fmt::Display for Relation {
@@ -77,6 +81,8 @@ impl std::fmt::Display for Relation {
             Relation::Evolution => write!(f, "Evolution"),
             Relation::ArcClone => write!(f, "ArcClone"),
             Relation::RcClone => write!(f, "RcClone"),
+            Relation::ImmutableBorrow => write!(f, "ImmutableBorrow"),
+            Relation::MutableBorrow => write!(f, "MutableBorrow"),
         }
     }
 }

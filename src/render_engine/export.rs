@@ -1458,6 +1458,8 @@ fn build_ownership_graph_from_allocations(
             Relation::Evolution => EdgeKind::Contains,
             Relation::ArcClone => EdgeKind::ArcClone,
             Relation::RcClone => EdgeKind::RcClone,
+            Relation::ImmutableBorrow => EdgeKind::SharedBorrow,
+            Relation::MutableBorrow => EdgeKind::MutBorrow,
         };
 
         graph.edges.push(crate::analysis::ownership_graph::Edge {

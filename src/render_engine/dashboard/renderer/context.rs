@@ -462,6 +462,8 @@ fn build_relationships(az: &mut Analyzer) -> Vec<RelationshipInfo> {
                 crate::analyzer::Relation::Evolution => ("evolution", "#06b6d4", 0.5),
                 crate::analyzer::Relation::ArcClone => ("Arc_clone", "#8b5cf6", 0.7),
                 crate::analyzer::Relation::RcClone => ("Rc_clone", "#10b981", 0.9),
+                crate::analyzer::Relation::ImmutableBorrow => ("immutable_borrow", "#3b82f6", 0.8),
+                crate::analyzer::Relation::MutableBorrow => ("mutable_borrow", "#f59e0b", 0.9),
             };
 
             let type_name = edge

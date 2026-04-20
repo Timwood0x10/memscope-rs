@@ -221,9 +221,9 @@ impl MemoryEvent {
             thread_id,
             var_name: None,
             type_name: Some(if is_mutable {
-                " borrow".to_string()
+                "mutable borrow".to_string()
             } else {
-                " borrow".to_string()
+                "immutable borrow".to_string()
             }),
             call_stack_hash: None,
             thread_name: None,

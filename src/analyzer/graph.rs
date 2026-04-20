@@ -130,6 +130,8 @@ impl GraphAnalysis {
                 Relation::Evolution => {}
                 Relation::ArcClone => clone_edges += 1,
                 Relation::RcClone => clone_edges += 1,
+                Relation::ImmutableBorrow => slice_edges += 1,
+                Relation::MutableBorrow => ownership_edges += 1,
             }
         }
 
@@ -204,10 +206,10 @@ impl GraphAnalysis {
         for event in &borrow_history {
             let borrow_relation = match event.borrow_info.borrow_type {
                 crate::analysis::borrow_analysis::BorrowType::Immutable => {
-                    crate::analysis::relation_inference::Relation::Slice
+                    crate::analysis::relation_inference::Relation::ImmutableBorrow
                 }
                 crate::analysis::borrow_analysis::BorrowType::Mutable => {
-                    crate::analysis::relation_inference::Relation::Owns
+                    crate::analysis::relation_inference::Relation::MutableBorrow
                 }
                 crate::analysis::borrow_analysis::BorrowType::Shared => {
                     crate::analysis::relation_inference::Relation::Shares
