@@ -191,7 +191,7 @@ impl GenericAnalyzer {
 
         let most_used_types: Vec<(String, usize)> = {
             let mut sorted: Vec<_> = type_usage.into_iter().collect();
-            sorted.sort_by(|a, b| b.1.cmp(&a.1));
+            sorted.sort_by_key(|b| std::cmp::Reverse(b.1));
             sorted.into_iter().take(10).collect()
         };
 

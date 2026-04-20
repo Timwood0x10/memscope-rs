@@ -25,7 +25,7 @@ impl TimelineReplay {
         let events = event_store.snapshot();
         // Sort events by timestamp
         let mut sorted_events = events;
-        sorted_events.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
+        sorted_events.sort_by_key(|a| a.timestamp);
 
         Self {
             position: 0,

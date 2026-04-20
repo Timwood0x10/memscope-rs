@@ -2294,7 +2294,7 @@ impl UnsafeFFITracker {
 
             // Get most active contexts
             let mut context_vec: Vec<_> = context_activity.into_iter().collect();
-            context_vec.sort_by(|a, b| b.1.cmp(&a.1));
+            context_vec.sort_by_key(|b| std::cmp::Reverse(b.1));
             stats.most_active_contexts = context_vec.into_iter().take(10).collect();
         }
 

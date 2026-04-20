@@ -44,7 +44,7 @@ impl MetricsAnalysis {
     pub fn top_by_size(&self, n: usize) -> Vec<AllocationMetric> {
         debug!("Getting top {} allocations by size", n);
         let mut allocs: Vec<_> = self.view.allocations();
-        allocs.sort_by(|a, b| b.size.cmp(&a.size));
+        allocs.sort_by_key(|a| std::cmp::Reverse(a.size));
         let result: Vec<AllocationMetric> = allocs
             .into_iter()
             .take(n)

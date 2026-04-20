@@ -36,7 +36,7 @@ impl TopNAnalyzer {
         }
 
         let mut result: Vec<_> = sites.into_values().collect();
-        result.sort_by(|a, b| b.total_bytes.cmp(&a.total_bytes));
+        result.sort_by_key(|b| std::cmp::Reverse(b.total_bytes));
         result.truncate(n);
         result
     }
@@ -56,7 +56,7 @@ impl TopNAnalyzer {
             })
             .collect();
 
-        leaked.sort_by(|a, b| b.size.cmp(&a.size));
+        leaked.sort_by_key(|b| std::cmp::Reverse(b.size));
         leaked.truncate(n);
         leaked
     }
@@ -86,7 +86,7 @@ impl TopNAnalyzer {
         }
 
         let mut result: Vec<_> = churn.into_values().collect();
-        result.sort_by(|a, b| b.allocation_count.cmp(&a.allocation_count));
+        result.sort_by_key(|b| std::cmp::Reverse(b.allocation_count));
         result.truncate(n);
         result
     }

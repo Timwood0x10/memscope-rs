@@ -60,11 +60,9 @@ impl ViewStats {
 
     /// Get average allocation size.
     pub fn avg_allocation_size(&self) -> usize {
-        if self.allocation_count == 0 {
-            0
-        } else {
-            self.total_bytes / self.allocation_count
-        }
+        self.total_bytes
+            .checked_div(self.allocation_count)
+            .unwrap_or(0)
     }
 
     /// Get memory efficiency (peak vs current).
