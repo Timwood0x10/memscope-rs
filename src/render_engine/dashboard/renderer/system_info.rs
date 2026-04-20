@@ -1,5 +1,6 @@
 //! System information gathering for dashboard.
 
+#[allow(unused)]
 use super::helpers::format_bytes;
 use super::types::SystemResources;
 
