@@ -435,7 +435,7 @@ If you need perfect accuracy, look elsewhere. If you want to explore what's poss
 
 ## License
 
-MIT OR Apache-2.0
+Apache-2.0
 
 ---
 
