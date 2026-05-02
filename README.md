@@ -1,5 +1,13 @@
 # memscope-rs
 
+```shell
+┳┳┓           ┏┓            
+┃┃┃┏┓┏┳┓┏┓┏┓┓┏┗┓┏┏┓┏┓┏┓━━┏┓┏
+┛ ┗┗ ┛┗┗┗┛┛ ┗┫┗┛┗┗┛┣┛┗   ┛ ┛
+             ┛     ┛        
+```
+
+
 > **🚀 Production-Ready** | A high-performance Rust memory analyzer with real data tracking.
 
 **[Why memscope-rs Exists](docs/TOUser/letter_en.md)** — Rust deserves honest memory tooling.
