@@ -704,6 +704,7 @@ mod tests {
             drop_chain_analysis: None,
             stack_ptr: None,
             task_id: None,
+            generation_id: 0,
         };
 
         let allocation_b = AllocationInfo {
@@ -741,6 +742,7 @@ mod tests {
             drop_chain_analysis: None,
             stack_ptr: None,
             task_id: None,
+            generation_id: 0,
         };
 
         graph.smart_pointers.insert(0x1000, smart_info_a);
@@ -811,6 +813,7 @@ mod tests {
             module_path: None,
             stack_ptr: None,
             task_id: None,
+            generation_id: 0,
         }];
         let graph = ReferenceGraph::new(&allocations_without_smart);
 
@@ -876,6 +879,7 @@ mod tests {
             module_path: None,
             stack_ptr: None,
             task_id: None,
+            generation_id: 0,
         }];
 
         let graph = ReferenceGraph::new(&allocations_with_smart);
@@ -950,6 +954,7 @@ mod tests {
             module_path: None,
             stack_ptr: None,
             task_id: None,
+            generation_id: 0,
         }];
 
         let graph = ReferenceGraph::new(&allocations_with_weak);

@@ -19,6 +19,7 @@ pub fn rebuild_allocations_from_events(
     let mut active_allocations: Vec<AllocationInfo> = Vec::new();
     let mut container_allocations: Vec<AllocationInfo> = Vec::new();
     let mut clone_info_map: HashMap<usize, crate::capture::types::CloneInfo> = HashMap::new();
+    let mut ptr_generations: HashMap<usize, usize> = HashMap::new();
 
     for event in events {
         match event.event_type {
@@ -27,6 +28,11 @@ pub fn rebuild_allocations_from_events(
                     .source_file
                     .as_ref()
                     .map(|file| format!("{}:{}", file, event.source_line.unwrap_or(0)));
+                let generation = {
+                    let entry = ptr_generations.entry(event.ptr).or_insert(0);
+                    *entry += 1;
+                    *entry
+                };
                 let mut alloc = AllocationInfo::new(event.ptr, event.size);
                 alloc.timestamp_alloc = event.timestamp;
                 alloc.var_name = event.var_name.clone();
@@ -36,6 +42,7 @@ pub fn rebuild_allocations_from_events(
                 alloc.stack_trace = stack_trace.map(|s| vec![s]);
                 alloc.module_path = event.module_path.clone();
                 alloc.stack_ptr = event.stack_ptr;
+                alloc.generation_id = generation;
                 active_allocations.push(alloc);
             }
             MemoryEventType::Metadata => {

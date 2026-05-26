@@ -68,6 +68,8 @@ pub fn build_allocation_info(
                     .and_then(|s| s.first())
                     .and_then(|s| s.split(':').nth(1).and_then(|l| l.parse().ok())),
                 module_path: a.module_path.clone(),
+                generation_id: a.generation_id,
+                provenance: infer_provenance(a),
             }
         })
         .collect()
@@ -79,6 +81,23 @@ fn calculate_lifetime_ms(timestamp_alloc: u64, timestamp_dealloc: Option<u64>) -
         Some(dealloc) => (dealloc - timestamp_alloc) as f64 / 1_000_000.0,
         None => 0.0,
     }
+}
+
+/// Infer pointer provenance from allocation attributes
+fn infer_provenance(a: &crate::capture::types::AllocationInfo) -> String {
+    if a.smart_pointer_info.is_some() {
+        return "smart_pointer".to_string();
+    }
+    if a.clone_info.as_ref().map(|c| c.is_clone).unwrap_or(false) {
+        return "clone".to_string();
+    }
+    if a.is_leaked && a.generation_id > 0 {
+        return "reallocated_then_leaked".to_string();
+    }
+    if a.generation_id > 0 {
+        return "reallocation".to_string();
+    }
+    "allocator".to_string()
 }
 
 /// Build relationships from analyzer

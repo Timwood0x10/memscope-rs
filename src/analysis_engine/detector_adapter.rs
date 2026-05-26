@@ -62,6 +62,7 @@ fn active_to_allocation_info(active: &ActiveAllocation) -> AllocationInfo {
         drop_chain_analysis: None,
         stack_ptr: active.stack_ptr,
         task_id: None,
+        generation_id: 0,
     }
 }
 

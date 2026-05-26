@@ -219,6 +219,10 @@ pub struct AllocationInfo {
     pub source_line: Option<u32>,
     /// Module path where allocation occurred
     pub module_path: Option<String>,
+    /// Allocation generation id (incremented on pointer address reuse)
+    pub generation_id: usize,
+    /// Pointer provenance (allocator, clone, reallocation, FFI, unknown)
+    pub provenance: String,
 }
 
 /// Thread statistics for multithread dashboard

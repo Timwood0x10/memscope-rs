@@ -776,6 +776,8 @@ mod tests {
             source_file: None,
             source_line: None,
             module_path: None,
+            generation_id: 0,
+            provenance: String::new(),
         }];
 
         let data = to_legacy_binary_data(&context);

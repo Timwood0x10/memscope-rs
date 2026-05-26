@@ -300,6 +300,8 @@ mod tests {
             source_file: Some("src/main.rs".to_string()),
             source_line: Some(42),
             module_path: None,
+            generation_id: 0,
+            provenance: String::new(),
         };
 
         let index = build_data_index(&[alloc], &[], &[], &[]);

@@ -111,6 +111,8 @@ pub struct AllocationInfo {
     pub module_path: Option<String>,
     /// Stack pointer (for StackOwner types like Arc/Rc)
     pub stack_ptr: Option<usize>,
+    /// Allocation generation id — incremented on address reuse to prevent false ownership links
+    pub generation_id: usize,
     /// Task ID (for task-aware memory tracking)
     pub task_id: Option<u64>,
     /// Generic type information.
@@ -248,6 +250,7 @@ impl From<crate::core::types::AllocationInfo> for AllocationInfo {
             module_path: None, // core::types::AllocationInfo doesn't have module_path
             stack_ptr: None,
             task_id: None,
+            generation_id: 0, // core::types doesn't have generation_id
         }
     }
 }
@@ -289,6 +292,7 @@ impl From<crate::capture::backends::core_types::AllocationInfo> for AllocationIn
             drop_chain_analysis: None,
             stack_ptr: None,
             task_id: None,
+            generation_id: 0,
         }
     }
 }
@@ -622,6 +626,8 @@ impl<'de> Deserialize<'de> for AllocationInfo {
             access_tracking: Option<MemoryAccessTrackingInfo>,
             drop_chain_analysis: Option<DropChainAnalysis>,
             module_path: Option<String>,
+            #[serde(default)]
+            generation_id: usize,
         }
 
         let helper = AllocationInfoHelper::deserialize(deserializer)?;
@@ -669,6 +675,7 @@ impl<'de> Deserialize<'de> for AllocationInfo {
             module_path: helper.module_path,
             stack_ptr: None,
             task_id: None,
+            generation_id: helper.generation_id,
         })
     }
 }
@@ -746,6 +753,7 @@ impl AllocationInfo {
             module_path: None,
             stack_ptr: None,
             task_id: crate::task_registry::TaskIdRegistry::current_task_id(),
+            generation_id: 0,
         }
     }
 
