@@ -304,6 +304,7 @@ mod tests {
             provenance: String::new(),
             evidence: Default::default(),
             confidence: Default::default(),
+            layout_snapshot: None,
         };
 
         let index = build_data_index(&[alloc], &[], &[], &[]);

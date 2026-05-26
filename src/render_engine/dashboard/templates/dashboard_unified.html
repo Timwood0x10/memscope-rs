@@ -998,31 +998,6 @@
                 </div>
             </div>
 
-            <!-- Leak Path View -->
-            <div class="card" style="background: linear-gradient(135deg, #ef444410 0%, #ef444420 100%); border: 2px solid #ef444460;">
-                <div class="card-header">
-                    <h2 class="card-title" style="color: #ef4444;">🚨 Leak Path Subgraph</h2>
-                    <div class="flex-gap-2">
-                        <span class="badge badge-danger" id="leakPathCount">0 leaked nodes</span>
-                    </div>
-                </div>
-                <div style="background: #ef444410; border-radius: 8px; padding: 12px; margin-bottom: 12px; border: 1px solid #ef444430;">
-                    <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
-                        <span style="font-size: 1rem;">🔍</span>
-                        <span style="font-size: 0.85rem; color: var(--text2);">Leaked allocations and their immediate neighbors. Red = leaked, linked by shared ownership or cloning.</span>
-                        <button class="btn-sm" onclick="Dashboard.leakPath.resetZoom()">🔍 Reset</button>
-                    </div>
-                </div>
-                <div class="graph-container" id="leakPathGraphContainer" style="border: 1px solid var(--border); border-radius: 8px; background: var(--bg); min-height: 250px;">
-                    <div id="leakPathEmptyState" class="empty-state" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 30px;">
-                        <div style="font-size: 2.5rem; margin-bottom: 12px;">✅</div>
-                        <div style="font-size: 1rem; font-weight: 600; margin-bottom: 4px;">No Leaked Allocations</div>
-                        <div style="color: var(--text2); font-size: 0.85rem;">Leak path subgraph will appear here when leaks are detected.</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
         <!-- Passport Mode -->
         <div id="mode-passport" class="mode-section">
             <div class="card" style="background: linear-gradient(135deg, #8b5cf610 0%, #8b5cf620 100%); border: 2px solid #8b5cf6;">
@@ -1284,75 +1259,10 @@
                         <div id="ttProvenance" class="detail-value">-</div>
                     </div>
                 </div>
+                <h4 style="color: var(--text2); margin-bottom: 8px; margin-top: 12px;">📐 Type Layout</h4>
+                <div id="ttLayout" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin-bottom: 16px;"></div>
                 <h4 style="color: var(--text2); margin-bottom: 12px;">🔄 Lifecycle Events</h4>
                 <div class="timeline" id="ttTimeline"></div>
-            </div>
-
-            <!-- Playback Mode -->
-            <div class="card" style="background: linear-gradient(135deg, #06b6d410 0%, #06b6d420 100%); border: 2px solid #06b6d460;">
-                <div class="card-header">
-                    <h2 class="card-title" style="color: #06b6d4;">▶️ Playback Mode</h2>
-                    <span class="badge" style="background: #06b6d430; color: #06b6d4;">Replay Memory Events</span>
-                </div>
-                <div style="background: var(--bg2); border-radius: 8px; padding: 16px; margin-bottom: 16px; border: 1px solid var(--border);">
-                    <div style="display: flex; align-items: center; gap: 12px;">
-                        <span style="font-size: 2rem;">🎬</span>
-                        <div>
-                            <div style="font-weight: 600; color: var(--primary);">Replay the Timeline</div>
-                            <div style="color: var(--text2); font-size: 0.85rem;">
-                                Watch allocations come and go in real-time. Speed up to see the big picture, slow down to catch leaks as they happen.
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 12px; flex-wrap: wrap;">
-                    <div class="flex-gap-2">
-                        <button id="pbPlayBtn" class="btn-sm" style="background: #06b6d4; color: white; border: none; padding: 8px 20px; border-radius: 6px; cursor: pointer; font-weight: 500;" onclick="Dashboard.playback.toggle()">▶ Play</button>
-                        <button id="pbResetBtn" class="btn-sm" onclick="Dashboard.playback.reset()">⏹ Reset</button>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <span style="font-size: 0.85rem; color: var(--text2);">Speed:</span>
-                        <select id="pbSpeedSelect" class="input-sm" onchange="Dashboard.playback.setSpeed(parseFloat(this.value))" style="width: 80px;">
-                            <option value="0.5">0.5×</option>
-                            <option value="1" selected>1×</option>
-                            <option value="2">2×</option>
-                            <option value="5">5×</option>
-                            <option value="10">10×</option>
-                            <option value="20">20×</option>
-                            <option value="50">50×</option>
-                        </select>
-                    </div>
-                </div>
-                <div style="margin-bottom: 8px;">
-                    <input type="range" id="pbProgressSlider" min="0" max="100" value="0" oninput="Dashboard.playback.seek(parseInt(this.value))" style="width: 100%; accent-color: #06b6d4;">
-                    <div class="flex-between" style="font-size: 0.75rem; color: var(--text2);">
-                        <span id="pbTimeStart">T+0</span>
-                        <span id="pbTimeCurrent">T+0</span>
-                        <span id="pbTimeEnd">T+0</span>
-                    </div>
-                </div>
-                <div id="pbStatsGrid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px;">
-                    <div class="detail-panel" style="border-left: 4px solid #06b6d4; text-align: center;">
-                        <div style="font-size: 0.7rem; color: var(--text2);">⏱ Events Replayed</div>
-                        <div class="stat-value" style="color: #06b6d4; font-size: 1.1rem;" id="pbEventsReplayed">0</div>
-                    </div>
-                    <div class="detail-panel" style="border-left: 4px solid #3b82f6; text-align: center;">
-                        <div style="font-size: 0.7rem; color: var(--text2);">📦 Active</div>
-                        <div class="stat-value" style="color: #3b82f6; font-size: 1.1rem;" id="pbActiveCount">0</div>
-                    </div>
-                    <div class="detail-panel" style="border-left: 4px solid #10b981; text-align: center;">
-                        <div style="font-size: 0.7rem; color: var(--text2);">💾 Live Bytes</div>
-                        <div class="stat-value" style="color: #10b981; font-size: 1.1rem;" id="pbLiveBytes">0 B</div>
-                    </div>
-                    <div class="detail-panel" style="border-left: 4px solid #ef4444; text-align: center;">
-                        <div style="font-size: 0.7rem; color: var(--text2);">🚨 Leaks Seen</div>
-                        <div class="stat-value" style="color: #ef4444; font-size: 1.1rem;" id="pbLeaksSeen">0</div>
-                    </div>
-                    <div class="detail-panel" style="border-left: 4px solid #f59e0b; text-align: center;">
-                        <div style="font-size: 0.7rem; color: var(--text2);">📈 Peak Bytes</div>
-                        <div class="stat-value" style="color: #f59e0b; font-size: 1.1rem;" id="pbPeakBytes">0 B</div>
-                    </div>
-                </div>
             </div>
         </div>
 
@@ -2004,58 +1914,6 @@
                 }
             },
 
-            leakPath: {
-
-            leakPath: {
-                simulation: null,
-                svg: null,
-                zoom: null,
-                g: null,
-                init() {
-                    const container = document.getElementById('leakPathGraphContainer');
-                    const emptyState = document.getElementById('leakPathEmptyState');
-                    const countBadge = document.getElementById('leakPathCount');
-                    if (!container || !emptyState || !countBadge) return;
-                    const allocs = data.allocations || [];
-                    const leaked = allocs.filter(a => a.is_leaked);
-                    if (leaked.length === 0) { emptyState.style.display = 'flex'; container.innerHTML = ''; container.appendChild(emptyState); countBadge.textContent = '0 leaked'; return; }
-                    emptyState.style.display = 'none';
-                    container.innerHTML = '';
-                    countBadge.textContent = leaked.length + ' leaked nodes';
-                    const leakPtrs = new Set(leaked.map(a => a.address));
-                    const rels = data.relationships || [];
-                    const relevantPtrs = new Set(leakPtrs);
-                    rels.forEach(r => { if (leakPtrs.has(r.source_ptr)) relevantPtrs.add(r.target_ptr); if (leakPtrs.has(r.target_ptr)) relevantPtrs.add(r.source_ptr); });
-                    const nodeMap = new Map();
-                    relevantPtrs.forEach(ptr => {
-                        const alloc = DataIndex.allocationByPtr(ptr) || allocs.find(a => a.address === ptr);
-                        const rel = rels.find(r => r.source_ptr === ptr || r.target_ptr === ptr);
-                        const isLeaked = leakPtrs.has(ptr);
-                        nodeMap.set(ptr, { id: ptr, ptr, name: alloc ? (alloc.var_name || ptr.slice(-8)) : ptr.slice(-8), isLeaked, size: alloc ? (parseInt(alloc.size) || 0) : 0 });
-                    });
-                    const nodes = Array.from(nodeMap.values());
-                    const nodeIds = new Set(nodes.map(n => n.id));
-                    const links = rels.filter(r => nodeIds.has(r.source_ptr) && nodeIds.has(r.target_ptr) && (leakPtrs.has(r.source_ptr) || leakPtrs.has(r.target_ptr))).map(r => ({ source: r.source_ptr, target: r.target_ptr, type: r.relationship_type || 'reference', strength: r.strength || 0.5 }));
-                    const width = container.clientWidth || 600;
-                    const height = 250;
-                    this.svg = d3.select(container).append('svg').attr('width', '100%').attr('height', height).attr('viewBox', [0, 0, width, height]);
-                    this.zoom = d3.zoom().on('zoom', (event) => { if (this.g) this.g.attr('transform', event.transform); });
-                    this.svg.call(this.zoom);
-                    this.g = this.svg.append('g');
-                    const link = this.g.append('g').selectAll('line').data(links).join('line').attr('stroke', d => d.type === 'clone' ? '#10b981' : '#64748b').attr('stroke-width', d => 1 + d.strength * 2).attr('stroke-opacity', 0.5).attr('marker-end', 'url(#arrowhead)');
-                    const node = this.g.append('g').selectAll('g').data(nodes).join('g').attr('class', 'node').style('cursor', 'pointer').on('click', (event, d) => { if (d.isLeaked) Dashboard.timetravel.showDetail(d.ptr); });
-                    node.append('circle').attr('r', d => d.isLeaked ? 16 : 10).attr('fill', d => d.isLeaked ? '#ef4444' : '#f59e0b').attr('stroke', '#fff').attr('stroke-width', 2).attr('stroke-dasharray', d => d.isLeaked ? 'none' : '4,2');
-                    node.append('text').attr('dx', d => d.isLeaked ? 20 : 14).attr('dy', 4).text(d => d.name).style('font-size', '10px').style('fill', 'var(--text)').style('font-weight', d => d.isLeaked ? '600' : '400');
-                    const tooltip = d3.select('#tooltip');
-                    node.on('mouseover', (event, d) => {
-                        tooltip.style('display', 'block').html(`<div style="min-width:160px;"><div style="font-weight:600;margin-bottom:4px;color:${d.isLeaked ? '#ef4444' : '#f59e0b'};">${d.isLeaked ? '🚨 LEAKED' : 'Neighbor'}: ${d.name}</div><div style="font-size:12px;color:var(--text2);">Ptr: ${d.ptr}</div><div style="font-size:12px;color:var(--text2);">Size: ${Utils.formatBytes(d.size)}</div></div>`).style('left', (event.pageX + 15) + 'px').style('top', (event.pageY - 10) + 'px');
-                    }).on('mouseout', () => tooltip.style('display', 'none'));
-                    this.simulation = d3.forceSimulation(nodes).force('link', d3.forceLink(links).id(d => d.id).distance(100)).force('charge', d3.forceManyBody().strength(-250)).force('center', d3.forceCenter(width / 2, height / 2));
-                    this.simulation.on('tick', () => { link.attr('x1', d => d.source?.x || 0).attr('y1', d => d.source?.y || 0).attr('x2', d => d.target?.x || 0).attr('y2', d => d.target?.y || 0); node.attr('transform', d => `translate(${d.x || 0},${d.y || 0})`); });
-                },
-                resetZoom() { if (this.svg && this.zoom) this.svg.transition().duration(500).call(this.zoom.transform, d3.zoomIdentity); }
-            },
-
             allocations: {
                 showAll: false,
                 currentPage: 1,
@@ -2438,7 +2296,7 @@
                     if (!container) return;
 
                     const width = container.clientWidth || 800;
-                    const height = 400;
+                    const height = Math.max(400, container.clientHeight || 600);
 
                     container.innerHTML = '';
 
@@ -2480,7 +2338,44 @@
                         return;
                     }
 
-                    this.renderSimpleTree(svg, trees, width, height, 0, 0);
+                    const zoomGroup = svg.append('g').attr('class', 'zoom-group');
+
+                    const zoom = d3.zoom()
+                        .scaleExtent([0.1, 5])
+                        .on('zoom', (event) => {
+                            zoomGroup.attr('transform', event.transform);
+                        });
+
+                    svg.call(zoom);
+
+                    svg.on('dblclick.zoom', (event) => {
+                        event.preventDefault();
+                        svg.transition().duration(500).call(
+                            zoom.transform,
+                            d3.zoomIdentity,
+                            d3.pointer(event, svg.node())
+                        );
+                    });
+
+                    this.renderSimpleTree(zoomGroup, trees, width, height, 0, 0);
+
+                    setTimeout(() => {
+                        const bbox = zoomGroup.node()?.getBBox();
+                        if (bbox && bbox.width > 0 && bbox.height > 0) {
+                            const pad = 40;
+                            const scale = Math.min(
+                                (width - pad * 2) / bbox.width,
+                                (height - pad * 2) / bbox.height,
+                                1.5
+                            );
+                            const tx = (width - bbox.width * scale) / 2 - bbox.x * scale;
+                            const ty = (height - bbox.height * scale) / 2 - bbox.y * scale;
+                            svg.transition().duration(500).call(
+                                zoom.transform,
+                                d3.zoomIdentity.translate(tx, ty).scale(scale)
+                            );
+                        }
+                    }, 50);
                 },
 
                 renderSimpleTree(svg, trees, width, height, xOffset, yOffset) {
@@ -2492,11 +2387,12 @@
                     let currentX = xOffset;
                     let currentY = yOffset;
 
+                    let clickStartPos = null;
+
                     const renderNode = (node, x, y) => {
                         const g = svg.append('g')
                             .attr('transform', `translate(${x}, ${y})`)
-                            .style('cursor', 'pointer')
-                            .on('click', () => this.showTaskDetails(node));
+                            .style('cursor', 'pointer');
 
                         g.append('rect')
                             .attr('width', nodeWidth)
@@ -2529,6 +2425,29 @@
                             .attr('fill', 'var(--text2)')
                             .style('font-size', '12px')
                             .text(`${Utils.formatBytes(node.memory_usage)} • ${node.allocation_count} allocs`);
+
+                        const drag = d3.drag()
+                            .on('start', (event) => {
+                                clickStartPos = { x: event.x, y: event.y };
+                            })
+                            .on('drag', (event) => {
+                                const transform = g.attr('transform');
+                                const match = transform.match(/translate\(([-\d.]+),\s*([-\d.]+)\)/);
+                                let cx = x, cy = y;
+                                if (match) { cx = parseFloat(match[1]); cy = parseFloat(match[2]); }
+                                g.attr('transform', `translate(${cx + event.dx}, ${cy + event.dy})`);
+                            })
+                            .on('end', (event) => {
+                                if (clickStartPos) {
+                                    const dist = Math.hypot(event.x - clickStartPos.x, event.y - clickStartPos.y);
+                                    clickStartPos = null;
+                                    if (dist < 5) {
+                                        this.showTaskDetails(node);
+                                    }
+                                }
+                            });
+
+                        g.call(drag);
 
                         return nodeWidth + horizontalGap;
                     };
@@ -3012,7 +2931,7 @@
                     if (freedEl) freedEl.textContent = freed;
                     if (leakedEl) leakedEl.textContent = leaked;
                 },
-                showDetail(address) { const alloc = DataIndex.allocationByPtr(address) || data.allocations?.find(a => a.address === address); if (!alloc) { alert('Allocation not found: ' + address); return; } document.getElementById('timetravelDetail').style.display = 'block'; document.getElementById('ttAddress').textContent = address + (alloc.generation_id ? ` (G${alloc.generation_id})` : ''); document.getElementById('ttVarName').textContent = alloc.var_name || 'unknown'; document.getElementById('ttType').textContent = alloc.type_name || 'Unknown'; document.getElementById('ttSize').textContent = Utils.formatBytes(parseInt(alloc.size) || 0); document.getElementById('ttStatus').innerHTML = alloc.is_leaked ? '<span class="badge badge-danger">Leaked</span>' : '<span class="badge badge-success">Normal</span>'; document.getElementById('ttProvenance').textContent = (alloc.provenance || 'allocator') + ' | Evidence: ' + (alloc.evidence || 'Unknown') + ' | Confidence: ' + (alloc.confidence || 'Unknown'); const timeline = document.getElementById('ttTimeline'); const events = [{ type: 'alloc', time: alloc.timestamp_alloc || 0, desc: 'Allocation', icon: '➕' }]; if (alloc.timestamp_dealloc > 0) events.push({ type: 'dealloc', time: alloc.timestamp_dealloc, desc: 'Deallocation', icon: '➖' }); if (alloc.is_leaked) events.push({ type: 'leak', time: (alloc.timestamp_alloc || 0) + parseInt(alloc.lifetime_ms || 0) * 1000000, desc: 'Leak Detected', icon: '⚠️' }); timeline.innerHTML = events.map(e => `<div class="timeline-item ${e.type}"><strong>${e.icon} ${e.desc}</strong><div style="color: var(--text2); font-size: 0.85rem;">Timestamp: ${e.time} | Delta: +${Utils.formatTime(e.time - events[0].time)}</div></div>`).join(''); },
+                showDetail(address) { const alloc = DataIndex.allocationByPtr(address) || data.allocations?.find(a => a.address === address); if (!alloc) { alert('Allocation not found: ' + address); return; } document.getElementById('timetravelDetail').style.display = 'block'; document.getElementById('ttAddress').textContent = address + (alloc.generation_id ? ` (G${alloc.generation_id})` : ''); document.getElementById('ttVarName').textContent = alloc.var_name || 'unknown'; document.getElementById('ttType').textContent = alloc.type_name || 'Unknown'; document.getElementById('ttSize').textContent = Utils.formatBytes(parseInt(alloc.size) || 0); document.getElementById('ttStatus').innerHTML = alloc.is_leaked ? '<span class="badge badge-danger">Leaked</span>' : '<span class="badge badge-success">Normal</span>'; document.getElementById('ttProvenance').textContent = (alloc.provenance || 'allocator') + ' | Evidence: ' + (alloc.evidence || 'Unknown') + ' | Confidence: ' + (alloc.confidence || 'Unknown'); const timeline = document.getElementById('ttTimeline'); const events = [{ type: 'alloc', time: alloc.timestamp_alloc || 0, desc: 'Allocation', icon: '➕' }]; if (alloc.timestamp_dealloc > 0) events.push({ type: 'dealloc', time: alloc.timestamp_dealloc, desc: 'Deallocation', icon: '➖' }); if (alloc.is_leaked) events.push({ type: 'leak', time: (alloc.timestamp_alloc || 0) + parseInt(alloc.lifetime_ms || 0) * 1000000, desc: 'Leak Detected', icon: '⚠️' }); timeline.innerHTML = events.map(e => `<div class="timeline-item ${e.type}"><strong>${e.icon} ${e.desc}</strong><div style="color: var(--text2); font-size: 0.85rem;">Timestamp: ${e.time} | Delta: +${Utils.formatTime(e.time - events[0].time)}</div></div>`).join(''); const layoutEl = document.getElementById('ttLayout'); if (layoutEl) { const ls = alloc.layout_snapshot; if (ls) { const layoutCards = []; if (ls.size_of_t) layoutCards.push(`<div class="detail-panel" style="border-left:4px solid var(--info);padding:8px;"><span class="detail-label">SizeOf(T)</span><div class="detail-value">${Utils.formatBytes(ls.size_of_t)}</div></div>`); if (ls.align_of_t) layoutCards.push(`<div class="detail-panel" style="border-left:4px solid var(--warning);padding:8px;"><span class="detail-label">AlignOf(T)</span><div class="detail-value">${ls.align_of_t}</div></div>`); if (ls.layout_kind) layoutCards.push(`<div class="detail-panel" style="border-left:4px solid var(--primary);padding:8px;"><span class="detail-label">Layout Kind</span><div class="detail-value">${ls.layout_kind}</div></div>`); if (ls.repr_hint && ls.repr_hint !== 'Unknown') layoutCards.push(`<div class="detail-panel" style="border-left:4px solid #8b5cf6;padding:8px;"><span class="detail-label">Repr Hint</span><div class="detail-value">${ls.repr_hint}</div></div>`); if (ls.pointer_width && ls.pointer_width !== 'Unknown') layoutCards.push(`<div class="detail-panel" style="border-left:4px solid #f59e0b;padding:8px;"><span class="detail-label">Ptr Width</span><div class="detail-value">${ls.pointer_width}</div></div>`); if (ls.element_size) layoutCards.push(`<div class="detail-panel" style="border-left:4px solid #10b981;padding:8px;"><span class="detail-label">Element Size</span><div class="detail-value">${ls.element_size} B</div></div>`); if (ls.container_len !== null && ls.container_len !== undefined) layoutCards.push(`<div class="detail-panel" style="border-left:4px solid #06b6d4;padding:8px;"><span class="detail-label">Length</span><div class="detail-value">${ls.container_len}</div></div>`); if (ls.container_capacity !== null && ls.container_capacity !== undefined) layoutCards.push(`<div class="detail-panel" style="border-left:4px solid #3b82f6;padding:8px;"><span class="detail-label">Capacity</span><div class="detail-value">${ls.container_capacity}</div></div>`); if (ls.strong_count !== null && ls.strong_count !== undefined) layoutCards.push(`<div class="detail-panel" style="border-left:4px solid #ef4444;padding:8px;"><span class="detail-label">Strong Ref</span><div class="detail-value">${ls.strong_count}</div></div>`); if (ls.weak_count !== null && ls.weak_count !== undefined) layoutCards.push(`<div class="detail-panel" style="border-left:4px solid #64748b;padding:8px;"><span class="detail-label">Weak Ref</span><div class="detail-value">${ls.weak_count}</div></div>`); if (ls.pointee_type) layoutCards.push(`<div class="detail-panel" style="border-left:4px solid #8b5cf6;padding:8px;"><span class="detail-label">Pointee</span><div class="detail-value" style="font-size:0.75rem;">${ls.pointee_type}</div></div>`); layoutEl.innerHTML = layoutCards.join('') || '<div style="color:var(--text2);font-size:0.85rem;">No type layout data</div>'; } else { layoutEl.innerHTML = '<div style="color:var(--text2);font-size:0.85rem;">No layout snapshot</div>'; } } },
                 renderTimeSlice() {
                     const slider = document.getElementById('tsTimeSlider');
                     if (!slider) return;
@@ -3132,123 +3051,6 @@
                     }
                     this.renderTimeSlice();
                     this.renderLifecycleTimeline();
-                }
-            },
-
-            playback: {
-                _state: 'stopped',
-                _timer: null,
-                _speed: 1,
-                _position: 0,
-                _events: [],
-                _minTime: 0,
-                _maxTime: 0,
-                _timeRange: 1,
-                _peakBytesAtPos: {},
-
-                init() {
-                    const allocs = data.allocations || [];
-                    if (!allocs.length) return;
-                    this._minTime = d3.min(allocs, a => a.timestamp_alloc || 0);
-                    this._maxTime = d3.max(allocs, a => Math.max(a.timestamp_dealloc || 0, (a.timestamp_alloc || 0) + (a.lifetime_ms || 0) * 1000000));
-                    this._timeRange = (this._maxTime - this._minTime) || 1;
-                    const startEl = document.getElementById('pbTimeStart');
-                    const endEl = document.getElementById('pbTimeEnd');
-                    if (startEl) startEl.textContent = 'T+0';
-                    if (endEl) endEl.textContent = 'T+' + Utils.formatTime(this._timeRange);
-                    this._position = 0;
-                    this._events = allocs.slice().sort((a, b) => (a.timestamp_alloc || 0) - (b.timestamp_alloc || 0));
-                    this._peakBytesAtPos = {};
-                    const slider = document.getElementById('pbProgressSlider');
-                    if (slider) slider.value = 0;
-                    this._updateUI(0);
-                },
-
-                toggle() {
-                    if (this._state === 'playing') this.pause();
-                    else this.play();
-                },
-
-                play() {
-                    if (this._state === 'playing') return;
-                    const allocs = data.allocations || [];
-                    if (!allocs.length) return;
-                    if (this._state === 'stopped' || this._position >= 100) this._position = 0;
-                    this._state = 'playing';
-                    const btn = document.getElementById('pbPlayBtn');
-                    if (btn) { btn.textContent = '⏸ Pause'; btn.style.background = '#f59e0b'; }
-                    const baseInterval = 100;
-                    const interval = Math.max(20, baseInterval / this._speed);
-                    this._timer = setInterval(() => this._tick(), interval);
-                },
-
-                pause() {
-                    this._state = 'paused';
-                    if (this._timer) { clearInterval(this._timer); this._timer = null; }
-                    const btn = document.getElementById('pbPlayBtn');
-                    if (btn) { btn.textContent = '▶ Play'; btn.style.background = '#06b6d4'; }
-                },
-
-                stop() {
-                    this.pause();
-                    this._state = 'stopped';
-                    this._position = 0;
-                    const slider = document.getElementById('pbProgressSlider');
-                    if (slider) slider.value = 0;
-                    this._updateUI(0);
-                },
-
-                reset() { this.stop(); },
-
-                setSpeed(speed) {
-                    this._speed = speed;
-                    if (this._state === 'playing') { this.pause(); this.play(); }
-                },
-
-                seek(pct) {
-                    this._position = Math.min(100, Math.max(0, pct));
-                    this._updateUI(this._position);
-                    if (this._state === 'stopped') this._state = 'paused';
-                },
-
-                _tick() {
-                    if (this._position >= 100) { this.pause(); this._state = 'stopped'; this._position = 100; this._updateUI(100); return; }
-                    this._position = Math.min(100, this._position + 0.5 * this._speed);
-                    const slider = document.getElementById('pbProgressSlider');
-                    if (slider) slider.value = this._position;
-                    this._updateUI(this._position);
-                    Dashboard.timetravel.renderTimeSlice();
-                },
-
-                _updateUI(pct) {
-                    pct = Math.min(100, Math.max(0, pct));
-                    const currentTime = this._minTime + (pct / 100) * this._timeRange;
-                    const currentEl = document.getElementById('pbTimeCurrent');
-                    if (currentEl) currentEl.textContent = 'T+' + Utils.formatTime(currentTime - this._minTime);
-                    const allocs = data.allocations || [];
-                    const eventsUpTo = allocs.filter(a => (a.timestamp_alloc || 0) <= currentTime).length;
-                    const active = allocs.filter(a => (a.timestamp_alloc || 0) <= currentTime && (!a.timestamp_dealloc || a.timestamp_dealloc > currentTime));
-                    const liveBytes = active.reduce((s, a) => s + (parseInt(a.size) || 0), 0);
-                    let peakBytes = 0;
-                    if (!this._peakBytesAtPos[pct]) {
-                        for (let i = 0; i <= pct; i += 5) {
-                            const t = this._minTime + (i / 100) * this._timeRange;
-                            const bAtT = allocs.filter(a => (a.timestamp_alloc || 0) <= t && (!a.timestamp_dealloc || a.timestamp_dealloc > t)).reduce((s, a) => s + (parseInt(a.size) || 0), 0);
-                            if (bAtT > peakBytes) peakBytes = bAtT;
-                        }
-                        this._peakBytesAtPos[pct] = peakBytes;
-                    } else { peakBytes = this._peakBytesAtPos[pct]; }
-                    const leaksSeen = allocs.filter(a => a.is_leaked && (a.timestamp_alloc || 0) <= currentTime).length;
-                    const replayedEl = document.getElementById('pbEventsReplayed');
-                    const activeEl = document.getElementById('pbActiveCount');
-                    const liveEl = document.getElementById('pbLiveBytes');
-                    const leaksEl = document.getElementById('pbLeaksSeen');
-                    const peakEl = document.getElementById('pbPeakBytes');
-                    if (replayedEl) replayedEl.textContent = eventsUpTo;
-                    if (activeEl) activeEl.textContent = active.length;
-                    if (liveEl) liveEl.textContent = Utils.formatBytes(liveBytes);
-                    if (leaksEl) leaksEl.textContent = leaksSeen;
-                    if (peakEl) peakEl.textContent = Utils.formatBytes(peakBytes);
                 }
             },
 
@@ -3639,14 +3441,11 @@
 
             if (mode === 'variable') {
                 setTimeout(() => Dashboard.variableGraph.init(), 100);
-                setTimeout(() => Dashboard.leakPath.init(), 200);
             }
             if (mode === 'taskgraph') {
                 setTimeout(() => Dashboard.taskGraph.init(), 100);
             }
-            if (mode === 'timetravel') {
-                setTimeout(() => Dashboard.playback.init(), 100);
-            }
+
         }
 
         function showTab(tab) {
@@ -4532,6 +4331,8 @@
             document.getElementById('ttStatus').innerHTML = alloc.is_leaked ?
                 '<span class="badge badge-danger">Leaked</span>' :
                 '<span class="badge badge-success">Normal</span>';
+            const provEl = document.getElementById('ttProvenance');
+            if (provEl) provEl.textContent = (alloc.provenance || 'allocator') + ' | Evidence: ' + (alloc.evidence || 'Unknown') + ' | Confidence: ' + (alloc.confidence || 'Unknown');
 
             const timeline = document.getElementById('ttTimeline');
             const events = [
@@ -4552,6 +4353,28 @@
                     </div>
                 </div>
             `).join('');
+
+            const layoutEl = document.getElementById('ttLayout');
+            if (layoutEl) {
+                const ls = alloc.layout_snapshot;
+                if (ls) {
+                    const cards = [];
+                    if (ls.size_of_t) cards.push(`<div class="detail-panel" style="border-left:4px solid var(--info);padding:8px;"><span class="detail-label">SizeOf(T)</span><div class="detail-value">${Utils.formatBytes(ls.size_of_t)}</div></div>`);
+                    if (ls.align_of_t) cards.push(`<div class="detail-panel" style="border-left:4px solid var(--warning);padding:8px;"><span class="detail-label">AlignOf(T)</span><div class="detail-value">${ls.align_of_t}</div></div>`);
+                    if (ls.layout_kind) cards.push(`<div class="detail-panel" style="border-left:4px solid var(--primary);padding:8px;"><span class="detail-label">Layout Kind</span><div class="detail-value">${ls.layout_kind}</div></div>`);
+                    if (ls.repr_hint && ls.repr_hint !== 'Unknown') cards.push(`<div class="detail-panel" style="border-left:4px solid #8b5cf6;padding:8px;"><span class="detail-label">Repr Hint</span><div class="detail-value">${ls.repr_hint}</div></div>`);
+                    if (ls.pointer_width && ls.pointer_width !== 'Unknown') cards.push(`<div class="detail-panel" style="border-left:4px solid #f59e0b;padding:8px;"><span class="detail-label">Ptr Width</span><div class="detail-value">${ls.pointer_width}</div></div>`);
+                    if (ls.element_size) cards.push(`<div class="detail-panel" style="border-left:4px solid #10b981;padding:8px;"><span class="detail-label">Element Size</span><div class="detail-value">${ls.element_size} B</div></div>`);
+                    if (ls.container_len !== null && ls.container_len !== undefined) cards.push(`<div class="detail-panel" style="border-left:4px solid #06b6d4;padding:8px;"><span class="detail-label">Length</span><div class="detail-value">${ls.container_len}</div></div>`);
+                    if (ls.container_capacity !== null && ls.container_capacity !== undefined) cards.push(`<div class="detail-panel" style="border-left:4px solid #3b82f6;padding:8px;"><span class="detail-label">Capacity</span><div class="detail-value">${ls.container_capacity}</div></div>`);
+                    if (ls.strong_count !== null && ls.strong_count !== undefined) cards.push(`<div class="detail-panel" style="border-left:4px solid #ef4444;padding:8px;"><span class="detail-label">Strong Ref</span><div class="detail-value">${ls.strong_count}</div></div>`);
+                    if (ls.weak_count !== null && ls.weak_count !== undefined) cards.push(`<div class="detail-panel" style="border-left:4px solid #64748b;padding:8px;"><span class="detail-label">Weak Ref</span><div class="detail-value">${ls.weak_count}</div></div>`);
+                    if (ls.pointee_type) cards.push(`<div class="detail-panel" style="border-left:4px solid #8b5cf6;padding:8px;"><span class="detail-label">Pointee</span><div class="detail-value" style="font-size:0.75rem;">${ls.pointee_type}</div></div>`);
+                    layoutEl.innerHTML = cards.join('') || '<div style="color:var(--text2);font-size:0.85rem;">No type layout data</div>';
+                } else {
+                    layoutEl.innerHTML = '<div style="color:var(--text2);font-size:0.85rem;">No layout snapshot</div>';
+                }
+            }
         }
 
         let taskFilteredData = [];
@@ -4631,7 +4454,6 @@
             Dashboard.passports.init();
             Dashboard.unsafe.init();
             Dashboard.timetravel.init();
-            Dashboard.playback.init();
             Dashboard.tasks.init();
             populatePassports();
             

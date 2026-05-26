@@ -780,6 +780,7 @@ mod tests {
             provenance: String::new(),
             evidence: Default::default(),
             confidence: Default::default(),
+            layout_snapshot: None,
         }];
 
         let data = to_legacy_binary_data(&context);

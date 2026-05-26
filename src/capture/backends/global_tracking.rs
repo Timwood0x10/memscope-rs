@@ -23,7 +23,7 @@
 //! ```
 
 use crate::analysis::memory_passport_tracker::{MemoryPassportTracker, PassportTrackerConfig};
-use crate::capture::backends::async_tracker::AsyncTracker;
+use crate::capture::backends::async_tracker::{AsyncTracker, register_global as register_async_global};
 use crate::core::{MemScopeError, MemScopeResult};
 use crate::tracker::{AnalysisReport, Tracker};
 use std::path::Path;
@@ -80,6 +80,10 @@ impl GlobalTracker {
         let async_tracker = Arc::new(AsyncTracker::new());
         async_tracker.set_initialized();
 
+        // Share this async_tracker instance with the async_tracker module
+        // so that spawn_tracked() can register task lifecycle events on it.
+        let _ = register_async_global(async_tracker.clone());
+
         Self {
             tracker,
             passport_tracker,
@@ -130,6 +134,8 @@ impl GlobalTracker {
                     Some(type_name),
                     None,
                 );
+                // Also update TaskIdRegistry memory stats for the Task Relationship Graph.
+                crate::task_registry::global_registry().record_allocation(size);
             }
         }
 

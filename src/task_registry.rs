@@ -216,6 +216,43 @@ impl TaskIdRegistry {
         TaskGuard::new(task_id)
     }
 
+    /// Register a task with an externally-generated task ID.
+    ///
+    /// Unlike `task_scope()` which generates its own ID, this allows
+    /// integration with async trackers that already have an ID assigned.
+    /// The parent is inferred from the current thread-local task.
+    ///
+    /// # Arguments
+    ///
+    /// * `task_id` - Externally-generated task ID
+    /// * `name` - Task name
+    pub fn register_explicit_task(&self, task_id: u64, name: &str) {
+        let parent = Self::current_task_id();
+        let mut meta = TaskMeta::new(task_id, parent, name.to_string());
+
+        if let Some(tokio_id) = self.get_tokio_task_id() {
+            meta.tokio_id = Some(tokio_id);
+        }
+
+        if let Ok(mut tasks) = self.tasks.write() {
+            tasks.insert(task_id, meta);
+        }
+        if let Ok(mut used_ids) = self.used_ids.write() {
+            used_ids.insert(task_id);
+        }
+        CURRENT_TASK_ID.set(Some(task_id));
+    }
+
+    /// Mark a registered task as completed and clear the thread-local.
+    pub fn unregister_task(&self, task_id: u64) {
+        if let Ok(mut tasks) = self.tasks.write() {
+            if let Some(meta) = tasks.get_mut(&task_id) {
+                meta.mark_completed();
+            }
+        }
+        CURRENT_TASK_ID.set(None);
+    }
+
     /// Spawn a new task (internal use only)
     ///
     /// # Arguments
