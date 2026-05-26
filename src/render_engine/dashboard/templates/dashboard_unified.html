@@ -1414,36 +1414,48 @@
                 <div id="unsafeHeatmapContainer" style="min-height: 200px; background: var(--bg); border-radius: 8px; padding: 16px;"></div>
             </div>
 
-            <!-- Cross-Boundary Trace -->
+            <!-- Unsafe Call-Stack View -->
             <div class="card">
                 <div class="card-header">
-                    <h2 class="card-title">🔀 Cross-Boundary Trace</h2>
-                    <span class="badge badge-info" id="boundaryEventCount">0 events</span>
-                </div>
-                <div style="background: linear-gradient(135deg, #8b5cf610 0%, #8b5cf620 100%); border-radius: 8px; padding: 12px; margin-bottom: 16px; border: 1px solid #8b5cf640;">
-                    <div style="color: var(--text2); font-size: 0.85rem;">
-                        <strong style="color: #8b5cf6;">VISA Flow:</strong> Track memory as it crosses between Rust ↔ FFI boundaries. Each crossing is logged like a visa stamp.
+                    <h2 class="card-title">📋 Unsafe Call-Stack View</h2>
+                    <div class="flex-gap-2">
+                        <span class="badge badge-danger" id="callStackGroupCount">0 groups</span>
+                        <button class="btn-sm" onclick="toggleSection('callStackContainer', this)">▼ Expand</button>
                     </div>
                 </div>
-                <div id="crossBoundaryTrace" style="min-height: 150px; background: var(--bg); border-radius: 8px; padding: 16px;">
-                    <div style="display: flex; align-items: center; justify-content: space-around; height: 100%;">
-                        <div style="text-align: center;">
-                            <div style="font-size: 2rem;">🦀</div>
-                            <div style="font-weight: 600; color: #f59e0b;">Rust</div>
-                            <div style="font-size: 0.75rem; color: var(--text2);">Safe Zone</div>
-                        </div>
-                        <div style="flex: 1; display: flex; flex-direction: column; gap: 8px; padding: 0 20px;" id="boundaryEvents">
-                            <div style="text-align: center; color: var(--text2); font-size: 0.85rem;">No boundary events</div>
-                        </div>
-                        <div style="text-align: center;">
-                            <div style="font-size: 2rem;">🌐</div>
-                            <div style="font-weight: 600; color: #3b82f6;">FFI</div>
-                            <div style="font-size: 0.75rem; color: var(--text2);">External</div>
+                <div style="background: linear-gradient(135deg, #ef444410 0%, #ef444420 100%); border-radius: 8px; padding: 12px; margin-bottom: 12px; border: 1px solid #ef444430;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <span style="font-size: 1.5rem;">🪜</span>
+                        <div style="color: var(--text2); font-size: 0.85rem;">
+                            Unsafe reports grouped by source location. Each group shows the call-chain of boundary crossings and lifecycle events.
+                            <a href="#" onclick="Dashboard.unsafe.renderCallStackView(); return false;" style="color: var(--primary);">Refresh</a>
                         </div>
                     </div>
                 </div>
+                <div id="callStackContainer" style="max-height: 450px; overflow-y: auto;"></div>
             </div>
 
+            <!-- Enhanced FFI Boundary Flow -->
+            <div class="card" style="background: linear-gradient(135deg, #8b5cf610 0%, #8b5cf620 100%); border: 2px solid #8b5cf640;">
+                <div class="card-header">
+                    <h2 class="card-title" style="color: #8b5cf6;">🔀 FFI Boundary Flow</h2>
+                    <div class="flex-gap-2">
+                        <span class="badge badge-info" id="ffiFlowCount">0 flows</span>
+                        <span class="badge" style="background: #ef444430; color: #ef4444;" id="ffiMismatchCount">0 mismatches</span>
+                    </div>
+                </div>
+                <div style="background: linear-gradient(135deg, #8b5cf610 0%, #8b5cf620 100%); border-radius: 8px; padding: 12px; margin-bottom: 12px; border: 1px solid #8b5cf640;">
+                    <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                        <span style="font-size: 1.5rem;">🛂</span>
+                        <div style="color: var(--text2); font-size: 0.85rem; flex: 1;">
+                            Memory crossing Rust ↔ FFI boundaries. Direction, ownership transfer, and mismatched allocation/deallocation sides are highlighted.
+                        </div>
+                        <button class="btn-sm" onclick="Dashboard.unsafe.renderFfiBoundaryFlow()">🔄 Refresh</button>
+                    </div>
+                </div>
+                <div id="ffiBoundaryFlowContainer" style="min-height: 120px; background: var(--bg); border-radius: 8px; padding: 16px;"></div>
+                <div style="margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; padding: 8px 0;" id="ffiFlowLegend"></div>
+            </div>
             <div class="card">
                 <div class="card-header">
                     <h2 class="card-title">📊 Risk Distribution</h2>
@@ -1971,8 +1983,21 @@
                     this.simulation.on('tick', () => { link.attr('x1', d => d.source?.x || 0).attr('y1', d => d.source?.y || 0).attr('x2', d => d.target?.x || 0).attr('y2', d => d.target?.y || 0); node.attr('transform', d => `translate(${d.x || 0},${d.y || 0})`); });
                 },
                 resetZoom() { if (this.svg && this.zoom) this.svg.transition().duration(500).call(this.zoom.transform, d3.zoomIdentity); },
-                highlightCycles() { this.highlightMode = !this.highlightMode; if (!this.g) return; this.g.selectAll('.node circle').attr('stroke-width', d => this.highlightMode && d.hasCycle ? 5 : d.hasCycle ? 3 : 0); this.g.selectAll('.link').attr('stroke-width', d => this.highlightMode && d.isPartOfCycle ? 4 : Math.max(1.5, d.strength * 3)); }
+                highlightCycles() { this.highlightMode = !this.highlightMode; if (!this.g) return; this.g.selectAll('.node circle').attr('stroke-width', d => this.highlightMode && d.hasCycle ? 5 : d.hasCycle ? 3 : 0); this.g.selectAll('.link').attr('stroke-width', d => this.highlightMode && d.isPartOfCycle ? 4 : Math.max(1.5, d.strength * 3)); },
+                selectNode(ptr) {
+                    document.querySelectorAll('.mode-section').forEach(el => el.classList.remove('active'));
+                    document.querySelectorAll('.mode-tab').forEach(el => el.classList.remove('active'));
+                    document.getElementById('mode-variable').classList.add('active');
+                    const tab = document.querySelector('.mode-tab[onclick*="\'variable\'"]');
+                    if (tab) tab.classList.add('active');
+                    setTimeout(() => Dashboard.variableGraph.init(), 100);
+                    setTimeout(() => {
+                        if (this.g) this.g.selectAll('.node circle').attr('stroke', d => d.id === ptr ? '#f59e0b' : d.hasCycle ? '#ef4444' : 'none').attr('stroke-width', d => d.id === ptr ? 6 : d.hasCycle ? 3 : 0);
+                    }, 400);
+                }
             },
+
+            leakPath: {
 
             leakPath: {
                 simulation: null,
@@ -2873,6 +2898,88 @@
                             </div>
                         </div>
                     `).join('');
+                    this.renderCallStackView();
+                    this.renderFfiBoundaryFlow();
+                },
+                renderCallStackView() {
+                    const container = document.getElementById('callStackContainer');
+                    const countEl = document.getElementById('callStackGroupCount');
+                    if (!container) return;
+                    const reports = data.unsafe_reports || [];
+                    const allocs = data.allocations || [];
+                    const sourceMap = {};
+                    reports.forEach(r => {
+                        const alloc = DataIndex.allocationByPtr(r.allocation_ptr) || allocs.find(a => a.address === r.allocation_ptr);
+                        const key = (alloc && alloc.source_file) ? `${alloc.source_file}:${alloc.source_line || 0}` : 'unknown:0';
+                        if (!sourceMap[key]) sourceMap[key] = { file: alloc ? alloc.source_file : 'unknown', line: alloc ? alloc.source_line : 0, reports: [] };
+                        sourceMap[key].reports.push(r);
+                    });
+                    const groups = Object.values(sourceMap).sort((a, b) => b.reports.length - a.reports.length);
+                    if (countEl) countEl.textContent = groups.length + ' groups';
+                    if (groups.length === 0) { container.innerHTML = '<div class="empty-state">No unsafe reports</div>'; return; }
+                    const flowLegend = { 'RustToFfi': { icon: '→', color: '#f59e0b', label: 'Rust→FFI' }, 'FfiToRust': { icon: '←', color: '#10b981', label: 'FFI→Rust' }, 'OwnershipTransfer': { icon: '⇄', color: '#8b5cf6', label: 'Ownership Transfer' }, 'SharedAccess': { icon: '⇌', color: '#3b82f6', label: 'Shared Access' }, 'Unknown': { icon: '?', color: '#64748b', label: 'Unknown' } };
+                    container.innerHTML = groups.map((g, gi) => `<div style="margin-bottom: 12px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden;">
+                        <div onclick="toggleTable('callStackGroup_${gi}', this)" style="cursor: pointer; display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: var(--bg3); border-bottom: 1px solid var(--border);">
+                            <span style="font-size: 1.2rem;">📂</span>
+                            <div style="flex: 1;">
+                                <div style="font-weight: 600; font-size: 0.9rem;">${g.file}:${g.line} <a href="#" onclick="jumpToSource('${g.file}', ${g.line}); return false;" style="color: var(--primary); font-size: 0.75rem; text-decoration: underline;">Jump</a></div>
+                                <div style="color: var(--text2); font-size: 0.75rem;">${g.reports.length} report(s) | ${g.reports.filter(r => r.risk_level === 'high').length} high risk</div>
+                            </div>
+                            <span style="font-size: 0.8rem; color: var(--text2);">▼</span>
+                        </div>
+                        <div id="callStackGroup_${gi}" style="display: none; padding: 12px;">
+                            ${g.reports.map(r => `<div class="detail-panel" style="border-left: 4px solid ${r.risk_level === 'high' ? '#ef4444' : r.risk_level === 'medium' ? '#f59e0b' : '#10b981'}; margin-bottom: 8px;">
+                                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                                    <div>
+                                        <div style="font-weight: 600; color: var(--text);">${r.var_name || 'unknown'}</div>
+                                        <div style="color: var(--text2); font-size: 0.8rem;">${r.type_name || 'Unknown'} | ${Utils.formatBytes(r.size_bytes || 0)} | <code style="font-size: 0.75rem;">${r.allocation_ptr || 'N/A'}</code></div>
+                                    </div>
+                                    <span class="badge ${r.risk_level === 'high' ? 'badge-danger' : r.risk_level === 'medium' ? 'badge-warning' : 'badge-success'}">${r.risk_level || 'unknown'}</span>
+                                </div>
+                                ${r.risk_factors && r.risk_factors.length > 0 ? `<div style="margin-top: 6px;"><div style="font-size: 0.8rem; color: var(--text2);">Risk Factors:</div><ul style="margin: 4px 0 0 16px; font-size: 0.8rem; color: var(--text2);">${r.risk_factors.map(f => `<li>${f}</li>`).join('')}</ul></div>` : ''}
+                                ${r.cross_boundary_events && r.cross_boundary_events.length > 0 ? `<div style="margin-top: 6px;"><div style="font-size: 0.8rem; color: var(--text2);">Call Stack:</div><div style="display: flex; flex-direction: column; gap: 4px; margin-top: 4px;">${r.cross_boundary_events.map((e, ei) => `<div style="display: flex; align-items: center; gap: 6px; font-size: 0.75rem; padding: 4px 8px; background: var(--bg3); border-radius: 4px;"><span>${flowLegend[e.event_type]?.icon || '→'}</span><span style="color: ${flowLegend[e.event_type]?.color || '#64748b'};">${e.event_type || 'Unknown'}</span><span style="color: var(--text2);">${e.from_context || ''} → ${e.to_context || ''}</span></div>`).join('')}</div></div>` : ''}
+                                <div style="margin-top: 6px; display: flex; gap: 8px; flex-wrap: wrap;">
+                                    <button class="btn-sm" onclick="Dashboard.timetravel.showDetail('${r.allocation_ptr}')">⏱ Timeline</button>
+                                    <button class="btn-sm" onclick="Dashboard.variableGraph.selectNode('${r.allocation_ptr}')">🔗 Variable Graph</button>
+                                </div>
+                            </div>`).join('')}
+                        </div>
+                    </div>`).join('');
+                },
+                renderFfiBoundaryFlow() {
+                    const container = document.getElementById('ffiBoundaryFlowContainer');
+                    const countEl = document.getElementById('ffiFlowCount');
+                    const mismatchEl = document.getElementById('ffiMismatchCount');
+                    const legendEl = document.getElementById('ffiFlowLegend');
+                    if (!container) return;
+                    const reports = data.unsafe_reports || [];
+                    const flowEvents = [];
+                    reports.forEach(r => { if (r.cross_boundary_events) r.cross_boundary_events.forEach(e => flowEvents.push({...e, var_name: r.var_name, allocation_ptr: r.allocation_ptr, is_leaked: r.is_leaked, risk_level: r.risk_level })); });
+                    const distinctTypes = [...new Set(flowEvents.map(e => e.event_type))];
+                    const flowTypeColors = { 'RustToFfi': '#f59e0b', 'FfiToRust': '#10b981', 'OwnershipTransfer': '#8b5cf6', 'SharedAccess': '#3b82f6', 'Unknown': '#64748b' };
+                    const mismatches = flowEvents.filter(e => e.event_type === 'OwnershipTransfer' || (e.from_context && e.to_context && e.from_context.includes('alloc') !== e.to_context.includes('free')));
+                    if (countEl) countEl.textContent = flowEvents.length + ' flows';
+                    if (mismatchEl) mismatchEl.textContent = mismatches.length + ' mismatches';
+                    if (legendEl) legendEl.innerHTML = Object.entries(flowTypeColors).map(([type, color]) => `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; background: var(--bg3); border-radius: 4px; font-size: 0.75rem;"><span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: ${color};"></span>${type}</span>`).join('');
+                    if (flowEvents.length === 0) { container.innerHTML = '<div class="empty-state">No FFI boundary flows</div>'; return; }
+                    const sortedEvents = flowEvents.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+                    container.innerHTML = '<div style="display: flex; flex-direction: column; gap: 8px;">' + sortedEvents.slice(0, 30).map(e => {
+                        const color = flowTypeColors[e.event_type] || '#64748b';
+                        const isMismatch = e.event_type === 'OwnershipTransfer' || (e.from_context && e.to_context && e.from_context.includes('alloc') !== e.to_context.includes('free'));
+                        return `<div style="display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--bg3); border-radius: 8px; border-left: 4px solid ${color}; ${isMismatch ? 'border: 2px solid #ef4444;' : ''}">
+                            <span style="font-size: 1.2rem; color: ${color};">${e.event_type === 'RustToFfi' ? '🦀→🌐' : e.event_type === 'FfiToRust' ? '🌐→🦀' : e.event_type === 'OwnershipTransfer' ? '⇄' : e.event_type === 'SharedAccess' ? '⇌' : '→'}</span>
+                            <div style="flex: 1;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="font-weight: 500; font-size: 0.85rem; color: ${color};">${e.event_type || 'Unknown'}</span>
+                                    ${isMismatch ? '<span class="badge badge-danger">⚠ Mismatch</span>' : ''}
+                                </div>
+                                <div style="color: var(--text2); font-size: 0.75rem;">
+                                    ${e.from_context || '?'} → ${e.to_context || '?'} | ${e.var_name || 'unknown'} | <code style="font-size: 0.7rem;">${e.allocation_ptr ? e.allocation_ptr.slice(-8) : 'N/A'}</code>
+                                </div>
+                            </div>
+                            <span style="font-size: 0.7rem; color: var(--text2);">${Utils.formatTime(parseInt(e.timestamp || 0))}</span>
+                        </div>`;
+                    }).join('') + '</div>';
                 }
             },
 
