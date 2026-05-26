@@ -329,10 +329,8 @@ impl AsyncTracker {
             {
                 tracing::warn!("Failed to track task start: {e}");
             }
-        } else {
-            if let Err(e) = self.track_task_start(unique_task_id, name.clone(), thread_id) {
-                tracing::warn!("Failed to track task start: {e}");
-            }
+        } else if let Err(e) = self.track_task_start(unique_task_id, name.clone(), thread_id) {
+            tracing::warn!("Failed to track task start: {e}");
         }
 
         let output = future.await;

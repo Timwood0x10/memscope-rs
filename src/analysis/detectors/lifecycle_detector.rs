@@ -5,18 +5,16 @@
 //! # Example
 //!
 //! ```rust
-//! use memscope_rs::analysis::detectors::{LifecycleDetector, LifecycleDetectorConfig, Detector};
-//! use memscope_rs::capture::types::AllocationInfo;
+//! # use memscope_rs::analysis::detectors::{LifecycleDetector, LifecycleDetectorConfig, Detector};
+//! # use memscope_rs::capture::types::AllocationInfo;
 //!
-//! fn main() {
-//!     let config = LifecycleDetectorConfig::default();
-//!     let detector = LifecycleDetector::new(config);
+//! let config = LifecycleDetectorConfig::default();
+//! let detector = LifecycleDetector::new(config);
 //!
-//!     let allocations = vec![];
-//!     let result = detector.detect(&allocations);
+//! let allocations = vec![];
+//! let result = detector.detect(&allocations);
 //!
-//!     println!("Found {} lifecycle issues", result.issues.len());
-//! }
+//! println!("Found {} lifecycle issues", result.issues.len());
 //! ```
 
 use crate::analysis::detectors::{

@@ -1,0 +1,20 @@
+# Cargo configuration for faster compilation
+# Uses faster linkers: zld (macOS) and mold (Linux)
+# Note: Install zld with `brew install zld` on macOS, or comment out these lines
+
+# [target.x86_64-apple-darwin]
+# rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+
+# [target.aarch64-apple-darwin]
+# rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+
+# [target.x86_64-unknown-linux-gnu]
+# rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+
+# Use sccache for caching if available
+[build]
+rustc-wrapper = "sccache"
+
+# Parallel compilation
+[env]
+CARGO_BUILD_JOBS = "8"

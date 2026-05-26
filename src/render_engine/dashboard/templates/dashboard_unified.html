@@ -555,6 +555,7 @@
                         </div>
                     </div>
                 </div>
+                <div id="eventSummaryCard" style="margin-top: 12px; display: none;"></div>
             </div>
 
             <!-- Auto Diagnosis -->
@@ -1303,6 +1304,48 @@
 
     <script>
         const data = {{{json_data}}};
+
+        const DataIndex = (function() {
+            const idx = data.data_index || {};
+            const allocs = data.allocations || [];
+            const eventSummary = data.event_summary || {};
+            const sampling = data.sampling || {};
+            return {
+                allocationByPtr(ptr) {
+                    const indices = idx.ptr_to_allocation && idx.ptr_to_allocation[ptr];
+                    return indices && indices.length > 0 ? allocs[indices[0]] : null;
+                },
+                allocationsByThread(threadId) {
+                    const indices = idx.thread_id_to_allocations && idx.thread_id_to_allocations[String(threadId)];
+                    return indices ? indices.map(i => allocs[i]) : [];
+                },
+                allocationsByType(typeName) {
+                    const indices = idx.type_name_to_allocations && idx.type_name_to_allocations[typeName];
+                    return indices ? indices.map(i => allocs[i]) : [];
+                },
+                allocationsByVarName(varName) {
+                    const indices = idx.var_name_to_allocations && idx.var_name_to_allocations[varName];
+                    return indices ? indices.map(i => allocs[i]) : [];
+                },
+                allocationsBySource(file, line) {
+                    const key = file + ':' + line;
+                    const indices = idx.source_location_to_allocations && idx.source_location_to_allocations[key];
+                    return indices ? indices.map(i => allocs[i]) : [];
+                },
+                eventsByThread(threadId) {
+                    const indices = idx.thread_id_to_events && idx.thread_id_to_events[String(threadId)];
+                    return indices ? indices.map(i => (data.events || [])[i]) : [];
+                },
+                passportByPtr(ptr) {
+                    const indices = idx.allocation_ptr_to_passport && idx.allocation_ptr_to_passport[ptr];
+                    return indices && indices.length > 0 ? indices.map(i => (data.passport_details || [])[i]) : [];
+                },
+                unsafeReportsByPtr(ptr) {
+                    const indices = idx.allocation_ptr_to_unsafe_reports && idx.allocation_ptr_to_unsafe_reports[ptr];
+                    return indices && indices.length > 0 ? indices.map(i => (data.unsafe_reports || [])[i]) : [];
+                }
+            };
+        })();
 
         const Utils = {
             formatBytes(bytes) {
@@ -2449,7 +2492,7 @@
                     if (freedEl) freedEl.textContent = freed;
                     if (leakedEl) leakedEl.textContent = leaked;
                 },
-                showDetail(address) { const alloc = data.allocations?.find(a => a.address === address); if (!alloc) { alert('Allocation not found: ' + address); return; } document.getElementById('timetravelDetail').style.display = 'block'; document.getElementById('ttAddress').textContent = address; document.getElementById('ttVarName').textContent = alloc.var_name || 'unknown'; document.getElementById('ttType').textContent = alloc.type_name || 'Unknown'; document.getElementById('ttSize').textContent = Utils.formatBytes(parseInt(alloc.size) || 0); document.getElementById('ttStatus').innerHTML = alloc.is_leaked ? '<span class="badge badge-danger">Leaked</span>' : '<span class="badge badge-success">Normal</span>'; const timeline = document.getElementById('ttTimeline'); const events = [{ type: 'alloc', time: alloc.timestamp_alloc || 0, desc: 'Allocation', icon: '➕' }]; if (alloc.timestamp_dealloc > 0) events.push({ type: 'dealloc', time: alloc.timestamp_dealloc, desc: 'Deallocation', icon: '➖' }); if (alloc.is_leaked) events.push({ type: 'leak', time: (alloc.timestamp_alloc || 0) + parseInt(alloc.lifetime_ms || 0) * 1000000, desc: 'Leak Detected', icon: '⚠️' }); timeline.innerHTML = events.map(e => `<div class="timeline-item ${e.type}"><strong>${e.icon} ${e.desc}</strong><div style="color: var(--text2); font-size: 0.85rem;">Timestamp: ${e.time} | Delta: +${Utils.formatTime(e.time - events[0].time)}</div></div>`).join(''); },
+                showDetail(address) { const alloc = DataIndex.allocationByPtr(address) || data.allocations?.find(a => a.address === address); if (!alloc) { alert('Allocation not found: ' + address); return; } document.getElementById('timetravelDetail').style.display = 'block'; document.getElementById('ttAddress').textContent = address; document.getElementById('ttVarName').textContent = alloc.var_name || 'unknown'; document.getElementById('ttType').textContent = alloc.type_name || 'Unknown'; document.getElementById('ttSize').textContent = Utils.formatBytes(parseInt(alloc.size) || 0); document.getElementById('ttStatus').innerHTML = alloc.is_leaked ? '<span class="badge badge-danger">Leaked</span>' : '<span class="badge badge-success">Normal</span>'; const timeline = document.getElementById('ttTimeline'); const events = [{ type: 'alloc', time: alloc.timestamp_alloc || 0, desc: 'Allocation', icon: '➕' }]; if (alloc.timestamp_dealloc > 0) events.push({ type: 'dealloc', time: alloc.timestamp_dealloc, desc: 'Deallocation', icon: '➖' }); if (alloc.is_leaked) events.push({ type: 'leak', time: (alloc.timestamp_alloc || 0) + parseInt(alloc.lifetime_ms || 0) * 1000000, desc: 'Leak Detected', icon: '⚠️' }); timeline.innerHTML = events.map(e => `<div class="timeline-item ${e.type}"><strong>${e.icon} ${e.desc}</strong><div style="color: var(--text2); font-size: 0.85rem;">Timestamp: ${e.time} | Delta: +${Utils.formatTime(e.time - events[0].time)}</div></div>`).join(''); },
                 init() {
                     const allocations = data.allocations || [];
                     this.filteredData = [...allocations];
@@ -3723,7 +3766,7 @@
         }
 
         function showTimetravelDetail(address) {
-            const alloc = data.allocations?.find(a => a.address === address);
+            const alloc = DataIndex.allocationByPtr(address) || data.allocations?.find(a => a.address === address);
             if (!alloc) {
                 alert('Allocation not found: ' + address);
                 return;
@@ -3807,6 +3850,26 @@
             sortTasks();
         }
 
+        function updateEventSummaryCard() {
+            const card = document.getElementById('eventSummaryCard');
+            if (!card) return;
+            const eventSummary = data.event_summary || {};
+            const sampling = data.sampling || {};
+            const events = data.events || [];
+            if (events.length === 0 && !sampling.is_sampled) { card.style.display = 'none'; return; }
+            card.style.display = 'block';
+            const totalEvents = eventSummary.total_event_count || events.length;
+            const exportedEvents = eventSummary.exported_event_count || events.length;
+            const isSampled = eventSummary.is_sampled || sampling.is_sampled;
+            const strategy = eventSummary.sampling_strategy || sampling.sampling_strategy || 'none';
+            card.innerHTML = '<div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 8px 12px; background: var(--bg3); border-radius: 8px; border: 1px solid var(--border);">' +
+                '<span style="font-size: 1.2rem;">📋</span>' +
+                '<span style="font-weight: 600; font-size: 0.85rem;">Events:</span>' +
+                '<span style="font-size: 0.85rem;">' + totalEvents + ' total</span>' +
+                (isSampled ? '<span class="badge badge-warning" title="Sampling strategy: ' + strategy + '">⚠️ Sampled (' + exportedEvents + ' displayed)</span>' : '<span class="badge badge-success">✅ Complete (' + exportedEvents + ' exported)</span>') +
+                '</div>';
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
             Dashboard.diagnosis.init();
             Dashboard.charts.init();
@@ -3822,6 +3885,7 @@
             // Initialize Quick Health Dashboard
             updateQuickHealthDashboard();
             updateCriticalAlerts();
+            updateEventSummaryCard();
         });
         
         function updateQuickHealthDashboard() {

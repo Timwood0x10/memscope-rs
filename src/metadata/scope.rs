@@ -153,10 +153,8 @@ impl ScopeTracker {
                 .entry(parent_name.clone())
                 .or_default()
                 .push(name.clone());
-        } else {
-            if !data.hierarchy.root_scopes.contains(&name) {
-                data.hierarchy.root_scopes.push(name.clone());
-            }
+        } else if !data.hierarchy.root_scopes.contains(&name) {
+            data.hierarchy.root_scopes.push(name.clone());
         }
         data.hierarchy.total_scopes += 1;
         if depth > data.hierarchy.max_depth {

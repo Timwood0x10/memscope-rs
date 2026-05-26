@@ -4,15 +4,20 @@
 //! HTML reports from memory tracking data.
 
 mod context;
+mod event_dto;
+mod event_reconstructor;
 mod helpers;
+mod inference;
 mod render_methods;
+mod report_builder;
 mod system_info;
 mod types;
 
 pub use types::*;
 
 // Re-export for external use
-pub use context::rebuild_allocations_from_events;
+pub use event_dto::{build_data_index, DashboardEventDTO, DataIndex, EventSummary};
+pub use event_reconstructor::rebuild_allocations_from_events;
 
 use crate::analysis::memory_passport_tracker::MemoryPassportTracker;
 use crate::tracker::Tracker;

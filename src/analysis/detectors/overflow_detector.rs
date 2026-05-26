@@ -5,18 +5,16 @@
 //! # Example
 //!
 //! ```rust
-//! use memscope_rs::analysis::detectors::{OverflowDetector, OverflowDetectorConfig, Detector};
-//! use memscope_rs::capture::types::AllocationInfo;
+//! # use memscope_rs::analysis::detectors::{OverflowDetector, OverflowDetectorConfig, Detector};
+//! # use memscope_rs::capture::types::AllocationInfo;
 //!
-//! fn main() {
-//!     let config = OverflowDetectorConfig::default();
-//!     let detector = OverflowDetector::new(config);
+//! let config = OverflowDetectorConfig::default();
+//! let detector = OverflowDetector::new(config);
 //!
-//!     let allocations = vec![];
-//!     let result = detector.detect(&allocations);
+//! let allocations = vec![];
+//! let result = detector.detect(&allocations);
 //!
-//!     println!("Found {} buffer overflow issues", result.issues.len());
-//! }
+//! println!("Found {} buffer overflow issues", result.issues.len());
 //! ```
 
 use crate::analysis::detectors::{
