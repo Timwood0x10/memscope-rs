@@ -302,6 +302,8 @@ mod tests {
             module_path: None,
             generation_id: 0,
             provenance: String::new(),
+            evidence: Default::default(),
+            confidence: Default::default(),
         };
 
         let index = build_data_index(&[alloc], &[], &[], &[]);

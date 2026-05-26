@@ -70,6 +70,16 @@ pub fn build_allocation_info(
                 module_path: a.module_path.clone(),
                 generation_id: a.generation_id,
                 provenance: infer_provenance(a),
+                evidence: if a.generation_id > 0 {
+                    EvidenceLevel::Observed
+                } else {
+                    EvidenceLevel::Inferred
+                },
+                confidence: if a.is_leaked {
+                    RiskConfidence::Confirmed
+                } else {
+                    RiskConfidence::Likely
+                },
             }
         })
         .collect()
