@@ -693,6 +693,45 @@
                 </div>
             </div>
 
+            <!-- Thread Relationship Graph -->
+            <div class="card" style="background: linear-gradient(135deg, #8b5cf610 0%, #8b5cf620 100%); border: 2px solid #8b5cf660;">
+                <div class="card-header">
+                    <h2 class="card-title" style="color: #8b5cf6;">🕸️ Thread Relationship Graph</h2>
+                    <div class="flex-gap-2">
+                        <span class="badge badge-info" id="threadGraphEdgeCount">0 edges</span>
+                    </div>
+                </div>
+                <div style="background: var(--bg2); border-radius: 8px; padding: 12px; margin-bottom: 12px; border: 1px solid var(--border);">
+                    <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                        <div class="legend-item"><div class="legend-color" style="background: #10b981;"></div>Normal</div>
+                        <div class="legend-item"><div class="legend-color" style="background: #f59e0b;"></div>Leak Risk</div>
+                        <div class="legend-item"><div class="legend-color" style="background: #ef4444;"></div>High Risk</div>
+                        <div class="legend-item"><div class="legend-color" style="background: #8b5cf6;"></div>Mixed</div>
+                        <div class="legend-item" style="margin-left: 12px;"><div style="width: 20px; height: 2px; background: #3b82f6;"></div>Shared Type</div>
+                        <div class="legend-item"><div style="width: 20px; height: 2px; background: #10b981; stroke-dasharray: 4,2;"></div>Shared Variable</div>
+                        <div class="legend-item"><div style="width: 20px; height: 2px; background: #ef4444;"></div>Clone/Transfer</div>
+                        <button class="btn-sm" onclick="Dashboard.threads.graph.resetZoom()">🔍 Reset</button>
+                    </div>
+                </div>
+                <div class="graph-container" id="threadGraphContainer" style="border: 1px solid var(--border); border-radius: 8px; background: var(--bg); min-height: 300px;"></div>
+            </div>
+
+            <!-- Thread Detail Panel -->
+            <div id="threadDetailPanel" class="card" style="display: none; background: linear-gradient(135deg, var(--bg) 0%, var(--bg3) 100%); border: 2px solid var(--primary);">
+                <div class="card-header">
+                    <h3 style="color: var(--primary); margin: 0;" id="tdTitle">🧵 Thread Details</h3>
+                    <button class="btn-sm" onclick="Dashboard.threads.hideDetail()">✕ Close</button>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                    <div class="detail-panel" id="tdMemByType"></div>
+                    <div class="detail-panel" id="tdTopVariables"></div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div class="detail-panel" id="tdTopSources"></div>
+                    <div class="detail-panel" id="tdUnsafeReports"></div>
+                </div>
+            </div>
+
             <!-- Thread Memory Heatmap -->
             <div class="card">
                 <div class="card-header">
@@ -958,6 +997,30 @@
                     </table>
                 </div>
             </div>
+
+            <!-- Leak Path View -->
+            <div class="card" style="background: linear-gradient(135deg, #ef444410 0%, #ef444420 100%); border: 2px solid #ef444460;">
+                <div class="card-header">
+                    <h2 class="card-title" style="color: #ef4444;">🚨 Leak Path Subgraph</h2>
+                    <div class="flex-gap-2">
+                        <span class="badge badge-danger" id="leakPathCount">0 leaked nodes</span>
+                    </div>
+                </div>
+                <div style="background: #ef444410; border-radius: 8px; padding: 12px; margin-bottom: 12px; border: 1px solid #ef444430;">
+                    <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                        <span style="font-size: 1rem;">🔍</span>
+                        <span style="font-size: 0.85rem; color: var(--text2);">Leaked allocations and their immediate neighbors. Red = leaked, linked by shared ownership or cloning.</span>
+                        <button class="btn-sm" onclick="Dashboard.leakPath.resetZoom()">🔍 Reset</button>
+                    </div>
+                </div>
+                <div class="graph-container" id="leakPathGraphContainer" style="border: 1px solid var(--border); border-radius: 8px; background: var(--bg); min-height: 250px;">
+                    <div id="leakPathEmptyState" class="empty-state" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 30px;">
+                        <div style="font-size: 2.5rem; margin-bottom: 12px;">✅</div>
+                        <div style="font-size: 1rem; font-weight: 600; margin-bottom: 4px;">No Leaked Allocations</div>
+                        <div style="color: var(--text2); font-size: 0.85rem;">Leak path subgraph will appear here when leaks are detected.</div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Passport Mode -->
@@ -1089,6 +1152,77 @@
                 </div>
             </div>
 
+            <!-- Lifecycle Bars -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">⏳ Allocation Lifecycle Bars</h2>
+                    <div class="flex-gap-2">
+                        <select id="lcThreadFilter" onchange="Dashboard.timetravel.renderLifecycleTimeline()" class="input-sm">
+                            <option value="all">All Threads</option>
+                        </select>
+                        <select id="lcTypeFilter" onchange="Dashboard.timetravel.renderLifecycleTimeline()" class="input-sm">
+                            <option value="all">All Types</option>
+                        </select>
+                        <select id="lcStatusFilter" onchange="Dashboard.timetravel.renderLifecycleTimeline()" class="input-sm">
+                            <option value="all">All Status</option>
+                            <option value="active">Active Only</option>
+                            <option value="leaked">Leaked Only</option>
+                            <option value="freed">Freed Only</option>
+                        </select>
+                        <span class="badge badge-info" id="lcBarCount">0 bars</span>
+                    </div>
+                </div>
+                <div id="lifecycleTimelineContainer" style="width: 100%; min-height: 300px; background: var(--bg); border-radius: 8px; overflow: hidden;"></div>
+            </div>
+
+            <!-- Time Slice Snapshots -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">⏱ Time Slice Snapshot</h2>
+                    <span class="badge badge-info">Drag to explore memory at a point in time</span>
+                </div>
+                <div style="padding: 0 4px; margin-bottom: 12px;">
+                    <input type="range" id="tsTimeSlider" min="0" max="100" value="100" oninput="Dashboard.timetravel.renderTimeSlice()" style="width: 100%; accent-color: var(--primary);">
+                    <div class="flex-between" style="font-size: 0.75rem; color: var(--text2);">
+                        <span id="tsTimeStart">T+0</span>
+                        <span id="tsTimeCurrent">T+0</span>
+                        <span id="tsTimeEnd">T+0</span>
+                    </div>
+                </div>
+                <div id="tsStatsGrid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px;">
+                    <div class="detail-panel" style="border-left: 4px solid #3b82f6; text-align: center;">
+                        <div style="font-size: 0.7rem; color: var(--text2);">📦 Active Allocs</div>
+                        <div class="stat-value" style="color: #3b82f6; font-size: 1.2rem;" id="tsAllocCount">0</div>
+                    </div>
+                    <div class="detail-panel" style="border-left: 4px solid #10b981; text-align: center;">
+                        <div style="font-size: 0.7rem; color: var(--text2);">💾 Live Bytes</div>
+                        <div class="stat-value" style="color: #10b981; font-size: 1.2rem;" id="tsLiveBytes">0 B</div>
+                    </div>
+                    <div class="detail-panel" style="border-left: 4px solid #f59e0b; text-align: center;">
+                        <div style="font-size: 0.7rem; color: var(--text2);">📈 Peak Bytes</div>
+                        <div class="stat-value" style="color: #f59e0b; font-size: 1.2rem;" id="tsPeakBytes">0 B</div>
+                    </div>
+                    <div class="detail-panel" style="border-left: 4px solid #ef4444; text-align: center;">
+                        <div style="font-size: 0.7rem; color: var(--text2);">🚨 Leak Candidates</div>
+                        <div class="stat-value" style="color: #ef4444; font-size: 1.2rem;" id="tsLeakCandidates">0</div>
+                    </div>
+                    <div class="detail-panel" style="border-left: 4px solid #8b5cf6; text-align: center;">
+                        <div style="font-size: 0.7rem; color: var(--text2);">⚠️ Unsafe Boundaries</div>
+                        <div class="stat-value" style="color: #8b5cf6; font-size: 1.2rem;" id="tsUnsafeCount">0</div>
+                    </div>
+                </div>
+                <div style="margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div class="detail-panel" style="border-left: 4px solid #3b82f6;">
+                        <div class="detail-label">💾 Memory by Thread</div>
+                        <div id="tsMemByThread" style="font-size: 0.8rem; margin-top: 4px;"></div>
+                    </div>
+                    <div class="detail-panel" style="border-left: 4px solid #10b981;">
+                        <div class="detail-label">📦 Memory by Type</div>
+                        <div id="tsMemByType" style="font-size: 0.8rem; margin-top: 4px;"></div>
+                    </div>
+                </div>
+            </div>
+
             <div class="card">
                 <div class="card-header">
                     <h2 class="card-title">🔍 Event Browser</h2>
@@ -1145,6 +1279,73 @@
                 </div>
                 <h4 style="color: var(--text2); margin-bottom: 12px;">🔄 Lifecycle Events</h4>
                 <div class="timeline" id="ttTimeline"></div>
+            </div>
+
+            <!-- Playback Mode -->
+            <div class="card" style="background: linear-gradient(135deg, #06b6d410 0%, #06b6d420 100%); border: 2px solid #06b6d460;">
+                <div class="card-header">
+                    <h2 class="card-title" style="color: #06b6d4;">▶️ Playback Mode</h2>
+                    <span class="badge" style="background: #06b6d430; color: #06b6d4;">Replay Memory Events</span>
+                </div>
+                <div style="background: var(--bg2); border-radius: 8px; padding: 16px; margin-bottom: 16px; border: 1px solid var(--border);">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <span style="font-size: 2rem;">🎬</span>
+                        <div>
+                            <div style="font-weight: 600; color: var(--primary);">Replay the Timeline</div>
+                            <div style="color: var(--text2); font-size: 0.85rem;">
+                                Watch allocations come and go in real-time. Speed up to see the big picture, slow down to catch leaks as they happen.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 12px; flex-wrap: wrap;">
+                    <div class="flex-gap-2">
+                        <button id="pbPlayBtn" class="btn-sm" style="background: #06b6d4; color: white; border: none; padding: 8px 20px; border-radius: 6px; cursor: pointer; font-weight: 500;" onclick="Dashboard.playback.toggle()">▶ Play</button>
+                        <button id="pbResetBtn" class="btn-sm" onclick="Dashboard.playback.reset()">⏹ Reset</button>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 0.85rem; color: var(--text2);">Speed:</span>
+                        <select id="pbSpeedSelect" class="input-sm" onchange="Dashboard.playback.setSpeed(parseFloat(this.value))" style="width: 80px;">
+                            <option value="0.5">0.5×</option>
+                            <option value="1" selected>1×</option>
+                            <option value="2">2×</option>
+                            <option value="5">5×</option>
+                            <option value="10">10×</option>
+                            <option value="20">20×</option>
+                            <option value="50">50×</option>
+                        </select>
+                    </div>
+                </div>
+                <div style="margin-bottom: 8px;">
+                    <input type="range" id="pbProgressSlider" min="0" max="100" value="0" oninput="Dashboard.playback.seek(parseInt(this.value))" style="width: 100%; accent-color: #06b6d4;">
+                    <div class="flex-between" style="font-size: 0.75rem; color: var(--text2);">
+                        <span id="pbTimeStart">T+0</span>
+                        <span id="pbTimeCurrent">T+0</span>
+                        <span id="pbTimeEnd">T+0</span>
+                    </div>
+                </div>
+                <div id="pbStatsGrid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px;">
+                    <div class="detail-panel" style="border-left: 4px solid #06b6d4; text-align: center;">
+                        <div style="font-size: 0.7rem; color: var(--text2);">⏱ Events Replayed</div>
+                        <div class="stat-value" style="color: #06b6d4; font-size: 1.1rem;" id="pbEventsReplayed">0</div>
+                    </div>
+                    <div class="detail-panel" style="border-left: 4px solid #3b82f6; text-align: center;">
+                        <div style="font-size: 0.7rem; color: var(--text2);">📦 Active</div>
+                        <div class="stat-value" style="color: #3b82f6; font-size: 1.1rem;" id="pbActiveCount">0</div>
+                    </div>
+                    <div class="detail-panel" style="border-left: 4px solid #10b981; text-align: center;">
+                        <div style="font-size: 0.7rem; color: var(--text2);">💾 Live Bytes</div>
+                        <div class="stat-value" style="color: #10b981; font-size: 1.1rem;" id="pbLiveBytes">0 B</div>
+                    </div>
+                    <div class="detail-panel" style="border-left: 4px solid #ef4444; text-align: center;">
+                        <div style="font-size: 0.7rem; color: var(--text2);">🚨 Leaks Seen</div>
+                        <div class="stat-value" style="color: #ef4444; font-size: 1.1rem;" id="pbLeaksSeen">0</div>
+                    </div>
+                    <div class="detail-panel" style="border-left: 4px solid #f59e0b; text-align: center;">
+                        <div style="font-size: 0.7rem; color: var(--text2);">📈 Peak Bytes</div>
+                        <div class="stat-value" style="color: #f59e0b; font-size: 1.1rem;" id="pbPeakBytes">0 B</div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -1698,6 +1899,19 @@
                     this.svg.call(this.zoom);
                     this.g = this.svg.append('g');
                     this.svg.append('defs').append('marker').attr('id', 'arrowhead').attr('viewBox', '-0 -5 10 10').attr('refX', 20).attr('refY', 0).attr('orient', 'auto').attr('markerWidth', 6).attr('markerHeight', 6).append('path').attr('d', 'M 0,-5 L 10,0 L 0,5').attr('fill', '#64748b');
+                    function inferOwnershipModel(node) {
+                        const tn = (node.typeName || '').toLowerCase();
+                        if (node.isContainer) return 'Container';
+                        if (tn.includes('arc<')) return 'Arc';
+                        if (tn.includes('rc<')) return 'Rc';
+                        if (tn.includes('box<')) return 'Box';
+                        if (tn.includes('*const ') || tn.includes('*mut ') || tn.includes('raw') || tn.includes('ptr')) return 'RawPointer';
+                        const alloc = DataIndex.allocationByPtr(node.ptr);
+                        if (alloc && alloc.is_leaked) return 'Leaked';
+                        return 'HeapOwner';
+                    }
+                    const ownerColorMap = { Container: '#f59e0b', Box: '#3b82f6', Rc: '#8b5cf6', Arc: '#8b5cf6', RawPointer: '#ef4444', Leaked: '#dc2626', HeapOwner: '#10b981' };
+                    const ownerLabels = { Container: 'Container', Box: 'Box Owner', Rc: 'Rc Shared', Arc: 'Arc Shared', RawPointer: 'Raw Ptr', Leaked: '🚨 LEAKED', HeapOwner: 'Heap Owner' };
                     const nodeMap = new Map();
                     relationships.forEach((r) => {
                         const sourceId = r.source_ptr;
@@ -1708,6 +1922,7 @@
                         if (!nodeMap.has(targetId)) nodeMap.set(targetId, { id: targetId, ptr: targetId, name: r.target_var_name || ('Ptr ' + targetId.slice(-6)), type: r.relationship_type, typeName: r.type_name || 'unknown', isSource: false, hasCycle: false, inDegree: 0, outDegree: 0, isContainer: isTargetContainer });
                     });
                     const nodes = Array.from(nodeMap.values());
+                    nodes.forEach(n => { n.ownerModel = inferOwnershipModel(n); n.ownerColor = ownerColorMap[n.ownerModel] || '#64748b'; });
                     const nodeIds = new Set(nodes.map(n => n.id));
                     const links = relationships.map(r => ({ source: r.source_ptr, target: r.target_ptr, type: r.relationship_type || 'reference', strength: r.strength || 0.5, typeName: r.type_name || 'unknown', isPartOfCycle: r.is_part_of_cycle || false })).filter(l => nodeIds.has(l.source) && nodeIds.has(l.target));
                     links.forEach(l => { 
@@ -1732,7 +1947,7 @@
                     this.simulation = d3.forceSimulation(nodes).force('link', d3.forceLink(links).id(d => d.id).distance(100)).force('charge', d3.forceManyBody().strength(-300)).force('center', d3.forceCenter(width / 2, height / 2)).force('collision', d3.forceCollide().radius(35));
                     const link = this.g.append('g').selectAll('line').data(links).join('line').attr('class', 'link').attr('stroke', getLinkColor).attr('stroke-width', d => Math.max(1.5, d.strength * 3)).attr('stroke-dasharray', d => d.isPartOfCycle ? '6,3' : null).attr('marker-end', 'url(#arrowhead)');
                     const node = this.g.append('g').selectAll('g').data(nodes).join('g').attr('class', 'node').call(d3.drag().on('start', (event) => { if (!event.active) this.simulation.alphaTarget(0.3).restart(); event.subject.fx = event.subject.x || 0; event.subject.fy = event.subject.y || 0; }).on('drag', (event) => { event.subject.fx = event.x || 0; event.subject.fy = event.y || 0; }).on('end', (event) => { if (!event.active) this.simulation.alphaTarget(0); event.subject.fx = null; event.subject.fy = null; }));
-                    node.append('circle').attr('r', d => d.hasCycle ? 18 : 14).attr('fill', d => getColor(d.type)).attr('stroke', d => d.hasCycle ? '#ef4444' : 'none').attr('stroke-width', 3);
+                    node.append('circle').attr('r', d => d.hasCycle ? 18 : 14).attr('fill', d => d.ownerColor).attr('stroke', d => d.hasCycle ? '#ef4444' : 'none').attr('stroke-width', 3);
                     node.append('text').attr('dx', 20).attr('dy', 4).text(d => { const name = d.name || 'unknown'; return name.length > 14 ? name.substring(0, 12) + '..' : name; }).style('font-size', '12px').style('fill', 'var(--text)').style('font-weight', '500');
                     const tooltip = document.getElementById('tooltip');
                     node.on('mouseover', (event, d) => { 
@@ -1742,7 +1957,7 @@
                             <div style="font-weight: 600; font-size: 14px; margin-bottom: 8px; color: var(--primary);">${d.name || 'Unknown'}</div>
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 12px;">
                                 <div style="color: var(--text2);">Type:</div><div>${d.typeName || 'unknown'}</div>
-                                <div style="color: var(--text2);">Node Kind:</div><div style="color: ${d.isContainer ? '#f59e0b' : '#64748b'};">${d.isContainer ? 'Container' : 'HeapOwner'}</div>
+                                <div style="color: var(--text2);">Ownership:</div><div style="color: ${d.ownerColor};">${ownerLabels[d.ownerModel] || d.ownerModel}</div>
                                 <div style="color: var(--text2);">Relation:</div><div style="color: ${getColor(d.type)};">${getTypeLabel(d.type)}</div>
                                 <div style="color: var(--text2);">Incoming:</div><div>${d.inDegree} links</div>
                                 <div style="color: var(--text2);">Outgoing:</div><div>${d.outDegree} links</div>
@@ -1757,6 +1972,56 @@
                 },
                 resetZoom() { if (this.svg && this.zoom) this.svg.transition().duration(500).call(this.zoom.transform, d3.zoomIdentity); },
                 highlightCycles() { this.highlightMode = !this.highlightMode; if (!this.g) return; this.g.selectAll('.node circle').attr('stroke-width', d => this.highlightMode && d.hasCycle ? 5 : d.hasCycle ? 3 : 0); this.g.selectAll('.link').attr('stroke-width', d => this.highlightMode && d.isPartOfCycle ? 4 : Math.max(1.5, d.strength * 3)); }
+            },
+
+            leakPath: {
+                simulation: null,
+                svg: null,
+                zoom: null,
+                g: null,
+                init() {
+                    const container = document.getElementById('leakPathGraphContainer');
+                    const emptyState = document.getElementById('leakPathEmptyState');
+                    const countBadge = document.getElementById('leakPathCount');
+                    if (!container || !emptyState || !countBadge) return;
+                    const allocs = data.allocations || [];
+                    const leaked = allocs.filter(a => a.is_leaked);
+                    if (leaked.length === 0) { emptyState.style.display = 'flex'; container.innerHTML = ''; container.appendChild(emptyState); countBadge.textContent = '0 leaked'; return; }
+                    emptyState.style.display = 'none';
+                    container.innerHTML = '';
+                    countBadge.textContent = leaked.length + ' leaked nodes';
+                    const leakPtrs = new Set(leaked.map(a => a.address));
+                    const rels = data.relationships || [];
+                    const relevantPtrs = new Set(leakPtrs);
+                    rels.forEach(r => { if (leakPtrs.has(r.source_ptr)) relevantPtrs.add(r.target_ptr); if (leakPtrs.has(r.target_ptr)) relevantPtrs.add(r.source_ptr); });
+                    const nodeMap = new Map();
+                    relevantPtrs.forEach(ptr => {
+                        const alloc = DataIndex.allocationByPtr(ptr) || allocs.find(a => a.address === ptr);
+                        const rel = rels.find(r => r.source_ptr === ptr || r.target_ptr === ptr);
+                        const isLeaked = leakPtrs.has(ptr);
+                        nodeMap.set(ptr, { id: ptr, ptr, name: alloc ? (alloc.var_name || ptr.slice(-8)) : ptr.slice(-8), isLeaked, size: alloc ? (parseInt(alloc.size) || 0) : 0 });
+                    });
+                    const nodes = Array.from(nodeMap.values());
+                    const nodeIds = new Set(nodes.map(n => n.id));
+                    const links = rels.filter(r => nodeIds.has(r.source_ptr) && nodeIds.has(r.target_ptr) && (leakPtrs.has(r.source_ptr) || leakPtrs.has(r.target_ptr))).map(r => ({ source: r.source_ptr, target: r.target_ptr, type: r.relationship_type || 'reference', strength: r.strength || 0.5 }));
+                    const width = container.clientWidth || 600;
+                    const height = 250;
+                    this.svg = d3.select(container).append('svg').attr('width', '100%').attr('height', height).attr('viewBox', [0, 0, width, height]);
+                    this.zoom = d3.zoom().on('zoom', (event) => { if (this.g) this.g.attr('transform', event.transform); });
+                    this.svg.call(this.zoom);
+                    this.g = this.svg.append('g');
+                    const link = this.g.append('g').selectAll('line').data(links).join('line').attr('stroke', d => d.type === 'clone' ? '#10b981' : '#64748b').attr('stroke-width', d => 1 + d.strength * 2).attr('stroke-opacity', 0.5).attr('marker-end', 'url(#arrowhead)');
+                    const node = this.g.append('g').selectAll('g').data(nodes).join('g').attr('class', 'node').style('cursor', 'pointer').on('click', (event, d) => { if (d.isLeaked) Dashboard.timetravel.showDetail(d.ptr); });
+                    node.append('circle').attr('r', d => d.isLeaked ? 16 : 10).attr('fill', d => d.isLeaked ? '#ef4444' : '#f59e0b').attr('stroke', '#fff').attr('stroke-width', 2).attr('stroke-dasharray', d => d.isLeaked ? 'none' : '4,2');
+                    node.append('text').attr('dx', d => d.isLeaked ? 20 : 14).attr('dy', 4).text(d => d.name).style('font-size', '10px').style('fill', 'var(--text)').style('font-weight', d => d.isLeaked ? '600' : '400');
+                    const tooltip = d3.select('#tooltip');
+                    node.on('mouseover', (event, d) => {
+                        tooltip.style('display', 'block').html(`<div style="min-width:160px;"><div style="font-weight:600;margin-bottom:4px;color:${d.isLeaked ? '#ef4444' : '#f59e0b'};">${d.isLeaked ? '🚨 LEAKED' : 'Neighbor'}: ${d.name}</div><div style="font-size:12px;color:var(--text2);">Ptr: ${d.ptr}</div><div style="font-size:12px;color:var(--text2);">Size: ${Utils.formatBytes(d.size)}</div></div>`).style('left', (event.pageX + 15) + 'px').style('top', (event.pageY - 10) + 'px');
+                    }).on('mouseout', () => tooltip.style('display', 'none'));
+                    this.simulation = d3.forceSimulation(nodes).force('link', d3.forceLink(links).id(d => d.id).distance(100)).force('charge', d3.forceManyBody().strength(-250)).force('center', d3.forceCenter(width / 2, height / 2));
+                    this.simulation.on('tick', () => { link.attr('x1', d => d.source?.x || 0).attr('y1', d => d.source?.y || 0).attr('x2', d => d.target?.x || 0).attr('y2', d => d.target?.y || 0); node.attr('transform', d => `translate(${d.x || 0},${d.y || 0})`); });
+                },
+                resetZoom() { if (this.svg && this.zoom) this.svg.transition().duration(500).call(this.zoom.transform, d3.zoomIdentity); }
             },
 
             allocations: {
@@ -1950,6 +2215,121 @@
                         </div>
                     `;
                 },
+                graph: {
+                    simulation: null,
+                    svg: null,
+                    zoom: null,
+                    g: null,
+                    render() {
+                        const container = document.getElementById('threadGraphContainer');
+                        if (!container) return;
+                        const threads = data.threads || [];
+                        if (threads.length === 0) { container.innerHTML = '<div class="empty-state">No thread data for graph</div>'; return; }
+                        container.innerHTML = '';
+                        const allocs = data.allocations || [];
+                        const unsafeReports = data.unsafe_reports || [];
+                        const threadMap = {};
+                        threads.forEach(t => { threadMap[String(t.thread_id)] = t; });
+                        const leakByThread = {};
+                        allocs.filter(a => a.is_leaked).forEach(a => { const tid = String(a.thread_id); leakByThread[tid] = (leakByThread[tid] || 0) + 1; });
+                        const unsafeByThread = {};
+                        unsafeReports.forEach(r => {
+                            const linked = DataIndex.allocationByPtr(r.allocation_ptr);
+                            if (linked) { const tid = String(linked.thread_id); unsafeByThread[tid] = (unsafeByThread[tid] || 0) + 1; }
+                        });
+                        const nodes = threads.map(t => {
+                            const tid = String(t.thread_id);
+                            const mem = t.current_memory_bytes || 0;
+                            const leaks = leakByThread[tid] || 0;
+                            const unsafes = unsafeByThread[tid] || 0;
+                            let risk = 'normal';
+                            if (leaks > 0 && unsafes > 0) risk = 'mixed';
+                            else if (leaks > 0) risk = 'leak';
+                            else if (unsafes > 0) risk = 'unsafe';
+                            const colorMap = { normal: '#10b981', leak: '#f59e0b', unsafe: '#ef4444', mixed: '#8b5cf6' };
+                            return { id: tid, label: 'T' + tid.slice(-4), memory: mem, allocCount: t.allocation_count || 0, leaks, unsafes, risk, color: colorMap[risk] || '#10b981' };
+                        });
+                        const memValues = nodes.map(n => n.memory);
+                        const minMem = Math.min(...memValues) || 1;
+                        const maxMem = Math.max(...memValues) || 1;
+                        const edges = [];
+                        const varByThread = {};
+                        allocs.forEach(a => {
+                            const tid = String(a.thread_id);
+                            if (!varByThread[tid]) varByThread[tid] = new Set();
+                            if (a.var_name) varByThread[tid].add(a.var_name);
+                        });
+                        const typeByThread = {};
+                        allocs.forEach(a => {
+                            const tid = String(a.thread_id);
+                            if (!typeByThread[tid]) typeByThread[tid] = new Set();
+                            if (a.type_name) typeByThread[tid].add(a.type_name);
+                        });
+                        for (let i = 0; i < nodes.length; i++) {
+                            for (let j = i + 1; j < nodes.length; j++) {
+                                const tida = nodes[i].id, tidb = nodes[j].id;
+                                const sharedVars = [...(varByThread[tida] || [])].filter(v => (varByThread[tidb] || []).has(v));
+                                const sharedTypes = [...(typeByThread[tida] || [])].filter(v => (typeByThread[tidb] || []).has(v));
+                                if (sharedVars.length > 0) edges.push({ source: tida, target: tidb, type: 'variable', label: 'Shared Var: ' + sharedVars.slice(0, 2).join(', '), strength: Math.min(1, sharedVars.length / 3), color: '#10b981', dash: '4,2' });
+                                if (sharedTypes.length > 0) edges.push({ source: tida, target: tidb, type: 'type', label: 'Shared Type: ' + sharedTypes.slice(0, 2).join(', '), strength: Math.min(1, sharedTypes.length / 5), color: '#3b82f6', dash: null });
+                            }
+                        }
+                        (data.relationships || []).forEach(r => {
+                            const srcAlloc = DataIndex.allocationByPtr(r.source_ptr);
+                            const tgtAlloc = DataIndex.allocationByPtr(r.target_ptr);
+                            if (srcAlloc && tgtAlloc && String(srcAlloc.thread_id) !== String(tgtAlloc.thread_id)) {
+                                edges.push({ source: String(srcAlloc.thread_id), target: String(tgtAlloc.thread_id), type: 'transfer', label: r.relationship_type || 'transfer', strength: (r.strength || 0.5), color: '#ef4444', dash: null });
+                            }
+                        });
+                        document.getElementById('threadGraphEdgeCount').textContent = edges.length + ' edges';
+                        const width = container.clientWidth || 700;
+                        const height = 300;
+                        Dashboard.threads.graph.svg = d3.select(container).append('svg').attr('width', '100%').attr('height', height).attr('viewBox', [0, 0, width, height]);
+                        Dashboard.threads.graph.zoom = d3.zoom().on('zoom', (event) => { if (Dashboard.threads.graph.g) Dashboard.threads.graph.g.attr('transform', event.transform); });
+                        Dashboard.threads.graph.svg.call(Dashboard.threads.graph.zoom);
+                        Dashboard.threads.graph.g = Dashboard.threads.graph.svg.append('g');
+                        Dashboard.threads.graph.svg.append('defs').append('marker').attr('id', 'threadArrow').attr('viewBox', '-0 -5 10 10').attr('refX', 25).attr('refY', 0).attr('orient', 'auto').attr('markerWidth', 6).attr('markerHeight', 6).append('path').attr('d', 'M 0,-5 L 10,0 L 0,5').attr('fill', '#64748b');
+                        const link = Dashboard.threads.graph.g.append('g').selectAll('line').data(edges).join('line').attr('stroke', d => d.color).attr('stroke-width', d => 1 + d.strength * 2).attr('stroke-dasharray', d => d.dash || 'none').attr('stroke-opacity', 0.6).attr('marker-end', 'url(#threadArrow)');
+                        link.append('title').text(d => d.label);
+                        const node = Dashboard.threads.graph.g.append('g').selectAll('g').data(nodes).join('g').attr('class', 'node').style('cursor', 'pointer').on('click', (event, d) => Dashboard.threads.showDetail(d.id));
+                        node.append('circle').attr('r', d => 10 + (d.memory / (maxMem || 1)) * 20).attr('fill', d => d.color).attr('stroke', '#fff').attr('stroke-width', 2).attr('opacity', 0.85);
+                        node.append('text').attr('dx', d => 12 + (d.memory / (maxMem || 1)) * 20).attr('dy', 4).text(d => d.label).style('font-size', '11px').style('fill', 'var(--text)').style('font-weight', '600');
+                        const tooltip = d3.select('#tooltip');
+                        node.on('mouseover', (event, d) => {
+                            tooltip.style('display', 'block').html(`<div style="min-width:150px;"><div style="font-weight:600;margin-bottom:4px;">Thread ${d.id}</div><table style="font-size:12px;border-collapse:collapse;"><tr><td style="color:var(--text2);padding:1px 4px;">Risk</td><td style="padding:1px 4px;">${d.risk}</td></tr><tr><td style="color:var(--text2);padding:1px 4px;">Memory</td><td style="padding:1px 4px;">${Utils.formatBytes(d.memory)}</td></tr><tr><td style="color:var(--text2);padding:1px 4px;">Allocs</td><td style="padding:1px 4px;">${d.allocCount}</td></tr><tr><td style="color:var(--text2);padding:1px 4px;">Leaks</td><td style="padding:1px 4px;">${d.leaks}</td></tr><tr><td style="color:var(--text2);padding:1px 4px;">Unsafe</td><td style="padding:1px 4px;">${d.unsafes}</td></tr></table></div>`).style('left', (event.pageX + 15) + 'px').style('top', (event.pageY - 10) + 'px');
+                        }).on('mouseout', () => tooltip.style('display', 'none'));
+                        Dashboard.threads.graph.simulation = d3.forceSimulation(nodes).force('link', d3.forceLink(edges).id(d => d.id).distance(120)).force('charge', d3.forceManyBody().strength(-300)).force('center', d3.forceCenter(width / 2, height / 2)).force('collision', d3.forceCollide().radius(40));
+                        Dashboard.threads.graph.simulation.on('tick', () => { link.attr('x1', d => d.source?.x || 0).attr('y1', d => d.source?.y || 0).attr('x2', d => d.target?.x || 0).attr('y2', d => d.target?.y || 0); node.attr('transform', d => `translate(${d.x || 0},${d.y || 0})`); });
+                    },
+                    resetZoom() { if (Dashboard.threads.graph.svg && Dashboard.threads.graph.zoom) Dashboard.threads.graph.svg.transition().duration(500).call(Dashboard.threads.graph.zoom.transform, d3.zoomIdentity); }
+                },
+                showDetail(threadId) {
+                    const panel = document.getElementById('threadDetailPanel');
+                    if (!panel) return;
+                    panel.style.display = 'block';
+                    document.getElementById('tdTitle').textContent = '🧵 Thread ' + threadId + ' Details';
+                    const allocs = DataIndex.allocationsByThread(threadId);
+                    const typeMap = {};
+                    allocs.forEach(a => { const cat = Dashboard.timetravel.classifyType(a.type_name); typeMap[cat] = (typeMap[cat] || 0) + (parseInt(a.size) || 0); });
+                    const typeHtml = '<div class="detail-label">💾 Memory by Type</div>' + Object.entries(typeMap).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([cat, bytes]) => `<div class="flex-between" style="padding:2px 0;"><span style="color:${Dashboard.timetravel.getCategoryColor(cat)};">${cat}</span><span>${Utils.formatBytes(bytes)}</span></div>`).join('') || '<div style="color:var(--text2);">None</div>';
+                    document.getElementById('tdMemByType').innerHTML = typeHtml;
+                    const varMap = {};
+                    allocs.forEach(a => { if (a.var_name) varMap[a.var_name] = (varMap[a.var_name] || 0) + (parseInt(a.size) || 0); });
+                    const varHtml = '<div class="detail-label">📦 Top Variables</div>' + Object.entries(varMap).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([name, bytes]) => `<div class="flex-between" style="padding:2px 0;"><span>${name}</span><span>${Utils.formatBytes(bytes)}</span></div>`).join('') || '<div style="color:var(--text2);">None</div>';
+                    document.getElementById('tdTopVariables').innerHTML = varHtml;
+                    const srcMap = {};
+                    allocs.forEach(a => { if (a.source_file) { const key = a.source_file + (a.source_line ? ':' + a.source_line : ''); srcMap[key] = (srcMap[key] || 0) + 1; } });
+                    const srcHtml = '<div class="detail-label">📍 Top Source Locations</div>' + Object.entries(srcMap).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([loc, count]) => `<div class="flex-between" style="padding:2px 0;"><span style="font-size:0.75rem;">${loc}</span><span>${count}x</span></div>`).join('') || '<div style="color:var(--text2);">None</div>';
+                    document.getElementById('tdTopSources').innerHTML = srcHtml;
+                    const unsafeList = [];
+                    (data.unsafe_reports || []).forEach(r => {
+                        const linked = r.allocation_ptr ? DataIndex.allocationByPtr(r.allocation_ptr) : null;
+                        if (linked && String(linked.thread_id) === threadId) unsafeList.push(r);
+                    });
+                    const unsafeHtml = '<div class="detail-label">⚠️ Unsafe Reports</div>' + (unsafeList.length > 0 ? unsafeList.slice(0, 5).map(r => `<div class="flex-between" style="padding:2px 0;"><span style="color:${r.risk_level === 'high' ? '#ef4444' : '#f59e0b'};">${r.var_name || 'unknown'}</span><span class="badge ${r.risk_level === 'high' ? 'badge-danger' : 'badge-warning'}">${r.risk_level}</span></div>`).join('') : '<div style="color:var(--text2);">None</div>');
+                    document.getElementById('tdUnsafeReports').innerHTML = unsafeHtml;
+                },
+                hideDetail() { document.getElementById('threadDetailPanel').style.display = 'none'; },
                 init() {
                     const threads = data.threads || [];
                     this.filteredData = [...threads];
@@ -1960,6 +2340,7 @@
                         return;
                     }
                     this.sort();
+                    this.graph.render();
                 }
             },
 
@@ -1981,18 +2362,43 @@
                         console.error('Failed to parse task_graph_json:', e);
                     }
 
-                    if (!taskGraphData || !taskGraphData.nodes || taskGraphData.nodes.length === 0) {
-                        emptyState.style.display = 'flex';
-                        svgContainer.style.display = 'none';
-                        countBadge.textContent = '0 tasks';
+                    if (taskGraphData && taskGraphData.nodes && taskGraphData.nodes.length > 0) {
+                        emptyState.style.display = 'none';
+                        svgContainer.style.display = 'block';
+                        countBadge.textContent = taskGraphData.nodes.length + ' tasks (graph)';
+                        this.renderTree(taskGraphData);
                         return;
                     }
 
-                    emptyState.style.display = 'none';
-                    svgContainer.style.display = 'block';
-                    countBadge.textContent = taskGraphData.nodes.length + ' tasks';
+                    const asyncTasks = data.async_tasks || [];
+                    if (asyncTasks.length > 0) {
+                        emptyState.style.display = 'none';
+                        svgContainer.style.display = 'block';
+                        countBadge.textContent = asyncTasks.length + ' tasks (async)';
+                        svgContainer.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;padding:12px;">' +
+                            asyncTasks.slice(0, 50).map(t => {
+                                const statusColor = t.is_completed ? '#10b981' : '#3b82f6';
+                                const eff = (t.efficiency_score || 0) * 100;
+                                return '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px;border-left:4px solid ' + statusColor + ';">' +
+                                    '<div class="flex-between" style="margin-bottom:8px;"><span style="font-weight:600;color:var(--primary);">#' + t.task_id + '</span>' +
+                                    '<span class="badge" style="background:' + statusColor + '30;color:' + statusColor + ';">' + (t.is_completed ? 'Completed' : 'Active') + '</span></div>' +
+                                    '<div style="font-size:0.85rem;margin-bottom:8px;">' + (t.task_name || 'Unknown') + '</div>' +
+                                    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:0.8rem;">' +
+                                    '<div><span class="detail-label">Memory</span><div style="font-weight:600;">' + Utils.formatBytes(t.current_memory || 0) + '</div></div>' +
+                                    '<div><span class="detail-label">Peak</span><div style="font-weight:600;">' + Utils.formatBytes(t.peak_memory || 0) + '</div></div>' +
+                                    '<div><span class="detail-label">Allocs</span><div style="font-weight:600;">' + (t.total_allocations || 0) + '</div></div>' +
+                                    '<div><span class="detail-label">Dur.</span><div style="font-weight:600;">' + (t.duration_ms || 0).toFixed(1) + 'ms</div></div>' +
+                                    '<div><span class="detail-label">Eff.</span><div style="font-weight:600;">' + eff.toFixed(0) + '%</div></div>' +
+                                    '<div><span class="detail-label">Type</span><div style="font-weight:600;font-size:0.75rem;">' + (t.task_type || '—') + '</div></div>' +
+                                    '</div>' + (t.has_potential_leak ? '<div style="margin-top:8px;color:#f59e0b;font-size:0.8rem;">⚠️ Potential Leak</div>' : '') +
+                                    '</div>';
+                            }).join('') + '</div>';
+                        return;
+                    }
 
-                    this.renderTree(taskGraphData);
+                    emptyState.style.display = 'flex';
+                    svgContainer.style.display = 'none';
+                    countBadge.textContent = '0 tasks';
                 },
 
                 renderTree(graphData) {
@@ -2493,6 +2899,102 @@
                     if (leakedEl) leakedEl.textContent = leaked;
                 },
                 showDetail(address) { const alloc = DataIndex.allocationByPtr(address) || data.allocations?.find(a => a.address === address); if (!alloc) { alert('Allocation not found: ' + address); return; } document.getElementById('timetravelDetail').style.display = 'block'; document.getElementById('ttAddress').textContent = address; document.getElementById('ttVarName').textContent = alloc.var_name || 'unknown'; document.getElementById('ttType').textContent = alloc.type_name || 'Unknown'; document.getElementById('ttSize').textContent = Utils.formatBytes(parseInt(alloc.size) || 0); document.getElementById('ttStatus').innerHTML = alloc.is_leaked ? '<span class="badge badge-danger">Leaked</span>' : '<span class="badge badge-success">Normal</span>'; const timeline = document.getElementById('ttTimeline'); const events = [{ type: 'alloc', time: alloc.timestamp_alloc || 0, desc: 'Allocation', icon: '➕' }]; if (alloc.timestamp_dealloc > 0) events.push({ type: 'dealloc', time: alloc.timestamp_dealloc, desc: 'Deallocation', icon: '➖' }); if (alloc.is_leaked) events.push({ type: 'leak', time: (alloc.timestamp_alloc || 0) + parseInt(alloc.lifetime_ms || 0) * 1000000, desc: 'Leak Detected', icon: '⚠️' }); timeline.innerHTML = events.map(e => `<div class="timeline-item ${e.type}"><strong>${e.icon} ${e.desc}</strong><div style="color: var(--text2); font-size: 0.85rem;">Timestamp: ${e.time} | Delta: +${Utils.formatTime(e.time - events[0].time)}</div></div>`).join(''); },
+                renderTimeSlice() {
+                    const slider = document.getElementById('tsTimeSlider');
+                    if (!slider) return;
+                    const allocs = data.allocations || [];
+                    if (allocs.length === 0) return;
+                    const minTime = d3.min(allocs, a => a.timestamp_alloc || 0);
+                    const maxTime = d3.max(allocs, a => Math.max(a.timestamp_dealloc || 0, (a.timestamp_alloc || 0) + (a.lifetime_ms || 0) * 1000000));
+                    const timeRange = (maxTime - minTime) || 1;
+                    const pct = parseInt(slider.value) / 100;
+                    const currentTime = minTime + pct * timeRange;
+                    document.getElementById('tsTimeCurrent').textContent = 'T+' + Utils.formatTime(currentTime - minTime);
+                    const active = allocs.filter(a => (a.timestamp_alloc || 0) <= currentTime && (!a.timestamp_dealloc || a.timestamp_dealloc > currentTime));
+                    const liveBytes = active.reduce((s, a) => s + (parseInt(a.size) || 0), 0);
+                    let peakBytes = 0;
+                    for (let i = 0; i <= parseInt(slider.value); i++) {
+                        const t = minTime + (i / 100) * timeRange;
+                        const bAtT = allocs.filter(a => (a.timestamp_alloc || 0) <= t && (!a.timestamp_dealloc || a.timestamp_dealloc > t)).reduce((s, a) => s + (parseInt(a.size) || 0), 0);
+                        if (bAtT > peakBytes) peakBytes = bAtT;
+                    }
+                    const leakCandidates = active.filter(a => a.is_leaked).length;
+                    const unsafeReports = data.unsafe_reports || [];
+                    const unsafeCount = unsafeReports.filter(r => r.allocation_ptr && active.some(a => a.address === r.allocation_ptr)).length;
+                    document.getElementById('tsAllocCount').textContent = active.length;
+                    document.getElementById('tsLiveBytes').textContent = Utils.formatBytes(liveBytes);
+                    document.getElementById('tsPeakBytes').textContent = Utils.formatBytes(peakBytes);
+                    document.getElementById('tsLeakCandidates').textContent = leakCandidates;
+                    document.getElementById('tsUnsafeCount').textContent = unsafeCount;
+                    const threadMap = {};
+                    active.forEach(a => { const tid = a.thread_id || '?'; threadMap[tid] = (threadMap[tid] || 0) + (parseInt(a.size) || 0); });
+                    const threadHtml = Object.entries(threadMap).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([tid, bytes]) => `<div class="flex-between" style="padding:2px 0;"><span>Thread ${tid}</span><span style="font-weight:600;">${Utils.formatBytes(bytes)}</span></div>`).join('') || '<div style="color:var(--text2);">None</div>';
+                    document.getElementById('tsMemByThread').innerHTML = threadHtml;
+                    const typeMap = {};
+                    active.forEach(a => { const cat = this.classifyType(a.type_name); typeMap[cat] = (typeMap[cat] || 0) + (parseInt(a.size) || 0); });
+                    const typeHtml = Object.entries(typeMap).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([cat, bytes]) => `<div class="flex-between" style="padding:2px 0;"><span style="color:${this.getCategoryColor(cat)};">${cat}</span><span style="font-weight:600;">${Utils.formatBytes(bytes)}</span></div>`).join('') || '<div style="color:var(--text2);">None</div>';
+                    document.getElementById('tsMemByType').innerHTML = typeHtml;
+                },
+                classifyType(typeName) {
+                    if (!typeName) return 'Unknown';
+                    const t = typeName.toLowerCase();
+                    if (t.includes('vec') || t.includes('string') || t.includes('hashmap') || t.includes('hashset') || t.includes('btreemap') || t.includes('btreeset') || t.includes('linkedlist') || t.includes('vecdeque')) return 'Container';
+                    if (t.includes('arc<') || t.includes('rc<') || t.includes('box<')) return 'SmartPointer';
+                    if (t.includes('mutex') || t.includes('rwlock') || t.includes('refcell') || t.includes('cell<') || t.includes('atomic') || t.includes('unsafecell')) return 'SyncPrimitive';
+                    if (t.includes('fn ') || t.includes('closure') || t.includes('fn(')) return 'Function';
+                    if (t.includes('i8') || t.includes('i16') || t.includes('i32') || t.includes('i64') || t.includes('u8') || t.includes('u16') || t.includes('u32') || t.includes('u64') || t.includes('usize') || t.includes('isize') || t.includes('f32') || t.includes('f64') || t.includes('bool') || t.includes('char')) return 'Primitive';
+                    if (t.includes('*const') || t.includes('*mut') || t.includes('ptr')) return 'RawPointer';
+                    if (t.includes('&') || t.includes('ref')) return 'Reference';
+                    return 'Other';
+                },
+                getCategoryColor(category) {
+                    const map = { 'Container': '#3b82f6', 'SmartPointer': '#8b5cf6', 'SyncPrimitive': '#f59e0b', 'Function': '#06b6d4', 'Primitive': '#10b981', 'RawPointer': '#ef4444', 'Reference': '#64748b', 'Other': '#94a3b8', 'Unknown': '#cbd5e1' };
+                    return map[category] || '#94a3b8';
+                },
+                renderLifecycleTimeline() {
+                    const container = document.getElementById('lifecycleTimelineContainer');
+                    if (!container) return;
+                    const threadFilter = document.getElementById('lcThreadFilter').value;
+                    const typeFilter = document.getElementById('lcTypeFilter').value;
+                    const statusFilter = document.getElementById('lcStatusFilter').value;
+                    let allocs = data.allocations || [];
+                    if (threadFilter !== 'all') allocs = allocs.filter(a => String(a.thread_id) === threadFilter);
+                    if (typeFilter !== 'all') allocs = allocs.filter(a => this.classifyType(a.type_name) === typeFilter);
+                    if (statusFilter === 'active') allocs = allocs.filter(a => !a.timestamp_dealloc && !a.is_leaked);
+                    else if (statusFilter === 'leaked') allocs = allocs.filter(a => a.is_leaked);
+                    else if (statusFilter === 'freed') allocs = allocs.filter(a => a.timestamp_dealloc > 0 && !a.is_leaked);
+                    const bars = allocs.slice(0, 200);
+                    document.getElementById('lcBarCount').textContent = bars.length + ' bars' + (allocs.length > 200 ? ' (showing 200)' : '');
+                    container.innerHTML = '';
+                    if (bars.length === 0) { container.innerHTML = '<div class="empty-state">No allocations match filters</div>'; return; }
+                    const width = container.clientWidth || 800;
+                    const height = Math.max(100, bars.length * 20 + 40);
+                    container.style.height = height + 'px';
+                    const svg = d3.select(container).append('svg').attr('width', '100%').attr('height', height).attr('viewBox', [0, 0, width, height]);
+                    const minTime = d3.min(bars, a => a.timestamp_alloc || 0);
+                    const maxTime = d3.max(bars, a => Math.max(a.timestamp_dealloc || 0, (a.timestamp_alloc || 0) + (a.lifetime_ms || 0) * 1000000));
+                    const timeRange = (maxTime - minTime) || 1;
+                    const padding = { top: 10, right: 20, bottom: 30, left: 120 };
+                    const innerW = width - padding.left - padding.right;
+                    const innerH = height - padding.top - padding.bottom;
+                    const barH = Math.min(16, innerH / bars.length - 1);
+                    const xScale = d3.scaleLinear().domain([minTime, maxTime + timeRange * 0.05]).range([0, innerW]);
+                    const g = svg.append('g').attr('transform', `translate(${padding.left},${padding.top})`);
+                    const tooltip = d3.select('#tooltip');
+                    bars.forEach((a, i) => {
+                        const cat = this.classifyType(a.type_name);
+                        const color = this.getCategoryColor(cat);
+                        const x0 = xScale(a.timestamp_alloc || 0);
+                        const x1 = a.timestamp_dealloc > 0 ? xScale(a.timestamp_dealloc) : xScale(maxTime + timeRange * 0.05);
+                        const y = i * (barH + 1);
+                        g.append('rect').attr('x', x0).attr('y', y).attr('width', Math.max(2, x1 - x0)).attr('height', barH).attr('fill', a.is_leaked ? '#ef4444' : color).attr('opacity', a.is_leaked ? 0.9 : 0.7).attr('stroke', a.is_leaked ? '#dc2626' : 'none').attr('stroke-width', a.is_leaked ? 1.5 : 0).attr('stroke-dasharray', a.is_leaked ? '4,2' : 'none').attr('rx', 2).attr('ry', 2).style('cursor', 'pointer').on('mouseover', (event) => {
+                            const lifetimeNs = a.lifetime_ms ? a.lifetime_ms * 1000000 : 0;
+                            tooltip.style('display', 'block').html(`<div style="min-width: 200px;"><div style="font-weight:600;color:var(--primary);margin-bottom:4px;">${a.var_name || 'unknown'}</div><table style="font-size:12px;width:100%;border-collapse:collapse;"><tr><td style="color:var(--text2);padding:1px 4px;">Address</td><td style="padding:1px 4px;font-family:monospace;">${a.address || '0x0'}</td></tr><tr><td style="color:var(--text2);padding:1px 4px;">Type</td><td style="padding:1px 4px;">${a.type_name || 'Unknown'}</td></tr><tr><td style="color:var(--text2);padding:1px 4px;">Category</td><td style="padding:1px 4px;">${cat}</td></tr><tr><td style="color:var(--text2);padding:1px 4px;">Thread</td><td style="padding:1px 4px;">${a.thread_id || 'N/A'}</td></tr><tr><td style="color:var(--text2);padding:1px 4px;">Size</td><td style="padding:1px 4px;">${Utils.formatBytes(parseInt(a.size) || 0)}</td></tr><tr><td style="color:var(--text2);padding:1px 4px;">Lifetime</td><td style="padding:1px 4px;">${Utils.formatTime(lifetimeNs)}</td></tr><tr><td style="color:var(--text2);padding:1px 4px;">Source</td><td style="padding:1px 4px;">${a.source_file || ''}${a.source_line ? ':' + a.source_line : ''}</td></tr><tr><td style="color:var(--text2);padding:1px 4px;">Status</td><td style="padding:1px 4px;">${a.is_leaked ? '<span style="color:#ef4444;font-weight:600;">LEAKED</span>' : a.timestamp_dealloc > 0 ? '<span style="color:#10b981;">Freed</span>' : '<span style="color:#3b82f6;">Active</span>'}</td></tr></table></div>`).style('left', (event.pageX + 15) + 'px').style('top', (event.pageY - 10) + 'px');
+                        }).on('mouseout', () => tooltip.style('display', 'none')).on('click', () => this.showDetail(a.address));
+                        g.append('text').attr('x', -4).attr('y', y + barH / 2 + 4).attr('text-anchor', 'end').attr('fill', 'var(--text2)').style('font-size', '10px').style('font-family', 'monospace').text((a.var_name || a.address || '').substring(0, 18));
+                    });
+                    g.append('g').attr('transform', `translate(0,${bars.length * (barH + 1)})`).call(d3.axisBottom(xScale).ticks(6).tickFormat(d => Utils.formatTime(d - minTime)));
+                },
                 init() {
                     const allocations = data.allocations || [];
                     this.filteredData = [...allocations];
@@ -2501,6 +3003,138 @@
                         return;
                     }
                     this.sort();
+                    const threadSet = new Set((data.allocations || []).map(a => String(a.thread_id)));
+                    const threadSel = document.getElementById('lcThreadFilter');
+                    threadSet.forEach(tid => { const o = document.createElement('option'); o.value = tid; o.textContent = 'Thread ' + tid; threadSel.appendChild(o); });
+                    const typeSet = new Set((data.allocations || []).map(a => this.classifyType(a.type_name)));
+                    const typeSel = document.getElementById('lcTypeFilter');
+                    typeSet.forEach(cat => { const o = document.createElement('option'); o.value = cat; o.textContent = cat; typeSel.appendChild(o); });
+                    const allocs = data.allocations || [];
+                    if (allocs.length > 0) {
+                        const minT = d3.min(allocs, a => a.timestamp_alloc || 0);
+                        const maxT = d3.max(allocs, a => Math.max(a.timestamp_dealloc || 0, (a.timestamp_alloc || 0) + (a.lifetime_ms || 0) * 1000000));
+                        document.getElementById('tsTimeStart').textContent = 'T+0';
+                        document.getElementById('tsTimeEnd').textContent = 'T+' + Utils.formatTime((maxT - minT));
+                    }
+                    this.renderTimeSlice();
+                    this.renderLifecycleTimeline();
+                }
+            },
+
+            playback: {
+                _state: 'stopped',
+                _timer: null,
+                _speed: 1,
+                _position: 0,
+                _events: [],
+                _minTime: 0,
+                _maxTime: 0,
+                _timeRange: 1,
+                _peakBytesAtPos: {},
+
+                init() {
+                    const allocs = data.allocations || [];
+                    if (!allocs.length) return;
+                    this._minTime = d3.min(allocs, a => a.timestamp_alloc || 0);
+                    this._maxTime = d3.max(allocs, a => Math.max(a.timestamp_dealloc || 0, (a.timestamp_alloc || 0) + (a.lifetime_ms || 0) * 1000000));
+                    this._timeRange = (this._maxTime - this._minTime) || 1;
+                    const startEl = document.getElementById('pbTimeStart');
+                    const endEl = document.getElementById('pbTimeEnd');
+                    if (startEl) startEl.textContent = 'T+0';
+                    if (endEl) endEl.textContent = 'T+' + Utils.formatTime(this._timeRange);
+                    this._position = 0;
+                    this._events = allocs.slice().sort((a, b) => (a.timestamp_alloc || 0) - (b.timestamp_alloc || 0));
+                    this._peakBytesAtPos = {};
+                    const slider = document.getElementById('pbProgressSlider');
+                    if (slider) slider.value = 0;
+                    this._updateUI(0);
+                },
+
+                toggle() {
+                    if (this._state === 'playing') this.pause();
+                    else this.play();
+                },
+
+                play() {
+                    if (this._state === 'playing') return;
+                    const allocs = data.allocations || [];
+                    if (!allocs.length) return;
+                    if (this._state === 'stopped' || this._position >= 100) this._position = 0;
+                    this._state = 'playing';
+                    const btn = document.getElementById('pbPlayBtn');
+                    if (btn) { btn.textContent = '⏸ Pause'; btn.style.background = '#f59e0b'; }
+                    const baseInterval = 100;
+                    const interval = Math.max(20, baseInterval / this._speed);
+                    this._timer = setInterval(() => this._tick(), interval);
+                },
+
+                pause() {
+                    this._state = 'paused';
+                    if (this._timer) { clearInterval(this._timer); this._timer = null; }
+                    const btn = document.getElementById('pbPlayBtn');
+                    if (btn) { btn.textContent = '▶ Play'; btn.style.background = '#06b6d4'; }
+                },
+
+                stop() {
+                    this.pause();
+                    this._state = 'stopped';
+                    this._position = 0;
+                    const slider = document.getElementById('pbProgressSlider');
+                    if (slider) slider.value = 0;
+                    this._updateUI(0);
+                },
+
+                reset() { this.stop(); },
+
+                setSpeed(speed) {
+                    this._speed = speed;
+                    if (this._state === 'playing') { this.pause(); this.play(); }
+                },
+
+                seek(pct) {
+                    this._position = Math.min(100, Math.max(0, pct));
+                    this._updateUI(this._position);
+                    if (this._state === 'stopped') this._state = 'paused';
+                },
+
+                _tick() {
+                    if (this._position >= 100) { this.pause(); this._state = 'stopped'; this._position = 100; this._updateUI(100); return; }
+                    this._position = Math.min(100, this._position + 0.5 * this._speed);
+                    const slider = document.getElementById('pbProgressSlider');
+                    if (slider) slider.value = this._position;
+                    this._updateUI(this._position);
+                    Dashboard.timetravel.renderTimeSlice();
+                },
+
+                _updateUI(pct) {
+                    pct = Math.min(100, Math.max(0, pct));
+                    const currentTime = this._minTime + (pct / 100) * this._timeRange;
+                    const currentEl = document.getElementById('pbTimeCurrent');
+                    if (currentEl) currentEl.textContent = 'T+' + Utils.formatTime(currentTime - this._minTime);
+                    const allocs = data.allocations || [];
+                    const eventsUpTo = allocs.filter(a => (a.timestamp_alloc || 0) <= currentTime).length;
+                    const active = allocs.filter(a => (a.timestamp_alloc || 0) <= currentTime && (!a.timestamp_dealloc || a.timestamp_dealloc > currentTime));
+                    const liveBytes = active.reduce((s, a) => s + (parseInt(a.size) || 0), 0);
+                    let peakBytes = 0;
+                    if (!this._peakBytesAtPos[pct]) {
+                        for (let i = 0; i <= pct; i += 5) {
+                            const t = this._minTime + (i / 100) * this._timeRange;
+                            const bAtT = allocs.filter(a => (a.timestamp_alloc || 0) <= t && (!a.timestamp_dealloc || a.timestamp_dealloc > t)).reduce((s, a) => s + (parseInt(a.size) || 0), 0);
+                            if (bAtT > peakBytes) peakBytes = bAtT;
+                        }
+                        this._peakBytesAtPos[pct] = peakBytes;
+                    } else { peakBytes = this._peakBytesAtPos[pct]; }
+                    const leaksSeen = allocs.filter(a => a.is_leaked && (a.timestamp_alloc || 0) <= currentTime).length;
+                    const replayedEl = document.getElementById('pbEventsReplayed');
+                    const activeEl = document.getElementById('pbActiveCount');
+                    const liveEl = document.getElementById('pbLiveBytes');
+                    const leaksEl = document.getElementById('pbLeaksSeen');
+                    const peakEl = document.getElementById('pbPeakBytes');
+                    if (replayedEl) replayedEl.textContent = eventsUpTo;
+                    if (activeEl) activeEl.textContent = active.length;
+                    if (liveEl) liveEl.textContent = Utils.formatBytes(liveBytes);
+                    if (leaksEl) leaksEl.textContent = leaksSeen;
+                    if (peakEl) peakEl.textContent = Utils.formatBytes(peakBytes);
                 }
             },
 
@@ -2891,9 +3525,13 @@
 
             if (mode === 'variable') {
                 setTimeout(() => Dashboard.variableGraph.init(), 100);
+                setTimeout(() => Dashboard.leakPath.init(), 200);
             }
             if (mode === 'taskgraph') {
                 setTimeout(() => Dashboard.taskGraph.init(), 100);
+            }
+            if (mode === 'timetravel') {
+                setTimeout(() => Dashboard.playback.init(), 100);
             }
         }
 
@@ -3879,6 +4517,7 @@
             Dashboard.passports.init();
             Dashboard.unsafe.init();
             Dashboard.timetravel.init();
+            Dashboard.playback.init();
             Dashboard.tasks.init();
             populatePassports();
             
