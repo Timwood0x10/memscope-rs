@@ -20,6 +20,9 @@ This release focuses on making the Dashboard analysis output more precise, faste
   - Fixes `test_rebuild_clone_relationship`
 - **fix(testing)**: Stabilized the system monitor test and removed dead-field warnings
   - Keeps CI and release validation output cleaner
+- **fix(ci)**: Removed repository-level forced `sccache` and `mold` Cargo configuration
+  - Fixes GitHub Actions failures where `cargo clippy` and `cargo llvm-cov` tried to execute unavailable `sccache`
+  - Keeps optional build acceleration in user-level Cargo config or environment variables instead of repo-wide config
 
 #### **Dashboard and Analysis Improvements**
 
@@ -50,7 +53,7 @@ This release focuses on making the Dashboard analysis output more precise, faste
 #### **Build and Engineering**
 
 - **build**: Pinned the Rust toolchain to `1.92.0` with `rust-toolchain.toml`
-- **build**: Added workspace Cargo configuration for release-oriented builds
+- **build**: Kept workspace Cargo configuration portable for CI, crates.io packaging, and local development
 - **refactor(renderer)**: Split Dashboard rendering into event DTO, event reconstruction, inference, report builder, and shared type modules
 - **chore**: Cleaned clippy warnings in detector doctests, async tracker code, and scope metadata handling
 

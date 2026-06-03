@@ -18,6 +18,9 @@
   - 修复 `test_rebuild_clone_relationship`
 - **fix(testing)**: 稳定 system monitor 测试并移除 dead-field warnings
   - 降低发布构建和 CI 输出噪声
+- **fix(ci)**: 移除仓库级强制 `sccache` 和 `mold` Cargo 配置
+  - 修复 GitHub Actions 中 `cargo clippy` 和 `cargo llvm-cov` 尝试执行不可用 `sccache` 的失败
+  - 将可选构建加速保留给用户级 Cargo 配置或环境变量，而不是仓库全局配置
 
 #### **Dashboard 与分析增强**
 
@@ -48,7 +51,7 @@
 #### **构建与工程化**
 
 - **build**: 通过 `rust-toolchain.toml` 固定 Rust 工具链为 `1.92.0`
-- **build**: 增加面向发布构建的 workspace Cargo 配置
+- **build**: 保持 workspace Cargo 配置对 CI、crates.io packaging 和本地开发可移植
 - **refactor(renderer)**: 将 Dashboard renderer 拆分为 event DTO、event reconstruction、inference、report builder 和共享 types 模块
 - **chore**: 清理 detector doctest、async tracker 和 scope metadata 相关 clippy warnings
 

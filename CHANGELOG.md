@@ -16,6 +16,8 @@ All notable changes to this project will be documented in this file.
   - Fixes `test_rebuild_clone_relationship`
 - **fix**: Stabilize system monitor test and remove dead-field warnings
   - Reduces release-build/test noise and keeps CI output actionable
+- **fix**: Remove repository-level forced `sccache` and `mold` Cargo configuration
+  - Fixes CI failures where `cargo clippy` and `cargo llvm-cov` tried to execute unavailable `sccache`
 
 ### 🎨 UI/UX Improvements
 
