@@ -44,6 +44,7 @@ pub mod stats;
 pub mod temporary;
 pub mod timeline;
 pub mod tracking;
+pub mod type_layout;
 
 // Re-export common types for convenience
 pub use access_tracking::{
@@ -126,6 +127,10 @@ pub use tracking::{
     DeadlockRisk, FunctionCallTrackingInfo, FunctionMemoryCharacteristics,
     FunctionPerformanceCharacteristics, IOCharacteristics, LeakPotential, MemoryUsagePattern,
     RecursionPerformanceImpact, RecursiveCallInfo, StackOverflowRisk, ThreadSafetyLevel,
+};
+pub use type_layout::{
+    infer_layout_kind, infer_layout_kind_from_name, LayoutKind, PointerWidth, ReprHint,
+    TypeLayoutSnapshot,
 };
 
 #[cfg(test)]

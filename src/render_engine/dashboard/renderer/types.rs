@@ -219,6 +219,19 @@ pub struct AllocationInfo {
     pub source_line: Option<u32>,
     /// Module path where allocation occurred
     pub module_path: Option<String>,
+    /// Allocation generation id (incremented on pointer address reuse)
+    pub generation_id: usize,
+    /// Pointer provenance (allocator, clone, reallocation, FFI, unknown)
+    pub provenance: String,
+    /// Evidence level for this allocation's analysis
+    #[serde(default)]
+    pub evidence: EvidenceLevel,
+    /// Risk confidence for this allocation
+    #[serde(default)]
+    pub confidence: RiskConfidence,
+    /// Type layout snapshot for this allocation
+    #[serde(default)]
+    pub layout_snapshot: Option<crate::capture::types::TypeLayoutSnapshot>,
 }
 
 /// Thread statistics for multithread dashboard
@@ -489,4 +502,160 @@ pub struct CircularReferenceReport {
     pub total_smart_pointers: usize,
     /// Whether any circular references were detected
     pub has_cycles: bool,
+}
+
+/// Evidence level for analysis findings — how the conclusion was reached.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub enum EvidenceLevel {
+    /// Directly observed from events (highest confidence)
+    Observed,
+    /// Inferred from multiple data sources with strong correlation
+    Inferred,
+    /// Best-guess heuristic based on type/pattern matching
+    Heuristic,
+    /// No evidence available
+    #[default]
+    Unknown,
+}
+
+/// Risk confidence — how certain the analysis is about a risk finding.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub enum RiskConfidence {
+    /// Bug is confirmed by direct evidence
+    Confirmed,
+    /// Strong evidence but not conclusive
+    Likely,
+    /// Possible but needs more evidence
+    Possible,
+    /// Risk level unknown
+    #[default]
+    Unknown,
+}
+
+/// Pointer provenance — indicates where a pointer originated.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub enum PointerProvenance {
+    /// Fresh allocation from the global allocator
+    Allocator,
+    /// Created via Clone (includes Rc/Arc clone)
+    Clone,
+    /// Wrapped in a smart pointer (Box, Rc, Arc)
+    SmartPointer,
+    /// Address was previously used by a different allocation
+    Reallocation,
+    /// Reallocated address that later leaked
+    ReallocatedThenLeaked,
+    /// Received from FFI boundary
+    FfiInput,
+    /// Sent to FFI boundary
+    FfiOutput,
+    /// Origin unknown
+    #[default]
+    Unknown,
+}
+
+/// Drop expectation — what the analysis expects regarding deallocation.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub enum DropExpectation {
+    /// Normal Rust drop expected
+    NormalDrop,
+    /// ManualDrop — deallocation may be intentionally suppressed
+    ManualDrop,
+    /// mem::forget was called
+    Forgotten,
+    /// Memory should be freed by foreign code
+    ForeignFree,
+    /// Rust should reclaim from foreign code
+    RustReclaim,
+    /// No drop needed (e.g. static data, ZST)
+    NoDropNeeded,
+    /// Drop expectation unknown
+    #[default]
+    Unknown,
+}
+
+/// Ownership state — who owns a given allocation at a point in time.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub enum OwnershipState {
+    /// Owned by Rust code
+    OwnedByRust,
+    /// Borrowed by Rust code
+    BorrowedByRust,
+    /// Owned by foreign (FFI) code
+    OwnedByForeign,
+    /// Borrowed by foreign code
+    BorrowedByForeign,
+    /// Shared ownership (e.g., Arc)
+    Shared,
+    /// Ownership has been transferred
+    Transferred,
+    /// Ownership released
+    Released,
+    /// Ownership state unknown
+    #[default]
+    Unknown,
+}
+
+/// Unsafe invariant category — which Nomicon principle may be violated.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub enum UnsafeInvariant {
+    /// Aliasing violation
+    Aliasing,
+    /// Invalid value / validity invariant
+    Validity,
+    /// Uninitialized memory access
+    Initialized,
+    /// Layout mismatch
+    Layout,
+    /// Drop / destructor violation
+    Drop,
+    /// Thread safety violation
+    ThreadSafety,
+    /// FFI ownership confusion
+    FfiOwnership,
+    /// Allocator family mismatch
+    AllocatorFamily,
+    /// Invariant unknown
+    #[default]
+    Unknown,
+}
+
+/// Lifetime kind — distinguishes different lifetime scopes.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub enum LifetimeKind {
+    /// Lifetime of the raw heap allocation
+    AllocationLifetime,
+    /// Lifetime of the logical owner
+    OwnerLifetime,
+    /// Lifetime of a borrow reference
+    BorrowLifetime,
+    /// Lifetime scoped to a task
+    TaskLifetime,
+    /// Lifetime scoped to a thread
+    ThreadLifetime,
+    /// Lifetime while exposed to FFI
+    FfiExposureLifetime,
+    /// Lifetime kind unknown
+    #[default]
+    Unknown,
+}
+
+/// Classification of a clone operation.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub enum CloneKind {
+    /// Deep copy of heap data
+    DeepClone,
+    /// Rc reference-count bump
+    RcClone,
+    /// Arc reference-count bump
+    ArcClone,
+    /// Handle/copy-on-write clone
+    HandleClone,
+    /// Bitwise copy (Copy trait)
+    CopyClone,
+    /// Weak reference clone
+    WeakClone,
+    /// Clone kind unknown
+    #[default]
+    Unknown,
 }

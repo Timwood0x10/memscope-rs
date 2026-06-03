@@ -1,6 +1,6 @@
 [package]
 name = "memscope-rs"
-version = "0.2.3"
+version = "0.2.4"
 edition = "2021"
 authors = ["TimWood"]
 license = "Apache-2.0"
@@ -76,18 +76,37 @@ serial_test = "3.0"
 name = "comprehensive_benchmarks"
 harness = false
 
-[profile.release]
-lto = true
-codegen-units = 1
-panic = "abort"
-opt-level = "z"
-debug = false
-strip = true
 
 [profile.dev]
 opt-level = 0
 debug = true
-strip = false
+debug-assertions = true
+overflow-checks = true
+lto = false
+panic = "unwind"
+incremental = true
+codegen-units = 256
+
+[profile.release]
+opt-level = 3
+debug = false
+debug-assertions = false
+overflow-checks = false
+lto = "thin"
+panic = "abort"
+incremental = true
+codegen-units = 14
+strip = "symbols"
+
+[profile.test]
+opt-level = 0
+debug = true
+debug-assertions = true
+overflow-checks = true
+lto = false
+incremental = true
+codegen-units = 256
+
 
 [profile.dev.package."*"]
 opt-level = 2

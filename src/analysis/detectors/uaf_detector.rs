@@ -5,18 +5,16 @@
 //! # Example
 //!
 //! ```rust
-//! use memscope_rs::analysis::detectors::{UafDetector, UafDetectorConfig, Detector};
-//! use memscope_rs::capture::types::AllocationInfo;
+//! # use memscope_rs::analysis::detectors::{UafDetector, UafDetectorConfig, Detector};
+//! # use memscope_rs::capture::types::AllocationInfo;
 //!
-//! fn main() {
-//!     let config = UafDetectorConfig::default();
-//!     let detector = UafDetector::new(config);
+//! let config = UafDetectorConfig::default();
+//! let detector = UafDetector::new(config);
 //!
-//!     let allocations = vec![];
-//!     let result = detector.detect(&allocations);
+//! let allocations = vec![];
+//! let result = detector.detect(&allocations);
 //!
-//!     println!("Found {} use-after-free issues", result.issues.len());
-//! }
+//! println!("Found {} use-after-free issues", result.issues.len());
 //! ```
 
 use crate::analysis::detectors::{

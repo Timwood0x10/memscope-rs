@@ -417,6 +417,7 @@ mod tests {
             drop_chain_analysis: None,
             stack_ptr: None,
             task_id: None,
+            generation_id: 0,
         }
     }
 

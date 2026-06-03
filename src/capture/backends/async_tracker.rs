@@ -329,10 +329,8 @@ impl AsyncTracker {
             {
                 tracing::warn!("Failed to track task start: {e}");
             }
-        } else {
-            if let Err(e) = self.track_task_start(unique_task_id, name.clone(), thread_id) {
-                tracing::warn!("Failed to track task start: {e}");
-            }
+        } else if let Err(e) = self.track_task_start(unique_task_id, name.clone(), thread_id) {
+            tracing::warn!("Failed to track task start: {e}");
         }
 
         let output = future.await;
@@ -764,6 +762,19 @@ pub fn reset_global_tracker() {
     }
 }
 
+/// Register an existing AsyncTracker instance as the global singleton.
+/// This allows GlobalTracker to share its async_tracker instance with
+/// the async_tracker module, so `spawn_tracked()` can register task lifecycle
+/// events on the same instance that the renderer reads from.
+pub fn register_global(tracker: Arc<AsyncTracker>) -> AsyncResult<()> {
+    let mut global = GLOBAL_TRACKER.lock().map_err(|_| AsyncError::System {
+        operation: Arc::from("register_global"),
+        message: Arc::from("Failed to acquire global tracker lock"),
+    })?;
+    *global = Some(tracker);
+    Ok(())
+}
+
 /// Get the global async tracker
 fn get_global_tracker() -> AsyncResult<Arc<AsyncTracker>> {
     GLOBAL_TRACKER
@@ -816,7 +827,36 @@ where
 {
     let task_id = generate_unique_task_id();
 
-    tokio::spawn(async move { TASK_CONTEXT.scope(Some(task_id), future).await })
+    tokio::spawn(async move {
+        // Register task start with the global async tracker so profiles
+        // are populated for the dashboard renderer.
+        let tracker = get_global_tracker().ok();
+        let task_name = format!("spawned_task_{}", task_id);
+        if let Some(ref tracker) = tracker {
+            let thread_id = std::thread::current().id();
+            let _ = tracker.track_task_start(task_id, task_name.clone(), thread_id);
+        }
+
+        // Register with TaskIdRegistry so the Task Relationship Graph
+        // in the dashboard shows this task with parent-child hierarchy.
+        crate::task_registry::global_registry().register_explicit_task(task_id, &task_name);
+
+        // Set thread-local CURRENT_TASK_ID so that GlobalTracker::track_as()
+        // can associate allocations with this task via AsyncTracker::get_current_task().
+        AsyncTracker::set_current_task(task_id);
+
+        // Run the user's future inside the tokio task-local context.
+        let result = TASK_CONTEXT.scope(Some(task_id), future).await;
+
+        // Cleanup: clear thread-local task ID and signal task completion.
+        AsyncTracker::clear_current_task();
+        crate::task_registry::global_registry().unregister_task(task_id);
+        if let Some(ref tracker) = tracker {
+            let _ = tracker.track_task_end(task_id);
+        }
+
+        result
+    })
 }
 
 /// Get current memory usage snapshot

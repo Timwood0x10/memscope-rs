@@ -5,18 +5,16 @@
 //! # Example
 //!
 //! ```rust
-//! use memscope_rs::analysis::detectors::{LeakDetector, LeakDetectorConfig, Detector};
-//! use memscope_rs::capture::types::AllocationInfo;
+//! # use memscope_rs::analysis::detectors::{LeakDetector, LeakDetectorConfig, Detector};
+//! # use memscope_rs::capture::types::AllocationInfo;
 //!
-//! fn main() {
-//!     let config = LeakDetectorConfig::default();
-//!     let detector = LeakDetector::new(config);
+//! let config = LeakDetectorConfig::default();
+//! let detector = LeakDetector::new(config);
 //!
-//!     let allocations = vec![];
-//!     let result = detector.detect(&allocations);
+//! let allocations = vec![];
+//! let result = detector.detect(&allocations);
 //!
-//!     println!("Found {} potential memory leaks", result.issues.len());
-//! }
+//! println!("Found {} potential memory leaks", result.issues.len());
 //! ```
 
 use crate::analysis::detectors::{

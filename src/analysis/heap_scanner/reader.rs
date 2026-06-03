@@ -75,7 +75,7 @@ impl HeapScanner {
     /// Filters for HeapOwner allocations and removes duplicates
     /// based on (ptr, size) pairs.
     ///
-    /// Also skips virtual pointers (>= 0x10000000000) used for Container types.
+    /// Also skips virtual pointers (>= VIRTUAL_PTR_BASE) used for Container types.
     /// This threshold is set high enough to avoid conflicts with real heap addresses
     /// on all platforms (including macOS which can have addresses > 0x100000000).
     fn dedup_heap_regions(allocs: &[ActiveAllocation]) -> Vec<(usize, usize)> {

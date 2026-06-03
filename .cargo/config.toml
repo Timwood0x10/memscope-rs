@@ -1,0 +1,21 @@
+# Cargo configuration shared by local development and CI.
+# Keep this file portable: do not force optional tools such as sccache,
+# mold, or zld here because Cargo applies this configuration in every
+# environment, including GitHub Actions and crates.io packaging.
+
+# [target.x86_64-apple-darwin]
+# rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+
+# [target.aarch64-apple-darwin]
+# rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+
+# [target.x86_64-unknown-linux-gnu]
+# rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+
+# To use local build acceleration, prefer environment variables or a
+# user-level Cargo config outside the repository, for example:
+# `RUSTC_WRAPPER=sccache cargo check`.
+
+# Parallel compilation
+[env]
+CARGO_BUILD_JOBS = "14"

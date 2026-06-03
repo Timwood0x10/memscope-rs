@@ -690,10 +690,11 @@ mod tests {
         assert!(report.total_allocations > 0);
     }
 
-    #[test]
     #[cfg(target_os = "macos")]
+    #[test]
     fn test_system_monitoring() {
-        std::thread::sleep(std::time::Duration::from_millis(200));
+        system_monitor::SystemMonitor::global();
+        std::thread::sleep(std::time::Duration::from_millis(350));
 
         let cpu = system_monitor::cpu_usage();
         let mem = system_monitor::memory_used();
@@ -703,7 +704,7 @@ mod tests {
         println!("Memory: {} / {} bytes", mem, total);
 
         assert!((0.0..=100.0).contains(&cpu));
-        assert!(total > 0);
+        assert!(total > 0, "total memory should be initialized by now");
     }
 
     #[test]

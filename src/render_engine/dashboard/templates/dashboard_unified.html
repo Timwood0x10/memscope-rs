@@ -555,6 +555,7 @@
                         </div>
                     </div>
                 </div>
+                <div id="eventSummaryCard" style="margin-top: 12px; display: none;"></div>
             </div>
 
             <!-- Auto Diagnosis -->
@@ -689,6 +690,45 @@
                         <div style="font-size: 0.75rem; color: var(--text2);">📦 Total Allocs</div>
                         <div class="stat-value" style="color: #8b5cf6; font-size: 1.5rem;" id="totalThreadAllocs">0</div>
                     </div>
+                </div>
+            </div>
+
+            <!-- Thread Relationship Graph -->
+            <div class="card" style="background: linear-gradient(135deg, #8b5cf610 0%, #8b5cf620 100%); border: 2px solid #8b5cf660;">
+                <div class="card-header">
+                    <h2 class="card-title" style="color: #8b5cf6;">🕸️ Thread Relationship Graph</h2>
+                    <div class="flex-gap-2">
+                        <span class="badge badge-info" id="threadGraphEdgeCount">0 edges</span>
+                    </div>
+                </div>
+                <div style="background: var(--bg2); border-radius: 8px; padding: 12px; margin-bottom: 12px; border: 1px solid var(--border);">
+                    <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                        <div class="legend-item"><div class="legend-color" style="background: #10b981;"></div>Normal</div>
+                        <div class="legend-item"><div class="legend-color" style="background: #f59e0b;"></div>Leak Risk</div>
+                        <div class="legend-item"><div class="legend-color" style="background: #ef4444;"></div>High Risk</div>
+                        <div class="legend-item"><div class="legend-color" style="background: #8b5cf6;"></div>Mixed</div>
+                        <div class="legend-item" style="margin-left: 12px;"><div style="width: 20px; height: 2px; background: #3b82f6;"></div>Shared Type</div>
+                        <div class="legend-item"><div style="width: 20px; height: 2px; background: #10b981; stroke-dasharray: 4,2;"></div>Shared Variable</div>
+                        <div class="legend-item"><div style="width: 20px; height: 2px; background: #ef4444;"></div>Clone/Transfer</div>
+                        <button class="btn-sm" onclick="Dashboard.threads.graph.resetZoom()">🔍 Reset</button>
+                    </div>
+                </div>
+                <div class="graph-container" id="threadGraphContainer" style="border: 1px solid var(--border); border-radius: 8px; background: var(--bg); min-height: 300px;"></div>
+            </div>
+
+            <!-- Thread Detail Panel -->
+            <div id="threadDetailPanel" class="card" style="display: none; background: linear-gradient(135deg, var(--bg) 0%, var(--bg3) 100%); border: 2px solid var(--primary);">
+                <div class="card-header">
+                    <h3 style="color: var(--primary); margin: 0;" id="tdTitle">🧵 Thread Details</h3>
+                    <button class="btn-sm" onclick="Dashboard.threads.hideDetail()">✕ Close</button>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                    <div class="detail-panel" id="tdMemByType"></div>
+                    <div class="detail-panel" id="tdTopVariables"></div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div class="detail-panel" id="tdTopSources"></div>
+                    <div class="detail-panel" id="tdUnsafeReports"></div>
                 </div>
             </div>
 
@@ -1088,6 +1128,77 @@
                 </div>
             </div>
 
+            <!-- Lifecycle Bars -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">⏳ Allocation Lifecycle Bars</h2>
+                    <div class="flex-gap-2">
+                        <select id="lcThreadFilter" onchange="Dashboard.timetravel.renderLifecycleTimeline()" class="input-sm">
+                            <option value="all">All Threads</option>
+                        </select>
+                        <select id="lcTypeFilter" onchange="Dashboard.timetravel.renderLifecycleTimeline()" class="input-sm">
+                            <option value="all">All Types</option>
+                        </select>
+                        <select id="lcStatusFilter" onchange="Dashboard.timetravel.renderLifecycleTimeline()" class="input-sm">
+                            <option value="all">All Status</option>
+                            <option value="active">Active Only</option>
+                            <option value="leaked">Leaked Only</option>
+                            <option value="freed">Freed Only</option>
+                        </select>
+                        <span class="badge badge-info" id="lcBarCount">0 bars</span>
+                    </div>
+                </div>
+                <div id="lifecycleTimelineContainer" style="width: 100%; min-height: 300px; background: var(--bg); border-radius: 8px; overflow: hidden;"></div>
+            </div>
+
+            <!-- Time Slice Snapshots -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">⏱ Time Slice Snapshot</h2>
+                    <span class="badge badge-info">Drag to explore memory at a point in time</span>
+                </div>
+                <div style="padding: 0 4px; margin-bottom: 12px;">
+                    <input type="range" id="tsTimeSlider" min="0" max="100" value="100" oninput="Dashboard.timetravel.renderTimeSlice()" style="width: 100%; accent-color: var(--primary);">
+                    <div class="flex-between" style="font-size: 0.75rem; color: var(--text2);">
+                        <span id="tsTimeStart">T+0</span>
+                        <span id="tsTimeCurrent">T+0</span>
+                        <span id="tsTimeEnd">T+0</span>
+                    </div>
+                </div>
+                <div id="tsStatsGrid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px;">
+                    <div class="detail-panel" style="border-left: 4px solid #3b82f6; text-align: center;">
+                        <div style="font-size: 0.7rem; color: var(--text2);">📦 Active Allocs</div>
+                        <div class="stat-value" style="color: #3b82f6; font-size: 1.2rem;" id="tsAllocCount">0</div>
+                    </div>
+                    <div class="detail-panel" style="border-left: 4px solid #10b981; text-align: center;">
+                        <div style="font-size: 0.7rem; color: var(--text2);">💾 Live Bytes</div>
+                        <div class="stat-value" style="color: #10b981; font-size: 1.2rem;" id="tsLiveBytes">0 B</div>
+                    </div>
+                    <div class="detail-panel" style="border-left: 4px solid #f59e0b; text-align: center;">
+                        <div style="font-size: 0.7rem; color: var(--text2);">📈 Peak Bytes</div>
+                        <div class="stat-value" style="color: #f59e0b; font-size: 1.2rem;" id="tsPeakBytes">0 B</div>
+                    </div>
+                    <div class="detail-panel" style="border-left: 4px solid #ef4444; text-align: center;">
+                        <div style="font-size: 0.7rem; color: var(--text2);">🚨 Leak Candidates</div>
+                        <div class="stat-value" style="color: #ef4444; font-size: 1.2rem;" id="tsLeakCandidates">0</div>
+                    </div>
+                    <div class="detail-panel" style="border-left: 4px solid #8b5cf6; text-align: center;">
+                        <div style="font-size: 0.7rem; color: var(--text2);">⚠️ Unsafe Boundaries</div>
+                        <div class="stat-value" style="color: #8b5cf6; font-size: 1.2rem;" id="tsUnsafeCount">0</div>
+                    </div>
+                </div>
+                <div style="margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div class="detail-panel" style="border-left: 4px solid #3b82f6;">
+                        <div class="detail-label">💾 Memory by Thread</div>
+                        <div id="tsMemByThread" style="font-size: 0.8rem; margin-top: 4px;"></div>
+                    </div>
+                    <div class="detail-panel" style="border-left: 4px solid #10b981;">
+                        <div class="detail-label">📦 Memory by Type</div>
+                        <div id="tsMemByType" style="font-size: 0.8rem; margin-top: 4px;"></div>
+                    </div>
+                </div>
+            </div>
+
             <div class="card">
                 <div class="card-header">
                     <h2 class="card-title">🔍 Event Browser</h2>
@@ -1106,9 +1217,12 @@
                     <table>
                         <thead>
                             <tr>
+                                <th>#</th>
                                 <th>Address</th>
                                 <th>Variable</th>
                                 <th>Size</th>
+                                <th>Provenance</th>
+                                <th>Evidence</th>
                                 <th>Source</th>
                                 <th>Lifetime</th>
                                 <th>Status</th>
@@ -1141,7 +1255,13 @@
                         <div class="detail-label">Status</div>
                         <div id="ttStatus" class="detail-value">-</div>
                     </div>
+                    <div class="detail-panel" style="border-left: 4px solid #8b5cf6;">
+                        <div class="detail-label">Provenance</div>
+                        <div id="ttProvenance" class="detail-value">-</div>
+                    </div>
                 </div>
+                <h4 style="color: var(--text2); margin-bottom: 8px; margin-top: 12px;">📐 Type Layout</h4>
+                <div id="ttLayout" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin-bottom: 16px;"></div>
                 <h4 style="color: var(--text2); margin-bottom: 12px;">🔄 Lifecycle Events</h4>
                 <div class="timeline" id="ttTimeline"></div>
             </div>
@@ -1212,36 +1332,48 @@
                 <div id="unsafeHeatmapContainer" style="min-height: 200px; background: var(--bg); border-radius: 8px; padding: 16px;"></div>
             </div>
 
-            <!-- Cross-Boundary Trace -->
+            <!-- Unsafe Call-Stack View -->
             <div class="card">
                 <div class="card-header">
-                    <h2 class="card-title">🔀 Cross-Boundary Trace</h2>
-                    <span class="badge badge-info" id="boundaryEventCount">0 events</span>
-                </div>
-                <div style="background: linear-gradient(135deg, #8b5cf610 0%, #8b5cf620 100%); border-radius: 8px; padding: 12px; margin-bottom: 16px; border: 1px solid #8b5cf640;">
-                    <div style="color: var(--text2); font-size: 0.85rem;">
-                        <strong style="color: #8b5cf6;">VISA Flow:</strong> Track memory as it crosses between Rust ↔ FFI boundaries. Each crossing is logged like a visa stamp.
+                    <h2 class="card-title">📋 Unsafe Call-Stack View</h2>
+                    <div class="flex-gap-2">
+                        <span class="badge badge-danger" id="callStackGroupCount">0 groups</span>
+                        <button class="btn-sm" onclick="toggleSection('callStackContainer', this)">▼ Expand</button>
                     </div>
                 </div>
-                <div id="crossBoundaryTrace" style="min-height: 150px; background: var(--bg); border-radius: 8px; padding: 16px;">
-                    <div style="display: flex; align-items: center; justify-content: space-around; height: 100%;">
-                        <div style="text-align: center;">
-                            <div style="font-size: 2rem;">🦀</div>
-                            <div style="font-weight: 600; color: #f59e0b;">Rust</div>
-                            <div style="font-size: 0.75rem; color: var(--text2);">Safe Zone</div>
-                        </div>
-                        <div style="flex: 1; display: flex; flex-direction: column; gap: 8px; padding: 0 20px;" id="boundaryEvents">
-                            <div style="text-align: center; color: var(--text2); font-size: 0.85rem;">No boundary events</div>
-                        </div>
-                        <div style="text-align: center;">
-                            <div style="font-size: 2rem;">🌐</div>
-                            <div style="font-weight: 600; color: #3b82f6;">FFI</div>
-                            <div style="font-size: 0.75rem; color: var(--text2);">External</div>
+                <div style="background: linear-gradient(135deg, #ef444410 0%, #ef444420 100%); border-radius: 8px; padding: 12px; margin-bottom: 12px; border: 1px solid #ef444430;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <span style="font-size: 1.5rem;">🪜</span>
+                        <div style="color: var(--text2); font-size: 0.85rem;">
+                            Unsafe reports grouped by source location. Each group shows the call-chain of boundary crossings and lifecycle events.
+                            <a href="#" onclick="Dashboard.unsafe.renderCallStackView(); return false;" style="color: var(--primary);">Refresh</a>
                         </div>
                     </div>
                 </div>
+                <div id="callStackContainer" style="max-height: 450px; overflow-y: auto;"></div>
             </div>
 
+            <!-- Enhanced FFI Boundary Flow -->
+            <div class="card" style="background: linear-gradient(135deg, #8b5cf610 0%, #8b5cf620 100%); border: 2px solid #8b5cf640;">
+                <div class="card-header">
+                    <h2 class="card-title" style="color: #8b5cf6;">🔀 FFI Boundary Flow</h2>
+                    <div class="flex-gap-2">
+                        <span class="badge badge-info" id="ffiFlowCount">0 flows</span>
+                        <span class="badge" style="background: #ef444430; color: #ef4444;" id="ffiMismatchCount">0 mismatches</span>
+                    </div>
+                </div>
+                <div style="background: linear-gradient(135deg, #8b5cf610 0%, #8b5cf620 100%); border-radius: 8px; padding: 12px; margin-bottom: 12px; border: 1px solid #8b5cf640;">
+                    <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                        <span style="font-size: 1.5rem;">🛂</span>
+                        <div style="color: var(--text2); font-size: 0.85rem; flex: 1;">
+                            Memory crossing Rust ↔ FFI boundaries. Direction, ownership transfer, and mismatched allocation/deallocation sides are highlighted.
+                        </div>
+                        <button class="btn-sm" onclick="Dashboard.unsafe.renderFfiBoundaryFlow()">🔄 Refresh</button>
+                    </div>
+                </div>
+                <div id="ffiBoundaryFlowContainer" style="min-height: 120px; background: var(--bg); border-radius: 8px; padding: 16px;"></div>
+                <div style="margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; padding: 8px 0;" id="ffiFlowLegend"></div>
+            </div>
             <div class="card">
                 <div class="card-header">
                     <h2 class="card-title">📊 Risk Distribution</h2>
@@ -1303,6 +1435,48 @@
 
     <script>
         const data = {{{json_data}}};
+
+        const DataIndex = (function() {
+            const idx = data.data_index || {};
+            const allocs = data.allocations || [];
+            const eventSummary = data.event_summary || {};
+            const sampling = data.sampling || {};
+            return {
+                allocationByPtr(ptr) {
+                    const indices = idx.ptr_to_allocation && idx.ptr_to_allocation[ptr];
+                    return indices && indices.length > 0 ? allocs[indices[0]] : null;
+                },
+                allocationsByThread(threadId) {
+                    const indices = idx.thread_id_to_allocations && idx.thread_id_to_allocations[String(threadId)];
+                    return indices ? indices.map(i => allocs[i]) : [];
+                },
+                allocationsByType(typeName) {
+                    const indices = idx.type_name_to_allocations && idx.type_name_to_allocations[typeName];
+                    return indices ? indices.map(i => allocs[i]) : [];
+                },
+                allocationsByVarName(varName) {
+                    const indices = idx.var_name_to_allocations && idx.var_name_to_allocations[varName];
+                    return indices ? indices.map(i => allocs[i]) : [];
+                },
+                allocationsBySource(file, line) {
+                    const key = file + ':' + line;
+                    const indices = idx.source_location_to_allocations && idx.source_location_to_allocations[key];
+                    return indices ? indices.map(i => allocs[i]) : [];
+                },
+                eventsByThread(threadId) {
+                    const indices = idx.thread_id_to_events && idx.thread_id_to_events[String(threadId)];
+                    return indices ? indices.map(i => (data.events || [])[i]) : [];
+                },
+                passportByPtr(ptr) {
+                    const indices = idx.allocation_ptr_to_passport && idx.allocation_ptr_to_passport[ptr];
+                    return indices && indices.length > 0 ? indices.map(i => (data.passport_details || [])[i]) : [];
+                },
+                unsafeReportsByPtr(ptr) {
+                    const indices = idx.allocation_ptr_to_unsafe_reports && idx.allocation_ptr_to_unsafe_reports[ptr];
+                    return indices && indices.length > 0 ? indices.map(i => (data.unsafe_reports || [])[i]) : [];
+                }
+            };
+        })();
 
         const Utils = {
             formatBytes(bytes) {
@@ -1655,6 +1829,19 @@
                     this.svg.call(this.zoom);
                     this.g = this.svg.append('g');
                     this.svg.append('defs').append('marker').attr('id', 'arrowhead').attr('viewBox', '-0 -5 10 10').attr('refX', 20).attr('refY', 0).attr('orient', 'auto').attr('markerWidth', 6).attr('markerHeight', 6).append('path').attr('d', 'M 0,-5 L 10,0 L 0,5').attr('fill', '#64748b');
+                    function inferOwnershipModel(node) {
+                        const tn = (node.typeName || '').toLowerCase();
+                        if (node.isContainer) return 'Container';
+                        if (tn.includes('arc<')) return 'Arc';
+                        if (tn.includes('rc<')) return 'Rc';
+                        if (tn.includes('box<')) return 'Box';
+                        if (tn.includes('*const ') || tn.includes('*mut ') || tn.includes('raw') || tn.includes('ptr')) return 'RawPointer';
+                        const alloc = DataIndex.allocationByPtr(node.ptr);
+                        if (alloc && alloc.is_leaked) return 'Leaked';
+                        return 'HeapOwner';
+                    }
+                    const ownerColorMap = { Container: '#f59e0b', Box: '#3b82f6', Rc: '#8b5cf6', Arc: '#8b5cf6', RawPointer: '#ef4444', Leaked: '#dc2626', HeapOwner: '#10b981' };
+                    const ownerLabels = { Container: 'Container', Box: 'Box Owner', Rc: 'Rc Shared', Arc: 'Arc Shared', RawPointer: 'Raw Ptr', Leaked: '🚨 LEAKED', HeapOwner: 'Heap Owner' };
                     const nodeMap = new Map();
                     relationships.forEach((r) => {
                         const sourceId = r.source_ptr;
@@ -1665,6 +1852,7 @@
                         if (!nodeMap.has(targetId)) nodeMap.set(targetId, { id: targetId, ptr: targetId, name: r.target_var_name || ('Ptr ' + targetId.slice(-6)), type: r.relationship_type, typeName: r.type_name || 'unknown', isSource: false, hasCycle: false, inDegree: 0, outDegree: 0, isContainer: isTargetContainer });
                     });
                     const nodes = Array.from(nodeMap.values());
+                    nodes.forEach(n => { n.ownerModel = inferOwnershipModel(n); n.ownerColor = ownerColorMap[n.ownerModel] || '#64748b'; });
                     const nodeIds = new Set(nodes.map(n => n.id));
                     const links = relationships.map(r => ({ source: r.source_ptr, target: r.target_ptr, type: r.relationship_type || 'reference', strength: r.strength || 0.5, typeName: r.type_name || 'unknown', isPartOfCycle: r.is_part_of_cycle || false })).filter(l => nodeIds.has(l.source) && nodeIds.has(l.target));
                     links.forEach(l => { 
@@ -1689,7 +1877,7 @@
                     this.simulation = d3.forceSimulation(nodes).force('link', d3.forceLink(links).id(d => d.id).distance(100)).force('charge', d3.forceManyBody().strength(-300)).force('center', d3.forceCenter(width / 2, height / 2)).force('collision', d3.forceCollide().radius(35));
                     const link = this.g.append('g').selectAll('line').data(links).join('line').attr('class', 'link').attr('stroke', getLinkColor).attr('stroke-width', d => Math.max(1.5, d.strength * 3)).attr('stroke-dasharray', d => d.isPartOfCycle ? '6,3' : null).attr('marker-end', 'url(#arrowhead)');
                     const node = this.g.append('g').selectAll('g').data(nodes).join('g').attr('class', 'node').call(d3.drag().on('start', (event) => { if (!event.active) this.simulation.alphaTarget(0.3).restart(); event.subject.fx = event.subject.x || 0; event.subject.fy = event.subject.y || 0; }).on('drag', (event) => { event.subject.fx = event.x || 0; event.subject.fy = event.y || 0; }).on('end', (event) => { if (!event.active) this.simulation.alphaTarget(0); event.subject.fx = null; event.subject.fy = null; }));
-                    node.append('circle').attr('r', d => d.hasCycle ? 18 : 14).attr('fill', d => getColor(d.type)).attr('stroke', d => d.hasCycle ? '#ef4444' : 'none').attr('stroke-width', 3);
+                    node.append('circle').attr('r', d => d.hasCycle ? 18 : 14).attr('fill', d => d.ownerColor).attr('stroke', d => d.hasCycle ? '#ef4444' : 'none').attr('stroke-width', 3);
                     node.append('text').attr('dx', 20).attr('dy', 4).text(d => { const name = d.name || 'unknown'; return name.length > 14 ? name.substring(0, 12) + '..' : name; }).style('font-size', '12px').style('fill', 'var(--text)').style('font-weight', '500');
                     const tooltip = document.getElementById('tooltip');
                     node.on('mouseover', (event, d) => { 
@@ -1699,7 +1887,7 @@
                             <div style="font-weight: 600; font-size: 14px; margin-bottom: 8px; color: var(--primary);">${d.name || 'Unknown'}</div>
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 12px;">
                                 <div style="color: var(--text2);">Type:</div><div>${d.typeName || 'unknown'}</div>
-                                <div style="color: var(--text2);">Node Kind:</div><div style="color: ${d.isContainer ? '#f59e0b' : '#64748b'};">${d.isContainer ? 'Container' : 'HeapOwner'}</div>
+                                <div style="color: var(--text2);">Ownership:</div><div style="color: ${d.ownerColor};">${ownerLabels[d.ownerModel] || d.ownerModel}</div>
                                 <div style="color: var(--text2);">Relation:</div><div style="color: ${getColor(d.type)};">${getTypeLabel(d.type)}</div>
                                 <div style="color: var(--text2);">Incoming:</div><div>${d.inDegree} links</div>
                                 <div style="color: var(--text2);">Outgoing:</div><div>${d.outDegree} links</div>
@@ -1713,7 +1901,18 @@
                     this.simulation.on('tick', () => { link.attr('x1', d => d.source?.x || 0).attr('y1', d => d.source?.y || 0).attr('x2', d => d.target?.x || 0).attr('y2', d => d.target?.y || 0); node.attr('transform', d => `translate(${d.x || 0},${d.y || 0})`); });
                 },
                 resetZoom() { if (this.svg && this.zoom) this.svg.transition().duration(500).call(this.zoom.transform, d3.zoomIdentity); },
-                highlightCycles() { this.highlightMode = !this.highlightMode; if (!this.g) return; this.g.selectAll('.node circle').attr('stroke-width', d => this.highlightMode && d.hasCycle ? 5 : d.hasCycle ? 3 : 0); this.g.selectAll('.link').attr('stroke-width', d => this.highlightMode && d.isPartOfCycle ? 4 : Math.max(1.5, d.strength * 3)); }
+                highlightCycles() { this.highlightMode = !this.highlightMode; if (!this.g) return; this.g.selectAll('.node circle').attr('stroke-width', d => this.highlightMode && d.hasCycle ? 5 : d.hasCycle ? 3 : 0); this.g.selectAll('.link').attr('stroke-width', d => this.highlightMode && d.isPartOfCycle ? 4 : Math.max(1.5, d.strength * 3)); },
+                selectNode(ptr) {
+                    document.querySelectorAll('.mode-section').forEach(el => el.classList.remove('active'));
+                    document.querySelectorAll('.mode-tab').forEach(el => el.classList.remove('active'));
+                    document.getElementById('mode-variable').classList.add('active');
+                    const tab = document.querySelector('.mode-tab[onclick*="\'variable\'"]');
+                    if (tab) tab.classList.add('active');
+                    setTimeout(() => Dashboard.variableGraph.init(), 100);
+                    setTimeout(() => {
+                        if (this.g) this.g.selectAll('.node circle').attr('stroke', d => d.id === ptr ? '#f59e0b' : d.hasCycle ? '#ef4444' : 'none').attr('stroke-width', d => d.id === ptr ? 6 : d.hasCycle ? 3 : 0);
+                    }, 400);
+                }
             },
 
             allocations: {
@@ -1907,6 +2106,121 @@
                         </div>
                     `;
                 },
+                graph: {
+                    simulation: null,
+                    svg: null,
+                    zoom: null,
+                    g: null,
+                    render() {
+                        const container = document.getElementById('threadGraphContainer');
+                        if (!container) return;
+                        const threads = data.threads || [];
+                        if (threads.length === 0) { container.innerHTML = '<div class="empty-state">No thread data for graph</div>'; return; }
+                        container.innerHTML = '';
+                        const allocs = data.allocations || [];
+                        const unsafeReports = data.unsafe_reports || [];
+                        const threadMap = {};
+                        threads.forEach(t => { threadMap[String(t.thread_id)] = t; });
+                        const leakByThread = {};
+                        allocs.filter(a => a.is_leaked).forEach(a => { const tid = String(a.thread_id); leakByThread[tid] = (leakByThread[tid] || 0) + 1; });
+                        const unsafeByThread = {};
+                        unsafeReports.forEach(r => {
+                            const linked = DataIndex.allocationByPtr(r.allocation_ptr);
+                            if (linked) { const tid = String(linked.thread_id); unsafeByThread[tid] = (unsafeByThread[tid] || 0) + 1; }
+                        });
+                        const nodes = threads.map(t => {
+                            const tid = String(t.thread_id);
+                            const mem = t.current_memory_bytes || 0;
+                            const leaks = leakByThread[tid] || 0;
+                            const unsafes = unsafeByThread[tid] || 0;
+                            let risk = 'normal';
+                            if (leaks > 0 && unsafes > 0) risk = 'mixed';
+                            else if (leaks > 0) risk = 'leak';
+                            else if (unsafes > 0) risk = 'unsafe';
+                            const colorMap = { normal: '#10b981', leak: '#f59e0b', unsafe: '#ef4444', mixed: '#8b5cf6' };
+                            return { id: tid, label: 'T' + tid.slice(-4), memory: mem, allocCount: t.allocation_count || 0, leaks, unsafes, risk, color: colorMap[risk] || '#10b981' };
+                        });
+                        const memValues = nodes.map(n => n.memory);
+                        const minMem = Math.min(...memValues) || 1;
+                        const maxMem = Math.max(...memValues) || 1;
+                        const edges = [];
+                        const varByThread = {};
+                        allocs.forEach(a => {
+                            const tid = String(a.thread_id);
+                            if (!varByThread[tid]) varByThread[tid] = new Set();
+                            if (a.var_name) varByThread[tid].add(a.var_name);
+                        });
+                        const typeByThread = {};
+                        allocs.forEach(a => {
+                            const tid = String(a.thread_id);
+                            if (!typeByThread[tid]) typeByThread[tid] = new Set();
+                            if (a.type_name) typeByThread[tid].add(a.type_name);
+                        });
+                        for (let i = 0; i < nodes.length; i++) {
+                            for (let j = i + 1; j < nodes.length; j++) {
+                                const tida = nodes[i].id, tidb = nodes[j].id;
+                                const sharedVars = [...(varByThread[tida] || [])].filter(v => (varByThread[tidb] || []).has(v));
+                                const sharedTypes = [...(typeByThread[tida] || [])].filter(v => (typeByThread[tidb] || []).has(v));
+                                if (sharedVars.length > 0) edges.push({ source: tida, target: tidb, type: 'variable', label: 'Shared Var: ' + sharedVars.slice(0, 2).join(', '), strength: Math.min(1, sharedVars.length / 3), color: '#10b981', dash: '4,2' });
+                                if (sharedTypes.length > 0) edges.push({ source: tida, target: tidb, type: 'type', label: 'Shared Type: ' + sharedTypes.slice(0, 2).join(', '), strength: Math.min(1, sharedTypes.length / 5), color: '#3b82f6', dash: null });
+                            }
+                        }
+                        (data.relationships || []).forEach(r => {
+                            const srcAlloc = DataIndex.allocationByPtr(r.source_ptr);
+                            const tgtAlloc = DataIndex.allocationByPtr(r.target_ptr);
+                            if (srcAlloc && tgtAlloc && String(srcAlloc.thread_id) !== String(tgtAlloc.thread_id)) {
+                                edges.push({ source: String(srcAlloc.thread_id), target: String(tgtAlloc.thread_id), type: 'transfer', label: r.relationship_type || 'transfer', strength: (r.strength || 0.5), color: '#ef4444', dash: null });
+                            }
+                        });
+                        document.getElementById('threadGraphEdgeCount').textContent = edges.length + ' edges';
+                        const width = container.clientWidth || 700;
+                        const height = 300;
+                        Dashboard.threads.graph.svg = d3.select(container).append('svg').attr('width', '100%').attr('height', height).attr('viewBox', [0, 0, width, height]);
+                        Dashboard.threads.graph.zoom = d3.zoom().on('zoom', (event) => { if (Dashboard.threads.graph.g) Dashboard.threads.graph.g.attr('transform', event.transform); });
+                        Dashboard.threads.graph.svg.call(Dashboard.threads.graph.zoom);
+                        Dashboard.threads.graph.g = Dashboard.threads.graph.svg.append('g');
+                        Dashboard.threads.graph.svg.append('defs').append('marker').attr('id', 'threadArrow').attr('viewBox', '-0 -5 10 10').attr('refX', 25).attr('refY', 0).attr('orient', 'auto').attr('markerWidth', 6).attr('markerHeight', 6).append('path').attr('d', 'M 0,-5 L 10,0 L 0,5').attr('fill', '#64748b');
+                        const link = Dashboard.threads.graph.g.append('g').selectAll('line').data(edges).join('line').attr('stroke', d => d.color).attr('stroke-width', d => 1 + d.strength * 2).attr('stroke-dasharray', d => d.dash || 'none').attr('stroke-opacity', 0.6).attr('marker-end', 'url(#threadArrow)');
+                        link.append('title').text(d => d.label);
+                        const node = Dashboard.threads.graph.g.append('g').selectAll('g').data(nodes).join('g').attr('class', 'node').style('cursor', 'pointer').on('click', (event, d) => Dashboard.threads.showDetail(d.id));
+                        node.append('circle').attr('r', d => 10 + (d.memory / (maxMem || 1)) * 20).attr('fill', d => d.color).attr('stroke', '#fff').attr('stroke-width', 2).attr('opacity', 0.85);
+                        node.append('text').attr('dx', d => 12 + (d.memory / (maxMem || 1)) * 20).attr('dy', 4).text(d => d.label).style('font-size', '11px').style('fill', 'var(--text)').style('font-weight', '600');
+                        const tooltip = d3.select('#tooltip');
+                        node.on('mouseover', (event, d) => {
+                            tooltip.style('display', 'block').html(`<div style="min-width:150px;"><div style="font-weight:600;margin-bottom:4px;">Thread ${d.id}</div><table style="font-size:12px;border-collapse:collapse;"><tr><td style="color:var(--text2);padding:1px 4px;">Risk</td><td style="padding:1px 4px;">${d.risk}</td></tr><tr><td style="color:var(--text2);padding:1px 4px;">Memory</td><td style="padding:1px 4px;">${Utils.formatBytes(d.memory)}</td></tr><tr><td style="color:var(--text2);padding:1px 4px;">Allocs</td><td style="padding:1px 4px;">${d.allocCount}</td></tr><tr><td style="color:var(--text2);padding:1px 4px;">Leaks</td><td style="padding:1px 4px;">${d.leaks}</td></tr><tr><td style="color:var(--text2);padding:1px 4px;">Unsafe</td><td style="padding:1px 4px;">${d.unsafes}</td></tr></table></div>`).style('left', (event.pageX + 15) + 'px').style('top', (event.pageY - 10) + 'px');
+                        }).on('mouseout', () => tooltip.style('display', 'none'));
+                        Dashboard.threads.graph.simulation = d3.forceSimulation(nodes).force('link', d3.forceLink(edges).id(d => d.id).distance(120)).force('charge', d3.forceManyBody().strength(-300)).force('center', d3.forceCenter(width / 2, height / 2)).force('collision', d3.forceCollide().radius(40));
+                        Dashboard.threads.graph.simulation.on('tick', () => { link.attr('x1', d => d.source?.x || 0).attr('y1', d => d.source?.y || 0).attr('x2', d => d.target?.x || 0).attr('y2', d => d.target?.y || 0); node.attr('transform', d => `translate(${d.x || 0},${d.y || 0})`); });
+                    },
+                    resetZoom() { if (Dashboard.threads.graph.svg && Dashboard.threads.graph.zoom) Dashboard.threads.graph.svg.transition().duration(500).call(Dashboard.threads.graph.zoom.transform, d3.zoomIdentity); }
+                },
+                showDetail(threadId) {
+                    const panel = document.getElementById('threadDetailPanel');
+                    if (!panel) return;
+                    panel.style.display = 'block';
+                    document.getElementById('tdTitle').textContent = '🧵 Thread ' + threadId + ' Details';
+                    const allocs = DataIndex.allocationsByThread(threadId);
+                    const typeMap = {};
+                    allocs.forEach(a => { const cat = Dashboard.timetravel.classifyType(a.type_name); typeMap[cat] = (typeMap[cat] || 0) + (parseInt(a.size) || 0); });
+                    const typeHtml = '<div class="detail-label">💾 Memory by Type</div>' + Object.entries(typeMap).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([cat, bytes]) => `<div class="flex-between" style="padding:2px 0;"><span style="color:${Dashboard.timetravel.getCategoryColor(cat)};">${cat}</span><span>${Utils.formatBytes(bytes)}</span></div>`).join('') || '<div style="color:var(--text2);">None</div>';
+                    document.getElementById('tdMemByType').innerHTML = typeHtml;
+                    const varMap = {};
+                    allocs.forEach(a => { if (a.var_name) varMap[a.var_name] = (varMap[a.var_name] || 0) + (parseInt(a.size) || 0); });
+                    const varHtml = '<div class="detail-label">📦 Top Variables</div>' + Object.entries(varMap).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([name, bytes]) => `<div class="flex-between" style="padding:2px 0;"><span>${name}</span><span>${Utils.formatBytes(bytes)}</span></div>`).join('') || '<div style="color:var(--text2);">None</div>';
+                    document.getElementById('tdTopVariables').innerHTML = varHtml;
+                    const srcMap = {};
+                    allocs.forEach(a => { if (a.source_file) { const key = a.source_file + (a.source_line ? ':' + a.source_line : ''); srcMap[key] = (srcMap[key] || 0) + 1; } });
+                    const srcHtml = '<div class="detail-label">📍 Top Source Locations</div>' + Object.entries(srcMap).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([loc, count]) => `<div class="flex-between" style="padding:2px 0;"><span style="font-size:0.75rem;">${loc}</span><span>${count}x</span></div>`).join('') || '<div style="color:var(--text2);">None</div>';
+                    document.getElementById('tdTopSources').innerHTML = srcHtml;
+                    const unsafeList = [];
+                    (data.unsafe_reports || []).forEach(r => {
+                        const linked = r.allocation_ptr ? DataIndex.allocationByPtr(r.allocation_ptr) : null;
+                        if (linked && String(linked.thread_id) === threadId) unsafeList.push(r);
+                    });
+                    const unsafeHtml = '<div class="detail-label">⚠️ Unsafe Reports</div>' + (unsafeList.length > 0 ? unsafeList.slice(0, 5).map(r => `<div class="flex-between" style="padding:2px 0;"><span style="color:${r.risk_level === 'high' ? '#ef4444' : '#f59e0b'};">${r.var_name || 'unknown'}</span><span class="badge ${r.risk_level === 'high' ? 'badge-danger' : 'badge-warning'}">${r.risk_level}</span></div>`).join('') : '<div style="color:var(--text2);">None</div>');
+                    document.getElementById('tdUnsafeReports').innerHTML = unsafeHtml;
+                },
+                hideDetail() { document.getElementById('threadDetailPanel').style.display = 'none'; },
                 init() {
                     const threads = data.threads || [];
                     this.filteredData = [...threads];
@@ -1917,6 +2231,7 @@
                         return;
                     }
                     this.sort();
+                    this.graph.render();
                 }
             },
 
@@ -1938,18 +2253,43 @@
                         console.error('Failed to parse task_graph_json:', e);
                     }
 
-                    if (!taskGraphData || !taskGraphData.nodes || taskGraphData.nodes.length === 0) {
-                        emptyState.style.display = 'flex';
-                        svgContainer.style.display = 'none';
-                        countBadge.textContent = '0 tasks';
+                    if (taskGraphData && taskGraphData.nodes && taskGraphData.nodes.length > 0) {
+                        emptyState.style.display = 'none';
+                        svgContainer.style.display = 'block';
+                        countBadge.textContent = taskGraphData.nodes.length + ' tasks (graph)';
+                        this.renderTree(taskGraphData);
                         return;
                     }
 
-                    emptyState.style.display = 'none';
-                    svgContainer.style.display = 'block';
-                    countBadge.textContent = taskGraphData.nodes.length + ' tasks';
+                    const asyncTasks = data.async_tasks || [];
+                    if (asyncTasks.length > 0) {
+                        emptyState.style.display = 'none';
+                        svgContainer.style.display = 'block';
+                        countBadge.textContent = asyncTasks.length + ' tasks (async)';
+                        svgContainer.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;padding:12px;">' +
+                            asyncTasks.slice(0, 50).map(t => {
+                                const statusColor = t.is_completed ? '#10b981' : '#3b82f6';
+                                const eff = (t.efficiency_score || 0) * 100;
+                                return '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px;border-left:4px solid ' + statusColor + ';">' +
+                                    '<div class="flex-between" style="margin-bottom:8px;"><span style="font-weight:600;color:var(--primary);">#' + t.task_id + '</span>' +
+                                    '<span class="badge" style="background:' + statusColor + '30;color:' + statusColor + ';">' + (t.is_completed ? 'Completed' : 'Active') + '</span></div>' +
+                                    '<div style="font-size:0.85rem;margin-bottom:8px;">' + (t.task_name || 'Unknown') + '</div>' +
+                                    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:0.8rem;">' +
+                                    '<div><span class="detail-label">Memory</span><div style="font-weight:600;">' + Utils.formatBytes(t.current_memory || 0) + '</div></div>' +
+                                    '<div><span class="detail-label">Peak</span><div style="font-weight:600;">' + Utils.formatBytes(t.peak_memory || 0) + '</div></div>' +
+                                    '<div><span class="detail-label">Allocs</span><div style="font-weight:600;">' + (t.total_allocations || 0) + '</div></div>' +
+                                    '<div><span class="detail-label">Dur.</span><div style="font-weight:600;">' + (t.duration_ms || 0).toFixed(1) + 'ms</div></div>' +
+                                    '<div><span class="detail-label">Eff.</span><div style="font-weight:600;">' + eff.toFixed(0) + '%</div></div>' +
+                                    '<div><span class="detail-label">Type</span><div style="font-weight:600;font-size:0.75rem;">' + (t.task_type || '—') + '</div></div>' +
+                                    '</div>' + (t.has_potential_leak ? '<div style="margin-top:8px;color:#f59e0b;font-size:0.8rem;">⚠️ Potential Leak</div>' : '') +
+                                    '</div>';
+                            }).join('') + '</div>';
+                        return;
+                    }
 
-                    this.renderTree(taskGraphData);
+                    emptyState.style.display = 'flex';
+                    svgContainer.style.display = 'none';
+                    countBadge.textContent = '0 tasks';
                 },
 
                 renderTree(graphData) {
@@ -1957,7 +2297,7 @@
                     if (!container) return;
 
                     const width = container.clientWidth || 800;
-                    const height = 400;
+                    const height = Math.max(400, container.clientHeight || 600);
 
                     container.innerHTML = '';
 
@@ -1999,7 +2339,44 @@
                         return;
                     }
 
-                    this.renderSimpleTree(svg, trees, width, height, 0, 0);
+                    const zoomGroup = svg.append('g').attr('class', 'zoom-group');
+
+                    const zoom = d3.zoom()
+                        .scaleExtent([0.1, 5])
+                        .on('zoom', (event) => {
+                            zoomGroup.attr('transform', event.transform);
+                        });
+
+                    svg.call(zoom);
+
+                    svg.on('dblclick.zoom', (event) => {
+                        event.preventDefault();
+                        svg.transition().duration(500).call(
+                            zoom.transform,
+                            d3.zoomIdentity,
+                            d3.pointer(event, svg.node())
+                        );
+                    });
+
+                    this.renderSimpleTree(zoomGroup, trees, width, height, 0, 0);
+
+                    setTimeout(() => {
+                        const bbox = zoomGroup.node()?.getBBox();
+                        if (bbox && bbox.width > 0 && bbox.height > 0) {
+                            const pad = 40;
+                            const scale = Math.min(
+                                (width - pad * 2) / bbox.width,
+                                (height - pad * 2) / bbox.height,
+                                1.5
+                            );
+                            const tx = (width - bbox.width * scale) / 2 - bbox.x * scale;
+                            const ty = (height - bbox.height * scale) / 2 - bbox.y * scale;
+                            svg.transition().duration(500).call(
+                                zoom.transform,
+                                d3.zoomIdentity.translate(tx, ty).scale(scale)
+                            );
+                        }
+                    }, 50);
                 },
 
                 renderSimpleTree(svg, trees, width, height, xOffset, yOffset) {
@@ -2011,11 +2388,12 @@
                     let currentX = xOffset;
                     let currentY = yOffset;
 
+                    let clickStartPos = null;
+
                     const renderNode = (node, x, y) => {
                         const g = svg.append('g')
                             .attr('transform', `translate(${x}, ${y})`)
-                            .style('cursor', 'pointer')
-                            .on('click', () => this.showTaskDetails(node));
+                            .style('cursor', 'pointer');
 
                         g.append('rect')
                             .attr('width', nodeWidth)
@@ -2048,6 +2426,29 @@
                             .attr('fill', 'var(--text2)')
                             .style('font-size', '12px')
                             .text(`${Utils.formatBytes(node.memory_usage)} • ${node.allocation_count} allocs`);
+
+                        const drag = d3.drag()
+                            .on('start', (event) => {
+                                clickStartPos = { x: event.x, y: event.y };
+                            })
+                            .on('drag', (event) => {
+                                const transform = g.attr('transform');
+                                const match = transform.match(/translate\(([-\d.]+),\s*([-\d.]+)\)/);
+                                let cx = x, cy = y;
+                                if (match) { cx = parseFloat(match[1]); cy = parseFloat(match[2]); }
+                                g.attr('transform', `translate(${cx + event.dx}, ${cy + event.dy})`);
+                            })
+                            .on('end', (event) => {
+                                if (clickStartPos) {
+                                    const dist = Math.hypot(event.x - clickStartPos.x, event.y - clickStartPos.y);
+                                    clickStartPos = null;
+                                    if (dist < 5) {
+                                        this.showTaskDetails(node);
+                                    }
+                                }
+                            });
+
+                        g.call(drag);
 
                         return nodeWidth + horizontalGap;
                     };
@@ -2424,6 +2825,88 @@
                             </div>
                         </div>
                     `).join('');
+                    this.renderCallStackView();
+                    this.renderFfiBoundaryFlow();
+                },
+                renderCallStackView() {
+                    const container = document.getElementById('callStackContainer');
+                    const countEl = document.getElementById('callStackGroupCount');
+                    if (!container) return;
+                    const reports = data.unsafe_reports || [];
+                    const allocs = data.allocations || [];
+                    const sourceMap = {};
+                    reports.forEach(r => {
+                        const alloc = DataIndex.allocationByPtr(r.allocation_ptr) || allocs.find(a => a.address === r.allocation_ptr);
+                        const key = (alloc && alloc.source_file) ? `${alloc.source_file}:${alloc.source_line || 0}` : 'unknown:0';
+                        if (!sourceMap[key]) sourceMap[key] = { file: alloc ? alloc.source_file : 'unknown', line: alloc ? alloc.source_line : 0, reports: [] };
+                        sourceMap[key].reports.push(r);
+                    });
+                    const groups = Object.values(sourceMap).sort((a, b) => b.reports.length - a.reports.length);
+                    if (countEl) countEl.textContent = groups.length + ' groups';
+                    if (groups.length === 0) { container.innerHTML = '<div class="empty-state">No unsafe reports</div>'; return; }
+                    const flowLegend = { 'RustToFfi': { icon: '→', color: '#f59e0b', label: 'Rust→FFI' }, 'FfiToRust': { icon: '←', color: '#10b981', label: 'FFI→Rust' }, 'OwnershipTransfer': { icon: '⇄', color: '#8b5cf6', label: 'Ownership Transfer' }, 'SharedAccess': { icon: '⇌', color: '#3b82f6', label: 'Shared Access' }, 'Unknown': { icon: '?', color: '#64748b', label: 'Unknown' } };
+                    container.innerHTML = groups.map((g, gi) => `<div style="margin-bottom: 12px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden;">
+                        <div onclick="toggleTable('callStackGroup_${gi}', this)" style="cursor: pointer; display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: var(--bg3); border-bottom: 1px solid var(--border);">
+                            <span style="font-size: 1.2rem;">📂</span>
+                            <div style="flex: 1;">
+                                <div style="font-weight: 600; font-size: 0.9rem;">${g.file}:${g.line} <a href="#" onclick="jumpToSource('${g.file}', ${g.line}); return false;" style="color: var(--primary); font-size: 0.75rem; text-decoration: underline;">Jump</a></div>
+                                <div style="color: var(--text2); font-size: 0.75rem;">${g.reports.length} report(s) | ${g.reports.filter(r => r.risk_level === 'high').length} high risk</div>
+                            </div>
+                            <span style="font-size: 0.8rem; color: var(--text2);">▼</span>
+                        </div>
+                        <div id="callStackGroup_${gi}" style="display: none; padding: 12px;">
+                            ${g.reports.map(r => `<div class="detail-panel" style="border-left: 4px solid ${r.risk_level === 'high' ? '#ef4444' : r.risk_level === 'medium' ? '#f59e0b' : '#10b981'}; margin-bottom: 8px;">
+                                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                                    <div>
+                                        <div style="font-weight: 600; color: var(--text);">${r.var_name || 'unknown'}</div>
+                                        <div style="color: var(--text2); font-size: 0.8rem;">${r.type_name || 'Unknown'} | ${Utils.formatBytes(r.size_bytes || 0)} | <code style="font-size: 0.75rem;">${r.allocation_ptr || 'N/A'}</code></div>
+                                    </div>
+                                    <span class="badge ${r.risk_level === 'high' ? 'badge-danger' : r.risk_level === 'medium' ? 'badge-warning' : 'badge-success'}">${r.risk_level || 'unknown'}</span>
+                                </div>
+                                ${r.risk_factors && r.risk_factors.length > 0 ? `<div style="margin-top: 6px;"><div style="font-size: 0.8rem; color: var(--text2);">Risk Factors:</div><ul style="margin: 4px 0 0 16px; font-size: 0.8rem; color: var(--text2);">${r.risk_factors.map(f => `<li>${f}</li>`).join('')}</ul></div>` : ''}
+                                ${r.cross_boundary_events && r.cross_boundary_events.length > 0 ? `<div style="margin-top: 6px;"><div style="font-size: 0.8rem; color: var(--text2);">Call Stack:</div><div style="display: flex; flex-direction: column; gap: 4px; margin-top: 4px;">${r.cross_boundary_events.map((e, ei) => `<div style="display: flex; align-items: center; gap: 6px; font-size: 0.75rem; padding: 4px 8px; background: var(--bg3); border-radius: 4px;"><span>${flowLegend[e.event_type]?.icon || '→'}</span><span style="color: ${flowLegend[e.event_type]?.color || '#64748b'};">${e.event_type || 'Unknown'}</span><span style="color: var(--text2);">${e.from_context || ''} → ${e.to_context || ''}</span></div>`).join('')}</div></div>` : ''}
+                                <div style="margin-top: 6px; display: flex; gap: 8px; flex-wrap: wrap;">
+                                    <button class="btn-sm" onclick="Dashboard.timetravel.showDetail('${r.allocation_ptr}')">⏱ Timeline</button>
+                                    <button class="btn-sm" onclick="Dashboard.variableGraph.selectNode('${r.allocation_ptr}')">🔗 Variable Graph</button>
+                                </div>
+                            </div>`).join('')}
+                        </div>
+                    </div>`).join('');
+                },
+                renderFfiBoundaryFlow() {
+                    const container = document.getElementById('ffiBoundaryFlowContainer');
+                    const countEl = document.getElementById('ffiFlowCount');
+                    const mismatchEl = document.getElementById('ffiMismatchCount');
+                    const legendEl = document.getElementById('ffiFlowLegend');
+                    if (!container) return;
+                    const reports = data.unsafe_reports || [];
+                    const flowEvents = [];
+                    reports.forEach(r => { if (r.cross_boundary_events) r.cross_boundary_events.forEach(e => flowEvents.push({...e, var_name: r.var_name, allocation_ptr: r.allocation_ptr, is_leaked: r.is_leaked, risk_level: r.risk_level })); });
+                    const distinctTypes = [...new Set(flowEvents.map(e => e.event_type))];
+                    const flowTypeColors = { 'RustToFfi': '#f59e0b', 'FfiToRust': '#10b981', 'OwnershipTransfer': '#8b5cf6', 'SharedAccess': '#3b82f6', 'Unknown': '#64748b' };
+                    const mismatches = flowEvents.filter(e => e.event_type === 'OwnershipTransfer' || (e.from_context && e.to_context && e.from_context.includes('alloc') !== e.to_context.includes('free')));
+                    if (countEl) countEl.textContent = flowEvents.length + ' flows';
+                    if (mismatchEl) mismatchEl.textContent = mismatches.length + ' mismatches';
+                    if (legendEl) legendEl.innerHTML = Object.entries(flowTypeColors).map(([type, color]) => `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; background: var(--bg3); border-radius: 4px; font-size: 0.75rem;"><span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: ${color};"></span>${type}</span>`).join('');
+                    if (flowEvents.length === 0) { container.innerHTML = '<div class="empty-state">No FFI boundary flows</div>'; return; }
+                    const sortedEvents = flowEvents.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+                    container.innerHTML = '<div style="display: flex; flex-direction: column; gap: 8px;">' + sortedEvents.slice(0, 30).map(e => {
+                        const color = flowTypeColors[e.event_type] || '#64748b';
+                        const isMismatch = e.event_type === 'OwnershipTransfer' || (e.from_context && e.to_context && e.from_context.includes('alloc') !== e.to_context.includes('free'));
+                        return `<div style="display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--bg3); border-radius: 8px; border-left: 4px solid ${color}; ${isMismatch ? 'border: 2px solid #ef4444;' : ''}">
+                            <span style="font-size: 1.2rem; color: ${color};">${e.event_type === 'RustToFfi' ? '🦀→🌐' : e.event_type === 'FfiToRust' ? '🌐→🦀' : e.event_type === 'OwnershipTransfer' ? '⇄' : e.event_type === 'SharedAccess' ? '⇌' : '→'}</span>
+                            <div style="flex: 1;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="font-weight: 500; font-size: 0.85rem; color: ${color};">${e.event_type || 'Unknown'}</span>
+                                    ${isMismatch ? '<span class="badge badge-danger">⚠ Mismatch</span>' : ''}
+                                </div>
+                                <div style="color: var(--text2); font-size: 0.75rem;">
+                                    ${e.from_context || '?'} → ${e.to_context || '?'} | ${e.var_name || 'unknown'} | <code style="font-size: 0.7rem;">${e.allocation_ptr ? e.allocation_ptr.slice(-8) : 'N/A'}</code>
+                                </div>
+                            </div>
+                            <span style="font-size: 0.7rem; color: var(--text2);">${Utils.formatTime(parseInt(e.timestamp || 0))}</span>
+                        </div>`;
+                    }).join('') + '</div>';
                 }
             },
 
@@ -2431,7 +2914,7 @@
                 filteredData: [],
                 filter() { const query = document.getElementById('timetravelSearch').value.toLowerCase(); this.filteredData = (data.allocations || []).filter(a => (a.address || '').toLowerCase().includes(query) || (a.var_name || '').toLowerCase().includes(query)); this.sort(); },
                 sort() { const sortBy = document.getElementById('ttSortOrder').value; this.filteredData.sort((a, b) => { switch (sortBy) { case 'time-asc': return (a.timestamp_alloc || 0) - (b.timestamp_alloc || 0); case 'time-desc': return (b.timestamp_alloc || 0) - (a.timestamp_alloc || 0); case 'size-desc': return (b.size || 0) - (a.size || 0); case 'size-asc': return (a.size || 0) - (b.size || 0); case 'lifetime-desc': return (b.lifetime_ms || 0) - (a.lifetime_ms || 0); default: return 0; } }); this.render(); },
-                render() { const tbody = document.getElementById('timetravelBody'); tbody.innerHTML = this.filteredData.slice(0, 100).map(a => { const sourceLoc = (a.source_file && a.source_line) ? `<a href="#" onclick="jumpToSource('${a.source_file}', ${a.source_line}); return false;" title="Jump to source" style="color: var(--primary); text-decoration: underline;">${a.source_file}:${a.source_line}</a>` : '<span style="color: var(--text2);">—</span>'; return `<tr onclick="Dashboard.timetravel.showDetail('${a.address}')" style="cursor: pointer;"><td><code>${a.address || '0x0'}</code></td><td>${a.var_name || 'unknown'}</td><td>${Utils.formatBytes(parseInt(a.size) || 0)}</td><td style="font-size: 0.85rem;">${sourceLoc}</td><td>${a.timestamp_alloc || 0}</td><td>${Utils.formatTime(parseInt(a.lifetime_ms || 0) * 1000000)}</td><td>${a.is_leaked ? '<span class="badge badge-danger">Leaked</span>' : a.timestamp_dealloc > 0 ? '<span class="badge badge-success">Freed</span>' : '<span class="badge badge-info">Active</span>'}</td><td><button class="btn-link">View History</button></td></tr>`; }).join(''); this.updateStats(); },
+                render() { const tbody = document.getElementById('timetravelBody'); tbody.innerHTML = this.filteredData.slice(0, 100).map(a => { const sourceLoc = (a.source_file && a.source_line) ? `<a href="#" onclick="jumpToSource('${a.source_file}', ${a.source_line}); return false;" title="Jump to source" style="color: var(--primary); text-decoration: underline;">${a.source_file}:${a.source_line}</a>` : '<span style="color: var(--text2);">—</span>'; const genBadge = a.generation_id > 0 ? `<span class="badge" style="background:${a.generation_id > 1 ? '#ef444430' : '#3b82f630'};color:${a.generation_id > 1 ? '#ef4444' : '#3b82f6'};">G${a.generation_id}</span>` : ''; const provIcon = { allocator: '💠', clone: '📋', smart_pointer: '🔗', reallocation: '🔄', reallocated_then_leaked: '🚨' }[a.provenance] || '💠'; const confMap = { Confirmed: '🔴', Likely: '🟡', Possible: '🟢', Unknown: '⚪' }; const confEl = a.confidence ? `<span style="font-size:0.75rem;" title="Confidence: ${a.confidence}">${confMap[a.confidence] || '⚪'}</span>` : ''; return `<tr onclick="Dashboard.timetravel.showDetail('${a.address}')" style="cursor: pointer;"><td style="font-size:0.75rem;color:var(--text2);">${genBadge}</td><td><code>${a.address || '0x0'}</code></td><td>${a.var_name || 'unknown'}</td><td>${Utils.formatBytes(parseInt(a.size) || 0)}</td><td style="font-size:0.8rem;"><span title="Provenance: ${a.provenance || 'allocator'}">${provIcon} ${a.provenance || 'allocator'}</span></td><td style="font-size:0.75rem;">${confEl} ${a.evidence || ''}</td><td style="font-size: 0.85rem;">${sourceLoc}</td><td>${Utils.formatTime(parseInt(a.lifetime_ms || 0) * 1000000)}</td><td>${a.is_leaked ? '<span class="badge badge-danger">Leaked</span>' : a.timestamp_dealloc > 0 ? '<span class="badge badge-success">Freed</span>' : '<span class="badge badge-info">Active</span>'}</td><td><button class="btn-link">View History</button></td></tr>`; }).join(''); this.updateStats(); },
                 updateStats() {
                     const allocations = this.filteredData;
                     const total = allocations.length;
@@ -2449,7 +2932,103 @@
                     if (freedEl) freedEl.textContent = freed;
                     if (leakedEl) leakedEl.textContent = leaked;
                 },
-                showDetail(address) { const alloc = data.allocations?.find(a => a.address === address); if (!alloc) { alert('Allocation not found: ' + address); return; } document.getElementById('timetravelDetail').style.display = 'block'; document.getElementById('ttAddress').textContent = address; document.getElementById('ttVarName').textContent = alloc.var_name || 'unknown'; document.getElementById('ttType').textContent = alloc.type_name || 'Unknown'; document.getElementById('ttSize').textContent = Utils.formatBytes(parseInt(alloc.size) || 0); document.getElementById('ttStatus').innerHTML = alloc.is_leaked ? '<span class="badge badge-danger">Leaked</span>' : '<span class="badge badge-success">Normal</span>'; const timeline = document.getElementById('ttTimeline'); const events = [{ type: 'alloc', time: alloc.timestamp_alloc || 0, desc: 'Allocation', icon: '➕' }]; if (alloc.timestamp_dealloc > 0) events.push({ type: 'dealloc', time: alloc.timestamp_dealloc, desc: 'Deallocation', icon: '➖' }); if (alloc.is_leaked) events.push({ type: 'leak', time: (alloc.timestamp_alloc || 0) + parseInt(alloc.lifetime_ms || 0) * 1000000, desc: 'Leak Detected', icon: '⚠️' }); timeline.innerHTML = events.map(e => `<div class="timeline-item ${e.type}"><strong>${e.icon} ${e.desc}</strong><div style="color: var(--text2); font-size: 0.85rem;">Timestamp: ${e.time} | Delta: +${Utils.formatTime(e.time - events[0].time)}</div></div>`).join(''); },
+                showDetail(address) { const alloc = DataIndex.allocationByPtr(address) || data.allocations?.find(a => a.address === address); if (!alloc) { alert('Allocation not found: ' + address); return; } document.getElementById('timetravelDetail').style.display = 'block'; document.getElementById('ttAddress').textContent = address + (alloc.generation_id ? ` (G${alloc.generation_id})` : ''); document.getElementById('ttVarName').textContent = alloc.var_name || 'unknown'; document.getElementById('ttType').textContent = alloc.type_name || 'Unknown'; document.getElementById('ttSize').textContent = Utils.formatBytes(parseInt(alloc.size) || 0); document.getElementById('ttStatus').innerHTML = alloc.is_leaked ? '<span class="badge badge-danger">Leaked</span>' : '<span class="badge badge-success">Normal</span>'; document.getElementById('ttProvenance').textContent = (alloc.provenance || 'allocator') + ' | Evidence: ' + (alloc.evidence || 'Unknown') + ' | Confidence: ' + (alloc.confidence || 'Unknown'); const timeline = document.getElementById('ttTimeline'); const events = [{ type: 'alloc', time: alloc.timestamp_alloc || 0, desc: 'Allocation', icon: '➕' }]; if (alloc.timestamp_dealloc > 0) events.push({ type: 'dealloc', time: alloc.timestamp_dealloc, desc: 'Deallocation', icon: '➖' }); if (alloc.is_leaked) events.push({ type: 'leak', time: (alloc.timestamp_alloc || 0) + parseInt(alloc.lifetime_ms || 0) * 1000000, desc: 'Leak Detected', icon: '⚠️' }); timeline.innerHTML = events.map(e => `<div class="timeline-item ${e.type}"><strong>${e.icon} ${e.desc}</strong><div style="color: var(--text2); font-size: 0.85rem;">Timestamp: ${e.time} | Delta: +${Utils.formatTime(e.time - events[0].time)}</div></div>`).join(''); const layoutEl = document.getElementById('ttLayout'); if (layoutEl) { const ls = alloc.layout_snapshot; if (ls) { const layoutCards = []; if (ls.size_of_t) layoutCards.push(`<div class="detail-panel" style="border-left:4px solid var(--info);padding:8px;"><span class="detail-label">SizeOf(T)</span><div class="detail-value">${Utils.formatBytes(ls.size_of_t)}</div></div>`); if (ls.align_of_t) layoutCards.push(`<div class="detail-panel" style="border-left:4px solid var(--warning);padding:8px;"><span class="detail-label">AlignOf(T)</span><div class="detail-value">${ls.align_of_t}</div></div>`); if (ls.layout_kind) layoutCards.push(`<div class="detail-panel" style="border-left:4px solid var(--primary);padding:8px;"><span class="detail-label">Layout Kind</span><div class="detail-value">${ls.layout_kind}</div></div>`); if (ls.repr_hint && ls.repr_hint !== 'Unknown') layoutCards.push(`<div class="detail-panel" style="border-left:4px solid #8b5cf6;padding:8px;"><span class="detail-label">Repr Hint</span><div class="detail-value">${ls.repr_hint}</div></div>`); if (ls.pointer_width && ls.pointer_width !== 'Unknown') layoutCards.push(`<div class="detail-panel" style="border-left:4px solid #f59e0b;padding:8px;"><span class="detail-label">Ptr Width</span><div class="detail-value">${ls.pointer_width}</div></div>`); if (ls.element_size) layoutCards.push(`<div class="detail-panel" style="border-left:4px solid #10b981;padding:8px;"><span class="detail-label">Element Size</span><div class="detail-value">${ls.element_size} B</div></div>`); if (ls.container_len !== null && ls.container_len !== undefined) layoutCards.push(`<div class="detail-panel" style="border-left:4px solid #06b6d4;padding:8px;"><span class="detail-label">Length</span><div class="detail-value">${ls.container_len}</div></div>`); if (ls.container_capacity !== null && ls.container_capacity !== undefined) layoutCards.push(`<div class="detail-panel" style="border-left:4px solid #3b82f6;padding:8px;"><span class="detail-label">Capacity</span><div class="detail-value">${ls.container_capacity}</div></div>`); if (ls.strong_count !== null && ls.strong_count !== undefined) layoutCards.push(`<div class="detail-panel" style="border-left:4px solid #ef4444;padding:8px;"><span class="detail-label">Strong Ref</span><div class="detail-value">${ls.strong_count}</div></div>`); if (ls.weak_count !== null && ls.weak_count !== undefined) layoutCards.push(`<div class="detail-panel" style="border-left:4px solid #64748b;padding:8px;"><span class="detail-label">Weak Ref</span><div class="detail-value">${ls.weak_count}</div></div>`); if (ls.pointee_type) layoutCards.push(`<div class="detail-panel" style="border-left:4px solid #8b5cf6;padding:8px;"><span class="detail-label">Pointee</span><div class="detail-value" style="font-size:0.75rem;">${ls.pointee_type}</div></div>`); layoutEl.innerHTML = layoutCards.join('') || '<div style="color:var(--text2);font-size:0.85rem;">No type layout data</div>'; } else { layoutEl.innerHTML = '<div style="color:var(--text2);font-size:0.85rem;">No layout snapshot</div>'; } } },
+                renderTimeSlice() {
+                    const slider = document.getElementById('tsTimeSlider');
+                    if (!slider) return;
+                    const allocs = data.allocations || [];
+                    if (allocs.length === 0) return;
+                    const minTime = d3.min(allocs, a => a.timestamp_alloc || 0);
+                    const maxTime = d3.max(allocs, a => Math.max(a.timestamp_dealloc || 0, (a.timestamp_alloc || 0) + (a.lifetime_ms || 0) * 1000000));
+                    const timeRange = (maxTime - minTime) || 1;
+                    const pct = parseInt(slider.value) / 100;
+                    const currentTime = minTime + pct * timeRange;
+                    document.getElementById('tsTimeCurrent').textContent = 'T+' + Utils.formatTime(currentTime - minTime);
+                    const active = allocs.filter(a => (a.timestamp_alloc || 0) <= currentTime && (!a.timestamp_dealloc || a.timestamp_dealloc > currentTime));
+                    const liveBytes = active.reduce((s, a) => s + (parseInt(a.size) || 0), 0);
+                    let peakBytes = 0;
+                    for (let i = 0; i <= parseInt(slider.value); i++) {
+                        const t = minTime + (i / 100) * timeRange;
+                        const bAtT = allocs.filter(a => (a.timestamp_alloc || 0) <= t && (!a.timestamp_dealloc || a.timestamp_dealloc > t)).reduce((s, a) => s + (parseInt(a.size) || 0), 0);
+                        if (bAtT > peakBytes) peakBytes = bAtT;
+                    }
+                    const leakCandidates = active.filter(a => a.is_leaked).length;
+                    const unsafeReports = data.unsafe_reports || [];
+                    const unsafeCount = unsafeReports.filter(r => r.allocation_ptr && active.some(a => a.address === r.allocation_ptr)).length;
+                    document.getElementById('tsAllocCount').textContent = active.length;
+                    document.getElementById('tsLiveBytes').textContent = Utils.formatBytes(liveBytes);
+                    document.getElementById('tsPeakBytes').textContent = Utils.formatBytes(peakBytes);
+                    document.getElementById('tsLeakCandidates').textContent = leakCandidates;
+                    document.getElementById('tsUnsafeCount').textContent = unsafeCount;
+                    const threadMap = {};
+                    active.forEach(a => { const tid = a.thread_id || '?'; threadMap[tid] = (threadMap[tid] || 0) + (parseInt(a.size) || 0); });
+                    const threadHtml = Object.entries(threadMap).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([tid, bytes]) => `<div class="flex-between" style="padding:2px 0;"><span>Thread ${tid}</span><span style="font-weight:600;">${Utils.formatBytes(bytes)}</span></div>`).join('') || '<div style="color:var(--text2);">None</div>';
+                    document.getElementById('tsMemByThread').innerHTML = threadHtml;
+                    const typeMap = {};
+                    active.forEach(a => { const cat = this.classifyType(a.type_name); typeMap[cat] = (typeMap[cat] || 0) + (parseInt(a.size) || 0); });
+                    const typeHtml = Object.entries(typeMap).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([cat, bytes]) => `<div class="flex-between" style="padding:2px 0;"><span style="color:${this.getCategoryColor(cat)};">${cat}</span><span style="font-weight:600;">${Utils.formatBytes(bytes)}</span></div>`).join('') || '<div style="color:var(--text2);">None</div>';
+                    document.getElementById('tsMemByType').innerHTML = typeHtml;
+                },
+                classifyType(typeName) {
+                    if (!typeName) return 'Unknown';
+                    const t = typeName.toLowerCase();
+                    if (t.includes('vec') || t.includes('string') || t.includes('hashmap') || t.includes('hashset') || t.includes('btreemap') || t.includes('btreeset') || t.includes('linkedlist') || t.includes('vecdeque')) return 'Container';
+                    if (t.includes('arc<') || t.includes('rc<') || t.includes('box<')) return 'SmartPointer';
+                    if (t.includes('mutex') || t.includes('rwlock') || t.includes('refcell') || t.includes('cell<') || t.includes('atomic') || t.includes('unsafecell')) return 'SyncPrimitive';
+                    if (t.includes('fn ') || t.includes('closure') || t.includes('fn(')) return 'Function';
+                    if (t.includes('i8') || t.includes('i16') || t.includes('i32') || t.includes('i64') || t.includes('u8') || t.includes('u16') || t.includes('u32') || t.includes('u64') || t.includes('usize') || t.includes('isize') || t.includes('f32') || t.includes('f64') || t.includes('bool') || t.includes('char')) return 'Primitive';
+                    if (t.includes('*const') || t.includes('*mut') || t.includes('ptr')) return 'RawPointer';
+                    if (t.includes('&') || t.includes('ref')) return 'Reference';
+                    return 'Other';
+                },
+                getCategoryColor(category) {
+                    const map = { 'Container': '#3b82f6', 'SmartPointer': '#8b5cf6', 'SyncPrimitive': '#f59e0b', 'Function': '#06b6d4', 'Primitive': '#10b981', 'RawPointer': '#ef4444', 'Reference': '#64748b', 'Other': '#94a3b8', 'Unknown': '#cbd5e1' };
+                    return map[category] || '#94a3b8';
+                },
+                renderLifecycleTimeline() {
+                    const container = document.getElementById('lifecycleTimelineContainer');
+                    if (!container) return;
+                    const threadFilter = document.getElementById('lcThreadFilter').value;
+                    const typeFilter = document.getElementById('lcTypeFilter').value;
+                    const statusFilter = document.getElementById('lcStatusFilter').value;
+                    let allocs = data.allocations || [];
+                    if (threadFilter !== 'all') allocs = allocs.filter(a => String(a.thread_id) === threadFilter);
+                    if (typeFilter !== 'all') allocs = allocs.filter(a => this.classifyType(a.type_name) === typeFilter);
+                    if (statusFilter === 'active') allocs = allocs.filter(a => !a.timestamp_dealloc && !a.is_leaked);
+                    else if (statusFilter === 'leaked') allocs = allocs.filter(a => a.is_leaked);
+                    else if (statusFilter === 'freed') allocs = allocs.filter(a => a.timestamp_dealloc > 0 && !a.is_leaked);
+                    const bars = allocs.slice(0, 200);
+                    document.getElementById('lcBarCount').textContent = bars.length + ' bars' + (allocs.length > 200 ? ' (showing 200)' : '');
+                    container.innerHTML = '';
+                    if (bars.length === 0) { container.innerHTML = '<div class="empty-state">No allocations match filters</div>'; return; }
+                    const width = container.clientWidth || 800;
+                    const height = Math.max(100, bars.length * 20 + 40);
+                    container.style.height = height + 'px';
+                    const svg = d3.select(container).append('svg').attr('width', '100%').attr('height', height).attr('viewBox', [0, 0, width, height]);
+                    const minTime = d3.min(bars, a => a.timestamp_alloc || 0);
+                    const maxTime = d3.max(bars, a => Math.max(a.timestamp_dealloc || 0, (a.timestamp_alloc || 0) + (a.lifetime_ms || 0) * 1000000));
+                    const timeRange = (maxTime - minTime) || 1;
+                    const padding = { top: 10, right: 20, bottom: 30, left: 120 };
+                    const innerW = width - padding.left - padding.right;
+                    const innerH = height - padding.top - padding.bottom;
+                    const barH = Math.min(16, innerH / bars.length - 1);
+                    const xScale = d3.scaleLinear().domain([minTime, maxTime + timeRange * 0.05]).range([0, innerW]);
+                    const g = svg.append('g').attr('transform', `translate(${padding.left},${padding.top})`);
+                    const tooltip = d3.select('#tooltip');
+                    bars.forEach((a, i) => {
+                        const cat = this.classifyType(a.type_name);
+                        const color = this.getCategoryColor(cat);
+                        const x0 = xScale(a.timestamp_alloc || 0);
+                        const x1 = a.timestamp_dealloc > 0 ? xScale(a.timestamp_dealloc) : xScale(maxTime + timeRange * 0.05);
+                        const y = i * (barH + 1);
+                        g.append('rect').attr('x', x0).attr('y', y).attr('width', Math.max(2, x1 - x0)).attr('height', barH).attr('fill', a.is_leaked ? '#ef4444' : color).attr('opacity', a.is_leaked ? 0.9 : 0.7).attr('stroke', a.is_leaked ? '#dc2626' : 'none').attr('stroke-width', a.is_leaked ? 1.5 : 0).attr('stroke-dasharray', a.is_leaked ? '4,2' : 'none').attr('rx', 2).attr('ry', 2).style('cursor', 'pointer').on('mouseover', (event) => {
+                            const lifetimeNs = a.lifetime_ms ? a.lifetime_ms * 1000000 : 0;
+                            tooltip.style('display', 'block').html(`<div style="min-width: 230px;"><div style="font-weight:600;color:var(--primary);margin-bottom:4px;">${a.var_name || 'unknown'}</div><table style="font-size:12px;width:100%;border-collapse:collapse;"><tr><td style="color:var(--text2);padding:1px 4px;">Address</td><td style="padding:1px 4px;font-family:monospace;">${a.address || '0x0'}${a.generation_id ? ` <span style="color:#64748b;font-size:10px;">G${a.generation_id}</span>` : ''}</td></tr><tr><td style="color:var(--text2);padding:1px 4px;">Type</td><td style="padding:1px 4px;">${a.type_name || 'Unknown'}</td></tr><tr><td style="color:var(--text2);padding:1px 4px;">Category</td><td style="padding:1px 4px;">${cat}</td></tr><tr><td style="color:var(--text2);padding:1px 4px;">Provenance</td><td style="padding:1px 4px;">${a.provenance || 'allocator'}</td></tr><tr><td style="color:var(--text2);padding:1px 4px;">Evidence</td><td style="padding:1px 4px;">${a.evidence || 'Unknown'} — ${a.confidence || 'Unknown'}</td></tr><tr><td style="color:var(--text2);padding:1px 4px;">Thread</td><td style="padding:1px 4px;">${a.thread_id || 'N/A'}</td></tr><tr><td style="color:var(--text2);padding:1px 4px;">Size</td><td style="padding:1px 4px;">${Utils.formatBytes(parseInt(a.size) || 0)}</td></tr><tr><td style="color:var(--text2);padding:1px 4px;">Lifetime</td><td style="padding:1px 4px;">${Utils.formatTime(lifetimeNs)}</td></tr><tr><td style="color:var(--text2);padding:1px 4px;">Source</td><td style="padding:1px 4px;">${a.source_file || ''}${a.source_line ? ':' + a.source_line : ''}</td></tr><tr><td style="color:var(--text2);padding:1px 4px;">Status</td><td style="padding:1px 4px;">${a.is_leaked ? '<span style="color:#ef4444;font-weight:600;">LEAKED</span>' : a.timestamp_dealloc > 0 ? '<span style="color:#10b981;">Freed</span>' : '<span style="color:#3b82f6;">Active</span>'}</td></tr></table></div>`).style('left', (event.pageX + 15) + 'px').style('top', (event.pageY - 10) + 'px');
+                        }).on('mouseout', () => tooltip.style('display', 'none')).on('click', () => this.showDetail(a.address));
+                        g.append('text').attr('x', -4).attr('y', y + barH / 2 + 4).attr('text-anchor', 'end').attr('fill', 'var(--text2)').style('font-size', '10px').style('font-family', 'monospace').text((a.var_name || a.address || '').substring(0, 18));
+                    });
+                    g.append('g').attr('transform', `translate(0,${bars.length * (barH + 1)})`).call(d3.axisBottom(xScale).ticks(6).tickFormat(d => Utils.formatTime(d - minTime)));
+                },
                 init() {
                     const allocations = data.allocations || [];
                     this.filteredData = [...allocations];
@@ -2458,6 +3037,21 @@
                         return;
                     }
                     this.sort();
+                    const threadSet = new Set((data.allocations || []).map(a => String(a.thread_id)));
+                    const threadSel = document.getElementById('lcThreadFilter');
+                    threadSet.forEach(tid => { const o = document.createElement('option'); o.value = tid; o.textContent = 'Thread ' + tid; threadSel.appendChild(o); });
+                    const typeSet = new Set((data.allocations || []).map(a => this.classifyType(a.type_name)));
+                    const typeSel = document.getElementById('lcTypeFilter');
+                    typeSet.forEach(cat => { const o = document.createElement('option'); o.value = cat; o.textContent = cat; typeSel.appendChild(o); });
+                    const allocs = data.allocations || [];
+                    if (allocs.length > 0) {
+                        const minT = d3.min(allocs, a => a.timestamp_alloc || 0);
+                        const maxT = d3.max(allocs, a => Math.max(a.timestamp_dealloc || 0, (a.timestamp_alloc || 0) + (a.lifetime_ms || 0) * 1000000));
+                        document.getElementById('tsTimeStart').textContent = 'T+0';
+                        document.getElementById('tsTimeEnd').textContent = 'T+' + Utils.formatTime((maxT - minT));
+                    }
+                    this.renderTimeSlice();
+                    this.renderLifecycleTimeline();
                 }
             },
 
@@ -2852,6 +3446,7 @@
             if (mode === 'taskgraph') {
                 setTimeout(() => Dashboard.taskGraph.init(), 100);
             }
+
         }
 
         function showTab(tab) {
@@ -3723,7 +4318,7 @@
         }
 
         function showTimetravelDetail(address) {
-            const alloc = data.allocations?.find(a => a.address === address);
+            const alloc = DataIndex.allocationByPtr(address) || data.allocations?.find(a => a.address === address);
             if (!alloc) {
                 alert('Allocation not found: ' + address);
                 return;
@@ -3737,6 +4332,8 @@
             document.getElementById('ttStatus').innerHTML = alloc.is_leaked ?
                 '<span class="badge badge-danger">Leaked</span>' :
                 '<span class="badge badge-success">Normal</span>';
+            const provEl = document.getElementById('ttProvenance');
+            if (provEl) provEl.textContent = (alloc.provenance || 'allocator') + ' | Evidence: ' + (alloc.evidence || 'Unknown') + ' | Confidence: ' + (alloc.confidence || 'Unknown');
 
             const timeline = document.getElementById('ttTimeline');
             const events = [
@@ -3757,6 +4354,28 @@
                     </div>
                 </div>
             `).join('');
+
+            const layoutEl = document.getElementById('ttLayout');
+            if (layoutEl) {
+                const ls = alloc.layout_snapshot;
+                if (ls) {
+                    const cards = [];
+                    if (ls.size_of_t) cards.push(`<div class="detail-panel" style="border-left:4px solid var(--info);padding:8px;"><span class="detail-label">SizeOf(T)</span><div class="detail-value">${Utils.formatBytes(ls.size_of_t)}</div></div>`);
+                    if (ls.align_of_t) cards.push(`<div class="detail-panel" style="border-left:4px solid var(--warning);padding:8px;"><span class="detail-label">AlignOf(T)</span><div class="detail-value">${ls.align_of_t}</div></div>`);
+                    if (ls.layout_kind) cards.push(`<div class="detail-panel" style="border-left:4px solid var(--primary);padding:8px;"><span class="detail-label">Layout Kind</span><div class="detail-value">${ls.layout_kind}</div></div>`);
+                    if (ls.repr_hint && ls.repr_hint !== 'Unknown') cards.push(`<div class="detail-panel" style="border-left:4px solid #8b5cf6;padding:8px;"><span class="detail-label">Repr Hint</span><div class="detail-value">${ls.repr_hint}</div></div>`);
+                    if (ls.pointer_width && ls.pointer_width !== 'Unknown') cards.push(`<div class="detail-panel" style="border-left:4px solid #f59e0b;padding:8px;"><span class="detail-label">Ptr Width</span><div class="detail-value">${ls.pointer_width}</div></div>`);
+                    if (ls.element_size) cards.push(`<div class="detail-panel" style="border-left:4px solid #10b981;padding:8px;"><span class="detail-label">Element Size</span><div class="detail-value">${ls.element_size} B</div></div>`);
+                    if (ls.container_len !== null && ls.container_len !== undefined) cards.push(`<div class="detail-panel" style="border-left:4px solid #06b6d4;padding:8px;"><span class="detail-label">Length</span><div class="detail-value">${ls.container_len}</div></div>`);
+                    if (ls.container_capacity !== null && ls.container_capacity !== undefined) cards.push(`<div class="detail-panel" style="border-left:4px solid #3b82f6;padding:8px;"><span class="detail-label">Capacity</span><div class="detail-value">${ls.container_capacity}</div></div>`);
+                    if (ls.strong_count !== null && ls.strong_count !== undefined) cards.push(`<div class="detail-panel" style="border-left:4px solid #ef4444;padding:8px;"><span class="detail-label">Strong Ref</span><div class="detail-value">${ls.strong_count}</div></div>`);
+                    if (ls.weak_count !== null && ls.weak_count !== undefined) cards.push(`<div class="detail-panel" style="border-left:4px solid #64748b;padding:8px;"><span class="detail-label">Weak Ref</span><div class="detail-value">${ls.weak_count}</div></div>`);
+                    if (ls.pointee_type) cards.push(`<div class="detail-panel" style="border-left:4px solid #8b5cf6;padding:8px;"><span class="detail-label">Pointee</span><div class="detail-value" style="font-size:0.75rem;">${ls.pointee_type}</div></div>`);
+                    layoutEl.innerHTML = cards.join('') || '<div style="color:var(--text2);font-size:0.85rem;">No type layout data</div>';
+                } else {
+                    layoutEl.innerHTML = '<div style="color:var(--text2);font-size:0.85rem;">No layout snapshot</div>';
+                }
+            }
         }
 
         let taskFilteredData = [];
@@ -3807,6 +4426,26 @@
             sortTasks();
         }
 
+        function updateEventSummaryCard() {
+            const card = document.getElementById('eventSummaryCard');
+            if (!card) return;
+            const eventSummary = data.event_summary || {};
+            const sampling = data.sampling || {};
+            const events = data.events || [];
+            if (events.length === 0 && !sampling.is_sampled) { card.style.display = 'none'; return; }
+            card.style.display = 'block';
+            const totalEvents = eventSummary.total_event_count || events.length;
+            const exportedEvents = eventSummary.exported_event_count || events.length;
+            const isSampled = eventSummary.is_sampled || sampling.is_sampled;
+            const strategy = eventSummary.sampling_strategy || sampling.sampling_strategy || 'none';
+            card.innerHTML = '<div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 8px 12px; background: var(--bg3); border-radius: 8px; border: 1px solid var(--border);">' +
+                '<span style="font-size: 1.2rem;">📋</span>' +
+                '<span style="font-weight: 600; font-size: 0.85rem;">Events:</span>' +
+                '<span style="font-size: 0.85rem;">' + totalEvents + ' total</span>' +
+                (isSampled ? '<span class="badge badge-warning" title="Sampling strategy: ' + strategy + '">⚠️ Sampled (' + exportedEvents + ' displayed)</span>' : '<span class="badge badge-success">✅ Complete (' + exportedEvents + ' exported)</span>') +
+                '</div>';
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
             Dashboard.diagnosis.init();
             Dashboard.charts.init();
@@ -3822,6 +4461,7 @@
             // Initialize Quick Health Dashboard
             updateQuickHealthDashboard();
             updateCriticalAlerts();
+            updateEventSummaryCard();
         });
         
         function updateQuickHealthDashboard() {

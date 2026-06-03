@@ -1,5 +1,64 @@
 # Changelog
 
+## \[0.2.4] - 2026-06-03
+
+### 🎯 **Dashboard Precision and Release Stabilization**
+
+This release focuses on making the Dashboard analysis output more precise, faster to navigate, and safer to interpret before publishing the next crate version.
+
+#### **Bug Fixes**
+
+- **fix(dashboard)**: Restored hidden Dashboard sections caused by missing closing `</div>` tags
+  - Fixed `mode-variable` nesting before the Passport section
+  - Fixed `mode-timetravel` nesting before the Unsafe/FFI section
+  - Prevents Passport, Time Travel, and Unsafe/FFI views from appearing empty when mode switching hides their parent section
+- **fix(heap_scanner)**: Raised the virtual pointer threshold from 1 TB to 128 PB
+  - Avoids false virtual-pointer detection on macOS heap addresses such as `0x600000000000`
+  - Fixes `test_heap_scanner_scan_real_allocations` on macOS
+- **fix(reconstruction)**: Applied `clone_info_map` to all reconstructed allocations
+  - Previously clone metadata was only applied to smart-pointer allocations
+  - Fixes `test_rebuild_clone_relationship`
+- **fix(testing)**: Stabilized the system monitor test and removed dead-field warnings
+  - Keeps CI and release validation output cleaner
+- **fix(ci)**: Removed repository-level forced `sccache` and `mold` Cargo configuration
+  - Fixes GitHub Actions failures where `cargo clippy` and `cargo llvm-cov` tried to execute unavailable `sccache`
+  - Keeps optional build acceleration in user-level Cargo config or environment variables instead of repo-wide config
+
+#### **Dashboard and Analysis Improvements**
+
+- **feat(precision)**: Added precision labels for analysis output
+  - Added `EvidenceLevel`: Observed / Inferred / Heuristic / Unknown
+  - Added `RiskConfidence`: Confirmed / Likely / Possible / Unknown
+  - Added `PointerProvenance`: Allocator / Clone / SmartPointer / Reallocation / FfiInput / FfiOutput / Unknown
+  - Added `DropExpectation`: NormalDrop / ManualDrop / Forgotten / ForeignFree / RustReclaim / NoDropNeeded / Unknown
+  - Displays evidence, confidence, provenance, and generation indicators in allocation tables, lifecycle tooltips, and detail panels
+- **feat(reconstruction)**: Added allocation `generation_id` tracking
+  - Tracks per-pointer generations to distinguish address reuse
+  - Shows generation badges such as `G1` and `G2` in event browser views and tooltips
+- **feat(frontend)**: Added `DataIndex` for O(1) frontend lookups
+  - Replaces hot-path linear `Array.find()` usage in Time Travel details
+  - Adds an event summary card with total event count and sampling status
+
+#### **Unsafe, FFI, and Graph Views**
+
+- **feat(unsafe)**: Added Unsafe Call-Stack View grouped by source location
+  - Shows expandable groups, risk badges, risk factors, boundary call-stack chains, and navigation buttons
+- **feat(ffi)**: Enhanced FFI Boundary Flow visualization
+  - Sorts flow events by timestamp and color-codes Rust-to-FFI, FFI-to-Rust, ownership-transfer, and shared-access events
+  - Highlights mismatch cases and adds flow count/mismatch badges
+- **feat(task_graph)**: Upgraded Task Hierarchy Visualization with interactive D3 zoom, pan, drag, auto-fit, and adaptive container height
+- **feat(thread_graph)**: Added Thread Relationship Graph and detail panel in thread mode
+- **feat(variable_graph)**: Added `Dashboard.variableGraph.selectNode(ptr)` for programmatic node selection
+
+#### **Build and Engineering**
+
+- **build**: Pinned the Rust toolchain to `1.92.0` with `rust-toolchain.toml`
+- **build**: Kept workspace Cargo configuration portable for CI, crates.io packaging, and local development
+- **refactor(renderer)**: Split Dashboard rendering into event DTO, event reconstruction, inference, report builder, and shared type modules
+- **chore**: Cleaned clippy warnings in detector doctests, async tracker code, and scope metadata handling
+
+***
+
 ## \[0.2.3] - 2026-04-19
 
 ### 🌳 **Task Tracking and Task Graph Visualization**
@@ -898,4 +957,3 @@ use memscope_rs::async_memory;
 - **Security**: Security audit passed
 - **Formatting**: Consistent code style across codebase
 - **Internationalization**: 100% English source code
-

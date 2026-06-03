@@ -1273,6 +1273,7 @@ mod tests {
             drop_chain_analysis: None,
             stack_ptr: None,
             task_id: None,
+            generation_id: 0,
         }];
 
         let report = analyzer.analyze_closure_patterns(&allocations);
@@ -1322,6 +1323,7 @@ mod tests {
             drop_chain_analysis: None,
             stack_ptr: None,
             task_id: None,
+            generation_id: 0,
         }];
 
         let report = analyzer.analyze_closure_patterns(&allocations);
@@ -1374,6 +1376,7 @@ mod tests {
             drop_chain_analysis: None,
             stack_ptr: None,
             task_id: None,
+            generation_id: 0,
         };
 
         let detected = analyzer.analyze_closure_allocation(&allocation);

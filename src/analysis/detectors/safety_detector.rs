@@ -5,18 +5,16 @@
 //! # Example
 //!
 //! ```rust
-//! use memscope_rs::analysis::detectors::{SafetyDetector, SafetyDetectorConfig, Detector};
-//! use memscope_rs::capture::types::AllocationInfo;
+//! # use memscope_rs::analysis::detectors::{SafetyDetector, SafetyDetectorConfig, Detector};
+//! # use memscope_rs::capture::types::AllocationInfo;
 //!
-//! fn main() {
-//!     let config = SafetyDetectorConfig::default();
-//!     let detector = SafetyDetector::new(config);
+//! let config = SafetyDetectorConfig::default();
+//! let detector = SafetyDetector::new(config);
 //!
-//!     let allocations = vec![];
-//!     let result = detector.detect(&allocations);
+//! let allocations = vec![];
+//! let result = detector.detect(&allocations);
 //!
-//!     println!("Found {} safety violations", result.issues.len());
-//! }
+//! println!("Found {} safety violations", result.issues.len());
 //! ```
 
 use crate::analysis::detectors::{
