@@ -1,3 +1,59 @@
+## \[0.2.4] - 2026-06-03
+
+### 🎯 **Dashboard 精度增强与发布稳定性改进**
+
+本次更新面向新版本发布，重点提升 Dashboard 分析结果的可解释性、前端交互性能，以及发布前测试稳定性。
+
+#### **Bug 修复**
+
+- **fix(dashboard)**: 修复缺失 `</div>` 导致的 Dashboard 区块隐藏问题
+  - 修复 Passport 区块前 `mode-variable` 未正确闭合的问题
+  - 修复 Unsafe/FFI 区块前 `mode-timetravel` 未正确闭合的问题
+  - 避免模式切换时父区块被隐藏后，Passport、Time Travel、Unsafe/FFI 页面看起来为空
+- **fix(heap_scanner)**: 将虚拟指针判断阈值从 1 TB 提高到 128 PB
+  - 避免 macOS 上类似 `0x600000000000` 的真实堆地址被误判为虚拟指针
+  - 修复 `test_heap_scanner_scan_real_allocations` 在 macOS 上失败的问题
+- **fix(reconstruction)**: 将 `clone_info_map` 应用于所有重建后的 allocation
+  - 之前 clone 元数据只会应用到智能指针 allocation
+  - 修复 `test_rebuild_clone_relationship`
+- **fix(testing)**: 稳定 system monitor 测试并移除 dead-field warnings
+  - 降低发布构建和 CI 输出噪声
+
+#### **Dashboard 与分析增强**
+
+- **feat(precision)**: 增加分析精度标签
+  - 新增 `EvidenceLevel`: Observed / Inferred / Heuristic / Unknown
+  - 新增 `RiskConfidence`: Confirmed / Likely / Possible / Unknown
+  - 新增 `PointerProvenance`: Allocator / Clone / SmartPointer / Reallocation / FfiInput / FfiOutput / Unknown
+  - 新增 `DropExpectation`: NormalDrop / ManualDrop / Forgotten / ForeignFree / RustReclaim / NoDropNeeded / Unknown
+  - 在 allocation 表格、生命周期 tooltip、详情面板中展示 evidence、confidence、provenance 和 generation 信息
+- **feat(reconstruction)**: 增加 allocation `generation_id` 跟踪
+  - 针对同一指针地址维护 generation counter，用于区分地址复用
+  - 在事件浏览器和 tooltip 中展示 `G1`、`G2` 等 generation badge
+- **feat(frontend)**: 增加 `DataIndex` 前端索引
+  - 将 Time Travel 详情路径中的线性 `Array.find()` 替换为 O(1) 查找
+  - 新增事件总览卡片，展示事件总数和采样状态
+
+#### **Unsafe、FFI 与图视图**
+
+- **feat(unsafe)**: 新增按源码位置聚合的 Unsafe Call-Stack View
+  - 支持展开分组、风险 badge、风险因素、边界调用栈链路和跳转按钮
+- **feat(ffi)**: 增强 FFI Boundary Flow 可视化
+  - 按时间戳排序 flow event，并区分 RustToFfi、FfiToRust、OwnershipTransfer、SharedAccess 等类型
+  - 高亮 mismatch，并增加 flow count / mismatch badge
+- **feat(task_graph)**: 升级 Task Hierarchy Visualization，支持 D3 zoom、pan、drag、自动适配视口和自适应高度
+- **feat(thread_graph)**: 在线程模式中新增 Thread Relationship Graph 和详情面板
+- **feat(variable_graph)**: 新增 `Dashboard.variableGraph.selectNode(ptr)`，支持程序化选中变量图节点
+
+#### **构建与工程化**
+
+- **build**: 通过 `rust-toolchain.toml` 固定 Rust 工具链为 `1.92.0`
+- **build**: 增加面向发布构建的 workspace Cargo 配置
+- **refactor(renderer)**: 将 Dashboard renderer 拆分为 event DTO、event reconstruction、inference、report builder 和共享 types 模块
+- **chore**: 清理 detector doctest、async tracker 和 scope metadata 相关 clippy warnings
+
+***
+
 ## \[0.2.3] - 2026-04-19
 
 ### 🌳 **任务跟踪和 Task Graph 可视化**

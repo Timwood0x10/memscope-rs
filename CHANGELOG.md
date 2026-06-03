@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.2.4] - 2026-05-26
+## [0.2.4] - 2026-06-03
 
 ### 🛠 Bug Fixes
 
@@ -14,6 +14,8 @@ All notable changes to this project will be documented in this file.
   - Fixes `test_heap_scanner_scan_real_allocations` on macOS
 - **fix**: Apply clone_info_map to all allocations after event reconstruction (was only applied to smart pointers)
   - Fixes `test_rebuild_clone_relationship`
+- **fix**: Stabilize system monitor test and remove dead-field warnings
+  - Reduces release-build/test noise and keeps CI output actionable
 
 ### 🎨 UI/UX Improvements
 
