@@ -159,11 +159,17 @@ pub fn rebuild_allocations_from_events(
         }
     }
 
+    for alloc in &mut all_allocations {
+        if let Some(clone_info) = clone_info_map.remove(&alloc.ptr) {
+            alloc.clone_info = Some(clone_info);
+        }
+    }
+
     let container_allocations_with_virtual_ptrs: Vec<_> = container_allocations
         .into_iter()
         .enumerate()
         .map(|(index, mut alloc)| {
-            alloc.ptr = 0x10000000000 + index;
+            alloc.ptr = crate::analysis::VIRTUAL_PTR_BASE + index;
             alloc
         })
         .collect();

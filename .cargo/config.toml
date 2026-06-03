@@ -12,9 +12,19 @@
 # rustflags = ["-C", "link-arg=-fuse-ld=mold"]
 
 # Use sccache for caching if available
+
+
+[target.x86_64-unknown-linux-gnu]
+rustflags = [
+    "-C", "link-arg=-fuse-ld=mold",
+    "-L", "/usr/local/lib", 
+    "-L", "/usr/lib/x86_64-linux-gnu"
+]
+
+
 [build]
 rustc-wrapper = "sccache"
 
 # Parallel compilation
 [env]
-CARGO_BUILD_JOBS = "8"
+CARGO_BUILD_JOBS = "14"

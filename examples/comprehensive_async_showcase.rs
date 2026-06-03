@@ -27,23 +27,20 @@ use std::time::Instant;
 /// A complex data structure (not directly Trackable, so we track its fields)
 #[derive(Debug)]
 struct TaskPayload {
-    id: u32,
-    name: String,
+    _id: u32,
+    _name: String,
     values: Vec<f64>,
-    metadata: HashMap<String, String>,
+    _metadata: HashMap<String, String>,
 }
 
 impl TaskPayload {
-    fn new(id: u32, name: &str, size: usize) -> Self {
+    fn new(id: u32, _name: &str, size: usize) -> Self {
         let values: Vec<f64> = (0..size).map(|i| (i as f64).sqrt()).collect();
-        let mut metadata = HashMap::new();
-        metadata.insert("kind".to_string(), name.to_string());
-        metadata.insert("size".to_string(), size.to_string());
         Self {
-            id,
-            name: name.to_string(),
+            _id: id,
+            _name: String::new(),
             values,
-            metadata,
+            _metadata: HashMap::new(),
         }
     }
 }
@@ -90,9 +87,7 @@ async fn supervisor_task(supervisor_id: u32, num_workers: u32) -> usize {
     let mut handles = Vec::new();
 
     for w in 0..num_workers {
-        let handle = spawn_tracked(async move {
-            worker_task(w, 100 + (w as usize) * 50).await
-        });
+        let handle = spawn_tracked(async move { worker_task(w, 100 + (w as usize) * 50).await });
         handles.push(handle);
     }
 
@@ -103,9 +98,7 @@ async fn supervisor_task(supervisor_id: u32, num_workers: u32) -> usize {
         }
     }
 
-    println!(
-        "  Supervisor #{supervisor_id}: {num_workers} workers completed, {total} total bytes"
-    );
+    println!("  Supervisor #{supervisor_id}: {num_workers} workers completed, {total} total bytes");
     total
 }
 
@@ -125,7 +118,10 @@ async fn main() -> MemScopeResult<()> {
     // 2. Capture initial context
     println!("[2/6] Capturing tracker context...");
     let ctx = TrackerContext::capture();
-    println!("  Main thread_id={:?} task_id={:?} tokio_id={:?}\n", ctx.thread_id, ctx.task_id, ctx.tokio_task_id);
+    println!(
+        "  Main thread_id={:?} task_id={:?} tokio_id={:?}\n",
+        ctx.thread_id, ctx.task_id, ctx.tokio_task_id
+    );
 
     // 3. Spawn diverse async tasks to exercise per-task memory profiling
     println!("[3/6] Spawning async tasks...\n");
@@ -187,18 +183,12 @@ async fn main() -> MemScopeResult<()> {
     }));
 
     // --- Two concurrent worker tasks (demonstrate parallel tracking) ---
-    handles.push(spawn_tracked(async {
-        worker_task(101, 200).await
-    }));
+    handles.push(spawn_tracked(async { worker_task(101, 200).await }));
 
-    handles.push(spawn_tracked(async {
-        worker_task(102, 500).await
-    }));
+    handles.push(spawn_tracked(async { worker_task(102, 500).await }));
 
     // --- Supervisor task with nested workers ---
-    handles.push(spawn_tracked(async {
-        supervisor_task(1, 3).await
-    }));
+    handles.push(spawn_tracked(async { supervisor_task(1, 3).await }));
 
     // Wait for all tasks
     let mut grand_total = 0usize;
@@ -258,15 +248,20 @@ async fn main() -> MemScopeResult<()> {
     let report = az.analyze();
     println!(
         "  Allocations: {}  Bytes: {}  Peak: {}",
-        report.stats.allocation_count,
-        report.stats.total_bytes,
-        report.stats.peak_bytes,
+        report.stats.allocation_count, report.stats.total_bytes, report.stats.peak_bytes,
     );
     let leaks = az.detect().leaks();
-    println!("  Leaks detected: {} ({leaked} bytes)", leaks.leak_count, leaked = leaks.total_leaked_bytes);
+    println!(
+        "  Leaks detected: {} ({leaked} bytes)",
+        leaks.leak_count,
+        leaked = leaks.total_leaked_bytes
+    );
     if leaks.leak_count > 0 {
         for l in &leaks.leaked_allocations {
-            println!("    ptr={:#x} size={} type={:?}", l.ptr, l.size, l.type_name);
+            println!(
+                "    ptr={:#x} size={} type={:?}",
+                l.ptr, l.size, l.type_name
+            );
         }
     }
 

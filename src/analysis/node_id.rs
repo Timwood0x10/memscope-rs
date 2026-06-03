@@ -145,11 +145,12 @@ impl std::fmt::Display for NodeId {
 /// We use virtual addresses in a reserved range to avoid collisions with
 /// real heap allocations.
 ///
-/// The 1TB (0x10000000000) threshold is chosen to be:
-/// - High enough to avoid conflicts with real heap addresses on any platform
-/// - Low enough to fit in 64-bit address space comfortably
+/// The 128PB (0x8000_0000_0000_0000) threshold is chosen to be:
+/// - Above the highest possible user-space heap address on any platform
+///   (macOS can allocate up to ~0x7FFF_FFFF_FFFF_FFFF)
+/// - Below kernel space, fitting cleanly in 64-bit address space
 /// - Aligned to a large boundary for easy identification
-pub const VIRTUAL_PTR_BASE: usize = 0x10000000000;
+pub const VIRTUAL_PTR_BASE: usize = 0x8000_0000_0000_0000;
 
 /// Check if a pointer is a virtual pointer used for Container types.
 ///

@@ -2,6 +2,46 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.4] - 2026-05-26
+
+### 🛠 Bug Fixes
+
+- **fix**: Close mode-variable and mode-timetravel divs broken by Leak Path and Playback Mode removals
+  - Added missing `</div>` at indent-8 before mode-passport to close mode-variable
+  - Added missing `</div>` at indent-8 before mode-unsafe to close mode-timetravel
+  - Previously these sections were nested inside their parent mode sections, so `showMode()` hiding the parent also hid the child, making Passport, Time Travel, and Unsafe/FFI sections appear empty
+- **fix**: Raise VIRTUAL_PTR_BASE from 1TB to 128PB to avoid false virtual-pointer detection on macOS (heap addresses like 0x600000000000 exceed the old threshold)
+  - Fixes `test_heap_scanner_scan_real_allocations` on macOS
+- **fix**: Apply clone_info_map to all allocations after event reconstruction (was only applied to smart pointers)
+  - Fixes `test_rebuild_clone_relationship`
+
+### 🎨 UI/UX Improvements
+
+- **feat**: Upgrade Task Hierarchy Visualization with interactive D3 zoom/pan/drag
+  - Added `d3.zoom()` with scale range 0.1x-5x and double-click reset
+  - Nodes are individually draggable via `d3.drag()` with click-vs-drag detection
+  - Auto-fits tree to viewport on initial render
+  - Container height now adapts to available space
+
+### ✨ Features
+
+- **feat**: Add precision labels (EvidenceLevel, RiskConfidence, PointerProvenance, DropExpectation)
+  - EvidenceLevel: Observed / Inferred / Heuristic / Unknown
+  - RiskConfidence: Confirmed / Likely / Possible / Unknown
+  - PointerProvenance: Allocator / Clone / SmartPointer / Reallocation / FfiInput / FfiOutput
+  - DropExpectation: NormalDrop / ManualDrop / Forgotten / ForeignFree / RustReclaim / NoDropNeeded
+  - Display evidence/confidence icons and provenance badges in allocation tables, lifecycle tooltips, and detail panels
+- **feat**: Add allocation generation_id for address reuse detection
+  - Track per-pointer generation counter in event_reconstructor
+  - Display generation badge (G1, G2, …) in event browser and tooltips
+- **feat**: Unsafe Call-Stack View — groups unsafe reports by source location with expandable groups, risk badges, boundary call-stack chains, and navigation buttons
+- **feat**: Enhanced FFI Boundary Flow — flow events sorted by timestamp, color-coded by type (RustToFfi / FfiToRust / OwnershipTransfer / SharedAccess), mismatch highlighting, legend
+- **feat**: Add `Dashboard.variableGraph.selectNode(ptr)` for programmatic node selection
+- **feat**: Wire DataIndex (O(1) ptr/thread/type/var/source lookups) into frontend
+  - Replace O(n) `Array.find()` in `timetravel.showDetail` with DataIndex lookup
+  - Add event summary card with total event count and sampling status
+- **feat**: Add Thread Relationship Graph and Detail Panel to thread mode
+
 ## [0.1.10] - 2025-10-15
 
 ## 🔧 Code Quality and Engineering Improvements

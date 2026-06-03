@@ -1725,7 +1725,7 @@ dependencies = [
 
 [[package]]
 name = "memscope-rs"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "actix-rt",
  "actix-web",

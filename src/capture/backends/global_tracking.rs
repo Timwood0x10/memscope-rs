@@ -23,7 +23,9 @@
 //! ```
 
 use crate::analysis::memory_passport_tracker::{MemoryPassportTracker, PassportTrackerConfig};
-use crate::capture::backends::async_tracker::{AsyncTracker, register_global as register_async_global};
+use crate::capture::backends::async_tracker::{
+    register_global as register_async_global, AsyncTracker,
+};
 use crate::core::{MemScopeError, MemScopeResult};
 use crate::tracker::{AnalysisReport, Tracker};
 use std::path::Path;
