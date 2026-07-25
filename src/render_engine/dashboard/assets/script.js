@@ -47,8 +47,9 @@ window.MemScopeUtils = {
 };
 
 // Chart.js default configuration
-Chart.defaults.font.family = "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
-Chart.defaults.color = '#6b7280';
-Chart.defaults.borderColor = '#e5e7eb';
+Chart.defaults.font.family = "'JetBrains Mono', 'Fira Code', 'SF Mono', ui-monospace, monospace";
+Chart.defaults.font.size = 11;
+Chart.defaults.color = '#7A7268';
+Chart.defaults.borderColor = 'rgba(31,27,22,0.05)';
 
 console.log('MemScope Dashboard utilities loaded');

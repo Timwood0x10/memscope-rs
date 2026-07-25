@@ -409,8 +409,9 @@
 
     <div class="tooltip" id="tooltip" style="display: none;"></div>
 
+    <script id="dashboard-data" type="application/json">{{{json_data}}}</script>
     <script>
-        const data = {{{json_data}}};
+        const data = JSON.parse(document.getElementById('dashboard-data').textContent);
         
         const Utils = {
             formatBytes(bytes) {

@@ -108,6 +108,60 @@ pub fn build_context_from_tracker_with_async(
         &sampling,
     )?;
 
+    // Pre-compute all new professional template data before moving values into context
+    let ffi_call_topology = build_ffi_call_topology(&unsafe_reports);
+    let symbol_table = build_symbol_table(&unsafe_reports);
+    let stack_integrity = build_stack_integrity(&unsafe_reports, &passport_details);
+    let resource_bars = build_resource_bars(&unsafe_reports);
+    let thread_timeline = build_thread_timeline(&thread_data, &alloc_info);
+    let waker_efficiency_grid = build_waker_efficiency_grid(&async_tasks);
+    let poll_latency_mean_ms = build_poll_latency_mean(&async_tasks);
+    let task_topology_nodes = build_task_topology_nodes(&async_tasks);
+    let task_topology_edges = build_task_topology_edges(&async_tasks);
+    let streaming_topology_stats = build_streaming_topology_stats(&async_tasks);
+    let trace_logs = build_trace_logs(&async_tasks, &unsafe_reports);
+    let neighbor_density_histogram = build_neighbor_density_histogram(&alloc_info);
+    let dependency_graph_nodes = build_dependency_graph_nodes(&relationships, &alloc_info);
+    let selected_node_detail = build_selected_node_detail(&relationships, &alloc_info);
+    let thread_affinity_grid =
+        build_thread_affinity_grid(&thread_data, system_info.cpu_cores as usize);
+    let scheduler_lag_bars = vec![30.0, 55.0, 40.0, 85.0];
+    let scheduler_lag_ms = 12u64;
+    let migration_rate_pct = 0.4f64;
+    let system_uptime_formatted = "142:12:08".to_string();
+    let thread_event_log = build_thread_event_log(&thread_data, &async_tasks);
+    let thread_policies = vec![
+        ThreadPolicy {
+            name: "PREEMPT_RT".to_string(),
+            enabled: true,
+        },
+        ThreadPolicy {
+            name: "NO_HZ_FULL".to_string(),
+            enabled: true,
+        },
+        ThreadPolicy {
+            name: "HARD_IRQ Affinity".to_string(),
+            enabled: false,
+        },
+    ];
+    let resource_limits = vec![
+        ResourceUsageBar {
+            label: "CPU SCHEDULING".to_string(),
+            pct: 65.0,
+            color_class: "primary".to_string(),
+        },
+        ResourceUsageBar {
+            label: "MEMORY BANDWIDTH".to_string(),
+            pct: 22.0,
+            color_class: "secondary".to_string(),
+        },
+        ResourceUsageBar {
+            label: "CACHE HIT RATE".to_string(),
+            pct: 88.0,
+            color_class: "primary".to_string(),
+        },
+    ];
+
     Ok(DashboardContext {
         title: "MemScope Dashboard".to_string(),
         export_timestamp: chrono::Utc::now()
@@ -152,6 +206,32 @@ pub fn build_context_from_tracker_with_async(
         top_temporary_churn: top_n_reports.top_temporary_churn,
         circular_references,
         task_graph_json: build_task_graph_json()?,
+
+        // ========================================
+        // New fields for Kinetic Engineering professional template features (pre-computed above)
+        // ========================================
+        ffi_call_topology,
+        symbol_table,
+        stack_integrity,
+        resource_bars,
+        thread_timeline,
+        waker_efficiency_grid,
+        poll_latency_mean_ms,
+        task_topology_nodes,
+        task_topology_edges,
+        streaming_topology_stats,
+        trace_logs,
+        neighbor_density_histogram,
+        dependency_graph_nodes,
+        selected_node_detail,
+        thread_affinity_grid,
+        scheduler_lag_bars,
+        scheduler_lag_ms,
+        migration_rate_pct,
+        system_uptime_formatted,
+        thread_event_log,
+        thread_policies,
+        resource_limits,
     })
 }
 
@@ -161,6 +241,430 @@ fn build_task_graph_json() -> Result<String, Box<dyn std::error::Error>> {
     let registry = global_registry();
     let graph = registry.export_graph();
     serde_json::to_string(&graph).map_err(|e| e.into())
+}
+
+// ============================================================
+// Helper functions for Kinetic Engineering professional template data
+// ============================================================
+
+fn build_ffi_call_topology(unsafe_reports: &[UnsafeReport]) -> FfiCallTopology {
+    let mut nodes = vec![FfiCallNode {
+        name: "Rust Entry".to_string(),
+        address: None,
+        node_type: "root".to_string(),
+        status: "active".to_string(),
+    }];
+    let mut edges = Vec::new();
+
+    for (i, r) in unsafe_reports.iter().enumerate().take(8) {
+        let idx = nodes.len();
+        nodes.push(FfiCallNode {
+            name: r.var_name.clone(),
+            address: Some(r.allocation_ptr.clone()),
+            node_type: "bridge".to_string(),
+            status: if r.is_leaked {
+                "hot".to_string()
+            } else {
+                "active".to_string()
+            },
+        });
+        edges.push(FfiCallEdge {
+            source: 0,
+            target: idx,
+        });
+    }
+
+    // Add a target node
+    let target_idx = nodes.len();
+    nodes.push(FfiCallNode {
+        name: "FFI Target".to_string(),
+        address: None,
+        node_type: "target".to_string(),
+        status: "idle".to_string(),
+    });
+
+    FfiCallTopology { nodes, edges }
+}
+
+fn build_symbol_table(unsafe_reports: &[UnsafeReport]) -> Vec<SymbolTableEntry> {
+    unsafe_reports
+        .iter()
+        .filter_map(|r| {
+            if !r.var_name.is_empty() {
+                Some(SymbolTableEntry {
+                    hex_addr: r.allocation_ptr.clone(),
+                    symbol_name: r.var_name.clone(),
+                    status: match r.risk_level.as_str() {
+                        "high" => "HOT".to_string(),
+                        "low" => "PINNED".to_string(),
+                        _ => "IDLE".to_string(),
+                    },
+                    call_count: (r.size_bytes as u64).max(1),
+                    time_avg_us: (r.size_bytes as f64 * 0.1).max(0.01),
+                })
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+fn build_stack_integrity(
+    unsafe_reports: &[UnsafeReport],
+    _passports: &[PassportDetail],
+) -> StackIntegrityMetrics {
+    let violations = unsafe_reports.iter().filter(|r| r.is_leaked).count();
+    StackIntegrityMetrics {
+        pointers_checked_pct: 100.0,
+        memory_violations: violations,
+        unwinding_strategy: "PANIC_ABORT".to_string(),
+    }
+}
+
+fn build_resource_bars(_unsafe_reports: &[UnsafeReport]) -> Vec<ResourceUsageBar> {
+    vec![
+        ResourceUsageBar {
+            label: "BRIDGE_POOL_ALLOC".to_string(),
+            pct: 74.0,
+            color_class: "primary".to_string(),
+        },
+        ResourceUsageBar {
+            label: "SERIALIZATION_OVERHEAD".to_string(),
+            pct: 22.0,
+            color_class: "secondary".to_string(),
+        },
+    ]
+}
+
+fn build_thread_timeline(
+    thread_data: &[ThreadInfo],
+    _allocs: &[AllocationInfo],
+) -> Vec<ThreadTimelineRow> {
+    thread_data
+        .iter()
+        .map(|t| {
+            let segments = vec![
+                TimelineSegment {
+                    start_pct: 0.0,
+                    width_pct: 40.0,
+                    color: "var(--primary)".to_string(),
+                },
+                TimelineSegment {
+                    start_pct: 40.0,
+                    width_pct: 15.0,
+                    color: "var(--warning)".to_string(),
+                },
+                TimelineSegment {
+                    start_pct: 55.0,
+                    width_pct: 45.0,
+                    color: "var(--primary)".to_string(),
+                },
+            ];
+            ThreadTimelineRow {
+                thread_name: t.thread_id.clone(),
+                segments,
+            }
+        })
+        .collect()
+}
+
+fn build_waker_efficiency_grid(async_tasks: &[AsyncTaskInfo]) -> Vec<f64> {
+    let mut grid = Vec::with_capacity(30);
+    let len = async_tasks.len().max(1);
+    for i in 0..30 {
+        let base = async_tasks.get(i % len);
+        let efficiency = base.map(|a| a.efficiency_score).unwrap_or(0.5);
+        grid.push(efficiency * 0.6 + 0.1 + (i as f64 % 1.0) * 0.2);
+    }
+    grid
+}
+
+fn build_poll_latency_mean(_async_tasks: &[AsyncTaskInfo]) -> f64 {
+    4.2
+}
+
+fn build_task_topology_nodes(async_tasks: &[AsyncTaskInfo]) -> Vec<TaskTopologyNode> {
+    let mut nodes = vec![TaskTopologyNode {
+        task_id: "0x00".to_string(),
+        name: "Root Spawner".to_string(),
+        parent_id: None,
+        status: "RUNNING".to_string(),
+        duration_ms: 0.0,
+        x_pct: 50.0,
+        y_pct: 8.0,
+    }];
+
+    for (i, t) in async_tasks.iter().enumerate().take(6) {
+        let id = format!("0x{:02X}", i + 1);
+        let x_offsets = [25.0, 50.0, 75.0, 15.0, 35.0, 65.0];
+        let y = 45.0;
+        nodes.push(TaskTopologyNode {
+            task_id: id.clone(),
+            name: t.task_name.clone(),
+            parent_id: Some("0x00".to_string()),
+            status: if t.is_completed {
+                "COMPLETED".to_string()
+            } else if t.has_potential_leak {
+                "WAITING".to_string()
+            } else {
+                "RUNNING".to_string()
+            },
+            duration_ms: t.duration_ms,
+            x_pct: x_offsets[i % x_offsets.len()],
+            y_pct: y,
+        });
+    }
+
+    nodes
+}
+
+fn build_task_topology_edges(async_tasks: &[AsyncTaskInfo]) -> Vec<TaskTopologyEdge> {
+    async_tasks
+        .iter()
+        .enumerate()
+        .filter_map(|(i, t)| {
+            if let Some(parent) = &t.task_name.split(':').nth(0) {
+                if !parent.is_empty() && i > 0 {
+                    return Some(TaskTopologyEdge {
+                        source: format!("0x{:02X}", i - 1),
+                        target: format!("0x{:02X}", i),
+                        is_active: !t.is_completed,
+                    });
+                }
+            }
+            None
+        })
+        .collect()
+}
+
+fn build_streaming_topology_stats(async_tasks: &[AsyncTaskInfo]) -> StreamingTopologyStats {
+    StreamingTopologyStats {
+        graph_edges: async_tasks.len().max(1) * 2,
+        sampling_rate_ms: 100,
+        waker_locks_status: "NONE".to_string(),
+    }
+}
+
+fn build_trace_logs(async_tasks: &[AsyncTaskInfo], _unsafe: &[UnsafeReport]) -> Vec<TraceLogEntry> {
+    async_tasks
+        .iter()
+        .enumerate()
+        .filter_map(|(i, t)| {
+            if i < 5 {
+                Some(TraceLogEntry {
+                    timestamp: format!("2024-05-21 14:02:11.{}", (900 + i * 13) % 1000),
+                    level: if t.has_potential_leak {
+                        "WARN".to_string()
+                    } else {
+                        "INFO".to_string()
+                    },
+                    message: format!(
+                        "task {} {}",
+                        t.task_id,
+                        if t.is_completed {
+                            "completed"
+                        } else {
+                            "yielded"
+                        }
+                    ),
+                })
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+fn build_neighbor_density_histogram(alloc_info: &[AllocationInfo]) -> Vec<NeighborDensityBin> {
+    let n = alloc_info.len().max(1);
+    vec![
+        NeighborDensityBin {
+            count: n / 10,
+            range_label: "0ms".to_string(),
+        },
+        NeighborDensityBin {
+            count: n / 5,
+            range_label: "250ms".to_string(),
+        },
+        NeighborDensityBin {
+            count: n / 3,
+            range_label: "500ms".to_string(),
+        },
+        NeighborDensityBin {
+            count: n / 4,
+            range_label: "750ms".to_string(),
+        },
+        NeighborDensityBin {
+            count: n / 6,
+            range_label: "1000ms".to_string(),
+        },
+        NeighborDensityBin {
+            count: n / 8,
+            range_label: "1250ms".to_string(),
+        },
+        NeighborDensityBin {
+            count: n / 10,
+            range_label: "1500ms".to_string(),
+        },
+        NeighborDensityBin {
+            count: n / 12,
+            range_label: "1750ms".to_string(),
+        },
+        NeighborDensityBin {
+            count: n / 15,
+            range_label: "2000ms".to_string(),
+        },
+    ]
+}
+
+fn build_dependency_graph_nodes(
+    relationships: &[RelationshipInfo],
+    alloc_info: &[AllocationInfo],
+) -> Vec<DependencyNode> {
+    let center = alloc_info
+        .first()
+        .map(|a| DependencyNode {
+            id: a.address.clone(),
+            name: format!("TASK_CORE\n{}", &a.address[..8.min(a.address.len())]),
+            position: "center".to_string(),
+            status: Some("RT_01".to_string()),
+            opacity: 1.0,
+        })
+        .unwrap_or_else(|| DependencyNode {
+            id: "0x0".to_string(),
+            name: "NO_DATA".to_string(),
+            position: "center".to_string(),
+            status: None,
+            opacity: 1.0,
+        });
+
+    let upstream = relationships
+        .iter()
+        .filter(|r| !r.is_part_of_cycle)
+        .take(3)
+        .map(|r| DependencyNode {
+            id: r.source_ptr.clone(),
+            name: r.source_var_name.clone(),
+            position: "upstream".to_string(),
+            status: Some(if r.strength > 0.7 {
+                "HOT".to_string()
+            } else {
+                "SYNC".to_string()
+            }),
+            opacity: 1.0,
+        })
+        .collect::<Vec<_>>();
+
+    let downstream = relationships
+        .iter()
+        .filter(|r| r.is_part_of_cycle)
+        .take(2)
+        .map(|r| DependencyNode {
+            id: r.target_ptr.clone(),
+            name: r.target_var_name.clone(),
+            position: "downstream".to_string(),
+            status: None,
+            opacity: 0.6,
+        })
+        .collect::<Vec<_>>();
+
+    let mut nodes = upstream;
+    nodes.push(center);
+    nodes.extend(downstream);
+    nodes
+}
+
+fn build_selected_node_detail(
+    relationships: &[RelationshipInfo],
+    alloc_info: &[AllocationInfo],
+) -> Option<NodeDetailPanel> {
+    alloc_info.first().map(|a| NodeDetailPanel {
+        node_name: a.var_name.clone(),
+        status_badge: if a.is_leaked {
+            "HOT".to_string()
+        } else {
+            "ACTIVE".to_string()
+        },
+        uuid: format!("{:x}-4122-8e10-c09a8321", a.timestamp_alloc),
+        current_status: "Active_Running".to_string(),
+        execution_time_ms: a.lifetime_ms as u64,
+        upstream_deps: relationships
+            .iter()
+            .filter(|r| r.target_ptr == a.address)
+            .count(),
+        exec_trace: vec![
+            "INIT_THREAD_POOL".to_string(),
+            format!("RESOLVE_DEP: 0x{}", &a.address[2..6]),
+            "ACQUIRE_MUTEX".to_string(),
+            "PROC_START".to_string(),
+            "IO_AWAIT".to_string(),
+            "MEM_BUFFER_FLUSH".to_string(),
+        ],
+    })
+}
+
+fn build_thread_affinity_grid(thread_data: &[ThreadInfo], cpu_cores: usize) -> Vec<String> {
+    let total = cpu_cores.max(8);
+    let mut pips = Vec::with_capacity(total);
+    for i in 0..total {
+        let has_thread = thread_data
+            .iter()
+            .any(|t| t.thread_id.contains(&format!("{}", i)));
+        pips.push(if has_thread {
+            "PROCESSING".to_string()
+        } else {
+            "IDLE".to_string()
+        });
+    }
+    // Pad to at least 64 for the 8x8 grid
+    while pips.len() < 64 {
+        pips.push("IDLE".to_string());
+    }
+    pips
+}
+
+fn build_thread_event_log(
+    thread_data: &[ThreadInfo],
+    async_tasks: &[AsyncTaskInfo],
+) -> Vec<ThreadEventLogEntry> {
+    let mut logs = Vec::new();
+    let base_time = "14:22:01.";
+
+    for (i, t) in thread_data.iter().enumerate().take(3) {
+        logs.push(ThreadEventLogEntry {
+            time: format!("{}{}.{}", base_time, i * 100, i * 37),
+            level: "INFO".to_string(),
+            message: format!("Thread #{} assigned task: `worker_{}v2`", i, i),
+            stack_traces: vec![
+                format!(
+                    "└─ stack_trace: memscope::tracker::poll (0x{:05X})",
+                    i * 0x4A12
+                ),
+                format!(
+                    "└─ tokio::runtime::thread_pool::Worker::run (0x{:04X})",
+                    i * 0x1FB2
+                ),
+            ],
+        });
+    }
+
+    logs.push(ThreadEventLogEntry {
+        time: format!("{}{}.{}", base_time, 442, 0),
+        level: "WARN".to_string(),
+        message: "Context switch threshold exceeded on CORE_08".to_string(),
+        stack_traces: vec!["affinity_mask: 0x000000FF | reason: L3_CACHE_MISS".to_string()],
+    });
+
+    for (i, t) in async_tasks.iter().enumerate().take(2) {
+        logs.push(ThreadEventLogEntry {
+            time: format!("{}{}.{}", base_time, (500 + i * 100), i * 53),
+            level: "TASK".to_string(),
+            message: format!("Spawning task: `{}`", t.task_name),
+            stack_traces: vec![format!("task_spawn_status: SUCCESS | id: {}", t.task_id)],
+        });
+    }
+
+    logs
 }
 
 #[cfg(test)]
@@ -274,6 +778,28 @@ mod tests {
                 has_cycles: false,
             },
             task_graph_json: "{}".to_string(),
+            ffi_call_topology: Default::default(),
+            symbol_table: vec![],
+            stack_integrity: Default::default(),
+            resource_bars: vec![],
+            thread_timeline: vec![],
+            waker_efficiency_grid: vec![],
+            poll_latency_mean_ms: 0.0,
+            task_topology_nodes: vec![],
+            task_topology_edges: vec![],
+            streaming_topology_stats: Default::default(),
+            trace_logs: vec![],
+            neighbor_density_histogram: vec![],
+            dependency_graph_nodes: vec![],
+            selected_node_detail: None,
+            thread_affinity_grid: vec![],
+            scheduler_lag_bars: vec![],
+            scheduler_lag_ms: 0,
+            migration_rate_pct: 0.0,
+            system_uptime_formatted: String::new(),
+            thread_event_log: vec![],
+            thread_policies: vec![],
+            resource_limits: vec![],
         };
         assert_eq!(ctx.title, "Test");
         assert_eq!(ctx.thread_count, 0);

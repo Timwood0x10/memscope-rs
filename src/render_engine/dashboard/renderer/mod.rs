@@ -11,6 +11,7 @@ mod inference;
 mod render_methods;
 mod report_builder;
 mod system_info;
+mod template_registry;
 mod types;
 
 pub use types::*;
@@ -18,37 +19,88 @@ pub use types::*;
 // Re-export for external use
 pub use event_dto::{build_data_index, DashboardEventDTO, DataIndex, EventSummary};
 pub use event_reconstructor::rebuild_allocations_from_events;
+pub use template_registry::{
+    DashboardTemplate as RegisteredTemplate, TemplateKind, TemplateRegistry,
+};
 
 use crate::analysis::memory_passport_tracker::MemoryPassportTracker;
 use crate::tracker::Tracker;
 use handlebars::Handlebars;
+use std::path::PathBuf;
 use std::sync::Arc;
 
-/// Dashboard renderer
+/// Dashboard renderer with template registry support
 pub struct DashboardRenderer {
     handlebars: Handlebars<'static>,
+    /// Template registry for managing multiple templates
+    template_registry: Option<TemplateRegistry>,
 }
 
 impl DashboardRenderer {
-    /// Create a new dashboard renderer
+    /// Create a new dashboard renderer (built-in templates only)
     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
+        Self::with_external_templates(None)
+    }
+
+    /// Create a new dashboard renderer with optional external template directory
+    ///
+    /// If `templetes_dir` is None, auto-discovers from `<manifest>/templetes/`.
+    pub fn with_external_templates(
+        templetes_dir: Option<PathBuf>,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let base_dir = manifest_dir.join("src/render_engine/dashboard/templates");
+        let external_dir = templetes_dir.unwrap_or_else(|| manifest_dir.join("templetes"));
+
+        // Build template registry from built-in templates
+        let mut registry = TemplateRegistry::with_built_in_templates(&base_dir)?;
+
+        // Always try to load external templates
+        registry.set_external_base(external_dir.clone());
+        registry.load_external_templates(&external_dir)?;
+
+        // For backward compatibility, keep a separate handlebars with old names
         let mut handlebars = Handlebars::new();
-
-        let template_path = format!(
-            "{}/src/render_engine/dashboard/templates/dashboard_unified.html",
-            env!("CARGO_MANIFEST_DIR")
-        );
-        handlebars.register_template_file("dashboard_unified", &template_path)?;
-
-        let final_path = format!(
-            "{}/src/render_engine/dashboard/templates/dashboard_final.html",
-            env!("CARGO_MANIFEST_DIR")
-        );
+        let unified_path = base_dir.join("dashboard_unified.html");
+        handlebars.register_template_file("dashboard_unified", &unified_path)?;
+        let final_path = base_dir.join("dashboard_final.html");
         handlebars.register_template_file("dashboard_final", &final_path)?;
-
         helpers::register_helpers(&mut handlebars);
 
-        Ok(Self { handlebars })
+        Ok(Self {
+            handlebars,
+            template_registry: Some(registry),
+        })
+    }
+
+    /// Render using the template registry (new API)
+    pub fn render_with_template(
+        &self,
+        template_id: &str,
+        context: &DashboardContext,
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        let registry = self
+            .template_registry
+            .as_ref()
+            .ok_or("Template registry not initialized")?;
+
+        // Build JSON data from context
+        let json_data = serde_json::to_string(context)
+            .map_err(|e| format!("Failed to serialize context: {}", e))?;
+
+        let data: serde_json::Value = serde_json::from_str(&json_data)?;
+        registry.render(template_id, &data)
+    }
+
+    /// List available template IDs
+    pub fn list_templates(&self) -> Vec<String> {
+        match &self.template_registry {
+            Some(reg) => reg.template_ids(),
+            None => vec![
+                "dashboard_unified".to_string(),
+                "dashboard_final".to_string(),
+            ],
+        }
     }
 
     /// Build dashboard context from tracker data
@@ -232,6 +284,28 @@ mod tests {
                 has_cycles: false,
             },
             task_graph_json: "{}".to_string(),
+            ffi_call_topology: Default::default(),
+            symbol_table: vec![],
+            stack_integrity: Default::default(),
+            resource_bars: vec![],
+            thread_timeline: vec![],
+            waker_efficiency_grid: vec![],
+            poll_latency_mean_ms: 0.0,
+            task_topology_nodes: vec![],
+            task_topology_edges: vec![],
+            streaming_topology_stats: Default::default(),
+            trace_logs: vec![],
+            neighbor_density_histogram: vec![],
+            dependency_graph_nodes: vec![],
+            selected_node_detail: None,
+            thread_affinity_grid: vec![],
+            scheduler_lag_bars: vec![],
+            scheduler_lag_ms: 0,
+            migration_rate_pct: 0.0,
+            system_uptime_formatted: String::new(),
+            thread_event_log: vec![],
+            thread_policies: vec![],
+            resource_limits: vec![],
         }
     }
 

@@ -91,6 +91,79 @@ pub struct DashboardContext {
     pub circular_references: CircularReferenceReport,
     /// Task graph JSON string
     pub task_graph_json: String,
+
+    // ========================================
+    // New fields for Kinetic Engineering professional template features
+    // ========================================
+    /// FFI call mapping topology nodes and edges
+    #[serde(default)]
+    pub ffi_call_topology: FfiCallTopology,
+    /// Symbol table analysis entries
+    #[serde(default)]
+    pub symbol_table: Vec<SymbolTableEntry>,
+    /// Stack integrity metrics
+    #[serde(default)]
+    pub stack_integrity: StackIntegrityMetrics,
+    /// Resource usage bars (bridge pool, serialization overhead)
+    #[serde(default)]
+    pub resource_bars: Vec<ResourceUsageBar>,
+    /// Thread execution timeline rows
+    #[serde(default)]
+    pub thread_timeline: Vec<ThreadTimelineRow>,
+
+    /// Waker efficiency grid (opacity values)
+    #[serde(default)]
+    pub waker_efficiency_grid: Vec<f64>,
+    /// Poll latency mean in ms
+    #[serde(default)]
+    pub poll_latency_mean_ms: f64,
+    /// Async task topology nodes
+    #[serde(default)]
+    pub task_topology_nodes: Vec<TaskTopologyNode>,
+    /// Async task topology edges
+    #[serde(default)]
+    pub task_topology_edges: Vec<TaskTopologyEdge>,
+    /// Streaming topology stats
+    #[serde(default)]
+    pub streaming_topology_stats: StreamingTopologyStats,
+    /// Trace log entries
+    #[serde(default)]
+    pub trace_logs: Vec<TraceLogEntry>,
+
+    /// Neighbor density histogram bins
+    #[serde(default)]
+    pub neighbor_density_histogram: Vec<NeighborDensityBin>,
+    /// Dependency graph peripheral nodes
+    #[serde(default)]
+    pub dependency_graph_nodes: Vec<DependencyNode>,
+    /// Selected node detail panel data
+    #[serde(default)]
+    pub selected_node_detail: Option<NodeDetailPanel>,
+
+    /// Thread affinity hardware grid
+    #[serde(default)]
+    pub thread_affinity_grid: Vec<String>, // status values
+    /// Scheduler lag mini bars
+    #[serde(default)]
+    pub scheduler_lag_bars: Vec<f64>, // height percentages
+    /// Scheduler lag in ms
+    #[serde(default)]
+    pub scheduler_lag_ms: u64,
+    /// Migration rate percentage
+    #[serde(default)]
+    pub migration_rate_pct: f64,
+    /// System uptime formatted
+    #[serde(default)]
+    pub system_uptime_formatted: String,
+    /// Thread event log entries
+    #[serde(default)]
+    pub thread_event_log: Vec<ThreadEventLogEntry>,
+    /// Thread policy settings
+    #[serde(default)]
+    pub thread_policies: Vec<ThreadPolicy>,
+    /// Resource limits progress bars
+    #[serde(default)]
+    pub resource_limits: Vec<ResourceUsageBar>,
 }
 
 /// Ownership graph information for dashboard
@@ -502,6 +575,243 @@ pub struct CircularReferenceReport {
     pub total_smart_pointers: usize,
     /// Whether any circular references were detected
     pub has_cycles: bool,
+}
+
+// ============================================================
+// New types for Kinetic Engineering professional template features
+// ============================================================
+
+/// FFI call mapping node (for Call Mapping Topology visualization)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FfiCallNode {
+    /// Symbol or function name
+    pub name: String,
+    /// Memory address
+    pub address: Option<String>,
+    /// Node type: root, bridge, target, source
+    pub node_type: String,
+    /// Status: active, idle, hot
+    pub status: String,
+}
+
+/// FFI call mapping edge
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FfiCallEdge {
+    /// Source node index
+    pub source: usize,
+    /// Target node index
+    pub target: usize,
+}
+
+/// Symbol table entry with status
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SymbolTableEntry {
+    /// Hexadecimal address
+    pub hex_addr: String,
+    /// Symbol/function name
+    pub symbol_name: String,
+    /// Status: PINNED, HOT, IDLE
+    pub status: String,
+    /// Total call count
+    pub call_count: u64,
+    /// Average time per call (microseconds)
+    pub time_avg_us: f64,
+}
+
+/// Stack integrity metrics
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct StackIntegrityMetrics {
+    /// Percentage of pointers checked
+    pub pointers_checked_pct: f64,
+    /// Number of memory violations
+    pub memory_violations: usize,
+    /// Unwinding strategy: PANIC_ABORT, UNWIND, etc.
+    pub unwinding_strategy: String,
+}
+
+/// Resource usage bar
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResourceUsageBar {
+    /// Label (e.g., "BRIDGE_POOL_ALLOC")
+    pub label: String,
+    /// Usage percentage (0-100)
+    pub pct: f64,
+    /// Color class: primary, secondary, error
+    pub color_class: String,
+}
+
+/// Thread execution timeline segment
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TimelineSegment {
+    /// Start percentage (0-100)
+    pub start_pct: f64,
+    /// Width percentage (0-100)
+    pub width_pct: f64,
+    /// Color class
+    pub color: String,
+}
+
+/// Thread execution timeline row
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ThreadTimelineRow {
+    /// Thread name
+    pub thread_name: String,
+    /// Segments representing execution phases
+    pub segments: Vec<TimelineSegment>,
+}
+
+/// Waker efficiency grid cell value
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WakerEfficiencyGrid(pub Vec<f64>); // opacity values 0.0-1.0
+
+/// Task topology node
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaskTopologyNode {
+    /// Task ID (hex)
+    pub task_id: String,
+    /// Task name
+    pub name: String,
+    /// Parent task ID (none if root)
+    pub parent_id: Option<String>,
+    /// Status: RUNNING, IDLE, WAITING, POLLING, COMPLETED
+    pub status: String,
+    /// Duration in ms
+    pub duration_ms: f64,
+    /// X position percentage for layout
+    pub x_pct: f64,
+    /// Y position percentage for layout
+    pub y_pct: f64,
+}
+
+/// Task topology edge
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaskTopologyEdge {
+    /// Source task ID
+    pub source: String,
+    /// Target task ID
+    pub target: String,
+    /// Whether this edge is active (animated)
+    pub is_active: bool,
+}
+
+/// Streaming topology stats
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct StreamingTopologyStats {
+    /// Number of graph edges
+    pub graph_edges: usize,
+    /// Sampling rate in ms
+    pub sampling_rate_ms: u64,
+    /// Waker locks status: NONE, LOW, HIGH
+    pub waker_locks_status: String,
+}
+
+/// Trace log entry
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TraceLogEntry {
+    /// Timestamp string
+    pub timestamp: String,
+    /// Log level: INFO, WARN, ERR, TASK
+    pub level: String,
+    /// Log message
+    pub message: String,
+}
+
+/// Neighbor density histogram bin
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NeighborDensityBin {
+    /// Count of neighbors in this bin
+    pub count: usize,
+    /// Range label (e.g., "500ms")
+    pub range_label: String,
+}
+
+/// Dependency graph peripheral node
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DependencyNode {
+    /// Node identifier
+    pub id: String,
+    /// Display name
+    pub name: String,
+    /// Position: upstream_left, upstream_center, upstream_right, downstream_left, downstream_right
+    pub position: String,
+    /// Status tag (IDLE, SYNC, HOT, etc.)
+    pub status: Option<String>,
+    /// Opacity multiplier (0.0-1.0)
+    pub opacity: f64,
+}
+
+/// Selected node detail panel data
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NodeDetailPanel {
+    /// Node name/identifier
+    pub node_name: String,
+    /// Status badge (HOT, ACTIVE, IDLE, etc.)
+    pub status_badge: String,
+    /// UUID
+    pub uuid: String,
+    /// Current status text
+    pub current_status: String,
+    /// Execution time in ms
+    pub execution_time_ms: u64,
+    /// Upstream dependency count
+    pub upstream_deps: usize,
+    /// Execution trace entries
+    pub exec_trace: Vec<String>,
+}
+
+/// Hardware thread allocation pip status
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ThreadAffinityPip {
+    /// Status: PROCESSING, IO_WAIT, IDLE, OVERLOAD
+    pub status: String,
+}
+
+/// Scheduler lag mini bar
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SchedulerLagBar {
+    /// Height percentage
+    pub height_pct: f64,
+}
+
+/// Thread event log entry
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ThreadEventLogEntry {
+    /// Timestamp
+    pub time: String,
+    /// Level: INFO, WARN, TASK, ERR
+    pub level: String,
+    /// Main message
+    pub message: String,
+    /// Optional stack traces
+    pub stack_traces: Vec<String>,
+}
+
+/// Thread policy setting
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ThreadPolicy {
+    /// Policy name
+    pub name: String,
+    /// Enabled status
+    pub enabled: bool,
+}
+
+/// Thread affinity grid data
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ThreadAffinityGrid {
+    /// Grid dimensions: rows x cols
+    pub rows: usize,
+    pub cols: usize,
+    /// PIP status matrix (flattened)
+    pub pips: Vec<ThreadAffinityPip>,
+}
+
+/// FFI call mapping topology
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct FfiCallTopology {
+    /// Nodes in the topology
+    pub nodes: Vec<FfiCallNode>,
+    /// Edges between nodes
+    pub edges: Vec<FfiCallEdge>,
 }
 
 /// Evidence level for analysis findings — how the conclusion was reached.
