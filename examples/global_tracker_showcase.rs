@@ -276,14 +276,10 @@ fn main() -> MemScopeResult<()> {
     // Export JSON files (simplified)
     tracker.export_json(output_path)?;
 
-    // Export HTML dashboards (both templates)
+    // Export HTML dashboard (single merged template)
     tracker.export_html_with_template(
         output_path,
         memscope_rs::render_engine::export::DashboardTemplate::Unified,
-    )?;
-    tracker.export_html_with_template(
-        output_path,
-        memscope_rs::render_engine::export::DashboardTemplate::Final,
     )?;
 
     println!("✓ Export successful!");
@@ -294,11 +290,10 @@ fn main() -> MemScopeResult<()> {
     println!("  system_resources.json");
     println!("  async_analysis.json");
     println!("  dashboard_unified_dashboard.html");
-    println!("  dashboard_final_dashboard.html");
 
     println!("\n✓ All modes completed successfully!");
     println!(
-        "\n🆕 Open {}/dashboard_final_dashboard.html for the NEW investigation console!",
+        "\n🆕 Open {}/dashboard_unified_dashboard.html for the merged multi-mode dashboard!",
         output_path
     );
     println!(

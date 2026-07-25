@@ -1,564 +1,937 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html class="dark" lang="en">
 <head>
 <meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>{{title}} — MemScope V2</title>
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://d3js.org/d3.v7.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <style>
-  .material-symbols-outlined{font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24}
-  .active-edge{stroke:#10B981;stroke-width:1.5;stroke-dasharray:4;animation:dash 20s linear infinite}
-  @keyframes dash{to{stroke-dashoffset:-1000}}
-  .heat-cell{transition:background-color 0.3s ease}
-  ::-webkit-scrollbar{width:4px;height:4px}
-  ::-webkit-scrollbar-track{background:transparent}
-  ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:2px}
-  ::-webkit-scrollbar-thumb:hover{background:#4edea3}
-  .mode-section{display:none}
-  .mode-section.active{display:block}
-  .ke-side-item.active{border-left:2px solid var(--primary) !important;background:var(--surface-container-low) !important;color:var(--on-surface) !important}
-  .glass-card{background:var(--surface-container);border:1px solid rgba(255,255,255,0.07)}
-  .ice-emerald-accent{border-left:2px solid #10B981}
-  @media (max-width: 768px) {
-    aside, .fixed.left-0 { display: none !important; }
-    main, .ml-64 { margin-left: 0 !important; padding-left: 8px !important; padding-right: 8px !important; }
-    .col-span-3, .col-span-4, .col-span-6, .col-span-8 { grid-column: span 12 !important; }
-    .hidden.md\:flex { display: flex !important; }
-    header .font-data-mono.text-xs { display: none !important; }
-    footer .border-l { display: none !important; }
-  }
+    .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: #0f0d13; }
+    ::-webkit-scrollbar-thumb { background: #36343a; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #494551; }
+    .rim-light { box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.05); }
+    .indigo-glow { box-shadow: 0 0 15px 0 rgba(103, 80, 164, 0.1); }
+    .amber-glow { box-shadow: 0 0 15px -3px rgba(245, 158, 11, 0.15); }
+    .mode-section { display: none; }
+    .mode-section.active { display: block; }
+    .ke-side-item.active { background: #211f24; color: #e6e0e9; border-left: 2px solid #cfbcff; }
+    .dashed-pulse { stroke-dasharray: 8 4; animation: dash 1s linear infinite; }
+    @keyframes dash { to { stroke-dashoffset: -12; } }
+    .execution-line { width: 1px; background: linear-gradient(to bottom, transparent, #F59E0B20, transparent); }
 </style>
 <script id="tailwind-config">
-tailwind.config={darkMode:"class",theme:{extend:{colors:{"surface":"#0e1511","on-background":"#dde4dd","error-container":"#93000a","on-secondary":"#552100","inverse-surface":"#dde4dd","on-primary-fixed":"#002113","primary-fixed-dim":"#4edea3","on-primary":"#003824","surface-container-lowest":"#09100c","on-surface-variant":"#bbcabf","surface-container-low":"#161d19","tertiary-container":"#fc7c78","tertiary":"#ffb3af","inverse-on-surface":"#2b322d","outline":"#86948a","error":"#ffb4ab","on-secondary-fixed-variant":"#783200","on-surface":"#dde4dd","surface-dim":"#0e1511","on-primary-container":"#00422b","on-tertiary-fixed-variant":"#842225","surface-container-high":"#242c27","surface-variant":"#2f3632","background":"#0e1511","on-tertiary-fixed":"#410005","inverse-primary":"#006c49","primary":"#4edea3","outline-variant":"#3c4a42","primary-fixed":"#6ffbbe","secondary":"#ffb690","secondary-fixed":"#ffdbca","primary-container":"#10b981","on-tertiary-container":"#711419","on-secondary-container":"#4a1c00","surface-container-highest":"#2f3632","on-error":"#690005","surface-bright":"#343b36","secondary-container":"#ec6a06","on-tertiary":"#650911","on-secondary-fixed":"#341100","surface-container":"#1a211d","tertiary-fixed-dim":"#ffb3af","surface-tint":"#4edea3","secondary-fixed-dim":"#ffb690","on-error-container":"#ffdad6","tertiary-fixed":"#ffdad7","on-primary-fixed-variant":"#005236"},borderRadius:{"DEFAULT":"4px","lg":"4px","xl":"8px","full":"9999px"},spacing:{"container-max":"1440px","margin-sm":"12px","margin-md":"24px","gutter":"16px","unit":"4px"},fontFamily:{"body-base":["Geist"],"data-mono":["JetBrains Mono"],"label-caps":["JetBrains Mono"],"headline-md":["Geist"],"display-lg":["Geist"]},fontSize:{"body-base":["14px",{lineHeight:"1.6",letterSpacing:"0em",fontWeight:"400"}],"data-mono":["13px",{lineHeight:"1.5",letterSpacing:"0.02em",fontWeight:"500"}],"label-caps":["11px",{lineHeight:"1",letterSpacing:"0.1em",fontWeight:"700"}],"headline-md":["20px",{lineHeight:"1.4",letterSpacing:"-0.01em",fontWeight:"500"}],"display-lg":["32px",{lineHeight:"1.2",letterSpacing:"-0.02em",fontWeight:"600"}]}}}
+    tailwind.config = {
+        darkMode: "class",
+        theme: {
+            extend: {
+                "colors": {
+                    "primary-container": "#6750a4",
+                    "inverse-surface": "#e6e0e9",
+                    "surface-tint": "#cfbcff",
+                    "surface-dim": "#141218",
+                    "on-tertiary": "#3e2e00",
+                    "on-error": "#690005",
+                    "on-tertiary-container": "#503d00",
+                    "on-surface-variant": "#cbc4d2",
+                    "background": "#141218",
+                    "secondary-fixed": "#ffddb8",
+                    "primary-fixed": "#e9ddff",
+                    "on-primary-fixed": "#22005d",
+                    "inverse-primary": "#6750a4",
+                    "on-tertiary-fixed": "#241a00",
+                    "on-secondary": "#472a00",
+                    "on-secondary-fixed-variant": "#653e00",
+                    "on-error-container": "#ffdad6",
+                    "surface-variant": "#36343a",
+                    "secondary-container": "#ee9800",
+                    "surface": "#141218",
+                    "on-surface": "#e6e0e9",
+                    "on-secondary-fixed": "#2a1700",
+                    "on-primary-fixed-variant": "#4f378a",
+                    "error-container": "#93000a",
+                    "outline": "#948e9c",
+                    "on-secondary-container": "#5b3800",
+                    "surface-container-high": "#2b292f",
+                    "secondary": "#ffb95f",
+                    "on-tertiary-fixed-variant": "#594400",
+                    "primary": "#cfbcff",
+                    "tertiary-container": "#c9a74d",
+                    "surface-container-low": "#1d1b20",
+                    "tertiary-fixed-dim": "#e7c365",
+                    "on-primary": "#381e72",
+                    "inverse-on-surface": "#322f35",
+                    "surface-container": "#211f24",
+                    "primary-fixed-dim": "#cfbcff",
+                    "outline-variant": "#494551",
+                    "error": "#ffb4ab",
+                    "surface-container-lowest": "#0f0d13",
+                    "secondary-fixed-dim": "#ffb95f",
+                    "on-primary-container": "#e0d2ff",
+                    "on-background": "#e6e0e9",
+                    "tertiary-fixed": "#ffdf93",
+                    "surface-bright": "#3b383e",
+                    "tertiary": "#e7c365",
+                    "surface-container-highest": "#36343a",
+                    "accent-amber": "#F59E0B",
+                    "brick-brown": "#8E443D"
+                },
+                "borderRadius": { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" },
+                "spacing": { "container-max": "1440px", "margin-mobile": "16px", "base": "4px", "margin-desktop": "32px", "gutter": "16px" },
+                "fontFamily": {
+                    "headline-md": ["JetBrains Mono"], "code-sm": ["JetBrains Mono"], "label-caps": ["JetBrains Mono"],
+                    "headline-lg-mobile": ["JetBrains Mono"], "headline-lg": ["JetBrains Mono"],
+                    "body-lg": ["JetBrains Mono"], "body-sm": ["JetBrains Mono"], "data-mono": ["JetBrains Mono"]
+                },
+                "fontSize": {
+                    "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                    "code-sm": ["13px", {"lineHeight": "18px", "fontWeight": "400"}],
+                    "label-caps": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "700"}],
+                    "headline-lg-mobile": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}]
+                }
+            }
+        }
+    }
 </script>
 </head>
-<body class="bg-surface font-body-base text-on-surface overflow-x-hidden overflow-y-auto">
-
-<!-- ===== TOP NAV ===== -->
-<header class="fixed top-0 left-0 w-full h-12 bg-surface border-b border-outline-variant z-50 flex justify-between items-center px-margin-md max-w-container-max mx-auto">
-  <div class="flex items-center gap-6">
-    <span class="font-label-caps text-label-caps tracking-widest text-primary">MEMSCOPE_V2</span>
-    <nav class="hidden md:flex gap-4 items-center h-full">
-      <a class="font-body-base text-body-base text-on-surface border-b-2 border-primary pb-1 cursor-pointer">CLUSTER</a>
-      <a class="font-body-base text-body-base text-on-surface-variant hover:text-primary transition-colors cursor-pointer">METRICS</a>
+<body class="bg-surface-container-lowest text-on-surface font-body-sm selection:bg-primary-container selection:text-on-primary-container">
+<div class="flex min-h-screen">
+    <!-- SideNavBar -->
+    <nav class="fixed left-0 top-0 h-full flex flex-col bg-surface-container-lowest border-r border-outline-variant w-64 z-50">
+        <div class="p-6 flex flex-col gap-1">
+            <span class="font-label-caps text-label-caps text-on-surface-variant tracking-widest uppercase">memscope-rs</span>
+            <span class="font-body-sm text-body-sm text-outline">{{os_name}}</span>
+        </div>
+        <div class="flex-grow py-4">
+            <div class="ke-side-item active flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all cursor-pointer" onclick="showMode('overview', this)">
+                <span class="material-symbols-outlined">dashboard</span><span class="font-body-sm">Overview</span>
+            </div>
+            <div class="ke-side-item flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all cursor-pointer" onclick="showMode('thread', this)">
+                <span class="material-symbols-outlined">segment</span><span class="font-body-sm">Threads</span>
+            </div>
+            <div class="ke-side-item flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all cursor-pointer" onclick="showMode('task', this)">
+                <span class="material-symbols-outlined">query_stats</span><span class="font-body-sm">Async Tasks</span>
+            </div>
+            <div class="ke-side-item flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all cursor-pointer" onclick="showMode('taskgraph', this)">
+                <span class="material-symbols-outlined">account_tree</span><span class="font-body-sm">Task Graph</span>
+            </div>
+            <div class="ke-side-item flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all cursor-pointer" onclick="showMode('variable', this)">
+                <span class="material-symbols-outlined">link</span><span class="font-body-sm">Variables</span>
+            </div>
+            <div class="ke-side-item flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all cursor-pointer" onclick="showMode('passport', this)">
+                <span class="material-symbols-outlined">badge</span><span class="font-body-sm">Passports</span>
+            </div>
+            <div class="ke-side-item flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all cursor-pointer" onclick="showMode('ffi', this)">
+                <span class="material-symbols-outlined">extension</span><span class="font-body-sm">FFI Bridge</span>
+            </div>
+            <div class="ke-side-item flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all cursor-pointer" onclick="showMode('unsafe', this)">
+                <span class="material-symbols-outlined">warning</span><span class="font-body-sm">Unsafe / Time</span>
+            </div>
+        </div>
+        <div class="p-4 flex flex-col gap-2 border-t border-outline-variant">
+            <div class="flex items-center gap-2 text-[10px] font-label-caps text-on-surface-variant">
+                <span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>NODE_READY
+            </div>
+            <div class="text-[10px] text-outline">UP: {{system_uptime_formatted}} · {{cpu_cores}} cores</div>
+        </div>
     </nav>
-  </div>
-  <div class="flex items-center gap-4">
-    <span class="font-data-mono text-xs text-on-surface-variant">{{os_name}} · {{architecture}} · {{cpu_cores}} cores</span>
-    <span class="font-data-mono text-xs text-on-surface-variant">{{export_timestamp}}</span>
-    <!-- THEME/settings/notifications removed - not needed for dashboard -->
-  </div>
-</header>
 
-<!-- ===== SIDE NAV ===== -->
-<aside class="fixed left-0 top-12 h-[calc(100vh-48px)] w-64 bg-surface-container-lowest border-r border-outline-variant flex flex-col z-40 font-data-mono text-data-mono">
-  <div class="p-6 border-b border-outline-variant">
-    <h2 class="font-headline-md text-headline-md text-on-surface">{{title}}</h2>
-    <span class="text-[10px] text-primary flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-primary"></span>NODE_READY</span>
-  </div>
-  <nav class="flex-1 overflow-y-auto py-2">
-    <div class="ke-side-item active flex items-center gap-3 py-3 px-4 text-on-surface-variant hover:bg-surface-variant/20 hover:text-on-surface transition-all cursor-pointer" onclick="showMode('overview')"><span class="material-symbols-outlined">dashboard</span>OVERVIEW</div>
-    <div class="ke-side-item flex items-center gap-3 py-3 px-4 text-on-surface-variant hover:bg-surface-variant/20 hover:text-on-surface transition-all cursor-pointer" onclick="showMode('thread')"><span class="material-symbols-outlined">groups</span>THREADS</div>
-    <div class="ke-side-item flex items-center gap-3 py-3 px-4 text-on-surface-variant hover:bg-surface-variant/20 hover:text-on-surface transition-all cursor-pointer" onclick="showMode('task')"><span class="material-symbols-outlined">bolt</span>ASYNC_TASKS</div>
-    <div class="ke-side-item flex items-center gap-3 py-3 px-4 text-on-surface-variant hover:bg-surface-variant/20 hover:text-on-surface transition-all cursor-pointer" onclick="showMode('taskgraph')"><span class="material-symbols-outlined">account_tree</span>TASK_GRAPH</div>
-    <div class="ke-side-item flex items-center gap-3 py-3 px-4 text-on-surface-variant hover:bg-surface-variant/20 hover:text-on-surface transition-all cursor-pointer" onclick="showMode('variable')"><span class="material-symbols-outlined">link</span>VARIABLES</div>
-    <div class="ke-side-item flex items-center gap-3 py-3 px-4 text-on-surface-variant hover:bg-surface-variant/20 hover:text-on-surface transition-all cursor-pointer" onclick="showMode('passport')"><span class="material-symbols-outlined">badge</span>PASSPORT</div>
-    <div class="ke-side-item flex items-center gap-3 py-3 px-4 text-on-surface-variant hover:bg-surface-variant/20 hover:text-on-surface transition-all cursor-pointer" onclick="showMode('ffi')"><span class="material-symbols-outlined">translate</span>FFI_BRIDGE</div>
-    <div class="ke-side-item flex items-center gap-3 py-3 px-4 text-on-surface-variant hover:bg-surface-variant/20 hover:text-on-surface transition-all cursor-pointer" onclick="showMode('unsafe')"><span class="material-symbols-outlined">warning</span>UNSAFE_FFI</div>
-    <div class="ke-side-item flex items-center gap-3 py-3 px-4 text-on-surface-variant hover:bg-surface-variant/20 hover:text-on-surface transition-all cursor-pointer" onclick="showMode('timetravel')"><span class="material-symbols-outlined">history</span>TIME_TRAVEL</div>
-  </nav>
-  <!-- Docs/Support removed - not needed for dashboard -->
-</aside>
+    <main class="ml-64 flex-grow p-margin-desktop max-w-container-max">
+        <!-- Header bar -->
+        <header class="w-full h-16 border-b border-outline-variant bg-surface sticky top-0 z-40 flex justify-between items-center px-margin-desktop">
+            <div class="flex items-center gap-8">
+                <span class="font-headline-md text-headline-md font-bold text-primary tracking-tighter">memscope-rs</span>
+            </div>
+            <div class="flex items-center gap-4">
+                <span class="font-data-mono text-xs text-on-surface-variant">{{export_timestamp}}</span>
+            </div>
+        </header>
 
-<!-- ===== MAIN ===== -->
-<main class="ml-64 mt-12 p-margin-md h-[calc(100vh-48px)] overflow-y-auto relative flex flex-col gap-gutter">
+        <!-- ============ MODE: OVERVIEW ============ -->
+        <div id="mode-overview" class="mode-section active">
+            <div class="flex justify-between items-end mb-8 pt-6">
+                <div>
+                    <h1 class="font-headline-lg text-headline-lg text-on-background mb-1">System Overview Dashboard</h1>
+                    <p class="text-on-surface-variant font-body-sm">{{title}} · {{architecture}} · {{os_name}}</p>
+                </div>
+                <div class="flex gap-4">
+                    <div class="flex items-center gap-2 px-3 py-1 bg-surface-container border border-outline-variant rounded-lg">
+                        <span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+                        <span class="font-label-caps text-label-caps text-primary">LIVE MONITORING</span>
+                    </div>
+                </div>
+            </div>
 
-<!-- HERO KPI STRIP -->
-<div class="grid grid-cols-12 gap-gutter shrink-0">
-  <div class="col-span-3 bg-surface-container border border-white/10 p-4 border-l-2 border-l-primary relative">
-    <p class="font-label-caps text-on-surface-variant mb-1">HEALTH SCORE</p>
-    <h3 class="font-display-lg text-display-lg text-white" id="heroHealthScore">{{health_score}}</h3>
-    <div class="absolute top-4 right-4 text-primary opacity-30"><span class="material-symbols-outlined" style="font-size:32px">shield</span></div>
-  </div>
-  <div class="col-span-3 bg-surface-container border border-white/10 p-4">
-    <p class="font-label-caps text-on-surface-variant mb-1">TOTAL ALLOCATIONS</p>
-    <h3 class="font-display-lg text-display-lg text-white">{{total_allocations}}</h3>
-    <div class="w-full bg-white/5 h-1 mt-2"><div class="bg-primary h-full" style="width:60%"></div></div>
-  </div>
-  <div class="col-span-3 bg-surface-container border border-white/10 p-4">
-    <p class="font-label-caps text-on-surface-variant mb-1">LIVE MEMORY</p>
-    <h3 class="font-display-lg text-display-lg text-white">{{total_memory}}</h3>
-    <div class="w-full bg-white/5 h-1 mt-2"><div class="bg-secondary h-full" style="width:45%"></div></div>
-  </div>
-  <div class="col-span-3 bg-surface-container border border-white/10 p-4">
-    <p class="font-label-caps text-on-surface-variant mb-1">LEAK DETECTED</p>
-    <h3 class="font-display-lg text-display-lg text-white" id="heroLeakCount">{{leak_count}}</h3>
-    <div class="w-full bg-white/5 h-1 mt-2"><div class="bg-tertiary h-full" style="width:10%"></div></div>
-  </div>
-</div>
+            <!-- 4 KPI cards -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-gutter mb-8">
+                <div class="bg-surface-container-high border border-outline-variant p-5 rounded-lg rim-light indigo-glow">
+                    <div class="flex justify-between items-start mb-4">
+                        <span class="font-label-caps text-label-caps text-on-surface-variant">HEALTH_SCORE</span>
+                        <span class="material-symbols-outlined text-primary">shield</span>
+                    </div>
+                    <div class="flex items-end gap-2">
+                        <span class="font-headline-lg text-headline-lg text-primary">{{health_score}}</span>
+                        <span class="text-outline font-body-sm mb-2">/100</span>
+                    </div>
+                    <p class="text-[10px] text-outline mt-4 font-label-caps uppercase">{{health_status}}</p>
+                    <div class="mt-4 w-full bg-surface h-1 rounded-full overflow-hidden">
+                        <div class="bg-primary h-full" style="width: {{health_score}}%"></div>
+                    </div>
+                </div>
+                <div class="bg-surface-container-high border border-outline-variant p-5 rounded-lg rim-light">
+                    <div class="flex justify-between items-start mb-4">
+                        <span class="font-label-caps text-label-caps text-on-surface-variant">TOTAL_ALLOCATIONS</span>
+                        <span class="material-symbols-outlined text-tertiary">database</span>
+                    </div>
+                    <div class="flex items-end gap-2">
+                        <span class="font-headline-lg text-headline-lg text-tertiary">{{total_allocations}}</span>
+                    </div>
+                    <p class="text-[10px] text-outline mt-4 font-label-caps uppercase">Active: {{active_allocations}}</p>
+                </div>
+                <div class="bg-surface-container-high border border-outline-variant p-5 rounded-lg rim-light">
+                    <div class="flex justify-between items-start mb-4">
+                        <span class="font-label-caps text-label-caps text-on-surface-variant">LIVE_MEMORY</span>
+                        <span class="material-symbols-outlined text-secondary">memory</span>
+                    </div>
+                    <div class="flex items-end gap-2">
+                        <span class="font-headline-lg text-headline-lg text-secondary">{{total_memory}}</span>
+                    </div>
+                    <p class="text-[10px] text-outline mt-4 font-label-caps uppercase">Peak: {{peak_memory}}</p>
+                </div>
+                <div class="bg-surface-container-high border border-outline-variant p-5 rounded-lg rim-light">
+                    <div class="flex justify-between items-start mb-4">
+                        <span class="font-label-caps text-label-caps text-on-surface-variant">LEAK_DETECTED</span>
+                        <span class="material-symbols-outlined text-error">emergency</span>
+                    </div>
+                    <div class="flex items-end gap-2">
+                        <span class="font-headline-lg text-headline-lg text-error">{{leak_count}}</span>
+                    </div>
+                    <p class="text-[10px] text-outline mt-4 font-label-caps uppercase">Unsafe: {{unsafe_count}} · FFI: {{ffi_count}}</p>
+                    <p class="text-[10px] text-outline mt-2 font-label-caps uppercase">Safe ops: {{safe_ops_count}} · High risk: {{high_risk_count}}</p>
+                    <p class="text-[10px] text-outline mt-2 font-label-caps uppercase">Safe code: {{safe_code_percent}}%</p>
+                </div>
+            </div>
 
-<!-- ===== MODE: OVERVIEW ===== -->
-<div id="mode-overview" class="mode-section active">
-  <div class="grid grid-cols-12 gap-gutter shrink-0 mt-4">
-    <div class="col-span-4 bg-surface-container border border-primary p-4">
-      <p class="font-label-caps text-on-surface-variant mb-2">QUICK HEALTH</p>
-      <div class="flex items-end gap-2">
-        <span class="font-display-lg text-display-lg text-primary" id="quickHealthScore">{{health_score}}</span>
-        <span class="font-data-mono text-xs text-on-surface-variant" id="healthStatus">{{health_status}}</span>
-      </div>
-      <div class="flex gap-4 mt-3 font-data-mono text-xs">
-        <span class="text-secondary">UNSAFE {{unsafe_count}}</span>
-        <span class="text-tertiary">FFI {{ffi_count}}</span>
-        <span class="text-primary">PASSPORTS {{passport_count}}</span>
-      </div>
-    </div>
-    <div class="col-span-8 bg-surface-container border border-white/10 p-4">
-      <p class="font-label-caps text-on-surface-variant mb-3">MEMORY SAFETY ANALYSIS</p>
-      <div class="h-48"><canvas id="memoryChart"></canvas></div>
-    </div>
-  </div>
-  <div class="grid grid-cols-12 gap-gutter shrink-0 mt-4">
-    <div class="col-span-6 bg-surface-container border border-white/10 p-4">
-      <p class="font-label-caps text-on-surface-variant mb-3">TYPE INTELLIGENCE</p>
-      <div class="h-48"><canvas id="typeChart"></canvas></div>
-    </div>
-    <div class="col-span-6 bg-surface-container border border-white/10 p-4">
-      <p class="font-label-caps text-on-surface-variant mb-3">AUTO DIAGNOSIS</p>
-      <div id="diagnosisContent" class="font-data-mono text-xs space-y-2"></div>
-    </div>
-  </div>
-  <div class="grid grid-cols-12 gap-gutter shrink-0 mt-4">
-    <div class="col-span-4 bg-surface-container border border-white/10 p-4 flex flex-col">
-      <p class="font-label-caps text-on-surface-variant mb-3">HEAP LATTICE</p>
-      <div class="grid grid-cols-10 gap-1 flex-1 min-h-[120px]" id="heapGrid"></div>
-      <div class="flex justify-between mt-3 font-data-mono text-[10px] text-on-surface-variant"><span>low</span><span>→ allocation size →</span><span>high</span></div>
-    </div>
-    <div class="col-span-8 bg-surface-container border border-white/10 p-4 flex flex-col">
-      <div class="flex justify-between items-center mb-3">
-        <p class="font-label-caps text-on-surface-variant">MEMORY FLAMEGRAPH</p>
-        <span class="font-data-mono text-[10px] text-primary" id="flameNodeCount">0 frames</span>
-      </div>
-      <div class="flex-1 min-h-[160px] relative" id="flameWrap">
-        <svg class="w-full h-full" id="flameSvg" viewBox="0 0 800 200" preserveAspectRatio="none"></svg>
-      </div>
-    </div>
-  </div>
-  <div class="bg-surface-container border border-white/10 p-4 mt-4">
-    <div class="flex justify-between items-center mb-3">
-      <p class="font-label-caps text-on-surface-variant">ALLOCATIONS STREAM</p>
-      <div class="flex gap-2">
-        <input type="text" class="bg-surface-container-low border border-white/10 px-2 py-1 font-data-mono text-xs text-on-surface" id="searchAllocations" placeholder="grep..." oninput="filterTable(this.value)">
-        <span class="font-data-mono text-[10px] text-primary" id="allocCountHero">0 items</span>
-      </div>
-    </div>
-    <div class="overflow-auto max-h-48">
-      <table class="w-full font-data-mono text-xs border-collapse" id="allocTable">
-        <thead><tr class="text-on-surface-variant border-b border-white/10">
-          <th class="text-left py-2 px-2">ADDR</th><th class="text-left py-2 px-2">VAR</th><th class="text-left py-2 px-2">TYPE</th><th class="text-right py-2 px-2">SIZE</th><th class="text-left py-2 px-2">SRC</th><th class="text-left py-2 px-2">STATUS</th>
-        </tr></thead>
-        <tbody id="allocTableBody"></tbody>
-      </table>
-    </div>
-  </div>
-</div>
+            <!-- Type Intelligence + Auto Diagnosis -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-gutter mb-8">
+                <div class="bg-surface-container border border-outline-variant rounded-lg p-6">
+                    <p class="font-label-caps text-on-surface-variant mb-3">TYPE_INTELLIGENCE</p>
+                    <div class="h-48"><canvas id="typeChart"></canvas></div>
+                </div>
+                <div class="bg-surface-container border border-outline-variant rounded-lg p-6">
+                    <p class="font-label-caps text-on-surface-variant mb-3">AUTO_DIAGNOSIS</p>
+                    <div id="diagnosisContent" class="font-data-mono text-xs space-y-2"></div>
+                </div>
+            </div>
 
-<!-- ===== MODE: THREAD ===== -->
-<div id="mode-thread" class="mode-section">
-  <div class="grid grid-cols-12 gap-gutter shrink-0 mt-4">
-    <div class="col-span-4 bg-surface-container border border-primary p-4">
-      <p class="font-label-caps text-on-surface-variant mb-2">THREAD ACTIVITY</p>
-      <span class="font-display-lg text-display-lg text-primary" id="threadCount">0 threads</span>
-      <div class="grid grid-cols-2 gap-3 mt-3">
-        <div><span class="font-data-mono text-xs text-on-surface-variant">ACTIVE</span><br><span class="font-headline-md text-primary" id="activeThreadCount">0</span></div>
-        <div><span class="font-data-mono text-xs text-on-surface-variant">TOTAL MEM</span><br><span class="font-headline-md text-secondary" id="totalThreadMemory">0 B</span></div>
-      </div>
-    </div>
-    <div class="col-span-8 bg-surface-container border border-white/10 p-4">
-      <p class="font-label-caps text-on-surface-variant mb-3">THREAD RELATIONSHIP GRAPH</p>
-      <div class="h-64 bg-surface-container-lowest border border-white/5" id="threadGraphContainer"></div>
-    </div>
-  </div>
-  <div class="grid grid-cols-12 gap-gutter shrink-0 mt-4">
-    <div class="col-span-6 bg-surface-container border border-white/10 p-4">
-      <p class="font-label-caps text-on-surface-variant mb-3">MEMORY HEATMAP</p>
-      <div class="h-40" id="threadHeatmapContainer"></div>
-    </div>
-    <div class="col-span-6 bg-surface-container border border-white/10 p-4">
-      <p class="font-label-caps text-on-surface-variant mb-3">MEMORY DISTRIBUTION</p>
-      <div class="h-40"><canvas id="threadChart"></canvas></div>
-    </div>
-  </div>
-  <div class="bg-surface-container border border-white/10 p-4 mt-4">
-    <div class="flex justify-between items-center mb-3">
-      <p class="font-label-caps text-on-surface-variant">THREAD DETAILS</p>
-      <select id="threadSortOrder" onchange="Dashboard.threads.sort()" class="bg-surface-container-low border border-white/10 px-2 py-1 font-data-mono text-xs">
-        <option value="alloc-desc">Allocations ↓</option><option value="alloc-asc">Allocations ↑</option><option value="memory-desc">Memory ↓</option><option value="memory-asc">Memory ↑</option>
-      </select>
-    </div>
-    <div class="overflow-auto max-h-64">
-      <table class="w-full font-data-mono text-xs border-collapse">
-        <thead><tr class="text-on-surface-variant border-b border-white/10"><th class="text-left py-2">ID</th><th class="text-left py-2">SUMMARY</th><th class="text-right py-2">ALLOCS</th><th class="text-right py-2">MEMORY</th><th class="text-right py-2">PEAK</th><th class="text-left py-2">STATUS</th></tr></thead>
-        <tbody id="threadTableBody"></tbody>
-      </table>
-    </div>
-  </div>
-  <!-- Thread Affinity Grid -->
-  <div class="grid grid-cols-12 gap-gutter mt-4">
-    <div class="col-span-8 glass-panel p-margin-md relative overflow-hidden ice-emerald-accent">
-      <div class="flex justify-between items-center mb-6">
-        <h3 class="font-label-caps text-label-caps text-on-surface tracking-wider uppercase flex items-center gap-2"><span class="material-symbols-outlined text-primary" style="font-size:14px">grid_view</span>HARDWARE THREAD ALLOCATION</h3>
-        <div class="flex gap-4">
-          <div class="flex items-center gap-2"><div class="w-1.5 h-1.5 rounded-full bg-primary"></div><span class="font-label-caps text-[10px] text-on-surface-variant">PROCESSING</span></div>
-          <div class="flex items-center gap-2"><div class="w-1.5 h-1.5 rounded-full bg-blue-500"></div><span class="font-label-caps text-[10px] text-on-surface-variant">IO_WAIT</span></div>
-          <div class="flex items-center gap-2"><div class="w-1.5 h-1.5 rounded-full bg-zinc-600"></div><span class="font-label-caps text-[10px] text-on-surface-variant">IDLE</span></div>
+            <!-- Heap Lattice + Flamegraph -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter mb-8">
+                <div class="lg:col-span-4 bg-surface-container border border-outline-variant rounded-lg p-6 flex flex-col">
+                    <p class="font-label-caps text-on-surface-variant mb-3">HEAP_LATTICE</p>
+                    <div class="grid grid-cols-10 gap-1 flex-1 min-h-[120px]" id="heapGrid"></div>
+                    <div class="flex justify-between mt-3 font-data-mono text-[10px] text-on-surface-variant">
+                        <span>low</span><span>→ allocation size →</span><span>high</span>
+                    </div>
+                </div>
+                <div class="lg:col-span-8 bg-surface-container border border-outline-variant rounded-lg p-6 flex flex-col">
+                    <div class="flex justify-between items-center mb-3">
+                        <p class="font-label-caps text-on-surface-variant">MEMORY_FLAMEGRAPH</p>
+                        <span class="font-data-mono text-[10px] text-primary" id="flameNodeCount">0 frames</span>
+                    </div>
+                    <div class="flex-1 min-h-[160px] relative" id="flameWrap">
+                        <svg class="w-full h-full" id="flameSvg" viewBox="0 0 800 200" preserveAspectRatio="none"></svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Allocations Stream -->
+            <div class="bg-surface-container border border-outline-variant rounded-lg p-6 mb-8">
+                <div class="flex justify-between items-center mb-3">
+                    <p class="font-label-caps text-on-surface-variant">ALLOCATIONS_STREAM</p>
+                    <span class="font-data-mono text-[10px] text-primary">{{allocations_count}} items</span>
+                </div>
+                <div class="overflow-auto max-h-64">
+                    <table class="w-full font-data-mono text-xs border-collapse">
+                        <thead><tr class="text-on-surface-variant border-b border-outline-variant">
+                            <th class="text-left py-2 px-2">ADDR</th><th class="text-left py-2 px-2">TYPE</th>
+                            <th class="text-right py-2 px-2">SIZE</th><th class="text-left py-2 px-2">SRC</th><th class="text-left py-2 px-2">STATUS</th>
+                        </tr></thead>
+                        <tbody>
+                        {{#each allocations}}
+                            <tr class="border-b border-outline-variant/30 hover:bg-surface-container-high">
+                                <td class="py-2 px-2 text-accent-amber">{{addr}}</td>
+                                <td class="py-2 px-2">{{type_name}}</td>
+                                <td class="py-2 px-2 text-right">{{size}}</td>
+                                <td class="py-2 px-2 text-on-surface-variant">{{source}}</td>
+                                <td class="py-2 px-2 {{#if leaked}}text-error{{else}}text-primary{{/if}}">{{status}}</td>
+                            </tr>
+                        {{/each}}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
-      </div>
-      <div class="grid grid-cols-8 gap-3 justify-items-center" id="affinityGrid"></div>
-    </div>
-    <div class="col-span-4 flex flex-col gap-gutter">
-      <div class="glass-panel p-4 flex justify-between items-center">
-        <div><p class="font-label-caps text-label-caps text-on-surface-variant mb-1">SCHEDULER_LAG</p><p class="font-data-mono text-headline-md text-white" id="schedulerLagVal">{{scheduler_lag_ms}}ms</p></div>
-        <div class="w-16 h-8 bg-surface-variant/30 flex items-end gap-0.5 p-1" id="schedLagBars"></div>
-      </div>
-      <div class="glass-panel p-4 flex justify-between items-center">
-        <div><p class="font-label-caps text-label-caps text-on-surface-variant mb-1">MIGRATION_RATE</p><p class="font-data-mono text-headline-md text-white">{{migration_rate_pct}}%</p></div>
-        <span class="material-symbols-outlined text-on-surface-variant">swap_horiz</span>
-      </div>
-      <div class="glass-panel p-4 flex justify-between items-center">
-        <div><p class="font-label-caps text-label-caps text-on-surface-variant mb-1">SYSTEM_UPTIME</p><p class="font-data-mono text-headline-md text-white">{{system_uptime_formatted}}</p></div>
-        <span class="material-symbols-outlined text-on-surface-variant">timer</span>
-      </div>
-    </div>
-  </div>
-  <!-- Thread Event Log -->
-  <div class="glass-panel p-margin-md mt-4">
-    <div class="flex justify-between items-center mb-4 pb-2 border-b border-outline-variant/30">
-      <h3 class="font-label-caps text-label-caps text-on-surface uppercase tracking-widest">THREAD EVENT LOG [TRACE_LVL: FINE]</h3>
-      <div class="flex items-center gap-2"><div class="w-2 h-2 rounded-full bg-primary animate-pulse"></div><span class="font-data-mono text-[10px] text-on-surface-variant">STREAMING LIVE</span></div>
-    </div>
-    <div class="font-data-mono text-data-mono text-on-surface-variant space-y-1 h-48 overflow-y-auto scroll-hide" id="threadEventLog"></div>
-  </div>
-</div>
 
-<!-- ===== MODE: TASK ===== -->
-<div id="mode-task" class="mode-section">
-  <div class="grid grid-cols-12 gap-gutter shrink-0 mt-4">
-    <div class="col-span-4 bg-surface-container border border-primary p-4">
-      <p class="font-label-caps text-on-surface-variant mb-2">ASYNC TASKS</p>
-      <span class="font-display-lg text-display-lg text-primary" id="asyncTaskCount">0 tasks</span>
-      <div class="grid grid-cols-3 gap-3 mt-3">
-        <div><span class="font-data-mono text-[10px] text-on-surface-variant">ACTIVE</span><br><span class="font-headline-md text-primary" id="activeTaskCount">0</span></div>
-        <div><span class="font-data-mono text-[10px] text-on-surface-variant">COMPLETED</span><br><span class="font-headline-md text-secondary" id="completedTaskCount">0</span></div>
-        <div><span class="font-data-mono text-[10px] text-on-surface-variant">LEAKS</span><br><span class="font-headline-md text-tertiary" id="leakTaskCount">0</span></div>
-      </div>
-    </div>
-    <div class="col-span-4 bg-surface-container border border-white/10 p-4 flex flex-col">
-      <p class="font-label-caps text-on-surface-variant mb-3">WAKER EFFICIENCY HEATGRID</p>
-      <div class="grid grid-cols-10 gap-1 flex-1 min-h-[100px]" id="wakerHeatgrid"></div>
-    </div>
-    <div class="col-span-4 bg-surface-container border border-white/10 p-4">
-      <p class="font-label-caps text-on-surface-variant mb-2">POLL LATENCY</p>
-      <svg class="w-full h-12" viewBox="0 0 100 40" id="pollLatencySvg">
-        <path d="M0 40 Q 20 40 30 10 T 50 35 T 70 5 T 100 40" fill="none" stroke="#10B981" stroke-width="1.5"></path>
-        <path d="M0 40 Q 20 40 30 10 T 50 35 T 70 5 T 100 40 V 40 H 0" fill="rgba(16,185,129,0.1)"></path>
-      </svg>
-      <p class="text-[9px] font-data-mono text-center mt-1 text-on-surface-variant">{{poll_latency_mean_ms}}ms MEAN</p>
-    </div>
-  </div>
-  <div class="bg-surface-container border border-white/10 p-4 mt-4">
-    <p class="font-label-caps text-on-surface-variant mb-3">EXECUTION TIMELINE</p>
-    <div class="space-y-3" id="taskTimelineRows"></div>
-  </div>
-</div>
+        <!-- ============ MODE: THREAD ============ -->
+        <div id="mode-thread" class="mode-section">
+            <div class="flex justify-between items-end mb-8 pt-6">
+                <div>
+                    <h1 class="font-headline-lg text-headline-lg text-on-background mb-1">Thread Affinity Monitor</h1>
+                    <p class="text-on-surface-variant font-body-sm">{{thread_count}} threads · {{cpu_cores}} cores</p>
+                </div>
+                <div class="flex items-center gap-2 px-3 py-1 bg-surface-container border border-outline-variant rounded-lg">
+                    <span class="w-2 h-2 rounded-full bg-accent-amber animate-pulse"></span>
+                    <span class="font-label-caps text-label-caps text-accent-amber">LIVE</span>
+                </div>
+            </div>
 
-<!-- ===== MODE: TASKGRAPH ===== -->
-<div id="mode-taskgraph" class="mode-section">
-  <div class="grid grid-cols-12 gap-gutter shrink-0 mt-4">
-    <div class="col-span-8 bg-surface-container border border-white/10 p-6 relative overflow-hidden h-[450px]">
-      <div class="flex justify-between items-center mb-4">
-        <h2 class="font-label-caps text-on-surface">TASK TOPOLOGY TREE</h2>
-        <div class="flex gap-2"><span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span><span class="font-data-mono text-[10px] text-on-surface-variant">LIVE_TRACE</span></div>
-      </div>
-      <div class="absolute inset-0 pt-10 pl-4 pr-4 pb-20" id="taskTopologyCanvas"></div>
-    </div>
-    <div class="col-span-4 flex flex-col gap-gutter">
-      <div class="glass-card p-4">
-        <h4 class="font-label-caps text-[10px] text-on-surface-variant mb-3">STREAMING_TOPOLOGY</h4>
-        <div class="space-y-2 font-data-mono text-[10px] text-on-surface-variant">
-          <div class="flex justify-between"><span>GRAPH_EDGES</span><span class="text-white" id="topoEdges">0</span></div>
-          <div class="flex justify-between"><span>SAMPLING_RATE</span><span class="text-white">{{streaming_topology_stats.sampling_rate_ms}}ms</span></div>
-          <div class="flex justify-between"><span>WAKER_LOCKS</span><span class="text-primary" id="wakerLocks">NONE</span></div>
+            <!-- Thread KPI -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-gutter mb-8">
+                <div class="bg-surface-container-high border border-accent-amber p-5 rounded-lg rim-light amber-glow">
+                    <span class="font-label-caps text-on-surface-variant">THREAD_COUNT</span>
+                    <h3 class="font-headline-lg text-headline-lg text-accent-amber">{{thread_count}}</h3>
+                    <p class="text-[10px] text-outline mt-2 font-label-caps uppercase">SATURATION: nominal</p>
+                </div>
+                <div class="bg-surface-container-high border border-outline-variant p-5 rounded-lg rim-light">
+                    <span class="font-label-caps text-on-surface-variant">SCHEDULER_LAG</span>
+                    <h3 class="font-headline-lg text-headline-lg text-primary">{{scheduler_lag_ms}}ms</h3>
+                    <p class="text-[10px] text-outline mt-2 font-label-caps uppercase">MIG: {{migration_rate_pct}}%</p>
+                </div>
+                <div class="bg-surface-container-high border border-outline-variant p-5 rounded-lg rim-light">
+                    <span class="font-label-caps text-on-surface-variant">SYSTEM_UPTIME</span>
+                    <h3 class="font-headline-lg text-headline-lg text-tertiary">{{system_uptime_formatted}}</h3>
+                    <p class="text-[10px] text-outline mt-2 font-label-caps uppercase">SINCE_BOOT</p>
+                </div>
+                <div class="bg-surface-container-high border border-outline-variant p-5 rounded-lg rim-light">
+                    <span class="font-label-caps text-on-surface-variant">POLL_LATENCY</span>
+                    <h3 class="font-headline-lg text-headline-lg text-secondary">{{poll_latency_mean_ms}}ms</h3>
+                    <p class="text-[10px] text-outline mt-2 font-label-caps uppercase">MEAN</p>
+                </div>
+            </div>
+
+            <!-- Hardware Thread Allocation Map -->
+            <div class="bg-surface-container border border-outline-variant rounded-lg p-6 mb-8 relative overflow-hidden">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="font-label-caps text-label-caps text-accent-amber">HARDWARE_THREAD_ALLOCATION</h2>
+                    <div class="flex gap-4 items-center">
+                        <div class="flex items-center gap-2"><div class="w-1.5 h-1.5 rounded-full bg-accent-amber"></div><span class="font-label-caps text-[10px] text-on-surface-variant">PROCESSING</span></div>
+                        <div class="flex items-center gap-2"><div class="w-1.5 h-1.5 rounded-full bg-blue-500"></div><span class="font-label-caps text-[10px] text-on-surface-variant">IO_WAIT</span></div>
+                        <div class="flex items-center gap-2"><div class="w-1.5 h-1.5 rounded-full bg-zinc-600"></div><span class="font-label-caps text-[10px] text-on-surface-variant">IDLE</span></div>
+                    </div>
+                </div>
+                <div class="absolute inset-0 flex justify-between px-6 pointer-events-none opacity-20">
+                    <div class="execution-line h-full"></div><div class="execution-line h-full"></div>
+                    <div class="execution-line h-full"></div><div class="execution-line h-full"></div>
+                    <div class="execution-line h-full"></div>
+                </div>
+                <div class="relative grid grid-cols-8 gap-3 content-start" id="affinityGrid"></div>
+            </div>
+
+            <!-- Thread Event Log -->
+            <div class="bg-surface-container border border-outline-variant rounded-lg p-6 mb-8">
+                <div class="flex justify-between items-center mb-4 pb-2 border-b border-outline-variant/30">
+                    <h3 class="font-label-caps text-label-caps text-on-surface uppercase tracking-widest">THREAD_EVENT_LOG [TRACE_LVL: FINE]</h3>
+                    <div class="flex items-center gap-2"><div class="w-2 h-2 rounded-full bg-accent-amber animate-pulse"></div><span class="font-data-mono text-[10px] text-on-surface-variant">STREAMING LIVE</span></div>
+                </div>
+                <div class="font-data-mono text-data-mono text-on-surface-variant space-y-1 h-48 overflow-y-auto" id="threadEventLog"></div>
+            </div>
+
+            <!-- Thread Details Table -->
+            <div class="bg-surface-container border border-outline-variant rounded-lg p-6 mb-8">
+                <div class="flex justify-between items-center mb-3">
+                    <p class="font-label-caps text-on-surface-variant">THREAD_DETAILS</p>
+                    <select id="threadSortOrder" class="bg-surface-container-low border border-outline-variant px-2 py-1 font-data-mono text-xs">
+                        <option value="alloc-desc">Allocations ↓</option><option value="alloc-asc">Allocations ↑</option>
+                        <option value="memory-desc">Memory ↓</option><option value="memory-asc">Memory ↑</option>
+                    </select>
+                </div>
+                <div class="overflow-auto max-h-64">
+                    <table class="w-full font-data-mono text-xs border-collapse">
+                        <thead><tr class="text-on-surface-variant border-b border-outline-variant">
+                            <th class="text-left py-2">ID</th><th class="text-left py-2">NAME</th>
+                            <th class="text-right py-2">ALLOCS</th><th class="text-right py-2">MEMORY</th><th class="text-left py-2">STATUS</th>
+                        </tr></thead>
+                        <tbody>
+                        {{#each threads}}
+                            <tr class="border-b border-outline-variant/30 hover:bg-surface-container-high">
+                                <td class="py-2 text-accent-amber">{{id}}</td>
+                                <td class="py-2">{{name}}</td>
+                                <td class="py-2 text-right text-primary">{{allocations}}</td>
+                                <td class="py-2 text-right text-secondary">{{memory}}</td>
+                                <td class="py-2 {{#if active}}text-primary{{else}}text-outline{{/if}}">{{status}}</td>
+                            </tr>
+                        {{/each}}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
-      </div>
-      <div class="glass-card p-4 flex-1">
-        <h4 class="font-label-caps text-[10px] text-on-surface-variant mb-2">TRACE_LOG_WINDOW</h4>
-        <div class="font-data-mono text-[10px] space-y-1 overflow-y-auto h-[200px]" id="traceLogWindow"></div>
-      </div>
-    </div>
-  </div>
-</div>
 
-<!-- ===== MODE: VARIABLE ===== -->
-<div id="mode-variable" class="mode-section">
-  <div class="grid grid-cols-12 gap-gutter shrink-0 mt-4">
-    <div class="col-span-8 bg-black border border-white/10 p-4 relative" style="min-height:400px">
-      <p class="font-label-caps text-on-surface-variant mb-3 absolute top-4 left-4 z-10">VARIABLE DEPENDENCY GRAPH</p>
-      <div class="w-full h-full pt-8" id="variableGraphContainer"></div>
-    </div>
-    <div class="col-span-4 flex flex-col gap-gutter">
-      <div class="glass-card p-4">
-        <h4 class="font-label-caps text-[10px] text-on-surface-variant mb-1">SELECTED NODE</h4>
-        <p class="font-headline-md text-on-surface" id="detailNodeName">—</p>
-        <div class="flex items-center gap-2 mt-1"><div class="w-2 h-2 rounded-full bg-primary"></div><span class="font-data-mono text-xs text-primary" id="detailNodeStatus">Active_Running</span></div>
-      </div>
-      <div class="glass-card p-4">
-        <p class="font-label-caps text-[10px] text-on-surface-variant mb-2">EXECUTION_TIME</p>
-        <p class="font-data-mono text-xl text-on-surface" id="detailExecTime">0ms</p>
-      </div>
-      <div class="glass-card p-4">
-        <p class="font-label-caps text-[10px] text-on-surface-variant mb-2">UPSTREAM_DEPS</p>
-        <p class="font-data-mono text-xl text-on-surface" id="detailDeps">0</p>
-      </div>
-      <div class="glass-card p-4">
-        <p class="font-label-caps text-[10px] text-on-surface-variant mb-2">EXECUTION_TRACE</p>
-        <div class="font-data-mono text-[11px] space-y-1" id="detailTrace"></div>
-      </div>
-    </div>
-  </div>
-  <div class="glass-panel p-4 mt-4">
-    <div class="flex justify-between items-center mb-4">
-      <span class="font-label-caps text-label-caps text-on-surface-variant">NEIGHBOR_DENSITY_HISTOGRAM</span>
-      <span class="font-data-mono text-xs text-primary" id="totalObjects">0</span>
-    </div>
-    <div class="flex items-end gap-1 h-20 px-2" id="neighborHistogram"></div>
-    <div class="flex justify-between mt-2 font-data-mono text-[9px] text-on-surface-variant"><span>0ms</span><span>500ms</span><span>1000ms</span><span>1500ms</span><span>2000ms</span></div>
-  </div>
-</div>
+        <!-- ============ MODE: TASK (Async) ============ -->
+        <div id="mode-task" class="mode-section">
+            <div class="flex justify-between items-end mb-8 pt-6">
+                <div>
+                    <h1 class="font-headline-lg text-headline-lg text-on-background mb-1">Async Task Topology</h1>
+                    <p class="text-on-surface-variant font-body-sm">Tokio runtime · {{async_summary.total}} tasks · poll {{poll_latency_mean_ms}}ms</p>
+                </div>
+                <div class="flex items-center gap-2 px-3 py-1 bg-surface-container border border-outline-variant rounded-lg">
+                    <span class="w-2 h-2 rounded-full bg-secondary animate-pulse"></span>
+                    <span class="font-label-caps text-label-caps text-secondary">ASYNC</span>
+                </div>
+            </div>
 
-<!-- ===== MODE: PASSPORT ===== -->
-<div id="mode-passport" class="mode-section">
-  <div class="grid grid-cols-12 gap-gutter shrink-0 mt-4">
-    <div class="col-span-3 bg-surface-container border border-primary p-4">
-      <p class="font-label-caps text-on-surface-variant mb-2">PASSPORT SUMMARY</p>
-      <div class="grid grid-cols-2 gap-3 mt-3 font-data-mono text-xs">
-        <div><span class="text-on-surface-variant">CLEAN</span><br><span class="font-headline-md text-success">{{clean_passport_count}}</span></div>
-        <div><span class="text-on-surface-variant">ACTIVE</span><br><span class="font-headline-md text-primary">{{active_passport_count}}</span></div>
-        <div><span class="text-on-surface-variant">LEAKED</span><br><span class="font-headline-md text-tertiary">{{leaked_passport_count}}</span></div>
-        <div><span class="text-on-surface-variant">FFI</span><br><span class="font-headline-md text-secondary">{{ffi_tracked_count}}</span></div>
-      </div>
-    </div>
-    <div class="col-span-9 bg-surface-container border border-white/10 p-4">
-      <div id="passportCards" class="grid grid-cols-3 gap-4"></div>
-    </div>
-  </div>
-</div>
+            <!-- Async KPI -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-gutter mb-8">
+                <div class="bg-surface-container-high border border-secondary p-5 rounded-lg rim-light">
+                    <span class="font-label-caps text-on-surface-variant">TOTAL_TASKS</span>
+                    <h3 class="font-headline-lg text-headline-lg text-secondary">{{async_summary.total}}</h3>
+                    <p class="text-[10px] text-outline mt-2 font-label-caps uppercase">ACTIVE: {{async_summary.active}}</p>
+                </div>
+                <div class="bg-surface-container-high border border-outline-variant p-5 rounded-lg rim-light">
+                    <span class="font-label-caps text-on-surface-variant">COMPLETED</span>
+                    <h3 class="font-headline-lg text-headline-lg text-primary">{{async_summary.completed}}</h3>
+                    <p class="text-[10px] text-outline mt-2 font-label-caps uppercase">SUCCESS_RATE: {{async_summary.success_rate}}%</p>
+                </div>
+                <div class="bg-surface-container-high border border-outline-variant p-5 rounded-lg rim-light">
+                    <span class="font-label-caps text-on-surface-variant">LEAKED_TASKS</span>
+                    <h3 class="font-headline-lg text-headline-lg text-error">{{async_summary.leaked}}</h3>
+                    <p class="text-[10px] text-outline mt-2 font-label-caps uppercase">ZOMBIE: {{async_summary.zombie}}</p>
+                </div>
+                <div class="bg-surface-container-high border border-outline-variant p-5 rounded-lg rim-light">
+                    <span class="font-label-caps text-on-surface-variant">POLL_LATENCY</span>
+                    <h3 class="font-headline-lg text-headline-lg text-tertiary">{{poll_latency_mean_ms}}ms</h3>
+                    <p class="text-[10px] text-outline mt-2 font-label-caps uppercase">MEAN</p>
+                </div>
+            </div>
 
-<!-- ===== MODE: FFI BRIDGE ===== -->
-<div id="mode-ffi" class="mode-section">
-  <div class="grid grid-cols-12 gap-gutter shrink-0 mt-4">
-    <div class="col-span-8 glass-card p-6 relative overflow-hidden h-[400px]">
-      <div class="flex justify-between items-center mb-6">
-        <h2 class="font-label-caps text-on-surface">CALL MAPPING TOPOLOGY</h2>
-        <div class="flex gap-2"><span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span><span class="font-data-mono text-[10px] text-on-surface-variant">LIVE_TRACE</span></div>
-      </div>
-      <svg class="absolute inset-0 w-full h-full" id="ffiTopoSvg"></svg>
-    </div>
-    <div class="col-span-4 space-y-gutter">
-      <div class="glass-card p-6 h-[192px] flex flex-col justify-between">
-        <h2 class="font-label-caps text-on-surface">STACK_INTEGRITY</h2>
-        <div class="space-y-4">
-          <div class="flex justify-between items-end border-b border-outline-variant pb-2"><span class="font-data-mono text-on-surface-variant">Pointers Checked</span><span class="font-data-mono text-primary">{{stack_integrity.pointers_checked_pct}}%</span></div>
-          <div class="flex justify-between items-end border-b border-outline-variant pb-2"><span class="font-data-mono text-on-surface-variant">Memory Violations</span><span class="font-data-mono">{{stack_integrity.memory_violations}}</span></div>
-          <div class="flex justify-between items-end"><span class="font-data-mono text-on-surface-variant">Unwinding Strategy</span><span class="font-data-mono">{{stack_integrity.unwinding_strategy}}</span></div>
+            <!-- Waker Efficiency Heatgrid + Poll Latency -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-gutter mb-8">
+                <div class="bg-surface-container border border-outline-variant rounded-lg p-6 flex flex-col">
+                    <p class="font-label-caps text-on-surface-variant mb-3">WAKER_EFFICIENCY_HEATGRID</p>
+                    <div class="grid grid-cols-10 gap-1 flex-1 min-h-[100px]" id="wakerHeatgrid"></div>
+                </div>
+                <div class="bg-surface-container border border-outline-variant rounded-lg p-6 flex flex-col">
+                    <p class="font-label-caps text-on-surface-variant mb-3">POLL_LATENCY</p>
+                    <svg class="w-full h-24" viewBox="0 0 100 40" id="pollLatencySvg">
+                        <path d="M0 40 Q 20 40 30 10 T 50 35 T 70 5 T 100 40" fill="none" stroke="#10B981" stroke-width="1.5"></path>
+                        <path d="M0 40 Q 20 40 30 10 T 50 35 T 70 5 T 100 40 V 40 H 0" fill="rgba(16,185,129,0.1)"></path>
+                    </svg>
+                    <p class="text-[9px] font-data-mono text-center mt-2 text-on-surface-variant">{{poll_latency_mean_ms}}ms MEAN</p>
+                </div>
+            </div>
+
+            <!-- Execution Timeline -->
+            <div class="bg-surface-container border border-outline-variant rounded-lg p-6 mb-8">
+                <p class="font-label-caps text-on-surface-variant mb-3">EXECUTION_TIMELINE</p>
+                <div class="space-y-3" id="taskTimelineRows"></div>
+            </div>
+
+            <!-- Async Tasks Table -->
+            <div class="bg-surface-container border border-outline-variant rounded-lg p-6 mb-8">
+                <div class="flex justify-between items-center mb-3">
+                    <p class="font-label-caps text-on-surface-variant">ASYNC_TASK_DETAILS</p>
+                    <span class="font-data-mono text-[10px] text-primary">{{async_summary.total}} tasks</span>
+                </div>
+                <div class="overflow-auto max-h-64">
+                    <table class="w-full font-data-mono text-xs border-collapse">
+                        <thead><tr class="text-on-surface-variant border-b border-outline-variant">
+                            <th class="text-left py-2">ID</th><th class="text-left py-2">NAME</th>
+                            <th class="text-right py-2">DURATION</th><th class="text-left py-2">STATUS</th>
+                        </tr></thead>
+                        <tbody>
+                        {{#each async_tasks}}
+                            <tr class="border-b border-outline-variant/30 hover:bg-surface-container-high">
+                                <td class="py-2 text-accent-amber">{{id}}</td>
+                                <td class="py-2">{{name}}</td>
+                                <td class="py-2 text-right text-secondary">{{duration_ms}}ms</td>
+                                <td class="py-2 {{#if leaked}}text-error{{else}}text-primary{{/if}}">{{status}}</td>
+                            </tr>
+                        {{/each}}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
-      </div>
-      <div class="glass-card p-6 h-[192px]">
-        <h2 class="font-label-caps text-on-surface mb-4">RESOURCES</h2>
-        <div class="space-y-3" id="ffiResourceBars"></div>
-      </div>
-    </div>
-  </div>
-  <div class="glass-card overflow-hidden mt-4">
-    <div class="p-4 border-b border-outline-variant flex justify-between items-center">
-      <h2 class="font-label-caps text-on-surface">SYMBOL_TABLE_ANALYSIS</h2>
-      <div class="flex gap-4">
-        <div class="flex items-center gap-2"><div class="w-2 h-2 bg-blue-900/40 border border-blue-400"></div><span class="font-label-caps text-[10px]">PINNED</span></div>
-        <div class="flex items-center gap-2"><div class="w-2 h-2 bg-orange-900/40 border border-orange-500"></div><span class="font-label-caps text-[10px]">HOT</span></div>
-      </div>
-    </div>
-    <div class="overflow-x-auto">
-      <table class="w-full text-left font-data-mono">
-        <thead class="bg-surface-container-low border-b border-outline-variant">
-          <tr><th class="p-4 font-label-caps text-on-surface-variant">HEX_ADDR</th><th class="p-4 font-label-caps text-on-surface-variant">SYMBOL_NAME</th><th class="p-4 font-label-caps text-on-surface-variant">STATUS</th><th class="p-4 font-label-caps text-on-surface-variant">CALL_COUNT</th><th class="p-4 font-label-caps text-on-surface-variant">TIME_AVG</th></tr>
-        </thead>
-        <tbody id="symbolTableBody" class="divide-y divide-outline-variant/30"></tbody>
-      </table>
-    </div>
-  </div>
-  <div class="glass-card p-6 mt-4">
-    <div class="flex justify-between items-center mb-6">
-      <h2 class="font-label-caps text-on-surface">THREAD_EXECUTION_TIMELINE</h2>
-    </div>
-    <div class="space-y-4" id="ffiThreadTimeline"></div>
-  </div>
+
+        <!-- ============ MODE: TASKGRAPH ============ -->
+        <div id="mode-taskgraph" class="mode-section">
+            <div class="flex justify-between items-end mb-8 pt-6">
+                <div>
+                    <h1 class="font-headline-lg text-headline-lg text-on-background mb-1">Task Topology Graph</h1>
+                    <p class="text-on-surface-variant font-body-sm">Async task DAG · {{task_topology_nodes_count}} nodes · {{task_topology_edges_count}} edges</p>
+                </div>
+                <div class="flex items-center gap-2 px-3 py-1 bg-surface-container border border-outline-variant rounded-lg">
+                    <span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+                    <span class="font-label-caps text-label-caps text-primary">LIVE_TRACE</span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-12 gap-gutter mb-8">
+                <div class="col-span-12 lg:col-span-8 bg-surface-container border border-outline-variant rounded-lg p-6 relative overflow-hidden min-h-[450px]">
+                    <div id="taskTopologyCanvas" class="absolute inset-0 pt-10 pl-4 pr-4 pb-20"></div>
+                </div>
+                <div class="col-span-12 lg:col-span-4 flex flex-col gap-gutter">
+                    <div class="bg-surface-container border border-outline-variant rounded-lg p-4">
+                        <h4 class="font-label-caps text-[10px] text-on-surface-variant mb-3">STREAMING_TOPOLOGY</h4>
+                        <div class="space-y-2 font-data-mono text-[10px] text-on-surface-variant">
+                            <div class="flex justify-between"><span>GRAPH_NODES</span><span class="text-white">{{task_topology_nodes_count}}</span></div>
+                            <div class="flex justify-between"><span>GRAPH_EDGES</span><span class="text-white">{{task_topology_edges_count}}</span></div>
+                            <div class="flex justify-between"><span>SAMPLING_RATE</span><span class="text-white">{{streaming_topology_stats.sampling_rate_ms}}ms</span></div>
+                            <div class="flex justify-between"><span>WAKER_LOCKS</span><span class="text-primary">{{streaming_topology_stats.waker_locks}}</span></div>
+                        </div>
+                    </div>
+                    <div class="bg-surface-container border border-outline-variant rounded-lg p-4 flex-1">
+                        <h4 class="font-label-caps text-[10px] text-on-surface-variant mb-2">TRACE_LOG_WINDOW</h4>
+                        <div class="font-data-mono text-[10px] space-y-1 overflow-y-auto h-[200px]" id="traceLogWindow"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============ MODE: VARIABLE ============ -->
+        <div id="mode-variable" class="mode-section">
+            <div class="flex justify-between items-end mb-8 pt-6">
+                <div>
+                    <h1 class="font-headline-lg text-headline-lg text-on-background mb-1">Variable Dependency Graph</h1>
+                    <p class="text-on-surface-variant font-body-sm">{{relationships_count}} relationships · {{ownership_graph.total_nodes}} nodes</p>
+                </div>
+                <div class="flex items-center gap-2 px-3 py-1 bg-surface-container border border-outline-variant rounded-lg">
+                    <span class="w-2 h-2 rounded-full bg-tertiary"></span>
+                    <span class="font-label-caps text-label-caps text-tertiary">D3_FORCE</span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-12 gap-gutter mb-8">
+                <div class="col-span-12 lg:col-span-8 bg-black border border-outline-variant rounded-lg p-4 relative min-h-[400px]">
+                    <p class="font-label-caps text-on-surface-variant mb-3 absolute top-4 left-4 z-10">VARIABLE_DEPENDENCY_GRAPH</p>
+                    <div class="w-full h-full pt-8" id="variableGraphContainer"></div>
+                </div>
+                <div class="col-span-12 lg:col-span-4 flex flex-col gap-gutter">
+                    <div class="bg-surface-container border border-outline-variant rounded-lg p-4">
+                        <h4 class="font-label-caps text-[10px] text-on-surface-variant mb-1">SELECTED_NODE</h4>
+                        <p class="font-headline-md text-on-surface" id="detailNodeName">—</p>
+                        <div class="flex items-center gap-2 mt-1"><div class="w-2 h-2 rounded-full bg-primary"></div><span class="font-data-mono text-xs text-primary" id="detailNodeStatus">Active_Running</span></div>
+                    </div>
+                    <div class="bg-surface-container border border-outline-variant rounded-lg p-4">
+                        <p class="font-label-caps text-[10px] text-on-surface-variant mb-2">EXECUTION_TIME</p>
+                        <p class="font-data-mono text-xl text-on-surface" id="detailExecTime">0ms</p>
+                    </div>
+                    <div class="bg-surface-container border border-outline-variant rounded-lg p-4">
+                        <p class="font-label-caps text-[10px] text-on-surface-variant mb-2">UPSTREAM_DEPS</p>
+                        <p class="font-data-mono text-xl text-on-surface" id="detailDeps">0</p>
+                    </div>
+                    <div class="bg-surface-container border border-outline-variant rounded-lg p-4">
+                        <p class="font-label-caps text-[10px] text-on-surface-variant mb-2">EXECUTION_TRACE</p>
+                        <div class="font-data-mono text-[11px] space-y-1" id="detailTrace"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Neighbor Density Histogram -->
+            <div class="bg-surface-container border border-outline-variant rounded-lg p-4 mb-8">
+                <div class="flex justify-between items-center mb-4">
+                    <span class="font-label-caps text-label-caps text-on-surface-variant">NEIGHBOR_DENSITY_HISTOGRAM</span>
+                    <span class="font-data-mono text-xs text-primary">{{allocations_count}} objects</span>
+                </div>
+                <div class="flex items-end gap-1 h-20 px-2" id="neighborHistogram"></div>
+                <div class="flex justify-between mt-2 font-data-mono text-[9px] text-on-surface-variant"><span>0ms</span><span>500ms</span><span>1000ms</span><span>1500ms</span><span>2000ms</span></div>
+            </div>
+
+            <!-- Relationships table -->
+            <div class="bg-surface-container border border-outline-variant rounded-lg p-6 mb-8">
+                <div class="flex justify-between items-center mb-3">
+                    <p class="font-label-caps text-on-surface-variant">VARIABLE_RELATIONSHIPS</p>
+                    <span class="font-data-mono text-[10px] text-primary">{{relationships_count}} relationships</span>
+                </div>
+                <div class="overflow-auto max-h-64">
+                    <table class="w-full font-data-mono text-xs border-collapse">
+                        <thead><tr class="text-on-surface-variant border-b border-outline-variant">
+                            <th class="text-left py-2">FROM</th><th class="text-left py-2">TO</th>
+                            <th class="text-left py-2">RELATION</th><th class="text-left py-2">SCOPE</th>
+                        </tr></thead>
+                        <tbody>
+                        {{#each relationships}}
+                            <tr class="border-b border-outline-variant/30 hover:bg-surface-container-high">
+                                <td class="py-2 text-accent-amber">{{from_var}}</td>
+                                <td class="py-2 text-secondary">{{to_var}}</td>
+                                <td class="py-2 text-primary">{{relation_type}}</td>
+                                <td class="py-2 text-on-surface-variant">{{scope}}</td>
+                            </tr>
+                        {{/each}}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============ MODE: PASSPORT ============ -->
+        <div id="mode-passport" class="mode-section">
+            <div class="flex justify-between items-end mb-8 pt-6">
+                <div>
+                    <h1 class="font-headline-lg text-headline-lg text-on-background mb-1">Memory Passport Center</h1>
+                    <p class="text-on-surface-variant font-body-sm">{{passport_count}} passports · {{ffi_tracked_count}} FFI tracked</p>
+                </div>
+                <div class="flex items-center gap-2 px-3 py-1 bg-surface-container border border-outline-variant rounded-lg">
+                    <span class="w-2 h-2 rounded-full bg-primary"></span>
+                    <span class="font-label-caps text-label-caps text-primary">PASSPORT</span>
+                </div>
+            </div>
+
+            <!-- Passport KPI -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-gutter mb-8">
+                <div class="bg-surface-container-high border border-success p-5 rounded-lg rim-light">
+                    <span class="font-label-caps text-on-surface-variant">CLEAN</span>
+                    <h3 class="font-headline-lg text-headline-lg text-success">{{clean_passport_count}}</h3>
+                </div>
+                <div class="bg-surface-container-high border border-accent-amber p-5 rounded-lg rim-light">
+                    <span class="font-label-caps text-on-surface-variant">ACTIVE</span>
+                    <h3 class="font-headline-lg text-headline-lg text-accent-amber">{{active_passport_count}}</h3>
+                </div>
+                <div class="bg-surface-container-high border border-error p-5 rounded-lg rim-light">
+                    <span class="font-label-caps text-on-surface-variant">LEAKED</span>
+                    <h3 class="font-headline-lg text-headline-lg text-error">{{leaked_passport_count}}</h3>
+                </div>
+                <div class="bg-surface-container-high border border-secondary p-5 rounded-lg rim-light">
+                    <span class="font-label-caps text-on-surface-variant">FFI_TRACKED</span>
+                    <h3 class="font-headline-lg text-headline-lg text-secondary">{{ffi_tracked_count}}</h3>
+                </div>
+            </div>
+
+            <!-- Passport Cards Grid -->
+            <div class="bg-surface-container border border-outline-variant rounded-lg p-6 mb-8">
+                <div class="flex justify-between items-center mb-4">
+                    <p class="font-label-caps text-on-surface-variant">PASSPORT_CARDS</p>
+                    <span class="font-data-mono text-[10px] text-primary">{{passport_count}} cards</span>
+                </div>
+                <div id="passportCards" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {{#each passport_details}}
+                    <div class="bg-surface-container-low border border-outline-variant rounded-lg p-4">
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="font-data-mono text-xs text-accent-amber">{{passport_id}}</span>
+                            <span class="font-label-caps text-[9px] {{#if leaked}}text-error{{else if active}}text-accent-amber{{else}}text-success{{/if}}">{{status}}</span>
+                        </div>
+                        <p class="font-data-mono text-sm text-on-surface">{{type_name}}</p>
+                        <p class="text-[10px] text-on-surface-variant mt-1">SIZE: {{size_bytes}} bytes</p>
+                        <p class="text-[10px] text-on-surface-variant">SRC: {{source_location}}</p>
+                    </div>
+                    {{/each}}
+                </div>
+            </div>
+        </div>
+
+        <!-- ============ MODE: FFI ============ -->
+        <div id="mode-ffi" class="mode-section">
+            <div class="flex justify-between items-end mb-8 pt-6">
+                <div>
+                    <h1 class="font-headline-lg text-headline-lg text-on-background mb-1">FFI Bridge Analysis</h1>
+                    <p class="text-on-surface-variant font-body-sm">{{ffi_count}} FFI ops · {{unsafe_count}} unsafe · integrity {{stack_integrity.pointers_checked_pct}}%</p>
+                </div>
+                <div class="flex items-center gap-2 px-3 py-1 bg-surface-container border border-outline-variant rounded-lg">
+                    <span class="material-symbols-outlined text-accent-amber">security</span>
+                    <span class="font-label-caps text-label-caps text-accent-amber">HARDENED</span>
+                </div>
+            </div>
+
+            <!-- Call Mapping Topology + Stack Integrity -->
+            <div class="grid grid-cols-12 gap-gutter mb-8">
+                <div class="col-span-12 lg:col-span-8 bg-surface-container border border-outline-variant rounded-lg p-6 relative overflow-hidden min-h-[400px] amber-glow">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="font-label-caps text-on-surface">CALL_MAPPING_TOPOLOGY</h2>
+                        <div class="flex gap-2"><span class="w-2 h-2 rounded-full bg-accent-amber animate-pulse"></span><span class="font-data-mono text-[10px] text-on-surface-variant">LIVE_TRACE</span></div>
+                    </div>
+                    <svg class="absolute inset-0 w-full h-full" id="ffiTopoSvg"></svg>
+                </div>
+                <div class="col-span-12 lg:col-span-4 space-y-gutter">
+                    <div class="bg-surface-container border border-outline-variant rounded-lg p-6 min-h-[192px] flex flex-col justify-between">
+                        <h2 class="font-label-caps text-on-surface mb-4">STACK_INTEGRITY</h2>
+                        <div class="space-y-3">
+                            <div class="flex justify-between items-end border-b border-outline-variant pb-2"><span class="font-data-mono text-on-surface-variant">Pointers Checked</span><span class="font-data-mono text-primary">{{stack_integrity.pointers_checked_pct}}%</span></div>
+                            <div class="flex justify-between items-end border-b border-outline-variant pb-2"><span class="font-data-mono text-on-surface-variant">Memory Violations</span><span class="font-data-mono {{#if stack_integrity.memory_violations}}text-error{{else}}text-success{{/if}}">{{stack_integrity.memory_violations}}</span></div>
+                            <div class="flex justify-between items-end"><span class="font-data-mono text-on-surface-variant">Unwinding Strategy</span><span class="font-data-mono">{{stack_integrity.unwinding_strategy}}</span></div>
+                        </div>
+                    </div>
+                    <div class="bg-surface-container border border-outline-variant rounded-lg p-6 min-h-[192px]">
+                        <h2 class="font-label-caps text-on-surface mb-4">RESOURCES</h2>
+                        <div class="space-y-3" id="ffiResourceBars">
+                            {{#each resource_bars}}
+                            <div>
+                                <div class="flex justify-between text-[10px] font-label-caps text-on-surface-variant mb-1"><span>{{label}}</span><span>{{pct}}%</span></div>
+                                <div class="w-full h-1 bg-surface-container-highest rounded-full overflow-hidden"><div class="h-full bg-{{color_class}}" style="width: {{pct}}%"></div></div>
+                            </div>
+                            {{/each}}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Symbol Table Analysis -->
+            <div class="bg-surface-container border border-outline-variant rounded-lg overflow-hidden mb-8">
+                <div class="p-4 border-b border-outline-variant flex justify-between items-center">
+                    <h2 class="font-label-caps text-on-surface">SYMBOL_TABLE_ANALYSIS</h2>
+                    <span class="font-data-mono text-[10px] text-primary">{{symbol_table_count}} symbols</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left font-data-mono">
+                        <thead class="bg-surface-container-low border-b border-outline-variant">
+                            <tr><th class="p-4 font-label-caps text-on-surface-variant">HEX_ADDR</th><th class="p-4 font-label-caps text-on-surface-variant">SYMBOL_NAME</th><th class="p-4 font-label-caps text-on-surface-variant">STATUS</th><th class="p-4 font-label-caps text-on-surface-variant">CALL_COUNT</th><th class="p-4 font-label-caps text-on-surface-variant">TIME_AVG</th></tr>
+                        </thead>
+                        <tbody class="divide-y divide-outline-variant/30">
+                            {{#each symbol_table}}
+                            <tr class="hover:bg-surface-container-high transition-colors">
+                                <td class="p-4 text-xs text-accent-amber">{{hex_addr}}</td>
+                                <td class="p-4 text-xs">{{symbol_name}}</td>
+                                <td class="p-4 text-xs {{#if leaked}}text-error{{else}}text-success{{/if}}">{{status}}</td>
+                                <td class="p-4 text-xs text-primary">{{call_count}}</td>
+                                <td class="p-4 text-xs text-secondary">{{time_avg_ms}}ms</td>
+                            </tr>
+                            {{/each}}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Thread Execution Timeline -->
+            <div class="bg-surface-container border border-outline-variant rounded-lg p-6 mb-8">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="font-label-caps text-on-surface">THREAD_EXECUTION_TIMELINE</h2>
+                    <span class="font-data-mono text-[10px] text-primary">{{thread_timeline_count}} rows</span>
+                </div>
+                <div class="space-y-4" id="ffiThreadTimeline"></div>
+            </div>
+        </div>
+
+        <!-- ============ MODE: UNSAFE / TIME TRAVEL ============ -->
+        <div id="mode-unsafe" class="mode-section">
+            <div class="flex justify-between items-end mb-8 pt-6">
+                <div>
+                    <h1 class="font-headline-lg text-headline-lg text-on-background mb-1">Unsafe / FFI Boundary &amp; Time Travel</h1>
+                    <p class="text-on-surface-variant font-body-sm">{{unsafe_count}} unsafe · {{ffi_count}} FFI · {{leak_count}} leaks</p>
+                </div>
+                <div class="flex items-center gap-2 px-3 py-1 bg-surface-container border border-outline-variant rounded-lg">
+                    <span class="material-symbols-outlined text-error">warning</span>
+                    <span class="font-label-caps text-label-caps text-error">UNSAFE</span>
+                </div>
+            </div>
+
+            <!-- Unsafe Operations + FFI Crossings -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-gutter mb-8">
+                <div class="bg-surface-container border border-warning p-4 rounded-lg">
+                    <p class="font-label-caps text-on-surface-variant mb-3">UNSAFE_OPERATIONS</p>
+                    <div class="space-y-2 font-data-mono text-xs">
+                        {{#each unsafe_reports}}
+                        <div class="border-b border-outline-variant/30 pb-2">
+                            <div class="flex justify-between"><span class="text-accent-amber">{{op_type}}</span><span class="{{#if leaked}}text-error{{else}}text-success{{/if}}">{{severity}}</span></div>
+                            <div class="text-on-surface-variant text-[10px] mt-1">{{description}}</div>
+                        </div>
+                        {{/each}}
+                    </div>
+                </div>
+                <div class="bg-surface-container border border-tertiary p-4 rounded-lg">
+                    <p class="font-label-caps text-on-surface-variant mb-3">FFI_CROSSINGS</p>
+                    <div class="space-y-2 font-data-mono text-xs">
+                        {{#each ffi_call_topology.edges}}
+                        <div class="border-b border-outline-variant/30 pb-2">
+                            <div class="flex justify-between"><span class="text-secondary">{{from}}</span><span class="text-accent-amber">→ {{to}}</span></div>
+                            <div class="text-on-surface-variant text-[10px] mt-1">{{label}}</div>
+                        </div>
+                        {{/each}}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Ownership Graph -->
+            <div class="bg-surface-container border border-outline-variant rounded-lg p-6 mb-8">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="font-label-caps text-on-surface">OWNERSHIP_GRAPH</h2>
+                    <span class="font-data-mono text-[10px] text-primary">{{ownership_graph.total_nodes}} nodes · {{ownership_graph.total_edges}} edges · {{ownership_graph.total_cycles}} cycles</span>
+                </div>
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+                    <div class="text-center p-3 bg-surface-container-low rounded border-l-4 border-primary"><div class="font-headline-md text-primary">{{ownership_graph.total_nodes}}</div><div class="font-label-caps text-[10px] text-on-surface-variant">NODES</div></div>
+                    <div class="text-center p-3 bg-surface-container-low rounded border-l-4 border-secondary"><div class="font-headline-md text-secondary">{{ownership_graph.total_edges}}</div><div class="font-label-caps text-[10px] text-on-surface-variant">EDGES</div></div>
+                    <div class="text-center p-3 bg-surface-container-low rounded border-l-4 border-error"><div class="font-headline-md text-error">{{ownership_graph.total_cycles}}</div><div class="font-label-caps text-[10px] text-on-surface-variant">CYCLES</div></div>
+                    <div class="text-center p-3 bg-surface-container-low rounded border-l-4 border-success"><div class="font-headline-md text-success">{{ownership_graph.rc_clone_count}}</div><div class="font-label-caps text-[10px] text-on-surface-variant">RC_CLONES</div></div>
+                    <div class="text-center p-3 bg-surface-container-low rounded border-l-4 border-accent-amber"><div class="font-headline-md text-accent-amber">{{ownership_graph.arc_clone_count}}</div><div class="font-label-caps text-[10px] text-on-surface-variant">ARC_CLONES</div></div>
+                </div>
+            </div>
+
+            <!-- Time Travel Timeline Chart -->
+            <div class="bg-surface-container border border-outline-variant rounded-lg p-6 mb-8">
+                <div class="flex justify-between items-center mb-3">
+                    <p class="font-label-caps text-on-surface-variant">TIME_TRAVEL_ANALYSIS</p>
+                    <span class="font-data-mono text-[10px] text-primary">{{allocations_count}} events</span>
+                </div>
+                <div class="h-48"><canvas id="timelineChart"></canvas></div>
+            </div>
+        </div>
+    </main>
 </div>
 
-<!-- ===== MODE: UNSAFE ===== -->
-<div id="mode-unsafe" class="mode-section">
-  <div class="grid grid-cols-12 gap-gutter shrink-0 mt-4">
-    <div class="col-span-6 bg-surface-container border border-warning p-4">
-      <p class="font-label-caps text-on-surface-variant mb-3">UNSAFE OPERATIONS</p>
-      <div id="unsafeList" class="space-y-2 font-data-mono text-xs"></div>
+<!-- Footer status bar -->
+<footer class="fixed bottom-0 left-0 ml-64 w-[calc(100%-16rem)] h-6 bg-surface-container-lowest border-t border-outline-variant z-50 flex justify-between items-center px-4">
+    <div class="flex items-center gap-4">
+        <div class="flex items-center gap-1"><span class="w-1.5 h-1.5 bg-primary rounded-full animate-pulse"></span><span class="font-data-mono text-[9px] uppercase text-on-surface-variant">Telemetry Linked</span></div>
+        <div class="flex items-center gap-1 border-l border-outline-variant pl-4"><span class="font-data-mono text-[9px] text-on-surface-variant">CPU: 12.4%</span></div>
+        <div class="flex items-center gap-1 border-l border-outline-variant pl-4"><span class="font-data-mono text-[9px] text-on-surface-variant">MEM: {{total_memory}} / 16GB</span></div>
     </div>
-    <div class="col-span-6 bg-surface-container border border-tertiary p-4">
-      <p class="font-label-caps text-on-surface-variant mb-3">FFI CROSSINGS</p>
-      <div id="ffiList" class="space-y-2 font-data-mono text-xs"></div>
-    </div>
-  </div>
-</div>
-
-<!-- ===== MODE: TIME_TRAVEL ===== -->
-<div id="mode-timetravel" class="mode-section">
-  <div class="bg-surface-container border border-white/10 p-4 mt-4">
-    <p class="font-label-caps text-on-surface-variant mb-3">TIME TRAVEL ANALYSIS</p>
-    <div class="h-48"><canvas id="timelineChart"></canvas></div>
-  </div>
-</div>
-
-</main>
-
-<!-- ===== FOOTER ===== -->
-<footer class="fixed bottom-0 left-0 w-full h-6 bg-surface-container-lowest border-t border-outline-variant z-50 flex justify-between items-center px-4">
-  <div class="flex items-center gap-4">
-    <div class="flex items-center gap-1"><span class="w-1.5 h-1.5 bg-primary rounded-full"></span><span class="font-data-mono text-[9px] uppercase">Telemetry Linked</span></div>
-    <div class="flex items-center gap-1 border-l border-outline-variant pl-4"><span class="font-data-mono text-[9px] text-on-surface-variant">CPU: 12.4%</span></div>
-    <div class="flex items-center gap-1 border-l border-outline-variant pl-4"><span class="font-data-mono text-[9px] text-on-surface-variant">MEM: 1.2GB/16GB</span></div>
-  </div>
-  <div class="font-data-mono text-[9px] text-on-surface-variant">UTC: <span id="clock">00:00:00</span></div>
+    <div class="font-data-mono text-[9px] text-on-surface-variant">UTC: <span id="clock">{{export_timestamp}}</span></div>
 </footer>
 
-<script id="dashboard-data" type="application/json">{{{json_data}}}</script>
+<!-- Hidden JSON data injection point (read by client-side JS) -->
+<script id="dashboard-json-data" type="application/json">{{{json_data}}}</script>
+
+<!-- Mode switching + basic client-side rendering -->
 <script>
-const D = (() => { try { return JSON.parse(document.getElementById('dashboard-data').textContent); } catch(e) { console.error('JSON parse error:', e); return {}; } })();
-function showMode(m){document.querySelectorAll('.mode-section').forEach(s=>s.classList.remove('active'));const e=document.getElementById('mode-'+m);if(e)e.classList.add('active');document.querySelectorAll('.ke-side-item').forEach(n=>n.classList.remove('active'));(event&&event.currentTarget||this).classList.add('active')}
-function toggleTheme(){const h=document.documentElement;const l=h.getAttribute('data-theme')==='light';h.setAttribute('data-theme',l?'dark':'light')}
-setInterval(()=>{const n=new Date();document.getElementById('clock').textContent=n.toISOString().slice(11,19)},1000);
-function filterTable(q){const rows=document.querySelectorAll('#allocTableBody tr');let c=0;rows.forEach(r=>{const m=r.textContent.toLowerCase().includes(q.toLowerCase());r.style.display=m?'':'none';if(m)c++});document.getElementById('allocCountHero').textContent=c+' items'}
+    function showMode(mode, el) {
+        document.querySelectorAll('.mode-section').forEach(s => s.classList.remove('active'));
+        const target = document.getElementById('mode-' + mode);
+        if (target) target.classList.add('active');
+        document.querySelectorAll('.ke-side-item').forEach(i => i.classList.remove('active'));
+        if (el) el.classList.add('active');
+    }
 
-// ---- OVERVIEW ----
-(function(){
-  const diag=[];const lc=D.leak_count||0;
-  if(lc>0)diag.push(`<div style="padding:8px;border-radius:4px;border-left:3px solid var(--danger);background:rgba(239,68,68,0.05);margin-bottom:4px"><div style="font-weight:600;font-size:0.8rem;color:var(--danger)">🔴 Memory Leak Detected</div><div style="font-size:0.7rem;color:var(--text2)">${lc} allocation(s) not freed</div></div>`);
-  const cy=(D.relationships||[]).filter(r=>r.is_part_of_cycle).length;
-  if(cy>0)diag.push(`<div style="padding:8px;border-radius:4px;border-left:3px solid var(--danger);background:rgba(239,68,68,0.05);margin-bottom:4px"><div style="font-weight:600;font-size:0.8rem;color:var(--danger)">🔄 Reference Cycle</div><div style="font-size:0.7rem;color:var(--text2)">${cy} circular reference(s)</div></div>`);
-  if(!diag.length)diag.push(`<div style="padding:8px;border-radius:4px;border-left:3px solid var(--success);background:rgba(16,185,129,0.05)"><div style="font-weight:600;font-size:0.8rem;color:var(--success)">✅ All Clear</div><div style="font-size:0.7rem;color:var(--text2)">Health score: {{health_score}}</div></div>`);
-  document.getElementById('diagnosisContent').innerHTML=diag.join('');
-  // Heap lattice
-  const hg=document.getElementById('heapGrid');const ac=D.allocations||[];
-  for(let i=0;i<40;i++){const a=ac[i%ac.length];const s=parseInt(a?.size)||0;const op=Math.min(1,s/(1024*1024));const d=document.createElement('div');d.className='heat-cell rounded-sm';d.style.backgroundColor=`rgba(78,222,163,${op*0.8+0.1})`;hg.appendChild(d)}
-  // Alloc table
-  const tb=document.getElementById('allocTableBody');document.getElementById('allocCountHero').textContent=ac.length+' items';
-  tb.innerHTML=ac.slice(0,50).map(a=>{const sf=a.source_file||'';const fn=sf?sf.replace(/^.*[\\/]/,''):'';return `<tr><td><code style="font-size:0.65rem">${(a.address||'0x0').slice(0,10)}</code></td><td>${a.var_name||'—'}</td><td style="font-family:monospace;font-size:0.65rem">${(a.type_name||'?').slice(0,14)}</td><td style="text-align:right">${(a.size||0).toLocaleString()} B</td><td style="color:var(--primary)">${fn}:${a.source_line||''}</td><td>${a.is_leaked?'<span style="color:var(--danger)">LEAKED</span>':'<span style="color:var(--success)">LIVE</span>'}</td></tr>`}).join('');
-  // Type chart
-  const ts={};ac.forEach(a=>{const t=a.type_name||'?';ts[t]=(ts[t]||0)+(parseInt(a.size)||0)});const so=Object.entries(ts).sort((a,b)=>b[1]-a[1]).slice(0,6);
-  if(so.length)new Chart(document.getElementById('typeChart'),{type:'doughnut',data:{labels:so.map(s=>s[0].slice(0,12)),datasets:[{data:so.map(s=>s[1]),backgroundColor:['#4edea3','#ffb690','#ffb3af','#10b981','#f59e0b','#8b5cf6']}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:'#dde4dd',font:{size:9},boxWidth:10}}}}});
-})();
+    // Read injected JSON data
+    let DATA = {};
+    try {
+        const raw = document.getElementById('dashboard-json-data').textContent;
+        DATA = JSON.parse(raw);
+    } catch (e) {
+        console.warn('Failed to parse dashboard JSON:', e);
+    }
 
-// ---- THREAD ----
-(function(){
-  const th=D.threads||[];document.getElementById('threadCount').textContent=th.length+' threads';
-  document.getElementById('threadTableBody').innerHTML=th.map(t=>`<tr><td>${t.thread_id}</td><td>${t.thread_summary}</td><td style="text-align:right">${t.allocation_count}</td><td style="text-align:right">${t.current_memory}</td><td style="text-align:right">${t.peak_memory}</td><td><span style="color:var(--success)">● active</span></td></tr>`).join('');
-  // Affinity grid
-  const ag=document.getElementById('affinityGrid');const st=['PROCESSING','IO_WAIT','IDLE'];const co={'PROCESSING':'bg-primary','IO_WAIT':'bg-blue-500','IDLE':'bg-zinc-600'};
-  for(let i=0;i<64;i++){const s=(D.thread_affinity_grid&&D.thread_affinity_grid[i])||st[i%3];const p=document.createElement('div');p.className=`w-2 h-2 rounded-full ${co[s]||'bg-zinc-600'} opacity-80 hover:opacity-100 transition-all cursor-crosshair`;p.title='Thread '+i+': '+s;ag.appendChild(p)}
-  // Scheduler lag bars
-  const slb=document.getElementById('schedLagBars');const bars=[30,55,40,85];bars.forEach(h=>{const b=document.createElement('div');b.className='bg-primary/60 w-full rounded-sm';b.style.height=h+'%';slb.appendChild(b)});
-  // Thread event log
-  const tel=document.getElementById('threadEventLog');const logs=D.thread_event_log||[];
-  tel.innerHTML=logs.map(e=>{const lc2=e.level==='WARN'?'text-orange-500':e.level==='ERR'?'text-red-500':'text-primary';let h=`<div class="flex gap-4"><span class="text-zinc-600">${e.time}</span><span class="${lc2} font-bold">[${e.level}]</span><span>${e.message}</span></div>`;if(e.stack_traces)e.stack_traces.forEach(st=>{h+=`<div class="pl-24 opacity-80">${st}</div>`});return h}).join('');
-})();
+    // Render Heap Lattice grid (10x10 colored cells)
+    (function renderHeapGrid() {
+        const grid = document.getElementById('heapGrid');
+        if (!grid) return;
+        const sizes = (DATA.allocations || []).map(a => a.size_bytes || 0).filter(s => s > 0);
+        if (sizes.length === 0) {
+            grid.innerHTML = '<div class="col-span-full text-outline text-xs px-2 py-4">No allocation samples.</div>';
+            return;
+        }
+        const max = Math.max(1, ...sizes);
+        for (let i = 0; i < 100; i++) {
+            const cell = document.createElement('div');
+            const intensity = sizes[i % sizes.length] / max;
+            cell.className = 'rounded-sm';
+            cell.style.background = `rgba(207, 188, 255, ${0.1 + intensity * 0.7})`;
+            grid.appendChild(cell);
+        }
+    })();
 
-// ---- TASK ----
-(function(){
-  const tk=D.async_tasks||[];document.getElementById('asyncTaskCount').textContent=tk.length+' tasks';
-  document.getElementById('activeTaskCount').textContent=tk.filter(t=>!t.is_completed).length;
-  document.getElementById('completedTaskCount').textContent=tk.filter(t=>t.is_completed).length;
-  document.getElementById('leakTaskCount').textContent=tk.filter(t=>t.has_potential_leak).length;
-  // Waker heatgrid
-  const wh=document.getElementById('wakerHeatgrid');const gd=D.waker_efficiency_grid||[];
-  for(let i=0;i<30;i++){const op=gd[i]||(Math.random()*0.5+0.1);const c=document.createElement('div');c.className='heat-cell rounded-sm';c.style.backgroundColor=`rgba(78,222,163,${op})`;wh.appendChild(c)}
-  // Timeline rows
-  const tl=document.getElementById('taskTimelineRows');const tt=D.thread_timeline||[];
-  tl.innerHTML=tt.map(t=>`<div class="flex gap-4 items-center"><span class="font-data-mono text-xs w-24">${t.thread_name}</span><div class="flex-grow h-4 bg-surface-container-low flex overflow-hidden">${t.segments.map(s=>`<div class="h-full" style="width:${s.width_pct}%;background:${s.color};margin-right:1px"></div>`).join('')}</div></div>`).join('');
-})();
+    // Render affinity grid (8 cols x N rows)
+    (function renderAffinityGrid() {
+        const grid = document.getElementById('affinityGrid');
+        if (!grid) return;
+        const cores = {{cpu_cores}} || 64;
+        const cells = Math.max(cores, 64);
+        for (let i = 0; i < cells; i++) {
+            const cell = document.createElement('div');
+            cell.className = 'aspect-square rounded border border-outline-variant/50 flex items-center justify-center text-[8px] font-data-mono';
+            const state = i % 7;
+            if (state === 0) { cell.style.background = 'rgba(245,158,11,0.6)'; cell.textContent = 'P'; }
+            else if (state === 1) { cell.style.background = 'rgba(59,130,246,0.6)'; cell.textContent = 'I'; }
+            else { cell.style.background = 'rgba(63,63,70,0.4)'; cell.textContent = '·'; }
+            grid.appendChild(cell);
+        }
+    })();
 
-// ---- TASKGRAPH ----
-(function(){
-  const ns=D.task_topology_nodes||[];const es=D.task_topology_edges||[];
-  const cv=document.getElementById('taskTopologyCanvas');
-  if(!ns.length){cv.innerHTML='<div class="empty-state text-center text-on-surface-variant text-xs mt-20">No async task topology data</div>';return}
-  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('class','absolute inset-0 w-full h-full');svg.setAttribute('viewBox','0 0 800 400');
-  ns.forEach(n=>{es.filter(e=>e.source===n.task_id||e.target===n.task_id).forEach(e=>{const sn=ns.find(x=>x.task_id===e.source);const tn=ns.find(x=>x.task_id===e.target);if(sn&&tn){const l=document.createElementNS('http://www.w3.org/2000/svg','line');l.setAttribute('x1',sn.x_pct+'%');l.setAttribute('y1',sn.y_pct+'%');l.setAttribute('x2',tn.x_pct+'%');l.setAttribute('y2',tn.y_pct+'%');l.setAttribute('stroke',e.is_active?'#10B981':'rgba(255,255,255,0.1)');l.setAttribute('stroke-width',e.is_active?'1.5':'1');if(e.is_active){l.setAttribute('stroke-dasharray','4');l.setAttribute('class','active-edge')}svg.appendChild(l)}})});
-  ns.forEach(n=>{const g=document.createElementNS('http://www.w3.org/2000/svg','g');g.setAttribute('transform',`translate(${n.x_pct*8}px,${n.y_pct*4}px)`);const r=document.createElementNS('http://www.w3.org/2000/svg','rect');r.setAttribute('x','0');r.setAttribute('y','0');r.setAttribute('width','120');r.setAttribute('height','48');r.setAttribute('rx','4');r.setAttribute('fill','#161d19');r.setAttribute('stroke','rgba(255,255,255,0.1)');if(n.status==='RUNNING'||n.status==='POLLING'){r.setAttribute('stroke','#4edea3');r.setAttribute('stroke-width','2')}g.appendChild(r);const t1=document.createElementNS('http://www.w3.org/2000/svg','text');t1.setAttribute('x','8');t1.setAttribute('y','16');t1.setAttribute('fill','#bbcabf');t1.setAttribute('font-size','9');t1.setAttribute('font-family','monospace');t1.textContent='TASK_ID: '+n.task_id;g.appendChild(t1);const t2=document.createElementNS('http://www.w3.org/2000/svg','text');t2.setAttribute('x','8');t2.setAttribute('y','32');t2.setAttribute('fill','#dde4dd');t2.setAttribute('font-size','11');t2.setAttribute('font-family','monospace');t2.textContent=n.name;g.appendChild(t2);svg.appendChild(g)});
-  cv.appendChild(svg);
-  document.getElementById('topoEdges').textContent=es.length;
-  document.getElementById('wakerLocks').textContent=(D.streaming_topology_stats||{}).waker_locks_status||'NONE';
-  const tl=document.getElementById('traceLogWindow');const tls=D.trace_logs||[];
-  tl.innerHTML=tls.map(l=>{const lc2=l.level==='WARN'?'text-tertiary':l.level==='ERR'?'text-error':'text-primary';return `<div class="flex gap-2"><span class="text-zinc-600">${l.timestamp}</span><span class="${lc2}">${l.level}</span><span>${l.message}</span></div>`}).join('');
-})();
+    // Render waker efficiency heatgrid (10x6)
+    (function renderWakerHeatgrid() {
+        const grid = document.getElementById('wakerHeatgrid');
+        if (!grid) return;
+        const bins = DATA.waker_efficiency_grid || [];
+        if (bins.length === 0) {
+            grid.innerHTML = '<div class="col-span-full text-outline text-xs px-2 py-4">No waker samples.</div>';
+            return;
+        }
+        const max = Math.max(1, ...bins);
+        bins.forEach(v => {
+            const cell = document.createElement('div');
+            cell.className = 'rounded-sm';
+            const intensity = v / max;
+            cell.style.background = `rgba(207, 188, 255, ${0.1 + intensity * 0.8})`;
+            grid.appendChild(cell);
+        });
+    })();
 
-// ---- VARIABLE ----
-(function(){
-  const rl=D.relationships||[];const ac=D.allocations||[];const cv=document.getElementById('variableGraphContainer');
-  if(!rl.length){cv.innerHTML='<div class="empty-state text-center text-on-surface-variant text-xs mt-20">No relationship data</div>';return}
-  const am=new Map();ac.forEach(a=>{if(a.address)am.set(a.address,a)});
-  const nm=new Map();rl.forEach(r=>{if(!nm.has(r.source_ptr))nm.set(r.source_ptr,{id:r.source_ptr,name:r.source_var_name||'A',relType:r.relationship_type,hasCycle:r.is_part_of_cycle,alloc:am.get(r.source_ptr)});if(!nm.has(r.target_ptr))nm.set(r.target_ptr,{id:r.target_ptr,name:r.target_var_name||'B',relType:r.relationship_type,hasCycle:r.is_part_of_cycle,alloc:am.get(r.target_ptr)})});
-  const nodes=Array.from(nm.values());const links=rl.map(r=>({source:r.source_ptr,target:r.target_ptr,type:r.relationship_type,isCycle:r.is_part_of_cycle,color:r.color}));
-  const w=cv.clientWidth||600,h=cv.clientHeight||350;
-  const svg=d3.select(cv).append('svg').attr('width','100%').attr('height','100%').attr('viewBox',[0,0,w,h]);
-  const g=svg.append('g');const zm=d3.zoom().on('zoom',e=>g.attr('transform',e.transform));svg.call(zm);
-  const cm={clone:'#10b981',immutable_borrow:'#3b82f6',mutable_borrow:'#f59e0b',smart_pointer_arc:'#8b5cf6',smart_pointer_rc:'#8b5cf6',contains:'#ec4899',reference:'#64748b',same_type:'#64748b',ownership_transfer:'#dc2626',evolution:'#06b6d4'};
-  const sim=d3.forceSimulation(nodes).force('link',d3.forceLink(links).id(d=>d.id).distance(80)).force('charge',d3.forceManyBody().strength(-120)).force('center',d3.forceCenter(w/2,h/2)).force('collide',d3.forceCollide().radius(12).iterations(2));
-  g.append('g').selectAll('line').data(links).join('line').attr('stroke',d=>d.isCycle?'#ef4444':(d.color||cm[d.type]||'#64748b')).attr('stroke-width',1.5).attr('stroke-dasharray',d=>d.isCycle?'4,2':null);
-  g.append('g').selectAll('circle').data(nodes).join('circle').attr('r',d=>d.hasCycle?8:6).attr('fill',d=>d.hasCycle?'#ef4444':(cm[d.relType]||'#4edea3')).attr('stroke',d=>d.hasCycle?'#fbbf24':'none').attr('stroke-width',2);
-  // Neighbor histogram
-  const hist=document.getElementById('neighborHistogram');const bins=D.neighbor_density_histogram||[];const to=bins.reduce((s,b)=>s+b.count,0)||ac.length;document.getElementById('totalObjects').textContent=to.toLocaleString();
-  const mx=Math.max(...bins.map(b=>b.count),1);bins.forEach(b=>{const bar=document.createElement('div');bar.className='flex-1 bg-surface-variant hover:bg-primary/40 transition-colors rounded-t-sm';bar.style.height=((b.count/mx)*100)+'%';hist.appendChild(bar)});
-  // Node detail
-  const nd=D.selected_node_detail;if(nd){document.getElementById('detailNodeName').textContent=nd.node_name;document.getElementById('detailNodeStatus').textContent=nd.current_status;document.getElementById('detailExecTime').textContent=nd.execution_time_ms+'ms';document.getElementById('detailDeps').textContent=nd.upstream_deps;document.getElementById('detailTrace').innerHTML=(nd.exec_trace||[]).map((t,i)=>`<div><span class="text-primary">[${String(i).padStart(2,'0')}]</span> ${t}</div>`).join('')}
-})();
+    // Render neighbor density histogram
+    (function renderNeighborHistogram() {
+        const hist = document.getElementById('neighborHistogram');
+        if (!hist) return;
+        const bins = DATA.neighbor_density_histogram || [];
+        if (bins.length === 0) {
+            hist.innerHTML = '<div class="text-outline text-xs px-1 py-2">No neighbor density samples.</div>';
+            return;
+        }
+        const max = Math.max(1, ...bins.map(b => (b && b.count) || 0));
+        bins.forEach(b => {
+            const bar = document.createElement('div');
+            bar.className = 'flex-1 bg-primary/60';
+            const v = (b && b.count) || 0;
+            bar.style.height = `${Math.max(2, (v / max) * 100)}%`;
+            hist.appendChild(bar);
+        });
+    })();
 
-// ---- PASSPORT ----
-(function(){
-  const pc=document.getElementById('passportCards');const ps=D.passport_details||[];
-  pc.innerHTML=ps.slice(0,6).map(p=>`<div class="glass-card p-4"><div class="flex justify-between items-center mb-2"><span class="font-data-mono text-xs text-primary">${p.var_name||'unknown'}</span><span class="font-label-caps text-[10px] ${p.is_leaked?'text-tertiary':'text-primary'}">${p.is_leaked?'LEAKED':'VALID'}</span></div><div class="font-data-mono text-[10px] space-y-1 text-on-surface-variant"><div>Type: <span class="text-on-surface">${(p.type_name||'?').slice(0,18)}</span></div><div>Size: <span class="text-on-surface">${(p.size_bytes||0).toLocaleString()} B</span></div><div>Risk: <span class="${p.risk_level==='high'?'text-tertiary':p.risk_level==='medium'?'text-secondary':'text-primary'}">${p.risk_level||'low'}</span></div></div></div>`).join('');
-})();
+    // Render thread event log
+    (function renderThreadEventLog() {
+        const log = document.getElementById('threadEventLog');
+        if (!log) return;
+        const events = DATA.thread_event_log || [];
+        if (events.length === 0) { log.innerHTML = '<div class="text-outline">No thread events recorded.</div>'; return; }
+        events.slice(0, 50).forEach(e => {
+            const row = document.createElement('div');
+            row.innerHTML = `<span class="text-outline">${e.timestamp || ''}</span> <span class="text-accent-amber">${e.type || ''}</span> <span class="text-on-surface">${e.message || ''}</span>`;
+            log.appendChild(row);
+        });
+    })();
 
-// ---- FFI BRIDGE ----
-(function(){
-  const svg=document.getElementById('ffiTopoSvg');const tn=D.ffi_call_topology?.nodes||[];const te=D.ffi_call_topology?.edges||[];
-  if(tn.length){te.forEach(e=>{if(tn[e.source]&&tn[e.target]){const l=document.createElementNS('http://www.w3.org/2000/svg','line');l.setAttribute('x1','50%');l.setAttribute('y1','30%');l.setAttribute('x2',(20+e.target*12)+'%');l.setAttribute('y2',(40+e.target*8)+'%');l.setAttribute('stroke','rgba(78,222,163,0.3)');l.setAttribute('stroke-width','1');svg.appendChild(l)}});tn.forEach((n,i)=>{const c=document.createElementNS('http://www.w3.org/2000/svg','circle');c.setAttribute('cx',i===0?'50%':(20+i*12)+'%');c.setAttribute('cy',i===0?'30%':(40+i*8)+'%');c.setAttribute('r',n.node_type==='root'||n.node_type==='bridge'?4:3);c.setAttribute('fill',n.status==='hot'?'#ffb690':'#4edea3');svg.appendChild(c)})}
-  // Resource bars
-  const rb=document.getElementById('ffiResourceBars');const rbs=D.resource_bars||[];
-  rb.innerHTML=rbs.map(r=>`<div><div class="h-1 bg-surface-variant w-full relative"><div class="absolute inset-0 ${r.color_class==='primary'?'bg-primary':'bg-secondary'}" style="width:${r.pct}%"></div></div><div class="flex justify-between font-data-mono text-[11px] mt-1"><span class="text-on-surface-variant">${r.label}</span><span class="text-on-surface">${r.pct}%</span></div></div>`).join('');
-  // Symbol table
-  const sb=document.getElementById('symbolTableBody');const syms=D.symbol_table||[];
-  sb.innerHTML=syms.slice(0,8).map(s=>{const sc=s.status==='HOT'?'bg-orange-900/40 text-orange-500 border border-orange-500/20':s.status==='PINNED'?'bg-blue-900/40 text-blue-400 border border-blue-400/20':'bg-zinc-800/50 text-zinc-400 border border-zinc-700';return `<tr class="hover:bg-surface-variant/10 transition-colors"><td class="p-4 text-primary">${s.hex_addr}</td><td class="p-4">${s.symbol_name}</td><td class="p-4"><span class="px-2 py-0.5 text-[11px] font-label-caps ${sc}">${s.status}</span></td><td class="p-4">${s.call_count.toLocaleString()}</td><td class="p-4">${s.time_avg_us.toFixed(2)}us</td></tr>`}).join('');
-  // Thread timeline
-  const ftl=document.getElementById('ffiThreadTimeline');const tts=D.thread_timeline||[];
-  ftl.innerHTML=tts.map(t=>`<div class="flex gap-4 items-center"><span class="font-data-mono text-xs w-24">${t.thread_name}</span><div class="flex-grow h-6 bg-surface-container-low flex overflow-hidden">${t.segments.map(s=>`<div class="h-full" style="width:${s.width_pct}%;background:${s.color};border-right:1px solid rgba(255,255,255,0.1)"></div>`).join('')}</div></div>`).join('');
-})();
+    // Render trace log window
+    (function renderTraceLog() {
+        const log = document.getElementById('traceLogWindow');
+        if (!log) return;
+        const traces = DATA.trace_logs || [];
+        if (traces.length === 0) { log.innerHTML = '<div class="text-outline">No traces.</div>'; return; }
+        traces.slice(0, 30).forEach(t => {
+            const row = document.createElement('div');
+            row.className = 'text-on-surface-variant';
+            row.textContent = `${t.timestamp || ''} ${t.message || ''}`;
+            log.appendChild(row);
+        });
+    })();
 
-// ---- UNSAFE ----
-(function(){
-  const ul=document.getElementById('unsafeList');const ur=D.unsafe_reports||[];
-  ul.innerHTML=ur.slice(0,6).map(r=>`<div class="p-2 bg-surface-container-low rounded border-l-2 ${r.risk_level==='high'?'border-danger':'border-warning'}"><div class="font-data-mono text-xs"><span class="text-primary">${r.var_name}</span> — ${r.type_name}</div><div class="font-data-mono text-[10px] text-on-surface-variant">Ptr: ${r.allocation_ptr} | Size: ${(r.size_bytes||0).toLocaleString()}B | Risk: ${r.risk_level}</div></div>`).join('');
-  const fl=document.getElementById('ffiList');const fp=(D.passport_details||[]).filter(p=>p.ffi_tracked);
-  fl.innerHTML=fp.slice(0,6).map(p=>`<div class="p-2 bg-surface-container-low rounded border-l-2 border-primary"><div class="font-data-mono text-xs"><span class="text-primary">${p.var_name}</span> — ${p.type_name}</div><div class="font-data-mono text-[10px] text-on-surface-variant">${p.is_leaked?'<span class="text-tertiary">LEAKED</span>':'<span class="text-primary">OK</span>'}</div></div>`).join('');
-})();
+    // Render task timeline rows
+    (function renderTaskTimeline() {
+        const rows = document.getElementById('taskTimelineRows');
+        if (!rows) return;
+        const tasks = DATA.async_tasks || [];
+        if (tasks.length === 0) { rows.innerHTML = '<div class="text-outline text-xs">No async tasks.</div>'; return; }
+        tasks.slice(0, 10).forEach(t => {
+            const row = document.createElement('div');
+            row.className = 'flex items-center gap-3 font-data-mono text-xs';
+            row.innerHTML = `<span class="text-accent-amber w-16">${t.id || ''}</span><span class="text-on-surface w-32 truncate">${t.name || ''}</span><div class="flex-1 h-2 bg-surface-container-highest rounded-full overflow-hidden"><div class="h-full bg-primary" style="width: ${Math.min(100, (t.duration_ms || 0))}%"></div></div><span class="text-secondary w-16 text-right">${t.duration_ms || 0}ms</span>`;
+            rows.appendChild(row);
+        });
+    })();
+
+    // Render passport cards fallback if Handlebars each missing
+    (function renderPassportCards() {
+        const cards = document.getElementById('passportCards');
+        if (!cards) return;
+        // If cards already have children from server-side rendering, leave them
+        if (cards.children.length > 0 && cards.children[0].tagName !== 'SCRIPT') return;
+        const passports = DATA.passport_details || [];
+        passports.slice(0, 12).forEach(p => {
+            const card = document.createElement('div');
+            card.className = 'bg-surface-container-low border border-outline-variant rounded-lg p-4';
+            card.innerHTML = `<div class="flex justify-between items-start mb-2"><span class="font-data-mono text-xs text-accent-amber">${p.passport_id || ''}</span><span class="font-label-caps text-[9px] text-success">${p.status || 'CLEAN'}</span></div><p class="font-data-mono text-sm text-on-surface">${p.type_name || ''}</p><p class="text-[10px] text-on-surface-variant mt-1">SIZE: ${p.size_bytes || 0} bytes</p>`;
+            cards.appendChild(card);
+        });
+    })();
 </script>
 </body>
 </html>

@@ -4,6 +4,12 @@ use super::helpers::format_bytes;
 use super::types::*;
 use handlebars::Handlebars;
 
+/// CDN asset scripts embedded at compile time for offline use
+const TAILWIND_SCRIPT: &str = include_str!("../templates/assets/tailwind.min.js");
+const CHART_SCRIPT: &str = include_str!("../templates/assets/chart.min.js");
+const D3_SCRIPT: &str = include_str!("../templates/assets/d3.min.js");
+const FONTS_CSS: &str = include_str!("../templates/assets/fonts.css");
+
 /// Insert basic context into template data
 pub fn insert_basic_context(
     template_data: &mut std::collections::BTreeMap<String, serde_json::Value>,
@@ -152,12 +158,58 @@ pub fn render_unified_dashboard(
         serde_json::to_value(&context.ownership_graph)?,
     );
 
+    template_data.insert(
+        "stack_integrity".to_string(),
+        serde_json::to_value(&context.stack_integrity)?,
+    );
+    template_data.insert(
+        "streaming_topology_stats".to_string(),
+        serde_json::to_value(&context.streaming_topology_stats)?,
+    );
+    template_data.insert(
+        "scheduler_lag_ms".to_string(),
+        serde_json::Value::Number(context.scheduler_lag_ms.into()),
+    );
+    template_data.insert(
+        "migration_rate_pct".to_string(),
+        serde_json::Value::Number(
+            serde_json::Number::from_f64(context.migration_rate_pct).unwrap_or(0.into()),
+        ),
+    );
+    template_data.insert(
+        "system_uptime_formatted".to_string(),
+        serde_json::Value::String(context.system_uptime_formatted.clone()),
+    );
+    template_data.insert(
+        "poll_latency_mean_ms".to_string(),
+        serde_json::Value::Number(
+            serde_json::Number::from_f64(context.poll_latency_mean_ms).unwrap_or(0.into()),
+        ),
+    );
+
+    template_data.insert(
+        "tailwind_script".to_string(),
+        serde_json::Value::String(TAILWIND_SCRIPT.to_string()),
+    );
+    template_data.insert(
+        "chart_script".to_string(),
+        serde_json::Value::String(CHART_SCRIPT.to_string()),
+    );
+    template_data.insert(
+        "d3_script".to_string(),
+        serde_json::Value::String(D3_SCRIPT.to_string()),
+    );
+    template_data.insert(
+        "fonts_css".to_string(),
+        serde_json::Value::String(FONTS_CSS.to_string()),
+    );
+
     handlebars
         .render("dashboard_unified", &template_data)
         .map_err(|e| format!("Template rendering error: {}", e).into())
 }
 
-/// Render final dashboard (new investigation console template)
+/// Render final dashboard (delegates to the merged dashboard_unified template)
 pub fn render_final_dashboard(
     handlebars: &Handlebars<'static>,
     context: &DashboardContext,
@@ -193,8 +245,25 @@ pub fn render_final_dashboard(
         serde_json::to_value(&context.ownership_graph)?,
     );
 
+    template_data.insert(
+        "tailwind_script".to_string(),
+        serde_json::Value::String(TAILWIND_SCRIPT.to_string()),
+    );
+    template_data.insert(
+        "chart_script".to_string(),
+        serde_json::Value::String(CHART_SCRIPT.to_string()),
+    );
+    template_data.insert(
+        "d3_script".to_string(),
+        serde_json::Value::String(D3_SCRIPT.to_string()),
+    );
+    template_data.insert(
+        "fonts_css".to_string(),
+        serde_json::Value::String(FONTS_CSS.to_string()),
+    );
+
     handlebars
-        .render("dashboard_final", &template_data)
+        .render("dashboard_unified", &template_data)
         .map_err(|e| format!("Template rendering error: {}", e).into())
 }
 

@@ -911,7 +911,7 @@ pub struct HealthInfo {
 }
 
 /// Build JSON data for template injection, including event DTOs, DataIndex, and sampling metadata.
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, dead_code)]
 pub fn build_json_data(
     alloc_info: &[super::types::AllocationInfo],
     relationships: &[super::types::RelationshipInfo],

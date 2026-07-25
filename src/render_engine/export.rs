@@ -678,23 +678,14 @@ pub fn export_async_analysis_json<P: AsRef<Path>>(
     Ok(())
 }
 
-/// Dashboard template type
+/// Dashboard template type — the single merged template id, plus a Custom variant
+/// for registry-based rendering of external templates.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum DashboardTemplate {
-    /// Unified dashboard (multi-mode in single HTML)
+    /// Unified merged dashboard (default) — bundles all 8 modes in one HTML file
     #[default]
     Unified,
-    /// Final dashboard (new investigation console)
-    Final,
-    /// FFI Bridge Analysis professional template
-    FfiBridge,
-    /// Async Task Topology professional template
-    AsyncTaskTopology,
-    /// Relationship Graph professional template
-    RelationshipGraph,
-    /// Thread Affinity Monitor professional template
-    ThreadAffinity,
-    /// Custom template by ID (for registry-based rendering)
+    /// Custom template by ID (for registry-based rendering of external templates)
     Custom(String),
 }
 
@@ -702,17 +693,6 @@ impl std::fmt::Display for DashboardTemplate {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             DashboardTemplate::Unified => write!(f, "dashboard_unified"),
-            DashboardTemplate::Final => write!(f, "dashboard_final"),
-            DashboardTemplate::FfiBridge => write!(f, "ext_ffi_bridge_analysis_professional_pro"),
-            DashboardTemplate::AsyncTaskTopology => {
-                write!(f, "ext_async_task_topology_professional_pro")
-            }
-            DashboardTemplate::RelationshipGraph => {
-                write!(f, "ext_relationship_graph_professional_pro")
-            }
-            DashboardTemplate::ThreadAffinity => {
-                write!(f, "ext_thread_affinity_monitor_professional_pro")
-            }
             DashboardTemplate::Custom(id) => write!(f, "{}", id),
         }
     }
@@ -723,11 +703,6 @@ impl DashboardTemplate {
     pub fn template_id(&self) -> &str {
         match self {
             DashboardTemplate::Unified => "dashboard_unified",
-            DashboardTemplate::Final => "dashboard_final",
-            DashboardTemplate::FfiBridge => "ext_ffi_bridge_analysis_professional_pro",
-            DashboardTemplate::AsyncTaskTopology => "ext_async_task_topology_professional_pro",
-            DashboardTemplate::RelationshipGraph => "ext_relationship_graph_professional_pro",
-            DashboardTemplate::ThreadAffinity => "ext_thread_affinity_monitor_professional_pro",
             DashboardTemplate::Custom(id) => id.as_str(),
         }
     }
@@ -736,11 +711,6 @@ impl DashboardTemplate {
     pub fn name(&self) -> &str {
         match self {
             DashboardTemplate::Unified => "Unified Dashboard",
-            DashboardTemplate::Final => "Investigation Console",
-            DashboardTemplate::FfiBridge => "FFI Bridge Analysis",
-            DashboardTemplate::AsyncTaskTopology => "Async Task Topology",
-            DashboardTemplate::RelationshipGraph => "Relationship Graph",
-            DashboardTemplate::ThreadAffinity => "Thread Affinity Monitor",
             DashboardTemplate::Custom(_) => "Custom Template",
         }
     }
@@ -824,25 +794,8 @@ pub fn export_dashboard_html_with_template<P: AsRef<Path>>(
         })?;
 
     let html_content = match template {
-        DashboardTemplate::Final => renderer.render_final_dashboard(&context).map_err(|e| {
-            MemScopeError::error(
-                "export",
-                "export_dashboard_html_with_template",
-                format!("Failed to render final dashboard: {}", e),
-            )
-        })?,
-        DashboardTemplate::Unified => renderer.render_unified_dashboard(&context).map_err(|e| {
-            MemScopeError::error(
-                "export",
-                "export_dashboard_html_with_template",
-                format!("Failed to render dashboard: {}", e),
-            )
-        })?,
-        // External template rendering via registry
-        DashboardTemplate::FfiBridge
-        | DashboardTemplate::AsyncTaskTopology
-        | DashboardTemplate::RelationshipGraph
-        | DashboardTemplate::ThreadAffinity => {
+        // The unified template and any custom external template are rendered via the registry
+        DashboardTemplate::Unified | DashboardTemplate::Custom(_) => {
             let template_id = template.template_id();
             renderer
                 .render_with_template(template_id, &context)
@@ -851,18 +804,6 @@ pub fn export_dashboard_html_with_template<P: AsRef<Path>>(
                         "export",
                         "export_dashboard_html_with_template",
                         format!("Failed to render {} template: {}", template.name(), e),
-                    )
-                })?
-        }
-        DashboardTemplate::Custom(_) => {
-            let template_id = template.template_id();
-            renderer
-                .render_with_template(template_id, &context)
-                .map_err(|e| {
-                    MemScopeError::error(
-                        "export",
-                        "export_dashboard_html_with_template",
-                        format!("Failed to render custom template '{}': {}", template_id, e),
                     )
                 })?
         }

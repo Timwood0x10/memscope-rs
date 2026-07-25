@@ -268,13 +268,13 @@ fn main() -> MemScopeResult<()> {
         output_path
     );
 
-    println!("  Calling export_html (final)...");
+    println!("  Calling export_html (unified)...");
     tracker.export_html_with_template(
         output_path,
-        memscope_rs::render_engine::export::DashboardTemplate::Final,
+        memscope_rs::render_engine::export::DashboardTemplate::Unified,
     )?;
     println!(
-        "  HTML dashboard (final): {}/dashboard_final_dashboard.html",
+        "  HTML dashboard (unified): {}/dashboard_unified_dashboard.html",
         output_path
     );
 
@@ -282,13 +282,9 @@ fn main() -> MemScopeResult<()> {
     println!("  Demonstration Complete!               ");
     println!("========================================");
 
-    println!("\nOpen the HTML dashboards to visualize memory patterns.");
+    println!("\nOpen the HTML dashboard to visualize memory patterns.");
     println!(
         "Unified dashboard: {}/dashboard_unified_dashboard.html",
-        output_path
-    );
-    println!(
-        "Final dashboard: {}/dashboard_final_dashboard.html",
         output_path
     );
 

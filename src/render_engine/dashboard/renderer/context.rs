@@ -7,9 +7,8 @@ use super::event_reconstructor::{
 use super::helpers::format_bytes;
 use super::report_builder::{
     aggregate_thread_data, build_allocation_info, build_async_summary, build_async_tasks,
-    build_circular_reference_report, build_json_data, build_ownership_graph_info,
-    build_passport_details, build_relationships, build_top_n_reports, build_unsafe_reports,
-    calculate_health_info,
+    build_circular_reference_report, build_ownership_graph_info, build_passport_details,
+    build_relationships, build_top_n_reports, build_unsafe_reports, calculate_health_info,
 };
 use super::system_info::get_system_info;
 use super::types::*;
@@ -88,26 +87,6 @@ pub fn build_context_from_tracker_with_async(
     );
     let data_index = build_data_index(&alloc_info, &event_dtos, &passport_details, &unsafe_reports);
 
-    let json_data = build_json_data(
-        &alloc_info,
-        &relationships,
-        &unsafe_reports,
-        &thread_data,
-        &passport_details,
-        tracker_analysis.active_allocations,
-        tracker_analysis.total_allocations,
-        leak_count,
-        &async_tasks,
-        &async_summary,
-        &ownership_graph,
-        health_info.health_score,
-        &task_graph_json,
-        &event_dtos,
-        &event_summary,
-        &data_index,
-        &sampling,
-    )?;
-
     // Pre-compute all new professional template data before moving values into context
     let ffi_call_topology = build_ffi_call_topology(&unsafe_reports);
     let symbol_table = build_symbol_table(&unsafe_reports);
@@ -161,6 +140,49 @@ pub fn build_context_from_tracker_with_async(
             color_class: "primary".to_string(),
         },
     ];
+
+    // Build json_data after all fields are ready so it includes ALL template-accessible fields
+    let json_data = serde_json::to_string(&serde_json::json!({
+        "allocations": &alloc_info,
+        "relationships": &relationships,
+        "unsafe_reports": &unsafe_reports,
+        "threads": &thread_data,
+        "passport_details": &passport_details,
+        "active_allocations": tracker_analysis.active_allocations,
+        "total_allocations": tracker_analysis.total_allocations,
+        "leak_count": leak_count,
+        "async_tasks": &async_tasks,
+        "async_summary": &async_summary,
+        "ownership_graph": &ownership_graph,
+        "health_score": health_info.health_score,
+        "task_graph_json": &task_graph_json,
+        "events": &event_dtos,
+        "event_summary": &event_summary,
+        "data_index": &data_index,
+        "sampling": &sampling,
+        "ffi_call_topology": &ffi_call_topology,
+        "symbol_table": &symbol_table,
+        "stack_integrity": &stack_integrity,
+        "resource_bars": &resource_bars,
+        "thread_timeline": &thread_timeline,
+        "waker_efficiency_grid": &waker_efficiency_grid,
+        "poll_latency_mean_ms": poll_latency_mean_ms,
+        "task_topology_nodes": &task_topology_nodes,
+        "task_topology_edges": &task_topology_edges,
+        "streaming_topology_stats": &streaming_topology_stats,
+        "trace_logs": &trace_logs,
+        "neighbor_density_histogram": &neighbor_density_histogram,
+        "dependency_graph_nodes": &dependency_graph_nodes,
+        "selected_node_detail": &selected_node_detail,
+        "thread_affinity_grid": &thread_affinity_grid,
+        "scheduler_lag_bars": &scheduler_lag_bars,
+        "scheduler_lag_ms": scheduler_lag_ms,
+        "migration_rate_pct": migration_rate_pct,
+        "system_uptime_formatted": &system_uptime_formatted,
+        "thread_event_log": &thread_event_log,
+        "thread_policies": &thread_policies,
+        "resource_limits": &resource_limits,
+    }))?;
 
     Ok(DashboardContext {
         title: "MemScope Dashboard".to_string(),
@@ -256,7 +278,7 @@ fn build_ffi_call_topology(unsafe_reports: &[UnsafeReport]) -> FfiCallTopology {
     }];
     let mut edges = Vec::new();
 
-    for (i, r) in unsafe_reports.iter().enumerate().take(8) {
+    for (_, r) in unsafe_reports.iter().enumerate().take(8) {
         let idx = nodes.len();
         nodes.push(FfiCallNode {
             name: r.var_name.clone(),
@@ -275,7 +297,7 @@ fn build_ffi_call_topology(unsafe_reports: &[UnsafeReport]) -> FfiCallTopology {
     }
 
     // Add a target node
-    let target_idx = nodes.len();
+    let _target_idx = nodes.len();
     nodes.push(FfiCallNode {
         name: "FFI Target".to_string(),
         address: None,
@@ -423,7 +445,7 @@ fn build_task_topology_edges(async_tasks: &[AsyncTaskInfo]) -> Vec<TaskTopologyE
         .iter()
         .enumerate()
         .filter_map(|(i, t)| {
-            if let Some(parent) = &t.task_name.split(':').nth(0) {
+            if let Some(parent) = &t.task_name.split(':').next() {
                 if !parent.is_empty() && i > 0 {
                     return Some(TaskTopologyEdge {
                         source: format!("0x{:02X}", i - 1),
@@ -630,7 +652,7 @@ fn build_thread_event_log(
     let mut logs = Vec::new();
     let base_time = "14:22:01.";
 
-    for (i, t) in thread_data.iter().enumerate().take(3) {
+    for (i, _t) in thread_data.iter().enumerate().take(3) {
         logs.push(ThreadEventLogEntry {
             time: format!("{}{}.{}", base_time, i * 100, i * 37),
             level: "INFO".to_string(),
@@ -679,7 +701,6 @@ mod tests {
         // This test verifies the function signature compiles and handles
         // the basic case. Full integration tests cover the actual data path.
         let _ = build_task_graph_json;
-        let _ = build_json_data;
     }
 
     /// Objective: Verify that SamplingMetadata is correctly exposed in json_data.

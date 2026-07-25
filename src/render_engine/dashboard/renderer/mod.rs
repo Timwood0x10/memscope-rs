@@ -8,6 +8,7 @@ mod event_dto;
 mod event_reconstructor;
 mod helpers;
 mod inference;
+#[allow(dead_code)]
 mod render_methods;
 mod report_builder;
 mod system_info;
@@ -29,6 +30,12 @@ use handlebars::Handlebars;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+/// CDN asset scripts embedded at compile time for offline use
+const TAILWIND_SCRIPT: &str = include_str!("../templates/assets/tailwind.min.js");
+const CHART_SCRIPT: &str = include_str!("../templates/assets/chart.min.js");
+const D3_SCRIPT: &str = include_str!("../templates/assets/d3.min.js");
+const FONTS_CSS: &str = include_str!("../templates/assets/fonts.css");
+
 /// Dashboard renderer with template registry support
 pub struct DashboardRenderer {
     handlebars: Handlebars<'static>,
@@ -44,27 +51,26 @@ impl DashboardRenderer {
 
     /// Create a new dashboard renderer with optional external template directory
     ///
-    /// If `templetes_dir` is None, auto-discovers from `<manifest>/templetes/`.
+    /// The single built-in merged dashboard template lives at
+    /// `src/render_engine/dashboard/templates/dashboard_unified.html`.
+    /// External templates (if any) are loaded from `<manifest>/templetes/<dir>/code.html`.
     pub fn with_external_templates(
         templetes_dir: Option<PathBuf>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let base_dir = manifest_dir.join("src/render_engine/dashboard/templates");
         let external_dir = templetes_dir.unwrap_or_else(|| manifest_dir.join("templetes"));
 
-        // Build template registry from built-in templates
-        let mut registry = TemplateRegistry::with_built_in_templates(&base_dir)?;
+        // Build template registry from the single merged built-in template.
+        // The templates_dir argument is unused now (kept only for API stability);
+        // pass a placeholder that TemplateRegistry will ignore.
+        let mut registry = TemplateRegistry::with_built_in_templates(&manifest_dir)?;
 
         // Always try to load external templates
         registry.set_external_base(external_dir.clone());
         registry.load_external_templates(&external_dir)?;
 
-        // For backward compatibility, keep a separate handlebars with old names
+        // For backward compatibility, keep a separate handlebars for old/direct template names
         let mut handlebars = Handlebars::new();
-        let unified_path = base_dir.join("dashboard_unified.html");
-        handlebars.register_template_file("dashboard_unified", &unified_path)?;
-        let final_path = base_dir.join("dashboard_final.html");
-        handlebars.register_template_file("dashboard_final", &final_path)?;
         helpers::register_helpers(&mut handlebars);
 
         Ok(Self {
@@ -74,6 +80,9 @@ impl DashboardRenderer {
     }
 
     /// Render using the template registry (new API)
+    ///
+    /// Injects embedded asset scripts (tailwind, fonts, chart, d3) into the context
+    /// so templates can use `{{{tailwind_script}}}`, `{{{fonts_css}}}`, etc.
     pub fn render_with_template(
         &self,
         template_id: &str,
@@ -84,11 +93,29 @@ impl DashboardRenderer {
             .as_ref()
             .ok_or("Template registry not initialized")?;
 
-        // Build JSON data from context
-        let json_data = serde_json::to_string(context)
+        let mut data = serde_json::to_value(context)
             .map_err(|e| format!("Failed to serialize context: {}", e))?;
 
-        let data: serde_json::Value = serde_json::from_str(&json_data)?;
+        // Inject asset scripts
+        if let Some(obj) = data.as_object_mut() {
+            obj.insert(
+                "tailwind_script".to_string(),
+                serde_json::Value::String(TAILWIND_SCRIPT.to_string()),
+            );
+            obj.insert(
+                "chart_script".to_string(),
+                serde_json::Value::String(CHART_SCRIPT.to_string()),
+            );
+            obj.insert(
+                "d3_script".to_string(),
+                serde_json::Value::String(D3_SCRIPT.to_string()),
+            );
+            obj.insert(
+                "fonts_css".to_string(),
+                serde_json::Value::String(FONTS_CSS.to_string()),
+            );
+        }
+
         registry.render(template_id, &data)
     }
 
@@ -96,10 +123,7 @@ impl DashboardRenderer {
     pub fn list_templates(&self) -> Vec<String> {
         match &self.template_registry {
             Some(reg) => reg.template_ids(),
-            None => vec![
-                "dashboard_unified".to_string(),
-                "dashboard_final".to_string(),
-            ],
+            None => vec!["dashboard_unified".to_string()],
         }
     }
 
@@ -148,20 +172,20 @@ impl DashboardRenderer {
         self.render_unified_dashboard(context)
     }
 
-    /// Render unified dashboard (multi-mode in single HTML)
+    /// Render unified dashboard — uses the merged dashboard_unified template
     pub fn render_unified_dashboard(
         &self,
         context: &DashboardContext,
     ) -> Result<String, Box<dyn std::error::Error>> {
-        render_methods::render_unified_dashboard(&self.handlebars, context)
+        self.render_with_template("dashboard_unified", context)
     }
 
-    /// Render final dashboard (new investigation console template)
+    /// Render final dashboard — now delegates to the same unified template
     pub fn render_final_dashboard(
         &self,
         context: &DashboardContext,
     ) -> Result<String, Box<dyn std::error::Error>> {
-        render_methods::render_final_dashboard(&self.handlebars, context)
+        self.render_with_template("dashboard_unified", context)
     }
 
     /// Render binary dashboard (legacy template)

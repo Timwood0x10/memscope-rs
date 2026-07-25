@@ -27,18 +27,13 @@ pub struct DashboardTemplate {
 }
 
 /// Template source classification
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TemplateKind {
     /// Built-in template bundled in the crate
+    #[default]
     BuiltIn,
     /// External template loaded from file system
     External,
-}
-
-impl Default for TemplateKind {
-    fn default() -> Self {
-        Self::BuiltIn
-    }
 }
 
 /// Template registry - holds all available dashboard templates
@@ -61,36 +56,36 @@ impl TemplateRegistry {
         }
     }
 
-    /// Create a registry with built-in templates pre-loaded
-    pub fn with_built_in_templates(base_dir: &Path) -> Result<Self, Box<dyn std::error::Error>> {
+    /// Create a registry with the single built-in merged dashboard template pre-loaded.
+    ///
+    /// The merged template lives at
+    /// `src/render_engine/dashboard/templates/dashboard_unified.html` and bundles all
+    /// eight dashboard modes (Overview, Threads, Async, Task Graph, Variables,
+    /// Passports, FFI, Unsafe/Time) into one HTML file with a side-bar mode switcher.
+    /// The `templates_dir` argument is kept for API compatibility but no longer used.
+    pub fn with_built_in_templates(
+        templates_dir: &Path,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        let _ = templates_dir; // unused: single merged template location is fixed
         let mut registry = Self::new();
 
-        // Register unified dashboard template
-        let unified_path = base_dir.join("templates/dashboard_unified.html");
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let unified_path = manifest_dir
+            .join("src")
+            .join("render_engine")
+            .join("dashboard")
+            .join("templates")
+            .join("dashboard_unified.html");
         if unified_path.exists() {
             registry.register_template(DashboardTemplate {
-                id: "unified".to_string(),
+                id: "dashboard_unified".to_string(),
                 name: "Unified Dashboard".to_string(),
-                description:
-                    "Multi-mode single-page dashboard with overview, threads, async, and leak views"
-                        .to_string(),
-                template_path: unified_path.clone(),
+                description: "Merged multi-mode dashboard (Overview, Threads, Async, Task Graph, Variables, Passports, FFI, Unsafe/Time)".to_string(),
+                template_path: unified_path,
                 kind: TemplateKind::BuiltIn,
             })?;
-        }
-
-        // Register final dashboard template
-        let final_path = base_dir.join("templates/dashboard_final.html");
-        if final_path.exists() {
-            registry.register_template(DashboardTemplate {
-                id: "final".to_string(),
-                name: "Investigation Console".to_string(),
-                description:
-                    "Deep-dive memory investigation console with auto-diagnosis and passport center"
-                        .to_string(),
-                template_path: final_path.clone(),
-                kind: TemplateKind::BuiltIn,
-            })?;
+        } else {
+            tracing::warn!("Unified dashboard template not found: {:?}", unified_path);
         }
 
         Ok(registry)

@@ -610,10 +610,6 @@ mod tests {
             renderer.handlebars.has_template("dashboard_unified"),
             "Should have dashboard_unified template registered"
         );
-        assert!(
-            renderer.handlebars.has_template("dashboard_final"),
-            "Should have dashboard_final template registered"
-        );
     }
 
     /// Test rendering with various data scenarios
