@@ -20,7 +20,6 @@ pub use types::*;
 // Re-export for external use
 pub use event_dto::{build_data_index, DashboardEventDTO, DataIndex, EventSummary};
 pub use event_reconstructor::rebuild_allocations_from_events;
-pub use system_info::init_process_timer;
 pub use template_registry::{
     DashboardTemplate as RegisteredTemplate, TemplateKind, TemplateRegistry,
 };

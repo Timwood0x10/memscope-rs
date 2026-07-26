@@ -28,43 +28,24 @@ pub fn get_system_info() -> SystemResources {
     }
 }
 
-/// Record the process start time as early as possible so that CPU usage
-/// can be computed as (cpu_time / wall_time_since_start). Call
-/// `init_process_timer()` from your `main()` (right after
-/// `init_global_tracking()`) for maximum accuracy. If never called, the
-/// `process_cpu_usage_pct()` function falls back to `proc_pidinfo` to read
-/// the kernel-recorded process start time directly.
-static PROCESS_START: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
-
-/// Initialize the process-start timer. Should be called as early as
-/// possible (e.g. right after `init_global_tracking` in `main`) for
-/// maximum accuracy.
-pub fn init_process_timer() {
-    PROCESS_START.get_or_init(std::time::Instant::now);
-}
-
 /// Compute the current process CPU usage percentage (0.0-100.0).
 ///
 /// Uses `getrusage(RUSAGE_SELF)` to obtain user + system CPU time consumed by
-/// the process, then divides by the process wall-clock uptime recorded via
-/// `Instant` from `init_process_timer()`. The result is clamped to [0, 100]
-/// and rounded to 2 decimal places.
+/// the process, then divides by the process wall-clock uptime recorded by
+/// `init_global_tracking()` (via `capture::backends::global_tracking::PROCESS_START`).
+/// The result is clamped to [0, 100] and rounded to 2 decimal places.
 ///
-/// **Important:** `init_process_timer()` must be called early (e.g. right
-/// after `init_global_tracking` in `main`) for an accurate measurement. If it
-/// was never called, the timer starts on the first invocation of this
-/// function (less accurate but still produces a real value for the remaining
-/// process lifetime).
+/// No manual initialization is needed — `init_global_tracking()` captures
+/// the start time automatically on first call.
 #[cfg(target_os = "macos")]
 fn process_cpu_usage_pct() -> f64 {
     use std::mem::MaybeUninit;
 
-    // Process wall-clock age from the early-initialized Instant timer.
-    let start = PROCESS_START.get_or_init(std::time::Instant::now);
-    let elapsed = start.elapsed().as_secs_f64();
-    if elapsed < 0.001 {
-        return 0.0;
-    }
+    // Process wall-clock age from the timer initialized in init_global_tracking().
+    let elapsed = match crate::capture::backends::global_tracking::process_start_elapsed_secs() {
+        Some(e) if e >= 0.001 => e,
+        _ => return 0.0,
+    };
 
     // Process CPU time (user + sys) in seconds via getrusage.
     let mut ru: MaybeUninit<libc::rusage> = MaybeUninit::uninit();

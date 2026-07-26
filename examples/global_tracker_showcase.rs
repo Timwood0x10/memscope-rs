@@ -26,10 +26,6 @@ fn main() -> MemScopeResult<()> {
     println!("╚════════════════════════════════════════════════════════════╝\n");
 
     init_global_tracking()?;
-    // Initialize the process-start timer as early as possible so that
-    // CPU usage percentage reflects the true process lifetime, not just
-    // the moment the dashboard is exported.
-    memscope_rs::render_engine::dashboard::renderer::init_process_timer();
     println!("✓ Global tracking initialized (Tracker + MemoryPassport + AsyncTracker)\n");
 
     println!("📦 Section 1: Single-Threaded Mode\n");

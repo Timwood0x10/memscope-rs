@@ -111,9 +111,13 @@
     .kpi-toast.visible { opacity: 1; }
     .dashed-pulse { stroke-dasharray: 8 4; animation: dash 1s linear infinite; }
     @keyframes dash { to { stroke-dashoffset: -12; } }
-    /* Interactive chart elements — cursor + transition for hover feedback. */
-    .chart-interactive { cursor: pointer; transition: opacity .15s ease, filter .15s ease, transform .15s ease; }
-    .chart-interactive:hover { opacity: 0.85; filter: brightness(1.25); transform: scale(1.03); transform-origin: center; }
+    /* Interactive chart elements — cursor + transition for hover feedback.
+       transform-box: fill-box is CRITICAL for SVG elements — without it,
+       transform-origin: center refers to the SVG canvas origin (0,0) instead
+       of the element's own center, causing nodes to jump position on hover
+       and creating an infinite hover/unhover flicker loop. */
+    .chart-interactive { cursor: pointer; transition: opacity .15s ease, filter .15s ease, transform .15s ease; transform-box: fill-box; transform-origin: center; }
+    .chart-interactive:hover { opacity: 0.85; filter: brightness(1.25); transform: scale(1.03); }
     /* Hover tooltip — used by all chart elements that don't have native title. */
     .chart-tooltip { position: fixed; pointer-events: none; background: #211f24; color: #e6e0e9; border: 1px solid var(--primary); border-radius: 6px; padding: 8px 12px; font-family: "JetBrains Mono", monospace; font-size: 11px; z-index: 200; opacity: 0; transition: opacity .12s ease; max-width: 280px; box-shadow: 0 4px 16px -4px rgba(0,0,0,0.6); }
     .chart-tooltip.visible { opacity: 1; }
@@ -1223,13 +1227,21 @@
         return tt;
     }
     // Show tooltip — `rows` is an array of [key, value] pairs; `label` is the title.
+    // Only rebuilds innerHTML when the content actually changes, avoiding DOM
+    // thrashing on rapid mousemove events (which caused visual flickering).
+    let _lastTooltipKey = '';
     function showChartTooltip(event, label, rows) {
         const tt = getOrCreateTooltip();
-        let html = '<div class="tt-label">' + (label || 'DETAIL') + '</div>';
-        (rows || []).forEach(r => {
-            html += '<div class="tt-row"><span class="tt-key">' + (r[0] || '') + '</span><span>' + (r[1] !== undefined ? r[1] : '') + '</span></div>';
-        });
-        tt.innerHTML = html;
+        // Build a compact key to detect whether content actually changed.
+        const contentKey = (label || '') + '|' + (rows || []).map(r => (r[0] || '') + '=' + (r[1] !== undefined ? r[1] : '')).join('|');
+        if (contentKey !== _lastTooltipKey) {
+            _lastTooltipKey = contentKey;
+            let html = '<div class="tt-label">' + (label || 'DETAIL') + '</div>';
+            (rows || []).forEach(r => {
+                html += '<div class="tt-row"><span class="tt-key">' + (r[0] || '') + '</span><span>' + (r[1] !== undefined ? r[1] : '') + '</span></div>';
+            });
+            tt.innerHTML = html;
+        }
         tt.classList.add('visible');
         moveChartTooltip(event);
     }
