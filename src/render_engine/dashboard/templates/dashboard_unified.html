@@ -9,26 +9,88 @@
 <script src="https://cdn.jsdelivr.net/npm/d3@7.8.5/dist/d3.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <style>
-    /* Theme tokens — amber (default) and indigo variants switchable via data-theme. */
+    /* ============================================================
+       Whole-theme system — amber (yellow-dominant) vs indigo (purple-dominant).
+       Each theme defines the same set of CSS variables; the override rules
+       below map Tailwind utility classes to those variables. Flipping
+       data-theme on <html> swaps EVERY surface (text, bg, border, glow) at
+       once — no leftover accent from the other palette.
+       ============================================================ */
     html[data-theme="amber"] {
-        --ke-primary: #cfbcff;        /* indigo lavender stays as secondary accent */
-        --ke-accent: #F59E0B;         /* amber */
-        --ke-accent-glow: rgba(245, 158, 11, 0.15);
+        /* Yellow-dominant: primary, accent, secondary, tertiary all amber-family. */
+        --primary: #F59E0B;          /* main bright amber */
+        --primary-soft: #ffb95f;     /* warm amber for secondary surfaces */
+        --secondary: #ffb95f;        /* warm amber */
+        --tertiary: #e7c365;         /* gold */
+        --accent-amber: #F59E0B;     /* amber accent (same family) */
+        --warning: #F59E0B;
+        --success: #10B981;          /* semantic green kept for success */
+        --error: #ef4444;            /* semantic red kept for errors */
+        --ke-primary: #F59E0B;       /* legacy alias used by older rules */
+        --ke-accent: #ffb95f;
+        --ke-accent-glow: rgba(245, 158, 11, 0.20);
         --ke-on-accent: #3e2e00;
         --ke-edge: #211f24;
+        --glow-color: rgba(245, 158, 11, 0.18);
+        --execution-tint: rgba(245, 158, 11, 0.18);
     }
     html[data-theme="indigo"] {
-        --ke-primary: #6750a4;        /* indigo */
-        --ke-accent: #cfbcff;         /* lavender becomes the accent */
-        --ke-accent-glow: rgba(103, 80, 164, 0.18);
+        /* Purple-dominant: primary, accent, secondary, tertiary all purple-family. */
+        --primary: #cfbcff;          /* light purple for text on dark bg */
+        --primary-soft: #b39ddb;     /* medium purple */
+        --secondary: #b39ddb;        /* medium purple */
+        --tertiary: #9575cd;         /* deeper purple */
+        --accent-amber: #cfbcff;     /* purple replaces amber */
+        --warning: #b39ddb;          /* purple warning */
+        --success: #10B981;
+        --error: #ef4444;
+        --ke-primary: #cfbcff;
+        --ke-accent: #6750a4;        /* deep purple for filled accents */
+        --ke-accent-glow: rgba(103, 80, 164, 0.22);
         --ke-on-accent: #381e72;
         --ke-edge: #2b2950;
+        --glow-color: rgba(103, 80, 164, 0.20);
+        --execution-tint: rgba(103, 80, 164, 0.18);
     }
-    html[data-theme="indigo"] .text-accent-amber { color: var(--ke-accent); }
-    html[data-theme="indigo"] .bg-accent-amber { background-color: var(--ke-accent); }
-    html[data-theme="indigo"] .border-accent-amber { border-color: var(--ke-accent); }
-    html[data-theme="indigo"] .amber-glow { box-shadow: 0 0 15px -3px var(--ke-accent-glow); }
-    html[data-theme="indigo"] .ke-side-item.active { border-left-color: var(--ke-accent); }
+
+    /* ---- Global Tailwind utility overrides (apply in BOTH themes) ----
+       These re-map every color utility to the theme's CSS variable, so
+       flipping data-theme swaps all surfaces atomically. !important is
+       required to beat Tailwind CDN's generated utilities. */
+    .text-primary { color: var(--primary) !important; }
+    .bg-primary { background-color: var(--primary) !important; }
+    .border-primary { border-color: var(--primary) !important; }
+    .text-secondary { color: var(--secondary) !important; }
+    .bg-secondary { background-color: var(--secondary) !important; }
+    .border-secondary { border-color: var(--secondary) !important; }
+    .text-tertiary { color: var(--tertiary) !important; }
+    .bg-tertiary { background-color: var(--tertiary) !important; }
+    .border-tertiary { border-color: var(--tertiary) !important; }
+    .text-accent-amber { color: var(--accent-amber) !important; }
+    .bg-accent-amber { background-color: var(--accent-amber) !important; }
+    .border-accent-amber { border-color: var(--accent-amber) !important; }
+    .text-warning { color: var(--warning) !important; }
+    .bg-warning { background-color: var(--warning) !important; }
+    .border-warning { border-color: var(--warning) !important; }
+    /* Opacity-modified backgrounds — use color-mix to keep theme variable. */
+    .bg-primary\/60 { background-color: color-mix(in srgb, var(--primary) 60%, transparent) !important; }
+    .bg-primary\/20 { background-color: color-mix(in srgb, var(--primary) 20%, transparent) !important; }
+    .bg-accent-amber\/20 { background-color: color-mix(in srgb, var(--accent-amber) 20%, transparent) !important; }
+    .bg-accent-amber\/40 { background-color: color-mix(in srgb, var(--accent-amber) 40%, transparent) !important; }
+    .bg-accent-amber\/60 { background-color: color-mix(in srgb, var(--accent-amber) 60%, transparent) !important; }
+    /* Left-border accents (KPI strip, ownership stat cards). */
+    .border-l-4.border-primary { border-left-color: var(--primary) !important; }
+    .border-l-4.border-secondary { border-left-color: var(--secondary) !important; }
+    .border-l-4.border-tertiary { border-left-color: var(--tertiary) !important; }
+    .border-l-4.border-accent-amber { border-left-color: var(--accent-amber) !important; }
+    .border-l-4.border-success { border-left-color: var(--success) !important; }
+    .border-l-4.border-error { border-left-color: var(--error) !important; }
+    .border-l-4.border-warning { border-left-color: var(--warning) !important; }
+    /* Sidebar active item + glow boxes. */
+    .ke-side-item.active { background: #211f24; color: #e6e0e9; border-left: 2px solid var(--primary); }
+    .amber-glow { box-shadow: 0 0 15px -3px var(--glow-color); }
+    .indigo-glow { box-shadow: 0 0 15px 0 var(--glow-color); }
+    .execution-line { width: 1px; background: linear-gradient(to bottom, transparent, var(--execution-tint), transparent); }
 
     .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
     ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -36,8 +98,6 @@
     ::-webkit-scrollbar-thumb { background: #36343a; border-radius: 4px; }
     ::-webkit-scrollbar-thumb:hover { background: #494551; }
     .rim-light { box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.05); }
-    .indigo-glow { box-shadow: 0 0 15px 0 rgba(103, 80, 164, 0.1); }
-    .amber-glow { box-shadow: 0 0 15px -3px rgba(245, 158, 11, 0.15); }
     .mode-section { display: none; }
     .mode-section.active { display: block; }
     /* KPI card interaction — hover lift + click ripple, with tooltip via [title]. */
@@ -45,14 +105,23 @@
     .kpi-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px -8px rgba(0,0,0,0.6); }
     .kpi-card:active { transform: translateY(0); }
     .kpi-flash { animation: kpi-flash .6s ease-out; }
-    @keyframes kpi-flash { 0% { box-shadow: 0 0 0 0 var(--ke-accent, #F59E0B); } 100% { box-shadow: 0 0 0 12px transparent; } }
+    @keyframes kpi-flash { 0% { box-shadow: 0 0 0 0 var(--primary); } 100% { box-shadow: 0 0 0 12px transparent; } }
     /* Drill-down toast */
-    .kpi-toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #211f24; color: #e6e0e9; border: 1px solid #494551; border-radius: 8px; padding: 10px 16px; font-family: "JetBrains Mono", monospace; font-size: 12px; z-index: 100; opacity: 0; transition: opacity .18s ease; pointer-events: none; max-width: 80vw; }
+    .kpi-toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #211f24; color: #e6e0e9; border: 1px solid var(--primary); border-radius: 8px; padding: 10px 16px; font-family: "JetBrains Mono", monospace; font-size: 12px; z-index: 100; opacity: 0; transition: opacity .18s ease; pointer-events: none; max-width: 80vw; }
     .kpi-toast.visible { opacity: 1; }
-    .ke-side-item.active { background: #211f24; color: #e6e0e9; border-left: 2px solid #cfbcff; }
     .dashed-pulse { stroke-dasharray: 8 4; animation: dash 1s linear infinite; }
     @keyframes dash { to { stroke-dashoffset: -12; } }
-    .execution-line { width: 1px; background: linear-gradient(to bottom, transparent, #F59E0B20, transparent); }
+    /* Interactive chart elements — cursor + transition for hover feedback. */
+    .chart-interactive { cursor: pointer; transition: opacity .15s ease, filter .15s ease, transform .15s ease; }
+    .chart-interactive:hover { opacity: 0.85; filter: brightness(1.25); transform: scale(1.03); transform-origin: center; }
+    /* Hover tooltip — used by all chart elements that don't have native title. */
+    .chart-tooltip { position: fixed; pointer-events: none; background: #211f24; color: #e6e0e9; border: 1px solid var(--primary); border-radius: 6px; padding: 8px 12px; font-family: "JetBrains Mono", monospace; font-size: 11px; z-index: 200; opacity: 0; transition: opacity .12s ease; max-width: 280px; box-shadow: 0 4px 16px -4px rgba(0,0,0,0.6); }
+    .chart-tooltip.visible { opacity: 1; }
+    .chart-tooltip .tt-label { color: var(--primary); font-weight: 700; letter-spacing: 0.05em; margin-bottom: 4px; }
+    .chart-tooltip .tt-row { display: flex; justify-content: space-between; gap: 12px; }
+    .chart-tooltip .tt-key { color: #948e9c; }
+    /* Table row hover + click — chart-interactive pattern applied to rows. */
+    table tbody tr.chart-interactive:hover { background-color: color-mix(in srgb, var(--primary) 12%, transparent) !important; }
 </style>
 <script id="tailwind-config">
     tailwind.config = {
@@ -108,7 +177,9 @@
                     "tertiary": "#e7c365",
                     "surface-container-highest": "#36343a",
                     "accent-amber": "#F59E0B",
-                    "brick-brown": "#8E443D"
+                    "brick-brown": "#8E443D",
+                    "success": "#10B981",
+                    "warning": "#F59E0B"
                 },
                 "borderRadius": { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" },
                 "spacing": { "container-max": "1440px", "margin-mobile": "16px", "base": "4px", "margin-desktop": "32px", "gutter": "16px" },
@@ -339,17 +410,25 @@
                     <table class="w-full font-data-mono text-xs border-collapse">
                         <thead><tr class="text-on-surface-variant border-b border-outline-variant">
                             <th class="text-left py-2 px-2">ADDR</th><th class="text-left py-2 px-2">TYPE</th>
-                            <th class="text-right py-2 px-2">SIZE</th><th class="text-left py-2 px-2">SRC</th><th class="text-left py-2 px-2">STATUS</th>
+                            <th class="text-left py-2 px-2">VAR</th>
+                            <th class="text-right py-2 px-2">SIZE</th>
+                            <th class="text-right py-2 px-2">TID</th>
+                            <th class="text-left py-2 px-2">SRC</th>
+                            <th class="text-left py-2 px-2">STATUS</th>
                         </tr></thead>
                         <tbody>
                         {{#each allocations}}
-                            <tr class="border-b border-outline-variant/30 hover:bg-surface-container-high">
+                            <tr class="border-b border-outline-variant/30 hover:bg-surface-container-high alloc-row {{#if is_leaked}}bg-error/5{{/if}}" data-idx="{{@index}}">
                                 <td class="py-2 px-2 text-accent-amber">{{address}}</td>
                                 <td class="py-2 px-2">{{type_name}}</td>
+                                <td class="py-2 px-2 text-on-surface-variant">{{#if var_name}}{{var_name}}{{else}}—{{/if}}</td>
                                 <td class="py-2 px-2 text-right">{{size}}</td>
-                                <td class="py-2 px-2 text-on-surface-variant">{{source_file}}</td>
-                                <td class="py-2 px-2 {{#if is_leaked}}text-error{{else}}text-primary{{/if}}">{{allocation_type}}</td>
+                                <td class="py-2 px-2 text-right text-on-surface-variant">{{thread_id}}</td>
+                                <td class="py-2 px-2 text-on-surface-variant">{{source_file}}:{{source_line}}</td>
+                                <td class="py-2 px-2 {{#if is_leaked}}text-error{{else}}text-primary{{/if}}">{{allocation_type}}{{#if is_leaked}} ⚠{{/if}}</td>
                             </tr>
+                        {{else}}
+                            <tr><td colspan="7" class="py-4 text-center text-outline">No allocations.</td></tr>
                         {{/each}}
                         </tbody>
                     </table>
@@ -425,22 +504,31 @@
             <div class="bg-surface-container border border-outline-variant rounded-lg p-6 mb-8">
                 <div class="flex justify-between items-center mb-3">
                     <p class="font-label-caps text-on-surface-variant">THREAD_DETAILS</p>
+                    <span class="font-data-mono text-[10px] text-primary">{{thread_count}} threads</span>
                 </div>
                 <div class="overflow-auto max-h-64">
                     <table class="w-full font-data-mono text-xs border-collapse">
                         <thead><tr class="text-on-surface-variant border-b border-outline-variant">
                             <th class="text-left py-2">ID</th><th class="text-left py-2">NAME</th>
-                            <th class="text-right py-2">ALLOCS</th><th class="text-right py-2">MEMORY</th><th class="text-left py-2">STATUS</th>
+                            <th class="text-right py-2">ALLOCS</th>
+                            <th class="text-right py-2">CURRENT</th>
+                            <th class="text-right py-2">PEAK</th>
+                            <th class="text-right py-2">TOTAL</th>
+                            <th class="text-left py-2">STATUS</th>
                         </tr></thead>
                         <tbody>
                         {{#each threads}}
-                            <tr class="border-b border-outline-variant/30 hover:bg-surface-container-high">
+                            <tr class="border-b border-outline-variant/30 hover:bg-surface-container-high thread-row" data-idx="{{@index}}">
                                 <td class="py-2 text-accent-amber">{{thread_id}}</td>
                                 <td class="py-2">{{thread_summary}}</td>
                                 <td class="py-2 text-right text-primary">{{allocation_count}}</td>
                                 <td class="py-2 text-right text-secondary">{{current_memory}}</td>
+                                <td class="py-2 text-right text-tertiary">{{peak_memory}}</td>
+                                <td class="py-2 text-right text-on-surface-variant">{{total_allocated}}</td>
                                 <td class="py-2 {{#if is_active}}text-primary{{else}}text-outline{{/if}}">{{status}}</td>
                             </tr>
+                        {{else}}
+                            <tr><td colspan="7" class="py-4 text-center text-outline">No threads.</td></tr>
                         {{/each}}
                         </tbody>
                     </table>
@@ -450,30 +538,31 @@
             <!-- Thread Policies + Scheduler Lag Bars + Affinity Grid -->
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-gutter mb-8">
                 <div class="bg-surface-container border border-outline-variant rounded-lg p-6">
-                    <p class="font-label-caps text-on-surface-variant mb-3">THREAD_POLICIES</p>
+                    <p class="font-label-caps text-on-surface-variant mb-3">THREAD_POLICIES · {{len thread_policies}}</p>
                     <ul class="space-y-1 font-data-mono text-xs">
                         {{#each thread_policies}}
-                            <li class="flex justify-between"><span>{{name}}</span><span class="{{#if enabled}}text-success{{else}}text-outline{{/if}}">{{#if enabled}}ON{{else}}OFF{{/if}}</span></li>
+                            <li class="flex justify-between thread-policy-item" data-idx="{{@index}}"><span>{{name}}</span><span class="{{#if enabled}}text-success{{else}}text-outline{{/if}}">{{#if enabled}}ON{{else}}OFF{{/if}}</span></li>
                         {{else}}
                             <li class="text-outline">No policies configured.</li>
                         {{/each}}
                     </ul>
                 </div>
                 <div class="bg-surface-container border border-outline-variant rounded-lg p-6">
-                    <p class="font-label-caps text-on-surface-variant mb-3">SCHEDULER_LAG_BARS</p>
-                    <div class="flex items-end gap-1 h-32">
+                    <p class="font-label-caps text-on-surface-variant mb-3">SCHEDULER_LAG_BARS · {{len scheduler_lag_bars}} samples</p>
+                    <div class="flex items-end gap-1 h-32" id="schedulerLagBars">
                         {{#each scheduler_lag_bars}}
-                            <div class="flex-1 bg-primary/60 rounded-t" style="height: {{this}}%"></div>
+                            <div class="flex-1 bg-primary/60 rounded-t sched-lag-bar" data-idx="{{@index}}" data-val="{{this}}" style="height: {{this}}%"></div>
                         {{else}}
                             <div class="text-outline text-xs">No lag samples.</div>
                         {{/each}}
                     </div>
+                    <p class="text-[9px] font-data-mono text-center mt-2 text-on-surface-variant">MEAN: {{scheduler_lag_ms}}ms</p>
                 </div>
                 <div class="bg-surface-container border border-outline-variant rounded-lg p-6">
-                    <p class="font-label-caps text-on-surface-variant mb-3">THREAD_AFFINITY_GRID</p>
-                    <div class="grid grid-cols-8 gap-1">
+                    <p class="font-label-caps text-on-surface-variant mb-3">THREAD_AFFINITY_GRID · {{len thread_affinity_grid}} cells</p>
+                    <div class="grid grid-cols-8 gap-1" id="threadAffinityGrid">
                         {{#each thread_affinity_grid}}
-                            <div class="aspect-square rounded border border-outline-variant/50 flex items-center justify-center text-[8px] font-data-mono text-on-surface-variant">{{this}}</div>
+                            <div class="aspect-square rounded border border-outline-variant/50 flex items-center justify-center text-[8px] font-data-mono text-on-surface-variant affinity-cell" data-idx="{{@index}}" data-state="{{this}}">{{this}}</div>
                         {{else}}
                             <div class="col-span-full text-outline text-xs">No affinity samples.</div>
                         {{/each}}
@@ -539,6 +628,18 @@
                 <div class="space-y-3" id="taskTimelineRows"></div>
             </div>
 
+            <!-- Async Summary Stats Bar -->
+            <div class="bg-surface-container border border-outline-variant rounded-lg p-4 mb-8">
+                <div class="grid grid-cols-2 md:grid-cols-6 gap-4 font-data-mono text-xs">
+                    <div class="async-stat" data-stat="total_allocations"><span class="text-on-surface-variant text-[10px] font-label-caps">ALLOCATIONS</span><div class="text-primary text-lg">{{async_summary.total_allocations}}</div></div>
+                    <div class="async-stat" data-stat="total_memory"><span class="text-on-surface-variant text-[10px] font-label-caps">TOTAL_MEM</span><div class="text-primary text-lg">{{async_summary.total_memory_bytes}}B</div></div>
+                    <div class="async-stat" data-stat="peak_memory"><span class="text-on-surface-variant text-[10px] font-label-caps">PEAK_MEM</span><div class="text-accent-amber text-lg">{{async_summary.peak_memory_bytes}}B</div></div>
+                    <div class="async-stat" data-stat="active"><span class="text-on-surface-variant text-[10px] font-label-caps">ACTIVE</span><div class="text-warning text-lg">{{async_summary.active_tasks}}</div></div>
+                    <div class="async-stat" data-stat="completed"><span class="text-on-surface-variant text-[10px] font-label-caps">COMPLETED</span><div class="text-success text-lg">{{async_summary.completed}}</div></div>
+                    <div class="async-stat" data-stat="leaked"><span class="text-on-surface-variant text-[10px] font-label-caps">LEAKED</span><div class="text-error text-lg">{{async_summary.leaked}}</div></div>
+                </div>
+            </div>
+
             <!-- Async Tasks Table -->
             <div class="bg-surface-container border border-outline-variant rounded-lg p-6 mb-8">
                 <div class="flex justify-between items-center mb-3">
@@ -549,16 +650,27 @@
                     <table class="w-full font-data-mono text-xs border-collapse">
                         <thead><tr class="text-on-surface-variant border-b border-outline-variant">
                             <th class="text-left py-2">ID</th><th class="text-left py-2">NAME</th>
-                            <th class="text-right py-2">DURATION</th><th class="text-left py-2">STATUS</th>
+                            <th class="text-left py-2">TYPE</th>
+                            <th class="text-right py-2">DURATION</th>
+                            <th class="text-right py-2">ALLOCS</th>
+                            <th class="text-right py-2">MEM</th>
+                            <th class="text-right py-2">EFFICIENCY</th>
+                            <th class="text-left py-2">STATUS</th>
                         </tr></thead>
                         <tbody>
                         {{#each async_tasks}}
-                            <tr class="border-b border-outline-variant/30 hover:bg-surface-container-high">
+                            <tr class="border-b border-outline-variant/30 hover:bg-surface-container-high async-task-row" data-idx="{{@index}}">
                                 <td class="py-2 text-accent-amber">{{task_id}}</td>
                                 <td class="py-2">{{task_name}}</td>
+                                <td class="py-2 text-on-surface-variant">{{task_type}}</td>
                                 <td class="py-2 text-right text-secondary">{{duration_ms}}ms</td>
-                                <td class="py-2 {{#if has_potential_leak}}text-error{{else}}text-primary{{/if}}">{{status}}</td>
+                                <td class="py-2 text-right text-on-surface-variant">{{total_allocations}}</td>
+                                <td class="py-2 text-right text-on-surface-variant">{{current_memory}}B</td>
+                                <td class="py-2 text-right {{#if (eq efficiency_score 0.0)}}text-error{{else}}text-primary{{/if}}">{{efficiency_score}}</td>
+                                <td class="py-2 {{#if has_potential_leak}}text-error{{else}}text-primary{{/if}}">{{status}}{{#if has_potential_leak}} ⚠{{/if}}</td>
                             </tr>
+                        {{else}}
+                            <tr><td colspan="8" class="py-4 text-center text-outline">No async tasks.</td></tr>
                         {{/each}}
                         </tbody>
                     </table>
@@ -590,7 +702,7 @@
                             <div class="flex justify-between"><span>GRAPH_NODES</span><span class="text-white">{{task_topology_nodes_count}}</span></div>
                             <div class="flex justify-between"><span>GRAPH_EDGES</span><span class="text-white">{{task_topology_edges_count}}</span></div>
                             <div class="flex justify-between"><span>SAMPLING_RATE</span><span class="text-white">{{streaming_topology_stats.sampling_rate_ms}}ms</span></div>
-                            <div class="flex justify-between"><span>WAKER_LOCKS</span><span class="text-primary">{{streaming_topology_stats.waker_locks}}</span></div>
+                            <div class="flex justify-between"><span>WAKER_LOCKS</span><span class="text-primary">{{streaming_topology_stats.waker_locks_status}}</span></div>
                         </div>
                     </div>
                     <div class="bg-surface-container border border-outline-variant rounded-lg p-4 flex-1">
@@ -612,7 +724,7 @@
                             </tr></thead>
                             <tbody>
                             {{#each task_topology_nodes}}
-                                <tr class="border-b border-outline-variant/30 hover:bg-surface-container-high">
+                                <tr class="border-b border-outline-variant/30 hover:bg-surface-container-high topo-node-row" data-idx="{{@index}}">
                                     <td class="py-1 px-2 text-accent-amber">{{task_id}}</td>
                                     <td class="py-1 px-2 truncate">{{name}}</td>
                                     <td class="py-1 px-2">{{status}}</td>
@@ -635,7 +747,7 @@
                             </tr></thead>
                             <tbody>
                             {{#each task_topology_edges}}
-                                <tr class="border-b border-outline-variant/30 hover:bg-surface-container-high">
+                                <tr class="border-b border-outline-variant/30 hover:bg-surface-container-high topo-edge-row" data-idx="{{@index}}">
                                     <td class="py-1 px-2 text-accent-amber">{{source}}</td>
                                     <td class="py-1 px-2 text-accent-amber">{{target}}</td>
                                     <td class="py-1 px-2 {{#if is_active}}text-success{{else}}text-outline{{/if}}">{{#if is_active}}yes{{else}}no{{/if}}</td>
@@ -654,7 +766,7 @@
                 <p class="font-label-caps text-on-surface-variant mb-3">DEPENDENCY_GRAPH_NODES</p>
                 <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 font-data-mono text-xs">
                     {{#each dependency_graph_nodes}}
-                        <div class="bg-surface-container-low border border-outline-variant/50 rounded p-2" style="opacity: {{opacity}};">
+                        <div class="bg-surface-container-low border border-outline-variant/50 rounded p-2 dep-graph-node" data-idx="{{@index}}" style="opacity: {{opacity}};">
                             <div class="text-accent-amber truncate">{{name}}</div>
                             <div class="text-[10px] text-on-surface-variant">{{position}}{{#if status}} · {{status}}{{/if}}</div>
                         </div>
@@ -686,31 +798,27 @@
                 <div class="col-span-12 lg:col-span-4 flex flex-col gap-gutter">
                     <div class="bg-surface-container border border-outline-variant rounded-lg p-4">
                         <h4 class="font-label-caps text-[10px] text-on-surface-variant mb-1">SELECTED_NODE</h4>
-                        {{#if selected_node_detail}}
-                            <p class="font-headline-md text-on-surface">{{selected_node_detail.node_name}}</p>
-                            <div class="flex items-center gap-2 mt-1"><div class="w-2 h-2 rounded-full bg-primary"></div><span class="font-data-mono text-xs text-primary">{{selected_node_detail.status_badge}} · {{selected_node_detail.current_status}}</span></div>
-                            <p class="font-data-mono text-[10px] text-outline mt-2">UUID: {{selected_node_detail.uuid}}</p>
-                        {{else}}
-                            <p class="font-headline-md text-on-surface" id="detailNodeName">—</p>
-                            <div class="flex items-center gap-2 mt-1"><div class="w-2 h-2 rounded-full bg-primary"></div><span class="font-data-mono text-xs text-primary" id="detailNodeStatus">—</span></div>
-                        {{/if}}
+                        <p class="font-headline-md text-on-surface" id="detailNodeName">{{#if selected_node_detail}}{{selected_node_detail.node_name}}{{else}}—{{/if}}</p>
+                        <div class="flex items-center gap-2 mt-1"><div class="w-2 h-2 rounded-full bg-primary"></div><span class="font-data-mono text-xs text-primary" id="detailNodeStatus">{{#if selected_node_detail}}{{selected_node_detail.status_badge}} · {{selected_node_detail.current_status}}{{else}}—{{/if}}</span></div>
+                        <p class="font-data-mono text-[10px] text-outline mt-2" id="detailNodeUuid">UUID: {{#if selected_node_detail}}{{selected_node_detail.uuid}}{{else}}—{{/if}}</p>
+                        <p class="font-data-mono text-[10px] text-accent-amber mt-1" id="detailNodeType">{{#if selected_node_detail.type_name}}TYPE: {{selected_node_detail.type_name}}{{/if}}</p>
+                        <p class="font-data-mono text-[10px] mt-1" id="detailNodeCycle"></p>
                     </div>
                     <div class="bg-surface-container border border-outline-variant rounded-lg p-4">
                         <p class="font-label-caps text-[10px] text-on-surface-variant mb-2">EXECUTION_TIME</p>
-                        <p class="font-data-mono text-xl text-on-surface">{{#if selected_node_detail}}{{selected_node_detail.execution_time_ms}}ms{{else}}—{{/if}}</p>
+                        <p class="font-data-mono text-xl text-on-surface" id="detailNodeExecTime">{{#if selected_node_detail}}{{selected_node_detail.execution_time_ms}}ms{{else}}—{{/if}}</p>
                     </div>
                     <div class="bg-surface-container border border-outline-variant rounded-lg p-4">
                         <p class="font-label-caps text-[10px] text-on-surface-variant mb-2">UPSTREAM_DEPS</p>
-                        <p class="font-data-mono text-xl text-on-surface">{{#if selected_node_detail}}{{selected_node_detail.upstream_deps}}{{else}}—{{/if}}</p>
+                        <p class="font-data-mono text-xl text-on-surface" id="detailNodeUpstream">{{#if selected_node_detail}}{{selected_node_detail.upstream_deps}}{{else}}—{{/if}}</p>
                     </div>
                     <div class="bg-surface-container border border-outline-variant rounded-lg p-4">
                         <p class="font-label-caps text-[10px] text-on-surface-variant mb-2">EXECUTION_TRACE</p>
-                        <div class="font-data-mono text-[11px] space-y-1">
+                        <div class="font-data-mono text-[11px] space-y-1" id="detailNodeTrace">
                             {{#each selected_node_detail.exec_trace}}
                                 <div class="text-on-surface-variant">{{this}}</div>
                             {{else}}
-                                {{#unless selected_node_detail}}<div class="text-outline">No node selected.</div>{{/unless}}
-                                {{#if selected_node_detail}}<div class="text-outline">No execution trace.</div>{{/if}}
+                                <div class="text-outline">Click a node in the graph to inspect.</div>
                             {{/each}}
                         </div>
                     </div>
@@ -738,15 +846,20 @@
                         <thead><tr class="text-on-surface-variant border-b border-outline-variant">
                             <th class="text-left py-2">FROM</th><th class="text-left py-2">TO</th>
                             <th class="text-left py-2">RELATION</th><th class="text-left py-2">SCOPE</th>
+                            <th class="text-right py-2">STRENGTH</th><th class="text-center py-2">CYCLE</th>
                         </tr></thead>
                         <tbody>
                         {{#each relationships}}
-                            <tr class="border-b border-outline-variant/30 hover:bg-surface-container-high">
-                                <td class="py-2 text-accent-amber">{{from_var}}</td>
-                                <td class="py-2 text-secondary">{{to_var}}</td>
-                                <td class="py-2 text-primary">{{relation_type}}</td>
-                                <td class="py-2 text-on-surface-variant">{{scope}}</td>
+                            <tr class="border-b border-outline-variant/30 hover:bg-surface-container-high {{#if is_part_of_cycle}}bg-error/5{{/if}}">
+                                <td class="py-2 text-accent-amber">{{source_var_name}}</td>
+                                <td class="py-2 text-secondary">{{target_var_name}}</td>
+                                <td class="py-2 text-primary">{{relationship_type}}</td>
+                                <td class="py-2 text-on-surface-variant">{{type_name}}</td>
+                                <td class="py-2 text-right text-on-surface-variant">{{strength}}</td>
+                                <td class="py-2 text-center">{{#if is_part_of_cycle}}<span class="text-error" title="Part of retain cycle">⚠</span>{{else}}<span class="text-outline">·</span>{{/if}}</td>
                             </tr>
+                        {{else}}
+                            <tr><td colspan="6" class="py-4 text-center text-outline">No relationships.</td></tr>
                         {{/each}}
                         </tbody>
                     </table>
@@ -795,15 +908,29 @@
                 </div>
                 <div id="passportCards" class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {{#each passport_details}}
-                    <div class="bg-surface-container-low border border-outline-variant rounded-lg p-4">
+                    <div class="bg-surface-container-low border border-outline-variant rounded-lg p-4 passport-card" data-idx="{{@index}}">
                         <div class="flex justify-between items-start mb-2">
                             <span class="font-data-mono text-xs text-accent-amber">{{passport_id}}</span>
-                            <span class="font-label-caps text-[9px] {{#if leaked}}text-error{{else if active}}text-accent-amber{{else}}text-success{{/if}}">{{status}}</span>
+                            <span class="font-label-caps text-[9px] px-1.5 py-0.5 rounded border {{risk_label status}}">{{status}}</span>
                         </div>
-                        <p class="font-data-mono text-sm text-on-surface">{{type_name}}</p>
-                        <p class="text-[10px] text-on-surface-variant mt-1">SIZE: {{size_bytes}} bytes</p>
+                        <p class="font-data-mono text-sm text-on-surface">{{#if var_name}}{{var_name}}{{else}}{{type_name}}{{/if}}</p>
+                        <p class="text-[10px] text-on-surface-variant mt-1">TYPE: {{type_name}} · SIZE: {{size_bytes}}B</p>
                         <p class="text-[10px] text-on-surface-variant">SRC: {{source_location}}</p>
+                        <p class="text-[10px] text-outline mt-1">PTR: {{allocation_ptr}}</p>
+                        <div class="flex flex-wrap gap-1 mt-2">
+                            <span class="text-[9px] px-1 py-0.5 rounded border {{risk_class risk_level}}">RISK:{{risk_level}}</span>
+                            {{#if ffi_tracked}}<span class="text-[9px] px-1 py-0.5 rounded bg-accent-amber/20 text-accent-amber border border-accent-amber/40">FFI</span>{{/if}}
+                            {{#if is_active}}<span class="text-[9px] px-1 py-0.5 rounded bg-warning/20 text-warning border border-warning/40">ACTIVE</span>{{/if}}
+                            {{#if is_leaked}}<span class="text-[9px] px-1 py-0.5 rounded bg-error/20 text-error border border-error/40">LEAKED</span>{{/if}}
+                            <span class="text-[9px] px-1 py-0.5 rounded bg-surface-container-highest text-on-surface-variant border border-outline-variant">{{risk_confidence}}</span>
+                        </div>
+                        <div class="mt-2 pt-2 border-t border-outline-variant/30 flex justify-between text-[9px] font-data-mono text-on-surface-variant">
+                            <span>LIFE: {{len lifecycle_events}}ev</span>
+                            <span>FFI: {{len cross_boundary_events}}x</span>
+                        </div>
                     </div>
+                    {{else}}
+                    <div class="col-span-full text-outline text-xs">No passport details available.</div>
                     {{/each}}
                 </div>
             </div>
@@ -867,13 +994,15 @@
                         </thead>
                         <tbody class="divide-y divide-outline-variant/30">
                             {{#each symbol_table}}
-                            <tr class="hover:bg-surface-container-high transition-colors">
+                            <tr class="hover:bg-surface-container-high transition-colors symbol-row" data-idx="{{@index}}">
                                 <td class="p-4 text-xs text-accent-amber">{{hex_addr}}</td>
-                                <td class="p-4 text-xs">{{symbol_name}}</td>
-                                <td class="p-4 text-xs {{#if leaked}}text-error{{else}}text-success{{/if}}">{{status}}</td>
+                                <td class="p-4 text-xs">{{#if symbol_name}}{{symbol_name}}{{else}}—{{/if}}</td>
+                                <td class="p-4 text-xs {{#if is_hot}}text-error{{else if (eq status 'HOT')}}text-error{{else}}text-success{{/if}}">{{status}}{{#if is_hot}} 🔥{{/if}}</td>
                                 <td class="p-4 text-xs text-primary">{{call_count}}</td>
-                                <td class="p-4 text-xs text-secondary">{{time_avg_ms}}ms</td>
+                                <td class="p-4 text-xs text-secondary">{{time_avg_us}}µs</td>
                             </tr>
+                            {{else}}
+                            <tr><td colspan="5" class="p-4 text-center text-outline">No symbols.</td></tr>
                             {{/each}}
                         </tbody>
                     </table>
@@ -906,24 +1035,35 @@
             <!-- Unsafe Operations + FFI Crossings -->
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-gutter mb-8">
                 <div class="bg-surface-container border border-warning p-4 rounded-lg">
-                    <p class="font-label-caps text-on-surface-variant mb-3">UNSAFE_OPERATIONS</p>
-                    <div class="space-y-2 font-data-mono text-xs">
+                    <p class="font-label-caps text-on-surface-variant mb-3">UNSAFE_OPERATIONS · {{unsafe_count}} reports</p>
+                    <div class="space-y-2 font-data-mono text-xs" id="unsafeOpsList">
                         {{#each unsafe_reports}}
-                        <div class="border-b border-outline-variant/30 pb-2">
-                            <div class="flex justify-between"><span class="text-accent-amber">{{op_type}}</span><span class="{{#if leaked}}text-error{{else}}text-success{{/if}}">{{severity}}</span></div>
+                        <div class="border-b border-outline-variant/30 pb-2 unsafe-op-row" data-idx="{{@index}}">
+                            <div class="flex justify-between items-center">
+                                <span class="text-accent-amber">{{#if var_name}}{{var_name}}{{else}}{{type_name}}{{/if}}</span>
+                                <span class="text-[9px] px-1.5 py-0.5 rounded border {{risk_class risk_level}}">{{risk_level}}</span>
+                            </div>
                             <div class="text-on-surface-variant text-[10px] mt-1">{{description}}</div>
+                            <div class="flex flex-wrap gap-1 mt-1">
+                                {{#each risk_factors}}<span class="text-[9px] px-1 py-0.5 rounded bg-surface-container-highest text-on-surface-variant">{{this}}</span>{{/each}}
+                            </div>
+                            <div class="text-outline text-[9px] mt-1">{{passport_id}} · {{size_bytes}}B · {{type_name}}</div>
                         </div>
+                        {{else}}
+                        <div class="text-outline">No unsafe operations.</div>
                         {{/each}}
                     </div>
                 </div>
                 <div class="bg-surface-container border border-tertiary p-4 rounded-lg">
-                    <p class="font-label-caps text-on-surface-variant mb-3">FFI_CROSSINGS</p>
-                    <div class="space-y-2 font-data-mono text-xs">
+                    <p class="font-label-caps text-on-surface-variant mb-3">FFI_CROSSINGS · {{ffi_count}} edges</p>
+                    <div class="space-y-2 font-data-mono text-xs" id="ffiCrossingsList">
                         {{#each ffi_call_topology.edges}}
-                        <div class="border-b border-outline-variant/30 pb-2">
+                        <div class="border-b border-outline-variant/30 pb-2 ffi-crossing-row" data-idx="{{@index}}">
                             <div class="flex justify-between"><span class="text-secondary">{{from_name}}</span><span class="text-accent-amber">→ {{to_name}}</span></div>
                             <div class="text-on-surface-variant text-[10px] mt-1">{{label}}</div>
                         </div>
+                        {{else}}
+                        <div class="text-outline">No FFI crossings.</div>
                         {{/each}}
                     </div>
                 </div>
@@ -935,13 +1075,27 @@
                     <h2 class="font-label-caps text-on-surface">OWNERSHIP_GRAPH</h2>
                     <span class="font-data-mono text-[10px] text-primary">{{ownership_graph.total_nodes}} nodes · {{ownership_graph.total_edges}} edges · {{ownership_graph.total_cycles}} cycles</span>
                 </div>
-                <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
-                    <div class="text-center p-3 bg-surface-container-low rounded border-l-4 border-primary"><div class="font-headline-md text-primary">{{ownership_graph.total_nodes}}</div><div class="font-label-caps text-[10px] text-on-surface-variant">NODES</div></div>
-                    <div class="text-center p-3 bg-surface-container-low rounded border-l-4 border-secondary"><div class="font-headline-md text-secondary">{{ownership_graph.total_edges}}</div><div class="font-label-caps text-[10px] text-on-surface-variant">EDGES</div></div>
-                    <div class="text-center p-3 bg-surface-container-low rounded border-l-4 border-error"><div class="font-headline-md text-error">{{ownership_graph.total_cycles}}</div><div class="font-label-caps text-[10px] text-on-surface-variant">CYCLES</div></div>
-                    <div class="text-center p-3 bg-surface-container-low rounded border-l-4 border-success"><div class="font-headline-md text-success">{{ownership_graph.rc_clone_count}}</div><div class="font-label-caps text-[10px] text-on-surface-variant">RC_CLONES</div></div>
-                    <div class="text-center p-3 bg-surface-container-low rounded border-l-4 border-accent-amber"><div class="font-headline-md text-accent-amber">{{ownership_graph.arc_clone_count}}</div><div class="font-label-caps text-[10px] text-on-surface-variant">ARC_CLONES</div></div>
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
+                    <div class="text-center p-3 bg-surface-container-low rounded border-l-4 border-primary own-stat-card" data-stat="nodes"><div class="font-headline-md text-primary">{{ownership_graph.total_nodes}}</div><div class="font-label-caps text-[10px] text-on-surface-variant">NODES</div></div>
+                    <div class="text-center p-3 bg-surface-container-low rounded border-l-4 border-secondary own-stat-card" data-stat="edges"><div class="font-headline-md text-secondary">{{ownership_graph.total_edges}}</div><div class="font-label-caps text-[10px] text-on-surface-variant">EDGES</div></div>
+                    <div class="text-center p-3 bg-surface-container-low rounded border-l-4 border-error own-stat-card" data-stat="cycles"><div class="font-headline-md text-error">{{ownership_graph.total_cycles}}</div><div class="font-label-caps text-[10px] text-on-surface-variant">CYCLES</div></div>
+                    <div class="text-center p-3 bg-surface-container-low rounded border-l-4 border-success own-stat-card" data-stat="rc_clones"><div class="font-headline-md text-success">{{ownership_graph.rc_clone_count}}</div><div class="font-label-caps text-[10px] text-on-surface-variant">RC_CLONES</div></div>
+                    <div class="text-center p-3 bg-surface-container-low rounded border-l-4 border-accent-amber own-stat-card" data-stat="arc_clones"><div class="font-headline-md text-accent-amber">{{ownership_graph.arc_clone_count}}</div><div class="font-label-caps text-[10px] text-on-surface-variant">ARC_CLONES</div></div>
                 </div>
+                {{#if ownership_graph.has_issues}}
+                <div class="border-t border-outline-variant pt-4">
+                    <p class="font-label-caps text-[10px] text-error mb-2">⚠ ISSUES_DETECTED</p>
+                    <ul class="space-y-1 font-data-mono text-xs">
+                        {{#each ownership_graph.issues}}<li class="text-on-surface-variant flex gap-2"><span class="text-error">▸</span><span>{{this}}</span></li>{{/each}}
+                    </ul>
+                    {{#if ownership_graph.root_cause}}<p class="text-[10px] text-warning mt-2 font-data-mono">ROOT_CAUSE: {{ownership_graph.root_cause}}</p>{{/if}}
+                </div>
+                {{else}}
+                <div class="border-t border-outline-variant pt-4 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-success text-base">check_circle</span>
+                    <span class="font-data-mono text-xs text-success">No ownership issues detected · graph is acyclic</span>
+                </div>
+                {{/if}}
             </div>
 
             <!-- Time Travel Timeline Chart -->
@@ -996,30 +1150,109 @@
         }
     }
 
-    // Theme switching — amber (default) / indigo. Choice persists to localStorage.
+    // ============================================================
+    // Theme-aware chart registry — declared BEFORE restoreTheme() so the
+    // initial theme restore can safely call rerenderThemeAwareCharts() without
+    // hitting a temporal-dead-zone on the const. These functions re-invoke
+    // registered charts on theme switch so inline gradients pick up the new
+    // --primary value.
+    // ============================================================
+    const __themeAwareCharts = [];
+    function registerThemeAware(name, fn) { __themeAwareCharts.push({ name, fn }); }
+    function rerenderThemeAwareCharts() {
+        __themeAwareCharts.forEach(c => {
+            try { c.fn(); } catch (e) { console.warn('rerender failed:', c.name, e); }
+        });
+    }
+
+    // ============================================================
+    // Theme switching — amber (yellow-dominant) / indigo (purple-dominant).
+    // Flipping data-theme on <html> swaps ALL CSS variables at once,
+    // re-coloring every surface (text, bg, border, glow) atomically.
+    // Choice persists to localStorage.
+    // ============================================================
     function switchTheme(theme) {
         document.documentElement.setAttribute('data-theme', theme);
         try { localStorage.setItem('memscope.theme', theme); } catch (e) {}
         const amberBtn = document.getElementById('theme-amber');
         const indigoBtn = document.getElementById('theme-indigo');
         if (amberBtn && indigoBtn) {
-            const activeClass = 'border-accent-amber bg-accent-amber/20 text-accent-amber';
+            // Active button uses the theme's primary color; idle uses outline.
+            const activeClass = 'border-primary bg-primary/20 text-primary';
             const idleClass = 'border-outline-variant text-on-surface-variant bg-transparent';
-            if (theme === 'amber') {
-                amberBtn.className = 'flex-1 py-1 rounded border ' + activeClass + ' font-label-caps text-[10px] hover:bg-accent-amber/40 transition-colors';
-                indigoBtn.className = 'flex-1 py-1 rounded border ' + idleClass + ' font-label-caps text-[10px] hover:bg-surface-container-high transition-colors';
-            } else {
-                indigoBtn.className = 'flex-1 py-1 rounded border border-primary bg-primary/20 text-primary font-label-caps text-[10px] hover:bg-primary/40 transition-colors';
-                amberBtn.className = 'flex-1 py-1 rounded border ' + idleClass + ' font-label-caps text-[10px] hover:bg-surface-container-high transition-colors';
-            }
+            const amberActive = theme === 'amber';
+            amberBtn.className = 'flex-1 py-1 rounded border ' + (amberActive ? activeClass : idleClass) + ' font-label-caps text-[10px] hover:bg-primary/20 transition-colors';
+            indigoBtn.className = 'flex-1 py-1 rounded border ' + (!amberActive ? activeClass : idleClass) + ' font-label-caps text-[10px] hover:bg-primary/20 transition-colors';
         }
+        // Re-render theme-dependent JS visualizations so their inline gradients
+        // pick up the new --primary value. Safe to call multiple times.
+        if (typeof rerenderThemeAwareCharts === 'function') rerenderThemeAwareCharts();
     }
-    // Restore saved theme on load
-    (function restoreTheme() {
+    // Restore saved theme on load — defaults to amber (yellow-dominant).
+    // Deferred to DOMContentLoaded so all registerThemeAware() calls below
+    // have run before rerenderThemeAwareCharts() fires inside switchTheme.
+    // This also eliminates any temporal-dead-zone risk against the const
+    // above, even if a browser serves a partially-cached older copy.
+    function applyInitialTheme() {
         let saved = null;
         try { saved = localStorage.getItem('memscope.theme'); } catch (e) {}
-        if (saved === 'amber' || saved === 'indigo') switchTheme(saved);
-    })();
+        switchTheme(saved === 'indigo' ? 'indigo' : 'amber');
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', applyInitialTheme);
+    } else {
+        applyInitialTheme();
+    }
+
+    // ============================================================
+    // Chart tooltip — shared hover detail panel for ALL interactive charts.
+    // Shows a titled key/value list near the cursor. Used in addition to the
+    // click drill-down toast, satisfying the "hover AND click both have
+    // events" requirement.
+    // ============================================================
+    function getOrCreateTooltip() {
+        let tt = document.getElementById('chartTooltip');
+        if (!tt) {
+            tt = document.createElement('div');
+            tt.id = 'chartTooltip';
+            tt.className = 'chart-tooltip';
+            document.body.appendChild(tt);
+        }
+        return tt;
+    }
+    // Show tooltip — `rows` is an array of [key, value] pairs; `label` is the title.
+    function showChartTooltip(event, label, rows) {
+        const tt = getOrCreateTooltip();
+        let html = '<div class="tt-label">' + (label || 'DETAIL') + '</div>';
+        (rows || []).forEach(r => {
+            html += '<div class="tt-row"><span class="tt-key">' + (r[0] || '') + '</span><span>' + (r[1] !== undefined ? r[1] : '') + '</span></div>';
+        });
+        tt.innerHTML = html;
+        tt.classList.add('visible');
+        moveChartTooltip(event);
+    }
+    function moveChartTooltip(event) {
+        const tt = getOrCreateTooltip();
+        const x = (event.clientX || (event.touches && event.touches[0].clientX) || 0) + 14;
+        const y = (event.clientY || (event.touches && event.touches[0].clientY) || 0) + 14;
+        // Clamp inside viewport
+        const w = tt.offsetWidth || 200;
+        const h = tt.offsetHeight || 60;
+        tt.style.left = Math.min(x, window.innerWidth - w - 8) + 'px';
+        tt.style.top = Math.min(y, window.innerHeight - h - 8) + 'px';
+    }
+    function hideChartTooltip() {
+        const tt = document.getElementById('chartTooltip');
+        if (tt) tt.classList.remove('visible');
+    }
+    // Helper: bind hover (tooltip) + click (drill) to any element.
+    function bindInteractive(el, label, rows, drillLabel, drillValue) {
+        if (!el) return;
+        el.classList.add('chart-interactive');
+        el.addEventListener('mousemove', e => { showChartTooltip(e, label, rows); });
+        el.addEventListener('mouseleave', () => { hideChartTooltip(); });
+        el.addEventListener('click', () => { drillKpi(label, drillLabel, drillValue); });
+    }
 
     // Read injected JSON data
     let DATA = {};
@@ -1030,8 +1263,17 @@
         console.warn('Failed to parse dashboard JSON:', e);
     }
 
-    // Render Heap Lattice grid (10x10 colored cells)
-    (function renderHeapGrid() {
+    // Helper: resolve a theme CSS variable to its current value.
+    function themeVar(name) {
+        return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    }
+    // Helper: build an `color-mix` rgba-style string from var(--primary) with given alpha.
+    function primaryMix(alpha) {
+        return 'color-mix(in srgb, var(--primary) ' + (alpha * 100).toFixed(0) + '%, transparent)';
+    }
+
+    // Render Heap Lattice grid (10x10 colored cells) — uses var(--primary) for cells.
+    function renderHeapGrid() {
         const grid = document.getElementById('heapGrid');
         if (!grid) return;
         const sizes = (DATA.allocations || []).map(a => a.size || 0).filter(s => s > 0);
@@ -1040,34 +1282,44 @@
             return;
         }
         const max = Math.max(1, ...sizes);
+        grid.innerHTML = '';
         for (let i = 0; i < 100; i++) {
             const cell = document.createElement('div');
-            const intensity = sizes[i % sizes.length] / max;
-            cell.className = 'rounded-sm';
-            cell.style.background = `rgba(207, 188, 255, ${0.1 + intensity * 0.7})`;
+            const sz = sizes[i % sizes.length];
+            const intensity = sz / max;
+            cell.className = 'rounded-sm chart-interactive';
+            cell.style.background = primaryMix(0.1 + intensity * 0.7);
+            bindInteractive(cell, 'HEAP_CELL', [['cell', '#' + i], ['size', sz + 'B'], ['intensity', (intensity * 100).toFixed(0) + '%']], 'HEAP_CELL', 'cell #' + i + ' · size ' + sz + 'B');
             grid.appendChild(cell);
         }
-    })();
+    }
+    registerThemeAware('heapGrid', renderHeapGrid);
+    renderHeapGrid();
 
-    // Render affinity grid (8 cols x N rows)
-    (function renderAffinityGrid() {
+    // Render affinity grid (8 cols x N rows) — PROCESSING uses var(--primary).
+    function renderAffinityGrid() {
         const grid = document.getElementById('affinityGrid');
         if (!grid) return;
         const cores = {{cpu_cores}} || 64;
         const cells = Math.max(cores, 64);
+        grid.innerHTML = '';
         for (let i = 0; i < cells; i++) {
             const cell = document.createElement('div');
-            cell.className = 'aspect-square rounded border border-outline-variant/50 flex items-center justify-center text-[8px] font-data-mono';
+            cell.className = 'aspect-square rounded border border-outline-variant/50 flex items-center justify-center text-[8px] font-data-mono chart-interactive';
             const state = i % 7;
-            if (state === 0) { cell.style.background = 'rgba(245,158,11,0.6)'; cell.textContent = 'P'; }
+            const stateLabel = state === 0 ? 'PROCESSING' : state === 1 ? 'IO_WAIT' : 'IDLE';
+            if (state === 0) { cell.style.background = primaryMix(0.6); cell.textContent = 'P'; }
             else if (state === 1) { cell.style.background = 'rgba(59,130,246,0.6)'; cell.textContent = 'I'; }
             else { cell.style.background = 'rgba(63,63,70,0.4)'; cell.textContent = '·'; }
+            bindInteractive(cell, 'CORE_' + i, [['core', '#' + i], ['state', stateLabel]], 'AFFINITY', 'core #' + i + ' · ' + stateLabel);
             grid.appendChild(cell);
         }
-    })();
+    }
+    registerThemeAware('affinityGrid', renderAffinityGrid);
+    renderAffinityGrid();
 
-    // Render waker efficiency heatgrid (10x6)
-    (function renderWakerHeatgrid() {
+    // Render waker efficiency heatgrid (10x6) — uses var(--primary).
+    function renderWakerHeatgrid() {
         const grid = document.getElementById('wakerHeatgrid');
         if (!grid) return;
         const bins = DATA.waker_efficiency_grid || [];
@@ -1076,17 +1328,21 @@
             return;
         }
         const max = Math.max(1, ...bins);
-        bins.forEach(v => {
+        grid.innerHTML = '';
+        bins.forEach((v, i) => {
             const cell = document.createElement('div');
-            cell.className = 'rounded-sm';
+            cell.className = 'rounded-sm chart-interactive';
             const intensity = v / max;
-            cell.style.background = `rgba(207, 188, 255, ${0.1 + intensity * 0.8})`;
+            cell.style.background = primaryMix(0.1 + intensity * 0.8);
+            bindInteractive(cell, 'WAKER_BIN_' + i, [['bin', '#' + i], ['efficiency', v.toFixed(3)], ['intensity', (intensity * 100).toFixed(0) + '%']], 'WAKER', 'bin #' + i + ' · efficiency ' + v.toFixed(3));
             grid.appendChild(cell);
         });
-    })();
+    }
+    registerThemeAware('wakerHeatgrid', renderWakerHeatgrid);
+    renderWakerHeatgrid();
 
-    // Render neighbor density histogram
-    (function renderNeighborHistogram() {
+    // Render neighbor density histogram — uses var(--primary) for bars.
+    function renderNeighborHistogram() {
         const hist = document.getElementById('neighborHistogram');
         if (!hist) return;
         const bins = DATA.neighbor_density_histogram || [];
@@ -1095,14 +1351,20 @@
             return;
         }
         const max = Math.max(1, ...bins.map(b => (b && b.count) || 0));
-        bins.forEach(b => {
+        hist.innerHTML = '';
+        bins.forEach((b, i) => {
             const bar = document.createElement('div');
-            bar.className = 'flex-1 bg-primary/60';
+            bar.className = 'flex-1 chart-interactive';
+            bar.style.background = primaryMix(0.6);
             const v = (b && b.count) || 0;
-            bar.style.height = `${Math.max(2, (v / max) * 100)}%`;
+            const rangeLabel = (b && b.range_label) || '';
+            bar.style.height = Math.max(2, (v / max) * 100) + '%';
+            bindInteractive(bar, 'DENSITY_BIN_' + i, [['bin', '#' + i], ['count', v], ['range', rangeLabel]], 'DENSITY', 'bin #' + i + ' · ' + v + ' neighbors · ' + rangeLabel);
             hist.appendChild(bar);
         });
-    })();
+    }
+    registerThemeAware('neighborHistogram', renderNeighborHistogram);
+    renderNeighborHistogram();
 
     // Render thread event log
     (function renderThreadEventLog() {
@@ -1110,9 +1372,18 @@
         if (!log) return;
         const events = DATA.thread_event_log || [];
         if (events.length === 0) { log.innerHTML = '<div class="text-outline">No thread events recorded.</div>'; return; }
-        events.slice(0, 50).forEach(e => {
+        events.slice(0, 50).forEach((e, idx) => {
             const row = document.createElement('div');
+            row.className = 'chart-interactive';
+            row.style.cursor = 'pointer';
             row.innerHTML = `<span class="text-outline">${e.time || ''}</span> <span class="text-accent-amber">${e.level || ''}</span> <span class="text-on-surface">${e.message || ''}</span>`;
+            const stacks = (e.stack_traces || []).slice(0, 4);
+            bindInteractive(row, 'THREAD_EVENT_' + idx, [
+                ['time', e.time || '—'],
+                ['level', e.level || '—'],
+                ['message', e.message || '—'],
+                ['stack_traces', stacks.join('  ||  ') || '—']
+            ], 'THREAD_EVENT', (e.level || 'EVENT') + ' @ ' + (e.time || '?') + ' · ' + (e.message || ''));
             log.appendChild(row);
         });
     })();
@@ -1123,10 +1394,16 @@
         if (!log) return;
         const traces = DATA.trace_logs || [];
         if (traces.length === 0) { log.innerHTML = '<div class="text-outline">No traces.</div>'; return; }
-        traces.slice(0, 30).forEach(t => {
+        traces.slice(0, 30).forEach((t, idx) => {
             const row = document.createElement('div');
-            row.className = 'text-on-surface-variant';
+            row.className = 'text-on-surface-variant chart-interactive';
+            row.style.cursor = 'pointer';
             row.textContent = `${t.timestamp || ''} ${t.message || ''}`;
+            bindInteractive(row, 'TRACE_' + idx, [
+                ['timestamp', t.timestamp || '—'],
+                ['level', t.level || '—'],
+                ['message', t.message || '—']
+            ], 'TRACE_LOG', (t.level || 'TRACE') + ' @ ' + (t.timestamp || '?') + ' · ' + (t.message || ''));
             log.appendChild(row);
         });
     })();
@@ -1137,10 +1414,22 @@
         if (!rows) return;
         const tasks = DATA.async_tasks || [];
         if (tasks.length === 0) { rows.innerHTML = '<div class="text-outline text-xs">No async tasks.</div>'; return; }
-        tasks.slice(0, 10).forEach(t => {
+        tasks.slice(0, 10).forEach((t, idx) => {
             const row = document.createElement('div');
-            row.className = 'flex items-center gap-3 font-data-mono text-xs';
+            row.className = 'flex items-center gap-3 font-data-mono text-xs chart-interactive';
+            row.style.cursor = 'pointer';
             row.innerHTML = `<span class="text-accent-amber w-16">${t.task_id || ''}</span><span class="text-on-surface w-32 truncate">${t.task_name || ''}</span><div class="flex-1 h-2 bg-surface-container-highest rounded-full overflow-hidden"><div class="h-full bg-primary" style="width: ${Math.min(100, (t.duration_ms || 0))}%"></div></div><span class="text-secondary w-16 text-right">${t.duration_ms || 0}ms</span>`;
+            bindInteractive(row, 'TASK_TIMELINE_' + idx, [
+                ['task_id', t.task_id != null ? t.task_id : '?'],
+                ['name', t.task_name || '—'],
+                ['type', t.task_type || '—'],
+                ['duration', (t.duration_ms != null ? t.duration_ms : '?') + 'ms'],
+                ['allocations', t.total_allocations != null ? t.total_allocations : '?'],
+                ['current_mem', (t.current_memory != null ? t.current_memory : '?') + 'B'],
+                ['peak_mem', (t.peak_memory != null ? t.peak_memory : '?') + 'B'],
+                ['status', t.status || '—'],
+                ['leak', t.has_potential_leak ? 'YES ⚠' : 'no']
+            ], 'TASK_DURATION', (t.task_name || '?') + ' · ' + (t.duration_ms != null ? t.duration_ms : '?') + 'ms · ' + (t.status || '?'));
             rows.appendChild(row);
         });
     })();
@@ -1160,8 +1449,9 @@
         });
     })();
 
-    // === Type Intelligence donut chart (Chart.js) ===
-    (function renderTypeChart() {
+    // === Type Intelligence donut chart (Chart.js) — click to drill into type ===
+    // Theme-aware: re-renders on theme switch so palette matches active theme.
+    function renderTypeChart() {
         const canvas = document.getElementById('typeChart');
         if (!canvas || typeof Chart === 'undefined') return;
         const allocs = DATA.allocations || [];
@@ -1176,7 +1466,11 @@
             canvas.parentElement.innerHTML = '<div class="text-outline text-xs px-2 py-4">No type samples.</div>';
             return;
         }
-        const palette = ['#cfbcff','#F59E0B','#e7c365','#ffb95f','#10B981','#ef4444','#8b5cf6','#06b6d4'];
+        // Theme-aware palette: primary + secondary + tertiary + accent variants.
+        const palette = [themeVar('--primary'), themeVar('--secondary'), themeVar('--tertiary'), themeVar('--accent-amber'), '#10B981', '#ef4444', '#8b5cf6', '#06b6d4'];
+        // Destroy existing chart instance if re-rendering
+        const existing = Chart.getChart(canvas);
+        if (existing) existing.destroy();
         new Chart(canvas, {
             type: 'doughnut',
             data: { labels: labels, datasets: [{ data: values, backgroundColor: palette, borderColor: '#141218', borderWidth: 2 }] },
@@ -1185,13 +1479,35 @@
                 plugins: {
                     legend: { position: 'right', labels: { color: '#cbc4d2', font: { family: 'JetBrains Mono', size: 10 }, boxWidth: 10, padding: 6 } },
                     tooltip: { callbacks: { label: ctx => ctx.label + ': ' + ctx.parsed + ' allocs' } }
+                },
+                onClick: function(event, elements) {
+                    if (elements.length > 0) {
+                        const idx = elements[0].index;
+                        const label = labels[idx];
+                        const count = values[idx];
+                        const totalAllocs = DATA.allocations || [];
+                        const typeAllocs = totalAllocs.filter(a => (a.type_name || 'unknown') === label);
+                        const totalBytes = typeAllocs.reduce((s, a) => s + (a.size || 0), 0);
+                        drillKpi('type_chart', 'TYPE_DETAIL', label + ' — ' + count + ' allocs, ' + totalBytes + 'B total');
+                    }
+                },
+                onHover: function(event, elements) {
+                    if (elements.length > 0) {
+                        const idx = elements[0].index;
+                        event.native.target.style.cursor = 'pointer';
+                        showChartTooltip(event.native, 'TYPE_DETAIL', [['type', labels[idx]], ['allocs', values[idx]]]);
+                    } else {
+                        hideChartTooltip();
+                    }
                 }
             }
         });
-    })();
+    }
+    registerThemeAware('typeChart', renderTypeChart);
+    renderTypeChart();
 
-    // === Time Travel timeline chart (Chart.js line) ===
-    (function renderTimelineChart() {
+    // === Time Travel timeline chart (Chart.js line) — click to inspect allocation ===
+    function renderTimelineChart() {
         const canvas = document.getElementById('timelineChart');
         if (!canvas || typeof Chart === 'undefined') return;
         const allocs = DATA.allocations || [];
@@ -1205,13 +1521,17 @@
         const cumulative = [];
         let running = 0;
         sizes.forEach(s => { running += s; cumulative.push(running); });
+        const primaryHex = themeVar('--primary');
+        const secondaryHex = themeVar('--secondary');
+        const existing = Chart.getChart(canvas);
+        if (existing) existing.destroy();
         new Chart(canvas, {
             type: 'line',
             data: {
                 labels: labels,
                 datasets: [
-                    { label: 'Alloc Size (bytes)', data: sizes, borderColor: '#F59E0B', backgroundColor: 'rgba(245,158,11,0.08)', borderWidth: 1.5, pointRadius: 0, tension: 0.3, yAxisID: 'y' },
-                    { label: 'Cumulative (bytes)', data: cumulative, borderColor: '#cfbcff', backgroundColor: 'rgba(207,188,255,0.06)', borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: true, yAxisID: 'y1' }
+                    { label: 'Alloc Size (bytes)', data: sizes, borderColor: primaryHex, backgroundColor: primaryMix(0.08), borderWidth: 1.5, pointRadius: 0, tension: 0.3, yAxisID: 'y' },
+                    { label: 'Cumulative (bytes)', data: cumulative, borderColor: secondaryHex, backgroundColor: 'rgba(207,188,255,0.06)', borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: true, yAxisID: 'y1' }
                 ]
             },
             options: {
@@ -1219,12 +1539,33 @@
                 plugins: { legend: { labels: { color: '#cbc4d2', font: { family: 'JetBrains Mono', size: 10 } } } },
                 scales: {
                     x: { ticks: { color: '#948e9c', font: { family: 'JetBrains Mono', size: 9 }, maxTicksLimit: 12 }, grid: { color: 'rgba(148,142,156,0.08)' } },
-                    y: { position: 'left', ticks: { color: '#F59E0B', font: { family: 'JetBrains Mono', size: 9 } }, grid: { color: 'rgba(148,142,156,0.08)' } },
-                    y1: { position: 'right', ticks: { color: '#cfbcff', font: { family: 'JetBrains Mono', size: 9 } }, grid: { drawOnChartArea: false } }
+                    y: { position: 'left', ticks: { color: primaryHex, font: { family: 'JetBrains Mono', size: 9 } }, grid: { color: 'rgba(148,142,156,0.08)' } },
+                    y1: { position: 'right', ticks: { color: secondaryHex, font: { family: 'JetBrains Mono', size: 9 } }, grid: { drawOnChartArea: false } }
+                },
+                onClick: function(event, elements) {
+                    if (elements.length > 0) {
+                        const idx = elements[0].index;
+                        const a = sorted[idx];
+                        if (a) {
+                            drillKpi('timeline', 'ALLOC_INSPECT', '#' + idx + ' ' + (a.type_name || '?') + ' ' + (a.size || 0) + 'B @ ' + (a.address || '?'));
+                        }
+                    }
+                },
+                onHover: function(event, elements) {
+                    if (elements.length > 0) {
+                        const idx = elements[0].index;
+                        const a = sorted[idx];
+                        event.native.target.style.cursor = 'pointer';
+                        showChartTooltip(event.native, 'ALLOC_INSPECT', [['#', idx], ['type', a.type_name || '?'], ['size', (a.size || 0) + 'B'], ['addr', a.address || '?'], ['leaked', a.is_leaked ? 'yes' : 'no']]);
+                    } else {
+                        hideChartTooltip();
+                    }
                 }
             }
         });
-    })();
+    }
+    registerThemeAware('timelineChart', renderTimelineChart);
+    renderTimelineChart();
 
     // === Memory Flamegraph (SVG) — grouped by source_file ===
     (function renderFlamegraph() {
@@ -1258,15 +1599,22 @@
             const label = file.split('/').pop() || file;
             const shortLabel = label.length > 22 ? label.slice(0, 22) + '…' : label;
             html += `<rect x="0" y="${y}" width="${W}" height="${barH}" fill="#211f24" rx="2"/>`;
-            html += `<rect x="0" y="${y}" width="${w}" height="${barH}" fill="rgba(207,188,255,${0.3 + (info.size/maxLen)*0.6})" rx="2" class="flame-bar" data-file="${label}" data-count="${info.count}" data-size="${info.size}" style="cursor:pointer">`;
-            html += `<title>${label} — ${info.count} allocs, ${info.size} bytes</title></rect>`;
+            const fillAlpha = (0.3 + (info.size/maxLen)*0.6).toFixed(2);
+            html += `<rect x="0" y="${y}" width="${w}" height="${barH}" style="fill: color-mix(in srgb, var(--primary) ${(0.3 + (info.size/maxLen)*0.6)*100}% , transparent)" rx="2" class="flame-bar chart-interactive" data-file="${label}" data-count="${info.count}" data-size="${info.size}"/>`;
             html += `<text x="6" y="${y + 10}" fill="#e6e0e9" font-family="JetBrains Mono" font-size="9">${shortLabel}</text>`;
-            html += `<text x="${W - 6}" y="${y + 10}" fill="#F59E0B" font-family="JetBrains Mono" font-size="9" text-anchor="end">${info.size}B</text>`;
+            html += `<text x="${W - 6}" y="${y + 10}" style="fill: var(--accent-amber)" font-family="JetBrains Mono" font-size="9" text-anchor="end">${info.size}B</text>`;
         });
         svg.innerHTML = html;
         svg.querySelectorAll('.flame-bar').forEach(bar => {
+            const file = bar.getAttribute('data-file');
+            const cnt = bar.getAttribute('data-count');
+            const sz = bar.getAttribute('data-size');
+            bar.addEventListener('mousemove', function(ev) {
+                showChartTooltip(ev, 'FLAME_NODE', [['file', file], ['allocs', cnt], ['bytes', sz + 'B']]);
+            });
+            bar.addEventListener('mouseleave', hideChartTooltip);
             bar.addEventListener('click', function() {
-                drillKpi('flame', 'FLAME_NODE', this.getAttribute('data-file') + ' — ' + this.getAttribute('data-count') + ' allocs, ' + this.getAttribute('data-size') + 'B');
+                drillKpi('flame', 'FLAME_NODE', file + ' — ' + cnt + ' allocs, ' + sz + 'B');
             });
         });
     })();
@@ -1297,7 +1645,8 @@
             const src = positions[edge.source] || positions[0];
             const tgt = positions[edge.target] || positions[1];
             if (!src || !tgt) return;
-            html += `<line x1="${src.x}" y1="${src.y}" x2="${tgt.x}" y2="${tgt.y}" stroke="${edge.is_active ? '#F59E0B' : '#494551'}" stroke-width="1.5" stroke-dasharray="${edge.is_active ? '0' : '4 3'}" opacity="0.6"/>`;
+            const edgeStroke = edge.is_active ? 'var(--accent-amber)' : '#494551';
+            html += `<line x1="${src.x}" y1="${src.y}" x2="${tgt.x}" y2="${tgt.y}" style="stroke: ${edgeStroke}" stroke-width="1.5" stroke-dasharray="${edge.is_active ? '0' : '4 3'}" opacity="0.6" class="ffi-edge" data-label="${edge.label || ''}" data-active="${edge.is_active ? 1 : 0}" style="cursor:pointer"/>`;
             // Arrow label at midpoint
             const mx = (src.x + tgt.x) / 2;
             const my = (src.y + tgt.y) / 2;
@@ -1308,83 +1657,230 @@
         // Draw nodes
         positions.forEach((pos, i) => {
             const node = pos.node;
-            const color = node.status === 'active' ? '#F59E0B' : node.status === 'hot' ? '#ef4444' : '#cfbcff';
-            html += `<circle cx="${pos.x}" cy="${pos.y}" r="6" fill="${color}" opacity="0.85" class="ffi-node" data-name="${node.name}" data-type="${node.node_type}" style="cursor:pointer">`;
-            html += `<title>${node.name} [${node.node_type}] — ${node.status}</title></circle>`;
+            // active → theme accent; hot → semantic red; default → theme primary.
+            const fillVar = node.status === 'active' ? 'var(--accent-amber)' : node.status === 'hot' ? '#ef4444' : 'var(--primary)';
+            html += `<circle cx="${pos.x}" cy="${pos.y}" r="6" style="fill: ${fillVar}" opacity="0.85" class="ffi-node chart-interactive" data-name="${node.name}" data-type="${node.node_type}" data-status="${node.status || '?'}"/>`;
             const label = (node.name || '').slice(0, 16);
             html += `<text x="${pos.x}" y="${pos.y + 18}" fill="#cbc4d2" font-family="JetBrains Mono" font-size="8" text-anchor="middle">${label}</text>`;
         });
         svg.innerHTML = html;
         svg.querySelectorAll('.ffi-node').forEach(n => {
-            n.addEventListener('click', function() {
-                drillKpi('ffi_node', 'FFI_NODE', this.getAttribute('data-name') + ' [' + this.getAttribute('data-type') + ']');
+            const nm = n.getAttribute('data-name');
+            const tp = n.getAttribute('data-type');
+            const st = n.getAttribute('data-status');
+            n.addEventListener('mousemove', function(ev) {
+                showChartTooltip(ev, 'FFI_NODE', [['name', nm], ['type', tp], ['status', st]]);
             });
+            n.addEventListener('mouseleave', hideChartTooltip);
+            n.addEventListener('click', function() {
+                drillKpi('ffi_node', 'FFI_NODE', nm + ' [' + tp + '] — ' + st);
+            });
+        });
+        svg.querySelectorAll('.ffi-edge').forEach(e => {
+            const lbl = e.getAttribute('data-label');
+            const act = e.getAttribute('data-active') === '1';
+            e.addEventListener('mousemove', function(ev) {
+                showChartTooltip(ev, 'FFI_EDGE', [['label', lbl || '—'], ['active', act ? 'yes' : 'no']]);
+            });
+            e.addEventListener('mouseleave', hideChartTooltip);
         });
     })();
 
-    // === Variable Dependency Graph (D3 force-directed) ===
-    (function renderVariableGraph() {
+    // === Variable Dependency Graph (pure SVG radial layout — no external dep) ===
+    // Renders variable nodes on a circle with curved edges. Fully interactive:
+    // hover shows a detailed tooltip + highlights the node's neighbourhood,
+    // click selects the node and populates the SELECTED_NODE detail panel.
+    // Pure SVG guarantees rendering even if the D3 CDN is unreachable.
+    function renderVariableGraph() {
         const container = document.getElementById('variableGraphContainer');
-        if (!container || typeof d3 === 'undefined') return;
+        if (!container) return;
         const rels = DATA.relationships || [];
-        if (rels.length === 0) {
+        if (!rels.length) {
             container.innerHTML = '<div class="text-outline text-xs px-2 py-4">No relationship data.</div>';
             return;
         }
-        const nodeSet = {};
+        // Build node metadata: in/out degree, type, pointer, cycle flag.
+        const nodeMeta = {};
         rels.forEach(r => {
-            nodeSet[r.from_var || r.from] = 1;
-            nodeSet[r.to_var || r.to] = 1;
+            const s = r.source_var_name || r.source_ptr || '?';
+            const t = r.target_var_name || r.target_ptr || '?';
+            if (!nodeMeta[s]) nodeMeta[s] = { name: s, type: r.type_name || '?', ptr: r.source_ptr || '', inDeg: 0, outDeg: 0, cycle: false };
+            if (!nodeMeta[t]) nodeMeta[t] = { name: t, type: r.type_name || '?', ptr: r.target_ptr || '', inDeg: 0, outDeg: 0, cycle: false };
+            nodeMeta[s].outDeg++;
+            nodeMeta[t].inDeg++;
+            if (r.is_part_of_cycle) { nodeMeta[s].cycle = true; nodeMeta[t].cycle = true; }
         });
-        const nodeNames = Object.keys(nodeSet).slice(0, 40);
-        const nodeMap = {};
-        nodeNames.forEach((n, i) => { nodeMap[n] = i; });
-        const d3nodes = nodeNames.map(n => ({ id: n, label: n }));
-        const d3links = rels.slice(0, 80).map(r => {
-            const s = nodeMap[r.from_var || r.from];
-            const t = nodeMap[r.to_var || r.to];
-            if (s === undefined || t === undefined) return null;
-            return { source: s, target: t, type: r.relation_type || r.relation || 'link' };
-        }).filter(Boolean);
+        // Cap visible nodes for readability; keep highest-degree ones.
+        const nodeNames = Object.keys(nodeMeta)
+            .sort((a, b) => (nodeMeta[b].inDeg + nodeMeta[b].outDeg) - (nodeMeta[a].inDeg + nodeMeta[a].outDeg))
+            .slice(0, 36);
+        const visSet = {};
+        nodeNames.forEach(n => { visSet[n] = true; });
 
-        const W = container.clientWidth || 600;
-        const H = 360;
-        container.innerHTML = '';
-        const svg = d3.select(container).append('svg').attr('width', W).attr('height', H);
-        svg.append('defs').append('marker')
-            .attr('id', 'arrowhead').attr('viewBox', '0 -5 10 10').attr('refX', 12)
-            .attr('refY', 0).attr('markerWidth', 6).attr('markerHeight', 6)
-            .attr('orient', 'auto')
-            .append('path').attr('d', 'M0,-5L10,0L0,5').attr('fill', '#948e9c');
-        const linkG = svg.append('g');
-        const nodeG = svg.append('g');
-        const links = linkG.selectAll('line').data(d3links).enter().append('line')
-            .attr('stroke', d => d.type === 'ownership_transfer' ? '#ef4444' : d.type === 'clone' ? '#10B981' : '#494551')
-            .attr('stroke-width', 1).attr('opacity', 0.5).attr('marker-end', 'url(#arrowhead)');
-        const nodes_sel = nodeG.selectAll('g').data(d3nodes).enter().append('g').style('cursor', 'pointer')
-            .call(d3.drag().on('start', dragStart).on('drag', dragging).on('end', dragEnd));
-        nodes_sel.append('circle').attr('r', 5).attr('fill', '#cfbcff').attr('stroke', '#F59E0B').attr('stroke-width', 1);
-        nodes_sel.append('text').text(d => d.label.slice(0, 14)).attr('x', 8).attr('y', 3)
-            .attr('fill', '#cbc4d2').attr('font-family', 'JetBrains Mono').attr('font-size', '9');
-        nodes_sel.on('click', function(event, d) {
-            const detail = document.getElementById('detailNodeName');
-            const status = document.getElementById('detailNodeStatus');
-            if (detail) detail.textContent = d.id;
-            if (status) status.textContent = 'SELECTED';
+        const W = container.clientWidth || 640;
+        const H = 380;
+        const cx = W / 2, cy = H / 2;
+        const radius = Math.min(W, H) * 0.38;
+        const pos = {};
+        nodeNames.forEach((n, i) => {
+            const angle = (i / nodeNames.length) * Math.PI * 2 - Math.PI / 2;
+            pos[n] = { x: cx + Math.cos(angle) * radius, y: cy + Math.sin(angle) * radius };
         });
-        const sim = d3.forceSimulation(d3nodes)
-            .force('link', d3.forceLink(d3links).id((d, i) => d.id || i).distance(60))
-            .force('charge', d3.forceManyBody().strength(-80))
-            .force('center', d3.forceCenter(W / 2, H / 2));
-        sim.on('tick', () => {
-            links.attr('x1', d => d.source.x).attr('y1', d => d.source.y)
-                 .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
-            nodes_sel.attr('transform', d => 'translate(' + d.x + ',' + d.y + ')');
+        // Edges between visible nodes only.
+        const edges = rels.filter(r => {
+            const s = r.source_var_name || r.source_ptr || '?';
+            const t = r.target_var_name || r.target_ptr || '?';
+            return visSet[s] && visSet[t] && s !== t;
+        }).slice(0, 140);
+
+        let html = '<svg width="100%" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" id="varGraphSvg">';
+        html += '<defs><marker id="vgArrow" viewBox="0 -5 10 10" refX="10" refY="0" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,-5L10,0,L0,5" fill="#948e9c"/></marker></defs>';
+        // Edges as quadratic curves for a cleaner look than straight lines.
+        edges.forEach(e => {
+            const s = e.source_var_name || e.source_ptr || '?';
+            const t = e.target_var_name || e.target_ptr || '?';
+            const sp = pos[s], tp = pos[t];
+            if (!sp || !tp) return;
+            const mx = (sp.x + tp.x) / 2, my = (sp.y + tp.y) / 2;
+            const dx = tp.x - sp.x, dy = tp.y - sp.y;
+            const ctrlX = mx - dy * 0.12, ctrlY = my + dx * 0.12;
+            const color = e.color || '#494551';
+            const sw = Math.max(0.8, (e.strength || 0.5) * 2.2).toFixed(2);
+            html += '<path class="vg-edge" data-source="' + s + '" data-target="' + t + '" d="M' + sp.x + ',' + sp.y + ' Q' + ctrlX + ',' + ctrlY + ' ' + tp.x + ',' + tp.y + '" stroke="' + color + '" stroke-width="' + sw + '" fill="none" opacity="0.45" marker-end="url(#vgArrow)" style="cursor:pointer"/>';
         });
-        function dragStart(event, d) { if (!event.active) sim.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; }
-        function dragging(event, d) { d.fx = event.x; d.fy = event.y; }
-        function dragEnd(event, d) { if (!event.active) sim.alphaTarget(0); d.fx = null; d.fy = null; }
-    })();
+        // Nodes — radius scales with degree; cycle nodes get a red ring.
+        nodeNames.forEach(n => {
+            const p = pos[n];
+            const m = nodeMeta[n];
+            const deg = m.inDeg + m.outDeg;
+            const r = Math.max(4, Math.min(11, 4 + deg * 0.45));
+            const ring = m.cycle ? '#ef4444' : 'var(--accent-amber)';
+            html += '<g class="vg-node" data-name="' + n + '" data-type="' + m.type + '" data-ptr="' + m.ptr + '" data-in="' + m.inDeg + '" data-out="' + m.outDeg + '" data-cycle="' + (m.cycle ? 1 : 0) + '" style="cursor:pointer">';
+            html += '<circle cx="' + p.x + '" cy="' + p.y + '" r="' + r + '" fill="var(--primary)" stroke="' + ring + '" stroke-width="1.5"/>';
+            const label = n.length > 14 ? n.slice(0, 14) + '…' : n;
+            html += '<text x="' + p.x + '" y="' + (p.y - r - 4) + '" fill="#cbc4d2" font-family="JetBrains Mono" font-size="9" text-anchor="middle">' + label + '</text>';
+            html += '</g>';
+        });
+        html += '</svg>';
+        container.innerHTML = html;
+
+        const svgEl = container.querySelector('#varGraphSvg');
+        // Highlight a node and its incident edges; dim the rest.
+        function highlightNode(name) {
+            svgEl.querySelectorAll('.vg-edge').forEach(e => {
+                const active = e.getAttribute('data-source') === name || e.getAttribute('data-target') === name;
+                e.setAttribute('opacity', active ? '0.95' : '0.10');
+            });
+            svgEl.querySelectorAll('.vg-node').forEach(g => {
+                g.style.opacity = (g.getAttribute('data-name') === name) ? '1' : '0.30';
+            });
+        }
+        function clearHighlight() {
+            svgEl.querySelectorAll('.vg-edge').forEach(e => { e.setAttribute('opacity', '0.45'); });
+            svgEl.querySelectorAll('.vg-node').forEach(g => { g.style.opacity = '1'; });
+        }
+        // Node hover + click — full detail tooltip and SELECTED_NODE panel sync.
+        svgEl.querySelectorAll('.vg-node').forEach(g => {
+            const name = g.getAttribute('data-name');
+            const type = g.getAttribute('data-type');
+            const ptr = g.getAttribute('data-ptr');
+            const inDeg = g.getAttribute('data-in');
+            const outDeg = g.getAttribute('data-out');
+            const isCycle = g.getAttribute('data-cycle') === '1';
+            g.addEventListener('mouseenter', function(ev) {
+                showChartTooltip(ev, 'VARIABLE_NODE', [
+                    ['name', name], ['type', type], ['ptr', ptr || '—'],
+                    ['in_degree', inDeg], ['out_degree', outDeg],
+                    ['total_rels', (parseInt(inDeg) || 0) + (parseInt(outDeg) || 0)],
+                    ['cycle', isCycle ? 'YES' : 'no']
+                ]);
+                highlightNode(name);
+            });
+            g.addEventListener('mousemove', moveChartTooltip);
+            g.addEventListener('mouseleave', function() { hideChartTooltip(); clearHighlight(); });
+            g.addEventListener('click', function() {
+                const detail = document.getElementById('detailNodeName');
+                const status = document.getElementById('detailNodeStatus');
+                const typeEl = document.getElementById('detailNodeType');
+                const cycleEl = document.getElementById('detailNodeCycle');
+                const execEl = document.getElementById('detailNodeExecTime');
+                const upEl = document.getElementById('detailNodeUpstream');
+                const traceEl = document.getElementById('detailNodeTrace');
+                const uuidEl = document.getElementById('detailNodeUuid');
+                if (detail) detail.textContent = name;
+                if (status) status.textContent = 'in:' + inDeg + ' · out:' + outDeg;
+                if (typeEl) typeEl.textContent = 'TYPE: ' + (type || '—');
+                if (cycleEl) {
+                    cycleEl.textContent = isCycle ? '⚠ PART OF CYCLE (leak risk)' : '✓ not in cycle';
+                    cycleEl.className = 'font-data-mono text-[10px] mt-1 ' + (isCycle ? 'text-error' : 'text-success');
+                }
+                if (execEl) execEl.textContent = ptr ? ptr : '—';
+                if (upEl) upEl.textContent = (parseInt(inDeg) || 0) + (parseInt(outDeg) || 0) + ' total';
+                if (uuidEl) uuidEl.textContent = 'PTR: ' + (ptr || '—');
+                // Build a synthetic trace from incident relationships.
+                if (traceEl) {
+                    const incidents = rels.filter(r => (r.source_var_name || r.source_ptr) === name || (r.target_var_name || r.target_ptr) === name).slice(0, 8);
+                    if (incidents.length) {
+                        traceEl.innerHTML = incidents.map(r => {
+                            const s = r.source_var_name || r.source_ptr || '?';
+                            const t = r.target_var_name || r.target_ptr || '?';
+                            const cyc = r.is_part_of_cycle ? ' ⚠' : '';
+                            return '<div class="text-on-surface-variant exec-trace-item" data-source="' + s + '" data-target="' + t + '" style="cursor:pointer">' + s + ' → ' + t + ' · ' + (r.relationship_type || 'link') + ' · ' + (r.strength || 0).toFixed(2) + cyc + '</div>';
+                        }).join('');
+                        // Bind hover + click to each freshly-created trace row so the
+                        // detail panel's exec trace is itself interactive.
+                        traceEl.querySelectorAll('.exec-trace-item').forEach((item, i) => {
+                            const r = incidents[i] || {};
+                            const sName = item.getAttribute('data-source');
+                            const tName = item.getAttribute('data-target');
+                            item.classList.add('chart-interactive');
+                            item.addEventListener('mousemove', function(ev) {
+                                showChartTooltip(ev, 'EXEC_TRACE', [
+                                    ['from', sName],
+                                    ['to', tName],
+                                    ['type', r.relationship_type || 'link'],
+                                    ['strength', (r.strength || 0).toFixed(2)],
+                                    ['type_name', r.type_name || '—'],
+                                    ['cycle', r.is_part_of_cycle ? 'YES ⚠' : 'no'],
+                                    ['container_src', r.is_container_source ? 'yes' : 'no'],
+                                    ['container_tgt', r.is_container_target ? 'yes' : 'no']
+                                ]);
+                            });
+                            item.addEventListener('mouseleave', hideChartTooltip);
+                            item.addEventListener('click', function() {
+                                drillKpi('exec_trace', 'RELATIONSHIP', sName + ' → ' + tName + ' · ' + (r.relationship_type || 'link') + ' · ' + (r.strength || 0).toFixed(2));
+                            });
+                        });
+                    } else {
+                        traceEl.innerHTML = '<div class="text-outline">No incident relationships.</div>';
+                    }
+                }
+                drillKpi('var_node', 'VARIABLE_NODE', name + ' · ' + type + ' · in ' + inDeg + ' / out ' + outDeg + (isCycle ? ' · CYCLE' : ''));
+            });
+        });
+        // Edge hover + click — look up the originating relationship for full detail.
+        svgEl.querySelectorAll('.vg-edge').forEach(e => {
+            const s = e.getAttribute('data-source');
+            const t = e.getAttribute('data-target');
+            const rel = rels.find(r => (r.source_var_name || r.source_ptr) === s && (r.target_var_name || r.target_ptr) === t) || {};
+            e.addEventListener('mouseenter', function(ev) {
+                showChartTooltip(ev, 'RELATIONSHIP', [
+                    ['from', s], ['to', t],
+                    ['type', rel.relationship_type || 'link'],
+                    ['strength', (rel.strength != null ? rel.strength.toFixed(2) : '?')],
+                    ['type_name', rel.type_name || '—'],
+                    ['cycle', rel.is_part_of_cycle ? 'yes' : 'no']
+                ]);
+            });
+            e.addEventListener('mousemove', moveChartTooltip);
+            e.addEventListener('mouseleave', hideChartTooltip);
+            e.addEventListener('click', function() {
+                drillKpi('var_edge', 'RELATIONSHIP', s + ' → ' + t + ' · ' + (rel.relationship_type || 'link'));
+            });
+        });
+    }
+    registerThemeAware('variableGraph', renderVariableGraph);
+    renderVariableGraph();
 
     // === Task Topology DAG (SVG) ===
     (function renderTaskTopology() {
@@ -1408,27 +1904,43 @@
             const y1 = (src.y_pct / 100) * H;
             const x2 = (tgt.x_pct / 100) * W;
             const y2 = (tgt.y_pct / 100) * H;
-            html += '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="' + (edge.is_active ? '#F59E0B' : '#494551') + '" stroke-width="1.5" opacity="0.5"/>';
+            const edgeStroke = edge.is_active ? 'var(--accent-amber)' : '#494551';
+            html += '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" style="stroke: ' + edgeStroke + '" stroke-width="1.5" opacity="0.5" class="topo-edge" data-active="' + (edge.is_active ? 1 : 0) + '" style="cursor:pointer"/>';
         });
         // Draw nodes
         nodes.forEach(node => {
             const x = (node.x_pct / 100) * W;
             const y = (node.y_pct / 100) * H;
-            const color = node.status === 'RUNNING' ? '#10B981' : node.status === 'POLLING' ? '#F59E0B' : node.status === 'COMPLETED' ? '#cfbcff' : '#948e9c';
-            html += '<circle cx="' + x + '" cy="' + y + '" r="8" fill="' + color + '" opacity="0.85" class="topo-node" data-id="' + node.task_id + '" data-name="' + node.name + '" data-status="' + node.status + '" style="cursor:pointer">';
-            html += '<title>' + node.name + ' [' + node.task_id + '] — ' + node.status + ' (' + node.duration_ms + 'ms)</title></circle>';
+            // RUNNING → semantic green; POLLING → theme accent; COMPLETED → theme primary; else muted.
+            const fillVar = node.status === 'RUNNING' ? '#10B981' : node.status === 'POLLING' ? 'var(--accent-amber)' : node.status === 'COMPLETED' ? 'var(--primary)' : '#948e9c';
+            html += '<circle cx="' + x + '" cy="' + y + '" r="8" style="fill: ' + fillVar + '" opacity="0.85" class="topo-node chart-interactive" data-id="' + node.task_id + '" data-name="' + node.name + '" data-status="' + node.status + '" data-duration="' + (node.duration_ms || 0) + '"/>';
             html += '<text x="' + (x + 12) + '" y="' + (y + 4) + '" fill="#cbc4d2" font-family="JetBrains Mono" font-size="9">' + (node.name || '').slice(0, 18) + '</text>';
         });
         html += '</svg>';
         canvas.innerHTML = html;
         canvas.querySelectorAll('.topo-node').forEach(n => {
-            n.addEventListener('click', function() {
-                drillKpi('topo_node', 'TASK_NODE', this.getAttribute('data-name') + ' [' + this.getAttribute('data-id') + '] — ' + this.getAttribute('data-status'));
+            const nm = n.getAttribute('data-name');
+            const id = n.getAttribute('data-id');
+            const st = n.getAttribute('data-status');
+            const dur = n.getAttribute('data-duration');
+            n.addEventListener('mousemove', function(ev) {
+                showChartTooltip(ev, 'TASK_NODE', [['name', nm], ['task_id', id], ['status', st], ['duration', dur + 'ms']]);
             });
+            n.addEventListener('mouseleave', hideChartTooltip);
+            n.addEventListener('click', function() {
+                drillKpi('topo_node', 'TASK_NODE', nm + ' [' + id + '] — ' + st + ' (' + dur + 'ms)');
+            });
+        });
+        canvas.querySelectorAll('.topo-edge').forEach(e => {
+            const act = e.getAttribute('data-active') === '1';
+            e.addEventListener('mousemove', function(ev) {
+                showChartTooltip(ev, 'TASK_EDGE', [['active', act ? 'yes' : 'no']]);
+            });
+            e.addEventListener('mouseleave', hideChartTooltip);
         });
     })();
 
-    // === FFI Thread Execution Timeline (HTML segments) ===
+    // === FFI Thread Execution Timeline (HTML segments) — inline styles for CSS var colors ===
     (function renderFfiThreadTimeline() {
         const container = document.getElementById('ffiThreadTimeline');
         if (!container) return;
@@ -1438,28 +1950,35 @@
             return;
         }
         let html = '';
-        rows.forEach(row => {
+        rows.forEach((row, ri) => {
             html += '<div class="flex items-center gap-3">';
             html += '<span class="font-data-mono text-xs text-accent-amber w-32 truncate">' + (row.thread_name || '?') + '</span>';
             html += '<div class="flex-1 h-5 bg-surface-container-low rounded overflow-hidden relative">';
-            (row.segments || []).forEach(seg => {
+            (row.segments || []).forEach((seg, si) => {
                 const w = Math.max(1, seg.width_pct);
-                html += '<div class="absolute h-full bg-' + (seg.color || 'primary') + ' opacity-70" style="left:' + seg.start_pct + '%;width:' + w + '%" title="' + (row.thread_name || '') + ' segment"></div>';
+                // Use inline style background so CSS variables like var(--primary) resolve correctly
+                html += '<div class="absolute h-full opacity-70 chart-interactive" style="left:' + seg.start_pct + '%;width:' + w + '%;background:' + (seg.color || 'var(--primary)') + '" title="' + (row.thread_name || '') + ' seg #' + si + ' · ' + seg.width_pct + '%"></div>';
             });
             html += '</div></div>';
         });
         container.innerHTML = html;
+        // Add click handlers to segments
+        container.querySelectorAll('.chart-interactive').forEach((seg, i) => {
+            seg.addEventListener('click', function() {
+                drillKpi('timeline_seg', 'TIMELINE_SEG', this.getAttribute('title'));
+            });
+        });
     })();
 
-    // === Grid cell interactivity — heap lattice, affinity, waker heatgrid, neighbor histogram ===
+    // === Grid cell interactivity — ALL grids and bars get hover tooltips + click events ===
     (function addGridInteractivity() {
-        // Heap lattice cells
+        // Heap lattice cells — hover shows size, click drills
         const heapGrid = document.getElementById('heapGrid');
         if (heapGrid) {
             const allocs = DATA.allocations || [];
             const sizes = allocs.map(a => a.size || 0).filter(s => s > 0);
             heapGrid.querySelectorAll('div').forEach((cell, i) => {
-                const idx = i % sizes.length;
+                const idx = i % Math.max(1, sizes.length);
                 const sz = sizes[idx] || 0;
                 cell.setAttribute('title', 'cell #' + i + ' · size ' + sz + 'B');
                 cell.style.cursor = 'pointer';
@@ -1468,7 +1987,7 @@
                 });
             });
         }
-        // Affinity grid cells
+        // Affinity grid cells (JS-rendered) — hover shows core state, click drills
         const affGrid = document.getElementById('affinityGrid');
         if (affGrid) {
             affGrid.querySelectorAll('div').forEach((cell, i) => {
@@ -1481,7 +2000,7 @@
                 });
             });
         }
-        // Waker heatgrid cells
+        // Waker heatgrid cells — hover shows efficiency value
         const wakerGrid = document.getElementById('wakerHeatgrid');
         if (wakerGrid) {
             const bins = DATA.waker_efficiency_grid || [];
@@ -1489,9 +2008,12 @@
                 const val = bins[i] !== undefined ? bins[i].toFixed(3) : '0';
                 cell.setAttribute('title', 'waker bin #' + i + ' · efficiency ' + val);
                 cell.style.cursor = 'pointer';
+                cell.addEventListener('click', function() {
+                    drillKpi('waker', 'WAKER_BIN_' + i, 'efficiency ' + val);
+                });
             });
         }
-        // Neighbor histogram bars
+        // Neighbor histogram bars — hover shows neighbor count
         const hist = document.getElementById('neighborHistogram');
         if (hist) {
             const bins = DATA.neighbor_density_histogram || [];
@@ -1500,8 +2022,644 @@
                 const count = b.count || 0;
                 bar.setAttribute('title', 'bin #' + i + ' · ' + count + ' neighbors · ' + (b.range_label || ''));
                 bar.style.cursor = 'pointer';
+                bar.addEventListener('click', function() {
+                    drillKpi('neighbor', 'DENSITY_BIN_' + i, count + ' neighbors · ' + (b.range_label || ''));
+                });
             });
         }
+        // Scheduler lag bars (Handlebars-rendered) — hover shows percentage, click drills
+        document.querySelectorAll('#mode-thread .flex.items-end.gap-1 .flex-1').forEach((bar, i) => {
+            const h = bar.style.height || '0%';
+            bar.setAttribute('title', 'lag sample #' + i + ' · ' + h);
+            bar.style.cursor = 'pointer';
+            bar.classList.add('chart-interactive');
+            bar.addEventListener('click', function() {
+                drillKpi('lag_bar', 'LAG_SAMPLE_' + i, 'scheduler lag ' + h);
+            });
+        });
+        // Thread affinity grid (Handlebars-rendered) — hover shows cell value, click drills
+        document.querySelectorAll('#mode-thread .grid.grid-cols-8.gap-1 .aspect-square').forEach((cell, i) => {
+            const val = cell.textContent || '?';
+            cell.setAttribute('title', 'affinity cell #' + i + ' · ' + val);
+            cell.style.cursor = 'pointer';
+            cell.classList.add('chart-interactive');
+            cell.addEventListener('click', function() {
+                drillKpi('aff_cell', 'AFFINITY_' + i, 'cell #' + i + ' · ' + val);
+            });
+        });
+        // Poll latency SVG — hover/click on the path
+        const pollSvg = document.getElementById('pollLatencySvg');
+        if (pollSvg) {
+            const paths = pollSvg.querySelectorAll('path');
+            paths.forEach((path, i) => {
+                path.style.cursor = 'pointer';
+                path.classList.add('chart-interactive');
+                path.setAttribute('title', 'poll latency curve · ' + (i === 0 ? 'line' : 'area') + ' · mean ' + (DATA.poll_latency_mean_ms || 0) + 'ms');
+                path.addEventListener('click', function() {
+                    drillKpi('poll_svg', 'POLL_LATENCY', 'mean ' + (DATA.poll_latency_mean_ms || 0) + 'ms');
+                });
+            });
+        }
+        // Ownership graph stat cards — hover + click
+        document.querySelectorAll('#mode-unsafe .grid.grid-cols-2 .text-center').forEach((card, i) => {
+            const labels = ['NODES', 'EDGES', 'CYCLES', 'RC_CLONES', 'ARC_CLONES'];
+            const val = card.querySelector('.font-headline-md');
+            card.style.cursor = 'pointer';
+            card.classList.add('chart-interactive');
+            card.setAttribute('title', (labels[i] || 'STAT') + ': ' + (val ? val.textContent : '?'));
+            card.addEventListener('click', function() {
+                drillKpi('own_stat', labels[i] || 'STAT', (labels[i] || 'STAT') + ': ' + (val ? val.textContent : '?'));
+            });
+        });
+        // Passport cards (Handlebars-rendered) — hover shows full lifecycle,
+        // click drills. Uses data-idx to look up the full passport record.
+        document.querySelectorAll('#passportCards .passport-card').forEach((card) => {
+            const idx = parseInt(card.getAttribute('data-idx') || '0', 10);
+            const p = (DATA.passport_details || [])[idx] || {};
+            card.style.cursor = 'pointer';
+            card.classList.add('chart-interactive');
+            const lifeEv = (p.lifecycle_events || []).map(e => e.event_type).join(', ') || '—';
+            const ffiEv = (p.cross_boundary_events || []).map(e => e.event_type).join(', ') || '—';
+            const factors = (p.risk_factors || []).join('; ') || '—';
+            card.addEventListener('mousemove', function(ev) {
+                showChartTooltip(ev, 'PASSPORT ' + (p.passport_id || '?'), [
+                    ['var', p.var_name || '—'],
+                    ['type', p.type_name || '—'],
+                    ['size', (p.size_bytes || 0) + 'B'],
+                    ['status', p.status || '—'],
+                    ['risk', p.risk_level || '—' + ' (' + (p.risk_confidence || 0) + ')'],
+                    ['ffi_tracked', p.ffi_tracked ? 'yes' : 'no'],
+                    ['is_active', p.is_active ? 'yes' : 'no'],
+                    ['is_leaked', p.is_leaked ? 'yes' : 'no'],
+                    ['lifecycle', lifeEv],
+                    ['ffi_crossings', ffiEv],
+                    ['ptr', p.allocation_ptr || '—'],
+                    ['src', p.source_location || '—'],
+                    ['risk_factors', factors]
+                ]);
+            });
+            card.addEventListener('mouseleave', hideChartTooltip);
+            card.addEventListener('click', function() {
+                drillKpi('passport_card', 'PASSPORT',
+                    (p.passport_id || '?') + ' · ' + (p.var_name || p.type_name || '?') +
+                    ' · ' + (p.risk_level || '?') + ' risk · ' + (p.size_bytes || 0) + 'B');
+            });
+        });
+        // Resource bars (Handlebars-rendered) — hover shows label + pct, click drills
+        const resBars = document.getElementById('ffiResourceBars');
+        if (resBars) {
+            const bars = DATA.resource_bars || [];
+            resBars.querySelectorAll('div').forEach(el => {
+                // Each resource is a wrapper div containing label row + track row
+                if (!el.querySelector || !el.querySelector('.bg-surface-container-highest')) return;
+            });
+            resBars.querySelectorAll('[style*="width:"]').forEach((bar, i) => {
+                const wrapper = bar.closest('div').parentElement;
+                const labelEl = wrapper ? wrapper.querySelector('span') : null;
+                const pctEl = wrapper ? wrapper.querySelectorAll('span')[1] : null;
+                const label = labelEl ? labelEl.textContent : 'resource ' + i;
+                const pct = pctEl ? pctEl.textContent : '?';
+                bar.style.cursor = 'pointer';
+                bar.classList.add('chart-interactive');
+                bar.addEventListener('mousemove', function(ev) {
+                    showChartTooltip(ev, 'RESOURCE', [['label', label], ['usage', pct]]);
+                });
+                bar.addEventListener('mouseleave', hideChartTooltip);
+                bar.addEventListener('click', function() {
+                    drillKpi('resource', 'RESOURCE', label + ' · ' + pct);
+                });
+            });
+        }
+        // Unsafe operations rows — hover shows full risk_factors + lifecycle,
+        // click drills into the unsafe report.
+        document.querySelectorAll('.unsafe-op-row').forEach((row) => {
+            const idx = parseInt(row.getAttribute('data-idx') || '0', 10);
+            const r = (DATA.unsafe_reports || [])[idx] || {};
+            row.classList.add('chart-interactive');
+            row.style.cursor = 'pointer';
+            const lifeEv = (r.lifecycle_events || []).map(e => e.event_type + ' @ ' + e.context).join('; ') || '—';
+            const ffiEv = (r.cross_boundary_events || []).map(e => e.event_type + ' ' + e.from_context + '→' + e.to_context).join('; ') || '—';
+            const factors = (r.risk_factors || []).join('; ') || '—';
+            row.addEventListener('mousemove', function(ev) {
+                showChartTooltip(ev, 'UNSAFE ' + (r.passport_id || '?'), [
+                    ['var', r.var_name || '—'],
+                    ['type', r.type_name || '—'],
+                    ['size', (r.size_bytes || 0) + 'B'],
+                    ['risk_level', r.risk_level || '—'],
+                    ['status', r.status || '—'],
+                    ['is_leaked', r.is_leaked ? 'yes' : 'no'],
+                    ['ptr', r.allocation_ptr || '—'],
+                    ['risk_factors', factors],
+                    ['lifecycle', lifeEv],
+                    ['ffi_crossings', ffiEv]
+                ]);
+            });
+            row.addEventListener('mouseleave', hideChartTooltip);
+            row.addEventListener('click', function() {
+                drillKpi('unsafe_op', 'UNSAFE',
+                    (r.var_name || r.type_name || '?') + ' · ' + (r.risk_level || '?') +
+                    ' · ' + (r.risk_factors || []).length + ' factors');
+            });
+        });
+        // FFI crossing rows — hover shows edge endpoints + label, click drills.
+        document.querySelectorAll('.ffi-crossing-row').forEach((row) => {
+            const idx = parseInt(row.getAttribute('data-idx') || '0', 10);
+            const edge = ((DATA.ffi_call_topology || {}).edges || [])[idx] || {};
+            row.classList.add('chart-interactive');
+            row.style.cursor = 'pointer';
+            row.addEventListener('mousemove', function(ev) {
+                showChartTooltip(ev, 'FFI_CROSSING', [
+                    ['from', edge.from_name || edge.from || '?'],
+                    ['to', edge.to_name || edge.to || '?'],
+                    ['label', edge.label || '—'],
+                    ['call_count', edge.call_count != null ? edge.call_count : '?'],
+                    ['direction', (edge.from_name || '') + ' → ' + (edge.to_name || '')]
+                ]);
+            });
+            row.addEventListener('mouseleave', hideChartTooltip);
+            row.addEventListener('click', function() {
+                drillKpi('ffi_crossing', 'FFI_EDGE',
+                    (edge.from_name || '?') + ' → ' + (edge.to_name || '?') + ' · ' + (edge.label || ''));
+            });
+        });
+        // Ownership graph stat cards — hover explains the metric, click drills.
+        document.querySelectorAll('.own-stat-card').forEach((card) => {
+            const stat = card.getAttribute('data-stat') || '?';
+            const val = card.querySelector('.font-headline-md');
+            const v = val ? val.textContent.trim() : '?';
+            const desc = {
+                nodes: 'Total nodes in the ownership graph (every tracked allocation)',
+                edges: 'Total ownership edges (clones, borrows, moves)',
+                cycles: 'Retain cycles detected — potential memory leaks',
+                rc_clones: 'Rc<T> clone operations tracked',
+                arc_clones: 'Arc<T> clone operations tracked'
+            }[stat] || 'ownership graph metric';
+            card.classList.add('chart-interactive');
+            card.style.cursor = 'pointer';
+            card.addEventListener('mousemove', function(ev) {
+                showChartTooltip(ev, 'OWNERSHIP_' + stat.toUpperCase(), [
+                    ['metric', stat], ['value', v], ['description', desc]
+                ]);
+            });
+            card.addEventListener('mouseleave', hideChartTooltip);
+            card.addEventListener('click', function() {
+                drillKpi('own_stat', 'OWNERSHIP', stat + ': ' + v + ' — ' + desc);
+            });
+        });
+        // Allocation stream rows — hover shows full allocation detail, click drills.
+        document.querySelectorAll('.alloc-row').forEach((row) => {
+            const idx = parseInt(row.getAttribute('data-idx') || '0', 10);
+            const a = (DATA.allocations || [])[idx] || {};
+            row.classList.add('chart-interactive');
+            row.style.cursor = 'pointer';
+            row.addEventListener('mousemove', function(ev) {
+                showChartTooltip(ev, 'ALLOCATION ' + (a.address || '?'), [
+                    ['address', a.address || '—'],
+                    ['type', a.type_name || '—'],
+                    ['var', a.var_name || '—'],
+                    ['size', a.size != null ? a.size : '?'],
+                    ['thread_id', a.thread_id != null ? a.thread_id : '?'],
+                    ['source', (a.source_file || '—') + ':' + (a.source_line != null ? a.source_line : '?')],
+                    ['module', a.module_path || '—'],
+                    ['allocation_type', a.allocation_type || '—'],
+                    ['is_leaked', a.is_leaked ? 'YES ⚠' : 'no'],
+                    ['is_clone', a.is_clone ? 'yes' : 'no'],
+                    ['clone_count', a.clone_count != null ? a.clone_count : '?'],
+                    ['is_smart_pointer', a.is_smart_pointer ? 'yes' : 'no'],
+                    ['smart_pointer_type', a.smart_pointer_type || '—'],
+                    ['immutable_borrows', a.immutable_borrows != null ? a.immutable_borrows : '?'],
+                    ['mutable_borrows', a.mutable_borrows != null ? a.mutable_borrows : '?'],
+                    ['lifetime_ms', a.lifetime_ms != null ? a.lifetime_ms : '?']
+                ]);
+            });
+            row.addEventListener('mouseleave', hideChartTooltip);
+            row.addEventListener('click', function() {
+                drillKpi('alloc_row', 'ALLOCATION',
+                    (a.address || '?') + ' · ' + (a.type_name || '?') +
+                    ' · ' + (a.size != null ? a.size : '?') + 'B' +
+                    ' · ' + (a.allocation_type || '?') +
+                    (a.is_leaked ? ' · LEAKED ⚠' : ''));
+            });
+        });
+        // Thread detail rows — hover shows full thread metrics, click drills.
+        document.querySelectorAll('.thread-row').forEach((row) => {
+            const idx = parseInt(row.getAttribute('data-idx') || '0', 10);
+            const t = (DATA.threads || [])[idx] || {};
+            row.classList.add('chart-interactive');
+            row.style.cursor = 'pointer';
+            row.addEventListener('mousemove', function(ev) {
+                showChartTooltip(ev, 'THREAD ' + (t.thread_id || '?'), [
+                    ['id', t.thread_id || '—'],
+                    ['summary', t.thread_summary || '—'],
+                    ['allocations', t.allocation_count != null ? t.allocation_count : '?'],
+                    ['current_mem', t.current_memory || '—'],
+                    ['peak_mem', t.peak_memory || '—'],
+                    ['total_allocated', t.total_allocated || '—'],
+                    ['current_bytes', t.current_memory_bytes != null ? t.current_memory_bytes : '?'],
+                    ['peak_bytes', t.peak_memory_bytes != null ? t.peak_memory_bytes : '?'],
+                    ['total_bytes', t.total_allocated_bytes != null ? t.total_allocated_bytes : '?'],
+                    ['is_active', t.is_active ? 'yes' : 'no'],
+                    ['status', t.status || '—']
+                ]);
+            });
+            row.addEventListener('mouseleave', hideChartTooltip);
+            row.addEventListener('click', function() {
+                drillKpi('thread_row', 'THREAD',
+                    (t.thread_id || '?') + ' · ' + (t.thread_summary || '?') +
+                    ' · ' + (t.allocation_count != null ? t.allocation_count : '?') + ' allocs' +
+                    ' · ' + (t.status || '?'));
+            });
+        });
+        // Scheduler lag bars — hover shows sample value, click drills.
+        document.querySelectorAll('.sched-lag-bar').forEach((bar) => {
+            const idx = parseInt(bar.getAttribute('data-idx') || '0', 10);
+            const val = bar.getAttribute('data-val') || '?';
+            bar.classList.add('chart-interactive');
+            bar.style.cursor = 'pointer';
+            bar.addEventListener('mousemove', function(ev) {
+                showChartTooltip(ev, 'SCHEDULER_LAG', [
+                    ['sample', '#' + idx],
+                    ['lag_pct', val + '%'],
+                    ['mean_ms', (DATA.scheduler_lag_ms != null ? DATA.scheduler_lag_ms : '?') + 'ms'],
+                    ['migration', (DATA.migration_rate_pct != null ? DATA.migration_rate_pct : '?') + '%']
+                ]);
+            });
+            bar.addEventListener('mouseleave', hideChartTooltip);
+            bar.addEventListener('click', function() {
+                drillKpi('sched_lag', 'SCHED_LAG', 'sample #' + idx + ' · ' + val + '% lag');
+            });
+        });
+        // Thread affinity cells — hover shows core state, click drills.
+        document.querySelectorAll('.affinity-cell').forEach((cell) => {
+            const idx = parseInt(cell.getAttribute('data-idx') || '0', 10);
+            const state = cell.getAttribute('data-state') || '?';
+            const stateLabel = state === 'P' ? 'PROCESSING' : state === 'I' ? 'IO_WAIT' : state === 'W' ? 'WAITING' : 'IDLE';
+            cell.classList.add('chart-interactive');
+            cell.style.cursor = 'pointer';
+            cell.addEventListener('mousemove', function(ev) {
+                showChartTooltip(ev, 'AFFINITY_CELL', [
+                    ['cell', '#' + idx],
+                    ['core', 'core ' + (idx % 8)],
+                    ['row', 'row ' + Math.floor(idx / 8)],
+                    ['state', state],
+                    ['meaning', stateLabel]
+                ]);
+            });
+            cell.addEventListener('mouseleave', hideChartTooltip);
+            cell.addEventListener('click', function() {
+                drillKpi('affinity_cell', 'AFFINITY', 'cell #' + idx + ' · ' + stateLabel);
+            });
+        });
+        // Thread policy items — hover shows policy details, click drills.
+        document.querySelectorAll('.thread-policy-item').forEach((li) => {
+            const idx = parseInt(li.getAttribute('data-idx') || '0', 10);
+            const p = (DATA.thread_policies || [])[idx] || {};
+            li.classList.add('chart-interactive');
+            li.style.cursor = 'pointer';
+            li.addEventListener('mousemove', function(ev) {
+                showChartTooltip(ev, 'THREAD_POLICY', [
+                    ['name', p.name || '—'],
+                    ['enabled', p.enabled ? 'YES' : 'no'],
+                    ['status', p.enabled ? 'Active — policy enforced' : 'Disabled — policy not enforced']
+                ]);
+            });
+            li.addEventListener('mouseleave', hideChartTooltip);
+            li.addEventListener('click', function() {
+                drillKpi('thread_policy', 'POLICY', (p.name || '?') + ' · ' + (p.enabled ? 'ON' : 'OFF'));
+            });
+        });
+        // Async task rows — hover shows full task details, click drills.
+        document.querySelectorAll('.async-task-row').forEach((row) => {
+            const idx = parseInt(row.getAttribute('data-idx') || '0', 10);
+            const t = (DATA.async_tasks || [])[idx] || {};
+            row.classList.add('chart-interactive');
+            row.style.cursor = 'pointer';
+            row.addEventListener('mousemove', function(ev) {
+                showChartTooltip(ev, 'ASYNC_TASK ' + (t.task_name || '?'), [
+                    ['id', t.task_id != null ? t.task_id : '?'],
+                    ['name', t.task_name || '—'],
+                    ['type', t.task_type || '—'],
+                    ['duration', (t.duration_ms != null ? t.duration_ms : '?') + 'ms'],
+                    ['allocations', t.total_allocations != null ? t.total_allocations : '?'],
+                    ['current_mem', (t.current_memory != null ? t.current_memory : '?') + 'B'],
+                    ['peak_mem', (t.peak_memory != null ? t.peak_memory : '?') + 'B'],
+                    ['total_bytes', (t.total_bytes != null ? t.total_bytes : '?') + 'B'],
+                    ['efficiency', t.efficiency_score != null ? t.efficiency_score : '?'],
+                    ['is_completed', t.is_completed ? 'yes' : 'no'],
+                    ['has_potential_leak', t.has_potential_leak ? 'YES ⚠' : 'no'],
+                    ['status', t.status || '—']
+                ]);
+            });
+            row.addEventListener('mouseleave', hideChartTooltip);
+            row.addEventListener('click', function() {
+                drillKpi('async_task', 'ASYNC_TASK',
+                    (t.task_name || '?') + ' · ' + (t.task_type || '?') +
+                    ' · ' + (t.duration_ms != null ? t.duration_ms : '?') + 'ms' +
+                    ' · ' + (t.status || '?') +
+                    (t.has_potential_leak ? ' · LEAK ⚠' : ''));
+            });
+        });
+        // Async summary stat cards — hover explains, click drills.
+        document.querySelectorAll('.async-stat').forEach((card) => {
+            const stat = card.getAttribute('data-stat') || '?';
+            const val = card.querySelector('.text-lg');
+            const v = val ? val.textContent.trim() : '?';
+            const desc = {
+                total_allocations: 'Total allocations across all async tasks',
+                total_memory: 'Total memory currently held by async tasks',
+                peak_memory: 'Peak memory usage during async execution',
+                active: 'Tasks currently being polled (not yet completed)',
+                completed: 'Tasks that finished successfully',
+                leaked: 'Tasks that leaked memory (potential runtime bug)'
+            }[stat] || 'async runtime metric';
+            card.classList.add('chart-interactive');
+            card.style.cursor = 'pointer';
+            card.addEventListener('mousemove', function(ev) {
+                showChartTooltip(ev, 'ASYNC_' + stat.toUpperCase(), [
+                    ['metric', stat], ['value', v], ['description', desc]
+                ]);
+            });
+            card.addEventListener('mouseleave', hideChartTooltip);
+            card.addEventListener('click', function() {
+                drillKpi('async_stat', 'ASYNC', stat + ': ' + v + ' — ' + desc);
+            });
+        });
+        // Auto Diagnosis lists — hover shows full details for each list item,
+        // click drills. Works for top_allocation_sites, top_leaked_allocations,
+        // top_temporary_churn, and circular_references summary rows.
+        (function bindAutoDiagnosis() {
+            const lists = [
+                { sel: '#diagnosisContent ul:nth-of-type(1) li', key: 'top_allocation_sites', label: 'TOP_SITE', fields: ['name', 'allocation_count', 'total_bytes'] },
+                { sel: '#diagnosisContent ul:nth-of-type(2) li', key: 'top_leaked_allocations', label: 'TOP_LEAK', fields: ['type_name', 'size', 'address', 'timestamp_alloc'] },
+                { sel: '#diagnosisContent ul:nth-of-type(3) li', key: 'top_temporary_churn', label: 'TOP_CHURN', fields: ['name', 'allocation_count'] }
+            ];
+            lists.forEach(L => {
+                const items = (DATA[L.key] || []);
+                document.querySelectorAll(L.sel).forEach((li, i) => {
+                    const d = items[i] || {};
+                    if (!d || (d.name === undefined && d.type_name === undefined)) return;
+                    li.classList.add('chart-interactive');
+                    li.style.cursor = 'pointer';
+                    li.addEventListener('mousemove', function(ev) {
+                        const rows = L.fields.map(f => [f, d[f] != null ? d[f] : '—']);
+                        showChartTooltip(ev, L.label, rows);
+                    });
+                    li.addEventListener('mouseleave', hideChartTooltip);
+                    li.addEventListener('click', function() {
+                        const summary = L.fields.map(f => f + '=' + (d[f] != null ? d[f] : '?')).join(' · ');
+                        drillKpi(L.key, L.label, summary);
+                    });
+                });
+            });
+        })();
+        // Symbol table rows — hover shows full symbol detail, click drills.
+        // Uses .symbol-row class + data-idx to look up the full record.
+        document.querySelectorAll('.symbol-row').forEach((row) => {
+            const idx = parseInt(row.getAttribute('data-idx') || '0', 10);
+            const s = (DATA.symbol_table || [])[idx] || {};
+            row.classList.add('chart-interactive');
+            row.style.cursor = 'pointer';
+            row.addEventListener('mousemove', function(ev) {
+                showChartTooltip(ev, 'SYMBOL ' + (s.hex_addr || '?'), [
+                    ['hex_addr', s.hex_addr || '—'],
+                    ['symbol_name', s.symbol_name || '—'],
+                    ['status', s.status || '—'],
+                    ['call_count', s.call_count != null ? s.call_count : '?'],
+                    ['time_avg_us', s.time_avg_us != null ? s.time_avg_us + 'µs' : '?'],
+                    ['is_hot', s.is_hot ? 'YES 🔥' : 'no']
+                ]);
+            });
+            row.addEventListener('mouseleave', hideChartTooltip);
+            row.addEventListener('click', function() {
+                drillKpi('symbol', 'SYMBOL',
+                    (s.symbol_name || s.hex_addr || '?') + ' · ' + (s.status || '?') +
+                    ' · ' + (s.call_count != null ? s.call_count : '?') + ' calls' +
+                    (s.is_hot ? ' · HOT 🔥' : ''));
+            });
+        });
+        // Variable relationships table rows — hover shows from/to/type, click drills
+        document.querySelectorAll('#mode-variable table tbody tr').forEach((row, i) => {
+            const cells = row.querySelectorAll('td');
+            if (cells.length < 2) return;
+            const txt = Array.from(cells).map(c => c.textContent.trim()).join(' · ');
+            row.classList.add('chart-interactive');
+            row.style.cursor = 'pointer';
+            row.addEventListener('mousemove', function(ev) {
+                const rels = DATA.relationships || [];
+                const r = rels[i] || {};
+                showChartTooltip(ev, 'RELATIONSHIP_ROW', [
+                    ['from', r.source_var_name || '?'], ['to', r.target_var_name || '?'],
+                    ['type', r.relationship_type || '?'], ['strength', r.strength != null ? r.strength.toFixed(2) : '?'],
+                    ['type_name', r.type_name || '—'], ['cycle', r.is_part_of_cycle ? 'yes' : 'no']
+                ]);
+            });
+            row.addEventListener('mouseleave', hideChartTooltip);
+            row.addEventListener('click', function() {
+                drillKpi('rel_row', 'RELATIONSHIP', txt);
+            });
+        });
+
+        // ============================================================
+        // Panel-specific interactivity — fills the remaining gaps left
+        // by the IIFEs above. Each block binds hover tooltip + click drill
+        // to a previously-static element so EVERY chart/table in the
+        // dashboard responds to mouse interaction.
+        // ============================================================
+
+        // Task topology nodes table (fallback) — hover shows full node detail.
+        document.querySelectorAll('.topo-node-row').forEach((row) => {
+            const idx = parseInt(row.getAttribute('data-idx') || '0', 10);
+            const n = (DATA.task_topology_nodes || [])[idx] || {};
+            row.classList.add('chart-interactive');
+            row.style.cursor = 'pointer';
+            row.addEventListener('mousemove', function(ev) {
+                showChartTooltip(ev, 'TASK_NODE', [
+                    ['task_id', n.task_id != null ? n.task_id : '?'],
+                    ['name', n.name || '—'],
+                    ['parent_id', n.parent_id != null ? n.parent_id : 'root'],
+                    ['status', n.status || '—'],
+                    ['duration', (n.duration_ms != null ? n.duration_ms : '?') + 'ms'],
+                    ['position', (n.x_pct != null ? n.x_pct : '?') + '%, ' + (n.y_pct != null ? n.y_pct : '?') + '%']
+                ]);
+            });
+            row.addEventListener('mouseleave', hideChartTooltip);
+            row.addEventListener('click', function() {
+                drillKpi('topo_node_row', 'TASK_NODE',
+                    (n.name || '?') + ' [' + (n.task_id || '?') + '] · ' + (n.status || '?') +
+                    ' · ' + (n.duration_ms != null ? n.duration_ms : '?') + 'ms');
+            });
+        });
+
+        // Task topology edges table (fallback) — hover shows edge endpoints.
+        document.querySelectorAll('.topo-edge-row').forEach((row) => {
+            const idx = parseInt(row.getAttribute('data-idx') || '0', 10);
+            const e = (DATA.task_topology_edges || [])[idx] || {};
+            row.classList.add('chart-interactive');
+            row.style.cursor = 'pointer';
+            row.addEventListener('mousemove', function(ev) {
+                showChartTooltip(ev, 'TASK_EDGE', [
+                    ['source', e.source || '?'],
+                    ['target', e.target || '?'],
+                    ['active', e.is_active ? 'yes' : 'no'],
+                    ['direction', (e.source || '?') + ' → ' + (e.target || '?')]
+                ]);
+            });
+            row.addEventListener('mouseleave', hideChartTooltip);
+            row.addEventListener('click', function() {
+                drillKpi('topo_edge_row', 'TASK_EDGE',
+                    (e.source || '?') + ' → ' + (e.target || '?') + ' · ' + (e.is_active ? 'active' : 'idle'));
+            });
+        });
+
+        // Dependency graph peripheral nodes — hover shows node role + status.
+        document.querySelectorAll('.dep-graph-node').forEach((node) => {
+            const idx = parseInt(node.getAttribute('data-idx') || '0', 10);
+            const d = (DATA.dependency_graph_nodes || [])[idx] || {};
+            node.classList.add('chart-interactive');
+            node.style.cursor = 'pointer';
+            node.addEventListener('mousemove', function(ev) {
+                showChartTooltip(ev, 'DEP_NODE', [
+                    ['name', d.name || '—'],
+                    ['id', d.id || '—'],
+                    ['position', d.position || '—'],
+                    ['status', d.status || '—'],
+                    ['opacity', d.opacity != null ? d.opacity : '?']
+                ]);
+            });
+            node.addEventListener('mouseleave', hideChartTooltip);
+            node.addEventListener('click', function() {
+                drillKpi('dep_node', 'DEP_NODE',
+                    (d.name || '?') + ' · ' + (d.position || '?') + (d.status ? ' · ' + d.status : ''));
+            });
+        });
+
+        // Streaming topology stats — hover explains each metric, click drills.
+        (function bindStreamingTopology() {
+            const panel = document.querySelector('#mode-taskgraph .space-y-2.font-data-mono');
+            if (!panel) return;
+            const stats = DATA.streaming_topology_stats || {};
+            const rows = panel.querySelectorAll('.flex.justify-between');
+            const labels = ['GRAPH_NODES', 'GRAPH_EDGES', 'SAMPLING_RATE', 'WAKER_LOCKS'];
+            const values = [
+                (DATA.task_topology_nodes || []).length,
+                (DATA.task_topology_edges || []).length,
+                (stats.sampling_rate_ms != null ? stats.sampling_rate_ms : '?') + 'ms',
+                stats.waker_locks_status || '—'
+            ];
+            const descs = [
+                'Total nodes in the async task topology graph',
+                'Total edges (parent→child relationships) in the topology',
+                'Streaming sample interval used when capturing topology snapshots',
+                'Current waker lock state — NONE means no tasks are holding wakers'
+            ];
+            rows.forEach((row, i) => {
+                if (i >= labels.length) return;
+                row.classList.add('chart-interactive');
+                row.style.cursor = 'pointer';
+                row.addEventListener('mousemove', function(ev) {
+                    showChartTooltip(ev, 'STREAMING_TOPO', [
+                        ['metric', labels[i]],
+                        ['value', values[i]],
+                        ['description', descs[i]]
+                    ]);
+                });
+                row.addEventListener('mouseleave', hideChartTooltip);
+                row.addEventListener('click', function() {
+                    drillKpi('streaming_topo', 'STREAMING_TOPO', labels[i] + ': ' + values[i] + ' — ' + descs[i]);
+                });
+            });
+        })();
+
+        // Stack integrity metrics — hover explains each metric, click drills.
+        (function bindStackIntegrity() {
+            const si = DATA.stack_integrity || {};
+            const metrics = [
+                { key: 'pointers_checked_pct', label: 'POINTERS_CHECKED', desc: 'Percentage of FFI pointers validated against their expected layout' },
+                { key: 'memory_violations', label: 'MEMORY_VIOLATIONS', desc: 'Detected writes to deallocated or out-of-bounds memory regions' },
+                { key: 'unwinding_strategy', label: 'UNWINDING_STRATEGY', desc: 'Panic strategy used when a violation is detected' }
+            ];
+            // The Stack Integrity card is the first .flex.flex-col.justify-between
+            // container inside #mode-ffi with a STACK_INTEGRITY heading.
+            const cards = document.querySelectorAll('#mode-ffi .flex.flex-col.justify-between');
+            let target = null;
+            cards.forEach(c => {
+                const h = c.querySelector('h2');
+                if (h && h.textContent.indexOf('STACK_INTEGRITY') !== -1) target = c;
+            });
+            if (!target) return;
+            const rows = target.querySelectorAll('.flex.justify-between');
+            rows.forEach((row, i) => {
+                if (i >= metrics.length) return;
+                const m = metrics[i];
+                const val = si[m.key];
+                row.classList.add('chart-interactive');
+                row.style.cursor = 'pointer';
+                row.addEventListener('mousemove', function(ev) {
+                    showChartTooltip(ev, 'STACK_INTEGRITY', [
+                        ['metric', m.label],
+                        ['value', val != null ? val : '?'],
+                        ['description', m.desc]
+                    ]);
+                });
+                row.addEventListener('mouseleave', hideChartTooltip);
+                row.addEventListener('click', function() {
+                    drillKpi('stack_integrity', 'STACK_INTEGRITY', m.label + ': ' + (val != null ? val : '?') + ' — ' + m.desc);
+                });
+            });
+        })();
+
+        // Circular references summary rows — hover shows the metric, click drills.
+        (function bindCircularRefs() {
+            const cr = DATA.circular_references || {};
+            const metrics = [
+                { key: 'count', label: 'CYCLES', desc: 'Number of retain cycles detected in the ownership graph' },
+                { key: 'pointers_in_cycles', label: 'POINTERS_IN_CYCLES', desc: 'Smart pointers participating in cycles vs total tracked' },
+                { key: 'total_leaked_memory', label: 'EST_LEAKED', desc: 'Estimated bytes leaked due to circular references' }
+            ];
+            // Locate the 4th list inside #diagnosisContent (CIRCULAR_REFERENCES section).
+            const diag = document.getElementById('diagnosisContent');
+            if (!diag) return;
+            const lists = diag.querySelectorAll('ul.space-y-1');
+            const circList = lists[lists.length - 1]; // last list is circular refs
+            if (!circList) return;
+            const items = circList.querySelectorAll('li');
+            items.forEach((li, i) => {
+                if (i >= metrics.length) return;
+                const m = metrics[i];
+                let val = cr[m.key];
+                if (m.key === 'pointers_in_cycles') {
+                    val = (cr.pointers_in_cycles != null ? cr.pointers_in_cycles : '?') + ' / ' + (cr.total_smart_pointers != null ? cr.total_smart_pointers : '?');
+                }
+                li.classList.add('chart-interactive');
+                li.style.cursor = 'pointer';
+                li.addEventListener('mousemove', function(ev) {
+                    showChartTooltip(ev, 'CIRCULAR_REF', [
+                        ['metric', m.label],
+                        ['value', val != null ? val : '?'],
+                        ['has_cycles', cr.has_cycles ? 'YES' : 'no'],
+                        ['description', m.desc]
+                    ]);
+                });
+                li.addEventListener('mouseleave', hideChartTooltip);
+                li.addEventListener('click', function() {
+                    drillKpi('circular_ref', 'CIRCULAR_REF', m.label + ': ' + (val != null ? val : '?') + ' — ' + m.desc);
+                });
+            });
+        })();
+
+        // Ownership graph issues list items — hover shows the issue text.
+        document.querySelectorAll('#mode-unsafe .text-on-surface-variant.flex.gap-2').forEach((li, i) => {
+            const txt = li.textContent.trim();
+            li.classList.add('chart-interactive');
+            li.style.cursor = 'pointer';
+            li.addEventListener('mousemove', function(ev) {
+                showChartTooltip(ev, 'OWNERSHIP_ISSUE', [['#', i], ['issue', txt]]);
+            });
+            li.addEventListener('mouseleave', hideChartTooltip);
+            li.addEventListener('click', function() {
+                drillKpi('own_issue', 'OWNERSHIP_ISSUE', 'issue #' + i + ' · ' + txt);
+            });
+        });
     })();
 </script>
 <div id="kpiToast" class="kpi-toast"></div>

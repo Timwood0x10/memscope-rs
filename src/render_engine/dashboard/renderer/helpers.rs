@@ -43,6 +43,10 @@ pub fn register_helpers(handlebars: &mut Handlebars<'static>) {
     handlebars.register_helper("greater_than", Box::new(greater_than_helper));
     handlebars.register_helper("contains", Box::new(contains_helper));
     handlebars.register_helper("json", Box::new(json_helper));
+    handlebars.register_helper("eq", Box::new(eq_helper));
+    handlebars.register_helper("risk_class", Box::new(risk_class_helper));
+    handlebars.register_helper("risk_label", Box::new(risk_label_helper));
+    handlebars.register_helper("len", Box::new(len_helper));
 }
 
 /// Handlebars helper: format bytes to human-readable string.
@@ -112,6 +116,123 @@ fn json_helper(
         handlebars::RenderErrorReason::Other(format!("Failed to serialize to JSON: {}", e))
     })?;
     out.write(&json_string)?;
+    Ok(())
+}
+
+/// Handlebars helper: strict equality check between two values.
+/// Writes "true" when both params are equal strings/numbers, otherwise writes
+/// nothing (empty string is falsy under Handlebars `{{#if}}`).
+fn eq_helper(
+    h: &Helper,
+    _: &Handlebars,
+    _: &Context,
+    _: &mut RenderContext,
+    out: &mut dyn Output,
+) -> HelperResult {
+    let p1 = h.param(0).and_then(|p| p.value().as_str());
+    let p2 = h.param(1).and_then(|p| p.value().as_str());
+    if let (Some(a), Some(b)) = (p1, p2) {
+        if a == b {
+            out.write("true")?;
+        }
+    } else {
+        let n1 = h.param(0).and_then(|p| p.value().as_u64());
+        let n2 = h.param(1).and_then(|p| p.value().as_u64());
+        if let (Some(a), Some(b)) = (n1, n2) {
+            if a == b {
+                out.write("true")?;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Handlebars helper: map a risk level string to a Tailwind color class set.
+/// Usage: class="{{risk_class risk_level}}" → e.g. "bg-error/20 text-error"
+fn risk_class_helper(
+    h: &Helper,
+    _: &Handlebars,
+    _: &Context,
+    _: &mut RenderContext,
+    out: &mut dyn Output,
+) -> HelperResult {
+    let level = h
+        .param(0)
+        .and_then(|p| p.value().as_str())
+        .unwrap_or("")
+        .to_lowercase();
+    let class = match level.as_str() {
+        "high" | "critical" => "bg-error/20 text-error border-error/40",
+        "medium" | "moderate" => "bg-warning/20 text-warning border-warning/40",
+        "low" | "info" => "bg-success/20 text-success border-success/40",
+        _ => "bg-surface-container-highest text-on-surface-variant border-outline-variant",
+    };
+    out.write(class)?;
+    Ok(())
+}
+
+/// Handlebars helper: map a status string to a Tailwind color class set.
+/// Useful for passport status, thread status, task status badges.
+fn risk_label_helper(
+    h: &Helper,
+    _: &Handlebars,
+    _: &Context,
+    _: &mut RenderContext,
+    out: &mut dyn Output,
+) -> HelperResult {
+    let label = h
+        .param(0)
+        .and_then(|p| p.value().as_str())
+        .unwrap_or("")
+        .to_lowercase();
+    let class = if label.contains("leak")
+        || label.contains("error")
+        || label.contains("fail")
+        || label.contains("foreign")
+        || label.contains("zombie")
+    {
+        "bg-error/20 text-error border-error/40"
+    } else if label.contains("active")
+        || label.contains("running")
+        || label.contains("process")
+        || label.contains("wait")
+        || label.contains("pending")
+    {
+        "bg-warning/20 text-warning border-warning/40"
+    } else if label.contains("clean")
+        || label.contains("ok")
+        || label.contains("success")
+        || label.contains("complete")
+        || label.contains("done")
+        || label.contains("idle")
+    {
+        "bg-success/20 text-success border-success/40"
+    } else {
+        "bg-surface-container-highest text-on-surface-variant border-outline-variant"
+    };
+    out.write(class)?;
+    Ok(())
+}
+
+/// Handlebars helper: return the length of an array value.
+/// Usage: {{len thread_policies}} → "3"
+/// Works on top-level and nested arrays (e.g. {{len lifecycle_events}}).
+fn len_helper(
+    h: &Helper,
+    _: &Handlebars,
+    _: &Context,
+    _: &mut RenderContext,
+    out: &mut dyn Output,
+) -> HelperResult {
+    if let Some(param) = h.param(0) {
+        let value = param.value();
+        if let Some(arr) = value.as_array() {
+            out.write(&arr.len().to_string())?;
+            return Ok(());
+        }
+        // Objects with a known length-like field fall back to 0.
+    }
+    out.write("0")?;
     Ok(())
 }
 

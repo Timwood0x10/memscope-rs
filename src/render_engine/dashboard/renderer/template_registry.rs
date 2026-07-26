@@ -10,6 +10,8 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use super::helpers::register_helpers;
+
 /// Registered dashboard template
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DashboardTemplate {
@@ -49,9 +51,16 @@ pub struct TemplateRegistry {
 impl TemplateRegistry {
     /// Create a new empty template registry
     pub fn new() -> Self {
+        let mut handlebars = Handlebars::new();
+        // Register all Handlebars helpers (format_bytes, eq, len, risk_class, ...)
+        // so templates rendered through this registry can use them. Without this,
+        // helper calls like {{len thread_policies}} would be misinterpreted as
+        // field accesses and fail with "Cannot access array/vector with string
+        // index" errors.
+        register_helpers(&mut handlebars);
         Self {
             templates: HashMap::new(),
-            handlebars: Handlebars::new(),
+            handlebars,
             external_base: None,
         }
     }

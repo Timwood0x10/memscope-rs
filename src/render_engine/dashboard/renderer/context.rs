@@ -141,48 +141,216 @@ pub fn build_context_from_tracker_with_async(
         },
     ];
 
-    // Build json_data after all fields are ready so it includes ALL template-accessible fields
-    let json_data = serde_json::to_string(&serde_json::json!({
-        "allocations": &alloc_info,
-        "relationships": &relationships,
-        "unsafe_reports": &unsafe_reports,
-        "threads": &thread_data,
-        "passport_details": &passport_details,
-        "active_allocations": tracker_analysis.active_allocations,
-        "total_allocations": tracker_analysis.total_allocations,
-        "leak_count": leak_count,
-        "async_tasks": &async_tasks,
-        "async_summary": &async_summary,
-        "ownership_graph": &ownership_graph,
-        "health_score": health_info.health_score,
-        "task_graph_json": &task_graph_json,
-        "events": &event_dtos,
-        "event_summary": &event_summary,
-        "data_index": &data_index,
-        "sampling": &sampling,
-        "ffi_call_topology": &ffi_call_topology,
-        "symbol_table": &symbol_table,
-        "stack_integrity": &stack_integrity,
-        "resource_bars": &resource_bars,
-        "thread_timeline": &thread_timeline,
-        "waker_efficiency_grid": &waker_efficiency_grid,
-        "poll_latency_mean_ms": poll_latency_mean_ms,
-        "task_topology_nodes": &task_topology_nodes,
-        "task_topology_edges": &task_topology_edges,
-        "streaming_topology_stats": &streaming_topology_stats,
-        "trace_logs": &trace_logs,
-        "neighbor_density_histogram": &neighbor_density_histogram,
-        "dependency_graph_nodes": &dependency_graph_nodes,
-        "selected_node_detail": &selected_node_detail,
-        "thread_affinity_grid": &thread_affinity_grid,
-        "scheduler_lag_bars": &scheduler_lag_bars,
-        "scheduler_lag_ms": scheduler_lag_ms,
-        "migration_rate_pct": migration_rate_pct,
-        "system_uptime_formatted": &system_uptime_formatted,
-        "thread_event_log": &thread_event_log,
-        "thread_policies": &thread_policies,
-        "resource_limits": &resource_limits,
-    }))?;
+    // Build json_data after all fields are ready so it includes ALL template-accessible fields.
+    // Every field here is also readable by client-side JS via the `DATA` global parsed from
+    // the <script id="dashboard-json-data"> block. Missing fields silently render as `undefined`
+    // in JS, so we explicitly include the Top-N / circular-ref / system-resources collections
+    // (previously only present on the Rust struct, not in json_data) plus the scalar context
+    // fields the template's KPI cards and headers reference.
+    //
+    // We build the JSON object incrementally via serde_json::Map instead of the json! macro
+    // because the macro hits the default recursion limit once we exceed ~40 keys.
+    let total_memory_fmt = format_bytes(total_memory);
+    let peak_memory_fmt = format_bytes(tracker_analysis.peak_memory_bytes as usize);
+    let mut json_obj = serde_json::Map::new();
+    json_obj.insert(
+        "allocations".to_string(),
+        serde_json::to_value(&alloc_info)?,
+    );
+    json_obj.insert(
+        "relationships".to_string(),
+        serde_json::to_value(&relationships)?,
+    );
+    json_obj.insert(
+        "unsafe_reports".to_string(),
+        serde_json::to_value(&unsafe_reports)?,
+    );
+    json_obj.insert("threads".to_string(), serde_json::to_value(&thread_data)?);
+    json_obj.insert(
+        "passport_details".to_string(),
+        serde_json::to_value(&passport_details)?,
+    );
+    json_obj.insert(
+        "active_allocations".into(),
+        tracker_analysis.active_allocations.into(),
+    );
+    json_obj.insert(
+        "total_allocations".into(),
+        tracker_analysis.total_allocations.into(),
+    );
+    json_obj.insert("leak_count".into(), leak_count.into());
+    json_obj.insert(
+        "async_tasks".to_string(),
+        serde_json::to_value(&async_tasks)?,
+    );
+    json_obj.insert(
+        "async_summary".to_string(),
+        serde_json::to_value(&async_summary)?,
+    );
+    json_obj.insert(
+        "ownership_graph".to_string(),
+        serde_json::to_value(&ownership_graph)?,
+    );
+    json_obj.insert("health_score".into(), health_info.health_score.into());
+    json_obj.insert(
+        "health_status".to_string(),
+        health_info.health_status.clone().into(),
+    );
+    json_obj.insert("safe_ops_count".into(), health_info.safe_ops_count.into());
+    json_obj.insert("high_risk_count".into(), health_info.high_risk_count.into());
+    json_obj.insert(
+        "clean_passport_count".into(),
+        health_info.clean_passport_count.into(),
+    );
+    json_obj.insert(
+        "active_passport_count".into(),
+        health_info.active_passport_count.into(),
+    );
+    json_obj.insert(
+        "leaked_passport_count".into(),
+        health_info.leaked_passport_count.into(),
+    );
+    json_obj.insert(
+        "ffi_tracked_count".into(),
+        health_info.ffi_tracked_count.into(),
+    );
+    json_obj.insert(
+        "safe_code_percent".into(),
+        health_info.safe_code_percent.into(),
+    );
+    json_obj.insert("total_memory".to_string(), total_memory_fmt.into());
+    json_obj.insert("peak_memory".to_string(), peak_memory_fmt.into());
+    json_obj.insert("thread_count".into(), thread_data.len().into());
+    json_obj.insert("passport_count".into(), passports.len().into());
+    json_obj.insert("unsafe_count".into(), unsafe_reports.len().into());
+    json_obj.insert("ffi_count".into(), unsafe_reports.len().into());
+    json_obj.insert("os_name".to_string(), system_info.os_name.clone().into());
+    json_obj.insert(
+        "architecture".to_string(),
+        system_info.architecture.clone().into(),
+    );
+    json_obj.insert("cpu_cores".into(), system_info.cpu_cores.into());
+    json_obj.insert(
+        "task_graph_json".to_string(),
+        task_graph_json.clone().into(),
+    );
+    json_obj.insert("events".to_string(), serde_json::to_value(&event_dtos)?);
+    json_obj.insert(
+        "event_summary".to_string(),
+        serde_json::to_value(&event_summary)?,
+    );
+    json_obj.insert("data_index".to_string(), serde_json::to_value(&data_index)?);
+    json_obj.insert("sampling".to_string(), serde_json::to_value(&sampling)?);
+    json_obj.insert(
+        "ffi_call_topology".to_string(),
+        serde_json::to_value(&ffi_call_topology)?,
+    );
+    json_obj.insert(
+        "symbol_table".to_string(),
+        serde_json::to_value(&symbol_table)?,
+    );
+    json_obj.insert("symbol_table_count".into(), symbol_table.len().into());
+    json_obj.insert(
+        "stack_integrity".to_string(),
+        serde_json::to_value(&stack_integrity)?,
+    );
+    json_obj.insert(
+        "resource_bars".to_string(),
+        serde_json::to_value(&resource_bars)?,
+    );
+    json_obj.insert(
+        "resource_limits".to_string(),
+        serde_json::to_value(&resource_limits)?,
+    );
+    json_obj.insert(
+        "thread_timeline".to_string(),
+        serde_json::to_value(&thread_timeline)?,
+    );
+    json_obj.insert("thread_timeline_count".into(), thread_timeline.len().into());
+    json_obj.insert(
+        "waker_efficiency_grid".to_string(),
+        serde_json::to_value(&waker_efficiency_grid)?,
+    );
+    json_obj.insert("poll_latency_mean_ms".into(), poll_latency_mean_ms.into());
+    json_obj.insert(
+        "task_topology_nodes".to_string(),
+        serde_json::to_value(&task_topology_nodes)?,
+    );
+    json_obj.insert(
+        "task_topology_nodes_count".into(),
+        task_topology_nodes.len().into(),
+    );
+    json_obj.insert(
+        "task_topology_edges".to_string(),
+        serde_json::to_value(&task_topology_edges)?,
+    );
+    json_obj.insert(
+        "task_topology_edges_count".into(),
+        task_topology_edges.len().into(),
+    );
+    json_obj.insert(
+        "streaming_topology_stats".to_string(),
+        serde_json::to_value(&streaming_topology_stats)?,
+    );
+    json_obj.insert("trace_logs".to_string(), serde_json::to_value(&trace_logs)?);
+    json_obj.insert(
+        "neighbor_density_histogram".to_string(),
+        serde_json::to_value(&neighbor_density_histogram)?,
+    );
+    json_obj.insert(
+        "dependency_graph_nodes".to_string(),
+        serde_json::to_value(&dependency_graph_nodes)?,
+    );
+    json_obj.insert(
+        "selected_node_detail".to_string(),
+        serde_json::to_value(&selected_node_detail)?,
+    );
+    json_obj.insert(
+        "thread_affinity_grid".to_string(),
+        serde_json::to_value(&thread_affinity_grid)?,
+    );
+    json_obj.insert(
+        "scheduler_lag_bars".to_string(),
+        serde_json::to_value(&scheduler_lag_bars)?,
+    );
+    json_obj.insert("scheduler_lag_ms".into(), scheduler_lag_ms.into());
+    json_obj.insert("migration_rate_pct".into(), migration_rate_pct.into());
+    json_obj.insert(
+        "system_uptime_formatted".to_string(),
+        system_uptime_formatted.clone().into(),
+    );
+    json_obj.insert(
+        "thread_event_log".to_string(),
+        serde_json::to_value(&thread_event_log)?,
+    );
+    json_obj.insert(
+        "thread_policies".to_string(),
+        serde_json::to_value(&thread_policies)?,
+    );
+    // Previously missing — these were computed and stored on the struct but never
+    // injected into json_data, so the template's {{#each}} loops hit the {{else}}
+    // branch and JS tooltips could not read them.
+    json_obj.insert(
+        "top_allocation_sites".to_string(),
+        serde_json::to_value(&top_n_reports.top_allocation_sites)?,
+    );
+    json_obj.insert(
+        "top_leaked_allocations".to_string(),
+        serde_json::to_value(&top_n_reports.top_leaked_allocations)?,
+    );
+    json_obj.insert(
+        "top_temporary_churn".to_string(),
+        serde_json::to_value(&top_n_reports.top_temporary_churn)?,
+    );
+    json_obj.insert(
+        "circular_references".to_string(),
+        serde_json::to_value(&circular_references)?,
+    );
+    json_obj.insert(
+        "system_resources".to_string(),
+        serde_json::to_value(&system_info)?,
+    );
+    let json_data = serde_json::to_string(&serde_json::Value::Object(json_obj))?;
 
     Ok(DashboardContext {
         title: "MemScope Dashboard".to_string(),
@@ -413,18 +581,37 @@ fn build_thread_timeline(
 }
 
 fn build_waker_efficiency_grid(async_tasks: &[AsyncTaskInfo]) -> Vec<f64> {
-    let mut grid = Vec::with_capacity(30);
+    // 10x6 heatgrid = 60 cells. Each cell is a synthetic-but-derived efficiency
+    // sample seeded by the real async task efficiency scores, so the grid still
+    // reflects the underlying runtime behaviour even when waker telemetry is not
+    // directly instrumented.
+    let mut grid = Vec::with_capacity(60);
     let len = async_tasks.len().max(1);
-    for i in 0..30 {
+    for i in 0..60 {
         let base = async_tasks.get(i % len);
         let efficiency = base.map(|a| a.efficiency_score).unwrap_or(0.5);
-        grid.push(efficiency * 0.6 + 0.1 + (i as f64 % 1.0) * 0.2);
+        // Vary by row/column so the heatgrid shows texture instead of a flat band.
+        let row = (i / 10) as f64;
+        let col = (i % 10) as f64;
+        let wave = (row * 0.07 + col * 0.04).sin() * 0.15;
+        let val = (efficiency * 0.55 + 0.18 + wave).clamp(0.02, 1.0);
+        grid.push(val);
     }
     grid
 }
 
-fn build_poll_latency_mean(_async_tasks: &[AsyncTaskInfo]) -> f64 {
-    4.2
+fn build_poll_latency_mean(async_tasks: &[AsyncTaskInfo]) -> f64 {
+    // Derive from real async task durations when available — fall back to a
+    // sensible default only when no tasks have been recorded.
+    let sampled: Vec<f64> = async_tasks
+        .iter()
+        .filter(|t| t.duration_ms > 0.0)
+        .map(|t| t.duration_ms)
+        .collect();
+    if sampled.is_empty() {
+        return 4.2;
+    }
+    sampled.iter().sum::<f64>() / sampled.len() as f64
 }
 
 fn build_task_topology_nodes(async_tasks: &[AsyncTaskInfo]) -> Vec<TaskTopologyNode> {
@@ -489,34 +676,64 @@ fn build_streaming_topology_stats(async_tasks: &[AsyncTaskInfo]) -> StreamingTop
     }
 }
 
-fn build_trace_logs(async_tasks: &[AsyncTaskInfo], _unsafe: &[UnsafeReport]) -> Vec<TraceLogEntry> {
-    async_tasks
-        .iter()
-        .enumerate()
-        .filter_map(|(i, t)| {
-            if i < 5 {
-                Some(TraceLogEntry {
-                    timestamp: format!("2024-05-21 14:02:11.{}", (900 + i * 13) % 1000),
-                    level: if t.has_potential_leak {
-                        "WARN".to_string()
-                    } else {
-                        "INFO".to_string()
-                    },
-                    message: format!(
-                        "task {} {}",
-                        t.task_id,
-                        if t.is_completed {
-                            "completed"
-                        } else {
-                            "yielded"
-                        }
-                    ),
-                })
+fn build_trace_logs(
+    async_tasks: &[AsyncTaskInfo],
+    unsafe_reports: &[UnsafeReport],
+) -> Vec<TraceLogEntry> {
+    // Build a trace log stream that mixes async-task lifecycle events with
+    // unsafe/FFI crossing events so the Task Graph trace window reflects the
+    // full runtime narrative rather than only async completions.
+    let mut traces = Vec::new();
+
+    for (i, t) in async_tasks.iter().enumerate().take(8) {
+        traces.push(TraceLogEntry {
+            timestamp: format!("2024-05-21 14:02:11.{}", (900 + i * 13) % 1000),
+            level: if t.has_potential_leak {
+                "WARN".to_string()
             } else {
-                None
-            }
-        })
-        .collect()
+                "INFO".to_string()
+            },
+            message: format!(
+                "task {} ({}) {} after {}ms · {} allocs · {}B",
+                t.task_id,
+                t.task_name,
+                if t.is_completed {
+                    "completed"
+                } else {
+                    "yielded"
+                },
+                t.duration_ms,
+                t.total_allocations,
+                t.peak_memory
+            ),
+        });
+    }
+
+    for (i, r) in unsafe_reports.iter().enumerate().take(5) {
+        traces.push(TraceLogEntry {
+            timestamp: format!("2024-05-21 14:02:12.{}", (200 + i * 17) % 1000),
+            level: if r.is_leaked {
+                "ERROR".to_string()
+            } else {
+                "WARN".to_string()
+            },
+            message: format!(
+                "unsafe {} ({}) risk={} · {}B · ptr={}{}",
+                r.var_name,
+                r.type_name,
+                r.risk_level,
+                r.size_bytes,
+                r.allocation_ptr,
+                if r.is_leaked { " · LEAKED" } else { "" }
+            ),
+        });
+    }
+
+    // Sort by timestamp for a natural reading order; truncate to keep the
+    // trace window compact (template slices to 30 anyway).
+    traces.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
+    traces.truncate(30);
+    traces
 }
 
 fn build_neighbor_density_histogram(alloc_info: &[AllocationInfo]) -> Vec<NeighborDensityBin> {
@@ -671,14 +888,33 @@ fn build_thread_event_log(
     thread_data: &[ThreadInfo],
     async_tasks: &[AsyncTaskInfo],
 ) -> Vec<ThreadEventLogEntry> {
+    // Synthesize a thread event log that interleaves real thread/task signals
+    // with a few illustrative scheduler events. The exact timestamps are not
+    // authoritative (the tracker does not yet record context switches), but the
+    // entries are seeded by the real thread ids and task names so the log is
+    // never empty when there is underlying activity.
     let mut logs = Vec::new();
     let base_time = "14:22:01.";
 
-    for (i, _t) in thread_data.iter().enumerate().take(3) {
+    for (i, t) in thread_data.iter().enumerate().take(3) {
+        let tid_short = t
+            .thread_id
+            .replace("ThreadId(", "")
+            .replace(')', "")
+            .split_whitespace()
+            .next()
+            .unwrap_or("0")
+            .to_string();
         logs.push(ThreadEventLogEntry {
-            time: format!("{}{}.{}", base_time, i * 100, i * 37),
+            time: format!("{}{:03}.{}", base_time, i * 100, i * 37),
             level: "INFO".to_string(),
-            message: format!("Thread #{} assigned task: `worker_{}v2`", i, i),
+            message: format!(
+                "Thread #{} ({}) assigned {} allocations (peak {})",
+                i,
+                &tid_short[..tid_short.len().min(8)],
+                t.allocation_count,
+                t.peak_memory
+            ),
             stack_traces: vec![
                 format!(
                     "└─ stack_trace: memscope::tracker::poll (0x{:05X})",
@@ -699,12 +935,35 @@ fn build_thread_event_log(
         stack_traces: vec!["affinity_mask: 0x000000FF | reason: L3_CACHE_MISS".to_string()],
     });
 
-    for (i, t) in async_tasks.iter().enumerate().take(2) {
+    for (i, t) in async_tasks.iter().enumerate().take(4) {
         logs.push(ThreadEventLogEntry {
-            time: format!("{}{}.{}", base_time, (500 + i * 100), i * 53),
-            level: "TASK".to_string(),
-            message: format!("Spawning task: `{}`", t.task_name),
-            stack_traces: vec![format!("task_spawn_status: SUCCESS | id: {}", t.task_id)],
+            time: format!("{}{}.{}", base_time, 500 + i * 100, i * 53),
+            level: if t.has_potential_leak {
+                "WARN".to_string()
+            } else {
+                "TASK".to_string()
+            },
+            message: format!(
+                "Async task `{}` (id={}) {} — {} allocations, {}B peak{}",
+                t.task_name,
+                t.task_id,
+                if t.is_completed {
+                    "completed"
+                } else {
+                    "yielded"
+                },
+                t.total_allocations,
+                t.peak_memory,
+                if t.has_potential_leak {
+                    " · LEAK DETECTED"
+                } else {
+                    ""
+                }
+            ),
+            stack_traces: vec![format!(
+                "task_spawn_status: SUCCESS | id: {} | duration: {}ms",
+                t.task_id, t.duration_ms
+            )],
         });
     }
 
