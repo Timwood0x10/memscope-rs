@@ -154,8 +154,98 @@ pub fn render_unified_dashboard(
         serde_json::to_value(&context.threads)?,
     );
     template_data.insert(
+        "async_tasks".to_string(),
+        serde_json::to_value(&context.async_tasks)?,
+    );
+    template_data.insert(
+        "async_summary".to_string(),
+        serde_json::to_value(&context.async_summary)?,
+    );
+    template_data.insert(
         "ownership_graph".to_string(),
         serde_json::to_value(&context.ownership_graph)?,
+    );
+
+    // Top-N analysis and circular reference reports (Handlebars {{#each}} consumers)
+    template_data.insert(
+        "top_allocation_sites".to_string(),
+        serde_json::to_value(&context.top_allocation_sites)?,
+    );
+    template_data.insert(
+        "top_leaked_allocations".to_string(),
+        serde_json::to_value(&context.top_leaked_allocations)?,
+    );
+    template_data.insert(
+        "top_temporary_churn".to_string(),
+        serde_json::to_value(&context.top_temporary_churn)?,
+    );
+    template_data.insert(
+        "circular_references".to_string(),
+        serde_json::to_value(&context.circular_references)?,
+    );
+
+    // FFI bridge, symbol table and resource bars
+    template_data.insert(
+        "ffi_call_topology".to_string(),
+        serde_json::to_value(&context.ffi_call_topology)?,
+    );
+    template_data.insert(
+        "symbol_table".to_string(),
+        serde_json::to_value(&context.symbol_table)?,
+    );
+    template_data.insert(
+        "symbol_table_count".to_string(),
+        serde_json::Value::Number(context.symbol_table_count.into()),
+    );
+    template_data.insert(
+        "resource_bars".to_string(),
+        serde_json::to_value(&context.resource_bars)?,
+    );
+
+    // Task topology graph (nodes/edges) and count helpers
+    template_data.insert(
+        "task_topology_nodes".to_string(),
+        serde_json::to_value(&context.task_topology_nodes)?,
+    );
+    template_data.insert(
+        "task_topology_nodes_count".to_string(),
+        serde_json::Value::Number(context.task_topology_nodes_count.into()),
+    );
+    template_data.insert(
+        "task_topology_edges".to_string(),
+        serde_json::to_value(&context.task_topology_edges)?,
+    );
+    template_data.insert(
+        "task_topology_edges_count".to_string(),
+        serde_json::Value::Number(context.task_topology_edges_count.into()),
+    );
+
+    // Variable dependency graph peripherals and selected node detail panel
+    template_data.insert(
+        "dependency_graph_nodes".to_string(),
+        serde_json::to_value(&context.dependency_graph_nodes)?,
+    );
+    template_data.insert(
+        "selected_node_detail".to_string(),
+        serde_json::to_value(&context.selected_node_detail)?,
+    );
+
+    // Thread mode: policies, scheduler lag bars, affinity grid, timeline count
+    template_data.insert(
+        "thread_policies".to_string(),
+        serde_json::to_value(&context.thread_policies)?,
+    );
+    template_data.insert(
+        "scheduler_lag_bars".to_string(),
+        serde_json::to_value(&context.scheduler_lag_bars)?,
+    );
+    template_data.insert(
+        "thread_affinity_grid".to_string(),
+        serde_json::to_value(&context.thread_affinity_grid)?,
+    );
+    template_data.insert(
+        "thread_timeline_count".to_string(),
+        serde_json::Value::Number(context.thread_timeline_count.into()),
     );
 
     template_data.insert(
@@ -618,6 +708,10 @@ mod tests {
                 total_allocations: 0,
                 total_memory_bytes: 0,
                 peak_memory_bytes: 0,
+                completed: 0,
+                leaked: 0,
+                zombie: 0,
+                success_rate: 0.0,
             },
             health_score: 100,
             health_status: "Good".to_string(),
@@ -651,13 +745,17 @@ mod tests {
             task_graph_json: "{}".to_string(),
             ffi_call_topology: Default::default(),
             symbol_table: vec![],
+            symbol_table_count: 0,
             stack_integrity: Default::default(),
             resource_bars: vec![],
             thread_timeline: vec![],
+            thread_timeline_count: 0,
             waker_efficiency_grid: vec![],
             poll_latency_mean_ms: 0.0,
             task_topology_nodes: vec![],
+            task_topology_nodes_count: 0,
             task_topology_edges: vec![],
+            task_topology_edges_count: 0,
             streaming_topology_stats: Default::default(),
             trace_logs: vec![],
             neighbor_density_histogram: vec![],
@@ -930,6 +1028,8 @@ mod tests {
             current_memory_bytes: 1024,
             peak_memory_bytes: 2048,
             total_allocated_bytes: 10240,
+            is_active: true,
+            status: "ACTIVE".to_string(),
         }];
 
         let data = to_legacy_binary_data(&context);
@@ -1013,6 +1113,7 @@ mod tests {
             is_leaked: false,
             risk_level: "medium".to_string(),
             risk_factors: vec!["FFI boundary".to_string()],
+            description: "FFI boundary".to_string(),
         }];
 
         let data = to_legacy_binary_data(&context);
@@ -1049,6 +1150,8 @@ mod tests {
             cross_boundary_events: vec![],
             risk_level: "low".to_string(),
             risk_confidence: 0.85,
+            is_active: true,
+            source_location: "test.rs:1".to_string(),
         }];
 
         let data = to_legacy_binary_data(&context);

@@ -101,6 +101,9 @@ pub struct DashboardContext {
     /// Symbol table analysis entries
     #[serde(default)]
     pub symbol_table: Vec<SymbolTableEntry>,
+    /// Symbol table entry count (template helper, avoids .length in Handlebars)
+    #[serde(default)]
+    pub symbol_table_count: usize,
     /// Stack integrity metrics
     #[serde(default)]
     pub stack_integrity: StackIntegrityMetrics,
@@ -110,6 +113,9 @@ pub struct DashboardContext {
     /// Thread execution timeline rows
     #[serde(default)]
     pub thread_timeline: Vec<ThreadTimelineRow>,
+    /// Thread timeline row count (template helper, avoids .length in Handlebars)
+    #[serde(default)]
+    pub thread_timeline_count: usize,
 
     /// Waker efficiency grid (opacity values)
     #[serde(default)]
@@ -120,9 +126,15 @@ pub struct DashboardContext {
     /// Async task topology nodes
     #[serde(default)]
     pub task_topology_nodes: Vec<TaskTopologyNode>,
+    /// Async task topology node count (template helper, avoids .length in Handlebars)
+    #[serde(default)]
+    pub task_topology_nodes_count: usize,
     /// Async task topology edges
     #[serde(default)]
     pub task_topology_edges: Vec<TaskTopologyEdge>,
+    /// Async task topology edge count (template helper, avoids .length in Handlebars)
+    #[serde(default)]
+    pub task_topology_edges_count: usize,
     /// Streaming topology stats
     #[serde(default)]
     pub streaming_topology_stats: StreamingTopologyStats,
@@ -234,6 +246,9 @@ pub struct AsyncTaskInfo {
     pub is_completed: bool,
     /// Whether task has potential leak
     pub has_potential_leak: bool,
+    /// Human-readable status: COMPLETED / LEAKED / RUNNING / WAITING
+    #[serde(default)]
+    pub status: String,
 }
 
 /// Async summary for dashboard
@@ -249,6 +264,18 @@ pub struct AsyncSummary {
     pub total_memory_bytes: usize,
     /// Peak memory bytes
     pub peak_memory_bytes: usize,
+    /// Number of completed tasks (finished without leaking)
+    #[serde(default)]
+    pub completed: usize,
+    /// Number of tasks flagged with potential leaks
+    #[serde(default)]
+    pub leaked: usize,
+    /// Number of zombie tasks (neither completed nor active)
+    #[serde(default)]
+    pub zombie: usize,
+    /// Success rate percentage (completed / total * 100)
+    #[serde(default)]
+    pub success_rate: f64,
 }
 
 /// Allocation information for dashboard
@@ -403,6 +430,9 @@ pub struct UnsafeReport {
     pub risk_level: String,
     /// Risk factors
     pub risk_factors: Vec<String>,
+    /// Human-readable description joining risk factors for display
+    #[serde(default)]
+    pub description: String,
 }
 
 /// Lifecycle event information
@@ -468,6 +498,12 @@ pub struct PassportDetail {
     pub risk_level: String,
     /// Risk confidence
     pub risk_confidence: f64,
+    /// Whether the passport is currently active (not leaked, not freed)
+    #[serde(default)]
+    pub is_active: bool,
+    /// Best-effort source location string (file:line or allocation context)
+    #[serde(default)]
+    pub source_location: String,
 }
 
 /// System resources information
@@ -512,6 +548,12 @@ pub struct ThreadInfo {
     pub peak_memory_bytes: usize,
     /// Raw total allocated in bytes for sorting
     pub total_allocated_bytes: usize,
+    /// Whether the thread currently holds active allocations
+    #[serde(default)]
+    pub is_active: bool,
+    /// Human-readable status: ACTIVE / IDLE
+    #[serde(default)]
+    pub status: String,
 }
 
 /// Thread aggregator for internal use
@@ -601,6 +643,15 @@ pub struct FfiCallEdge {
     pub source: usize,
     /// Target node index
     pub target: usize,
+    /// Resolved source node name (for table display)
+    #[serde(default)]
+    pub from_name: String,
+    /// Resolved target node name (for table display)
+    #[serde(default)]
+    pub to_name: String,
+    /// Human-readable label describing the crossing
+    #[serde(default)]
+    pub label: String,
 }
 
 /// Symbol table entry with status
@@ -616,6 +667,9 @@ pub struct SymbolTableEntry {
     pub call_count: u64,
     /// Average time per call (microseconds)
     pub time_avg_us: f64,
+    /// Whether the symbol is hot (high risk) — drives row color in template
+    #[serde(default)]
+    pub is_hot: bool,
 }
 
 /// Stack integrity metrics

@@ -471,6 +471,17 @@ fn build_unsafe_report(
         risk_factors.push("Frequent boundary crossings".to_string());
     }
 
+    // Build a single-line description from risk factors so the template can
+    // render a human-readable summary without joining logic in Handlebars.
+    let description = if risk_factors.is_empty() {
+        format!(
+            "{} ({} bytes) — no risk factors detected",
+            type_name, p.size_bytes
+        )
+    } else {
+        risk_factors.join("; ")
+    };
+
     UnsafeReport {
         passport_id: p.passport_id.clone(),
         allocation_ptr: format!("0x{:x}", p.allocation_ptr),
@@ -485,6 +496,7 @@ fn build_unsafe_report(
         is_leaked,
         risk_level,
         risk_factors,
+        description,
     }
 }
 
@@ -543,6 +555,23 @@ fn build_passport_detail(
         "low".to_string()
     };
 
+    // An active passport is one that is neither leaked nor freed — it still
+    // holds live memory at shutdown. We approximate "active" by checking the
+    // shutdown status reflects a Rust-held, non-freed state.
+    let is_active = !is_leaked
+        && p.status_at_shutdown != PassportStatus::FreedByRust
+        && p.status_at_shutdown != PassportStatus::FreedByForeign;
+
+    // Best-effort source location: prefer the originating allocation's stack
+    // trace, fall back to the var name + allocation pointer for context.
+    let source_location = all_allocations
+        .iter()
+        .find(|a| a.ptr == p.allocation_ptr)
+        .and_then(|a| a.stack_trace.as_ref())
+        .and_then(|s| s.first())
+        .cloned()
+        .unwrap_or_else(|| format!("{} @ 0x{:x}", var_name, p.allocation_ptr));
+
     PassportDetail {
         passport_id: p.passport_id.clone(),
         allocation_ptr: format!("0x{:x}", p.allocation_ptr),
@@ -558,6 +587,8 @@ fn build_passport_detail(
         cross_boundary_events,
         risk_level,
         risk_confidence: 0.85,
+        is_active,
+        source_location,
     }
 }
 
@@ -689,6 +720,8 @@ pub fn aggregate_thread_data(allocations: &[AllocationInfo]) -> Vec<ThreadInfo> 
                 super::helpers::format_bytes(agg.current_memory)
             );
             let thread_id = super::helpers::format_thread_id(&raw_tid);
+            let is_active = agg.allocation_count > 0;
+            let status = if is_active { "ACTIVE" } else { "IDLE" }.to_string();
             ThreadInfo {
                 thread_id,
                 thread_summary: summary,
@@ -699,6 +732,8 @@ pub fn aggregate_thread_data(allocations: &[AllocationInfo]) -> Vec<ThreadInfo> 
                 current_memory_bytes: agg.current_memory,
                 peak_memory_bytes: agg.peak_memory,
                 total_allocated_bytes: agg.total_allocated,
+                is_active,
+                status,
             }
         })
         .collect()
@@ -716,6 +751,13 @@ pub fn build_async_tasks(
                 let is_completed = p.is_completed();
                 let has_potential_leak = p.has_potential_leak();
                 let task_type_str = format!("{:?}", p.task_type);
+                let status = if has_potential_leak {
+                    "LEAKED".to_string()
+                } else if is_completed {
+                    "COMPLETED".to_string()
+                } else {
+                    "RUNNING".to_string()
+                };
                 AsyncTaskInfo {
                     task_id: p.task_id,
                     task_name: p.task_name,
@@ -728,6 +770,7 @@ pub fn build_async_tasks(
                     efficiency_score: p.efficiency_score,
                     is_completed,
                     has_potential_leak,
+                    status,
                 }
             })
             .collect()
@@ -737,26 +780,52 @@ pub fn build_async_tasks(
 }
 
 /// Build async summary
+///
+/// Aggregates per-task profiles into summary KPIs. The `async_tasks` slice is
+/// used to derive completed/leaked/zombie counts and the success rate, since
+/// the tracker's raw stats do not expose these breakdowns directly.
 pub fn build_async_summary(
     async_tracker: Option<&std::sync::Arc<crate::capture::backends::async_tracker::AsyncTracker>>,
+    async_tasks: &[AsyncTaskInfo],
 ) -> AsyncSummary {
-    if let Some(tracker) = async_tracker {
-        let stats = tracker.get_stats();
-        AsyncSummary {
-            total_tasks: stats.total_tasks,
-            active_tasks: stats.active_tasks,
-            total_allocations: stats.total_allocations,
-            total_memory_bytes: stats.total_memory,
-            peak_memory_bytes: stats.peak_memory,
-        }
+    let (total_tasks, active_tasks, total_allocations, total_memory_bytes, peak_memory_bytes) =
+        if let Some(tracker) = async_tracker {
+            let stats = tracker.get_stats();
+            (
+                stats.total_tasks,
+                stats.active_tasks,
+                stats.total_allocations,
+                stats.total_memory,
+                stats.peak_memory,
+            )
+        } else {
+            (0, 0, 0, 0, 0)
+        };
+
+    // Derive completion/leak/zombie breakdowns from the per-task list so the
+    // template's async KPI cards reflect real task outcomes rather than zeros.
+    let completed = async_tasks.iter().filter(|t| t.is_completed).count();
+    let leaked = async_tasks.iter().filter(|t| t.has_potential_leak).count();
+    let zombie = async_tasks
+        .iter()
+        .filter(|t| !t.is_completed && !t.has_potential_leak)
+        .count();
+    let success_rate = if total_tasks > 0 {
+        (completed as f64 / total_tasks as f64) * 100.0
     } else {
-        AsyncSummary {
-            total_tasks: 0,
-            active_tasks: 0,
-            total_allocations: 0,
-            total_memory_bytes: 0,
-            peak_memory_bytes: 0,
-        }
+        0.0
+    };
+
+    AsyncSummary {
+        total_tasks,
+        active_tasks,
+        total_allocations,
+        total_memory_bytes,
+        peak_memory_bytes,
+        completed,
+        leaked,
+        zombie,
+        success_rate,
     }
 }
 
@@ -1048,6 +1117,7 @@ mod tests {
             is_leaked: false,
             risk_level: "low".to_string(),
             risk_factors: vec![],
+            description: "no risk factors".to_string(),
         };
         let high_risk_report = UnsafeReport {
             passport_id: "2".to_string(),
@@ -1063,6 +1133,7 @@ mod tests {
             is_leaked: false,
             risk_level: "high".to_string(),
             risk_factors: vec![],
+            description: "no risk factors".to_string(),
         };
         let health_safe = calculate_health_info(&[safe_report], &[], 0, 100);
         let health_high_risk = calculate_health_info(&[high_risk_report], &[], 0, 100);
@@ -1087,6 +1158,8 @@ mod tests {
             cross_boundary_events: vec![],
             risk_level: "high".to_string(),
             risk_confidence: 0.9,
+            is_active: false,
+            source_location: "test.rs:1".to_string(),
         };
         let clean_passport = PassportDetail {
             passport_id: "2".to_string(),
@@ -1103,6 +1176,8 @@ mod tests {
             cross_boundary_events: vec![],
             risk_level: "low".to_string(),
             risk_confidence: 0.5,
+            is_active: true,
+            source_location: "test.rs:2".to_string(),
         };
         let health_clean = calculate_health_info(&[], &[clean_passport], 0, 100);
         let health_leaked = calculate_health_info(&[], &[leaked_passport], 1, 100);
@@ -1135,8 +1210,12 @@ mod tests {
     /// Objective: Verify that build_async_summary returns zeros for no tracker.
     #[test]
     fn test_build_async_summary_no_tracker() {
-        let summary = build_async_summary(None);
+        let summary = build_async_summary(None, &[]);
         assert_eq!(summary.total_tasks, 0);
         assert_eq!(summary.active_tasks, 0);
+        assert_eq!(summary.completed, 0);
+        assert_eq!(summary.leaked, 0);
+        assert_eq!(summary.zombie, 0);
+        assert_eq!(summary.success_rate, 0.0);
     }
 }

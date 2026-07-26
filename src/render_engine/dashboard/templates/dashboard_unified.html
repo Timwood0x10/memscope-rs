@@ -1,12 +1,35 @@
 <!DOCTYPE html>
-<html class="dark" lang="en">
+<html class="dark" data-theme="amber" lang="en">
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>{{title}} — MemScope V2</title>
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.8.5/dist/d3.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <style>
+    /* Theme tokens — amber (default) and indigo variants switchable via data-theme. */
+    html[data-theme="amber"] {
+        --ke-primary: #cfbcff;        /* indigo lavender stays as secondary accent */
+        --ke-accent: #F59E0B;         /* amber */
+        --ke-accent-glow: rgba(245, 158, 11, 0.15);
+        --ke-on-accent: #3e2e00;
+        --ke-edge: #211f24;
+    }
+    html[data-theme="indigo"] {
+        --ke-primary: #6750a4;        /* indigo */
+        --ke-accent: #cfbcff;         /* lavender becomes the accent */
+        --ke-accent-glow: rgba(103, 80, 164, 0.18);
+        --ke-on-accent: #381e72;
+        --ke-edge: #2b2950;
+    }
+    html[data-theme="indigo"] .text-accent-amber { color: var(--ke-accent); }
+    html[data-theme="indigo"] .bg-accent-amber { background-color: var(--ke-accent); }
+    html[data-theme="indigo"] .border-accent-amber { border-color: var(--ke-accent); }
+    html[data-theme="indigo"] .amber-glow { box-shadow: 0 0 15px -3px var(--ke-accent-glow); }
+    html[data-theme="indigo"] .ke-side-item.active { border-left-color: var(--ke-accent); }
+
     .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
     ::-webkit-scrollbar { width: 8px; height: 8px; }
     ::-webkit-scrollbar-track { background: #0f0d13; }
@@ -17,6 +40,15 @@
     .amber-glow { box-shadow: 0 0 15px -3px rgba(245, 158, 11, 0.15); }
     .mode-section { display: none; }
     .mode-section.active { display: block; }
+    /* KPI card interaction — hover lift + click ripple, with tooltip via [title]. */
+    .kpi-card { transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease; cursor: pointer; }
+    .kpi-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px -8px rgba(0,0,0,0.6); }
+    .kpi-card:active { transform: translateY(0); }
+    .kpi-flash { animation: kpi-flash .6s ease-out; }
+    @keyframes kpi-flash { 0% { box-shadow: 0 0 0 0 var(--ke-accent, #F59E0B); } 100% { box-shadow: 0 0 0 12px transparent; } }
+    /* Drill-down toast */
+    .kpi-toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #211f24; color: #e6e0e9; border: 1px solid #494551; border-radius: 8px; padding: 10px 16px; font-family: "JetBrains Mono", monospace; font-size: 12px; z-index: 100; opacity: 0; transition: opacity .18s ease; pointer-events: none; max-width: 80vw; }
+    .kpi-toast.visible { opacity: 1; }
     .ke-side-item.active { background: #211f24; color: #e6e0e9; border-left: 2px solid #cfbcff; }
     .dashed-pulse { stroke-dasharray: 8 4; animation: dash 1s linear infinite; }
     @keyframes dash { to { stroke-dashoffset: -12; } }
@@ -138,6 +170,11 @@
                 <span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>NODE_READY
             </div>
             <div class="text-[10px] text-outline">UP: {{system_uptime_formatted}} · {{cpu_cores}} cores</div>
+            <div class="flex items-center gap-1 mt-2 pt-2 border-t border-outline-variant/50">
+                <span class="text-[10px] font-label-caps text-on-surface-variant mr-1">THEME</span>
+                <button id="theme-amber" onclick="switchTheme('amber')" title="Amber accent" class="flex-1 py-1 rounded border border-accent-amber bg-accent-amber/20 text-accent-amber font-label-caps text-[10px] hover:bg-accent-amber/40 transition-colors">amber</button>
+                <button id="theme-indigo" onclick="switchTheme('indigo')" title="Indigo accent" class="flex-1 py-1 rounded border border-outline-variant text-on-surface-variant font-label-caps text-[10px] hover:bg-surface-container-high transition-colors">indigo</button>
+            </div>
         </div>
     </nav>
 
@@ -169,7 +206,7 @@
 
             <!-- 4 KPI cards -->
             <div class="grid grid-cols-1 md:grid-cols-4 gap-gutter mb-8">
-                <div class="bg-surface-container-high border border-outline-variant p-5 rounded-lg rim-light indigo-glow">
+                <div class="bg-surface-container-high border border-outline-variant p-5 rounded-lg rim-light indigo-glow kpi-card" data-kpi="health_score" title="Health score — composite of leak/unsafe/FFI/passport risk. Click to drill." onclick="drillKpi('health_score','HEALTH_SCORE','{{health_score}}/100 — {{health_status}}')">
                     <div class="flex justify-between items-start mb-4">
                         <span class="font-label-caps text-label-caps text-on-surface-variant">HEALTH_SCORE</span>
                         <span class="material-symbols-outlined text-primary">shield</span>
@@ -183,7 +220,7 @@
                         <div class="bg-primary h-full" style="width: {{health_score}}%"></div>
                     </div>
                 </div>
-                <div class="bg-surface-container-high border border-outline-variant p-5 rounded-lg rim-light">
+                <div class="bg-surface-container-high border border-outline-variant p-5 rounded-lg rim-light kpi-card" data-kpi="total_allocations" title="Total allocations captured since boot. Click to drill." onclick="drillKpi('total_allocations','TOTAL_ALLOCATIONS','{{total_allocations}} total · {{active_allocations}} active')">
                     <div class="flex justify-between items-start mb-4">
                         <span class="font-label-caps text-label-caps text-on-surface-variant">TOTAL_ALLOCATIONS</span>
                         <span class="material-symbols-outlined text-tertiary">database</span>
@@ -193,7 +230,7 @@
                     </div>
                     <p class="text-[10px] text-outline mt-4 font-label-caps uppercase">Active: {{active_allocations}}</p>
                 </div>
-                <div class="bg-surface-container-high border border-outline-variant p-5 rounded-lg rim-light">
+                <div class="bg-surface-container-high border border-outline-variant p-5 rounded-lg rim-light kpi-card" data-kpi="live_memory" title="Current live heap memory. Click to drill." onclick="drillKpi('live_memory','LIVE_MEMORY','{{total_memory}} live · peak {{peak_memory}}')">
                     <div class="flex justify-between items-start mb-4">
                         <span class="font-label-caps text-label-caps text-on-surface-variant">LIVE_MEMORY</span>
                         <span class="material-symbols-outlined text-secondary">memory</span>
@@ -203,7 +240,7 @@
                     </div>
                     <p class="text-[10px] text-outline mt-4 font-label-caps uppercase">Peak: {{peak_memory}}</p>
                 </div>
-                <div class="bg-surface-container-high border border-outline-variant p-5 rounded-lg rim-light">
+                <div class="bg-surface-container-high border border-outline-variant p-5 rounded-lg rim-light kpi-card" data-kpi="leak_count" title="Detected leaks + unsafe/FFI breakdown. Click to drill." onclick="drillKpi('leak_count','LEAK_DETECTED','{{leak_count}} leaks · {{unsafe_count}} unsafe · {{ffi_count}} FFI · safe {{safe_code_percent}}%')">
                     <div class="flex justify-between items-start mb-4">
                         <span class="font-label-caps text-label-caps text-on-surface-variant">LEAK_DETECTED</span>
                         <span class="material-symbols-outlined text-error">emergency</span>
@@ -225,7 +262,50 @@
                 </div>
                 <div class="bg-surface-container border border-outline-variant rounded-lg p-6">
                     <p class="font-label-caps text-on-surface-variant mb-3">AUTO_DIAGNOSIS</p>
-                    <div id="diagnosisContent" class="font-data-mono text-xs space-y-2"></div>
+                    <div id="diagnosisContent" class="font-data-mono text-xs space-y-3">
+                        <!-- Top allocation sites -->
+                        <div>
+                            <p class="font-label-caps text-[10px] text-accent-amber mb-1">TOP_ALLOCATION_SITES</p>
+                            <ul class="space-y-1">
+                                {{#each top_allocation_sites}}
+                                    <li class="flex justify-between"><span>{{name}}</span><span class="text-primary">{{allocation_count}}</span></li>
+                                {{else}}
+                                    <li class="text-outline">No allocation sites.</li>
+                                {{/each}}
+                            </ul>
+                        </div>
+                        <!-- Top leaked allocations -->
+                        <div>
+                            <p class="font-label-caps text-[10px] text-error mb-1">TOP_LEAKED</p>
+                            <ul class="space-y-1">
+                                {{#each top_leaked_allocations}}
+                                    <li class="flex justify-between"><span class="truncate">{{type_name}}</span><span class="text-error">{{size}}</span></li>
+                                {{else}}
+                                    <li class="text-outline">No leaked allocations.</li>
+                                {{/each}}
+                            </ul>
+                        </div>
+                        <!-- Top temporary churn -->
+                        <div>
+                            <p class="font-label-caps text-[10px] text-secondary mb-1">TOP_TEMPORARY_CHURN</p>
+                            <ul class="space-y-1">
+                                {{#each top_temporary_churn}}
+                                    <li class="flex justify-between"><span class="truncate">{{name}}</span><span class="text-secondary">{{allocation_count}}</span></li>
+                                {{else}}
+                                    <li class="text-outline">No churn samples.</li>
+                                {{/each}}
+                            </ul>
+                        </div>
+                        <!-- Circular references -->
+                        <div>
+                            <p class="font-label-caps text-[10px] text-tertiary mb-1">CIRCULAR_REFERENCES · {{circular_references.has_cycles}}</p>
+                            <ul class="space-y-1">
+                                <li class="flex justify-between"><span>cycles</span><span class="text-tertiary">{{circular_references.count}}</span></li>
+                                <li class="flex justify-between"><span>pointers in cycles</span><span class="text-tertiary">{{circular_references.pointers_in_cycles}} / {{circular_references.total_smart_pointers}}</span></li>
+                                <li class="flex justify-between"><span>est. leaked</span><span class="text-error">{{circular_references.total_leaked_memory}}</span></li>
+                            </ul>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -264,11 +344,11 @@
                         <tbody>
                         {{#each allocations}}
                             <tr class="border-b border-outline-variant/30 hover:bg-surface-container-high">
-                                <td class="py-2 px-2 text-accent-amber">{{addr}}</td>
+                                <td class="py-2 px-2 text-accent-amber">{{address}}</td>
                                 <td class="py-2 px-2">{{type_name}}</td>
                                 <td class="py-2 px-2 text-right">{{size}}</td>
-                                <td class="py-2 px-2 text-on-surface-variant">{{source}}</td>
-                                <td class="py-2 px-2 {{#if leaked}}text-error{{else}}text-primary{{/if}}">{{status}}</td>
+                                <td class="py-2 px-2 text-on-surface-variant">{{source_file}}</td>
+                                <td class="py-2 px-2 {{#if is_leaked}}text-error{{else}}text-primary{{/if}}">{{allocation_type}}</td>
                             </tr>
                         {{/each}}
                         </tbody>
@@ -292,22 +372,22 @@
 
             <!-- Thread KPI -->
             <div class="grid grid-cols-1 md:grid-cols-4 gap-gutter mb-8">
-                <div class="bg-surface-container-high border border-accent-amber p-5 rounded-lg rim-light amber-glow">
+                <div class="bg-surface-container-high border border-accent-amber p-5 rounded-lg rim-light amber-glow kpi-card" data-kpi="thread_count" title="Active hardware threads. Click to drill." onclick="drillKpi('thread_count','THREAD_COUNT','{{thread_count}} threads on {{cpu_cores}} cores')">
                     <span class="font-label-caps text-on-surface-variant">THREAD_COUNT</span>
                     <h3 class="font-headline-lg text-headline-lg text-accent-amber">{{thread_count}}</h3>
                     <p class="text-[10px] text-outline mt-2 font-label-caps uppercase">SATURATION: nominal</p>
                 </div>
-                <div class="bg-surface-container-high border border-outline-variant p-5 rounded-lg rim-light">
+                <div class="bg-surface-container-high border border-outline-variant p-5 rounded-lg rim-light kpi-card" data-kpi="scheduler_lag" title="Scheduler latency observed between wake and poll. Click to drill." onclick="drillKpi('scheduler_lag','SCHEDULER_LAG','{{scheduler_lag_ms}}ms mean · migration {{migration_rate_pct}}%')">
                     <span class="font-label-caps text-on-surface-variant">SCHEDULER_LAG</span>
                     <h3 class="font-headline-lg text-headline-lg text-primary">{{scheduler_lag_ms}}ms</h3>
                     <p class="text-[10px] text-outline mt-2 font-label-caps uppercase">MIG: {{migration_rate_pct}}%</p>
                 </div>
-                <div class="bg-surface-container-high border border-outline-variant p-5 rounded-lg rim-light">
+                <div class="bg-surface-container-high border border-outline-variant p-5 rounded-lg rim-light kpi-card" data-kpi="uptime" title="Process uptime since boot. Click to drill." onclick="drillKpi('uptime','SYSTEM_UPTIME','up {{system_uptime_formatted}} · {{cpu_cores}} cores')">
                     <span class="font-label-caps text-on-surface-variant">SYSTEM_UPTIME</span>
                     <h3 class="font-headline-lg text-headline-lg text-tertiary">{{system_uptime_formatted}}</h3>
                     <p class="text-[10px] text-outline mt-2 font-label-caps uppercase">SINCE_BOOT</p>
                 </div>
-                <div class="bg-surface-container-high border border-outline-variant p-5 rounded-lg rim-light">
+                <div class="bg-surface-container-high border border-outline-variant p-5 rounded-lg rim-light kpi-card" data-kpi="poll_latency" title="Mean async poll latency in ms. Click to drill." onclick="drillKpi('poll_latency','POLL_LATENCY','{{poll_latency_mean_ms}}ms mean')">
                     <span class="font-label-caps text-on-surface-variant">POLL_LATENCY</span>
                     <h3 class="font-headline-lg text-headline-lg text-secondary">{{poll_latency_mean_ms}}ms</h3>
                     <p class="text-[10px] text-outline mt-2 font-label-caps uppercase">MEAN</p>
@@ -345,10 +425,6 @@
             <div class="bg-surface-container border border-outline-variant rounded-lg p-6 mb-8">
                 <div class="flex justify-between items-center mb-3">
                     <p class="font-label-caps text-on-surface-variant">THREAD_DETAILS</p>
-                    <select id="threadSortOrder" class="bg-surface-container-low border border-outline-variant px-2 py-1 font-data-mono text-xs">
-                        <option value="alloc-desc">Allocations ↓</option><option value="alloc-asc">Allocations ↑</option>
-                        <option value="memory-desc">Memory ↓</option><option value="memory-asc">Memory ↑</option>
-                    </select>
                 </div>
                 <div class="overflow-auto max-h-64">
                     <table class="w-full font-data-mono text-xs border-collapse">
@@ -359,25 +435,57 @@
                         <tbody>
                         {{#each threads}}
                             <tr class="border-b border-outline-variant/30 hover:bg-surface-container-high">
-                                <td class="py-2 text-accent-amber">{{id}}</td>
-                                <td class="py-2">{{name}}</td>
-                                <td class="py-2 text-right text-primary">{{allocations}}</td>
-                                <td class="py-2 text-right text-secondary">{{memory}}</td>
-                                <td class="py-2 {{#if active}}text-primary{{else}}text-outline{{/if}}">{{status}}</td>
+                                <td class="py-2 text-accent-amber">{{thread_id}}</td>
+                                <td class="py-2">{{thread_summary}}</td>
+                                <td class="py-2 text-right text-primary">{{allocation_count}}</td>
+                                <td class="py-2 text-right text-secondary">{{current_memory}}</td>
+                                <td class="py-2 {{#if is_active}}text-primary{{else}}text-outline{{/if}}">{{status}}</td>
                             </tr>
                         {{/each}}
                         </tbody>
                     </table>
                 </div>
             </div>
-        </div>
 
-        <!-- ============ MODE: TASK (Async) ============ -->
+            <!-- Thread Policies + Scheduler Lag Bars + Affinity Grid -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-gutter mb-8">
+                <div class="bg-surface-container border border-outline-variant rounded-lg p-6">
+                    <p class="font-label-caps text-on-surface-variant mb-3">THREAD_POLICIES</p>
+                    <ul class="space-y-1 font-data-mono text-xs">
+                        {{#each thread_policies}}
+                            <li class="flex justify-between"><span>{{name}}</span><span class="{{#if enabled}}text-success{{else}}text-outline{{/if}}">{{#if enabled}}ON{{else}}OFF{{/if}}</span></li>
+                        {{else}}
+                            <li class="text-outline">No policies configured.</li>
+                        {{/each}}
+                    </ul>
+                </div>
+                <div class="bg-surface-container border border-outline-variant rounded-lg p-6">
+                    <p class="font-label-caps text-on-surface-variant mb-3">SCHEDULER_LAG_BARS</p>
+                    <div class="flex items-end gap-1 h-32">
+                        {{#each scheduler_lag_bars}}
+                            <div class="flex-1 bg-primary/60 rounded-t" style="height: {{this}}%"></div>
+                        {{else}}
+                            <div class="text-outline text-xs">No lag samples.</div>
+                        {{/each}}
+                    </div>
+                </div>
+                <div class="bg-surface-container border border-outline-variant rounded-lg p-6">
+                    <p class="font-label-caps text-on-surface-variant mb-3">THREAD_AFFINITY_GRID</p>
+                    <div class="grid grid-cols-8 gap-1">
+                        {{#each thread_affinity_grid}}
+                            <div class="aspect-square rounded border border-outline-variant/50 flex items-center justify-center text-[8px] font-data-mono text-on-surface-variant">{{this}}</div>
+                        {{else}}
+                            <div class="col-span-full text-outline text-xs">No affinity samples.</div>
+                        {{/each}}
+                    </div>
+                </div>
+            </div>
+        </div>
         <div id="mode-task" class="mode-section">
             <div class="flex justify-between items-end mb-8 pt-6">
                 <div>
                     <h1 class="font-headline-lg text-headline-lg text-on-background mb-1">Async Task Topology</h1>
-                    <p class="text-on-surface-variant font-body-sm">Tokio runtime · {{async_summary.total}} tasks · poll {{poll_latency_mean_ms}}ms</p>
+                    <p class="text-on-surface-variant font-body-sm">Tokio runtime · {{async_summary.total_tasks}} tasks · poll {{poll_latency_mean_ms}}ms</p>
                 </div>
                 <div class="flex items-center gap-2 px-3 py-1 bg-surface-container border border-outline-variant rounded-lg">
                     <span class="w-2 h-2 rounded-full bg-secondary animate-pulse"></span>
@@ -387,22 +495,22 @@
 
             <!-- Async KPI -->
             <div class="grid grid-cols-1 md:grid-cols-4 gap-gutter mb-8">
-                <div class="bg-surface-container-high border border-secondary p-5 rounded-lg rim-light">
+                <div class="bg-surface-container-high border border-secondary p-5 rounded-lg rim-light kpi-card" data-kpi="async_total_tasks" title="Total async tasks spawned since runtime start. Click to drill." onclick="drillKpi('async_total_tasks','TOTAL_TASKS','{{async_summary.total_tasks}} total · {{async_summary.active_tasks}} active')">
                     <span class="font-label-caps text-on-surface-variant">TOTAL_TASKS</span>
-                    <h3 class="font-headline-lg text-headline-lg text-secondary">{{async_summary.total}}</h3>
-                    <p class="text-[10px] text-outline mt-2 font-label-caps uppercase">ACTIVE: {{async_summary.active}}</p>
+                    <h3 class="font-headline-lg text-headline-lg text-secondary">{{async_summary.total_tasks}}</h3>
+                    <p class="text-[10px] text-outline mt-2 font-label-caps uppercase">ACTIVE: {{async_summary.active_tasks}}</p>
                 </div>
-                <div class="bg-surface-container-high border border-outline-variant p-5 rounded-lg rim-light">
+                <div class="bg-surface-container-high border border-outline-variant p-5 rounded-lg rim-light kpi-card" data-kpi="async_completed" title="Completed tasks and success rate. Click to drill." onclick="drillKpi('async_completed','COMPLETED','{{async_summary.completed}} completed · {{async_summary.success_rate}}% success')">
                     <span class="font-label-caps text-on-surface-variant">COMPLETED</span>
                     <h3 class="font-headline-lg text-headline-lg text-primary">{{async_summary.completed}}</h3>
                     <p class="text-[10px] text-outline mt-2 font-label-caps uppercase">SUCCESS_RATE: {{async_summary.success_rate}}%</p>
                 </div>
-                <div class="bg-surface-container-high border border-outline-variant p-5 rounded-lg rim-light">
+                <div class="bg-surface-container-high border border-outline-variant p-5 rounded-lg rim-light kpi-card" data-kpi="async_leaked" title="Leaked and zombie tasks — potential runtime bugs. Click to drill." onclick="drillKpi('async_leaked','LEAKED_TASKS','{{async_summary.leaked}} leaked · {{async_summary.zombie}} zombie')">
                     <span class="font-label-caps text-on-surface-variant">LEAKED_TASKS</span>
                     <h3 class="font-headline-lg text-headline-lg text-error">{{async_summary.leaked}}</h3>
                     <p class="text-[10px] text-outline mt-2 font-label-caps uppercase">ZOMBIE: {{async_summary.zombie}}</p>
                 </div>
-                <div class="bg-surface-container-high border border-outline-variant p-5 rounded-lg rim-light">
+                <div class="bg-surface-container-high border border-outline-variant p-5 rounded-lg rim-light kpi-card" data-kpi="async_poll_latency" title="Mean async poll latency in ms. Click to drill." onclick="drillKpi('async_poll_latency','POLL_LATENCY','{{poll_latency_mean_ms}}ms mean')">
                     <span class="font-label-caps text-on-surface-variant">POLL_LATENCY</span>
                     <h3 class="font-headline-lg text-headline-lg text-tertiary">{{poll_latency_mean_ms}}ms</h3>
                     <p class="text-[10px] text-outline mt-2 font-label-caps uppercase">MEAN</p>
@@ -435,7 +543,7 @@
             <div class="bg-surface-container border border-outline-variant rounded-lg p-6 mb-8">
                 <div class="flex justify-between items-center mb-3">
                     <p class="font-label-caps text-on-surface-variant">ASYNC_TASK_DETAILS</p>
-                    <span class="font-data-mono text-[10px] text-primary">{{async_summary.total}} tasks</span>
+                    <span class="font-data-mono text-[10px] text-primary">{{async_summary.total_tasks}} tasks</span>
                 </div>
                 <div class="overflow-auto max-h-64">
                     <table class="w-full font-data-mono text-xs border-collapse">
@@ -446,10 +554,10 @@
                         <tbody>
                         {{#each async_tasks}}
                             <tr class="border-b border-outline-variant/30 hover:bg-surface-container-high">
-                                <td class="py-2 text-accent-amber">{{id}}</td>
-                                <td class="py-2">{{name}}</td>
+                                <td class="py-2 text-accent-amber">{{task_id}}</td>
+                                <td class="py-2">{{task_name}}</td>
                                 <td class="py-2 text-right text-secondary">{{duration_ms}}ms</td>
-                                <td class="py-2 {{#if leaked}}text-error{{else}}text-primary{{/if}}">{{status}}</td>
+                                <td class="py-2 {{#if has_potential_leak}}text-error{{else}}text-primary{{/if}}">{{status}}</td>
                             </tr>
                         {{/each}}
                         </tbody>
@@ -491,6 +599,70 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Task topology tables (Handlebars fallback for when canvas is not interactive) -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-gutter mb-8">
+                <div class="bg-surface-container border border-outline-variant rounded-lg p-6">
+                    <p class="font-label-caps text-on-surface-variant mb-3">TASK_TOPOLOGY_NODES · {{task_topology_nodes_count}}</p>
+                    <div class="overflow-auto max-h-48">
+                        <table class="w-full font-data-mono text-xs border-collapse">
+                            <thead><tr class="text-on-surface-variant border-b border-outline-variant">
+                                <th class="text-left py-1 px-2">ID</th><th class="text-left py-1 px-2">NAME</th>
+                                <th class="text-left py-1 px-2">STATUS</th><th class="text-right py-1 px-2">DUR</th>
+                            </tr></thead>
+                            <tbody>
+                            {{#each task_topology_nodes}}
+                                <tr class="border-b border-outline-variant/30 hover:bg-surface-container-high">
+                                    <td class="py-1 px-2 text-accent-amber">{{task_id}}</td>
+                                    <td class="py-1 px-2 truncate">{{name}}</td>
+                                    <td class="py-1 px-2">{{status}}</td>
+                                    <td class="py-1 px-2 text-right text-primary">{{duration_ms}}ms</td>
+                                </tr>
+                            {{else}}
+                                <tr><td colspan="4" class="py-2 px-2 text-outline">No topology nodes.</td></tr>
+                            {{/each}}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="bg-surface-container border border-outline-variant rounded-lg p-6">
+                    <p class="font-label-caps text-on-surface-variant mb-3">TASK_TOPOLOGY_EDGES · {{task_topology_edges_count}}</p>
+                    <div class="overflow-auto max-h-48">
+                        <table class="w-full font-data-mono text-xs border-collapse">
+                            <thead><tr class="text-on-surface-variant border-b border-outline-variant">
+                                <th class="text-left py-1 px-2">SOURCE</th><th class="text-left py-1 px-2">TARGET</th>
+                                <th class="text-left py-1 px-2">ACTIVE</th>
+                            </tr></thead>
+                            <tbody>
+                            {{#each task_topology_edges}}
+                                <tr class="border-b border-outline-variant/30 hover:bg-surface-container-high">
+                                    <td class="py-1 px-2 text-accent-amber">{{source}}</td>
+                                    <td class="py-1 px-2 text-accent-amber">{{target}}</td>
+                                    <td class="py-1 px-2 {{#if is_active}}text-success{{else}}text-outline{{/if}}">{{#if is_active}}yes{{else}}no{{/if}}</td>
+                                </tr>
+                            {{else}}
+                                <tr><td colspan="3" class="py-2 px-2 text-outline">No topology edges.</td></tr>
+                            {{/each}}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dependency graph peripheral nodes -->
+            <div class="bg-surface-container border border-outline-variant rounded-lg p-6 mb-8">
+                <p class="font-label-caps text-on-surface-variant mb-3">DEPENDENCY_GRAPH_NODES</p>
+                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 font-data-mono text-xs">
+                    {{#each dependency_graph_nodes}}
+                        <div class="bg-surface-container-low border border-outline-variant/50 rounded p-2" style="opacity: {{opacity}};">
+                            <div class="text-accent-amber truncate">{{name}}</div>
+                            <div class="text-[10px] text-on-surface-variant">{{position}}{{#if status}} · {{status}}{{/if}}</div>
+                        </div>
+                    {{else}}
+                        <div class="col-span-full text-outline">No peripheral dependency nodes.</div>
+                    {{/each}}
+                </div>
+            </div>
         </div>
 
         <!-- ============ MODE: VARIABLE ============ -->
@@ -514,20 +686,33 @@
                 <div class="col-span-12 lg:col-span-4 flex flex-col gap-gutter">
                     <div class="bg-surface-container border border-outline-variant rounded-lg p-4">
                         <h4 class="font-label-caps text-[10px] text-on-surface-variant mb-1">SELECTED_NODE</h4>
-                        <p class="font-headline-md text-on-surface" id="detailNodeName">—</p>
-                        <div class="flex items-center gap-2 mt-1"><div class="w-2 h-2 rounded-full bg-primary"></div><span class="font-data-mono text-xs text-primary" id="detailNodeStatus">Active_Running</span></div>
+                        {{#if selected_node_detail}}
+                            <p class="font-headline-md text-on-surface">{{selected_node_detail.node_name}}</p>
+                            <div class="flex items-center gap-2 mt-1"><div class="w-2 h-2 rounded-full bg-primary"></div><span class="font-data-mono text-xs text-primary">{{selected_node_detail.status_badge}} · {{selected_node_detail.current_status}}</span></div>
+                            <p class="font-data-mono text-[10px] text-outline mt-2">UUID: {{selected_node_detail.uuid}}</p>
+                        {{else}}
+                            <p class="font-headline-md text-on-surface" id="detailNodeName">—</p>
+                            <div class="flex items-center gap-2 mt-1"><div class="w-2 h-2 rounded-full bg-primary"></div><span class="font-data-mono text-xs text-primary" id="detailNodeStatus">—</span></div>
+                        {{/if}}
                     </div>
                     <div class="bg-surface-container border border-outline-variant rounded-lg p-4">
                         <p class="font-label-caps text-[10px] text-on-surface-variant mb-2">EXECUTION_TIME</p>
-                        <p class="font-data-mono text-xl text-on-surface" id="detailExecTime">0ms</p>
+                        <p class="font-data-mono text-xl text-on-surface">{{#if selected_node_detail}}{{selected_node_detail.execution_time_ms}}ms{{else}}—{{/if}}</p>
                     </div>
                     <div class="bg-surface-container border border-outline-variant rounded-lg p-4">
                         <p class="font-label-caps text-[10px] text-on-surface-variant mb-2">UPSTREAM_DEPS</p>
-                        <p class="font-data-mono text-xl text-on-surface" id="detailDeps">0</p>
+                        <p class="font-data-mono text-xl text-on-surface">{{#if selected_node_detail}}{{selected_node_detail.upstream_deps}}{{else}}—{{/if}}</p>
                     </div>
                     <div class="bg-surface-container border border-outline-variant rounded-lg p-4">
                         <p class="font-label-caps text-[10px] text-on-surface-variant mb-2">EXECUTION_TRACE</p>
-                        <div class="font-data-mono text-[11px] space-y-1" id="detailTrace"></div>
+                        <div class="font-data-mono text-[11px] space-y-1">
+                            {{#each selected_node_detail.exec_trace}}
+                                <div class="text-on-surface-variant">{{this}}</div>
+                            {{else}}
+                                {{#unless selected_node_detail}}<div class="text-outline">No node selected.</div>{{/unless}}
+                                {{#if selected_node_detail}}<div class="text-outline">No execution trace.</div>{{/if}}
+                            {{/each}}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -584,19 +769,19 @@
 
             <!-- Passport KPI -->
             <div class="grid grid-cols-1 md:grid-cols-4 gap-gutter mb-8">
-                <div class="bg-surface-container-high border border-success p-5 rounded-lg rim-light">
+                <div class="bg-surface-container-high border border-success p-5 rounded-lg rim-light kpi-card" data-kpi="passport_clean" title="Passports with clean lifecycle — properly freed. Click to drill." onclick="drillKpi('passport_clean','CLEAN','{{clean_passport_count}} clean passports')">
                     <span class="font-label-caps text-on-surface-variant">CLEAN</span>
                     <h3 class="font-headline-lg text-headline-lg text-success">{{clean_passport_count}}</h3>
                 </div>
-                <div class="bg-surface-container-high border border-accent-amber p-5 rounded-lg rim-light">
+                <div class="bg-surface-container-high border border-accent-amber p-5 rounded-lg rim-light kpi-card" data-kpi="passport_active" title="Active passports still in custody. Click to drill." onclick="drillKpi('passport_active','ACTIVE','{{active_passport_count}} active passports')">
                     <span class="font-label-caps text-on-surface-variant">ACTIVE</span>
                     <h3 class="font-headline-lg text-headline-lg text-accent-amber">{{active_passport_count}}</h3>
                 </div>
-                <div class="bg-surface-container-high border border-error p-5 rounded-lg rim-light">
+                <div class="bg-surface-container-high border border-error p-5 rounded-lg rim-light kpi-card" data-kpi="passport_leaked" title="Leaked passports — memory not returned. Click to drill." onclick="drillKpi('passport_leaked','LEAKED','{{leaked_passport_count}} leaked passports')">
                     <span class="font-label-caps text-on-surface-variant">LEAKED</span>
                     <h3 class="font-headline-lg text-headline-lg text-error">{{leaked_passport_count}}</h3>
                 </div>
-                <div class="bg-surface-container-high border border-secondary p-5 rounded-lg rim-light">
+                <div class="bg-surface-container-high border border-secondary p-5 rounded-lg rim-light kpi-card" data-kpi="passport_ffi" title="Passports crossing FFI boundaries. Click to drill." onclick="drillKpi('passport_ffi','FFI_TRACKED','{{ffi_tracked_count}} FFI-tracked passports')">
                     <span class="font-label-caps text-on-surface-variant">FFI_TRACKED</span>
                     <h3 class="font-headline-lg text-headline-lg text-secondary">{{ffi_tracked_count}}</h3>
                 </div>
@@ -736,7 +921,7 @@
                     <div class="space-y-2 font-data-mono text-xs">
                         {{#each ffi_call_topology.edges}}
                         <div class="border-b border-outline-variant/30 pb-2">
-                            <div class="flex justify-between"><span class="text-secondary">{{from}}</span><span class="text-accent-amber">→ {{to}}</span></div>
+                            <div class="flex justify-between"><span class="text-secondary">{{from_name}}</span><span class="text-accent-amber">→ {{to_name}}</span></div>
                             <div class="text-on-surface-variant text-[10px] mt-1">{{label}}</div>
                         </div>
                         {{/each}}
@@ -794,6 +979,48 @@
         if (el) el.classList.add('active');
     }
 
+    // KPI drill-down — toast a short description on click; lift on hover via CSS.
+    function drillKpi(metric, label, value) {
+        const card = document.querySelector('[data-kpi="' + metric + '"]');
+        if (card) {
+            card.classList.remove('kpi-flash');
+            void card.offsetWidth; // restart animation
+            card.classList.add('kpi-flash');
+        }
+        const toast = document.getElementById('kpiToast');
+        if (toast) {
+            toast.textContent = label + ': ' + value;
+            toast.classList.add('visible');
+            clearTimeout(window.__kpiToastTimer);
+            window.__kpiToastTimer = setTimeout(() => toast.classList.remove('visible'), 1800);
+        }
+    }
+
+    // Theme switching — amber (default) / indigo. Choice persists to localStorage.
+    function switchTheme(theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+        try { localStorage.setItem('memscope.theme', theme); } catch (e) {}
+        const amberBtn = document.getElementById('theme-amber');
+        const indigoBtn = document.getElementById('theme-indigo');
+        if (amberBtn && indigoBtn) {
+            const activeClass = 'border-accent-amber bg-accent-amber/20 text-accent-amber';
+            const idleClass = 'border-outline-variant text-on-surface-variant bg-transparent';
+            if (theme === 'amber') {
+                amberBtn.className = 'flex-1 py-1 rounded border ' + activeClass + ' font-label-caps text-[10px] hover:bg-accent-amber/40 transition-colors';
+                indigoBtn.className = 'flex-1 py-1 rounded border ' + idleClass + ' font-label-caps text-[10px] hover:bg-surface-container-high transition-colors';
+            } else {
+                indigoBtn.className = 'flex-1 py-1 rounded border border-primary bg-primary/20 text-primary font-label-caps text-[10px] hover:bg-primary/40 transition-colors';
+                amberBtn.className = 'flex-1 py-1 rounded border ' + idleClass + ' font-label-caps text-[10px] hover:bg-surface-container-high transition-colors';
+            }
+        }
+    }
+    // Restore saved theme on load
+    (function restoreTheme() {
+        let saved = null;
+        try { saved = localStorage.getItem('memscope.theme'); } catch (e) {}
+        if (saved === 'amber' || saved === 'indigo') switchTheme(saved);
+    })();
+
     // Read injected JSON data
     let DATA = {};
     try {
@@ -807,7 +1034,7 @@
     (function renderHeapGrid() {
         const grid = document.getElementById('heapGrid');
         if (!grid) return;
-        const sizes = (DATA.allocations || []).map(a => a.size_bytes || 0).filter(s => s > 0);
+        const sizes = (DATA.allocations || []).map(a => a.size || 0).filter(s => s > 0);
         if (sizes.length === 0) {
             grid.innerHTML = '<div class="col-span-full text-outline text-xs px-2 py-4">No allocation samples.</div>';
             return;
@@ -885,7 +1112,7 @@
         if (events.length === 0) { log.innerHTML = '<div class="text-outline">No thread events recorded.</div>'; return; }
         events.slice(0, 50).forEach(e => {
             const row = document.createElement('div');
-            row.innerHTML = `<span class="text-outline">${e.timestamp || ''}</span> <span class="text-accent-amber">${e.type || ''}</span> <span class="text-on-surface">${e.message || ''}</span>`;
+            row.innerHTML = `<span class="text-outline">${e.time || ''}</span> <span class="text-accent-amber">${e.level || ''}</span> <span class="text-on-surface">${e.message || ''}</span>`;
             log.appendChild(row);
         });
     })();
@@ -913,7 +1140,7 @@
         tasks.slice(0, 10).forEach(t => {
             const row = document.createElement('div');
             row.className = 'flex items-center gap-3 font-data-mono text-xs';
-            row.innerHTML = `<span class="text-accent-amber w-16">${t.id || ''}</span><span class="text-on-surface w-32 truncate">${t.name || ''}</span><div class="flex-1 h-2 bg-surface-container-highest rounded-full overflow-hidden"><div class="h-full bg-primary" style="width: ${Math.min(100, (t.duration_ms || 0))}%"></div></div><span class="text-secondary w-16 text-right">${t.duration_ms || 0}ms</span>`;
+            row.innerHTML = `<span class="text-accent-amber w-16">${t.task_id || ''}</span><span class="text-on-surface w-32 truncate">${t.task_name || ''}</span><div class="flex-1 h-2 bg-surface-container-highest rounded-full overflow-hidden"><div class="h-full bg-primary" style="width: ${Math.min(100, (t.duration_ms || 0))}%"></div></div><span class="text-secondary w-16 text-right">${t.duration_ms || 0}ms</span>`;
             rows.appendChild(row);
         });
     })();
@@ -932,6 +1159,351 @@
             cards.appendChild(card);
         });
     })();
+
+    // === Type Intelligence donut chart (Chart.js) ===
+    (function renderTypeChart() {
+        const canvas = document.getElementById('typeChart');
+        if (!canvas || typeof Chart === 'undefined') return;
+        const allocs = DATA.allocations || [];
+        const typeMap = {};
+        allocs.forEach(a => {
+            const t = a.type_name || 'unknown';
+            typeMap[t] = (typeMap[t] || 0) + 1;
+        });
+        const labels = Object.keys(typeMap).slice(0, 8);
+        const values = labels.map(l => typeMap[l]);
+        if (labels.length === 0) {
+            canvas.parentElement.innerHTML = '<div class="text-outline text-xs px-2 py-4">No type samples.</div>';
+            return;
+        }
+        const palette = ['#cfbcff','#F59E0B','#e7c365','#ffb95f','#10B981','#ef4444','#8b5cf6','#06b6d4'];
+        new Chart(canvas, {
+            type: 'doughnut',
+            data: { labels: labels, datasets: [{ data: values, backgroundColor: palette, borderColor: '#141218', borderWidth: 2 }] },
+            options: {
+                responsive: true, maintainAspectRatio: false, cutout: '62%',
+                plugins: {
+                    legend: { position: 'right', labels: { color: '#cbc4d2', font: { family: 'JetBrains Mono', size: 10 }, boxWidth: 10, padding: 6 } },
+                    tooltip: { callbacks: { label: ctx => ctx.label + ': ' + ctx.parsed + ' allocs' } }
+                }
+            }
+        });
+    })();
+
+    // === Time Travel timeline chart (Chart.js line) ===
+    (function renderTimelineChart() {
+        const canvas = document.getElementById('timelineChart');
+        if (!canvas || typeof Chart === 'undefined') return;
+        const allocs = DATA.allocations || [];
+        if (allocs.length === 0) {
+            canvas.parentElement.innerHTML = '<div class="text-outline text-xs px-2 py-4">No timeline samples.</div>';
+            return;
+        }
+        const sorted = allocs.slice().sort((a, b) => (a.timestamp_alloc || 0) - (b.timestamp_alloc || 0));
+        const labels = sorted.map((_, i) => 'T' + i);
+        const sizes = sorted.map(a => a.size || 0);
+        const cumulative = [];
+        let running = 0;
+        sizes.forEach(s => { running += s; cumulative.push(running); });
+        new Chart(canvas, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    { label: 'Alloc Size (bytes)', data: sizes, borderColor: '#F59E0B', backgroundColor: 'rgba(245,158,11,0.08)', borderWidth: 1.5, pointRadius: 0, tension: 0.3, yAxisID: 'y' },
+                    { label: 'Cumulative (bytes)', data: cumulative, borderColor: '#cfbcff', backgroundColor: 'rgba(207,188,255,0.06)', borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: true, yAxisID: 'y1' }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false, animation: false,
+                plugins: { legend: { labels: { color: '#cbc4d2', font: { family: 'JetBrains Mono', size: 10 } } } },
+                scales: {
+                    x: { ticks: { color: '#948e9c', font: { family: 'JetBrains Mono', size: 9 }, maxTicksLimit: 12 }, grid: { color: 'rgba(148,142,156,0.08)' } },
+                    y: { position: 'left', ticks: { color: '#F59E0B', font: { family: 'JetBrains Mono', size: 9 } }, grid: { color: 'rgba(148,142,156,0.08)' } },
+                    y1: { position: 'right', ticks: { color: '#cfbcff', font: { family: 'JetBrains Mono', size: 9 } }, grid: { drawOnChartArea: false } }
+                }
+            }
+        });
+    })();
+
+    // === Memory Flamegraph (SVG) — grouped by source_file ===
+    (function renderFlamegraph() {
+        const svg = document.getElementById('flameSvg');
+        const wrap = document.getElementById('flameNodeCount');
+        if (!svg) return;
+        const allocs = DATA.allocations || [];
+        const fileMap = {};
+        allocs.forEach(a => {
+            const f = a.source_file || 'unknown';
+            if (!fileMap[f]) fileMap[f] = { count: 0, size: 0 };
+            fileMap[f].count++;
+            fileMap[f].size += (a.size || 0);
+        });
+        const entries = Object.entries(fileMap).sort((a, b) => b[1].size - a[1].size).slice(0, 12);
+        if (entries.length === 0) {
+            svg.innerHTML = '<text x="10" y="100" fill="#948e9c" font-family="JetBrains Mono" font-size="11">No flame samples.</text>';
+            return;
+        }
+        if (wrap) wrap.textContent = entries.length + ' frames';
+        const maxLen = Math.max(...entries.map(e => e[1].size));
+        const barH = 14;
+        const gap = 2;
+        const W = 800;
+        let html = '';
+        entries.forEach((entry, i) => {
+            const file = entry[0];
+            const info = entry[1];
+            const w = Math.max(2, (info.size / maxLen) * (W - 180));
+            const y = i * (barH + gap) + 4;
+            const label = file.split('/').pop() || file;
+            const shortLabel = label.length > 22 ? label.slice(0, 22) + '…' : label;
+            html += `<rect x="0" y="${y}" width="${W}" height="${barH}" fill="#211f24" rx="2"/>`;
+            html += `<rect x="0" y="${y}" width="${w}" height="${barH}" fill="rgba(207,188,255,${0.3 + (info.size/maxLen)*0.6})" rx="2" class="flame-bar" data-file="${label}" data-count="${info.count}" data-size="${info.size}" style="cursor:pointer">`;
+            html += `<title>${label} — ${info.count} allocs, ${info.size} bytes</title></rect>`;
+            html += `<text x="6" y="${y + 10}" fill="#e6e0e9" font-family="JetBrains Mono" font-size="9">${shortLabel}</text>`;
+            html += `<text x="${W - 6}" y="${y + 10}" fill="#F59E0B" font-family="JetBrains Mono" font-size="9" text-anchor="end">${info.size}B</text>`;
+        });
+        svg.innerHTML = html;
+        svg.querySelectorAll('.flame-bar').forEach(bar => {
+            bar.addEventListener('click', function() {
+                drillKpi('flame', 'FLAME_NODE', this.getAttribute('data-file') + ' — ' + this.getAttribute('data-count') + ' allocs, ' + this.getAttribute('data-size') + 'B');
+            });
+        });
+    })();
+
+    // === FFI Call Mapping Topology (SVG) ===
+    (function renderFfiTopo() {
+        const svg = document.getElementById('ffiTopoSvg');
+        if (!svg) return;
+        const topo = DATA.ffi_call_topology || {};
+        const nodes = topo.nodes || [];
+        const edges = topo.edges || [];
+        if (nodes.length === 0) {
+            svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="#948e9c" font-family="JetBrains Mono" font-size="11">No FFI topology nodes.</text>';
+            return;
+        }
+        const W = svg.clientWidth || 600;
+        const H = 400;
+        const cx = W / 2;
+        const cy = H / 2;
+        const radius = Math.min(W, H) * 0.35;
+        const positions = nodes.map((node, i) => {
+            const angle = (i / nodes.length) * Math.PI * 2 - Math.PI / 2;
+            return { x: cx + Math.cos(angle) * radius, y: cy + Math.sin(angle) * radius, node: node };
+        });
+        let html = '';
+        // Draw edges
+        edges.forEach(edge => {
+            const src = positions[edge.source] || positions[0];
+            const tgt = positions[edge.target] || positions[1];
+            if (!src || !tgt) return;
+            html += `<line x1="${src.x}" y1="${src.y}" x2="${tgt.x}" y2="${tgt.y}" stroke="${edge.is_active ? '#F59E0B' : '#494551'}" stroke-width="1.5" stroke-dasharray="${edge.is_active ? '0' : '4 3'}" opacity="0.6"/>`;
+            // Arrow label at midpoint
+            const mx = (src.x + tgt.x) / 2;
+            const my = (src.y + tgt.y) / 2;
+            if (edge.label) {
+                html += `<text x="${mx}" y="${my - 4}" fill="#948e9c" font-family="JetBrains Mono" font-size="7" text-anchor="middle">${edge.label.slice(0, 18)}</text>`;
+            }
+        });
+        // Draw nodes
+        positions.forEach((pos, i) => {
+            const node = pos.node;
+            const color = node.status === 'active' ? '#F59E0B' : node.status === 'hot' ? '#ef4444' : '#cfbcff';
+            html += `<circle cx="${pos.x}" cy="${pos.y}" r="6" fill="${color}" opacity="0.85" class="ffi-node" data-name="${node.name}" data-type="${node.node_type}" style="cursor:pointer">`;
+            html += `<title>${node.name} [${node.node_type}] — ${node.status}</title></circle>`;
+            const label = (node.name || '').slice(0, 16);
+            html += `<text x="${pos.x}" y="${pos.y + 18}" fill="#cbc4d2" font-family="JetBrains Mono" font-size="8" text-anchor="middle">${label}</text>`;
+        });
+        svg.innerHTML = html;
+        svg.querySelectorAll('.ffi-node').forEach(n => {
+            n.addEventListener('click', function() {
+                drillKpi('ffi_node', 'FFI_NODE', this.getAttribute('data-name') + ' [' + this.getAttribute('data-type') + ']');
+            });
+        });
+    })();
+
+    // === Variable Dependency Graph (D3 force-directed) ===
+    (function renderVariableGraph() {
+        const container = document.getElementById('variableGraphContainer');
+        if (!container || typeof d3 === 'undefined') return;
+        const rels = DATA.relationships || [];
+        if (rels.length === 0) {
+            container.innerHTML = '<div class="text-outline text-xs px-2 py-4">No relationship data.</div>';
+            return;
+        }
+        const nodeSet = {};
+        rels.forEach(r => {
+            nodeSet[r.from_var || r.from] = 1;
+            nodeSet[r.to_var || r.to] = 1;
+        });
+        const nodeNames = Object.keys(nodeSet).slice(0, 40);
+        const nodeMap = {};
+        nodeNames.forEach((n, i) => { nodeMap[n] = i; });
+        const d3nodes = nodeNames.map(n => ({ id: n, label: n }));
+        const d3links = rels.slice(0, 80).map(r => {
+            const s = nodeMap[r.from_var || r.from];
+            const t = nodeMap[r.to_var || r.to];
+            if (s === undefined || t === undefined) return null;
+            return { source: s, target: t, type: r.relation_type || r.relation || 'link' };
+        }).filter(Boolean);
+
+        const W = container.clientWidth || 600;
+        const H = 360;
+        container.innerHTML = '';
+        const svg = d3.select(container).append('svg').attr('width', W).attr('height', H);
+        svg.append('defs').append('marker')
+            .attr('id', 'arrowhead').attr('viewBox', '0 -5 10 10').attr('refX', 12)
+            .attr('refY', 0).attr('markerWidth', 6).attr('markerHeight', 6)
+            .attr('orient', 'auto')
+            .append('path').attr('d', 'M0,-5L10,0L0,5').attr('fill', '#948e9c');
+        const linkG = svg.append('g');
+        const nodeG = svg.append('g');
+        const links = linkG.selectAll('line').data(d3links).enter().append('line')
+            .attr('stroke', d => d.type === 'ownership_transfer' ? '#ef4444' : d.type === 'clone' ? '#10B981' : '#494551')
+            .attr('stroke-width', 1).attr('opacity', 0.5).attr('marker-end', 'url(#arrowhead)');
+        const nodes_sel = nodeG.selectAll('g').data(d3nodes).enter().append('g').style('cursor', 'pointer')
+            .call(d3.drag().on('start', dragStart).on('drag', dragging).on('end', dragEnd));
+        nodes_sel.append('circle').attr('r', 5).attr('fill', '#cfbcff').attr('stroke', '#F59E0B').attr('stroke-width', 1);
+        nodes_sel.append('text').text(d => d.label.slice(0, 14)).attr('x', 8).attr('y', 3)
+            .attr('fill', '#cbc4d2').attr('font-family', 'JetBrains Mono').attr('font-size', '9');
+        nodes_sel.on('click', function(event, d) {
+            const detail = document.getElementById('detailNodeName');
+            const status = document.getElementById('detailNodeStatus');
+            if (detail) detail.textContent = d.id;
+            if (status) status.textContent = 'SELECTED';
+        });
+        const sim = d3.forceSimulation(d3nodes)
+            .force('link', d3.forceLink(d3links).id((d, i) => d.id || i).distance(60))
+            .force('charge', d3.forceManyBody().strength(-80))
+            .force('center', d3.forceCenter(W / 2, H / 2));
+        sim.on('tick', () => {
+            links.attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+                 .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+            nodes_sel.attr('transform', d => 'translate(' + d.x + ',' + d.y + ')');
+        });
+        function dragStart(event, d) { if (!event.active) sim.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; }
+        function dragging(event, d) { d.fx = event.x; d.fy = event.y; }
+        function dragEnd(event, d) { if (!event.active) sim.alphaTarget(0); d.fx = null; d.fy = null; }
+    })();
+
+    // === Task Topology DAG (SVG) ===
+    (function renderTaskTopology() {
+        const canvas = document.getElementById('taskTopologyCanvas');
+        if (!canvas) return;
+        const nodes = DATA.task_topology_nodes || [];
+        const edges = DATA.task_topology_edges || [];
+        if (nodes.length === 0) {
+            canvas.innerHTML = '<div class="text-outline text-xs px-4 py-8">No topology data.</div>';
+            return;
+        }
+        const W = canvas.clientWidth || 600;
+        const H = 410;
+        let html = '<svg width="100%" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '">';
+        // Draw edges
+        edges.forEach(edge => {
+            const src = nodes[edge.source];
+            const tgt = nodes[edge.target];
+            if (!src || !tgt) return;
+            const x1 = (src.x_pct / 100) * W;
+            const y1 = (src.y_pct / 100) * H;
+            const x2 = (tgt.x_pct / 100) * W;
+            const y2 = (tgt.y_pct / 100) * H;
+            html += '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="' + (edge.is_active ? '#F59E0B' : '#494551') + '" stroke-width="1.5" opacity="0.5"/>';
+        });
+        // Draw nodes
+        nodes.forEach(node => {
+            const x = (node.x_pct / 100) * W;
+            const y = (node.y_pct / 100) * H;
+            const color = node.status === 'RUNNING' ? '#10B981' : node.status === 'POLLING' ? '#F59E0B' : node.status === 'COMPLETED' ? '#cfbcff' : '#948e9c';
+            html += '<circle cx="' + x + '" cy="' + y + '" r="8" fill="' + color + '" opacity="0.85" class="topo-node" data-id="' + node.task_id + '" data-name="' + node.name + '" data-status="' + node.status + '" style="cursor:pointer">';
+            html += '<title>' + node.name + ' [' + node.task_id + '] — ' + node.status + ' (' + node.duration_ms + 'ms)</title></circle>';
+            html += '<text x="' + (x + 12) + '" y="' + (y + 4) + '" fill="#cbc4d2" font-family="JetBrains Mono" font-size="9">' + (node.name || '').slice(0, 18) + '</text>';
+        });
+        html += '</svg>';
+        canvas.innerHTML = html;
+        canvas.querySelectorAll('.topo-node').forEach(n => {
+            n.addEventListener('click', function() {
+                drillKpi('topo_node', 'TASK_NODE', this.getAttribute('data-name') + ' [' + this.getAttribute('data-id') + '] — ' + this.getAttribute('data-status'));
+            });
+        });
+    })();
+
+    // === FFI Thread Execution Timeline (HTML segments) ===
+    (function renderFfiThreadTimeline() {
+        const container = document.getElementById('ffiThreadTimeline');
+        if (!container) return;
+        const rows = DATA.thread_timeline || [];
+        if (rows.length === 0) {
+            container.innerHTML = '<div class="text-outline text-xs">No timeline data.</div>';
+            return;
+        }
+        let html = '';
+        rows.forEach(row => {
+            html += '<div class="flex items-center gap-3">';
+            html += '<span class="font-data-mono text-xs text-accent-amber w-32 truncate">' + (row.thread_name || '?') + '</span>';
+            html += '<div class="flex-1 h-5 bg-surface-container-low rounded overflow-hidden relative">';
+            (row.segments || []).forEach(seg => {
+                const w = Math.max(1, seg.width_pct);
+                html += '<div class="absolute h-full bg-' + (seg.color || 'primary') + ' opacity-70" style="left:' + seg.start_pct + '%;width:' + w + '%" title="' + (row.thread_name || '') + ' segment"></div>';
+            });
+            html += '</div></div>';
+        });
+        container.innerHTML = html;
+    })();
+
+    // === Grid cell interactivity — heap lattice, affinity, waker heatgrid, neighbor histogram ===
+    (function addGridInteractivity() {
+        // Heap lattice cells
+        const heapGrid = document.getElementById('heapGrid');
+        if (heapGrid) {
+            const allocs = DATA.allocations || [];
+            const sizes = allocs.map(a => a.size || 0).filter(s => s > 0);
+            heapGrid.querySelectorAll('div').forEach((cell, i) => {
+                const idx = i % sizes.length;
+                const sz = sizes[idx] || 0;
+                cell.setAttribute('title', 'cell #' + i + ' · size ' + sz + 'B');
+                cell.style.cursor = 'pointer';
+                cell.addEventListener('click', function() {
+                    drillKpi('heap_cell', 'HEAP_CELL', 'cell #' + i + ' · size ' + sz + 'B');
+                });
+            });
+        }
+        // Affinity grid cells
+        const affGrid = document.getElementById('affinityGrid');
+        if (affGrid) {
+            affGrid.querySelectorAll('div').forEach((cell, i) => {
+                const label = cell.textContent || '?';
+                const state = label === 'P' ? 'PROCESSING' : label === 'I' ? 'IO_WAIT' : 'IDLE';
+                cell.setAttribute('title', 'core #' + i + ' · ' + state);
+                cell.style.cursor = 'pointer';
+                cell.addEventListener('click', function() {
+                    drillKpi('affinity', 'CORE_' + i, 'core #' + i + ' · ' + state);
+                });
+            });
+        }
+        // Waker heatgrid cells
+        const wakerGrid = document.getElementById('wakerHeatgrid');
+        if (wakerGrid) {
+            const bins = DATA.waker_efficiency_grid || [];
+            wakerGrid.querySelectorAll('div').forEach((cell, i) => {
+                const val = bins[i] !== undefined ? bins[i].toFixed(3) : '0';
+                cell.setAttribute('title', 'waker bin #' + i + ' · efficiency ' + val);
+                cell.style.cursor = 'pointer';
+            });
+        }
+        // Neighbor histogram bars
+        const hist = document.getElementById('neighborHistogram');
+        if (hist) {
+            const bins = DATA.neighbor_density_histogram || [];
+            hist.querySelectorAll('div').forEach((bar, i) => {
+                const b = bins[i] || {};
+                const count = b.count || 0;
+                bar.setAttribute('title', 'bin #' + i + ' · ' + count + ' neighbors · ' + (b.range_label || ''));
+                bar.style.cursor = 'pointer';
+            });
+        }
+    })();
 </script>
+<div id="kpiToast" class="kpi-toast"></div>
 </body>
 </html>

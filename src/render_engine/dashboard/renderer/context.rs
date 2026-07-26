@@ -61,7 +61,7 @@ pub fn build_context_from_tracker_with_async(
 
     let thread_data = aggregate_thread_data(&alloc_info);
     let async_tasks = build_async_tasks(async_tracker);
-    let async_summary = build_async_summary(async_tracker);
+    let async_summary = build_async_summary(async_tracker, &async_tasks);
     let ownership_graph = build_ownership_graph_info(&all_allocations);
 
     let top_n_reports = build_top_n_reports(&all_allocations);
@@ -232,14 +232,21 @@ pub fn build_context_from_tracker_with_async(
         // ========================================
         // New fields for Kinetic Engineering professional template features (pre-computed above)
         // ========================================
+        // Count fields are computed inline before their Vecs are moved into the
+        // struct. Handlebars in Rust does not reliably expose `.length` on
+        // arrays, so we pre-compute counts as plain numbers for the template.
         ffi_call_topology,
+        symbol_table_count: symbol_table.len(),
         symbol_table,
         stack_integrity,
         resource_bars,
+        thread_timeline_count: thread_timeline.len(),
         thread_timeline,
         waker_efficiency_grid,
         poll_latency_mean_ms,
+        task_topology_nodes_count: task_topology_nodes.len(),
         task_topology_nodes,
+        task_topology_edges_count: task_topology_edges.len(),
         task_topology_edges,
         streaming_topology_stats,
         trace_logs,
@@ -290,9 +297,21 @@ fn build_ffi_call_topology(unsafe_reports: &[UnsafeReport]) -> FfiCallTopology {
                 "active".to_string()
             },
         });
+        // Resolve node names eagerly so the template can render the crossings
+        // table without index lookup logic in Handlebars.
+        let from_name = nodes[0].name.clone();
+        let to_name = r.var_name.clone();
+        let label = if r.is_leaked {
+            format!("LEAK: {} not reclaimed", r.var_name)
+        } else {
+            format!("handover: {} ({} bytes)", r.var_name, r.size_bytes)
+        };
         edges.push(FfiCallEdge {
             source: 0,
             target: idx,
+            from_name,
+            to_name,
+            label,
         });
     }
 
@@ -313,16 +332,19 @@ fn build_symbol_table(unsafe_reports: &[UnsafeReport]) -> Vec<SymbolTableEntry> 
         .iter()
         .filter_map(|r| {
             if !r.var_name.is_empty() {
+                let status = match r.risk_level.as_str() {
+                    "high" => "HOT".to_string(),
+                    "low" => "PINNED".to_string(),
+                    _ => "IDLE".to_string(),
+                };
+                let is_hot = r.is_leaked || r.risk_level == "high";
                 Some(SymbolTableEntry {
                     hex_addr: r.allocation_ptr.clone(),
                     symbol_name: r.var_name.clone(),
-                    status: match r.risk_level.as_str() {
-                        "high" => "HOT".to_string(),
-                        "low" => "PINNED".to_string(),
-                        _ => "IDLE".to_string(),
-                    },
+                    status,
                     call_count: (r.size_bytes as u64).max(1),
                     time_avg_us: (r.size_bytes as f64 * 0.1).max(0.01),
+                    is_hot,
                 })
             } else {
                 None
@@ -768,6 +790,10 @@ mod tests {
                 total_allocations: 0,
                 total_memory_bytes: 0,
                 peak_memory_bytes: 0,
+                completed: 0,
+                leaked: 0,
+                zombie: 0,
+                success_rate: 0.0,
             },
             health_score: 100,
             health_status: "Excellent".to_string(),
@@ -801,13 +827,17 @@ mod tests {
             task_graph_json: "{}".to_string(),
             ffi_call_topology: Default::default(),
             symbol_table: vec![],
+            symbol_table_count: 0,
             stack_integrity: Default::default(),
             resource_bars: vec![],
             thread_timeline: vec![],
+            thread_timeline_count: 0,
             waker_efficiency_grid: vec![],
             poll_latency_mean_ms: 0.0,
             task_topology_nodes: vec![],
+            task_topology_nodes_count: 0,
             task_topology_edges: vec![],
+            task_topology_edges_count: 0,
             streaming_topology_stats: Default::default(),
             trace_logs: vec![],
             neighbor_density_histogram: vec![],
