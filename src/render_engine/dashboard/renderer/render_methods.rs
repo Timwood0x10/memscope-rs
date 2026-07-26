@@ -165,6 +165,21 @@ pub fn render_unified_dashboard(
         "ownership_graph".to_string(),
         serde_json::to_value(&context.ownership_graph)?,
     );
+    template_data.insert(
+        "total_smart_pointers".to_string(),
+        serde_json::Value::Number(context.circular_references.total_smart_pointers.into()),
+    );
+    // Smart pointer type breakdown (Rc / Arc / Box / Weak)
+    let mut sp_breakdown: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+    for alloc in &context.allocations {
+        if alloc.is_smart_pointer {
+            *sp_breakdown.entry(alloc.smart_pointer_type.clone()).or_insert(0) += 1;
+        }
+    }
+    template_data.insert(
+        "smart_pointer_breakdown".to_string(),
+        serde_json::to_value(&sp_breakdown)?,
+    );
 
     // Top-N analysis and circular reference reports (Handlebars {{#each}} consumers)
     template_data.insert(
@@ -1068,6 +1083,7 @@ mod tests {
             total_allocated_bytes: 10240,
             is_active: true,
             status: "ACTIVE".to_string(),
+            cpu_core: None,
         }];
 
         let data = to_legacy_binary_data(&context);

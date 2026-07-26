@@ -1,7 +1,7 @@
 //! Complex Multi-Thread Memory Tracking Showcase - New API
 //!
 //! This example demonstrates multi-thread memory tracking using the new unified API.
-use memscope_rs::{analyzer, global_tracker, init_global_tracking, MemScopeResult};
+use memscope_rs::{analyzer, prelude::*, MemScopeResult};
 use std::thread;
 use std::time::Instant;
 
@@ -18,7 +18,7 @@ fn main() -> MemScopeResult<()> {
 
     let start_time = Instant::now();
 
-    init_global_tracking()?;
+    let ctx = MemCtx::init()?;
     println!("✓ Global tracking initialized\n");
 
     println!("Starting multi-threaded allocations...\n");
@@ -26,16 +26,16 @@ fn main() -> MemScopeResult<()> {
     let handles: Vec<_> = (0..num_threads)
         .map(|thread_id| {
             thread::spawn(move || {
-                let ctx = global_tracker().unwrap();
-
+                // Each spawned thread gets the global tracker (it's a singleton Arc)
+                let t = memscope_rs::global_tracker().unwrap();
                 for _i in 0..allocations_per_thread / 2 {
                     let data = vec![0i32; 64];
-                    memscope_rs::track!(ctx, data);
+                    memscope_rs::track!(t, data);
                 }
 
                 for _i in 0..allocations_per_thread / 2 {
                     let data = vec![0i64; 256];
-                    memscope_rs::track!(ctx, data);
+                    memscope_rs::track!(t, data);
                 }
 
                 println!(
@@ -54,7 +54,6 @@ fn main() -> MemScopeResult<()> {
     let total_allocations = num_threads * allocations_per_thread;
     let throughput = total_allocations as f64 / duration.as_secs_f64();
 
-    let ctx = global_tracker()?;
     let stats = ctx.get_stats();
 
     println!("\n========================================");
@@ -103,7 +102,7 @@ fn main() -> MemScopeResult<()> {
 
     // Export HTML dashboard
     println!("\nExporting HTML dashboard...");
-    ctx.export_html(output_path)?;
+    ctx.export(output_path)?;
     println!("  dashboard.html");
 
     Ok(())

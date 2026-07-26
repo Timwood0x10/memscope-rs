@@ -143,6 +143,22 @@ impl DashboardRenderer {
                 "thread_memory_total_fmt".to_string(),
                 serde_json::Value::String(thread_mem_fmt),
             );
+            // Inject total_smart_pointers (native field, but needed in template_data)
+            obj.insert(
+                "total_smart_pointers".to_string(),
+                serde_json::Value::Number(context.circular_references.total_smart_pointers.into()),
+            );
+            // Smart pointer type breakdown
+            let mut sp_breakdown: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+            for alloc in &context.allocations {
+                if alloc.is_smart_pointer {
+                    *sp_breakdown.entry(alloc.smart_pointer_type.clone()).or_insert(0) += 1;
+                }
+            }
+            obj.insert(
+                "smart_pointer_breakdown".to_string(),
+                serde_json::to_value(&sp_breakdown).unwrap_or(serde_json::Value::Object(Default::default())),
+            );
         }
 
         registry.render(template_id, &data)

@@ -41,7 +41,7 @@ pub fn build_allocation_info(
                 size: a.size,
                 var_name: a.var_name.clone().unwrap_or_else(|| "unknown".to_string()),
                 timestamp: format!("{:?}", a.timestamp_alloc),
-                thread_id: format!("{:?}", a.thread_id),
+                thread_id: format!("{:?}", a.thread_id_u64),
                 immutable_borrows: 0,
                 mutable_borrows: 0,
                 is_clone: a.clone_info.as_ref().map(|i| i.is_clone).unwrap_or(false),
@@ -709,6 +709,10 @@ pub fn aggregate_thread_data(allocations: &[AllocationInfo]) -> Vec<ThreadInfo> 
         if alloc.size > entry.peak_memory {
             entry.peak_memory = alloc.size;
         }
+        // Capture the logical CPU core once per thread
+        if entry.cpu_core.is_none() {
+            entry.cpu_core = crate::capture::platform::memory_info::get_current_cpu_impl();
+        }
     }
 
     thread_map
@@ -734,6 +738,7 @@ pub fn aggregate_thread_data(allocations: &[AllocationInfo]) -> Vec<ThreadInfo> 
                 total_allocated_bytes: agg.total_allocated,
                 is_active,
                 status,
+                cpu_core: agg.cpu_core,
             }
         })
         .collect()

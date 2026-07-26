@@ -1132,18 +1132,27 @@ fn build_selected_node_detail(
 }
 
 fn build_thread_affinity_grid(thread_data: &[ThreadInfo], cpu_cores: usize) -> Vec<String> {
-    let total = cpu_cores.max(8);
-    let mut pips = Vec::with_capacity(total);
-    for i in 0..total {
-        let has_thread = thread_data
-            .iter()
-            .any(|t| t.thread_id.contains(&format!("{}", i)));
-        pips.push(if has_thread {
-            "PROCESSING".to_string()
+    let total = cpu_cores.max(8).min(64); // cap at 64 for the 8x8 grid
+    // Build a set of occupied CPUs from per-thread cpu_core (real capture) or fallback to string matching
+    let mut occupied = vec![false; total];
+    for t in thread_data {
+        if let Some(core) = t.cpu_core {
+            if (core as usize) < total {
+                occupied[core as usize] = true;
+            }
         } else {
-            "IDLE".to_string()
-        });
+            // Fallback: check if thread_id string contains the core index
+            for i in 0..total {
+                if t.thread_id.contains(&format!("{}", i)) {
+                    occupied[i] = true;
+                }
+            }
+        }
     }
+    let mut pips: Vec<String> = occupied
+        .iter()
+        .map(|&busy| if busy { "PROCESSING".to_string() } else { "IDLE".to_string() })
+        .collect();
     // Pad to at least 64 for the 8x8 grid
     while pips.len() < 64 {
         pips.push("IDLE".to_string());

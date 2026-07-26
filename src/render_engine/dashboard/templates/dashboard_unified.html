@@ -423,13 +423,13 @@
                         <tbody>
                         {{#each allocations}}
                             <tr class="border-b border-outline-variant/30 hover:bg-surface-container-high alloc-row {{#if is_leaked}}bg-error/5{{/if}}" data-idx="{{@index}}">
-                                <td class="py-2 px-2 text-accent-amber">{{address}}</td>
-                                <td class="py-2 px-2">{{type_name}}</td>
-                                <td class="py-2 px-2 text-on-surface-variant">{{#if var_name}}{{var_name}}{{else}}—{{/if}}</td>
-                                <td class="py-2 px-2 text-right">{{size}}</td>
-                                <td class="py-2 px-2 text-right text-on-surface-variant">{{thread_id}}</td>
-                                <td class="py-2 px-2 text-on-surface-variant">{{source_file}}:{{source_line}}</td>
-                                <td class="py-2 px-2 {{#if is_leaked}}text-error{{else}}text-primary{{/if}}">{{allocation_type}}{{#if is_leaked}} ⚠{{/if}}</td>
+                                <td class="py-2 px-2 text-accent-amber whitespace-nowrap">{{address}}</td>
+                                <td class="py-2 px-2 truncate max-w-[160px]">{{type_name}}</td>
+                                <td class="py-2 px-2 truncate max-w-[100px] text-on-surface-variant">{{#if var_name}}{{var_name}}{{else}}—{{/if}}</td>
+                                <td class="py-2 px-2 text-right whitespace-nowrap">{{size}}</td>
+                                <td class="py-2 px-2 text-right whitespace-nowrap text-on-surface-variant">{{thread_id}}</td>
+                                <td class="py-2 px-2 truncate max-w-[160px] text-on-surface-variant">{{source_file}}:{{source_line}}</td>
+                                <td class="py-2 px-2 whitespace-nowrap {{#if is_leaked}}text-error{{else}}text-primary{{/if}}">{{allocation_type}}{{#if is_leaked}} ⚠{{/if}}</td>
                             </tr>
                         {{else}}
                             <tr><td colspan="7" class="py-4 text-center text-outline">No allocations.</td></tr>
@@ -438,9 +438,8 @@
                     </table>
                 </div>
             </div>
-        </div>
 
-        <!-- ============ MODE: THREAD ============ -->
+        </div>
         <div id="mode-thread" class="mode-section">
             <div class="flex justify-between items-end mb-8 pt-6">
                 <div>
@@ -477,22 +476,13 @@
                 </div>
             </div>
 
-            <!-- Hardware Thread Allocation Map -->
-            <div class="bg-surface-container border border-outline-variant rounded-lg p-6 mb-8 relative overflow-hidden">
-                <div class="flex justify-between items-center mb-6">
-                    <h2 class="font-label-caps text-label-caps text-accent-amber">HARDWARE_THREAD_ALLOCATION</h2>
-                    <div class="flex gap-4 items-center">
-                        <div class="flex items-center gap-2"><div class="w-1.5 h-1.5 rounded-full bg-accent-amber"></div><span class="font-label-caps text-[10px] text-on-surface-variant">PROCESSING</span></div>
-                        <div class="flex items-center gap-2"><div class="w-1.5 h-1.5 rounded-full bg-blue-500"></div><span class="font-label-caps text-[10px] text-on-surface-variant">IO_WAIT</span></div>
-                        <div class="flex items-center gap-2"><div class="w-1.5 h-1.5 rounded-full bg-zinc-600"></div><span class="font-label-caps text-[10px] text-on-surface-variant">IDLE</span></div>
-                    </div>
+            <!-- Thread Load Heatmap -->
+            <div class="bg-surface-container border border-outline-variant rounded-lg p-6 mb-8">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="font-label-caps text-label-caps text-accent-amber">THREAD_LOAD_HEATMAP</h2>
+                    <span class="font-data-mono text-[10px] text-primary">{{len threads}} threads</span>
                 </div>
-                <div class="absolute inset-0 flex justify-between px-6 pointer-events-none opacity-20">
-                    <div class="execution-line h-full"></div><div class="execution-line h-full"></div>
-                    <div class="execution-line h-full"></div><div class="execution-line h-full"></div>
-                    <div class="execution-line h-full"></div>
-                </div>
-                <div class="relative grid grid-cols-8 gap-3 content-start" id="affinityGrid"></div>
+                <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3" id="loadHeatmap"></div>
             </div>
 
             <!-- Thread Event Log -->
@@ -523,13 +513,13 @@
                         <tbody>
                         {{#each threads}}
                             <tr class="border-b border-outline-variant/30 hover:bg-surface-container-high thread-row" data-idx="{{@index}}">
-                                <td class="py-2 text-accent-amber">{{thread_id}}</td>
-                                <td class="py-2">{{thread_summary}}</td>
-                                <td class="py-2 text-right text-primary">{{allocation_count}}</td>
-                                <td class="py-2 text-right text-secondary">{{current_memory}}</td>
-                                <td class="py-2 text-right text-tertiary">{{peak_memory}}</td>
-                                <td class="py-2 text-right text-on-surface-variant">{{total_allocated}}</td>
-                                <td class="py-2 {{#if is_active}}text-primary{{else}}text-outline{{/if}}">{{status}}</td>
+                                <td class="py-2 text-accent-amber whitespace-nowrap">{{thread_id}}</td>
+                                <td class="py-2 truncate max-w-[200px]">{{thread_summary}}</td>
+                                <td class="py-2 text-right text-primary whitespace-nowrap">{{allocation_count}}</td>
+                                <td class="py-2 text-right text-secondary whitespace-nowrap">{{current_memory}}</td>
+                                <td class="py-2 text-right text-tertiary whitespace-nowrap">{{peak_memory}}</td>
+                                <td class="py-2 text-right text-on-surface-variant whitespace-nowrap">{{total_allocated}}</td>
+                                <td class="py-2 whitespace-nowrap {{#if is_active}}text-primary{{else}}text-outline{{/if}}">{{status}}</td>
                             </tr>
                         {{else}}
                             <tr><td colspan="7" class="py-4 text-center text-outline">No threads.</td></tr>
@@ -666,10 +656,10 @@
                         <tbody>
                         {{#each async_tasks}}
                             <tr class="border-b border-outline-variant/30 hover:bg-surface-container-high async-task-row" data-idx="{{@index}}">
-                                <td class="py-2 text-accent-amber">{{task_id}}</td>
-                                <td class="py-2">{{task_name}}</td>
-                                <td class="py-2 text-on-surface-variant">{{task_type}}</td>
-                                <td class="py-2 text-right text-secondary">{{duration_ms}}ms</td>
+                                <td class="py-2 text-accent-amber whitespace-nowrap">{{task_id}}</td>
+                                <td class="py-2 truncate max-w-[180px]">{{task_name}}</td>
+                                <td class="py-2 truncate max-w-[100px] text-on-surface-variant">{{task_type}}</td>
+                                <td class="py-2 text-right text-secondary whitespace-nowrap">{{duration_ms}}ms</td>
                                 <td class="py-2 text-right text-on-surface-variant">{{total_allocations}}</td>
                                 <td class="py-2 text-right text-on-surface-variant">{{current_memory}}B</td>
                                 <td class="py-2 text-right {{#if (eq efficiency_score 0.0)}}text-error{{else}}text-primary{{/if}}">{{efficiency_score}}</td>
@@ -857,11 +847,11 @@
                         <tbody>
                         {{#each relationships}}
                             <tr class="border-b border-outline-variant/30 hover:bg-surface-container-high {{#if is_part_of_cycle}}bg-error/5{{/if}}">
-                                <td class="py-2 text-accent-amber">{{source_var_name}}</td>
-                                <td class="py-2 text-secondary">{{target_var_name}}</td>
-                                <td class="py-2 text-primary">{{relationship_type}}</td>
-                                <td class="py-2 text-on-surface-variant">{{type_name}}</td>
-                                <td class="py-2 text-right text-on-surface-variant">{{strength}}</td>
+                                <td class="py-2 text-accent-amber truncate max-w-[120px]">{{source_var_name}}</td>
+                                <td class="py-2 text-secondary truncate max-w-[120px]">{{target_var_name}}</td>
+                                <td class="py-2 text-primary whitespace-nowrap">{{relationship_type}}</td>
+                                <td class="py-2 truncate max-w-[100px] text-on-surface-variant">{{type_name}}</td>
+                                <td class="py-2 text-right whitespace-nowrap text-on-surface-variant">{{strength}}</td>
                                 <td class="py-2 text-center">{{#if is_part_of_cycle}}<span class="text-error" title="Part of retain cycle">⚠</span>{{else}}<span class="text-outline">·</span>{{/if}}</td>
                             </tr>
                         {{else}}
@@ -871,9 +861,52 @@
                     </table>
                 </div>
             </div>
-        </div>
 
-        <!-- ============ MODE: PASSPORT ============ -->
+            <!-- Smart Pointer Summary -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-gutter mb-8">
+                <div class="bg-surface-container-high border border-tertiary p-5 rounded-lg rim-light">
+                    <span class="font-label-caps text-on-surface-variant">SMART_PTR_COUNT</span>
+                    <h3 class="font-headline-lg text-headline-lg text-tertiary">{{total_smart_pointers}}</h3>
+                    <p class="text-[10px] text-outline mt-2 font-label-caps uppercase">OF {{allocations_count}} ALLOCATIONS</p>
+                </div>
+                <div class="bg-surface-container-high border border-outline-variant p-5 rounded-lg rim-light col-span-1">
+                    <span class="font-label-caps text-on-surface-variant mb-2 block">TYPE_DISTRIBUTION</span>
+                    <div class="space-y-2 font-data-mono text-xs">
+                    {{#each smart_pointer_breakdown}}
+                        <div class="flex justify-between items-center">
+                            <span class="text-primary">{{@key}}</span>
+                            <span class="text-on-surface">{{this}}</span>
+                        </div>
+                    {{else}}
+                        <div class="text-outline">—</div>
+                    {{/each}}
+                    </div>
+                </div>
+                <div class="bg-surface-container-high border border-outline-variant p-5 rounded-lg rim-light col-span-2">
+                    <span class="font-label-caps text-on-surface-variant mb-2 block">SMART_PTR_ALLOCATIONS</span>
+                    <div class="overflow-auto max-h-32 font-data-mono text-xs">
+                        <table class="w-full border-collapse">
+                            <thead><tr class="text-on-surface-variant border-b border-outline-variant">
+                                <th class="text-left py-1">TYPE</th><th class="text-left py-1">ADDR</th><th class="text-right py-1">SIZE</th>
+                            </tr></thead>
+                            <tbody>
+                            {{#each allocations}}
+                                {{#if is_smart_pointer}}
+                                <tr class="border-b border-outline-variant/30">
+                                    <td class="py-1 text-tertiary">{{smart_pointer_type}}</td>
+                                    <td class="py-1 text-accent-amber">{{addr}}</td>
+                                    <td class="py-1 text-right">{{size}}</td>
+                                </tr>
+                                {{/if}}
+                            {{else}}
+                                <tr><td colspan="3" class="py-2 text-outline">No smart pointers.</td></tr>
+                            {{/each}}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
         <div id="mode-passport" class="mode-section">
             <div class="flex justify-between items-end mb-8 pt-6">
                 <div>
@@ -1023,6 +1056,17 @@
                 </div>
                 <div class="space-y-4" id="ffiThreadTimeline"></div>
             </div>
+
+            <!-- Dynamic Type Info -->
+            <div class="bg-surface-container border border-outline-variant rounded-lg p-6 mb-8">
+                <details>
+                    <summary class="font-label-caps text-on-surface-variant cursor-pointer select-none">DYNAMIC_TYPE · VTable / Dispatch Overhead</summary>
+                    <div class="mt-4 font-data-mono text-xs text-outline">
+                        <p>No dynamic type information captured in this session.</p>
+                        <p class="mt-1">Enable VTable or type-erasure tracking to see dispatch overhead data.</p>
+                    </div>
+                </details>
+            </div>
         </div>
 
         <!-- ============ MODE: UNSAFE / TIME TRAVEL ============ -->
@@ -1065,8 +1109,8 @@
                     <div class="space-y-2 font-data-mono text-xs" id="ffiCrossingsList">
                         {{#each ffi_call_topology.edges}}
                         <div class="border-b border-outline-variant/30 pb-2 ffi-crossing-row" data-idx="{{@index}}">
-                            <div class="flex justify-between"><span class="text-secondary">{{from_name}}</span><span class="text-accent-amber">→ {{to_name}}</span></div>
-                            <div class="text-on-surface-variant text-[10px] mt-1">{{label}}</div>
+                            <div class="flex justify-between"><span class="text-secondary truncate max-w-[200px]">{{from_name}}</span><span class="text-accent-amber whitespace-nowrap">→ {{to_name}}</span></div>
+                            <div class="text-on-surface-variant text-[10px] mt-1 truncate">{{label}}</div>
                         </div>
                         {{else}}
                         <div class="text-outline">No FFI crossings.</div>
@@ -1310,30 +1354,34 @@
     registerThemeAware('heapGrid', renderHeapGrid);
     renderHeapGrid();
 
-    // Render affinity grid (8 cols x N rows) — uses real thread affinity
-    // data from DATA.thread_affinity_grid (PROCESSING/IDLE per core).
-    function renderAffinityGrid() {
-        const grid = document.getElementById('affinityGrid');
+    // Render thread load heatmap — each cell is a thread, colored by
+    // allocation_count (primary) and annotated with current_memory.
+    function renderLoadHeatmap() {
+        const grid = document.getElementById('loadHeatmap');
         if (!grid) return;
-        const cores = {{cpu_cores}} || 64;
-        const cells = Math.max(cores, 64);
-        const affinityData = DATA.thread_affinity_grid || [];
-        grid.innerHTML = '';
-        for (let i = 0; i < cells; i++) {
-            const cell = document.createElement('div');
-            cell.className = 'aspect-square rounded border border-outline-variant/50 flex items-center justify-center text-[8px] font-data-mono chart-interactive';
-            // Real per-core state from DATA.thread_affinity_grid; default
-            // to IDLE for cores beyond the data array.
-            const stateLabel = (i < affinityData.length ? affinityData[i] : 'IDLE') || 'IDLE';
-            if (stateLabel === 'PROCESSING') { cell.style.background = primaryMix(0.6); cell.textContent = 'P'; }
-            else if (stateLabel === 'IO_WAIT') { cell.style.background = 'rgba(59,130,246,0.6)'; cell.textContent = 'I'; }
-            else { cell.style.background = 'rgba(63,63,70,0.4)'; cell.textContent = '·'; }
-            bindInteractive(cell, 'CORE_' + i, [['core', '#' + i], ['state', stateLabel]], 'AFFINITY', 'core #' + i + ' · ' + stateLabel);
-            grid.appendChild(cell);
+        const threads = DATA.threads || [];
+        if (threads.length === 0) {
+            grid.innerHTML = '<div class="col-span-full text-outline text-xs py-4">No thread data.</div>';
+            return;
         }
+        const maxAlloc = Math.max(...threads.map(t => t.allocation_count || 0), 1);
+        const maxMem = Math.max(...threads.map(t => t.current_memory_bytes || 0), 1);
+        grid.innerHTML = '';
+        threads.forEach((t, i) => {
+            const cell = document.createElement('div');
+            const ratio = (t.allocation_count || 0) / maxAlloc;
+            const intensity = 0.15 + ratio * 0.75;
+            cell.className = 'aspect-square rounded border border-outline-variant/50 flex flex-col items-center justify-center text-[8px] font-data-mono chart-interactive p-1';
+            cell.style.background = primaryMix(intensity);
+            cell.innerHTML = '<span class="text-white font-bold">' + (t.thread_id || '').replace('Thread-', 'T') + '</span><span class="text-on-surface-variant mt-1">' + (t.allocation_count || 0) + '</span>';
+            cell.title = t.thread_id + ' · ' + t.allocation_count + ' allocs · ' + (t.current_memory || '0 B');
+            bindInteractive(cell, 'THREAD_' + i, [['id', t.thread_id], ['allocs', t.allocation_count], ['mem', t.current_memory]], 'THREAD_LOAD', t.thread_id + ' · ' + t.allocation_count + ' allocs');
+            grid.appendChild(cell);
+        });
     }
-    registerThemeAware('affinityGrid', renderAffinityGrid);
-    renderAffinityGrid();
+    // Register and run — use existing theme-aware dispatch via id
+    const loadEl = document.getElementById('loadHeatmap');
+    if (loadEl) renderLoadHeatmap();
 
     // Render waker efficiency heatgrid (10x6) — uses var(--primary).
     function renderWakerHeatgrid() {

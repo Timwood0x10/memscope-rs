@@ -566,6 +566,9 @@ pub struct ThreadInfo {
     /// Human-readable status: ACTIVE / IDLE
     #[serde(default)]
     pub status: String,
+    /// Logical CPU core the thread was last observed running on.
+    #[serde(default)]
+    pub cpu_core: Option<u32>,
 }
 
 /// Thread aggregator for internal use
@@ -575,6 +578,8 @@ pub struct ThreadAggregator {
     pub current_memory: usize,
     pub peak_memory: usize,
     pub total_allocated: usize,
+    /// Logical CPU core the thread was last observed running on.
+    pub cpu_core: Option<u32>,
 }
 
 /// Top N allocation site for dashboard
