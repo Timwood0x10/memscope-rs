@@ -26,6 +26,10 @@ fn main() -> MemScopeResult<()> {
     println!("╚════════════════════════════════════════════════════════════╝\n");
 
     init_global_tracking()?;
+    // Initialize the process-start timer as early as possible so that
+    // CPU usage percentage reflects the true process lifetime, not just
+    // the moment the dashboard is exported.
+    memscope_rs::render_engine::dashboard::renderer::init_process_timer();
     println!("✓ Global tracking initialized (Tracker + MemoryPassport + AsyncTracker)\n");
 
     println!("📦 Section 1: Single-Threaded Mode\n");
@@ -337,14 +341,17 @@ async fn run_async_mode() -> MemScopeResult<()> {
             track!(tracker, string_data);
             async_tracker.track_allocation(i * 1000 + 1, string_size, task_id);
 
-            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            // Vary sleep durations so poll latency samples are realistic and
+            // the chart shows a non-flat curve (5ms, 15ms, 30ms, 10ms).
+            let sleep_ms = [5u64, 15, 30, 10][i];
+            tokio::time::sleep(std::time::Duration::from_millis(sleep_ms)).await;
 
             // Track async task end
             if let Err(e) = async_tracker.track_task_end(task_id) {
                 eprintln!("Warning: {}", e);
             }
 
-            println!("  Task-{}: tracked 2 allocations", i);
+            println!("  Task-{}: tracked 2 allocations (slept {}ms)", i, sleep_ms);
         }
     });
 

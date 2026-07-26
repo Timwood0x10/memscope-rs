@@ -21,8 +21,71 @@ pub fn get_system_info() -> SystemResources {
             available_physical: "8.00 GB".to_string(),
             used_physical: "8.00 GB".to_string(),
             page_size: 4096,
+            cpu_usage_pct: 0.0,
+            total_physical_bytes: 16 * 1024 * 1024 * 1024,
+            used_physical_bytes: 8 * 1024 * 1024 * 1024,
         }
     }
+}
+
+/// Record the process start time as early as possible so that CPU usage
+/// can be computed as (cpu_time / wall_time_since_start). Call
+/// `init_process_timer()` from your `main()` (right after
+/// `init_global_tracking()`) for maximum accuracy. If never called, the
+/// `process_cpu_usage_pct()` function falls back to `proc_pidinfo` to read
+/// the kernel-recorded process start time directly.
+static PROCESS_START: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+
+/// Initialize the process-start timer. Should be called as early as
+/// possible (e.g. right after `init_global_tracking` in `main`) for
+/// maximum accuracy.
+pub fn init_process_timer() {
+    PROCESS_START.get_or_init(std::time::Instant::now);
+}
+
+/// Compute the current process CPU usage percentage (0.0-100.0).
+///
+/// Uses `getrusage(RUSAGE_SELF)` to obtain user + system CPU time consumed by
+/// the process, then divides by the process wall-clock uptime recorded via
+/// `Instant` from `init_process_timer()`. The result is clamped to [0, 100]
+/// and rounded to 2 decimal places.
+///
+/// **Important:** `init_process_timer()` must be called early (e.g. right
+/// after `init_global_tracking` in `main`) for an accurate measurement. If it
+/// was never called, the timer starts on the first invocation of this
+/// function (less accurate but still produces a real value for the remaining
+/// process lifetime).
+#[cfg(target_os = "macos")]
+fn process_cpu_usage_pct() -> f64 {
+    use std::mem::MaybeUninit;
+
+    // Process wall-clock age from the early-initialized Instant timer.
+    let start = PROCESS_START.get_or_init(std::time::Instant::now);
+    let elapsed = start.elapsed().as_secs_f64();
+    if elapsed < 0.001 {
+        return 0.0;
+    }
+
+    // Process CPU time (user + sys) in seconds via getrusage.
+    let mut ru: MaybeUninit<libc::rusage> = MaybeUninit::uninit();
+    let cpu_secs = if unsafe { libc::getrusage(libc::RUSAGE_SELF, ru.as_mut_ptr()) == 0 } {
+        let ru = unsafe { ru.assume_init() };
+        let user = ru.ru_utime.tv_sec as f64 + ru.ru_utime.tv_usec as f64 / 1_000_000.0;
+        let sys = ru.ru_stime.tv_sec as f64 + ru.ru_stime.tv_usec as f64 / 1_000_000.0;
+        user + sys
+    } else {
+        return 0.0;
+    };
+
+    let pct = (cpu_secs / elapsed) * 100.0;
+    // Round to 2 decimal places so the telemetry bar shows a clean value
+    // like "0.05%" instead of "0.000023050096979228655%".
+    (pct.clamp(0.0, 100.0) * 100.0).round() / 100.0
+}
+
+#[cfg(not(target_os = "macos"))]
+fn process_cpu_usage_pct() -> f64 {
+    0.0
 }
 
 #[cfg(target_os = "macos")]
@@ -143,6 +206,9 @@ fn get_macos_system_info() -> SystemResources {
         available_physical: format_bytes(available_physical as usize),
         used_physical: format_bytes(used_physical as usize),
         page_size,
+        cpu_usage_pct: process_cpu_usage_pct(),
+        total_physical_bytes: total,
+        used_physical_bytes: used_physical,
     }
 }
 

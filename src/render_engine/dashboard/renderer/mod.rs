@@ -20,6 +20,7 @@ pub use types::*;
 // Re-export for external use
 pub use event_dto::{build_data_index, DashboardEventDTO, DataIndex, EventSummary};
 pub use event_reconstructor::rebuild_allocations_from_events;
+pub use system_info::init_process_timer;
 pub use template_registry::{
     DashboardTemplate as RegisteredTemplate, TemplateKind, TemplateRegistry,
 };
@@ -268,6 +269,9 @@ mod tests {
                 available_physical: "0 B".to_string(),
                 used_physical: "0 B".to_string(),
                 page_size: 4096,
+                cpu_usage_pct: 0.0,
+                total_physical_bytes: 0,
+                used_physical_bytes: 0,
             },
             threads: vec![],
             async_tasks: vec![],
@@ -321,6 +325,7 @@ mod tests {
             thread_timeline_count: 0,
             waker_efficiency_grid: vec![],
             poll_latency_mean_ms: 0.0,
+            poll_latency_samples: vec![],
             task_topology_nodes: vec![],
             task_topology_nodes_count: 0,
             task_topology_edges: vec![],

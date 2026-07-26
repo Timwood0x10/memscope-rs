@@ -276,6 +276,10 @@ pub fn render_unified_dashboard(
             serde_json::Number::from_f64(context.poll_latency_mean_ms).unwrap_or(0.into()),
         ),
     );
+    template_data.insert(
+        "poll_latency_samples".to_string(),
+        serde_json::to_value(&context.poll_latency_samples)?,
+    );
 
     template_data.insert(
         "tailwind_script".to_string(),
@@ -456,7 +460,10 @@ pub fn to_legacy_binary_data(context: &DashboardContext) -> serde_json::Value {
             "total_physical": context.system_resources.total_physical,
             "available_physical": context.system_resources.available_physical,
             "used_physical": context.system_resources.used_physical,
-            "page_size": context.system_resources.page_size
+            "page_size": context.system_resources.page_size,
+            "cpu_usage_pct": context.system_resources.cpu_usage_pct,
+            "total_physical_bytes": context.system_resources.total_physical_bytes,
+            "used_physical_bytes": context.system_resources.used_physical_bytes
         },
         "ownership_graph": {
             "total_nodes": context.ownership_graph.total_nodes,
@@ -699,6 +706,9 @@ mod tests {
                 available_physical: "0 B".to_string(),
                 used_physical: "0 B".to_string(),
                 page_size: 4096,
+                cpu_usage_pct: 0.0,
+                total_physical_bytes: 0,
+                used_physical_bytes: 0,
             },
             threads: vec![],
             async_tasks: vec![],
@@ -752,6 +762,7 @@ mod tests {
             thread_timeline_count: 0,
             waker_efficiency_grid: vec![],
             poll_latency_mean_ms: 0.0,
+            poll_latency_samples: vec![],
             task_topology_nodes: vec![],
             task_topology_nodes_count: 0,
             task_topology_edges: vec![],
@@ -1084,6 +1095,9 @@ mod tests {
             available_physical: "8 GB".to_string(),
             used_physical: "8 GB".to_string(),
             page_size: 4096,
+            cpu_usage_pct: 0.0,
+            total_physical_bytes: 16 * 1024 * 1024 * 1024,
+            used_physical_bytes: 8 * 1024 * 1024 * 1024,
         };
 
         let data = to_legacy_binary_data(&context);

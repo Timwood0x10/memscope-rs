@@ -613,12 +613,14 @@
                     <div class="grid grid-cols-10 gap-1 flex-1 min-h-[100px]" id="wakerHeatgrid"></div>
                 </div>
                 <div class="bg-surface-container border border-outline-variant rounded-lg p-6 flex flex-col">
-                    <p class="font-label-caps text-on-surface-variant mb-3">POLL_LATENCY</p>
-                    <svg class="w-full h-24" viewBox="0 0 100 40" id="pollLatencySvg">
-                        <path d="M0 40 Q 20 40 30 10 T 50 35 T 70 5 T 100 40" fill="none" stroke="#10B981" stroke-width="1.5"></path>
-                        <path d="M0 40 Q 20 40 30 10 T 50 35 T 70 5 T 100 40 V 40 H 0" fill="rgba(16,185,129,0.1)"></path>
-                    </svg>
-                    <p class="text-[9px] font-data-mono text-center mt-2 text-on-surface-variant">{{poll_latency_mean_ms}}ms MEAN</p>
+                    <p class="font-label-caps text-on-surface-variant mb-3">POLL_LATENCY · <span id="pollLatencyCount">{{len poll_latency_samples}}</span> samples</p>
+                    <!-- Data-driven SVG: rendered by renderPollLatencyCurve() from
+                         DATA.poll_latency_samples. The container is taller (h-40)
+                         so the curve and its axis labels are never clipped. -->
+                    <div id="pollLatencyContainer" class="w-full h-40 relative">
+                        <svg class="w-full h-full" viewBox="0 0 200 80" preserveAspectRatio="none" id="pollLatencySvg"></svg>
+                    </div>
+                    <p class="text-[9px] font-data-mono text-center mt-2 text-on-surface-variant">{{poll_latency_mean_ms}}ms MEAN · hover for per-task detail</p>
                 </div>
             </div>
 
@@ -1114,8 +1116,8 @@
 <footer class="fixed bottom-0 left-0 ml-64 w-[calc(100%-16rem)] h-6 bg-surface-container-lowest border-t border-outline-variant z-50 flex justify-between items-center px-4">
     <div class="flex items-center gap-4">
         <div class="flex items-center gap-1"><span class="w-1.5 h-1.5 bg-primary rounded-full animate-pulse"></span><span class="font-data-mono text-[9px] uppercase text-on-surface-variant">Telemetry Linked</span></div>
-        <div class="flex items-center gap-1 border-l border-outline-variant pl-4"><span class="font-data-mono text-[9px] text-on-surface-variant">CPU: 12.4%</span></div>
-        <div class="flex items-center gap-1 border-l border-outline-variant pl-4"><span class="font-data-mono text-[9px] text-on-surface-variant">MEM: {{total_memory}} / 16GB</span></div>
+        <div class="flex items-center gap-1 border-l border-outline-variant pl-4"><span class="font-data-mono text-[9px] text-on-surface-variant">CPU: {{system_resources.cpu_usage_pct}}%</span></div>
+        <div class="flex items-center gap-1 border-l border-outline-variant pl-4"><span class="font-data-mono text-[9px] text-on-surface-variant">MEM: {{system_resources.used_physical}} / {{system_resources.total_physical}}</span></div>
     </div>
     <div class="font-data-mono text-[9px] text-on-surface-variant">UTC: <span id="clock">{{export_timestamp}}</span></div>
 </footer>
@@ -1296,20 +1298,23 @@
     registerThemeAware('heapGrid', renderHeapGrid);
     renderHeapGrid();
 
-    // Render affinity grid (8 cols x N rows) — PROCESSING uses var(--primary).
+    // Render affinity grid (8 cols x N rows) — uses real thread affinity
+    // data from DATA.thread_affinity_grid (PROCESSING/IDLE per core).
     function renderAffinityGrid() {
         const grid = document.getElementById('affinityGrid');
         if (!grid) return;
         const cores = {{cpu_cores}} || 64;
         const cells = Math.max(cores, 64);
+        const affinityData = DATA.thread_affinity_grid || [];
         grid.innerHTML = '';
         for (let i = 0; i < cells; i++) {
             const cell = document.createElement('div');
             cell.className = 'aspect-square rounded border border-outline-variant/50 flex items-center justify-center text-[8px] font-data-mono chart-interactive';
-            const state = i % 7;
-            const stateLabel = state === 0 ? 'PROCESSING' : state === 1 ? 'IO_WAIT' : 'IDLE';
-            if (state === 0) { cell.style.background = primaryMix(0.6); cell.textContent = 'P'; }
-            else if (state === 1) { cell.style.background = 'rgba(59,130,246,0.6)'; cell.textContent = 'I'; }
+            // Real per-core state from DATA.thread_affinity_grid; default
+            // to IDLE for cores beyond the data array.
+            const stateLabel = (i < affinityData.length ? affinityData[i] : 'IDLE') || 'IDLE';
+            if (stateLabel === 'PROCESSING') { cell.style.background = primaryMix(0.6); cell.textContent = 'P'; }
+            else if (stateLabel === 'IO_WAIT') { cell.style.background = 'rgba(59,130,246,0.6)'; cell.textContent = 'I'; }
             else { cell.style.background = 'rgba(63,63,70,0.4)'; cell.textContent = '·'; }
             bindInteractive(cell, 'CORE_' + i, [['core', '#' + i], ['state', stateLabel]], 'AFFINITY', 'core #' + i + ' · ' + stateLabel);
             grid.appendChild(cell);
@@ -1340,6 +1345,92 @@
     }
     registerThemeAware('wakerHeatgrid', renderWakerHeatgrid);
     renderWakerHeatgrid();
+
+    // ============================================================
+    // POLL_LATENCY curve — data-driven SVG built from
+    // DATA.poll_latency_samples (per-task duration_ms values). Re-renders
+    // on theme switch so the stroke/gradient pick up the new --primary.
+    // Each sample point is an interactive hover/click target.
+    // ============================================================
+    function renderPollLatencyCurve() {
+        const svg = document.getElementById('pollLatencySvg');
+        if (!svg) return;
+        const samples = (DATA.poll_latency_samples || []).slice(0, 60);
+        const W = 200, H = 80, pad = 4;
+        const mean = DATA.poll_latency_mean_ms || 0;
+        // Empty-state: no samples → show honest "no data" message.
+        if (samples.length === 0) {
+            svg.innerHTML = '<text x="100" y="42" text-anchor="middle" fill="var(--on-surface-variant)" font-family="JetBrains Mono" font-size="7">NO POLL_LATENCY SAMPLES</text>';
+            return;
+        }
+        const maxV = Math.max(...samples, mean, 0.001);
+        const xStep = (W - pad * 2) / Math.max(1, samples.length - 1);
+        // Build the curve path: map each sample to (x, y) where y is inverted
+        // (higher latency → lower on the chart).
+        const pts = samples.map((v, i) => {
+            const x = pad + i * xStep;
+            const y = H - pad - (v / maxV) * (H - pad * 2);
+            return [x, y, v, i];
+        });
+        // Smooth line via simple polyline (no curve interpolation to keep
+        // individual sample points hoverable).
+        const linePath = pts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+        const areaPath = linePath + ' L' + (W - pad) + ' ' + (H - pad) + ' L' + pad + ' ' + (H - pad) + ' Z';
+        // Mean line.
+        const meanY = H - pad - (mean / maxV) * (H - pad * 2);
+        const primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--ke-accent').trim() || '#F59E0B';
+        let html = '';
+        // Gradient defs.
+        html += '<defs><linearGradient id="pollGrad" x1="0" y1="0" x2="0" y2="1">';
+        html += '<stop offset="0%" stop-color="' + primaryColor + '" stop-opacity="0.35"/>';
+        html += '<stop offset="100%" stop-color="' + primaryColor + '" stop-opacity="0.02"/>';
+        html += '</linearGradient></defs>';
+        // Area fill.
+        html += '<path d="' + areaPath + '" fill="url(#pollGrad)" stroke="none"/>';
+        // Mean dashed line.
+        html += '<line x1="' + pad + '" y1="' + meanY.toFixed(1) + '" x2="' + (W - pad) + '" y2="' + meanY.toFixed(1) + '" stroke="var(--on-surface-variant)" stroke-width="0.4" stroke-dasharray="2 2" opacity="0.6"/>';
+        // Curve line.
+        html += '<path d="' + linePath + '" fill="none" stroke="' + primaryColor + '" stroke-width="1.2" stroke-linejoin="round"/>';
+        // Interactive sample points — hover shows the task's duration, click drills.
+        pts.forEach(p => {
+            html += '<circle class="poll-pt" cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="1.8" fill="' + primaryColor + '" stroke="var(--on-background)" stroke-width="0.5" style="cursor:pointer"/>';
+        });
+        svg.innerHTML = html;
+        // Attach hover/click to each sample point.
+        svg.querySelectorAll('.poll-pt').forEach((c, idx) => {
+            const p = pts[idx];
+            const task = (DATA.async_tasks || [])[p[3]];
+            const taskName = task ? task.task_name : ('sample #' + p[3]);
+            c.setAttribute('title', taskName + ' · ' + p[2].toFixed(2) + 'ms');
+            c.classList.add('chart-interactive');
+            c.addEventListener('mousemove', function(ev) {
+                showChartTooltip(ev, 'POLL_LATENCY', [
+                    ['task', taskName],
+                    ['duration', p[2].toFixed(2) + 'ms'],
+                    ['mean', mean.toFixed(2) + 'ms']
+                ]);
+            });
+            c.addEventListener('mouseleave', hideChartTooltip);
+            c.addEventListener('click', function() {
+                drillKpi('poll_sample', 'POLL_LATENCY', taskName + ' · ' + p[2].toFixed(2) + 'ms (mean ' + mean.toFixed(2) + 'ms)');
+            });
+        });
+        // Also make the curve line itself clickable for a summary drill.
+        const lineEl = svg.querySelectorAll('path')[1];
+        if (lineEl) {
+            lineEl.style.cursor = 'pointer';
+            lineEl.classList.add('chart-interactive');
+            lineEl.addEventListener('mousemove', function(ev) {
+                showChartTooltip(ev, 'POLL_LATENCY', [['samples', samples.length], ['mean', mean.toFixed(2) + 'ms'], ['max', maxV.toFixed(2) + 'ms']]);
+            });
+            lineEl.addEventListener('mouseleave', hideChartTooltip);
+            lineEl.addEventListener('click', function() {
+                drillKpi('poll_curve', 'POLL_LATENCY', samples.length + ' samples · mean ' + mean.toFixed(2) + 'ms · max ' + maxV.toFixed(2) + 'ms');
+            });
+        }
+    }
+    registerThemeAware('pollLatency', renderPollLatencyCurve);
+    renderPollLatencyCurve();
 
     // Render neighbor density histogram — uses var(--primary) for bars.
     function renderNeighborHistogram() {
@@ -2047,19 +2138,8 @@
                 drillKpi('aff_cell', 'AFFINITY_' + i, 'cell #' + i + ' · ' + val);
             });
         });
-        // Poll latency SVG — hover/click on the path
-        const pollSvg = document.getElementById('pollLatencySvg');
-        if (pollSvg) {
-            const paths = pollSvg.querySelectorAll('path');
-            paths.forEach((path, i) => {
-                path.style.cursor = 'pointer';
-                path.classList.add('chart-interactive');
-                path.setAttribute('title', 'poll latency curve · ' + (i === 0 ? 'line' : 'area') + ' · mean ' + (DATA.poll_latency_mean_ms || 0) + 'ms');
-                path.addEventListener('click', function() {
-                    drillKpi('poll_svg', 'POLL_LATENCY', 'mean ' + (DATA.poll_latency_mean_ms || 0) + 'ms');
-                });
-            });
-        }
+        // Poll latency SVG interactivity is handled by renderPollLatencyCurve()
+        // above (data-driven from DATA.poll_latency_samples with per-point hover/click).
         // Ownership graph stat cards — hover + click
         document.querySelectorAll('#mode-unsafe .grid.grid-cols-2 .text-center').forEach((card, i) => {
             const labels = ['NODES', 'EDGES', 'CYCLES', 'RC_CLONES', 'ARC_CLONES'];

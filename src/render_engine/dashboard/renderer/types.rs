@@ -123,6 +123,9 @@ pub struct DashboardContext {
     /// Poll latency mean in ms
     #[serde(default)]
     pub poll_latency_mean_ms: f64,
+    /// Per-task poll latency samples (duration_ms values) for the POLL_LATENCY curve
+    #[serde(default)]
+    pub poll_latency_samples: Vec<f64>,
     /// Async task topology nodes
     #[serde(default)]
     pub task_topology_nodes: Vec<TaskTopologyNode>,
@@ -525,6 +528,15 @@ pub struct SystemResources {
     pub used_physical: String,
     /// Page size
     pub page_size: u64,
+    /// Process CPU usage percentage (0.0-100.0), derived from getrusage
+    #[serde(default)]
+    pub cpu_usage_pct: f64,
+    /// Total physical memory in bytes (raw, for percentage computation)
+    #[serde(default)]
+    pub total_physical_bytes: u64,
+    /// Used physical memory in bytes (raw, for percentage computation)
+    #[serde(default)]
+    pub used_physical_bytes: u64,
 }
 
 /// Thread information
