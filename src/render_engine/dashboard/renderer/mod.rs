@@ -114,6 +114,35 @@ impl DashboardRenderer {
                 "fonts_css".to_string(),
                 serde_json::Value::String(FONTS_CSS.to_string()),
             );
+            // Inject formatted poll latency field (not a native field on DashboardContext)
+            let poll_raw = context.poll_latency_mean_ms;
+            let poll_fmt = if poll_raw > 0.0 {
+                format!("{:.2}", poll_raw)
+            } else {
+                "—".to_string()
+            };
+            obj.insert(
+                "poll_latency_mean_ms_fmt".to_string(),
+                serde_json::Value::String(poll_fmt),
+            );
+            // Inject thread_memory_total_fmt (not a native field on DashboardContext)
+            let thread_mem_total: usize =
+                context.threads.iter().map(|t| t.current_memory_bytes).sum();
+            let thread_mem_fmt = if thread_mem_total >= 1_000_000 {
+                format!("{:.1} MB", thread_mem_total as f64 / 1_000_000.0)
+            } else if thread_mem_total >= 1_000 {
+                format!("{:.1} KB", thread_mem_total as f64 / 1_000.0)
+            } else {
+                format!("{} B", thread_mem_total)
+            };
+            obj.insert(
+                "thread_memory_total".to_string(),
+                serde_json::Value::Number(thread_mem_total.into()),
+            );
+            obj.insert(
+                "thread_memory_total_fmt".to_string(),
+                serde_json::Value::String(thread_mem_fmt),
+            );
         }
 
         registry.render(template_id, &data)

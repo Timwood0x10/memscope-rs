@@ -58,6 +58,15 @@ pub mod variable_registry;
 /// View Module - Unified read-only access to memory data
 pub mod view;
 
+/// Ergonomics wrapper — one-call init + simplified export
+pub mod mem_ctx;
+
+/// Re-exports for ergonomic usage
+pub mod prelude {
+    pub use crate::mem_ctx::MemCtx;
+    pub use crate::{track, track_clone, MemScopeResult};
+}
+
 /// Initialize logging system for memscope-rs.
 ///
 /// This function sets up the tracing subscriber with appropriate filtering
@@ -93,20 +102,15 @@ pub fn init_logging() -> MemScopeResult<()> {
 
     static INIT: std::sync::Once = std::sync::Once::new();
 
-    let mut result = Ok(());
+    let result = Ok(());
     INIT.call_once(|| {
-        let filter = match "memscope_rs=info".parse::<tracing::Level>() {
-            Ok(level) => EnvFilter::from_default_env()
-                .add_directive(tracing::Level::INFO.into())
-                .add_directive(level.into()),
-            Err(_) => {
-                result = Err(MemScopeError::config(
-                    "logging",
-                    "Failed to parse default log level directive",
-                ));
-                return;
-            }
-        };
+        let filter = EnvFilter::from_default_env()
+            .add_directive(tracing::Level::INFO.into())
+            .add_directive(
+                "memscope_rs=info"
+                    .parse()
+                    .unwrap_or(tracing::Level::INFO.into()),
+            );
 
         fmt()
             .with_env_filter(filter)

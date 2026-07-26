@@ -260,6 +260,23 @@ pub fn render_unified_dashboard(
         "scheduler_lag_ms".to_string(),
         serde_json::Value::Number(context.scheduler_lag_ms.into()),
     );
+    // Thread memory total: sum of current_memory_bytes across all threads
+    let thread_mem_total: usize = context.threads.iter().map(|t| t.current_memory_bytes).sum();
+    let thread_mem_total_fmt = if thread_mem_total >= 1_000_000 {
+        format!("{:.1} MB", thread_mem_total as f64 / 1_000_000.0)
+    } else if thread_mem_total >= 1_000 {
+        format!("{:.1} KB", thread_mem_total as f64 / 1_000.0)
+    } else {
+        format!("{} B", thread_mem_total)
+    };
+    template_data.insert(
+        "thread_memory_total".to_string(),
+        serde_json::Value::Number(thread_mem_total.into()),
+    );
+    template_data.insert(
+        "thread_memory_total_fmt".to_string(),
+        serde_json::Value::String(thread_mem_total_fmt),
+    );
     template_data.insert(
         "migration_rate_pct".to_string(),
         serde_json::Value::Number(
@@ -275,6 +292,16 @@ pub fn render_unified_dashboard(
         serde_json::Value::Number(
             serde_json::Number::from_f64(context.poll_latency_mean_ms).unwrap_or(0.into()),
         ),
+    );
+    // Formatted poll latency for display (2 decimal places; "—" when no data)
+    let poll_fmt = if context.poll_latency_mean_ms > 0.0 {
+        format!("{:.2}", context.poll_latency_mean_ms)
+    } else {
+        "—".to_string()
+    };
+    template_data.insert(
+        "poll_latency_mean_ms_fmt".to_string(),
+        serde_json::Value::String(poll_fmt),
     );
     template_data.insert(
         "poll_latency_samples".to_string(),

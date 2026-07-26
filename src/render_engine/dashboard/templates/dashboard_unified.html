@@ -470,10 +470,10 @@
                     <h3 class="font-headline-lg text-headline-lg text-tertiary">{{system_uptime_formatted}}</h3>
                     <p class="text-[10px] text-outline mt-2 font-label-caps uppercase">SINCE_BOOT</p>
                 </div>
-                <div class="bg-surface-container-high border border-outline-variant p-5 rounded-lg rim-light kpi-card" data-kpi="poll_latency" title="Mean async poll latency in ms. Click to drill." onclick="drillKpi('poll_latency','POLL_LATENCY','{{poll_latency_mean_ms}}ms mean')">
-                    <span class="font-label-caps text-on-surface-variant">POLL_LATENCY</span>
-                    <h3 class="font-headline-lg text-headline-lg text-secondary">{{poll_latency_mean_ms}}ms</h3>
-                    <p class="text-[10px] text-outline mt-2 font-label-caps uppercase">MEAN</p>
+                <div class="bg-surface-container-high border border-outline-variant p-5 rounded-lg rim-light kpi-card overflow-hidden" data-kpi="thread_memory_total" title="Total live memory across all threads. Click to drill." onclick="drillKpi('thread_memory_total','THREAD_MEMORY_TOTAL','{{thread_memory_total_fmt}} across {{thread_count}} threads')">
+                    <span class="font-label-caps text-on-surface-variant">THREAD_MEMORY</span>
+                    <h3 class="font-headline-lg text-headline-lg text-secondary truncate">{{thread_memory_total_fmt}}</h3>
+                    <p class="text-[10px] text-outline mt-2 font-label-caps uppercase">TOTAL · {{thread_count}} threads</p>
                 </div>
             </div>
 
@@ -578,7 +578,7 @@
             <div class="flex justify-between items-end mb-8 pt-6">
                 <div>
                     <h1 class="font-headline-lg text-headline-lg text-on-background mb-1">Async Task Topology</h1>
-                    <p class="text-on-surface-variant font-body-sm">Tokio runtime · {{async_summary.total_tasks}} tasks · poll {{poll_latency_mean_ms}}ms</p>
+                    <p class="text-on-surface-variant font-body-sm">Tokio runtime · {{async_summary.total_tasks}} tasks · poll {{#if poll_latency_mean_ms}}{{poll_latency_mean_ms_fmt}}ms{{else}}—{{/if}}</p>
                 </div>
                 <div class="flex items-center gap-2 px-3 py-1 bg-surface-container border border-outline-variant rounded-lg">
                     <span class="w-2 h-2 rounded-full bg-secondary animate-pulse"></span>
@@ -603,9 +603,9 @@
                     <h3 class="font-headline-lg text-headline-lg text-error">{{async_summary.leaked}}</h3>
                     <p class="text-[10px] text-outline mt-2 font-label-caps uppercase">ZOMBIE: {{async_summary.zombie}}</p>
                 </div>
-                <div class="bg-surface-container-high border border-outline-variant p-5 rounded-lg rim-light kpi-card" data-kpi="async_poll_latency" title="Mean async poll latency in ms. Click to drill." onclick="drillKpi('async_poll_latency','POLL_LATENCY','{{poll_latency_mean_ms}}ms mean')">
+                <div class="bg-surface-container-high border border-outline-variant p-5 rounded-lg rim-light kpi-card overflow-hidden" data-kpi="async_poll_latency" title="Mean async poll latency in ms. Click to drill." onclick="drillKpi('async_poll_latency','POLL_LATENCY','{{#if poll_latency_mean_ms}}{{poll_latency_mean_ms_fmt}}ms{{else}}—{{/if}} mean')">
                     <span class="font-label-caps text-on-surface-variant">POLL_LATENCY</span>
-                    <h3 class="font-headline-lg text-headline-lg text-tertiary">{{poll_latency_mean_ms}}ms</h3>
+                    <h3 class="font-headline-lg text-headline-lg text-tertiary truncate">{{#if poll_latency_mean_ms}}{{poll_latency_mean_ms_fmt}}ms{{else}}—{{/if}}</h3>
                     <p class="text-[10px] text-outline mt-2 font-label-caps uppercase">MEAN</p>
                 </div>
             </div>
@@ -624,7 +624,7 @@
                     <div id="pollLatencyContainer" class="w-full h-40 relative">
                         <svg class="w-full h-full" viewBox="0 0 200 80" preserveAspectRatio="none" id="pollLatencySvg"></svg>
                     </div>
-                    <p class="text-[9px] font-data-mono text-center mt-2 text-on-surface-variant">{{poll_latency_mean_ms}}ms MEAN · hover for per-task detail</p>
+                    <p class="text-[9px] font-data-mono text-center mt-2 text-on-surface-variant">{{#if poll_latency_mean_ms}}{{poll_latency_mean_ms_fmt}}ms{{else}}—{{/if}} MEAN · hover for per-task detail</p>
                 </div>
             </div>
 
@@ -1998,10 +1998,13 @@
         const W = canvas.clientWidth || 600;
         const H = 410;
         let html = '<svg width="100%" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '">';
+        // Build lookup map by task_id for edge resolution
+        const nodeMap = {};
+        nodes.forEach(n => { nodeMap[n.task_id] = n; });
         // Draw edges
         edges.forEach(edge => {
-            const src = nodes[edge.source];
-            const tgt = nodes[edge.target];
+            const src = nodeMap[edge.source];
+            const tgt = nodeMap[edge.target];
             if (!src || !tgt) return;
             const x1 = (src.x_pct / 100) * W;
             const y1 = (src.y_pct / 100) * H;
@@ -2017,7 +2020,7 @@
             // RUNNING → semantic green; POLLING → theme accent; COMPLETED → theme primary; else muted.
             const fillVar = node.status === 'RUNNING' ? '#10B981' : node.status === 'POLLING' ? 'var(--accent-amber)' : node.status === 'COMPLETED' ? 'var(--primary)' : '#948e9c';
             html += '<circle cx="' + x + '" cy="' + y + '" r="8" style="fill: ' + fillVar + '" opacity="0.85" class="topo-node chart-interactive" data-id="' + node.task_id + '" data-name="' + node.name + '" data-status="' + node.status + '" data-duration="' + (node.duration_ms || 0) + '"/>';
-            html += '<text x="' + (x + 12) + '" y="' + (y + 4) + '" fill="#cbc4d2" font-family="JetBrains Mono" font-size="9">' + (node.name || '').slice(0, 18) + '</text>';
+            html += '<text x="' + x + '" y="' + (y + 18) + '" fill="#cbc4d2" font-family="JetBrains Mono" font-size="9" text-anchor="middle" paint-order="stroke" stroke="#141218" stroke-width="3">' + (node.name || '').slice(0, 18) + '</text>';
         });
         html += '</svg>';
         canvas.innerHTML = html;

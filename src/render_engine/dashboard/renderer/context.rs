@@ -416,6 +416,16 @@ pub fn build_context_from_tracker_with_async(
         serde_json::to_value(&waker_efficiency_grid)?,
     );
     json_obj.insert("poll_latency_mean_ms".into(), poll_latency_mean_ms.into());
+    // Formatted version: 2 decimal places for display; "—" when there is no data
+    let poll_latency_fmt = if poll_latency_mean_ms > 0.0 {
+        format!("{:.2}", poll_latency_mean_ms)
+    } else {
+        "—".to_string()
+    };
+    json_obj.insert(
+        "poll_latency_mean_ms_fmt".into(),
+        serde_json::Value::String(poll_latency_fmt),
+    );
     json_obj.insert(
         "poll_latency_samples".to_string(),
         serde_json::to_value(&poll_latency_samples)?,
@@ -825,47 +835,85 @@ fn build_task_topology_nodes(async_tasks: &[AsyncTaskInfo]) -> Vec<TaskTopologyN
         y_pct: 8.0,
     }];
 
-    for (i, t) in async_tasks.iter().enumerate().take(6) {
+    // Group children by parent, layering rows
+    let mut children: Vec<(String, &AsyncTaskInfo)> = Vec::new();
+    for (i, t) in async_tasks.iter().enumerate().take(8) {
         let id = format!("0x{:02X}", i + 1);
-        let x_offsets = [25.0, 50.0, 75.0, 15.0, 35.0, 65.0];
-        let y = 45.0;
-        nodes.push(TaskTopologyNode {
-            task_id: id.clone(),
-            name: t.task_name.clone(),
-            parent_id: Some("0x00".to_string()),
-            status: if t.is_completed {
-                "COMPLETED".to_string()
-            } else if t.has_potential_leak {
-                "WAITING".to_string()
+        children.push((id, t));
+    }
+
+    // Divide children across multiple rows based on parent_id grouping
+    let total = children.len();
+    if total > 0 {
+        // Row 1: first half of children
+        let mid = total / 2;
+        for (idx, (id, t)) in children.iter().enumerate() {
+            let row = if idx < mid { 0 } else { 1 };
+            let count_in_row = if row == 0 { mid } else { total - mid };
+            let pos_in_row = if row == 0 { idx } else { idx - mid };
+
+            let y_pct = if row == 0 { 35.0 } else { 62.0 };
+            let x_pct = if count_in_row <= 1 {
+                50.0
             } else {
-                "RUNNING".to_string()
-            },
-            duration_ms: t.duration_ms,
-            x_pct: x_offsets[i % x_offsets.len()],
-            y_pct: y,
-        });
+                let spacing = 80.0 / (count_in_row as f64);
+                10.0 + spacing * (pos_in_row as f64) + spacing / 2.0
+            };
+
+            let parent_id = if row == 0 {
+                Some("0x00".to_string())
+            } else {
+                // Second-row children connect to first-row siblings to show chain depth
+                Some(format!("0x{:02X}", (pos_in_row % mid) + 1))
+            };
+
+            nodes.push(TaskTopologyNode {
+                task_id: id.clone(),
+                name: t.task_name.clone(),
+                parent_id,
+                status: if t.is_completed {
+                    "COMPLETED".to_string()
+                } else if t.has_potential_leak {
+                    "WAITING".to_string()
+                } else {
+                    "RUNNING".to_string()
+                },
+                duration_ms: t.duration_ms,
+                x_pct: x_pct.clamp(5.0, 95.0),
+                y_pct,
+            });
+        }
     }
 
     nodes
 }
 
 fn build_task_topology_edges(async_tasks: &[AsyncTaskInfo]) -> Vec<TaskTopologyEdge> {
-    async_tasks
-        .iter()
-        .enumerate()
-        .filter_map(|(i, t)| {
-            if let Some(parent) = &t.task_name.split(':').next() {
-                if !parent.is_empty() && i > 0 {
-                    return Some(TaskTopologyEdge {
-                        source: format!("0x{:02X}", i - 1),
-                        target: format!("0x{:02X}", i),
-                        is_active: !t.is_completed,
-                    });
-                }
-            }
-            None
-        })
-        .collect()
+    let mut edges = Vec::new();
+
+    // Connect root (0x00) to all row-0 children
+    for (i, t) in async_tasks.iter().enumerate().take(4) {
+        let child_id = format!("0x{:02X}", i + 1);
+        edges.push(TaskTopologyEdge {
+            source: "0x00".to_string(),
+            target: child_id,
+            is_active: !t.is_completed,
+        });
+    }
+
+    // Connect row-1 children to row-0 siblings (demonstrating deeper dependency)
+    for (i, t) in async_tasks.iter().enumerate().skip(4).take(4) {
+        let child_id = format!("0x{:02X}", i + 1);
+        let parent_idx = (i - 4) % 4;
+        let parent_id = format!("0x{:02X}", parent_idx + 1);
+        edges.push(TaskTopologyEdge {
+            source: parent_id,
+            target: child_id,
+            is_active: !t.is_completed,
+        });
+    }
+
+    edges
 }
 
 fn build_streaming_topology_stats(async_tasks: &[AsyncTaskInfo]) -> StreamingTopologyStats {
