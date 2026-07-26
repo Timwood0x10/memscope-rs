@@ -26,16 +26,16 @@ fn main() -> MemScopeResult<()> {
     let handles: Vec<_> = (0..num_threads)
         .map(|thread_id| {
             thread::spawn(move || {
-                let tracker = global_tracker().unwrap();
+                let ctx = global_tracker().unwrap();
 
                 for _i in 0..allocations_per_thread / 2 {
                     let data = vec![0i32; 64];
-                    memscope_rs::track!(tracker, data);
+                    memscope_rs::track!(ctx, data);
                 }
 
                 for _i in 0..allocations_per_thread / 2 {
                     let data = vec![0i64; 256];
-                    memscope_rs::track!(tracker, data);
+                    memscope_rs::track!(ctx, data);
                 }
 
                 println!(
@@ -54,8 +54,8 @@ fn main() -> MemScopeResult<()> {
     let total_allocations = num_threads * allocations_per_thread;
     let throughput = total_allocations as f64 / duration.as_secs_f64();
 
-    let tracker = global_tracker()?;
-    let stats = tracker.get_stats();
+    let ctx = global_tracker()?;
+    let stats = ctx.get_stats();
 
     println!("\n========================================");
     println!("Memory Analysis Results:");
@@ -71,7 +71,7 @@ fn main() -> MemScopeResult<()> {
 
     // Use the unified Analyzer API
     println!("\n=== Unified Analyzer API ===\n");
-    let mut az = analyzer(&tracker)?;
+    let mut az = analyzer(&ctx)?;
 
     // Full analysis
     let report = az.analyze();
@@ -93,7 +93,7 @@ fn main() -> MemScopeResult<()> {
 
     println!("\nExporting memory snapshot...");
     let output_path = "MemoryAnalysis/multithread_new_api";
-    tracker.export_json(output_path)?;
+    ctx.export_json(output_path)?;
     println!("  memory_snapshots.json");
     println!("  memory_passports.json");
     println!("  leak_detection.json");
@@ -103,7 +103,7 @@ fn main() -> MemScopeResult<()> {
 
     // Export HTML dashboard
     println!("\nExporting HTML dashboard...");
-    tracker.export_html(output_path)?;
+    ctx.export_html(output_path)?;
     println!("  dashboard.html");
 
     Ok(())

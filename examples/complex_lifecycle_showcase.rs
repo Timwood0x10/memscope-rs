@@ -3,7 +3,7 @@
 //! This example demonstrates the new unified API with various built-in types,
 //! custom types, and complex memory patterns.
 
-use memscope_rs::{analyzer, global_tracker, init_global_tracking, track, MemScopeResult};
+use memscope_rs::{analyzer, prelude::*, track, MemScopeResult};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::rc::Rc;
@@ -15,32 +15,31 @@ fn main() -> MemScopeResult<()> {
     println!("==========================================\n");
 
     let start_time = Instant::now();
-    init_global_tracking()?;
-    let tracker = global_tracker()?;
+    let ctx = MemCtx::init()?;
 
     println!("Phase 1: Built-in Types");
     println!("=========================================");
-    demonstrate_builtin_types(&tracker);
+    demonstrate_builtin_types(&ctx);
 
     println!("\nPhase 2: Smart Pointers");
     println!("=========================================");
-    demonstrate_smart_pointers(&tracker);
+    demonstrate_smart_pointers(&ctx);
 
     println!("\nPhase 3: Complex Patterns");
     println!("=========================================");
-    demonstrate_complex_patterns(&tracker);
+    demonstrate_complex_patterns(&ctx);
 
     println!("\nPhase 4: Web Server Simulation");
     println!("=========================================");
-    simulate_web_server_scenario(&tracker);
+    simulate_web_server_scenario(&ctx);
 
     println!("\nPhase 5: Data Processing Pipeline");
     println!("=========================================");
-    simulate_data_processing_pipeline(&tracker);
+    simulate_data_processing_pipeline(&ctx);
 
     let duration = start_time.elapsed();
 
-    let stats = tracker.get_stats();
+    let stats = ctx.get_stats();
     println!("\nMemory Analysis Results:");
     println!("  Total allocations: {}", stats.total_allocations);
     println!("  Active allocations: {}", stats.active_allocations);
@@ -52,7 +51,7 @@ fn main() -> MemScopeResult<()> {
 
     // Use the unified Analyzer API
     println!("\n=== Unified Analyzer API ===\n");
-    let mut az = analyzer(&tracker)?;
+    let mut az = analyzer(&ctx)?;
 
     // Full analysis
     let report = az.analyze();
@@ -74,7 +73,7 @@ fn main() -> MemScopeResult<()> {
 
     println!("\nExporting memory snapshot...");
     let output_path = "MemoryAnalysis/complex_lifecycle_new_api";
-    tracker.export_json(output_path)?;
+    ctx.export_json(output_path)?;
     println!("  memory_snapshots.json");
     println!("  memory_passports.json");
     println!("  leak_detection.json");
@@ -84,7 +83,7 @@ fn main() -> MemScopeResult<()> {
 
     // Export HTML dashboard
     println!("\nExporting HTML dashboard...");
-    tracker.export_html(output_path)?;
+    ctx.export_html(output_path)?;
     println!("  dashboard.html");
 
     println!(

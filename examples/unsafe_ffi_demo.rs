@@ -3,7 +3,7 @@
 //! This example demonstrates unsafe Rust and FFI memory tracking with memory passport export.
 //! Also demonstrates variable relationships for the relationship graph.
 
-use memscope_rs::{analyzer, global_tracker, init_global_tracking, track, MemScopeResult};
+use memscope_rs::{analyzer, prelude::*, track, MemScopeResult};
 use std::alloc::{alloc, dealloc, Layout};
 use std::sync::Arc;
 use std::time::Instant;
@@ -14,49 +14,47 @@ fn main() -> MemScopeResult<()> {
 
     let start_time = Instant::now();
 
-    init_global_tracking()?;
-
-    let tracker = global_tracker()?;
+    let ctx = MemCtx::init()?;
 
     println!("1. Safe Rust Allocations");
     let safe_vec = vec![1, 2, 3, 4, 5];
-    track!(tracker, safe_vec);
+    track!(ctx, safe_vec);
     println!("   Tracked Vec with {} elements", 5);
 
     let safe_string = String::from("Hello, safe Rust!");
-    track!(tracker, safe_string);
+    track!(ctx, safe_string);
     println!("   Tracked String with {} chars", safe_string.len());
 
     println!("\n2. Variable Relationships Demo");
 
     // Owner relationship: Box contains pointer to heap allocation
     let boxed_value = Box::new(42u64);
-    track!(tracker, boxed_value);
+    track!(ctx, boxed_value);
     println!("   Box<u64> - Owner relationship");
 
     // Shared relationship: Arc with multiple references
     let shared_data = Arc::new(vec![1u64, 2, 3, 4, 5]);
-    track!(tracker, shared_data);
+    track!(ctx, shared_data);
     let shared_clone1 = Arc::clone(&shared_data);
     let shared_clone2 = Arc::clone(&shared_data);
     println!("   Arc<Vec<u64>> - Shared relationship (3 references)");
 
     // Clone relationship: same type, size, stack
     let original_vec = vec![10u64, 20, 30, 40, 50];
-    track!(tracker, original_vec);
+    track!(ctx, original_vec);
     let cloned_vec = original_vec.clone();
-    track!(tracker, cloned_vec);
+    track!(ctx, cloned_vec);
     println!("   Cloned Vec - Clone relationship");
 
     // Slice relationship: slice pointing into another allocation
     let large_array = vec![100u64, 200, 300, 400, 500, 600, 700, 800];
-    track!(tracker, large_array);
+    track!(ctx, large_array);
     let slice_ref: &[u64] = &large_array[2..6];
     println!("   Slice reference - Slice relationship");
 
     // Nested structures with pointers
     let outer = Box::new(vec![1000u64, 2000, 3000]);
-    track!(tracker, outer);
+    track!(ctx, outer);
     println!("   Box<Vec<u64>> - Nested ownership");
 
     println!("\n3. Unsafe Rust Allocations");
@@ -65,7 +63,7 @@ fn main() -> MemScopeResult<()> {
         let ptr = alloc(layout);
 
         if !ptr.is_null() {
-            let passport_id = tracker
+            let passport_id = ctx
                 .create_passport(
                     ptr as usize,
                     layout.size(),
@@ -101,13 +99,13 @@ fn main() -> MemScopeResult<()> {
         };
 
         if !ffi_ptr.is_null() {
-            let passport_id = tracker
+            let passport_id = ctx
                 .create_passport(ffi_ptr as usize, size, format!("ffi_alloc_{}", i))
                 .map_err(|e| {
                     memscope_rs::MemScopeError::error("unsafe_ffi_demo", "main", e.to_string())
                 })?;
 
-            tracker.record_handover(
+            ctx.record_handover(
                 ffi_ptr as usize,
                 "foreign_function".to_string(),
                 format!("ffi_call_{}", i),
@@ -139,8 +137,8 @@ fn main() -> MemScopeResult<()> {
     let duration = start_time.elapsed();
 
     println!("\n6. Leak Detection");
-    let leak_result = tracker.passport_tracker().detect_leaks_at_shutdown();
-    let stats = tracker.get_stats();
+    let leak_result = ctx.passport_tracker().detect_leaks_at_shutdown();
+    let stats = ctx.get_stats();
     println!("   Total passports created: {}", stats.passport_count);
     println!("   Leaks detected: {}", leak_result.total_leaks);
 
@@ -151,7 +149,7 @@ fn main() -> MemScopeResult<()> {
 
     // Use the unified Analyzer API
     println!("\n=== Unified Analyzer API ===\n");
-    let mut az = analyzer(&tracker)?;
+    let mut az = analyzer(&ctx)?;
 
     // Full analysis
     let report = az.analyze();
@@ -173,7 +171,7 @@ fn main() -> MemScopeResult<()> {
 
     println!("\n8. Exporting memory snapshot...");
     let output_path = "MemoryAnalysis/unsafe_ffi_new_api";
-    tracker.export_json(output_path)?;
+    ctx.export_json(output_path)?;
     println!("   memory_snapshots.json");
     println!("   memory_passports.json");
     println!("   leak_detection.json");
@@ -183,7 +181,7 @@ fn main() -> MemScopeResult<()> {
 
     // Export HTML dashboard
     println!("\n9. Exporting HTML dashboard...");
-    tracker.export_html(output_path)?;
+    ctx.export_html(output_path)?;
     println!("   dashboard.html");
 
     println!("\n============================================");

@@ -15,11 +15,8 @@
 //! - Variable relationship tracking across async task boundaries
 //! - Dashboard export with async task data visible in the Task tab
 
-use memscope_rs::{
-    analyzer,
-    capture::backends::async_tracker::{spawn_tracked, TrackerContext},
-    global_tracker, init_global_tracking, track, MemScopeResult,
-};
+use memscope_rs::capture::backends::async_tracker::{spawn_tracked, TrackerContext};
+use memscope_rs::{analyzer, prelude::*, track, MemScopeResult};
 
 use std::collections::HashMap;
 use std::time::Instant;
@@ -47,10 +44,10 @@ impl TaskPayload {
 
 /// Simulate an IO-like operation with a tracked buffer
 async fn io_operation(label: &str, size: usize, delay_ms: u64) -> Vec<u8> {
-    let tracker = global_tracker().unwrap();
+    let ctx = memscope_rs::global_tracker().unwrap();
     // Allocate a buffer to simulate reading data
     let buffer: Vec<u8> = (0..size).map(|i| (i % 256) as u8).collect();
-    track!(tracker, buffer);
+    track!(ctx, buffer);
     tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
     println!("  {label}: read {size} bytes");
     buffer
@@ -58,7 +55,7 @@ async fn io_operation(label: &str, size: usize, delay_ms: u64) -> Vec<u8> {
 
 /// A worker task that processes data with tracked allocations
 async fn worker_task(worker_id: u32, payload_size: usize) -> usize {
-    let tracker = global_tracker().unwrap();
+    let ctx = memscope_rs::global_tracker().unwrap();
     let _ctx = TrackerContext::capture();
 
     // Track individual fields of a complex payload
@@ -67,7 +64,7 @@ async fn worker_task(worker_id: u32, payload_size: usize) -> usize {
 
     // Track some processed results
     let results: Vec<f64> = payload.values.iter().map(|v| v * 2.0).collect();
-    track!(tracker, results);
+    track!(ctx, results);
 
     let ctx2 = TrackerContext::capture();
     println!(
@@ -111,16 +108,15 @@ async fn main() -> MemScopeResult<()> {
     let start_time = Instant::now();
 
     // 1. Initialize global tracking
-    init_global_tracking()?;
-    let tracker = global_tracker()?;
+    let ctx = MemCtx::init()?;
     println!("[1/6] Global tracking initialized\n");
 
     // 2. Capture initial context
     println!("[2/6] Capturing tracker context...");
-    let ctx = TrackerContext::capture();
+    let tracker_ctx = TrackerContext::capture();
     println!(
         "  Main thread_id={:?} task_id={:?} tokio_id={:?}\n",
-        ctx.thread_id, ctx.task_id, ctx.tokio_task_id
+        tracker_ctx.thread_id, tracker_ctx.task_id, tracker_ctx.tokio_task_id
     );
 
     // 3. Spawn diverse async tasks to exercise per-task memory profiling
@@ -130,21 +126,21 @@ async fn main() -> MemScopeResult<()> {
 
     // --- Light task: small allocation ---
     handles.push(spawn_tracked(async {
-        let tracker = global_tracker().unwrap();
+        let ctx = memscope_rs::global_tracker().unwrap();
         let data = vec![0u8; 512];
-        track!(tracker, data);
+        track!(ctx, data);
         println!("  Light task: 512 bytes");
         512usize
     }));
 
     // --- Heavy task: large vector of strings ---
     handles.push(spawn_tracked(async {
-        let tracker = global_tracker().unwrap();
+        let ctx = memscope_rs::global_tracker().unwrap();
         let mut data = Vec::with_capacity(2000);
         for j in 0..2000 {
             data.push(format!("payload-{j}-{}", j * j));
         }
-        track!(tracker, data);
+        track!(ctx, data);
         let size = data.capacity() * std::mem::size_of::<String>();
         println!("  Heavy task: ~{size} bytes (2000 strings)");
         size
@@ -160,13 +156,13 @@ async fn main() -> MemScopeResult<()> {
 
     // --- Mixed task: multiple allocations ---
     handles.push(spawn_tracked(async {
-        let tracker = global_tracker().unwrap();
+        let ctx = memscope_rs::global_tracker().unwrap();
         let vec_data = vec![1.0f64; 500];
-        track!(tracker, vec_data);
+        track!(ctx, vec_data);
         let string_data = format!("processed {} items via async", 500);
-        track!(tracker, string_data);
+        track!(ctx, string_data);
         let hash_data: HashMap<u32, String> = (0..100).map(|i| (i, format!("val_{i}"))).collect();
-        track!(tracker, hash_data);
+        track!(ctx, hash_data);
         let total = vec_data.len() * 8 + string_data.len() + hash_data.len() * 32;
         println!("  Mixed task: {total} bytes (Vec+f64 + String + HashMap)");
         total
@@ -174,9 +170,9 @@ async fn main() -> MemScopeResult<()> {
 
     // --- Large data task: big vector ---
     handles.push(spawn_tracked(async {
-        let tracker = global_tracker().unwrap();
+        let ctx = memscope_rs::global_tracker().unwrap();
         let big: Vec<u64> = vec![42u64; 10_000];
-        track!(tracker, big);
+        track!(ctx, big);
         let size = 10_000 * 8;
         println!("  Large data task: {size} bytes (10k u64s)");
         size
@@ -205,8 +201,8 @@ async fn main() -> MemScopeResult<()> {
 
     // 4. Async tracker statistics
     println!("[4/6] Async tracker statistics...");
-    let async_stats = tracker.async_tracker().get_stats();
-    let profiles = tracker.async_tracker().get_all_profiles();
+    let async_stats = ctx.async_tracker().get_stats();
+    let profiles = ctx.async_tracker().get_all_profiles();
     println!(
         "  Total tasks: {}  Active: {}  Allocations: {}  Peak mem: {} bytes",
         async_stats.total_tasks,
@@ -231,20 +227,20 @@ async fn main() -> MemScopeResult<()> {
     }
 
     // Zombie detection
-    let zombies = tracker.async_tracker().detect_zombie_tasks();
-    let (zombie_count, total_tasks) = tracker.async_tracker().zombie_task_stats();
+    let zombies = ctx.async_tracker().detect_zombie_tasks();
+    let (zombie_count, total_tasks) = ctx.async_tracker().zombie_task_stats();
     println!("\n  Zombie tasks: {zombie_count}/{total_tasks}");
     for z in &zombies {
         println!("    Zombie task_id={z}");
     }
 
     // Task graph from the TaskIdRegistry
-    let task_graph = tracker.async_tracker().get_all_profiles();
+    let task_graph = ctx.async_tracker().get_all_profiles();
     println!("  Task graph: {} task nodes", task_graph.len());
 
     // 5. Run the unified analyzer for comprehensive memory analysis
     println!("\n[5/6] Running unified memory analysis...");
-    let mut az = analyzer(&tracker)?;
+    let mut az = analyzer(&ctx)?;
     let report = az.analyze();
     println!(
         "  Allocations: {}  Bytes: {}  Peak: {}",
@@ -272,7 +268,7 @@ async fn main() -> MemScopeResult<()> {
     // 6. Export HTML dashboard with async task data
     println!("\n[6/6] Exporting HTML dashboard...");
     let output_path = "MemoryAnalysis/async_showcase_new_api";
-    tracker.export_html(output_path)?;
+    ctx.export_html(output_path)?;
     println!("  ✓ Dashboard exported to {output_path}/dashboard_unified_dashboard.html");
     println!("  Open in browser and switch to the task tab to see per-task profiles\n");
 

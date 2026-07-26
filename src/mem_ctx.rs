@@ -1,34 +1,42 @@
-/// Ergonomics wrapper — one-call init + simplified export.
+use std::ops::Deref;
+use std::sync::Arc;
+
+use crate::capture::backends::global_tracking::GlobalTracker;
+
+/// Convenience session handle — one-call init, `track!`-able, one-call export.
 ///
 /// # Example
 ///
 /// ```ignore
 /// use memscope_rs::prelude::*;
 ///
-/// MemCtx::init()?;
+/// let ctx = MemCtx::init()?;
 /// let data = vec![1u64; 100];
-/// track!(MemCtx::tracker(), data);
-/// MemCtx::export("./report")?;
+/// track!(ctx, data);       // macro auto‑derefs to GlobalTracker
+/// ctx.export("./report")?; // delegate to GlobalTracker::export_html
 /// ```
-pub struct MemCtx;
+pub struct MemCtx {
+    tracker: Arc<GlobalTracker>,
+}
 
 impl MemCtx {
     /// Initialise logging + global tracking in one call.
-    pub fn init() -> crate::MemScopeResult<()> {
+    pub fn init() -> crate::MemScopeResult<Self> {
         crate::init_logging()?;
         crate::capture::backends::global_tracking::init_global_tracking()?;
-        Ok(())
-    }
-
-    /// Obtain the global tracker (panics if `init()` was not called first).
-    pub fn tracker() -> std::sync::Arc<crate::capture::backends::global_tracking::GlobalTracker> {
-        crate::global_tracker()
-            .expect("MemCtx::init() must be called before accessing the tracker")
+        let tracker = crate::global_tracker()?;
+        Ok(Self { tracker })
     }
 
     /// Export complete dashboard (HTML + JSON) under `path`.
-    pub fn export(path: impl AsRef<std::path::Path>) -> crate::MemScopeResult<()> {
-        let t = Self::tracker();
-        t.export_html(path)
+    pub fn export(&self, path: impl AsRef<std::path::Path>) -> crate::MemScopeResult<()> {
+        self.tracker.export_html(path)
+    }
+}
+
+impl Deref for MemCtx {
+    type Target = GlobalTracker;
+    fn deref(&self) -> &Self::Target {
+        &self.tracker
     }
 }

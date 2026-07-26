@@ -3,7 +3,7 @@
 //! This example demonstrates a Merkle Tree implementation using unsafe Rust
 //! with memscope memory tracking and HTML dashboard export.
 
-use memscope_rs::{analyzer, global_tracker, init_global_tracking, track, MemScopeResult};
+use memscope_rs::{analyzer, prelude::*, track, MemScopeResult};
 use std::fmt;
 
 /// Hash type (256-bit)
@@ -330,14 +330,14 @@ unsafe fn create_large_buffer(size: usize) -> *mut u8 {
     }
 
     // Track unsafe allocation using global tracker
-    let tracker = global_tracker().expect("Failed to get tracker");
+    let ctx = MemCtx::init().expect("Failed to init memscope tracker");
     let ptr_addr = ptr as usize;
 
     // First create a passport for this allocation
-    let _ = tracker.create_passport(ptr_addr, size, "unsafe_alloc".to_string());
+    let _ = ctx.create_passport(ptr_addr, size, "unsafe_alloc".to_string());
 
     // Then record the handover to FFI event
-    tracker.record_handover(
+    ctx.record_handover(
         ptr_addr,
         "unsafe_alloc".to_string(),
         "create_large_buffer".to_string(),
@@ -349,12 +349,12 @@ unsafe fn create_large_buffer(size: usize) -> *mut u8 {
 unsafe fn free_large_buffer(ptr: *mut u8, size: usize) {
     let layout = std::alloc::Layout::from_size_align(size, 8).unwrap();
 
-    let tracker = global_tracker().expect("Failed to get tracker");
+    let ctx = MemCtx::init().expect("Failed to init memscope tracker");
     let ptr_addr = ptr as usize;
 
     // Track unsafe deallocation with passport
-    let _ = tracker.create_passport(ptr_addr, size, "unsafe_dealloc".to_string());
-    tracker.record_free(
+    let _ = ctx.create_passport(ptr_addr, size, "unsafe_dealloc".to_string());
+    ctx.record_free(
         ptr_addr,
         "unsafe_dealloc".to_string(),
         "free_large_buffer".to_string(),
@@ -369,10 +369,7 @@ fn main() -> MemScopeResult<()> {
 
     // Initialize memscope global tracking
     println!("🚀 Initializing memscope tracking...");
-    init_global_tracking()?;
-    println!("✓ Memscope tracking initialized\n");
-
-    let tracker = global_tracker()?;
+    let ctx = MemCtx::init()?;
     println!("✓ Tracker initialized\n");
 
     // Create a new Merkle tree
@@ -387,10 +384,10 @@ fn main() -> MemScopeResult<()> {
     let leaf4 = b"Transaction 4".to_vec();
 
     // Track the leaf data vectors
-    track!(tracker, leaf1);
-    track!(tracker, leaf2);
-    track!(tracker, leaf3);
-    track!(tracker, leaf4);
+    track!(ctx, leaf1);
+    track!(ctx, leaf2);
+    track!(ctx, leaf3);
+    track!(ctx, leaf4);
 
     tree.add_leaf(leaf1.clone());
     tree.add_leaf(leaf2.clone());
@@ -447,7 +444,7 @@ fn main() -> MemScopeResult<()> {
     let mut large_vectors = Vec::new();
     for i in 0..100 {
         let vec: Vec<u8> = (0..1000).map(|j| ((i + j) % 256) as u8).collect();
-        track!(tracker, vec); // Track each large vector
+        track!(ctx, vec); // Track each large vector
         large_vectors.push(vec);
     }
 
@@ -465,10 +462,10 @@ fn main() -> MemScopeResult<()> {
             for k in 0..10 {
                 inner.push((i * j * k) as u32);
             }
-            track!(tracker, inner); // Track inner vectors
+            track!(ctx, inner); // Track inner vectors
             row.push(inner);
         }
-        track!(tracker, row); // Track row vectors
+        track!(ctx, row); // Track row vectors
         matrix.push(row);
     }
 
@@ -485,7 +482,7 @@ fn main() -> MemScopeResult<()> {
     let mut results = Vec::new();
     for i in 0..10 {
         let result: Vec<f64> = (0..1000).map(|j| (i as f64 + j as f64).sin()).collect();
-        track!(tracker, result); // Track result vectors
+        track!(ctx, result); // Track result vectors
         results.push(result);
     }
 
@@ -505,7 +502,7 @@ fn main() -> MemScopeResult<()> {
     );
 
     // Get tracking statistics
-    let stats = tracker.get_stats();
+    let stats = ctx.get_stats();
     println!("\n📈 Memscope Analysis Results:");
     println!("  Total allocations: {}", stats.total_allocations);
     println!("  Active allocations: {}", stats.active_allocations);
@@ -523,7 +520,7 @@ fn main() -> MemScopeResult<()> {
 
     // Use the unified Analyzer API
     println!("\n=== Unified Analyzer API ===\n");
-    let mut az = analyzer(&tracker)?;
+    let mut az = analyzer(&ctx)?;
 
     // Full analysis
     let report = az.analyze();
@@ -546,8 +543,8 @@ fn main() -> MemScopeResult<()> {
     // Export HTML dashboard
     println!("\n🎨 Exporting HTML dashboard...");
     let output_path = "MemoryAnalysis/merkle_tree_with_tracking";
-    tracker.export_json(output_path)?;
-    tracker.export_html(output_path)?;
+    ctx.export_json(output_path)?;
+    ctx.export_html(output_path)?;
 
     println!("✓ Export successful!");
     println!("📁 Results saved to: {}", output_path);

@@ -9,21 +9,21 @@ fn main() {
 
     // 1. Initialize
     init_global_tracking().unwrap();
-    let tracker = global_tracker().unwrap();
+    let ctx = global_tracker().unwrap();
 
     // 2. Track some variables
     let data = vec![1, 2, 3, 4, 5];
-    track!(tracker, data);
+    track!(ctx, data);
 
     let map = std::collections::HashMap::<String, i32>::new();
-    track!(tracker, map);
+    track!(ctx, map);
 
     let string = String::from("Hello, memscope!");
-    track!(tracker, string);
+    track!(ctx, string);
 
     // 3. Create analyzer (single entry point)
     // Note: analyzer() now returns Result<Analyzer, MemScopeError>
-    let mut az = match analyzer(&tracker) {
+    let mut az = match analyzer(&ctx) {
         Ok(a) => a,
         Err(e) => {
             eprintln!("Failed to create analyzer: {}", e);
