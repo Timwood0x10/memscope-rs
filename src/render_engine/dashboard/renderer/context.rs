@@ -835,64 +835,70 @@ fn build_task_topology_nodes(async_tasks: &[AsyncTaskInfo]) -> Vec<TaskTopologyN
         y_pct: 8.0,
     }];
 
-    // Group children by parent, layering rows
-    let mut children: Vec<(String, &AsyncTaskInfo)> = Vec::new();
-    for (i, t) in async_tasks.iter().enumerate().take(8) {
-        let id = format!("0x{:02X}", i + 1);
-        children.push((id, t));
+    let total = async_tasks.len().min(24); // cap at 24 to avoid overcrowding
+    if total == 0 {
+        return nodes;
     }
 
-    // Divide children across multiple rows based on parent_id grouping
-    let total = children.len();
-    if total > 0 {
-        // Row 1: first half of children
-        let mid = total / 2;
-        for (idx, (id, t)) in children.iter().enumerate() {
-            let row = if idx < mid { 0 } else { 1 };
-            let count_in_row = if row == 0 { mid } else { total - mid };
-            let pos_in_row = if row == 0 { idx } else { idx - mid };
+    // Dynamic multi-row layout: up to 6 nodes per row, distribute across rows
+    let cols_per_row = 6usize;
+    let rows = ((total as f64) / (cols_per_row as f64)).ceil() as usize;
+    let row_height = 25.0; // percentage spacing between rows
+    let base_y = 30.0;     // starting Y offset
 
-            let y_pct = if row == 0 { 35.0 } else { 62.0 };
-            let x_pct = if count_in_row <= 1 {
-                50.0
+    for (i, t) in async_tasks.iter().enumerate().take(total) {
+        let id = format!("0x{:02X}", i + 1);
+        let row = i / cols_per_row;
+        let col = i % cols_per_row;
+        let count_in_row = if row < rows - 1 {
+            cols_per_row
+        } else {
+            total - (rows - 1) * cols_per_row
+        };
+
+        let y_pct = base_y + (row as f64) * row_height;
+        let spacing = if count_in_row > 1 { 80.0 / (count_in_row as f64) } else { 0.0 };
+        let x_pct = if count_in_row <= 1 {
+            50.0
+        } else {
+            10.0 + spacing * (col as f64) + spacing / 2.0
+        };
+
+        // First row children connect to root; deeper rows connect to sibling above
+        let parent_id = if row == 0 {
+            Some("0x00".to_string())
+        } else {
+            Some(format!("0x{:02X}", (col % cols_per_row) + 1))
+        };
+
+        nodes.push(TaskTopologyNode {
+            task_id: id.clone(),
+            name: t.task_name.clone(),
+            parent_id,
+            status: if t.is_completed {
+                "COMPLETED".to_string()
+            } else if t.has_potential_leak {
+                "WAITING".to_string()
             } else {
-                let spacing = 80.0 / (count_in_row as f64);
-                10.0 + spacing * (pos_in_row as f64) + spacing / 2.0
-            };
-
-            let parent_id = if row == 0 {
-                Some("0x00".to_string())
-            } else {
-                // Second-row children connect to first-row siblings to show chain depth
-                Some(format!("0x{:02X}", (pos_in_row % mid) + 1))
-            };
-
-            nodes.push(TaskTopologyNode {
-                task_id: id.clone(),
-                name: t.task_name.clone(),
-                parent_id,
-                status: if t.is_completed {
-                    "COMPLETED".to_string()
-                } else if t.has_potential_leak {
-                    "WAITING".to_string()
-                } else {
-                    "RUNNING".to_string()
-                },
-                duration_ms: t.duration_ms,
-                x_pct: x_pct.clamp(5.0, 95.0),
-                y_pct,
-            });
-        }
+                "RUNNING".to_string()
+            },
+            duration_ms: t.duration_ms,
+            x_pct: x_pct.clamp(5.0, 95.0),
+            y_pct,
+        });
     }
 
     nodes
 }
 
 fn build_task_topology_edges(async_tasks: &[AsyncTaskInfo]) -> Vec<TaskTopologyEdge> {
+    let total = async_tasks.len().min(24);
     let mut edges = Vec::new();
 
-    // Connect root (0x00) to all row-0 children
-    for (i, t) in async_tasks.iter().enumerate().take(4) {
+    // Connect root (0x00) to the first row of children
+    let cols_per_row = 6usize;
+    let first_row_count = total.min(cols_per_row);
+    for (i, t) in async_tasks.iter().enumerate().take(first_row_count) {
         let child_id = format!("0x{:02X}", i + 1);
         edges.push(TaskTopologyEdge {
             source: "0x00".to_string(),
@@ -901,16 +907,18 @@ fn build_task_topology_edges(async_tasks: &[AsyncTaskInfo]) -> Vec<TaskTopologyE
         });
     }
 
-    // Connect row-1 children to row-0 siblings (demonstrating deeper dependency)
-    for (i, t) in async_tasks.iter().enumerate().skip(4).take(4) {
-        let child_id = format!("0x{:02X}", i + 1);
-        let parent_idx = (i - 4) % 4;
-        let parent_id = format!("0x{:02X}", parent_idx + 1);
-        edges.push(TaskTopologyEdge {
-            source: parent_id,
-            target: child_id,
-            is_active: !t.is_completed,
-        });
+    // Connect deeper rows to their sibling above (if any)
+    if total > cols_per_row {
+        for (i, t) in async_tasks.iter().enumerate().skip(cols_per_row).take(total - cols_per_row) {
+            let child_id = format!("0x{:02X}", i + 1);
+            let parent_idx = (i - cols_per_row) % cols_per_row;
+            let parent_id = format!("0x{:02X}", parent_idx + 1);
+            edges.push(TaskTopologyEdge {
+                source: parent_id,
+                target: child_id,
+                is_active: !t.is_completed,
+            });
+        }
     }
 
     edges
@@ -1132,8 +1140,8 @@ fn build_selected_node_detail(
 }
 
 fn build_thread_affinity_grid(thread_data: &[ThreadInfo], cpu_cores: usize) -> Vec<String> {
-    let total = cpu_cores.max(8).min(64); // cap at 64 for the 8x8 grid
-    // Build a set of occupied CPUs from per-thread cpu_core (real capture) or fallback to string matching
+    let total = cpu_cores.clamp(8, 64); // cap at 64 for the 8x8 grid
+                                        // Build a set of occupied CPUs from per-thread cpu_core (real capture) or fallback to string matching
     let mut occupied = vec![false; total];
     for t in thread_data {
         if let Some(core) = t.cpu_core {
@@ -1142,16 +1150,22 @@ fn build_thread_affinity_grid(thread_data: &[ThreadInfo], cpu_cores: usize) -> V
             }
         } else {
             // Fallback: check if thread_id string contains the core index
-            for i in 0..total {
+            for (i, busy) in occupied.iter_mut().enumerate() {
                 if t.thread_id.contains(&format!("{}", i)) {
-                    occupied[i] = true;
+                    *busy = true;
                 }
             }
         }
     }
     let mut pips: Vec<String> = occupied
         .iter()
-        .map(|&busy| if busy { "PROCESSING".to_string() } else { "IDLE".to_string() })
+        .map(|&busy| {
+            if busy {
+                "PROCESSING".to_string()
+            } else {
+                "IDLE".to_string()
+            }
+        })
         .collect();
     // Pad to at least 64 for the 8x8 grid
     while pips.len() < 64 {

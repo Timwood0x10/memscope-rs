@@ -421,12 +421,9 @@ graph TB
 - **统一错误处理**：不再有 `unwrap()`
 - **性能**：并发场景提升高达 98%
 
-### 统计数据（对比 master）
+### 计划/未来功能
 
-- **66 个文件修改**
-- **新增 7,049 行**，删除 231 行
-- **新模块**：TrackKind、OwnershipAnalyzer、TaskRegistry
-- **新文档**：智能指针追踪、编译时增强、Rust 所有权语义分析
+- **动态类型（虚函数表）跟踪** — 在运行时检测 `dyn Trait`（特性对象）的内存分配，并报告虚函数表大小、方法分派开销和类型擦除模式。需要编译器级别的插桩或能够识别胖指针虚函数表条目的自定义 `GlobalAlloc` 钩子。尚未实现；数据结构（`DynamicTypeInfo`、`VTableInfo`、`DispatchOverhead`）在 `src/capture/types/dynamic_type.rs` 中定义，作为未来工作的占位符。
 
 ***
 

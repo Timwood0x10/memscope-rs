@@ -863,6 +863,7 @@
             </div>
 
             <!-- Smart Pointer Summary -->
+            {{#if total_smart_pointers}}
             <div class="grid grid-cols-1 md:grid-cols-4 gap-gutter mb-8">
                 <div class="bg-surface-container-high border border-tertiary p-5 rounded-lg rim-light">
                     <span class="font-label-caps text-on-surface-variant">SMART_PTR_COUNT</span>
@@ -906,6 +907,7 @@
                     </div>
                 </div>
             </div>
+            {{/if}}
         </div>
         <div id="mode-passport" class="mode-section">
             <div class="flex justify-between items-end mb-8 pt-6">
@@ -1055,17 +1057,6 @@
                     <span class="font-data-mono text-[10px] text-primary">{{thread_timeline_count}} rows</span>
                 </div>
                 <div class="space-y-4" id="ffiThreadTimeline"></div>
-            </div>
-
-            <!-- Dynamic Type Info -->
-            <div class="bg-surface-container border border-outline-variant rounded-lg p-6 mb-8">
-                <details>
-                    <summary class="font-label-caps text-on-surface-variant cursor-pointer select-none">DYNAMIC_TYPE · VTable / Dispatch Overhead</summary>
-                    <div class="mt-4 font-data-mono text-xs text-outline">
-                        <p>No dynamic type information captured in this session.</p>
-                        <p class="mt-1">Enable VTable or type-erasure tracking to see dispatch overhead data.</p>
-                    </div>
-                </details>
             </div>
         </div>
 

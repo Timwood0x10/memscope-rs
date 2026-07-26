@@ -170,10 +170,13 @@ pub fn render_unified_dashboard(
         serde_json::Value::Number(context.circular_references.total_smart_pointers.into()),
     );
     // Smart pointer type breakdown (Rc / Arc / Box / Weak)
-    let mut sp_breakdown: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+    let mut sp_breakdown: std::collections::BTreeMap<String, usize> =
+        std::collections::BTreeMap::new();
     for alloc in &context.allocations {
         if alloc.is_smart_pointer {
-            *sp_breakdown.entry(alloc.smart_pointer_type.clone()).or_insert(0) += 1;
+            *sp_breakdown
+                .entry(alloc.smart_pointer_type.clone())
+                .or_insert(0) += 1;
         }
     }
     template_data.insert(

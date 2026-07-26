@@ -149,15 +149,19 @@ impl DashboardRenderer {
                 serde_json::Value::Number(context.circular_references.total_smart_pointers.into()),
             );
             // Smart pointer type breakdown
-            let mut sp_breakdown: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+            let mut sp_breakdown: std::collections::BTreeMap<String, usize> =
+                std::collections::BTreeMap::new();
             for alloc in &context.allocations {
                 if alloc.is_smart_pointer {
-                    *sp_breakdown.entry(alloc.smart_pointer_type.clone()).or_insert(0) += 1;
+                    *sp_breakdown
+                        .entry(alloc.smart_pointer_type.clone())
+                        .or_insert(0) += 1;
                 }
             }
             obj.insert(
                 "smart_pointer_breakdown".to_string(),
-                serde_json::to_value(&sp_breakdown).unwrap_or(serde_json::Value::Object(Default::default())),
+                serde_json::to_value(&sp_breakdown)
+                    .unwrap_or(serde_json::Value::Object(Default::default())),
             );
         }
 

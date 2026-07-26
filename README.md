@@ -414,12 +414,9 @@ graph TB
 - **Unified Error Handling**: No more `unwrap()`
 - **Performance**: Up to 98% improvement in concurrent scenarios
 
-### Statistics (vs master)
+### Planned / Future
 
-- **66 files changed**
-- **7,049 lines added**, 231 lines removed
-- **New modules**: TrackKind, OwnershipAnalyzer, TaskRegistry
-- **New docs**: Smart Pointer Tracking, Compile-time Enhancement, Rust Ownership Semantics
+- **Dynamic Type (VTable) Tracking** — Detect `dyn Trait` (trait-object) allocations at runtime and report vtable size, method dispatch overhead, and type-erasure patterns. Requires compiler-level instrumentation or a custom `GlobalAlloc` hook capable of identifying fat-pointer vtable entries. Not yet implemented; the data structures (`DynamicTypeInfo`, `VTableInfo`, `DispatchOverhead`) are defined in `src/capture/types/dynamic_type.rs` as a design placeholder for future work.
 
 ---
 

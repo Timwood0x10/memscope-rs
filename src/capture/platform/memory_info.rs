@@ -1237,7 +1237,14 @@ impl std::error::Error for MemoryError {}
 /// and by external modules that don't have a PlatformMemoryInfo instance.
 pub fn get_current_cpu_impl() -> Option<u32> {
     #[cfg(any(target_os = "linux", target_os = "android"))]
-    { let cpu = unsafe { libc::sched_getcpu() }; if cpu < 0 { None } else { Some(cpu as u32) } }
+    {
+        let cpu = unsafe { libc::sched_getcpu() };
+        if cpu < 0 {
+            None
+        } else {
+            Some(cpu as u32)
+        }
+    }
 
     #[cfg(target_os = "macos")]
     {
@@ -1248,10 +1255,22 @@ pub fn get_current_cpu_impl() -> Option<u32> {
     }
 
     #[cfg(target_os = "windows")]
-    { extern "system" { fn GetCurrentProcessorNumber() -> u32; } unsafe { Some(GetCurrentProcessorNumber()) } }
+    {
+        extern "system" {
+            fn GetCurrentProcessorNumber() -> u32;
+        }
+        unsafe { Some(GetCurrentProcessorNumber()) }
+    }
 
-    #[cfg(not(any(target_os = "linux", target_os = "android", target_os = "macos", target_os = "windows")))]
-    { None }
+    #[cfg(not(any(
+        target_os = "linux",
+        target_os = "android",
+        target_os = "macos",
+        target_os = "windows"
+    )))]
+    {
+        None
+    }
 }
 
 #[cfg(test)]
