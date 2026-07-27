@@ -93,6 +93,11 @@ jobs:
         with:
           key: test-${{ matrix.os }}-${{ matrix.rust }}-${{ hashFiles('**/Cargo.lock') }}
 
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+
       - name: Run library tests (auto-signal + periodic features)
         run: cargo nextest run --workspace --features auto-signal,periodic -E 'kind(lib)'
         continue-on-error: ${{ matrix.experimental == true }}
