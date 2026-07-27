@@ -408,8 +408,9 @@
             <div class="bg-surface-container border border-outline-variant rounded-lg p-6 mb-8">
                 <div class="flex justify-between items-center mb-3">
                     <p class="font-label-caps text-on-surface-variant">ALLOCATIONS_STREAM</p>
-                    <span class="font-data-mono text-[10px] text-primary">{{allocations_count}} items</span>
+                    <span class="font-data-mono text-[10px] text-primary">{{allocations_count}} items · peak {{peak_memory}}</span>
                 </div>
+                <div class="h-32 mb-4"><canvas id="allocTrendChart"></canvas></div>
                 <div class="overflow-auto max-h-64">
                     <table class="w-full font-data-mono text-xs border-collapse">
                         <thead><tr class="text-on-surface-variant border-b border-outline-variant">
@@ -1147,6 +1148,15 @@
                 </div>
                 <div class="h-48"><canvas id="timelineChart"></canvas></div>
             </div>
+
+            <!-- Unsafe Source Heatmap -->
+            <div class="bg-surface-container border border-outline-variant rounded-lg p-6 mb-8">
+                <div class="flex justify-between items-center mb-3">
+                    <p class="font-label-caps text-on-surface-variant">UNSAFE_SOURCE_HEATMAP</p>
+                    <span class="font-data-mono text-[10px] text-primary">{{unsafe_count}} operations</span>
+                </div>
+                <div id="unsafeHeatmap" class="grid grid-cols-2 md:grid-cols-3 gap-2"></div>
+            </div>
         </div>
     </main>
 </div>
@@ -1345,6 +1355,84 @@
     registerThemeAware('heapGrid', renderHeapGrid);
     renderHeapGrid();
 
+    // Render allocation trend line chart — reads DATA.allocations (timestamp_alloc, size).
+    // Bin allocations into time buckets, draw a polyline of total bytes per bucket.
+    function renderAllocTrend() {
+        const canvas = document.getElementById('allocTrendChart');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const allocs = DATA.allocations || [];
+        if (allocs.length < 2) { ctx.clearRect(0, 0, canvas.width, canvas.height); return; }
+        const rect = canvas.parentElement.getBoundingClientRect();
+        canvas.width = rect.width || 600;
+        canvas.height = 128;
+        const W = canvas.width, H = canvas.height;
+        ctx.clearRect(0, 0, W, H);
+
+        // Bin by timestamp into 60 buckets
+        const bins = 60;
+        const bucket = new Array(bins).fill(0);
+        const minT = allocs[0].timestamp_alloc;
+        const maxT = allocs[allocs.length - 1].timestamp_alloc;
+        const span = Math.max(maxT - minT, 1);
+        for (const a of allocs) {
+            const idx = Math.min(Math.floor((a.timestamp_alloc - minT) / span * bins), bins - 1);
+            bucket[idx] += a.size;
+        }
+        const maxV = Math.max(1, ...bucket);
+
+        // Draw axes
+        ctx.strokeStyle = '#494551'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(0, H - 20); ctx.lineTo(W, H - 20); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, H - 20); ctx.stroke();
+
+        // Draw smooth curve (catmull-rom via quadratic beziers)
+        const barW = (W - 10) / bins;
+        ctx.strokeStyle = '#cfbcff'; ctx.lineWidth = 1.5; ctx.lineJoin = 'round';
+        const pts = [];
+        for (let i = 0; i < bins; i++) {
+            const x = 5 + i * barW + barW / 2;
+            const y = H - 20 - (bucket[i] / maxV) * (H - 30);
+            pts.push({ x, y });
+        }
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let i = 0; i < pts.length - 1; i++) {
+            const mx = (pts[i].x + pts[i + 1].x) / 2;
+            const my = (pts[i].y + pts[i + 1].y) / 2;
+            ctx.quadraticCurveTo(pts[i].x, pts[i].y, mx, my);
+        }
+        const last = pts[pts.length - 1];
+        ctx.lineTo(last.x, last.y);
+        ctx.stroke();
+
+        // Fill gradient under line
+        const grad = ctx.createLinearGradient(0, 0, 0, H - 20);
+        grad.addColorStop(0, 'rgba(207,188,255,0.15)');
+        grad.addColorStop(1, 'rgba(207,188,255,0.01)');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.moveTo(5 + barW / 2, H - 20);
+        for (let i = 0; i < bins; i++) {
+            const x = 5 + i * barW + barW / 2;
+            const y = H - 20 - (bucket[i] / maxV) * (H - 30);
+            ctx.lineTo(x, y);
+        }
+        ctx.lineTo(5 + (bins - 1) * barW + barW / 2, H - 20);
+        ctx.closePath();
+        ctx.fill();
+
+        // Labels
+        ctx.fillStyle = '#948e9c'; ctx.font = '9px JetBrains Mono';
+        ctx.fillText('0', 4, H - 6);
+        const maxLabel = maxV >= 1_000_000 ? (maxV / 1_000_000).toFixed(1) + 'MB' : maxV >= 1_000 ? (maxV / 1_000).toFixed(1) + 'KB' : maxV + 'B';
+        ctx.fillText(maxLabel, 4, 10);
+        ctx.fillText(span + 'ns', W - 60, H - 6);
+    }
+    // Re-render on resize via a simple interval (theme-aware re-render triggers on mode switch)
+    window.addEventListener('resize', () => { setTimeout(renderAllocTrend, 200); });
+    renderAllocTrend();
+
     // Render thread load heatmap — each cell is a thread, colored by
     // allocation_count (primary) and annotated with current_memory.
     function renderLoadHeatmap() {
@@ -1373,6 +1461,47 @@
     // Register and run — use existing theme-aware dispatch via id
     const loadEl = document.getElementById('loadHeatmap');
     if (loadEl) renderLoadHeatmap();
+
+    // Render unsafe source heatmap — aggregates unsafe_reports + allocations
+    // by source_file, shows each file as a colored cell with op count.
+    function renderUnsafeHeatmap() {
+        const grid = document.getElementById('unsafeHeatmap');
+        if (!grid) return;
+        // Collect source files from both unsafe reports and leaked allocations
+        const fileCount = {};
+        (DATA.unsafe_reports || []).forEach(r => {
+            const f = r.source_file || 'unknown';
+            fileCount[f] = (fileCount[f] || 0) + 1;
+        });
+        (DATA.allocations || []).forEach(a => {
+            if (a.is_leaked) {
+                const f = a.source_file || 'unknown';
+                fileCount[f] = (fileCount[f] || 0) + 1;
+            }
+        });
+        const entries = Object.entries(fileCount);
+        if (entries.length === 0) {
+            grid.innerHTML = '<div class="col-span-full text-outline text-xs py-4">No unsafe or leaked sources.</div>';
+            return;
+        }
+        const maxCnt = Math.max(1, ...entries.map(e => e[1]));
+        grid.innerHTML = '';
+        entries.sort((a, b) => b[1] - a[1]);
+        entries.forEach(([file, count]) => {
+            const cell = document.createElement('div');
+            const ratio = count / maxCnt;
+            const intensity = 0.15 + ratio * 0.75;
+            cell.className = 'rounded border border-outline-variant/50 p-2 font-data-mono text-[10px] chart-interactive overflow-hidden';
+            cell.style.background = `rgba(239,68,68,${intensity})`;
+            const short = file.split('/').pop() || file;
+            cell.innerHTML = '<div class="truncate text-white font-bold">' + short + '</div><div class="text-on-surface-variant">' + count + ' ops</div>';
+            cell.title = file + ' · ' + count + ' operations';
+            bindInteractive(cell, 'UNSAFE_SRC_' + entries.indexOf([file, count]), [['file', file], ['count', count]], 'UNSAFE_SOURCE', file + ' · ' + count + ' ops');
+            grid.appendChild(cell);
+        });
+    }
+    const unsafeEl = document.getElementById('unsafeHeatmap');
+    if (unsafeEl) renderUnsafeHeatmap();
 
     // Render waker efficiency heatgrid (10x6) — uses var(--primary).
     function renderWakerHeatgrid() {
