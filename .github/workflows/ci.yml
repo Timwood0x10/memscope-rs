@@ -226,34 +226,3 @@ jobs:
           files: lcov.info
           fail_ci_if_error: false
 
-  publish:
-    name: Publish to crates.io
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [quality, test, docs, security]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Verify version consistency
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
-          CARGO_VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
-          if [ "$VERSION" != "$CARGO_VERSION" ]; then
-            echo "Version mismatch: tag=$VERSION, Cargo.toml=$CARGO_VERSION"
-            exit 1
-          fi
-
-      - name: Publish memscope-derive
-        working-directory: memscope-derive
-        run: cargo publish --token ${{ secrets.CRATES_IO_TOKEN }}
-        continue-on-error: true
-
-      - name: Wait for derive package
-        run: sleep 30
-
-      - name: Publish memscope-rs
-        run: cargo publish --token ${{ secrets.CRATES_IO_TOKEN }}
-        continue-on-error: true
