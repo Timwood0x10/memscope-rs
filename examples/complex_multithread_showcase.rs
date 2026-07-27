@@ -1,7 +1,7 @@
-//! Complex Multi-Thread Memory Tracking Showcase - New API
+//! Complex Multi-Thread Memory Tracking Showcase
 //!
-//! This example demonstrates multi-thread memory tracking using the new unified API.
-use memscope_rs::{analyzer, prelude::*, MemScopeResult};
+//! This example demonstrates multi-thread memory tracking using the `start()` API.
+use memscope_rs::{analyzer, MemScopeResult};
 use std::thread;
 use std::time::Instant;
 
@@ -18,7 +18,7 @@ fn main() -> MemScopeResult<()> {
 
     let start_time = Instant::now();
 
-    let ctx = MemCtx::init()?;
+    let guard = memscope_rs::start()?;
     println!("✓ Global tracking initialized\n");
 
     println!("Starting multi-threaded allocations...\n");
@@ -54,7 +54,7 @@ fn main() -> MemScopeResult<()> {
     let total_allocations = num_threads * allocations_per_thread;
     let throughput = total_allocations as f64 / duration.as_secs_f64();
 
-    let stats = ctx.get_stats();
+    let stats = guard.get_stats();
 
     println!("\n========================================");
     println!("Memory Analysis Results:");
@@ -70,7 +70,7 @@ fn main() -> MemScopeResult<()> {
 
     // Use the unified Analyzer API
     println!("\n=== Unified Analyzer API ===\n");
-    let mut az = analyzer(&ctx)?;
+    let mut az = analyzer(&guard)?;
 
     // Full analysis
     let report = az.analyze();
@@ -90,20 +90,8 @@ fn main() -> MemScopeResult<()> {
     println!("\nMetrics:");
     println!("  Types: {}", metrics.by_type.len());
 
-    println!("\nExporting memory snapshot...");
-    let output_path = "MemoryAnalysis/multithread_new_api";
-    ctx.export_json(output_path)?;
-    println!("  memory_snapshots.json");
-    println!("  memory_passports.json");
-    println!("  leak_detection.json");
-    println!("  unsafe_ffi_analysis.json");
-    println!("  system_resources.json");
-    println!("  async_analysis.json");
-
-    // Export HTML dashboard
-    println!("\nExporting HTML dashboard...");
-    ctx.export(output_path)?;
-    println!("  dashboard.html");
+    // No explicit export needed: MemScopeGuard's Drop triggers auto-export
+    // to ./memscope-report/ on normal exit.
 
     Ok(())
 }

@@ -33,8 +33,13 @@ fn example_bin() -> PathBuf {
     if !cfg!(debug_assertions) {
         cmd.arg("--release");
     }
-    let status = cmd.status().expect("failed to build auto_exit_demo example");
-    assert!(status.success(), "cargo build --example auto_exit_demo failed");
+    let status = cmd
+        .status()
+        .expect("failed to build auto_exit_demo example");
+    assert!(
+        status.success(),
+        "cargo build --example auto_exit_demo failed"
+    );
 
     let profile = if cfg!(debug_assertions) {
         "debug"
@@ -44,12 +49,13 @@ fn example_bin() -> PathBuf {
     PathBuf::from(format!("target/{profile}/examples/auto_exit_demo"))
 }
 
-/// Spawn `auto_exit_demo` in the given mode with a tempdir-based output
-/// directory and return the child handle + the output dir.
+/// Spawn `auto_exit_demo` in the given mode with a unique tempdir-based
+/// output directory and return the child handle + the output dir.
+/// Each call creates a separate directory so parallel tests don't collide.
 fn spawn_demo(mode: &str) -> (Child, PathBuf) {
     let bin = example_bin();
-    let out_dir = std::env::temp_dir()
-        .join(format!("memscope_e2e_{}", std::process::id()));
+    let out_dir =
+        std::env::temp_dir().join(format!("memscope_e2e_{}_{}", std::process::id(), mode));
     // Clean any previous run's leftovers.
     let _ = std::fs::remove_dir_all(&out_dir);
 
@@ -83,19 +89,11 @@ fn wait_with_timeout(child: &mut Child, timeout: Duration) -> ExitStatus {
 }
 
 /// Assert that the output directory contains the expected report files.
-fn assert_report_exists(dir: &PathBuf) {
+fn assert_report_exists(dir: &std::path::Path) {
     let html = dir.join("dashboard_unified_dashboard.html");
     let json = dir.join("memory_analysis.json");
-    assert!(
-        html.exists(),
-        "expected HTML report at {}",
-        html.display()
-    );
-    assert!(
-        json.exists(),
-        "expected JSON report at {}",
-        json.display()
-    );
+    assert!(html.exists(), "expected HTML report at {}", html.display());
+    assert!(json.exists(), "expected JSON report at {}", json.display());
     // Both files should be non-empty.
     assert!(
         std::fs::metadata(&html).unwrap().len() > 100,
@@ -159,10 +157,7 @@ fn e2e_ctrlc_exit() {
         "ctrlc handler should exit with code 130 (128+SIGINT), got {status:?}"
     );
     // On Unix, also verify the signal was SIGINT.
-    assert!(
-        !status.core_dumped(),
-        "child should not have core-dumped"
-    );
+    assert!(!status.core_dumped(), "child should not have core-dumped");
 
     assert_report_exists(&out_dir);
     let _ = std::fs::remove_dir_all(&out_dir);

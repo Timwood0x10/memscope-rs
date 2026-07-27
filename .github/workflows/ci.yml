@@ -2,10 +2,10 @@ name: memscope-rs CI
 
 on:
   push:
-    branches: [master, develop]
+    branches: [master, dev]
     tags: ["v*"]
   pull_request:
-    branches: [master, develop]
+    branches: [master]
 
 # Permissions for CI operations
 permissions:
@@ -93,18 +93,17 @@ jobs:
         with:
           key: test-${{ matrix.os }}-${{ matrix.rust }}-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Run library tests
-        run: cargo test --lib --workspace -- --test-threads=1
+      - name: Run library tests (auto-signal + periodic features)
+        run: cargo nextest run --workspace --features auto-signal,periodic -E 'kind(lib)'
         continue-on-error: ${{ matrix.experimental == true }}
 
-      - name: Run integration tests
-        run: cargo test --test '*' --workspace -- --test-threads=1
+      - name: Run integration tests (auto-signal + periodic features)
+        run: cargo nextest run --workspace --features auto-signal,periodic -E 'kind(test)'
         continue-on-error: ${{ matrix.experimental == true }}
 
       - name: Test examples
         run: |
-          cargo run --example basic_usage
-          cargo run --example unsafe_ffi_demo
+          cargo build --examples --features auto-signal,periodic
         continue-on-error: ${{ matrix.experimental == true }}
 
   benchmarks:

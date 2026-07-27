@@ -1,33 +1,32 @@
 //! Example: Unified Analyzer API
 //!
-//! Demonstrates the new unified analyzer interface.
+//! Demonstrates the new unified analyzer interface using memscope_rs::start().
 
-use memscope_rs::{analyzer, global_tracker, init_global_tracking, track};
+use memscope_rs::{analyzer, track, MemScopeResult};
 
-fn main() {
+fn main() -> MemScopeResult<()> {
     println!("=== Unified Analyzer API Demo ===\n");
 
-    // 1. Initialize
-    init_global_tracking().unwrap();
-    let ctx = global_tracker().unwrap();
+    // 1. One-line start (logging + global tracker + auto-export hooks)
+    let guard = memscope_rs::start()?;
 
     // 2. Track some variables
     let data = vec![1, 2, 3, 4, 5];
-    track!(ctx, data);
+    track!(guard, data);
 
     let map = std::collections::HashMap::<String, i32>::new();
-    track!(ctx, map);
+    track!(guard, map);
 
     let string = String::from("Hello, memscope!");
-    track!(ctx, string);
+    track!(guard, string);
 
     // 3. Create analyzer (single entry point)
     // Note: analyzer() now returns Result<Analyzer, MemScopeError>
-    let mut az = match analyzer(&ctx) {
+    let mut az = match analyzer(&guard) {
         Ok(a) => a,
         Err(e) => {
-            eprintln!("Failed to create analyzer: {}", e);
-            return;
+            eprintln!("Failed to create analyzer: {e}");
+            return Ok(());
         }
     };
 
@@ -76,5 +75,8 @@ fn main() {
     }
     println!();
 
+    // Auto-export: MemScopeGuard's Drop writes the dashboard + JSON
+    // to ./memscope-report/ on exit.
     println!("=== Demo Complete ===");
+    Ok(())
 }

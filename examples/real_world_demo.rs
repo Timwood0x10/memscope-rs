@@ -5,8 +5,10 @@
 //! - Tracking allocations across function boundaries
 //! - Analyzing memory hotspots and patterns
 //! - Exporting comprehensive memory reports
+//!
+//! Uses the `memscope_rs::start()` API to initialize tracking.
 
-use memscope_rs::{analyzer, global_tracker, init_logging, prelude::*};
+use memscope_rs::{analyzer, global_tracker, track, MemScopeResult};
 use std::collections::HashMap;
 
 /// Simulates a web server cache that may leak memory.
@@ -201,27 +203,24 @@ fn simulate_batch_processing(tracker: &memscope_rs::GlobalTracker) -> MemScopeRe
 
 /// Main entry point for the real-world memory tracking demonstration.
 fn main() -> MemScopeResult<()> {
-    // Initialize logging system first
-    init_logging()?;
+    // Initialize the global tracker.
+    let guard = memscope_rs::start()?;
 
     println!("========================================");
     println!("  MemScope-RS Real-World Demonstration  ");
     println!("========================================");
 
-    // Initialize the global ctx.
-    let ctx = MemCtx::init()?;
-
     println!("\nGlobal tracker initialized successfully.\n");
 
     // Run demonstration scenarios.
-    simulate_cache_leak(&ctx)?;
-    simulate_proper_cleanup(&ctx)?;
-    simulate_batch_processing(&ctx)?;
+    simulate_cache_leak(&guard)?;
+    simulate_proper_cleanup(&guard)?;
+    simulate_batch_processing(&guard)?;
 
     // Generate analysis report.
     println!("\n=== Memory Analysis Report ===\n");
 
-    let stats = ctx.get_stats();
+    let stats = guard.get_stats();
     println!("  Total allocations: {}", stats.total_allocations);
     println!("  Active allocations: {}", stats.active_allocations);
     println!("  Peak memory usage: {} bytes", stats.peak_memory_bytes);
@@ -229,7 +228,7 @@ fn main() -> MemScopeResult<()> {
 
     // Use the unified Analyzer API
     println!("\n=== Unified Analyzer API ===\n");
-    let mut az = analyzer(&ctx)?;
+    let mut az = analyzer(&guard)?;
 
     // Full analysis
     let report = az.analyze();
@@ -249,41 +248,12 @@ fn main() -> MemScopeResult<()> {
     println!("\nMetrics:");
     println!("  Types: {}", metrics.by_type.len());
 
-    // Export comprehensive reports.
-    println!("\n=== Exporting Reports ===\n");
-
-    let output_path = "MemoryAnalysis/real_world_demo";
-
-    println!("  Calling export_json...");
-    ctx.export_json(output_path)?;
-    println!("  JSON report: {}/memory_snapshots.json", output_path);
-
-    println!("  Calling export_html (unified)...");
-    ctx.export_html(output_path)?;
-    println!(
-        "  HTML dashboard (unified): {}/dashboard_unified_dashboard.html",
-        output_path
-    );
-
-    println!("  Calling export_html (unified)...");
-    ctx.export_html_with_template(
-        output_path,
-        memscope_rs::render_engine::export::DashboardTemplate::Unified,
-    )?;
-    println!(
-        "  HTML dashboard (unified): {}/dashboard_unified_dashboard.html",
-        output_path
-    );
+    // Auto-export: the MemScopeGuard's Drop triggers the exit-path export
+    // to ./memscope-report/ automatically when main returns.
 
     println!("\n========================================");
     println!("  Demonstration Complete!               ");
     println!("========================================");
-
-    println!("\nOpen the HTML dashboard to visualize memory patterns.");
-    println!(
-        "Unified dashboard: {}/dashboard_unified_dashboard.html",
-        output_path
-    );
 
     Ok(())
 }

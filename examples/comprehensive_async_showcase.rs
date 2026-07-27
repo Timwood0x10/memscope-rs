@@ -13,10 +13,11 @@
 //! - task_graph_json for Task Relationship Graph in the dashboard
 //! - Zombie task detection
 //! - Variable relationship tracking across async task boundaries
-//! - Dashboard export with async task data visible in the Task tab
+//! - Auto-export: MemScopeGuard's Drop writes the dashboard + JSON
+//!   on exit, no explicit export call needed
 
 use memscope_rs::capture::backends::async_tracker::{spawn_tracked, TrackerContext};
-use memscope_rs::{analyzer, prelude::*, track, MemScopeResult};
+use memscope_rs::{analyzer, track, MemScopeResult};
 
 use std::collections::HashMap;
 use std::time::Instant;
@@ -108,7 +109,7 @@ async fn main() -> MemScopeResult<()> {
     let start_time = Instant::now();
 
     // 1. Initialize global tracking
-    let ctx = MemCtx::init()?;
+    let guard = memscope_rs::start()?;
     println!("[1/6] Global tracking initialized\n");
 
     // 2. Capture initial context
@@ -201,8 +202,8 @@ async fn main() -> MemScopeResult<()> {
 
     // 4. Async tracker statistics
     println!("[4/6] Async tracker statistics...");
-    let async_stats = ctx.async_tracker().get_stats();
-    let profiles = ctx.async_tracker().get_all_profiles();
+    let async_stats = guard.async_tracker().get_stats();
+    let profiles = guard.async_tracker().get_all_profiles();
     println!(
         "  Total tasks: {}  Active: {}  Allocations: {}  Peak mem: {} bytes",
         async_stats.total_tasks,
@@ -227,20 +228,20 @@ async fn main() -> MemScopeResult<()> {
     }
 
     // Zombie detection
-    let zombies = ctx.async_tracker().detect_zombie_tasks();
-    let (zombie_count, total_tasks) = ctx.async_tracker().zombie_task_stats();
+    let zombies = guard.async_tracker().detect_zombie_tasks();
+    let (zombie_count, total_tasks) = guard.async_tracker().zombie_task_stats();
     println!("\n  Zombie tasks: {zombie_count}/{total_tasks}");
     for z in &zombies {
         println!("    Zombie task_id={z}");
     }
 
     // Task graph from the TaskIdRegistry
-    let task_graph = ctx.async_tracker().get_all_profiles();
+    let task_graph = guard.async_tracker().get_all_profiles();
     println!("  Task graph: {} task nodes", task_graph.len());
 
     // 5. Run the unified analyzer for comprehensive memory analysis
     println!("\n[5/6] Running unified memory analysis...");
-    let mut az = analyzer(&ctx)?;
+    let mut az = analyzer(&guard)?;
     let report = az.analyze();
     println!(
         "  Allocations: {}  Bytes: {}  Peak: {}",
@@ -265,12 +266,8 @@ async fn main() -> MemScopeResult<()> {
     let var_rels = az.metrics().summary();
     println!("  Relationship types: {}", var_rels.by_type.len());
 
-    // 6. Export HTML dashboard with async task data
-    println!("\n[6/6] Exporting HTML dashboard...");
-    let output_path = "MemoryAnalysis/async_showcase_new_api";
-    ctx.export_html(output_path)?;
-    println!("  ✓ Dashboard exported to {output_path}/dashboard_unified_dashboard.html");
-    println!("  Open in browser and switch to the task tab to see per-task profiles\n");
+    // [6/6] Auto-export: MemScopeGuard's Drop writes the dashboard + JSON
+    // to ./memscope-report/ on exit. No explicit export call needed.
 
     let elapsed = start_time.elapsed();
     println!("======================================================================");

@@ -25,6 +25,8 @@ memscope-rs 以**真实数据**追踪 Rust 应用的内存分配：
 - **任务内存归属** — 按任务/异步上下文追踪内存
 - **可视化仪表板** — 交互式 HTML 报告
 
+![dashboard](./images/1.png)
+
 ## 性能指标
 
 | 指标    | 数值      |
@@ -233,6 +235,99 @@ pub enum OwnershipOp {
 ***
 
 ## 快速开始
+
+库提供两套 API。新的 **统一 `start()` API** 是推荐的入口——一次调用完成日志、全局追踪和自动导出钩子的初始化。原有的 `MemCtx::init()` API 保持完全向后兼容。
+
+### 一行启动（CLI / 短生命周期程序）
+
+适用于批处理工具、测试或短生命周期程序，退出时自动导出报告：
+
+```rust
+use memscope_rs::prelude::*;
+
+fn main() -> MemScopeResult<()> {
+    let _guard = start()?;            // 初始化日志 + 全局追踪 + 自动导出钩子
+
+    let data = vec![1, 2, 3, 4, 5];
+    track!(_guard, data);             // 自动解引用到 GlobalTracker
+
+    // 函数返回（或 panic / Ctrl-C）时，guard 的 Drop 自动写入 HTML+JSON
+    // 到 ./memscope-report/ 目录。无需手动调用导出。
+    Ok(())
+}
+```
+
+### 长服务（按需导出）
+
+适用于服务器或守护进程，需要在特定检查点导出报告：
+
+```rust
+use memscope_rs::prelude::*;
+
+fn main() -> MemScopeResult<()> {
+    let guard = start()?;             // 保持 guard 存活至服务生命周期结束
+
+    // 随时按需导出
+    guard.export_now()?;              // 写入 HTML+JSON 到 ./memscope-report/
+
+    // 内存 JSON 快照 — 不写磁盘，适合 HTTP 端点
+    let snapshot = guard.snapshot_json()?; // 返回 String
+    println!("当前报告: {} bytes", snapshot.len());
+
+    // 继续追踪...
+    // 优雅关闭时，guard 的 Drop 仍然做最后一次导出。
+    Ok(())
+}
+```
+
+### 长服务（定时后台刷新）
+
+适用于需要持续监控而不需人工介入的服务：
+
+```rust
+use std::time::Duration;
+use memscope_rs::prelude::*;
+
+fn main() -> MemScopeResult<()> {
+    let guard = start_with(
+        MemScopeConfig::default().with_auto_export(
+            AutoExportConfig::default()
+                .with_flush_interval(Duration::from_secs(300))  // 每 5 分钟
+        )
+    )?;
+
+    // 后台工作线程每 5 分钟刷新一次报告。
+    // 关闭时，工作线程做一次最终刷新，然后 guard drop。
+    // track! 通过 Deref 正常使用。
+
+    Ok(())
+}
+```
+
+### 完整自定义
+
+```rust
+use std::time::Duration;
+use memscope_rs::prelude::*;
+
+let config = MemScopeConfig::default()
+    .with_auto_export(
+        AutoExportConfig::default()
+            .with_output_path("./my-reports")           // 自定义输出目录
+            .with_formats(ExportFormatSet::JSON)         // 仅 JSON，不输出 HTML
+            .with_on_exit(false)                         // drop 时不导出
+            .with_on_panic(true)                         // panic 时仍然导出
+            .with_signal_policy(SignalPolicy::Off)       // 不安装信号处理器
+            .with_flush_interval(Duration::from_secs(60)) // 每 60s
+            .with_exit_timeout(Duration::from_secs(10)), // 关闭时最多等 10s
+    );
+
+let guard = start_with(config)?;
+```
+
+### 手动初始化（向后兼容）
+
+原有的 `init_global_tracking` / `MemCtx::init()` API 继续可用，不做任何修改：
 
 ```rust
 use memscope_rs::{global_tracker, init_global_tracking, track, MemScopeResult};

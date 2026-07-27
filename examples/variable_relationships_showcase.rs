@@ -5,8 +5,10 @@
 //! - Smart pointer relationships (Arc/Rc)
 //! - Rc retain cycles (memory leaks)
 //! - Type-based relationships
+//!
+//! Uses the new `memscope_rs::start()` API — the guard auto-exports on drop.
 
-use memscope_rs::{analyzer, prelude::*, track, MemScopeResult};
+use memscope_rs::{analyzer, track, MemScopeResult};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -26,14 +28,14 @@ fn main() -> MemScopeResult<()> {
     println!("🔗 Variable Relationships Showcase");
     println!("===================================\n");
 
-    let ctx = MemCtx::init()?;
+    let guard = memscope_rs::start()?;
 
     // 1. Clone relationships - same type and size
     println!("1. Clone Relationships (same type Vec<i32>)");
     let mut vec_clones = Vec::new();
     for i in 0..10 {
         let vec: Vec<i32> = vec![i, i * 2, i * 3];
-        track!(ctx, vec);
+        track!(guard, vec);
         vec_clones.push(vec);
     }
     println!("✓ Created {} Vec<i32> clones", vec_clones.len());
@@ -42,11 +44,11 @@ fn main() -> MemScopeResult<()> {
     println!("\n2. Smart Pointer Relationships (Arc)");
     let data = vec![1, 2, 3, 4, 5];
     let arc1 = Arc::new(data);
-    track!(ctx, arc1.clone());
+    track!(guard, arc1.clone());
 
     for _i in 0..8 {
         let arc_clone = Arc::clone(&arc1);
-        track!(ctx, arc_clone);
+        track!(guard, arc_clone);
     }
     println!("✓ Created Arc with {} clones", 9);
 
@@ -54,11 +56,11 @@ fn main() -> MemScopeResult<()> {
     println!("\n3. Smart Pointer Relationships (Rc)");
     let rc_data = "Hello, Rc!".to_string();
     let rc1 = Rc::new(rc_data);
-    track!(ctx, rc1.clone());
+    track!(guard, rc1.clone());
 
     for _i in 0..6 {
         let rc_clone = Rc::clone(&rc1);
-        track!(ctx, rc_clone);
+        track!(guard, rc_clone);
     }
     println!("✓ Created Rc with {} clones", 7);
 
@@ -67,8 +69,8 @@ fn main() -> MemScopeResult<()> {
     let a = Rc::new(RefCell::new(Node::new("Node A")));
     let b = Rc::new(RefCell::new(Node::new("Node B")));
 
-    track!(ctx, a.clone());
-    track!(ctx, b.clone());
+    track!(guard, a.clone());
+    track!(guard, b.clone());
 
     // Create cycle: A -> B -> A
     a.borrow_mut().next = Some(b.clone());
@@ -84,9 +86,9 @@ fn main() -> MemScopeResult<()> {
     let d = Rc::new(RefCell::new(Node::new("Node D")));
     let e = Rc::new(RefCell::new(Node::new("Node E")));
 
-    track!(ctx, c.clone());
-    track!(ctx, d.clone());
-    track!(ctx, e.clone());
+    track!(guard, c.clone());
+    track!(guard, d.clone());
+    track!(guard, e.clone());
 
     // Linear: C -> D -> E (no back references)
     c.borrow_mut().next = Some(d.clone());
@@ -100,7 +102,7 @@ fn main() -> MemScopeResult<()> {
     let mut strings = Vec::new();
     for i in 0..12 {
         let s = format!("String number {}", i);
-        track!(ctx, s);
+        track!(guard, s);
         strings.push(s);
     }
     println!("✓ Created {} String instances", strings.len());
@@ -113,7 +115,7 @@ fn main() -> MemScopeResult<()> {
         for j in 0..10 {
             map.insert(format!("key_{}_{}", i, j), j * i);
         }
-        track!(ctx, map);
+        track!(guard, map);
         maps.push(map);
     }
     println!("✓ Created {} HashMap instances", maps.len());
@@ -126,7 +128,7 @@ fn main() -> MemScopeResult<()> {
         for j in 0..8 {
             map.insert(j, format!("value_{}_{}", i, j));
         }
-        track!(ctx, map);
+        track!(guard, map);
         btree_maps.push(map);
     }
     println!("✓ Created {} BTreeMap instances", btree_maps.len());
@@ -136,7 +138,7 @@ fn main() -> MemScopeResult<()> {
     let mut byte_vecs = Vec::new();
     for i in 0..8 {
         let vec: Vec<u8> = (0..128).map(|j| ((i * 128 + j) % 256) as u8).collect();
-        track!(ctx, vec);
+        track!(guard, vec);
         byte_vecs.push(vec);
     }
     println!("✓ Created {} Vec<u8> instances", byte_vecs.len());
@@ -146,13 +148,13 @@ fn main() -> MemScopeResult<()> {
     let mut boxes = Vec::new();
     for i in 0..6 {
         let boxed: Box<i32> = Box::new(i * 100);
-        track!(ctx, boxed);
+        track!(guard, boxed);
         boxes.push(boxed);
     }
     println!("✓ Created {} Box<i32> instances", boxes.len());
 
     // Get statistics
-    let stats = ctx.get_stats();
+    let stats = guard.get_stats();
     println!("\n📊 Statistics:");
     println!("  Total allocations: {}", stats.total_allocations);
     println!("  Active allocations: {}", stats.active_allocations);
@@ -160,7 +162,7 @@ fn main() -> MemScopeResult<()> {
 
     // Use the unified Analyzer API
     println!("\n=== Unified Analyzer API ===\n");
-    let mut az = analyzer(&ctx)?;
+    let mut az = analyzer(&guard)?;
 
     // Full analysis
     let report = az.analyze();
@@ -180,13 +182,11 @@ fn main() -> MemScopeResult<()> {
     println!("\nMetrics:");
     println!("  Types: {}", metrics.by_type.len());
 
-    // Export results
-    let output_path = "MemoryAnalysis/variable_relationships_showcase";
-    ctx.export_html(output_path)?;
-    ctx.export_json(output_path)?;
+    // No explicit export needed: MemScopeGuard's Drop triggers auto-export
+    // to ./memscope-report/ on exit.
 
-    println!("\n✅ Export successful!");
-    println!("📁 Results saved to: {}", output_path);
+    println!("\n✅ Auto-export enabled — report will be written to ./memscope-report/ on exit.");
+    println!("📁 Results will be saved when the program finishes (Drop handler).");
     println!("\n🔍 Key Relationships in Dashboard:");
     println!("  🟢 Green: Vec<i32>, Vec<u8>, String, Box clones");
     println!("  🟣 Purple: Arc, Rc smart pointers");

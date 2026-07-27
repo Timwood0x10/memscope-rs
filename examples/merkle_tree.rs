@@ -1,9 +1,9 @@
 //! Merkle Tree Implementation with unsafe code and memscope tracking
 //!
 //! This example demonstrates a Merkle Tree implementation using unsafe Rust
-//! with memscope memory tracking and HTML dashboard export.
+//! with memscope memory tracking and auto-exported results.
 
-use memscope_rs::{analyzer, prelude::*, track, MemScopeResult};
+use memscope_rs::{analyzer, track, MemScopeResult};
 use std::fmt;
 
 /// Hash type (256-bit)
@@ -330,7 +330,8 @@ unsafe fn create_large_buffer(size: usize) -> *mut u8 {
     }
 
     // Track unsafe allocation using global tracker
-    let ctx = MemCtx::init().expect("Failed to init memscope tracker");
+    let ctx =
+        memscope_rs::global_tracker().expect("global_tracker must be initialized via start()");
     let ptr_addr = ptr as usize;
 
     // First create a passport for this allocation
@@ -349,7 +350,8 @@ unsafe fn create_large_buffer(size: usize) -> *mut u8 {
 unsafe fn free_large_buffer(ptr: *mut u8, size: usize) {
     let layout = std::alloc::Layout::from_size_align(size, 8).unwrap();
 
-    let ctx = MemCtx::init().expect("Failed to init memscope tracker");
+    let ctx =
+        memscope_rs::global_tracker().expect("global_tracker must be initialized via start()");
     let ptr_addr = ptr as usize;
 
     // Track unsafe deallocation with passport
@@ -369,7 +371,7 @@ fn main() -> MemScopeResult<()> {
 
     // Initialize memscope global tracking
     println!("🚀 Initializing memscope tracking...");
-    let ctx = MemCtx::init()?;
+    let guard = memscope_rs::start()?;
     println!("✓ Tracker initialized\n");
 
     // Create a new Merkle tree
@@ -384,10 +386,10 @@ fn main() -> MemScopeResult<()> {
     let leaf4 = b"Transaction 4".to_vec();
 
     // Track the leaf data vectors
-    track!(ctx, leaf1);
-    track!(ctx, leaf2);
-    track!(ctx, leaf3);
-    track!(ctx, leaf4);
+    track!(guard, leaf1);
+    track!(guard, leaf2);
+    track!(guard, leaf3);
+    track!(guard, leaf4);
 
     tree.add_leaf(leaf1.clone());
     tree.add_leaf(leaf2.clone());
@@ -444,7 +446,7 @@ fn main() -> MemScopeResult<()> {
     let mut large_vectors = Vec::new();
     for i in 0..100 {
         let vec: Vec<u8> = (0..1000).map(|j| ((i + j) % 256) as u8).collect();
-        track!(ctx, vec); // Track each large vector
+        track!(guard, vec); // Track each large vector
         large_vectors.push(vec);
     }
 
@@ -462,10 +464,10 @@ fn main() -> MemScopeResult<()> {
             for k in 0..10 {
                 inner.push((i * j * k) as u32);
             }
-            track!(ctx, inner); // Track inner vectors
+            track!(guard, inner); // Track inner vectors
             row.push(inner);
         }
-        track!(ctx, row); // Track row vectors
+        track!(guard, row); // Track row vectors
         matrix.push(row);
     }
 
@@ -482,7 +484,7 @@ fn main() -> MemScopeResult<()> {
     let mut results = Vec::new();
     for i in 0..10 {
         let result: Vec<f64> = (0..1000).map(|j| (i as f64 + j as f64).sin()).collect();
-        track!(ctx, result); // Track result vectors
+        track!(guard, result); // Track result vectors
         results.push(result);
     }
 
@@ -502,7 +504,7 @@ fn main() -> MemScopeResult<()> {
     );
 
     // Get tracking statistics
-    let stats = ctx.get_stats();
+    let stats = guard.get_stats();
     println!("\n📈 Memscope Analysis Results:");
     println!("  Total allocations: {}", stats.total_allocations);
     println!("  Active allocations: {}", stats.active_allocations);
@@ -520,7 +522,7 @@ fn main() -> MemScopeResult<()> {
 
     // Use the unified Analyzer API
     println!("\n=== Unified Analyzer API ===\n");
-    let mut az = analyzer(&ctx)?;
+    let mut az = analyzer(&guard)?;
 
     // Full analysis
     let report = az.analyze();
@@ -540,18 +542,8 @@ fn main() -> MemScopeResult<()> {
     println!("\nMetrics:");
     println!("  Types: {}", metrics.by_type.len());
 
-    // Export HTML dashboard
-    println!("\n🎨 Exporting HTML dashboard...");
-    let output_path = "MemoryAnalysis/merkle_tree_with_tracking";
-    ctx.export_json(output_path)?;
-    ctx.export_html(output_path)?;
-
-    println!("✓ Export successful!");
-    println!("📁 Results saved to: {}", output_path);
-    println!(
-        "📄 Open {}/dashboard.html for interactive analysis",
-        output_path
-    );
+    // Results are auto-exported when the guard drops at end of scope
+    println!("✓ Auto-export enabled (on drop)");
 
     Ok(())
 }

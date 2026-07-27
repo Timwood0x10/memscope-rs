@@ -1,6 +1,75 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+## [0.2.5] - 2026-07-27
+
+### ✨ Major Features
+
+- **feat**: Unified `start()/start_with()` one-line API — logging + global tracking + auto-export hooks in a single call
+  - `MemScopeGuard` — RAII guard that auto-exports on Drop (return from `main`)
+  - Automatic exit-path coverage: Drop guard, panic hook, Ctrl-C handler, and `libc::atexit`
+  - Idempotent `export_once()` latch ensures exactly one export across all exit paths
+  - `export_for_reason(ExportReason)` honors per-path flags (`on_exit`, `on_panic`)
+- **feat**: On-demand export API — `guard.export_now()`, `trigger_export_now()`, `guard.snapshot_json()`
+- **feat**: Periodic background flusher — background worker thread with configurable interval and graceful shutdown
+- **feat**: `MemScopeConfig` / `AutoExportConfig` — builder-style configuration for output path, formats, signal policy, flush interval, exit timeout
+- **feat**: `ExportFormatSet` — bitflags-style format selection (HTML, JSON, or both)
+- **feat**: New Cargo features — `auto-signal` (SIGINT handler via `ctrlc`), `atexit` (`libc::atexit`), `periodic` (background flusher)
+- **feat(dashboard)**: Real-time poll latency chart — `poll_latency_ms` values rendered as a D3 bar chart in the Threads mode
+- **feat(dashboard)**: Process CPU/memory metrics — live `cpu_percent` and `memory_bytes` displayed in a process info panel
+- **feat(dashboard)**: Smart pointer tracking and CPU core affinity support
+- **feat(dashboard)**: Allocation trend chart and unsafe source heatmap
+- **feat(dashboard)**: Template helpers (`render_methods.rs`, `helpers.rs`) for modular rendering
+
+### 🏗️ Architecture
+
+- **refactor**: New module `src/auto_export.rs` — config types, no dependencies
+- **refactor**: New module `src/lifecycle.rs` — export_once, panic hook, ctrlc handler, atexit, idempotency latch
+- **refactor**: New module `src/guard.rs` — MemScopeGuard, start/start_with, Deref to GlobalTracker
+- **refactor**: New module `src/periodic_flusher.rs` — background worker thread with Mutex<Option<JoinHandle>> shutdown
+- **refactor**: Consolidated dashboard templates to a single unified version
+- **refactor**: Split Dashboard renderer into event DTO, reconstruction, inference, report builder, shared types
+- **refactor**: `MemCtx::start()/start_with()` delegates to `guard::start/start_with` for backward compatibility
+- **refactor**: `GlobalTracker::with_config()` now passes `config.tracker` to `Tracker::with_config()`
+- **refactor**: `TrackerConfig` made `pub`; added `Tracker::with_config()` bridge method
+
+### 📝 Documentation
+
+- **docs**: Comprehensive README updates for English and Chinese
+  - Quick Start covers 4 patterns: CLI one-liner, long-service on-demand, periodic flush, full customization
+  - Backward compatibility explicitly documented
+- **docs**: Added `docs/articles/en/` and `docs/articles/zh/` — 10-article technical deep-dive series covering global alloc hook, TrackKind model, HeapScanner, relation inference, UTI engine, memory passport, ownership graph, render engine
+- **docs**: Added `STRENGTHENING_PLAN.md` — architectural strengthening plan
+
+### ✅ Testing
+
+- **test**: Added `tests/auto_export_e2e.rs` — 3 end-to-end integration tests
+  - `e2e_normal_exit` — normal Drop path
+  - `e2e_panic_exit` — panic hook path
+  - `e2e_ctrlc_exit` (Unix) — SIGINT handler path
+- **test**: Comprehensive unit tests for all new modules (Golden Trio: positive/negative/stress)
+  - `auto_export.rs`: proptest (1000 cases), builder methods, config defaults
+  - `lifecycle.rs`: stress (50 concurrent exports), idempotency, per-path flag gating, proptest
+  - `guard.rs`: stress (50 threads), drop ordering, deref ergonomics
+  - `periodic_flusher.rs`: loom concurrency models, stress (50 concurrent stops), timeout
+- **test**: All 12 examples rewritten to use `start()` API
+- **test**: Added `examples/auto_exit_demo.rs` — three-mode harness for e2e testing
+
+### 🛠 Bug Fixes
+
+- **fix**: Stale policy read in `install_ctrlc_handler` — policy now read inside the signal handler closure instead of at installation time
+- **fix(dashboard)**: Missing `</div>` tags restored for mode-variable and mode-timetravel sections
+- **fix(heap_scanner)**: Virtual pointer threshold raised from 1TB to 128PB for macOS
+- **fix(reconstruction)**: `clone_info_map` applied to all allocations after reconstruction
+- **fix(ci)**: Removed repository-level forced `sccache` and `mold` Cargo configuration
+
+### 🎨 Dashboard Improvements
+
+- **feat**: Interactive D3 zoom/pan/drag for Task Hierarchy Visualization
+- **feat**: Unsafe Call-Stack View grouped by source location
+- **feat**: Enhanced FFI Boundary Flow with timestamp-sorted color-coded events
+- **feat**: Thread Relationship Graph and detail panel
+- **feat**: `DataIndex` for O(1) frontend lookups
+- **feat**: Precision labels (EvidenceLevel, RiskConfidence, PointerProvenance, DropExpectation)
 
 ## [0.2.4] - 2026-06-03
 

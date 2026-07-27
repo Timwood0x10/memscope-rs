@@ -1,3 +1,88 @@
+## \[0.2.5] - 2026-07-27
+
+### 🎯 **统一的自动导出生命周期与简化启动 API**
+
+本次更新完全重构了库的入口体验。现在只需一次 `memscope_rs::start()` 调用即可完成日志、全局追踪和所有自动导出生命周期钩子（Drop guard、panic 钩子、Ctrl-C 处理器、`libc::atexit`）的初始化。原有的 `MemCtx::init()` API 保持完全向后兼容。
+
+#### ✨ 新 API
+
+- **feat**: 统一的 `start()/start_with()` — 一次调用初始化，返回 `MemScopeGuard` RAII guard
+  - `MemScopeGuard::drop()` 在正常返回、panic、Ctrl-C 或 `std::process::exit` 时触发幂等导出
+  - 幂等锁存器（`EXPORTED` AtomicBool）确保所有退出路径上恰好执行一次导出
+  - `export_for_reason(ExportReason)` 根据每个路径的启停标识（`on_exit`、`on_panic`）控制导出
+- **feat**: 按需导出 — `guard.export_now()`、`memscope_rs::trigger_export_now()`
+- **feat**: 内存 JSON 快照 — `guard.snapshot_json()`、`memscope_rs::snapshot_json()` — 不写磁盘，适合 HTTP 端点
+- **feat**: 定时后台刷新 — 可配置间隔的工作线程，支持优雅 `stop()` + 最终刷新
+- **feat**: `MemScopeConfig` / `AutoExportConfig` — 构建器风格配置：输出目录、格式、信号策略、刷新间隔、退出超时
+- **feat**: `ExportFormatSet` — bitflags 风格格式选择（HTML、JSON、`HTML_JSON`）
+- **feat**: 新增 Cargo features — `auto-signal`（通过可选 `ctrlc` 的 SIGINT 处理器）、`atexit`（`libc::atexit`）、`periodic`（后台刷新线程）
+- **feat**: `TrackerConfig` 改为 `pub`；新增 `Tracker::with_config()` 桥接方法
+- **feat**: `GlobalTracker::with_config()` 现在正确使用 `config.tracker` 而非 `Tracker::new()`
+
+#### 🏗️ 新模块
+
+- **`src/auto_export.rs`** — `SignalPolicy`、`ExportFormatSet`、`AutoExportConfig`、`MemScopeConfig`，含构建器方法和 serde 支持（~250 行 + 测试）
+- **`src/lifecycle.rs`** — `export_once()`、`export_for_reason()`、`trigger_export_now()`、`snapshot_json()`、panic 钩子链、ctrl-C 处理器、`libc::atexit`（~500 行 + 测试）
+- **`src/guard.rs`** — `MemScopeGuard` 含 `Deref<Target=GlobalTracker>`、`Drop`、`start()`、`start_with()`（~200 行 + 测试）
+- **`src/periodic_flusher.rs`** — 后台工作线程，`Mutex<Option<JoinHandle>>` 关闭模式，停止时最终刷新（~250 行 + 测试）
+
+#### 📝 文档
+
+- **README（中英文）**：完全重写快速开始部分，展示 4 种使用模式：
+  - CLI 一行启动（短生命周期程序）
+  - 长服务按需导出
+  - 长服务定时后台刷新
+  - 完整自定义配置
+  - 向后兼容性在新 API 旁明确说明
+- **docs/articles/**：新增 10 篇技术深度文章（中英文各 10 篇，共 20 个文件）：
+  1. Why memscope-rs exists
+  2. Global alloc hook
+  3. TrackKind model
+  4. HeapScanner
+  5. Relation inference
+  6. UTI engine
+  7. Memory passport
+  8. Ownership graph
+  9. Render engine
+  10. Conclusion
+- **docs/**：新增 `STRENGTHENING_PLAN.md` — 架构增强路线图
+
+#### ✅ 测试
+
+- **端到端测试**（`tests/auto_export_e2e.rs`）：
+  - `e2e_normal_exit`：guard Drop 触发导出，文件存在且非空
+  - `e2e_panic_exit`：panic 钩子在展开前触发导出，文件存在
+  - `e2e_ctrlc_exit`（Unix）：SIGINT 触发处理器，导出完成，退出码 130
+- **单元测试**（所有新模块采用 Golden Trio 模式）：
+  - `auto_export.rs`：proptest（每种属性 1000 例）、构建器链、配置默认值、线程安全
+  - `lifecycle.rs`：压力测试（50 个并发导出，仅一个胜出）、幂等性、per-path 标识门控、proptest（1000 个合法配置）、panic 钩子链、snapshot_json 错误处理
+  - `guard.rs`：压力测试（50 线程 start/track/drop）、drop 顺序（flusher → export）、deref 到 GlobalTracker
+  - `periodic_flusher.rs`：loom 并发模型（2 线程、3 线程 `Mutex<Option>` take-one 模式）、压力测试（50 个并发 stop）、负面测试（首次 tick 前 stop、重复 stop、零间隔 panic）
+- **示例重写**：全部 12 个示例从 `MemCtx::init()` 迁移到 `memscope_rs::start()`：
+  - `basic_usage.rs`、`global_tracker_showcase.rs`、`actix_web_server.rs`、`auto_exit_demo.rs`
+  - `complex_lifecycle_showcase.rs`、`complex_multithread_showcase.rs`、`comprehensive_async_showcase.rs`
+  - `merkle_tree.rs`、`real_world_demo.rs`、`unsafe_ffi_demo.rs`、`variable_relationships_showcase.rs`
+  - `unified_analyzer_demo.rs`（从 `init_global_tracking().unwrap()` 迁移到 `start()?`）
+- **新增 e2e 辅助工具**：`examples/auto_exit_demo.rs` — 三种运行模式（`normal`、`panic`、`sleep+SIGINT`）供 e2e 测试框架使用
+
+#### 🛠 Bug 修复
+
+- **fix(lifecycle)**: `install_ctrlc_handler` 中的策略读取时机问题 — 将策略读取移至信号处理器闭包内部，使第二次 `install()` 调用更新 `AUTO_EXPORT_CFG` 但因 `Once` 跳过处理器重新注册时，下次信号到来时仍能生效
+- **fix(clippy)**: `tests/auto_export_e2e.rs` — `&PathBuf` → `&Path` 以满足 `clippy::ptr_arg`
+
+#### Dashboard 与分析（自 0.2.4-dev 继承）
+
+- **feat(dashboard)**: 实时轮询延迟图表（D3 条形图）、进程 CPU/内存指标、智能指针跟踪、CPU 核心亲和性支持、分配趋势图、不安全来源热力图、模板助手模块化渲染
+- **feat(dashboard)**: 任务层次结构可视化支持交互式 D3 缩放/平移/拖拽
+- **feat(dashboard)**: 按源码位置聚合的不安全调用栈视图，支持展开组和风险徽章
+- **feat(dashboard)**: 增强的 FFI 边界流，按时间戳排序、颜色编码、不匹配高亮
+- **feat(dashboard)**: 线程关系图和详情面板
+- **feat(dashboard)**: `DataIndex` 实现 O(1) 前端查找；精度标签（EvidenceLevel、RiskConfidence、PointerProvenance、DropExpectation）
+- **feat(reconstruction)**: 分配 `generation_id` 用于地址复用检测
+- **refactor(renderer)**: 模板合并为单一统一版本；渲染器拆分为事件 DTO、重建、推理、报告构建器、共享类型模块
+
+---
+
 ## \[0.2.4] - 2026-06-03
 
 ### 🎯 **Dashboard 精度增强与发布稳定性改进**
