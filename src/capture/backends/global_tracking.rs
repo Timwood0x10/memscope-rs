@@ -68,6 +68,11 @@ impl Default for TrackerConfig {
 pub struct GlobalTrackerConfig {
     pub tracker: TrackerConfig,
     pub passport: PassportTrackerConfig,
+    // NOTE: Auto-export configuration lives exclusively on
+    // `MemScopeConfig.auto_export` and is consulted by `lifecycle::install`.
+    // Constructing a `GlobalTrackerConfig` directly and passing it to
+    // `init_global_tracking_with_config` does NOT enable auto-export; use
+    // `memscope_rs::start_with` for that.
 }
 
 pub struct GlobalTracker {
@@ -91,7 +96,13 @@ impl GlobalTracker {
     }
 
     pub fn with_config(config: GlobalTrackerConfig) -> Self {
-        let tracker = Tracker::new();
+        // Construct the underlying Tracker from `config.tracker` rather than
+        // `Tracker::new()` so the user-facing `TrackerConfig` fields
+        // (`max_allocations`, `enable_statistics`) flow through to the Tracker
+        // layer instead of being silently discarded. `Tracker::with_config`
+        // currently consumes them informationally; future enforcement lives
+        // there, not in this file.
+        let tracker = Tracker::with_config(config.tracker);
         let passport_tracker = Arc::new(MemoryPassportTracker::new(config.passport));
         let async_tracker = Arc::new(AsyncTracker::new());
         async_tracker.set_initialized();

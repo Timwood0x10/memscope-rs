@@ -5,6 +5,13 @@
 //! - Handling HTTP requests with tracked allocations
 //! - Graceful shutdown and report generation
 //!
+//! ## Setup
+//!
+//! Uses the one-line `memscope_rs::start()` entry point which installs the
+//! global tracker + panic / Ctrl-C / Drop auto-export hooks. The returned
+//! [`MemScopeGuard`] is held for the lifetime of `main`; dropping it on exit
+//! writes the dashboard + JSON to `./memscope-report/` automatically.
+//!
 //! ## New APIs Demonstrated
 //!
 //! - `spawn_tracked()`: Spawns server with automatic task context management
@@ -22,7 +29,6 @@ use actix_web::{get, post, web, App, HttpResponse, HttpServer};
 use memscope_rs::{
     analyzer,
     capture::backends::async_tracker::{spawn_tracked, TrackerContext},
-    prelude::*,
     track, MemScopeResult,
 };
 use serde::{Deserialize, Serialize};
@@ -263,8 +269,13 @@ async fn main() -> MemScopeResult<()> {
     println!("  Actix-Web Server Memory Tracking Demo      ");
     println!("==============================================\n");
 
-    // Initialize memory tracking.
-    let ctx = MemCtx::init()?;
+    // One-line start: logging + global tracker + auto-export hooks. The guard
+    // owns the lifecycle; dropping it (or panic / Ctrl-C) triggers the export
+    // to ./memscope-report/ automatically.
+    let _guard = memscope_rs::start()?;
+
+    // Use the global tracker handle directly for the rest of `main`.
+    let ctx = memscope_rs::global_tracker()?;
 
     println!("Memory tracking initialized.\n");
 
@@ -409,22 +420,20 @@ async fn main() -> MemScopeResult<()> {
     println!("\nMetrics:");
     println!("  Types: {}", metrics.by_type.len());
 
-    // Export reports.
-    println!("\n=== Exporting Reports ===\n");
-
-    let output_path = "MemoryAnalysis/actix_web_server";
-    ctx.export_json(output_path)?;
-    println!("  JSON report: {}/memory_snapshots.json", output_path);
-
-    ctx.export_html(output_path)?;
-    println!("  HTML dashboard: {}/dashboard.html", output_path);
+    // No explicit export: dropping `_guard` at the end of `main` triggers the
+    // exit-path export to ./memscope-report/ automatically.
+    println!("\n=== Auto-Export on Drop ===\n");
+    println!("Dashboard + JSON will be written to ./memscope-report/ on exit.");
 
     println!("\n==============================================");
     println!("  Demo Complete!                              ");
     println!("==============================================");
 
-    println!("\nOpen the HTML dashboard to visualize server memory usage.");
-    println!("Dashboard location: {}/dashboard.html", output_path);
+    println!("\nOpen ./memscope-report/dashboard_unified_dashboard.html to visualize server memory usage.");
+
+    // `_guard` drops here, triggering the exit-path export.
+    drop(_guard);
+    drop(ctx);
 
     Ok(())
 }

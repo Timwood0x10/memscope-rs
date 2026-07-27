@@ -152,7 +152,7 @@ pub struct DashboardContext {
     #[serde(default)]
     pub dependency_graph_nodes: Vec<DependencyNode>,
     /// Selected node detail panel data
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub selected_node_detail: Option<NodeDetailPanel>,
 
     /// Thread affinity hardware grid
@@ -199,6 +199,7 @@ pub struct OwnershipGraphInfo {
     /// Detected issues
     pub issues: Vec<OwnershipIssue>,
     /// Root cause if any
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub root_cause: Option<RootCauseInfo>,
 }
 

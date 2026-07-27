@@ -1,4 +1,4 @@
-//! Global Tracker Showcase - New API
+//! Global Tracker Showcase - Unified `start()` API
 //!
 //! This example demonstrates how to use the global tracker across all execution modes:
 //! - Single-threaded mode
@@ -6,9 +6,21 @@
 //! - Async mode
 //! - Unsafe/FFI mode
 //! - Task tracking with TaskIdRegistry
+//!
+//! ## Setup
+//!
+//! The example uses the one-line `memscope_rs::start()` entry point which:
+//! 1. Initializes the tracing subscriber.
+//! 2. Installs the global `GlobalTracker` singleton.
+//! 3. Wires the auto-export lifecycle hooks (panic / Ctrl-C / Drop).
+//!
+//! The returned [`MemScopeGuard`] derefs to [`GlobalTracker`], so `track!`
+//! works directly on it. On `main` return (or panic / Ctrl-C) the guard's
+//! `Drop` runs the idempotent exit-path export, writing the dashboard + JSON
+//! to `./memscope-report/`.
 
 use memscope_rs::task_registry::global_registry;
-use memscope_rs::{analyzer, prelude::*, MemScopeResult};
+use memscope_rs::{analyzer, MemScopeResult};
 
 use memscope_rs::track;
 
@@ -25,50 +37,53 @@ fn main() -> MemScopeResult<()> {
     println!("║        Global Tracker Showcase - New Unified API           ║");
     println!("╚════════════════════════════════════════════════════════════╝\n");
 
+    // One-line start: logging + global tracker + auto-export hooks. The guard
+    // owns the lifecycle; dropping it (or panic / Ctrl-C) triggers the export
+    // to ./memscope-report/ automatically.
+    let guard = memscope_rs::start()?;
+
     println!("📦 Section 1: Single-Threaded Mode\n");
     let single_start = Instant::now();
     {
-        let ctx = MemCtx::init()?;
-
         let v1 = vec![1i32, 2, 3, 4, 5];
         let v2 = v1.clone();
         let v3 = v2.clone();
-        track!(ctx, v1);
-        track!(ctx, v2);
-        track!(ctx, v3);
+        track!(guard, v1);
+        track!(guard, v2);
+        track!(guard, v3);
 
         let s1 = String::from("Hello, global tracking!");
         let s2 = s1.clone();
         let s3 = s2.clone();
-        track!(ctx, s1);
-        track!(ctx, s2);
-        track!(ctx, s3);
+        track!(guard, s1);
+        track!(guard, s2);
+        track!(guard, s3);
 
         let b1 = Box::new(42i64);
         let b2 = b1.clone();
-        track!(ctx, b1);
-        track!(ctx, b2);
+        track!(guard, b1);
+        track!(guard, b2);
 
         let arc1 = Arc::new(vec![1i32, 2, 3]);
         let arc2 = arc1.clone();
         let arc3 = arc1.clone();
-        track!(ctx, arc1);
-        track!(ctx, arc2);
-        track!(ctx, arc3);
+        track!(guard, arc1);
+        track!(guard, arc2);
+        track!(guard, arc3);
 
         let rc1 = Rc::new(String::from("Rc string"));
         let rc2 = rc1.clone();
         let rc3 = rc1.clone();
-        track!(ctx, rc1);
-        track!(ctx, rc2);
-        track!(ctx, rc3);
+        track!(guard, rc1);
+        track!(guard, rc2);
+        track!(guard, rc3);
 
         let boxed_vec = Box::new(vec![1i32, 2, 3, 4, 5]);
         let owned_string = String::from("Owned string");
         let cloned_vec = boxed_vec.clone();
-        track!(ctx, boxed_vec);
-        track!(ctx, owned_string);
-        track!(ctx, cloned_vec);
+        track!(guard, boxed_vec);
+        track!(guard, owned_string);
+        track!(guard, cloned_vec);
 
         println!("✓ Tracked 18 allocations with clones and smart pointers");
     }
@@ -265,38 +280,17 @@ fn main() -> MemScopeResult<()> {
     println!("\nMetrics:");
     println!("  Types: {}", metrics.by_type.len());
 
-    println!("\n📦 Section 8: Export (simplified API)\n");
-    let output_path = "MemoryAnalysis/global_tracker_showcase";
-
-    let ctx = memscope_rs::global_tracker()?;
-
-    // Export JSON files (simplified)
-    ctx.export_json(output_path)?;
-
-    // Export HTML dashboard (single merged template)
-    ctx.export_html_with_template(
-        output_path,
-        memscope_rs::render_engine::export::DashboardTemplate::Unified,
-    )?;
-
-    println!("✓ Export successful!");
-    println!("  memory_snapshots.json");
-    println!("  memory_passports.json");
-    println!("  leak_detection.json");
-    println!("  unsafe_ffi_analysis.json");
-    println!("  system_resources.json");
-    println!("  async_analysis.json");
-    println!("  dashboard_unified_dashboard.html");
+    // On-demand snapshot: no disk write, just an in-memory JSON string.
+    let snapshot = guard.snapshot_json()?;
+    println!("\n📦 Section 8: On-demand snapshot (no disk write)\n");
+    println!("  snapshot JSON length: {} bytes", snapshot.len());
 
     println!("\n✓ All modes completed successfully!");
-    println!(
-        "\n🆕 Open {}/dashboard_unified_dashboard.html for the merged multi-mode dashboard!",
-        output_path
-    );
-    println!(
-        "📄 Or open {}/dashboard_unified_dashboard.html for the original dashboard.",
-        output_path
-    );
+    println!("\n🆕 Drop will write dashboard + JSON to ./memscope-report/");
+
+    // `_guard` drops here, triggering the exit-path export to
+    // ./memscope-report/dashboard_unified_dashboard.html + memory_analysis.json.
+    drop(guard);
     Ok(())
 }
 

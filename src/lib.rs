@@ -61,11 +61,28 @@ pub mod view;
 /// Ergonomics wrapper — one-call init + simplified export
 pub mod mem_ctx;
 
+/// Auto-export configuration (output path, formats, signal policy, flush interval).
+pub mod auto_export;
+/// RAII guard returned by `start()` / `start_with()`; drops trigger exit export.
+pub mod guard;
+/// Lifecycle hooks: idempotent `export_once` + panic/ctrlc/atexit handlers.
+pub mod lifecycle;
+/// Periodic background flusher (worker thread + graceful shutdown + final flush).
+pub mod periodic_flusher;
+
 /// Re-exports for ergonomic usage
 pub mod prelude {
+    pub use crate::auto_export::{AutoExportConfig, ExportFormatSet, MemScopeConfig, SignalPolicy};
+    pub use crate::guard::{start, start_with, MemScopeGuard};
+    pub use crate::lifecycle::ExportReason;
     pub use crate::mem_ctx::MemCtx;
     pub use crate::{track, track_clone, MemScopeResult};
 }
+
+// Re-export the unified one-line start API + on-demand helpers at crate root.
+pub use crate::auto_export::{AutoExportConfig, ExportFormatSet, MemScopeConfig, SignalPolicy};
+pub use crate::guard::{start, start_with, MemScopeGuard};
+pub use crate::lifecycle::{export_for_reason, snapshot_json, trigger_export_now, ExportReason};
 
 /// Initialize logging system for memscope-rs.
 ///

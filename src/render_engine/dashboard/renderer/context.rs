@@ -844,7 +844,7 @@ fn build_task_topology_nodes(async_tasks: &[AsyncTaskInfo]) -> Vec<TaskTopologyN
     let cols_per_row = 6usize;
     let rows = ((total as f64) / (cols_per_row as f64)).ceil() as usize;
     let row_height = 25.0; // percentage spacing between rows
-    let base_y = 30.0;     // starting Y offset
+    let base_y = 30.0; // starting Y offset
 
     for (i, t) in async_tasks.iter().enumerate().take(total) {
         let id = format!("0x{:02X}", i + 1);
@@ -857,7 +857,11 @@ fn build_task_topology_nodes(async_tasks: &[AsyncTaskInfo]) -> Vec<TaskTopologyN
         };
 
         let y_pct = base_y + (row as f64) * row_height;
-        let spacing = if count_in_row > 1 { 80.0 / (count_in_row as f64) } else { 0.0 };
+        let spacing = if count_in_row > 1 {
+            80.0 / (count_in_row as f64)
+        } else {
+            0.0
+        };
         let x_pct = if count_in_row <= 1 {
             50.0
         } else {
@@ -909,7 +913,12 @@ fn build_task_topology_edges(async_tasks: &[AsyncTaskInfo]) -> Vec<TaskTopologyE
 
     // Connect deeper rows to their sibling above (if any)
     if total > cols_per_row {
-        for (i, t) in async_tasks.iter().enumerate().skip(cols_per_row).take(total - cols_per_row) {
+        for (i, t) in async_tasks
+            .iter()
+            .enumerate()
+            .skip(cols_per_row)
+            .take(total - cols_per_row)
+        {
             let child_id = format!("0x{:02X}", i + 1);
             let parent_idx = (i - cols_per_row) % cols_per_row;
             let parent_id = format!("0x{:02X}", parent_idx + 1);
