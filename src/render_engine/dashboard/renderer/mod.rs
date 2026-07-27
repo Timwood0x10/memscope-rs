@@ -8,9 +8,11 @@ mod event_dto;
 mod event_reconstructor;
 mod helpers;
 mod inference;
+#[allow(dead_code)]
 mod render_methods;
 mod report_builder;
 mod system_info;
+mod template_registry;
 mod types;
 
 pub use types::*;
@@ -18,37 +20,160 @@ pub use types::*;
 // Re-export for external use
 pub use event_dto::{build_data_index, DashboardEventDTO, DataIndex, EventSummary};
 pub use event_reconstructor::rebuild_allocations_from_events;
+pub use template_registry::{
+    DashboardTemplate as RegisteredTemplate, TemplateKind, TemplateRegistry,
+};
 
 use crate::analysis::memory_passport_tracker::MemoryPassportTracker;
 use crate::tracker::Tracker;
 use handlebars::Handlebars;
+use std::path::PathBuf;
 use std::sync::Arc;
 
-/// Dashboard renderer
+/// CDN asset scripts embedded at compile time for offline use
+const TAILWIND_SCRIPT: &str = include_str!("../templates/assets/tailwind.min.js");
+const CHART_SCRIPT: &str = include_str!("../templates/assets/chart.min.js");
+const D3_SCRIPT: &str = include_str!("../templates/assets/d3.min.js");
+const FONTS_CSS: &str = include_str!("../templates/assets/fonts.css");
+
+/// Dashboard renderer with template registry support
 pub struct DashboardRenderer {
     handlebars: Handlebars<'static>,
+    /// Template registry for managing multiple templates
+    template_registry: Option<TemplateRegistry>,
 }
 
 impl DashboardRenderer {
-    /// Create a new dashboard renderer
+    /// Create a new dashboard renderer (built-in templates only)
     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
+        Self::with_external_templates(None)
+    }
+
+    /// Create a new dashboard renderer with optional external template directory
+    ///
+    /// The single built-in merged dashboard template lives at
+    /// `src/render_engine/dashboard/templates/dashboard_unified.html`.
+    /// External templates (if any) are loaded from `<manifest>/templetes/<dir>/code.html`.
+    pub fn with_external_templates(
+        templetes_dir: Option<PathBuf>,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let external_dir = templetes_dir.unwrap_or_else(|| manifest_dir.join("templetes"));
+
+        // Build template registry from the single merged built-in template.
+        // The templates_dir argument is unused now (kept only for API stability);
+        // pass a placeholder that TemplateRegistry will ignore.
+        let mut registry = TemplateRegistry::with_built_in_templates(&manifest_dir)?;
+
+        // Always try to load external templates
+        registry.set_external_base(external_dir.clone());
+        registry.load_external_templates(&external_dir)?;
+
+        // For backward compatibility, keep a separate handlebars for old/direct template names
         let mut handlebars = Handlebars::new();
-
-        let template_path = format!(
-            "{}/src/render_engine/dashboard/templates/dashboard_unified.html",
-            env!("CARGO_MANIFEST_DIR")
-        );
-        handlebars.register_template_file("dashboard_unified", &template_path)?;
-
-        let final_path = format!(
-            "{}/src/render_engine/dashboard/templates/dashboard_final.html",
-            env!("CARGO_MANIFEST_DIR")
-        );
-        handlebars.register_template_file("dashboard_final", &final_path)?;
-
         helpers::register_helpers(&mut handlebars);
 
-        Ok(Self { handlebars })
+        Ok(Self {
+            handlebars,
+            template_registry: Some(registry),
+        })
+    }
+
+    /// Render using the template registry (new API)
+    ///
+    /// Injects embedded asset scripts (tailwind, fonts, chart, d3) into the context
+    /// so templates can use `{{{tailwind_script}}}`, `{{{fonts_css}}}`, etc.
+    pub fn render_with_template(
+        &self,
+        template_id: &str,
+        context: &DashboardContext,
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        let registry = self
+            .template_registry
+            .as_ref()
+            .ok_or("Template registry not initialized")?;
+
+        let mut data = serde_json::to_value(context)
+            .map_err(|e| format!("Failed to serialize context: {}", e))?;
+
+        // Inject asset scripts
+        if let Some(obj) = data.as_object_mut() {
+            obj.insert(
+                "tailwind_script".to_string(),
+                serde_json::Value::String(TAILWIND_SCRIPT.to_string()),
+            );
+            obj.insert(
+                "chart_script".to_string(),
+                serde_json::Value::String(CHART_SCRIPT.to_string()),
+            );
+            obj.insert(
+                "d3_script".to_string(),
+                serde_json::Value::String(D3_SCRIPT.to_string()),
+            );
+            obj.insert(
+                "fonts_css".to_string(),
+                serde_json::Value::String(FONTS_CSS.to_string()),
+            );
+            // Inject formatted poll latency field (not a native field on DashboardContext)
+            let poll_raw = context.poll_latency_mean_ms;
+            let poll_fmt = if poll_raw > 0.0 {
+                format!("{:.2}", poll_raw)
+            } else {
+                "—".to_string()
+            };
+            obj.insert(
+                "poll_latency_mean_ms_fmt".to_string(),
+                serde_json::Value::String(poll_fmt),
+            );
+            // Inject thread_memory_total_fmt (not a native field on DashboardContext)
+            let thread_mem_total: usize =
+                context.threads.iter().map(|t| t.current_memory_bytes).sum();
+            let thread_mem_fmt = if thread_mem_total >= 1_000_000 {
+                format!("{:.1} MB", thread_mem_total as f64 / 1_000_000.0)
+            } else if thread_mem_total >= 1_000 {
+                format!("{:.1} KB", thread_mem_total as f64 / 1_000.0)
+            } else {
+                format!("{} B", thread_mem_total)
+            };
+            obj.insert(
+                "thread_memory_total".to_string(),
+                serde_json::Value::Number(thread_mem_total.into()),
+            );
+            obj.insert(
+                "thread_memory_total_fmt".to_string(),
+                serde_json::Value::String(thread_mem_fmt),
+            );
+            // Inject total_smart_pointers (native field, but needed in template_data)
+            obj.insert(
+                "total_smart_pointers".to_string(),
+                serde_json::Value::Number(context.circular_references.total_smart_pointers.into()),
+            );
+            // Smart pointer type breakdown
+            let mut sp_breakdown: std::collections::BTreeMap<String, usize> =
+                std::collections::BTreeMap::new();
+            for alloc in &context.allocations {
+                if alloc.is_smart_pointer {
+                    *sp_breakdown
+                        .entry(alloc.smart_pointer_type.clone())
+                        .or_insert(0) += 1;
+                }
+            }
+            obj.insert(
+                "smart_pointer_breakdown".to_string(),
+                serde_json::to_value(&sp_breakdown)
+                    .unwrap_or(serde_json::Value::Object(Default::default())),
+            );
+        }
+
+        registry.render(template_id, &data)
+    }
+
+    /// List available template IDs
+    pub fn list_templates(&self) -> Vec<String> {
+        match &self.template_registry {
+            Some(reg) => reg.template_ids(),
+            None => vec!["dashboard_unified".to_string()],
+        }
     }
 
     /// Build dashboard context from tracker data
@@ -96,20 +221,20 @@ impl DashboardRenderer {
         self.render_unified_dashboard(context)
     }
 
-    /// Render unified dashboard (multi-mode in single HTML)
+    /// Render unified dashboard — uses the merged dashboard_unified template
     pub fn render_unified_dashboard(
         &self,
         context: &DashboardContext,
     ) -> Result<String, Box<dyn std::error::Error>> {
-        render_methods::render_unified_dashboard(&self.handlebars, context)
+        self.render_with_template("dashboard_unified", context)
     }
 
-    /// Render final dashboard (new investigation console template)
+    /// Render final dashboard — now delegates to the same unified template
     pub fn render_final_dashboard(
         &self,
         context: &DashboardContext,
     ) -> Result<String, Box<dyn std::error::Error>> {
-        render_methods::render_final_dashboard(&self.handlebars, context)
+        self.render_with_template("dashboard_unified", context)
     }
 
     /// Render binary dashboard (legacy template)
@@ -192,6 +317,9 @@ mod tests {
                 available_physical: "0 B".to_string(),
                 used_physical: "0 B".to_string(),
                 page_size: 4096,
+                cpu_usage_pct: 0.0,
+                total_physical_bytes: 0,
+                used_physical_bytes: 0,
             },
             threads: vec![],
             async_tasks: vec![],
@@ -201,6 +329,10 @@ mod tests {
                 total_allocations: 0,
                 total_memory_bytes: 0,
                 peak_memory_bytes: 0,
+                completed: 0,
+                leaked: 0,
+                zombie: 0,
+                success_rate: 0.0,
             },
             health_score: 100,
             health_status: "Good".to_string(),
@@ -232,6 +364,33 @@ mod tests {
                 has_cycles: false,
             },
             task_graph_json: "{}".to_string(),
+            ffi_call_topology: Default::default(),
+            symbol_table: vec![],
+            symbol_table_count: 0,
+            stack_integrity: Default::default(),
+            resource_bars: vec![],
+            thread_timeline: vec![],
+            thread_timeline_count: 0,
+            waker_efficiency_grid: vec![],
+            poll_latency_mean_ms: 0.0,
+            poll_latency_samples: vec![],
+            task_topology_nodes: vec![],
+            task_topology_nodes_count: 0,
+            task_topology_edges: vec![],
+            task_topology_edges_count: 0,
+            streaming_topology_stats: Default::default(),
+            trace_logs: vec![],
+            neighbor_density_histogram: vec![],
+            dependency_graph_nodes: vec![],
+            selected_node_detail: None,
+            thread_affinity_grid: vec![],
+            scheduler_lag_bars: vec![],
+            scheduler_lag_ms: 0,
+            migration_rate_pct: 0.0,
+            system_uptime_formatted: String::new(),
+            thread_event_log: vec![],
+            thread_policies: vec![],
+            resource_limits: vec![],
         }
     }
 

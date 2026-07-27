@@ -17,24 +17,30 @@ use tempfile::TempDir;
 // ============================================================================
 
 #[test]
-fn test_dashboard_template_unified_to_string() {
-    let template = DashboardTemplate::Unified;
-    assert_eq!(template.to_string(), "dashboard_unified");
-}
-
-#[test]
-fn test_dashboard_template_final_to_string() {
-    let template = DashboardTemplate::Final;
-    assert_eq!(template.to_string(), "dashboard_final");
-}
-
-#[test]
-fn test_dashboard_template_default() {
+fn test_dashboard_template_default_is_unified() {
     let template = DashboardTemplate::default();
-    assert!(matches!(
-        template,
-        DashboardTemplate::Unified | DashboardTemplate::Final
-    ));
+    assert_eq!(template, DashboardTemplate::Unified);
+}
+
+#[test]
+fn test_dashboard_template_to_string() {
+    assert_eq!(DashboardTemplate::Unified.to_string(), "dashboard_unified");
+    assert_eq!(
+        DashboardTemplate::Custom("foo".to_string()).to_string(),
+        "foo"
+    );
+}
+
+#[test]
+fn test_dashboard_template_ids() {
+    assert_eq!(
+        DashboardTemplate::Unified.template_id(),
+        "dashboard_unified"
+    );
+    assert_eq!(
+        DashboardTemplate::Custom("bar".to_string()).template_id(),
+        "bar"
+    );
 }
 
 // ============================================================================

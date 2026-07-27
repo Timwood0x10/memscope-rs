@@ -150,7 +150,7 @@ impl Clone for Tracker {
 }
 
 #[derive(Debug, Clone)]
-struct TrackerConfig {
+pub struct TrackerConfig {
     sampling: SamplingConfig,
     auto_export_on_drop: bool,
     export_path: Option<String>,
@@ -169,6 +169,30 @@ impl Tracker {
             start_time: Instant::now(),
             system_snapshots: Arc::new(Mutex::new(Vec::new())),
         }
+    }
+
+    /// Construct a `Tracker` from a [`global_tracking::TrackerConfig`].
+    ///
+    /// This is the bridge between the user-facing `GlobalTrackerConfig.tracker`
+    /// field and the internal `Tracker` construction. Currently the underlying
+    /// `MemoryTracker` does not honor `max_allocations` (it is unbounded by
+    /// design), so this method consumes the config without applying that knob.
+    /// `enable_statistics` is implicitly always true — the tracker always
+    /// collects statistics; future implementations may gate this.
+    ///
+    /// The method exists so that `GlobalTracker::with_config` does not silently
+    /// discard its `config.tracker` field.
+    ///
+    /// [`global_tracking::TrackerConfig`]: crate::capture::backends::global_tracking::TrackerConfig
+    pub fn with_config(config: crate::capture::backends::global_tracking::TrackerConfig) -> Self {
+        tracing::debug!(
+            target: "memscope::tracker",
+            max_allocations = config.max_allocations,
+            enable_statistics = config.enable_statistics,
+            "constructing Tracker from GlobalTrackerConfig.tracker \
+             (currently informational; fields are reserved for future enforcement)",
+        );
+        Self::new()
     }
 
     pub fn global() -> Self {

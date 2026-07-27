@@ -24,6 +24,8 @@ memscope-rs tracks memory allocations in Rust applications with **real data**, n
 - **Task Memory Attribution** — Track memory by task/async context
 - **Dashboard Visualization** — Interactive HTML reports
 
+![dashboard](./images/1.png)
+
 ## Performance
 
 | Metric | Value |
@@ -227,6 +229,99 @@ Like any runtime tool, memscope-rs has constraints:
 
 ## Quick Start
 
+The library provides two tiers of API. The new **unified `start()` API** is the recommended entry point — it initializes logging, global tracking, and auto-export hooks in one call. The legacy `MemCtx::init()` API remains fully supported for backward compatibility.
+
+### 🚀 One-Line Start (CLI / Short-Lived Programs)
+
+For batch tools, tests, or short-lived programs where you want everything exported on exit:
+
+```rust
+use memscope_rs::prelude::*;
+
+fn main() -> MemScopeResult<()> {
+    let _guard = start()?;            // logging + global tracker + auto-export hooks
+
+    let data = vec![1, 2, 3, 4, 5];
+    track!(_guard, data);             // auto-derefs to GlobalTracker
+
+    // On return (or panic / Ctrl-C), the guard's Drop writes HTML+JSON
+    // to ./memscope-report/ automatically. No explicit export call needed.
+    Ok(())
+}
+```
+
+### 🏗️ Long-Running Service (On-Demand Export)
+
+For servers or daemons that need to export at specific checkpoints:
+
+```rust
+use memscope_rs::prelude::*;
+
+fn main() -> MemScopeResult<()> {
+    let guard = start()?;             // keep guard alive for the service lifetime
+
+    // On-demand export whenever needed
+    guard.export_now()?;              // writes HTML+JSON to ./memscope-report/
+
+    // In-memory JSON snapshot — no disk I/O, ideal for HTTP endpoints
+    let snapshot = guard.snapshot_json()?; // returns String
+    println!("Current report: {} bytes", snapshot.len());
+
+    // Keep tracking...
+    // On graceful shutdown, the guard's Drop still exports one last time.
+    Ok(())
+}
+```
+
+### ⏰ Long-Running Service (Periodic Background Flush)
+
+For services that want continuous monitoring without manual intervention:
+
+```rust
+use std::time::Duration;
+use memscope_rs::prelude::*;
+
+fn main() -> MemScopeResult<()> {
+    let guard = start_with(
+        MemScopeConfig::default().with_auto_export(
+            AutoExportConfig::default()
+                .with_flush_interval(Duration::from_secs(300))  // every 5 minutes
+        )
+    )?;
+
+    // A background worker thread flushes the report every 5 minutes.
+    // On shutdown, the worker performs one final flush before the guard drops.
+    // track! works as usual through Deref.
+
+    Ok(())
+}
+```
+
+### 🎛️ Full Customization
+
+```rust
+use std::time::Duration;
+use memscope_rs::prelude::*;
+
+let config = MemScopeConfig::default()
+    .with_auto_export(
+        AutoExportConfig::default()
+            .with_output_path("./my-reports")           // custom output dir
+            .with_formats(ExportFormatSet::JSON)         // JSON only, no HTML
+            .with_on_exit(false)                         // don't export on drop
+            .with_on_panic(true)                         // still export on panic
+            .with_signal_policy(SignalPolicy::Off)       // no signal handler
+            .with_flush_interval(Duration::from_secs(60)) // every 60s
+            .with_exit_timeout(Duration::from_secs(10)), // max wait on shutdown
+    );
+
+let guard = start_with(config)?;
+```
+
+### 📋 Manual Setup (Backward Compatible)
+
+The legacy `init_global_tracking` / `MemCtx::init()` API continues to work unchanged:
+
 ```rust
 use memscope_rs::{global_tracker, init_global_tracking, track, MemScopeResult};
 
@@ -414,12 +509,9 @@ graph TB
 - **Unified Error Handling**: No more `unwrap()`
 - **Performance**: Up to 98% improvement in concurrent scenarios
 
-### Statistics (vs master)
+### Planned / Future
 
-- **66 files changed**
-- **7,049 lines added**, 231 lines removed
-- **New modules**: TrackKind, OwnershipAnalyzer, TaskRegistry
-- **New docs**: Smart Pointer Tracking, Compile-time Enhancement, Rust Ownership Semantics
+- **Dynamic Type (VTable) Tracking** — Detect `dyn Trait` (trait-object) allocations at runtime and report vtable size, method dispatch overhead, and type-erasure patterns. Requires compiler-level instrumentation or a custom `GlobalAlloc` hook capable of identifying fat-pointer vtable entries. Not yet implemented; the data structures (`DynamicTypeInfo`, `VTableInfo`, `DispatchOverhead`) are defined in `src/capture/types/dynamic_type.rs` as a design placeholder for future work.
 
 ---
 

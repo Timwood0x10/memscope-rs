@@ -5,6 +5,13 @@
 //! - Handling HTTP requests with tracked allocations
 //! - Graceful shutdown and report generation
 //!
+//! ## Setup
+//!
+//! Uses the one-line `memscope_rs::start()` entry point which installs the
+//! global tracker + panic / Ctrl-C / Drop auto-export hooks. The returned
+//! [`MemScopeGuard`] is held for the lifetime of `main`; dropping it on exit
+//! writes the dashboard + JSON to `./memscope-report/` automatically.
+//!
 //! ## New APIs Demonstrated
 //!
 //! - `spawn_tracked()`: Spawns server with automatic task context management
@@ -22,7 +29,7 @@ use actix_web::{get, post, web, App, HttpResponse, HttpServer};
 use memscope_rs::{
     analyzer,
     capture::backends::async_tracker::{spawn_tracked, TrackerContext},
-    global_tracker, init_global_tracking, track, MemScopeResult,
+    track, MemScopeResult,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -189,10 +196,7 @@ async fn get(
 }
 
 /// Simulates client requests to the server.
-async fn simulate_client_requests(
-    _tracker: Arc<memscope_rs::GlobalTracker>,
-    store: Arc<parking_lot::Mutex<DataStore>>,
-) -> MemScopeResult<()> {
+async fn simulate_client_requests(store: Arc<parking_lot::Mutex<DataStore>>) -> MemScopeResult<()> {
     println!("\n=== Simulating Client Requests ===\n");
 
     // Demonstrate TrackerContext
@@ -215,11 +219,11 @@ async fn simulate_client_requests(
     // Spawn tracked task for data insertion
     let store_for_insert = Arc::clone(&store);
     let _insert_handle = spawn_tracked(async move {
-        let tracker = global_tracker().unwrap();
+        let ctx = memscope_rs::global_tracker().unwrap();
         for (key, value) in &test_data {
             let mut store = store_for_insert.lock();
             let data = value.as_bytes().to_vec();
-            track!(tracker, data);
+            track!(ctx, data);
             store.insert(key.to_string(), data);
             println!("  Inserted {}: {} bytes", key, value.len());
         }
@@ -230,13 +234,13 @@ async fn simulate_client_requests(
     // Simulate repeated access patterns in a tracked task
     let store_for_access = Arc::clone(&store);
     let _access_handle = spawn_tracked(async move {
-        let tracker = global_tracker().unwrap();
+        let ctx = memscope_rs::global_tracker().unwrap();
         for i in 0..20 {
             let key = format!("temp_{}", i);
             let value = vec![i as u8; 1024]; // 1 KB per temp item
 
             let mut store = store_for_access.lock();
-            track!(tracker, value);
+            track!(ctx, value);
             store.insert(key, value);
 
             if i % 5 == 0 {
@@ -265,30 +269,35 @@ async fn main() -> MemScopeResult<()> {
     println!("  Actix-Web Server Memory Tracking Demo      ");
     println!("==============================================\n");
 
-    // Initialize memory tracking.
-    init_global_tracking()?;
-    let tracker = global_tracker()?;
+    // One-line start: logging + global tracker + auto-export hooks. The guard
+    // owns the lifecycle; dropping it (or panic / Ctrl-C) triggers the export
+    // to ./memscope-report/ automatically.
+    let _guard = memscope_rs::start()?;
+
+    // Use the global tracker handle directly for the rest of `main`.
+    let ctx = memscope_rs::global_tracker()?;
 
     println!("Memory tracking initialized.\n");
 
     // Create shared data store.
     let store = Arc::new(parking_lot::Mutex::new(DataStore::new()));
     let store_clone = Arc::clone(&store);
-    let tracker_clone = Arc::clone(&tracker);
 
     // Track the data store.
     {
         let store_guard = store.lock();
-        track!(tracker, store_guard.data);
+        track!(ctx, store_guard.data);
     }
 
     // Start the server in a background task.
     println!("Starting actix-web server on http://127.0.0.1:8080...\n");
 
+    let tracker_for_server = memscope_rs::global_tracker()?;
+
     let server = HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(Arc::clone(&store_clone)))
-            .app_data(web::Data::new(Arc::clone(&tracker_clone)))
+            .app_data(web::Data::new(Arc::clone(&tracker_for_server)))
             .service(health)
             .service(server_stats)
             .service(insert)
@@ -308,7 +317,7 @@ async fn main() -> MemScopeResult<()> {
     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 
     // Simulate client requests.
-    simulate_client_requests(Arc::clone(&tracker), Arc::clone(&store)).await?;
+    simulate_client_requests(Arc::clone(&store)).await?;
 
     // Make some HTTP requests.
     println!("\n=== Making HTTP Requests ===\n");
@@ -383,7 +392,7 @@ async fn main() -> MemScopeResult<()> {
     // Generate memory analysis report.
     println!("=== Memory Analysis Report ===\n");
 
-    let mem_stats = tracker.get_stats();
+    let mem_stats = ctx.get_stats();
     println!("  Total allocations: {}", mem_stats.total_allocations);
     println!("  Active allocations: {}", mem_stats.active_allocations);
     println!("  Peak memory usage: {} bytes", mem_stats.peak_memory_bytes);
@@ -391,7 +400,7 @@ async fn main() -> MemScopeResult<()> {
 
     // Use the unified Analyzer API
     println!("\n=== Unified Analyzer API ===\n");
-    let mut az = analyzer(&tracker)?;
+    let mut az = analyzer(&ctx)?;
 
     // Full analysis
     let report = az.analyze();
@@ -411,22 +420,20 @@ async fn main() -> MemScopeResult<()> {
     println!("\nMetrics:");
     println!("  Types: {}", metrics.by_type.len());
 
-    // Export reports.
-    println!("\n=== Exporting Reports ===\n");
-
-    let output_path = "MemoryAnalysis/actix_web_server";
-    tracker.export_json(output_path)?;
-    println!("  JSON report: {}/memory_snapshots.json", output_path);
-
-    tracker.export_html(output_path)?;
-    println!("  HTML dashboard: {}/dashboard.html", output_path);
+    // No explicit export: dropping `_guard` at the end of `main` triggers the
+    // exit-path export to ./memscope-report/ automatically.
+    println!("\n=== Auto-Export on Drop ===\n");
+    println!("Dashboard + JSON will be written to ./memscope-report/ on exit.");
 
     println!("\n==============================================");
     println!("  Demo Complete!                              ");
     println!("==============================================");
 
-    println!("\nOpen the HTML dashboard to visualize server memory usage.");
-    println!("Dashboard location: {}/dashboard.html", output_path);
+    println!("\nOpen ./memscope-report/dashboard_unified_dashboard.html to visualize server memory usage.");
+
+    // `_guard` drops here, triggering the exit-path export.
+    drop(_guard);
+    drop(ctx);
 
     Ok(())
 }

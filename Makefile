@@ -99,22 +99,22 @@ clean:
 .PHONY: test
 test:
 	@echo "$(BLUE)Running all tests...$(NC)"
-	$(CARGO) test --workspace -- --test-threads=1
+	$(CARGO) nextest run --workspace --test-threads 1
 
 .PHONY: test-unit
 test-unit:
 	@echo "$(BLUE)Running unit tests...$(NC)"
-	$(CARGO) test --lib --workspace -- --test-threads=1
+	$(CARGO) nextest run --workspace --test-threads 1 -E 'kind(lib)'
 
 .PHONY: test-integration
 test-integration:
 	@echo "$(BLUE)Running integration tests...$(NC)"
-	$(CARGO) test --test '*' --workspace -- --test-threads=1
+	$(CARGO) nextest run --workspace --test-threads 1 -E 'kind(test)'
 
 .PHONY: test-verbose
 test-verbose:
 	@echo "$(BLUE)Running tests (verbose)...$(NC)"
-	$(CARGO) test --tests -- --test-threads=1 --nocapture
+	$(CARGO) nextest run --workspace --no-capture --test-threads 1
 
 # Benchmarking
 .PHONY: bench

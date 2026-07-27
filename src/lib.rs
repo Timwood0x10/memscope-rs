@@ -58,6 +58,32 @@ pub mod variable_registry;
 /// View Module - Unified read-only access to memory data
 pub mod view;
 
+/// Ergonomics wrapper — one-call init + simplified export
+pub mod mem_ctx;
+
+/// Auto-export configuration (output path, formats, signal policy, flush interval).
+pub mod auto_export;
+/// RAII guard returned by `start()` / `start_with()`; drops trigger exit export.
+pub mod guard;
+/// Lifecycle hooks: idempotent `export_once` + panic/ctrlc/atexit handlers.
+pub mod lifecycle;
+/// Periodic background flusher (worker thread + graceful shutdown + final flush).
+pub mod periodic_flusher;
+
+/// Re-exports for ergonomic usage
+pub mod prelude {
+    pub use crate::auto_export::{AutoExportConfig, ExportFormatSet, MemScopeConfig, SignalPolicy};
+    pub use crate::guard::{start, start_with, MemScopeGuard};
+    pub use crate::lifecycle::ExportReason;
+    pub use crate::mem_ctx::MemCtx;
+    pub use crate::{track, track_clone, MemScopeResult};
+}
+
+// Re-export the unified one-line start API + on-demand helpers at crate root.
+pub use crate::auto_export::{AutoExportConfig, ExportFormatSet, MemScopeConfig, SignalPolicy};
+pub use crate::guard::{start, start_with, MemScopeGuard};
+pub use crate::lifecycle::{export_for_reason, snapshot_json, trigger_export_now, ExportReason};
+
 /// Initialize logging system for memscope-rs.
 ///
 /// This function sets up the tracing subscriber with appropriate filtering
@@ -93,20 +119,15 @@ pub fn init_logging() -> MemScopeResult<()> {
 
     static INIT: std::sync::Once = std::sync::Once::new();
 
-    let mut result = Ok(());
+    let result = Ok(());
     INIT.call_once(|| {
-        let filter = match "memscope_rs=info".parse::<tracing::Level>() {
-            Ok(level) => EnvFilter::from_default_env()
-                .add_directive(tracing::Level::INFO.into())
-                .add_directive(level.into()),
-            Err(_) => {
-                result = Err(MemScopeError::config(
-                    "logging",
-                    "Failed to parse default log level directive",
-                ));
-                return;
-            }
-        };
+        let filter = EnvFilter::from_default_env()
+            .add_directive(tracing::Level::INFO.into())
+            .add_directive(
+                "memscope_rs=info"
+                    .parse()
+                    .unwrap_or(tracing::Level::INFO.into()),
+            );
 
         fmt()
             .with_env_filter(filter)

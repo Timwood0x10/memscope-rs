@@ -5,10 +5,10 @@
 //! - Tracking allocations across function boundaries
 //! - Analyzing memory hotspots and patterns
 //! - Exporting comprehensive memory reports
+//!
+//! Uses the `memscope_rs::start()` API to initialize tracking.
 
-use memscope_rs::{
-    analyzer, global_tracker, init_global_tracking, init_logging, track, MemScopeResult,
-};
+use memscope_rs::{analyzer, global_tracker, track, MemScopeResult};
 use std::collections::HashMap;
 
 /// Simulates a web server cache that may leak memory.
@@ -66,11 +66,11 @@ impl Cache {
 /// This function creates temporary allocations that should be
 /// properly cleaned up after processing.
 fn process_data_batch(batch_id: usize, item_count: usize) -> MemScopeResult<Vec<usize>> {
-    let tracker = global_tracker()?;
+    let ctx = global_tracker()?;
 
     // Track the batch processing context.
     let batch_data: Vec<u8> = vec![0u8; 1024 * 100]; // 100 KB per batch
-    track!(tracker, batch_data);
+    track!(ctx, batch_data);
     // Process items and collect results.
     let results: Vec<usize> = (0..item_count)
         .map(|i| {
@@ -203,28 +203,24 @@ fn simulate_batch_processing(tracker: &memscope_rs::GlobalTracker) -> MemScopeRe
 
 /// Main entry point for the real-world memory tracking demonstration.
 fn main() -> MemScopeResult<()> {
-    // Initialize logging system first
-    init_logging()?;
+    // Initialize the global tracker.
+    let guard = memscope_rs::start()?;
 
     println!("========================================");
     println!("  MemScope-RS Real-World Demonstration  ");
     println!("========================================");
 
-    // Initialize the global tracker.
-    init_global_tracking()?;
-    let tracker = global_tracker()?;
-
     println!("\nGlobal tracker initialized successfully.\n");
 
     // Run demonstration scenarios.
-    simulate_cache_leak(&tracker)?;
-    simulate_proper_cleanup(&tracker)?;
-    simulate_batch_processing(&tracker)?;
+    simulate_cache_leak(&guard)?;
+    simulate_proper_cleanup(&guard)?;
+    simulate_batch_processing(&guard)?;
 
     // Generate analysis report.
     println!("\n=== Memory Analysis Report ===\n");
 
-    let stats = tracker.get_stats();
+    let stats = guard.get_stats();
     println!("  Total allocations: {}", stats.total_allocations);
     println!("  Active allocations: {}", stats.active_allocations);
     println!("  Peak memory usage: {} bytes", stats.peak_memory_bytes);
@@ -232,7 +228,7 @@ fn main() -> MemScopeResult<()> {
 
     // Use the unified Analyzer API
     println!("\n=== Unified Analyzer API ===\n");
-    let mut az = analyzer(&tracker)?;
+    let mut az = analyzer(&guard)?;
 
     // Full analysis
     let report = az.analyze();
@@ -252,45 +248,12 @@ fn main() -> MemScopeResult<()> {
     println!("\nMetrics:");
     println!("  Types: {}", metrics.by_type.len());
 
-    // Export comprehensive reports.
-    println!("\n=== Exporting Reports ===\n");
-
-    let output_path = "MemoryAnalysis/real_world_demo";
-
-    println!("  Calling export_json...");
-    tracker.export_json(output_path)?;
-    println!("  JSON report: {}/memory_snapshots.json", output_path);
-
-    println!("  Calling export_html (unified)...");
-    tracker.export_html(output_path)?;
-    println!(
-        "  HTML dashboard (unified): {}/dashboard_unified_dashboard.html",
-        output_path
-    );
-
-    println!("  Calling export_html (final)...");
-    tracker.export_html_with_template(
-        output_path,
-        memscope_rs::render_engine::export::DashboardTemplate::Final,
-    )?;
-    println!(
-        "  HTML dashboard (final): {}/dashboard_final_dashboard.html",
-        output_path
-    );
+    // Auto-export: the MemScopeGuard's Drop triggers the exit-path export
+    // to ./memscope-report/ automatically when main returns.
 
     println!("\n========================================");
     println!("  Demonstration Complete!               ");
     println!("========================================");
-
-    println!("\nOpen the HTML dashboards to visualize memory patterns.");
-    println!(
-        "Unified dashboard: {}/dashboard_unified_dashboard.html",
-        output_path
-    );
-    println!(
-        "Final dashboard: {}/dashboard_final_dashboard.html",
-        output_path
-    );
 
     Ok(())
 }

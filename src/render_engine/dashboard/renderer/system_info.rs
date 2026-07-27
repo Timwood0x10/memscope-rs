@@ -21,8 +21,52 @@ pub fn get_system_info() -> SystemResources {
             available_physical: "8.00 GB".to_string(),
             used_physical: "8.00 GB".to_string(),
             page_size: 4096,
+            cpu_usage_pct: 0.0,
+            total_physical_bytes: 16 * 1024 * 1024 * 1024,
+            used_physical_bytes: 8 * 1024 * 1024 * 1024,
         }
     }
+}
+
+/// Compute the current process CPU usage percentage (0.0-100.0).
+///
+/// Uses `getrusage(RUSAGE_SELF)` to obtain user + system CPU time consumed by
+/// the process, then divides by the process wall-clock uptime recorded by
+/// `init_global_tracking()` (via `capture::backends::global_tracking::PROCESS_START`).
+/// The result is clamped to [0, 100] and rounded to 2 decimal places.
+///
+/// No manual initialization is needed — `init_global_tracking()` captures
+/// the start time automatically on first call.
+#[cfg(target_os = "macos")]
+fn process_cpu_usage_pct() -> f64 {
+    use std::mem::MaybeUninit;
+
+    // Process wall-clock age from the timer initialized in init_global_tracking().
+    let elapsed = match crate::capture::backends::global_tracking::process_start_elapsed_secs() {
+        Some(e) if e >= 0.001 => e,
+        _ => return 0.0,
+    };
+
+    // Process CPU time (user + sys) in seconds via getrusage.
+    let mut ru: MaybeUninit<libc::rusage> = MaybeUninit::uninit();
+    let cpu_secs = if unsafe { libc::getrusage(libc::RUSAGE_SELF, ru.as_mut_ptr()) == 0 } {
+        let ru = unsafe { ru.assume_init() };
+        let user = ru.ru_utime.tv_sec as f64 + ru.ru_utime.tv_usec as f64 / 1_000_000.0;
+        let sys = ru.ru_stime.tv_sec as f64 + ru.ru_stime.tv_usec as f64 / 1_000_000.0;
+        user + sys
+    } else {
+        return 0.0;
+    };
+
+    let pct = (cpu_secs / elapsed) * 100.0;
+    // Round to 2 decimal places so the telemetry bar shows a clean value
+    // like "0.05%" instead of "0.000023050096979228655%".
+    (pct.clamp(0.0, 100.0) * 100.0).round() / 100.0
+}
+
+#[cfg(not(target_os = "macos"))]
+fn process_cpu_usage_pct() -> f64 {
+    0.0
 }
 
 #[cfg(target_os = "macos")]
@@ -143,6 +187,9 @@ fn get_macos_system_info() -> SystemResources {
         available_physical: format_bytes(available_physical as usize),
         used_physical: format_bytes(used_physical as usize),
         page_size,
+        cpu_usage_pct: process_cpu_usage_pct(),
+        total_physical_bytes: total,
+        used_physical_bytes: used_physical,
     }
 }
 

@@ -4,6 +4,12 @@ use super::helpers::format_bytes;
 use super::types::*;
 use handlebars::Handlebars;
 
+/// CDN asset scripts embedded at compile time for offline use
+const TAILWIND_SCRIPT: &str = include_str!("../templates/assets/tailwind.min.js");
+const CHART_SCRIPT: &str = include_str!("../templates/assets/chart.min.js");
+const D3_SCRIPT: &str = include_str!("../templates/assets/d3.min.js");
+const FONTS_CSS: &str = include_str!("../templates/assets/fonts.css");
+
 /// Insert basic context into template data
 pub fn insert_basic_context(
     template_data: &mut std::collections::BTreeMap<String, serde_json::Value>,
@@ -148,8 +154,193 @@ pub fn render_unified_dashboard(
         serde_json::to_value(&context.threads)?,
     );
     template_data.insert(
+        "async_tasks".to_string(),
+        serde_json::to_value(&context.async_tasks)?,
+    );
+    template_data.insert(
+        "async_summary".to_string(),
+        serde_json::to_value(&context.async_summary)?,
+    );
+    template_data.insert(
         "ownership_graph".to_string(),
         serde_json::to_value(&context.ownership_graph)?,
+    );
+    template_data.insert(
+        "total_smart_pointers".to_string(),
+        serde_json::Value::Number(context.circular_references.total_smart_pointers.into()),
+    );
+    // Smart pointer type breakdown (Rc / Arc / Box / Weak)
+    let mut sp_breakdown: std::collections::BTreeMap<String, usize> =
+        std::collections::BTreeMap::new();
+    for alloc in &context.allocations {
+        if alloc.is_smart_pointer {
+            *sp_breakdown
+                .entry(alloc.smart_pointer_type.clone())
+                .or_insert(0) += 1;
+        }
+    }
+    template_data.insert(
+        "smart_pointer_breakdown".to_string(),
+        serde_json::to_value(&sp_breakdown)?,
+    );
+
+    // Top-N analysis and circular reference reports (Handlebars {{#each}} consumers)
+    template_data.insert(
+        "top_allocation_sites".to_string(),
+        serde_json::to_value(&context.top_allocation_sites)?,
+    );
+    template_data.insert(
+        "top_leaked_allocations".to_string(),
+        serde_json::to_value(&context.top_leaked_allocations)?,
+    );
+    template_data.insert(
+        "top_temporary_churn".to_string(),
+        serde_json::to_value(&context.top_temporary_churn)?,
+    );
+    template_data.insert(
+        "circular_references".to_string(),
+        serde_json::to_value(&context.circular_references)?,
+    );
+
+    // FFI bridge, symbol table and resource bars
+    template_data.insert(
+        "ffi_call_topology".to_string(),
+        serde_json::to_value(&context.ffi_call_topology)?,
+    );
+    template_data.insert(
+        "symbol_table".to_string(),
+        serde_json::to_value(&context.symbol_table)?,
+    );
+    template_data.insert(
+        "symbol_table_count".to_string(),
+        serde_json::Value::Number(context.symbol_table_count.into()),
+    );
+    template_data.insert(
+        "resource_bars".to_string(),
+        serde_json::to_value(&context.resource_bars)?,
+    );
+
+    // Task topology graph (nodes/edges) and count helpers
+    template_data.insert(
+        "task_topology_nodes".to_string(),
+        serde_json::to_value(&context.task_topology_nodes)?,
+    );
+    template_data.insert(
+        "task_topology_nodes_count".to_string(),
+        serde_json::Value::Number(context.task_topology_nodes_count.into()),
+    );
+    template_data.insert(
+        "task_topology_edges".to_string(),
+        serde_json::to_value(&context.task_topology_edges)?,
+    );
+    template_data.insert(
+        "task_topology_edges_count".to_string(),
+        serde_json::Value::Number(context.task_topology_edges_count.into()),
+    );
+
+    // Variable dependency graph peripherals and selected node detail panel
+    template_data.insert(
+        "dependency_graph_nodes".to_string(),
+        serde_json::to_value(&context.dependency_graph_nodes)?,
+    );
+    template_data.insert(
+        "selected_node_detail".to_string(),
+        serde_json::to_value(&context.selected_node_detail)?,
+    );
+
+    // Thread mode: policies, scheduler lag bars, affinity grid, timeline count
+    template_data.insert(
+        "thread_policies".to_string(),
+        serde_json::to_value(&context.thread_policies)?,
+    );
+    template_data.insert(
+        "scheduler_lag_bars".to_string(),
+        serde_json::to_value(&context.scheduler_lag_bars)?,
+    );
+    template_data.insert(
+        "thread_affinity_grid".to_string(),
+        serde_json::to_value(&context.thread_affinity_grid)?,
+    );
+    template_data.insert(
+        "thread_timeline_count".to_string(),
+        serde_json::Value::Number(context.thread_timeline_count.into()),
+    );
+
+    template_data.insert(
+        "stack_integrity".to_string(),
+        serde_json::to_value(&context.stack_integrity)?,
+    );
+    template_data.insert(
+        "streaming_topology_stats".to_string(),
+        serde_json::to_value(&context.streaming_topology_stats)?,
+    );
+    template_data.insert(
+        "scheduler_lag_ms".to_string(),
+        serde_json::Value::Number(context.scheduler_lag_ms.into()),
+    );
+    // Thread memory total: sum of current_memory_bytes across all threads
+    let thread_mem_total: usize = context.threads.iter().map(|t| t.current_memory_bytes).sum();
+    let thread_mem_total_fmt = if thread_mem_total >= 1_000_000 {
+        format!("{:.1} MB", thread_mem_total as f64 / 1_000_000.0)
+    } else if thread_mem_total >= 1_000 {
+        format!("{:.1} KB", thread_mem_total as f64 / 1_000.0)
+    } else {
+        format!("{} B", thread_mem_total)
+    };
+    template_data.insert(
+        "thread_memory_total".to_string(),
+        serde_json::Value::Number(thread_mem_total.into()),
+    );
+    template_data.insert(
+        "thread_memory_total_fmt".to_string(),
+        serde_json::Value::String(thread_mem_total_fmt),
+    );
+    template_data.insert(
+        "migration_rate_pct".to_string(),
+        serde_json::Value::Number(
+            serde_json::Number::from_f64(context.migration_rate_pct).unwrap_or(0.into()),
+        ),
+    );
+    template_data.insert(
+        "system_uptime_formatted".to_string(),
+        serde_json::Value::String(context.system_uptime_formatted.clone()),
+    );
+    template_data.insert(
+        "poll_latency_mean_ms".to_string(),
+        serde_json::Value::Number(
+            serde_json::Number::from_f64(context.poll_latency_mean_ms).unwrap_or(0.into()),
+        ),
+    );
+    // Formatted poll latency for display (2 decimal places; "—" when no data)
+    let poll_fmt = if context.poll_latency_mean_ms > 0.0 {
+        format!("{:.2}", context.poll_latency_mean_ms)
+    } else {
+        "—".to_string()
+    };
+    template_data.insert(
+        "poll_latency_mean_ms_fmt".to_string(),
+        serde_json::Value::String(poll_fmt),
+    );
+    template_data.insert(
+        "poll_latency_samples".to_string(),
+        serde_json::to_value(&context.poll_latency_samples)?,
+    );
+
+    template_data.insert(
+        "tailwind_script".to_string(),
+        serde_json::Value::String(TAILWIND_SCRIPT.to_string()),
+    );
+    template_data.insert(
+        "chart_script".to_string(),
+        serde_json::Value::String(CHART_SCRIPT.to_string()),
+    );
+    template_data.insert(
+        "d3_script".to_string(),
+        serde_json::Value::String(D3_SCRIPT.to_string()),
+    );
+    template_data.insert(
+        "fonts_css".to_string(),
+        serde_json::Value::String(FONTS_CSS.to_string()),
     );
 
     handlebars
@@ -157,7 +348,7 @@ pub fn render_unified_dashboard(
         .map_err(|e| format!("Template rendering error: {}", e).into())
 }
 
-/// Render final dashboard (new investigation console template)
+/// Render final dashboard (delegates to the merged dashboard_unified template)
 pub fn render_final_dashboard(
     handlebars: &Handlebars<'static>,
     context: &DashboardContext,
@@ -193,8 +384,25 @@ pub fn render_final_dashboard(
         serde_json::to_value(&context.ownership_graph)?,
     );
 
+    template_data.insert(
+        "tailwind_script".to_string(),
+        serde_json::Value::String(TAILWIND_SCRIPT.to_string()),
+    );
+    template_data.insert(
+        "chart_script".to_string(),
+        serde_json::Value::String(CHART_SCRIPT.to_string()),
+    );
+    template_data.insert(
+        "d3_script".to_string(),
+        serde_json::Value::String(D3_SCRIPT.to_string()),
+    );
+    template_data.insert(
+        "fonts_css".to_string(),
+        serde_json::Value::String(FONTS_CSS.to_string()),
+    );
+
     handlebars
-        .render("dashboard_final", &template_data)
+        .render("dashboard_unified", &template_data)
         .map_err(|e| format!("Template rendering error: {}", e).into())
 }
 
@@ -297,7 +505,10 @@ pub fn to_legacy_binary_data(context: &DashboardContext) -> serde_json::Value {
             "total_physical": context.system_resources.total_physical,
             "available_physical": context.system_resources.available_physical,
             "used_physical": context.system_resources.used_physical,
-            "page_size": context.system_resources.page_size
+            "page_size": context.system_resources.page_size,
+            "cpu_usage_pct": context.system_resources.cpu_usage_pct,
+            "total_physical_bytes": context.system_resources.total_physical_bytes,
+            "used_physical_bytes": context.system_resources.used_physical_bytes
         },
         "ownership_graph": {
             "total_nodes": context.ownership_graph.total_nodes,
@@ -540,6 +751,9 @@ mod tests {
                 available_physical: "0 B".to_string(),
                 used_physical: "0 B".to_string(),
                 page_size: 4096,
+                cpu_usage_pct: 0.0,
+                total_physical_bytes: 0,
+                used_physical_bytes: 0,
             },
             threads: vec![],
             async_tasks: vec![],
@@ -549,6 +763,10 @@ mod tests {
                 total_allocations: 0,
                 total_memory_bytes: 0,
                 peak_memory_bytes: 0,
+                completed: 0,
+                leaked: 0,
+                zombie: 0,
+                success_rate: 0.0,
             },
             health_score: 100,
             health_status: "Good".to_string(),
@@ -580,6 +798,33 @@ mod tests {
                 has_cycles: false,
             },
             task_graph_json: "{}".to_string(),
+            ffi_call_topology: Default::default(),
+            symbol_table: vec![],
+            symbol_table_count: 0,
+            stack_integrity: Default::default(),
+            resource_bars: vec![],
+            thread_timeline: vec![],
+            thread_timeline_count: 0,
+            waker_efficiency_grid: vec![],
+            poll_latency_mean_ms: 0.0,
+            poll_latency_samples: vec![],
+            task_topology_nodes: vec![],
+            task_topology_nodes_count: 0,
+            task_topology_edges: vec![],
+            task_topology_edges_count: 0,
+            streaming_topology_stats: Default::default(),
+            trace_logs: vec![],
+            neighbor_density_histogram: vec![],
+            dependency_graph_nodes: vec![],
+            selected_node_detail: None,
+            thread_affinity_grid: vec![],
+            scheduler_lag_bars: vec![],
+            scheduler_lag_ms: 0,
+            migration_rate_pct: 0.0,
+            system_uptime_formatted: String::new(),
+            thread_event_log: vec![],
+            thread_policies: vec![],
+            resource_limits: vec![],
         }
     }
 
@@ -839,6 +1084,9 @@ mod tests {
             current_memory_bytes: 1024,
             peak_memory_bytes: 2048,
             total_allocated_bytes: 10240,
+            is_active: true,
+            status: "ACTIVE".to_string(),
+            cpu_core: None,
         }];
 
         let data = to_legacy_binary_data(&context);
@@ -893,6 +1141,9 @@ mod tests {
             available_physical: "8 GB".to_string(),
             used_physical: "8 GB".to_string(),
             page_size: 4096,
+            cpu_usage_pct: 0.0,
+            total_physical_bytes: 16 * 1024 * 1024 * 1024,
+            used_physical_bytes: 8 * 1024 * 1024 * 1024,
         };
 
         let data = to_legacy_binary_data(&context);
@@ -922,6 +1173,7 @@ mod tests {
             is_leaked: false,
             risk_level: "medium".to_string(),
             risk_factors: vec!["FFI boundary".to_string()],
+            description: "FFI boundary".to_string(),
         }];
 
         let data = to_legacy_binary_data(&context);
@@ -958,6 +1210,8 @@ mod tests {
             cross_boundary_events: vec![],
             risk_level: "low".to_string(),
             risk_confidence: 0.85,
+            is_active: true,
+            source_location: "test.rs:1".to_string(),
         }];
 
         let data = to_legacy_binary_data(&context);

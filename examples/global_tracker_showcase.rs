@@ -1,4 +1,4 @@
-//! Global Tracker Showcase - New API
+//! Global Tracker Showcase - Unified `start()` API
 //!
 //! This example demonstrates how to use the global tracker across all execution modes:
 //! - Single-threaded mode
@@ -6,9 +6,21 @@
 //! - Async mode
 //! - Unsafe/FFI mode
 //! - Task tracking with TaskIdRegistry
+//!
+//! ## Setup
+//!
+//! The example uses the one-line `memscope_rs::start()` entry point which:
+//! 1. Initializes the tracing subscriber.
+//! 2. Installs the global `GlobalTracker` singleton.
+//! 3. Wires the auto-export lifecycle hooks (panic / Ctrl-C / Drop).
+//!
+//! The returned [`MemScopeGuard`] derefs to [`GlobalTracker`], so `track!`
+//! works directly on it. On `main` return (or panic / Ctrl-C) the guard's
+//! `Drop` runs the idempotent exit-path export, writing the dashboard + JSON
+//! to `./memscope-report/`.
 
 use memscope_rs::task_registry::global_registry;
-use memscope_rs::{analyzer, global_tracker, init_global_tracking, MemScopeResult};
+use memscope_rs::{analyzer, MemScopeResult};
 
 use memscope_rs::track;
 
@@ -25,53 +37,53 @@ fn main() -> MemScopeResult<()> {
     println!("║        Global Tracker Showcase - New Unified API           ║");
     println!("╚════════════════════════════════════════════════════════════╝\n");
 
-    init_global_tracking()?;
-    println!("✓ Global tracking initialized (Tracker + MemoryPassport + AsyncTracker)\n");
+    // One-line start: logging + global tracker + auto-export hooks. The guard
+    // owns the lifecycle; dropping it (or panic / Ctrl-C) triggers the export
+    // to ./memscope-report/ automatically.
+    let guard = memscope_rs::start()?;
 
     println!("📦 Section 1: Single-Threaded Mode\n");
     let single_start = Instant::now();
     {
-        let tracker = global_tracker()?;
-
         let v1 = vec![1i32, 2, 3, 4, 5];
         let v2 = v1.clone();
         let v3 = v2.clone();
-        track!(tracker, v1);
-        track!(tracker, v2);
-        track!(tracker, v3);
+        track!(guard, v1);
+        track!(guard, v2);
+        track!(guard, v3);
 
         let s1 = String::from("Hello, global tracking!");
         let s2 = s1.clone();
         let s3 = s2.clone();
-        track!(tracker, s1);
-        track!(tracker, s2);
-        track!(tracker, s3);
+        track!(guard, s1);
+        track!(guard, s2);
+        track!(guard, s3);
 
         let b1 = Box::new(42i64);
         let b2 = b1.clone();
-        track!(tracker, b1);
-        track!(tracker, b2);
+        track!(guard, b1);
+        track!(guard, b2);
 
         let arc1 = Arc::new(vec![1i32, 2, 3]);
         let arc2 = arc1.clone();
         let arc3 = arc1.clone();
-        track!(tracker, arc1);
-        track!(tracker, arc2);
-        track!(tracker, arc3);
+        track!(guard, arc1);
+        track!(guard, arc2);
+        track!(guard, arc3);
 
         let rc1 = Rc::new(String::from("Rc string"));
         let rc2 = rc1.clone();
         let rc3 = rc1.clone();
-        track!(tracker, rc1);
-        track!(tracker, rc2);
-        track!(tracker, rc3);
+        track!(guard, rc1);
+        track!(guard, rc2);
+        track!(guard, rc3);
 
         let boxed_vec = Box::new(vec![1i32, 2, 3, 4, 5]);
         let owned_string = String::from("Owned string");
         let cloned_vec = boxed_vec.clone();
-        track!(tracker, boxed_vec);
-        track!(tracker, owned_string);
-        track!(tracker, cloned_vec);
+        track!(guard, boxed_vec);
+        track!(guard, owned_string);
+        track!(guard, cloned_vec);
 
         println!("✓ Tracked 18 allocations with clones and smart pointers");
     }
@@ -85,9 +97,9 @@ fn main() -> MemScopeResult<()> {
     let handles: Vec<_> = (0..4)
         .map(|id| {
             thread::spawn(move || {
-                let tracker = global_tracker().unwrap();
+                let ctx = memscope_rs::global_tracker().unwrap();
                 for i in 0..100 {
-                    track!(tracker, vec![i; 16]);
+                    track!(ctx, vec![i; 16]);
                 }
                 // Add shared data between threads
                 let _shared_arc = Arc::new(vec![1i32, 2, 3]);
@@ -126,7 +138,7 @@ fn main() -> MemScopeResult<()> {
     println!("📦 Section 5: Circular Reference Detection\n");
     let cycle_start = Instant::now();
     {
-        let tracker = global_tracker()?;
+        let ctx = memscope_rs::global_tracker()?;
 
         println!("  Creating variables with circular clone relationships...");
 
@@ -135,9 +147,9 @@ fn main() -> MemScopeResult<()> {
         let data3 = vec![7, 8, 9];
 
         // Track initial allocations
-        track!(tracker, data1);
-        track!(tracker, data2);
-        track!(tracker, data3);
+        track!(ctx, data1);
+        track!(ctx, data2);
+        track!(ctx, data3);
 
         // Create explicit circular references via variable names
         // This demonstrates the cycle detection in the relationship graph
@@ -148,9 +160,9 @@ fn main() -> MemScopeResult<()> {
         let s2 = String::from("cycle_node_2");
         let s3 = String::from("cycle_node_3");
 
-        track!(tracker, s1);
-        track!(tracker, s2);
-        track!(tracker, s3);
+        track!(ctx, s1);
+        track!(ctx, s2);
+        track!(ctx, s3);
 
         // Create Rc clones that will form cycles
         struct Node {
@@ -172,9 +184,9 @@ fn main() -> MemScopeResult<()> {
             next: None,
         }));
 
-        track!(tracker, n1);
-        track!(tracker, n2);
-        track!(tracker, n3);
+        track!(ctx, n1);
+        track!(ctx, n2);
+        track!(ctx, n3);
 
         // Create the circular links after tracking
         // This creates internal references that may form cycles
@@ -195,7 +207,7 @@ fn main() -> MemScopeResult<()> {
     let registry = global_registry();
     let task_start = Instant::now();
     {
-        let tracker = global_tracker()?;
+        let ctx = memscope_rs::global_tracker()?;
 
         println!("  Demonstrating task hierarchy tracking...");
 
@@ -206,7 +218,7 @@ fn main() -> MemScopeResult<()> {
 
             // Allocate memory in main task
             let main_data = vec![1i32, 2, 3, 4, 5];
-            track!(tracker, main_data);
+            track!(ctx, main_data);
 
             {
                 let _worker = registry.task_scope("worker_thread");
@@ -214,7 +226,7 @@ fn main() -> MemScopeResult<()> {
 
                 // Allocate memory in child task
                 let child_data = vec![10i32, 20, 30];
-                track!(tracker, child_data);
+                track!(ctx, child_data);
 
                 {
                     let _sub_worker = registry.task_scope("sub_worker");
@@ -222,7 +234,7 @@ fn main() -> MemScopeResult<()> {
 
                     // Allocate memory in grandchild task
                     let grandchild_data = String::from("Grandchild data");
-                    track!(tracker, grandchild_data);
+                    track!(ctx, grandchild_data);
                 } // sub_worker automatically completed
             } // worker automatically completed
         } // main automatically completed
@@ -235,8 +247,8 @@ fn main() -> MemScopeResult<()> {
     );
 
     println!("📦 Section 7: Statistics\n");
-    let tracker = global_tracker()?;
-    let stats = tracker.get_stats();
+    let ctx = memscope_rs::global_tracker()?;
+    let stats = ctx.get_stats();
     println!("✓ Total allocations: {}", stats.total_allocations);
     println!("✓ Active allocations: {}", stats.active_allocations);
     println!(
@@ -247,7 +259,7 @@ fn main() -> MemScopeResult<()> {
 
     // Use the unified Analyzer API
     println!("\n📦 Section 7: Unified Analyzer API\n");
-    let mut az = analyzer(&tracker)?;
+    let mut az = analyzer(&ctx)?;
 
     // Full analysis
     let report = az.analyze();
@@ -268,43 +280,17 @@ fn main() -> MemScopeResult<()> {
     println!("\nMetrics:");
     println!("  Types: {}", metrics.by_type.len());
 
-    println!("\n📦 Section 8: Export (simplified API)\n");
-    let output_path = "MemoryAnalysis/global_tracker_showcase";
-
-    let tracker = global_tracker()?;
-
-    // Export JSON files (simplified)
-    tracker.export_json(output_path)?;
-
-    // Export HTML dashboards (both templates)
-    tracker.export_html_with_template(
-        output_path,
-        memscope_rs::render_engine::export::DashboardTemplate::Unified,
-    )?;
-    tracker.export_html_with_template(
-        output_path,
-        memscope_rs::render_engine::export::DashboardTemplate::Final,
-    )?;
-
-    println!("✓ Export successful!");
-    println!("  memory_snapshots.json");
-    println!("  memory_passports.json");
-    println!("  leak_detection.json");
-    println!("  unsafe_ffi_analysis.json");
-    println!("  system_resources.json");
-    println!("  async_analysis.json");
-    println!("  dashboard_unified_dashboard.html");
-    println!("  dashboard_final_dashboard.html");
+    // On-demand snapshot: no disk write, just an in-memory JSON string.
+    let snapshot = guard.snapshot_json()?;
+    println!("\n📦 Section 8: On-demand snapshot (no disk write)\n");
+    println!("  snapshot JSON length: {} bytes", snapshot.len());
 
     println!("\n✓ All modes completed successfully!");
-    println!(
-        "\n🆕 Open {}/dashboard_final_dashboard.html for the NEW investigation console!",
-        output_path
-    );
-    println!(
-        "📄 Or open {}/dashboard_unified_dashboard.html for the original dashboard.",
-        output_path
-    );
+    println!("\n🆕 Drop will write dashboard + JSON to ./memscope-report/");
+
+    // `_guard` drops here, triggering the exit-path export to
+    // ./memscope-report/dashboard_unified_dashboard.html + memory_analysis.json.
+    drop(guard);
     Ok(())
 }
 
@@ -312,8 +298,8 @@ fn main() -> MemScopeResult<()> {
 async fn run_async_mode() -> MemScopeResult<()> {
     println!("Spawning 4 async tasks...");
 
-    let tracker = global_tracker()?;
-    let async_tracker = tracker.async_tracker().clone();
+    let ctx = memscope_rs::global_tracker()?;
+    let async_tracker = ctx.async_tracker().clone();
 
     let tasks = (0..4).map(|i| {
         let async_tracker = async_tracker.clone();
@@ -328,28 +314,31 @@ async fn run_async_mode() -> MemScopeResult<()> {
                 eprintln!("Warning: {}", e);
             }
 
-            let tracker = global_tracker().unwrap();
+            let ctx = memscope_rs::global_tracker().unwrap();
 
             // Track allocations in both trackers
             let vec_data = vec![0u64; 50];
             let vec_size =
                 std::mem::size_of_val(&vec_data) + vec_data.len() * std::mem::size_of::<u64>();
-            track!(tracker, vec_data);
+            track!(ctx, vec_data);
             async_tracker.track_allocation(i * 1000, vec_size, task_id);
 
             let string_data = format!("Async task: {}", i);
             let string_size = string_data.len();
-            track!(tracker, string_data);
+            track!(ctx, string_data);
             async_tracker.track_allocation(i * 1000 + 1, string_size, task_id);
 
-            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            // Vary sleep durations so poll latency samples are realistic and
+            // the chart shows a non-flat curve (5ms, 15ms, 30ms, 10ms).
+            let sleep_ms = [5u64, 15, 30, 10][i];
+            tokio::time::sleep(std::time::Duration::from_millis(sleep_ms)).await;
 
             // Track async task end
             if let Err(e) = async_tracker.track_task_end(task_id) {
                 eprintln!("Warning: {}", e);
             }
 
-            println!("  Task-{}: tracked 2 allocations", i);
+            println!("  Task-{}: tracked 2 allocations (slept {}ms)", i, sleep_ms);
         }
     });
 
@@ -358,7 +347,7 @@ async fn run_async_mode() -> MemScopeResult<()> {
 }
 
 fn run_unsafe_ffi_mode() -> MemScopeResult<()> {
-    let tracker = global_tracker()?;
+    let ctx = memscope_rs::global_tracker()?;
 
     println!("Spawning unsafe/FFI operations...");
 
@@ -369,8 +358,7 @@ fn run_unsafe_ffi_mode() -> MemScopeResult<()> {
             let ptr = alloc(layout);
 
             if !ptr.is_null() {
-                tracker
-                    .create_passport(ptr as usize, layout.size(), format!("unsafe_vec_{}", i))
+                ctx.create_passport(ptr as usize, layout.size(), format!("unsafe_vec_{}", i))
                     .map_err(|e| {
                         memscope_rs::MemScopeError::error(
                             "global_tracker_showcase",
@@ -402,8 +390,7 @@ fn run_unsafe_ffi_mode() -> MemScopeResult<()> {
 
         if !ffi_ptr.is_null() {
             // FFI memory type is unknown at compile time, use *mut c_void
-            tracker
-                .create_passport(ffi_ptr as usize, size, format!("ffi_alloc_{}", i))
+            ctx.create_passport(ffi_ptr as usize, size, format!("ffi_alloc_{}", i))
                 .map_err(|e| {
                     memscope_rs::MemScopeError::error(
                         "global_tracker_showcase",
@@ -412,7 +399,7 @@ fn run_unsafe_ffi_mode() -> MemScopeResult<()> {
                     )
                 })?;
 
-            tracker.record_handover(
+            ctx.record_handover(
                 ffi_ptr as usize,
                 "foreign_function".to_string(),
                 format!("ffi_call_{}", i),

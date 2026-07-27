@@ -1,6 +1,6 @@
 [package]
 name = "memscope-rs"
-version = "0.2.4"
+version = "0.2.5"
 edition = "2021"
 authors = ["TimWood"]
 license = "Apache-2.0"
@@ -29,6 +29,7 @@ backtrace = { version = "0.3", features = ["serde"], optional = true }
 rayon = "1.8"
 num_cpus = "1.16"
 libc = "0.2"
+ctrlc = { version = "3.4", optional = true }
 sysinfo = "0.32.0"
 regex = "1.12.3"
 rand = { version = "0.10.0", features = ["std"] }
@@ -60,7 +61,13 @@ mach2 = "0.6"
 backtrace = ["dep:backtrace"]
 tracking-allocator = []
 derive = ["dep:memscope-derive"]
-default = ["derive"]
+default = ["derive", "auto-signal", "periodic"]
+# Auto-export SIGINT/SIGTERM handler (uses ctrlc singleton; degrades gracefully if host already installed one)
+auto-signal = ["dep:ctrlc"]
+# libc::atexit hook to catch std::process::exit (unsafe extern "C"; off by default)
+atexit = []
+# Background periodic flusher worker thread for long-running services
+periodic = []
 
 [dev-dependencies]
 tempfile = "3.27.0"
@@ -71,10 +78,17 @@ actix-web = "4"
 actix-rt = "2"
 reqwest = { version = "0.13.2", features = ["json"] }
 serial_test = "3.0"
+proptest = "1.5"
+loom = "0.7"
 
 [[bench]]
 name = "comprehensive_benchmarks"
 harness = false
+
+[lints.rust]
+# loom tests are gated behind `#[cfg(loom)]` and run via RUSTFLAGS="--cfg loom".
+# Declare the cfg so the unexpected_cfgs lint does not warn about it.
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(loom)'] }
 
 
 [profile.dev]

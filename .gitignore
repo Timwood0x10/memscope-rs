@@ -72,6 +72,8 @@ temp_*
 
 !benches/run.log
 
+.codescope/
+.agnes/
 
 *.profraw
 

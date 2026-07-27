@@ -678,22 +678,40 @@ pub fn export_async_analysis_json<P: AsRef<Path>>(
     Ok(())
 }
 
-/// Dashboard template type
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+/// Dashboard template type — the single merged template id, plus a Custom variant
+/// for registry-based rendering of external templates.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum DashboardTemplate {
-    /// Unified dashboard (multi-mode in single HTML)
+    /// Unified merged dashboard (default) — bundles all 8 modes in one HTML file
     #[default]
     Unified,
-    /// Final dashboard (new investigation console)
-    // #[default]
-    Final,
+    /// Custom template by ID (for registry-based rendering of external templates)
+    Custom(String),
 }
 
 impl std::fmt::Display for DashboardTemplate {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             DashboardTemplate::Unified => write!(f, "dashboard_unified"),
-            DashboardTemplate::Final => write!(f, "dashboard_final"),
+            DashboardTemplate::Custom(id) => write!(f, "{}", id),
+        }
+    }
+}
+
+impl DashboardTemplate {
+    /// Get the template ID used by the Handlebars registry
+    pub fn template_id(&self) -> &str {
+        match self {
+            DashboardTemplate::Unified => "dashboard_unified",
+            DashboardTemplate::Custom(id) => id.as_str(),
+        }
+    }
+
+    /// Get a human-readable name for this template
+    pub fn name(&self) -> &str {
+        match self {
+            DashboardTemplate::Unified => "Unified Dashboard",
+            DashboardTemplate::Custom(_) => "Custom Template",
         }
     }
 }
@@ -776,20 +794,19 @@ pub fn export_dashboard_html_with_template<P: AsRef<Path>>(
         })?;
 
     let html_content = match template {
-        DashboardTemplate::Final => renderer.render_final_dashboard(&context).map_err(|e| {
-            MemScopeError::error(
-                "export",
-                "export_dashboard_html_with_template",
-                format!("Failed to render final dashboard: {}", e),
-            )
-        })?,
-        DashboardTemplate::Unified => renderer.render_unified_dashboard(&context).map_err(|e| {
-            MemScopeError::error(
-                "export",
-                "export_dashboard_html_with_template",
-                format!("Failed to render dashboard: {}", e),
-            )
-        })?,
+        // The unified template and any custom external template are rendered via the registry
+        DashboardTemplate::Unified | DashboardTemplate::Custom(_) => {
+            let template_id = template.template_id();
+            renderer
+                .render_with_template(template_id, &context)
+                .map_err(|e| {
+                    MemScopeError::error(
+                        "export",
+                        "export_dashboard_html_with_template",
+                        format!("Failed to render {} template: {}", template.name(), e),
+                    )
+                })?
+        }
     };
 
     // Write HTML to file

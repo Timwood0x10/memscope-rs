@@ -1,9 +1,9 @@
-//! Complex Lifecycle Showcase - New API
+//! Complex Lifecycle Showcase - Unified start() API
 //!
-//! This example demonstrates the new unified API with various built-in types,
+//! This example demonstrates the unified start() API with various built-in types,
 //! custom types, and complex memory patterns.
 
-use memscope_rs::{analyzer, global_tracker, init_global_tracking, track, MemScopeResult};
+use memscope_rs::{analyzer, track, MemScopeResult};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::rc::Rc;
@@ -11,36 +11,35 @@ use std::sync::Arc;
 use std::time::Instant;
 
 fn main() -> MemScopeResult<()> {
-    println!("Complex Lifecycle Showcase - New API");
+    println!("Complex Lifecycle Showcase - Unified start() API");
     println!("==========================================\n");
 
     let start_time = Instant::now();
-    init_global_tracking()?;
-    let tracker = global_tracker()?;
+    let guard = memscope_rs::start()?;
 
     println!("Phase 1: Built-in Types");
     println!("=========================================");
-    demonstrate_builtin_types(&tracker);
+    demonstrate_builtin_types(&guard);
 
     println!("\nPhase 2: Smart Pointers");
     println!("=========================================");
-    demonstrate_smart_pointers(&tracker);
+    demonstrate_smart_pointers(&guard);
 
     println!("\nPhase 3: Complex Patterns");
     println!("=========================================");
-    demonstrate_complex_patterns(&tracker);
+    demonstrate_complex_patterns(&guard);
 
     println!("\nPhase 4: Web Server Simulation");
     println!("=========================================");
-    simulate_web_server_scenario(&tracker);
+    simulate_web_server_scenario(&guard);
 
     println!("\nPhase 5: Data Processing Pipeline");
     println!("=========================================");
-    simulate_data_processing_pipeline(&tracker);
+    simulate_data_processing_pipeline(&guard);
 
     let duration = start_time.elapsed();
 
-    let stats = tracker.get_stats();
+    let stats = guard.get_stats();
     println!("\nMemory Analysis Results:");
     println!("  Total allocations: {}", stats.total_allocations);
     println!("  Active allocations: {}", stats.active_allocations);
@@ -52,7 +51,7 @@ fn main() -> MemScopeResult<()> {
 
     // Use the unified Analyzer API
     println!("\n=== Unified Analyzer API ===\n");
-    let mut az = analyzer(&tracker)?;
+    let mut az = analyzer(&guard)?;
 
     // Full analysis
     let report = az.analyze();
@@ -72,20 +71,8 @@ fn main() -> MemScopeResult<()> {
     println!("\nMetrics:");
     println!("  Types: {}", metrics.by_type.len());
 
-    println!("\nExporting memory snapshot...");
-    let output_path = "MemoryAnalysis/complex_lifecycle_new_api";
-    tracker.export_json(output_path)?;
-    println!("  memory_snapshots.json");
-    println!("  memory_passports.json");
-    println!("  leak_detection.json");
-    println!("  unsafe_ffi_analysis.json");
-    println!("  system_resources.json");
-    println!("  async_analysis.json");
-
-    // Export HTML dashboard
-    println!("\nExporting HTML dashboard...");
-    tracker.export_html(output_path)?;
-    println!("  dashboard.html");
+    // No explicit export needed: the MemScopeGuard's Drop triggers auto-export
+    // to ./memscope-report/ on exit. The analysis above is printed for display.
 
     println!(
         "\nExample finished in {:.2}ms",

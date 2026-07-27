@@ -1,5 +1,90 @@
 # Changelog
 
+## \[0.2.5] - 2026-07-27
+
+### 🎯 **Unified Auto-Export Lifecycle and Simplified Start API**
+
+This release introduces a completely redesigned entry-point experience. A single `memscope_rs::start()` call now initializes logging, global tracking, and all auto-export lifecycle hooks (Drop guard, panic hook, Ctrl-C handler, `libc::atexit`). The old `MemCtx::init()` API remains fully backward-compatible.
+
+#### ✨ New API
+
+- **feat**: Unified `start()/start_with()` — one-call initialization with `MemScopeGuard` RAII guard
+  - `MemScopeGuard::drop()` triggers idempotent export on normal return, panic, Ctrl-C, or `std::process::exit`
+  - Idempotency latch (`EXPORTED` AtomicBool) ensures exactly one export across all exit paths
+  - `export_for_reason(ExportReason)` honors per-path enable flags (`on_exit`, `on_panic`)
+- **feat**: On-demand export — `guard.export_now()`, `memscope_rs::trigger_export_now()`
+- **feat**: In-memory JSON snapshot — `guard.snapshot_json()`, `memscope_rs::snapshot_json()` — zero disk I/O, ideal for HTTP endpoints
+- **feat**: Periodic background flusher — configurable worker thread with graceful `stop()` + final flush
+- **feat**: `MemScopeConfig` / `AutoExportConfig` — builder-style configuration for output path, formats, signal policy, flush interval, exit timeout
+- **feat**: `ExportFormatSet` — bitflags-style format selection (HTML, JSON, `HTML_JSON`)
+- **feat**: New Cargo features — `auto-signal` (SIGINT handler via optional `ctrlc`), `atexit` (`libc::atexit`), `periodic` (background flusher)
+- **feat**: `TrackerConfig` made `pub`; added `Tracker::with_config()` bridge method
+- **feat**: `GlobalTracker::with_config()` now correctly uses `config.tracker` instead of `Tracker::new()`
+
+#### 🏗️ New Modules
+
+- **`src/auto_export.rs`** — `SignalPolicy`, `ExportFormatSet`, `AutoExportConfig`, `MemScopeConfig` with builder methods and serde support (~250 LOC + tests)
+- **`src/lifecycle.rs`** — `export_once()`, `export_for_reason()`, `trigger_export_now()`, `snapshot_json()`, panic-hook chaining, ctrlc handler, `libc::atexit` (~500 LOC + tests)
+- **`src/guard.rs`** — `MemScopeGuard` with `Deref<Target=GlobalTracker>`, `Drop`, `start()`, `start_with()` (~200 LOC + tests)
+- **`src/periodic_flusher.rs`** — Background worker thread, `Mutex<Option<JoinHandle>>` shutdown pattern, final flush on stop (~250 LOC + tests)
+
+#### 📝 Documentation
+
+- **README (EN & ZH)**: Completely rewritten Quick Start section with 4 usage patterns:
+  - CLI one-liner for short-lived programs
+  - Long-running service with on-demand export
+  - Long-running service with periodic background flush
+  - Full customization with all config options
+  - Backward compatibility explicitly documented alongside the new API
+- **docs/articles/**: Added 10-article technical deep-dive series (EN + ZH, 20 files total):
+  1. Why memscope-rs exists
+  2. Global alloc hook
+  3. TrackKind model
+  4. HeapScanner
+  5. Relation inference
+  6. UTI engine
+  7. Memory passport
+  8. Ownership graph
+  9. Render engine
+  10. Conclusion
+- **docs/**: Added `STRENGTHENING_PLAN.md` — architectural roadmap for future improvements
+
+#### ✅ Testing
+
+- **e2e tests** (`tests/auto_export_e2e.rs`):
+  - `e2e_normal_exit`: guards Drop triggers export, files exist, non-empty
+  - `e2e_panic_exit`: panic hook triggers export before unwinding, files exist
+  - `e2e_ctrlc_exit` (Unix): SIGINT fires handler, export completes, exit code 130
+- **Unit tests** for all new modules (Golden Trio pattern):
+  - `auto_export.rs`: proptest (1000 cases per property), builder chain, config defaults, thread safety
+  - `lifecycle.rs`: stress (50 concurrent exports, one wins), idempotency, per-path flag gating, proptest (1000 valid configs), panic-hook chaining, snapshot_json error handling
+  - `guard.rs`: stress (50 threads start/track/drop), drop ordering (flusher → export), deref to GlobalTracker
+  - `periodic_flusher.rs`: loom concurrency models (2-thread, 3-thread `Mutex<Option>` take-one pattern), stress (50 concurrent stops), negative (stop before first tick, stop twice, zero interval panics)
+- **Examples rewrite**: All 12 examples updated from `MemCtx::init()` to `memscope_rs::start()`:
+  - `basic_usage.rs`, `global_tracker_showcase.rs`, `actix_web_server.rs`, `auto_exit_demo.rs`
+  - `complex_lifecycle_showcase.rs`, `complex_multithread_showcase.rs`, `comprehensive_async_showcase.rs`
+  - `merkle_tree.rs`, `real_world_demo.rs`, `unsafe_ffi_demo.rs`, `variable_relationships_showcase.rs`
+  - `unified_analyzer_demo.rs` (converted from `init_global_tracking().unwrap()` to `start()?`)
+- **New e2e helper**: `examples/auto_exit_demo.rs` runs in three modes (`normal`, `panic`, `sleep+SIGINT`) for the e2e test harness
+
+#### 🛠 Bug Fixes
+
+- **fix(lifecycle)**: Stale policy in `install_ctrlc_handler` — moved policy read inside the signal handler closure so a second `install()` call that updates `AUTO_EXPORT_CFG` but skips handler re-registration (via `Once`) takes effect from the next signal onward
+- **fix(clippy)**: `tests/auto_export_e2e.rs` — `&PathBuf` → `&Path` to satisfy `clippy::ptr_arg`
+
+#### Dashboard and Analysis (carried forward from 0.2.4-dev)
+
+- **feat(dashboard)**: Real-time poll latency chart with D3 bar charts, process CPU/memory metrics, smart pointer tracking, CPU core affinity support, allocation trend chart, unsafe source heatmap, template helpers for modular rendering
+- **feat(dashboard)**: Interactive D3 zoom/pan/drag for Task Hierarchy Visualization
+- **feat(dashboard)**: Unsafe Call-Stack View grouped by source location with expandable groups and risk badges
+- **feat(dashboard)**: Enhanced FFI Boundary Flow with timestamp-sorted color-coded events and mismatch highlighting
+- **feat(dashboard)**: Thread Relationship Graph and detail panel
+- **feat(dashboard)**: `DataIndex` for O(1) frontend lookups; precision labels (EvidenceLevel, RiskConfidence, PointerProvenance, DropExpectation)
+- **feat(reconstruction)**: Allocation `generation_id` for address reuse detection
+- **refactor(renderer)**: Consolidated templates to single unified version; split renderer into event DTO, reconstruction, inference, report builder, shared types modules
+
+---
+
 ## \[0.2.4] - 2026-06-03
 
 ### 🎯 **Dashboard Precision and Release Stabilization**

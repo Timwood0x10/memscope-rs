@@ -35,6 +35,20 @@ use tracing::info;
 
 static GLOBAL_TRACKER: std::sync::RwLock<Option<Arc<GlobalTracker>>> = std::sync::RwLock::new(None);
 
+/// Process start-time timer — captured once during `init_global_tracking()`
+/// so that the dashboard can compute real CPU usage as
+/// (cpu_time / wall_time_since_start). Using a `OnceLock` here (in the
+/// `capture` crate) avoids a circular dependency with `render_engine`.
+static PROCESS_START: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
+
+/// Returns the elapsed wall-clock time since `init_global_tracking()` was
+/// first called, or `None` if tracking was never initialized.
+///
+/// Used by the dashboard renderer to compute CPU usage percentage.
+pub fn process_start_elapsed_secs() -> Option<f64> {
+    PROCESS_START.get().map(|t| t.elapsed().as_secs_f64())
+}
+
 #[derive(Debug, Clone)]
 pub struct TrackerConfig {
     pub max_allocations: usize,
@@ -54,6 +68,11 @@ impl Default for TrackerConfig {
 pub struct GlobalTrackerConfig {
     pub tracker: TrackerConfig,
     pub passport: PassportTrackerConfig,
+    // NOTE: Auto-export configuration lives exclusively on
+    // `MemScopeConfig.auto_export` and is consulted by `lifecycle::install`.
+    // Constructing a `GlobalTrackerConfig` directly and passing it to
+    // `init_global_tracking_with_config` does NOT enable auto-export; use
+    // `memscope_rs::start_with` for that.
 }
 
 pub struct GlobalTracker {
@@ -77,7 +96,13 @@ impl GlobalTracker {
     }
 
     pub fn with_config(config: GlobalTrackerConfig) -> Self {
-        let tracker = Tracker::new();
+        // Construct the underlying Tracker from `config.tracker` rather than
+        // `Tracker::new()` so the user-facing `TrackerConfig` fields
+        // (`max_allocations`, `enable_statistics`) flow through to the Tracker
+        // layer instead of being silently discarded. `Tracker::with_config`
+        // currently consumes them informationally; future enforcement lives
+        // there, not in this file.
+        let tracker = Tracker::with_config(config.tracker);
         let passport_tracker = Arc::new(MemoryPassportTracker::new(config.passport));
         let async_tracker = Arc::new(AsyncTracker::new());
         async_tracker.set_initialized();
@@ -278,6 +303,11 @@ pub struct GlobalTrackerStats {
 }
 
 pub fn init_global_tracking() -> MemScopeResult<()> {
+    // Capture the process start time on the very first init call so the
+    // dashboard can compute real CPU usage. This is idempotent — subsequent
+    // calls (which return Err) do not reset the timer.
+    PROCESS_START.get_or_init(Instant::now);
+
     let mut guard = GLOBAL_TRACKER.write().map_err(|_| {
         MemScopeError::error(
             "global_tracking",
@@ -300,6 +330,9 @@ pub fn init_global_tracking() -> MemScopeResult<()> {
 }
 
 pub fn init_global_tracking_with_config(config: GlobalTrackerConfig) -> MemScopeResult<()> {
+    // Capture the process start time (same as init_global_tracking).
+    PROCESS_START.get_or_init(Instant::now);
+
     let mut guard = GLOBAL_TRACKER.write().map_err(|_| {
         MemScopeError::error(
             "global_tracking",

@@ -382,6 +382,16 @@ impl PlatformMemoryInfo {
         Err(MemoryError::UnsupportedPlatform)
     }
 
+    /// Safely get the current CPU core index of the calling thread.
+    pub fn get_current_cpu(&self) -> Option<u32> {
+        get_current_cpu_impl()
+    }
+
+    /// Standalone implementation shared between the method and external callers.
+    pub fn get_current_cpu_standalone() -> Option<u32> {
+        get_current_cpu_impl()
+    }
+
     /// Set collection interval
     pub fn set_collection_interval(&mut self, interval: Duration) {
         self.collection_interval = interval;
@@ -1221,6 +1231,47 @@ impl std::fmt::Display for MemoryError {
 }
 
 impl std::error::Error for MemoryError {}
+
+/// Standalone: get the CPU core of the current calling thread.
+/// This is the shared implementation used by PlatformMemoryInfo::get_current_cpu
+/// and by external modules that don't have a PlatformMemoryInfo instance.
+pub fn get_current_cpu_impl() -> Option<u32> {
+    #[cfg(any(target_os = "linux", target_os = "android"))]
+    {
+        let cpu = unsafe { libc::sched_getcpu() };
+        if cpu < 0 {
+            None
+        } else {
+            Some(cpu as u32)
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        // macOS does not expose a per-thread CPU-number API to userspace
+        // (THREAD_IDENTIFIER_INFO returns KERN_INVALID_ARGUMENT on Apple Silicon).
+        // THREAD_BASIC_INFO works but only gives cpu_usage %, not the core index.
+        None
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        extern "system" {
+            fn GetCurrentProcessorNumber() -> u32;
+        }
+        unsafe { Some(GetCurrentProcessorNumber()) }
+    }
+
+    #[cfg(not(any(
+        target_os = "linux",
+        target_os = "android",
+        target_os = "macos",
+        target_os = "windows"
+    )))]
+    {
+        None
+    }
+}
 
 #[cfg(test)]
 mod tests {
