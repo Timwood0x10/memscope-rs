@@ -313,6 +313,18 @@ fn auto_export_on_drop_is_read_only() {
         histories[0]["timestamp_dealloc"].is_null(),
         "a live allocation must not gain a deallocation timestamp on export"
     );
+    assert!(
+        histories[0]["lifetime_ms"].is_null(),
+        "a live allocation has no complete lifetime to report"
+    );
+    assert!(
+        histories[0]["observed_age_ms"].is_u64(),
+        "the observed age must be reported instead of a fabricated lifetime"
+    );
+    assert_eq!(
+        histories[0]["lifetime_complete"], false,
+        "the export must flag that the lifetime is not complete"
+    );
 }
 
 /// Objective: Verify a duplicate observation of the same buffer is reported as a
@@ -392,5 +404,161 @@ fn hook_registered_block_is_reported_by_typed_observation() {
     assert_eq!(
         after_second, after_first,
         "a repeat observation of the same address and size must not duplicate the event"
+    );
+}
+
+/// Objective: Verify that releasing a block through the allocator hook invalidates the
+/// dedupe index, so a *new* block at the same address and size is still reported
+/// (plan A06 follow-up).
+/// Invariants: the second observation emits its own allocation event instead of being
+/// swallowed as a duplicate.
+#[test]
+#[serial]
+fn reuse_after_hook_release_is_not_deduplicated() {
+    let tracker = Tracker::global();
+    let data = vec![3u8; 32];
+    let ptr = data.as_ptr() as usize;
+    let size = data.capacity();
+    let core = memscope_rs::core::tracker::get_tracker();
+
+    let allocate_events = |tracker: &Tracker| {
+        tracker
+            .events()
+            .iter()
+            .filter(|event| {
+                event.ptr == ptr && matches!(event.event_type, MemoryEventType::Allocate)
+            })
+            .count()
+    };
+
+    // First block: hook registers it, then the typed observation reports it.
+    core.track_allocation(ptr, size).expect("hook register");
+    tracker.track_as(&data, "reused", file!(), line!(), module_path!());
+    let after_first = allocate_events(&tracker);
+    assert_eq!(after_first, 1, "the first block must be reported once");
+
+    // Hook release (the real allocator path, not `Tracker::track_deallocation`).
+    core.track_deallocation(ptr).expect("hook release");
+
+    // A new block lands on the same address with the same size.
+    core.track_allocation(ptr, size).expect("hook re-register");
+    tracker.track_as(&data, "reused", file!(), line!(), module_path!());
+
+    assert_eq!(
+        allocate_events(&tracker),
+        after_first + 1,
+        "a new binding at a reused address must not be deduplicated away"
+    );
+}
+
+/// Objective: Verify a smart pointer tracked inside a task charges that task once
+/// (plan A08 parity for StackOwner).
+/// Invariants: the task's allocation count and memory usage grow by the tracked size.
+#[test]
+#[serial]
+fn smart_pointer_observation_charges_the_current_task() {
+    let registry = memscope_rs::task_registry::global_registry();
+    registry.clear();
+    let tracker = Tracker::new();
+    let shared = std::sync::Arc::new(vec![9u8; 16]);
+
+    {
+        let _scope = registry.task_scope("arc_owner");
+        let task_id = memscope_rs::task_registry::TaskIdRegistry::current_task_id()
+            .expect("the task scope must install a current task");
+        tracker.track_as(&shared, "shared", file!(), line!(), module_path!());
+
+        let meta = registry.get_task(task_id).expect("the task must exist");
+        assert_eq!(
+            meta.allocation_count, 1,
+            "tracking an Arc must charge one allocation to the task"
+        );
+        assert!(
+            meta.memory_usage > 0,
+            "tracking an Arc must charge bytes to the task, got {}",
+            meta.memory_usage
+        );
+    }
+}
+
+/// Objective: Verify a type observed after an untyped reallocation is attached to the
+/// existing binding instead of being dropped as a duplicate (plan A06 follow-up).
+/// Invariants: exactly one live binding, and it carries the observed type name.
+#[test]
+fn type_after_untyped_reallocation_is_attached() {
+    let tracker = Tracker::new();
+    let data = vec![5u8; 16];
+    let ptr = data.as_ptr() as usize;
+
+    // Simulate an allocator reallocation into this address: the event has no type.
+    tracker.track_reallocation(ptr + 8, ptr, 8, data.capacity());
+    tracker.track_as(&data, "payload", file!(), line!(), module_path!());
+
+    // A projection that rebuilds from the event stream must see the type: the metadata
+    // annotation has to reach the binding instead of being dropped as a duplicate.
+    let rebuilt =
+        memscope_rs::render_engine::dashboard::rebuild_allocations_from_events(&tracker.events());
+    let binding = rebuilt
+        .iter()
+        .find(|allocation| allocation.ptr == ptr)
+        .expect("the moved binding must be present");
+    assert_eq!(
+        binding.type_name.as_deref(),
+        Some("Vec<T>"),
+        "the later type observation must annotate the existing binding"
+    );
+}
+
+/// Objective: Verify the exported thread report projects the ledger's cumulative totals and
+/// high-water mark instead of re-aggregating the live list (plan A06 follow-up).
+/// Invariants: after allocating 64 + 128 and releasing 128, the export reports 192 bytes
+/// allocated and a 192-byte peak with 64 bytes live.
+#[test]
+#[serial]
+fn export_reports_ledger_totals_after_release() {
+    let tracker = Tracker::new();
+    let kept = vec![1u8; 64];
+    let released = vec![2u8; 128];
+    tracker.track_as(&kept, "kept", file!(), line!(), module_path!());
+    tracker.track_as(&released, "released", file!(), line!(), module_path!());
+    assert!(
+        tracker
+            .track_deallocation(released.as_ptr() as usize)
+            .expect("release must succeed"),
+        "the second block must be tracked before it is released"
+    );
+
+    let dir = TempDir::new().expect("tempdir must be creatable");
+    let passports = Arc::new(MemoryPassportTracker::default());
+    let async_tracker =
+        Arc::new(memscope_rs::capture::backends::async_tracker::AsyncTracker::new());
+    memscope_rs::render_engine::export::export_all_json(
+        dir.path(),
+        &tracker,
+        &passports,
+        &async_tracker,
+    )
+    .expect("export must succeed");
+
+    let thread_json = std::fs::read_to_string(dir.path().join("thread_analysis.json"))
+        .expect("thread_analysis.json must exist");
+    let thread_data: serde_json::Value =
+        serde_json::from_str(&thread_json).expect("thread_analysis.json must be valid JSON");
+    let totals = &thread_data["thread_analysis"][0];
+    assert_eq!(
+        totals["allocation_count"], 2,
+        "both allocations must be counted"
+    );
+    assert_eq!(
+        totals["total_allocated"], 192,
+        "cumulative allocated bytes must survive the release"
+    );
+    assert_eq!(
+        totals["peak_memory"], 192,
+        "the high-water mark must survive the release"
+    );
+    assert_eq!(
+        totals["current_memory"], 64,
+        "only the unreleased block is live"
     );
 }

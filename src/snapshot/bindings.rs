@@ -146,8 +146,11 @@ impl BindingLedger {
             MemoryEventType::Deallocate => self.on_deallocate(event),
             // Metadata describes non-heap objects; clone/borrow/move/return do
             // not change the allocation ledger.
-            MemoryEventType::Metadata
-            | MemoryEventType::Clone
+            // A metadata event carrying a heap address annotates an existing binding
+            // (type observed after the allocation was recorded); everything else is
+            // container metadata that does not touch the allocation ledger.
+            MemoryEventType::Metadata => self.on_metadata(event),
+            MemoryEventType::Clone
             | MemoryEventType::Move
             | MemoryEventType::Borrow
             | MemoryEventType::Return => {}
@@ -233,9 +236,21 @@ impl BindingLedger {
         self.stats.overflowed |= overflow_c;
         self.stats.peak_bytes = self.stats.peak_bytes.max(self.stats.current_bytes);
 
-        let Some(mut binding) = self.close_binding(index) else {
-            return;
+        let migrating = event.new_ptr.filter(|new_ptr| *new_ptr != event.ptr);
+
+        // Take the binding out of the slot. `close_binding` also detaches it from its
+        // address bucket (migration), while the in-place case keeps the bucket entry and
+        // restores the record into the very same slot, so the "oldest binding first"
+        // matching order is preserved.
+        let mut binding = match if migrating.is_some() {
+            self.close_binding(index)
+        } else {
+            self.live[index].take()
+        } {
+            Some(binding) => binding,
+            None => return,
         };
+
         binding.size = event.size;
         if event.var_name.is_some() {
             binding.var_name = event.var_name.clone();
@@ -252,26 +267,57 @@ impl BindingLedger {
         }
         let origin_thread = binding.thread_id;
 
+        // Live bytes stay with the allocating thread; the *activity* (allocated and
+        // released bytes) belongs to the thread that performed the reallocation, exactly
+        // like an ordinary release.
         if let Some(thread) = self.thread_stats.get_mut(&origin_thread) {
             thread.current_memory = thread.current_memory.saturating_sub(previous_size);
             thread.current_memory += event.size;
-            thread.total_allocated += event.size;
-            thread.total_deallocated += previous_size;
             thread.peak_memory = thread.peak_memory.max(thread.current_memory);
         }
+        let actor = self.thread_stats.entry(event.thread_id).or_default();
+        actor.thread_id = event.thread_id;
+        actor.total_allocated += event.size;
+        actor.total_deallocated += previous_size;
 
-        // An in-place reallocation keeps the binding slot and its generation; a
-        // migrating one closes the old address and opens a binding at the new address.
-        match event.new_ptr.filter(|new_ptr| *new_ptr != event.ptr) {
+        match migrating {
             Some(new_ptr) => {
                 binding.allocated_at = event.timestamp;
                 self.push_record(binding, new_ptr);
             }
             None => {
-                let index = self.push_slot();
                 self.live[index] = Some(binding);
-                self.by_addr.entry(event.ptr).or_default().push(index);
             }
+        }
+    }
+
+    /// Attach type/variable metadata to an existing heap binding.
+    ///
+    /// Used when the allocation was recorded without type information (for example by an
+    /// allocator reallocation event) and the type is observed later. No bytes or counters
+    /// change: the binding identity stays the same.
+    fn on_metadata(&mut self, event: &MemoryEvent) {
+        if event.ptr == 0 {
+            return;
+        }
+        let Some(index) = self.find_binding(event.ptr, None) else {
+            return;
+        };
+        let Some(binding) = self.live.get_mut(index).and_then(Option::as_mut) else {
+            return;
+        };
+        if let Some(var_name) = event.var_name.as_ref() {
+            binding.var_name = Some(var_name.clone());
+        }
+        if let Some(type_name) = event.type_name.as_ref() {
+            binding.type_name = Some(type_name.clone());
+        }
+        if let Some(module_path) = event.module_path.as_ref() {
+            binding.module_path = Some(module_path.clone());
+        }
+        if let (Some(file), Some(line)) = (event.source_file.clone(), event.source_line) {
+            binding.source_file = Some(file);
+            binding.source_line = Some(line);
         }
     }
 
@@ -793,5 +839,59 @@ mod tests {
                 "replay must stay near-linear: 4x events took {ratio:.1}x the time                  ({small:?} -> {large:?}), which indicates a full scan per event"
             );
         }
+    }
+
+    /// Objective: Verify an in-place reallocation keeps the binding's position inside its
+    /// address bucket, so a later release still closes the oldest binding first.
+    /// Invariants: after G1/64 -> G2/128 -> G1 reallocated to 128, a release of 128 closes
+    /// G1 and leaves G2 alive.
+    #[test]
+    fn in_place_reallocation_keeps_binding_order() {
+        let mut ledger = BindingLedger::new();
+        ledger.apply(&MemoryEvent::allocate(0xD000, 64, 1)); // G1
+        ledger.apply(&MemoryEvent::allocate(0xD000, 128, 1)); // G2, G1 reuse without release
+        ledger.apply(&MemoryEvent::reallocate(0xD000, 64, 128, 1)); // G1 grows in place
+
+        ledger.apply(&MemoryEvent::deallocate(0xD000, 128, 1));
+
+        assert_eq!(
+            ledger.live().len(),
+            1,
+            "one release must close exactly one binding"
+        );
+        assert_eq!(
+            ledger.live()[0].generation,
+            2,
+            "the release must close the oldest binding (G1), leaving G2 alive"
+        );
+    }
+
+    /// Objective: Verify a cross-thread reallocation keeps live bytes with the allocating
+    /// thread while booking the activity to the thread that performed it.
+    /// Invariants: origin thread holds the live bytes, actor thread holds the released and
+    /// allocated bytes but no live bytes.
+    #[test]
+    fn cross_thread_reallocation_books_activity_to_the_actor() {
+        let mut ledger = BindingLedger::new();
+        ledger.apply(&MemoryEvent::allocate(0xE000, 64, 1));
+        ledger.apply(&MemoryEvent::reallocate(0xE000, 64, 128, 2));
+
+        let origin = ledger.thread_stats().get(&1).expect("origin thread");
+        assert_eq!(
+            origin.current_memory, 128,
+            "live bytes stay with the allocating thread"
+        );
+        assert_eq!(
+            origin.total_deallocated, 0,
+            "the origin thread did not perform the release activity"
+        );
+
+        let actor = ledger
+            .thread_stats()
+            .get(&2)
+            .expect("the reallocating thread must be recorded");
+        assert_eq!(actor.total_allocated, 128, "the new size is booked");
+        assert_eq!(actor.total_deallocated, 64, "the old size is booked");
+        assert_eq!(actor.current_memory, 0, "the actor owns no live bytes");
     }
 }

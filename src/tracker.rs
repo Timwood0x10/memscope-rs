@@ -130,6 +130,22 @@ pub struct AllocationHotspot {
     pub location: Option<String>,
 }
 
+/// What this tracker has already reported for an address.
+///
+/// The core cache can be populated by the allocator hook without any event, and a
+/// released address can be reused by a *new* block. Both cases must be told apart from
+/// "this tracker already emitted the event", which is what `serial` (binding identity)
+/// and `typed` (metadata present) express.
+#[derive(Debug, Clone, Copy)]
+struct RecordedBinding {
+    /// Size recorded with the event.
+    size: usize,
+    /// Core-tracker binding identity at the time of the event.
+    serial: u64,
+    /// Whether the recorded event carried type information.
+    typed: bool,
+}
+
 pub struct Tracker {
     inner: Arc<MemoryTracker>,
     event_store: Arc<EventStore>,
@@ -139,7 +155,7 @@ pub struct Tracker {
     /// The core cache can be populated by the allocator hook without any event
     /// (`Tracker::global` shares the hook's tracker), so cache presence alone must not
     /// be treated as "already reported".
-    recorded_bindings: Arc<DashMap<usize, usize>>,
+    recorded_bindings: Arc<DashMap<usize, RecordedBinding>>,
     config: Arc<Mutex<TrackerConfig>>,
     start_time: Instant,
     system_snapshots: Arc<Mutex<Vec<SystemSnapshot>>>,
@@ -213,7 +229,7 @@ impl Tracker {
             std::sync::OnceLock::new();
         static GLOBAL_SYSTEM_SNAPSHOTS: std::sync::OnceLock<Arc<Mutex<Vec<SystemSnapshot>>>> =
             std::sync::OnceLock::new();
-        static GLOBAL_RECORDED_BINDINGS: std::sync::OnceLock<Arc<DashMap<usize, usize>>> =
+        static GLOBAL_RECORDED_BINDINGS: std::sync::OnceLock<Arc<DashMap<usize, RecordedBinding>>> =
             std::sync::OnceLock::new();
 
         Self {
@@ -340,25 +356,67 @@ impl Tracker {
 
         match kind {
             crate::core::types::TrackKind::HeapOwner { ptr, size } => {
-                // The core cache can already hold this address because the allocator
-                // hook registered the block *without* emitting an event
-                // (`Tracker::global` shares the hook's tracker). Cache presence alone
-                // therefore must not suppress the typed observation, or event-driven
-                // projections never see the block at all.
-                let previous_size = self.inner.get_allocation_size(ptr);
-                let already_recorded = self
-                    .recorded_bindings
-                    .get(&ptr)
-                    .is_some_and(|recorded| *recorded == size);
+                // The core cache can already hold this address because the allocator hook
+                // registered the block *without* emitting an event, or because a previous
+                // block at this address was released and the address was reused. Only the
+                // binding identity (serial) plus the presence of type metadata tell those
+                // cases apart from a real duplicate observation.
+                let recorded = self.recorded_bindings.get(&ptr).map(|entry| *entry);
 
                 if let Err(e) = self.inner.track_allocation(ptr, size) {
                     tracing::error!("Failed to track allocation at ptr {:x}: {}", ptr, e);
                     return;
                 }
 
-                if previous_size == Some(size) && already_recorded {
-                    // A genuine repeat: this tracker already emitted the event for this
-                    // address and size. Refresh metadata only.
+                let serial = self.inner.binding_serial(ptr).unwrap_or(0);
+                let same_binding = recorded
+                    .is_some_and(|binding| binding.serial == serial && binding.size == size);
+
+                if same_binding && recorded.is_some_and(|binding| binding.typed) {
+                    // Same binding, same size, type already reported: refresh the cache row
+                    // only, never a second event.
+                    if let Err(e) = self.inner.associate_var(
+                        ptr,
+                        name.to_string(),
+                        type_name,
+                        Some(file),
+                        Some(line),
+                    ) {
+                        tracing::error!(
+                            "Failed to associate var '{}' at ptr {:x}: {}",
+                            name,
+                            ptr,
+                            e
+                        );
+                    }
+                    return;
+                }
+
+                if same_binding {
+                    // The allocation is already reported (for example by an allocator
+                    // reallocation event) but without type information: attach the type as an
+                    // annotation so projections can name the block without counting a second
+                    // allocation.
+                    let mut annotation = MemoryEvent::metadata(
+                        name.to_string(),
+                        type_name.clone(),
+                        thread_id_u64,
+                        size,
+                    );
+                    annotation.ptr = ptr;
+                    annotation.source_file = Some(file.to_string());
+                    annotation.source_line = Some(line);
+                    annotation.module_path = Some(module_path.to_string());
+                    self.event_store.record(annotation);
+                    self.recorded_bindings.insert(
+                        ptr,
+                        RecordedBinding {
+                            size,
+                            serial,
+                            typed: true,
+                        },
+                    );
+
                     if let Err(e) = self.inner.associate_var(
                         ptr,
                         name.to_string(),
@@ -377,12 +435,8 @@ impl Tracker {
                 }
 
                 // Either the first typed observation of a hook-registered block, or a new
-                // binding (fresh address / different size). Emit one allocation event and
-                // book task memory exactly once, then remember the address.
-                //
-                // A different size cannot be proven to be the same block, so it is a new
-                // binding for every projection; only the allocator may claim identity
-                // continuity (`Tracker::track_reallocation`).
+                // binding (fresh address, or a new serial after the address was reused).
+                // Emit one allocation event and book task memory exactly once.
                 crate::task_registry::global_registry().record_allocation(size);
 
                 let mut event = MemoryEvent::allocate(ptr, size, thread_id_u64);
@@ -392,7 +446,14 @@ impl Tracker {
                 event.source_line = Some(line);
                 event.module_path = Some(module_path.to_string());
                 self.event_store.record(event);
-                self.recorded_bindings.insert(ptr, size);
+                self.recorded_bindings.insert(
+                    ptr,
+                    RecordedBinding {
+                        size,
+                        serial,
+                        typed: true,
+                    },
+                );
 
                 if let Err(e) = self.inner.associate_var(
                     ptr,
@@ -417,6 +478,10 @@ impl Tracker {
                     tracing::error!("Failed to track allocation at ptr {:x}: {}", stack_ptr, e);
                     return;
                 }
+
+                // Smart pointers own heap memory too: the task that tracked them must be
+                // charged once, exactly like a HeapOwner observation (plan A08 parity).
+                crate::task_registry::global_registry().record_allocation(size);
 
                 let mut event = MemoryEvent::allocate(heap_ptr, size, thread_id_u64);
                 event.var_name = Some(name.to_string());
@@ -503,7 +568,18 @@ impl Tracker {
         }
 
         self.recorded_bindings.remove(&old_ptr);
-        self.recorded_bindings.insert(new_ptr, new_size);
+        // The reallocation event carries no type information, so the binding is remembered
+        // as *untyped*: the next `track!` on it must attach the type instead of being
+        // treated as a duplicate observation.
+        let serial = self.inner.binding_serial(new_ptr).unwrap_or(0);
+        self.recorded_bindings.insert(
+            new_ptr,
+            RecordedBinding {
+                size: new_size,
+                serial,
+                typed: false,
+            },
+        );
 
         let thread_id_u64 = crate::utils::current_thread_id_u64();
         let event =

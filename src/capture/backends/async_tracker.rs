@@ -94,6 +94,12 @@ static GLOBAL_TRACKER: Mutex<Option<Arc<AsyncTracker>>> = Mutex::new(None);
 
 thread_local! {
     static CURRENT_TASK_ID: std::cell::Cell<Option<u64>> = const { std::cell::Cell::new(None) };
+    /// Guards currently alive on this thread, outermost first.
+    ///
+    /// Restoring the parent from a saved `previous` value breaks when guards are dropped
+    /// out of order: an inner guard would restore a scope that has already ended. The
+    /// stack makes the restore well defined for any drop order.
+    static TASK_STACK: std::cell::RefCell<Vec<u64>> = const { std::cell::RefCell::new(Vec::new()) };
 }
 
 tokio::task_local! {
@@ -109,7 +115,6 @@ tokio::task_local! {
 /// guard was moved across threads.
 pub struct TaskGuard {
     task_id: u64,
-    previous: Option<u64>,
     cleaned_up: bool,
 }
 
@@ -130,10 +135,9 @@ unsafe impl Send for TaskGuard {}
 unsafe impl Sync for TaskGuard {}
 
 impl TaskGuard {
-    fn new(task_id: u64, previous: Option<u64>) -> Self {
+    fn new(task_id: u64) -> Self {
         Self {
             task_id,
-            previous,
             cleaned_up: false,
         }
     }
@@ -149,14 +153,24 @@ impl TaskGuard {
         self.restore_previous();
     }
 
-    /// Restore the task context captured when the guard was created.
+    /// Remove this guard from the thread's scope stack and restore the new top.
     ///
-    /// The write only happens while this guard still owns the thread-local slot; a
-    /// nested task that replaced it must not be clobbered.
+    /// Works for any drop order: dropping an outer guard first leaves the inner one
+    /// current, and the inner one then restores the layer below it (or nothing).
     fn restore_previous(&self) {
+        let parent = TASK_STACK.with(|stack| {
+            let mut stack = stack.borrow_mut();
+            if let Some(position) = stack.iter().rposition(|id| *id == self.task_id) {
+                stack.remove(position);
+            }
+            stack.last().copied()
+        });
+
+        // Only release the slot while this guard still owns it; a task installed
+        // afterwards (manually or by another scope) must not be clobbered.
         CURRENT_TASK_ID.with(|cell| {
             if cell.get() == Some(self.task_id) {
-                cell.set(self.previous);
+                cell.set(parent);
             }
         });
     }
@@ -227,11 +241,9 @@ impl AsyncTracker {
     /// Enter a task context with automatic cleanup.
     /// Returns a TaskGuard that will clear the task ID when dropped.
     pub fn enter_task(task_id: u64) -> TaskGuard {
-        // Capture first: `new` must remember the context that was active before
-        // this guard took over, so dropping it can restore the parent task.
-        let previous = Self::get_current_task();
+        TASK_STACK.with(|stack| stack.borrow_mut().push(task_id));
         Self::set_current_task(task_id);
-        TaskGuard::new(task_id, previous)
+        TaskGuard::new(task_id)
     }
 
     /// Execute a closure within a task context with automatic cleanup.

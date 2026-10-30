@@ -30,6 +30,11 @@ pub struct AllocationInfo {
     pub stack_trace: Option<Vec<String>>,
     /// Module path (from module_path!())
     pub module_path: Option<String>,
+    /// Monotonic identity of this binding inside the tracker.
+    ///
+    /// A new block at a reused address gets a new serial, so consumers can tell
+    /// "same address" from "same allocation" (plan A06/PR-02 groundwork).
+    pub binding_serial: u64,
 }
 
 impl AllocationInfo {
@@ -45,6 +50,7 @@ impl AllocationInfo {
             thread_id: Self::current_thread_id(),
             stack_trace: None,
             module_path: None,
+            binding_serial: 0,
         }
     }
 

@@ -565,6 +565,45 @@ pub fn aggregate_thread_data(allocations: &[AllocationInfo]) -> Vec<ThreadInfo> 
         .collect()
 }
 
+/// Aggregate thread data from the ledger's transition-based statistics.
+///
+/// Prefer this over [`aggregate_thread_data`] whenever the event stream is available: the
+/// live list cannot report cumulative totals or the high-water mark, so a program that
+/// allocated 64 + 128 and released 128 used to show 64 bytes for both (plan A06
+/// follow-up).
+pub fn aggregate_thread_data_from_ledger(
+    thread_stats: &HashMap<u64, crate::snapshot::types::ThreadMemoryStats>,
+) -> Vec<ThreadInfo> {
+    thread_stats
+        .values()
+        .map(|stats| {
+            let thread_id = super::helpers::format_thread_id(&format!("{:?}", stats.thread_id));
+            ThreadInfo {
+                thread_summary: format!(
+                    "{} allocs, {}",
+                    stats.allocation_count,
+                    super::helpers::format_bytes(stats.current_memory)
+                ),
+                thread_id,
+                allocation_count: stats.allocation_count,
+                current_memory: super::helpers::format_bytes(stats.current_memory),
+                peak_memory: super::helpers::format_bytes(stats.peak_memory),
+                total_allocated: super::helpers::format_bytes(stats.total_allocated),
+                current_memory_bytes: stats.current_memory,
+                peak_memory_bytes: stats.peak_memory,
+                total_allocated_bytes: stats.total_allocated,
+                is_active: stats.allocation_count > 0,
+                status: if stats.allocation_count > 0 {
+                    "ACTIVE".to_string()
+                } else {
+                    "IDLE".to_string()
+                },
+                cpu_core: crate::capture::platform::memory_info::get_current_cpu_impl(),
+            }
+        })
+        .collect()
+}
+
 /// Build async tasks
 pub fn build_async_tasks(
     async_tracker: Option<&std::sync::Arc<crate::capture::backends::async_tracker::AsyncTracker>>,

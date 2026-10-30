@@ -6,9 +6,10 @@ use super::event_reconstructor::{
 };
 use super::helpers::format_bytes;
 use super::report_builder::{
-    aggregate_thread_data, build_allocation_info, build_async_summary, build_async_tasks,
-    build_circular_reference_report, build_ownership_graph_info, build_passport_details,
-    build_relationships, build_top_n_reports, build_unsafe_reports, calculate_health_info,
+    aggregate_thread_data, aggregate_thread_data_from_ledger, build_allocation_info,
+    build_async_summary, build_async_tasks, build_circular_reference_report,
+    build_ownership_graph_info, build_passport_details, build_relationships, build_top_n_reports,
+    build_unsafe_reports, calculate_health_info,
 };
 use super::system_info::get_system_info;
 use super::types::*;
@@ -186,7 +187,17 @@ pub fn build_context_from_tracker_with_async(
     let leak_result = passport_tracker.detect_leaks_at_shutdown();
     let leak_count = leak_result.leaked_passports.len();
 
-    let thread_data = aggregate_thread_data(&alloc_info);
+    // Thread numbers come from the ledger whenever events exist: only it knows the
+    // cumulative totals and the high-water mark, which the live list cannot reconstruct.
+    let mut ledger = crate::snapshot::BindingLedger::new();
+    for event in &events {
+        ledger.apply(event);
+    }
+    let thread_data = if ledger.thread_stats().is_empty() {
+        aggregate_thread_data(&alloc_info)
+    } else {
+        aggregate_thread_data_from_ledger(ledger.thread_stats())
+    };
     let async_tasks = build_async_tasks(async_tracker);
     let async_summary = build_async_summary(async_tracker, &async_tasks);
     let ownership_graph = build_ownership_graph_info(&all_allocations);
