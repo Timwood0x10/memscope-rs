@@ -51,6 +51,11 @@ pub fn rebuild_allocations_from_events(events: &[MemoryEvent]) -> Vec<Allocation
 
     for event in events {
         match event.event_type {
+            MemoryEventType::Metadata if event.ptr != 0 => {
+                // A pointer-carrying metadata event annotates an existing heap binding
+                // (its type was observed after the allocation was recorded). The ledger
+                // already applied it, so it must not create a container allocation.
+            }
             MemoryEventType::Metadata => {
                 let stack_trace = event
                     .source_file

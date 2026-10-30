@@ -1442,3 +1442,29 @@ let leaked = allocations.into_iter().filter(|a| a.ptr.is_some()).collect();
 规模 4 倍时耗时约 5 倍（修复前约 15.7 倍），并新增 `replay_scales_linearly_with_distinct_addresses` 以防回退。
 
 变异验证：把三处 P1 修复分别改回旧行为（忽略"是否已发事件"、unmatched realloc 用旧地址、异步继承旧代号）后，新增用例立即失败；恢复实现后全绿。
+
+### 17.11 第七轮：导出层结论、护照主键与报告口径
+
+先逐条核对，再按核对结果修复。表中"结论"为源码核查事实。
+
+| 意见 | 结论 | 处理 |
+| --- | --- | --- |
+| A15-1 护照以裸地址为键，复用静默覆盖 | **成立**：`HashMap<usize, _>` + `insert`，无代号、无诊断 | `MemoryPassport` 增加 `generation`/`superseded`/`history_truncated`；被取代的护照进入 `superseded` 归档（`get_archived_passports()`），不再丢失证据；新护照带该地址的下一代号。主键完整迁移到 `AllocationId` 仍属 PR-07 |
+| A15-2 `detect_leaks_at_shutdown` 查询即修改 | **成立**：写回 `status_at_shutdown` 并改 `stats`，被每次导出调用 | 改为**只读投影**：状态经 `assess_status()` 计算，不写护照、不动统计；新增"重复检测不漂移"用例 |
+| A15-3 一次导出的 9 个文件不同切面 | **成立**：`memory_passports` → `leak_detection`(突变) → `unsafe_ffi` | 三个文件都改用同一 `assess_status` 只读投影，同批次口径一致 |
+| A15-4 未移交 FFI 被判 `FreedByRust` | **成立**：`determine_final_status` 的 `else` 分支 | 新增 `PassportStatus::StillLive` 作为"已分配、无释放证据"的终态；`FreedByRust` 不再被凭空产出 |
+| A15-5 活对象 `lifetime_ms` 当完整寿命 | **成立** | 导出改为 `lifetime_ms: null` + `observed_age_ms` + `lifetime_complete: false`；`memory_analysis.json` 同口径 |
+| A15-6 截断无标记 | **成立**：`drain(0..1)` 无任何标志 | 置 `history_truncated` 并写入 `metadata`，两个护照 JSON 均输出该字段 |
+| A15-7 ownership_graph 自环边 | **已消除**：A19 的自动借用已删除，残留只有显式 `track_borrow`（语义正确） | 本轮不改代码 |
+| A15-8 UAF 文案当实锤 | **成立** | 文案改为 `Heuristic use-after-free: ... (heuristic, no memory-access evidence)`，算法未动 |
+| B1 hook 释放后同址同大小新分配被吞 | **成立**：`recorded_bindings` 只由 `Tracker` 门面清理 | 核心缓存新增 `binding_serial`（每次新绑定递增）；去重条件改为 `(serial, size, typed)`，地址复用得到新 serial 后照常上报 |
+| B2 原地 realloc 改变绑定顺序 | **成立**：关闭后追加到桶尾 | 原地分支保留原 slot 与桶内序号（只 `take` 不 `close`），迟到释放仍关闭最旧绑定 |
+| B3 最终报告丢失累计统计与峰值 | **成立**：导出先取存活列表再建快照；仪表盘线程聚合按存活量重算 | 新增 `override_snapshot_stats`（导出用账本 `allocated/deallocated/current/peak/thread_stats`），仪表盘改用 `aggregate_thread_data_from_ledger` |
+| B4 Arc/Rc 任务分配统计遗漏 | **成立**：只在 HeapOwner 分支补了 `record_allocation` | StackOwner 分支同样记一次 |
+| B5 无类型 realloc 后首次类型观测被吞 | **成立**：重分配事件无类型信息，`track!` 被当作重复 | 记录项带 `typed` 标记；未类型化时发 `Metadata` 注释事件（`ptr != 0`），账本 `on_metadata` 把变量/类型挂到既有绑定，不新增分配 |
+| B6 跨线程 realloc 的活动记到原分配线程 | **成立** | 存活字节留在原线程，`total_allocated/total_deallocated` 记到执行重分配的线程（与普通释放的 actor 口径一致） |
+| B7 非逆序销毁 TaskGuard 恢复已退出作用域 | **成立**：inner 保存的 previous 未随 outer 退出失效 | 改为线程内**作用域栈**：drop 时移除自身并恢复到栈顶，任意销毁顺序都正确 |
+
+新增/更新用例：`live_passport_is_not_reported_as_freed_by_rust`、`detect_is_read_only_and_repeatable`、`address_reuse_archives_previous_passport`、`truncated_history_is_flagged`、`reuse_after_hook_release_is_not_deduplicated`、`in_place_reallocation_keeps_binding_order`、`cross_thread_reallocation_books_activity_to_the_actor`、`smart_pointer_observation_charges_the_current_task`、`type_after_untyped_reallocation_is_attached`、`export_reports_ledger_totals_after_release`、`out_of_order_guard_drop_does_not_restore_exited_scope`。
+
+变异验证：把去重条件退回"只看 size"后 `reuse_after_hook_release_is_not_deduplicated` 立即失败；恢复后全绿。

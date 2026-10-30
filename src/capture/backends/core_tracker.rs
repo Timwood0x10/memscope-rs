@@ -68,6 +68,8 @@ pub struct MemoryTracker {
     /// size (duplicate `track!`, allocator hook + typed observation of the same
     /// buffer). Used as a diagnostic: it must never reach the byte counters.
     duplicate_observations: AtomicU64,
+    /// Monotonic identity assigned to every binding this tracker creates.
+    next_binding_serial: AtomicU64,
     /// Number of bindings that were superseded by a new size at the same address
     /// without an observed release in between. Reported as a diagnostic because it
     /// means the capture missed a `free` (or saw two different blocks at one address).
@@ -90,6 +92,7 @@ impl MemoryTracker {
             total_deallocated: AtomicU64::new(0),
             peak_allocations: AtomicUsize::new(0),
             peak_memory: AtomicU64::new(0),
+            next_binding_serial: AtomicU64::new(1),
             duplicate_observations: AtomicU64::new(0),
             replaced_bindings: AtomicU64::new(0),
             fast_mode: AtomicU64::new(fast_mode as u64),
@@ -154,6 +157,7 @@ impl MemoryTracker {
         }
 
         let mut allocation = AllocationInfo::new(ptr, size);
+        allocation.binding_serial = self.next_binding_serial.fetch_add(1, Ordering::Relaxed);
         if var_name.is_some() {
             allocation.var_name = var_name;
         }
@@ -271,8 +275,9 @@ impl MemoryTracker {
             // caller reallocated memory this tracker never saw allocated). Only the new
             // block is a fact: record it and book no released bytes for the old one,
             // otherwise `allocated - deallocated` would drop below the live set.
-            self.active_allocations
-                .insert(new_ptr, AllocationInfo::new(new_ptr, new_size));
+            let mut new_binding = AllocationInfo::new(new_ptr, new_size);
+            new_binding.binding_serial = self.next_binding_serial.fetch_add(1, Ordering::Relaxed);
+            self.active_allocations.insert(new_ptr, new_binding);
             self.total_allocations.fetch_add(1, Ordering::Relaxed);
             self.total_allocated
                 .fetch_add(new_size as u64, Ordering::Relaxed);
@@ -348,6 +353,16 @@ impl MemoryTracker {
         var_name: String,
     ) -> TrackingResult<()> {
         self.record_binding(ptr, size, Some(var_name))
+    }
+
+    /// Identity of the live binding at `ptr`, if any.
+    ///
+    /// Changes whenever a *new* block is recorded at that address, so callers can detect
+    /// address reuse instead of assuming the same allocation (plan A06/PR-02).
+    pub fn binding_serial(&self, ptr: usize) -> Option<u64> {
+        self.active_allocations
+            .get(&ptr)
+            .map(|allocation| allocation.binding_serial)
     }
 
     /// Number of duplicate sightings of already tracked addresses.

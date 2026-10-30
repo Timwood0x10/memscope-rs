@@ -226,11 +226,20 @@ fn process_allocation_batch(allocations: &[&ActiveAllocation]) -> Vec<serde_json
                 alloc.size,
             );
 
-            let lifetime_ms = if alloc.allocated_at > 0 {
+            // `lifetime_ms` describes a *complete* lifetime and is only filled when the
+            // release time is known. A live object reports `observed_age_ms` instead:
+            // "how long it had been alive when the snapshot was taken", never an invented
+            // total lifetime (plan §4.5).
+            let observed_age_ms = if alloc.allocated_at > 0 {
                 (current_time.saturating_sub(alloc.allocated_at)) / 1_000_000
             } else {
                 0
             };
+            // This projection only contains allocations that are still live, so a
+            // complete lifetime is never known here: `lifetime_ms` stays null and the
+            // consumer is pointed at `observed_age_ms` instead of mistaking an open-ended
+            // age for the object's total lifetime (plan §4.5).
+            let lifetime_ms: Option<u64> = None;
 
             let address = match alloc.ptr {
                 Some(ptr) => format!("0x{:x}", ptr),
@@ -244,6 +253,8 @@ fn process_allocation_batch(allocations: &[&ActiveAllocation]) -> Vec<serde_json
                 "timestamp": alloc.allocated_at,
                 "thread_id": alloc.thread_id,
                 "lifetime_ms": lifetime_ms,
+                "observed_age_ms": observed_age_ms,
+                "lifetime_complete": lifetime_ms.is_some(),
             });
 
             if let Some(ref var_name) = alloc.var_name {
@@ -390,7 +401,11 @@ fn generate_lifetime_json<P: AsRef<Path>>(
                 "size": alloc.get("size"),
                 "timestamp_alloc": alloc.get("timestamp"),
                 "timestamp_dealloc": null,
-                "lifetime_ms": alloc.get("lifetime_ms"),
+                // The projection only sees live allocations, so a complete lifetime is
+                // unknown: report the observed age and say so explicitly (plan §4.5).
+                "lifetime_ms": null,
+                "observed_age_ms": alloc.get("observed_age_ms"),
+                "lifetime_complete": false,
                 "events": [
                     {
                         "event_type": "Created",
@@ -511,6 +526,30 @@ pub enum ExportError {
     ExportFailed(String),
 }
 
+/// Replace the live-set aggregates with the ledger's transition-based statistics.
+///
+/// `MemorySnapshot::from_allocation_infos` can only sum what is still live: after a
+/// release it reports 64 bytes allocated and a 64-byte peak for a program that allocated
+/// 64 + 128 and freed 128. The ledger watched every transition, so its numbers are the
+/// authoritative ones for exports and reports (plan A06 follow-up).
+fn override_snapshot_stats(
+    snapshot: &mut MemorySnapshot,
+    ledger: &crate::snapshot::BindingLedger,
+    active_allocations: usize,
+) {
+    let stats = ledger.stats();
+    snapshot.stats.total_allocations = stats.allocation_count as usize;
+    snapshot.stats.total_reallocations = stats.reallocation_count as usize;
+    snapshot.stats.total_deallocations = stats.deallocation_count as usize;
+    snapshot.stats.unmatched_deallocations = stats.unmatched_deallocation_count as usize;
+    snapshot.stats.active_allocations = active_allocations;
+    snapshot.stats.total_allocated = stats.allocated_bytes as usize;
+    snapshot.stats.total_deallocated = stats.deallocated_bytes as usize;
+    snapshot.stats.current_memory = stats.current_bytes as usize;
+    snapshot.stats.peak_memory = stats.peak_bytes as usize;
+    snapshot.thread_stats = ledger.thread_stats().clone();
+}
+
 pub fn export_all_json<P: AsRef<Path>>(
     path: P,
     tracker: &Tracker,
@@ -521,8 +560,17 @@ pub fn export_all_json<P: AsRef<Path>>(
 
     // Use event_store as unified data source (includes both HeapOwner and Container allocations)
     let events = tracker.event_store().snapshot();
+
+    // Replay once: the ledger keeps the transition-based totals and peaks that the live
+    // list can no longer reconstruct (a released 128-byte block is gone from the list, but
+    // the cumulative totals and the high-water mark must survive).
+    let mut ledger = crate::snapshot::BindingLedger::new();
+    for event in &events {
+        ledger.apply(event);
+    }
     let allocations = rebuild_allocations_from_events(&events);
-    let snapshot = MemorySnapshot::from_allocation_infos(allocations.clone());
+    let mut snapshot = MemorySnapshot::from_allocation_infos(allocations.clone());
+    override_snapshot_stats(&mut snapshot, &ledger, allocations.len());
     let options = ExportJsonOptions::default();
 
     std::fs::create_dir_all(path_ref)
@@ -831,16 +879,22 @@ pub fn export_memory_passports_json<P: AsRef<Path>>(
     let base_path = base_path.as_ref();
     let passports = passport_tracker.get_all_passports();
 
+    // One read-only projection for the whole batch: the status is computed, never stored,
+    // so `memory_passports.json`, `leak_detection.json` and `unsafe_ffi.json` describe the
+    // same cut (plan §7.3 item 4).
     let passport_data: Vec<_> = passports
         .values()
         .map(|p| {
             serde_json::json!({
                 "passport_id": p.passport_id,
                 "allocation_ptr": format!("0x{:x}", p.allocation_ptr),
+                "generation": p.generation,
                 "size_bytes": p.size_bytes,
                 "created_at": p.created_at,
                 "lifecycle_events": p.lifecycle_events.len(),
-                "status": format!("{:?}", p.status_at_shutdown),
+                "history_truncated": p.history_truncated,
+                "status": format!("{:?}", passport_tracker.assess_status(p)),
+                "status_source": "assessed_at_export",
             })
         })
         .collect();
@@ -919,7 +973,7 @@ pub fn export_unsafe_ffi_json<P: AsRef<Path>>(
         .values()
         .filter(|p| {
             matches!(
-                p.status_at_shutdown,
+                passport_tracker.assess_status(p),
                 PassportStatus::HandoverToFfi
                     | PassportStatus::InForeignCustody
                     | PassportStatus::FreedByForeign
@@ -929,8 +983,10 @@ pub fn export_unsafe_ffi_json<P: AsRef<Path>>(
             serde_json::json!({
                 "passport_id": p.passport_id,
                 "allocation_ptr": format!("0x{:x}", p.allocation_ptr),
+                "generation": p.generation,
                 "size_bytes": p.size_bytes,
-                "status": format!("{:?}", p.status_at_shutdown),
+                "history_truncated": p.history_truncated,
+                "status": format!("{:?}", passport_tracker.assess_status(p)),
                 "created_at": p.created_at,
                 "boundary_events": p.lifecycle_events.iter().map(|e| {
                     serde_json::json!({

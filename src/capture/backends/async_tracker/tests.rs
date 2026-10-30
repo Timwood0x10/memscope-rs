@@ -693,3 +693,30 @@ fn different_size_at_same_address_starts_new_generation() {
         "allocated minus deallocated must equal the live bytes"
     );
 }
+
+/// Objective: Verify guards dropped out of order do not resurrect an exited scope
+/// (plan §7.2 task-context rule).
+/// Invariants: dropping the outer guard first keeps the inner task current; dropping the
+/// inner one then clears the context instead of restoring the finished outer scope.
+#[test]
+fn out_of_order_guard_drop_does_not_restore_exited_scope() {
+    AsyncTracker::clear_current_task();
+
+    let outer = AsyncTracker::enter_task(41);
+    let inner = AsyncTracker::enter_task(42);
+    assert_eq!(AsyncTracker::get_current_task(), Some(42));
+
+    drop(outer);
+    assert_eq!(
+        AsyncTracker::get_current_task(),
+        Some(42),
+        "dropping the outer guard must not disturb the running inner task"
+    );
+
+    drop(inner);
+    assert_eq!(
+        AsyncTracker::get_current_task(),
+        None,
+        "the exited outer scope must not be restored"
+    );
+}
