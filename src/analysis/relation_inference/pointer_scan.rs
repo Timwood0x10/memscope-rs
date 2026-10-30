@@ -34,8 +34,11 @@ pub struct InferenceRecord {
     pub memory: Option<OwnedMemoryView>,
     /// Inferred type from UTI Engine.
     pub type_kind: crate::analysis::unsafe_inference::TypeKind,
-    /// Confidence of the type inference (0-100).
-    pub confidence: u8,
+    /// Heuristic score of the type inference (a signal sum, not a percentage).
+    ///
+    /// `0` means the inference abstained: the caller must not present the
+    /// `type_kind` as an accepted conclusion.
+    pub confidence: u16,
     /// Call stack hash at allocation time.
     pub call_stack_hash: Option<u64>,
     /// Allocation timestamp (nanoseconds).

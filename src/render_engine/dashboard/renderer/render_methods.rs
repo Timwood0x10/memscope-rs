@@ -1015,6 +1015,8 @@ mod tests {
             timestamp_dealloc: 0,
             lifetime_ms: 0.0,
             is_leaked: false,
+            allocation_state: crate::snapshot::AllocationState::live(),
+            leak_status: crate::snapshot::LeakStatus::NotAssessed,
             allocation_type: "heap".to_string(),
             is_smart_pointer: false,
             smart_pointer_type: String::new(),

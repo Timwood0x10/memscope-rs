@@ -101,38 +101,39 @@ tokio::task_local! {
 }
 
 /// RAII guard for automatic task cleanup.
-/// When dropped, it automatically clears the current task ID from thread-local storage.
+///
+/// Dropping the guard restores the task context that was active before the guard
+/// was created (typically the parent task), instead of blanking the thread-local
+/// slot. Blanking lost the parent context for every nested scope, and wiping the
+/// slot from a thread that never owned it destroyed another task's context when a
+/// guard was moved across threads.
 pub struct TaskGuard {
     task_id: u64,
+    previous: Option<u64>,
     cleaned_up: bool,
 }
 
 // SAFETY: TaskGuard can be safely sent between threads because:
-// 1. It only contains primitive types (u64, bool) that are both Send and Sync.
+// 1. It only contains primitive types (u64, Option<u64>, bool) that are Send + Sync.
 // 2. It does NOT hold any references, raw pointers, or non-thread-safe data.
-// 3. The thread-local state it manages (CURRENT_TASK_ID) is accessed via thread_local!(),
-//    which provides per-thread isolation - each thread has its own copy of the task ID.
-// 4. When TaskGuard is moved to another thread, it clears the task ID in the CURRENT
-//    thread's thread-local storage (not the original thread's), which is the expected
-//    behavior for task context management in async runtimes.
-// 5. The Drop implementation clears the task ID of whichever thread is currently
-//    executing, which is correct for RAII cleanup in async contexts where tasks
-//    may migrate between threads.
+// 3. The restored thread-local (CURRENT_TASK_ID) is per thread.
+// 4. `restore_previous` only writes when the slot still holds this guard's task id,
+//    so a foreign thread (or an outer guard dropped after an inner one) cannot
+//    clobber an unrelated task context.
 unsafe impl Send for TaskGuard {}
 
 // SAFETY: TaskGuard can be safely shared between threads because:
-// 1. All fields (task_id, cleaned_up) are primitive types that are safe for concurrent access.
-// 2. TaskGuard does not provide mutable access to its fields through &self.
-// 3. The thread-local manipulation via clear_current_task_internal() operates on the
-//    CURRENT thread's storage, not a shared resource, so concurrent calls from different
-//    threads are inherently isolated.
-// 4. No interior mutability or shared mutable state is exposed.
+// 1. All fields are primitive types that are safe for concurrent access.
+// 2. No mutable access to the fields is exposed through `&self`.
+// 3. The thread-local access in `restore_previous` operates on the current
+//    thread's storage, not a shared resource.
 unsafe impl Sync for TaskGuard {}
 
 impl TaskGuard {
-    fn new(task_id: u64) -> Self {
+    fn new(task_id: u64, previous: Option<u64>) -> Self {
         Self {
             task_id,
+            previous,
             cleaned_up: false,
         }
     }
@@ -145,27 +146,52 @@ impl TaskGuard {
     /// Manually release the guard (prevents double cleanup).
     pub fn release(mut self) {
         self.cleaned_up = true;
-        TaskGuard::clear_current_task_internal();
+        self.restore_previous();
+    }
+
+    /// Restore the task context captured when the guard was created.
+    ///
+    /// The write only happens while this guard still owns the thread-local slot; a
+    /// nested task that replaced it must not be clobbered.
+    fn restore_previous(&self) {
+        CURRENT_TASK_ID.with(|cell| {
+            if cell.get() == Some(self.task_id) {
+                cell.set(self.previous);
+            }
+        });
     }
 }
 
 impl Drop for TaskGuard {
     fn drop(&mut self) {
-        if !self.cleaned_up {
-            TaskGuard::clear_current_task_internal();
+        if self.cleaned_up {
+            return;
         }
+        self.restore_previous();
     }
 }
 
-impl TaskGuard {
-    fn clear_current_task_internal() {
-        CURRENT_TASK_ID.with(|cell| cell.set(None));
+mod dealloc;
+
+/// Numeric id of `thread_id`, when it refers to the calling thread.
+///
+/// `std::thread::ThreadId` cannot be converted to a number, so an id that belongs to
+/// another thread is reported as unknown rather than guessed.
+fn numeric_thread_id(thread_id: ThreadId) -> Option<u64> {
+    if thread_id == std::thread::current().id() {
+        Some(crate::utils::current_thread_id_u64())
+    } else {
+        None
     }
 }
 
 /// Async memory tracker for task-aware memory tracking.
 pub struct AsyncTracker {
-    allocations: Arc<Mutex<HashMap<usize, AsyncAllocation>>>,
+    /// Live records per address, oldest generation first.
+    allocations: Arc<Mutex<HashMap<usize, Vec<AsyncAllocation>>>>,
+    /// Highest generation ever used per address, so a reused address gets the next
+    /// number instead of restarting at 1 (which would make generations meaningless).
+    generations: Arc<Mutex<HashMap<usize, u64>>>,
     stats: Arc<Mutex<AsyncStats>>,
     profiles: Arc<Mutex<HashMap<u64, TaskMemoryProfile>>>,
     initialized: Arc<Mutex<bool>>,
@@ -175,6 +201,7 @@ impl AsyncTracker {
     pub fn new() -> Self {
         Self {
             allocations: Arc::new(Mutex::new(HashMap::new())),
+            generations: Arc::new(Mutex::new(HashMap::new())),
             stats: Arc::new(Mutex::new(AsyncStats::default())),
             profiles: Arc::new(Mutex::new(HashMap::new())),
             initialized: Arc::new(Mutex::new(false)),
@@ -200,8 +227,11 @@ impl AsyncTracker {
     /// Enter a task context with automatic cleanup.
     /// Returns a TaskGuard that will clear the task ID when dropped.
     pub fn enter_task(task_id: u64) -> TaskGuard {
+        // Capture first: `new` must remember the context that was active before
+        // this guard took over, so dropping it can restore the parent task.
+        let previous = Self::get_current_task();
         Self::set_current_task(task_id);
-        TaskGuard::new(task_id)
+        TaskGuard::new(task_id, previous)
     }
 
     /// Execute a closure within a task context with automatic cleanup.
@@ -219,9 +249,9 @@ impl AsyncTracker {
         &self,
         task_id: u64,
         name: String,
-        _thread_id: ThreadId,
+        thread_id: ThreadId,
     ) -> Result<(), AsyncError> {
-        self.track_task_start_internal(task_id, None, name)
+        self.track_task_start_internal(task_id, None, name, thread_id)
     }
 
     pub fn track_task_start_with_tokio(
@@ -229,9 +259,9 @@ impl AsyncTracker {
         task_id: u64,
         tokio_task_id: u64,
         name: String,
-        _thread_id: ThreadId,
+        thread_id: ThreadId,
     ) -> Result<(), AsyncError> {
-        self.track_task_start_internal(task_id, Some(tokio_task_id), name)
+        self.track_task_start_internal(task_id, Some(tokio_task_id), name, thread_id)
     }
 
     fn track_task_start_internal(
@@ -239,6 +269,7 @@ impl AsyncTracker {
         task_id: u64,
         tokio_task_id: Option<u64>,
         name: String,
+        thread_id: ThreadId,
     ) -> Result<(), AsyncError> {
         {
             let mut profiles = self
@@ -250,12 +281,16 @@ impl AsyncTracker {
                 return Err(AsyncError::duplicate_task(task_id));
             }
 
-            let profile = match tokio_task_id {
+            let mut profile = match tokio_task_id {
                 Some(id) => {
                     TaskMemoryProfile::with_tokio_id(task_id, id, name, TaskType::default())
                 }
                 None => TaskMemoryProfile::new(task_id, name, TaskType::default()),
             };
+            // Record the numeric thread id when it is genuinely known: only the
+            // thread performing this call can be mapped to a numeric id. The snapshot
+            // must never substitute the thread that happens to build it.
+            profile.set_thread_id_u64(numeric_thread_id(thread_id));
             profiles.insert(task_id, profile);
         }
 
@@ -296,7 +331,13 @@ impl AsyncTracker {
             .map_err(|e| AsyncError::mutex_lock_failed("stats", &e.to_string()))?;
         stats.active_tasks = stats.active_tasks.saturating_sub(1);
 
-        Self::clear_current_task();
+        // Only release the slot when this task still owns it: the task may end on a
+        // different thread, or another task may already be running on this one.
+        CURRENT_TASK_ID.with(|cell| {
+            if cell.get() == Some(task_id) {
+                cell.set(None);
+            }
+        });
 
         Ok(())
     }
@@ -387,6 +428,13 @@ impl AsyncTracker {
     }
 
     /// Track an allocation with source location.
+    ///
+    /// The same address is reported more than once (allocator hook plus a typed
+    /// `track!`, repeated `track!`, in-place reallocation). Only the first sighting
+    /// opens a record; later sightings refresh metadata or move the live size in
+    /// place, so `total_memory - total_deallocated == active_memory` keeps holding
+    /// (plan A06 / §7.2). Each record carries the address generation so a release can
+    /// name the binding it belongs to.
     pub fn track_allocation_with_location(
         &self,
         ptr: usize,
@@ -396,84 +444,109 @@ impl AsyncTracker {
         type_name: Option<String>,
         source_location: Option<super::async_types::SourceLocation>,
     ) {
-        let allocation = AsyncAllocation {
-            ptr,
-            size,
-            timestamp: Self::now(),
-            task_id,
-            var_name,
-            type_name,
-            source_location,
-        };
+        let mut previous: Option<(u64, u64)> = None;
+        let mut generation = 1u64;
 
         {
-            if let Ok(mut allocations) = self.allocations.lock() {
-                allocations.insert(ptr, allocation);
-            } else {
+            let Ok(mut allocations) = self.allocations.lock() else {
                 tracing::error!("Failed to acquire allocations lock during track_allocation");
+                return;
+            };
+            let entries = allocations.entry(ptr).or_default();
+
+            if let Some(existing) = entries.last_mut() {
+                if existing.size == size {
+                    // Duplicate observation: refresh metadata, keep owner and counters.
+                    existing.var_name = var_name;
+                    existing.type_name = type_name;
+                    if source_location.is_some() {
+                        existing.source_location = source_location;
+                    }
+                    return;
+                }
+                // In-place reallocation of the newest binding.
+                previous = Some((existing.task_id, existing.size as u64));
+                generation = existing.generation;
+                entries.pop();
+            } else if let Ok(mut generations) = self.generations.lock() {
+                // First sighting of this address since it was released: the next
+                // generation, so a late release of the previous one stays identifiable.
+                let counter = generations.entry(ptr).or_insert(0);
+                *counter = counter.saturating_add(1);
+                generation = *counter;
             }
+
+            entries.push(AsyncAllocation {
+                ptr,
+                size,
+                timestamp: Self::now(),
+                task_id,
+                var_name,
+                type_name,
+                source_location,
+                generation,
+            });
         }
 
-        {
+        let size_u64 = size as u64;
+
+        if let Some((previous_task, previous_size)) = previous {
             if let Ok(mut profiles) = self.profiles.lock() {
-                if let Some(profile) = profiles.get_mut(&task_id) {
-                    profile.record_allocation(size as u64);
+                if previous_task == task_id {
+                    if let Some(profile) = profiles.get_mut(&task_id) {
+                        profile.record_reallocation(previous_size, size_u64);
+                    }
+                } else {
+                    if let Some(profile) = profiles.get_mut(&previous_task) {
+                        profile.record_deallocation(previous_size);
+                    }
+                    if let Some(profile) = profiles.get_mut(&task_id) {
+                        profile.record_allocation(size_u64);
+                    }
                 }
             } else {
                 tracing::error!("Failed to acquire profiles lock during track_allocation");
             }
-        }
 
-        {
             if let Ok(mut stats) = self.stats.lock() {
-                stats.total_allocations += 1;
                 stats.total_memory += size;
-                stats.active_memory += size;
+                stats.active_memory = stats
+                    .active_memory
+                    .saturating_sub(previous_size as usize)
+                    .saturating_add(size);
                 if stats.active_memory > stats.peak_memory {
                     stats.peak_memory = stats.active_memory;
                 }
             } else {
                 tracing::error!("Failed to acquire stats lock during track_allocation");
             }
+
+            return;
+        }
+
+        if let Ok(mut profiles) = self.profiles.lock() {
+            if let Some(profile) = profiles.get_mut(&task_id) {
+                profile.record_allocation(size_u64);
+                // The thread that allocates is the best available evidence of where
+                // the task actually ran.
+                profile.set_thread_id_u64(Some(crate::utils::current_thread_id_u64()));
+            }
+        } else {
+            tracing::error!("Failed to acquire profiles lock during track_allocation");
+        }
+
+        if let Ok(mut stats) = self.stats.lock() {
+            stats.total_allocations += 1;
+            stats.total_memory += size;
+            stats.active_memory += size;
+            if stats.active_memory > stats.peak_memory {
+                stats.peak_memory = stats.active_memory;
+            }
+        } else {
+            tracing::error!("Failed to acquire stats lock during track_allocation");
         }
     }
 
-    /// Track a deallocation associated with a task.
-    pub fn track_deallocation(&self, ptr: usize) {
-        let (task_id, size) = {
-            if let Ok(mut allocations) = self.allocations.lock() {
-                allocations
-                    .remove(&ptr)
-                    .map(|alloc| (alloc.task_id, alloc.size))
-                    .unwrap_or((0, 0))
-            } else {
-                tracing::error!("Failed to acquire allocations lock during track_deallocation");
-                (0, 0)
-            }
-        };
-
-        if task_id != 0 {
-            if let Ok(mut profiles) = self.profiles.lock() {
-                if let Some(profile) = profiles.get_mut(&task_id) {
-                    profile.record_deallocation(size as u64);
-                }
-            } else {
-                tracing::error!("Failed to acquire profiles lock during track_deallocation");
-            }
-        }
-
-        if size > 0 {
-            if let Ok(mut stats) = self.stats.lock() {
-                stats.active_memory = stats.active_memory.saturating_sub(size);
-                stats.total_deallocations += 1;
-                stats.total_deallocated += size as u64;
-            } else {
-                tracing::error!("Failed to acquire stats lock during track_deallocation");
-            }
-        }
-    }
-
-    /// Get current statistics.
     pub fn get_stats(&self) -> AsyncStats {
         if let Ok(stats) = self.stats.lock() {
             stats.clone()
@@ -498,7 +571,7 @@ impl AsyncTracker {
             .map(|p| super::async_types::TaskInfo {
                 task_id: p.task_id,
                 name: p.task_name.clone(),
-                thread_id: std::thread::current().id(),
+                thread_id: p.thread_id_u64,
                 created_at: p.created_at_ms * 1_000_000,
                 active_allocations: p.total_allocations as usize,
                 total_memory: p.current_memory as usize,
@@ -508,7 +581,10 @@ impl AsyncTracker {
 
         let allocations = {
             if let Ok(allocs) = self.allocations.lock() {
-                allocs.values().cloned().collect()
+                allocs
+                    .values()
+                    .flat_map(|entries| entries.iter().cloned())
+                    .collect()
             } else {
                 tracing::error!("Failed to acquire allocations lock in snapshot");
                 Vec::new()
@@ -893,7 +969,17 @@ pub fn track_current_allocation(ptr: usize, size: usize) -> AsyncResult<()> {
     let task_info = super::async_types::get_current_task();
 
     if task_info.has_tracking_id() {
-        tracker.track_allocation(ptr, size, (task_info.primary_id() & 0xFFFFFFFF) as u64);
+        // `TaskId` is a u128: truncating it to 32 bits made long-running task ids
+        // collide. Report the unsupported width instead of losing the mapping.
+        match u64::try_from(task_info.primary_id()) {
+            Ok(task_id) => tracker.track_allocation(ptr, size, task_id),
+            Err(_) => tracing::warn!(
+                target: "memscope::async",
+                task_id = %task_info.primary_id(),
+                ptr = format_args!("{ptr:#x}"),
+                "async task id does not fit into u64; allocation is not attributed"
+            ),
+        }
     }
 
     Ok(())
@@ -907,362 +993,4 @@ pub fn track_current_deallocation(ptr: usize) -> AsyncResult<()> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::capture::backends::async_types::TaskOperation;
-
-    #[test]
-    fn test_async_tracker_creation() {
-        let tracker = AsyncTracker::new();
-        let stats = tracker.get_stats();
-        assert_eq!(stats.total_tasks, 0);
-    }
-
-    #[test]
-    fn test_task_tracking() {
-        let tracker = AsyncTracker::new();
-        let thread_id = std::thread::current().id();
-        tracker
-            .track_task_start(1, "test_task".to_string(), thread_id)
-            .unwrap();
-
-        let stats = tracker.get_stats();
-        assert_eq!(stats.total_tasks, 1);
-        assert_eq!(stats.active_tasks, 1);
-
-        tracker.track_task_end(1).unwrap();
-        let stats = tracker.get_stats();
-        assert_eq!(stats.active_tasks, 0);
-    }
-
-    #[test]
-    fn test_allocation_tracking() {
-        let tracker = AsyncTracker::new();
-        let thread_id = std::thread::current().id();
-        tracker
-            .track_task_start(1, "test_task".to_string(), thread_id)
-            .unwrap();
-        tracker.track_allocation(0x1000, 1024, 1);
-
-        let profile = tracker.get_task_profile(1);
-        assert!(profile.is_some());
-        let profile = profile.unwrap();
-        assert_eq!(profile.total_allocations, 1);
-        assert_eq!(profile.total_bytes, 1024);
-    }
-
-    #[test]
-    fn test_initialization() {
-        reset_global_tracker();
-
-        let result = initialize();
-        assert!(result.is_ok());
-
-        let result2 = initialize();
-        if let Err(e) = result2 {
-            assert!(e.message().contains("Already initialized"));
-        }
-
-        let _ = shutdown();
-    }
-
-    #[test]
-    fn test_shutdown() {
-        reset_global_tracker();
-
-        initialize().unwrap();
-        let result = shutdown();
-        assert!(result.is_ok());
-
-        let result2 = shutdown();
-        if let Err(e) = result2 {
-            assert!(e.message().contains("Not initialized"));
-        }
-    }
-
-    #[test]
-    fn test_memory_snapshot() {
-        reset_global_tracker();
-
-        initialize().unwrap();
-        let snapshot = get_memory_snapshot();
-        assert_eq!(snapshot.active_task_count, 0);
-        let _ = shutdown();
-    }
-
-    #[test]
-    fn test_is_tracking_active() {
-        reset_global_tracker();
-
-        assert!(!is_tracking_active());
-        initialize().unwrap();
-        assert!(is_tracking_active());
-        let _ = shutdown();
-        assert!(!is_tracking_active());
-    }
-
-    #[test]
-    fn test_task_memory_profile() {
-        let tracker = AsyncTracker::new();
-        let thread_id = std::thread::current().id();
-        tracker
-            .track_task_start(1, "test_task".to_string(), thread_id)
-            .unwrap();
-        tracker.track_allocation(0x1000, 1024, 1);
-        tracker.track_allocation(0x2000, 2048, 1);
-        tracker.track_task_end(1).unwrap();
-
-        let profile = tracker.get_task_profile(1);
-        assert!(profile.is_some());
-        let profile = profile.unwrap();
-        assert_eq!(profile.task_id, 1);
-        assert_eq!(profile.total_allocations, 2);
-        assert_eq!(profile.total_bytes, 3072);
-    }
-
-    #[test]
-    fn test_duplicate_task_tracking() {
-        let tracker = AsyncTracker::new();
-        let thread_id = std::thread::current().id();
-
-        // First registration should succeed
-        let result = tracker.track_task_start(1, "test_task".to_string(), thread_id);
-        assert!(result.is_ok());
-
-        // Second registration should fail
-        let result = tracker.track_task_start(1, "duplicate_task".to_string(), thread_id);
-        assert!(result.is_err());
-        let error = result.unwrap_err();
-        assert!(
-            matches!(error, AsyncError::TaskTracking { operation, .. } if matches!(operation, TaskOperation::Duplicate))
-        );
-    }
-
-    #[test]
-    fn test_task_not_found() {
-        let tracker = AsyncTracker::new();
-
-        // Calling track_task_end with non-existent task should fail
-        let result = tracker.track_task_end(999);
-        assert!(result.is_err());
-        let error = result.unwrap_err();
-        assert!(
-            matches!(error, AsyncError::TaskTracking { operation, .. } if matches!(operation, TaskOperation::TaskNotFound))
-        );
-    }
-
-    #[test]
-    fn test_task_guard_cleanup() {
-        assert!(AsyncTracker::get_current_task().is_none());
-
-        {
-            let _guard = AsyncTracker::enter_task(42);
-            assert_eq!(AsyncTracker::get_current_task(), Some(42));
-        }
-
-        assert!(AsyncTracker::get_current_task().is_none());
-    }
-
-    #[test]
-    fn test_with_task_closure() {
-        assert!(AsyncTracker::get_current_task().is_none());
-
-        let result = AsyncTracker::with_task(123, || {
-            assert_eq!(AsyncTracker::get_current_task(), Some(123));
-            "test_result"
-        });
-
-        assert_eq!(result, "test_result");
-        assert!(AsyncTracker::get_current_task().is_none());
-    }
-
-    #[test]
-    fn test_with_task_panic_cleanup() {
-        assert!(AsyncTracker::get_current_task().is_none());
-
-        let result = std::panic::catch_unwind(|| {
-            AsyncTracker::with_task(999, || {
-                assert_eq!(AsyncTracker::get_current_task(), Some(999));
-                panic!("intentional panic");
-            });
-        });
-
-        assert!(result.is_err());
-        assert!(AsyncTracker::get_current_task().is_none());
-    }
-
-    #[test]
-    fn test_generate_unique_task_id() {
-        let id1 = generate_unique_task_id();
-        let id2 = generate_unique_task_id();
-        let id3 = generate_unique_task_id();
-
-        assert!(id1 > 0);
-        assert!(id2 > id1);
-        assert!(id3 > id2);
-    }
-
-    #[test]
-    fn test_track_start_with_tokio() {
-        let tracker = AsyncTracker::new();
-        let thread_id = std::thread::current().id();
-
-        let result =
-            tracker.track_task_start_with_tokio(1, 100, "tokio_task".to_string(), thread_id);
-        assert!(result.is_ok());
-
-        let profile = tracker.get_task_profile(1);
-        assert!(profile.is_some());
-        let profile = profile.unwrap();
-        assert_eq!(profile.task_id, 1);
-        assert_eq!(profile.tokio_task_id, Some(100));
-        assert_eq!(profile.task_name, "tokio_task");
-    }
-
-    #[test]
-    fn test_track_task_internal_without_tokio() {
-        let tracker = AsyncTracker::new();
-        let thread_id = std::thread::current().id();
-
-        let result = tracker.track_task_start(2, "normal_task".to_string(), thread_id);
-        assert!(result.is_ok());
-
-        let profile = tracker.get_task_profile(2);
-        assert!(profile.is_some());
-        let profile = profile.unwrap();
-        assert_eq!(profile.task_id, 2);
-        assert_eq!(profile.tokio_task_id, None);
-    }
-
-    #[test]
-    fn test_detect_zombie_tasks() {
-        let tracker = AsyncTracker::new();
-        let thread_id = std::thread::current().id();
-
-        tracker
-            .track_task_start(1, "task1".to_string(), thread_id)
-            .unwrap();
-        tracker
-            .track_task_start(2, "task2".to_string(), thread_id)
-            .unwrap();
-        tracker
-            .track_task_start(3, "task3".to_string(), thread_id)
-            .unwrap();
-
-        tracker.track_task_end(1).unwrap();
-
-        let zombies = tracker.detect_zombie_tasks();
-        assert_eq!(zombies.len(), 2);
-        assert!(zombies.contains(&2));
-        assert!(zombies.contains(&3));
-    }
-
-    #[test]
-    fn test_zombie_task_stats() {
-        let tracker = AsyncTracker::new();
-        let thread_id = std::thread::current().id();
-
-        tracker
-            .track_task_start(1, "task1".to_string(), thread_id)
-            .unwrap();
-        tracker
-            .track_task_start(2, "task2".to_string(), thread_id)
-            .unwrap();
-
-        tracker.track_task_end(1).unwrap();
-
-        let (zombie_count, total) = tracker.zombie_task_stats();
-        assert_eq!(zombie_count, 1);
-        assert_eq!(total, 2);
-    }
-
-    #[test]
-    fn test_no_zombie_tasks_when_all_complete() {
-        let tracker = AsyncTracker::new();
-        let thread_id = std::thread::current().id();
-
-        tracker
-            .track_task_start(1, "task1".to_string(), thread_id)
-            .unwrap();
-        tracker
-            .track_task_start(2, "task2".to_string(), thread_id)
-            .unwrap();
-
-        tracker.track_task_end(1).unwrap();
-        tracker.track_task_end(2).unwrap();
-
-        let zombies = tracker.detect_zombie_tasks();
-        assert!(zombies.is_empty());
-    }
-
-    #[test]
-    fn test_task_memory_profile_with_tokio_id() {
-        let profile = TaskMemoryProfile::with_tokio_id(1, 999, "test".to_string(), TaskType::Mixed);
-
-        assert_eq!(profile.task_id, 1);
-        assert_eq!(profile.tokio_task_id, Some(999));
-        assert_eq!(profile.task_name, "test");
-        assert_eq!(profile.task_type, TaskType::Mixed);
-        assert!(!profile.is_completed());
-    }
-
-    #[tokio::test]
-    async fn test_track_in_tokio_task_basic() {
-        let tracker = AsyncTracker::new();
-
-        let (task_id, result) = tracker
-            .track_in_tokio_task("async_task".to_string(), async {
-                tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
-                42
-            })
-            .await;
-
-        assert!(task_id > 0);
-        assert_eq!(result, 42);
-
-        let profile = tracker.get_task_profile(task_id);
-        assert!(profile.is_some());
-        let profile = profile.unwrap();
-        assert_eq!(profile.task_name, "async_task");
-        assert!(profile.is_completed());
-    }
-
-    #[tokio::test]
-    async fn test_track_in_tokio_task_basic_functionality() {
-        let tracker = AsyncTracker::new();
-
-        let (task_id, result) = tracker
-            .track_in_tokio_task("test_task".to_string(), async {
-                tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
-                "completed"
-            })
-            .await;
-
-        assert!(task_id > 0);
-        assert_eq!(result, "completed");
-
-        let profile = tracker.get_task_profile(task_id);
-        assert!(profile.is_some());
-        let profile = profile.unwrap();
-        assert_eq!(profile.task_name, "test_task");
-        assert!(profile.is_completed());
-    }
-
-    #[test]
-    fn test_global_tracker_integration() {
-        reset_global_tracker();
-
-        let result = initialize();
-        assert!(result.is_ok());
-
-        let tracker = get_global_tracker();
-        assert!(tracker.is_ok());
-
-        let tracker = tracker.unwrap();
-        let stats = tracker.get_stats();
-        assert_eq!(stats.total_tasks, 0);
-        assert_eq!(stats.active_tasks, 0);
-
-        let _ = shutdown();
-    }
-}
+mod tests;

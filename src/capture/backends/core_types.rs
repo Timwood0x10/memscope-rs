@@ -6,6 +6,11 @@
 use serde::{Deserialize, Serialize};
 use std::time::SystemTime;
 
+/// One of several same-named `AllocationInfo` types in this crate: this one is the
+/// the core tracker cache entry (address -> size); no analysis metadata.
+///
+/// Convert at the module boundary instead of passing it across; a global rename is
+/// deliberately avoided (see DATA_ACCURACY_DEVELOPMENT_PLAN §14.2).
 /// Allocation information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AllocationInfo {

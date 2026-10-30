@@ -15,6 +15,7 @@ fn test_reallocation_without_old_size_logs_warning() {
         ptr,
         size: 2000,
         old_size: None,
+        new_ptr: None,
         thread_id: 1,
         var_name: None,
         type_name: None,
@@ -50,6 +51,7 @@ fn test_reallocation_with_old_size() {
         ptr,
         size: 2000,
         old_size: Some(1000),
+        new_ptr: None,
         thread_id: 1,
         var_name: None,
         type_name: None,
@@ -67,9 +69,27 @@ fn test_reallocation_with_old_size() {
     let engine = SnapshotEngine::new(Arc::new(event_store));
     let snapshot = engine.build_snapshot();
 
-    assert_eq!(snapshot.stats.total_reallocations, 1);
-    assert_eq!(snapshot.stats.total_deallocated, 1000);
-    assert_eq!(snapshot.stats.current_memory, 2000);
+    // The reported `old_size` belongs to a block the snapshot never saw
+    // allocated, so it must not be booked as deallocated bytes: doing so broke
+    // `allocated - deallocated == current` (and produced more deallocated than
+    // allocated bytes). The reallocation itself is still counted.
+    assert_eq!(
+        snapshot.stats.total_reallocations, 1,
+        "the reallocation event must still be counted"
+    );
+    assert_eq!(
+        snapshot.stats.total_deallocated, 0,
+        "no deallocated bytes may be invented for an unobserved allocation"
+    );
+    assert_eq!(
+        snapshot.stats.current_memory, 2000,
+        "the reallocated block is the only live bytes"
+    );
+    assert_eq!(
+        snapshot.stats.total_allocated - snapshot.stats.total_deallocated,
+        snapshot.stats.current_memory,
+        "allocated minus deallocated must equal the live bytes"
+    );
 }
 
 #[test]
@@ -85,6 +105,7 @@ fn test_reallocation_with_previous_allocation() {
         ptr,
         size: 1000,
         old_size: None,
+        new_ptr: None,
         thread_id: 1,
         var_name: None,
         type_name: None,
@@ -106,6 +127,7 @@ fn test_reallocation_with_previous_allocation() {
         ptr,
         size: 2000,
         old_size: None,
+        new_ptr: None,
         thread_id: 1,
         var_name: None,
         type_name: None,

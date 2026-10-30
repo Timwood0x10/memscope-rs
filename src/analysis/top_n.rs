@@ -41,12 +41,16 @@ impl TopNAnalyzer {
         result
     }
 
-    /// Get top N leaked allocations by bytes
+    /// Get top N leaked allocations by bytes.
+    ///
+    /// Only allocations explicitly flagged as leaked (`AllocationInfo::is_leaked`)
+    /// are considered: "no deallocation timestamp" describes an *observed live*
+    /// allocation, not a leak, and must never be promoted to one here.
     pub fn top_leaked_bytes(&self, n: usize) -> Vec<LeakedAllocation> {
         let mut leaked: Vec<LeakedAllocation> = self
             .allocations
             .iter()
-            .filter(|alloc| alloc.timestamp_dealloc.is_none())
+            .filter(|alloc| alloc.is_leaked)
             .map(|alloc| LeakedAllocation {
                 ptr: alloc.ptr,
                 size: alloc.size,
@@ -95,15 +99,13 @@ impl TopNAnalyzer {
     pub fn summary(&self) -> TopNSummary {
         let total_allocations = self.allocations.len();
         let total_bytes: usize = self.allocations.iter().map(|a| a.size).sum();
-        let leaked_count = self
-            .allocations
-            .iter()
-            .filter(|a| a.timestamp_dealloc.is_none())
-            .count();
+        // Leak counters follow the explicit leak flag, never the absence of a
+        // deallocation timestamp (see `top_leaked_bytes`).
+        let leaked_count = self.allocations.iter().filter(|a| a.is_leaked).count();
         let leaked_bytes: usize = self
             .allocations
             .iter()
-            .filter(|a| a.timestamp_dealloc.is_none())
+            .filter(|a| a.is_leaked)
             .map(|a| a.size)
             .sum();
 
@@ -185,5 +187,41 @@ mod tests {
         assert_eq!(summary.total_bytes, 0);
         assert_eq!(summary.leaked_count, 0);
         assert_eq!(summary.leaked_bytes, 0);
+    }
+
+    /// Objective: Verify that a live allocation (no deallocation timestamp) is
+    /// never promoted to a leak by the Top-N analysis.
+    /// Invariants: only allocations with the explicit `is_leaked` flag appear in
+    /// the leaked reports, and the summary counts match them exactly.
+    #[test]
+    fn test_live_allocation_is_not_counted_as_leak() {
+        let mut live = AllocationInfo::new(0x1000, 512);
+        live.timestamp_dealloc = None;
+        live.is_leaked = false;
+
+        let mut leaked = AllocationInfo::new(0x2000, 128);
+        leaked.timestamp_dealloc = None;
+        leaked.is_leaked = true;
+
+        let analyzer = TopNAnalyzer::new(vec![live, leaked]);
+
+        let top = analyzer.top_leaked_bytes(10);
+        assert_eq!(
+            top.len(),
+            1,
+            "only the explicitly flagged allocation may appear, got {} entries",
+            top.len()
+        );
+        assert_eq!(top[0].ptr, 0x2000, "the flagged allocation must be kept");
+
+        let summary = analyzer.summary();
+        assert_eq!(
+            summary.leaked_count, 1,
+            "a live allocation must not be counted as leaked"
+        );
+        assert_eq!(
+            summary.leaked_bytes, 128,
+            "leaked bytes must only cover flagged allocations"
+        );
     }
 }

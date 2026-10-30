@@ -11,7 +11,7 @@ Welcome to the memscope-rs documentation. This directory contains comprehensive 
   - Unified Node Identity System
   - Modular Backend Architecture
   - Event-Driven Architecture
-  - Comparison with master branch
+  - Historical comparison with the retired `master` / `improve` branches
 
 ### Performance & Benchmarks
 
@@ -109,7 +109,12 @@ All performance benchmarks were conducted on:
 
 ## 📈 Architecture Improvements
 
-Compared to the `master` branch:
+> Historical design comparison from the `improve` vs `master` refactor. Both
+> branches are retired and the figures below were estimates recorded at that
+> time, not measurements of the current tree. Use
+> `docs/PERFORMANCE_ANALYSIS.md` and the benchmark targets for current numbers.
+
+Compared to the retired `master` branch:
 
 | Aspect | Master | Improve | Improvement |
 |--------|--------|---------|-------------|

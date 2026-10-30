@@ -267,13 +267,14 @@ impl SafetyDetector {
     ) -> Vec<Issue> {
         let mut issues = Vec::new();
 
-        // Group allocations by thread to detect cross-thread access
-        let mut thread_allocations: HashMap<std::thread::ThreadId, Vec<&AllocationInfo>> =
-            HashMap::new();
+        // Group allocations by the captured numeric thread id. The `ThreadId`
+        // field cannot be reconstructed from an event, so grouping by it would put
+        // every allocation in the analyzing thread's bucket.
+        let mut thread_allocations: HashMap<u64, Vec<&AllocationInfo>> = HashMap::new();
 
         for alloc in allocations {
             thread_allocations
-                .entry(alloc.thread_id)
+                .entry(alloc.thread_id_u64)
                 .or_default()
                 .push(alloc);
         }

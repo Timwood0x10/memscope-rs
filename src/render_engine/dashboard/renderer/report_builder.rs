@@ -6,7 +6,9 @@
 
 use super::event_dto::{DashboardEventDTO, DataIndex, EventSummary};
 use super::event_reconstructor::SamplingMetadata;
+use super::evidence::{EvidenceLevel, RiskConfidence};
 use super::inference::get_inferred_type_name;
+use super::layout_inference::infer_layout_snapshot;
 use super::types::*;
 use crate::analysis::memory_passport_tracker::{PassportEventType, PassportStatus};
 use crate::analysis::top_n::TopNAnalyzer;
@@ -35,6 +37,18 @@ pub fn build_allocation_info(
                 String::new()
             };
 
+            // Life-cycle facts and leak conclusions are separated: the DTO never
+            // turns "no deallocation timestamp" into "leaked". Readily observed
+            // releases map to `Freed`, everything else stays `Live` because the
+            // allocation was still present in the active set at this cut.
+            let allocation_state = match a.timestamp_dealloc {
+                Some(at_ns) => crate::snapshot::AllocationState::freed(at_ns),
+                None => crate::snapshot::AllocationState::live(),
+            };
+            // No leak rule is wired up at this stage, so nothing is assessed.
+            // `is_leaked` stays a compatibility projection of that conclusion.
+            let leak_assessment = crate::snapshot::LeakAssessment::not_assessed();
+
             AllocationInfo {
                 address: format!("0x{:x}", a.ptr),
                 type_name: type_name.clone(),
@@ -49,7 +63,9 @@ pub fn build_allocation_info(
                 timestamp_alloc: a.timestamp_alloc,
                 timestamp_dealloc: a.timestamp_dealloc.unwrap_or(0),
                 lifetime_ms: calculate_lifetime_ms(a.timestamp_alloc, a.timestamp_dealloc),
-                is_leaked: a.timestamp_dealloc.is_none(),
+                is_leaked: leak_assessment.is_reported_leak(),
+                allocation_state,
+                leak_status: leak_assessment.status,
                 allocation_type: if is_smart_pointer {
                     smart_pointer_type.clone()
                 } else {
@@ -70,16 +86,18 @@ pub fn build_allocation_info(
                 module_path: a.module_path.clone(),
                 generation_id: a.generation_id,
                 provenance: infer_provenance(a),
-                evidence: if a.generation_id > 0 {
+                // Evidence describes how well the *allocation* is known: the record
+                // comes from a recorded event, and the type is only `Observed` when
+                // a typed observation actually carried a type name (A11). The
+                // address-reuse generation proves nothing about the type or layout.
+                evidence: if a.type_name.is_some() {
                     EvidenceLevel::Observed
                 } else {
-                    EvidenceLevel::Inferred
+                    EvidenceLevel::Unknown
                 },
-                confidence: if a.is_leaked {
-                    RiskConfidence::Confirmed
-                } else {
-                    RiskConfidence::Likely
-                },
+                // Risk confidence belongs to a diagnostic conclusion, not to the
+                // allocation itself; without an assessed rule it is unknown.
+                confidence: RiskConfidence::Unknown,
                 layout_snapshot: infer_layout_snapshot(&type_name, a.size, a.generation_id),
             }
         })
@@ -94,211 +112,11 @@ fn calculate_lifetime_ms(timestamp_alloc: u64, timestamp_dealloc: Option<u64>) -
     }
 }
 
-/// Infer a TypeLayoutSnapshot from allocation attributes at report-build time.
-fn infer_layout_snapshot(
-    type_name: &str,
-    size: usize,
-    generation_id: usize,
-) -> Option<crate::capture::types::TypeLayoutSnapshot> {
-    let gen = generation_id;
-
-    // Try Vec<T> — pattern like "Vec<i32>" or "std::vec::Vec<u8>"
-    if let Some(inner) = type_name
-        .rsplit("Vec<")
-        .nth(1)
-        .and_then(|_| type_name.split("Vec<").nth(1))
-        .and_then(|s| s.strip_suffix('>'))
-        .map(|s| s.trim())
-    {
-        let elem_size = estimate_type_size(inner);
-        let cap = if elem_size > 0 { size / elem_size } else { 0 };
-        return Some(crate::capture::types::TypeLayoutSnapshot {
-            type_name: format!("Vec<{}>", inner),
-            size_of_t: std::mem::size_of::<*const usize>() * 3,
-            align_of_t: std::mem::align_of::<usize>(),
-            is_sized: true,
-            repr_hint: crate::capture::types::ReprHint::Rust,
-            layout_kind: crate::capture::types::LayoutKind::Container,
-            pointer_width: crate::capture::types::PointerWidth::Unknown,
-            logical_size_bytes: std::mem::size_of::<*const usize>() * 3,
-            allocated_size_bytes: size,
-            used_size_bytes: 0,
-            reserved_size_bytes: size,
-            element_size: Some(elem_size),
-            element_align: Some(elem_size),
-            container_len: Some(0),
-            container_capacity: Some(cap),
-            strong_count: None,
-            weak_count: None,
-            pointee_type: Some(inner.to_string()),
-            generation_id: gen,
-        });
-    }
-
-    // String / std::string::String
-    if type_name == "String" || type_name.contains("std::string::String") {
-        return Some(crate::capture::types::TypeLayoutSnapshot {
-            type_name: "String".to_string(),
-            size_of_t: std::mem::size_of::<*const usize>() * 3,
-            align_of_t: std::mem::align_of::<usize>(),
-            is_sized: true,
-            repr_hint: crate::capture::types::ReprHint::Rust,
-            layout_kind: crate::capture::types::LayoutKind::Container,
-            pointer_width: crate::capture::types::PointerWidth::Unknown,
-            logical_size_bytes: std::mem::size_of::<*const usize>() * 3,
-            allocated_size_bytes: size,
-            used_size_bytes: 0,
-            reserved_size_bytes: size,
-            element_size: Some(1),
-            element_align: Some(1),
-            container_len: Some(0),
-            container_capacity: Some(size),
-            strong_count: None,
-            weak_count: None,
-            pointee_type: Some("u8".to_string()),
-            generation_id: gen,
-        });
-    }
-
-    // Box<T>
-    if let Some(inner) = type_name
-        .rsplit("Box<")
-        .nth(1)
-        .and_then(|_| type_name.split("Box<").nth(1))
-        .and_then(|s| s.strip_suffix('>'))
-        .map(|s| s.trim())
-    {
-        let pointee_size = estimate_type_size(inner);
-        return Some(crate::capture::types::TypeLayoutSnapshot {
-            type_name: format!("Box<{}>", inner),
-            size_of_t: std::mem::size_of::<usize>(),
-            align_of_t: std::mem::align_of::<usize>(),
-            is_sized: true,
-            repr_hint: crate::capture::types::ReprHint::Rust,
-            layout_kind: crate::capture::types::LayoutKind::SmartPointer,
-            pointer_width: crate::capture::types::PointerWidth::Thin,
-            logical_size_bytes: std::mem::size_of::<usize>(),
-            allocated_size_bytes: pointee_size,
-            used_size_bytes: pointee_size,
-            reserved_size_bytes: pointee_size,
-            element_size: Some(pointee_size),
-            element_align: Some(pointee_size),
-            container_len: None,
-            container_capacity: None,
-            strong_count: None,
-            weak_count: None,
-            pointee_type: Some(inner.to_string()),
-            generation_id: gen,
-        });
-    }
-
-    // Arc<T>
-    if let Some(inner) = type_name
-        .rsplit("Arc<")
-        .nth(1)
-        .and_then(|_| type_name.split("Arc<").nth(1))
-        .and_then(|s| s.strip_suffix('>'))
-        .map(|s| s.trim())
-    {
-        let pointee_size = estimate_type_size(inner);
-        return Some(crate::capture::types::TypeLayoutSnapshot {
-            type_name: format!("Arc<{}>", inner),
-            size_of_t: std::mem::size_of::<usize>() * 2,
-            align_of_t: std::mem::align_of::<usize>(),
-            is_sized: true,
-            repr_hint: crate::capture::types::ReprHint::Rust,
-            layout_kind: crate::capture::types::LayoutKind::SmartPointer,
-            pointer_width: crate::capture::types::PointerWidth::Thin,
-            logical_size_bytes: std::mem::size_of::<usize>() * 2,
-            allocated_size_bytes: pointee_size + std::mem::size_of::<usize>() * 2,
-            used_size_bytes: pointee_size,
-            reserved_size_bytes: pointee_size + std::mem::size_of::<usize>() * 2,
-            element_size: Some(pointee_size),
-            element_align: Some(pointee_size),
-            container_len: None,
-            container_capacity: None,
-            strong_count: Some(1),
-            weak_count: Some(0),
-            pointee_type: Some(inner.to_string()),
-            generation_id: gen,
-        });
-    }
-
-    // Rc<T>
-    if let Some(inner) = type_name
-        .rsplit("Rc<")
-        .nth(1)
-        .and_then(|_| type_name.split("Rc<").nth(1))
-        .and_then(|s| s.strip_suffix('>'))
-        .map(|s| s.trim())
-    {
-        let pointee_size = estimate_type_size(inner);
-        return Some(crate::capture::types::TypeLayoutSnapshot {
-            type_name: format!("Rc<{}>", inner),
-            size_of_t: std::mem::size_of::<usize>() * 2,
-            align_of_t: std::mem::align_of::<usize>(),
-            is_sized: true,
-            repr_hint: crate::capture::types::ReprHint::Rust,
-            layout_kind: crate::capture::types::LayoutKind::SmartPointer,
-            pointer_width: crate::capture::types::PointerWidth::Thin,
-            logical_size_bytes: std::mem::size_of::<usize>() * 2,
-            allocated_size_bytes: pointee_size + std::mem::size_of::<usize>() * 2,
-            used_size_bytes: pointee_size,
-            reserved_size_bytes: pointee_size + std::mem::size_of::<usize>() * 2,
-            element_size: Some(pointee_size),
-            element_align: Some(pointee_size),
-            container_len: None,
-            container_capacity: None,
-            strong_count: Some(1),
-            weak_count: Some(0),
-            pointee_type: Some(inner.to_string()),
-            generation_id: gen,
-        });
-    }
-
-    // Fallback: generic snapshot from type name and size
-    let layout_kind = crate::capture::types::infer_layout_kind_from_name(type_name);
-    Some(crate::capture::types::TypeLayoutSnapshot {
-        type_name: type_name.to_string(),
-        size_of_t: size,
-        align_of_t: 0,
-        is_sized: true,
-        repr_hint: crate::capture::types::ReprHint::Unknown,
-        layout_kind,
-        pointer_width: crate::capture::types::PointerWidth::Unknown,
-        logical_size_bytes: size,
-        allocated_size_bytes: size,
-        used_size_bytes: size,
-        reserved_size_bytes: size,
-        element_size: None,
-        element_align: None,
-        container_len: None,
-        container_capacity: None,
-        strong_count: None,
-        weak_count: None,
-        pointee_type: None,
-        generation_id: gen,
-    })
-}
-
-/// Estimate the size of a Rust type from its name string.
-fn estimate_type_size(type_name: &str) -> usize {
-    match type_name.trim() {
-        "u8" | "i8" | "bool" => 1,
-        "u16" | "i16" | "char" => 2,
-        "u32" | "i32" | "f32" => 4,
-        "u64" | "i64" | "f64" | "usize" | "isize" => 8,
-        "u128" | "i128" => 16,
-        "()" => 0,
-        "*mut u8" | "*const u8" | "*mut c_void" | "*const c_void" | "String" => 8,
-        s if s.contains("String") => 24, // String struct on stack
-        s if s.starts_with('&') => 16,   // fat reference (ptr + len)
-        s if s.contains('*') => 8,       // pointer
-        _ => 8,                          // default fallback
-    }
-}
-
 /// Infer pointer provenance from allocation attributes
+///
+/// Generation 1 is the first binding at an address, so only generation 2 and above
+/// describe a reused address. Leakage is deliberately not part of provenance: it
+/// is a separate conclusion (`LeakAssessment`), not an origin.
 fn infer_provenance(a: &crate::capture::types::AllocationInfo) -> String {
     if a.smart_pointer_info.is_some() {
         return "smart_pointer".to_string();
@@ -306,11 +124,8 @@ fn infer_provenance(a: &crate::capture::types::AllocationInfo) -> String {
     if a.clone_info.as_ref().map(|c| c.is_clone).unwrap_or(false) {
         return "clone".to_string();
     }
-    if a.is_leaked && a.generation_id > 0 {
-        return "reallocated_then_leaked".to_string();
-    }
-    if a.generation_id > 0 {
-        return "reallocation".to_string();
+    if a.generation_id > 1 {
+        return "reused_address".to_string();
     }
     "allocator".to_string()
 }
@@ -453,7 +268,10 @@ fn build_unsafe_report(
         if from_alloc != "-" {
             from_alloc
         } else {
-            infer_type_from_size(p.size_bytes)
+            // No type was ever observed for this block. A size cannot identify a
+            // type, so report "unknown" instead of a fabricated guess with a
+            // made-up percentage.
+            "unknown".to_string()
         }
     };
 
@@ -541,7 +359,10 @@ fn build_passport_detail(
         if from_alloc != "-" {
             from_alloc
         } else {
-            infer_type_from_size(p.size_bytes)
+            // No type was ever observed for this block. A size cannot identify a
+            // type, so report "unknown" instead of a fabricated guess with a
+            // made-up percentage.
+            "unknown".to_string()
         }
     };
 
@@ -1049,178 +870,5 @@ pub fn build_json_data(
     Ok(serde_json::to_string(&data)?)
 }
 
-/// Infer type from size (fallback when no type name is recorded)
-fn infer_type_from_size(size: usize) -> String {
-    match size {
-        8 => "*mut c_void (30%)".to_string(),
-        16 => "&[T] (25%)".to_string(),
-        24 => "Vec<_>/String (15%)".to_string(),
-        32 | 48 | 64 => "CStruct (10%)".to_string(),
-        n if n.is_power_of_two() && n >= 64 => {
-            format!("Vec<_>/[u8] ({}%)", 10 + n.trailing_zeros() as u8)
-        }
-        n if (32..=256).contains(&n) => "[u8] (10%)".to_string(),
-        _ => "unknown".to_string(),
-    }
-}
-
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// Objective: Verify that HealthInfo struct can be created.
-    #[test]
-    fn test_health_info_creation() {
-        let info = HealthInfo {
-            health_score: 85,
-            health_status: "Good".to_string(),
-            safe_ops_count: 100,
-            high_risk_count: 5,
-            clean_passport_count: 50,
-            active_passport_count: 10,
-            leaked_passport_count: 2,
-            ffi_tracked_count: 15,
-            safe_code_percent: 95,
-        };
-        assert_eq!(info.health_score, 85);
-        assert_eq!(info.health_status, "Good");
-        assert_eq!(info.safe_ops_count, 100);
-    }
-
-    /// Objective: Verify that calculate_health_info returns positive for empty data.
-    #[test]
-    fn test_calculate_health_info_empty() {
-        let health = calculate_health_info(&[], &[], 0, 0);
-        assert!(health.health_score > 0);
-        assert!(
-            health.health_status.contains("Excellent") || health.health_status.contains("Good")
-        );
-    }
-
-    /// Objective: Verify that calculate_health_info penalizes leaks.
-    #[test]
-    fn test_calculate_health_info_with_leaks() {
-        let health_no_leaks = calculate_health_info(&[], &[], 0, 100);
-        let health_with_leaks = calculate_health_info(&[], &[], 50, 100);
-        assert!(health_no_leaks.health_score > health_with_leaks.health_score);
-    }
-
-    /// Objective: Verify that calculate_health_info penalizes high risk.
-    #[test]
-    fn test_calculate_health_info_with_unsafe() {
-        let safe_report = UnsafeReport {
-            passport_id: "1".to_string(),
-            allocation_ptr: "0x1000".to_string(),
-            var_name: "var".to_string(),
-            type_name: "i32".to_string(),
-            size_bytes: 4,
-            created_at: 0,
-            updated_at: 0,
-            status: "active".to_string(),
-            lifecycle_events: vec![],
-            cross_boundary_events: vec![],
-            is_leaked: false,
-            risk_level: "low".to_string(),
-            risk_factors: vec![],
-            description: "no risk factors".to_string(),
-        };
-        let high_risk_report = UnsafeReport {
-            passport_id: "2".to_string(),
-            allocation_ptr: "0x2000".to_string(),
-            var_name: "var2".to_string(),
-            type_name: "i32".to_string(),
-            size_bytes: 4,
-            created_at: 0,
-            updated_at: 0,
-            status: "active".to_string(),
-            lifecycle_events: vec![],
-            cross_boundary_events: vec![],
-            is_leaked: false,
-            risk_level: "high".to_string(),
-            risk_factors: vec![],
-            description: "no risk factors".to_string(),
-        };
-        let health_safe = calculate_health_info(&[safe_report], &[], 0, 100);
-        let health_high_risk = calculate_health_info(&[high_risk_report], &[], 0, 100);
-        assert!(health_safe.health_score > health_high_risk.health_score);
-    }
-
-    /// Objective: Verify that calculate_health_info handles leaked passports.
-    #[test]
-    fn test_calculate_health_info_with_passports() {
-        let leaked_passport = PassportDetail {
-            passport_id: "1".to_string(),
-            allocation_ptr: "0x1000".to_string(),
-            var_name: "var".to_string(),
-            type_name: "i32".to_string(),
-            size_bytes: 4,
-            status: "leaked".to_string(),
-            created_at: 0,
-            updated_at: 0,
-            is_leaked: true,
-            ffi_tracked: false,
-            lifecycle_events: vec![],
-            cross_boundary_events: vec![],
-            risk_level: "high".to_string(),
-            risk_confidence: 0.9,
-            is_active: false,
-            source_location: "test.rs:1".to_string(),
-        };
-        let clean_passport = PassportDetail {
-            passport_id: "2".to_string(),
-            allocation_ptr: "0x2000".to_string(),
-            var_name: "var2".to_string(),
-            type_name: "i32".to_string(),
-            size_bytes: 4,
-            status: "active".to_string(),
-            created_at: 0,
-            updated_at: 0,
-            is_leaked: false,
-            ffi_tracked: false,
-            lifecycle_events: vec![],
-            cross_boundary_events: vec![],
-            risk_level: "low".to_string(),
-            risk_confidence: 0.5,
-            is_active: true,
-            source_location: "test.rs:2".to_string(),
-        };
-        let health_clean = calculate_health_info(&[], &[clean_passport], 0, 100);
-        let health_leaked = calculate_health_info(&[], &[leaked_passport], 1, 100);
-        assert!(health_clean.clean_passport_count >= health_leaked.clean_passport_count);
-    }
-
-    /// Objective: Verify that build_top_n_reports handles empty input.
-    #[test]
-    fn test_build_top_n_reports_empty() {
-        let reports = build_top_n_reports(&[]);
-        assert!(reports.top_allocation_sites.is_empty());
-        assert!(reports.top_leaked_allocations.is_empty());
-        assert!(reports.top_temporary_churn.is_empty());
-    }
-
-    /// Objective: Verify that aggregate_thread_data handles empty input.
-    #[test]
-    fn test_aggregate_thread_data_empty() {
-        let threads = aggregate_thread_data(&[]);
-        assert!(threads.is_empty());
-    }
-
-    /// Objective: Verify that build_async_tasks returns empty for no tracker.
-    #[test]
-    fn test_build_async_tasks_no_tracker() {
-        let tasks = build_async_tasks(None);
-        assert!(tasks.is_empty());
-    }
-
-    /// Objective: Verify that build_async_summary returns zeros for no tracker.
-    #[test]
-    fn test_build_async_summary_no_tracker() {
-        let summary = build_async_summary(None, &[]);
-        assert_eq!(summary.total_tasks, 0);
-        assert_eq!(summary.active_tasks, 0);
-        assert_eq!(summary.completed, 0);
-        assert_eq!(summary.leaked, 0);
-        assert_eq!(summary.zombie, 0);
-        assert_eq!(summary.success_rate, 0.0);
-    }
-}
+mod tests;

@@ -134,6 +134,7 @@ mod tests {
             ptr: 0x1000,
             size: 1024,
             old_size: None,
+            new_ptr: None,
             thread_id: 1,
             var_name: Some("test_var".to_string()),
             type_name: Some("i32".to_string()),

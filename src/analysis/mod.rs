@@ -341,7 +341,10 @@ impl AnalysisManager {
     ) -> ConcurrencyAnalysis {
         let mut analysis = ConcurrencyAnalysis::default();
 
-        let mut thread_alloc_counts: std::collections::HashMap<std::thread::ThreadId, usize> =
+        // Group by the captured numeric thread id: `AllocationInfo::thread_id`
+        // (`ThreadId`) cannot be rebuilt during reconstruction and would collapse
+        // every allocation into the analyzing thread.
+        let mut thread_alloc_counts: std::collections::HashMap<u64, usize> =
             std::collections::HashMap::new();
 
         for alloc in allocations {
@@ -375,7 +378,7 @@ impl AnalysisManager {
                 analysis.atomic_operations += 1;
             }
 
-            *thread_alloc_counts.entry(alloc.thread_id).or_insert(0) += 1;
+            *thread_alloc_counts.entry(alloc.thread_id_u64).or_insert(0) += 1;
         }
 
         let max_thread_allocs = thread_alloc_counts.values().max().copied().unwrap_or(0);

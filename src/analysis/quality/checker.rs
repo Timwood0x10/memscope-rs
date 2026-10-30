@@ -668,6 +668,11 @@ pub enum PerformanceIssueType {
     Critical,
 }
 
+/// One of several same-named `MemorySnapshot` types in this crate: this one is the
+/// the quality-checker snapshot used for integrity validation.
+///
+/// Convert at the module boundary instead of passing it across; a global rename is
+/// deliberately avoided (see DATA_ACCURACY_DEVELOPMENT_PLAN §14.2).
 #[derive(Debug, Clone)]
 pub struct MemorySnapshot {
     pub memory_usage: usize,

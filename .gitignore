@@ -114,3 +114,8 @@ local_*
 
 # Trae IDE rules (keep this file)
 !.trae/
+
+# Generated reports and coverage output (never commit these)
+memscope-report/
+aim/coverage/
+MemoryAnalysis/

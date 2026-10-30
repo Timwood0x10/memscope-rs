@@ -1,50 +1,56 @@
 //! Allocation reconstruction from raw memory events.
 //!
-//! This module provides the `rebuild_allocations_from_events` function
-//! which converts the raw `MemoryEvent` stream into structured allocation records
-//! for dashboard consumption. It handles the full event lifecycle:
-//! allocate, deallocate, reallocate, clone, and metadata events.
+//! This module provides the `rebuild_allocations_from_events` function which
+//! converts the raw `MemoryEvent` stream into the per-allocation records the
+//! dashboard consumes.
+//!
+//! # Single source of truth
+//!
+//! All binding matching — address reuse, release matching, reallocation and byte
+//! accounting — is delegated to [`crate::snapshot::bindings::BindingLedger`], the
+//! same ledger that builds [`crate::snapshot::MemorySnapshot`]. This module only
+//! *projects* ledger bindings into the dashboard DTO plus the dashboard-only
+//! decorations (smart-pointer classification, clone links, container nodes).
+//!
+//! # Known limits of the legacy event model
+//!
+//! * A `Deallocate`/`Reallocate` event carries no allocation id, so a release is
+//!   matched by address **and** recorded size; when both are identical the oldest
+//!   binding wins (a late event for generation N never claims generation N+1).
+//! * A migrating reallocation cannot be expressed: `MemoryEvent` has no `new_ptr`.
+//!   Only the in-place case is applied, and the limitation is reported in the
+//!   development plan rather than guessed here.
+//! * `AllocationInfo::thread_id` (`std::thread::ThreadId`) cannot be rebuilt from a
+//!   `u64`. `thread_id_u64` is authoritative; the `ThreadId` field keeps whatever
+//!   the observing thread is and must not be used for aggregation.
 
 use crate::capture::types::AllocationInfo;
-use crate::event_store::event::MemoryEventType;
+use crate::event_store::{MemoryEvent, MemoryEventType};
+use crate::snapshot::bindings::BindingRecord;
+use crate::snapshot::BindingLedger;
 use std::collections::HashMap;
 
 /// Rebuild all allocations from event_store (unified data source).
 ///
 /// Processes a slice of `MemoryEvent` and reconstructs the set of live
 /// allocations along with their metadata (type, variable, thread, clone info).
-pub fn rebuild_allocations_from_events(
-    events: &[crate::event_store::event::MemoryEvent],
-) -> Vec<AllocationInfo> {
-    let mut active_allocations: Vec<AllocationInfo> = Vec::new();
-    let mut container_allocations: Vec<AllocationInfo> = Vec::new();
+pub fn rebuild_allocations_from_events(events: &[MemoryEvent]) -> Vec<AllocationInfo> {
+    let mut ledger = BindingLedger::new();
+    for event in events {
+        ledger.apply(event);
+    }
+
+    let mut all_allocations: Vec<AllocationInfo> = ledger
+        .live()
+        .iter()
+        .map(binding_to_allocation_info)
+        .collect();
+
     let mut clone_info_map: HashMap<usize, crate::capture::types::CloneInfo> = HashMap::new();
-    let mut ptr_generations: HashMap<usize, usize> = HashMap::new();
+    let mut container_allocations: Vec<AllocationInfo> = Vec::new();
 
     for event in events {
         match event.event_type {
-            MemoryEventType::Allocate => {
-                let stack_trace = event
-                    .source_file
-                    .as_ref()
-                    .map(|file| format!("{}:{}", file, event.source_line.unwrap_or(0)));
-                let generation = {
-                    let entry = ptr_generations.entry(event.ptr).or_insert(0);
-                    *entry += 1;
-                    *entry
-                };
-                let mut alloc = AllocationInfo::new(event.ptr, event.size);
-                alloc.timestamp_alloc = event.timestamp;
-                alloc.var_name = event.var_name.clone();
-                alloc.type_name = event.type_name.clone();
-                alloc.thread_id = std::thread::current().id();
-                alloc.thread_id_u64 = event.thread_id;
-                alloc.stack_trace = stack_trace.map(|s| vec![s]);
-                alloc.module_path = event.module_path.clone();
-                alloc.stack_ptr = event.stack_ptr;
-                alloc.generation_id = generation;
-                active_allocations.push(alloc);
-            }
             MemoryEventType::Metadata => {
                 let stack_trace = event
                     .source_file
@@ -54,8 +60,8 @@ pub fn rebuild_allocations_from_events(
                 alloc.timestamp_alloc = event.timestamp;
                 alloc.var_name = event.var_name.clone();
                 alloc.type_name = event.type_name.clone();
-                alloc.thread_id = std::thread::current().id();
                 alloc.thread_id_u64 = event.thread_id;
+                alloc.task_id = event.task_id;
                 alloc.stack_trace = stack_trace.map(|s| vec![s]);
                 alloc.module_path = event.module_path.clone();
                 container_allocations.push(alloc);
@@ -90,16 +96,63 @@ pub fn rebuild_allocations_from_events(
                         });
                 }
             }
-            MemoryEventType::Deallocate => {
-                active_allocations.retain(|alloc| alloc.ptr != event.ptr);
-            }
-            _ => {}
+            // Allocation life-cycle transitions are already handled by the ledger.
+            MemoryEventType::Allocate
+            | MemoryEventType::Deallocate
+            | MemoryEventType::Reallocate
+            | MemoryEventType::Move
+            | MemoryEventType::Borrow
+            | MemoryEventType::Return => {}
         }
     }
 
-    let mut all_allocations = active_allocations;
+    decorate_smart_pointers(&mut all_allocations, &clone_info_map);
 
     for alloc in &mut all_allocations {
+        if let Some(clone_info) = clone_info_map.get(&alloc.ptr) {
+            alloc.clone_info = Some(clone_info.clone());
+        }
+    }
+
+    let container_allocations_with_virtual_ptrs: Vec<_> = container_allocations
+        .into_iter()
+        .enumerate()
+        .map(|(index, mut alloc)| {
+            alloc.ptr = crate::analysis::VIRTUAL_PTR_BASE + index;
+            alloc
+        })
+        .collect();
+
+    all_allocations.extend(container_allocations_with_virtual_ptrs);
+    all_allocations
+}
+
+/// Project a ledger binding into the dashboard's allocation DTO.
+fn binding_to_allocation_info(binding: &BindingRecord) -> AllocationInfo {
+    let mut alloc = AllocationInfo::new(binding.ptr, binding.size);
+    alloc.timestamp_alloc = binding.allocated_at;
+    alloc.var_name = binding.var_name.clone();
+    alloc.type_name = binding.type_name.clone();
+    // `ThreadId` cannot be rebuilt from a `u64`; the numeric id is authoritative.
+    alloc.thread_id_u64 = binding.thread_id;
+    alloc.task_id = binding.task_id;
+    alloc.stack_trace = match (binding.source_file.clone(), binding.source_line) {
+        (Some(file), Some(line)) => Some(vec![format!("{file}:{line}")]),
+        (Some(file), None) => Some(vec![file]),
+        (None, _) => None,
+    };
+    alloc.module_path = binding.module_path.clone();
+    alloc.stack_ptr = binding.stack_ptr;
+    alloc.generation_id = usize::try_from(binding.generation).unwrap_or(usize::MAX);
+    alloc
+}
+
+/// Classify smart pointers and attach clone relationships.
+fn decorate_smart_pointers(
+    allocations: &mut [AllocationInfo],
+    clone_info_map: &HashMap<usize, crate::capture::types::CloneInfo>,
+) {
+    for alloc in allocations.iter_mut() {
         let type_name_lower = alloc
             .type_name
             .as_ref()
@@ -128,54 +181,24 @@ pub fn rebuild_allocations_from_events(
             )
         };
 
-        if is_smart_pointer {
-            if let Some(clone_info) = clone_info_map.get(&alloc.ptr) {
-                let smart_info = crate::capture::types::smart_pointer::SmartPointerInfo {
-                    data_ptr: alloc.ptr,
-                    pointer_type,
-                    is_data_owner: !clone_info.is_clone,
-                    ref_count_history: vec![],
-                    weak_count: None,
-                    cloned_from: clone_info.original_ptr,
-                    clones: vec![],
-                    is_implicitly_deallocated: false,
-                    is_weak_reference: false,
-                };
-                alloc.smart_pointer_info = Some(smart_info);
-            } else {
-                let smart_info = crate::capture::types::smart_pointer::SmartPointerInfo {
-                    data_ptr: alloc.ptr,
-                    pointer_type,
-                    is_data_owner: true,
-                    ref_count_history: vec![],
-                    weak_count: None,
-                    cloned_from: None,
-                    clones: vec![],
-                    is_implicitly_deallocated: false,
-                    is_weak_reference: false,
-                };
-                alloc.smart_pointer_info = Some(smart_info);
-            }
+        if !is_smart_pointer {
+            continue;
         }
+
+        let clone_info = clone_info_map.get(&alloc.ptr);
+        let is_data_owner = clone_info.map(|info| !info.is_clone).unwrap_or(true);
+        alloc.smart_pointer_info = Some(crate::capture::types::smart_pointer::SmartPointerInfo {
+            data_ptr: alloc.ptr,
+            pointer_type,
+            is_data_owner,
+            ref_count_history: vec![],
+            weak_count: None,
+            cloned_from: clone_info.and_then(|info| info.original_ptr),
+            clones: vec![],
+            is_implicitly_deallocated: false,
+            is_weak_reference: false,
+        });
     }
-
-    for alloc in &mut all_allocations {
-        if let Some(clone_info) = clone_info_map.remove(&alloc.ptr) {
-            alloc.clone_info = Some(clone_info);
-        }
-    }
-
-    let container_allocations_with_virtual_ptrs: Vec<_> = container_allocations
-        .into_iter()
-        .enumerate()
-        .map(|(index, mut alloc)| {
-            alloc.ptr = crate::analysis::VIRTUAL_PTR_BASE + index;
-            alloc
-        })
-        .collect();
-
-    all_allocations.extend(container_allocations_with_virtual_ptrs);
-    all_allocations
 }
 
 /// Allocation sampling metadata for dashboard transparency.
@@ -224,7 +247,6 @@ pub const MAX_DASHBOARD_ALLOCATIONS: Option<usize> = None;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::event_store::event::MemoryEvent;
 
     /// Objective: Verify that rebuild_allocations_from_events correctly
     /// reconstructs allocate/deallocate pairs.
@@ -285,11 +307,58 @@ mod tests {
             result[0].size, 128,
             "Should reflect the newer allocation size"
         );
+        assert_eq!(
+            result[0].generation_id, 2,
+            "the reused address must report its second binding generation"
+        );
+    }
+
+    /// Objective: Verify that a late release of the previous address generation
+    /// does not delete the newer allocation.
+    /// Invariants: the newer binding survives with its own size and generation.
+    #[test]
+    fn test_rebuild_late_release_keeps_newer_generation() {
+        let events = vec![
+            MemoryEvent::allocate(0x300, 64, 1),
+            MemoryEvent::allocate(0x300, 512, 1),
+            MemoryEvent::deallocate(0x300, 64, 2),
+        ];
+
+        let result = rebuild_allocations_from_events(&events);
+        assert_eq!(
+            result.len(),
+            1,
+            "one release must close exactly one binding, got {} allocations",
+            result.len()
+        );
+        assert_eq!(
+            result[0].size, 512,
+            "the surviving allocation must be the newer, larger one"
+        );
+    }
+
+    /// Objective: Verify that a reallocation refreshes the allocation size instead
+    /// of being silently dropped.
+    /// Invariants: one allocation remains, with the new size and the same address.
+    #[test]
+    fn test_rebuild_applies_reallocation() {
+        let events = vec![
+            MemoryEvent::allocate(0x400, 32, 1),
+            MemoryEvent::reallocate(0x400, 32, 256, 1),
+        ];
+
+        let result = rebuild_allocations_from_events(&events);
+        assert_eq!(result.len(), 1, "reallocation must not duplicate rows");
+        assert_eq!(result[0].ptr, 0x400, "the address must be preserved");
+        assert_eq!(
+            result[0].size, 256,
+            "the reallocated size must replace the stale one"
+        );
     }
 
     /// Objective: Verify that clone events produce correct clone info.
     /// Invariants: Clone source should have clone_count > 0,
-    /// clone target should have is_clone = true.
+    /// clone target should be is_clone = true.
     #[test]
     fn test_rebuild_clone_relationship() {
         let events = vec![

@@ -131,10 +131,12 @@ impl ThreadLocalTracker {
         self.total_deallocated
             .fetch_add(size as u64, Ordering::Relaxed);
 
-        // Use fetch_update for atomic saturating_sub to prevent underflow
+        // Use the atomic compare-and-swap loop for saturating_sub to prevent
+        // underflow: `try_update` only commits when no other thread changed the
+        // counter in between.
         let _ = self
             .active_memory
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
+            .try_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
                 Some(current.saturating_sub(size as u64))
             });
     }

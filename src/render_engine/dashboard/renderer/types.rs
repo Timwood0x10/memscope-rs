@@ -1,5 +1,6 @@
 //! Dashboard data types for template rendering.
 
+use super::evidence::{EvidenceLevel, RiskConfidence};
 use serde::{Deserialize, Serialize};
 
 /// Risk score penalty per high-risk operation.
@@ -282,6 +283,11 @@ pub struct AsyncSummary {
     pub success_rate: f64,
 }
 
+/// One of several same-named `AllocationInfo` types in this crate: this one is the
+/// the dashboard/JSON DTO; never a source of truth for the ledger.
+///
+/// Convert at the module boundary instead of passing it across; a global rename is
+/// deliberately avoided (see DATA_ACCURACY_DEVELOPMENT_PLAN §14.2).
 /// Allocation information for dashboard
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AllocationInfo {
@@ -309,8 +315,20 @@ pub struct AllocationInfo {
     pub timestamp_dealloc: u64,
     /// Lifetime in milliseconds
     pub lifetime_ms: f64,
-    /// Whether memory is leaked
+    /// Whether memory is leaked.
+    ///
+    /// Compatibility projection of [`Self::leak_status`]: only `suspected` or
+    /// `confirmed` allow `true`. A missing deallocation timestamp is NOT a leak.
     pub is_leaked: bool,
+    /// Physical allocation state observed at the snapshot cut.
+    ///
+    /// This is a fact, not a conclusion: `live` only means "no release event was
+    /// recorded inside the capture window".
+    #[serde(default)]
+    pub allocation_state: crate::snapshot::AllocationState,
+    /// Leak conclusion for this allocation at the snapshot cut.
+    #[serde(default)]
+    pub leak_status: crate::snapshot::LeakStatus,
     /// Allocation type (stack, heap, etc.)
     pub allocation_type: String,
     /// Whether this is a smart pointer
@@ -325,7 +343,9 @@ pub struct AllocationInfo {
     pub module_path: Option<String>,
     /// Allocation generation id (incremented on pointer address reuse)
     pub generation_id: usize,
-    /// Pointer provenance (allocator, clone, reallocation, FFI, unknown)
+    /// Pointer provenance (`allocator`, `clone`, `smart_pointer`, `reused_address`).
+    ///
+    /// Leakage is not provenance: it is reported through `leak_status`.
     pub provenance: String,
     /// Evidence level for this allocation's analysis
     #[serde(default)]
@@ -884,76 +904,6 @@ pub struct FfiCallTopology {
     pub nodes: Vec<FfiCallNode>,
     /// Edges between nodes
     pub edges: Vec<FfiCallEdge>,
-}
-
-/// Evidence level for analysis findings — how the conclusion was reached.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
-pub enum EvidenceLevel {
-    /// Directly observed from events (highest confidence)
-    Observed,
-    /// Inferred from multiple data sources with strong correlation
-    Inferred,
-    /// Best-guess heuristic based on type/pattern matching
-    Heuristic,
-    /// No evidence available
-    #[default]
-    Unknown,
-}
-
-/// Risk confidence — how certain the analysis is about a risk finding.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
-pub enum RiskConfidence {
-    /// Bug is confirmed by direct evidence
-    Confirmed,
-    /// Strong evidence but not conclusive
-    Likely,
-    /// Possible but needs more evidence
-    Possible,
-    /// Risk level unknown
-    #[default]
-    Unknown,
-}
-
-/// Pointer provenance — indicates where a pointer originated.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
-pub enum PointerProvenance {
-    /// Fresh allocation from the global allocator
-    Allocator,
-    /// Created via Clone (includes Rc/Arc clone)
-    Clone,
-    /// Wrapped in a smart pointer (Box, Rc, Arc)
-    SmartPointer,
-    /// Address was previously used by a different allocation
-    Reallocation,
-    /// Reallocated address that later leaked
-    ReallocatedThenLeaked,
-    /// Received from FFI boundary
-    FfiInput,
-    /// Sent to FFI boundary
-    FfiOutput,
-    /// Origin unknown
-    #[default]
-    Unknown,
-}
-
-/// Drop expectation — what the analysis expects regarding deallocation.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
-pub enum DropExpectation {
-    /// Normal Rust drop expected
-    NormalDrop,
-    /// ManualDrop — deallocation may be intentionally suppressed
-    ManualDrop,
-    /// mem::forget was called
-    Forgotten,
-    /// Memory should be freed by foreign code
-    ForeignFree,
-    /// Rust should reclaim from foreign code
-    RustReclaim,
-    /// No drop needed (e.g. static data, ZST)
-    NoDropNeeded,
-    /// Drop expectation unknown
-    #[default]
-    Unknown,
 }
 
 /// Ownership state — who owns a given allocation at a point in time.

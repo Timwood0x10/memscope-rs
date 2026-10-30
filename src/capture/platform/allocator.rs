@@ -59,6 +59,11 @@ pub struct HookResult {
     pub metadata: Option<AllocationMetadata>,
 }
 
+/// One of several same-named `AllocationInfo` types in this crate: this one is the
+/// a platform allocator snapshot entry, not a tracked allocation.
+///
+/// Convert at the module boundary instead of passing it across; a global rename is
+/// deliberately avoided (see DATA_ACCURACY_DEVELOPMENT_PLAN §14.2).
 /// Information about an allocation
 #[derive(Debug, Clone)]
 pub struct AllocationInfo {

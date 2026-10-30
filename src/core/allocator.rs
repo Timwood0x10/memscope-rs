@@ -14,63 +14,43 @@ impl TrackingAllocator {
         Self
     }
 
-    /// Simple type inference using static strings to avoid recursive allocations
-    fn _infer_type_from_allocation_context(size: usize) -> &'static str {
-        // CRITICAL FIX: Use static strings to prevent recursive allocations
-        match size {
-            // Common Rust type sizes
-            1 => "u8",
-            2 => "u16",
-            4 => "u32",
-            8 => "u64",
-            16 => "u128",
-
-            // String and Vec common sizes
-            24 => "String",
-            32 => "Vec<T>",
-            48 => "HashMap<K,V>",
-
-            // Smart pointer sizes
-            size if size == std::mem::size_of::<std::sync::Arc<String>>() => "Arc<T>",
-            size if size == std::mem::size_of::<std::rc::Rc<String>>() => "Rc<T>",
-            size if size == std::mem::size_of::<Box<String>>() => "Box<T>",
-
-            // Default for other sizes - use static strings
-            _ => "unknown",
-        }
-    }
-
-    // REMOVED: fallback_type_inference - no longer needed with static strings
-
-    /// Get a simplified call stack for context
-    fn _get_simplified_call_stack() -> Vec<String> {
-        // For now, return a simple placeholder
-        // In a real implementation, this could use backtrace crate
-        vec!["global_allocator".to_string(), "system_alloc".to_string()]
-    }
-
-    /// Simple variable name inference using static strings to avoid recursive allocations
-    fn _infer_variable_from_allocation_context(size: usize) -> &'static str {
-        // CRITICAL FIX: Use static strings to prevent recursive allocations
-        match size {
-            // Small allocations - likely primitives
-            1..=8 => "primitive_data",
-
-            // Medium allocations - likely structs or small collections
-            9..=64 => "struct_data",
-
-            // Large allocations - likely collections or buffers
-            65..=1024 => "collection_data",
-
-            // Very large allocations - likely buffers or large data structures
-            _ => "buffer_data",
-        }
-    }
+    // Removed: `_infer_type_from_allocation_context` and friends mapped a request
+    // size to "String"/"Vec<T>" style names. A byte count cannot identify a type,
+    // so those helpers were dead weight that invited false conclusions. The
+    // allocator now records only what it actually observes: address and size.
 }
 
 // Thread-local flag to prevent recursive tracking
 thread_local! {
     static TRACKING_DISABLED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Scope guard that suppresses tracking while the allocator works.
+///
+/// The previous code toggled the thread-local flag manually, so any early return (or a
+/// panic inside the tracker) left tracking disabled for the rest of the thread's life.
+/// Restoring on `Drop` makes the suppression impossible to leak.
+struct TrackingGuard;
+
+impl TrackingGuard {
+    /// Take the suppression slot, or `None` when tracking is already suppressed
+    /// (recursive allocation from inside the tracker itself).
+    fn acquire() -> Option<Self> {
+        TRACKING_DISABLED.with(|disabled| {
+            if disabled.get() {
+                None
+            } else {
+                disabled.set(true);
+                Some(Self)
+            }
+        })
+    }
+}
+
+impl Drop for TrackingGuard {
+    fn drop(&mut self) {
+        TRACKING_DISABLED.with(|disabled| disabled.set(false));
+    }
 }
 
 unsafe impl GlobalAlloc for TrackingAllocator {
@@ -80,46 +60,56 @@ unsafe impl GlobalAlloc for TrackingAllocator {
 
         // Track the allocation if it succeeded and tracking is not disabled
         if !ptr.is_null() {
-            // Check if tracking is disabled for this thread to prevent recursion
-            let should_track = TRACKING_DISABLED.with(|disabled| !disabled.get());
-
-            if should_track {
-                // Temporarily disable tracking to prevent recursion during tracking operations
-                TRACKING_DISABLED.with(|disabled| disabled.set(true));
-
-                // CRITICAL FIX: Use simple tracking like master branch to avoid recursion
+            if let Some(_suppression) = TrackingGuard::acquire() {
+                // `catch_unwind` keeps a tracker failure from breaking user allocation.
                 if let Ok(tracker) = std::panic::catch_unwind(crate::core::tracker::get_tracker) {
-                    // Simple tracking without context to prevent recursive allocations
                     let _ = tracker.track_allocation(ptr as usize, layout.size());
                 }
-
-                // Re-enable tracking
-                TRACKING_DISABLED.with(|disabled| disabled.set(false));
             }
         }
 
         ptr
     }
 
-    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        // Track the deallocation first
-        let should_track = TRACKING_DISABLED.with(|disabled| !disabled.get());
+    /// Reallocate through the system allocator and record the transition once.
+    ///
+    /// The default `GlobalAlloc::realloc` implementation is alloc + copy + dealloc,
+    /// which turns one logical operation into two unrelated events and loses the
+    /// fact that the block kept its identity. Recording a single `Reallocate` event
+    /// with both addresses keeps the ledger consistent for moved blocks.
+    unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
+        let Some(_suppression) = TrackingGuard::acquire() else {
+            return System.realloc(ptr, layout, new_size);
+        };
 
-        if should_track {
-            // Temporarily disable tracking to prevent recursion
-            TRACKING_DISABLED.with(|disabled| disabled.set(true));
-
-            // Track the deallocation - use try_lock approach to avoid deadlocks
-            if let Ok(tracker) = std::panic::catch_unwind(crate::core::tracker::get_tracker) {
-                // Ignore errors to prevent deallocation failures from breaking the program
-                let _ = tracker.track_deallocation(ptr as usize);
+        let new_ptr = System.realloc(ptr, layout, new_size);
+        if let Ok(tracker) = std::panic::catch_unwind(crate::core::tracker::get_tracker) {
+            if !new_ptr.is_null() {
+                // The allocator path has no event store attached yet, so only the
+                // in-memory ledger is updated here (the `Tracker` facade records the
+                // matching `Reallocate` event when it owns one).
+                let _ = tracker.track_reallocation(
+                    ptr as usize,
+                    new_ptr as usize,
+                    layout.size(),
+                    new_size,
+                );
             }
-
-            // Re-enable tracking
-            TRACKING_DISABLED.with(|disabled| disabled.set(false));
+            // A failed reallocation keeps the original block alive: nothing to record.
         }
 
-        // Deallocate the memory
+        new_ptr
+    }
+
+    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+        // Track the deallocation first, then hand the block back to the system.
+        if let Some(_suppression) = TrackingGuard::acquire() {
+            if let Ok(tracker) = std::panic::catch_unwind(crate::core::tracker::get_tracker) {
+                // Ignore errors so a tracking failure cannot break the deallocation.
+                let _ = tracker.track_deallocation(ptr as usize);
+            }
+        }
+
         System.dealloc(ptr, layout);
     }
 }
@@ -156,17 +146,33 @@ mod tests {
         }
     }
 
+    /// Objective: Verify that zero-sized requests never reach the allocator.
+    /// Invariants: `GlobalAlloc` requires `layout.size() > 0` (the standard
+    /// library aborts otherwise), so ZST containers must use the dangling
+    /// sentinel pointer and produce no tracked allocation at all.
     #[test]
     fn test_zero_sized_allocation() {
-        let allocator = TrackingAllocator::new();
-        let layout = Layout::from_size_align(0, 1).unwrap();
+        let layout = Layout::from_size_align(0, 1).expect("zero-size layout must be constructible");
+        assert_eq!(
+            layout.size(),
+            0,
+            "the zero-size layout must report a zero length, otherwise the test is meaningless"
+        );
 
-        unsafe {
-            let ptr = allocator.alloc(layout);
-            // Zero-sized allocations may return null or a valid pointer
-            // Both are acceptable according to the GlobalAlloc trait
-            allocator.dealloc(ptr, layout);
-        }
+        // ZST vectors share the non-null dangling sentinel: `with_capacity` on a
+        // zero-sized element never asks the global allocator for memory.
+        let with_capacity: Vec<()> = Vec::with_capacity(1024);
+        let empty: Vec<()> = Vec::new();
+        assert_eq!(
+            with_capacity.as_ptr(),
+            empty.as_ptr(),
+            "a ZST vector must reuse the dangling sentinel instead of allocating"
+        );
+        assert!(
+            with_capacity.capacity() >= 1024,
+            "a ZST vector must satisfy its requested capacity without allocating, got {}",
+            with_capacity.capacity()
+        );
     }
 
     #[test]
@@ -208,153 +214,11 @@ mod tests {
     }
 
     #[test]
-    fn test_type_inference_from_size() {
-        // Test the static type inference
-        assert_eq!(
-            TrackingAllocator::_infer_type_from_allocation_context(1),
-            "u8"
-        );
-        assert_eq!(
-            TrackingAllocator::_infer_type_from_allocation_context(4),
-            "u32"
-        );
-        assert_eq!(
-            TrackingAllocator::_infer_type_from_allocation_context(8),
-            "u64"
-        );
-        assert_eq!(
-            TrackingAllocator::_infer_type_from_allocation_context(24),
-            "String"
-        );
-        assert_eq!(
-            TrackingAllocator::_infer_type_from_allocation_context(32),
-            "Vec<T>"
-        );
-        assert_eq!(
-            TrackingAllocator::_infer_type_from_allocation_context(999),
-            "unknown"
-        );
-    }
-
-    #[test]
-    fn test_variable_inference_from_size() {
-        // Test the static variable inference
-        assert_eq!(
-            TrackingAllocator::_infer_variable_from_allocation_context(4),
-            "primitive_data"
-        );
-        assert_eq!(
-            TrackingAllocator::_infer_variable_from_allocation_context(32),
-            "struct_data"
-        );
-        assert_eq!(
-            TrackingAllocator::_infer_variable_from_allocation_context(512),
-            "collection_data"
-        );
-        assert_eq!(
-            TrackingAllocator::_infer_variable_from_allocation_context(2048),
-            "buffer_data"
-        );
-    }
-
-    #[test]
     fn test_default_implementation() {
         let allocator = TrackingAllocator::new();
         assert_eq!(
             std::mem::size_of_val(&allocator),
             std::mem::size_of::<TrackingAllocator>()
-        );
-    }
-
-    #[test]
-    fn test_type_inference() {
-        // Test type inference for various sizes
-        assert_eq!(
-            TrackingAllocator::_infer_type_from_allocation_context(1),
-            "u8"
-        );
-        assert_eq!(
-            TrackingAllocator::_infer_type_from_allocation_context(2),
-            "u16"
-        );
-        assert_eq!(
-            TrackingAllocator::_infer_type_from_allocation_context(4),
-            "u32"
-        );
-        assert_eq!(
-            TrackingAllocator::_infer_type_from_allocation_context(8),
-            "u64"
-        );
-        assert_eq!(
-            TrackingAllocator::_infer_type_from_allocation_context(16),
-            "u128"
-        );
-        assert_eq!(
-            TrackingAllocator::_infer_type_from_allocation_context(24),
-            "String"
-        );
-        assert_eq!(
-            TrackingAllocator::_infer_type_from_allocation_context(32),
-            "Vec<T>"
-        );
-        assert_eq!(
-            TrackingAllocator::_infer_type_from_allocation_context(48),
-            "HashMap<K,V>"
-        );
-
-        // Test unknown size
-        assert_eq!(
-            TrackingAllocator::_infer_type_from_allocation_context(12345),
-            "unknown"
-        );
-    }
-
-    #[test]
-    fn test_variable_inference() {
-        // Test variable inference for different size ranges
-        assert_eq!(
-            TrackingAllocator::_infer_variable_from_allocation_context(0),
-            "buffer_data"
-        );
-        assert_eq!(
-            TrackingAllocator::_infer_variable_from_allocation_context(4),
-            "primitive_data"
-        );
-        assert_eq!(
-            TrackingAllocator::_infer_variable_from_allocation_context(8),
-            "primitive_data"
-        );
-        assert_eq!(
-            TrackingAllocator::_infer_variable_from_allocation_context(16),
-            "struct_data"
-        );
-        assert_eq!(
-            TrackingAllocator::_infer_variable_from_allocation_context(32),
-            "struct_data"
-        );
-        assert_eq!(
-            TrackingAllocator::_infer_variable_from_allocation_context(64),
-            "struct_data"
-        );
-        assert_eq!(
-            TrackingAllocator::_infer_variable_from_allocation_context(65),
-            "collection_data"
-        );
-        assert_eq!(
-            TrackingAllocator::_infer_variable_from_allocation_context(128),
-            "collection_data"
-        );
-        assert_eq!(
-            TrackingAllocator::_infer_variable_from_allocation_context(1024),
-            "collection_data"
-        );
-        assert_eq!(
-            TrackingAllocator::_infer_variable_from_allocation_context(1025),
-            "buffer_data"
-        );
-        assert_eq!(
-            TrackingAllocator::_infer_variable_from_allocation_context(usize::MAX),
-            "buffer_data"
         );
     }
 
@@ -373,14 +237,6 @@ mod tests {
             assert!(disabled.get());
             disabled.set(false);
         });
-    }
-
-    #[test]
-    fn test_simplified_call_stack() {
-        let stack = TrackingAllocator::_get_simplified_call_stack();
-        assert_eq!(stack.len(), 2);
-        assert_eq!(stack[0], "global_allocator");
-        assert_eq!(stack[1], "system_alloc");
     }
 
     #[test]
@@ -445,6 +301,42 @@ mod tests {
         assert!(
             !RECURSION_DETECTED.load(Ordering::SeqCst),
             "Recursive allocation detected - thread-local tracking failed"
+        );
+    }
+
+    /// Objective: Verify the suppression guard restores tracking on drop, including
+    /// when a nested acquisition is refused.
+    /// Invariants: exactly one guard owns the slot; the nested one does not restore
+    /// early; dropping the owner leaves tracking enabled.
+    #[test]
+    fn suppression_guard_restores_state() {
+        reset_thread_local_state();
+
+        {
+            let outer = TrackingGuard::acquire();
+            assert!(outer.is_some(), "the first guard must take the slot");
+            assert!(
+                TRACKING_DISABLED.with(|disabled| disabled.get()),
+                "tracking must be suppressed while the guard is alive"
+            );
+
+            {
+                let inner = TrackingGuard::acquire();
+                assert!(
+                    inner.is_none(),
+                    "a nested acquisition must be refused instead of double-owning the slot"
+                );
+            }
+
+            assert!(
+                TRACKING_DISABLED.with(|disabled| disabled.get()),
+                "the refused nested guard must not restore tracking early"
+            );
+        }
+
+        assert!(
+            !TRACKING_DISABLED.with(|disabled| disabled.get()),
+            "dropping the owning guard must restore tracking"
         );
     }
 }

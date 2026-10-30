@@ -32,6 +32,11 @@ pub struct TimeRange {
     pub duration_ms: u64,
 }
 
+/// One of several same-named `MemorySnapshot` types in this crate: this one is the
+/// the timeline capture snapshot used for replay windows.
+///
+/// Convert at the module boundary instead of passing it across; a global rename is
+/// deliberately avoided (see DATA_ACCURACY_DEVELOPMENT_PLAN §14.2).
 /// Memory snapshot at a point in time.
 #[derive(Debug, Clone, Serialize)]
 pub struct MemorySnapshot {

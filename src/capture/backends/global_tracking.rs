@@ -149,6 +149,13 @@ impl GlobalTracker {
     ) {
         self.tracker.track_as(var, name, file, line, module_path);
 
+        // Task-attributed memory lives in two independent surfaces that are each
+        // recorded exactly once:
+        //   * `TaskIdRegistry` (task relationship graph) — written by the single
+        //     capture point `Tracker::track_inner`;
+        //   * `AsyncTracker` (per-task async profiles and async KPIs) — written here.
+        // Neither store may be updated twice for the same observation, and neither
+        // is derived from the other, so this is a projection, not a second ledger.
         if let Some(task_id) = AsyncTracker::get_current_task() {
             let kind = var.track_kind();
             if let crate::core::types::TrackKind::HeapOwner { ptr, size } = kind {
@@ -161,22 +168,14 @@ impl GlobalTracker {
                     Some(type_name),
                     None,
                 );
-                // Also update TaskIdRegistry memory stats for the Task Relationship Graph.
-                crate::task_registry::global_registry().record_allocation(size);
             }
         }
 
-        let kind = var.track_kind();
-        if let crate::core::types::TrackKind::HeapOwner { ptr, size: _ } = kind {
-            let borrow_analyzer = crate::analysis::borrow_analysis::get_global_borrow_analyzer();
-            let type_name = var.get_type_name();
-            let borrow_type = if type_name.contains("Mutex") || type_name.contains("Cell") {
-                crate::analysis::borrow_analysis::BorrowType::Mutable
-            } else {
-                crate::analysis::borrow_analysis::BorrowType::Immutable
-            };
-            let _ = borrow_analyzer.track_borrow(ptr, borrow_type, name);
-        }
+        // Note: `track!` is an *observation*, not a Rust borrow. Recording an
+        // immutable borrow here for every `Vec`/`String`/`Box` fabricated a borrow
+        // event per call (plan A19). Real borrow events require explicit
+        // instrumentation; borrow statistics stay empty until then rather than
+        // reporting invented numbers.
     }
 
     pub fn create_passport(
@@ -391,6 +390,9 @@ pub fn global_tracker() -> MemScopeResult<Arc<GlobalTracker>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    // The global singleton is process wide: tests that reset or (re)initialise it
+    // must not run concurrently with each other or with `guard`'s serial tests.
+    use serial_test::serial;
     use std::time::Duration;
 
     fn reset_global_state() {
@@ -569,6 +571,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_init_global_tracking_double_init() {
         reset_global_state();
         let result1 = init_global_tracking();
@@ -579,6 +582,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_init_global_tracking_with_config_double_init() {
         reset_global_state();
         let config = GlobalTrackerConfig::default();
@@ -591,6 +595,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_global_tracker_accessor_not_initialized() {
         reset_global_state();
         let result = global_tracker();
@@ -599,6 +604,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_reset_global_tracking() {
         reset_global_state();
         init_global_tracking().unwrap();
@@ -653,5 +659,28 @@ mod tests {
         let tracker = GlobalTracker::new();
         let value = String::from("test_value");
         tracker.track_as(&value, "test_var", "test.rs", 10, "test_module");
+    }
+
+    /// Objective: Verify `track_as` is an observation, not a Rust borrow (plan A19).
+    /// Invariants: the global borrow statistics do not change when a value is
+    /// tracked, while the allocation itself is still recorded.
+    #[test]
+    fn test_track_as_does_not_fabricate_borrow_event() {
+        let analyzer = crate::analysis::borrow_analysis::get_global_borrow_analyzer();
+        let before = analyzer.get_borrow_statistics().total_borrows;
+
+        let tracker = GlobalTracker::new();
+        let data = vec![1u8; 64];
+        tracker.track_as(&data, "data", file!(), line!(), module_path!());
+
+        let after = analyzer.get_borrow_statistics().total_borrows;
+        assert_eq!(
+            after, before,
+            "tracking a variable must not be recorded as a borrow event"
+        );
+        assert!(
+            tracker.get_stats().total_allocations >= 1,
+            "the allocation itself must still be tracked"
+        );
     }
 }

@@ -17,7 +17,12 @@
 //! - Zero-fill detection
 #![allow(dead_code)]
 
-use super::memory_view::{count_valid_pointers, is_valid_ptr, MemoryView};
+use super::memory_view::MemoryView;
+use super::policy::{InferenceDecision, InferencePolicy};
+use super::scoring::{
+    candidate_table, content_analysis, lifetime_analysis, pointer_heuristic, size_heuristic,
+    stack_trace_analysis, vec_string_layout, Score,
+};
 
 /// Inferred type category for unsafe memory allocations.
 ///
@@ -57,15 +62,18 @@ impl std::fmt::Display for TypeKind {
     }
 }
 
-/// Type inference result with confidence score.
+/// Type inference result with a heuristic score.
 ///
-/// Confidence ranges from 0-100, where higher values indicate stronger evidence.
+/// The score is a sum of heuristic signals, **not** a probability: it is neither
+/// bounded by 100 nor meaningful as a percentage. A guess is only produced when
+/// [`InferencePolicy`] accepts the evidence; otherwise the kind is
+/// [`TypeKind::Unknown`] and the score is 0.
 #[derive(Clone, Copy, Debug)]
 pub struct TypeGuess {
     /// Inferred type category
     pub kind: TypeKind,
-    /// Confidence score (0-100)
-    pub confidence: u8,
+    /// Heuristic score sum for the accepted candidate (not a percentage)
+    pub confidence: u16,
     /// Method used for inference (for debugging/display)
     pub method: InferenceMethod,
 }
@@ -87,7 +95,7 @@ pub enum InferenceMethod {
 
 impl TypeGuess {
     /// Create a new type guess with the given kind and confidence.
-    pub fn new(kind: TypeKind, confidence: u8) -> Self {
+    pub fn new(kind: TypeKind, confidence: u16) -> Self {
         Self {
             kind,
             confidence,
@@ -96,7 +104,7 @@ impl TypeGuess {
     }
 
     /// Create a new type guess with method information.
-    pub fn with_method(kind: TypeKind, confidence: u8, method: InferenceMethod) -> Self {
+    pub fn with_method(kind: TypeKind, confidence: u16, method: InferenceMethod) -> Self {
         Self {
             kind,
             confidence,
@@ -113,28 +121,16 @@ impl TypeGuess {
         }
     }
 
-    /// Display the type guess with confidence percentage.
+    /// Display the type guess with its heuristic score.
+    ///
+    /// The value is a score sum, not a probability, so it is never rendered as a
+    /// percentage.
     pub fn display_with_confidence(&self) -> String {
         if self.confidence == 0 {
             return "-".to_string();
         }
-        format!("{} ({}%)", self.kind, self.confidence)
+        format!("{} (score {})", self.kind, self.confidence)
     }
-}
-
-/// Internal score structure for multi-dimensional inference.
-///
-/// Each field accumulates evidence from different heuristic dimensions.
-#[derive(Default)]
-struct Score {
-    // Core types
-    vec: u8,
-    string: u8,
-    cstring: u8,
-    pointer: u8,
-    fat_ptr: u8,
-    buffer: u8,
-    cstruct: u8,
 }
 
 /// Main inference engine for unsafe type detection.
@@ -148,7 +144,7 @@ struct Score {
 ///
 /// let memory = vec![0u8; 24];
 /// let guess = UnsafeInferenceEngine::infer_from_bytes(&memory, 24);
-/// println!("Inferred: {} ({}%)", guess.kind, guess.confidence);
+/// println!("Inferred: {} (score {})", guess.kind, guess.confidence);
 /// ```
 pub struct UnsafeInferenceEngine;
 
@@ -174,6 +170,26 @@ impl UnsafeInferenceEngine {
     ) -> TypeGuess {
         let view = MemoryView::new(data);
         infer(&view, size, stack_trace, alloc_time, dealloc_time)
+    }
+
+    /// Infer with the default policy, keeping the abstain reason.
+    ///
+    /// Unlike [`Self::infer_from_bytes`] this returns the full decision, so a
+    /// caller can explain *why* no type was reported instead of silently showing
+    /// an empty result.
+    pub fn decide_from_bytes(data: &[u8], size: usize) -> InferenceDecision {
+        let view = MemoryView::new(data);
+        infer_decision(&view, size, None, None, None, &InferencePolicy::PRELIMINARY)
+    }
+
+    /// Run inference with an explicit acceptance policy.
+    pub fn decide_with_policy(
+        data: &[u8],
+        size: usize,
+        policy: &InferencePolicy,
+    ) -> InferenceDecision {
+        let view = MemoryView::new(data);
+        infer_decision(&view, size, None, None, None, policy)
     }
 
     /// Run inference on multiple records.
@@ -254,6 +270,25 @@ fn infer(
     alloc_time: Option<u64>,
     dealloc_time: Option<u64>,
 ) -> TypeGuess {
+    decision_to_guess(&infer_decision(
+        view,
+        size,
+        stack_trace,
+        alloc_time,
+        dealloc_time,
+        &InferencePolicy::PRELIMINARY,
+    ))
+}
+
+/// Run every heuristic dimension and apply the acceptance policy.
+fn infer_decision(
+    view: &MemoryView,
+    size: usize,
+    stack_trace: Option<&[String]>,
+    alloc_time: Option<u64>,
+    dealloc_time: Option<u64>,
+    policy: &InferencePolicy,
+) -> InferenceDecision {
     let mut score = Score::default();
 
     // Dimension 1: Size heuristic with power-of-two signal
@@ -274,444 +309,76 @@ fn infer(
     // Dimension 6: Lifetime analysis (optional, auxiliary signal)
     lifetime_analysis(alloc_time, dealloc_time, &mut score);
 
-    // Aggregate and finalize
-    finalize(score)
+    finalize(&score, policy)
 }
 
-/// Dimension 1: Enhanced size heuristic.
-///
-/// Key improvements over v1:
-/// - Reduced pointer score for size=8 (was too aggressive)
-/// - Added fat_ptr detection for size=16
-/// - Added power-of-two signal for Vec/Buffer
-/// - Added common C struct sizes
-fn size_heuristic(size: usize, score: &mut Score) {
-    match size {
-        // Raw pointer: *mut T, *const T, &T, Box<T>
-        // Reduced from 60 to 30 to reduce false positives
-        8 => score.pointer += 30,
-
-        // Fat pointer: &[T], &str, dyn Trait (data_ptr + metadata)
-        // This is a strong signal for slice references
-        16 => score.fat_ptr += 25,
-
-        // Vec/String triplet: (ptr, len, cap)
-        24 => {
-            score.vec += 15;
-            score.string += 15;
-        }
-
-        // Common C struct sizes
-        32 | 48 | 64 => score.cstruct += 10,
-
-        _ => {}
-    }
-
-    // Power-of-two signal: Rust Vec capacity grows by powers of 2
-    // A random size being power-of-two has probability ~1/size
-    // For 64 bytes, this is only ~1.5% false positive rate
-    if size.is_power_of_two() && size >= 64 {
-        score.vec += 10;
-        score.buffer += 5;
+/// Method that produced a given kind, so an accepted decision can report its
+/// strongest dimension without threading it through the decision struct.
+fn method_for(kind: TypeKind) -> InferenceMethod {
+    match kind {
+        TypeKind::Vec => InferenceMethod::LayoutDetection,
+        TypeKind::String => InferenceMethod::Utf8Validation,
+        TypeKind::CString => InferenceMethod::ContentAnalysis,
+        TypeKind::Pointer | TypeKind::FatPtr => InferenceMethod::SizeHeuristic,
+        TypeKind::Buffer => InferenceMethod::EntropyAnalysis,
+        TypeKind::CStruct => InferenceMethod::Combined,
+        TypeKind::Unknown => InferenceMethod::Unknown,
     }
 }
 
-/// Dimension 2: Vec/String layout detection.
-///
-/// Detects the (ptr, len, cap) triplet structure.
-/// Key improvement: UTF-8 validation for String detection.
-fn vec_string_layout(view: &MemoryView, score: &mut Score) {
-    let usize_size = std::mem::size_of::<usize>();
-    let min_len = usize_size * 3; // ptr + len + cap
-    if view.len() < min_len {
-        return;
-    }
-
-    let ptr_val = view.read_usize(0);
-    let len = view.read_usize(usize_size);
-    let cap = view.read_usize(usize_size * 2);
-
-    let (Some(p), Some(l), Some(c)) = (ptr_val, len, cap) else {
-        return;
-    };
-
-    // Basic structure validation
-    if !is_valid_ptr(p) || c < l || c == 0 || c > 10_000_000 {
-        return;
-    }
-
-    // Distinguish Vec from String based on capacity vs length
-    // String typically has cap close to len (small spare capacity)
-    // Vec often has cap >> len (pre-allocated growth space)
-    let spare = c.saturating_sub(l);
-
-    if spare < 16 && l > 0 {
-        // Small spare capacity → more likely String
-        score.string += 50;
-        score.vec += 20;
-    } else if spare > 0 {
-        // Large spare capacity → more likely Vec
-        score.vec += 60;
-        score.string += 15;
-    } else {
-        // cap == len → could be either
-        score.vec += 30;
-        score.string += 30;
-    }
-
-    // Additional Vec signal: capacity is power of two
-    // Rust's Vec growth strategy: new_cap = max(old_cap * 2, 1)
-    if c.is_power_of_two() {
-        score.vec += 15;
+/// Project an accepted decision into the legacy `TypeGuess` shape.
+fn decision_to_guess(decision: &InferenceDecision) -> TypeGuess {
+    match decision.predicted {
+        Some(kind) => TypeGuess::with_method(kind, decision.raw_score, method_for(kind)),
+        None => TypeGuess::unknown(),
     }
 }
 
-/// Dimension 3: Content analysis.
+/// Finalize inference by applying the acceptance policy to the score vector.
 ///
-/// Enhanced detection for CString, entropy, and zero-fill patterns.
-fn content_analysis(view: &MemoryView, score: &mut Score) {
-    let data = view.as_slice();
-    if data.is_empty() {
-        return;
+/// A type is only returned when the winner reaches `min_score` **and** leads the
+/// runner-up by `min_margin`; otherwise the decision abstains and records why.
+fn finalize(score: &Score, policy: &InferencePolicy) -> InferenceDecision {
+    let mut table = candidate_table(score);
+    table.sort_by_key(|candidate| std::cmp::Reverse(candidate.1));
+
+    let (best_kind, best_score, _) = table[0];
+    let (runner_kind, runner_score, _) = table[1];
+
+    if best_score < policy.min_score {
+        return InferenceDecision {
+            predicted: None,
+            best_candidate: best_kind,
+            raw_score: best_score,
+            runner_up_score: runner_score,
+            abstain_reason: Some(format!(
+                "best candidate {best_kind} scored {best_score}, below min_score {}",
+                policy.min_score
+            )),
+        };
     }
 
-    // UTF-8 validation for String detection (decisive signal)
-    utf8_validation(data, score);
-
-    // Enhanced CString detection
-    cstring_enhanced(data, score);
-
-    // Entropy analysis for binary data detection
-    // Skip for large data (>4KB) to avoid performance cost
-    if data.len() >= 32 && data.len() <= 4096 {
-        entropy_analysis(data, score);
-    } else if data.len() > 4096 {
-        // Large data is likely buffer, skip expensive analysis
-        score.buffer += 40;
+    if best_score.saturating_sub(runner_score) < policy.min_margin {
+        return InferenceDecision {
+            predicted: None,
+            best_candidate: best_kind,
+            raw_score: best_score,
+            runner_up_score: runner_score,
+            abstain_reason: Some(format!(
+                "ambiguous: {best_kind} scored {best_score} vs {runner_kind} {runner_score}, \
+                 margin below min_margin {}",
+                policy.min_margin
+            )),
+        };
     }
 
-    // Zero-fill detection
-    zero_fill_detection(data, score);
-}
-
-/// UTF-8 validation for String detection.
-///
-/// This is the decisive signal for String vs Vec distinction.
-/// A random byte sequence passes UTF-8 validation with probability:
-/// - 16 bytes: ~0.3%
-/// - 64 bytes: ~0.00001%
-/// - 256 bytes: ~0%
-///
-/// Scoring strategy:
-/// - High printable ratio (>0.8): Strong String signal (+90)
-/// - Medium printable ratio (>0.5): Moderate String signal (+60)
-/// - Low printable ratio: Weak Vec signal (+20)
-/// - Invalid UTF-8: Strong Vec signal (+50)
-fn utf8_validation(data: &[u8], score: &mut Score) {
-    if data.is_empty() {
-        return;
+    InferenceDecision {
+        predicted: Some(best_kind),
+        best_candidate: best_kind,
+        raw_score: best_score,
+        runner_up_score: runner_score,
+        abstain_reason: None,
     }
-
-    // Try to validate as UTF-8
-    match std::str::from_utf8(data) {
-        Ok(s) => {
-            // Valid UTF-8 - count printable ratio
-            let printable = s
-                .chars()
-                .filter(|c| c.is_ascii_graphic() || c.is_ascii_whitespace())
-                .count();
-            let total = s.chars().count();
-            let ratio = if total > 0 {
-                printable as f32 / total as f32
-            } else {
-                0.0
-            };
-
-            if ratio > 0.8 {
-                // High printable ratio -> likely String content
-                score.string += 90;
-            } else if ratio > 0.5 {
-                // Mixed content -> could be String or Vec<u8>
-                score.string += 60;
-                score.vec += 30;
-            } else if ratio > 0.2 {
-                // Low printable but valid UTF-8
-                score.vec += 30;
-            } else {
-                // Very low printable ratio (mostly control chars or nulls)
-                // This is weak evidence for Vec, don't override other signals
-                score.vec += 20;
-            }
-        }
-        Err(_) => {
-            // Not valid UTF-8 -> definitely not a String
-            // This is a strong negative signal for String
-            score.vec += 50;
-        }
-    }
-}
-
-/// Enhanced CString detection with ASCII ratio analysis.
-///
-/// Key improvements:
-/// - Check printable ASCII ratio, not just trailing null
-/// - Detect multiple nulls (likely binary, not CString)
-/// - Require minimum content length
-/// - CString (null-terminated) should beat String when null terminator is present
-fn cstring_enhanced(data: &[u8], score: &mut Score) {
-    // Find first null byte
-    let null_pos = match data.iter().position(|&b| b == 0) {
-        Some(pos) => pos,
-        None => return, // No null terminator
-    };
-
-    // Empty or too short
-    if null_pos < 3 {
-        return;
-    }
-
-    let content = &data[..null_pos];
-
-    // Count printable ASCII characters (0x20-0x7E)
-    let printable_count = content
-        .iter()
-        .filter(|&&b| (0x20..=0x7E).contains(&b))
-        .count();
-
-    let printable_ratio = printable_count as f32 / content.len() as f32;
-
-    // High printable ratio with null terminator → likely CString
-    // Score higher than String (+90) because null terminator is definitive for CString
-    if printable_ratio > 0.9 {
-        score.cstring += 95;
-    } else if printable_ratio > 0.7 {
-        score.cstring += 60;
-    } else if printable_ratio > 0.5 {
-        score.cstring += 30;
-    }
-
-    // Multiple nulls → likely binary data, not CString
-    let null_count = data.iter().filter(|&&b| b == 0).count();
-    if null_count > 1 {
-        score.cstring = score.cstring.saturating_sub(20);
-        score.buffer += 15;
-    }
-}
-
-/// Shannon entropy analysis for binary data detection.
-///
-/// Entropy ranges from 0.0 (all same byte) to 8.0 (perfectly random).
-///
-/// Typical values:
-/// - English text: 4.0-4.5
-/// - Source code: 4.5-5.0
-/// - Compressed data: 7.8-8.0
-/// - Encrypted data: 7.9-8.0
-fn entropy_analysis(data: &[u8], score: &mut Score) {
-    let entropy = shannon_entropy(data);
-
-    // High entropy → compressed/encrypted/serialized data
-    if entropy > 7.5 {
-        score.buffer += 30;
-    } else if entropy > 6.5 {
-        score.buffer += 15;
-    }
-    // Low entropy → repetitive data or text
-    else if entropy < 3.0 {
-        score.cstruct += 5;
-    }
-}
-
-/// Calculate Shannon entropy of a byte sequence.
-fn shannon_entropy(data: &[u8]) -> f64 {
-    if data.is_empty() {
-        return 0.0;
-    }
-
-    let mut freq = [0u32; 256];
-    for &b in data {
-        freq[b as usize] += 1;
-    }
-
-    let n = data.len() as f64;
-    let mut entropy = 0.0;
-
-    for &count in &freq {
-        if count > 0 {
-            let p = count as f64 / n;
-            entropy -= p * p.log2();
-        }
-    }
-
-    entropy
-}
-
-/// Detect zero-filled memory regions.
-///
-/// High zero ratio often indicates:
-/// - Uninitialized struct padding
-/// - Zeroed buffers
-/// - Sparse data structures
-fn zero_fill_detection(data: &[u8], score: &mut Score) {
-    if data.len() < 16 {
-        return;
-    }
-
-    let zero_count = data.iter().filter(|&&b| b == 0).count();
-    let zero_ratio = zero_count as f32 / data.len() as f32;
-
-    if zero_ratio > 0.9 {
-        // Mostly zeros → likely zeroed buffer or struct with padding
-        score.buffer += 15;
-        score.cstruct += 10;
-    }
-}
-
-/// Dimension 4: Pointer-based heuristics.
-///
-/// Distinguish buffer from C struct based on pointer count.
-fn pointer_heuristic(view: &MemoryView, score: &mut Score) {
-    let ptr_count = count_valid_pointers(view);
-
-    if ptr_count == 0 && view.len() > 8 {
-        // No valid pointers → likely buffer
-        score.buffer += 40;
-    } else if ptr_count == 1 {
-        // Single pointer → could be Box or simple struct
-        score.pointer += 10;
-        score.cstruct += 5;
-    } else if ptr_count >= 2 {
-        // Multiple pointers → likely C struct
-        score.cstruct += 30;
-    }
-}
-
-/// Dimension 5: Stack trace analysis.
-///
-/// This is the highest-discrimination single signal.
-/// If the call stack contains `alloc::vec::Vec::push`, it's almost 100% Vec.
-///
-/// Graceful degradation: if stack trace is unavailable, this dimension
-/// contributes nothing and doesn't affect other dimensions.
-fn stack_trace_analysis(stack: Option<&[String]>, score: &mut Score) {
-    let Some(frames) = stack else {
-        return;
-    };
-
-    if frames.is_empty() {
-        return;
-    }
-
-    for frame in frames {
-        let f = frame.to_lowercase();
-
-        // Rust standard library signals
-        if f.contains("alloc::vec::vec") || f.contains("vec::from_elem") {
-            score.vec += 50;
-        }
-        if f.contains("alloc::string::string") || f.contains("from_utf8") {
-            score.string += 50;
-        }
-        if f.contains("alloc::boxed") {
-            score.pointer += 40;
-        }
-        if f.contains("ffi::c_str::cstring") || f.contains("from_bytes_with_nul") {
-            score.cstring += 60;
-        }
-
-        // FFI signals
-        if f.contains("malloc") || f.contains("calloc") || f.contains("realloc") {
-            score.cstruct += 20;
-            score.buffer += 15;
-        }
-        if f.contains("libc::") || f.contains("std::ffi") {
-            score.cstring += 15;
-            score.cstruct += 10;
-        }
-    }
-}
-
-/// Dimension 6: Lifetime analysis.
-///
-/// Uses allocation-deallocation time difference to infer type.
-/// This is an auxiliary signal with lower weight.
-fn lifetime_analysis(alloc_time: Option<u64>, dealloc_time: Option<u64>, score: &mut Score) {
-    let Some(alloc) = alloc_time else {
-        return;
-    };
-
-    let Some(dealloc) = dealloc_time else {
-        // Not deallocated → possibly leaked or long-lived
-        return;
-    };
-
-    let lifetime_ns = dealloc.saturating_sub(alloc);
-    let lifetime_ms = lifetime_ns / 1_000_000;
-
-    match lifetime_ms {
-        // Transient allocation (0ms) → possibly temporary String or small Vec
-        0 => {
-            score.string += 10;
-            score.vec += 5;
-        }
-
-        // Short-lived (1-100ms) → possibly function-local variable
-        1..=100 => {
-            score.cstruct += 5;
-        }
-
-        // Long-lived (> 10s) → possibly global cache or leaked
-        10000.. => {
-            score.buffer += 10;
-        }
-
-        _ => {}
-    }
-}
-
-/// Finalize inference by selecting the highest-scoring type.
-///
-/// Also determines the primary inference method based on which dimension
-/// contributed most to the final score.
-fn finalize(score: Score) -> TypeGuess {
-    let table = [
-        (TypeKind::Vec, score.vec, InferenceMethod::LayoutDetection),
-        (
-            TypeKind::String,
-            score.string,
-            InferenceMethod::Utf8Validation,
-        ),
-        (
-            TypeKind::CString,
-            score.cstring,
-            InferenceMethod::ContentAnalysis,
-        ),
-        (
-            TypeKind::Pointer,
-            score.pointer,
-            InferenceMethod::SizeHeuristic,
-        ),
-        (
-            TypeKind::FatPtr,
-            score.fat_ptr,
-            InferenceMethod::SizeHeuristic,
-        ),
-        (
-            TypeKind::Buffer,
-            score.buffer,
-            InferenceMethod::EntropyAnalysis,
-        ),
-        (TypeKind::CStruct, score.cstruct, InferenceMethod::Combined),
-    ];
-
-    let mut best = (TypeKind::Unknown, 0u8, InferenceMethod::Unknown);
-    for (kind, val, method) in table {
-        if val > best.1 {
-            best = (kind, val, method);
-        }
-    }
-
-    TypeGuess::with_method(best.0, best.1, best.2)
 }
 
 #[cfg(test)]
@@ -804,10 +471,19 @@ mod tests {
         memory[0..8].copy_from_slice(&ptr.to_le_bytes());
         memory[8..16].copy_from_slice(&len.to_le_bytes());
 
-        let guess = UnsafeInferenceEngine::infer_from_bytes(&memory, 16);
-
-        // FatPtr should have the highest score due to size=16 + valid pointer
-        assert!(guess.kind == TypeKind::FatPtr || guess.kind == TypeKind::Pointer);
+        // A 16-byte block with a valid pointer is a FatPtr candidate, but the
+        // zero-filled tail scores the buffer dimension just as high. The engine
+        // must abstain instead of resolving the tie by table order.
+        let decision = UnsafeInferenceEngine::decide_from_bytes(&memory, 16);
+        assert!(
+            !decision.is_accepted(),
+            "a FatPtr/buffer tie must abstain, got {:?}",
+            decision.predicted
+        );
+        assert!(
+            decision.abstain_reason.is_some(),
+            "abstaining must always carry a reason"
+        );
     }
 
     #[test]
@@ -823,21 +499,6 @@ mod tests {
 
         assert_eq!(guess.kind, TypeKind::CStruct);
         assert!(guess.confidence >= 30);
-    }
-
-    #[test]
-    fn test_entropy_calculation() {
-        // All same byte → entropy = 0
-        let data = [0u8; 100];
-        assert!((shannon_entropy(&data) - 0.0).abs() < 0.01);
-
-        // Alternating bytes → lower entropy
-        let data: Vec<u8> = (0..100).map(|i| if i % 2 == 0 { 0 } else { 255 }).collect();
-        assert!(shannon_entropy(&data) < 2.0);
-
-        // Random-ish data → higher entropy
-        let data: Vec<u8> = (0..100).map(|i| i as u8).collect();
-        assert!(shannon_entropy(&data) > 5.0);
     }
 
     #[test]
@@ -866,7 +527,11 @@ mod tests {
     #[test]
     fn test_type_guess_display() {
         let guess = TypeGuess::new(TypeKind::Vec, 85);
-        assert_eq!(guess.display_with_confidence(), "Vec<_> (85%)");
+        assert_eq!(
+            guess.display_with_confidence(),
+            "Vec<_> (score 85)",
+            "the heuristic score must not be rendered as a percentage"
+        );
 
         let unknown = TypeGuess::unknown();
         assert_eq!(unknown.display_with_confidence(), "-");
@@ -892,12 +557,18 @@ mod tests {
         let memory = [
             b'h', b'e', b'l', b'l', b'o', 0, b'w', b'o', b'r', b'l', b'd', 0,
         ];
-        let guess = UnsafeInferenceEngine::infer_from_bytes(&memory, 12);
+        let single_nul =
+            UnsafeInferenceEngine::decide_from_bytes(&create_cstring_memory(b"hello world"), 12);
+        let multiple_nuls = UnsafeInferenceEngine::decide_from_bytes(&memory, 12);
 
-        // Should not be strongly identified as CString due to multiple nulls
-        if guess.kind == TypeKind::CString {
-            assert!(guess.confidence < 70);
-        }
+        // A second NUL means the buffer is not one terminated string, so the
+        // CString evidence must drop below the single-terminator case.
+        assert!(
+            multiple_nuls.raw_score < single_nul.raw_score,
+            "multiple NULs must lower the CString evidence ({} vs {})",
+            multiple_nuls.raw_score,
+            single_nul.raw_score
+        );
     }
 
     #[test]
@@ -916,10 +587,34 @@ mod tests {
     fn test_utf8_validation_non_printable() {
         // Valid UTF-8 but with non-printable characters
         let memory = vec![0xC2, 0x80, 0xC2, 0x81, 0xC2, 0x82]; // Valid UTF-8 control chars
+        let decision = UnsafeInferenceEngine::decide_from_bytes(&memory, memory.len());
+
+        // Valid UTF-8 made of control characters is neither a String nor evidence
+        // for a Vec: the engine must abstain instead of inventing a type.
+        assert!(
+            !decision.is_accepted(),
+            "an undecidable block must not be reported as a concrete type, got {:?}",
+            decision.predicted
+        );
+        assert!(
+            decision.abstain_reason.is_some(),
+            "the abstain reason must be reported"
+        );
+    }
+
+    /// Objective: Verify that non-ASCII text is not pushed towards Vec by an
+    /// ASCII-only printable check (plan §11.2).
+    /// Invariants: a UTF-8 CJK string is accepted as String.
+    #[test]
+    fn test_utf8_validation_cjk_string() {
+        let memory = "内存分析工具：数据准确性验证".as_bytes().to_vec();
         let guess = UnsafeInferenceEngine::infer_from_bytes(&memory, memory.len());
 
-        // Should be Vec due to valid UTF-8 but low printable ratio
-        assert!(guess.kind == TypeKind::Vec || guess.kind == TypeKind::Buffer);
+        assert_eq!(
+            guess.kind,
+            TypeKind::String,
+            "CJK text is text: an ASCII-only printable ratio must not turn it into Vec"
+        );
     }
 
     #[test]
@@ -1089,6 +784,28 @@ mod real_data_tests {
     }
 
     /// Get memory representation of a Box.
+    /// Assert that the engine either answers within `allowed` or abstains *with a
+    /// reason*.
+    ///
+    /// Real heap bytes are not always identifiable (a container header without its
+    /// payload, a pointer that happens to look like text), so "no confident answer"
+    /// is a valid outcome — but a confident answer outside `allowed` is not.
+    fn assert_kind_or_abstain(
+        decision: &crate::analysis::unsafe_inference::InferenceDecision,
+        allowed: &[TypeKind],
+    ) {
+        match decision.predicted {
+            Some(kind) => assert!(
+                allowed.contains(&kind),
+                "unexpected confident classification {kind:?}, allowed {allowed:?}"
+            ),
+            None => assert!(
+                decision.abstain_reason.is_some(),
+                "abstaining must always carry a reason"
+            ),
+        }
+    }
+
     fn box_to_memory<T>(b: &T) -> Vec<u8> {
         let ptr = b as *const T as usize;
         let mut memory = vec![0u8; 8];
@@ -1117,7 +834,13 @@ mod real_data_tests {
         let guess = UnsafeInferenceEngine::infer_from_bytes(&memory, 24);
 
         // Vec<u8> has same layout as String
-        assert!(guess.kind == TypeKind::Vec || guess.kind == TypeKind::String);
+        // A `[ptr, len, cap]` header alone is indistinguishable between `Vec<u8>` and
+        // `String`; the discriminating information is in the payload, which this view
+        // does not contain. Accepting either *or* abstaining with a reason is the
+        // honest outcome — inventing certainty is not.
+        let decision = UnsafeInferenceEngine::decide_from_bytes(&memory, 24);
+        assert_kind_or_abstain(&decision, &[TypeKind::Vec, TypeKind::String]);
+        let _ = guess;
     }
 
     #[test]
@@ -1153,17 +876,20 @@ mod real_data_tests {
     fn test_real_box_i32() {
         let b = Box::new(42i32);
         let memory = box_to_memory(&*b);
-        let guess = UnsafeInferenceEngine::infer_from_bytes(&memory, 8);
-
-        // Box and Pointer have same size=8 layout
-        // Note: CString is also possible if the bytes happen to look like a valid C string
-        assert!(
-            guess.kind == TypeKind::Pointer
-                || guess.kind == TypeKind::Vec
-                || guess.kind == TypeKind::String
-                || guess.kind == TypeKind::CString,
-            "Got {:?}",
-            guess.kind
+        // The bytes here are a live heap address, so they vary run to run: any of
+        // the 8-byte layouts is plausible, and the engine is allowed to abstain
+        // when the signals tie. What must never happen is a confident answer with
+        // no supporting evidence, so the decision is what gets asserted.
+        let decision = UnsafeInferenceEngine::decide_from_bytes(&memory, 8);
+        assert_kind_or_abstain(
+            &decision,
+            &[
+                TypeKind::Pointer,
+                TypeKind::Vec,
+                TypeKind::String,
+                TypeKind::CString,
+                TypeKind::Buffer,
+            ],
         );
     }
 
@@ -1191,8 +917,11 @@ mod real_data_tests {
         let binary: Vec<u8> = (0..=255).collect();
         let guess = UnsafeInferenceEngine::infer_from_bytes(&binary, binary.len());
 
-        // High entropy binary data
-        assert!(guess.kind == TypeKind::Buffer || guess.kind == TypeKind::Vec);
+        // High entropy binary data: `[u8]` and `Vec<u8>` describe the same memory, so
+        // either name is acceptable, as is an abstention with a reason.
+        let decision = UnsafeInferenceEngine::decide_from_bytes(&binary, binary.len());
+        assert_kind_or_abstain(&decision, &[TypeKind::Buffer, TypeKind::Vec]);
+        let _ = guess;
     }
 
     #[test]

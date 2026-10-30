@@ -176,7 +176,7 @@ impl GenericAnalyzer {
         let mut type_usage: HashMap<String, usize> = HashMap::new();
         let mut alias_count = 0;
 
-        for (_name, instance_list) in instances.iter() {
+        for instance_list in instances.values() {
             for instance in instance_list {
                 if instance.is_type_alias {
                     alias_count += 1;
@@ -212,7 +212,7 @@ impl GenericAnalyzer {
             .expect("Failed to acquire lock on generic_instances");
         let mut alias_map: HashMap<String, TypeAliasInfo> = HashMap::new();
 
-        for (_name, instance_list) in instances.iter() {
+        for instance_list in instances.values() {
             for instance in instance_list {
                 if instance.is_type_alias {
                     let alias_name = instance.name.clone();

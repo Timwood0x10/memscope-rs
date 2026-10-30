@@ -58,6 +58,11 @@ pub struct MemoryEvent {
     pub size: usize,
     /// Previous allocation size (for Reallocate events)
     pub old_size: Option<usize>,
+    /// New address (for Reallocate events that moved the block).
+    ///
+    /// `None` means the block stayed at `ptr`; `Some(new_ptr)` means it migrated,
+    /// so the old address binding must be closed and a new one opened.
+    pub new_ptr: Option<usize>,
     /// Thread identifier
     pub thread_id: u64,
     /// Optional variable name
@@ -85,17 +90,19 @@ pub struct MemoryEvent {
 }
 
 impl MemoryEvent {
-    /// Create a new allocation event
+    /// Create a new allocation event.
+    ///
+    /// Constructing an event has no accounting side effect: task memory is
+    /// recorded once at the capture site (see `Tracker::track_inner`), otherwise
+    /// building an event — or replaying a recorded one — would double count.
     pub fn allocate(ptr: usize, size: usize, thread_id: u64) -> Self {
-        // Record allocation in task registry
-        crate::task_registry::global_registry().record_allocation(size);
-
         Self {
             timestamp: Self::now(),
             event_type: MemoryEventType::Allocate,
             ptr,
             size,
             old_size: None,
+            new_ptr: None,
             thread_id,
             var_name: None,
             type_name: None,
@@ -111,6 +118,23 @@ impl MemoryEvent {
         }
     }
 
+    /// Create a *migrating* reallocation event.
+    ///
+    /// `reallocate()` describes a block that stayed at `ptr`; this variant records
+    /// that the allocator returned a different address, so reconstruction can close
+    /// the old binding and open one at `new_ptr`.
+    pub fn reallocate_moved(
+        ptr: usize,
+        new_ptr: usize,
+        old_size: usize,
+        new_size: usize,
+        thread_id: u64,
+    ) -> Self {
+        let mut event = Self::reallocate(ptr, old_size, new_size, thread_id);
+        event.new_ptr = Some(new_ptr);
+        event
+    }
+
     /// Create a new deallocation event
     pub fn deallocate(ptr: usize, size: usize, thread_id: u64) -> Self {
         Self {
@@ -119,6 +143,7 @@ impl MemoryEvent {
             ptr,
             size,
             old_size: None,
+            new_ptr: None,
             thread_id,
             var_name: None,
             type_name: None,
@@ -142,6 +167,7 @@ impl MemoryEvent {
             ptr,
             size: new_size,
             old_size: Some(old_size),
+            new_ptr: None,
             thread_id,
             var_name: None,
             type_name: None,
@@ -165,6 +191,7 @@ impl MemoryEvent {
             ptr: 0, // No heap pointer
             size,
             old_size: None,
+            new_ptr: None,
             thread_id,
             var_name: Some(var_name),
             type_name: Some(type_name),
@@ -195,6 +222,7 @@ impl MemoryEvent {
             ptr: target_ptr,
             size,
             old_size: None,
+            new_ptr: None,
             thread_id,
             var_name,
             type_name,
@@ -218,6 +246,7 @@ impl MemoryEvent {
             ptr,
             size,
             old_size: None,
+            new_ptr: None,
             thread_id,
             var_name: None,
             type_name: Some(if is_mutable {

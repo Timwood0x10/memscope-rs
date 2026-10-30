@@ -72,6 +72,11 @@ pub struct ThreadMemoryStats {
     pub peak_memory: usize,
 }
 
+/// One of several same-named `MemorySnapshot` types in this crate: this one is the
+/// the canonical point-in-time projection built by the snapshot engine.
+///
+/// Convert at the module boundary instead of passing it across; a global rename is
+/// deliberately avoided (see DATA_ACCURACY_DEVELOPMENT_PLAN §14.2).
 /// Memory snapshot - a point-in-time view of memory usage
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct MemorySnapshot {
