@@ -94,12 +94,17 @@ static GLOBAL_TRACKER: Mutex<Option<Arc<AsyncTracker>>> = Mutex::new(None);
 
 thread_local! {
     static CURRENT_TASK_ID: std::cell::Cell<Option<u64>> = const { std::cell::Cell::new(None) };
-    /// Guards currently alive on this thread, outermost first.
+    /// Task scopes active on this thread, outermost first.
     ///
-    /// Restoring the parent from a saved `previous` value breaks when guards are dropped
-    /// out of order: an inner guard would restore a scope that has already ended. The
-    /// stack makes the restore well defined for any drop order.
-    static TASK_STACK: std::cell::RefCell<Vec<u64>> = const { std::cell::RefCell::new(Vec::new()) };
+    /// Restoring from a saved `previous` value breaks when guards are dropped out of
+    /// order: an inner guard would restore a scope that has already ended. Frames carry
+    /// the guard token so a drop removes *its own* frame (not the first frame with the
+    /// same task id), and a frame without an owner represents a context installed outside
+    /// a guard (for example by `track_task_start`).
+    static TASK_STACK: std::cell::RefCell<Vec<TaskFrame>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+    /// Monotonic token source for guard frames.
+    static GUARD_TOKEN: std::cell::Cell<u64> = const { std::cell::Cell::new(1) };
 }
 
 tokio::task_local! {
@@ -113,8 +118,18 @@ tokio::task_local! {
 /// slot. Blanking lost the parent context for every nested scope, and wiping the
 /// slot from a thread that never owned it destroyed another task's context when a
 /// guard was moved across threads.
+/// One active task scope on the current thread.
+#[derive(Debug, Clone, Copy)]
+struct TaskFrame {
+    task_id: u64,
+    /// Guard token that owns the frame; `None` for a context installed outside a guard.
+    owner: Option<u64>,
+}
+
 pub struct TaskGuard {
     task_id: u64,
+    /// Identity of this guard's frame in [`TASK_STACK`].
+    token: u64,
     cleaned_up: bool,
 }
 
@@ -136,8 +151,14 @@ unsafe impl Sync for TaskGuard {}
 
 impl TaskGuard {
     fn new(task_id: u64) -> Self {
+        let token = GUARD_TOKEN.with(|cell| {
+            let token = cell.get();
+            cell.set(token.saturating_add(1));
+            token
+        });
         Self {
             task_id,
+            token,
             cleaned_up: false,
         }
     }
@@ -160,10 +181,11 @@ impl TaskGuard {
     fn restore_previous(&self) {
         let parent = TASK_STACK.with(|stack| {
             let mut stack = stack.borrow_mut();
-            if let Some(position) = stack.iter().rposition(|id| *id == self.task_id) {
-                stack.remove(position);
-            }
-            stack.last().copied()
+            // Remove exactly this guard's frame: several frames may share a task id when a
+            // scope re-enters the same task, and removing the innermost one would leave the
+            // wrong task current.
+            stack.retain(|frame| frame.owner != Some(self.token));
+            stack.last().map(|frame| frame.task_id)
         });
 
         // Only release the slot while this guard still owns it; a task installed
@@ -241,9 +263,30 @@ impl AsyncTracker {
     /// Enter a task context with automatic cleanup.
     /// Returns a TaskGuard that will clear the task ID when dropped.
     pub fn enter_task(task_id: u64) -> TaskGuard {
-        TASK_STACK.with(|stack| stack.borrow_mut().push(task_id));
+        let guard = TaskGuard::new(task_id);
+        let previous = Self::get_current_task();
+
+        TASK_STACK.with(|stack| {
+            let mut stack = stack.borrow_mut();
+            // A context installed outside a guard (e.g. `track_task_start`) is remembered
+            // as the base frame, otherwise dropping the guard would clear it instead of
+            // restoring the parent task.
+            if let Some(previous) = previous {
+                if stack.last().map(|frame| frame.task_id) != Some(previous) {
+                    stack.push(TaskFrame {
+                        task_id: previous,
+                        owner: None,
+                    });
+                }
+            }
+            stack.push(TaskFrame {
+                task_id,
+                owner: Some(guard.token),
+            });
+        });
+
         Self::set_current_task(task_id);
-        TaskGuard::new(task_id)
+        guard
     }
 
     /// Execute a closure within a task context with automatic cleanup.

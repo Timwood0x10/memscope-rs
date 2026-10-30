@@ -218,26 +218,30 @@ pub fn build_relationships(az: &mut Analyzer) -> Vec<RelationshipInfo> {
 
 /// Build unsafe reports from passports
 pub fn build_unsafe_reports(
+    passport_tracker: &crate::analysis::memory_passport_tracker::MemoryPassportTracker,
     passports: &HashMap<usize, crate::analysis::memory_passport_tracker::MemoryPassport>,
     all_allocations: &[crate::capture::types::AllocationInfo],
 ) -> Vec<UnsafeReport> {
     passports
         .values()
         .filter(|p| !p.lifecycle_events.is_empty())
-        .map(|p| build_unsafe_report(p, all_allocations))
+        // The status is a read-only projection of the passport events; reading the stored
+        // `status_at_shutdown` would show `Unknown` because detection no longer writes it.
+        .map(|p| build_unsafe_report(p, passport_tracker.assess_status(p), all_allocations))
         .collect()
 }
 
 /// Build single unsafe report
 fn build_unsafe_report(
     p: &crate::analysis::memory_passport_tracker::MemoryPassport,
+    status: PassportStatus,
     all_allocations: &[crate::capture::types::AllocationInfo],
 ) -> UnsafeReport {
     let lifecycle_events = build_lifecycle_events(&p.lifecycle_events);
     let cross_boundary_events = build_boundary_events(&lifecycle_events);
 
-    let is_leaked = p.status_at_shutdown == PassportStatus::InForeignCustody
-        || p.status_at_shutdown == PassportStatus::HandoverToFfi;
+    let is_leaked =
+        status == PassportStatus::InForeignCustody || status == PassportStatus::HandoverToFfi;
     let risk_level = if is_leaked {
         "high".to_string()
     } else if !cross_boundary_events.is_empty() {
@@ -308,7 +312,7 @@ fn build_unsafe_report(
         size_bytes: p.size_bytes,
         created_at: p.created_at,
         updated_at: p.updated_at,
-        status: format!("{:?}", p.status_at_shutdown),
+        status: format!("{status:?}"),
         lifecycle_events,
         cross_boundary_events,
         is_leaked,
@@ -320,18 +324,20 @@ fn build_unsafe_report(
 
 /// Build passport details
 pub fn build_passport_details(
+    passport_tracker: &crate::analysis::memory_passport_tracker::MemoryPassportTracker,
     passports: &HashMap<usize, crate::analysis::memory_passport_tracker::MemoryPassport>,
     all_allocations: &[crate::capture::types::AllocationInfo],
 ) -> Vec<PassportDetail> {
     passports
         .values()
-        .map(|p| build_passport_detail(p, all_allocations))
+        .map(|p| build_passport_detail(p, passport_tracker.assess_status(p), all_allocations))
         .collect()
 }
 
 /// Build single passport detail
 fn build_passport_detail(
     p: &crate::analysis::memory_passport_tracker::MemoryPassport,
+    status: PassportStatus,
     all_allocations: &[crate::capture::types::AllocationInfo],
 ) -> PassportDetail {
     let lifecycle_events = build_lifecycle_events(&p.lifecycle_events);
@@ -366,8 +372,8 @@ fn build_passport_detail(
         }
     };
 
-    let is_leaked = p.status_at_shutdown == PassportStatus::InForeignCustody
-        || p.status_at_shutdown == PassportStatus::HandoverToFfi;
+    let is_leaked =
+        status == PassportStatus::InForeignCustody || status == PassportStatus::HandoverToFfi;
     let risk_level = if is_leaked {
         "high".to_string()
     } else if !cross_boundary_events.is_empty() {
@@ -376,12 +382,12 @@ fn build_passport_detail(
         "low".to_string()
     };
 
-    // An active passport is one that is neither leaked nor freed — it still
-    // holds live memory at shutdown. We approximate "active" by checking the
-    // shutdown status reflects a Rust-held, non-freed state.
+    // An active passport still holds live memory: it is neither leaked nor released,
+    // including the honest `StillLive` state for a block that never crossed the boundary.
     let is_active = !is_leaked
-        && p.status_at_shutdown != PassportStatus::FreedByRust
-        && p.status_at_shutdown != PassportStatus::FreedByForeign;
+        && status != PassportStatus::FreedByRust
+        && status != PassportStatus::FreedByForeign
+        && status != PassportStatus::ReclaimedByRust;
 
     // Best-effort source location: prefer the originating allocation's stack
     // trace, fall back to the var name + allocation pointer for context.
@@ -399,7 +405,7 @@ fn build_passport_detail(
         var_name,
         type_name,
         size_bytes: p.size_bytes,
-        status: format!("{:?}", p.status_at_shutdown),
+        status: format!("{status:?}"),
         created_at: p.created_at,
         updated_at: p.updated_at,
         is_leaked,

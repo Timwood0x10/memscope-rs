@@ -1468,3 +1468,20 @@ let leaked = allocations.into_iter().filter(|a| a.ptr.is_some()).collect();
 新增/更新用例：`live_passport_is_not_reported_as_freed_by_rust`、`detect_is_read_only_and_repeatable`、`address_reuse_archives_previous_passport`、`truncated_history_is_flagged`、`reuse_after_hook_release_is_not_deduplicated`、`in_place_reallocation_keeps_binding_order`、`cross_thread_reallocation_books_activity_to_the_actor`、`smart_pointer_observation_charges_the_current_task`、`type_after_untyped_reallocation_is_attached`、`export_reports_ledger_totals_after_release`、`out_of_order_guard_drop_does_not_restore_exited_scope`。
 
 变异验证：把去重条件退回"只看 size"后 `reuse_after_hook_release_is_not_deduplicated` 立即失败；恢复后全绿。
+
+### 17.12 第八轮：并发首记、drop 导出统计、护照归档与上下文栈
+
+| 意见 | 结论 | 处理 |
+| --- | --- | --- |
+| P1-1 并发观测重复记账 | **成立**：去重检查、事件写入、索引更新非原子，24 线程可产出多条 Allocate | `recorded_bindings` 改为"每地址一个 `Arc<Mutex<Option<RecordedBinding>>>`"，读索引→更新缓存→写事件→回写索引在同一把锁内完成。新增 24 线程用例（重复 5 次稳定通过） |
+| P1-2 `with_auto_export` 仍丢累计与峰值 | **成立**：drop 路径未应用账本覆盖 | `override_snapshot_stats` 提升为 `pub(crate)` 并用于 drop 路径；新增"64+128 分配、释放 128"后 drop 导出断言 192/192/64 |
+| P2-3 类型注释写到错误代际 | **成立**：`on_metadata` 取同址最旧绑定 | 先按事件 size 匹配绑定；无匹配时取该地址**最新**绑定。新增 G1/64 + G2/128 注释测试 |
+| P2-4 只读评估未同步到消费者 | **成立**：`build_unsafe_reports`/`build_passport_details`/`get_stats` 仍读缓存字段 | 两者改为接收 `&MemoryPassportTracker` 并用 `assess_status`；`get_stats()` 在读取时重算 `leaks_detected` 与 `passports_by_status` |
+| P2-5 任务上下文栈两处恢复错误 | **成立**：(a) 无 guard 的 `set_current_task` 父上下文丢失；(b) 按 id 移除误删最内层同 id 帧 | 帧带 guard token（按 token 移除）；`enter_task` 把外部安装的上下文压为无主基帧。新增两条用例 |
+| P2-6 归档护照未进入最终报告 | **成立**：检测与导出只遍历当前表 | 检测把当前 + 归档统一成记录列表一起评估；两个护照 JSON 用 `passports_for_export()`（当前 + 归档） |
+| P2-7 归档绕过护照预算 | **成立**：限额只查当前表 | 预算改为"当前 + 归档"；满额时先丢弃最旧归档，仍无空间才返回 `ResourceExhausted` |
+| P2-8 截断后仍给确定状态 | **成立**：`history_truncated` 未参与评估 | `assess_status` 在链被截断时返回 `Unknown`；检测同样经该投影，因此不会再把残缺链判成泄漏 |
+
+新增用例：`concurrent_observations_emit_one_allocation_event`、`auto_export_on_drop_reports_ledger_totals`、`metadata_annotation_targets_matching_generation`、`stats_reflect_projected_leaks`、`guard_over_external_context_restores_parent`、`reentrant_task_ids_are_removed_by_guard_identity`、`archived_passport_takes_part_in_detection`、`archive_respects_passport_budget`、`truncated_history_yields_unknown_status`。
+
+遗留（PR-07）：护照主键完整迁移到 `AllocationId`；`export.rs`（1826 行）仍需拆出统一 `ReportSnapshot`；`memory_analysis.json` 的 `statistics.total_size_bytes` 保持"当前存活和"语义，累计值由账本口径的 `thread_analysis.json` 承载。

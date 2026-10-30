@@ -562,3 +562,76 @@ fn export_reports_ledger_totals_after_release() {
         "only the unreleased block is live"
     );
 }
+
+/// Objective: Verify concurrent observations of one block produce exactly one allocation
+/// event (plan A06 follow-up).
+/// Invariants: 24 threads observing the same buffer yield one `Allocate` for its address.
+#[test]
+fn concurrent_observations_emit_one_allocation_event() {
+    let tracker = Arc::new(Tracker::new());
+    let data = Arc::new(vec![4u8; 64]);
+    let ptr = data.as_ptr() as usize;
+
+    let handles: Vec<_> = (0..24)
+        .map(|_| {
+            let tracker = Arc::clone(&tracker);
+            let data = Arc::clone(&data);
+            std::thread::spawn(move || {
+                tracker.track_as(&*data, "shared", file!(), line!(), module_path!());
+            })
+        })
+        .collect();
+    for handle in handles {
+        handle.join().expect("observing thread must not panic");
+    }
+
+    let events = tracker
+        .events()
+        .iter()
+        .filter(|event| event.ptr == ptr && matches!(event.event_type, MemoryEventType::Allocate))
+        .count();
+    assert_eq!(
+        events, 1,
+        "concurrent observers of one block must produce exactly one allocation event, got {events}"
+    );
+}
+
+/// Objective: Verify the `with_auto_export` drop path reports cumulative totals, not the
+/// live-list aggregate (plan A06 follow-up).
+/// Invariants: after 64 + 128 allocated and 128 released, the exported thread totals are
+/// 192 allocated / 192 peak / 64 live.
+#[test]
+#[serial]
+fn auto_export_on_drop_reports_ledger_totals() {
+    let dir = TempDir::new().expect("tempdir must be creatable");
+    let path = dir.path().to_str().expect("tempdir path must be UTF-8");
+    let tracker = Tracker::new().with_auto_export(path);
+
+    let kept = vec![1u8; 64];
+    let released = vec![2u8; 128];
+    tracker.track_as(&kept, "kept", file!(), line!(), module_path!());
+    tracker.track_as(&released, "released", file!(), line!(), module_path!());
+    tracker
+        .track_deallocation(released.as_ptr() as usize)
+        .expect("release must succeed");
+
+    drop(tracker);
+
+    let thread_json = std::fs::read_to_string(dir.path().join("thread_analysis.json"))
+        .expect("the drop export must write thread_analysis.json");
+    let thread_data: serde_json::Value =
+        serde_json::from_str(&thread_json).expect("thread_analysis.json must be valid JSON");
+    let totals = &thread_data["thread_analysis"][0];
+    assert_eq!(
+        totals["total_allocated"], 192,
+        "cumulative allocated bytes must survive the release"
+    );
+    assert_eq!(
+        totals["peak_memory"], 192,
+        "the high-water mark must survive the release"
+    );
+    assert_eq!(
+        totals["current_memory"], 64,
+        "only the unreleased block is live"
+    );
+}

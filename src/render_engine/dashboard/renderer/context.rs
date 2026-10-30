@@ -181,8 +181,8 @@ pub fn build_context_from_tracker_with_async(
     let alloc_info = build_allocation_info(&display_allocations);
 
     let relationships = build_relationships(&mut az);
-    let unsafe_reports = build_unsafe_reports(&passports, &all_allocations);
-    let passport_details = build_passport_details(&passports, &all_allocations);
+    let unsafe_reports = build_unsafe_reports(passport_tracker, &passports, &all_allocations);
+    let passport_details = build_passport_details(passport_tracker, &passports, &all_allocations);
 
     let leak_result = passport_tracker.detect_leaks_at_shutdown();
     let leak_count = leak_result.leaked_passports.len();

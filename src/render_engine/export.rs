@@ -532,7 +532,7 @@ pub enum ExportError {
 /// release it reports 64 bytes allocated and a 64-byte peak for a program that allocated
 /// 64 + 128 and freed 128. The ledger watched every transition, so its numbers are the
 /// authoritative ones for exports and reports (plan A06 follow-up).
-fn override_snapshot_stats(
+pub(crate) fn override_snapshot_stats(
     snapshot: &mut MemorySnapshot,
     ledger: &crate::snapshot::BindingLedger,
     active_allocations: usize,
@@ -872,18 +872,31 @@ pub fn export_dashboard_html_with_template<P: AsRef<Path>>(
     Ok(())
 }
 
+/// Current passports plus the generations archived by address reuse.
+///
+/// An archived passport still carries the evidence of the block that was replaced at that
+/// address (for example "handed to foreign code and never returned"), so exports must
+/// project both generations instead of only the newest one.
+fn passports_for_export(
+    tracker: &Arc<MemoryPassportTracker>,
+) -> Vec<crate::analysis::memory_passport_tracker::MemoryPassport> {
+    let mut passports: Vec<_> = tracker.get_all_passports().into_values().collect();
+    passports.extend(tracker.get_archived_passports());
+    passports
+}
+
 pub fn export_memory_passports_json<P: AsRef<Path>>(
     base_path: P,
     passport_tracker: &Arc<MemoryPassportTracker>,
 ) -> MemScopeResult<()> {
     let base_path = base_path.as_ref();
-    let passports = passport_tracker.get_all_passports();
+    let passports = passports_for_export(passport_tracker);
 
     // One read-only projection for the whole batch: the status is computed, never stored,
     // so `memory_passports.json`, `leak_detection.json` and `unsafe_ffi.json` describe the
     // same cut (plan §7.3 item 4).
     let passport_data: Vec<_> = passports
-        .values()
+        .iter()
         .map(|p| {
             serde_json::json!({
                 "passport_id": p.passport_id,
@@ -967,10 +980,10 @@ pub fn export_unsafe_ffi_json<P: AsRef<Path>>(
     use crate::analysis::memory_passport_tracker::PassportStatus;
 
     let base_path = base_path.as_ref();
-    let passports = passport_tracker.get_all_passports();
+    let passports = passports_for_export(passport_tracker);
 
     let ffi_reports: Vec<_> = passports
-        .values()
+        .iter()
         .filter(|p| {
             matches!(
                 passport_tracker.assess_status(p),
