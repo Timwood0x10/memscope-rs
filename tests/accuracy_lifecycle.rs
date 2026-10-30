@@ -20,6 +20,7 @@ use memscope_rs::render_engine::dashboard::DashboardRenderer;
 use memscope_rs::snapshot::{AllocationState, LeakStatus};
 use memscope_rs::tracker::Tracker;
 use memscope_rs::Trackable;
+use serial_test::serial;
 use std::sync::Arc;
 use tempfile::TempDir;
 
@@ -347,5 +348,49 @@ fn duplicate_observation_is_reported_not_counted() {
         context.allocations.len(),
         1,
         "a duplicate observation must not create a second allocation row"
+    );
+}
+
+/// Objective: Verify a block the allocator hook registered in the core cache (without
+/// emitting an event) is still reported when it is observed through `track!`
+/// (plan A06 follow-up).
+/// Invariants: exactly one `Allocate` event for the address, and a second observation of
+/// the same address and size adds none.
+#[test]
+#[serial]
+fn hook_registered_block_is_reported_by_typed_observation() {
+    let data = vec![7u8; 64];
+    let ptr = data.as_ptr() as usize;
+
+    // Simulate the allocator hook: it writes the cache only, never the event store.
+    memscope_rs::core::tracker::get_tracker()
+        .track_allocation(ptr, data.capacity())
+        .expect("hook registration must succeed");
+
+    let tracker = Tracker::global();
+    let events_for_ptr = |tracker: &Tracker| {
+        tracker
+            .events()
+            .iter()
+            .filter(|event| {
+                event.ptr == ptr && matches!(event.event_type, MemoryEventType::Allocate)
+            })
+            .count()
+    };
+
+    let before = events_for_ptr(&tracker);
+    tracker.track_as(&data, "hook_registered", file!(), line!(), module_path!());
+    let after_first = events_for_ptr(&tracker);
+    assert_eq!(
+        after_first - before,
+        1,
+        "a hook-registered block must still produce one allocation event when observed"
+    );
+
+    tracker.track_as(&data, "hook_registered", file!(), line!(), module_path!());
+    let after_second = events_for_ptr(&tracker);
+    assert_eq!(
+        after_second, after_first,
+        "a repeat observation of the same address and size must not duplicate the event"
     );
 }

@@ -429,12 +429,11 @@ impl AsyncTracker {
 
     /// Track an allocation with source location.
     ///
-    /// The same address is reported more than once (allocator hook plus a typed
-    /// `track!`, repeated `track!`, in-place reallocation). Only the first sighting
-    /// opens a record; later sightings refresh metadata or move the live size in
-    /// place, so `total_memory - total_deallocated == active_memory` keeps holding
-    /// (plan A06 / §7.2). Each record carries the address generation so a release can
-    /// name the binding it belongs to.
+    /// The same address is reported more than once (hook plus `track!`, repeated
+    /// `track!`, reuse). Only the first sighting of an address/size pair opens a
+    /// record; a different size starts a new generation, so a release can always name
+    /// the binding it refers to and `total_memory - total_deallocated == active_memory`
+    /// keeps holding (plan A06 / §7.2).
     pub fn track_allocation_with_location(
         &self,
         ptr: usize,
@@ -464,13 +463,17 @@ impl AsyncTracker {
                     }
                     return;
                 }
-                // In-place reallocation of the newest binding.
+                // A different size cannot be proven to be the same block: an
+                // observation never sees the allocator. Close the superseded record and
+                // give the new one its own generation, exactly like the core tracker and
+                // the binding ledger (plan A06 follow-up).
                 previous = Some((existing.task_id, existing.size as u64));
-                generation = existing.generation;
                 entries.pop();
-            } else if let Ok(mut generations) = self.generations.lock() {
-                // First sighting of this address since it was released: the next
-                // generation, so a late release of the previous one stays identifiable.
+            }
+
+            // Every record that is pushed gets the next generation for this address,
+            // so a late release can still name the binding it refers to.
+            if let Ok(mut generations) = self.generations.lock() {
                 let counter = generations.entry(ptr).or_insert(0);
                 *counter = counter.saturating_add(1);
                 generation = *counter;
@@ -491,25 +494,26 @@ impl AsyncTracker {
         let size_u64 = size as u64;
 
         if let Some((previous_task, previous_size)) = previous {
+            // The superseded record leaves its owner's live set (it is a lost block for
+            // that task), and the new record is a fresh allocation for the observer.
+            // Both sides are booked so `total_memory - total_deallocated ==
+            // active_memory` keeps holding (plan A06 follow-up).
             if let Ok(mut profiles) = self.profiles.lock() {
-                if previous_task == task_id {
-                    if let Some(profile) = profiles.get_mut(&task_id) {
-                        profile.record_reallocation(previous_size, size_u64);
-                    }
-                } else {
-                    if let Some(profile) = profiles.get_mut(&previous_task) {
-                        profile.record_deallocation(previous_size);
-                    }
-                    if let Some(profile) = profiles.get_mut(&task_id) {
-                        profile.record_allocation(size_u64);
-                    }
+                if let Some(profile) = profiles.get_mut(&previous_task) {
+                    profile.record_deallocation(previous_size);
+                }
+                if let Some(profile) = profiles.get_mut(&task_id) {
+                    profile.record_allocation(size_u64);
+                    profile.set_thread_id_u64(Some(crate::utils::current_thread_id_u64()));
                 }
             } else {
                 tracing::error!("Failed to acquire profiles lock during track_allocation");
             }
 
             if let Ok(mut stats) = self.stats.lock() {
+                stats.total_allocations += 1;
                 stats.total_memory += size;
+                stats.total_deallocated += previous_size;
                 stats.active_memory = stats
                     .active_memory
                     .saturating_sub(previous_size as usize)
