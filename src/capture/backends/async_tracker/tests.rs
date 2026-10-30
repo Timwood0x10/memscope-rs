@@ -720,3 +720,60 @@ fn out_of_order_guard_drop_does_not_restore_exited_scope() {
         "the exited outer scope must not be restored"
     );
 }
+
+/// Objective: Verify a guard dropped over a context installed outside a guard (for
+/// example by `track_task_start`) restores that parent instead of clearing it.
+/// Invariants: after the guard ends, the externally installed task is current again.
+#[test]
+fn guard_over_external_context_restores_parent() {
+    AsyncTracker::clear_current_task();
+    AsyncTracker::set_current_task(41);
+
+    {
+        let _guard = AsyncTracker::enter_task(42);
+        assert_eq!(AsyncTracker::get_current_task(), Some(42));
+    }
+
+    assert_eq!(
+        AsyncTracker::get_current_task(),
+        Some(41),
+        "the externally installed parent context must survive the guard"
+    );
+
+    AsyncTracker::clear_current_task();
+}
+
+/// Objective: Verify re-entering the same task id keeps guard identity: dropping the
+/// outermost frame must not remove the innermost one.
+/// Invariants: after dropping the outermost 41 while (41, 42, 41) is active, the inner
+/// 41 stays current (not 42), and the remaining frames unwind in order.
+#[test]
+fn reentrant_task_ids_are_removed_by_guard_identity() {
+    AsyncTracker::clear_current_task();
+
+    let outer_41 = AsyncTracker::enter_task(41);
+    let guard_42 = AsyncTracker::enter_task(42);
+    let inner_41 = AsyncTracker::enter_task(41);
+    assert_eq!(AsyncTracker::get_current_task(), Some(41));
+
+    drop(outer_41);
+    assert_eq!(
+        AsyncTracker::get_current_task(),
+        Some(41),
+        "dropping the outermost frame must not change the innermost task"
+    );
+
+    drop(inner_41);
+    assert_eq!(
+        AsyncTracker::get_current_task(),
+        Some(42),
+        "the 42 frame must become current again"
+    );
+
+    drop(guard_42);
+    assert_eq!(
+        AsyncTracker::get_current_task(),
+        None,
+        "the stack must unwind to an empty context"
+    );
+}

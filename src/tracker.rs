@@ -130,6 +130,11 @@ pub struct AllocationHotspot {
     pub location: Option<String>,
 }
 
+/// Serialised slot holding what this tracker reported for one address.
+type RecordedSlot = Arc<Mutex<Option<RecordedBinding>>>;
+/// Address -> recorded slot. The map is shared by all clones of a tracker.
+type RecordedBindings = Arc<DashMap<usize, RecordedSlot>>;
+
 /// What this tracker has already reported for an address.
 ///
 /// The core cache can be populated by the allocator hook without any event, and a
@@ -155,7 +160,9 @@ pub struct Tracker {
     /// The core cache can be populated by the allocator hook without any event
     /// (`Tracker::global` shares the hook's tracker), so cache presence alone must not
     /// be treated as "already reported".
-    recorded_bindings: Arc<DashMap<usize, RecordedBinding>>,
+    /// One slot per address; the slot also serialises the "first record" decision so
+    /// concurrent observers of the same block cannot each emit an event.
+    recorded_bindings: Arc<DashMap<usize, Arc<Mutex<Option<RecordedBinding>>>>>,
     config: Arc<Mutex<TrackerConfig>>,
     start_time: Instant,
     system_snapshots: Arc<Mutex<Vec<SystemSnapshot>>>,
@@ -229,7 +236,7 @@ impl Tracker {
             std::sync::OnceLock::new();
         static GLOBAL_SYSTEM_SNAPSHOTS: std::sync::OnceLock<Arc<Mutex<Vec<SystemSnapshot>>>> =
             std::sync::OnceLock::new();
-        static GLOBAL_RECORDED_BINDINGS: std::sync::OnceLock<Arc<DashMap<usize, RecordedBinding>>> =
+        static GLOBAL_RECORDED_BINDINGS: std::sync::OnceLock<RecordedBindings> =
             std::sync::OnceLock::new();
 
         Self {
@@ -361,7 +368,20 @@ impl Tracker {
                 // block at this address was released and the address was reused. Only the
                 // binding identity (serial) plus the presence of type metadata tell those
                 // cases apart from a real duplicate observation.
-                let recorded = self.recorded_bindings.get(&ptr).map(|entry| *entry);
+                // Serialise the whole "read index -> update cache -> emit event -> write
+                // index" sequence per address. Without this, N threads observing the same
+                // block at once each saw "not recorded yet" and produced N allocation
+                // events for one block (plan A06 follow-up).
+                let slot = self
+                    .recorded_bindings
+                    .entry(ptr)
+                    .or_insert_with(|| Arc::new(Mutex::new(None)))
+                    .clone();
+                let mut slot_guard = match slot.lock() {
+                    Ok(guard) => guard,
+                    Err(poisoned) => poisoned.into_inner(),
+                };
+                let recorded = *slot_guard;
 
                 if let Err(e) = self.inner.track_allocation(ptr, size) {
                     tracing::error!("Failed to track allocation at ptr {:x}: {}", ptr, e);
@@ -408,14 +428,11 @@ impl Tracker {
                     annotation.source_line = Some(line);
                     annotation.module_path = Some(module_path.to_string());
                     self.event_store.record(annotation);
-                    self.recorded_bindings.insert(
-                        ptr,
-                        RecordedBinding {
-                            size,
-                            serial,
-                            typed: true,
-                        },
-                    );
+                    *slot_guard = Some(RecordedBinding {
+                        size,
+                        serial,
+                        typed: true,
+                    });
 
                     if let Err(e) = self.inner.associate_var(
                         ptr,
@@ -446,14 +463,11 @@ impl Tracker {
                 event.source_line = Some(line);
                 event.module_path = Some(module_path.to_string());
                 self.event_store.record(event);
-                self.recorded_bindings.insert(
-                    ptr,
-                    RecordedBinding {
-                        size,
-                        serial,
-                        typed: true,
-                    },
-                );
+                *slot_guard = Some(RecordedBinding {
+                    size,
+                    serial,
+                    typed: true,
+                });
 
                 if let Err(e) = self.inner.associate_var(
                     ptr,
@@ -572,14 +586,18 @@ impl Tracker {
         // as *untyped*: the next `track!` on it must attach the type instead of being
         // treated as a duplicate observation.
         let serial = self.inner.binding_serial(new_ptr).unwrap_or(0);
-        self.recorded_bindings.insert(
-            new_ptr,
-            RecordedBinding {
+        let slot = self
+            .recorded_bindings
+            .entry(new_ptr)
+            .or_insert_with(|| Arc::new(Mutex::new(None)))
+            .clone();
+        if let Ok(mut guard) = slot.lock() {
+            *guard = Some(RecordedBinding {
                 size: new_size,
                 serial,
                 typed: false,
-            },
-        );
+            });
+        }
 
         let thread_id_u64 = crate::utils::current_thread_id_u64();
         let event =
@@ -779,8 +797,18 @@ impl Tracker {
         // Use the event store as the single data source (covers both HeapOwner and
         // Container observations).
         let events = self.event_store().snapshot();
+
+        // The live list cannot reconstruct cumulative totals or the high-water mark, so
+        // the legacy drop export applies the same ledger projection as `export_all_json`
+        // instead of re-aggregating what is still alive (plan A06 follow-up).
+        let mut ledger = crate::snapshot::BindingLedger::new();
+        for event in &events {
+            ledger.apply(event);
+        }
         let allocations = rebuild_allocations_from_events(&events);
-        let snapshot = MemorySnapshot::from_allocation_infos(allocations);
+        let mut snapshot = MemorySnapshot::from_allocation_infos(allocations);
+        let active = snapshot.stats.active_allocations;
+        crate::render_engine::export::override_snapshot_stats(&mut snapshot, &ledger, active);
         let options = ExportJsonOptions::default();
         if let Err(e) = export_snapshot_to_json(&snapshot, std::path::Path::new(&path), &options) {
             tracing::error!("Failed to auto-export on drop: {}", e);

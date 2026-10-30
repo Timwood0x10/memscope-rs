@@ -300,7 +300,23 @@ impl BindingLedger {
         if event.ptr == 0 {
             return;
         }
-        let Some(index) = self.find_binding(event.ptr, None) else {
+        // Match by the recorded size first: when an old and a new binding share the
+        // address, annotating the oldest one would put the type on the wrong generation.
+        // Without a size match the newest binding is the better guess, because the
+        // observation just happened.
+        let index = self
+            .find_binding(event.ptr, Some(event.size))
+            .filter(|index| {
+                self.live[*index]
+                    .as_ref()
+                    .is_some_and(|binding| binding.size == event.size)
+            })
+            .or_else(|| {
+                self.by_addr
+                    .get(&event.ptr)
+                    .and_then(|bucket| bucket.last().copied())
+            });
+        let Some(index) = index else {
             return;
         };
         let Some(binding) = self.live.get_mut(index).and_then(Option::as_mut) else {
@@ -893,5 +909,43 @@ mod tests {
         assert_eq!(actor.total_allocated, 128, "the new size is booked");
         assert_eq!(actor.total_deallocated, 64, "the old size is booked");
         assert_eq!(actor.current_memory, 0, "the actor owns no live bytes");
+    }
+
+    /// Objective: Verify a metadata annotation lands on the binding it describes when two
+    /// generations share an address (plan A15 follow-up).
+    /// Invariants: the annotation reaches the binding with the matching size and leaves the
+    /// other generation untouched.
+    #[test]
+    fn metadata_annotation_targets_matching_generation() {
+        let mut ledger = BindingLedger::new();
+        ledger.apply(&MemoryEvent::allocate(0xF000, 64, 1)); // G1
+        ledger.apply(&MemoryEvent::allocate(0xF000, 128, 1)); // G2, reuse without release
+
+        let mut annotation =
+            MemoryEvent::metadata("g2_var".to_string(), "Vec<T>".to_string(), 1, 128);
+        annotation.ptr = 0xF000;
+        ledger.apply(&annotation);
+
+        let live = ledger.live();
+        let g1 = live
+            .iter()
+            .find(|binding| binding.generation == 1)
+            .expect("G1 must stay live");
+        let g2 = live
+            .iter()
+            .find(|binding| binding.generation == 2)
+            .expect("G2 must stay live");
+
+        assert_eq!(
+            g2.type_name.as_deref(),
+            Some("Vec<T>"),
+            "the annotation belongs to the newer binding of the same size"
+        );
+        assert_eq!(g2.var_name.as_deref(), Some("g2_var"));
+        assert_ne!(
+            g1.type_name.as_deref(),
+            Some("Vec<T>"),
+            "the older binding must not inherit the annotation"
+        );
     }
 }
