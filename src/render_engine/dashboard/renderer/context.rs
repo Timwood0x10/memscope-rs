@@ -131,6 +131,19 @@ fn compute_system_uptime(allocations: &[crate::capture::types::AllocationInfo]) 
     }
 }
 
+/// Share of allocations that reuse a previously used address.
+///
+/// Generation 1 is the *first* binding at an address; only generation 2 and above
+/// mean the address was reused. Counting `generation_id > 0` reported a 100% reuse
+/// rate for every single-use allocation.
+fn compute_address_reuse_pct(allocations: &[crate::capture::types::AllocationInfo]) -> f64 {
+    if allocations.is_empty() {
+        return 0.0;
+    }
+    let reused = allocations.iter().filter(|a| a.generation_id > 1).count();
+    (reused as f64 / allocations.len() as f64) * 100.0
+}
+
 /// Build dashboard context from tracker data with async support
 pub fn build_context_from_tracker_with_async(
     tracker: &Tracker,
@@ -198,7 +211,8 @@ pub fn build_context_from_tracker_with_async(
         event_dtos.len(),
         tracker_analysis.total_allocations,
         tracker_analysis.active_allocations,
-    );
+    )
+    .with_duplicate_observations(tracker.duplicate_observations() as usize);
     let data_index = build_data_index(&alloc_info, &event_dtos, &passport_details, &unsafe_reports);
 
     // Pre-compute all new professional template data before moving values into context
@@ -246,21 +260,13 @@ pub fn build_context_from_tracker_with_async(
         },
     ];
     // Resource limits from real system metrics — CPU from getrusage, MEM from
-    // host_statistics64, cache hit from allocation reuse (generation_id > 0).
+    // host_statistics64, address reuse from the binding generation.
     let mem_pct = if system_info.total_physical_bytes > 0 {
         (system_info.used_physical_bytes as f64 / system_info.total_physical_bytes as f64) * 100.0
     } else {
         0.0
     };
-    let reused = all_allocations
-        .iter()
-        .filter(|a| a.generation_id > 0)
-        .count();
-    let cache_hit_pct = if all_allocations.is_empty() {
-        0.0
-    } else {
-        (reused as f64 / all_allocations.len() as f64) * 100.0
-    };
+    let address_reuse_pct = compute_address_reuse_pct(&all_allocations);
     let resource_limits = vec![
         ResourceUsageBar {
             label: "CPU_USAGE".to_string(),
@@ -274,7 +280,7 @@ pub fn build_context_from_tracker_with_async(
         },
         ResourceUsageBar {
             label: "ADDR_REUSE_RATE".to_string(),
-            pct: cache_hit_pct.round(),
+            pct: address_reuse_pct.round(),
             color_class: "primary".to_string(),
         },
     ];
@@ -1414,5 +1420,34 @@ mod tests {
         };
         assert_eq!(ctx.title, "Test");
         assert_eq!(ctx.thread_count, 0);
+    }
+
+    /// Objective: Verify the address-reuse metric does not count a first use as
+    /// reuse (plan A13).
+    /// Invariants: only generations above 1 contribute; an empty input yields 0.
+    #[test]
+    fn test_compute_address_reuse_pct_ignores_first_binding() {
+        let mut first = crate::capture::types::AllocationInfo::new(0x1000, 16);
+        first.generation_id = 1;
+        let mut second = crate::capture::types::AllocationInfo::new(0x2000, 16);
+        second.generation_id = 2;
+        let mut third = crate::capture::types::AllocationInfo::new(0x3000, 16);
+        third.generation_id = 3;
+
+        assert_eq!(
+            compute_address_reuse_pct(&[]),
+            0.0,
+            "no allocations means no reuse rate"
+        );
+        assert_eq!(
+            compute_address_reuse_pct(&[first.clone()]),
+            0.0,
+            "a single first-use allocation must report 0% reuse"
+        );
+        assert_eq!(
+            compute_address_reuse_pct(&[first, second, third]),
+            (2.0 / 3.0) * 100.0,
+            "only the two reused addresses may be counted"
+        );
     }
 }

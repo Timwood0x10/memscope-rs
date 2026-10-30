@@ -95,6 +95,13 @@ pub struct TaskMemoryProfile {
     pub efficiency_score: f64,
     /// Average allocation size
     pub average_allocation_size: f64,
+    /// Numeric thread id where the task was created or last observed.
+    ///
+    /// Recorded when the information is genuinely available so reports never have
+    /// to guess: using the thread that *builds the snapshot* would label every task
+    /// with the exporter's thread and silently merge them.
+    #[serde(default)]
+    pub thread_id_u64: Option<u64>,
 }
 
 impl TaskMemoryProfile {
@@ -116,7 +123,13 @@ impl TaskMemoryProfile {
             allocation_rate: 0.0,
             efficiency_score: 1.0,
             average_allocation_size: 0.0,
+            thread_id_u64: None,
         }
+    }
+
+    /// Record the numeric thread id (callers that genuinely know it).
+    pub fn set_thread_id_u64(&mut self, thread_id: Option<u64>) {
+        self.thread_id_u64 = thread_id;
     }
 
     /// Create new task profile with tokio task ID
@@ -156,6 +169,22 @@ impl TaskMemoryProfile {
             self.peak_memory = self.current_memory;
         }
 
+        self.update_metrics();
+    }
+
+    /// Record an in-place reallocation of an already counted block.
+    ///
+    /// The old size leaves the live set, the new size enters it, and the block is
+    /// not counted again as a separate allocation.
+    pub fn record_reallocation(&mut self, old_size: u64, new_size: u64) {
+        self.total_bytes += new_size;
+        self.current_memory = self
+            .current_memory
+            .saturating_sub(old_size)
+            .saturating_add(new_size);
+        if self.current_memory > self.peak_memory {
+            self.peak_memory = self.current_memory;
+        }
         self.update_metrics();
     }
 

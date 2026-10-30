@@ -364,6 +364,11 @@ impl SmartPointerInfo {
     }
 }
 
+/// One of several same-named `AllocationInfo` types in this crate: this one is the
+/// crates-internal identity/statistics layer; convert into `capture::types::AllocationInfo`.
+///
+/// Convert at the module boundary instead of passing it across; a global rename is
+/// deliberately avoided (see DATA_ACCURACY_DEVELOPMENT_PLAN §14.2).
 /// Information about a memory allocation
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct AllocationInfo {
@@ -1105,6 +1110,11 @@ pub struct TimeRange {
     pub duration_ms: u64,
 }
 
+/// One of several same-named `MemorySnapshot` types in this crate: this one is the
+/// the legacy core statistics snapshot; convert before crossing modules.
+///
+/// Convert at the module boundary instead of passing it across; a global rename is
+/// deliberately avoided (see DATA_ACCURACY_DEVELOPMENT_PLAN §14.2).
 /// Memory snapshot at a point in time
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct MemorySnapshot {

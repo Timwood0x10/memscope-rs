@@ -1,8 +1,18 @@
 # Architecture Overview
 
+> **Status:** historical design note, not a description of the current tree.
+>
+> The `improve` / `master` branch comparison below was written during the
+> three-layer object model refactor. Both branches no longer exist and the tree
+> has moved on (see `docs/zh/architecture.md` and `aim/actual_architecture.md` for
+> the current module layout). The "Before / After" sections are kept as design
+> rationale; do not use them to reason about today's code paths.
+
 ## Architecture Evolution
 
-This document describes the architectural improvements in the `improve` branch compared to the `master` branch.
+This document describes the architectural improvements introduced by the
+three-layer object model, originally developed on the (now retired) `improve`
+branch and merged into the current development line.
 
 ## Three-Layer Object Model
 

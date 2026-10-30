@@ -329,6 +329,11 @@ impl SamplingConfig {
     }
 }
 
+/// One of several same-named `MemorySnapshot` types in this crate: this one is the
+/// the lock-free backend snapshot (per-backend view).
+///
+/// Convert at the module boundary instead of passing it across; a global rename is
+/// deliberately avoided (see DATA_ACCURACY_DEVELOPMENT_PLAN §14.2).
 /// Memory snapshot for real-time monitoring
 #[derive(Debug, Clone)]
 pub struct MemorySnapshot {

@@ -147,18 +147,29 @@ pub fn generate_task_id() -> u64 {
 /// When dropped, automatically completes the task.
 pub struct TaskGuard {
     task_id: u64,
+    parent: Option<u64>,
 }
 
 impl TaskGuard {
     /// Create a new task guard (internal use)
-    fn new(task_id: u64) -> Self {
-        Self { task_id }
+    fn new(task_id: u64, parent: Option<u64>) -> Self {
+        Self { task_id, parent }
     }
 }
 
 impl Drop for TaskGuard {
     fn drop(&mut self) {
         global_registry().complete_task(self.task_id);
+
+        // Restore the parent instead of blanking the slot: nested scopes used to
+        // leave the thread with no current task at all, so allocations after an
+        // inner scope ended were silently unattributed (plan §7.2 item 6).
+        // The write is skipped when another task has already taken the slot.
+        CURRENT_TASK_ID.with(|cell| {
+            if cell.get() == Some(self.task_id) {
+                cell.set(self.parent);
+            }
+        });
     }
 }
 
@@ -213,7 +224,7 @@ impl TaskIdRegistry {
     pub fn task_scope(&self, name: &str) -> TaskGuard {
         let parent = Self::current_task_id();
         let task_id = self.spawn_task(parent, name.to_string());
-        TaskGuard::new(task_id)
+        TaskGuard::new(task_id, parent)
     }
 
     /// Register a task with an externally-generated task ID.
@@ -243,14 +254,21 @@ impl TaskIdRegistry {
         CURRENT_TASK_ID.set(Some(task_id));
     }
 
-    /// Mark a registered task as completed and clear the thread-local.
+    /// Mark a registered task as completed.
+    ///
+    /// The thread-local slot is only cleared when it still holds this task: another
+    /// task (or a parent scope) may be current on this thread.
     pub fn unregister_task(&self, task_id: u64) {
         if let Ok(mut tasks) = self.tasks.write() {
             if let Some(meta) = tasks.get_mut(&task_id) {
                 meta.mark_completed();
             }
         }
-        CURRENT_TASK_ID.set(None);
+        CURRENT_TASK_ID.with(|cell| {
+            if cell.get() == Some(task_id) {
+                cell.set(None);
+            }
+        });
     }
 
     /// Spawn a new task (internal use only)
@@ -312,8 +330,9 @@ impl TaskIdRegistry {
             }
         }
 
-        // Clear current task from thread-local cache
-        CURRENT_TASK_ID.set(None);
+        // The thread-local slot is restored by `TaskGuard::drop`, which knows the
+        // parent task. Do not blank it here: completing a nested task would drop
+        // the parent context for every following allocation.
     }
 
     /// Record a memory allocation for the current task
@@ -496,6 +515,9 @@ pub struct TaskRegistryStats {
 #[cfg(test)]
 mod tests {
     use super::*;
+    // The registry is a process-wide singleton: tests that spawn or clear tasks must
+    // not interleave with each other.
+    use serial_test::serial;
 
     #[test]
     fn test_task_id_generation() {
@@ -505,6 +527,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_spawn_task() {
         let registry = global_registry();
         registry.clear();
@@ -517,6 +540,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_parent_child() {
         let registry = global_registry();
         registry.clear();
@@ -537,6 +561,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_current_task() {
         let registry = global_registry();
         registry.clear();
@@ -553,6 +578,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_complete_task() {
         let registry = global_registry();
         registry.clear();
@@ -573,6 +599,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_stats() {
         let registry = global_registry();
         registry.clear();
@@ -592,6 +619,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_export_graph() {
         let registry = global_registry();
         registry.clear();
@@ -607,5 +635,44 @@ mod tests {
 
         assert_eq!(graph.nodes.len(), 2);
         assert_eq!(graph.edges.len(), 1);
+    }
+
+    /// Objective: Verify a nested task scope restores the parent context on drop
+    /// (plan §7.2 item 6).
+    /// Invariants: after the inner scope ends the parent is current again; after the
+    /// outer scope ends no task is current.
+    #[test]
+    #[serial]
+    fn test_nested_scope_restores_parent_context() {
+        let registry = global_registry();
+        // `clear()` also resets the thread-local current task.
+        registry.clear();
+
+        {
+            let _parent = registry.task_scope("parent");
+            let parent_id = TaskIdRegistry::current_task_id()
+                .expect("the parent scope must install a current task");
+
+            {
+                let _child = registry.task_scope("child");
+                assert_ne!(
+                    TaskIdRegistry::current_task_id(),
+                    Some(parent_id),
+                    "the child scope must take over the current context"
+                );
+            }
+
+            assert_eq!(
+                TaskIdRegistry::current_task_id(),
+                Some(parent_id),
+                "ending the child scope must restore the parent task"
+            );
+        }
+
+        assert_eq!(
+            TaskIdRegistry::current_task_id(),
+            None,
+            "ending the outermost scope must restore the empty context"
+        );
     }
 }

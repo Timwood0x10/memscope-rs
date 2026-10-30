@@ -491,6 +491,70 @@ mod tests {
         );
     }
 
+    // ===================== Exit export accounting =========================
+
+    /// Objective: Verify the exit-path export runs exactly once for a guard drop
+    /// when no periodic/manual export happened before (plan §8.1).
+    /// Invariants: the report exists after the drop, and a second `Drop`-reason
+    /// export attempt reports `false` because the idempotency latch is consumed —
+    /// proving the batch is not written twice.
+    #[test]
+    #[serial]
+    fn drop_guard_exports_exactly_once() {
+        reset_globals();
+        let dir = TempDir::new().expect("tempdir creation must succeed in tests");
+        let cfg = MemScopeConfig::default()
+            .with_auto_export(AutoExportConfig::default().with_output_path(dir.path()));
+        let guard = start_with(cfg).expect("start_with must succeed for the once-only check");
+
+        let data: Vec<u64> = vec![1, 2, 3];
+        guard.track(&data);
+        drop(guard);
+
+        let html = dir.path().join("dashboard_unified_dashboard.html");
+        assert!(
+            html.exists(),
+            "the guard drop must produce one report batch at {html:?}"
+        );
+        assert!(
+            !lifecycle::export_for_reason(lifecycle::ExportReason::Drop),
+            "a second exit-path export must be skipped by the idempotency latch"
+        );
+    }
+
+    /// Objective: Verify `on_exit = false` suppresses the guard-drop export and
+    /// does not consume the latch of the other exit paths.
+    /// Invariants: no report file is written by the drop; a later enabled export
+    /// path still runs and produces the report.
+    #[test]
+    #[serial]
+    fn on_exit_false_skips_drop_export_and_keeps_latch_free() {
+        reset_globals();
+        let dir = TempDir::new().expect("tempdir creation must succeed in tests");
+        let mut auto_export = AutoExportConfig::default().with_output_path(dir.path());
+        auto_export.on_exit = false;
+        let cfg = MemScopeConfig::default().with_auto_export(auto_export);
+        let guard = start_with(cfg).expect("start_with must succeed with on_exit disabled");
+
+        let data: Vec<u64> = vec![4, 5, 6];
+        guard.track(&data);
+        drop(guard);
+
+        let html = dir.path().join("dashboard_unified_dashboard.html");
+        assert!(
+            !html.exists(),
+            "on_exit=false must not write a report on guard drop, found {html:?}"
+        );
+        assert!(
+            lifecycle::trigger_export_now(),
+            "a disabled exit path must not consume the latch of later export paths"
+        );
+        assert!(
+            html.exists(),
+            "the explicitly enabled export must still produce the report"
+        );
+    }
+
     // ===================== Integration test (end-to-end) ==================
 
     /// Objective: Verify the end-to-end flow: `start_with(tempdir)` ->

@@ -6,8 +6,10 @@
 mod context;
 mod event_dto;
 mod event_reconstructor;
+mod evidence;
 mod helpers;
 mod inference;
+mod layout_inference;
 #[allow(dead_code)]
 mod render_methods;
 mod report_builder;
@@ -16,6 +18,10 @@ mod template_registry;
 mod types;
 
 pub use types::*;
+
+// Evidence/confidence vocabulary is reachable through the renderer root so DTO
+// consumers do not need to know which submodule defines it.
+pub use evidence::{DropExpectation, EvidenceLevel, PointerProvenance, RiskConfidence};
 
 // Re-export for external use
 pub use event_dto::{build_data_index, DashboardEventDTO, DataIndex, EventSummary};

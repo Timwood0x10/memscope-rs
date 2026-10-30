@@ -18,14 +18,19 @@
 //!
 //! let memory = vec![0u8; 24];
 //! let guess = UnsafeInferenceEngine::infer_from_bytes(&memory, 24);
-//! println!("Inferred type: {} ({}% confidence)", guess.kind, guess.confidence);
+//! println!("Inferred type: {} (score {})", guess.kind, guess.confidence);
 //! ```
 
 mod engine;
 mod memory_view;
+mod policy;
+mod scoring;
 
 pub use engine::{InferenceMethod, InferenceRecord, TypeGuess, TypeKind, UnsafeInferenceEngine};
 pub use memory_view::{
     count_valid_pointers, get_valid_regions, is_valid_ptr, is_valid_ptr_static, MemoryRegion,
     MemoryView, OwnedMemoryView, ValidRegions,
+};
+pub use policy::{
+    calibrate, evaluate, CalibrationReport, CalibrationSample, InferenceDecision, InferencePolicy,
 };

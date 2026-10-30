@@ -1,175 +1,86 @@
 //! Snapshot builder - Reusable snapshot construction logic.
 //!
-//! This module provides a standalone function for building snapshots
-//! from events, which can be reused by both SnapshotEngine and MemoryView.
+//! This module provides the standalone entry point that turns the raw event
+//! stream into a [`MemorySnapshot`]. All binding matching, generation numbering,
+//! reallocation handling and byte accounting live in
+//! [`crate::snapshot::bindings::BindingLedger`], which is also what the dashboard
+//! reconstruction uses. Keeping one implementation is what makes the snapshot,
+//! the dashboard and the JSON exports agree on the same event stream.
 
 use crate::core::types::TrackKind;
-use crate::event_store::{MemoryEvent, MemoryEventType};
-use crate::snapshot::types::{ActiveAllocation, MemorySnapshot, ThreadMemoryStats};
-use std::collections::HashMap;
+use crate::event_store::MemoryEvent;
+use crate::snapshot::bindings::BindingLedger;
+use crate::snapshot::types::{ActiveAllocation, MemorySnapshot};
 
 /// Build a memory snapshot from a slice of events.
 ///
-/// This is the core snapshot building logic that can be reused
-/// by both SnapshotEngine and MemoryView.
+/// # Accuracy
+///
+/// * `total_allocated` / `total_deallocated` / `peak_memory` come from the replayed
+///   transitions, so they stay correct even after releases have been applied.
+/// * A release closes exactly one binding (matched by address and recorded size),
+///   so a late release of an older generation cannot delete a newer live binding.
+/// * `active_allocations` is keyed by address; when two bindings at the same
+///   address are live at the same time (a release was missed) the map keeps the
+///   newest one and the condition is logged, while the statistics above keep both
+///   bindings' bytes.
 pub fn build_snapshot_from_events(events: &[MemoryEvent]) -> MemorySnapshot {
-    let mut snapshot = MemorySnapshot::new();
-    let mut ptr_to_allocation: HashMap<usize, ActiveAllocation> = HashMap::new();
-    let mut thread_stats: HashMap<u64, ThreadMemoryStats> = HashMap::new();
-    let mut peak_memory: usize = 0;
-    let mut current_memory: usize = 0;
-
+    let mut ledger = BindingLedger::new();
     for event in events {
-        match event.event_type {
-            MemoryEventType::Allocate => {
-                let allocation = ActiveAllocation {
-                    ptr: Some(event.ptr),
-                    kind: TrackKind::HeapOwner {
-                        ptr: event.ptr,
-                        size: event.size,
-                    },
-                    size: event.size,
-                    allocated_at: event.timestamp,
-                    var_name: event.var_name.clone(),
-                    type_name: event.type_name.clone(),
-                    thread_id: event.thread_id,
-                    call_stack_hash: event.call_stack_hash,
-                    module_path: event.module_path.clone(),
-                    stack_ptr: event.stack_ptr,
-                };
+        ledger.apply(event);
+    }
 
-                ptr_to_allocation.insert(event.ptr, allocation);
+    let mut snapshot = MemorySnapshot::new();
+    let mut conflicting = 0usize;
 
-                snapshot.stats.total_allocations += 1;
-                snapshot.stats.total_allocated += event.size;
-                current_memory += event.size;
-
-                let thread_stat =
-                    thread_stats
-                        .entry(event.thread_id)
-                        .or_insert_with(|| ThreadMemoryStats {
-                            thread_id: event.thread_id,
-                            allocation_count: 0,
-                            total_allocated: 0,
-                            total_deallocated: 0,
-                            current_memory: 0,
-                            peak_memory: 0,
-                        });
-                thread_stat.allocation_count += 1;
-                thread_stat.total_allocated += event.size;
-                thread_stat.current_memory += event.size;
-                if thread_stat.current_memory > thread_stat.peak_memory {
-                    thread_stat.peak_memory = thread_stat.current_memory;
-                }
-            }
-            MemoryEventType::Reallocate => {
-                let old_allocation = ptr_to_allocation.get(&event.ptr).cloned();
-                let old_size = event.old_size.unwrap_or_else(|| {
-                    old_allocation
-                        .as_ref()
-                        .map(|a| a.size)
-                        .unwrap_or_else(|| {
-                            tracing::warn!(
-                                "Reallocation without old_size or previous allocation: ptr={:#x}, new_size={}",
-                                event.ptr,
-                                event.size
-                            );
-                            0
-                        })
-                });
-
-                let allocation = ActiveAllocation {
-                    ptr: Some(event.ptr),
-                    kind: TrackKind::HeapOwner {
-                        ptr: event.ptr,
-                        size: event.size,
-                    },
-                    size: event.size,
-                    allocated_at: old_allocation
-                        .map(|a| a.allocated_at)
-                        .unwrap_or(event.timestamp),
-                    var_name: event.var_name.clone(),
-                    type_name: event.type_name.clone(),
-                    thread_id: event.thread_id,
-                    call_stack_hash: event.call_stack_hash,
-                    module_path: event.module_path.clone(),
-                    stack_ptr: event.stack_ptr,
-                };
-
-                ptr_to_allocation.insert(event.ptr, allocation);
-
-                snapshot.stats.total_reallocations += 1;
-                snapshot.stats.total_allocated += event.size;
-                snapshot.stats.total_deallocated += old_size;
-
-                current_memory = current_memory
-                    .saturating_sub(old_size)
-                    .saturating_add(event.size);
-
-                let thread_stat =
-                    thread_stats
-                        .entry(event.thread_id)
-                        .or_insert_with(|| ThreadMemoryStats {
-                            thread_id: event.thread_id,
-                            allocation_count: 0,
-                            total_allocated: 0,
-                            total_deallocated: 0,
-                            current_memory: 0,
-                            peak_memory: 0,
-                        });
-                thread_stat.total_allocated += event.size;
-                thread_stat.total_deallocated += old_size;
-                thread_stat.current_memory = thread_stat
-                    .current_memory
-                    .saturating_sub(old_size)
-                    .saturating_add(event.size);
-                if thread_stat.current_memory > thread_stat.peak_memory {
-                    thread_stat.peak_memory = thread_stat.current_memory;
-                }
-            }
-            MemoryEventType::Deallocate => {
-                if let Some(allocation) = ptr_to_allocation.remove(&event.ptr) {
-                    snapshot.stats.total_deallocations += 1;
-                    snapshot.stats.total_deallocated += allocation.size;
-                    current_memory = current_memory.saturating_sub(allocation.size);
-
-                    if let Some(thread_stat) = thread_stats.get_mut(&event.thread_id) {
-                        thread_stat.total_deallocated += allocation.size;
-                        thread_stat.current_memory =
-                            thread_stat.current_memory.saturating_sub(allocation.size);
-                    }
-                } else {
-                    snapshot.stats.unmatched_deallocations += 1;
-                    tracing::debug!(
-                        "Unmatched deallocation: ptr={:#x}, thread_id={}",
-                        event.ptr,
-                        event.thread_id
-                    );
-                }
-            }
-            MemoryEventType::Move
-            | MemoryEventType::Borrow
-            | MemoryEventType::Return
-            | MemoryEventType::Clone => {
-                // These don't affect the current memory state
-            }
-            MemoryEventType::Metadata => {
-                // Container/Value types - no heap allocation
-            }
-        }
-
-        // Update peak memory
-        if current_memory > peak_memory {
-            peak_memory = current_memory;
+    for binding in ledger.live() {
+        let active = ActiveAllocation {
+            ptr: Some(binding.ptr),
+            size: binding.size,
+            kind: TrackKind::HeapOwner {
+                ptr: binding.ptr,
+                size: binding.size,
+            },
+            allocated_at: binding.allocated_at,
+            var_name: binding.var_name.clone(),
+            type_name: binding.type_name.clone(),
+            thread_id: binding.thread_id,
+            call_stack_hash: binding.call_stack_hash,
+            module_path: binding.module_path.clone(),
+            stack_ptr: binding.stack_ptr,
+        };
+        if snapshot
+            .active_allocations
+            .insert(binding.ptr, active)
+            .is_some()
+        {
+            conflicting += 1;
         }
     }
 
-    // Build final snapshot
-    snapshot.active_allocations = ptr_to_allocation;
-    snapshot.thread_stats = thread_stats;
+    if conflicting > 0 {
+        tracing::warn!(
+            conflicting,
+            "multiple live bindings share an address; the snapshot map keeps the newest and the totals keep every binding"
+        );
+    }
+
+    let stats = ledger.stats();
+    snapshot.stats.total_allocations =
+        usize::try_from(stats.allocation_count).unwrap_or(usize::MAX);
+    snapshot.stats.total_deallocations =
+        usize::try_from(stats.deallocation_count).unwrap_or(usize::MAX);
+    snapshot.stats.total_reallocations =
+        usize::try_from(stats.reallocation_count).unwrap_or(usize::MAX);
+    snapshot.stats.unmatched_deallocations =
+        usize::try_from(stats.unmatched_deallocation_count).unwrap_or(usize::MAX);
+    snapshot.stats.total_allocated = usize::try_from(stats.allocated_bytes).unwrap_or(usize::MAX);
+    snapshot.stats.total_deallocated =
+        usize::try_from(stats.deallocated_bytes).unwrap_or(usize::MAX);
+    snapshot.stats.current_memory = usize::try_from(stats.current_bytes).unwrap_or(usize::MAX);
+    snapshot.stats.peak_memory = usize::try_from(stats.peak_bytes).unwrap_or(usize::MAX);
     snapshot.stats.active_allocations = snapshot.active_allocations.len();
-    snapshot.stats.current_memory = current_memory;
-    snapshot.stats.peak_memory = peak_memory;
+    snapshot.thread_stats = ledger.thread_stats().clone();
 
     snapshot
 }
@@ -178,13 +89,19 @@ pub fn build_snapshot_from_events(events: &[MemoryEvent]) -> MemorySnapshot {
 mod tests {
     use super::*;
 
+    /// Objective: Verify an empty event stream produces an empty snapshot.
+    /// Invariants: no active allocation and zero bytes.
     #[test]
     fn test_build_snapshot_empty() {
         let events: Vec<MemoryEvent> = vec![];
         let snapshot = build_snapshot_from_events(&events);
-        assert_eq!(snapshot.active_count(), 0);
+        assert_eq!(snapshot.active_count(), 0, "no binding may be active");
+        assert_eq!(snapshot.current_memory(), 0, "no bytes may be live");
+        assert_eq!(snapshot.peak_memory(), 0, "no peak may be recorded");
     }
 
+    /// Objective: Verify allocations are visible with their totals.
+    /// Invariants: two bindings are active and current memory is their sum.
     #[test]
     fn test_build_snapshot_with_allocations() {
         let events = vec![
@@ -192,10 +109,21 @@ mod tests {
             MemoryEvent::allocate(0x2000, 2048, 1),
         ];
         let snapshot = build_snapshot_from_events(&events);
-        assert_eq!(snapshot.active_count(), 2);
-        assert_eq!(snapshot.current_memory(), 3072);
+        assert_eq!(snapshot.active_count(), 2, "both bindings must be active");
+        assert_eq!(snapshot.current_memory(), 3072, "current bytes must sum up");
+        assert_eq!(
+            snapshot.stats.total_allocated, 3072,
+            "total allocated bytes must be recorded"
+        );
+        assert_eq!(
+            snapshot.stats.peak_memory, 3072,
+            "peak must be the high-water mark of the replay"
+        );
     }
 
+    /// Objective: Verify releases clear the live set and the ledger.
+    /// Invariants: no active allocation remains and current memory returns to zero
+    /// while the deallocated total is preserved.
     #[test]
     fn test_build_snapshot_with_deallocations() {
         let events = vec![
@@ -203,7 +131,77 @@ mod tests {
             MemoryEvent::deallocate(0x1000, 1024, 1),
         ];
         let snapshot = build_snapshot_from_events(&events);
-        assert_eq!(snapshot.active_count(), 0);
-        assert_eq!(snapshot.current_memory(), 0);
+        assert_eq!(snapshot.active_count(), 0, "the binding must be released");
+        assert_eq!(snapshot.current_memory(), 0, "current bytes must be zero");
+        assert_eq!(
+            snapshot.stats.total_deallocated, 1024,
+            "released bytes must still be reported"
+        );
+        assert_eq!(
+            snapshot.stats.total_deallocations, 1,
+            "exactly one release was matched"
+        );
+    }
+
+    /// Objective: Verify a late release of the previous address generation keeps
+    /// the newer binding alive.
+    /// Invariants: the reused address stays active with its own size.
+    #[test]
+    fn test_build_snapshot_reuse_keeps_newer_binding() {
+        let events = vec![
+            MemoryEvent::allocate(0x3000, 64, 1),
+            MemoryEvent::allocate(0x3000, 256, 1),
+            MemoryEvent::deallocate(0x3000, 64, 1),
+        ];
+        let snapshot = build_snapshot_from_events(&events);
+        assert_eq!(
+            snapshot.active_count(),
+            1,
+            "one release must close exactly one binding"
+        );
+        let active = snapshot
+            .active_allocations
+            .get(&0x3000)
+            .expect("the reused address must stay active");
+        assert_eq!(active.size, 256, "the surviving binding keeps its size");
+        assert_eq!(
+            snapshot.current_memory(),
+            256,
+            "current bytes must follow the surviving binding"
+        );
+        assert_eq!(
+            snapshot.stats.peak_memory, 320,
+            "peak must include the overlapping window"
+        );
+    }
+
+    /// Objective: Verify an in-place reallocation updates size and totals without
+    /// creating a second binding.
+    /// Invariants: one active binding with the new size, one reallocation counted.
+    #[test]
+    fn test_build_snapshot_reallocation_updates_size() {
+        let events = vec![
+            MemoryEvent::allocate(0x4000, 100, 1),
+            MemoryEvent::reallocate(0x4000, 100, 300, 1),
+        ];
+        let snapshot = build_snapshot_from_events(&events);
+        assert_eq!(snapshot.active_count(), 1, "reallocation keeps one binding");
+        let active = snapshot
+            .active_allocations
+            .get(&0x4000)
+            .expect("the reallocated binding must stay active");
+        assert_eq!(active.size, 300, "the size must be refreshed");
+        assert_eq!(
+            snapshot.stats.total_reallocations, 1,
+            "the reallocation must be counted separately"
+        );
+        assert_eq!(
+            snapshot.stats.current_memory, 300,
+            "current bytes must follow the new size"
+        );
+        assert_eq!(
+            snapshot.stats.peak_memory, 300,
+            "the peak must not contain an intermediate add-then-subtract value"
+        );
     }
 }
