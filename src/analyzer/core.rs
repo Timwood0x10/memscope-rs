@@ -218,6 +218,9 @@ mod tests {
     use super::*;
     use crate::event_store::MemoryEvent;
 
+    /// Objective: Verify the analyzer keeps allocations that were never released and
+    /// does not turn them into leak verdicts (plan A02).
+    /// Invariants: both allocations are visible in the metrics, zero leaks reported.
     #[test]
     fn test_analyzer_from_events() {
         let events = vec![
@@ -226,20 +229,39 @@ mod tests {
         ];
         let view = MemoryView::from_events(events);
         let mut analyzer = Analyzer::from_view(view);
-        // Only test detection (no heap scanning required)
-        let leaks = analyzer.quick_leak_check();
-        assert_eq!(leaks.leak_count, 2);
-        // Test metrics (no heap scanning required)
+
         let metrics = analyzer.quick_metrics();
-        assert_eq!(metrics.allocation_count, 2);
+        assert_eq!(
+            metrics.allocation_count, 2,
+            "both allocations must be visible"
+        );
+
+        let leaks = analyzer.quick_leak_check();
+        assert_eq!(
+            leaks.leak_count, 0,
+            "an allocation that is still live at the cut is not evidence of a leak"
+        );
+        assert_eq!(
+            leaks.total_leaked_bytes, 0,
+            "no leaked bytes may be reported without an assessment rule"
+        );
     }
 
+    /// Objective: Verify a single unreleased allocation produces no leak verdict.
+    /// Invariants: leak count and leaked bytes stay zero for a live allocation.
     #[test]
     fn test_quick_leak_check() {
         let events = vec![MemoryEvent::allocate(0x1000, 64, 1)];
         let view = MemoryView::from_events(events);
         let mut analyzer = Analyzer::from_view(view);
         let leaks = analyzer.quick_leak_check();
-        assert_eq!(leaks.leak_count, 1);
+        assert_eq!(
+            leaks.leak_count, 0,
+            "being alive at the cut is not evidence of a leak"
+        );
+        assert_eq!(
+            leaks.total_leaked_bytes, 0,
+            "no bytes may be reported leaked"
+        );
     }
 }

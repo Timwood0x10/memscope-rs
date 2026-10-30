@@ -1390,3 +1390,33 @@ realloc 时，无法区分两种情况：
 `late_release_does_not_close_reused_address`、`late_release_does_not_close_reused_async_address`
 等用例）；**核心 tracker 的缓存仍是 `Map<ptr, AllocationInfo>`**，真正的 `(ptr, generation)`
 落库与 `AllocationId` 分配属于 PR-02，届时 `track_deallocation` 的裸地址重载将降级为诊断路径。
+
+### 17.9 示例实测暴露的遗漏：Analyzer 仍把"存活"当"泄漏"
+
+用 `examples/basic_usage.rs` 验证导出数据时发现：`az.detect().leaks()` 报告
+"5 leaks / 85 bytes"，而程序里 5 个对象全部存活、没有任何释放。原因在
+`src/analyzer/detect.rs`：
+
+```rust
+let leaked = allocations.into_iter().filter(|a| a.ptr.is_some()).collect();
+```
+
+即"**所有堆分配都是泄漏**"——比 Dashboard 的 `is_leaked` 更激进，是 A02 的另一处活体。
+
+处理：
+
+- `DetectionAnalysis::leaks()` 不再下结论，返回空报告（附 debug 说明）；泄漏结论必须来自
+  泄漏规则 + 采集完整性（§4.5）。
+- 新增 `DetectionAnalysis::unreleased()` 保留"事实"：窗口结束时仍未释放的分配列表。
+- `analyzer/core.rs` 两个断言"存活即泄漏"的测试改为新契约（存活 2 条 / 0 泄漏）。
+
+实测（`examples/basic_usage.rs`，独立目录运行）：
+
+| 检查点 | 结果 |
+| --- | --- |
+| Analyzer | Allocations 5 / Total 85 / Peak 85 / Leak 0 / Leaked 0 |
+| `memory_analysis.json` | 5 条，Σsize=85，`metadata.total_size_bytes=85` |
+| 尺寸明细 | `[24,20,24,4,13]`（Rc 24、Vec 20、Arc 24、Box 4、String 13），与程序内计数一致 |
+| `lifetime.json` | 5 条，Σsize=85，`timestamp_dealloc` 全为 null（无伪造释放） |
+| `thread_analysis.json` | 1 线程，allocation_count=5，current=85，peak=85 |
+| HTML 内嵌 JSON | `event_summary.total_allocations=5`、`duplicate_observations=0`、`sampling_strategy=complete`；allocation 行 `allocation_state=live`、`leak_status=not_assessed`、`is_leaked=false`、`evidence=Observed`、`confidence=Unknown` |
