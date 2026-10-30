@@ -726,3 +726,44 @@ fn test_moved_reallocation_moves_the_single_entry() {
         "allocated and deallocated bytes must balance"
     );
 }
+
+/// Objective: Verify a reallocation of an unobserved block books only the new block
+/// (plan A06 follow-up).
+/// Invariants: one live entry at the new address, allocated == live bytes, no
+/// deallocated bytes invented for the block that was never seen allocated.
+#[test]
+fn unmatched_reallocation_books_only_the_new_block() {
+    let tracker = MemoryTracker::new();
+    tracker
+        .track_reallocation(0x1000, 0x2000, 64, 128)
+        .expect("reallocation must succeed");
+
+    assert_eq!(
+        tracker.get_allocation_size(0x1000),
+        None,
+        "the old address was never tracked"
+    );
+    assert_eq!(
+        tracker.get_allocation_size(0x2000),
+        Some(128),
+        "the new block must be recorded"
+    );
+
+    let stats = tracker.get_stats().expect("stats must be readable");
+    assert_eq!(stats.total_allocations, 1, "the new block is one binding");
+    assert_eq!(stats.active_allocations, 1, "one live binding");
+    assert_eq!(
+        stats.active_memory, 128,
+        "live bytes must equal the observable block"
+    );
+    assert_eq!(stats.total_allocated, 128, "only the new size is allocated");
+    assert_eq!(
+        stats.total_deallocated, 0,
+        "no bytes may be released for a block that was never allocated"
+    );
+    assert_eq!(
+        stats.total_allocated - stats.total_deallocated,
+        stats.active_memory,
+        "allocated minus deallocated must equal the live bytes"
+    );
+}

@@ -42,7 +42,7 @@ pub fn rebuild_allocations_from_events(events: &[MemoryEvent]) -> Vec<Allocation
 
     let mut all_allocations: Vec<AllocationInfo> = ledger
         .live()
-        .iter()
+        .into_iter()
         .map(binding_to_allocation_info)
         .collect();
 

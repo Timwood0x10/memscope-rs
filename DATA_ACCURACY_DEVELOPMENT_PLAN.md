@@ -1420,3 +1420,25 @@ let leaked = allocations.into_iter().filter(|a| a.ptr.is_some()).collect();
 | `lifetime.json` | 5 条，Σsize=85，`timestamp_dealloc` 全为 null（无伪造释放） |
 | `thread_analysis.json` | 1 线程，allocation_count=5，current=85，peak=85 |
 | HTML 内嵌 JSON | `event_summary.total_allocations=5`、`duplicate_observations=0`、`sampling_strategy=complete`；allocation 行 `allocation_state=live`、`leak_status=not_assessed`、`is_leaked=false`、`evidence=Observed`、`confidence=Unknown` |
+
+### 17.10 第六轮：P1/P2 复核（预登记、搬迁 realloc、异步代号、缓存扣减、账本复杂度）
+
+| 意见 | 核查结论 | 处理 |
+| --- | --- | --- |
+| P1-1 allocator 预登记导致 `track!` 记录消失 | **成立**：`Tracker::global().inner` 就是 allocator hook 写的那个核心 tracker，`track_inner` 仅凭"缓存已有同地址同大小"就 return，事件流永远缺这条 | `Tracker` 增加 `recorded_bindings: DashMap<addr, size>`，只有"本 tracker 确实为该地址发过事件"才算真正重复；hook 预登记但无事件时补发一次 `Allocate` 并记账任务内存。释放/重分配同步维护该索引 |
+| P1-2 首次可见的搬迁 realloc 落在旧地址 | **成立**：`on_reallocate` 的 unmatched 分支用 `event.ptr` 开绑定，忽略 `new_ptr`，且完全没更新线程统计 | 未匹配时在新地址（`new_ptr.unwrap_or(ptr)`）开绑定，补 `attribute_allocation`（线程计数/字节/峰值），旧块不扣字节；后续释放新地址可正常匹配 |
+| P1-3 异步更替记录沿用旧 generation | **成立**：删旧记录却继承 `existing.generation`，按代释放形同虚设 | 与核心 tracker 统一：同址异大小 = 新代（`generations` 计数递增），旧记录按"被取代"记入释放字节；新增 `different_size_at_same_address_starts_new_generation` 用例 |
+| P2-4 异步 resize 漏记旧尺寸释放字节 | **成立**：只加 `total_memory`、调 `active_memory`，没有 `total_deallocated`，`total - deallocated != active` | 新代路径完整记账：`total_allocations += 1`、`total_memory += new`、`total_deallocated += old`、`active -= old + new`；profile 侧同样 `record_deallocation(old)` + `record_allocation(new)` |
+| P2-5 核心 tracker 为未观测旧块扣减字节 | **成立**：旧地址不存在时构造 `AllocationInfo(old_size)` 后仍加 `total_deallocated`，空 tracker 收到 realloc 会得到 `active=64 / 存活 128 / 计数 0` | 未匹配分支单独处理：只记录新块（`total_allocations += 1`、`total_allocated += new`），不扣从未入账的旧字节 |
+| P2-6 重建账本 O(N²) | **成立**：每次分配扫描整个 `live`，释放/realloc 线性查找加搬移 | `live` 改为墓碑式 `Vec<Option<..>>`（释放 O(1)），新增 `by_addr: HashMap<addr, Vec<index>>` 地址索引，分配/释放/重分配只访问单地址桶；`live()` 返回过滤后的引用列表 |
+
+实测（`cargo test --release`，仅重放不同地址的分配）：
+
+| 事件数 | 修复前（评审提供） | 修复后 |
+| --- | --- | --- |
+| 10,000 | 26.6 ms | 2.06 ms |
+| 40,000 | 418.7 ms | 10.33 ms |
+
+规模 4 倍时耗时约 5 倍（修复前约 15.7 倍），并新增 `replay_scales_linearly_with_distinct_addresses` 以防回退。
+
+变异验证：把三处 P1 修复分别改回旧行为（忽略"是否已发事件"、unmatched realloc 用旧地址、异步继承旧代号）后，新增用例立即失败；恢复实现后全绿。

@@ -119,7 +119,13 @@ impl LedgerStats {
 /// Replays memory events into live bindings plus conserved statistics.
 #[derive(Debug, Default)]
 pub struct BindingLedger {
-    live: Vec<BindingRecord>,
+    /// Live bindings in observation order. Closed entries become `None` so releasing a
+    /// block is O(1) instead of shifting the whole vector.
+    live: Vec<Option<BindingRecord>>,
+    /// Address -> indices of its live bindings, oldest first. Every allocation,
+    /// release and reallocation touches a single address bucket, which keeps the
+    /// replay linear in the number of events instead of quadratic.
+    by_addr: HashMap<usize, Vec<usize>>,
     next_generation: HashMap<usize, u64>,
     stats: LedgerStats,
     thread_stats: HashMap<u64, ThreadMemoryStats>,
@@ -150,8 +156,8 @@ impl BindingLedger {
 
     /// Live bindings, oldest first.
     #[must_use]
-    pub fn live(&self) -> &[BindingRecord] {
-        &self.live
+    pub fn live(&self) -> Vec<&BindingRecord> {
+        self.live.iter().filter_map(Option::as_ref).collect()
     }
 
     /// Ledger statistics accumulated from the replayed transitions.
@@ -173,40 +179,40 @@ impl BindingLedger {
         // A new allocation at an address that still has a live binding is a conflict:
         // keep both bindings (never overwrite) and mark the window as unreliable, so a
         // later release cannot silently delete the wrong generation.
-        if self.live.iter().any(|binding| binding.ptr == event.ptr) {
+        if self.has_live_binding(event.ptr) {
             self.stats.conflicting_allocations += 1;
             tracing::debug!(
                 "conflicting allocation: address {:#x} already has a live binding",
                 event.ptr
             );
         }
-        self.open_binding(event);
+        self.open_binding_at(event, event.ptr);
         self.count_new_bytes(event.size as u64);
-
-        let thread = self.thread_stats.entry(event.thread_id).or_default();
-        thread.thread_id = event.thread_id;
-        thread.allocation_count += 1;
-        thread.total_allocated += event.size;
-        thread.current_memory += event.size;
-        thread.peak_memory = thread.peak_memory.max(thread.current_memory);
+        self.attribute_allocation(event);
     }
 
     fn on_reallocate(&mut self, event: &MemoryEvent) {
         let Some(index) = self.find_binding(event.ptr, event.old_size) else {
-            // The block was never observed (capture started mid-flight or events
-            // were lost). Record the observable result as a fresh binding instead
-            // of dropping the event. The event is still a reallocation for counting
-            // purposes, and it is flagged as unmatched for diagnostics; no
-            // deallocated bytes are invented for a block we never saw allocated,
-            // otherwise `allocated - deallocated` would stop matching the live set.
+            // The old block was never observed (capture started mid-flight or events
+            // were lost). Only the new side is a fact: record it at its real address
+            // (`new_ptr` when the allocator moved it), attribute it to the thread that
+            // performed the reallocation, and book no released bytes for a block we
+            // never saw allocated.
             self.stats.reallocation_count += 1;
             self.stats.unmatched_reallocation_count += 1;
-            self.open_binding(event);
+            let target = event.new_ptr.unwrap_or(event.ptr);
+            self.open_binding_at(event, target);
             self.count_new_bytes(event.size as u64);
+            self.attribute_allocation(event);
             return;
         };
 
-        let previous_size = self.live[index].size;
+        let previous_size = self
+            .live
+            .get(index)
+            .and_then(Option::as_ref)
+            .map(|binding| binding.size)
+            .unwrap_or(0);
         self.stats.reallocation_count += 1;
 
         let (allocated, overflow_a) = checked_bytes(self.stats.allocated_bytes, event.size as u64);
@@ -227,7 +233,9 @@ impl BindingLedger {
         self.stats.overflowed |= overflow_c;
         self.stats.peak_bytes = self.stats.peak_bytes.max(self.stats.current_bytes);
 
-        let binding = &mut self.live[index];
+        let Some(mut binding) = self.close_binding(index) else {
+            return;
+        };
         binding.size = event.size;
         if event.var_name.is_some() {
             binding.var_name = event.var_name.clone();
@@ -252,18 +260,18 @@ impl BindingLedger {
             thread.peak_memory = thread.peak_memory.max(thread.current_memory);
         }
 
-        // Migrating reallocation: the block keeps its identity (metadata, origin
-        // thread, bytes) while the address binding moves. The old address is
-        // closed and the new one starts its own generation sequence, so a later
-        // release of either address matches the right row instead of guessing.
-        if let Some(new_ptr) = event.new_ptr.filter(|new_ptr| *new_ptr != event.ptr) {
-            let mut moved = self.live.remove(index);
-            moved.ptr = new_ptr;
-            moved.allocated_at = event.timestamp;
-            let counter = self.next_generation.entry(new_ptr).or_insert(0);
-            *counter = counter.saturating_add(1);
-            moved.generation = *counter;
-            self.live.push(moved);
+        // An in-place reallocation keeps the binding slot and its generation; a
+        // migrating one closes the old address and opens a binding at the new address.
+        match event.new_ptr.filter(|new_ptr| *new_ptr != event.ptr) {
+            Some(new_ptr) => {
+                binding.allocated_at = event.timestamp;
+                self.push_record(binding, new_ptr);
+            }
+            None => {
+                let index = self.push_slot();
+                self.live[index] = Some(binding);
+                self.by_addr.entry(event.ptr).or_default().push(index);
+            }
         }
     }
 
@@ -279,7 +287,10 @@ impl BindingLedger {
             return;
         };
 
-        let binding = self.live.remove(index);
+        let Some(binding) = self.close_binding(index) else {
+            self.stats.unmatched_deallocation_count += 1;
+            return;
+        };
         self.stats.deallocation_count += 1;
 
         let (deallocated, overflowed) =
@@ -299,26 +310,71 @@ impl BindingLedger {
         actor.total_deallocated += binding.size;
     }
 
-    fn open_binding(&mut self, event: &MemoryEvent) {
-        let counter = self.next_generation.entry(event.ptr).or_insert(0);
-        *counter = counter.saturating_add(1);
-        let generation = *counter;
+    fn has_live_binding(&self, ptr: usize) -> bool {
+        self.by_addr
+            .get(&ptr)
+            .is_some_and(|bucket| !bucket.is_empty())
+    }
 
-        self.live.push(BindingRecord {
-            ptr: event.ptr,
-            size: event.size,
-            generation,
-            allocated_at: event.timestamp,
-            thread_id: event.thread_id,
-            task_id: event.task_id,
-            var_name: event.var_name.clone(),
-            type_name: event.type_name.clone(),
-            call_stack_hash: event.call_stack_hash,
-            module_path: event.module_path.clone(),
-            stack_ptr: event.stack_ptr,
-            source_file: event.source_file.clone(),
-            source_line: event.source_line,
-        });
+    fn open_binding_at(&mut self, event: &MemoryEvent, ptr: usize) {
+        self.push_record(
+            BindingRecord {
+                ptr,
+                size: event.size,
+                generation: 0,
+                allocated_at: event.timestamp,
+                thread_id: event.thread_id,
+                task_id: event.task_id,
+                var_name: event.var_name.clone(),
+                type_name: event.type_name.clone(),
+                call_stack_hash: event.call_stack_hash,
+                module_path: event.module_path.clone(),
+                stack_ptr: event.stack_ptr,
+                source_file: event.source_file.clone(),
+                source_line: event.source_line,
+            },
+            ptr,
+        );
+    }
+
+    /// Append a record at `ptr` and give it the next generation for that address.
+    fn push_record(&mut self, mut record: BindingRecord, ptr: usize) -> usize {
+        record.ptr = ptr;
+        let counter = self.next_generation.entry(ptr).or_insert(0);
+        *counter = counter.saturating_add(1);
+        record.generation = *counter;
+
+        let index = self.push_slot();
+        self.live[index] = Some(record);
+        self.by_addr.entry(ptr).or_default().push(index);
+        index
+    }
+
+    fn push_slot(&mut self) -> usize {
+        let index = self.live.len();
+        self.live.push(None);
+        index
+    }
+
+    /// Remove a live binding, returning it so callers can decide what to book.
+    fn close_binding(&mut self, index: usize) -> Option<BindingRecord> {
+        let record = self.live.get_mut(index)?.take()?;
+        if let Some(bucket) = self.by_addr.get_mut(&record.ptr) {
+            bucket.retain(|candidate| *candidate != index);
+            if bucket.is_empty() {
+                self.by_addr.remove(&record.ptr);
+            }
+        }
+        Some(record)
+    }
+
+    fn attribute_allocation(&mut self, event: &MemoryEvent) {
+        let thread = self.thread_stats.entry(event.thread_id).or_default();
+        thread.thread_id = event.thread_id;
+        thread.allocation_count += 1;
+        thread.total_allocated += event.size;
+        thread.current_memory += event.size;
+        thread.peak_memory = thread.peak_memory.max(thread.current_memory);
     }
 
     fn count_new_bytes(&mut self, size: u64) {
@@ -333,19 +389,22 @@ impl BindingLedger {
 
     /// Find the binding a release/reallocation belongs to.
     ///
-    /// Prefers the oldest binding whose recorded size matches the size the event
-    /// reports. If no size matches, falls back to the oldest binding at the
-    /// address — the *oldest*, because a late event for generation *G* must not
-    /// claim generation *G+1*.
+    /// Only the bindings of that address are inspected (one bucket lookup). Prefers
+    /// the oldest binding whose recorded size matches the size the event reports; if
+    /// no size matches, falls back to the oldest binding at the address — the
+    /// *oldest*, because a late event for generation *G* must not claim generation
+    /// *G+1*.
     fn find_binding(&self, ptr: usize, size: Option<usize>) -> Option<usize> {
-        let matches_size = |binding: &BindingRecord| match size {
-            Some(size) => size == 0 || binding.size == size,
-            None => true,
-        };
-        self.live
-            .iter()
-            .position(|b| b.ptr == ptr && matches_size(b))
-            .or_else(|| self.live.iter().position(|b| b.ptr == ptr))
+        let bucket = self.by_addr.get(&ptr)?;
+        let matching = bucket.iter().copied().find(|index| {
+            self.live[*index]
+                .as_ref()
+                .is_some_and(|binding| match size {
+                    Some(size) => size == 0 || binding.size == size,
+                    None => true,
+                })
+        });
+        matching.or_else(|| bucket.first().copied())
     }
 }
 
@@ -657,5 +716,82 @@ mod tests {
             128,
             "live bytes must follow the surviving binding"
         );
+    }
+
+    /// Objective: Verify a reallocation whose old block was never observed is recorded
+    /// at the *new* address and attributed to the thread that performed it.
+    /// Invariants: one live binding at `new_ptr`, no invented released bytes, thread
+    /// stats match, and the later release of the new address matches.
+    #[test]
+    fn first_seen_migrating_reallocation_uses_new_address() {
+        let mut ledger = BindingLedger::new();
+        ledger.apply(&MemoryEvent::reallocate_moved(0x1000, 0x2000, 64, 128, 7));
+
+        assert_eq!(ledger.live().len(), 1, "one binding must be created");
+        let live = &ledger.live()[0];
+        assert_eq!(live.ptr, 0x2000, "the binding must live at the new address");
+        assert_eq!(live.size, 128, "the binding must carry the new size");
+
+        let stats = ledger.stats();
+        assert_eq!(
+            stats.unmatched_reallocation_count, 1,
+            "the missing old block must be reported as a diagnostic"
+        );
+        assert_eq!(stats.allocated_bytes, 128, "only the new size is booked");
+        assert_eq!(
+            stats.deallocated_bytes, 0,
+            "no released bytes may be invented for an unobserved block"
+        );
+        assert_eq!(stats.current_bytes, 128, "the new block is live");
+
+        let thread = ledger
+            .thread_stats()
+            .get(&7)
+            .expect("the performing thread must be attributed");
+        assert_eq!(thread.allocation_count, 1, "one allocation is attributed");
+        assert_eq!(thread.current_memory, 128, "the thread owns the live bytes");
+
+        ledger.apply(&MemoryEvent::deallocate(0x2000, 128, 7));
+        assert!(
+            ledger.live().is_empty(),
+            "the moved block must be releasable"
+        );
+        assert_eq!(
+            ledger.stats().unmatched_deallocation_count,
+            0,
+            "the release must match the binding created by the reallocation"
+        );
+        assert_eq!(ledger.stats().current_bytes, 0, "no live bytes may remain");
+    }
+
+    /// Objective: Verify replay cost grows with the number of events, not with its
+    /// square (address index instead of a full scan per event).
+    /// Invariants: quadrupling the event count must not multiply the runtime by the
+    /// quadratic factor (16x); a generous 6x bound leaves room for machine noise.
+    #[test]
+    fn replay_scales_linearly_with_distinct_addresses() {
+        fn replay(count: usize) -> std::time::Duration {
+            let events: Vec<MemoryEvent> = (0..count)
+                .map(|i| MemoryEvent::allocate(0x1_0000 + i * 8, 64, 1))
+                .collect();
+            let start = std::time::Instant::now();
+            let mut ledger = BindingLedger::new();
+            for event in &events {
+                ledger.apply(event);
+            }
+            assert_eq!(ledger.live().len(), count, "every address must be live");
+            start.elapsed()
+        }
+
+        let small = replay(10_000);
+        let large = replay(40_000);
+
+        if small.as_micros() > 0 {
+            let ratio = large.as_secs_f64() / small.as_secs_f64();
+            assert!(
+                ratio < 6.0,
+                "replay must stay near-linear: 4x events took {ratio:.1}x the time                  ({small:?} -> {large:?}), which indicates a full scan per event"
+            );
+        }
     }
 }

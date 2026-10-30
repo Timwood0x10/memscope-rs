@@ -400,12 +400,12 @@ fn test_duplicate_async_observation_is_not_double_counted() {
     );
 }
 
-/// Objective: Verify an in-place size change in the async ledger stays
-/// conserved through release.
-/// Invariants: live bytes follow the latest size, the allocation counter does
-/// not grow, and releasing the block clears both the stats and the profile.
+/// Objective: Verify a different size at a known address is booked as a new binding and
+/// stays conserved through release (plan A06 follow-up).
+/// Invariants: the allocation counter grows by one, the superseded bytes are booked as
+/// released, and releasing the block clears both the stats and the profile.
 #[test]
-fn test_async_in_place_size_change_keeps_profile_conserved() {
+fn test_async_size_change_is_booked_as_new_binding() {
     let tracker = AsyncTracker::new();
     tracker
         .track_task_start(8, "t8".to_string(), std::thread::current().id())
@@ -420,8 +420,12 @@ fn test_async_in_place_size_change_keeps_profile_conserved() {
         "only the new size of the block is live"
     );
     assert_eq!(
-        grown.total_allocations, 1,
-        "an in-place change is not a new allocation"
+        grown.total_allocations, 2,
+        "an observation cannot prove identity continuity, so the block is a new binding"
+    );
+    assert_eq!(
+        grown.total_deallocated, 1024,
+        "the superseded block's bytes must be booked as released"
     );
     let profile = tracker.get_task_profile(8).expect("profile must exist");
     assert_eq!(
@@ -626,5 +630,66 @@ fn late_release_does_not_close_reused_async_address() {
         tracker.get_stats().active_memory,
         128,
         "the stale release must not change the live bytes"
+    );
+}
+
+/// Objective: Verify a different size at a known address starts a new generation instead
+/// of inheriting the old one, and that the superseded bytes are booked (plan A06
+/// follow-up).
+/// Invariants: the new record is generation 2, a late release of generation 1 does not
+/// close it, and `total_memory - total_deallocated == active_memory` after the final
+/// release.
+#[test]
+fn different_size_at_same_address_starts_new_generation() {
+    let tracker = AsyncTracker::new();
+    let thread_id = std::thread::current().id();
+    tracker
+        .track_task_start(1, "owner".to_string(), thread_id)
+        .expect("first task must start");
+    tracker
+        .track_task_start(2, "observer".to_string(), thread_id)
+        .expect("second task must start");
+
+    tracker.track_allocation(0xC000, 64, 1);
+    tracker.track_allocation(0xC000, 128, 2);
+
+    let snapshot = tracker.snapshot();
+    assert_eq!(snapshot.allocations.len(), 1, "one live record is expected");
+    assert_eq!(
+        snapshot.allocations[0].size, 128,
+        "the new size must survive"
+    );
+    assert_eq!(
+        snapshot.allocations[0].generation, 2,
+        "a different size must start a new generation"
+    );
+    assert_eq!(
+        snapshot.allocations[0].task_id, 2,
+        "the record belongs to the observing task"
+    );
+
+    // A release reported for the superseded generation must not close the new record.
+    tracker.track_deallocation_matching(0xC000, Some(64), Some(1));
+    assert_eq!(
+        tracker.snapshot().allocations.len(),
+        1,
+        "the stale release must be a no-op"
+    );
+
+    tracker.track_deallocation(0xC000);
+    let stats = tracker.get_stats();
+    assert_eq!(stats.active_memory, 0, "no live bytes may remain");
+    assert_eq!(
+        stats.total_memory, 192,
+        "both blocks were observed: 64 + 128"
+    );
+    assert_eq!(
+        stats.total_deallocated, 192,
+        "the superseded block and the released block must both be booked"
+    );
+    assert_eq!(
+        stats.total_memory as u64 - stats.total_deallocated,
+        stats.active_memory as u64,
+        "allocated minus deallocated must equal the live bytes"
     );
 }

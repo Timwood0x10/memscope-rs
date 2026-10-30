@@ -256,23 +256,34 @@ impl MemoryTracker {
     /// # Arguments
     /// * `old_ptr` - Address before the reallocation
     /// * `new_ptr` - Address returned by the allocator
-    /// * `old_size` - Size the caller asked to reallocate
+    /// * `old_size` - Size the caller asked to reallocate. Kept for API symmetry; the
+    ///   cache trusts the size it recorded, and an unobserved block books nothing.
     /// * `new_size` - Size of the resulting block
     pub fn track_reallocation(
         &self,
         old_ptr: usize,
         new_ptr: usize,
-        old_size: usize,
+        _old_size: usize,
         new_size: usize,
     ) -> TrackingResult<()> {
-        let mut allocation = match self.active_allocations.remove(&old_ptr) {
-            Some((_, existing)) => existing,
-            None => AllocationInfo::new(old_ptr, old_size),
+        let Some((_, mut allocation)) = self.active_allocations.remove(&old_ptr) else {
+            // The old block was never observed (capture started mid-flight, or the
+            // caller reallocated memory this tracker never saw allocated). Only the new
+            // block is a fact: record it and book no released bytes for the old one,
+            // otherwise `allocated - deallocated` would drop below the live set.
+            self.active_allocations
+                .insert(new_ptr, AllocationInfo::new(new_ptr, new_size));
+            self.total_allocations.fetch_add(1, Ordering::Relaxed);
+            self.total_allocated
+                .fetch_add(new_size as u64, Ordering::Relaxed);
+            self.update_peak_allocations();
+            self.update_peak_memory();
+            return Ok(());
         };
-        // The map entry is authoritative for the size; `old_size` is only a hint when
-        // the block was never observed.
-        let previous_size = allocation.size;
 
+        // A matched reallocation keeps one ledger row: the old size leaves the live
+        // set, the new size enters it, and the allocation count does not change.
+        let previous_size = allocation.size;
         allocation.ptr = new_ptr;
         allocation.size = new_size;
         self.active_allocations.insert(new_ptr, allocation);

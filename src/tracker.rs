@@ -44,6 +44,7 @@ use crate::render_engine::dashboard::renderer::rebuild_allocations_from_events;
 use crate::render_engine::export::{export_snapshot_to_json, ExportJsonOptions};
 use crate::snapshot::MemorySnapshot;
 
+use dashmap::DashMap;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -132,6 +133,13 @@ pub struct AllocationHotspot {
 pub struct Tracker {
     inner: Arc<MemoryTracker>,
     event_store: Arc<EventStore>,
+    /// Addresses for which *this* tracker already emitted an allocation event, with the
+    /// size recorded at that moment.
+    ///
+    /// The core cache can be populated by the allocator hook without any event
+    /// (`Tracker::global` shares the hook's tracker), so cache presence alone must not
+    /// be treated as "already reported".
+    recorded_bindings: Arc<DashMap<usize, usize>>,
     config: Arc<Mutex<TrackerConfig>>,
     start_time: Instant,
     system_snapshots: Arc<Mutex<Vec<SystemSnapshot>>>,
@@ -142,6 +150,7 @@ impl Clone for Tracker {
         Tracker {
             inner: self.inner.clone(),
             event_store: self.event_store.clone(),
+            recorded_bindings: self.recorded_bindings.clone(),
             config: self.config.clone(),
             start_time: Instant::now(), // Use current time for cloned tracker
             system_snapshots: self.system_snapshots.clone(),
@@ -161,6 +170,7 @@ impl Tracker {
         Self {
             inner: Arc::new(MemoryTracker::new()),
             event_store: Arc::new(EventStore::new()),
+            recorded_bindings: Arc::new(DashMap::new()),
             config: Arc::new(Mutex::new(TrackerConfig {
                 sampling: SamplingConfig::default(),
                 auto_export_on_drop: false,
@@ -203,9 +213,14 @@ impl Tracker {
             std::sync::OnceLock::new();
         static GLOBAL_SYSTEM_SNAPSHOTS: std::sync::OnceLock<Arc<Mutex<Vec<SystemSnapshot>>>> =
             std::sync::OnceLock::new();
+        static GLOBAL_RECORDED_BINDINGS: std::sync::OnceLock<Arc<DashMap<usize, usize>>> =
+            std::sync::OnceLock::new();
 
         Self {
             inner: get_tracker(),
+            recorded_bindings: GLOBAL_RECORDED_BINDINGS
+                .get_or_init(|| Arc::new(DashMap::new()))
+                .clone(),
             event_store: GLOBAL_EVENT_STORE
                 .get_or_init(|| Arc::new(EventStore::new()))
                 .clone(),
@@ -325,19 +340,25 @@ impl Tracker {
 
         match kind {
             crate::core::types::TrackKind::HeapOwner { ptr, size } => {
-                // Snapshot the current state *before* the cache is updated: a repeat
-                // sighting of a known address must not become a second allocation
-                // event, otherwise every projection would show the block twice.
+                // The core cache can already hold this address because the allocator
+                // hook registered the block *without* emitting an event
+                // (`Tracker::global` shares the hook's tracker). Cache presence alone
+                // therefore must not suppress the typed observation, or event-driven
+                // projections never see the block at all.
                 let previous_size = self.inner.get_allocation_size(ptr);
+                let already_recorded = self
+                    .recorded_bindings
+                    .get(&ptr)
+                    .is_some_and(|recorded| *recorded == size);
 
                 if let Err(e) = self.inner.track_allocation(ptr, size) {
                     tracing::error!("Failed to track allocation at ptr {:x}: {}", ptr, e);
                     return;
                 }
 
-                if previous_size == Some(size) {
-                    // Duplicate observation: refresh metadata only. No event, no task
-                    // memory, no allocation count.
+                if previous_size == Some(size) && already_recorded {
+                    // A genuine repeat: this tracker already emitted the event for this
+                    // address and size. Refresh metadata only.
                     if let Err(e) = self.inner.associate_var(
                         ptr,
                         name.to_string(),
@@ -355,17 +376,15 @@ impl Tracker {
                     return;
                 }
 
-                // Single accounting point for task-attributed memory: one record
-                // per accepted heap allocation, under the caller's task context.
-                // Constructing `MemoryEvent`/`AllocationInfo` must stay side-effect
-                // free so replays cannot double count.
+                // Either the first typed observation of a hook-registered block, or a new
+                // binding (fresh address / different size). Emit one allocation event and
+                // book task memory exactly once, then remember the address.
+                //
+                // A different size cannot be proven to be the same block, so it is a new
+                // binding for every projection; only the allocator may claim identity
+                // continuity (`Tracker::track_reallocation`).
                 crate::task_registry::global_registry().record_allocation(size);
 
-                // A different size at a known address may be an in-place reallocation or
-                // a *new* block on a reused address whose release was lost. A typed
-                // observation cannot tell them apart, so it emits a fresh allocation and
-                // the ledger gives the block its own binding. Only the allocator may
-                // claim identity continuity (`Tracker::track_reallocation`).
                 let mut event = MemoryEvent::allocate(ptr, size, thread_id_u64);
                 event.var_name = Some(name.to_string());
                 event.type_name = Some(type_name.clone());
@@ -373,6 +392,7 @@ impl Tracker {
                 event.source_line = Some(line);
                 event.module_path = Some(module_path.to_string());
                 self.event_store.record(event);
+                self.recorded_bindings.insert(ptr, size);
 
                 if let Err(e) = self.inner.associate_var(
                     ptr,
@@ -447,6 +467,7 @@ impl Tracker {
 
         // Only record event if deallocation was successful (ptr was tracked)
         if result {
+            self.recorded_bindings.remove(&ptr);
             let thread_id_u64 = crate::utils::current_thread_id_u64();
 
             let event = MemoryEvent::deallocate(ptr, size, thread_id_u64);
@@ -480,6 +501,9 @@ impl Tracker {
             );
             return;
         }
+
+        self.recorded_bindings.remove(&old_ptr);
+        self.recorded_bindings.insert(new_ptr, new_size);
 
         let thread_id_u64 = crate::utils::current_thread_id_u64();
         let event =
