@@ -1,0 +1,637 @@
+    // === Grid cell interactivity — ALL grids and bars get hover tooltips + click events ===
+    (function addGridInteractivity() {
+        // Heap lattice cells — hover shows size, click drills
+        const heapGrid = document.getElementById('heapGrid');
+        if (heapGrid) {
+            const allocs = DATA.allocations || [];
+            const sizes = allocs.map(a => a.size || 0).filter(s => s > 0);
+            heapGrid.querySelectorAll('div').forEach((cell, i) => {
+                const idx = i % Math.max(1, sizes.length);
+                const sz = sizes[idx] || 0;
+                cell.setAttribute('title', 'cell #' + i + ' · size ' + sz + 'B');
+                cell.style.cursor = 'pointer';
+                cell.addEventListener('click', function() {
+                    drillKpi('heap_cell', 'HEAP_CELL', 'cell #' + i + ' · size ' + sz + 'B');
+                });
+            });
+        }
+        // Affinity grid cells (JS-rendered) — hover shows core state, click drills
+        const affGrid = document.getElementById('affinityGrid');
+        if (affGrid) {
+            affGrid.querySelectorAll('div').forEach((cell, i) => {
+                const label = cell.textContent || '?';
+                const state = label === 'P' ? 'PROCESSING' : label === 'I' ? 'IO_WAIT' : 'Unknown';
+                cell.setAttribute('title', 'core #' + i + ' · ' + state);
+                cell.style.cursor = 'pointer';
+                cell.addEventListener('click', function() {
+                    drillKpi('affinity', 'CORE_' + i, 'core #' + i + ' · ' + state);
+                });
+            });
+        }
+        // Waker heatgrid cells — hover shows efficiency value
+        const wakerGrid = document.getElementById('wakerHeatgrid');
+        if (wakerGrid && (DATA.waker_efficiency_grid || []).length) {
+            const bins = DATA.waker_efficiency_grid || [];
+            wakerGrid.querySelectorAll('div').forEach((cell, i) => {
+                const val = bins[i] !== undefined ? bins[i].toFixed(3) : '0';
+                cell.setAttribute('title', 'waker bin #' + i + ' · efficiency ' + val);
+                cell.style.cursor = 'pointer';
+                cell.addEventListener('click', function() {
+                    drillKpi('waker', 'WAKER_BIN_' + i, 'efficiency ' + val);
+                });
+            });
+        }
+        // Histogram interactions are attached by renderNeighborHistogram.
+        // Thread affinity grid (Handlebars-rendered) — hover shows cell value, click drills
+        document.querySelectorAll('#mode-thread .grid.grid-cols-8.gap-1 .aspect-square').forEach((cell, i) => {
+            const val = cell.textContent || '?';
+            cell.setAttribute('title', 'affinity cell #' + i + ' · ' + val);
+            cell.style.cursor = 'pointer';
+            cell.classList.add('chart-interactive');
+            cell.addEventListener('click', function() {
+                drillKpi('aff_cell', 'AFFINITY_' + i, 'cell #' + i + ' · ' + val);
+            });
+        });
+        // Task duration SVG interactivity is attached by renderPollLatencyCurve().
+        // Ownership graph stat cards — hover + click
+        document.querySelectorAll('#mode-unsafe .grid.grid-cols-2 .text-center').forEach((card, i) => {
+            const labels = ['NODES', 'EDGES', 'CYCLES', 'RC_CLONES', 'ARC_CLONES'];
+            const val = card.querySelector('.font-headline-md');
+            card.style.cursor = 'pointer';
+            card.classList.add('chart-interactive');
+            card.setAttribute('title', (labels[i] || 'STAT') + ': ' + (val ? val.textContent : '?'));
+            card.addEventListener('click', function() {
+                drillKpi('own_stat', labels[i] || 'STAT', (labels[i] || 'STAT') + ': ' + (val ? val.textContent : '?'));
+            });
+        });
+        // Passport cards (Handlebars-rendered) — hover shows full lifecycle,
+        // click drills. Uses data-idx to look up the full passport record.
+        document.querySelectorAll('#passportCards .passport-card').forEach((card) => {
+            const idx = parseInt(card.getAttribute('data-idx') || '0', 10);
+            const p = (DATA.passport_details || [])[idx] || {};
+            card.style.cursor = 'pointer';
+            card.classList.add('chart-interactive');
+            const lifeEv = (p.lifecycle_events || []).map(e => e.event_type).join(', ') || '—';
+            const ffiEv = (p.cross_boundary_events || []).map(e => e.event_type).join(', ') || '—';
+            const factors = (p.risk_factors || []).join('; ') || '—';
+            card.addEventListener('mousemove', function(ev) {
+                showChartTooltip(ev, 'PASSPORT ' + (p.passport_id || '?'), [
+                    ['var', p.var_name || '—'],
+                    ['type', p.type_name || '—'],
+                    ['size', (p.size_bytes || 0) + 'B'],
+                    ['status', p.status || '—'],
+                    ['risk', p.risk_level || '—' + ' (' + (p.risk_confidence || 0) + ')'],
+                    ['ffi_tracked', p.ffi_tracked ? 'yes' : 'no'],
+                    ['is_active', p.is_active ? 'yes' : 'no'],
+                    ['is_leaked', p.is_leaked ? 'yes' : 'no'],
+                    ['lifecycle', lifeEv],
+                    ['ffi_crossings', ffiEv],
+                    ['ptr', p.allocation_ptr || '—'],
+                    ['src', p.source_location || '—'],
+                    ['risk_factors', factors]
+                ]);
+            });
+            card.addEventListener('mouseleave', hideChartTooltip);
+            card.addEventListener('click', function() {
+                drillKpi('passport_card', 'PASSPORT',
+                    (p.passport_id || '?') + ' · ' + (p.var_name || p.type_name || '?') +
+                    ' · ' + (p.risk_level || '?') + ' risk · ' + (p.size_bytes || 0) + 'B');
+            });
+        });
+        // Resource bars (Handlebars-rendered) — hover shows label + pct, click drills
+        const resBars = document.getElementById('ffiResourceBars');
+        if (resBars) {
+            const bars = DATA.resource_bars || [];
+            resBars.querySelectorAll('div').forEach(el => {
+                // Each resource is a wrapper div containing label row + track row
+                if (!el.querySelector || !el.querySelector('.bg-surface-container-highest')) return;
+            });
+            resBars.querySelectorAll('[style*="width:"]').forEach((bar, i) => {
+                const wrapper = bar.closest('div').parentElement;
+                const labelEl = wrapper ? wrapper.querySelector('span') : null;
+                const pctEl = wrapper ? wrapper.querySelectorAll('span')[1] : null;
+                const label = labelEl ? labelEl.textContent : 'resource ' + i;
+                const pct = pctEl ? pctEl.textContent : '?';
+                bar.style.cursor = 'pointer';
+                bar.classList.add('chart-interactive');
+                bar.addEventListener('mousemove', function(ev) {
+                    showChartTooltip(ev, 'RESOURCE', [['label', label], ['usage', pct]]);
+                });
+                bar.addEventListener('mouseleave', hideChartTooltip);
+                bar.addEventListener('click', function() {
+                    drillKpi('resource', 'RESOURCE', label + ' · ' + pct);
+                });
+            });
+        }
+        // Unsafe operations rows — hover shows full risk_factors + lifecycle,
+        // click drills into the unsafe report.
+        document.querySelectorAll('.unsafe-op-row').forEach((row) => {
+            const idx = parseInt(row.getAttribute('data-idx') || '0', 10);
+            const r = (DATA.unsafe_reports || [])[idx] || {};
+            row.classList.add('chart-interactive');
+            row.style.cursor = 'pointer';
+            const lifeEv = (r.lifecycle_events || []).map(e => e.event_type + ' @ ' + e.context).join('; ') || '—';
+            const ffiEv = (r.cross_boundary_events || []).map(e => e.event_type + ' ' + e.from_context + '→' + e.to_context).join('; ') || '—';
+            const factors = (r.risk_factors || []).join('; ') || '—';
+            row.addEventListener('mousemove', function(ev) {
+                showChartTooltip(ev, 'UNSAFE ' + (r.passport_id || '?'), [
+                    ['var', r.var_name || '—'],
+                    ['type', r.type_name || '—'],
+                    ['size', (r.size_bytes || 0) + 'B'],
+                    ['risk_level', r.risk_level || '—'],
+                    ['status', r.status || '—'],
+                    ['is_leaked', r.is_leaked ? 'yes' : 'no'],
+                    ['ptr', r.allocation_ptr || '—'],
+                    ['risk_factors', factors],
+                    ['lifecycle', lifeEv],
+                    ['ffi_crossings', ffiEv]
+                ]);
+            });
+            row.addEventListener('mouseleave', hideChartTooltip);
+            row.addEventListener('click', function() {
+                drillKpi('unsafe_op', 'UNSAFE',
+                    (r.var_name || r.type_name || '?') + ' · ' + (r.risk_level || '?') +
+                    ' · ' + (r.risk_factors || []).length + ' factors');
+            });
+        });
+        // FFI crossing rows — hover shows edge endpoints + label, click drills.
+        document.querySelectorAll('.ffi-crossing-row').forEach((row) => {
+            const idx = parseInt(row.getAttribute('data-idx') || '0', 10);
+            const edge = ((DATA.ffi_call_topology || {}).edges || [])[idx] || {};
+            row.classList.add('chart-interactive');
+            row.style.cursor = 'pointer';
+            row.addEventListener('mousemove', function(ev) {
+                showChartTooltip(ev, 'FFI_CROSSING', [
+                    ['from', edge.from_name || edge.from || '?'],
+                    ['to', edge.to_name || edge.to || '?'],
+                    ['label', edge.label || '—'],
+                    ['call_count', edge.call_count != null ? edge.call_count : '?'],
+                    ['direction', (edge.from_name || '') + ' → ' + (edge.to_name || '')]
+                ]);
+            });
+            row.addEventListener('mouseleave', hideChartTooltip);
+            row.addEventListener('click', function() {
+                drillKpi('ffi_crossing', 'FFI_EDGE',
+                    (edge.from_name || '?') + ' → ' + (edge.to_name || '?') + ' · ' + (edge.label || ''));
+            });
+        });
+        // Ownership graph stat cards — hover explains the metric, click drills.
+        document.querySelectorAll('.own-stat-card').forEach((card) => {
+            const stat = card.getAttribute('data-stat') || '?';
+            const val = card.querySelector('.font-headline-md');
+            const v = val ? val.textContent.trim() : '?';
+            const desc = {
+                nodes: 'Total nodes in the ownership graph (every tracked allocation)',
+                edges: 'Total ownership edges (clones, borrows, moves)',
+                cycles: 'Retain cycles detected — potential memory leaks',
+                rc_clones: 'Rc<T> clone operations tracked',
+                arc_clones: 'Arc<T> clone operations tracked'
+            }[stat] || 'ownership graph metric';
+            card.classList.add('chart-interactive');
+            card.style.cursor = 'pointer';
+            card.addEventListener('mousemove', function(ev) {
+                showChartTooltip(ev, 'OWNERSHIP_' + stat.toUpperCase(), [
+                    ['metric', stat], ['value', v], ['description', desc]
+                ]);
+            });
+            card.addEventListener('mouseleave', hideChartTooltip);
+            card.addEventListener('click', function() {
+                drillKpi('own_stat', 'OWNERSHIP', stat + ': ' + v + ' — ' + desc);
+            });
+        });
+        // Allocation stream rows — hover shows full allocation detail, click drills.
+        document.querySelectorAll('.alloc-row').forEach((row) => {
+            const idx = parseInt(row.getAttribute('data-idx') || '0', 10);
+            const a = (DATA.allocations || [])[idx] || {};
+            row.classList.add('chart-interactive');
+            row.style.cursor = 'pointer';
+            row.addEventListener('mousemove', function(ev) {
+                showChartTooltip(ev, 'ALLOCATION ' + (a.address || '?'), [
+                    ['address', a.address || '—'],
+                    ['type', a.type_name || '—'],
+                    ['var', a.var_name || '—'],
+                    ['size', a.size != null ? a.size : '?'],
+                    ['thread_id', a.thread_id != null ? a.thread_id : '?'],
+                    ['source', (a.source_file || '—') + ':' + (a.source_line != null ? a.source_line : '?')],
+                    ['module', a.module_path || '—'],
+                    ['allocation_type', a.allocation_type || '—'],
+                    ['is_leaked', a.is_leaked ? 'YES ⚠' : 'no'],
+                    ['is_clone', a.is_clone ? 'yes' : 'no'],
+                    ['clone_count', a.clone_count != null ? a.clone_count : '?'],
+                    ['is_smart_pointer', a.is_smart_pointer ? 'yes' : 'no'],
+                    ['smart_pointer_type', a.smart_pointer_type || '—'],
+                    ['immutable_borrows', a.immutable_borrows != null ? a.immutable_borrows : '?'],
+                    ['mutable_borrows', a.mutable_borrows != null ? a.mutable_borrows : '?'],
+                    ['lifetime_ms', a.lifetime_ms != null ? a.lifetime_ms : '?']
+                ]);
+            });
+            row.addEventListener('mouseleave', hideChartTooltip);
+            row.addEventListener('click', function() {
+                drillKpi('alloc_row', 'ALLOCATION',
+                    (a.address || '?') + ' · ' + (a.type_name || '?') +
+                    ' · ' + (a.size != null ? a.size : '?') + 'B' +
+                    ' · ' + (a.allocation_type || '?') +
+                    (a.is_leaked ? ' · LEAKED ⚠' : ''));
+            });
+        });
+        // Thread detail rows — hover shows full thread metrics, click drills.
+        document.querySelectorAll('.thread-row').forEach((row) => {
+            const idx = parseInt(row.getAttribute('data-idx') || '0', 10);
+            const t = (DATA.threads || [])[idx] || {};
+            row.classList.add('chart-interactive');
+            row.style.cursor = 'pointer';
+            row.addEventListener('mousemove', function(ev) {
+                showChartTooltip(ev, 'THREAD ' + (t.thread_id || '?'), [
+                    ['id', t.thread_id || '—'],
+                    ['summary', t.thread_summary || '—'],
+                    ['allocations', t.allocation_count != null ? t.allocation_count : '?'],
+                    ['current_mem', t.current_memory || '—'],
+                    ['peak_mem', t.peak_memory || '—'],
+                    ['total_allocated', t.total_allocated || '—'],
+                    ['current_bytes', t.current_memory_bytes != null ? t.current_memory_bytes : '?'],
+                    ['peak_bytes', t.peak_memory_bytes != null ? t.peak_memory_bytes : '?'],
+                    ['total_bytes', t.total_allocated_bytes != null ? t.total_allocated_bytes : '?'],
+                    ['is_active', t.is_active ? 'yes' : 'no'],
+                    ['status', t.status || '—']
+                ]);
+            });
+            row.addEventListener('mouseleave', hideChartTooltip);
+            row.addEventListener('click', function() {
+                drillKpi('thread_row', 'THREAD',
+                    (t.thread_id || '?') + ' · ' + (t.thread_summary || '?') +
+                    ' · ' + (t.allocation_count != null ? t.allocation_count : '?') + ' allocs' +
+                    ' · ' + (t.status || '?'));
+            });
+        });
+        // Thread affinity cells — hover shows core state, click drills.
+        document.querySelectorAll('.affinity-cell').forEach((cell) => {
+            const idx = parseInt(cell.getAttribute('data-idx') || '0', 10);
+            const state = cell.getAttribute('data-state') || '?';
+            const stateLabel = 'Unknown — affinity and occupancy are not instrumented';
+            cell.classList.add('chart-interactive');
+            cell.style.cursor = 'pointer';
+            cell.addEventListener('mousemove', function(ev) {
+                showChartTooltip(ev, 'AFFINITY_CELL', [
+                    ['cell', '#' + idx],
+                    ['core', 'core ' + idx],
+                    ['row', 'row ' + Math.floor(idx / 8)],
+                    ['state', state],
+                    ['meaning', stateLabel]
+                ]);
+            });
+            cell.addEventListener('mouseleave', hideChartTooltip);
+            cell.addEventListener('click', function() {
+                drillKpi('affinity_cell', 'AFFINITY', 'cell #' + idx + ' · ' + stateLabel);
+            });
+        });
+        // Thread policy items — hover shows policy details, click drills.
+        document.querySelectorAll('.thread-policy-item').forEach((li) => {
+            const idx = parseInt(li.getAttribute('data-idx') || '0', 10);
+            const p = (DATA.thread_policies || [])[idx] || {};
+            li.classList.add('chart-interactive');
+            li.style.cursor = 'pointer';
+            li.addEventListener('mousemove', function(ev) {
+                showChartTooltip(ev, 'THREAD_POLICY', [
+                    ['name', p.name || '—'],
+                    ['enabled', p.enabled == null ? 'Unknown' : (p.enabled ? 'YES' : 'no')],
+                    ['status', p.enabled == null ? 'Not instrumented' : 'Observed']
+                ]);
+            });
+            li.addEventListener('mouseleave', hideChartTooltip);
+            li.addEventListener('click', function() {
+                drillKpi('thread_policy', 'POLICY', (p.name || '?') + ' · ' + (p.enabled == null ? 'Unknown (not instrumented)' : (p.enabled ? 'ON' : 'OFF')));
+            });
+        });
+        // Async task rows — hover shows full task details, click drills.
+        document.querySelectorAll('.async-task-row').forEach((row) => {
+            const idx = parseInt(row.getAttribute('data-idx') || '0', 10);
+            const t = (DATA.async_tasks || [])[idx] || {};
+            row.classList.add('chart-interactive');
+            row.style.cursor = 'pointer';
+            row.addEventListener('mousemove', function(ev) {
+                showChartTooltip(ev, 'ASYNC_TASK ' + (t.task_name || '?'), [
+                    ['id', t.task_id != null ? t.task_id : '?'],
+                    ['name', t.task_name || '—'],
+                    ['type', t.task_type || '—'],
+                    ['duration', (t.duration_ms != null ? t.duration_ms : '?') + 'ms'],
+                    ['allocations', t.total_allocations != null ? t.total_allocations : '?'],
+                    ['current_mem', (t.current_memory != null ? t.current_memory : '?') + 'B'],
+                    ['peak_mem', (t.peak_memory != null ? t.peak_memory : '?') + 'B'],
+                    ['total_bytes', (t.total_bytes != null ? t.total_bytes : '?') + 'B'],
+                    ['efficiency', t.efficiency_score != null ? t.efficiency_score : '?'],
+                    ['is_completed', t.is_completed ? 'yes' : 'no'],
+                    ['has_potential_leak', t.has_potential_leak ? 'YES ⚠' : 'no'],
+                    ['status', t.status || '—']
+                ]);
+            });
+            row.addEventListener('mouseleave', hideChartTooltip);
+            row.addEventListener('click', function() {
+                drillKpi('async_task', 'ASYNC_TASK',
+                    (t.task_name || '?') + ' · ' + (t.task_type || '?') +
+                    ' · ' + (t.duration_ms != null ? t.duration_ms : '?') + 'ms' +
+                    ' · ' + (t.status || '?') +
+                    (t.has_potential_leak ? ' · LEAK ⚠' : ''));
+            });
+        });
+        // Async summary stat cards — hover explains, click drills.
+        document.querySelectorAll('.async-stat').forEach((card) => {
+            const stat = card.getAttribute('data-stat') || '?';
+            const val = card.querySelector('.text-lg');
+            const v = val ? val.textContent.trim() : '?';
+            const desc = {
+                total_allocations: 'Total allocations across all async tasks',
+                total_memory: 'Total memory currently held by async tasks',
+                peak_memory: 'Peak memory usage during async execution',
+                active: 'Tasks without a recorded completion; poll activity is unknown',
+                completed: 'Tasks with a recorded completion; success is not instrumented',
+                leaked: 'Tasks that leaked memory (potential runtime bug)'
+            }[stat] || 'async runtime metric';
+            card.classList.add('chart-interactive');
+            card.style.cursor = 'pointer';
+            card.addEventListener('mousemove', function(ev) {
+                showChartTooltip(ev, 'ASYNC_' + stat.toUpperCase(), [
+                    ['metric', stat], ['value', v], ['description', desc]
+                ]);
+            });
+            card.addEventListener('mouseleave', hideChartTooltip);
+            card.addEventListener('click', function() {
+                drillKpi('async_stat', 'ASYNC', stat + ': ' + v + ' — ' + desc);
+            });
+        });
+        // Auto Diagnosis lists — hover shows full details for each list item,
+        // click drills. Works for top_allocation_sites, top_leaked_allocations,
+        // top_temporary_churn, and circular_references summary rows.
+        (function bindAutoDiagnosis() {
+            const lists = [
+                { sel: '#diagnosisContent ul:nth-of-type(1) li', key: 'top_allocation_sites', label: 'TOP_SITE', fields: ['name', 'allocation_count', 'total_bytes'] },
+                { sel: '#diagnosisContent ul:nth-of-type(2) li', key: 'top_leaked_allocations', label: 'TOP_LEAK', fields: ['type_name', 'size', 'address', 'timestamp_alloc'] },
+                { sel: '#diagnosisContent ul:nth-of-type(3) li', key: 'top_temporary_churn', label: 'TOP_CHURN', fields: ['name', 'allocation_count'] }
+            ];
+            lists.forEach(L => {
+                const items = (DATA[L.key] || []);
+                document.querySelectorAll(L.sel).forEach((li, i) => {
+                    const d = items[i] || {};
+                    if (!d || (d.name === undefined && d.type_name === undefined)) return;
+                    li.classList.add('chart-interactive');
+                    li.style.cursor = 'pointer';
+                    li.addEventListener('mousemove', function(ev) {
+                        const rows = L.fields.map(f => [f, d[f] != null ? d[f] : '—']);
+                        showChartTooltip(ev, L.label, rows);
+                    });
+                    li.addEventListener('mouseleave', hideChartTooltip);
+                    li.addEventListener('click', function() {
+                        const summary = L.fields.map(f => f + '=' + (d[f] != null ? d[f] : '?')).join(' · ');
+                        drillKpi(L.key, L.label, summary);
+                    });
+                });
+            });
+        })();
+        // Symbol table rows — hover shows full symbol detail, click drills.
+        // Uses .symbol-row class + data-idx to look up the full record.
+        document.querySelectorAll('.symbol-row').forEach((row) => {
+            const idx = parseInt(row.getAttribute('data-idx') || '0', 10);
+            const s = (DATA.symbol_table || [])[idx] || {};
+            row.classList.add('chart-interactive');
+            row.style.cursor = 'pointer';
+            row.addEventListener('mousemove', function(ev) {
+                showChartTooltip(ev, 'SYMBOL ' + (s.hex_addr || '?'), [
+                    ['hex_addr', s.hex_addr || '—'],
+                    ['symbol_name', s.symbol_name || '—'],
+                    ['status', s.status || '—'],
+                    ['call_count', s.call_count ?? 'Unknown (not instrumented)'],
+                    ['time_avg_us', s.time_avg_us == null ? 'Unknown (not instrumented)' : s.time_avg_us + 'µs'],
+                    ['is_hot', s.is_hot == null ? 'Unknown (not instrumented)' : s.is_hot ? 'YES 🔥' : 'no']
+                ]);
+            });
+            row.addEventListener('mouseleave', hideChartTooltip);
+            row.addEventListener('click', function() {
+                drillKpi('symbol', 'SYMBOL',
+                    (s.symbol_name || s.hex_addr || '?') + ' · ' + (s.status || '?') +
+                    ' · ' + (s.call_count ?? 'Unknown') + ' calls' +
+                    (s.is_hot ? ' · HOT 🔥' : ''));
+            });
+        });
+        // Variable relationships table rows — hover shows from/to/type, click drills
+        document.querySelectorAll('#mode-variable table tbody tr').forEach((row, i) => {
+            const cells = row.querySelectorAll('td');
+            if (cells.length < 2) return;
+            const txt = Array.from(cells).map(c => c.textContent.trim()).join(' · ');
+            row.classList.add('chart-interactive');
+            row.style.cursor = 'pointer';
+            row.addEventListener('mousemove', function(ev) {
+                const rels = DATA.relationships || [];
+                const r = rels[i] || {};
+                showChartTooltip(ev, 'RELATIONSHIP_ROW', [
+                    ['from', r.source_var_name || '?'], ['to', r.target_var_name || '?'],
+                    ['type', r.relationship_type || '?'], ['strength', r.strength != null ? r.strength.toFixed(2) : '?'],
+                    ['type_name', r.type_name || '—'], ['cycle', r.is_part_of_cycle ? 'yes' : 'no']
+                ]);
+            });
+            row.addEventListener('mouseleave', hideChartTooltip);
+            row.addEventListener('click', function() {
+                drillKpi('rel_row', 'RELATIONSHIP', txt);
+            });
+        });
+
+        // ============================================================
+        // Panel-specific interactivity — fills the remaining gaps left
+        // by the IIFEs above. Each block binds hover tooltip + click drill
+        // to a previously-static element so EVERY chart/table in the
+        // dashboard responds to mouse interaction.
+        // ============================================================
+
+        // Task topology nodes table (fallback) — hover shows full node detail.
+        document.querySelectorAll('.topo-node-row').forEach((row) => {
+            const idx = parseInt(row.getAttribute('data-idx') || '0', 10);
+            const n = (DATA.task_topology_nodes || [])[idx] || {};
+            row.classList.add('chart-interactive');
+            row.style.cursor = 'pointer';
+            row.addEventListener('mousemove', function(ev) {
+                showChartTooltip(ev, 'TASK_NODE', [
+                    ['task_id', n.task_id != null ? n.task_id : '?'],
+                    ['name', n.name || '—'],
+                    ['parent_id', n.parent_id != null ? n.parent_id : 'root'],
+                    ['status', n.status || '—'],
+                    ['duration', (n.duration_ms != null ? n.duration_ms : '?') + 'ms'],
+                    ['position', (n.x_pct != null ? n.x_pct : '?') + '%, ' + (n.y_pct != null ? n.y_pct : '?') + '%']
+                ]);
+            });
+            row.addEventListener('mouseleave', hideChartTooltip);
+            row.addEventListener('click', function() {
+                drillKpi('topo_node_row', 'TASK_NODE',
+                    (n.name || '?') + ' [' + (n.task_id || '?') + '] · ' + (n.status || '?') +
+                    ' · ' + (n.duration_ms != null ? n.duration_ms : '?') + 'ms');
+            });
+        });
+
+        // Task topology edges table (fallback) — hover shows edge endpoints.
+        document.querySelectorAll('.topo-edge-row').forEach((row) => {
+            const idx = parseInt(row.getAttribute('data-idx') || '0', 10);
+            const e = (DATA.task_topology_edges || [])[idx] || {};
+            row.classList.add('chart-interactive');
+            row.style.cursor = 'pointer';
+            row.addEventListener('mousemove', function(ev) {
+                showChartTooltip(ev, 'TASK_EDGE', [
+                    ['source', e.source || '?'],
+                    ['target', e.target || '?'],
+                    ['active', e.is_active == null ? 'Unknown (not instrumented)' : (e.is_active ? 'yes' : 'no')],
+                    ['direction', (e.source || '?') + ' → ' + (e.target || '?')]
+                ]);
+            });
+            row.addEventListener('mouseleave', hideChartTooltip);
+            row.addEventListener('click', function() {
+                drillKpi('topo_edge_row', 'TASK_EDGE',
+                    (e.source || '?') + ' → ' + (e.target || '?') + ' · registered parent-child relationship');
+            });
+        });
+
+        // Dependency graph peripheral nodes — hover shows node role + status.
+        document.querySelectorAll('.dep-graph-node').forEach((node) => {
+            const idx = parseInt(node.getAttribute('data-idx') || '0', 10);
+            const d = (DATA.dependency_graph_nodes || [])[idx] || {};
+            node.classList.add('chart-interactive');
+            node.style.cursor = 'pointer';
+            node.addEventListener('mousemove', function(ev) {
+                showChartTooltip(ev, 'DEP_NODE', [
+                    ['name', d.name || '—'],
+                    ['id', d.id || '—'],
+                    ['position', d.position || '—'],
+                    ['status', d.status || '—'],
+                    ['opacity', d.opacity != null ? d.opacity : '?']
+                ]);
+            });
+            node.addEventListener('mouseleave', hideChartTooltip);
+            node.addEventListener('click', function() {
+                drillKpi('dep_node', 'DEP_NODE',
+                    (d.name || '?') + ' · ' + (d.position || '?') + (d.status ? ' · ' + d.status : ''));
+            });
+        });
+
+        // Streaming topology stats — hover explains each metric, click drills.
+        (function bindStreamingTopology() {
+            const panel = document.querySelector('#mode-taskgraph .space-y-2.font-data-mono');
+            if (!panel) return;
+            const stats = DATA.streaming_topology_stats || {};
+            const rows = panel.querySelectorAll('.flex.justify-between');
+            const labels = ['GRAPH_NODES', 'GRAPH_EDGES', 'SAMPLING_RATE', 'WAKER_LOCKS'];
+            const values = [
+                (DATA.task_topology_nodes || []).length,
+                (DATA.task_topology_edges || []).length,
+                (stats.sampling_rate_ms != null ? stats.sampling_rate_ms : '?') + 'ms',
+                stats.waker_locks_status || '—'
+            ];
+            const descs = [
+                'Total nodes in the async task topology graph',
+                'Total edges (parent→child relationships) in the topology',
+                'Streaming sample interval used when capturing topology snapshots',
+                'Current waker lock state — NONE means no tasks are holding wakers'
+            ];
+            rows.forEach((row, i) => {
+                if (i >= labels.length) return;
+                row.classList.add('chart-interactive');
+                row.style.cursor = 'pointer';
+                row.addEventListener('mousemove', function(ev) {
+                    showChartTooltip(ev, 'STREAMING_TOPO', [
+                        ['metric', labels[i]],
+                        ['value', values[i]],
+                        ['description', descs[i]]
+                    ]);
+                });
+                row.addEventListener('mouseleave', hideChartTooltip);
+                row.addEventListener('click', function() {
+                    drillKpi('streaming_topo', 'STREAMING_TOPO', labels[i] + ': ' + values[i] + ' — ' + descs[i]);
+                });
+            });
+        })();
+
+        // Stack integrity metrics — hover explains each metric, click drills.
+        (function bindStackIntegrity() {
+            const si = DATA.stack_integrity || {};
+            const metrics = [
+                { key: 'pointers_checked_pct', label: 'POINTERS_CHECKED', desc: 'Percentage of FFI pointers validated against their expected layout' },
+                { key: 'memory_violations', label: 'MEMORY_VIOLATIONS', desc: 'Detected writes to deallocated or out-of-bounds memory regions' },
+                { key: 'unwinding_strategy', label: 'UNWINDING_STRATEGY', desc: 'Panic strategy used when a violation is detected' }
+            ];
+            // The Stack Integrity card is the first .flex.flex-col.justify-between
+            // container inside #mode-ffi with a STACK_INTEGRITY heading.
+            const cards = document.querySelectorAll('#mode-ffi .flex.flex-col.justify-between');
+            let target = null;
+            cards.forEach(c => {
+                const h = c.querySelector('h2');
+                if (h && h.textContent.indexOf('STACK_INTEGRITY') !== -1) target = c;
+            });
+            if (!target) return;
+            const rows = target.querySelectorAll('.flex.justify-between');
+            rows.forEach((row, i) => {
+                if (i >= metrics.length) return;
+                const m = metrics[i];
+                const val = si[m.key];
+                row.classList.add('chart-interactive');
+                row.style.cursor = 'pointer';
+                row.addEventListener('mousemove', function(ev) {
+                    showChartTooltip(ev, 'STACK_INTEGRITY', [
+                        ['metric', m.label],
+                        ['value', val != null ? val : '?'],
+                        ['description', m.desc]
+                    ]);
+                });
+                row.addEventListener('mouseleave', hideChartTooltip);
+                row.addEventListener('click', function() {
+                    drillKpi('stack_integrity', 'STACK_INTEGRITY', m.label + ': ' + (val != null ? val : '?') + ' — ' + m.desc);
+                });
+            });
+        })();
+
+        // Circular references summary rows — hover shows the metric, click drills.
+        (function bindCircularRefs() {
+            const cr = DATA.circular_references || {};
+            const metrics = [
+                { key: 'count', label: 'CYCLES', desc: 'Number of retain cycles detected in the ownership graph' },
+                { key: 'pointers_in_cycles', label: 'POINTERS_IN_CYCLES', desc: 'Smart pointers participating in cycles vs total tracked' },
+                { key: 'total_leaked_memory', label: 'EST_LEAKED', desc: 'Estimated bytes leaked due to circular references' }
+            ];
+            // Locate the 4th list inside #diagnosisContent (CIRCULAR_REFERENCES section).
+            const diag = document.getElementById('diagnosisContent');
+            if (!diag) return;
+            const lists = diag.querySelectorAll('ul.space-y-1');
+            const circList = lists[lists.length - 1]; // last list is circular refs
+            if (!circList) return;
+            const items = circList.querySelectorAll('li');
+            items.forEach((li, i) => {
+                if (i >= metrics.length) return;
+                const m = metrics[i];
+                let val = cr[m.key];
+                if (m.key === 'pointers_in_cycles') {
+                    val = (cr.pointers_in_cycles != null ? cr.pointers_in_cycles : '?') + ' / ' + (cr.total_smart_pointers != null ? cr.total_smart_pointers : '?');
+                }
+                li.classList.add('chart-interactive');
+                li.style.cursor = 'pointer';
+                li.addEventListener('mousemove', function(ev) {
+                    showChartTooltip(ev, 'CIRCULAR_REF', [
+                        ['metric', m.label],
+                        ['value', val != null ? val : '?'],
+                        ['has_cycles', cr.has_cycles ? 'YES' : 'no'],
+                        ['description', m.desc]
+                    ]);
+                });
+                li.addEventListener('mouseleave', hideChartTooltip);
+                li.addEventListener('click', function() {
+                    drillKpi('circular_ref', 'CIRCULAR_REF', m.label + ': ' + (val != null ? val : '?') + ' — ' + m.desc);
+                });
+            });
+        })();
+
+        // Ownership graph issues list items — hover shows the issue text.
+        document.querySelectorAll('#mode-unsafe .text-on-surface-variant.flex.gap-2').forEach((li, i) => {
+            const txt = li.textContent.trim();
+            li.classList.add('chart-interactive');
+            li.style.cursor = 'pointer';
+            li.addEventListener('mousemove', function(ev) {
+                showChartTooltip(ev, 'OWNERSHIP_ISSUE', [['#', i], ['issue', txt]]);
+            });
+            li.addEventListener('mouseleave', hideChartTooltip);
+            li.addEventListener('click', function() {
+                drillKpi('own_issue', 'OWNERSHIP_ISSUE', 'issue #' + i + ' · ' + txt);
+            });
+        });
+    })();

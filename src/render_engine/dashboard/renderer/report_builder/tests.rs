@@ -44,6 +44,8 @@ fn test_calculate_health_info_with_leaks() {
 fn test_calculate_health_info_with_unsafe() {
     let safe_report = UnsafeReport {
         passport_id: "1".to_string(),
+        generation: 1,
+        superseded: false,
         allocation_ptr: "0x1000".to_string(),
         var_name: "var".to_string(),
         type_name: "i32".to_string(),
@@ -60,6 +62,8 @@ fn test_calculate_health_info_with_unsafe() {
     };
     let high_risk_report = UnsafeReport {
         passport_id: "2".to_string(),
+        generation: 1,
+        superseded: false,
         allocation_ptr: "0x2000".to_string(),
         var_name: "var2".to_string(),
         type_name: "i32".to_string(),
@@ -84,6 +88,8 @@ fn test_calculate_health_info_with_unsafe() {
 fn test_calculate_health_info_with_passports() {
     let leaked_passport = PassportDetail {
         passport_id: "1".to_string(),
+        generation: 1,
+        superseded: false,
         allocation_ptr: "0x1000".to_string(),
         var_name: "var".to_string(),
         type_name: "i32".to_string(),
@@ -102,6 +108,8 @@ fn test_calculate_health_info_with_passports() {
     };
     let clean_passport = PassportDetail {
         passport_id: "2".to_string(),
+        generation: 1,
+        superseded: false,
         allocation_ptr: "0x2000".to_string(),
         var_name: "var2".to_string(),
         type_name: "i32".to_string(),

@@ -47,6 +47,23 @@ pub fn register_helpers(handlebars: &mut Handlebars<'static>) {
     handlebars.register_helper("risk_class", Box::new(risk_class_helper));
     handlebars.register_helper("risk_label", Box::new(risk_label_helper));
     handlebars.register_helper("len", Box::new(len_helper));
+    handlebars.register_helper("observed", Box::new(observed_helper));
+}
+
+/// Render absent measurements distinctly from observed zero and false.
+fn observed_helper(
+    h: &Helper,
+    _: &Handlebars,
+    _: &Context,
+    _: &mut RenderContext,
+    out: &mut dyn Output,
+) -> HelperResult {
+    match h.param(0).map(|param| param.value()) {
+        Some(serde_json::Value::Number(value)) => out.write(&value.to_string())?,
+        Some(serde_json::Value::Bool(value)) => out.write(if *value { "ON" } else { "OFF" })?,
+        _ => out.write("Unknown")?,
+    }
+    Ok(())
 }
 
 /// Handlebars helper: format bytes to human-readable string.

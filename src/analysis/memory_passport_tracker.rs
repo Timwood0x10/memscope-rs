@@ -310,12 +310,6 @@ impl MemoryPassportTracker {
         // not silently erase it: the old record is archived (and counted) so its evidence
         // survives, and the new record carries the next generation for that address.
         let mut passport = passport;
-        if let Ok(mut generations) = self.generations.lock() {
-            let counter = generations.entry(allocation_ptr).or_insert(0);
-            *counter = counter.saturating_add(1);
-            passport.generation = *counter;
-        }
-
         if let Ok(mut passports) = self.passports.lock() {
             // The archive is part of the budget: address reuse must not let the tracker grow
             // without bound. Reclaim the oldest archived record first, and only fail when
@@ -338,6 +332,13 @@ impl MemoryPassportTracker {
                     ));
                 }
             }
+            // Assign the generation inside the same critical section as publication;
+            // concurrent creators must not publish an older generation after a newer one.
+            let mut generations = self.generations.lock().unwrap_or_else(|e| e.into_inner());
+            let counter = generations.entry(allocation_ptr).or_insert(0);
+            *counter = counter.saturating_add(1);
+            passport.generation = *counter;
+            drop(generations);
             if let Some(previous) = passports.insert(allocation_ptr, passport) {
                 let mut archived = previous;
                 archived.superseded = true;
@@ -521,6 +522,11 @@ impl MemoryPassportTracker {
 
     /// Detect InForeignCustody status and memory leaks at program shutdown
     pub fn detect_leaks_at_shutdown(&self) -> LeakDetectionResult {
+        self.detect_leaks_in(&self.snapshot_passports())
+    }
+
+    /// Assess a frozen set so counters and details use the same capture cut.
+    pub(crate) fn detect_leaks_in(&self, records: &[MemoryPassport]) -> LeakDetectionResult {
         if !self.config.enable_leak_detection {
             return LeakDetectionResult {
                 leaked_passports: Vec::new(),
@@ -540,32 +546,8 @@ impl MemoryPassportTracker {
             .unwrap_or_default()
             .as_secs();
 
-        // Evidence projection: archived passports (their address was reused) still hold
-        // the handover record of the older block, so they must take part in detection and
-        // in the exports instead of disappearing with the address.
-        let mut records: Vec<(usize, MemoryPassport)> = Vec::new();
-        if let Ok(passports) = self.passports.lock() {
-            records.extend(
-                passports
-                    .iter()
-                    .map(|(ptr, passport)| (*ptr, passport.clone())),
-            );
-        } else {
-            return LeakDetectionResult {
-                leaked_passports: Vec::new(),
-                total_leaks: 0,
-                leak_details: Vec::new(),
-                detected_at: current_time,
-            };
-        }
-        records.extend(
-            self.get_archived_passports()
-                .into_iter()
-                .map(|passport| (passport.allocation_ptr, passport)),
-        );
-
-        for (ptr, passport) in records.iter() {
-            let ptr = *ptr;
+        for passport in records {
+            let ptr = passport.allocation_ptr;
             // Read-only projection: detection must not rewrite the stored passports or the
             // counters, otherwise exporting twice produces different numbers and a live
             // object acquires a "shutdown" verdict mid-run (plan §7.3 item 4).
@@ -606,7 +588,7 @@ impl MemoryPassportTracker {
         tracing::debug!(
             "Leak detection complete: {} leaks detected out of {} passports",
             total_leaks,
-            self.get_passport_count()
+            records.len()
         );
 
         LeakDetectionResult {
@@ -636,6 +618,27 @@ impl MemoryPassportTracker {
             .clone()
     }
 
+    /// Freeze current and archived generations together in deterministic order.
+    ///
+    /// Creation moves records while holding the current-table lock. Holding that same
+    /// lock through the archive read prevents a reused address appearing twice or being
+    /// omitted between two independent reads.
+    pub fn snapshot_passports(&self) -> Vec<MemoryPassport> {
+        let current = self.passports.lock().unwrap_or_else(|e| e.into_inner());
+        let archived = self.superseded.lock().unwrap_or_else(|e| e.into_inner());
+        let mut records: Vec<_> = current.values().chain(archived.iter()).cloned().collect();
+        drop(archived);
+        drop(current);
+        records.sort_by(|a, b| {
+            (a.allocation_ptr, a.generation, &a.passport_id).cmp(&(
+                b.allocation_ptr,
+                b.generation,
+                &b.passport_id,
+            ))
+        });
+        records
+    }
+
     /// Passports archived because a newer block reused their address while they were live.
     ///
     /// Keeping them preserves the evidence of the older block (for example "handed to
@@ -648,17 +651,12 @@ impl MemoryPassportTracker {
             .unwrap_or_default()
     }
 
-    /// Get passports whose *current* projection matches `status`.
+    /// Get retained passports (including archived generations) whose projection matches.
     pub fn get_passports_by_status(&self, status: PassportStatus) -> Vec<MemoryPassport> {
-        if let Ok(passports) = self.passports.lock() {
-            passports
-                .values()
-                .filter(|passport| self.assess_status(passport) == status)
-                .cloned()
-                .collect()
-        } else {
-            Vec::new()
-        }
+        self.snapshot_passports()
+            .into_iter()
+            .filter(|passport| self.assess_status(passport) == status)
+            .collect()
     }
 
     /// Get tracker statistics
@@ -675,13 +673,17 @@ impl MemoryPassportTracker {
         // Leak and per-status counters are projections of the current state: detection no
         // longer caches them, so a reader must not see "1 leak in the JSON, 0 in the stats"
         // (plan A15-2 follow-up).
-        let passports = self.get_all_passports();
+        let passports = self.snapshot_passports();
         stats.leaks_detected = passports
-            .values()
-            .filter(|passport| self.assess_status(passport) == PassportStatus::InForeignCustody)
+            .iter()
+            .filter(|passport| {
+                self.config.enable_leak_detection
+                    && self.assess_status(passport) == PassportStatus::InForeignCustody
+            })
             .count();
+        stats.active_passports = passports.iter().filter(|p| !p.superseded).count();
         stats.passports_by_status.clear();
-        for passport in passports.values() {
+        for passport in &passports {
             let key = format!("{:?}", self.assess_status(passport));
             *stats.passports_by_status.entry(key).or_insert(0) += 1;
         }
