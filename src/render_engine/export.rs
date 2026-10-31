@@ -172,6 +172,20 @@ pub fn export_snapshot_to_json(
     output_path: &Path,
     options: &ExportJsonOptions,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    export_snapshot_with_containers(snapshot, &[], output_path, options)
+}
+
+/// Export a snapshot plus the container/stack metadata observed in the same capture.
+///
+/// Containers carry no heap bytes and are therefore not part of the counters; they are
+/// written to their own array so their metadata survives without inflating the live
+/// numbers (plan A04 follow-up).
+pub fn export_snapshot_with_containers(
+    snapshot: &MemorySnapshot,
+    containers: &[crate::capture::types::AllocationInfo],
+    output_path: &Path,
+    options: &ExportJsonOptions,
+) -> Result<(), Box<dyn std::error::Error>> {
     // Create parent directory if it doesn't exist
     if let Some(parent) = output_path.parent() {
         if !parent.as_os_str().is_empty() {
@@ -179,8 +193,23 @@ pub fn export_snapshot_to_json(
         }
     }
 
-    let allocations: Vec<&ActiveAllocation> = snapshot.active_allocations.values().collect();
-    let processed = process_allocations(&allocations, options)?;
+    // Every live identity, not just the newest binding per address: an overlapping
+    // generation (a missed release) must appear in the file it is counted in.
+    let allocations: Vec<&ActiveAllocation> = snapshot.allocations().collect();
+    let mut processed = process_allocations(&allocations, options)?;
+
+    // `process_allocations` preserves order, so the identity of each row can be taken
+    // from the snapshot's binding list when it carries one.
+    if let Some(bindings) = snapshot
+        .active_bindings
+        .as_ref()
+        .filter(|bindings| bindings.len() == processed.len())
+    {
+        for (entry, binding) in processed.iter_mut().zip(bindings.iter()) {
+            entry["generation_id"] = serde_json::json!(binding.generation_id);
+            entry["binding_serial"] = serde_json::json!(binding.binding_serial);
+        }
+    }
 
     // Use output_path as the base directory for generated files
     let output_dir = if output_path.extension().is_some() {
@@ -190,7 +219,14 @@ pub fn export_snapshot_to_json(
         output_path
     };
 
-    generate_memory_analysis_json(output_dir, &processed, options)?;
+    generate_memory_analysis_json(
+        output_dir,
+        &processed,
+        containers,
+        &snapshot.stats,
+        snapshot.active_bindings.is_some(),
+        options,
+    )?;
     generate_lifetime_json(output_dir, &processed, options)?;
     generate_thread_analysis_json(output_dir, &snapshot.thread_stats, options)?;
 
@@ -346,6 +382,9 @@ fn get_or_compute_type_info(type_name: &str, size: usize) -> String {
 fn generate_memory_analysis_json<P: AsRef<Path>>(
     output_path: P,
     allocations: &[serde_json::Value],
+    containers: &[crate::capture::types::AllocationInfo],
+    stats: &crate::snapshot::types::MemoryStats,
+    has_transition_history: bool,
     options: &ExportJsonOptions,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let total_size: usize = allocations
@@ -364,19 +403,74 @@ fn generate_memory_analysis_json<P: AsRef<Path>>(
         dist
     };
 
+    // Two different questions are answered here and must not be confused:
+    //   * `live_*`        – what is still allocated at this cut (sum over the rows);
+    //   * `cumulative_*`  – what the capture observed over the whole run, including
+    //                       blocks that were released before the cut.
+    // `total_size_bytes` / `total_allocations` stay as the live values for backwards
+    // compatibility; `counters_scope` says which is which.
+    // Without a transition history the snapshot only knows what is live, so the
+    // cumulative counters must stay null instead of echoing the live values.
+    let (cumulative_allocated, cumulative_deallocated, peak) = if has_transition_history {
+        (
+            serde_json::json!(stats.total_allocated),
+            serde_json::json!(stats.total_deallocated),
+            serde_json::json!(stats.peak_memory),
+        )
+    } else {
+        (
+            serde_json::Value::Null,
+            serde_json::Value::Null,
+            serde_json::Value::Null,
+        )
+    };
+    let counters_scope = if has_transition_history {
+        "live counters describe this cut, cumulative counters describe the whole capture"
+    } else {
+        "live only: this snapshot has no transition history, cumulative counters are unknown"
+    };
+
     let data = json!({
         "metadata": {
             "export_version": "2.0",
             "export_timestamp": chrono::Utc::now().to_rfc3339(),
             "specification": "memscope-rs memory analysis",
+            "counters_scope": counters_scope,
             "total_allocations": allocations.len(),
-            "total_size_bytes": total_size
+            "total_size_bytes": total_size,
+            "live_size_bytes": total_size,
+            "cumulative_allocated_bytes": cumulative_allocated,
+            "cumulative_deallocated_bytes": cumulative_deallocated,
+            "peak_bytes": peak
         },
         "allocations": allocations,
+        // Stack-side container metadata: listed for context, never counted as heap bytes.
+        "containers": containers
+            .iter()
+            .map(|container| json!({
+                "address": if container.ptr == 0 {
+                    "N/A".to_string()
+                } else {
+                    format!("0x{:x}", container.ptr)
+                },
+                "size": container.size,
+                "type_name": container.type_name.clone().unwrap_or_else(|| "unknown".to_string()),
+                "var_name": container.var_name.clone(),
+                "thread_id": container.thread_id_u64,
+                "counted_in_statistics": false,
+            }))
+            .collect::<Vec<_>>(),
         "statistics": {
             "total_allocations": allocations.len(),
             "total_size_bytes": total_size,
-            "average_size_bytes": if allocations.is_empty() { 0 } else { total_size / allocations.len() }
+            "average_size_bytes": if allocations.is_empty() { 0 } else { total_size / allocations.len() },
+            "live_size_bytes": total_size,
+            "allocation_count": stats.total_allocations,
+            "deallocation_count": stats.total_deallocations,
+            "cumulative_allocated_bytes": cumulative_allocated,
+            "cumulative_deallocated_bytes": cumulative_deallocated,
+            "peak_bytes": peak,
+            "active_bindings": stats.active_allocations
         },
         "type_distribution": type_distribution
     });
@@ -526,28 +620,12 @@ pub enum ExportError {
     ExportFailed(String),
 }
 
-/// Replace the live-set aggregates with the ledger's transition-based statistics.
-///
-/// `MemorySnapshot::from_allocation_infos` can only sum what is still live: after a
-/// release it reports 64 bytes allocated and a 64-byte peak for a program that allocated
-/// 64 + 128 and freed 128. The ledger watched every transition, so its numbers are the
-/// authoritative ones for exports and reports (plan A06 follow-up).
-pub(crate) fn override_snapshot_stats(
-    snapshot: &mut MemorySnapshot,
-    ledger: &crate::snapshot::BindingLedger,
-    active_allocations: usize,
-) {
-    let stats = ledger.stats();
-    snapshot.stats.total_allocations = stats.allocation_count as usize;
-    snapshot.stats.total_reallocations = stats.reallocation_count as usize;
-    snapshot.stats.total_deallocations = stats.deallocation_count as usize;
-    snapshot.stats.unmatched_deallocations = stats.unmatched_deallocation_count as usize;
-    snapshot.stats.active_allocations = active_allocations;
-    snapshot.stats.total_allocated = stats.allocated_bytes as usize;
-    snapshot.stats.total_deallocated = stats.deallocated_bytes as usize;
-    snapshot.stats.current_memory = stats.current_bytes as usize;
-    snapshot.stats.peak_memory = stats.peak_bytes as usize;
-    snapshot.thread_stats = ledger.thread_stats().clone();
+/// Capture time in nanoseconds, used as the cut every file in this batch describes.
+fn capture_cut_ns() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_nanos().min(u128::from(u64::MAX)) as u64)
+        .unwrap_or(0)
 }
 
 pub fn export_all_json<P: AsRef<Path>>(
@@ -562,16 +640,15 @@ pub fn export_all_json<P: AsRef<Path>>(
     let events = tracker.event_store().snapshot();
     let passports = passport_tracker.snapshot_passports();
 
-    // Replay once: the ledger keeps the transition-based totals and peaks that the live
-    // list can no longer reconstruct (a released 128-byte block is gone from the list, but
-    // the cumulative totals and the high-water mark must survive).
+    // Replay once and project that single cut: the ledger keeps the transition-based
+    // totals and peaks that the live list can no longer reconstruct, and the projection
+    // keeps every identity (including overlapping generations) so the rows and the
+    // counters describe the same thing.
     let mut ledger = crate::snapshot::BindingLedger::new();
     for event in &events {
         ledger.apply(event);
     }
-    let allocations = rebuild_allocations_from_events(&events);
-    let mut snapshot = MemorySnapshot::from_allocation_infos(allocations.clone());
-    override_snapshot_stats(&mut snapshot, &ledger, allocations.len());
+    let snapshot = crate::snapshot::builder::project_snapshot(&ledger, capture_cut_ns());
     let options = ExportJsonOptions::default();
 
     std::fs::create_dir_all(path_ref)
@@ -579,7 +656,15 @@ pub fn export_all_json<P: AsRef<Path>>(
 
     debug!("Starting export_snapshot_to_json");
 
-    export_snapshot_to_json(&snapshot, path_ref, &options)
+    // Container (stack-side) metadata from the same event slice; it is exported next to
+    // the heap rows but never counted in the statistics.
+    let containers: Vec<crate::capture::types::AllocationInfo> =
+        rebuild_allocations_from_events(&events)
+            .into_iter()
+            .filter(|allocation| allocation.ptr >= crate::analysis::VIRTUAL_PTR_BASE)
+            .collect();
+
+    export_snapshot_with_containers(&snapshot, &containers, path_ref, &options)
         .map_err(|e| MemScopeError::error("export", "export_all_json", e.to_string()))?;
 
     debug!("Completed export_snapshot_to_json");
@@ -621,8 +706,11 @@ pub fn export_all_json<P: AsRef<Path>>(
 
     debug!("Starting export_ownership_graph_json");
 
+    // Same event slice as the snapshot above, so still one cut. Container rows keep the
+    // virtual ids that `rebuild_allocations_from_events` assigns them; the graph builder
+    // recognises those ids and never dereferences them.
     let typed_allocations: Vec<crate::capture::types::AllocationInfo> =
-        allocations.clone().into_iter().collect();
+        rebuild_allocations_from_events(&events);
 
     debug!(
         allocations = typed_allocations.len(),

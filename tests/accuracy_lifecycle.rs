@@ -561,6 +561,45 @@ fn export_reports_ledger_totals_after_release() {
         totals["current_memory"], 64,
         "only the unreleased block is live"
     );
+
+    let analysis_json = std::fs::read_to_string(dir.path().join("memory_analysis.json"))
+        .expect("the export must write memory_analysis.json");
+    let analysis: serde_json::Value =
+        serde_json::from_str(&analysis_json).expect("memory_analysis.json must be valid JSON");
+    let statistics = &analysis["statistics"];
+    assert_eq!(
+        statistics["live_size_bytes"], 64,
+        "the live scope must describe only what is still allocated"
+    );
+    assert_eq!(
+        statistics["cumulative_allocated_bytes"], 192,
+        "the cumulative scope must keep the bytes of the released block"
+    );
+    assert_eq!(
+        statistics["cumulative_deallocated_bytes"], 128,
+        "the cumulative scope must keep the released bytes"
+    );
+    assert_eq!(
+        statistics["peak_bytes"], 192,
+        "the high-water mark must survive the release"
+    );
+    assert_eq!(
+        statistics["allocation_count"], 2,
+        "both allocations must be counted cumulatively"
+    );
+    assert_eq!(
+        analysis["allocations"]
+            .as_array()
+            .expect("allocations must be an array")
+            .len(),
+        1,
+        "the row list describes the same cut as the live counters"
+    );
+    assert_eq!(
+        analysis["metadata"]["counters_scope"],
+        "live counters describe this cut, cumulative counters describe the whole capture",
+        "the file must state which counter answers which question"
+    );
 }
 
 /// Objective: Verify concurrent observations of one block produce exactly one allocation

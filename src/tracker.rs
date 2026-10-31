@@ -41,8 +41,7 @@ use crate::capture::system_monitor;
 use crate::core::tracker::MemoryTracker;
 use crate::event_store::{EventStore, MemoryEvent};
 use crate::render_engine::dashboard::renderer::rebuild_allocations_from_events;
-use crate::render_engine::export::{export_snapshot_to_json, ExportJsonOptions};
-use crate::snapshot::MemorySnapshot;
+use crate::render_engine::export::{export_snapshot_with_containers, ExportJsonOptions};
 
 use dashmap::DashMap;
 use std::collections::HashMap;
@@ -844,18 +843,29 @@ impl Tracker {
         let events = self.event_store().snapshot();
 
         // The live list cannot reconstruct cumulative totals or the high-water mark, so
-        // the legacy drop export applies the same ledger projection as `export_all_json`
+        // the legacy drop export projects the same ledger cut as `export_all_json`
         // instead of re-aggregating what is still alive (plan A06 follow-up).
         let mut ledger = crate::snapshot::BindingLedger::new();
         for event in &events {
             ledger.apply(event);
         }
-        let allocations = rebuild_allocations_from_events(&events);
-        let mut snapshot = MemorySnapshot::from_allocation_infos(allocations);
-        let active = snapshot.stats.active_allocations;
-        crate::render_engine::export::override_snapshot_stats(&mut snapshot, &ledger, active);
+        let cut_ns = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|elapsed| elapsed.as_nanos().min(u128::from(u64::MAX)) as u64)
+            .unwrap_or(0);
+        let snapshot = crate::snapshot::builder::project_snapshot(&ledger, cut_ns);
+        let containers: Vec<crate::capture::types::AllocationInfo> =
+            rebuild_allocations_from_events(&events)
+                .into_iter()
+                .filter(|allocation| allocation.ptr >= crate::analysis::VIRTUAL_PTR_BASE)
+                .collect();
         let options = ExportJsonOptions::default();
-        if let Err(e) = export_snapshot_to_json(&snapshot, std::path::Path::new(&path), &options) {
+        if let Err(e) = export_snapshot_with_containers(
+            &snapshot,
+            &containers,
+            std::path::Path::new(&path),
+            &options,
+        ) {
             tracing::error!("Failed to auto-export on drop: {}", e);
         }
     }
