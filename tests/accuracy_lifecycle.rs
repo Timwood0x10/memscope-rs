@@ -451,16 +451,24 @@ fn reuse_after_hook_release_is_not_deduplicated() {
     );
 }
 
-/// Objective: Verify a smart pointer tracked inside a task charges that task once
-/// (plan A08 parity for StackOwner).
-/// Invariants: the task's allocation count and memory usage grow by the tracked size.
+/// Objective: Verify a smart-pointer observation does not invent a heap block for the
+/// pointee: the allocator (when enabled) is the only observer that knows the block size,
+/// so an `Arc` observation must not add allocation bytes on its own.
+/// Invariants: the event stream stays free of a second allocation for the block, and the
+/// task is not charged for bytes the capture never observed.
 #[test]
 #[serial]
-fn smart_pointer_observation_charges_the_current_task() {
+fn smart_pointer_observation_does_not_invent_an_allocation() {
     let registry = memscope_rs::task_registry::global_registry();
     registry.clear();
     let tracker = Tracker::new();
     let shared = std::sync::Arc::new(vec![9u8; 16]);
+
+    let allocations_before = tracker
+        .events()
+        .iter()
+        .filter(|event| matches!(event.event_type, MemoryEventType::Allocate))
+        .count();
 
     {
         let _scope = registry.task_scope("arc_owner");
@@ -470,17 +478,26 @@ fn smart_pointer_observation_charges_the_current_task() {
 
         let meta = registry.get_task(task_id).expect("the task must exist");
         assert_eq!(
-            meta.allocation_count, 1,
-            "tracking an Arc must charge one allocation to the task"
+            meta.allocation_count, 0,
+            "without an allocator observation the block size is unknown, so no allocation \
+             may be charged"
         );
-        assert!(
-            meta.memory_usage > 0,
-            "tracking an Arc must charge bytes to the task, got {}",
-            meta.memory_usage
+        assert_eq!(
+            meta.memory_usage, 0,
+            "no bytes may be charged for a block the capture never observed"
         );
     }
-}
 
+    let allocations_after = tracker
+        .events()
+        .iter()
+        .filter(|event| matches!(event.event_type, MemoryEventType::Allocate))
+        .count();
+    assert_eq!(
+        allocations_after, allocations_before,
+        "a smart-pointer observation must not publish a second allocation for the block"
+    );
+}
 /// Objective: Verify a type observed after an untyped reallocation is attached to the
 /// existing binding instead of being dropped as a duplicate (plan A06 follow-up).
 /// Invariants: exactly one live binding, and it carries the observed type name.

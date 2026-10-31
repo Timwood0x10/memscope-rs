@@ -385,5 +385,12 @@ fn test_smart_pointer_tracking() {
     track!(t, Box::new(vec![2u8; 2048]));
 
     let report = t.analyze();
-    assert!(report.total_allocations >= 2);
+    // `Arc` is a smart-pointer observation: it knows the pointee size, not the block the
+    // allocator handed out, so it annotates instead of inventing an allocation. `Box` is
+    // reported as a heap owner, so it contributes exactly one allocation. Nothing is
+    // counted twice.
+    assert_eq!(
+        report.total_allocations, 1,
+        "only the heap-owner observation may publish an allocation"
+    );
 }

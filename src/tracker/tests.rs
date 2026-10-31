@@ -4,6 +4,8 @@
 //! and within the project line budget.
 
 use super::*;
+// The global facade is process-wide: tests that touch it must not interleave.
+use serial_test::serial;
 #[test]
 fn test_tracker_creation() {
     let tracker = Tracker::new();
@@ -531,5 +533,142 @@ fn released_addresses_do_not_retain_dedupe_slots() {
         tracker.recorded_bindings.len(),
         1,
         "a live address must keep its slot"
+    );
+}
+
+/// Objective: Verify the facade releases by identity when the address holds one binding,
+/// and reports the guess when it holds several (plan PR-02).
+/// Invariants: with two live bindings the release is degraded and closes the oldest; the
+/// surviving binding keeps its serial and size.
+#[test]
+fn ambiguous_address_release_is_reported_and_keeps_the_new_block() {
+    let tracker = Tracker::new();
+    let ptr = 0x3000_0000usize;
+
+    tracker
+        .inner
+        .track_allocation(ptr, 64)
+        .expect("first block must register");
+    let first_serial = tracker.inner.binding_serial(ptr).expect("serial");
+    tracker
+        .inner
+        .track_allocation(ptr, 128)
+        .expect("second block must register");
+    let second_serial = tracker.inner.binding_serial(ptr).expect("serial");
+    assert_ne!(first_serial, second_serial, "reuse must change identity");
+    assert_eq!(
+        tracker.inner.live_binding_count_at(ptr),
+        2,
+        "both observed blocks must stay live"
+    );
+
+    assert!(
+        tracker
+            .track_deallocation(ptr)
+            .expect("release must succeed"),
+        "the address holds live bindings"
+    );
+    assert_eq!(
+        tracker.degraded_releases(),
+        1,
+        "an address-only release on an ambiguous address must be reported"
+    );
+    assert_eq!(
+        tracker.inner.binding_serial(ptr),
+        Some(second_serial),
+        "the newest binding must survive the degraded release"
+    );
+    assert_eq!(
+        tracker.inner.get_allocation_size(ptr),
+        Some(128),
+        "the survivor keeps its own size"
+    );
+}
+
+/// Objective: Verify a smart-pointer observation annotates the owned block instead of
+/// publishing a second allocation for it (plan A08/PR-02).
+/// Invariants: observing an `Arc` does not change the live bytes derived from the event
+/// stream, because the allocator already reported the real block.
+#[test]
+#[serial]
+fn smart_pointer_observation_does_not_count_the_block_twice() {
+    let tracker = Tracker::global();
+    let shared = std::sync::Arc::new([1u8; 64]);
+
+    let bytes_before = {
+        let mut ledger = crate::snapshot::BindingLedger::new();
+        for event in tracker.events() {
+            ledger.apply(&event);
+        }
+        ledger.stats().current_bytes
+    };
+
+    tracker.track_as(&shared, "shared", file!(), line!(), module_path!());
+
+    let bytes_after = {
+        let mut ledger = crate::snapshot::BindingLedger::new();
+        for event in tracker.events() {
+            ledger.apply(&event);
+        }
+        ledger.stats().current_bytes
+    };
+
+    assert_eq!(
+        bytes_after, bytes_before,
+        "a smart-pointer observation must not add heap bytes the allocator already reported"
+    );
+}
+
+/// Objective: Verify releasing an address that was never tracked does not leave a
+/// deduplication slot behind (the profiler must not grow on foreign releases).
+/// Invariants: 256 unknown releases leave the index empty.
+#[test]
+fn untracked_release_does_not_create_a_dedupe_slot() {
+    let tracker = Tracker::new();
+
+    for step in 0..256usize {
+        assert!(
+            !tracker
+                .track_deallocation(0x5000_0000 + step * 8)
+                .expect("releasing an unknown address must not error"),
+            "an unknown address cannot be released"
+        );
+    }
+
+    assert_eq!(
+        tracker.recorded_bindings.len(),
+        0,
+        "unknown releases must not allocate deduplication slots"
+    );
+}
+
+/// Objective: Verify a tracked heap block charges the current task exactly once, whether
+/// the allocator hook or the typed observation is the one that sees it first (plan A08).
+/// Invariants: the task records at least the bytes of the block, and never less than one
+/// allocation.
+#[test]
+#[serial]
+fn tracked_block_charges_the_current_task_once() {
+    let registry = crate::task_registry::global_registry();
+    registry.clear();
+
+    let tracker = Tracker::new();
+    let data = vec![0u8; 64];
+
+    let _scope = registry.task_scope("allocator_task");
+    let task_id = crate::task_registry::TaskIdRegistry::current_task_id()
+        .expect("the task scope must install a current task");
+
+    tracker.track_as(&data, "data", file!(), line!(), module_path!());
+
+    let meta = registry.get_task(task_id).expect("the task must exist");
+    assert!(
+        meta.memory_usage >= 64,
+        "the block must be charged to the task, got {} bytes",
+        meta.memory_usage
+    );
+    assert_eq!(
+        meta.allocation_count, 1,
+        "one block must be charged exactly once"
     );
 }

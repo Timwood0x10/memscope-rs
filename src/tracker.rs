@@ -231,7 +231,7 @@ impl Tracker {
     }
 
     pub fn global() -> Self {
-        allocator_events::global_tracker().clone()
+        allocator_events::global_tracker()
     }
 
     pub fn with_system_monitoring(self) -> Self {
@@ -455,28 +455,20 @@ impl Tracker {
                 heap_ptr,
                 size,
             } => {
-                // StackOwner records stack pointer metadata for clone detection
-                // Use stack_ptr as key for track_allocation to avoid overwriting Arc clones
-                // This allows inner tracker to count allocations while preserving clone detection
-
-                if let Err(e) = self.inner.track_allocation(stack_ptr, size) {
-                    tracing::error!("Failed to track allocation at ptr {:x}: {}", stack_ptr, e);
-                    return;
-                }
-
-                // Smart pointers own heap memory too: the task that tracked them must be
-                // charged once, exactly like a HeapOwner observation (plan A08 parity).
-                crate::task_registry::global_registry().record_allocation(size);
-
-                let mut event = MemoryEvent::allocate(heap_ptr, size, thread_id_u64);
-                event.var_name = Some(name.to_string());
-                event.type_name = Some(type_name.clone());
-                event.source_file = Some(file.to_string());
-                event.source_line = Some(line);
-                event.module_path = Some(module_path.to_string());
-                // Store stack pointer in custom metadata for clone detection
-                event.stack_ptr = Some(stack_ptr);
-                self.event_store.record(event);
+                // A smart pointer owns a heap block that the allocator already reported,
+                // and this observation knows the *pointee* size, not the block size:
+                // `Arc::new([u8; 64])` allocates 80 bytes, not 64. Publishing an
+                // allocation here counted the same memory twice (80 + 64). Record the
+                // metadata against the pointee instead and keep the stack pointer so
+                // clone detection can still relate the two views.
+                let mut annotation =
+                    MemoryEvent::metadata(name.to_string(), type_name.clone(), thread_id_u64, size);
+                annotation.ptr = heap_ptr;
+                annotation.stack_ptr = Some(stack_ptr);
+                annotation.source_file = Some(file.to_string());
+                annotation.source_line = Some(line);
+                annotation.module_path = Some(module_path.to_string());
+                self.event_store.record(annotation);
 
                 if let Err(e) = self.inner.associate_var(
                     heap_ptr,
@@ -538,12 +530,33 @@ impl Tracker {
 
     pub fn track_deallocation(&self, ptr: usize) -> crate::TrackingResult<bool> {
         let _gate = crate::core::allocator::capture_gate::acquire(ptr);
+
+        // Nothing tracked at this address: report it without allocating a slot, otherwise
+        // every untracked release (including allocations the profiler itself suppressed)
+        // leaves an empty deduplication slot behind.
+        if self.inner.live_binding_count_at(ptr) == 0 {
+            return Ok(false);
+        }
+
         let slot = self.recorded_slot(ptr);
         let mut guard = slot.lock().unwrap_or_else(|e| e.into_inner());
         let size = self.inner.get_allocation_size(ptr).unwrap_or(0);
-        let serial = self.inner.binding_serial(ptr);
 
-        let result = self.inner.track_deallocation(ptr)?;
+        // Release the binding this observation refers to. When the address holds exactly
+        // one live binding, its serial names it and the release is exact; with several
+        // live bindings (a missed `free` or two different blocks) only the address is
+        // known, so the degraded path closes the oldest one and counts the guess
+        // (plan PR-02).
+        let serial = self.inner.binding_serial(ptr);
+        let bindings = self.inner.live_binding_count_at(ptr);
+        let result = if bindings <= 1 {
+            match serial {
+                Some(serial) => self.inner.track_deallocation_of(ptr, serial)?,
+                None => self.inner.track_deallocation(ptr)?,
+            }
+        } else {
+            self.inner.track_deallocation(ptr)?
+        };
 
         // Only record event if deallocation was successful (ptr was tracked)
         if result {
@@ -653,6 +666,14 @@ impl Tracker {
     /// reports can show that the capture layer saw the same block twice.
     pub fn duplicate_observations(&self) -> u64 {
         self.inner.duplicate_observations()
+    }
+
+    /// Releases that could only be matched by address.
+    ///
+    /// Non-zero means a release arrived for an address that still held several live
+    /// bindings, so the closed binding was the oldest one rather than a named identity.
+    pub fn degraded_releases(&self) -> u64 {
+        self.inner.degraded_releases()
     }
 
     pub fn events(&self) -> Vec<MemoryEvent> {

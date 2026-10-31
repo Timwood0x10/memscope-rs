@@ -491,10 +491,11 @@ fn test_large_allocation() {
     );
 }
 
-/// Objective: Verify a repeated sighting of the same address with a new size is
-/// treated as an in-place reallocation, not as a second allocation.
-/// Invariants: one active entry with the new size, one allocation counted, and
-/// allocated/deallocated bytes stay balanced (plan A06).
+/// Objective: Verify a second allocation at an address that still holds a live
+/// binding is kept as its own identity instead of replacing or merging with it
+/// (plan PR-02 / A06).
+/// Invariants: two live bindings, two allocations counted, live bytes cover both, and
+/// the conflict is reported.
 #[test]
 fn test_duplicate_address_allocation() {
     let tracker = MemoryTracker::new();
@@ -503,21 +504,26 @@ fn test_duplicate_address_allocation() {
 
     let stats = tracker.get_stats().unwrap();
     assert_eq!(
-        stats.active_allocations, 1,
-        "Should have 1 active allocation"
+        stats.active_allocations, 2,
+        "both observed blocks must stay live: an observation cannot prove the old one is gone"
     );
     assert_eq!(
         stats.total_allocations, 2,
         "a different size at the same address cannot be proven to be the same block"
     );
     assert_eq!(
-        stats.active_memory, 2048,
-        "only the surviving block's size is live"
+        stats.active_memory, 3072,
+        "live bytes must cover both observed blocks"
     );
     assert_eq!(
         tracker.replaced_bindings(),
         1,
-        "the superseded binding must be reported as a diagnostic"
+        "the conflicting allocation must be reported as a diagnostic"
+    );
+    assert_eq!(
+        tracker.live_binding_count_at(0x1000),
+        2,
+        "the address must expose both identities"
     );
     assert_eq!(
         stats.total_allocated,
@@ -526,7 +532,150 @@ fn test_duplicate_address_allocation() {
     );
 
     let size = tracker.get_allocation_size(0x1000);
-    assert_eq!(size, Some(2048), "Should have later allocation size");
+    assert_eq!(size, Some(2048), "the newest binding carries the new size");
+}
+
+/// Objective: Verify a release that names the superseded generation does not close the
+/// block that replaced it (plan PR-02).
+/// Invariants: closing the old serial leaves the newer binding live with its own size.
+#[test]
+fn release_by_serial_does_not_close_a_reused_address() {
+    let tracker = MemoryTracker::new();
+    tracker.track_allocation(0x1100, 64).unwrap();
+    let first = tracker
+        .binding_serial(0x1100)
+        .expect("the first binding must have an identity");
+
+    tracker.track_allocation(0x1100, 128).unwrap();
+    let second = tracker
+        .binding_serial(0x1100)
+        .expect("the second binding must have an identity");
+    assert_ne!(first, second, "address reuse must produce a new identity");
+
+    assert!(
+        tracker
+            .track_deallocation_of(0x1100, first)
+            .expect("closing the old binding must succeed"),
+        "the superseded binding must still be closable"
+    );
+
+    assert_eq!(
+        tracker.live_binding_count_at(0x1100),
+        1,
+        "only the named binding may be closed"
+    );
+    assert_eq!(
+        tracker.binding_serial(0x1100),
+        Some(second),
+        "the surviving binding keeps its own identity"
+    );
+    assert_eq!(
+        tracker.get_allocation_size(0x1100),
+        Some(128),
+        "the surviving binding keeps its own size"
+    );
+
+    // A second release of the already-closed generation is a no-op.
+    assert!(
+        !tracker
+            .track_deallocation_of(0x1100, first)
+            .expect("a stale release must not error"),
+        "a late release of a closed generation must not close anything"
+    );
+    assert_eq!(
+        tracker.live_binding_count_at(0x1100),
+        1,
+        "the late release must leave the survivor untouched"
+    );
+}
+
+/// Objective: Verify a release that only knows the address is reported as degraded when
+/// the address holds several bindings (plan PR-02).
+/// Invariants: the oldest binding is closed, one binding survives, and the guess is
+/// counted.
+#[test]
+fn address_only_release_is_reported_as_degraded() {
+    let tracker = MemoryTracker::new();
+    tracker.track_allocation(0x1200, 64).unwrap();
+    tracker.track_allocation(0x1200, 128).unwrap();
+    assert_eq!(tracker.degraded_releases(), 0, "no release happened yet");
+
+    assert!(
+        tracker
+            .track_deallocation(0x1200)
+            .expect("release must succeed"),
+        "the address holds live bindings"
+    );
+
+    assert_eq!(
+        tracker.degraded_releases(),
+        1,
+        "an address-only release on an ambiguous address must be reported"
+    );
+    assert_eq!(
+        tracker.live_binding_count_at(0x1200),
+        1,
+        "only one binding may be closed per release"
+    );
+    assert_eq!(
+        tracker.get_allocation_size(0x1200),
+        Some(128),
+        "the oldest binding is the one that was closed"
+    );
+}
+
+/// Objective: Verify a different size at a known address becomes a new binding instead
+/// of being merged into the old one (address reuse with a lost release).
+/// Invariants: two allocations are counted, both blocks stay live, and a full release
+/// balances the ledger.
+#[test]
+fn test_reused_address_opens_new_binding() {
+    let tracker = MemoryTracker::new();
+    tracker
+        .track_allocation(0x2000, 1024)
+        .expect("first observation must succeed");
+    tracker
+        .track_allocation(0x2000, 2048)
+        .expect("second observation must succeed");
+
+    let replaced = tracker.get_stats().expect("stats must be readable");
+    assert_eq!(
+        replaced.total_allocations, 2,
+        "the second block must get its own identity"
+    );
+    assert_eq!(
+        replaced.active_memory, 3072,
+        "both observed blocks stay live until a release names one"
+    );
+    assert_eq!(
+        tracker.replaced_bindings(),
+        1,
+        "the conflicting allocation must be reported as a diagnostic, not hidden"
+    );
+
+    assert!(
+        tracker
+            .track_deallocation(0x2000)
+            .expect("release must succeed"),
+        "the tracked address must be released"
+    );
+    assert!(
+        tracker
+            .track_deallocation(0x2000)
+            .expect("release must succeed"),
+        "the second binding must still be releasable"
+    );
+
+    let released = tracker.get_stats().expect("stats must be readable");
+    assert_eq!(
+        released.active_memory, 0,
+        "releasing both bindings must leave zero live bytes, got {}",
+        released.active_memory
+    );
+    assert_eq!(
+        released.total_allocated, released.total_deallocated,
+        "allocated and deallocated bytes must balance after full release"
+    );
 }
 
 /// Objective: Verify Drop implementation logs warnings
@@ -606,54 +755,6 @@ fn test_duplicate_observation_is_not_double_counted() {
         tracker.duplicate_observations(),
         1,
         "the duplicate must be reported through the diagnostic counter"
-    );
-}
-
-/// Objective: Verify that a different size at a known address becomes a new binding
-/// instead of being merged into the old one (address reuse with a lost release).
-/// Invariants: two allocations are counted, the superseded bytes are booked, live bytes
-/// equal the surviving block, and a full release balances the ledger.
-#[test]
-fn test_reused_address_opens_new_binding() {
-    let tracker = MemoryTracker::new();
-    tracker
-        .track_allocation(0x2000, 1024)
-        .expect("first observation must succeed");
-    tracker
-        .track_allocation(0x2000, 2048)
-        .expect("second observation must succeed");
-
-    let replaced = tracker.get_stats().expect("stats must be readable");
-    assert_eq!(
-        replaced.total_allocations, 2,
-        "the second block must get its own identity"
-    );
-    assert_eq!(
-        replaced.active_memory, 2048,
-        "only the surviving block is live"
-    );
-    assert_eq!(
-        tracker.replaced_bindings(),
-        1,
-        "the superseded binding must be reported as a diagnostic, not hidden"
-    );
-
-    assert!(
-        tracker
-            .track_deallocation(0x2000)
-            .expect("release must succeed"),
-        "the tracked address must be released"
-    );
-
-    let released = tracker.get_stats().expect("stats must be readable");
-    assert_eq!(
-        released.active_memory, 0,
-        "releasing the only live block must leave zero live bytes, got {}",
-        released.active_memory
-    );
-    assert_eq!(
-        released.total_allocated, released.total_deallocated,
-        "allocated and deallocated bytes must balance after full release"
     );
 }
 
