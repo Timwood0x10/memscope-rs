@@ -15,6 +15,8 @@ env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
   RUSTFLAGS: "-D warnings"
+  # Keep installation and every cargo subprocess on the repository's version.
+  RUSTUP_TOOLCHAIN: "1.92.0"
 
 jobs:
   quality:
@@ -24,25 +26,14 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: stable
+          toolchain: ${{ env.RUSTUP_TOOLCHAIN }}
           components: rustfmt, clippy
 
       - name: Verify toolchain
-        run: |
-          rustc --version
-          cargo --version
-          rustfmt --version
-
-      - name: Handle Cargo.lock compatibility
         shell: bash
-        run: |
-          # Always regenerate Cargo.lock for CI to ensure compatibility
-          echo "Regenerating Cargo.lock for CI compatibility..."
-          rm -f Cargo.lock
-          cargo generate-lockfile
-          echo "Generated compatible Cargo.lock version: $(head -n1 Cargo.lock)"
+        run: bash .github/scripts/verify-toolchain.sh
 
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
@@ -53,10 +44,10 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Clippy analysis
-        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+        run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
 
       - name: Check compilation
-        run: cargo check --workspace --all-targets --all-features
+        run: cargo check --locked --workspace --all-targets --all-features
 
   test:
     name: Tests
@@ -65,33 +56,23 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        rust: [stable]
-        include:
-          - os: ubuntu-latest
-            rust: nightly
-            experimental: true
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust ${{ matrix.rust }}
+      - name: Install Rust
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: ${{ matrix.rust }}
+          toolchain: ${{ env.RUSTUP_TOOLCHAIN }}
 
-      - name: Handle Cargo.lock compatibility
+      - name: Verify toolchain
         shell: bash
-        run: |
-          # Always regenerate Cargo.lock for CI to ensure compatibility
-          echo "Regenerating Cargo.lock for CI compatibility..."
-          rm -f Cargo.lock
-          cargo generate-lockfile
-          echo "Generated compatible Cargo.lock version: $(head -n1 Cargo.lock)"
+        run: bash .github/scripts/verify-toolchain.sh
 
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          key: test-${{ matrix.os }}-${{ matrix.rust }}-${{ hashFiles('**/Cargo.lock') }}
+          key: test-${{ matrix.os }}-${{ env.RUSTUP_TOOLCHAIN }}-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Install cargo-nextest
         uses: taiki-e/install-action@v2
@@ -99,17 +80,14 @@ jobs:
           tool: cargo-nextest
 
       - name: Run library tests (auto-signal + periodic features)
-        run: cargo nextest run --workspace --features auto-signal,periodic -E 'kind(lib)'
-        continue-on-error: ${{ matrix.experimental == true }}
+        run: cargo nextest run --locked --workspace --features auto-signal,periodic -E 'kind(lib)'
 
       - name: Run integration tests (auto-signal + periodic features)
-        run: cargo nextest run --workspace --features auto-signal,periodic -E 'kind(test)'
-        continue-on-error: ${{ matrix.experimental == true }}
+        run: cargo nextest run --locked --workspace --features auto-signal,periodic -E 'kind(test)'
 
       - name: Test examples
         run: |
-          cargo build --examples --features auto-signal,periodic
-        continue-on-error: ${{ matrix.experimental == true }}
+          cargo build --locked --examples --features auto-signal,periodic
 
   benchmarks:
     name: Benchmarks
@@ -120,16 +98,13 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUSTUP_TOOLCHAIN }}
 
-      - name: Handle Cargo.lock compatibility
+      - name: Verify toolchain
         shell: bash
-        run: |
-          # Always regenerate Cargo.lock for CI to ensure compatibility
-          echo "Regenerating Cargo.lock for CI compatibility..."
-          rm -f Cargo.lock
-          cargo generate-lockfile
-          echo "Generated compatible Cargo.lock version: $(head -n1 Cargo.lock)"
+        run: bash .github/scripts/verify-toolchain.sh
 
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
@@ -137,7 +112,7 @@ jobs:
           key: bench-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Run benchmarks
-        run: cargo bench --bench minimal_performance
+        run: cargo bench --locked --bench minimal_performance
 
       - name: Upload benchmark results
         uses: actions/upload-artifact@v4
@@ -152,16 +127,13 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUSTUP_TOOLCHAIN }}
 
-      - name: Handle Cargo.lock compatibility
+      - name: Verify toolchain
         shell: bash
-        run: |
-          # Always regenerate Cargo.lock for CI to ensure compatibility
-          echo "Regenerating Cargo.lock for CI compatibility..."
-          rm -f Cargo.lock
-          cargo generate-lockfile
-          echo "Generated compatible Cargo.lock version: $(head -n1 Cargo.lock)"
+        run: bash .github/scripts/verify-toolchain.sh
 
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
@@ -169,7 +141,7 @@ jobs:
           key: docs-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build documentation
-        run: cargo doc --workspace --all-features --no-deps
+        run: cargo doc --locked --workspace --all-features --no-deps
 
   security:
     name: Security Audit
@@ -178,16 +150,13 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUSTUP_TOOLCHAIN }}
 
-      - name: Handle Cargo.lock compatibility
+      - name: Verify toolchain
         shell: bash
-        run: |
-          # Always regenerate Cargo.lock for CI to ensure compatibility
-          echo "Regenerating Cargo.lock for CI compatibility..."
-          rm -f Cargo.lock
-          cargo generate-lockfile
-          echo "Generated compatible Cargo.lock version: $(head -n1 Cargo.lock)"
+        run: bash .github/scripts/verify-toolchain.sh
 
       - name: Install cargo-audit
         run: cargo install cargo-audit --locked
@@ -197,7 +166,7 @@ jobs:
 
       - name: Check licenses
         run: |
-          cargo install cargo-license
+          cargo install cargo-license --locked
           cargo license --json | jq -r '.[] | select(.license != "MIT" and .license != "Apache-2.0" and .license != "BSD-3-Clause" and .license != "BSD-2-Clause") | .name + ": " + .license'
 
   coverage:
@@ -210,9 +179,14 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: ${{ env.RUSTUP_TOOLCHAIN }}
           components: llvm-tools-preview
+
+      - name: Verify toolchain
+        shell: bash
+        run: bash .github/scripts/verify-toolchain.sh
 
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
@@ -220,14 +194,13 @@ jobs:
           key: coverage-${{ matrix.os }}-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Install cargo-llvm-cov
-        run: cargo install cargo-llvm-cov
+        run: cargo install cargo-llvm-cov --locked
 
       - name: Generate coverage
-        run: cargo llvm-cov --workspace --lcov --output-path lcov.info
+        run: cargo llvm-cov --locked --workspace --lcov --output-path lcov.info
 
       - name: Upload to codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
           files: lcov.info
           fail_ci_if_error: false
-

@@ -540,4 +540,10 @@ MIT OR Apache-2.0
 
 ## 贡献
 
+开发和 CI 统一使用 `rust-toolchain.toml` 固定的 **Rust 1.92.0**。
+请将 `$HOME/.cargo/bin` 放在 PATH 中 Homebrew/系统 Rust 之前；只有 rustup
+代理命令才会读取该文件。`make check` 显式通过 rustup 使用固定工具链，
+并通过 `--locked` 使用已提交的 `Cargo.lock`。
+运行 `bash .github/scripts/verify-toolchain.sh` 可检查当前终端实际使用的版本。
+
 欢迎贡献！请参阅 [CONTRIBUTING.md](CONTRIBUTING.md) 了解指南。

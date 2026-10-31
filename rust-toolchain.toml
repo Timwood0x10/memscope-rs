@@ -1,4 +1,4 @@
 [toolchain]
+# Use rustup's cargo/rustc proxies so this pin is honored.
 channel = "1.92.0"
 components = ["rustc", "cargo", "clippy", "rustfmt"]
-targets = ["aarch64-apple-darwin"]
