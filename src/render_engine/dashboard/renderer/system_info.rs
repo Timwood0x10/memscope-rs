@@ -12,19 +12,7 @@ pub fn get_system_info() -> SystemResources {
     }
     #[cfg(not(target_os = "macos"))]
     {
-        SystemResources {
-            os_name: "Unknown".to_string(),
-            os_version: "Unknown".to_string(),
-            architecture: "unknown".to_string(),
-            cpu_cores: 1,
-            total_physical: "16.00 GB".to_string(),
-            available_physical: "8.00 GB".to_string(),
-            used_physical: "8.00 GB".to_string(),
-            page_size: 4096,
-            cpu_usage_pct: 0.0,
-            total_physical_bytes: 16 * 1024 * 1024 * 1024,
-            used_physical_bytes: 8 * 1024 * 1024 * 1024,
-        }
+        get_portable_system_info()
     }
 }
 
@@ -37,7 +25,6 @@ pub fn get_system_info() -> SystemResources {
 ///
 /// No manual initialization is needed — `init_global_tracking()` captures
 /// the start time automatically on first call.
-#[cfg(target_os = "macos")]
 fn process_cpu_usage_pct() -> f64 {
     use std::mem::MaybeUninit;
 
@@ -62,11 +49,6 @@ fn process_cpu_usage_pct() -> f64 {
     // Round to 2 decimal places so the telemetry bar shows a clean value
     // like "0.05%" instead of "0.000023050096979228655%".
     (pct.clamp(0.0, 100.0) * 100.0).round() / 100.0
-}
-
-#[cfg(not(target_os = "macos"))]
-fn process_cpu_usage_pct() -> f64 {
-    0.0
 }
 
 #[cfg(target_os = "macos")]
@@ -207,5 +189,35 @@ fn c(s: &str) -> *const libc::c_char {
         "hw.machine" => HW_MACHINE.with(|c| c.as_ptr()),
         "hw.pagesize" => HW_PAGESIZE.with(|c| c.as_ptr()),
         _ => std::ptr::null(),
+    }
+}
+
+/// System information on platforms without a dedicated implementation.
+///
+/// Values come from the `sysinfo` crate and from `getrusage`; nothing is hardcoded, so a
+/// dashboard on Linux reports its own machine instead of a placeholder. When a value is
+/// unavailable the field says `Unknown` rather than inventing a number.
+#[cfg(not(target_os = "macos"))]
+fn get_portable_system_info() -> SystemResources {
+    let mut system = sysinfo::System::new();
+    system.refresh_memory();
+    let total_bytes = system.total_memory();
+    let used_bytes = system.used_memory();
+    let available_bytes = system.available_memory();
+
+    SystemResources {
+        os_name: sysinfo::System::name().unwrap_or_else(|| "Unknown".to_string()),
+        os_version: sysinfo::System::os_version().unwrap_or_else(|| "Unknown".to_string()),
+        architecture: sysinfo::System::cpu_arch().unwrap_or_else(|| "unknown".to_string()),
+        cpu_cores: std::thread::available_parallelism()
+            .map(|cores| cores.get() as u32)
+            .unwrap_or(1),
+        total_physical: format_bytes(total_bytes as usize),
+        available_physical: format_bytes(available_bytes as usize),
+        used_physical: format_bytes(used_bytes as usize),
+        page_size: sysinfo::System::page_size(),
+        cpu_usage_pct: process_cpu_usage_pct(),
+        total_physical_bytes: total_bytes,
+        used_physical_bytes: used_bytes,
     }
 }
