@@ -777,3 +777,35 @@ fn reentrant_task_ids_are_removed_by_guard_identity() {
         "the stack must unwind to an empty context"
     );
 }
+
+/// Objective: Verify `track_task_end` does not delete a still-live guard frame that
+/// happens to carry the same task id (re-entrant scopes).
+/// Invariants: after ending the explicit context the guard's frame is still current, and
+/// dropping the guard clears the context.
+#[test]
+fn ending_a_task_keeps_a_live_guard_frame_of_the_same_id() {
+    AsyncTracker::clear_current_task();
+    let guard = AsyncTracker::enter_task(41);
+    AsyncTracker::set_current_task(41);
+
+    let tracker = AsyncTracker::new();
+    tracker
+        .track_task_start(41, "reentrant".to_string(), std::thread::current().id())
+        .expect("task start must succeed");
+    tracker
+        .track_task_end(41)
+        .expect("ending the task must succeed");
+
+    assert_eq!(
+        AsyncTracker::get_current_task(),
+        Some(41),
+        "the explicit context must be gone but the live guard frame must survive"
+    );
+
+    drop(guard);
+    assert_eq!(
+        AsyncTracker::get_current_task(),
+        None,
+        "dropping the guard must end its own scope"
+    );
+}

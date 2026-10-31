@@ -21,7 +21,7 @@ pub enum MemoryEventType {
     Borrow,
     /// Memory return event
     Return,
-    /// Metadata event for Container/Value types (no heap allocation)
+    /// Container/Value metadata (`ptr == 0`) or an annotation of a heap binding.
     Metadata,
     /// Clone event
     Clone,
@@ -63,6 +63,10 @@ pub struct MemoryEvent {
     /// `None` means the block stayed at `ptr`; `Some(new_ptr)` means it migrated,
     /// so the old address binding must be closed and a new one opened.
     pub new_ptr: Option<usize>,
+    /// Capture-local binding identity, preserved across reallocation. Older event
+    /// streams omit it and use address/size matching during replay.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub binding_serial: Option<u64>,
     /// Thread identifier
     pub thread_id: u64,
     /// Optional variable name
@@ -103,6 +107,7 @@ impl MemoryEvent {
             size,
             old_size: None,
             new_ptr: None,
+            binding_serial: None,
             thread_id,
             var_name: None,
             type_name: None,
@@ -144,6 +149,7 @@ impl MemoryEvent {
             size,
             old_size: None,
             new_ptr: None,
+            binding_serial: None,
             thread_id,
             var_name: None,
             type_name: None,
@@ -168,6 +174,7 @@ impl MemoryEvent {
             size: new_size,
             old_size: Some(old_size),
             new_ptr: None,
+            binding_serial: None,
             thread_id,
             var_name: None,
             type_name: None,
@@ -192,6 +199,7 @@ impl MemoryEvent {
             size,
             old_size: None,
             new_ptr: None,
+            binding_serial: None,
             thread_id,
             var_name: Some(var_name),
             type_name: Some(type_name),
@@ -223,6 +231,7 @@ impl MemoryEvent {
             size,
             old_size: None,
             new_ptr: None,
+            binding_serial: None,
             thread_id,
             var_name,
             type_name,
@@ -247,6 +256,7 @@ impl MemoryEvent {
             size,
             old_size: None,
             new_ptr: None,
+            binding_serial: None,
             thread_id,
             var_name: None,
             type_name: Some(if is_mutable {

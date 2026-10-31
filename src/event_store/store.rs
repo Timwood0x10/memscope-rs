@@ -57,6 +57,7 @@ impl EventStore {
     /// the event to prevent data loss. This ensures consistency between
     /// the event queue and the count.
     pub fn record(&self, event: MemoryEvent) {
+        let _suppression = crate::core::allocator::TrackingGuard::acquire();
         // Check if clear operation is in progress
         // If clearing flag is set (non-zero), skip recording to prevent event loss
         if self.clearing.load(Ordering::Acquire) != 0 {
@@ -86,6 +87,7 @@ impl EventStore {
     /// # Returns
     /// A vector containing all events in the store
     pub fn snapshot(&self) -> Vec<MemoryEvent> {
+        let _suppression = crate::core::allocator::TrackingGuard::acquire();
         self.flush_to_cache();
         self.cache.read().clone()
     }
@@ -109,6 +111,7 @@ impl EventStore {
     /// Uses write lock to ensure atomicity with concurrent record operations.
     /// Sets a clearing flag to prevent record() operations during clear.
     pub fn clear(&self) {
+        let _suppression = crate::core::allocator::TrackingGuard::acquire();
         // Set clearing flag to prevent concurrent record operations
         self.clearing.store(1, Ordering::Release);
 

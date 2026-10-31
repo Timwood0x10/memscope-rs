@@ -2,6 +2,8 @@
 
 use std::alloc::{GlobalAlloc, Layout, System};
 
+pub(crate) mod capture_gate;
+
 /// A custom allocator that tracks memory allocations and deallocations.
 ///
 /// This allocator wraps the system allocator and records all allocation
@@ -30,26 +32,29 @@ thread_local! {
 /// The previous code toggled the thread-local flag manually, so any early return (or a
 /// panic inside the tracker) left tracking disabled for the rest of the thread's life.
 /// Restoring on `Drop` makes the suppression impossible to leak.
-struct TrackingGuard;
+pub(crate) struct TrackingGuard;
 
 impl TrackingGuard {
     /// Take the suppression slot, or `None` when tracking is already suppressed
     /// (recursive allocation from inside the tracker itself).
-    fn acquire() -> Option<Self> {
-        TRACKING_DISABLED.with(|disabled| {
-            if disabled.get() {
-                None
-            } else {
-                disabled.set(true);
-                Some(Self)
-            }
-        })
+    pub(crate) fn acquire() -> Option<Self> {
+        TRACKING_DISABLED
+            .try_with(|disabled| {
+                if disabled.get() {
+                    None
+                } else {
+                    disabled.set(true);
+                    Some(Self)
+                }
+            })
+            .ok()
+            .flatten()
     }
 }
 
 impl Drop for TrackingGuard {
     fn drop(&mut self) {
-        TRACKING_DISABLED.with(|disabled| disabled.set(false));
+        let _ = TRACKING_DISABLED.try_with(|disabled| disabled.set(false));
     }
 }
 
@@ -62,9 +67,11 @@ unsafe impl GlobalAlloc for TrackingAllocator {
         if !ptr.is_null() {
             if let Some(_suppression) = TrackingGuard::acquire() {
                 // `catch_unwind` keeps a tracker failure from breaking user allocation.
-                if let Ok(tracker) = std::panic::catch_unwind(crate::core::tracker::get_tracker) {
-                    let _ = tracker.track_allocation(ptr as usize, layout.size());
-                }
+                let _ = std::panic::catch_unwind(|| {
+                    let _gate = capture_gate::acquire(ptr as usize);
+                    crate::tracker::allocator_events::global_tracker()
+                        .record_allocator_allocation(ptr as usize, layout.size());
+                });
             }
         }
 
@@ -82,32 +89,33 @@ unsafe impl GlobalAlloc for TrackingAllocator {
             return System.realloc(ptr, layout, new_size);
         };
 
-        let new_ptr = System.realloc(ptr, layout, new_size);
-        if let Ok(tracker) = std::panic::catch_unwind(crate::core::tracker::get_tracker) {
-            if !new_ptr.is_null() {
-                // The allocator path has no event store attached yet, so only the
-                // in-memory ledger is updated here (the `Tracker` facade records the
-                // matching `Reallocate` event when it owns one).
-                let _ = tracker.track_reallocation(
-                    ptr as usize,
-                    new_ptr as usize,
-                    layout.size(),
-                    new_size,
-                );
-            }
-            // A failed reallocation keeps the original block alive: nothing to record.
-        }
-
-        new_ptr
+        // Save the actual allocator result even if event publication panics after
+        // the system call. Repeating realloc would touch an already-freed pointer.
+        let mut result = None;
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _gate = capture_gate::acquire(ptr as usize);
+            crate::tracker::allocator_events::global_tracker().allocator_reallocation(
+                ptr as usize,
+                layout.size(),
+                new_size,
+                || {
+                    let new_ptr = System.realloc(ptr, layout, new_size);
+                    result = Some(new_ptr);
+                    new_ptr
+                },
+            );
+        }));
+        result.unwrap_or_else(|| System.realloc(ptr, layout, new_size))
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
         // Track the deallocation first, then hand the block back to the system.
         if let Some(_suppression) = TrackingGuard::acquire() {
-            if let Ok(tracker) = std::panic::catch_unwind(crate::core::tracker::get_tracker) {
-                // Ignore errors so a tracking failure cannot break the deallocation.
-                let _ = tracker.track_deallocation(ptr as usize);
-            }
+            let _ = std::panic::catch_unwind(|| {
+                let _gate = capture_gate::acquire(ptr as usize);
+                let _ = crate::tracker::allocator_events::global_tracker()
+                    .track_deallocation(ptr as usize);
+            });
         }
 
         System.dealloc(ptr, layout);
