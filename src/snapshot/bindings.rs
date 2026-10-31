@@ -1,8 +1,8 @@
 //! Address-binding ledger shared by every reconstruction projection.
 //!
-//! The raw event stream has no allocation id: a `Deallocate`/`Reallocate` event
-//! carries only an address (plus the size it was told about). Reconstructing
-//! "who is still alive" therefore has to be done once, with explicit rules, or
+//! Events may carry a capture-local binding serial; older streams carry only an
+//! address and size. Reconstructing "who is still alive" therefore has to be done
+//! once, with explicit rules, or
 //! different outputs (snapshot, dashboard, JSON) will disagree.
 //!
 //! This module is that single implementation. It owns:
@@ -19,8 +19,9 @@
 //! - First use of an address has `generation == 1`; only `generation > 1` means
 //!   the address was reused.
 //! - A late release of generation *G* must not delete generation *G+1*. The
-//!   ledger matches the oldest binding whose recorded size equals the released
-//!   size and falls back to the oldest binding at the address — never to "all
+//!   ledger first matches the explicit serial. Without one, it matches the oldest
+//!   binding whose recorded size equals the released size and falls back to the
+//!   oldest binding at the address — never to "all
 //!   bindings at the address".
 //! - An in-place reallocation keeps the binding (same address, same generation)
 //!   and only refreshes its size. A *migrating* reallocation (`new_ptr` set) closes
@@ -32,6 +33,9 @@
 use crate::event_store::{MemoryEvent, MemoryEventType};
 use crate::snapshot::types::ThreadMemoryStats;
 use std::collections::HashMap;
+
+mod history;
+pub use history::ReleasedBinding;
 
 /// Add two byte counters without wrapping.
 ///
@@ -53,6 +57,8 @@ pub struct BindingRecord {
     pub size: usize,
     /// 1-based binding order at this address (1 = first use, >1 = reuse).
     pub generation: u64,
+    /// Capture-local identity, when the event stream supplies one.
+    pub binding_serial: Option<u64>,
     /// Timestamp of the allocation observation.
     pub allocated_at: u64,
     /// Thread that performed the allocation.
@@ -91,6 +97,8 @@ pub struct LedgerStats {
     pub unmatched_reallocation_count: u64,
     /// Releases without a matching binding.
     pub unmatched_deallocation_count: u64,
+    /// Heap annotations with no uniquely identifiable live binding.
+    pub unmatched_metadata_count: u64,
     /// Allocations that arrived while another binding was still live at the same
     /// address. A non-zero value means the capture missed a release (or two different
     /// blocks shared one address): the bindings are kept apart, but the window has a
@@ -129,6 +137,8 @@ pub struct BindingLedger {
     next_generation: HashMap<usize, u64>,
     stats: LedgerStats,
     thread_stats: HashMap<u64, ThreadMemoryStats>,
+    /// Matched releases retained for lifetime analysis; live objects are censored.
+    released: Vec<ReleasedBinding>,
 }
 
 impl BindingLedger {
@@ -144,8 +154,6 @@ impl BindingLedger {
             MemoryEventType::Allocate => self.on_allocate(event),
             MemoryEventType::Reallocate => self.on_reallocate(event),
             MemoryEventType::Deallocate => self.on_deallocate(event),
-            // Metadata describes non-heap objects; clone/borrow/move/return do
-            // not change the allocation ledger.
             // A metadata event carrying a heap address annotates an existing binding
             // (type observed after the allocation was recorded); everything else is
             // container metadata that does not touch the allocation ledger.
@@ -167,6 +175,11 @@ impl BindingLedger {
     #[must_use]
     pub fn stats(&self) -> &LedgerStats {
         &self.stats
+    }
+
+    /// Completed binding lifetimes from matched release events only.
+    pub fn released(&self) -> &[ReleasedBinding] {
+        &self.released
     }
 
     /// Per-thread attribution: `current_memory` follows the allocating thread
@@ -195,7 +208,7 @@ impl BindingLedger {
     }
 
     fn on_reallocate(&mut self, event: &MemoryEvent) {
-        let Some(index) = self.find_binding(event.ptr, event.old_size) else {
+        let Some(index) = self.find_event_binding(event, event.old_size) else {
             // The old block was never observed (capture started mid-flight or events
             // were lost). Only the new side is a fact: record it at its real address
             // (`new_ptr` when the allocator moved it), attribute it to the thread that
@@ -300,23 +313,31 @@ impl BindingLedger {
         if event.ptr == 0 {
             return;
         }
-        // Match by the recorded size first: when an old and a new binding share the
-        // address, annotating the oldest one would put the type on the wrong generation.
-        // Without a size match the newest binding is the better guess, because the
-        // observation just happened.
-        let index = self
-            .find_binding(event.ptr, Some(event.size))
-            .filter(|index| {
-                self.live[*index]
-                    .as_ref()
-                    .is_some_and(|binding| binding.size == event.size)
-            })
-            .or_else(|| {
-                self.by_addr
-                    .get(&event.ptr)
-                    .and_then(|bucket| bucket.last().copied())
-            });
+        let index = if event.binding_serial.is_some() {
+            self.find_event_binding(event, Some(event.size))
+        } else {
+            // Legacy annotations have no identity. Only a unique size match is evidence;
+            // selecting the oldest/newest of equally sized generations would guess.
+            let mut matches = self
+                .by_addr
+                .get(&event.ptr)
+                .into_iter()
+                .flatten()
+                .copied()
+                .filter(|index| {
+                    self.live[*index]
+                        .as_ref()
+                        .is_some_and(|b| b.size == event.size)
+                });
+            let first = matches.next();
+            if matches.next().is_none() {
+                first
+            } else {
+                None
+            }
+        };
         let Some(index) = index else {
+            self.stats.unmatched_metadata_count += 1;
             return;
         };
         let Some(binding) = self.live.get_mut(index).and_then(Option::as_mut) else {
@@ -338,7 +359,7 @@ impl BindingLedger {
     }
 
     fn on_deallocate(&mut self, event: &MemoryEvent) {
-        let Some(index) = self.find_binding(event.ptr, Some(event.size)) else {
+        let Some(index) = self.find_event_binding(event, Some(event.size)) else {
             self.stats.unmatched_deallocation_count += 1;
             tracing::debug!(
                 "unmatched release: ptr={:#x}, size={}, thread_id={}",
@@ -370,6 +391,10 @@ impl BindingLedger {
         let actor = self.thread_stats.entry(event.thread_id).or_default();
         actor.thread_id = event.thread_id;
         actor.total_deallocated += binding.size;
+        self.released.push(ReleasedBinding {
+            binding,
+            deallocated_at: event.timestamp,
+        });
     }
 
     fn has_live_binding(&self, ptr: usize) -> bool {
@@ -384,6 +409,7 @@ impl BindingLedger {
                 ptr,
                 size: event.size,
                 generation: 0,
+                binding_serial: event.binding_serial,
                 allocated_at: event.timestamp,
                 thread_id: event.thread_id,
                 task_id: event.task_id,
@@ -449,7 +475,19 @@ impl BindingLedger {
         self.stats.peak_bytes = self.stats.peak_bytes.max(self.stats.current_bytes);
     }
 
-    /// Find the binding a release/reallocation belongs to.
+    /// An explicit identity must never fall back to a different binding at the address.
+    fn find_event_binding(&self, event: &MemoryEvent, size: Option<usize>) -> Option<usize> {
+        match event.binding_serial {
+            Some(serial) => self.by_addr.get(&event.ptr)?.iter().copied().find(|index| {
+                self.live[*index]
+                    .as_ref()
+                    .is_some_and(|b| b.binding_serial == Some(serial))
+            }),
+            None => self.find_binding(event.ptr, size),
+        }
+    }
+
+    /// Find the binding a legacy release/reallocation belongs to.
     ///
     /// Only the bindings of that address are inspected (one bucket lookup). Prefers
     /// the oldest binding whose recorded size matches the size the event reports; if

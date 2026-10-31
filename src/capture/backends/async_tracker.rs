@@ -57,7 +57,7 @@ impl TrackerContext {
 
         Self {
             thread_id: current_thread_id(),
-            task_id: task_id_from_context.or(CURRENT_TASK_ID.with(|cell| cell.get())),
+            task_id: task_id_from_context.or_else(AsyncTracker::get_current_task),
             tokio_task_id,
         }
     }
@@ -92,119 +92,11 @@ pub struct ResourceRanking {
 /// Global async tracker instance
 static GLOBAL_TRACKER: Mutex<Option<Arc<AsyncTracker>>> = Mutex::new(None);
 
-thread_local! {
-    static CURRENT_TASK_ID: std::cell::Cell<Option<u64>> = const { std::cell::Cell::new(None) };
-    /// Task scopes active on this thread, outermost first.
-    ///
-    /// Restoring from a saved `previous` value breaks when guards are dropped out of
-    /// order: an inner guard would restore a scope that has already ended. Frames carry
-    /// the guard token so a drop removes *its own* frame (not the first frame with the
-    /// same task id), and a frame without an owner represents a context installed outside
-    /// a guard (for example by `track_task_start`).
-    static TASK_STACK: std::cell::RefCell<Vec<TaskFrame>> =
-        const { std::cell::RefCell::new(Vec::new()) };
-    /// Monotonic token source for guard frames.
-    static GUARD_TOKEN: std::cell::Cell<u64> = const { std::cell::Cell::new(1) };
-}
+mod task_context;
+pub use task_context::TaskGuard;
 
 tokio::task_local! {
     static TASK_CONTEXT: Option<u64>;
-}
-
-/// RAII guard for automatic task cleanup.
-///
-/// Dropping the guard restores the task context that was active before the guard
-/// was created (typically the parent task), instead of blanking the thread-local
-/// slot. Blanking lost the parent context for every nested scope, and wiping the
-/// slot from a thread that never owned it destroyed another task's context when a
-/// guard was moved across threads.
-/// One active task scope on the current thread.
-#[derive(Debug, Clone, Copy)]
-struct TaskFrame {
-    task_id: u64,
-    /// Guard token that owns the frame; `None` for a context installed outside a guard.
-    owner: Option<u64>,
-}
-
-pub struct TaskGuard {
-    task_id: u64,
-    /// Identity of this guard's frame in [`TASK_STACK`].
-    token: u64,
-    cleaned_up: bool,
-}
-
-// SAFETY: TaskGuard can be safely sent between threads because:
-// 1. It only contains primitive types (u64, Option<u64>, bool) that are Send + Sync.
-// 2. It does NOT hold any references, raw pointers, or non-thread-safe data.
-// 3. The restored thread-local (CURRENT_TASK_ID) is per thread.
-// 4. `restore_previous` only writes when the slot still holds this guard's task id,
-//    so a foreign thread (or an outer guard dropped after an inner one) cannot
-//    clobber an unrelated task context.
-unsafe impl Send for TaskGuard {}
-
-// SAFETY: TaskGuard can be safely shared between threads because:
-// 1. All fields are primitive types that are safe for concurrent access.
-// 2. No mutable access to the fields is exposed through `&self`.
-// 3. The thread-local access in `restore_previous` operates on the current
-//    thread's storage, not a shared resource.
-unsafe impl Sync for TaskGuard {}
-
-impl TaskGuard {
-    fn new(task_id: u64) -> Self {
-        let token = GUARD_TOKEN.with(|cell| {
-            let token = cell.get();
-            cell.set(token.saturating_add(1));
-            token
-        });
-        Self {
-            task_id,
-            token,
-            cleaned_up: false,
-        }
-    }
-
-    /// Get the task ID this guard is associated with.
-    pub fn task_id(&self) -> u64 {
-        self.task_id
-    }
-
-    /// Manually release the guard (prevents double cleanup).
-    pub fn release(mut self) {
-        self.cleaned_up = true;
-        self.restore_previous();
-    }
-
-    /// Remove this guard from the thread's scope stack and restore the new top.
-    ///
-    /// Works for any drop order: dropping an outer guard first leaves the inner one
-    /// current, and the inner one then restores the layer below it (or nothing).
-    fn restore_previous(&self) {
-        let parent = TASK_STACK.with(|stack| {
-            let mut stack = stack.borrow_mut();
-            // Remove exactly this guard's frame: several frames may share a task id when a
-            // scope re-enters the same task, and removing the innermost one would leave the
-            // wrong task current.
-            stack.retain(|frame| frame.owner != Some(self.token));
-            stack.last().map(|frame| frame.task_id)
-        });
-
-        // Only release the slot while this guard still owns it; a task installed
-        // afterwards (manually or by another scope) must not be clobbered.
-        CURRENT_TASK_ID.with(|cell| {
-            if cell.get() == Some(self.task_id) {
-                cell.set(parent);
-            }
-        });
-    }
-}
-
-impl Drop for TaskGuard {
-    fn drop(&mut self) {
-        if self.cleaned_up {
-            return;
-        }
-        self.restore_previous();
-    }
 }
 
 mod dealloc;
@@ -245,11 +137,11 @@ impl AsyncTracker {
     }
 
     pub fn set_current_task(task_id: u64) {
-        CURRENT_TASK_ID.with(|cell| cell.set(Some(task_id)));
+        task_context::set(task_id);
     }
 
     pub fn clear_current_task() {
-        CURRENT_TASK_ID.with(|cell| cell.set(None));
+        task_context::clear();
     }
 
     /// Get the current task ID from the thread-local storage.
@@ -257,36 +149,13 @@ impl AsyncTracker {
     /// Note: This only returns the manually set task ID.
     /// For automatic tokio task detection, use `track_in_tokio_task()`.
     pub fn get_current_task() -> Option<u64> {
-        CURRENT_TASK_ID.with(|cell| cell.get())
+        task_context::current()
     }
 
     /// Enter a task context with automatic cleanup.
-    /// Returns a TaskGuard that will clear the task ID when dropped.
+    /// Dropping the returned guard restores the enclosing live scope.
     pub fn enter_task(task_id: u64) -> TaskGuard {
-        let guard = TaskGuard::new(task_id);
-        let previous = Self::get_current_task();
-
-        TASK_STACK.with(|stack| {
-            let mut stack = stack.borrow_mut();
-            // A context installed outside a guard (e.g. `track_task_start`) is remembered
-            // as the base frame, otherwise dropping the guard would clear it instead of
-            // restoring the parent task.
-            if let Some(previous) = previous {
-                if stack.last().map(|frame| frame.task_id) != Some(previous) {
-                    stack.push(TaskFrame {
-                        task_id: previous,
-                        owner: None,
-                    });
-                }
-            }
-            stack.push(TaskFrame {
-                task_id,
-                owner: Some(guard.token),
-            });
-        });
-
-        Self::set_current_task(task_id);
-        guard
+        task_context::enter(task_id)
     }
 
     /// Execute a closure within a task context with automatic cleanup.
@@ -386,13 +255,8 @@ impl AsyncTracker {
             .map_err(|e| AsyncError::mutex_lock_failed("stats", &e.to_string()))?;
         stats.active_tasks = stats.active_tasks.saturating_sub(1);
 
-        // Only release the slot when this task still owns it: the task may end on a
-        // different thread, or another task may already be running on this one.
-        CURRENT_TASK_ID.with(|cell| {
-            if cell.get() == Some(task_id) {
-                cell.set(None);
-            }
-        });
+        // Remove ended base frames even when a nested guard is currently on top.
+        task_context::end(task_id);
 
         Ok(())
     }

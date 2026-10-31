@@ -482,3 +482,54 @@ fn test_tracker_default() {
     let report = tracker.analyze();
     assert_eq!(report.total_allocations, 0);
 }
+
+/// Objective: Verify the dedupe index does not retain one slot per address ever
+/// allocated: releasing a block must reclaim its slot (the profiler must not grow
+/// without bound in a long-running process).
+/// Invariants: after N allocate/release cycles on distinct addresses the index is
+/// empty again, while live addresses keep their slot.
+#[test]
+fn released_addresses_do_not_retain_dedupe_slots() {
+    let tracker = Tracker::new();
+    let base = 0x1000_0000usize;
+
+    for step in 0..256usize {
+        let ptr = base + step * 64;
+        tracker
+            .inner
+            .track_allocation(ptr, 64)
+            .expect("registering the block must succeed");
+        assert!(
+            tracker
+                .track_deallocation(ptr)
+                .expect("releasing the block must succeed"),
+            "the block must have been tracked before it is released"
+        );
+    }
+
+    assert_eq!(
+        tracker.recorded_bindings.len(),
+        0,
+        "released addresses must not keep a dedupe slot"
+    );
+
+    // A slot that still describes a live binding must survive the reclamation sweep.
+    let live = base + 4096;
+    tracker
+        .inner
+        .track_allocation(live, 32)
+        .expect("registering the live block must succeed");
+    let slot = tracker.recorded_slot(live);
+    *slot.lock().expect("slot lock must be acquirable") = Some(RecordedBinding {
+        size: 32,
+        serial: tracker.inner.binding_serial(live).unwrap_or_default(),
+        typed: true,
+    });
+    drop(slot);
+    tracker.reclaim_slot(live);
+    assert_eq!(
+        tracker.recorded_bindings.len(),
+        1,
+        "a live address must keep its slot"
+    );
+}

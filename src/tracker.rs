@@ -162,11 +162,13 @@ pub struct Tracker {
     /// be treated as "already reported".
     /// One slot per address; the slot also serialises the "first record" decision so
     /// concurrent observers of the same block cannot each emit an event.
-    recorded_bindings: Arc<DashMap<usize, Arc<Mutex<Option<RecordedBinding>>>>>,
+    recorded_bindings: RecordedBindings,
     config: Arc<Mutex<TrackerConfig>>,
     start_time: Instant,
     system_snapshots: Arc<Mutex<Vec<SystemSnapshot>>>,
 }
+
+pub(crate) mod allocator_events;
 
 impl Clone for Tracker {
     fn clone(&self) -> Self {
@@ -190,6 +192,7 @@ pub struct TrackerConfig {
 
 impl Tracker {
     pub fn new() -> Self {
+        let _suppression = crate::core::allocator::TrackingGuard::acquire();
         Self {
             inner: Arc::new(MemoryTracker::new()),
             event_store: Arc::new(EventStore::new()),
@@ -229,38 +232,7 @@ impl Tracker {
     }
 
     pub fn global() -> Self {
-        use crate::core::tracker::get_tracker;
-        static GLOBAL_EVENT_STORE: std::sync::OnceLock<Arc<EventStore>> =
-            std::sync::OnceLock::new();
-        static GLOBAL_CONFIG: std::sync::OnceLock<Arc<Mutex<TrackerConfig>>> =
-            std::sync::OnceLock::new();
-        static GLOBAL_SYSTEM_SNAPSHOTS: std::sync::OnceLock<Arc<Mutex<Vec<SystemSnapshot>>>> =
-            std::sync::OnceLock::new();
-        static GLOBAL_RECORDED_BINDINGS: std::sync::OnceLock<RecordedBindings> =
-            std::sync::OnceLock::new();
-
-        Self {
-            inner: get_tracker(),
-            recorded_bindings: GLOBAL_RECORDED_BINDINGS
-                .get_or_init(|| Arc::new(DashMap::new()))
-                .clone(),
-            event_store: GLOBAL_EVENT_STORE
-                .get_or_init(|| Arc::new(EventStore::new()))
-                .clone(),
-            config: GLOBAL_CONFIG
-                .get_or_init(|| {
-                    Arc::new(Mutex::new(TrackerConfig {
-                        sampling: SamplingConfig::default(),
-                        auto_export_on_drop: false,
-                        export_path: None,
-                    }))
-                })
-                .clone(),
-            start_time: Instant::now(),
-            system_snapshots: GLOBAL_SYSTEM_SNAPSHOTS
-                .get_or_init(|| Arc::new(Mutex::new(Vec::new())))
-                .clone(),
-        }
+        allocator_events::global_tracker().clone()
     }
 
     pub fn with_system_monitoring(self) -> Self {
@@ -291,6 +263,7 @@ impl Tracker {
         line: u32,
         module_path: &str,
     ) {
+        let _gate = crate::core::allocator::capture_gate::acquire(0);
         if let Ok(cfg) = self.config.lock() {
             if cfg.sampling.sample_rate < 1.0 {
                 use std::collections::hash_map::DefaultHasher;
@@ -331,6 +304,7 @@ impl Tracker {
         line: u32,
         module_path: &str,
     ) {
+        let _gate = crate::core::allocator::capture_gate::acquire(0);
         let thread_id_u64 = crate::utils::current_thread_id_u64();
 
         let mut event = crate::event_store::MemoryEvent::clone_event(
@@ -372,11 +346,7 @@ impl Tracker {
                 // index" sequence per address. Without this, N threads observing the same
                 // block at once each saw "not recorded yet" and produced N allocation
                 // events for one block (plan A06 follow-up).
-                let slot = self
-                    .recorded_bindings
-                    .entry(ptr)
-                    .or_insert_with(|| Arc::new(Mutex::new(None)))
-                    .clone();
+                let slot = self.recorded_slot(ptr);
                 let mut slot_guard = match slot.lock() {
                     Ok(guard) => guard,
                     Err(poisoned) => poisoned.into_inner(),
@@ -424,6 +394,7 @@ impl Tracker {
                         size,
                     );
                     annotation.ptr = ptr;
+                    annotation.binding_serial = Some(serial);
                     annotation.source_file = Some(file.to_string());
                     annotation.source_line = Some(line);
                     annotation.module_path = Some(module_path.to_string());
@@ -457,6 +428,7 @@ impl Tracker {
                 crate::task_registry::global_registry().record_allocation(size);
 
                 let mut event = MemoryEvent::allocate(ptr, size, thread_id_u64);
+                event.binding_serial = Some(serial);
                 event.var_name = Some(name.to_string());
                 event.type_name = Some(type_name.clone());
                 event.source_file = Some(file.to_string());
@@ -539,18 +511,55 @@ impl Tracker {
         }
     }
 
+    // Slots remain stable while an address is in use so a waiting observer cannot
+    // acquire a detached old slot while another observer uses a newly inserted mutex.
+    fn recorded_slot(&self, ptr: usize) -> RecordedSlot {
+        self.recorded_bindings
+            .entry(ptr)
+            .or_insert_with(|| Arc::new(Mutex::new(None)))
+            .clone()
+    }
+
+    /// Drop the slot of a released address once nobody else can be using it.
+    ///
+    /// Slots must stay stable while an address is live, but keeping one entry per
+    /// address ever allocated makes the profiler itself grow without bound in a
+    /// long-running process. `remove_if` holds the shard write lock, so no thread can
+    /// obtain the slot while it is inspected; a strong count of one means the map is
+    /// its only owner, and `try_lock` (never blocking) then confirms it is empty.
+    fn reclaim_slot(&self, ptr: usize) {
+        self.recorded_bindings.remove_if(&ptr, |_, slot| {
+            Arc::strong_count(slot) == 1
+                && slot
+                    .try_lock()
+                    .map(|value| value.is_none())
+                    .unwrap_or(false)
+        });
+    }
+
     pub fn track_deallocation(&self, ptr: usize) -> crate::TrackingResult<bool> {
+        let _gate = crate::core::allocator::capture_gate::acquire(ptr);
+        let slot = self.recorded_slot(ptr);
+        let mut guard = slot.lock().unwrap_or_else(|e| e.into_inner());
         let size = self.inner.get_allocation_size(ptr).unwrap_or(0);
+        let serial = self.inner.binding_serial(ptr);
 
         let result = self.inner.track_deallocation(ptr)?;
 
         // Only record event if deallocation was successful (ptr was tracked)
         if result {
-            self.recorded_bindings.remove(&ptr);
+            *guard = None;
             let thread_id_u64 = crate::utils::current_thread_id_u64();
 
-            let event = MemoryEvent::deallocate(ptr, size, thread_id_u64);
+            let mut event = MemoryEvent::deallocate(ptr, size, thread_id_u64);
+            event.binding_serial = serial;
             self.event_store.record(event);
+        }
+
+        drop(guard);
+        drop(slot);
+        if result {
+            self.reclaim_slot(ptr);
         }
 
         Ok(result)
@@ -568,6 +577,48 @@ impl Tracker {
         old_size: usize,
         new_size: usize,
     ) {
+        let _gate = crate::core::allocator::capture_gate::acquire(old_ptr);
+        let old_slot = self.recorded_slot(old_ptr);
+        if old_ptr == new_ptr {
+            let mut guard = old_slot.lock().unwrap_or_else(|e| e.into_inner());
+            if let Some(binding) = self.record_reallocation(old_ptr, new_ptr, old_size, new_size) {
+                *guard = Some(binding);
+            }
+            return;
+        }
+        let new_slot = self.recorded_slot(new_ptr);
+        // Address order prevents opposing migrations from acquiring these locks in reverse.
+        let (mut old_guard, mut new_guard) = if old_ptr < new_ptr {
+            let old = old_slot.lock().unwrap_or_else(|e| e.into_inner());
+            let new = new_slot.lock().unwrap_or_else(|e| e.into_inner());
+            (old, new)
+        } else {
+            let new = new_slot.lock().unwrap_or_else(|e| e.into_inner());
+            let old = old_slot.lock().unwrap_or_else(|e| e.into_inner());
+            (old, new)
+        };
+        let binding = self.record_reallocation(old_ptr, new_ptr, old_size, new_size);
+        if let Some(binding) = binding {
+            *old_guard = None;
+            *new_guard = Some(binding);
+        }
+        drop(old_guard);
+        drop(new_guard);
+        drop(old_slot);
+        drop(new_slot);
+        if binding.is_some() {
+            self.reclaim_slot(old_ptr);
+        }
+    }
+
+    /// Called with the affected address slots locked through event publication.
+    fn record_reallocation(
+        &self,
+        old_ptr: usize,
+        new_ptr: usize,
+        old_size: usize,
+        new_size: usize,
+    ) -> Option<RecordedBinding> {
         if let Err(e) = self
             .inner
             .track_reallocation(old_ptr, new_ptr, old_size, new_size)
@@ -578,31 +629,23 @@ impl Tracker {
                 new_ptr,
                 e
             );
-            return;
+            return None;
         }
 
-        self.recorded_bindings.remove(&old_ptr);
         // The reallocation event carries no type information, so the binding is remembered
         // as *untyped*: the next `track!` on it must attach the type instead of being
         // treated as a duplicate observation.
         let serial = self.inner.binding_serial(new_ptr).unwrap_or(0);
-        let slot = self
-            .recorded_bindings
-            .entry(new_ptr)
-            .or_insert_with(|| Arc::new(Mutex::new(None)))
-            .clone();
-        if let Ok(mut guard) = slot.lock() {
-            *guard = Some(RecordedBinding {
-                size: new_size,
-                serial,
-                typed: false,
-            });
-        }
-
         let thread_id_u64 = crate::utils::current_thread_id_u64();
-        let event =
+        let mut event =
             MemoryEvent::reallocate_moved(old_ptr, new_ptr, old_size, new_size, thread_id_u64);
+        event.binding_serial = Some(serial);
         self.event_store.record(event);
+        Some(RecordedBinding {
+            size: new_size,
+            serial,
+            typed: false,
+        })
     }
 
     /// Number of duplicate observations of an already tracked address.
@@ -663,6 +706,7 @@ impl Tracker {
     }
 
     pub fn analyze(&self) -> AnalysisReport {
+        let _suppression = crate::core::allocator::TrackingGuard::acquire();
         let stats = self.stats();
         let events = self.event_store().snapshot();
         let allocations = rebuild_allocations_from_events(&events);
@@ -790,6 +834,7 @@ impl Tracker {
     /// `thread_analysis.json`) and never appends release events, so a live object
     /// stays a live object in the exported files.
     fn export_legacy_on_drop(&self) {
+        let _suppression = crate::core::allocator::TrackingGuard::acquire();
         let Some(path) = self.auto_export_path() else {
             return;
         };

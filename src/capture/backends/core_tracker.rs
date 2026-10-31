@@ -132,6 +132,7 @@ impl MemoryTracker {
         size: usize,
         var_name: Option<String>,
     ) -> TrackingResult<()> {
+        let _gate = crate::core::allocator::capture_gate::acquire(ptr);
         if let Some(mut existing) = self.active_allocations.get_mut(&ptr) {
             let previous_size = existing.size;
 
@@ -230,6 +231,7 @@ impl MemoryTracker {
     /// * `Ok(true)` if the allocation was found and removed
     /// * `Ok(false)` if the pointer was not tracked (possible double-free or untracked allocation)
     pub fn track_deallocation(&self, ptr: usize) -> TrackingResult<bool> {
+        let _gate = crate::core::allocator::capture_gate::acquire(ptr);
         // Remove from DashMap (lock-free)
         if let Some((_, allocation)) = self.active_allocations.remove(&ptr) {
             // Update atomic statistics (lock-free)
@@ -270,6 +272,7 @@ impl MemoryTracker {
         _old_size: usize,
         new_size: usize,
     ) -> TrackingResult<()> {
+        let _gate = crate::core::allocator::capture_gate::acquire(old_ptr);
         let Some((_, mut allocation)) = self.active_allocations.remove(&old_ptr) else {
             // The old block was never observed (capture started mid-flight, or the
             // caller reallocated memory this tracker never saw allocated). Only the new
@@ -310,6 +313,7 @@ impl MemoryTracker {
     /// * `Some(size)` if the allocation exists
     /// * `None` if the pointer is not tracked
     pub fn get_allocation_size(&self, ptr: usize) -> Option<usize> {
+        let _gate = crate::core::allocator::capture_gate::acquire(ptr);
         self.active_allocations.get(&ptr).map(|a| a.size)
     }
 
@@ -329,6 +333,7 @@ impl MemoryTracker {
         source_file: Option<&str>,
         source_line: Option<u32>,
     ) -> TrackingResult<()> {
+        let _gate = crate::core::allocator::capture_gate::acquire(ptr);
         if let Some(mut allocation) = self.active_allocations.get_mut(&ptr) {
             allocation.var_name = Some(var_name);
             allocation.type_name = Some(type_name);
@@ -360,6 +365,7 @@ impl MemoryTracker {
     /// Changes whenever a *new* block is recorded at that address, so callers can detect
     /// address reuse instead of assuming the same allocation (plan A06/PR-02).
     pub fn binding_serial(&self, ptr: usize) -> Option<u64> {
+        let _gate = crate::core::allocator::capture_gate::acquire(ptr);
         self.active_allocations
             .get(&ptr)
             .map(|allocation| allocation.binding_serial)
@@ -384,6 +390,7 @@ impl MemoryTracker {
 
     /// Get current memory statistics.
     pub fn get_stats(&self) -> TrackingResult<MemoryStats> {
+        let _gate = crate::core::allocator::capture_gate::acquire(0);
         let active_count = self.active_allocations.len();
         let total_allocated = self.total_allocated.load(Ordering::Relaxed);
         let total_deallocated = self.total_deallocated.load(Ordering::Relaxed);
@@ -409,6 +416,7 @@ impl MemoryTracker {
     /// allocations that were never freed. Returns the count and total size
     /// of allocations that are still active.
     pub fn detect_leaks(&self) -> (usize, u64) {
+        let _gate = crate::core::allocator::capture_gate::acquire(0);
         let active_count = self.active_allocations.len();
         let total_allocated = self.total_allocated.load(Ordering::Relaxed);
         let total_deallocated = self.total_deallocated.load(Ordering::Relaxed);
@@ -418,6 +426,7 @@ impl MemoryTracker {
 
     /// Get all currently active allocations.
     pub fn get_active_allocations(&self) -> TrackingResult<Vec<AllocationInfo>> {
+        let _gate = crate::core::allocator::capture_gate::acquire(0);
         Ok(self
             .active_allocations
             .iter()
@@ -427,6 +436,7 @@ impl MemoryTracker {
 
     /// Get memory grouped by type.
     pub fn get_memory_by_type(&self) -> TrackingResult<std::collections::HashMap<String, usize>> {
+        let _gate = crate::core::allocator::capture_gate::acquire(0);
         let mut type_sizes: std::collections::HashMap<String, usize> =
             std::collections::HashMap::new();
 

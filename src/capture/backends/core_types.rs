@@ -72,10 +72,7 @@ impl AllocationInfo {
     /// Get current thread ID (hashed)
     #[inline]
     pub fn current_thread_id() -> u64 {
-        use std::hash::{Hash, Hasher};
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        std::thread::current().id().hash(&mut hasher);
-        hasher.finish()
+        crate::utils::current_thread_id_u64()
     }
 }
 

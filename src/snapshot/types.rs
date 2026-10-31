@@ -84,10 +84,21 @@ pub struct MemorySnapshot {
     pub timestamp: u64,
     /// Overall memory statistics
     pub stats: MemoryStats,
-    /// Active allocations (ptr -> allocation info)
+    /// Compatibility address lookup; returns the newest binding at an address.
     pub active_allocations: HashMap<usize, ActiveAllocation>,
+    /// Lossless identity-bearing projection. None denotes a legacy address-only snapshot.
+    #[serde(default)]
+    pub active_bindings: Option<Vec<SnapshotBinding>>,
     /// Per-thread statistics
     pub thread_stats: HashMap<u64, ThreadMemoryStats>,
+}
+
+/// An allocation together with its observed binding identity.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SnapshotBinding {
+    pub generation_id: u64,
+    pub binding_serial: Option<u64>,
+    pub allocation: ActiveAllocation,
 }
 
 impl MemorySnapshot {
@@ -100,6 +111,7 @@ impl MemorySnapshot {
                 .as_nanos() as u64,
             stats: MemoryStats::default(),
             active_allocations: HashMap::new(),
+            active_bindings: None,
             thread_stats: HashMap::new(),
         }
     }
@@ -165,7 +177,23 @@ impl MemorySnapshot {
 
     /// Get the number of active allocations
     pub fn active_count(&self) -> usize {
-        self.active_allocations.len()
+        self.active_bindings
+            .as_ref()
+            .map_or(self.active_allocations.len(), Vec::len)
+    }
+
+    /// Iterate all bindings, including overlapping generations at the same address.
+    /// Legacy snapshots continue to use their address-only map.
+    pub fn allocations(&self) -> impl Iterator<Item = &ActiveAllocation> {
+        self.active_bindings
+            .iter()
+            .flatten()
+            .map(|binding| &binding.allocation)
+            .chain(
+                self.active_allocations
+                    .values()
+                    .filter(|_| self.active_bindings.is_none()),
+            )
     }
 
     /// Get the current memory usage

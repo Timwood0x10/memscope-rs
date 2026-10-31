@@ -10,7 +10,7 @@
 use crate::core::types::TrackKind;
 use crate::event_store::MemoryEvent;
 use crate::snapshot::bindings::BindingLedger;
-use crate::snapshot::types::{ActiveAllocation, MemorySnapshot};
+use crate::snapshot::types::{ActiveAllocation, MemorySnapshot, SnapshotBinding};
 
 /// Build a memory snapshot from a slice of events.
 ///
@@ -20,18 +20,22 @@ use crate::snapshot::types::{ActiveAllocation, MemorySnapshot};
 ///   transitions, so they stay correct even after releases have been applied.
 /// * A release closes exactly one binding (matched by address and recorded size),
 ///   so a late release of an older generation cannot delete a newer live binding.
-/// * `active_allocations` is keyed by address; when two bindings at the same
-///   address are live at the same time (a release was missed) the map keeps the
-///   newest one and the condition is logged, while the statistics above keep both
-///   bindings' bytes.
+/// * `active_bindings` retains all identities, including overlapping generations.
+///   The compatibility address lookup returns the newest binding only.
 pub fn build_snapshot_from_events(events: &[MemoryEvent]) -> MemorySnapshot {
     let mut ledger = BindingLedger::new();
     for event in events {
         ledger.apply(event);
     }
 
+    project_snapshot(&ledger, MemorySnapshot::new().timestamp)
+}
+
+/// Project the same reduced capture cut used by another report consumer.
+pub(crate) fn project_snapshot(ledger: &BindingLedger, timestamp: u64) -> MemorySnapshot {
     let mut snapshot = MemorySnapshot::new();
-    let mut conflicting = 0usize;
+    snapshot.timestamp = timestamp;
+    let mut bindings = Vec::with_capacity(ledger.live().len());
 
     for binding in ledger.live() {
         let active = ActiveAllocation {
@@ -49,21 +53,17 @@ pub fn build_snapshot_from_events(events: &[MemoryEvent]) -> MemorySnapshot {
             module_path: binding.module_path.clone(),
             stack_ptr: binding.stack_ptr,
         };
-        if snapshot
+        snapshot
             .active_allocations
-            .insert(binding.ptr, active)
-            .is_some()
-        {
-            conflicting += 1;
-        }
+            .insert(binding.ptr, active.clone());
+        bindings.push(SnapshotBinding {
+            generation_id: binding.generation,
+            binding_serial: binding.binding_serial,
+            allocation: active,
+        });
     }
 
-    if conflicting > 0 {
-        tracing::warn!(
-            conflicting,
-            "multiple live bindings share an address; the snapshot map keeps the newest and the totals keep every binding"
-        );
-    }
+    snapshot.active_bindings = Some(bindings);
 
     let stats = ledger.stats();
     snapshot.stats.total_allocations =
@@ -79,7 +79,7 @@ pub fn build_snapshot_from_events(events: &[MemoryEvent]) -> MemorySnapshot {
         usize::try_from(stats.deallocated_bytes).unwrap_or(usize::MAX);
     snapshot.stats.current_memory = usize::try_from(stats.current_bytes).unwrap_or(usize::MAX);
     snapshot.stats.peak_memory = usize::try_from(stats.peak_bytes).unwrap_or(usize::MAX);
-    snapshot.stats.active_allocations = snapshot.active_allocations.len();
+    snapshot.stats.active_allocations = snapshot.active_count();
     snapshot.thread_stats = ledger.thread_stats().clone();
 
     snapshot
