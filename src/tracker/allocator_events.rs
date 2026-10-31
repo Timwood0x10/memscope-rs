@@ -4,12 +4,23 @@ use super::*;
 use crate::core::allocator::TrackingGuard;
 use std::sync::OnceLock;
 
-/// Borrow the singleton so allocator callbacks never drop an auto-exporting facade.
-pub(crate) fn global_tracker() -> &'static Tracker {
-    let _suppression = TrackingGuard::acquire();
-    static GLOBAL: OnceLock<Tracker> = OnceLock::new();
-    GLOBAL.get_or_init(|| Tracker {
-        inner: crate::core::tracker::get_tracker(),
+/// Shared, singleton state of the global facade.
+///
+/// Only the parts that must be shared are cached: the event store, the deduplication
+/// index, the configuration and the system snapshots. The core backend is resolved per
+/// call, so switching the tracking strategy (or calling from another thread) selects the
+/// backend that is current *now* instead of pinning the first one forever.
+struct GlobalShared {
+    event_store: Arc<EventStore>,
+    recorded_bindings: RecordedBindings,
+    config: Arc<Mutex<TrackerConfig>>,
+    start_time: Instant,
+    system_snapshots: Arc<Mutex<Vec<SystemSnapshot>>>,
+}
+
+fn shared() -> &'static GlobalShared {
+    static GLOBAL: OnceLock<GlobalShared> = OnceLock::new();
+    GLOBAL.get_or_init(|| GlobalShared {
         event_store: Arc::new(EventStore::new()),
         recorded_bindings: Arc::new(DashMap::new()),
         config: Arc::new(Mutex::new(TrackerConfig {
@@ -20,6 +31,20 @@ pub(crate) fn global_tracker() -> &'static Tracker {
         start_time: Instant::now(),
         system_snapshots: Arc::new(Mutex::new(Vec::new())),
     })
+}
+
+/// Facade for allocator callbacks, without taking ownership of the backend choice.
+pub(crate) fn global_tracker() -> Tracker {
+    let _suppression = TrackingGuard::acquire();
+    let shared = shared();
+    Tracker {
+        inner: crate::core::tracker::get_tracker(),
+        event_store: shared.event_store.clone(),
+        recorded_bindings: shared.recorded_bindings.clone(),
+        config: shared.config.clone(),
+        start_time: shared.start_time,
+        system_snapshots: shared.system_snapshots.clone(),
+    }
 }
 
 impl Tracker {
@@ -44,6 +69,10 @@ impl Tracker {
         let mut event = MemoryEvent::allocate(ptr, size, crate::utils::current_thread_id_u64());
         event.binding_serial = Some(serial);
         self.event_store.record(event);
+
+        // Exactly once per binding: the allocator saw the real block, so it charges the
+        // task. A later typed observation of the same block only annotates it.
+        crate::task_registry::global_registry().record_allocation(size);
         *guard = Some(RecordedBinding {
             size,
             serial,

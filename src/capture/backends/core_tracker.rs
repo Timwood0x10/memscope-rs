@@ -10,7 +10,6 @@ use dashmap::DashMap;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::thread;
-use tracing::warn;
 
 const STRATEGY_GLOBAL_SINGLETON: u64 = 0;
 const STRATEGY_THREAD_LOCAL: u64 = 1;
@@ -53,8 +52,14 @@ fn register_current_thread_tracker_local(tracker: &Arc<MemoryTracker>) {
 /// - **Atomic counters**: Lock-free statistics updates
 /// - **Thread-local**: Zero-contention for per-thread tracking
 pub struct MemoryTracker {
-    /// Active allocations (DashMap for lock-free concurrent access)
-    active_allocations: DashMap<usize, AllocationInfo>,
+    /// Live bindings per address, oldest first (DashMap for lock-free concurrent
+    /// access).
+    ///
+    /// One address can hold more than one live binding: when a second allocation is
+    /// observed at an address whose previous block was never released, both blocks are
+    /// facts. Keeping them apart (instead of overwriting) is what makes
+    /// `(ptr, binding_serial)` a usable identity (plan PR-02).
+    active_allocations: DashMap<usize, Vec<AllocationInfo>>,
 
     /// Atomic statistics (lock-free updates)
     total_allocations: AtomicU64,
@@ -63,6 +68,10 @@ pub struct MemoryTracker {
     total_deallocated: AtomicU64,
     peak_allocations: AtomicUsize,
     peak_memory: AtomicU64,
+    /// Number of live bindings (an address may hold several). Kept as a counter so the
+    /// peak-update path stays O(1); scanning the map per allocation would make the hot
+    /// path quadratic in the number of addresses.
+    live_bindings: AtomicUsize,
 
     /// Number of sightings of an already tracked address that did not change its
     /// size (duplicate `track!`, allocator hook + typed observation of the same
@@ -70,10 +79,14 @@ pub struct MemoryTracker {
     duplicate_observations: AtomicU64,
     /// Monotonic identity assigned to every binding this tracker creates.
     next_binding_serial: AtomicU64,
-    /// Number of bindings that were superseded by a new size at the same address
-    /// without an observed release in between. Reported as a diagnostic because it
-    /// means the capture missed a `free` (or saw two different blocks at one address).
+    /// Number of allocations that arrived at an address which still had a live
+    /// binding. Reported as a diagnostic: the capture missed a `free` (or saw two
+    /// different blocks at one address), so no release can be attributed reliably.
     replaced_bindings: AtomicU64,
+    /// Number of releases that could only be matched by address, because the address
+    /// held more than one live binding. Those closes are guesses and are reported so a
+    /// consumer never mistakes them for an exact release (plan PR-02).
+    degraded_releases: AtomicU64,
 
     /// Fast mode flag for testing (reduces overhead)
     fast_mode: AtomicU64,
@@ -92,9 +105,11 @@ impl MemoryTracker {
             total_deallocated: AtomicU64::new(0),
             peak_allocations: AtomicUsize::new(0),
             peak_memory: AtomicU64::new(0),
+            live_bindings: AtomicUsize::new(0),
             next_binding_serial: AtomicU64::new(1),
             duplicate_observations: AtomicU64::new(0),
             replaced_bindings: AtomicU64::new(0),
+            degraded_releases: AtomicU64::new(0),
             fast_mode: AtomicU64::new(fast_mode as u64),
         }
     }
@@ -133,10 +148,11 @@ impl MemoryTracker {
         var_name: Option<String>,
     ) -> TrackingResult<()> {
         let _gate = crate::core::allocator::capture_gate::acquire(ptr);
-        if let Some(mut existing) = self.active_allocations.get_mut(&ptr) {
-            let previous_size = existing.size;
 
-            if previous_size == size {
+        let mut entries = self.active_allocations.entry(ptr).or_default();
+
+        if let Some(existing) = entries.last_mut() {
+            if existing.size == size {
                 // Same address, same size: another observation of the same block.
                 if var_name.is_some() {
                     existing.var_name = var_name;
@@ -146,15 +162,15 @@ impl MemoryTracker {
             }
 
             // Same address, different size, no observed release in between: either an
-            // address reuse whose `free` was lost, or an in-place reallocation. These
-            // are indistinguishable from an observation, so the conservative reading
-            // wins — the old binding is superseded and the new one gets a fresh
-            // identity. The superseded bytes leave the live set (booked as replaced, not
-            // as an observed release) so the byte ledger stays conserved.
-            drop(existing);
+            // address reuse whose release was lost, or an in-place reallocation. An
+            // observation cannot tell them apart, so both blocks stay live and the
+            // condition is reported. Merging them would destroy the old identity and
+            // make a later release delete the wrong one.
             self.replaced_bindings.fetch_add(1, Ordering::Relaxed);
-            self.total_deallocated
-                .fetch_add(previous_size as u64, Ordering::Relaxed);
+            tracing::debug!(
+                "conflicting allocation: address {:#x} still holds a live binding",
+                ptr
+            );
         }
 
         let mut allocation = AllocationInfo::new(ptr, size);
@@ -162,7 +178,9 @@ impl MemoryTracker {
         if var_name.is_some() {
             allocation.var_name = var_name;
         }
-        self.active_allocations.insert(ptr, allocation);
+        entries.push(allocation);
+        drop(entries);
+        self.live_bindings.fetch_add(1, Ordering::Relaxed);
 
         self.total_allocations.fetch_add(1, Ordering::Relaxed);
         self.total_allocated
@@ -172,11 +190,25 @@ impl MemoryTracker {
         Ok(())
     }
 
+    /// Number of live bindings across all addresses.
+    fn live_binding_count(&self) -> usize {
+        self.live_bindings.load(Ordering::Relaxed)
+    }
+
+    /// Number of live bindings currently recorded at `ptr`.
+    pub fn live_binding_count_at(&self, ptr: usize) -> usize {
+        let _gate = crate::core::allocator::capture_gate::acquire(ptr);
+        self.active_allocations
+            .get(&ptr)
+            .map(|entries| entries.len())
+            .unwrap_or(0)
+    }
+
     /// Refresh the high-water mark for the number of live allocations.
     fn update_peak_allocations(&self) {
         // CAS loop avoids the TOCTOU race of read-then-store.
         loop {
-            let current_count = self.active_allocations.len();
+            let current_count = self.live_binding_count();
             let current_peak = self.peak_allocations.load(Ordering::Relaxed);
             if current_count <= current_peak {
                 break;
@@ -222,41 +254,82 @@ impl MemoryTracker {
         }
     }
 
-    /// Track a memory deallocation.
+    /// Track a memory deallocation by address.
     ///
-    /// # Arguments
-    /// * `ptr` - Memory pointer address
+    /// This is the **degraded** path: an address alone cannot name a binding, so when
+    /// the address holds more than one live binding the oldest one is closed and the
+    /// guess is counted in [`Self::degraded_releases`]. Callers that know which block
+    /// they are releasing must use [`Self::track_deallocation_of`] (plan PR-02).
     ///
     /// # Returns
-    /// * `Ok(true)` if the allocation was found and removed
-    /// * `Ok(false)` if the pointer was not tracked (possible double-free or untracked allocation)
+    /// * `Ok(true)` if a binding was found and closed
+    /// * `Ok(false)` if the pointer was not tracked (possible double-free or untracked
+    ///   allocation)
     pub fn track_deallocation(&self, ptr: usize) -> TrackingResult<bool> {
         let _gate = crate::core::allocator::capture_gate::acquire(ptr);
-        // Remove from DashMap (lock-free)
-        if let Some((_, allocation)) = self.active_allocations.remove(&ptr) {
-            // Update atomic statistics (lock-free)
-            self.total_deallocations.fetch_add(1, Ordering::Relaxed);
-            self.total_deallocated
-                .fetch_add(allocation.size as u64, Ordering::Relaxed);
-            Ok(true)
-        } else {
-            // Pointer not found - could be double-free or untracked allocation
-            // Log warning in debug mode
-            #[cfg(debug_assertions)]
-            warn!(
-                "deallocation called for untracked pointer {:x}. \
-                 This may indicate a double-free or memory not tracked by memscope.",
-                ptr
-            );
-            Ok(false)
-        }
+        self.close_binding(ptr, None)
+    }
+
+    /// Track a memory deallocation of one specific binding.
+    ///
+    /// `serial` is the identity returned by [`Self::binding_serial`]; only that binding
+    /// may be closed, so a release that arrives after the address was reused cannot
+    /// delete the new block.
+    pub fn track_deallocation_of(&self, ptr: usize, serial: u64) -> TrackingResult<bool> {
+        let _gate = crate::core::allocator::capture_gate::acquire(ptr);
+        self.close_binding(ptr, Some(serial))
+    }
+
+    /// Close a binding, returning whether one was closed.
+    fn close_binding(&self, ptr: usize, serial: Option<u64>) -> TrackingResult<bool> {
+        let closed = {
+            let Some(mut entries) = self.active_allocations.get_mut(&ptr) else {
+                return Ok(false);
+            };
+
+            let index = match serial {
+                Some(serial) => entries
+                    .iter()
+                    .position(|binding| binding.binding_serial == serial),
+                None => {
+                    if entries.len() > 1 {
+                        self.degraded_releases.fetch_add(1, Ordering::Relaxed);
+                        tracing::debug!(
+                            "degraded release: address {:#x} holds {} bindings, closing the oldest",
+                            ptr,
+                            entries.len()
+                        );
+                    }
+                    Some(0)
+                }
+            };
+
+            let Some(index) = index else {
+                // The named binding is already gone: a late release of a superseded
+                // generation must not touch the blocks that replaced it.
+                return Ok(false);
+            };
+
+            let closed = entries.remove(index);
+            if entries.is_empty() {
+                drop(entries);
+                self.active_allocations.remove(&ptr);
+            }
+            closed
+        };
+
+        self.live_bindings.fetch_sub(1, Ordering::Relaxed);
+        self.total_deallocations.fetch_add(1, Ordering::Relaxed);
+        self.total_deallocated
+            .fetch_add(closed.size as u64, Ordering::Relaxed);
+        Ok(true)
     }
 
     /// Track a reallocation of a tracked block.
     ///
-    /// The block keeps a single ledger entry: the new size replaces the old one and
-    /// the allocation counter does not change, whether the allocator kept the address
-    /// (`old_ptr == new_ptr`) or moved the block. Metadata recorded by `track!` is
+    /// The block keeps its identity (and its binding serial): the new size replaces the
+    /// old one and the allocation counter does not change, whether the allocator kept the
+    /// address (`old_ptr == new_ptr`) or moved the block. Metadata recorded by `track!` is
     /// carried over to the new address.
     ///
     /// # Arguments
@@ -273,20 +346,24 @@ impl MemoryTracker {
         new_size: usize,
     ) -> TrackingResult<()> {
         let _gate = crate::core::allocator::capture_gate::acquire(old_ptr);
-        let Some((_, mut allocation)) = self.active_allocations.remove(&old_ptr) else {
-            // The old block was never observed (capture started mid-flight, or the
-            // caller reallocated memory this tracker never saw allocated). Only the new
-            // block is a fact: record it and book no released bytes for the old one,
-            // otherwise `allocated - deallocated` would drop below the live set.
-            let mut new_binding = AllocationInfo::new(new_ptr, new_size);
-            new_binding.binding_serial = self.next_binding_serial.fetch_add(1, Ordering::Relaxed);
-            self.active_allocations.insert(new_ptr, new_binding);
-            self.total_allocations.fetch_add(1, Ordering::Relaxed);
-            self.total_allocated
-                .fetch_add(new_size as u64, Ordering::Relaxed);
-            self.update_peak_allocations();
-            self.update_peak_memory();
-            return Ok(());
+
+        let previous = {
+            let Some(mut entries) = self.active_allocations.get_mut(&old_ptr) else {
+                return self.open_unmatched_binding(new_ptr, new_size);
+            };
+            // A reallocation applies to the block the caller holds; the newest binding at
+            // the address is the only defensible choice when the capture also holds older
+            // generations.
+            let previous = entries.pop();
+            if entries.is_empty() {
+                drop(entries);
+                self.active_allocations.remove(&old_ptr);
+            }
+            previous
+        };
+
+        let Some(mut allocation) = previous else {
+            return self.open_unmatched_binding(new_ptr, new_size);
         };
 
         // A matched reallocation keeps one ledger row: the old size leaves the live
@@ -294,12 +371,35 @@ impl MemoryTracker {
         let previous_size = allocation.size;
         allocation.ptr = new_ptr;
         allocation.size = new_size;
-        self.active_allocations.insert(new_ptr, allocation);
+        self.active_allocations
+            .entry(new_ptr)
+            .or_default()
+            .push(allocation);
 
         self.total_allocated
             .fetch_add(new_size as u64, Ordering::Relaxed);
         self.total_deallocated
             .fetch_add(previous_size as u64, Ordering::Relaxed);
+        self.update_peak_memory();
+        Ok(())
+    }
+
+    /// Record a block whose previous size was never observed.
+    ///
+    /// Only the new block is a fact, so nothing may be booked as released for the old
+    /// one (that would push `allocated - deallocated` below the live set).
+    fn open_unmatched_binding(&self, new_ptr: usize, new_size: usize) -> TrackingResult<()> {
+        let mut new_binding = AllocationInfo::new(new_ptr, new_size);
+        new_binding.binding_serial = self.next_binding_serial.fetch_add(1, Ordering::Relaxed);
+        self.active_allocations
+            .entry(new_ptr)
+            .or_default()
+            .push(new_binding);
+        self.live_bindings.fetch_add(1, Ordering::Relaxed);
+        self.total_allocations.fetch_add(1, Ordering::Relaxed);
+        self.total_allocated
+            .fetch_add(new_size as u64, Ordering::Relaxed);
+        self.update_peak_allocations();
         self.update_peak_memory();
         Ok(())
     }
@@ -314,7 +414,9 @@ impl MemoryTracker {
     /// * `None` if the pointer is not tracked
     pub fn get_allocation_size(&self, ptr: usize) -> Option<usize> {
         let _gate = crate::core::allocator::capture_gate::acquire(ptr);
-        self.active_allocations.get(&ptr).map(|a| a.size)
+        self.active_allocations
+            .get(&ptr)
+            .and_then(|entries| entries.last().map(|binding| binding.size))
     }
 
     /// Associate a variable name and type with an allocation.
@@ -334,11 +436,13 @@ impl MemoryTracker {
         source_line: Option<u32>,
     ) -> TrackingResult<()> {
         let _gate = crate::core::allocator::capture_gate::acquire(ptr);
-        if let Some(mut allocation) = self.active_allocations.get_mut(&ptr) {
-            allocation.var_name = Some(var_name);
-            allocation.type_name = Some(type_name);
-            if let (Some(file), Some(line)) = (source_file, source_line) {
-                allocation.set_source_location(file, line);
+        if let Some(mut entries) = self.active_allocations.get_mut(&ptr) {
+            if let Some(allocation) = entries.last_mut() {
+                allocation.var_name = Some(var_name);
+                allocation.type_name = Some(type_name);
+                if let (Some(file), Some(line)) = (source_file, source_line) {
+                    allocation.set_source_location(file, line);
+                }
             }
         }
 
@@ -368,7 +472,7 @@ impl MemoryTracker {
         let _gate = crate::core::allocator::capture_gate::acquire(ptr);
         self.active_allocations
             .get(&ptr)
-            .map(|allocation| allocation.binding_serial)
+            .and_then(|entries| entries.last().map(|binding| binding.binding_serial))
     }
 
     /// Number of duplicate sightings of already tracked addresses.
@@ -388,10 +492,19 @@ impl MemoryTracker {
         self.replaced_bindings.load(Ordering::Relaxed)
     }
 
+    /// Number of releases that could only be matched by address.
+    ///
+    /// Non-zero means a release arrived for an address that held several live bindings,
+    /// so the closed binding was a guess. Callers that know the identity should use
+    /// `track_deallocation_of` instead.
+    pub fn degraded_releases(&self) -> u64 {
+        self.degraded_releases.load(Ordering::Relaxed)
+    }
+
     /// Get current memory statistics.
     pub fn get_stats(&self) -> TrackingResult<MemoryStats> {
         let _gate = crate::core::allocator::capture_gate::acquire(0);
-        let active_count = self.active_allocations.len();
+        let active_count = self.live_binding_count();
         let total_allocated = self.total_allocated.load(Ordering::Relaxed);
         let total_deallocated = self.total_deallocated.load(Ordering::Relaxed);
         let active_memory = total_allocated.saturating_sub(total_deallocated);
@@ -417,7 +530,7 @@ impl MemoryTracker {
     /// of allocations that are still active.
     pub fn detect_leaks(&self) -> (usize, u64) {
         let _gate = crate::core::allocator::capture_gate::acquire(0);
-        let active_count = self.active_allocations.len();
+        let active_count = self.live_binding_count();
         let total_allocated = self.total_allocated.load(Ordering::Relaxed);
         let total_deallocated = self.total_deallocated.load(Ordering::Relaxed);
         let active_memory = total_allocated.saturating_sub(total_deallocated);
@@ -427,11 +540,11 @@ impl MemoryTracker {
     /// Get all currently active allocations.
     pub fn get_active_allocations(&self) -> TrackingResult<Vec<AllocationInfo>> {
         let _gate = crate::core::allocator::capture_gate::acquire(0);
-        Ok(self
-            .active_allocations
-            .iter()
-            .map(|entry| entry.value().clone())
-            .collect())
+        let mut allocations = Vec::new();
+        for entry in self.active_allocations.iter() {
+            allocations.extend(entry.value().iter().cloned());
+        }
+        Ok(allocations)
     }
 
     /// Get memory grouped by type.
@@ -441,12 +554,13 @@ impl MemoryTracker {
             std::collections::HashMap::new();
 
         for entry in self.active_allocations.iter() {
-            let alloc = entry.value();
-            let type_name = alloc
-                .type_name
-                .clone()
-                .unwrap_or_else(|| "unknown".to_string());
-            *type_sizes.entry(type_name).or_insert(0) += alloc.size;
+            for alloc in entry.value() {
+                let type_name = alloc
+                    .type_name
+                    .clone()
+                    .unwrap_or_else(|| "unknown".to_string());
+                *type_sizes.entry(type_name).or_insert(0) += alloc.size;
+            }
         }
 
         Ok(type_sizes)
@@ -544,7 +658,7 @@ impl Drop for MemoryTracker {
             );
         }
 
-        let active_count = self.active_allocations.len();
+        let active_count = self.live_binding_count();
         if active_count > 0 {
             tracing::warn!(
                 "Dropping MemoryTracker with {} active allocations (potential memory leaks)",
@@ -554,6 +668,7 @@ impl Drop for MemoryTracker {
 
         // Clear active_allocations to release memory
         self.active_allocations.clear();
+        self.live_bindings.store(0, Ordering::Relaxed);
     }
 }
 

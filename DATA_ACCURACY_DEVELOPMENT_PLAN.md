@@ -1538,3 +1538,54 @@ let leaked = allocations.into_iter().filter(|a| a.ptr.is_some()).collect();
 （真实堆分配 + Container 观测走完整 `export_all_json`，断言导出成功、容器被列出、
 堆计数只含真实块）。
 
+
+### 17.14 PR-02 进展：核心缓存按绑定身份存储与释放
+
+此前核心缓存是 `DashMap<ptr, AllocationInfo>`（每地址一条），`track_deallocation(ptr)`
+按裸地址删除。结果是：地址复用后缓存里只剩新块，**任何按地址到达的旧释放都会关掉新代**；
+而"同址异大小"被当成原地 realloc，合并旧行并扣旧字节，与账本（保留两条 + 冲突诊断）口径不一致。
+
+本轮改动：
+
+| 位置 | 变更 |
+| --- | --- |
+| `core_tracker` 存储 | `DashMap<usize, Vec<AllocationInfo>>`，最旧在前；每条带 `binding_serial`（每 tracker 单调递增） |
+| `record_binding` | 同址同大小 = 重复观测；同址异大小 = **两条都存活** + `replaced_bindings` 冲突诊断（不再合并、不再扣旧字节），与 `BindingLedger` 一致 |
+| 释放 | 新增 `track_deallocation_of(ptr, serial)`：只关闭命名的那一代；`track_deallocation(ptr)` 降级为"关最旧 + `degraded_releases` 计数"，并打 debug 日志 |
+| `Tracker` 门面 | 地址只有一条绑定时按 serial 精确释放；多条时走降级路径并计数；事件继续携带 `binding_serial` |
+| 统计读取 | `get_stats().active_allocations`、`detect_leaks()`、`get_active_allocations()`、`get_memory_by_type()` 改为按**绑定**计数/扁平化（一个地址可有多条） |
+
+用例：`release_by_serial_does_not_close_a_reused_address`（按旧 serial 释放不影响新块，重复释放为 no-op）、
+`address_only_release_is_reported_as_degraded`（歧义地址释放只关最旧并计数）、
+`ambiguous_address_release_is_reported_and_keeps_the_new_block`（门面层同样行为）、
+并更新 `test_duplicate_address_allocation` / `test_reused_address_opens_new_binding`
+到"两条都存活"的新契约。
+
+变异验证：把 `track_deallocation_of` 改成忽略 serial（总是关第 0 条）后
+`release_by_serial_does_not_close_a_reused_address` 立即失败；恢复后 37 个核心跟踪器用例全绿。
+
+**仍未完成（PR-02 收尾）**：`binding_serial` 是**每个 tracker 内部**的 u64，不是跨会话/跨投影的
+`AllocationId`；护照侧仍以地址 + generation 为键（`superseded` 归档已落地）。这两项与
+JSON V2 的 `allocation_id` 字段一起，属于 PR-02/PR-07 的剩余工作。
+
+### 17.15 PR-02 续：smart pointer 不再重复计数、释放不再留空槽、任务记账归一
+
+| 意见 | 核查结论 | 处理 |
+| --- | --- | --- |
+| P1 Arc/Rc 堆内存被重复计数 | **成立**：allocator 已为真实块发布 Allocate（`Arc::new([u8;64])` 实占 80B），`StackOwner` 分支又按"被指向对象大小"发布一条 Allocate（64B）→ 快照 144B | `StackOwner` 只发布 `Metadata` 注释（`ptr = heap_ptr`，保留 `stack_ptr` 供克隆检测），不再 `track_allocation(stack_ptr, ..)`、不再发布第二条 Allocate；块字节只由 allocator 记账 |
+| P2 未匹配释放永久留下去重槽 | **成立**：`track_deallocation` 无条件 `recorded_slot(ptr)`，只在成功时回收 | 先查 `live_binding_count_at(ptr)`，为 0 直接返回 `false`，不创建槽 |
+| P2 启用 allocator 后任务内存丢失 | **成立**：allocator 路径只发事件不记任务；随后 `track!` 命中已有 binding 只注释并提前返回，跳过记账 | 任务记账收敛到"真实块的观测者"：`record_allocator_allocation` 在**去重通过后**记一次；`track_inner` 仅在新绑定分支记账；`StackOwner` 不再记账 |
+| P2 全局单例固定首个后端 | **成立**：`OnceLock<Tracker>` 缓存了首次 `get_tracker()` 的返回，切换跟踪策略或换线程后仍用旧后端 | 单例只缓存共享部分（`EventStore`、去重索引、配置、系统快照）；`inner` 每次调用 `get_tracker()` 现取，`Tracker::global()` 返回按当前策略构造的门面 |
+
+用例：`smart_pointer_observation_does_not_count_the_block_twice`（观测 Arc 前后事件流推导的存活字节不变）、
+`untracked_release_does_not_create_a_dedupe_slot`（256 次未知释放后索引为空）、
+`tracked_block_charges_the_current_task_once`（任务恰好记一次、字节 ≥ 块大小）。
+
+说明：默认 features 不安装 `TrackingAllocator`，因此"allocator 路径记账"在单测里通过同一不变式覆盖
+（无论 hook 还是 `track!` 先看到块，任务都恰好记一次）；`tracking-allocator` 打开时由
+`record_allocator_allocation` 执行记账。
+
+遗留（本轮新增，未处理）：`Box<T>` 仍走 `HeapOwner` 分支，会为被指向的值发布一次分配。启用
+`tracking-allocator` 时它与 allocator 对同一块的观测是否重合，取决于 `Box<T>` 的 `track_kind()`
+返回值与 allocator 实际分配地址是否一致（`render_engine_integration::test_smart_pointer_tracking`
+目前断言"Arc 0 + Box 1"）。需要一条受控分配器用例来确认，属于 PR-02/05 的收尾项。
