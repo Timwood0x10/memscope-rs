@@ -405,3 +405,53 @@ fn truncated_history_yields_unknown_status() {
         "an incomplete chain must not be reported as a confirmed leak"
     );
 }
+
+#[test]
+fn concurrent_reuse_snapshot_contains_each_retained_generation_once() {
+    let tracker = MemoryPassportTracker::new(PassportTrackerConfig::default());
+    tracker
+        .create_passport_simple(0x6500, 64, "initial".into())
+        .unwrap();
+    std::thread::scope(|scope| {
+        for _ in 0..2 {
+            let tracker = &tracker;
+            scope.spawn(move || {
+                for _ in 0..32 {
+                    tracker
+                        .create_passport_simple(0x6500, 64, "reuse".into())
+                        .unwrap();
+                }
+            });
+        }
+        for _ in 0..64 {
+            let records = tracker.snapshot_passports();
+            assert_eq!(records.iter().filter(|p| !p.superseded).count(), 1);
+            for (index, passport) in records.iter().enumerate() {
+                assert_eq!(passport.generation, index as u64 + 1);
+            }
+            assert!(!records.last().unwrap().superseded);
+        }
+    });
+    assert_eq!(tracker.snapshot_passports().len(), 65);
+}
+
+#[test]
+fn frozen_passport_assessment_is_independent_of_later_reuse() {
+    let tracker = MemoryPassportTracker::default();
+    let id = tracker
+        .create_passport_simple(0x6600, 64, "rust".into())
+        .unwrap();
+    tracker
+        .record_handover_to_ffi(0x6600, "ffi".into(), "consume".into())
+        .unwrap();
+    let frozen = tracker.snapshot_passports();
+    tracker
+        .record_reclaimed_by_rust(0x6600, "rust".into(), "return".into())
+        .unwrap();
+    tracker
+        .create_passport_simple(0x6600, 128, "reuse".into())
+        .unwrap();
+    assert_eq!(tracker.detect_leaks_in(&frozen).leaked_passports, vec![id]);
+    assert_eq!(tracker.detect_leaks_at_shutdown().total_leaks, 0);
+    assert!(!frozen[0].superseded);
+}

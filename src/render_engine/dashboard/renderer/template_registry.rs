@@ -12,6 +12,37 @@ use std::path::{Path, PathBuf};
 
 use super::helpers::register_helpers;
 
+/// Share the built-in partials between registry and compatibility render paths.
+pub(super) fn register_builtin_partials(
+    handlebars: &mut Handlebars<'static>,
+) -> Result<(), handlebars::TemplateError> {
+    for (name, source) in [
+        (
+            "dashboard_modes",
+            include_str!("../templates/partials/modes.hbs"),
+        ),
+        (
+            "dashboard_runtime",
+            include_str!("../templates/partials/runtime.hbs"),
+        ),
+        (
+            "dashboard_charts",
+            include_str!("../templates/partials/charts.hbs"),
+        ),
+        (
+            "dashboard_graphs",
+            include_str!("../templates/partials/graphs.hbs"),
+        ),
+        (
+            "dashboard_interactions",
+            include_str!("../templates/partials/interactions.hbs"),
+        ),
+    ] {
+        handlebars.register_partial(name, source)?;
+    }
+    Ok(())
+}
+
 /// Registered dashboard template
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DashboardTemplate {
@@ -77,6 +108,7 @@ impl TemplateRegistry {
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let _ = templates_dir; // unused: single merged template location is fixed
         let mut registry = Self::new();
+        register_builtin_partials(&mut registry.handlebars)?;
 
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let unified_path = manifest_dir

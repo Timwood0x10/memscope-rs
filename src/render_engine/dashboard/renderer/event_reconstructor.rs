@@ -14,12 +14,8 @@
 //!
 //! # Known limits of the legacy event model
 //!
-//! * A `Deallocate`/`Reallocate` event carries no allocation id, so a release is
-//!   matched by address **and** recorded size; when both are identical the oldest
-//!   binding wins (a late event for generation N never claims generation N+1).
-//! * A migrating reallocation cannot be expressed: `MemoryEvent` has no `new_ptr`.
-//!   Only the in-place case is applied, and the limitation is reported in the
-//!   development plan rather than guessed here.
+//! * Explicit binding serials match exactly; legacy events use address/size heuristics.
+//! * Migrating reallocations carry `new_ptr` and retain the original identity.
 //! * `AllocationInfo::thread_id` (`std::thread::ThreadId`) cannot be rebuilt from a
 //!   `u64`. `thread_id_u64` is authoritative; the `ThreadId` field keeps whatever
 //!   the observing thread is and must not be used for aggregation.
@@ -40,6 +36,14 @@ pub fn rebuild_allocations_from_events(events: &[MemoryEvent]) -> Vec<Allocation
         ledger.apply(event);
     }
 
+    project_allocations(&ledger, events)
+}
+
+/// Project a previously reduced capture cut without replaying its transitions.
+pub(super) fn project_allocations(
+    ledger: &BindingLedger,
+    events: &[MemoryEvent],
+) -> Vec<AllocationInfo> {
     let mut all_allocations: Vec<AllocationInfo> = ledger
         .live()
         .into_iter()

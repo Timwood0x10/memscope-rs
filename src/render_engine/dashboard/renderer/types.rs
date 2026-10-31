@@ -3,6 +3,9 @@
 use super::evidence::{EvidenceLevel, RiskConfidence};
 use serde::{Deserialize, Serialize};
 
+mod semantics;
+pub use semantics::*;
+
 /// Risk score penalty per high-risk operation.
 /// Each high-risk operation reduces the health score by this amount.
 pub const HIGH_RISK_PENALTY: f64 = 10.0;
@@ -121,12 +124,12 @@ pub struct DashboardContext {
     /// Waker efficiency grid (opacity values)
     #[serde(default)]
     pub waker_efficiency_grid: Vec<f64>,
-    /// Poll latency mean in ms
+    /// Mean completed-task duration in ms; unavailable without completions.
     #[serde(default)]
-    pub poll_latency_mean_ms: f64,
-    /// Per-task poll latency samples (duration_ms values) for the POLL_LATENCY curve
+    pub task_duration_mean_ms: Option<f64>,
+    /// Completed-task durations, not individual Future::poll timings.
     #[serde(default)]
-    pub poll_latency_samples: Vec<f64>,
+    pub task_duration_samples: Vec<f64>,
     /// Async task topology nodes
     #[serde(default)]
     pub task_topology_nodes: Vec<TaskTopologyNode>,
@@ -146,9 +149,9 @@ pub struct DashboardContext {
     #[serde(default)]
     pub trace_logs: Vec<TraceLogEntry>,
 
-    /// Neighbor density histogram bins
+    /// Released binding lifetimes and censored live ages at one capture cut.
     #[serde(default)]
-    pub neighbor_density_histogram: Vec<NeighborDensityBin>,
+    pub allocation_lifetimes: AllocationLifetimeDistributions,
     /// Dependency graph peripheral nodes
     #[serde(default)]
     pub dependency_graph_nodes: Vec<DependencyNode>,
@@ -159,15 +162,18 @@ pub struct DashboardContext {
     /// Thread affinity hardware grid
     #[serde(default)]
     pub thread_affinity_grid: Vec<String>, // status values
-    /// Scheduler lag mini bars
+    /// Same-thread inter-allocation interval histogram from recorded Allocate events.
     #[serde(default)]
-    pub scheduler_lag_bars: Vec<f64>, // height percentages
-    /// Scheduler lag in ms
+    pub allocation_interval_histogram: Vec<NeighborDensityBin>,
+    /// Mean same-thread interval; missing when fewer than two observations exist.
     #[serde(default)]
-    pub scheduler_lag_ms: u64,
-    /// Migration rate percentage
+    pub allocation_interval_mean_ms: Option<f64>,
+    /// Number of intervals included; zero-length observed intervals count too.
     #[serde(default)]
-    pub migration_rate_pct: f64,
+    pub allocation_interval_sample_count: usize,
+    /// Share of recorded allocations outside the most frequent allocating thread.
+    #[serde(default)]
+    pub non_dominant_thread_allocation_share_pct: Option<f64>,
     /// System uptime formatted
     #[serde(default)]
     pub system_uptime_formatted: String,
@@ -231,6 +237,11 @@ pub struct RootCauseInfo {
 pub struct AsyncTaskInfo {
     /// Task ID
     pub task_id: u64,
+    /// Actual lifecycle timestamps in milliseconds since the Unix epoch.
+    #[serde(default)]
+    pub created_at_ms: u64,
+    #[serde(default)]
+    pub completed_at_ms: Option<u64>,
     /// Task name
     pub task_name: String,
     /// Task type
@@ -314,7 +325,10 @@ pub struct AllocationInfo {
     /// Deallocation timestamp (nanoseconds, 0 if not freed)
     pub timestamp_dealloc: u64,
     /// Lifetime in milliseconds
-    pub lifetime_ms: f64,
+    pub lifetime_ms: Option<f64>,
+    /// Censored age at the report cut, separate from completed lifetime.
+    #[serde(default)]
+    pub observed_age_ms: Option<f64>,
     /// Whether memory is leaked.
     ///
     /// Compatibility projection of [`Self::leak_status`]: only `suspected` or
@@ -430,6 +444,12 @@ pub struct RelationshipInfo {
 pub struct UnsafeReport {
     /// Passport ID
     pub passport_id: String,
+    /// Generation at the address, when supplied by the report.
+    #[serde(default)]
+    pub generation: u64,
+    /// Evidence retained from a superseded address binding.
+    #[serde(default)]
+    pub superseded: bool,
     /// Allocation pointer
     pub allocation_ptr: String,
     /// Variable name
@@ -496,6 +516,12 @@ pub struct BoundaryEventInfo {
 pub struct PassportDetail {
     /// Passport ID
     pub passport_id: String,
+    /// Generation at the address, when supplied by the report.
+    #[serde(default)]
+    pub generation: u64,
+    /// Evidence retained from a superseded address binding.
+    #[serde(default)]
+    pub superseded: bool,
     /// Allocation pointer
     pub allocation_ptr: String,
     /// Variable name
@@ -702,9 +728,9 @@ pub struct SymbolTableEntry {
     /// Status: PINNED, HOT, IDLE
     pub status: String,
     /// Total call count
-    pub call_count: u64,
+    pub call_count: Option<u64>,
     /// Average time per call (microseconds)
-    pub time_avg_us: f64,
+    pub time_avg_us: Option<f64>,
     /// Whether the symbol is hot (high risk) — drives row color in template
     #[serde(default)]
     pub is_hot: bool,
@@ -714,9 +740,9 @@ pub struct SymbolTableEntry {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct StackIntegrityMetrics {
     /// Percentage of pointers checked
-    pub pointers_checked_pct: f64,
+    pub pointers_checked_pct: Option<f64>,
     /// Number of memory violations
-    pub memory_violations: usize,
+    pub memory_violations: Option<usize>,
     /// Unwinding strategy: PANIC_ABORT, UNWIND, etc.
     pub unwinding_strategy: String,
 }
@@ -768,7 +794,7 @@ pub struct TaskTopologyNode {
     /// Status: RUNNING, IDLE, WAITING, POLLING, COMPLETED
     pub status: String,
     /// Duration in ms
-    pub duration_ms: f64,
+    pub duration_ms: Option<f64>,
     /// X position percentage for layout
     pub x_pct: f64,
     /// Y position percentage for layout
@@ -783,7 +809,7 @@ pub struct TaskTopologyEdge {
     /// Target task ID
     pub target: String,
     /// Whether this edge is active (animated)
-    pub is_active: bool,
+    pub is_active: Option<bool>,
 }
 
 /// Streaming topology stats
@@ -792,7 +818,7 @@ pub struct StreamingTopologyStats {
     /// Number of graph edges
     pub graph_edges: usize,
     /// Sampling rate in ms
-    pub sampling_rate_ms: u64,
+    pub sampling_rate_ms: Option<u64>,
     /// Waker locks status: NONE, LOW, HIGH
     pub waker_locks_status: String,
 }
@@ -800,6 +826,8 @@ pub struct StreamingTopologyStats {
 /// Trace log entry
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TraceLogEntry {
+    /// Numeric ordering key; formatted clock text is display-only.
+    pub timestamp_ns: u64,
     /// Timestamp string
     pub timestamp: String,
     /// Log level: INFO, WARN, ERR, TASK
@@ -868,6 +896,8 @@ pub struct SchedulerLagBar {
 /// Thread event log entry
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ThreadEventLogEntry {
+    /// Numeric ordering key; formatted clock text is display-only.
+    pub timestamp_ns: u64,
     /// Timestamp
     pub time: String,
     /// Level: INFO, WARN, TASK, ERR
@@ -884,7 +914,7 @@ pub struct ThreadPolicy {
     /// Policy name
     pub name: String,
     /// Enabled status
-    pub enabled: bool,
+    pub enabled: Option<bool>,
 }
 
 /// Thread affinity grid data
@@ -906,88 +936,12 @@ pub struct FfiCallTopology {
     pub edges: Vec<FfiCallEdge>,
 }
 
-/// Ownership state — who owns a given allocation at a point in time.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
-pub enum OwnershipState {
-    /// Owned by Rust code
-    OwnedByRust,
-    /// Borrowed by Rust code
-    BorrowedByRust,
-    /// Owned by foreign (FFI) code
-    OwnedByForeign,
-    /// Borrowed by foreign code
-    BorrowedByForeign,
-    /// Shared ownership (e.g., Arc)
-    Shared,
-    /// Ownership has been transferred
-    Transferred,
-    /// Ownership released
-    Released,
-    /// Ownership state unknown
-    #[default]
-    Unknown,
-}
-
-/// Unsafe invariant category — which Nomicon principle may be violated.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
-pub enum UnsafeInvariant {
-    /// Aliasing violation
-    Aliasing,
-    /// Invalid value / validity invariant
-    Validity,
-    /// Uninitialized memory access
-    Initialized,
-    /// Layout mismatch
-    Layout,
-    /// Drop / destructor violation
-    Drop,
-    /// Thread safety violation
-    ThreadSafety,
-    /// FFI ownership confusion
-    FfiOwnership,
-    /// Allocator family mismatch
-    AllocatorFamily,
-    /// Invariant unknown
-    #[default]
-    Unknown,
-}
-
-/// Lifetime kind — distinguishes different lifetime scopes.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
-pub enum LifetimeKind {
-    /// Lifetime of the raw heap allocation
-    AllocationLifetime,
-    /// Lifetime of the logical owner
-    OwnerLifetime,
-    /// Lifetime of a borrow reference
-    BorrowLifetime,
-    /// Lifetime scoped to a task
-    TaskLifetime,
-    /// Lifetime scoped to a thread
-    ThreadLifetime,
-    /// Lifetime while exposed to FFI
-    FfiExposureLifetime,
-    /// Lifetime kind unknown
-    #[default]
-    Unknown,
-}
-
-/// Classification of a clone operation.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
-pub enum CloneKind {
-    /// Deep copy of heap data
-    DeepClone,
-    /// Rc reference-count bump
-    RcClone,
-    /// Arc reference-count bump
-    ArcClone,
-    /// Handle/copy-on-write clone
-    HandleClone,
-    /// Bitwise copy (Copy trait)
-    CopyClone,
-    /// Weak reference clone
-    WeakClone,
-    /// Clone kind unknown
-    #[default]
-    Unknown,
+/// Completed lifetime and censored age populations must never share a histogram.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct AllocationLifetimeDistributions {
+    pub capture_at_ns: u64,
+    pub released: Vec<NeighborDensityBin>,
+    pub live: Vec<NeighborDensityBin>,
+    /// Observations with inverted or post-cut timestamps are excluded explicitly.
+    pub invalid_timestamps: usize,
 }

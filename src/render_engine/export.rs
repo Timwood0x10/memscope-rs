@@ -560,6 +560,7 @@ pub fn export_all_json<P: AsRef<Path>>(
 
     // Use event_store as unified data source (includes both HeapOwner and Container allocations)
     let events = tracker.event_store().snapshot();
+    let passports = passport_tracker.snapshot_passports();
 
     // Replay once: the ledger keeps the transition-based totals and peaks that the live
     // list can no longer reconstruct (a released 128-byte block is gone from the list, but
@@ -585,21 +586,21 @@ pub fn export_all_json<P: AsRef<Path>>(
 
     debug!("Starting export_memory_passports_json");
 
-    export_memory_passports_json(path_ref, passport_tracker)
+    write_memory_passports_json(path_ref, passport_tracker, &passports)
         .map_err(|e| MemScopeError::error("export", "export_all_json", e.to_string()))?;
 
     debug!("Completed export_memory_passports_json");
 
     debug!("Starting export_leak_detection_json");
 
-    export_leak_detection_json(path_ref, passport_tracker)
+    write_leak_detection_json(path_ref, &passport_tracker.detect_leaks_in(&passports))
         .map_err(|e| MemScopeError::error("export", "export_all_json", e.to_string()))?;
 
     debug!("Completed export_leak_detection_json");
 
     debug!("Starting export_unsafe_ffi_json");
 
-    export_unsafe_ffi_json(path_ref, passport_tracker)
+    write_unsafe_ffi_json(path_ref, passport_tracker, &passports)
         .map_err(|e| MemScopeError::error("export", "export_all_json", e.to_string()))?;
 
     debug!("Completed export_unsafe_ffi_json");
@@ -872,29 +873,22 @@ pub fn export_dashboard_html_with_template<P: AsRef<Path>>(
     Ok(())
 }
 
-/// Current passports plus the generations archived by address reuse.
-///
-/// An archived passport still carries the evidence of the block that was replaced at that
-/// address (for example "handed to foreign code and never returned"), so exports must
-/// project both generations instead of only the newest one.
-fn passports_for_export(
-    tracker: &Arc<MemoryPassportTracker>,
-) -> Vec<crate::analysis::memory_passport_tracker::MemoryPassport> {
-    let mut passports: Vec<_> = tracker.get_all_passports().into_values().collect();
-    passports.extend(tracker.get_archived_passports());
-    passports
-}
-
 pub fn export_memory_passports_json<P: AsRef<Path>>(
     base_path: P,
     passport_tracker: &Arc<MemoryPassportTracker>,
 ) -> MemScopeResult<()> {
-    let base_path = base_path.as_ref();
-    let passports = passports_for_export(passport_tracker);
+    write_memory_passports_json(
+        base_path.as_ref(),
+        passport_tracker,
+        &passport_tracker.snapshot_passports(),
+    )
+}
 
-    // One read-only projection for the whole batch: the status is computed, never stored,
-    // so `memory_passports.json`, `leak_detection.json` and `unsafe_ffi.json` describe the
-    // same cut (plan §7.3 item 4).
+fn write_memory_passports_json(
+    base_path: &Path,
+    passport_tracker: &MemoryPassportTracker,
+    passports: &[crate::analysis::memory_passport_tracker::MemoryPassport],
+) -> MemScopeResult<()> {
     let passport_data: Vec<_> = passports
         .iter()
         .map(|p| {
@@ -902,6 +896,7 @@ pub fn export_memory_passports_json<P: AsRef<Path>>(
                 "passport_id": p.passport_id,
                 "allocation_ptr": format!("0x{:x}", p.allocation_ptr),
                 "generation": p.generation,
+                "superseded": p.superseded,
                 "size_bytes": p.size_bytes,
                 "created_at": p.created_at,
                 "lifecycle_events": p.lifecycle_events.len(),
@@ -936,9 +931,16 @@ pub fn export_leak_detection_json<P: AsRef<Path>>(
     base_path: P,
     passport_tracker: &Arc<MemoryPassportTracker>,
 ) -> MemScopeResult<()> {
-    let base_path = base_path.as_ref();
-    let leak_result = passport_tracker.detect_leaks_at_shutdown();
+    write_leak_detection_json(
+        base_path.as_ref(),
+        &passport_tracker.detect_leaks_at_shutdown(),
+    )
+}
 
+fn write_leak_detection_json(
+    base_path: &Path,
+    leak_result: &crate::analysis::memory_passport_tracker::LeakDetectionResult,
+) -> MemScopeResult<()> {
     let leak_details: Vec<_> = leak_result
         .leak_details
         .iter()
@@ -977,10 +979,19 @@ pub fn export_unsafe_ffi_json<P: AsRef<Path>>(
     base_path: P,
     passport_tracker: &Arc<MemoryPassportTracker>,
 ) -> MemScopeResult<()> {
-    use crate::analysis::memory_passport_tracker::PassportStatus;
+    write_unsafe_ffi_json(
+        base_path.as_ref(),
+        passport_tracker,
+        &passport_tracker.snapshot_passports(),
+    )
+}
 
-    let base_path = base_path.as_ref();
-    let passports = passports_for_export(passport_tracker);
+fn write_unsafe_ffi_json(
+    base_path: &Path,
+    passport_tracker: &MemoryPassportTracker,
+    passports: &[crate::analysis::memory_passport_tracker::MemoryPassport],
+) -> MemScopeResult<()> {
+    use crate::analysis::memory_passport_tracker::PassportStatus;
 
     let ffi_reports: Vec<_> = passports
         .iter()
@@ -997,6 +1008,7 @@ pub fn export_unsafe_ffi_json<P: AsRef<Path>>(
                 "passport_id": p.passport_id,
                 "allocation_ptr": format!("0x{:x}", p.allocation_ptr),
                 "generation": p.generation,
+                "superseded": p.superseded,
                 "size_bytes": p.size_bytes,
                 "history_truncated": p.history_truncated,
                 "status": format!("{:?}", passport_tracker.assess_status(p)),

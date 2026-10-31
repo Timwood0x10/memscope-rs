@@ -14,6 +14,7 @@ mod layout_inference;
 mod render_methods;
 mod report_builder;
 mod system_info;
+mod telemetry;
 mod template_registry;
 mod types;
 
@@ -78,6 +79,11 @@ impl DashboardRenderer {
         // For backward compatibility, keep a separate handlebars for old/direct template names
         let mut handlebars = Handlebars::new();
         helpers::register_helpers(&mut handlebars);
+        template_registry::register_builtin_partials(&mut handlebars)?;
+        handlebars.register_template_string(
+            "dashboard_unified",
+            include_str!("../templates/dashboard_unified.html"),
+        )?;
 
         Ok(Self {
             handlebars,
@@ -120,16 +126,13 @@ impl DashboardRenderer {
                 "fonts_css".to_string(),
                 serde_json::Value::String(FONTS_CSS.to_string()),
             );
-            // Inject formatted poll latency field (not a native field on DashboardContext)
-            let poll_raw = context.poll_latency_mean_ms;
-            let poll_fmt = if poll_raw > 0.0 {
-                format!("{:.2}", poll_raw)
-            } else {
-                "—".to_string()
-            };
+            let duration_fmt = context
+                .task_duration_mean_ms
+                .map(|value| format!("{value:.2}"))
+                .unwrap_or_else(|| "—".into());
             obj.insert(
-                "poll_latency_mean_ms_fmt".to_string(),
-                serde_json::Value::String(poll_fmt),
+                "task_duration_mean_ms_fmt".to_string(),
+                serde_json::Value::String(duration_fmt),
             );
             // Inject thread_memory_total_fmt (not a native field on DashboardContext)
             let thread_mem_total: usize =
@@ -378,21 +381,22 @@ mod tests {
             thread_timeline: vec![],
             thread_timeline_count: 0,
             waker_efficiency_grid: vec![],
-            poll_latency_mean_ms: 0.0,
-            poll_latency_samples: vec![],
+            task_duration_mean_ms: None,
+            task_duration_samples: vec![],
             task_topology_nodes: vec![],
             task_topology_nodes_count: 0,
             task_topology_edges: vec![],
             task_topology_edges_count: 0,
             streaming_topology_stats: Default::default(),
             trace_logs: vec![],
-            neighbor_density_histogram: vec![],
+            allocation_lifetimes: Default::default(),
             dependency_graph_nodes: vec![],
             selected_node_detail: None,
             thread_affinity_grid: vec![],
-            scheduler_lag_bars: vec![],
-            scheduler_lag_ms: 0,
-            migration_rate_pct: 0.0,
+            allocation_interval_histogram: vec![],
+            allocation_interval_mean_ms: None,
+            allocation_interval_sample_count: 0,
+            non_dominant_thread_allocation_share_pct: None,
             system_uptime_formatted: String::new(),
             thread_event_log: vec![],
             thread_policies: vec![],
@@ -463,5 +467,58 @@ mod tests {
             result.is_ok(),
             "Should render standalone dashboard successfully"
         );
+    }
+
+    /// Objective: Preserve missing versus observed-zero metrics through every render path.
+    /// Invariants: all eight modes and the complete script survive partial extraction;
+    /// unknown pinning is never rendered as OFF, and recorded zero remains numeric zero.
+    #[test]
+    fn rendered_telemetry_preserves_unknown_and_zero() {
+        let renderer = DashboardRenderer::new().expect("built-in templates must load");
+        let mut context = create_empty_context();
+        context.allocation_interval_mean_ms = Some(0.0);
+        context.thread_policies = vec![ThreadPolicy {
+            name: "Pinning".into(),
+            enabled: None,
+        }];
+        for html in [
+            renderer.render_with_template("dashboard_unified", &context),
+            render_methods::render_unified_dashboard(&renderer.handlebars, &context),
+            render_methods::render_final_dashboard(&renderer.handlebars, &context),
+        ] {
+            let html = html.expect("all renderer paths must resolve the same partials");
+            for mode in [
+                "overview",
+                "thread",
+                "task",
+                "taskgraph",
+                "variable",
+                "passport",
+                "ffi",
+                "unsafe",
+            ] {
+                assert!(
+                    html.contains(&format!("id=\"mode-{mode}\"")),
+                    "missing dashboard mode {mode}"
+                );
+            }
+            assert!(html.contains("<span>Pinning</span><span class=\"text-outline\" title=\"Unknown means no policy instrumentation is available.\">Unknown</span>"), "missing policy measurements must render as Unknown");
+            assert!(
+                html.contains("MEAN: 0.0 ms · grouped by allocating thread"),
+                "zero interval must survive DTO serialization and rendering"
+            );
+            assert!(
+                !html.contains("{{>"),
+                "partials must be expanded in the exported HTML"
+            );
+            assert!(
+                html.contains("function renderTaskTopology()"),
+                "interactive topology must survive extraction"
+            );
+            assert!(
+                html.contains("Ownership graph issues list items"),
+                "final interaction bindings must survive extraction"
+            );
+        }
     }
 }

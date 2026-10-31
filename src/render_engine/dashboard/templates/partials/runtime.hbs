@@ -1,0 +1,147 @@
+    // KPI drill-down — toast a short description on click; lift on hover via CSS.
+    function drillKpi(metric, label, value) {
+        const card = document.querySelector('[data-kpi="' + metric + '"]');
+        if (card) {
+            card.classList.remove('kpi-flash');
+            void card.offsetWidth; // restart animation
+            card.classList.add('kpi-flash');
+        }
+        const toast = document.getElementById('kpiToast');
+        if (toast) {
+            toast.textContent = label + ': ' + value;
+            toast.classList.add('visible');
+            clearTimeout(window.__kpiToastTimer);
+            window.__kpiToastTimer = setTimeout(() => toast.classList.remove('visible'), 1800);
+        }
+    }
+
+    // ============================================================
+    // Theme-aware chart registry — declared BEFORE restoreTheme() so the
+    // initial theme restore can safely call rerenderThemeAwareCharts() without
+    // hitting a temporal-dead-zone on the const. These functions re-invoke
+    // registered charts on theme switch so inline gradients pick up the new
+    // --primary value.
+    // ============================================================
+    const __themeAwareCharts = [];
+    function registerThemeAware(name, fn) { __themeAwareCharts.push({ name, fn }); }
+    function rerenderThemeAwareCharts() {
+        __themeAwareCharts.forEach(c => {
+            try { c.fn(); } catch (e) { console.warn('rerender failed:', c.name, e); }
+        });
+    }
+
+    // ============================================================
+    // Theme switching — amber (yellow-dominant) / indigo (purple-dominant).
+    // Flipping data-theme on <html> swaps ALL CSS variables at once,
+    // re-coloring every surface (text, bg, border, glow) atomically.
+    // Choice persists to localStorage.
+    // ============================================================
+    function switchTheme(theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+        try { localStorage.setItem('memscope.theme', theme); } catch (e) {}
+        const amberBtn = document.getElementById('theme-amber');
+        const indigoBtn = document.getElementById('theme-indigo');
+        if (amberBtn && indigoBtn) {
+            // Active button uses the theme's primary color; idle uses outline.
+            const activeClass = 'border-primary bg-primary/20 text-primary';
+            const idleClass = 'border-outline-variant text-on-surface-variant bg-transparent';
+            const amberActive = theme === 'amber';
+            amberBtn.className = 'flex-1 py-1 rounded border ' + (amberActive ? activeClass : idleClass) + ' font-label-caps text-[10px] hover:bg-primary/20 transition-colors';
+            indigoBtn.className = 'flex-1 py-1 rounded border ' + (!amberActive ? activeClass : idleClass) + ' font-label-caps text-[10px] hover:bg-primary/20 transition-colors';
+        }
+        // Re-render theme-dependent JS visualizations so their inline gradients
+        // pick up the new --primary value. Safe to call multiple times.
+        if (typeof rerenderThemeAwareCharts === 'function') rerenderThemeAwareCharts();
+    }
+    // Restore saved theme on load — defaults to amber (yellow-dominant).
+    // Deferred to DOMContentLoaded so all registerThemeAware() calls below
+    // have run before rerenderThemeAwareCharts() fires inside switchTheme.
+    // This also eliminates any temporal-dead-zone risk against the const
+    // above, even if a browser serves a partially-cached older copy.
+    function applyInitialTheme() {
+        let saved = null;
+        try { saved = localStorage.getItem('memscope.theme'); } catch (e) {}
+        switchTheme(saved === 'indigo' ? 'indigo' : 'amber');
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', applyInitialTheme);
+    } else {
+        applyInitialTheme();
+    }
+
+    // ============================================================
+    // Chart tooltip — shared hover detail panel for ALL interactive charts.
+    // Shows a titled key/value list near the cursor. Used in addition to the
+    // click drill-down toast, satisfying the "hover AND click both have
+    // events" requirement.
+    // ============================================================
+    function getOrCreateTooltip() {
+        let tt = document.getElementById('chartTooltip');
+        if (!tt) {
+            tt = document.createElement('div');
+            tt.id = 'chartTooltip';
+            tt.className = 'chart-tooltip';
+            document.body.appendChild(tt);
+        }
+        return tt;
+    }
+    // Show tooltip — `rows` is an array of [key, value] pairs; `label` is the title.
+    // Only rebuilds innerHTML when the content actually changes, avoiding DOM
+    // thrashing on rapid mousemove events (which caused visual flickering).
+    let _lastTooltipKey = '';
+    function showChartTooltip(event, label, rows) {
+        const tt = getOrCreateTooltip();
+        // Build a compact key to detect whether content actually changed.
+        const contentKey = (label || '') + '|' + (rows || []).map(r => (r[0] || '') + '=' + (r[1] !== undefined ? r[1] : '')).join('|');
+        if (contentKey !== _lastTooltipKey) {
+            _lastTooltipKey = contentKey;
+            let html = '<div class="tt-label">' + (label || 'DETAIL') + '</div>';
+            (rows || []).forEach(r => {
+                html += '<div class="tt-row"><span class="tt-key">' + (r[0] || '') + '</span><span>' + (r[1] !== undefined ? r[1] : '') + '</span></div>';
+            });
+            tt.innerHTML = html;
+        }
+        tt.classList.add('visible');
+        moveChartTooltip(event);
+    }
+    function moveChartTooltip(event) {
+        const tt = getOrCreateTooltip();
+        const x = (event.clientX || (event.touches && event.touches[0].clientX) || 0) + 14;
+        const y = (event.clientY || (event.touches && event.touches[0].clientY) || 0) + 14;
+        // Clamp inside viewport
+        const w = tt.offsetWidth || 200;
+        const h = tt.offsetHeight || 60;
+        tt.style.left = Math.min(x, window.innerWidth - w - 8) + 'px';
+        tt.style.top = Math.min(y, window.innerHeight - h - 8) + 'px';
+    }
+    function hideChartTooltip() {
+        const tt = document.getElementById('chartTooltip');
+        if (tt) tt.classList.remove('visible');
+    }
+    // Helper: bind hover (tooltip) + click (drill) to any element.
+    function bindInteractive(el, label, rows, drillLabel, drillValue) {
+        if (!el) return;
+        el.classList.add('chart-interactive');
+        el.addEventListener('mousemove', e => { showChartTooltip(e, label, rows); });
+        el.addEventListener('mouseleave', () => { hideChartTooltip(); });
+        el.addEventListener('click', () => { drillKpi(label, drillLabel, drillValue); });
+    }
+
+    // Read injected JSON data
+    let DATA = {};
+    try {
+        const raw = document.getElementById('dashboard-json-data').textContent;
+        DATA = JSON.parse(raw);
+    } catch (e) {
+        console.warn('Failed to parse dashboard JSON:', e);
+    }
+
+    // Helper: resolve a theme CSS variable to its current value.
+    function themeVar(name) {
+        return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    }
+    // Helper: build an `color-mix` rgba-style string from var(--primary) with given alpha.
+    function primaryMix(alpha) {
+        return 'color-mix(in srgb, var(--primary) ' + (alpha * 100).toFixed(0) + '%, transparent)';
+    }
+

@@ -63,6 +63,7 @@ pub fn build_allocation_info(
                 timestamp_alloc: a.timestamp_alloc,
                 timestamp_dealloc: a.timestamp_dealloc.unwrap_or(0),
                 lifetime_ms: calculate_lifetime_ms(a.timestamp_alloc, a.timestamp_dealloc),
+                observed_age_ms: None,
                 is_leaked: leak_assessment.is_reported_leak(),
                 allocation_state,
                 leak_status: leak_assessment.status,
@@ -105,11 +106,10 @@ pub fn build_allocation_info(
 }
 
 /// Calculate lifetime in milliseconds from timestamps
-fn calculate_lifetime_ms(timestamp_alloc: u64, timestamp_dealloc: Option<u64>) -> f64 {
-    match timestamp_dealloc {
-        Some(dealloc) => (dealloc - timestamp_alloc) as f64 / 1_000_000.0,
-        None => 0.0,
-    }
+fn calculate_lifetime_ms(timestamp_alloc: u64, timestamp_dealloc: Option<u64>) -> Option<f64> {
+    timestamp_dealloc?
+        .checked_sub(timestamp_alloc)
+        .map(|ns| ns as f64 / 1_000_000.0)
 }
 
 /// Infer pointer provenance from allocation attributes
@@ -219,11 +219,11 @@ pub fn build_relationships(az: &mut Analyzer) -> Vec<RelationshipInfo> {
 /// Build unsafe reports from passports
 pub fn build_unsafe_reports(
     passport_tracker: &crate::analysis::memory_passport_tracker::MemoryPassportTracker,
-    passports: &HashMap<usize, crate::analysis::memory_passport_tracker::MemoryPassport>,
+    passports: &[crate::analysis::memory_passport_tracker::MemoryPassport],
     all_allocations: &[crate::capture::types::AllocationInfo],
 ) -> Vec<UnsafeReport> {
     passports
-        .values()
+        .iter()
         .filter(|p| !p.lifecycle_events.is_empty())
         // The status is a read-only projection of the passport events; reading the stored
         // `status_at_shutdown` would show `Unknown` because detection no longer writes it.
@@ -237,6 +237,8 @@ fn build_unsafe_report(
     status: PassportStatus,
     all_allocations: &[crate::capture::types::AllocationInfo],
 ) -> UnsafeReport {
+    // An archived passport must not inherit type/location from the newer block at its address.
+    let all_allocations = if p.superseded { &[] } else { all_allocations };
     let lifecycle_events = build_lifecycle_events(&p.lifecycle_events);
     let cross_boundary_events = build_boundary_events(&lifecycle_events);
 
@@ -306,6 +308,8 @@ fn build_unsafe_report(
 
     UnsafeReport {
         passport_id: p.passport_id.clone(),
+        generation: p.generation,
+        superseded: p.superseded,
         allocation_ptr: format!("0x{:x}", p.allocation_ptr),
         var_name,
         type_name,
@@ -325,11 +329,11 @@ fn build_unsafe_report(
 /// Build passport details
 pub fn build_passport_details(
     passport_tracker: &crate::analysis::memory_passport_tracker::MemoryPassportTracker,
-    passports: &HashMap<usize, crate::analysis::memory_passport_tracker::MemoryPassport>,
+    passports: &[crate::analysis::memory_passport_tracker::MemoryPassport],
     all_allocations: &[crate::capture::types::AllocationInfo],
 ) -> Vec<PassportDetail> {
     passports
-        .values()
+        .iter()
         .map(|p| build_passport_detail(p, passport_tracker.assess_status(p), all_allocations))
         .collect()
 }
@@ -340,6 +344,7 @@ fn build_passport_detail(
     status: PassportStatus,
     all_allocations: &[crate::capture::types::AllocationInfo],
 ) -> PassportDetail {
+    let all_allocations = if p.superseded { &[] } else { all_allocations };
     let lifecycle_events = build_lifecycle_events(&p.lifecycle_events);
     let cross_boundary_events = build_boundary_events(&lifecycle_events);
 
@@ -384,10 +389,11 @@ fn build_passport_detail(
 
     // An active passport still holds live memory: it is neither leaked nor released,
     // including the honest `StillLive` state for a block that never crossed the boundary.
-    let is_active = !is_leaked
-        && status != PassportStatus::FreedByRust
-        && status != PassportStatus::FreedByForeign
-        && status != PassportStatus::ReclaimedByRust;
+    let is_active = !p.superseded
+        && matches!(
+            status,
+            PassportStatus::StillLive | PassportStatus::ReclaimedByRust
+        );
 
     // Best-effort source location: prefer the originating allocation's stack
     // trace, fall back to the var name + allocation pointer for context.
@@ -401,6 +407,8 @@ fn build_passport_detail(
 
     PassportDetail {
         passport_id: p.passport_id.clone(),
+        generation: p.generation,
+        superseded: p.superseded,
         allocation_ptr: format!("0x{:x}", p.allocation_ptr),
         var_name,
         type_name,
@@ -536,10 +544,7 @@ pub fn aggregate_thread_data(allocations: &[AllocationInfo]) -> Vec<ThreadInfo> 
         if alloc.size > entry.peak_memory {
             entry.peak_memory = alloc.size;
         }
-        // Capture the logical CPU core once per thread
-        if entry.cpu_core.is_none() {
-            entry.cpu_core = crate::capture::platform::memory_info::get_current_cpu_impl();
-        }
+        // Export-time CPU queries describe the exporter, not this allocating thread.
     }
 
     thread_map
@@ -604,7 +609,7 @@ pub fn aggregate_thread_data_from_ledger(
                 } else {
                     "IDLE".to_string()
                 },
-                cpu_core: crate::capture::platform::memory_info::get_current_cpu_impl(),
+                cpu_core: None,
             }
         })
         .collect()
@@ -631,6 +636,8 @@ pub fn build_async_tasks(
                 };
                 AsyncTaskInfo {
                     task_id: p.task_id,
+                    created_at_ms: p.created_at_ms,
+                    completed_at_ms: p.completed_at_ms,
                     task_name: p.task_name,
                     task_type: task_type_str,
                     total_bytes: p.total_bytes,
