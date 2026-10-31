@@ -1501,3 +1501,40 @@ let leaked = allocations.into_iter().filter(|a| a.ptr.is_some()).collect();
 兼容性：缺少 `binding_serial` 的旧 JSON 事件可反序列化，并继续按旧地址/大小规则回放释放与 realloc；新序号是核心 tracker 内的局部身份，完整会话级 `AllocationId` 仍属 PR-02。Rust 直接构造 `MemoryEvent`、`UnsafeReport`、`PassportDetail` 的结构体字面量需要补充新字段；仓库内构造点已同步。护照快照的一致性覆盖护照集合，跨事件流/任务/系统资源的统一切面仍由 PR-07 `ReportSnapshot` 实现。
 
 验证用例：新增 10 项跨模块回归（包括旧事件读取、过期序号释放和歧义注释）及 2 项护照快照单测（并发复用代际唯一、冻结快照不受后续修改影响）。`cargo test --locked --workspace` 全绿：库测试 2595 通过/1 忽略，集成测试 150 通过（含准确性 29 项），文档测试 35 通过/17 忽略；全目标全特性编译、严格 Clippy（`-D warnings`）、格式及 diff 检查通过。
+
+### 17.13 第九轮：一次导出一个投影 + 主 JSON 的双口径
+
+上一轮遗留的两处导出口径问题，本轮收口：
+
+| 位置 | 变更 |
+| --- | --- |
+| `export.rs::export_all_json` | 先重放一次事件得到 `BindingLedger`，再用 `snapshot::builder::project_snapshot(&ledger, cut)` 生成**唯一投影**；删除 `from_allocation_infos` + `override_snapshot_stats` 的双构造路径（旧路径只投影地址表，重叠代际会从文件里消失，但统计仍计两代） |
+| `tracker.rs::export_legacy_on_drop` | 同样改为 `project_snapshot`，自动导出的行与统计同源 |
+| `export_snapshot_to_json` | 行列表改用 `snapshot.allocations()`（全部身份），并在快照带身份时给每行补 `generation_id` / `binding_serial` |
+| `generate_memory_analysis_json` | 显式区分两种口径：`live_size_bytes`（本切面存活）与 `cumulative_allocated_bytes` / `cumulative_deallocated_bytes` / `peak_bytes`（整段捕获）；`metadata.counters_scope` 说明哪个是哪个。无转移历史的快照（`from_allocation_infos` 构造）累计字段输出 `null`，不拿存活值冒充累计 |
+
+新增用例：`export_writes_one_row_per_live_identity`（同址两代导出两行，各自带 serial）、
+`snapshot_without_history_reports_no_cumulative_counters`（无历史时累计为 null 且说明原因）、
+并把 `export_reports_ledger_totals_after_release` 扩展到断言 `memory_analysis.json` 的双口径
+（live 64 / cumulative 192 / deallocated 128 / peak 192 / 1 行）。
+
+补充（本次评审确认的行为边界，未改代码）：`export_all_json` 会把记录的**堆地址**交给关系/所有权推断，后者会解引用这些地址。真实分配没有问题，但用合成地址（测试里常见的 `0x6000` 之类）构造事件会直接 SIGSEGV。容器行不受影响：它们带的是 `VIRTUAL_PTR_BASE + index` 的虚拟 id，图构建器能识别且不解引用（已验证：把容器行放进图输入不会崩溃）。因此导出层的测试要么使用真实分配，要么只驱动写入器。
+
+补充（本轮）：容器/栈侧元数据不再混进堆行。
+
+`export_all_json` 过去把 `rebuild_allocations_from_events` 的结果整体喂给
+`memory_analysis.json`，其中包含 `ptr == 0` 的容器条目（重建时被赋成
+`VIRTUAL_PTR_BASE + index` 的虚拟 id）。这些行既不是堆分配，也不该计入堆统计，
+却和堆行混在同一个数组里，行和计数器因此对不上。
+
+现在：
+- `memory_analysis.json` 的 `allocations` 只放堆绑定（每行带 `generation_id` /
+  `binding_serial`）；
+- 容器单独放在 `containers` 数组，每条标 `counted_in_statistics: false`；
+- 两者都来自同一次事件重放，因此仍是同一切面。
+
+新增用例：`container_metadata_is_exported_but_not_counted`（直接驱动写入器）与
+`batch_export_with_container_metadata_does_not_dereference_synthetic_addresses`
+（真实堆分配 + Container 观测走完整 `export_all_json`，断言导出成功、容器被列出、
+堆计数只含真实块）。
+

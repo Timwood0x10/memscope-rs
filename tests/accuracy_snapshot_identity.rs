@@ -130,3 +130,182 @@ fn dashboard_counters_and_lifetimes_share_the_event_cut() {
         "JSON KPI and rendered context must agree"
     );
 }
+
+/// Objective: Verify the JSON export keeps both identities that share an address
+/// (a missed release) instead of exporting only the newest one.
+/// Invariants: two rows, one per generation, each carrying its own serial.
+#[test]
+fn export_writes_one_row_per_live_identity() {
+    let events: Vec<_> = [(1u64, 64usize), (2, 128)]
+        .into_iter()
+        .map(|(serial, size)| {
+            let mut event = MemoryEvent::allocate(0x4000, size, serial);
+            event.binding_serial = Some(serial);
+            event
+        })
+        .collect();
+    let snapshot = build_snapshot_from_events(&events);
+
+    let dir = tempfile::TempDir::new().expect("tempdir must be creatable");
+    memscope_rs::render_engine::export::export_snapshot_to_json(
+        &snapshot,
+        dir.path(),
+        &memscope_rs::render_engine::export::ExportJsonOptions::default(),
+    )
+    .expect("snapshot export must succeed");
+
+    let json = std::fs::read_to_string(dir.path().join("memory_analysis.json"))
+        .expect("memory_analysis.json must exist");
+    let data: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
+    let rows = data["allocations"]
+        .as_array()
+        .expect("allocations must be an array");
+
+    assert_eq!(rows.len(), 2, "both identities must be exported");
+    let serials: Vec<_> = rows
+        .iter()
+        .map(|row| row["binding_serial"].as_u64())
+        .collect();
+    assert_eq!(
+        serials,
+        vec![Some(1), Some(2)],
+        "each row must keep the serial of its own binding"
+    );
+    assert_eq!(
+        data["statistics"]["live_size_bytes"], 192,
+        "the live scope must cover both identities"
+    );
+}
+
+/// Objective: Verify a snapshot without transition history does not claim cumulative
+/// counters (it only knows what is live).
+/// Invariants: the cumulative keys are null and the scope states why.
+#[test]
+fn snapshot_without_history_reports_no_cumulative_counters() {
+    let allocation = memscope_rs::capture::types::AllocationInfo::new(0x5000, 96);
+    let snapshot = memscope_rs::snapshot::MemorySnapshot::from_allocation_infos(vec![allocation]);
+    assert!(
+        snapshot.active_bindings.is_none(),
+        "this constructor builds an address-only snapshot"
+    );
+
+    let dir = tempfile::TempDir::new().expect("tempdir must be creatable");
+    memscope_rs::render_engine::export::export_snapshot_to_json(
+        &snapshot,
+        dir.path(),
+        &memscope_rs::render_engine::export::ExportJsonOptions::default(),
+    )
+    .expect("snapshot export must succeed");
+
+    let json = std::fs::read_to_string(dir.path().join("memory_analysis.json"))
+        .expect("memory_analysis.json must exist");
+    let data: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
+
+    assert_eq!(
+        data["statistics"]["live_size_bytes"], 96,
+        "the live scope is still known"
+    );
+    assert!(
+        data["statistics"]["cumulative_allocated_bytes"].is_null(),
+        "cumulative bytes must not echo the live value"
+    );
+    assert_eq!(
+        data["metadata"]["counters_scope"],
+        "live only: this snapshot has no transition history, cumulative counters are unknown",
+        "the file must say why the cumulative counters are missing"
+    );
+}
+
+/// Objective: Verify container (stack-side) metadata is exported next to the heap rows
+/// without being counted as heap bytes.
+/// Invariants: one allocation row, one container row, counters only cover the heap block.
+///
+/// NOTE: this drives the writer directly instead of `export_all_json`. The batch entry
+/// point feeds the recorded addresses into the relation inference, which dereferences
+/// them; a synthesized address (as used here) is not readable memory, so the writer is
+/// exercised without that step.
+#[test]
+fn container_metadata_is_exported_but_not_counted() {
+    let events = vec![MemoryEvent::allocate(0x6000, 64, 1)];
+    let snapshot = build_snapshot_from_events(&events);
+
+    let mut container = memscope_rs::capture::types::AllocationInfo::new(0, 4);
+    container.var_name = Some("frame".to_string());
+    container.type_name = Some("i32".to_string());
+
+    let dir = tempfile::TempDir::new().expect("tempdir must be creatable");
+    memscope_rs::render_engine::export::export_snapshot_with_containers(
+        &snapshot,
+        &[container],
+        dir.path(),
+        &memscope_rs::render_engine::export::ExportJsonOptions::default(),
+    )
+    .expect("snapshot export must succeed");
+
+    let json = std::fs::read_to_string(dir.path().join("memory_analysis.json"))
+        .expect("memory_analysis.json must exist");
+    let data: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
+
+    assert_eq!(
+        data["allocations"]
+            .as_array()
+            .expect("allocations array")
+            .len(),
+        1,
+        "only the heap binding belongs to the allocation rows"
+    );
+    let containers = data["containers"].as_array().expect("containers array");
+    assert_eq!(containers.len(), 1, "the container metadata must be kept");
+    assert_eq!(
+        containers[0]["counted_in_statistics"], false,
+        "containers must be marked as not counted"
+    );
+    assert_eq!(
+        data["statistics"]["live_size_bytes"], 64,
+        "container metadata must not inflate the heap counters"
+    );
+}
+
+/// Objective: Verify a batch export with container (stack) metadata completes: container
+/// rows carry synthetic addresses that must never reach the relation inference, which
+/// dereferences what it is given.
+/// Invariants: the export succeeds, containers are listed, and the heap counters ignore them.
+#[test]
+fn batch_export_with_container_metadata_does_not_dereference_synthetic_addresses() {
+    let tracker = memscope_rs::tracker::Tracker::new();
+    let payload = vec![9u8; 64];
+    tracker.track_as(&payload, "payload", file!(), line!(), module_path!());
+    let value: std::collections::HashMap<u32, u32> = std::collections::HashMap::new();
+    tracker.track_as(&value, "value", file!(), line!(), module_path!());
+
+    let dir = tempfile::TempDir::new().expect("tempdir must be creatable");
+    let passports = std::sync::Arc::new(
+        memscope_rs::analysis::memory_passport_tracker::MemoryPassportTracker::default(),
+    );
+    let async_tracker =
+        std::sync::Arc::new(memscope_rs::capture::backends::async_tracker::AsyncTracker::new());
+    memscope_rs::render_engine::export::export_all_json(
+        dir.path(),
+        &tracker,
+        &passports,
+        &async_tracker,
+    )
+    .expect("a batch export with container metadata must succeed");
+
+    let json = std::fs::read_to_string(dir.path().join("memory_analysis.json"))
+        .expect("memory_analysis.json must exist");
+    let data: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
+
+    assert!(
+        !data["containers"]
+            .as_array()
+            .expect("containers array")
+            .is_empty(),
+        "the container observation must be exported as metadata"
+    );
+    assert_eq!(
+        data["statistics"]["live_size_bytes"],
+        payload.capacity(),
+        "only the heap block contributes to the live counters"
+    );
+}
