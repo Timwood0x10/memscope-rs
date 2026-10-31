@@ -541,4 +541,10 @@ Apache-2.0
 
 ## Contributing
 
+Development and CI use **Rust 1.92.0**, pinned in `rust-toolchain.toml`.
+Put `$HOME/.cargo/bin` before Homebrew/system Rust in `PATH`; only rustup's
+proxies honor this file. `make check` explicitly uses the pinned toolchain
+through rustup and keeps the committed `Cargo.lock` with `--locked`.
+Run `bash .github/scripts/verify-toolchain.sh` to check your shell's actual versions.
+
 Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.

@@ -1485,3 +1485,19 @@ let leaked = allocations.into_iter().filter(|a| a.ptr.is_some()).collect();
 新增用例：`concurrent_observations_emit_one_allocation_event`、`auto_export_on_drop_reports_ledger_totals`、`metadata_annotation_targets_matching_generation`、`stats_reflect_projected_leaks`、`guard_over_external_context_restores_parent`、`reentrant_task_ids_are_removed_by_guard_identity`、`archived_passport_takes_part_in_detection`、`archive_respects_passport_budget`、`truncated_history_yields_unknown_status`。
 
 遗留（PR-07）：护照主键完整迁移到 `AllocationId`；`export.rs`（1826 行）仍需拆出统一 `ReportSnapshot`；`memory_analysis.json` 的 `statistics.total_size_bytes` 保持"当前存活和"语义，累计值由账本口径的 `thread_analysis.json` 承载。
+
+### 17.13 第八轮补齐：绑定序号、任务作用域和护照快照
+
+基于 `56050a8` 继续实施，并以 `tests/accuracy_boundaries.rs` 固化跨模块边界。首批 7 项中有 6 项在修复前失败。
+
+| 边界 | 实施及关联模块 |
+| --- | --- |
+| 同址**同大小**复用仍无法靠 size 区分 | `MemoryEvent` 增加可选 `binding_serial`，`Tracker` 为 HeapOwner 分配、注释、释放及 realloc 事件传递核心绑定序号；`BindingLedger` 优先精确匹配序号，显式序号不匹配时不回退到另一代。旧注释仅在大小唯一匹配时应用，否则计入 `unmatched_metadata_count` |
+| 首记锁未覆盖完整生命周期 | `Tracker::track_deallocation`、`track_reallocation` 与首记共用地址槽；释放清空记录但保留槽，迁移按地址顺序加两把锁，原地 realloc 只取一把锁。槽在 Tracker 生命周期内保留，空间随见过的地址数增长，后续热路径预算需计入 |
+| 已结束的父上下文复活、跨线程 guard token 碰撞 | 独立 `async_tracker/task_context.rs` 维护唯一作用域栈；guard 和帧共享 `Arc<AtomicBool>` 存活标记。显式清理移除上下文，任务结束移除对应帧；跨线程释放只结束自身作用域，源线程下次读取时清理 |
+| 护照归档在 Dashboard/统计遗漏，分次读取可能重复或漏代 | `snapshot_passports()` 按固定锁序同时复制当前表和归档并排序；代际编号在发布临界区内分配。Dashboard、状态查询、统计和检测均使用此快照；`export_all_json()` 的三个护照相关 JSON 共用同一份快照 |
+| 报告无法区分归档、回收至 Rust 被当作非活动 | Dashboard/JSON 输出 `generation`、`superseded`；归档详情不借用新绑定的类型或源码位置。未归档的 `ReclaimedByRust` 按仍存活展示 |
+
+兼容性：缺少 `binding_serial` 的旧 JSON 事件可反序列化，并继续按旧地址/大小规则回放释放与 realloc；新序号是核心 tracker 内的局部身份，完整会话级 `AllocationId` 仍属 PR-02。Rust 直接构造 `MemoryEvent`、`UnsafeReport`、`PassportDetail` 的结构体字面量需要补充新字段；仓库内构造点已同步。护照快照的一致性覆盖护照集合，跨事件流/任务/系统资源的统一切面仍由 PR-07 `ReportSnapshot` 实现。
+
+验证用例：新增 10 项跨模块回归（包括旧事件读取、过期序号释放和歧义注释）及 2 项护照快照单测（并发复用代际唯一、冻结快照不受后续修改影响）。`cargo test --locked --workspace` 全绿：库测试 2595 通过/1 忽略，集成测试 150 通过（含准确性 29 项），文档测试 35 通过/17 忽略；全目标全特性编译、严格 Clippy（`-D warnings`）、格式及 diff 检查通过。

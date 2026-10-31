@@ -1,7 +1,11 @@
 # Makefile for memscope-rs
 # Build, test, and development automation
 
-CARGO := cargo
+# Explicit rustup invocation also works when Homebrew precedes rustup in PATH.
+RUST_TOOLCHAIN := $(shell sed -n 's/^channel = "\([^"]*\)"/\1/p' rust-toolchain.toml)
+# Cargo subcommands and their rustc children must also resolve rustup's proxies.
+export PATH := $(if $(CARGO_HOME),$(CARGO_HOME),$(HOME)/.cargo)/bin:$(PATH)
+CARGO := rustup run $(RUST_TOOLCHAIN) cargo
 PROJECT_NAME := memscope-rs
 VERSION := $(shell grep '^version' Cargo.toml | sed 's/.*"\(.*\)".*/\1/')
 COVERAGE_DIR := aim/coverage
@@ -71,21 +75,21 @@ help:
 .PHONY: build
 build:
 	@echo "$(BLUE)Building...$(NC)"
-	$(CARGO) build
+	$(CARGO) build --locked
 
 .PHONY: release
 release:
 	@echo "$(BLUE)Building release...$(NC)"
-	$(CARGO) build --release
+	$(CARGO) build --locked --release
 
 .PHONY: check
-check:
+check: toolchain
 	@echo "$(BLUE)Checking $(PROJECT_NAME) for errors...$(NC)"
-	$(CARGO) check --workspace --all-targets --all-features
+	$(CARGO) check --locked --workspace --all-targets --all-features
 	@echo "$(BLUE)Checking code formatting...$(NC)"
 	$(CARGO) fmt --all -- --check
 	@echo "$(BLUE)Running clippy linter...$(NC)"
-	$(CARGO) clippy --workspace --all-targets --all-features -- -D warnings
+	$(CARGO) clippy --locked --workspace --all-targets --all-features -- -D warnings
 	@echo "$(GREEN)✅ All checks completed!$(NC)"
 
 .PHONY: clean
@@ -99,22 +103,22 @@ clean:
 .PHONY: test
 test:
 	@echo "$(BLUE)Running all tests...$(NC)"
-	$(CARGO) nextest run --workspace --test-threads 1
+	$(CARGO) nextest run --locked --workspace --test-threads 1
 
 .PHONY: test-unit
 test-unit:
 	@echo "$(BLUE)Running unit tests...$(NC)"
-	$(CARGO) nextest run --workspace --test-threads 1 -E 'kind(lib)'
+	$(CARGO) nextest run --locked --workspace --test-threads 1 -E 'kind(lib)'
 
 .PHONY: test-integration
 test-integration:
 	@echo "$(BLUE)Running integration tests...$(NC)"
-	$(CARGO) nextest run --workspace --test-threads 1 -E 'kind(test)'
+	$(CARGO) nextest run --locked --workspace --test-threads 1 -E 'kind(test)'
 
 .PHONY: test-verbose
 test-verbose:
 	@echo "$(BLUE)Running tests (verbose)...$(NC)"
-	$(CARGO) nextest run --workspace --no-capture --test-threads 1
+	$(CARGO) nextest run --locked --workspace --no-capture --test-threads 1
 
 # Benchmarking
 .PHONY: bench
@@ -188,12 +192,12 @@ fmt-check:
 .PHONY: clippy
 clippy:
 	@echo "$(BLUE)Running clippy (strict mode for local dev)...$(NC)"
-	$(CARGO) clippy --workspace --all-targets --all-features -- -D warnings -W clippy::all -W clippy::perf -W clippy::style -W clippy::complexity -W clippy::suspicious -W clippy::correctness -A clippy::too_many_arguments -A clippy::type_complexity
+	$(CARGO) clippy --locked --workspace --all-targets --all-features -- -D warnings -W clippy::all -W clippy::perf -W clippy::style -W clippy::complexity -W clippy::suspicious -W clippy::correctness -A clippy::too_many_arguments -A clippy::type_complexity
 
 .PHONY: clippy-ci
 clippy-ci:
 	@echo "$(BLUE)Running clippy (CI mode - only compiler warnings)...$(NC)"
-	$(CARGO) clippy --workspace --all-targets --all-features -- -D warnings
+	$(CARGO) clippy --locked --workspace --all-targets --all-features -- -D warnings
 
 # Coverage
 .PHONY: coverage coverage-html coverage-summary coverage-tarpaulin
@@ -305,8 +309,12 @@ demo: build run-basic run-showcase
 	@echo "$(GREEN)Demo completed$(NC)"
 
 # Info
+.PHONY: toolchain
+toolchain:
+	rustup run $(RUST_TOOLCHAIN) bash .github/scripts/verify-toolchain.sh
+
 .PHONY: info
 info:
 	@echo "$(BLUE)Project: $(PROJECT_NAME) v$(VERSION)$(NC)"
-	@echo "Rust: $(shell rustc --version)"
-	@echo "Cargo: $(shell cargo --version)"
+	@echo "Rust: $(shell rustup run $(RUST_TOOLCHAIN) rustc --version)"
+	@echo "Cargo: $(shell $(CARGO) --version)"
