@@ -19,9 +19,16 @@ env:
   RUSTUP_TOOLCHAIN: "1.92.0"
 
 jobs:
+  # Lint on every platform we ship: `#[cfg(target_os = ...)]` code is only compiled on
+  # its own platform, so a Linux-only lint job cannot catch dead code in the macOS
+  # branch (and vice versa). This is exactly how a non-macOS stub slipped through.
   quality:
-    name: Code Quality
-    runs-on: ubuntu-latest
+    name: Code Quality (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v4
 
@@ -38,7 +45,7 @@ jobs:
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          key: quality-${{ hashFiles('**/Cargo.lock') }}
+          key: quality-${{ matrix.os }}-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Check formatting
         run: cargo fmt --all -- --check
