@@ -47,10 +47,13 @@ fn same_size_reuse_keeps_annotation_and_release_on_the_new_binding() {
     assert_eq!(allocations[0].var_name.as_deref(), Some("old"));
     assert_eq!(allocations[1].var_name.as_deref(), Some("new"));
 
+    // Address-only release on an ambiguous address is the degraded path: the cache closes
+    // the oldest binding, and the published event names that same binding, so replay and
+    // cache agree. The newest observation therefore survives.
     assert!(tracker.track_deallocation(0x11000).unwrap());
     let remaining = rebuild_allocations_from_events(&tracker.events());
     assert_eq!(remaining.len(), 1);
-    assert_eq!(remaining[0].var_name.as_deref(), Some("old"));
+    assert_eq!(remaining[0].var_name.as_deref(), Some("new"));
 }
 
 #[test]

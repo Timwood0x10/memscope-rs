@@ -114,6 +114,58 @@ impl TaskMeta {
     }
 }
 
+/// Per-task accounting derived from the event stream.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize)]
+pub struct TaskLedgerStats {
+    /// Allocation events attributed to the task.
+    pub allocation_count: u64,
+    /// Bytes of those allocations.
+    pub allocated_bytes: u64,
+    /// Release events attributed to the task.
+    pub deallocation_count: u64,
+    /// Bytes of those releases.
+    pub deallocated_bytes: u64,
+    /// Live bytes still attributed to the task at the cut.
+    pub live_bytes: u64,
+}
+
+/// Result of charging an allocation to the current task.
+///
+/// Three states that used to be one boolean: an allocation can be charged, belong to no
+/// task at all, or be deferred because the registry lock was busy. A report must be able
+/// to tell them apart (plan A08).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChargeOutcome {
+    /// The task was charged, `memory_usage` includes this block.
+    Charged,
+    /// No task context was installed; the block belongs to no task.
+    Unattributed,
+    /// The registry lock was busy, so the charge was skipped and counted. The affected
+    /// task's metrics are a lower bound for this capture window.
+    Deferred,
+}
+
+/// How complete the task accounting of the current capture window is.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize)]
+pub struct ChargeQuality {
+    /// Charges skipped because the registry was busy.
+    pub deferred_charges: u64,
+    /// Bytes covered by those skipped charges.
+    pub deferred_bytes: u64,
+    /// Allocations observed without a task context.
+    pub unattributed_charges: u64,
+    /// Bytes of those allocations.
+    pub unattributed_bytes: u64,
+}
+
+impl ChargeQuality {
+    /// `true` when every observed allocation was charged to a task.
+    #[must_use]
+    pub fn is_complete(&self) -> bool {
+        self.deferred_charges == 0 && self.unattributed_charges == 0
+    }
+}
+
 /// Global task ID counter
 static TASK_COUNTER: AtomicU64 = AtomicU64::new(1);
 
@@ -179,6 +231,20 @@ pub struct TaskIdRegistry {
     tasks: Arc<RwLock<HashMap<u64, TaskMeta>>>,
     /// Set of used task IDs for uniqueness detection
     used_ids: Arc<RwLock<HashSet<u64>>>,
+    /// Allocator charges skipped because the registry lock was busy. Reported so a
+    /// skipped charge is visible instead of silently lost (plan A08).
+    skipped_charges: std::sync::atomic::AtomicU64,
+    /// Bytes that were part of the skipped charges, so a report can state the size of the
+    /// gap and not only its frequency.
+    skipped_bytes: std::sync::atomic::AtomicU64,
+    /// Allocations observed while no task context was installed: they belong to no task,
+    /// which is different from "the charge was deferred".
+    unattributed_charges: std::sync::atomic::AtomicU64,
+    /// Bytes of the unattributed allocations.
+    unattributed_bytes: std::sync::atomic::AtomicU64,
+    /// Deferred charges per task, so a report can mark *that* task's numbers as a lower
+    /// bound instead of only flagging the whole window.
+    deferred_by_task: dashmap::DashMap<u64, (u64, u64)>,
 }
 
 impl TaskIdRegistry {
@@ -187,6 +253,11 @@ impl TaskIdRegistry {
         Self {
             tasks: Arc::new(RwLock::new(HashMap::new())),
             used_ids: Arc::new(RwLock::new(HashSet::new())),
+            skipped_charges: std::sync::atomic::AtomicU64::new(0),
+            skipped_bytes: std::sync::atomic::AtomicU64::new(0),
+            unattributed_charges: std::sync::atomic::AtomicU64::new(0),
+            unattributed_bytes: std::sync::atomic::AtomicU64::new(0),
+            deferred_by_task: dashmap::DashMap::new(),
         }
     }
 
@@ -350,9 +421,212 @@ impl TaskIdRegistry {
         }
     }
 
-    /// Get current task ID from thread-local cache
+    /// Charge an allocation without ever blocking on the registry lock.
     ///
-    /// This is a zero-cost operation (no lock required)
+    /// The global allocator callback runs while other code may hold the registry read
+    /// lock (and allocate inside it). Taking the write lock there self-deadlocks, so this
+    /// uses `try_write` and reports [`ChargeOutcome::Deferred`] instead of waiting; the
+    /// attempt and its bytes are counted so a report can mark the task metrics as a lower
+    /// bound of this capture window.
+    pub fn try_record_allocation(&self, size: usize) -> ChargeOutcome {
+        let Some(task_id) = Self::current_task_id() else {
+            self.unattributed_charges.fetch_add(1, Ordering::Relaxed);
+            self.unattributed_bytes
+                .fetch_add(size as u64, Ordering::Relaxed);
+            return ChargeOutcome::Unattributed;
+        };
+
+        match self.tasks.try_write() {
+            Ok(mut tasks) => match tasks.get_mut(&task_id) {
+                Some(meta) => {
+                    meta.record_allocation(size);
+                    ChargeOutcome::Charged
+                }
+                // The task ended while the allocation was in flight: nothing to charge.
+                None => ChargeOutcome::Unattributed,
+            },
+            Err(_) => {
+                self.skipped_charges.fetch_add(1, Ordering::Relaxed);
+                self.skipped_bytes.fetch_add(size as u64, Ordering::Relaxed);
+                // Attribute the gap to the task that missed it. This touches only the
+                // DashMap shard, never the registry lock that is currently held, so the
+                // allocator callback stays deadlock-free.
+                let mut entry = self.deferred_by_task.entry(task_id).or_insert((0, 0));
+                entry.0 += 1;
+                entry.1 += size as u64;
+                ChargeOutcome::Deferred
+            }
+        }
+    }
+
+    /// Per-task deferred charges: `task_id -> (count, bytes)`.
+    ///
+    /// A task present here has accounting that is a lower bound for this capture window.
+    #[must_use]
+    pub fn deferred_tasks(&self) -> std::collections::HashMap<u64, (u64, u64)> {
+        self.deferred_by_task
+            .iter()
+            .map(|entry| (*entry.key(), *entry.value()))
+            .collect()
+    }
+
+    /// Completeness of the task accounting observed so far.
+    pub fn charge_quality(&self) -> ChargeQuality {
+        ChargeQuality {
+            deferred_charges: self.skipped_charges.load(Ordering::Relaxed),
+            deferred_bytes: self.skipped_bytes.load(Ordering::Relaxed),
+            unattributed_charges: self.unattributed_charges.load(Ordering::Relaxed),
+            unattributed_bytes: self.unattributed_bytes.load(Ordering::Relaxed),
+        }
+    }
+
+    pub fn task_stats_from_events(
+        events: &[crate::event_store::MemoryEvent],
+    ) -> std::collections::BTreeMap<u64, TaskLedgerStats> {
+        use crate::event_store::MemoryEventType;
+        use std::collections::{BTreeMap, HashMap};
+
+        /// A binding that is still open at the cut, with the task that allocated it.
+        struct OpenBinding {
+            ptr: usize,
+            serial: Option<u64>,
+            size: u64,
+            task: u64,
+        }
+
+        // Tombstoned slots plus a per-address index: a release touches only the bindings
+        // of its own address, so replay stays linear in the number of events instead of
+        // scanning every open binding (the same shape the binding ledger uses).
+        let mut slots: Vec<Option<OpenBinding>> = Vec::new();
+        let mut by_addr: HashMap<usize, Vec<usize>> = HashMap::new();
+
+        fn push(
+            slots: &mut Vec<Option<OpenBinding>>,
+            by_addr: &mut HashMap<usize, Vec<usize>>,
+            binding: OpenBinding,
+        ) {
+            let ptr = binding.ptr;
+            slots.push(Some(binding));
+            by_addr.entry(ptr).or_default().push(slots.len() - 1);
+        }
+
+        fn take(
+            slots: &mut [Option<OpenBinding>],
+            by_addr: &mut HashMap<usize, Vec<usize>>,
+            ptr: usize,
+            serial: Option<u64>,
+            size: usize,
+        ) -> Option<OpenBinding> {
+            let index = {
+                let bucket = by_addr.get(&ptr)?;
+                let by_serial = serial.and_then(|serial| {
+                    bucket.iter().copied().find(|index| {
+                        slots[*index]
+                            .as_ref()
+                            .is_some_and(|binding| binding.serial == Some(serial))
+                    })
+                });
+                let by_size = || {
+                    bucket.iter().copied().find(|index| {
+                        slots[*index]
+                            .as_ref()
+                            .is_some_and(|binding| size == 0 || binding.size == size as u64)
+                    })
+                };
+                by_serial
+                    .or_else(by_size)
+                    .or_else(|| bucket.first().copied())?
+            };
+
+            let binding = slots[index].take()?;
+            if let Some(bucket) = by_addr.get_mut(&ptr) {
+                bucket.retain(|candidate| *candidate != index);
+                if bucket.is_empty() {
+                    by_addr.remove(&ptr);
+                }
+            }
+            Some(binding)
+        }
+
+        let mut stats: BTreeMap<u64, TaskLedgerStats> = BTreeMap::new();
+
+        for event in events {
+            match event.event_type {
+                MemoryEventType::Allocate => {
+                    let Some(task_id) = event.task_id else {
+                        continue;
+                    };
+                    let entry = stats.entry(task_id).or_default();
+                    entry.allocation_count += 1;
+                    entry.allocated_bytes += event.size as u64;
+                    entry.live_bytes = entry.live_bytes.saturating_add(event.size as u64);
+                    push(
+                        &mut slots,
+                        &mut by_addr,
+                        OpenBinding {
+                            ptr: event.ptr,
+                            serial: event.binding_serial,
+                            size: event.size as u64,
+                            task: task_id,
+                        },
+                    );
+                }
+                MemoryEventType::Deallocate => {
+                    // Only a release that closes a live binding is a valid lifecycle
+                    // transition: a repeated (or unmatched) release must not book bytes
+                    // anywhere, or the totals drift away from the ledger.
+                    let Some(closed) = take(
+                        &mut slots,
+                        &mut by_addr,
+                        event.ptr,
+                        event.binding_serial,
+                        event.size,
+                    ) else {
+                        continue;
+                    };
+                    if let Some(actor_id) = event.task_id {
+                        let actor = stats.entry(actor_id).or_default();
+                        actor.deallocation_count += 1;
+                        actor.deallocated_bytes += event.size as u64;
+                    }
+                    // The *live* bytes belong to the task that allocated the binding,
+                    // which may have ended or be a different task entirely.
+                    if let Some(owner) = stats.get_mut(&closed.task) {
+                        owner.live_bytes = owner.live_bytes.saturating_sub(closed.size);
+                    }
+                }
+                MemoryEventType::Reallocate => {
+                    let previous = event.old_size.unwrap_or(0) as u64;
+                    let new_ptr = event.new_ptr.unwrap_or(event.ptr);
+                    let Some(mut binding) = take(
+                        &mut slots,
+                        &mut by_addr,
+                        event.ptr,
+                        event.binding_serial,
+                        previous as usize,
+                    ) else {
+                        continue;
+                    };
+                    // The binding keeps its owner; only its size and address change.
+                    if let Some(owner) = stats.get_mut(&binding.task) {
+                        owner.live_bytes = owner
+                            .live_bytes
+                            .saturating_sub(binding.size)
+                            .saturating_add(event.size as u64);
+                        owner.allocated_bytes += event.size as u64;
+                        owner.deallocated_bytes += previous;
+                    }
+                    binding.size = event.size as u64;
+                    binding.ptr = new_ptr;
+                    binding.serial = event.binding_serial.or(binding.serial);
+                    push(&mut slots, &mut by_addr, binding);
+                }
+                _ => {}
+            }
+        }
+        stats
+    }
+
     pub fn current_task_id() -> Option<u64> {
         CURRENT_TASK_ID.get()
     }
@@ -676,3 +950,6 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod ledger_tests;

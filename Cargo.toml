@@ -29,6 +29,7 @@ backtrace = { version = "0.3", features = ["serde"], optional = true }
 rayon = "1.8"
 num_cpus = "1.16"
 libc = "0.2"
+page_size = "0.6"
 ctrlc = { version = "3.4", optional = true }
 sysinfo = "0.32.0"
 regex = "1.12.3"
@@ -71,6 +72,7 @@ periodic = []
 
 [dev-dependencies]
 tempfile = "3.27.0"
+wait-timeout = "0.2.1"
 criterion = { version = "0.8.2", features = ["html_reports"] }
 tokio = { version = "1.51.0", features = ["full"] }
 futures = "0.3.32"

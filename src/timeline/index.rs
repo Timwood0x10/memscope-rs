@@ -136,6 +136,7 @@ mod tests {
             old_size: None,
             new_ptr: None,
             binding_serial: None,
+            degraded_release: false,
             thread_id: 1,
             var_name: Some("test_var".to_string()),
             type_name: Some("i32".to_string()),

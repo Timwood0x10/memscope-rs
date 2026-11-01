@@ -4,47 +4,55 @@ use super::*;
 use crate::core::allocator::TrackingGuard;
 use std::sync::OnceLock;
 
-/// Shared, singleton state of the global facade.
+/// The allocator's facade: created once, never dropped, always on the global backend.
 ///
-/// Only the parts that must be shared are cached: the event store, the deduplication
-/// index, the configuration and the system snapshots. The core backend is resolved per
-/// call, so switching the tracking strategy (or calling from another thread) selects the
-/// backend that is current *now* instead of pinning the first one forever.
-struct GlobalShared {
-    event_store: Arc<EventStore>,
-    recorded_bindings: RecordedBindings,
-    config: Arc<Mutex<TrackerConfig>>,
-    start_time: Instant,
-    system_snapshots: Arc<Mutex<Vec<SystemSnapshot>>>,
-}
-
-fn shared() -> &'static GlobalShared {
-    static GLOBAL: OnceLock<GlobalShared> = OnceLock::new();
-    GLOBAL.get_or_init(|| GlobalShared {
-        event_store: Arc::new(EventStore::new()),
-        recorded_bindings: Arc::new(DashMap::new()),
-        config: Arc::new(Mutex::new(TrackerConfig {
-            sampling: SamplingConfig::default(),
-            auto_export_on_drop: false,
-            export_path: None,
-        })),
-        start_time: Instant::now(),
-        system_snapshots: Arc::new(Mutex::new(Vec::new())),
+/// Three constraints force this shape:
+/// * the callback may not touch a thread-local that needs dropping (macOS aborts the
+///   process: "the global allocator may not use TLS with destructors");
+/// * a release may arrive on a different thread than the allocation, so the binding has
+///   to live in a process-wide cache;
+/// * constructing and dropping a `Tracker` per callback would run the auto-export check
+///   under the configuration lock, which deadlocks when the callback itself allocates.
+///
+/// `OnceLock` keeps it alive for the process, so neither `Drop` nor the auto-export path
+/// can run from inside an allocator callback.
+pub(crate) fn global_tracker() -> &'static Tracker {
+    static GLOBAL: OnceLock<Tracker> = OnceLock::new();
+    GLOBAL.get_or_init(|| {
+        let _suppression = TrackingGuard::acquire();
+        Tracker {
+            inner: crate::capture::backends::core_tracker::get_global_tracker(),
+            event_store: Arc::new(EventStore::new()),
+            recorded_bindings: Arc::new(DashMap::new()),
+            config: Arc::new(Mutex::new(TrackerConfig {
+                sampling: SamplingConfig::default(),
+                auto_export_on_drop: false,
+                export_path: None,
+            })),
+            start_time: Instant::now(),
+            system_snapshots: Arc::new(Mutex::new(Vec::new())),
+        }
     })
 }
 
-/// Facade for allocator callbacks, without taking ownership of the backend choice.
-pub(crate) fn global_tracker() -> Tracker {
-    let _suppression = TrackingGuard::acquire();
-    let shared = shared();
-    Tracker {
-        inner: crate::core::tracker::get_tracker(),
-        event_store: shared.event_store.clone(),
-        recorded_bindings: shared.recorded_bindings.clone(),
-        config: shared.config.clone(),
-        start_time: shared.start_time,
-        system_snapshots: shared.system_snapshots.clone(),
-    }
+/// Addresses for which the allocator already charged the current task.
+///
+/// The core cache cannot answer this: a typed observation inserts the block into the same
+/// cache right before asking, so "the binding exists" is true even when nobody charged it.
+/// This set is written by the allocator path and cleared when the block is released.
+fn charged_addresses() -> &'static dashmap::DashSet<usize> {
+    static CHARGED: OnceLock<dashmap::DashSet<usize>> = OnceLock::new();
+    CHARGED.get_or_init(dashmap::DashSet::new)
+}
+
+/// Whether the allocator already charged a block at `ptr`.
+pub(crate) fn allocator_charged(ptr: usize) -> bool {
+    charged_addresses().contains(&ptr)
+}
+
+/// Forget the charge mark of a released address.
+pub(crate) fn clear_allocator_charge(ptr: usize) {
+    charged_addresses().remove(&ptr);
 }
 
 impl Tracker {
@@ -53,14 +61,16 @@ impl Tracker {
         let _gate = crate::core::allocator::capture_gate::acquire(ptr);
         let slot = self.recorded_slot(ptr);
         let mut guard = slot.lock().unwrap_or_else(|error| error.into_inner());
-        let recorded = *guard;
         if self.inner.track_allocation(ptr, size).is_err() {
             return;
         }
         let Some(serial) = self.inner.binding_serial(ptr) else {
             return;
         };
-        if recorded.is_some_and(|binding| binding.serial == serial && binding.size == size) {
+        if guard
+            .get(&serial)
+            .is_some_and(|binding| binding.size == size)
+        {
             // The same binding was already published (a custom allocator or a replayed
             // hook reporting the block twice). Publishing again would create a second
             // Allocate for one identity, which every projection would render twice.
@@ -71,13 +81,19 @@ impl Tracker {
         self.event_store.record(event);
 
         // Exactly once per binding: the allocator saw the real block, so it charges the
-        // task. A later typed observation of the same block only annotates it.
-        crate::task_registry::global_registry().record_allocation(size);
-        *guard = Some(RecordedBinding {
-            size,
+        // task. A later typed observation of the same block only annotates it. The charge
+        // never blocks: a blocking write here self-deadlocks when the caller holds the
+        // registry read lock and allocates (a string clone, for example).
+        crate::task_registry::global_registry().try_record_allocation(size);
+        charged_addresses().insert(ptr);
+        guard.insert(
             serial,
-            typed: false,
-        });
+            RecordedBinding {
+                size,
+                typed: false,
+                charged: true,
+            },
+        );
     }
 
     /// Keep the old address slot locked across the system call and publication.
@@ -103,16 +119,20 @@ impl Tracker {
         }
         let address = new_ptr as usize;
         if address == old_ptr {
-            if let Some(binding) = self.record_reallocation(old_ptr, address, old_size, new_size) {
-                *old_guard = Some(binding);
+            if let Some((serial, binding)) =
+                self.record_reallocation(old_ptr, address, old_size, new_size)
+            {
+                old_guard.insert(serial, binding);
             }
         } else {
             let new_slot = self.recorded_slot(address);
             let mut new_guard = new_slot.lock().unwrap_or_else(|error| error.into_inner());
             let binding = self.record_reallocation(old_ptr, address, old_size, new_size);
-            if let Some(binding) = binding {
-                *old_guard = None;
-                *new_guard = Some(binding);
+            if let Some((serial, binding)) = binding {
+                // Only the moved identity leaves the old address; other live bindings at
+                // that address keep their dedupe state.
+                old_guard.remove(&serial);
+                new_guard.insert(serial, binding);
             }
             drop(old_guard);
             drop(new_guard);

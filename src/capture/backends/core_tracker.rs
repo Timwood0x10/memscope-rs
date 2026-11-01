@@ -42,6 +42,17 @@ fn register_current_thread_tracker_local(tracker: &Arc<MemoryTracker>) {
     get_local_registry().insert(thread_id, tracker.clone());
 }
 
+/// Identity of a binding that was closed (or located) by the cache.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClosedBinding {
+    /// Base address the binding was recorded at.
+    pub ptr: usize,
+    /// Identity of the binding (`AllocationInfo::binding_serial`).
+    pub serial: u64,
+    /// Size recorded for the binding.
+    pub size: usize,
+}
+
 /// Core memory tracking functionality.
 ///
 /// The MemoryTracker maintains records of all memory allocations and deallocations,
@@ -267,7 +278,75 @@ impl MemoryTracker {
     ///   allocation)
     pub fn track_deallocation(&self, ptr: usize) -> TrackingResult<bool> {
         let _gate = crate::core::allocator::capture_gate::acquire(ptr);
-        self.close_binding(ptr, None)
+        Ok(self.close_binding(ptr, None).is_some())
+    }
+
+    /// Close a binding and report exactly which one was closed.
+    ///
+    /// The facade needs the identity that was *actually* released: with several live
+    /// bindings at one address the newest one is not the one a degraded release closes,
+    /// so publishing `binding_serial(ptr)` there would describe the wrong block.
+    pub fn close_and_report(
+        &self,
+        ptr: usize,
+        serial: Option<u64>,
+    ) -> TrackingResult<Option<ClosedBinding>> {
+        let _gate = crate::core::allocator::capture_gate::acquire(ptr);
+        Ok(self.close_binding(ptr, serial))
+    }
+
+    /// The live binding recorded at exactly `ptr` (newest binding at that address).
+    ///
+    /// O(1): one map lookup. Use this for deduplication and charging decisions instead of
+    /// the range scan.
+    pub fn binding_at(&self, ptr: usize) -> Option<ClosedBinding> {
+        let _gate = crate::core::allocator::capture_gate::acquire(ptr);
+        self.active_allocations.get(&ptr).and_then(|entries| {
+            entries.last().map(|binding| ClosedBinding {
+                ptr,
+                serial: binding.binding_serial,
+                size: binding.size,
+            })
+        })
+    }
+
+    /// The live binding whose block contains `addr`, if the candidate is unique.
+    ///
+    /// A smart pointer's pointee sits *inside* its allocation (an `Arc` puts the value
+    /// after the two reference counts), so matching by address or size cannot find the
+    /// block. The containing range can.
+    pub fn binding_containing(&self, addr: usize) -> Option<ClosedBinding> {
+        let _gate = crate::core::allocator::capture_gate::acquire(addr);
+        let mut candidates: Vec<ClosedBinding> = Vec::new();
+        for entry in self.active_allocations.iter() {
+            for binding in entry.value() {
+                let start = binding.ptr;
+                let end = start.saturating_add(binding.size);
+                if addr >= start && addr < end {
+                    candidates.push(ClosedBinding {
+                        ptr: start,
+                        serial: binding.binding_serial,
+                        size: binding.size,
+                    });
+                }
+            }
+        }
+
+        // Only a single candidate names an identity. Two nested blocks (an old 64-byte
+        // binding still live under a new 128-byte one) both contain the address, and
+        // picking "the smallest" would systematically annotate the older generation.
+        // Ambiguity is reported instead of guessed.
+        match candidates.len() {
+            1 => candidates.pop(),
+            0 => None,
+            count => {
+                tracing::debug!(
+                    "ambiguous containment at {:#x}: {count} live blocks contain it",
+                    addr
+                );
+                None
+            }
+        }
     }
 
     /// Track a memory deallocation of one specific binding.
@@ -277,15 +356,13 @@ impl MemoryTracker {
     /// delete the new block.
     pub fn track_deallocation_of(&self, ptr: usize, serial: u64) -> TrackingResult<bool> {
         let _gate = crate::core::allocator::capture_gate::acquire(ptr);
-        self.close_binding(ptr, Some(serial))
+        Ok(self.close_binding(ptr, Some(serial)).is_some())
     }
 
-    /// Close a binding, returning whether one was closed.
-    fn close_binding(&self, ptr: usize, serial: Option<u64>) -> TrackingResult<bool> {
+    /// Close a binding, returning the closed record when one matched.
+    fn close_binding(&self, ptr: usize, serial: Option<u64>) -> Option<ClosedBinding> {
         let closed = {
-            let Some(mut entries) = self.active_allocations.get_mut(&ptr) else {
-                return Ok(false);
-            };
+            let mut entries = self.active_allocations.get_mut(&ptr)?;
 
             let index = match serial {
                 Some(serial) => entries
@@ -307,7 +384,7 @@ impl MemoryTracker {
             let Some(index) = index else {
                 // The named binding is already gone: a late release of a superseded
                 // generation must not touch the blocks that replaced it.
-                return Ok(false);
+                return None;
             };
 
             let closed = entries.remove(index);
@@ -322,7 +399,11 @@ impl MemoryTracker {
         self.total_deallocations.fetch_add(1, Ordering::Relaxed);
         self.total_deallocated
             .fetch_add(closed.size as u64, Ordering::Relaxed);
-        Ok(true)
+        Some(ClosedBinding {
+            ptr: closed.ptr,
+            serial: closed.binding_serial,
+            size: closed.size,
+        })
     }
 
     /// Track a reallocation of a tracked block.
@@ -693,6 +774,18 @@ pub fn configure_tracking_strategy(is_concurrent: bool) {
             "global-singleton"
         }
     );
+}
+
+/// The process-wide core tracker, regardless of the configured strategy.
+///
+/// The global allocator callback must use this and never [`get_tracker`]: touching a
+/// thread-local with a destructor from the allocator aborts the process on macOS
+/// ("the global allocator may not use TLS with destructors"), and a thread-local cache
+/// cannot resolve a binding allocated on another thread.
+pub fn get_global_tracker() -> Arc<MemoryTracker> {
+    GLOBAL_TRACKER
+        .get_or_init(|| Arc::new(MemoryTracker::new()))
+        .clone()
 }
 
 /// Get the appropriate memory tracker based on the current strategy.

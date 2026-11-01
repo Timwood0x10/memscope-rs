@@ -42,6 +42,11 @@ impl fmt::Display for MemoryEventType {
     }
 }
 
+/// Serde helper: omit `false` flags from the JSON projection.
+fn is_false(value: &bool) -> bool {
+    !*value
+}
+
 /// Unified memory event type
 ///
 /// This structure captures all essential information about memory operations
@@ -67,6 +72,13 @@ pub struct MemoryEvent {
     /// streams omit it and use address/size matching during replay.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub binding_serial: Option<u64>,
+    /// Set when a release could only be matched by address (the address held several
+    /// live bindings), so the closed binding was chosen by policy rather than identified.
+    ///
+    /// Carried by the event instead of only a counter: replay and every export can then
+    /// say that this release is a lower bound of the evidence, not an exact fact.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub degraded_release: bool,
     /// Thread identifier
     pub thread_id: u64,
     /// Optional variable name
@@ -108,6 +120,7 @@ impl MemoryEvent {
             old_size: None,
             new_ptr: None,
             binding_serial: None,
+            degraded_release: false,
             thread_id,
             var_name: None,
             type_name: None,
@@ -150,6 +163,7 @@ impl MemoryEvent {
             old_size: None,
             new_ptr: None,
             binding_serial: None,
+            degraded_release: false,
             thread_id,
             var_name: None,
             type_name: None,
@@ -175,6 +189,7 @@ impl MemoryEvent {
             old_size: Some(old_size),
             new_ptr: None,
             binding_serial: None,
+            degraded_release: false,
             thread_id,
             var_name: None,
             type_name: None,
@@ -200,6 +215,7 @@ impl MemoryEvent {
             old_size: None,
             new_ptr: None,
             binding_serial: None,
+            degraded_release: false,
             thread_id,
             var_name: Some(var_name),
             type_name: Some(type_name),
@@ -232,6 +248,7 @@ impl MemoryEvent {
             old_size: None,
             new_ptr: None,
             binding_serial: None,
+            degraded_release: false,
             thread_id,
             var_name,
             type_name,
@@ -257,6 +274,7 @@ impl MemoryEvent {
             old_size: None,
             new_ptr: None,
             binding_serial: None,
+            degraded_release: false,
             thread_id,
             var_name: None,
             type_name: Some(if is_mutable {

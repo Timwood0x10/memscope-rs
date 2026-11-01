@@ -1820,6 +1820,7 @@ dependencies = [
  "memscope-derive",
  "num_cpus",
  "object 0.32.2",
+ "page_size",
  "parking_lot",
  "proptest",
  "rand 0.10.1",
@@ -1837,6 +1838,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "wait-timeout",
  "windows-sys 0.61.2",
 ]
 

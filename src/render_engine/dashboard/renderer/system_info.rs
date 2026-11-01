@@ -106,20 +106,8 @@ fn get_macos_system_info() -> SystemResources {
         );
     }
 
-    let mut page_size: u64 = 4096;
-    unsafe {
-        let mut size = std::mem::size_of::<u64>();
-        if libc::sysctlbyname(
-            c("hw.pagesize"),
-            &mut page_size as *mut u64 as *mut libc::c_void,
-            &mut size,
-            std::ptr::null_mut(),
-            0,
-        ) != 0
-        {
-            page_size = 4096;
-        }
-    }
+    // Same portable source as the other platforms: one query, no per-OS branch.
+    let page_size: u64 = portable_page_size();
 
     let mut total: u64 = 0;
     unsafe {
@@ -182,14 +170,21 @@ fn c(s: &str) -> *const libc::c_char {
     thread_local! {
         static KERN_OSRELEASE: CString = CString::new("kern.osrelease").unwrap();
         static HW_MACHINE: CString = CString::new("hw.machine").unwrap();
-        static HW_PAGESIZE: CString = CString::new("hw.pagesize").unwrap();
     }
     match s {
         "kern.osrelease" => KERN_OSRELEASE.with(|c| c.as_ptr()),
         "hw.machine" => HW_MACHINE.with(|c| c.as_ptr()),
-        "hw.pagesize" => HW_PAGESIZE.with(|c| c.as_ptr()),
         _ => std::ptr::null(),
     }
+}
+
+/// Page size used by the memory accounting.
+///
+/// One implementation for every platform: `page_size` queries the OS the way each one
+/// expects (sysconf on unix, `GetSystemInfo` on Windows). Keeping it portable avoids a
+/// per-OS branch that can drift or fail to compile on a target the linters do not cover.
+fn portable_page_size() -> u64 {
+    page_size::get() as u64
 }
 
 /// System information on platforms without a dedicated implementation.
@@ -215,7 +210,7 @@ fn get_portable_system_info() -> SystemResources {
         total_physical: format_bytes(total_bytes as usize),
         available_physical: format_bytes(available_bytes as usize),
         used_physical: format_bytes(used_bytes as usize),
-        page_size: sysinfo::System::page_size(),
+        page_size: portable_page_size(),
         cpu_usage_pct: process_cpu_usage_pct(),
         total_physical_bytes: total_bytes,
         used_physical_bytes: used_bytes,
