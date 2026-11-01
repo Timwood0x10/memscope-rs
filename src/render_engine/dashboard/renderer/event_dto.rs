@@ -98,6 +98,11 @@ pub struct EventSummary {
     /// the same buffer.
     #[serde(default)]
     pub duplicate_observations: usize,
+    /// Releases that could only be matched by address (the address held several live
+    /// bindings). Non-zero means those closes are a policy choice, not identified
+    /// bindings, so counts derived from them are a lower bound of the evidence.
+    #[serde(default)]
+    pub degraded_releases: usize,
 }
 
 impl EventSummary {
@@ -121,7 +126,15 @@ impl EventSummary {
             total_allocations,
             active_allocations,
             duplicate_observations: 0,
+            degraded_releases: 0,
         }
+    }
+
+    /// Attach the degraded-release count reported by the capture layer.
+    #[must_use]
+    pub fn with_degraded_releases(mut self, count: usize) -> Self {
+        self.degraded_releases = count;
+        self
     }
 
     /// Attach the duplicate-observation count reported by the capture layer.
