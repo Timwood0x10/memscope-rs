@@ -74,6 +74,8 @@ pub(crate) fn project_snapshot(ledger: &BindingLedger, timestamp: u64) -> Memory
         usize::try_from(stats.reallocation_count).unwrap_or(usize::MAX);
     snapshot.stats.unmatched_deallocations =
         usize::try_from(stats.unmatched_deallocation_count).unwrap_or(usize::MAX);
+    snapshot.stats.degraded_releases =
+        usize::try_from(stats.degraded_releases).unwrap_or(usize::MAX);
     snapshot.stats.total_allocated = usize::try_from(stats.allocated_bytes).unwrap_or(usize::MAX);
     snapshot.stats.total_deallocated =
         usize::try_from(stats.deallocated_bytes).unwrap_or(usize::MAX);

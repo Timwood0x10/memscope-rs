@@ -868,3 +868,46 @@ fn unmatched_reallocation_books_only_the_new_block() {
         "allocated minus deallocated must equal the live bytes"
     );
 }
+
+/// Objective: Verify a containing-binding lookup refuses to guess when two blocks of the
+/// same size both contain the address (overlapping bindings).
+/// Invariants: a unique candidate is returned for a block with a single owner, and an
+/// ambiguous overlap returns `None`.
+#[test]
+fn containment_requires_a_unique_candidate() {
+    let tracker = MemoryTracker::new();
+    tracker
+        .track_allocation(0x1000, 64)
+        .expect("outer block must register");
+
+    let inner = tracker
+        .binding_containing(0x1010)
+        .expect("the address is inside the block");
+    assert_eq!(inner.ptr, 0x1000, "the containing block is reported");
+    assert_eq!(inner.size, 64, "its size is reported");
+
+    // Two same-sized blocks that both contain the address: no attribution is possible.
+    tracker
+        .track_allocation(0x1008, 64)
+        .expect("overlapping block must register");
+    assert_eq!(
+        tracker.binding_containing(0x1020),
+        None,
+        "an ambiguous overlap must not be attributed to one of the blocks"
+    );
+
+    // Nested blocks of *different* sizes are ambiguous as well: picking "the smallest"
+    // would systematically annotate the older generation of a reused address.
+    let nested = MemoryTracker::new();
+    nested
+        .track_allocation(0x2000, 64)
+        .expect("old generation must register");
+    nested
+        .track_allocation(0x2000, 128)
+        .expect("new generation must register");
+    assert_eq!(
+        nested.binding_containing(0x2008),
+        None,
+        "a nested overlap must not be resolved by size, even with different sizes"
+    );
+}

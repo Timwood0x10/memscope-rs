@@ -43,6 +43,11 @@ pub struct MemoryStats {
     pub total_deallocations: usize,
     /// Number of deallocations without matching allocations
     pub unmatched_deallocations: usize,
+    /// Releases that were matched by address only, because the address held several live
+    /// bindings. Non-zero means those releases are a policy choice, not identified
+    /// bindings, and any count derived from them is a lower bound of the evidence.
+    #[serde(default)]
+    pub degraded_releases: usize,
     /// Number of currently active allocations
     pub active_allocations: usize,
     /// Total bytes allocated
@@ -311,6 +316,7 @@ mod tests {
             total_reallocations: 10,
             total_deallocations: 50,
             unmatched_deallocations: 2,
+            degraded_releases: 0,
             active_allocations: 50,
             total_allocated: 1024 * 1024,
             total_deallocated: 512 * 1024,
@@ -435,6 +441,7 @@ mod tests {
             total_reallocations: 10,
             total_deallocations: 50,
             unmatched_deallocations: 2,
+            degraded_releases: 0,
             active_allocations: 50,
             total_allocated: 1024,
             total_deallocated: 512,

@@ -99,6 +99,9 @@ pub struct LedgerStats {
     pub unmatched_deallocation_count: u64,
     /// Heap annotations with no uniquely identifiable live binding.
     pub unmatched_metadata_count: u64,
+    /// Releases matched by address only (several live bindings at that address), so
+    /// the closed binding was chosen by policy.
+    pub degraded_releases: u64,
     /// Allocations that arrived while another binding was still live at the same
     /// address. A non-zero value means the capture missed a release (or two different
     /// blocks shared one address): the bindings are kept apart, but the window has a
@@ -375,6 +378,11 @@ impl BindingLedger {
             return;
         };
         self.stats.deallocation_count += 1;
+        if event.degraded_release {
+            // The release was matched by address only: replay can see that this close
+            // is a policy choice, not an identified binding.
+            self.stats.degraded_releases += 1;
+        }
 
         let (deallocated, overflowed) =
             checked_bytes(self.stats.deallocated_bytes, binding.size as u64);

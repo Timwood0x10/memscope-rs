@@ -521,12 +521,16 @@ fn released_addresses_do_not_retain_dedupe_slots() {
         .inner
         .track_allocation(live, 32)
         .expect("registering the live block must succeed");
+    let serial = tracker.inner.binding_serial(live).unwrap_or_default();
     let slot = tracker.recorded_slot(live);
-    *slot.lock().expect("slot lock must be acquirable") = Some(RecordedBinding {
-        size: 32,
-        serial: tracker.inner.binding_serial(live).unwrap_or_default(),
-        typed: true,
-    });
+    slot.lock().expect("slot lock must be acquirable").insert(
+        serial,
+        RecordedBinding {
+            size: 32,
+            typed: true,
+            charged: true,
+        },
+    );
     drop(slot);
     tracker.reclaim_slot(live);
     assert_eq!(
@@ -670,5 +674,147 @@ fn tracked_block_charges_the_current_task_once() {
     assert_eq!(
         meta.allocation_count, 1,
         "one block must be charged exactly once"
+    );
+}
+
+/// Objective: Verify a typed observation charges the current task when no allocator did,
+/// even though the observation itself just inserted the block into the core cache.
+/// "The cache knows the block" must not be read as "the allocator already charged it".
+/// Invariants: exactly one allocation is charged, with at least the block's bytes.
+#[test]
+#[serial]
+fn typed_observation_charges_when_no_allocator_did() {
+    let registry = crate::task_registry::global_registry();
+    registry.clear();
+    let tracker = Tracker::global();
+    let data = vec![0u8; 64];
+
+    let _scope = registry.task_scope("charge_once");
+    let task_id = crate::task_registry::TaskIdRegistry::current_task_id()
+        .expect("the task scope must install a current task");
+
+    tracker.track_as(&data, "data", file!(), line!(), module_path!());
+
+    let meta = registry.get_task(task_id).expect("the task must exist");
+    assert_eq!(
+        meta.allocation_count, 1,
+        "the block must be charged exactly once, not zero or twice"
+    );
+    assert!(
+        meta.memory_usage >= 64,
+        "the task must carry the block's bytes, got {}",
+        meta.memory_usage
+    );
+}
+
+/// Objective: Verify the dedupe state is kept per binding identity, so closing one
+/// generation does not erase the state of the surviving one.
+/// Invariants: after removing serial A the state of serial B is intact, and the index is
+/// empty only when every binding was removed.
+#[test]
+fn dedupe_state_is_keyed_by_binding_identity() {
+    let tracker = Tracker::new();
+    let ptr = 0x7000_0000usize;
+
+    let slot = tracker.recorded_slot(ptr);
+    {
+        let mut state = slot.lock().expect("slot lock must be acquirable");
+        state.insert(
+            1,
+            RecordedBinding {
+                size: 64,
+                typed: true,
+                charged: true,
+            },
+        );
+        state.insert(
+            2,
+            RecordedBinding {
+                size: 128,
+                typed: true,
+                charged: true,
+            },
+        );
+        state.remove(&1);
+        assert_eq!(
+            state.len(),
+            1,
+            "removing one identity must not remove the other"
+        );
+        assert_eq!(
+            state.get(&2).map(|binding| binding.size),
+            Some(128),
+            "the surviving binding keeps its own size"
+        );
+    }
+
+    drop(slot);
+    tracker.reclaim_slot(ptr);
+    assert_eq!(
+        tracker.recorded_bindings.len(),
+        1,
+        "a non-empty slot must not be reclaimed"
+    );
+}
+
+/// Objective: Verify a migrating reallocation moves only the identity it reallocated, so
+/// the dedupe state of another live binding at the old address survives.
+/// Invariants: the old address keeps the untouched serial and the new address holds the
+/// moved one.
+#[test]
+fn moving_reallocation_keeps_other_identity_state() {
+    let tracker = Tracker::new();
+    let old_ptr = 0x8000_0000usize;
+    let new_ptr = 0x8001_0000usize;
+
+    tracker
+        .inner
+        .track_allocation(old_ptr, 128)
+        .expect("the block must register");
+    let moved_serial = tracker.inner.binding_serial(old_ptr).expect("serial");
+
+    // Another identity that must survive the migration.
+    let survivor = moved_serial + 1000;
+    let old_slot = tracker.recorded_slot(old_ptr);
+    {
+        let mut state = old_slot.lock().expect("slot lock");
+        state.insert(
+            moved_serial,
+            RecordedBinding {
+                size: 128,
+                typed: true,
+                charged: true,
+            },
+        );
+        state.insert(
+            survivor,
+            RecordedBinding {
+                size: 64,
+                typed: true,
+                charged: true,
+            },
+        );
+    }
+    drop(old_slot);
+
+    tracker.track_reallocation(old_ptr, new_ptr, 128, 256);
+
+    let old_state = tracker.recorded_slot(old_ptr);
+    let old_state = old_state.lock().expect("slot lock");
+    assert!(
+        old_state.contains_key(&survivor),
+        "the untouched identity must keep its dedupe state"
+    );
+    assert!(
+        !old_state.contains_key(&moved_serial),
+        "the moved identity must leave the old address"
+    );
+    drop(old_state);
+
+    let new_state = tracker.recorded_slot(new_ptr);
+    let new_state = new_state.lock().expect("slot lock");
+    assert!(
+        new_state.contains_key(&moved_serial),
+        "the moved identity must be recorded at the new address"
     );
 }
