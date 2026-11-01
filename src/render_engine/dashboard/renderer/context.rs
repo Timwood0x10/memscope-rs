@@ -157,7 +157,8 @@ pub fn build_context_from_tracker_with_async(
         total_allocations,
         active_allocations,
     )
-    .with_duplicate_observations(tracker.duplicate_observations() as usize);
+    .with_duplicate_observations(tracker.duplicate_observations() as usize)
+    .with_degraded_releases(ledger.stats().degraded_releases as usize);
     let data_index = build_data_index(&alloc_info, &event_dtos, &passport_details, &unsafe_reports);
 
     // Pre-compute all new professional template data before moving values into context

@@ -439,6 +439,7 @@ fn generate_memory_analysis_json<P: AsRef<Path>>(
             "total_allocations": allocations.len(),
             "total_size_bytes": total_size,
             "live_size_bytes": total_size,
+            "degraded_releases": stats.degraded_releases,
             "cumulative_allocated_bytes": cumulative_allocated,
             "cumulative_deallocated_bytes": cumulative_deallocated,
             "peak_bytes": peak
@@ -467,6 +468,7 @@ fn generate_memory_analysis_json<P: AsRef<Path>>(
             "live_size_bytes": total_size,
             "allocation_count": stats.total_allocations,
             "deallocation_count": stats.total_deallocations,
+            "degraded_releases": stats.degraded_releases,
             "cumulative_allocated_bytes": cumulative_allocated,
             "cumulative_deallocated_bytes": cumulative_deallocated,
             "peak_bytes": peak,
@@ -723,7 +725,7 @@ pub fn export_all_json<P: AsRef<Path>>(
     debug!("Completed export_ownership_graph_json");
 
     // Export task graph JSON
-    export_task_graph_json(path_ref)
+    export_task_graph_json_with_accounting(path_ref, &events)
         .map_err(|e| MemScopeError::error("export", "export_all_json", e.to_string()))?;
 
     debug!("Completed export_task_graph_json");
@@ -736,14 +738,80 @@ pub fn export_all_json<P: AsRef<Path>>(
 /// Export task graph JSON
 ///
 /// This function exports the task graph including nodes (tasks) and edges (parent-child relationships).
+/// Per-task accounting for the export, with the completeness of each entry.
+///
+/// A task whose charges were deferred while the registry lock was busy carries
+/// `lower_bound: true` and the size of the gap, so a consumer never reads an incomplete
+/// number as a complete one (plan A08).
+fn task_accounting_json(
+    events: &[crate::event_store::MemoryEvent],
+    deferred: std::collections::HashMap<u64, (u64, u64)>,
+) -> serde_json::Value {
+    let stats = crate::task_registry::TaskIdRegistry::task_stats_from_events(events);
+    let entries: Vec<serde_json::Value> = stats
+        .into_iter()
+        .map(|(task_id, task)| {
+            let gap = deferred.get(&task_id).copied();
+            serde_json::json!({
+                "task_id": task_id,
+                "allocation_count": task.allocation_count,
+                "allocated_bytes": task.allocated_bytes,
+                "deallocation_count": task.deallocation_count,
+                "deallocated_bytes": task.deallocated_bytes,
+                "live_bytes": task.live_bytes,
+                "stats_source": "event_snapshot",
+                "lower_bound": gap.is_some(),
+                "deferred_charges": gap.map_or(0, |(count, _)| count),
+                "deferred_bytes": gap.map_or(0, |(_, bytes)| bytes),
+            })
+        })
+        .collect();
+    serde_json::Value::Array(entries)
+}
+
 pub fn export_task_graph_json<P: AsRef<Path>>(base_path: P) -> MemScopeResult<()> {
+    export_task_graph_json_with_accounting(base_path, &[])
+}
+
+/// Export the task graph together with the accounting state of this capture window.
+///
+/// The registry is a live cache whose charges can be deferred while a lock is busy, so the
+/// task numbers a report shows must come from the event snapshot and must say whether they
+/// are complete (plan A08). Every task entry carries `stats_source` and `lower_bound`, and
+/// the window carries the skipped/unattributed counters.
+pub fn export_task_graph_json_with_accounting<P: AsRef<Path>>(
+    base_path: P,
+    events: &[crate::event_store::MemoryEvent],
+) -> MemScopeResult<()> {
     use crate::task_registry::global_registry;
 
     let base_path = base_path.as_ref();
     let registry = global_registry();
     let graph = registry.export_graph();
+    let quality = registry.charge_quality();
 
-    let json_string = serde_json::to_string_pretty(&graph)
+    let mut value = serde_json::to_value(&graph)
+        .map_err(|e| MemScopeError::error("export", "export_task_graph_json", e.to_string()))?;
+
+    if let Some(root) = value.as_object_mut() {
+        root.insert(
+            "accounting".to_string(),
+            serde_json::json!({
+                "stats_source": "event_snapshot",
+                "lower_bound": !quality.is_complete(),
+                "charge_quality": {
+                    "deferred_charges": quality.deferred_charges,
+                    "deferred_bytes": quality.deferred_bytes,
+                    "unattributed_charges": quality.unattributed_charges,
+                    "unattributed_bytes": quality.unattributed_bytes,
+                    "complete": quality.is_complete(),
+                },
+                "tasks": task_accounting_json(events, registry.deferred_tasks()),
+            }),
+        );
+    }
+
+    let json_string = serde_json::to_string_pretty(&value)
         .map_err(|e| MemScopeError::error("export", "export_task_graph_json", e.to_string()))?;
 
     let file_path = base_path.join("task_graph.json");

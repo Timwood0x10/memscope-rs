@@ -691,3 +691,46 @@ fn auto_export_on_drop_reports_ledger_totals() {
         "only the unreleased block is live"
     );
 }
+
+/// Objective: Verify a degraded release is visible in the exported statistics instead of
+/// existing only as an in-memory counter (plan PR-02 follow-up).
+/// Invariants: two live bindings at one address, one address-only release, and the export
+/// reports exactly one degraded release while the counters stay conserved.
+#[test]
+fn export_reports_degraded_releases() {
+    let events = vec![
+        MemoryEvent::allocate(0x1234_5000, 64, 1),
+        MemoryEvent::allocate(0x1234_5000, 128, 1),
+    ];
+    // No serial: the address-only release is exactly the degraded case, and the size
+    // still names the older binding deterministically.
+    let mut degraded = MemoryEvent::deallocate(0x1234_5000, 64, 1);
+    degraded.degraded_release = true;
+    let events = [events, vec![degraded]].concat();
+
+    let snapshot = memscope_rs::snapshot::build_snapshot_from_events(&events);
+    assert_eq!(
+        snapshot.stats.degraded_releases, 1,
+        "the ledger must count the degraded close"
+    );
+
+    let dir = TempDir::new().expect("tempdir must be creatable");
+    memscope_rs::render_engine::export::export_snapshot_to_json(
+        &snapshot,
+        dir.path(),
+        &memscope_rs::render_engine::export::ExportJsonOptions::default(),
+    )
+    .expect("snapshot export must succeed");
+
+    let json = std::fs::read_to_string(dir.path().join("memory_analysis.json"))
+        .expect("memory_analysis.json must exist");
+    let data: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
+    assert_eq!(
+        data["statistics"]["degraded_releases"], 1,
+        "the export must state that one release was only matched by address"
+    );
+    assert_eq!(
+        data["statistics"]["live_size_bytes"], 128,
+        "the surviving binding keeps its bytes"
+    );
+}
