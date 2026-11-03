@@ -24,6 +24,30 @@ use serial_test::serial;
 use std::sync::Arc;
 use tempfile::TempDir;
 
+/// Cache-only hook input; never dereferenced or allocated through the real hook.
+struct HookBlock(usize, usize);
+
+impl Trackable for HookBlock {
+    fn track_kind(&self) -> TrackKind {
+        TrackKind::HeapOwner {
+            ptr: self.0,
+            size: self.1,
+        }
+    }
+    fn get_type_name(&self) -> &'static str {
+        "CacheOnlyBlock"
+    }
+    fn get_size_estimate(&self) -> usize {
+        self.1
+    }
+    fn get_data_ptr(&self) -> Option<usize> {
+        Some(self.0)
+    }
+    fn get_data_size(&self) -> Option<usize> {
+        Some(self.1)
+    }
+}
+
 /// Count allocation (`Allocate`) events in a recorded event slice.
 fn count_allocations(events: &[MemoryEvent]) -> usize {
     events
@@ -371,12 +395,13 @@ fn duplicate_observation_is_reported_not_counted() {
 #[test]
 #[serial]
 fn hook_registered_block_is_reported_by_typed_observation() {
-    let data = vec![7u8; 64];
-    let ptr = data.as_ptr() as usize;
+    // A synthetic address isolates the cache-only producer from the real allocator.
+    let data = HookBlock(0x7733_0000, 64);
+    let ptr = data.get_data_ptr().expect("synthetic heap address");
 
     // Simulate the allocator hook: it writes the cache only, never the event store.
     memscope_rs::core::tracker::get_tracker()
-        .track_allocation(ptr, data.capacity())
+        .track_allocation(ptr, 64)
         .expect("hook registration must succeed");
 
     let tracker = Tracker::global();
@@ -416,9 +441,9 @@ fn hook_registered_block_is_reported_by_typed_observation() {
 #[serial]
 fn reuse_after_hook_release_is_not_deduplicated() {
     let tracker = Tracker::global();
-    let data = vec![3u8; 32];
-    let ptr = data.as_ptr() as usize;
-    let size = data.capacity();
+    let data = HookBlock(0x7734_0000, 32);
+    let ptr = data.0;
+    let size = data.1;
     let core = memscope_rs::core::tracker::get_tracker();
 
     let allocate_events = |tracker: &Tracker| {

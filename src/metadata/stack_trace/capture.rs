@@ -80,7 +80,11 @@ impl StackTraceCapture {
 
         #[cfg(feature = "backtrace")]
         {
-            let bt = backtrace::Backtrace::new();
+            let bt = if self.config.enable_symbols {
+                backtrace::Backtrace::new()
+            } else {
+                backtrace::Backtrace::new_unresolved()
+            };
 
             for frame in bt.frames().iter().skip(self.config.skip_frames) {
                 if frame_count >= self.config.max_depth {
@@ -151,7 +155,7 @@ impl StackTraceCapture {
 
         #[cfg(feature = "backtrace")]
         {
-            let bt = backtrace::Backtrace::new();
+            let bt = backtrace::Backtrace::new_unresolved();
 
             for frame in bt.frames().iter().skip(self.config.skip_frames) {
                 if instruction_pointers.len() >= self.config.max_depth {
@@ -429,6 +433,8 @@ mod tests {
         assert_eq!(capture.get_capture_count(), 2);
     }
 
+    /// Objective: Disabling symbols must keep raw frames without resolving metadata.
+    /// Invariants: the backtrace backend returns frames, respects depth, and leaves no cache.
     #[test]
     fn test_custom_config() {
         let config = CaptureConfig {
@@ -441,12 +447,30 @@ mod tests {
 
         let mut capture = StackTraceCapture::new(config);
 
-        if let Some(frames) = capture.capture() {
-            assert!(frames.len() <= 10);
-            // With symbols disabled, frames should not be resolved
-            for frame in &frames {
-                assert!(frame.function_name.is_none() || !frame.is_resolved());
+        for _ in 0..2 {
+            let frames = capture.capture();
+            #[cfg(feature = "backtrace")]
+            assert!(
+                frames.as_ref().is_some_and(|frames| !frames.is_empty()),
+                "the backtrace backend must still capture instruction pointers"
+            );
+            if let Some(frames) = frames {
+                assert!(frames.len() <= 10, "capture must respect max_depth");
+                for frame in &frames {
+                    assert!(
+                        frame.function_name.is_none()
+                            && frame.symbol_name.is_none()
+                            && frame.filename.is_none()
+                            && frame.line_number.is_none(),
+                        "symbols disabled: all symbol fields must remain absent"
+                    );
+                }
             }
         }
+        assert_eq!(
+            capture.cache_size(),
+            0,
+            "cache_symbols=false must not cache frames"
+        );
     }
 }

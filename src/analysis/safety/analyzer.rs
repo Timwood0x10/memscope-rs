@@ -4,6 +4,7 @@ use crate::analysis::unsafe_ffi_tracker::{RiskLevel, SafetyViolation, StackFrame
 use crate::capture::types::{AllocationInfo, TrackingError, TrackingResult};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -560,6 +561,12 @@ impl SafetyAnalyzer {
     }
 
     fn generate_report_id(&self, source: &UnsafeSource) -> String {
+        // A process-wide serial prevents collisions across threads and analyzers,
+        // even when the wall clock repeats or moves backwards. Never wrap an ID.
+        static NEXT_REPORT_ID: AtomicU64 = AtomicU64::new(1);
+        let serial = NEXT_REPORT_ID
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
+            .expect("report ID space exhausted");
         let timestamp = get_current_timestamp_nanos();
 
         let source_type = match source {
@@ -569,7 +576,7 @@ impl SafetyAnalyzer {
             UnsafeSource::Transmute { .. } => "TX",
         };
 
-        format!("UNSAFE-{}-{}", source_type, timestamp % 1000000)
+        format!("UNSAFE-{source_type}-{timestamp}-{serial}")
     }
 
     fn create_memory_context(&self, allocations: &[AllocationInfo]) -> MemoryContext {

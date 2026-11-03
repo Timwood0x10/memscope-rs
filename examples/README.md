@@ -31,6 +31,24 @@ This directory contains examples demonstrating different tracking strategies usi
 |---------|-------------|--------------|
 | [`global_tracker_showcase.rs`](global_tracker_showcase.rs) | Global tracker unified API | Single-thread, multi-thread, async modes |
 
+### Accuracy Acceptance Probes
+
+These probes validate real allocation and task lifecycles against known workloads.
+They write JSON evidence before returning a nonzero exit status on a failed check.
+Use a separate working directory for each run to retain its evidence.
+
+| Example | Command | Checks |
+|---------|---------|--------|
+| [`accuracy_probe.rs`](accuracy_probe.rs) | `cargo run --locked --features tracking-allocator --example accuracy_probe -- start` | Public start entry: Rc/Arc metadata, 50 threads, 1,000 allocations and real drops, duplicate observations, byte conservation |
+| [`accuracy_probe.rs`](accuracy_probe.rs) | `cargo run --locked --features tracking-allocator --example accuracy_probe -- global` | Same workload through the allocator-connected control |
+| [`async_context_probe.rs`](async_context_probe.rs) | `cargo run --locked --example async_context_probe` | Deterministic await/resume attribution, independent task parents, per-task byte totals |
+
+The first probe writes `accuracy_probe.json` and `probe_events.json`; the second
+writes `async_context_probe.json` and the usual auto-export report. Exit status
+must also be checked: with `--all-features`, the first probe currently reproduces
+an `atexit` crash after writing its results. The `start` and async probes currently
+expose acceptance failures; see the [2026-11-03 test report](../aim/bug/example_acceptance_2026-11-03.md).
+
 ## Quick Start
 
 ### Run Examples

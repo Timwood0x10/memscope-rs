@@ -57,12 +57,17 @@ jobs:
         run: cargo check --locked --workspace --all-targets --all-features
 
   test:
-    name: Tests
+    name: Tests (${{ matrix.os }}, ${{ matrix.features.name }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
+        features:
+          - name: standard
+            args: --features auto-signal,periodic
+          - name: all-features
+            args: --all-features
 
     steps:
       - uses: actions/checkout@v4
@@ -79,22 +84,22 @@ jobs:
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          key: test-${{ matrix.os }}-${{ env.RUSTUP_TOOLCHAIN }}-${{ hashFiles('**/Cargo.lock') }}
+          key: test-${{ matrix.os }}-${{ matrix.features.name }}-${{ env.RUSTUP_TOOLCHAIN }}-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Install cargo-nextest
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-nextest
 
-      - name: Run library tests (auto-signal + periodic features)
-        run: cargo nextest run --locked --workspace --features auto-signal,periodic -E 'kind(lib)'
+      - name: Run library tests
+        run: cargo nextest run --locked --workspace ${{ matrix.features.args }} --test-threads 1 -E 'kind(lib)'
 
-      - name: Run integration tests (auto-signal + periodic features)
-        run: cargo nextest run --locked --workspace --features auto-signal,periodic -E 'kind(test)'
+      - name: Run integration tests
+        run: cargo nextest run --locked --workspace ${{ matrix.features.args }} --test-threads 1 -E 'kind(test)'
 
       - name: Test examples
         run: |
-          cargo build --locked --examples --features auto-signal,periodic
+          cargo build --locked --examples ${{ matrix.features.args }}
 
   benchmarks:
     name: Benchmarks
@@ -119,7 +124,9 @@ jobs:
           key: bench-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Run benchmarks
-        run: cargo bench --locked --bench minimal_performance
+        env:
+          QUICK_BENCH: "1"
+        run: cargo bench --locked --bench comprehensive_benchmarks
 
       - name: Upload benchmark results
         uses: actions/upload-artifact@v4

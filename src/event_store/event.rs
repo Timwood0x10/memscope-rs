@@ -79,6 +79,10 @@ pub struct MemoryEvent {
     /// say that this release is a lower bound of the evidence, not an exact fact.
     #[serde(default, skip_serializing_if = "is_false")]
     pub degraded_release: bool,
+    /// Registry charge result captured before publishing an allocation. Missing on legacy
+    /// streams and non-allocation events; replay must not replace it with live registry state.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub charge_outcome: Option<crate::task_registry::ChargeOutcome>,
     /// Thread identifier
     pub thread_id: u64,
     /// Optional variable name
@@ -121,6 +125,7 @@ impl MemoryEvent {
             new_ptr: None,
             binding_serial: None,
             degraded_release: false,
+            charge_outcome: None,
             thread_id,
             var_name: None,
             type_name: None,
@@ -164,6 +169,7 @@ impl MemoryEvent {
             new_ptr: None,
             binding_serial: None,
             degraded_release: false,
+            charge_outcome: None,
             thread_id,
             var_name: None,
             type_name: None,
@@ -190,6 +196,7 @@ impl MemoryEvent {
             new_ptr: None,
             binding_serial: None,
             degraded_release: false,
+            charge_outcome: None,
             thread_id,
             var_name: None,
             type_name: None,
@@ -216,6 +223,7 @@ impl MemoryEvent {
             new_ptr: None,
             binding_serial: None,
             degraded_release: false,
+            charge_outcome: None,
             thread_id,
             var_name: Some(var_name),
             type_name: Some(type_name),
@@ -249,6 +257,7 @@ impl MemoryEvent {
             new_ptr: None,
             binding_serial: None,
             degraded_release: false,
+            charge_outcome: None,
             thread_id,
             var_name,
             type_name,
@@ -275,6 +284,7 @@ impl MemoryEvent {
             new_ptr: None,
             binding_serial: None,
             degraded_release: false,
+            charge_outcome: None,
             thread_id,
             var_name: None,
             type_name: Some(if is_mutable {

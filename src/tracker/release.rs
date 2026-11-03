@@ -66,7 +66,7 @@ impl Tracker {
             // oldest binding, and the surviving one must keep its dedupe state or the next
             // observation of that block would publish a second allocation.
             guard.remove(&closed.serial);
-            allocator_events::clear_allocator_charge(ptr);
+            self.clear_allocator_charge(ptr, closed.serial);
             let mut event = MemoryEvent::deallocate(
                 closed.ptr,
                 closed.size,
@@ -100,7 +100,7 @@ impl Tracker {
         let closed = self.inner.close_and_report(ptr, Some(serial))?;
         if let Some(closed) = closed {
             guard.remove(&closed.serial);
-            allocator_events::clear_allocator_charge(ptr);
+            self.clear_allocator_charge(ptr, closed.serial);
             let mut event = MemoryEvent::deallocate(
                 closed.ptr,
                 closed.size,
@@ -200,6 +200,7 @@ impl Tracker {
         // as *untyped*: the next `track!` on it must attach the type instead of being
         // treated as a duplicate observation.
         let serial = self.inner.binding_serial(new_ptr).unwrap_or(0);
+        self.migrate_allocator_charge(old_ptr, new_ptr, serial);
         let thread_id_u64 = crate::utils::current_thread_id_u64();
         let mut event =
             MemoryEvent::reallocate_moved(old_ptr, new_ptr, old_size, new_size, thread_id_u64);

@@ -85,6 +85,8 @@ temp_*
 # Documentation build
 /target/doc/
 
+/target-miri/
+
 aim/
 
 # Subproject targets

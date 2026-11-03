@@ -657,12 +657,11 @@ fn tracked_block_charges_the_current_task_once() {
     registry.clear();
 
     let tracker = Tracker::new();
-    let data = vec![0u8; 64];
-
     let _scope = registry.task_scope("allocator_task");
     let task_id = crate::task_registry::TaskIdRegistry::current_task_id()
         .expect("the task scope must install a current task");
 
+    let data = vec![0u8; 64];
     tracker.track_as(&data, "data", file!(), line!(), module_path!());
 
     let meta = registry.get_task(task_id).expect("the task must exist");
@@ -687,7 +686,11 @@ fn typed_observation_charges_when_no_allocator_did() {
     let registry = crate::task_registry::global_registry();
     registry.clear();
     let tracker = Tracker::global();
-    let data = vec![0u8; 64];
+    let data = {
+        // This fixture specifically tests a block the real hook did not observe.
+        let _suppression = crate::core::allocator::TrackingGuard::acquire();
+        vec![0u8; 64]
+    };
 
     let _scope = registry.task_scope("charge_once");
     let task_id = crate::task_registry::TaskIdRegistry::current_task_id()
