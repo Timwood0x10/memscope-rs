@@ -35,27 +35,50 @@ pub(crate) fn global_tracker() -> &'static Tracker {
     })
 }
 
-/// Addresses for which the allocator already charged the current task.
-///
-/// The core cache cannot answer this: a typed observation inserts the block into the same
-/// cache right before asking, so "the binding exists" is true even when nobody charged it.
-/// This set is written by the allocator path and cleared when the block is released.
-fn charged_addresses() -> &'static dashmap::DashSet<usize> {
-    static CHARGED: OnceLock<dashmap::DashSet<usize>> = OnceLock::new();
-    CHARGED.get_or_init(dashmap::DashSet::new)
+#[derive(Clone, Copy)]
+struct AllocatorCharge {
+    /// The dedupe index identifies the producer; serials alone are tracker-local.
+    source: usize,
+    serial: u64,
+    outcome: crate::task_registry::ChargeOutcome,
 }
 
-/// Whether the allocator already charged a block at `ptr`.
-pub(crate) fn allocator_charged(ptr: usize) -> bool {
-    charged_addresses().contains(&ptr)
+/// Allocator charge attempts for the current physical block at each address.
+/// A mark follows its binding on realloc and only its originating facade can clear it.
+fn charged_addresses() -> &'static DashMap<usize, AllocatorCharge> {
+    static CHARGED: OnceLock<DashMap<usize, AllocatorCharge>> = OnceLock::new();
+    CHARGED.get_or_init(DashMap::new)
 }
 
-/// Forget the charge mark of a released address.
-pub(crate) fn clear_allocator_charge(ptr: usize) {
-    charged_addresses().remove(&ptr);
+/// The original charge result, including deferred and unattributed attempts.
+pub(crate) fn allocator_charge(ptr: usize) -> Option<crate::task_registry::ChargeOutcome> {
+    charged_addresses().get(&ptr).map(|mark| mark.outcome)
 }
 
 impl Tracker {
+    fn charge_source(&self) -> usize {
+        Arc::as_ptr(&self.recorded_bindings) as usize
+    }
+
+    /// A local observation or an older generation cannot erase the real block's mark.
+    pub(super) fn clear_allocator_charge(&self, ptr: usize, serial: u64) {
+        charged_addresses().remove_if(&ptr, |_, mark| {
+            mark.source == self.charge_source() && mark.serial == serial
+        });
+    }
+
+    /// Called under the capture gate and address slots of a successful realloc.
+    pub(super) fn migrate_allocator_charge(&self, old_ptr: usize, new_ptr: usize, serial: u64) {
+        if old_ptr == new_ptr {
+            return;
+        }
+        if let Some((_, mark)) = charged_addresses().remove_if(&old_ptr, |_, mark| {
+            mark.source == self.charge_source() && mark.serial == serial
+        }) {
+            charged_addresses().insert(new_ptr, mark);
+        }
+    }
+
     /// Publish a successful raw allocation, before a later typed observation annotates it.
     pub(crate) fn record_allocator_allocation(&self, ptr: usize, size: usize) {
         let _gate = crate::core::allocator::capture_gate::acquire(ptr);
@@ -78,14 +101,24 @@ impl Tracker {
         }
         let mut event = MemoryEvent::allocate(ptr, size, crate::utils::current_thread_id_u64());
         event.binding_serial = Some(serial);
-        self.event_store.record(event);
 
         // Exactly once per binding: the allocator saw the real block, so it charges the
         // task. A later typed observation of the same block only annotates it. The charge
         // never blocks: a blocking write here self-deadlocks when the caller holds the
         // registry read lock and allocates (a string clone, for example).
-        crate::task_registry::global_registry().try_record_allocation(size);
-        charged_addresses().insert(ptr);
+        let outcome = crate::task_registry::global_registry().try_record_allocation(size);
+        // Publish the outcome with its allocation: a snapshot must never observe an
+        // event and then fetch a charge result from a later point in the registry's life.
+        event.charge_outcome = Some(outcome);
+        self.event_store.record(event);
+        charged_addresses().insert(
+            ptr,
+            AllocatorCharge {
+                source: self.charge_source(),
+                serial,
+                outcome,
+            },
+        );
         guard.insert(
             serial,
             RecordedBinding {
@@ -221,3 +254,6 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod charge_tests;

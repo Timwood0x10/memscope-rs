@@ -442,12 +442,13 @@ impl Tracker {
                 // observing the same block does not charge it twice. Asking the core cache
                 // whether the address exists cannot answer this — this very call has just
                 // inserted it.
-                if !allocator_events::allocator_charged(ptr) {
-                    crate::task_registry::global_registry().record_allocation(size);
-                }
+                let charge_outcome = allocator_events::allocator_charge(ptr).unwrap_or_else(|| {
+                    crate::task_registry::global_registry().try_record_allocation(size)
+                });
 
                 let mut event = MemoryEvent::allocate(ptr, size, thread_id_u64);
                 event.binding_serial = Some(serial);
+                event.charge_outcome = Some(charge_outcome);
                 event.var_name = Some(name.to_string());
                 event.type_name = Some(type_name.clone());
                 event.source_file = Some(file.to_string());

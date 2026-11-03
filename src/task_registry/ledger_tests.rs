@@ -5,6 +5,184 @@
 use super::*;
 use crate::event_store::MemoryEvent;
 
+/// Objective: A late explicit release must not claim a same-size replacement generation.
+/// Invariants: the replacement task keeps its live bytes and no second release is booked.
+#[test]
+fn stale_serial_does_not_consume_reused_address() {
+    let mut old = MemoryEvent::allocate(0x1000, 64, 1);
+    old.task_id = Some(7);
+    old.binding_serial = Some(1);
+    let mut release = MemoryEvent::deallocate(old.ptr, old.size, 1);
+    release.task_id = Some(7);
+    release.binding_serial = old.binding_serial;
+    let mut new = old.clone();
+    new.task_id = Some(8);
+    new.binding_serial = Some(2);
+
+    let stats = TaskIdRegistry::task_stats_from_events(&[old, release.clone(), new, release]);
+    assert_eq!(
+        stats[&8].live_bytes, 64,
+        "G+1 must survive a late release of G"
+    );
+    assert_eq!(
+        stats[&7].deallocation_count, 1,
+        "the duplicate release must book nothing"
+    );
+}
+
+/// Objective: Capture starting at a realloc must retain its observed new block.
+/// Invariants: both moved and in-place reallocations book new bytes, never unseen old bytes.
+#[test]
+fn unmatched_realloc_opens_only_the_observed_side() {
+    for new_ptr in [0, 0x2000] {
+        let mut event = MemoryEvent::reallocate_moved(0, new_ptr, 64, 128, 1);
+        event.task_id = Some(7);
+        event.binding_serial = Some(99);
+        let mut release = MemoryEvent::deallocate(new_ptr, 0, 2);
+        release.task_id = Some(8);
+        release.binding_serial = event.binding_serial;
+        let stats = TaskIdRegistry::task_stats_from_events(&[event.clone()]);
+        assert_eq!(
+            stats[&7].live_bytes, 128,
+            "the observed block must enter the live set"
+        );
+        assert_eq!(
+            stats[&7].allocation_count, 1,
+            "an unmatched realloc opens one binding"
+        );
+        assert_eq!(
+            stats[&7].deallocated_bytes, 0,
+            "unseen bytes cannot be released"
+        );
+
+        let stats = TaskIdRegistry::task_stats_from_events(&[event, release]);
+        assert_eq!(
+            stats[&7].live_bytes, 0,
+            "the observed binding must be releasable"
+        );
+        assert_eq!(
+            stats[&8].deallocated_bytes, 128,
+            "release activity uses binding size, not a zero hint"
+        );
+    }
+}
+
+/// Objective: Keep unattributed bindings in the identity index for later task activity.
+/// Invariants: a task can release an unowned block exactly once without acquiring ownership.
+#[test]
+fn unattributed_binding_can_be_released_by_a_task() {
+    let mut allocation = MemoryEvent::allocate(0x3000, 32, 1);
+    allocation.task_id = None;
+    allocation.binding_serial = Some(3);
+    let mut release = MemoryEvent::deallocate(allocation.ptr, 32, 2);
+    release.task_id = Some(8);
+    release.binding_serial = allocation.binding_serial;
+    let stats = TaskIdRegistry::task_stats_from_events(&[allocation, release.clone(), release]);
+    assert_eq!(
+        stats[&8].deallocated_bytes, 32,
+        "the valid release must be attributed to its actor"
+    );
+    assert_eq!(
+        stats[&8].deallocation_count, 1,
+        "a repeat release must not count again"
+    );
+    assert_eq!(
+        stats[&8].live_bytes, 0,
+        "release activity does not grant ownership"
+    );
+}
+
+/// Objective: Validate snapshotting while fifty tasks concurrently defer allocator charges.
+/// Invariants: every task's count and bytes agree with the window totals after joining.
+#[test]
+fn concurrent_deferred_snapshots_preserve_fifty_tasks() {
+    let registry = TaskIdRegistry::new();
+    let reader = registry
+        .tasks
+        .read()
+        .expect("force charges onto the deferred path");
+    std::thread::scope(|scope| {
+        for task_id in 1..=50u64 {
+            let registry = &registry;
+            scope.spawn(move || {
+                CURRENT_TASK_ID.set(Some(task_id));
+                for _ in 0..20 {
+                    assert_eq!(
+                        registry.try_record_allocation(task_id as usize),
+                        ChargeOutcome::Deferred,
+                        "a busy registry must defer without losing the task ID"
+                    );
+                }
+                CURRENT_TASK_ID.set(None);
+            });
+        }
+        for _ in 0..20 {
+            let _snapshot = registry.deferred_tasks();
+        }
+    });
+    drop(reader);
+    let gaps = registry.deferred_tasks();
+    assert_eq!(
+        gaps.len(),
+        50,
+        "each task must retain its independent gap row"
+    );
+    for task_id in 1..=50u64 {
+        assert_eq!(
+            gaps[&task_id],
+            (20, task_id * 20),
+            "all charges for task {task_id} must survive"
+        );
+    }
+    let quality = registry.charge_quality();
+    assert_eq!(
+        quality.deferred_charges, 1000,
+        "window count must equal per-task totals"
+    );
+    assert_eq!(
+        quality.deferred_bytes,
+        (1..=50u64).sum::<u64>() * 20,
+        "window bytes must equal per-task totals"
+    );
+}
+
+proptest::proptest! {
+    #![proptest_config(proptest::test_runner::Config::with_cases(1000))]
+
+    /// Objective: Differentially replay random identities, addresses and sizes against the memory ledger.
+    /// Invariants: task ownership and activity match canonical transitions, including stale serials and zeros.
+    #[test]
+    fn random_task_transitions_match_binding_ledger(
+        operations in proptest::collection::vec(
+            (0u8..3, 0usize..8, 0usize..8, 0usize..4096, 0usize..4096,
+             proptest::option::of(1u64..9), proptest::option::of(1u64..5)), 0..60)
+    ) {
+        let mut events = Vec::new();
+        let mut ledger = crate::snapshot::BindingLedger::new();
+        for (kind, ptr, new_ptr, size, old_size, serial, task) in operations {
+            let thread = task.unwrap_or(0);
+            let mut event = match kind {
+                0 => MemoryEvent::allocate(ptr, size, thread),
+                1 => MemoryEvent::deallocate(ptr, size, thread),
+                _ => MemoryEvent::reallocate_moved(ptr, new_ptr, old_size, size, thread),
+            };
+            event.task_id = task;
+            event.binding_serial = serial;
+            ledger.apply(&event);
+            events.push(event);
+        }
+        let stats = TaskIdRegistry::task_stats_from_events(&events);
+        for task in 1..5u64 {
+            let actual = stats.get(&task).copied().unwrap_or_default();
+            let expected = ledger.thread_stats().get(&task).cloned().unwrap_or_default();
+            proptest::prop_assert_eq!(actual.live_bytes, expected.current_memory as u64, "task {} live bytes", task);
+            proptest::prop_assert_eq!(actual.allocated_bytes, expected.total_allocated as u64, "task {} allocated bytes", task);
+            proptest::prop_assert_eq!(actual.deallocated_bytes, expected.total_deallocated as u64, "task {} released bytes", task);
+            proptest::prop_assert_eq!(actual.allocation_count, expected.allocation_count as u64, "task {} allocation count", task);
+        }
+    }
+}
+
 /// Objective: Verify task accounting can be derived from the event stream alone, so a
 /// report does not depend on registry lock timing (plan A08).
 /// Invariants: allocation/release totals and live bytes follow the events per task.

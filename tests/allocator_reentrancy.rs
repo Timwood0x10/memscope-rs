@@ -75,6 +75,13 @@ fn cross_thread_release_is_published() {
     run_child("cross_thread");
 }
 
+/// Objective: Observe a real resized block through independent local trackers.
+/// Invariants: realloc and a local release never permit a second registry charge.
+#[test]
+fn resized_block_is_charged_once_across_local_trackers() {
+    run_child("charge_realloc");
+}
+
 #[test]
 #[ignore = "entry point launched by the parent regression tests"]
 fn allocator_child() {
@@ -84,6 +91,39 @@ fn allocator_child() {
     let dir =
         std::path::PathBuf::from(std::env::var_os(DIR_ENV).expect("child artifacts directory"));
     match case.as_str() {
+        "charge_realloc" => {
+            let registry = global_registry();
+            let first = Tracker::new();
+            let second = Tracker::new();
+            let scope = registry.task_scope("resized-block");
+            let id = TaskIdRegistry::current_task_id().expect("resizing task context");
+            let mut data = vec![1u8; 64];
+            data.reserve_exact(1024 * 1024);
+            let before = registry.get_task(id).expect("registry state after realloc");
+            memscope_rs::track!(first, data);
+            let observed = registry
+                .get_task(id)
+                .expect("registry state after local observation");
+            first
+                .track_deallocation(data.as_ptr() as usize)
+                .expect("release local observation");
+            memscope_rs::track!(second, data);
+            let after = registry
+                .get_task(id)
+                .expect("registry state after second observer");
+            drop(scope);
+            assert_eq!(
+                (observed.memory_usage, observed.allocation_count),
+                (before.memory_usage, before.allocation_count),
+                "observing a resized block must not charge again"
+            );
+            assert_eq!(
+                (after.memory_usage, after.allocation_count),
+                (before.memory_usage, before.allocation_count),
+                "local release must preserve the real allocator's charge mark"
+            );
+            std::hint::black_box(data);
+        }
         "registry_query" => {
             let registry = global_registry();
             registry.clear();
