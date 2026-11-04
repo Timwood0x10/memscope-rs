@@ -44,15 +44,37 @@ pub fn export_all_json<P: AsRef<Path>>(
     passport_tracker: &Arc<MemoryPassportTracker>,
     async_tracker: &Arc<crate::capture::backends::async_tracker::AsyncTracker>,
 ) -> MemScopeResult<()> {
+    // Suppress allocator tracking during the entire export. The export path
+    // performs large amounts of allocation (event replay, JSON serialisation,
+    // HTML rendering) that are not user allocations. Without suppression,
+    // these self-allocations enter the event stream, creating a feedback loop
+    // that can inflate memory usage to many GB and run for minutes.
+    //
+    // `TrackingGuard::acquire` sets a thread-local flag that the custom
+    // allocator checks before recording. The guard restores the flag on drop,
+    // so tracking resumes immediately after the export completes.
+    let _suppression = crate::core::allocator::TrackingGuard::acquire();
+
     let path_ref = path.as_ref();
 
     // Use event_store as unified data source (includes both HeapOwner and Container allocations)
     let events = tracker.event_store().snapshot();
-    let captured_at = capture_cut_ns();
     // Auxiliary metadata sources have independent locks. Freeze each once before I/O;
     // event-derived counters always use `events`, not these independently sampled caches.
     let passports = passport_tracker.snapshot_passports();
-    let task_graph = crate::task_registry::global_registry().export_graph();
+    let mut task_graph = crate::task_registry::global_registry().export_graph();
+    let async_metadata = crate::capture::backends::profile_replay::ProfileMetadata::capture(
+        &task_graph,
+        Some(async_tracker),
+    );
+    async_metadata.reconcile_graph(&mut task_graph);
+    let captured_at = capture_cut_ns();
+    let async_rebuilt = crate::capture::backends::profile_replay::rebuild_at(
+        &events,
+        &task_graph,
+        &async_metadata,
+        captured_at,
+    );
     let borrow_history =
         crate::analysis::borrow_analysis::get_global_borrow_analyzer().get_borrow_history();
 
@@ -115,7 +137,7 @@ pub fn export_all_json<P: AsRef<Path>>(
 
     debug!("Starting export_async_analysis_json");
 
-    export_async_analysis_json(path_ref, async_tracker)
+    write_async_analysis_json(path_ref, async_rebuilt)
         .map_err(|e| MemScopeError::error("export", "export_all_json", e.to_string()))?;
 
     debug!("Completed export_async_analysis_json");
@@ -156,23 +178,51 @@ pub fn export_all_json<P: AsRef<Path>>(
 }
 
 /// Export async task analysis to JSON
+///
+/// This function rebuilds task profiles from the event stream rather than
+/// reading live `AsyncTracker` state. This ensures the export always sees
+/// a consistent, complete snapshot regardless of concurrent tracking
+/// activity (no lock contention, no data loss from `try_lock` failures).
 pub fn export_async_analysis_json<P: AsRef<Path>>(
     path: P,
+    events: &[crate::event_store::MemoryEvent],
+    task_graph: &crate::task_registry::TaskGraph,
     async_tracker: &Arc<crate::capture::backends::async_tracker::AsyncTracker>,
 ) -> MemScopeResult<()> {
+    // Suppress allocator tracking during the entire export. The JSON
+    // serialisation and event replay perform many internal allocations
+    // that are not user allocations. Without suppression, these
+    // self-allocations enter the event stream, creating a feedback loop
+    // that inflates memory usage and corrupts the exported statistics.
+    let _suppression = crate::core::allocator::TrackingGuard::acquire();
+
     let path_ref = path.as_ref();
-    let stats = async_tracker.get_stats();
-    let profiles = async_tracker.get_all_profiles();
-    let snapshot = async_tracker.snapshot();
+
+    // Rebuild profiles from the event stream, merging live tracker metadata
+    // (task names, completion times, creation timestamps) in one pass.
+    let rebuilt =
+        crate::capture::backends::rebuild_with_live_tracker(events, task_graph, async_tracker);
+    write_async_analysis_json(path_ref, rebuilt)
+}
+
+fn write_async_analysis_json(
+    path_ref: &Path,
+    rebuilt: crate::capture::backends::profile_replay::RebuiltProfiles,
+) -> MemScopeResult<()> {
+    let profiles = rebuilt.profiles;
+    let live_allocations = rebuilt.live_allocations;
+
+    let total_tasks = profiles.len() as u64;
+    let active_tasks = profiles.iter().filter(|p| !p.is_completed()).count() as u64;
 
     let async_data = json!({
         "summary": {
-            "total_tasks": stats.total_tasks,
-            "active_tasks": stats.active_tasks,
-            "total_allocations": stats.total_allocations,
-            "total_memory_bytes": stats.total_memory,
-            "active_memory_bytes": stats.active_memory,
-            "peak_memory_bytes": stats.peak_memory,
+            "total_tasks": total_tasks,
+            "active_tasks": active_tasks,
+            "total_allocations": rebuilt.total_allocations,
+            "total_memory_bytes": rebuilt.total_memory,
+            "active_memory_bytes": rebuilt.current_memory,
+            "peak_memory_bytes": rebuilt.global_peak_memory,
         },
         "task_profiles": profiles.iter().map(|p| json!({
             "task_id": p.task_id,
@@ -192,7 +242,7 @@ pub fn export_async_analysis_json<P: AsRef<Path>>(
             "is_completed": p.is_completed(),
             "has_potential_leak": p.has_potential_leak(),
         })).collect::<Vec<_>>(),
-        "allocations": snapshot.allocations.iter().map(|a| json!({
+        "allocations": live_allocations.iter().map(|a| json!({
             "ptr": format!("0x{:x}", a.ptr),
             "size": a.size,
             "timestamp": a.timestamp,
@@ -299,6 +349,12 @@ pub fn export_dashboard_html_with_template<P: AsRef<Path>>(
     template: DashboardTemplate,
     async_tracker: Option<&Arc<crate::capture::backends::async_tracker::AsyncTracker>>,
 ) -> MemScopeResult<()> {
+    // Suppress allocator tracking during HTML rendering for the same reason
+    // as export_all_json: the renderer allocates heavily (template parsing,
+    // context building, HTML generation) and those allocations must not
+    // pollute the event stream.
+    let _suppression = crate::core::allocator::TrackingGuard::acquire();
+
     let path_ref = path.as_ref();
 
     // Create output directory if it doesn't exist
