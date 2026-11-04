@@ -10,6 +10,14 @@
 use super::*;
 
 impl Tracker {
+    // Note: AsyncTracker profile updates for deallocations and reallocations
+    // are NOT pushed from the release path. The export path
+    // (`export_async_analysis_json`) rebuilds task profiles from the event
+    // stream, so the `EventStore` events recorded here are the authoritative
+    // source. Attempting to update the live AsyncTracker from allocator
+    // callbacks would require acquiring its internal locks, which can deadlock
+    // with `shutdown()` or concurrent allocations.
+
     pub(super) fn recorded_slot(&self, ptr: usize) -> RecordedSlot {
         self.recorded_bindings
             .entry(ptr)
@@ -75,6 +83,15 @@ impl Tracker {
             event.binding_serial = Some(closed.serial);
             event.degraded_release = degraded;
             self.event_store.record(event);
+
+            // AsyncTracker live-state updates are NOT done here. Calling
+            // notify_deallocation synchronously from the allocator's dealloc
+            // callback re-enters AsyncTracker locks, which deadlocks with
+            // shutdown(), concurrent track_allocation, and multi-thread
+            // scenarios. The event-stream replay (rebuild_with_live_tracker)
+            // is the authoritative source for exports and dashboards.
+            // The live AsyncTracker state may be slightly stale (showing
+            // allocations without matching releases), but it cannot deadlock.
         }
 
         let cleared = guard.is_empty();
@@ -108,6 +125,9 @@ impl Tracker {
             );
             event.binding_serial = Some(closed.serial);
             self.event_store.record(event);
+
+            // AsyncTracker live-state updates are NOT done here — see the
+            // comment in track_deallocation above.
         }
 
         let cleared = guard.is_empty();
@@ -142,6 +162,9 @@ impl Tracker {
             {
                 guard.insert(serial, binding);
             }
+            // AsyncTracker profile updates are handled at export time
+            // via event replay. The reallocation event in the EventStore
+            // carries the task_id, old_size, and new_size.
             return;
         }
 
@@ -171,6 +194,10 @@ impl Tracker {
         if binding.is_some() {
             self.reclaim_slot(old_ptr);
         }
+
+        // AsyncTracker profile updates are handled at export time
+        // via event replay. The reallocation event in the EventStore
+        // carries the task_id, old_size, and new_size.
     }
 
     /// Publish a reallocation by looking the old binding up in the core cache.

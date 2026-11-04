@@ -70,6 +70,8 @@ pub struct TaskMeta {
     pub name: String,
     /// Creation timestamp (nanoseconds)
     pub created_at: u64,
+    /// Actual completion timestamp (nanoseconds), independent of memory events.
+    pub completed_at: Option<u64>,
     /// Task status
     pub status: TaskStatus,
     /// Total memory usage in bytes
@@ -87,6 +89,7 @@ impl TaskMeta {
             tokio_id: None,
             name,
             created_at: Self::now(),
+            completed_at: None,
             status: TaskStatus::Running,
             memory_usage: 0,
             allocation_count: 0,
@@ -104,6 +107,7 @@ impl TaskMeta {
 
     /// Mark task as completed
     pub fn mark_completed(&mut self) {
+        self.completed_at.get_or_insert_with(Self::now);
         self.status = TaskStatus::Completed;
     }
 
@@ -182,21 +186,12 @@ pub fn global_registry() -> &'static TaskIdRegistry {
     GLOBAL_REGISTRY.get_or_init(TaskIdRegistry::new)
 }
 
-/// Generate a new unique task ID with collision detection
-///
-/// If the generated ID already exists (extremely rare with atomic counter),
-/// adds a suffix to make it unique.
+/// Generate a process-wide ID shared by synchronous scopes and async wrappers.
+/// Panics only if the u64 identity space is exhausted; IDs are never recycled.
 pub fn generate_task_id() -> u64 {
-    let id = TASK_COUNTER.fetch_add(1, Ordering::Relaxed);
-
-    // In case of collision (extremely rare), add suffix
-    // This is a safety measure, not expected to trigger in normal operation
-    if id == 0 || id > u64::MAX / 10 {
-        // Avoid 0 and reserve high values for suffixed IDs
-        TASK_COUNTER.fetch_add(1, Ordering::Relaxed)
-    } else {
-        id
-    }
+    TASK_COUNTER
+        .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
+        .expect("process task identity space exhausted")
 }
 
 /// Task guard for RAII-style task lifecycle management
@@ -205,18 +200,23 @@ pub fn generate_task_id() -> u64 {
 pub struct TaskGuard {
     task_id: u64,
     parent: Option<u64>,
+    tasks: Arc<RwLock<HashMap<u64, TaskMeta>>>,
 }
 
 impl TaskGuard {
     /// Create a new task guard (internal use)
-    fn new(task_id: u64, parent: Option<u64>) -> Self {
-        Self { task_id, parent }
+    fn new(task_id: u64, parent: Option<u64>, tasks: Arc<RwLock<HashMap<u64, TaskMeta>>>) -> Self {
+        Self {
+            task_id,
+            parent,
+            tasks,
+        }
     }
 }
 
 impl Drop for TaskGuard {
     fn drop(&mut self) {
-        global_registry().complete_task(self.task_id);
+        TaskIdRegistry::complete_task(&self.tasks, self.task_id);
 
         // Restore the parent instead of blanking the slot: nested scopes used to
         // leave the thread with no current task at all, so allocations after an
@@ -300,20 +300,23 @@ impl TaskIdRegistry {
     pub fn task_scope(&self, name: &str) -> TaskGuard {
         let parent = Self::current_task_id();
         let task_id = self.spawn_task(parent, name.to_string());
-        TaskGuard::new(task_id, parent)
+        TaskGuard::new(task_id, parent, Arc::clone(&self.tasks))
     }
 
-    /// Register a task with an externally-generated task ID.
+    /// Register an explicitly-tracked task.
     ///
-    /// Unlike `task_scope()` which generates its own ID, this allows
-    /// integration with async trackers that already have an ID assigned.
-    /// The parent is inferred from the current thread-local task.
+    /// The parent is inferred from the current thread-local task, and
+    /// `CURRENT_TASK_ID` is set so that subsequent `track!` calls on the
+    /// same thread are attributed to this task. This preserves the original
+    /// contract for existing callers that rely on "register then track"
+    /// semantics.
     ///
     /// # Arguments
     ///
     /// * `task_id` - Externally-generated task ID
     /// * `name` - Task name
     pub fn register_explicit_task(&self, task_id: u64, name: &str) {
+        TASK_COUNTER.fetch_max(task_id.saturating_add(1), Ordering::Relaxed);
         let parent = Self::current_task_id();
         let mut meta = TaskMeta::new(task_id, parent, name.to_string());
 
@@ -328,6 +331,41 @@ impl TaskIdRegistry {
             used_ids.insert(task_id);
         }
         CURRENT_TASK_ID.set(Some(task_id));
+    }
+
+    /// Register an explicitly-tracked task with a known parent ID.
+    ///
+    /// Unlike [`register_explicit_task`], this method does NOT read or write
+    /// `CURRENT_TASK_ID`. The caller provides the parent ID directly (which
+    /// should be captured at spawn time, not at first-poll time). The
+    /// poll-level wrapper (`ContextualFuture`) handles context installation.
+    ///
+    /// # Arguments
+    ///
+    /// * `task_id` - Externally-generated task ID
+    /// * `name` - Task name
+    /// * `parent_id` - Parent task ID (None for root tasks)
+    pub fn register_explicit_task_with_parent(
+        &self,
+        task_id: u64,
+        name: &str,
+        parent_id: Option<u64>,
+    ) {
+        TASK_COUNTER.fetch_max(task_id.saturating_add(1), Ordering::Relaxed);
+        let mut meta = TaskMeta::new(task_id, parent_id, name.to_string());
+
+        if let Some(tokio_id) = self.get_tokio_task_id() {
+            meta.tokio_id = Some(tokio_id);
+        }
+
+        if let Ok(mut tasks) = self.tasks.write() {
+            tasks.insert(task_id, meta);
+        }
+        if let Ok(mut used_ids) = self.used_ids.write() {
+            used_ids.insert(task_id);
+        }
+        // Intentionally do NOT set CURRENT_TASK_ID here — the poll-level
+        // wrapper manages per-poll context installation.
     }
 
     /// Mark a registered task as completed.
@@ -358,18 +396,7 @@ impl TaskIdRegistry {
     ///
     /// The new task ID
     fn spawn_task(&self, parent: Option<u64>, name: String) -> u64 {
-        let mut task_id = generate_task_id();
-
-        // Check for collision and handle with suffix if needed
-        if let Ok(used_ids) = self.used_ids.read() {
-            while used_ids.contains(&task_id) {
-                // Collision detected (extremely rare), use suffix
-                // Format: base_id + suffix * 10^9 to avoid overlap
-                let base_id = task_id / 1_000_000_000;
-                let suffix = (task_id % 1_000_000_000) + 1;
-                task_id = base_id * 1_000_000_000 + suffix;
-            }
-        }
+        let task_id = generate_task_id();
 
         let mut meta = TaskMeta::new(task_id, parent, name);
 
@@ -399,8 +426,8 @@ impl TaskIdRegistry {
     /// # Arguments
     ///
     /// * `task_id` - Task ID to complete
-    fn complete_task(&self, task_id: u64) {
-        if let Ok(mut tasks) = self.tasks.write() {
+    fn complete_task(tasks: &RwLock<HashMap<u64, TaskMeta>>, task_id: u64) {
+        if let Ok(mut tasks) = tasks.write() {
             if let Some(meta) = tasks.get_mut(&task_id) {
                 meta.mark_completed();
             }
@@ -492,6 +519,20 @@ impl TaskIdRegistry {
 
     pub fn current_task_id() -> Option<u64> {
         CURRENT_TASK_ID.get()
+    }
+
+    /// Set the current task ID on the calling thread's TLS.
+    /// Used by the poll-level wrapper to install the task context
+    /// for each `poll()` invocation.
+    pub fn set_current_task_id(&self, task_id: u64) {
+        CURRENT_TASK_ID.set(Some(task_id));
+    }
+
+    /// Set or clear the current task ID on the calling thread's TLS.
+    /// Used by the poll-level wrapper to restore the previous value
+    /// after a `poll()` returns.
+    pub fn set_current_task_id_opt(&self, task_id: Option<u64>) {
+        CURRENT_TASK_ID.set(task_id);
     }
 
     /// Clear all tasks (for testing purposes)
