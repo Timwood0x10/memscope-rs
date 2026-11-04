@@ -9,38 +9,54 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, OnceLock};
 
 use super::helpers::register_helpers;
 
-/// Share the built-in partials between registry and compatibility render paths.
-pub(super) fn register_builtin_partials(
-    handlebars: &mut Handlebars<'static>,
-) -> Result<(), handlebars::TemplateError> {
-    for (name, source) in [
-        (
-            "dashboard_modes",
-            include_str!("../templates/partials/modes.hbs"),
-        ),
-        (
-            "dashboard_runtime",
-            include_str!("../templates/partials/runtime.hbs"),
-        ),
-        (
-            "dashboard_charts",
-            include_str!("../templates/partials/charts.hbs"),
-        ),
-        (
-            "dashboard_graphs",
-            include_str!("../templates/partials/graphs.hbs"),
-        ),
-        (
-            "dashboard_interactions",
-            include_str!("../templates/partials/interactions.hbs"),
-        ),
-    ] {
-        handlebars.register_partial(name, source)?;
-    }
-    Ok(())
+/// Both rendering APIs share one immutable compiled built-in registry.
+pub(super) fn builtin_handlebars(
+) -> Result<Arc<Handlebars<'static>>, Arc<handlebars::TemplateError>> {
+    static BUILTIN: OnceLock<Result<Arc<Handlebars<'static>>, Arc<handlebars::TemplateError>>> =
+        OnceLock::new();
+    BUILTIN
+        .get_or_init(|| {
+            let mut handlebars = Handlebars::new();
+            register_helpers(&mut handlebars);
+            for (name, source) in [
+                (
+                    "dashboard_modes",
+                    include_str!("../templates/partials/modes.hbs"),
+                ),
+                (
+                    "dashboard_runtime",
+                    include_str!("../templates/partials/runtime.hbs"),
+                ),
+                (
+                    "dashboard_charts",
+                    include_str!("../templates/partials/charts.hbs"),
+                ),
+                (
+                    "dashboard_graphs",
+                    include_str!("../templates/partials/graphs.hbs"),
+                ),
+                (
+                    "dashboard_interactions",
+                    include_str!("../templates/partials/interactions.hbs"),
+                ),
+            ] {
+                handlebars
+                    .register_template_string(name, source)
+                    .map_err(Arc::new)?;
+            }
+            handlebars
+                .register_template_string(
+                    "dashboard_unified",
+                    include_str!("../templates/dashboard_unified.html"),
+                )
+                .map_err(Arc::new)?;
+            Ok(Arc::new(handlebars))
+        })
+        .clone()
 }
 
 /// Registered dashboard template
@@ -74,7 +90,7 @@ pub struct TemplateRegistry {
     /// Map of template ID to DashboardTemplate
     templates: HashMap<String, DashboardTemplate>,
     /// Handlebars instance with all templates registered
-    handlebars: Handlebars<'static>,
+    handlebars: Arc<Handlebars<'static>>,
     /// Base directory for external templates
     external_base: Option<PathBuf>,
 }
@@ -91,7 +107,7 @@ impl TemplateRegistry {
         register_helpers(&mut handlebars);
         Self {
             templates: HashMap::new(),
-            handlebars,
+            handlebars: Arc::new(handlebars),
             external_base: None,
         }
     }
@@ -107,8 +123,11 @@ impl TemplateRegistry {
         templates_dir: &Path,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let _ = templates_dir; // unused: single merged template location is fixed
-        let mut registry = Self::new();
-        register_builtin_partials(&mut registry.handlebars)?;
+        let mut registry = Self {
+            templates: HashMap::new(),
+            handlebars: builtin_handlebars()?,
+            external_base: None,
+        };
 
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let unified_path = manifest_dir
@@ -117,17 +136,13 @@ impl TemplateRegistry {
             .join("dashboard")
             .join("templates")
             .join("dashboard_unified.html");
-        if unified_path.exists() {
-            registry.register_template(DashboardTemplate {
+        registry.templates.insert("dashboard_unified".into(), DashboardTemplate {
                 id: "dashboard_unified".to_string(),
                 name: "Unified Dashboard".to_string(),
                 description: "Merged multi-mode dashboard (Overview, Threads, Async, Task Graph, Variables, Passports, FFI, Unsafe/Time)".to_string(),
                 template_path: unified_path,
                 kind: TemplateKind::BuiltIn,
-            })?;
-        } else {
-            tracing::warn!("Unified dashboard template not found: {:?}", unified_path);
-        }
+        });
 
         Ok(registry)
     }
@@ -209,8 +224,9 @@ impl TemplateRegistry {
         template: DashboardTemplate,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let id = template.id.clone();
-        self.handlebars
-            .register_template_file(&id, &template.template_path)?;
+        // External templates belong only to this registry. Clone on mutation,
+        // preserving the process-wide built-ins and other renderer instances.
+        Arc::make_mut(&mut self.handlebars).register_template_file(&id, &template.template_path)?;
         self.templates.insert(id, template);
         Ok(())
     }
@@ -264,6 +280,51 @@ impl TemplateRegistry {
 impl Default for TemplateRegistry {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod cache_tests {
+    use super::*;
+
+    /// Objective: Cached built-ins cannot leak externally loaded templates between instances.
+    /// Invariants: Independent registries retain their own template source and rendered data.
+    #[test]
+    fn external_templates_remain_instance_local() {
+        let dir = tempfile::tempdir().expect("external fixture directory");
+        let custom = dir.path().join("custom");
+        fs::create_dir(&custom).expect("external template directory");
+        let path = custom.join("code.html");
+        fs::write(&path, "first: {{value}}").expect("write first template");
+        let mut first = TemplateRegistry::with_built_in_templates(dir.path()).expect("built-ins");
+        first
+            .load_external_templates(dir.path())
+            .expect("load first template");
+        fs::write(&path, "second: {{value}}").expect("update external template");
+        let mut second = TemplateRegistry::with_built_in_templates(dir.path()).expect("built-ins");
+        second
+            .load_external_templates(dir.path())
+            .expect("reload updated template");
+        let data = serde_json::json!({"value":42});
+        assert_eq!(
+            first.render("ext_custom", &data).unwrap(),
+            "first: 42",
+            "first instance retains its source"
+        );
+        assert_eq!(
+            second.render("ext_custom", &data).unwrap(),
+            "second: 42",
+            "new instance observes external edits"
+        );
+        let builtin = builtin_handlebars().expect("compiled built-ins");
+        assert!(
+            !builtin.has_template("ext_custom"),
+            "external writes cannot mutate shared built-ins"
+        );
+        assert!(
+            builtin.has_template("dashboard_unified"),
+            "embedded dashboard is always available"
+        );
     }
 }
 

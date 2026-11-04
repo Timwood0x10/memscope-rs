@@ -45,7 +45,7 @@ const FONTS_CSS: &str = include_str!("../templates/assets/fonts.css");
 
 /// Dashboard renderer with template registry support
 pub struct DashboardRenderer {
-    handlebars: Handlebars<'static>,
+    handlebars: Arc<Handlebars<'static>>,
     /// Template registry for managing multiple templates
     template_registry: Option<TemplateRegistry>,
 }
@@ -77,13 +77,7 @@ impl DashboardRenderer {
         registry.load_external_templates(&external_dir)?;
 
         // For backward compatibility, keep a separate handlebars for old/direct template names
-        let mut handlebars = Handlebars::new();
-        helpers::register_helpers(&mut handlebars);
-        template_registry::register_builtin_partials(&mut handlebars)?;
-        handlebars.register_template_string(
-            "dashboard_unified",
-            include_str!("../templates/dashboard_unified.html"),
-        )?;
+        let handlebars = template_registry::builtin_handlebars()?;
 
         Ok(Self {
             handlebars,
