@@ -175,8 +175,8 @@ impl RelationGraphBuilder {
                     ptr: alloc.ptr.unwrap_or(0),
                     size: alloc.size,
                     memory: scan
-                        .and_then(|s| s.memory.clone())
-                        .map(OwnedMemoryView::new),
+                        .and_then(|s| s.memory.as_deref())
+                        .map(OwnedMemoryView::copy_scan),
                     type_kind,
                     confidence,
                     call_stack_hash: alloc.call_stack_hash,

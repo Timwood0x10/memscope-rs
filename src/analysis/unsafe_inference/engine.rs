@@ -295,10 +295,15 @@ fn infer_decision(
     size_heuristic(size, &mut score);
 
     // Dimension 2: Layout detection (ptr/len/cap structure)
-    vec_string_layout(view, &mut score);
+    let header_only =
+        vec_string_layout(view, &mut score) && view.len() == 3 * std::mem::size_of::<usize>();
 
     // Dimension 3: Content analysis (CString, entropy, zero-fill)
-    content_analysis(view, &mut score);
+    // Header bytes describe a pointer and lengths, not the pointed-to payload.
+    // ASLR can make the address prefix look like printable NUL-terminated text.
+    if !header_only {
+        content_analysis(view, &mut score);
+    }
 
     // Dimension 4: Pointer-based heuristics (buffer vs cstruct)
     pointer_heuristic(view, &mut score);
@@ -817,14 +822,8 @@ mod real_data_tests {
     fn test_real_vec_i32() {
         let v = vec![1i32, 2, 3, 4, 5];
         let memory = vec_to_memory(&v);
-        let guess = UnsafeInferenceEngine::infer_from_bytes(&memory, 24);
-
-        // Vec<String> has similar layout - both Vec and String are valid
-        assert!(
-            guess.kind == TypeKind::Vec || guess.kind == TypeKind::String,
-            "Got {:?}",
-            guess.kind
-        );
+        let decision = UnsafeInferenceEngine::decide_from_bytes(&memory, 24);
+        assert_kind_or_abstain(&decision, &[TypeKind::Vec, TypeKind::String]);
     }
 
     #[test]
@@ -847,14 +846,19 @@ mod real_data_tests {
     fn test_real_string() {
         let s = String::from("Hello, World!");
         let memory = string_to_memory(&s);
-        let guess = UnsafeInferenceEngine::infer_from_bytes(&memory, 24);
-
-        // String should be detected (spare capacity is typically small)
-        assert!(
-            guess.kind == TypeKind::String || guess.kind == TypeKind::Vec,
-            "Got {:?}",
-            guess.kind
-        );
+        // Address bytes can also resemble text. Like Vec<u8>, an untyped header
+        // may require abstention; a confident unrelated classification is an error.
+        let decision = UnsafeInferenceEngine::decide_from_bytes(&memory, 24);
+        assert_kind_or_abstain(&decision, &[TypeKind::String, TypeKind::Vec]);
+        // macOS uses static address bounds. Linux instead checks mapped regions,
+        // so this synthetic, never-dereferenced address is only a macOS fixture.
+        #[cfg(target_os = "macos")]
+        {
+            let mut memory = memory;
+            memory[..8].copy_from_slice(&0x6000_4342_4140u64.to_le_bytes());
+            let decision = UnsafeInferenceEngine::decide_from_bytes(&memory, 24);
+            assert_kind_or_abstain(&decision, &[TypeKind::String, TypeKind::Vec]);
+        }
     }
 
     #[test]
@@ -862,14 +866,8 @@ mod real_data_tests {
         let mut s = String::with_capacity(100);
         s.push_str("Hello");
         let memory = string_to_memory(&s);
-        let guess = UnsafeInferenceEngine::infer_from_bytes(&memory, 24);
-
-        // Large spare capacity -> more likely Vec
-        assert!(
-            guess.kind == TypeKind::Vec || guess.kind == TypeKind::String,
-            "Got {:?}",
-            guess.kind
-        );
+        let decision = UnsafeInferenceEngine::decide_from_bytes(&memory, 24);
+        assert_kind_or_abstain(&decision, &[TypeKind::Vec, TypeKind::String]);
     }
 
     #[test]
