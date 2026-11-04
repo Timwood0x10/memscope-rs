@@ -36,36 +36,54 @@ impl AsyncTracker {
                 tracing::error!("Failed to acquire allocations lock during track_deallocation");
                 return;
             };
-            let Some(entries) = allocations.get_mut(&ptr) else {
-                return;
-            };
-
-            // When the caller names a generation or size, only that binding may be
-            // closed: falling back to "the oldest entry" would destroy a newer binding
-            // (the exact bug this filter exists to prevent). Without a filter the
-            // release closes the oldest binding, the best available guess.
-            let index = match (generation, size) {
-                (Some(generation), _) => entries.iter().position(|a| a.generation == generation),
-                (None, Some(size)) => entries.iter().position(|a| a.size == size),
-                (None, None) => Some(0),
-            };
-            let Some(index) = index else {
-                tracing::debug!(
-                    "unmatched async release: ptr={:#x}, size={:?}, generation={:?}",
-                    ptr,
-                    size,
-                    generation
-                );
-                return;
-            };
-
-            let closed = entries.remove(index);
-            if entries.is_empty() {
-                allocations.remove(&ptr);
-            }
-            closed
+            self.close_allocation_inner(&mut allocations, ptr, size, generation)
         };
 
+        self.apply_deallocation_stats(closed);
+    }
+
+    /// Shared inner logic: find and remove the matching allocation record.
+    /// Returns the closed record (if any) without updating stats/profiles.
+    fn close_allocation_inner(
+        &self,
+        allocations: &mut std::sync::MutexGuard<'_, HashMap<usize, Vec<AsyncAllocation>>>,
+        ptr: usize,
+        size: Option<usize>,
+        generation: Option<u64>,
+    ) -> Option<AsyncAllocation> {
+        let entries = allocations.get_mut(&ptr)?;
+
+        // When the caller names a generation or size, only that binding may be
+        // closed: falling back to "the oldest entry" would destroy a newer binding
+        // (the exact bug this filter exists to prevent). Without a filter the
+        // release closes the oldest binding, the best available guess.
+        let index = match (generation, size) {
+            (Some(generation), _) => entries.iter().position(|a| a.generation == generation),
+            (None, Some(size)) => entries.iter().position(|a| a.size == size),
+            (None, None) => Some(0),
+        };
+        let Some(index) = index else {
+            tracing::debug!(
+                "unmatched async release: ptr={:#x}, size={:?}, generation={:?}",
+                ptr,
+                size,
+                generation
+            );
+            return None;
+        };
+
+        let closed = entries.remove(index);
+        if entries.is_empty() {
+            allocations.remove(&ptr);
+        }
+        Some(closed)
+    }
+
+    /// Apply deallocation stats and profile updates (blocking variant).
+    fn apply_deallocation_stats(&self, closed: Option<AsyncAllocation>) {
+        let Some(closed) = closed else {
+            return;
+        };
         if closed.task_id != 0 {
             if let Ok(mut profiles) = self.profiles.lock() {
                 if let Some(profile) = profiles.get_mut(&closed.task_id) {
