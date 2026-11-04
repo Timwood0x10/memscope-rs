@@ -19,6 +19,7 @@ pub mod async_tracker;
 pub mod async_types;
 
 // Task profile modules (task-level memory profiling)
+pub mod profile_replay;
 pub mod task_profile;
 
 // Efficiency scoring modules
@@ -64,6 +65,10 @@ pub use async_types::{
 };
 
 // Re-export task profile types
+pub use profile_replay::{
+    finalize_metrics, rebuild_async_profiles_from_events, rebuild_with_live_tracker,
+    RebuiltProfiles,
+};
 pub use task_profile::{AggregatedTaskStats, TaskMemoryProfile, TaskProfileManager, TaskType};
 
 // Re-export efficiency scoring types
