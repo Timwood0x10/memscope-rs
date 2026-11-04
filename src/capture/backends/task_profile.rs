@@ -154,8 +154,7 @@ impl TaskMemoryProfile {
 
     /// Mark task as completed
     pub fn mark_completed(&mut self) {
-        self.completed_at_ms = Some(Self::now_ms());
-        self.duration_ns = self.lifetime().as_nanos() as u64;
+        self.completed_at_ms.get_or_insert_with(Self::now_ms);
         self.update_metrics();
     }
 
@@ -224,7 +223,16 @@ impl TaskMemoryProfile {
 
     /// Update derived metrics
     fn update_metrics(&mut self) {
-        let lifetime_secs = self.lifetime().as_secs_f64();
+        self.refresh_at(Self::now_ms().saturating_mul(1_000_000));
+    }
+
+    pub(crate) fn refresh_at(&mut self, captured_at_ns: u64) {
+        let end = self
+            .completed_at_ms
+            .map(|ms| ms.saturating_mul(1_000_000))
+            .unwrap_or(captured_at_ns);
+        self.duration_ns = end.saturating_sub(self.created_at_ms.saturating_mul(1_000_000));
+        let lifetime_secs = self.duration_ns as f64 / 1_000_000_000.0;
 
         self.allocation_rate = if lifetime_secs > 0.0 {
             self.total_bytes as f64 / lifetime_secs
