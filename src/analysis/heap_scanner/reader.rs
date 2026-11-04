@@ -8,6 +8,8 @@ use crate::analysis::is_virtual_pointer;
 use crate::analysis::unsafe_inference::is_valid_ptr;
 use crate::snapshot::types::ActiveAllocation;
 
+mod process_memory;
+
 /// Maximum bytes to read per allocation. Metadata headers are always
 /// within the first few dozen bytes; 4KB is more than sufficient.
 const MAX_READ_BYTES: usize = 4096;
@@ -107,11 +109,8 @@ impl HeapScanner {
 /// Returns `None` if the address is not in valid regions, or if any
 /// page within the read range is unmapped.
 ///
-/// On Linux, uses `process_vm_readv` which is an atomic syscall that cannot
-/// be interrupted by signals mid-read, eliminating TOCTOU issues.
-///
-/// On other platforms, falls back to volatile byte-by-byte reads with
-/// pre-validation of all pages before reading begins.
+/// Reads through the OS; a region check alone cannot prove a Rust allocation
+/// is still alive. Captured addresses may have been released or reused.
 fn safe_read_memory(ptr: usize, size: usize) -> Option<Vec<u8>> {
     if size == 0 || ptr == 0 {
         return None;
@@ -126,108 +125,22 @@ fn safe_read_memory(ptr: usize, size: usize) -> Option<Vec<u8>> {
         return None;
     }
 
-    let mut buf = vec![0u8; read_size];
+    let mut buf = crate::analysis::unsafe_inference::scan_buffer(read_size);
+    buf.resize(read_size, 0);
 
-    #[cfg(target_os = "linux")]
-    {
-        if safe_read_linux(ptr, &mut buf) {
-            Some(buf)
-        } else {
-            None
-        }
-    }
-
-    #[cfg(not(target_os = "linux"))]
-    {
-        if read_bytes_volatile(ptr, &mut buf) {
-            Some(buf)
-        } else {
-            None
-        }
-    }
-}
-
-#[cfg(target_os = "linux")]
-mod linux_read {
-    use libc::{iovec, process_vm_readv};
-
-    /// Read memory from the current process using process_vm_readv.
-    ///
-    /// This uses pid=0 which refers to the calling process itself.
-    /// According to Linux man page: "The caller must have the CAP_SYS_PTRACE
-    /// capability, OR the real, effective, and saved-set user ID of the caller
-    /// must match the real user ID of the target process."
-    ///
-    /// For pid=0 (current process), the user IDs always match, so no special
-    /// privileges are required. This works in most environments including
-    /// containers (unless seccomp filters explicitly block process_vm_readv).
-    ///
-    /// The function is named `_local` to clarify it's for self-reading,
-    /// not for reading remote processes.
-    pub fn safe_read_linux_local(
-        remote_ptr: *const libc::c_void,
-        local_ptr: *mut libc::c_void,
-        len: usize,
-    ) -> isize {
-        let local_iov = iovec {
-            iov_base: local_ptr,
-            iov_len: len,
-        };
-        let remote_iov = iovec {
-            iov_base: remote_ptr as *mut libc::c_void,
-            iov_len: len,
-        };
-
-        // pid=0 means the calling process reads its own memory
-        // No CAP_SYS_PTRACE required for self-reading
-        unsafe { process_vm_readv(0, &local_iov, 1, &remote_iov, 1, 0) }
-    }
-}
-
-#[cfg(target_os = "linux")]
-fn safe_read_linux(ptr: usize, buf: &mut [u8]) -> bool {
-    use linux_read::safe_read_linux_local;
-
-    let len = buf.len();
-
-    let result = safe_read_linux_local(
-        ptr as *const libc::c_void,
-        buf.as_mut_ptr() as *mut libc::c_void,
-        len,
-    );
-
-    result == len as isize
-}
-
-#[cfg(not(target_os = "linux"))]
-#[allow(dead_code)] // Stub for non-Linux platforms; used when building on macOS/Windows
-fn safe_read_linux(_ptr: usize, _buf: &mut [u8]) -> bool {
-    false
-}
-
-#[cfg(not(target_os = "linux"))]
-fn read_bytes_volatile(ptr: usize, buf: &mut [u8]) -> bool {
-    // Pre-check: verify the entire range is valid before reading
-    if !are_pages_valid(ptr, buf.len()) {
-        return false;
-    }
-
-    // Use a safer approach: try-catch with signal handling would be ideal,
-    // but Rust doesn't have that. Instead, we rely on pre-validation.
-    // On macOS, direct volatile reads should work if pages are valid.
-    unsafe {
-        let src = ptr as *const u8;
-        for (i, byte) in buf.iter_mut().enumerate() {
-            *byte = std::ptr::read_volatile(src.add(i));
-        }
-    }
-    true
+    process_memory::read(ptr, &mut buf).then_some(buf)
 }
 
 /// Check that every page in [ptr, ptr + size) is in a valid region.
 fn are_pages_valid(ptr: usize, size: usize) -> bool {
     let page_start = ptr & !(PAGE_SIZE - 1);
-    let page_end = (ptr + size + PAGE_SIZE - 1) & !(PAGE_SIZE - 1);
+    let Some(end) = ptr
+        .checked_add(size)
+        .and_then(|end| end.checked_add(PAGE_SIZE - 1))
+    else {
+        return false;
+    };
+    let page_end = end & !(PAGE_SIZE - 1);
 
     let mut p = page_start;
     while p < page_end {
