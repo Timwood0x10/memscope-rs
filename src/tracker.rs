@@ -239,6 +239,32 @@ impl Tracker {
         Self::new()
     }
 
+    /// Create a facade `Tracker` that shares `inner`, `event_store`, and
+    /// `recorded_bindings` with `self` but has its own independent `config`
+    /// and `start_time`.
+    ///
+    /// This is used by `GlobalTracker::with_config` to connect the facade
+    /// to the allocator's shared capture state, so that real alloc/free
+    /// events from the allocator hook are visible to the facade's consumers.
+    /// The facade gets its own config so that user-facing settings (sampling,
+    /// auto-export) do not modify the allocator callback's behavior.
+    pub(crate) fn shared_clone(&self) -> Self {
+        Self {
+            inner: Arc::clone(&self.inner),
+            event_store: Arc::clone(&self.event_store),
+            recorded_bindings: Arc::clone(&self.recorded_bindings),
+            // New, independent config so facade changes don't leak into the
+            // allocator callback path.
+            config: Arc::new(Mutex::new(TrackerConfig {
+                sampling: SamplingConfig::default(),
+                auto_export_on_drop: false,
+                export_path: None,
+            })),
+            start_time: Instant::now(),
+            system_snapshots: Arc::clone(&self.system_snapshots),
+        }
+    }
+
     pub fn global() -> Self {
         allocator_events::global_tracker().clone()
     }
@@ -271,7 +297,7 @@ impl Tracker {
         line: u32,
         module_path: &str,
     ) {
-        let _gate = crate::core::allocator::capture_gate::acquire(0);
+        let _suppression = crate::core::allocator::TrackingGuard::acquire();
         if let Ok(cfg) = self.config.lock() {
             if cfg.sampling.sample_rate < 1.0 {
                 use std::collections::hash_map::DefaultHasher;
@@ -340,6 +366,16 @@ impl Tracker {
     ) {
         let type_name = var.get_type_name().to_string();
         let kind = var.track_kind();
+        let metadata_size = match kind {
+            crate::core::types::TrackKind::Container | crate::core::types::TrackKind::Value => {
+                var.get_size_estimate()
+            }
+            _ => 0,
+        };
+        // User-defined Trackable methods may reenter, panic, or terminate the
+        // process. Invoke them before taking the process-wide capture gate so
+        // an exit-export worker can still read the already committed history.
+        let _gate = crate::core::allocator::capture_gate::acquire(0);
 
         let thread_id_u64 = crate::utils::current_thread_id_u64();
 
@@ -527,7 +563,7 @@ impl Tracker {
                     name.to_string(),
                     type_name,
                     thread_id_u64,
-                    var.get_size_estimate(),
+                    metadata_size,
                 );
                 event.source_file = Some(file.to_string());
                 event.source_line = Some(line);

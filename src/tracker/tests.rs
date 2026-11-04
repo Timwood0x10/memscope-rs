@@ -821,3 +821,48 @@ fn moving_reallocation_keeps_other_identity_state() {
         "the moved identity must be recorded at the new address"
     );
 }
+/// Objective: User-defined observation callbacks never run under the capture gate.
+/// Invariants: Another thread can acquire the gate while each callback is active.
+#[test]
+fn trackable_callbacks_allow_cross_thread_capture() {
+    struct Reentrant;
+    fn verify_unlocked() {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            let _gate = crate::core::allocator::capture_gate::acquire(0);
+            tx.send(()).expect("callback receiver remains alive");
+        });
+        rx.recv_timeout(std::time::Duration::from_secs(1))
+            .expect("Trackable callback must not hold the capture gate");
+        worker.join().expect("capture worker must exit");
+    }
+    impl crate::Trackable for Reentrant {
+        fn track_kind(&self) -> crate::core::types::TrackKind {
+            verify_unlocked();
+            crate::core::types::TrackKind::Value
+        }
+        fn get_type_name(&self) -> &'static str {
+            verify_unlocked();
+            "Reentrant"
+        }
+        fn get_size_estimate(&self) -> usize {
+            verify_unlocked();
+            1
+        }
+        fn get_data_ptr(&self) -> Option<usize> {
+            None
+        }
+        fn get_data_size(&self) -> Option<usize> {
+            None
+        }
+    }
+    let tracker = super::Tracker::new();
+    tracker.track_as(&Reentrant, "callback", file!(), line!(), module_path!());
+    assert!(
+        tracker
+            .events()
+            .iter()
+            .any(|event| event.var_name.as_deref() == Some("callback")),
+        "observation still publishes metadata after callbacks return"
+    );
+}
