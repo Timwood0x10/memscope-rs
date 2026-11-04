@@ -38,7 +38,7 @@ use std::time::Duration;
 use parking_lot::{Mutex, RwLock};
 use tracing::{error, info, warn};
 
-use crate::auto_export::{AutoExportConfig, SignalPolicy};
+use crate::auto_export::{AutoExportConfig, ExportFormatSet, SignalPolicy};
 use crate::capture::backends::global_tracking::GlobalTracker;
 use crate::core::{MemScopeError, MemScopeResult};
 
@@ -162,6 +162,7 @@ pub fn export_once() -> bool {
 /// `true` if THIS call performed the export; `false` if a prior call already
 /// exported, the path is disabled, or no tracker/cfg is installed.
 pub fn export_for_reason(reason: ExportReason) -> bool {
+    let _suppression = crate::core::allocator::TrackingGuard::acquire();
     // Read tracker + cfg WITHOUT holding the read guards during the export.
     // Cloning an Arc is a single atomic increment; cloning the config is a
     // small allocation that is acceptable here and keeps the critical section
@@ -221,6 +222,7 @@ pub fn trigger_export_now() -> bool {
 /// [`AnalysisReport`]: crate::analyzer::AnalysisReport
 /// [`Analyzer`]: crate::analyzer::Analyzer
 pub fn snapshot_json() -> MemScopeResult<String> {
+    let _suppression = crate::core::allocator::TrackingGuard::acquire();
     let tracker = TRACKER_HANDLE.read().clone();
     let Some(tracker) = tracker else {
         return Err(MemScopeError::error(
@@ -256,6 +258,7 @@ pub fn snapshot_json() -> MemScopeResult<String> {
 /// filesystem. If the output directory cannot be created, returns `false`
 /// after logging (no format can write).
 fn do_export(tracker: &GlobalTracker, cfg: &AutoExportConfig) -> bool {
+    let _suppression = crate::core::allocator::TrackingGuard::acquire();
     // Nothing to do if no formats are selected. Returning early here keeps
     // the filesystem untouched and avoids creating empty report directories.
     if cfg.formats.is_empty() {
@@ -276,32 +279,34 @@ fn do_export(tracker: &GlobalTracker, cfg: &AutoExportConfig) -> bool {
         );
         return false;
     }
-    let mut ok = false;
-    // HTML first. A failure here is logged but does NOT abort the JSON write,
-    // so a partial report is still produced when one renderer breaks.
-    if cfg.wants_html() {
-        if let Err(e) = tracker.export_html(output) {
-            error!(
-                target: "memscope::lifecycle",
-                error = %e,
-                "HTML export failed; continuing to JSON if requested",
-            );
+    dispatch_formats(cfg.formats, |format| {
+        let result = if format == ExportFormatSet::HTML {
+            tracker.export_html(output)
         } else {
-            ok = true;
+            tracker.export_json(output)
+        };
+        if let Err(error) = result {
+            error!(target: "memscope::lifecycle", ?format, %error, "export failed");
+            return false;
+        }
+        true
+    })
+}
+
+fn dispatch_formats(
+    formats: ExportFormatSet,
+    mut write: impl FnMut(ExportFormatSet) -> bool,
+) -> bool {
+    let mut any_ok = false;
+    for (selected, format) in [
+        (formats.contains_html(), ExportFormatSet::HTML),
+        (formats.contains_json(), ExportFormatSet::JSON),
+    ] {
+        if selected {
+            any_ok |= write(format);
         }
     }
-    if cfg.wants_json() {
-        if let Err(e) = tracker.export_json(output) {
-            error!(
-                target: "memscope::lifecycle",
-                error = %e,
-                "JSON export failed",
-            );
-        } else {
-            ok = true;
-        }
-    }
-    ok
+    any_ok
 }
 
 /// Install a panic hook that calls [`export_for_reason`]`(ExportReason::Panic)`
@@ -402,10 +407,17 @@ fn install_ctrlc_handler() {
     }
 }
 
-/// Register an `atexit` handler that calls [`export_once`] on
+/// Register an `atexit` handler that calls [`export_for_reason`]`(Drop) on
 /// `std::process::exit`. This is the ONLY way to catch `std::process::exit`
 /// because Rust destructors do not run on explicit exit, but C `atexit`
 /// handlers do.
+///
+/// Unlike the old implementation which called [`export_once`] (using
+/// `ExportReason::OnDemand`), this now uses `ExportReason::Drop` so the
+/// `on_exit` config flag is honored: a user who set `on_exit = false` will
+/// NOT get an automatic export from the atexit callback. This fixes the bug
+/// where `on_exit = false` was bypassed, causing export attempts during TLS
+/// destruction which led to panic → abort.
 ///
 /// # Safety
 ///
@@ -413,11 +425,105 @@ fn install_ctrlc_handler() {
 /// the `extern "C" fn()` signature and must not capture state. `on_exit`
 /// reads only from process-global `static`s which outlive the call, and the
 /// process is exiting anyway, so the (non-async-signal-safe) file I/O inside
-/// [`export_once`] is acceptable here.
+/// [`export_for_reason`] is acceptable here.
 #[cfg(feature = "atexit")]
 fn install_atexit() {
     extern "C" fn on_exit() {
-        let _ = export_once();
+        // Use ExportReason::Drop so the on_exit config flag is consulted.
+        // When on_exit=false, this returns false immediately without touching
+        // the filesystem, TLS, or rendering.
+        //
+        // When on_exit=true, the export runs on a **dedicated thread** with
+        // fresh, guaranteed-valid thread-local storage. During process teardown
+        // (atexit), the current thread's TLS destructors may have already run,
+        // so calling `do_export` directly on the atexit thread risks panics
+        // from accessing destroyed TLS (tracing fmt layer, system_info CString
+        // caches, etc.). `catch_unwind` alone was insufficient because the
+        // rendering code also uses non-tracing TLS (e.g. `CString` thread
+        // locals in `system_info.rs`) that is not covered by `NoSubscriber`.
+        //
+        // The dedicated-thread approach is the E01-b TLS-safe execution path:
+        //   1. Read tracker + config + check enable flag + CAS the latch
+        //      (all on the atexit thread, touching only process-global
+        //      statics, no TLS with destructors).
+        //   2. Spawn a new OS thread to run `do_export`.
+        //   3. Join the thread so the export completes before atexit returns.
+        //
+        // Report completeness is verified by checking file existence after
+        // the export, not just the exit code.
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            // Pre-check: read tracker + config on this thread (no TLS access).
+            let tracker = TRACKER_HANDLE.read().clone();
+            let cfg = AUTO_EXPORT_CFG.read().clone();
+            let (Some(tracker), Some(cfg)) = (tracker, cfg) else {
+                return;
+            };
+            if !cfg.on_exit {
+                return;
+            }
+            if EXPORTED.swap(true, Ordering::SeqCst) {
+                return;
+            }
+
+            // Run the export on a dedicated thread with fresh TLS.
+            //
+            // The export thread:
+            //   1. Suppresses allocator tracking (TrackingGuard) so its own
+            //      allocations don't enter the event stream or acquire
+            //      capture locks — this was the root cause of the deadlock
+            //      where export/watcher threads blocked on capture locks
+            //      held by the exiting thread.
+            //   2. Tries to acquire EXPORT_MUTEX with a bounded timeout.
+            //   3. Runs do_export.
+            //
+            // The join is bounded: after exit_timeout, we stop waiting and
+            // detach the export thread. We do NOT call process::exit(0)
+            // because that would overwrite the user's original exit code
+            // (e.g. exit(7) must preserve 7).
+            let exit_timeout = cfg.exit_timeout;
+            let handle = std::thread::Builder::new()
+                .name("memscope-atexit-export".to_string())
+                .spawn(move || {
+                    // Suppress allocator tracking during export to prevent
+                    // self-recording and capture-lock contention.
+                    let _suppression = crate::core::allocator::TrackingGuard::acquire();
+                    // Bounded wait on EXPORT_MUTEX.
+                    let Some(_export_guard) = EXPORT_MUTEX.try_lock_for(exit_timeout) else {
+                        tracing::warn!(
+                            "EXPORT_MUTEX could not be acquired within {:?}, skipping atexit export",
+                            exit_timeout
+                        );
+                        return;
+                    };
+                    do_export(&tracker, &cfg);
+                });
+
+            if let Ok(handle) = handle {
+                // Bounded join: poll the handle with short sleeps. After
+                // exit_timeout, stop waiting and detach the export thread.
+                // We do NOT call process::exit so the user's original exit
+                // code is preserved.
+                let deadline = std::time::Instant::now() + exit_timeout;
+                loop {
+                    if handle.is_finished() {
+                        let _ = handle.join();
+                        break;
+                    }
+                    if std::time::Instant::now() >= deadline {
+                        // Do NOT use tracing here: atexit runs after TLS
+                        // destructors may have fired, and tracing::warn!
+                        // accesses TLS (subscriber, fmt layer). Use eprintln
+                        // which touches only process-global stderr.
+                        eprintln!(
+                            "memscope: atexit export did not complete within {:?}, detaching export thread",
+                            exit_timeout
+                        );
+                        break;
+                    }
+                    std::thread::sleep(Duration::from_millis(10));
+                }
+            }
+        }));
     }
     // SAFETY: `on_exit` is an `extern "C" fn` with the correct signature for
     // `libc::atexit` (`extern "C" fn()`). It captures no state and only reads
@@ -450,12 +556,9 @@ pub(crate) fn reset_for_test() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::auto_export::{ExportFormatSet, SignalPolicy};
-    use proptest::prelude::*;
-    use proptest::test_runner::TestRunner;
+    use crate::auto_export::ExportFormatSet;
     use serial_test::serial;
     use std::sync::atomic::AtomicUsize;
-    use std::time::Duration;
     use tempfile::TempDir;
 
     /// Build a fresh `GlobalTracker` wrapped in an `Arc`. Centralized so every
@@ -873,250 +976,7 @@ mod tests {
             "EXPORTED must remain false so the disabled panic path does not block later exports",
         );
     }
-
-    // ============== Panic-hook chaining (release-panic-abort coverage) ==============
-
-    /// Objective: Verify the installed panic hook (a) calls `export_once` and
-    /// (b) chains to the previously-registered hook. This is the CRITICAL
-    /// coverage for `panic = "abort"` release builds, where the panic hook is
-    /// the only mechanism that runs before abort.
-    ///
-    /// Invariants:
-    /// - The sentinel (previous) hook runs (flag set to true) — chaining works.
-    /// - `EXPORTED` is true after the panic — our hook exported.
-    ///
-    /// # Why we call `install_panic_hook` directly instead of `install`
-    ///
-    /// [`HOOKS_INSTALLED`] is a `Once` and cannot be reset between tests, so
-    /// `install`'s `call_once` body would be a no-op if another test already
-    /// triggered it. Calling `install_panic_hook` directly gives a clean,
-    /// deterministic sentinel -> our_hook chain regardless of `Once` state or
-    /// test execution order.
-    #[test]
-    #[serial]
-    fn panic_hook_chains_and_exports() {
-        reset_for_test();
-
-        // Install a tracker + cfg directly into the statics so export_once
-        // (invoked by the panic hook) has data to export. We bypass install()
-        // here to avoid the Once affecting the hook-under-test. Keep the
-        // TempDir alive for the whole test so it cleans up the directory.
-        let tracker = fresh_tracker();
-        let tempdir = TempDir::new().expect("tempdir creation must succeed in tests");
-        let dir = tempdir.path().to_path_buf();
-        let cfg = AutoExportConfig::default().with_output_path(dir.clone());
-        *TRACKER_HANDLE.write() = Some(tracker);
-        *AUTO_EXPORT_CFG.write() = Some(cfg);
-
-        // 1. Register a sentinel hook that sets a flag, then 2. install our
-        //    hook on top of it. install_panic_hook take_hooks the sentinel and
-        //    chains to it.
-        let sentinel_fired = Arc::new(AtomicBool::new(false));
-        let sf = sentinel_fired.clone();
-        std::panic::set_hook(Box::new(move |_| {
-            sf.store(true, Ordering::SeqCst);
-        }));
-        install_panic_hook();
-
-        // Spawn a thread that panics. Under the test profile (panic=unwind)
-        // join() returns Err; under release (panic=abort) the hook still runs
-        // before abort — that is the behavior this test guards.
-        let handle = std::thread::spawn(|| {
-            panic!("lifecycle test panic");
-        });
-        let join_err = handle.join();
-        assert!(
-            join_err.is_err(),
-            "the panicking thread must propagate the panic to join() as Err",
-        );
-
-        assert!(
-            sentinel_fired.load(Ordering::SeqCst),
-            "the sentinel (previous) hook must have run — panic-hook chaining is broken",
-        );
-        assert!(
-            EXPORTED.load(Ordering::SeqCst),
-            "EXPORTED must be true — our panic hook must have called export_once",
-        );
-        assert!(
-            dir.join("dashboard_unified_dashboard.html").exists(),
-            "the panic-hook export must have written the HTML dashboard",
-        );
-
-        // Restore the default hook so this test does not pollute later tests.
-        // take_hook() returns the current hook (dropped here) and resets the
-        // registered hook to the default.
-        let _ = std::panic::take_hook();
-    }
-
-    // ===================== Property-based test ====================
-
-    /// Objective: Verify `do_export` never panics across many randomly
-    /// generated (but valid) `AutoExportConfig` values.
-    ///
-    /// Invariants: For every generated config, `do_export` returns without
-    /// panicking. A single shared empty `GlobalTracker` is reused across all
-    /// cases (an empty tracker renders quickly, keeping the suite fast).
-    ///
-    /// # Case count
-    ///
-    /// 200 cases instead of 1000: each case that selects HTML renders a full
-    /// dashboard via handlebars. Even for an empty tracker this is a few ms
-    /// per case, and 200 cases keeps the suite comfortably within the ~10s
-    /// budget. The contract under test ("never panic on valid input") is
-    /// fully exercised by 200 random configs.
-    #[test]
-    #[serial]
-    fn proptest_do_export_never_panics_on_valid_configs() {
-        let tracker = GlobalTracker::new();
-        let mut runner = TestRunner::new(ProptestConfig {
-            cases: 200,
-            ..ProptestConfig::default()
-        });
-
-        // Strategy: random format bits 0..=3, random booleans, random signal
-        // policy, random flush interval (None or 1..100ms). The output path
-        // is built per-case from a fresh TempDir inside the closure so the
-        // TempDir outlives the do_export call.
-        let strategy = (
-            0u8..4u8,
-            any::<bool>(),
-            any::<bool>(),
-            prop_oneof![
-                Just(SignalPolicy::Off),
-                Just(SignalPolicy::CtrlC),
-                Just(SignalPolicy::CtrlCAndTerm),
-            ],
-            prop_oneof![
-                Just(None),
-                (1u64..100u64).prop_map(|ms| Some(Duration::from_millis(ms))),
-            ],
-        );
-
-        runner
-            .run(&strategy, |(bits, on_exit, on_panic, on_signal, flush)| {
-                // `run` passes `S::Value` by value; the tuple is `Copy`, so this
-                // destructures the fields out without moving issues.
-                let tempdir = TempDir::new().expect("per-case tempdir must succeed in proptest");
-                let cfg = AutoExportConfig {
-                    output_path: tempdir.path().to_path_buf(),
-                    formats: ExportFormatSet::from_bits(bits),
-                    on_exit,
-                    on_panic,
-                    on_signal,
-                    flush_interval: flush,
-                    exit_timeout: Duration::from_secs(5),
-                };
-                let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    do_export(&tracker, &cfg)
-                }));
-                prop_assert!(
-                    result.is_ok(),
-                    "do_export must never panic on valid configs (bits={})",
-                    bits,
-                );
-                Ok(())
-            })
-            .expect("proptest run must complete with no failing cases");
-    }
-
-    /// Objective: Verify `do_export`'s dispatch contract (return value = whether
-    /// at least one format was written) holds across 1000 random valid configs.
-    /// This satisfies rules.md §V.3 (proptest with at least 1000 cases) for the
-    /// dispatch surface, complementing the 200-case render-path proptest above.
-    ///
-    /// Invariants: For every config, `do_export` returns without panicking AND
-    /// the return value equals `!formats.is_empty()` (when the output dir is
-    /// writable, which it always is here because we reuse a single tempdir).
-    #[test]
-    #[serial]
-    fn proptest_do_export_dispatch_contract_1000_cases() {
-        let tracker = GlobalTracker::new();
-        let mut runner = TestRunner::new(ProptestConfig {
-            cases: 1000,
-            ..ProptestConfig::default()
-        });
-        // Reuse ONE tempdir across all 1000 cases — do_export is idempotent on
-        // existing dirs and overwrites files, so no per-case cleanup is needed.
-        // This keeps the 1000-case run fast by avoiding 1000 mkdir/rmdir pairs.
-        let tempdir = TempDir::new().expect("shared tempdir must succeed for the 1000-case run");
-        let strategy = (
-            0u8..4u8,
-            any::<bool>(),
-            any::<bool>(),
-            prop_oneof![
-                Just(SignalPolicy::Off),
-                Just(SignalPolicy::CtrlC),
-                Just(SignalPolicy::CtrlCAndTerm),
-            ],
-            prop_oneof![
-                Just(None),
-                (1u64..100u64).prop_map(|ms| Some(Duration::from_millis(ms))),
-            ],
-        );
-
-        runner
-            .run(&strategy, |(bits, on_exit, on_panic, on_signal, flush)| {
-                let cfg = AutoExportConfig {
-                    output_path: tempdir.path().to_path_buf(),
-                    formats: ExportFormatSet::from_bits(bits),
-                    on_exit,
-                    on_panic,
-                    on_signal,
-                    flush_interval: flush,
-                    exit_timeout: Duration::from_secs(5),
-                };
-                // We test ONLY the dispatch contract here (no file-content
-                // inspection), so the 1000-case run stays fast even though
-                // some cases render HTML. The contract: do_export returns
-                // true iff at least one format was selected AND succeeded.
-                let did = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    do_export(&tracker, &cfg)
-                }));
-                prop_assert!(
-                    did.is_ok(),
-                    "do_export must never panic on valid configs (bits={})",
-                    bits,
-                );
-                let did = did.expect("catch_unwind Ok checked above");
-                // With a writable tempdir, do_export returns true iff at least
-                // one format is selected (and export_html/export_json succeed
-                // for an empty tracker).
-                prop_assert_eq!(
-                    did,
-                    !cfg.formats.is_empty(),
-                    "do_export return value must track format selection (bits={}, did={})",
-                    bits,
-                    did,
-                );
-                Ok(())
-            })
-            .expect("1000-case proptest must pass with no failing cases");
-    }
-
-    // ===================== Miri coverage for the atexit path ====================
-
-    /// Objective: Verify `install_atexit` registers without panicking. This is
-    /// the unsafe FFI surface (`libc::atexit`) and must be Miri-clean.
-    ///
-    /// Invariants: Calling `install_atexit` does not panic and does not
-    /// trigger UB under Miri.
-    ///
-    /// # Miri
-    ///
-    /// `cargo +nightly miri test --features atexit lifecycle::` must report 0
-    /// errors. The registered `on_exit` callback runs at process exit and
-    /// calls `export_once`; with no tracker installed it returns `false`
-    /// harmlessly, so the atexit path is exercised end-to-end under Miri.
-    #[test]
-    #[cfg(feature = "atexit")]
-    #[serial]
-    fn atexit_install_is_safe_and_does_not_panic() {
-        reset_for_test();
-        // Direct call: only the registration is under test here. The callback
-        // runs at process exit, not at registration time.
-        install_atexit();
-        // No assertion beyond "did not panic" — the SAFETY block in
-        // install_atexit is the contract under Miri's scrutiny.
-    }
 }
+
+#[cfg(test)]
+mod acceptance_tests;

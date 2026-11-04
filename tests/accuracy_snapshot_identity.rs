@@ -64,19 +64,28 @@ fn dashboard_counters_and_lifetimes_share_the_event_cut() {
     use std::sync::Arc;
 
     let tracker = Tracker::new();
+    let registry = memscope_rs::task_registry::global_registry();
+    let task = registry.task_scope("dashboard-event-cut");
+    let task_id = memscope_rs::task_registry::TaskIdRegistry::current_task_id()
+        .expect("scope installs task identity");
+    registry.record_allocation(999);
     // Feed the event store without populating the separate core cache. Mixing
     // tracker.analyze() with this event snapshot previously produced zero KPIs.
     let store = tracker.event_store();
     let start = memscope_rs::utils::current_timestamp_nanos() - 10_000_000;
     let mut allocated = MemoryEvent::allocate(4096, 64, 1);
+    allocated.task_id = Some(task_id);
     allocated.timestamp = start;
     store.record(allocated);
     let mut released = MemoryEvent::deallocate(4096, 64, 1);
+    released.task_id = Some(task_id);
     released.timestamp = start + 2_000_000;
     store.record(released);
     let mut live = MemoryEvent::allocate(8192, 128, 2);
+    live.task_id = Some(task_id);
     live.timestamp = start + 3_000_000;
     store.record(live);
+    drop(task);
     let renderer = DashboardRenderer::new().expect("dashboard templates load");
     let passports = Arc::new(MemoryPassportTracker::new(Default::default()));
     let context = renderer
@@ -129,6 +138,45 @@ fn dashboard_counters_and_lifetimes_share_the_event_cut() {
         json["active_allocations"], 1,
         "JSON KPI and rendered context must agree"
     );
+    let graph: serde_json::Value =
+        serde_json::from_str(&context.task_graph_json).expect("embedded task graph JSON");
+    let node = graph["nodes"]
+        .as_array()
+        .expect("graph nodes")
+        .iter()
+        .find(|node| node["id"] == task_id)
+        .expect("captured task node");
+    assert_eq!(
+        node["memory_usage"], 128,
+        "task graph uses live event bytes, not the 999-byte registry charge"
+    );
+    assert_eq!(
+        node["allocation_count"], 2,
+        "task graph counts both event allocations"
+    );
+    let dir = tempfile::tempdir().expect("graph export directory");
+    memscope_rs::render_engine::export::export_task_graph_snapshot(
+        dir.path(),
+        &store.snapshot(),
+        Some(&registry.export_graph()),
+    )
+    .expect("task graph export");
+    let exported: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(dir.path().join("task_graph.json")).expect("exported graph"),
+    )
+    .expect("valid exported graph");
+    let exported_node = exported["nodes"]
+        .as_array()
+        .expect("exported graph nodes")
+        .iter()
+        .find(|node| node["id"] == task_id)
+        .expect("exported task node");
+    for field in ["memory_usage", "allocation_count", "status"] {
+        assert_eq!(
+            node[field], exported_node[field],
+            "HTML and JSON graph field {field} must agree"
+        );
+    }
 }
 
 /// Objective: Verify the JSON export keeps both identities that share an address
@@ -307,5 +355,34 @@ fn batch_export_with_container_metadata_does_not_dereference_synthetic_addresses
         data["statistics"]["live_size_bytes"],
         payload.capacity(),
         "only the heap block contributes to the live counters"
+    );
+    let renderer = memscope_rs::render_engine::dashboard::DashboardRenderer::new()
+        .expect("dashboard templates");
+    let context = renderer
+        .build_context_from_tracker(&tracker, &passports)
+        .expect("dashboard with container observation");
+    let container = context
+        .allocations
+        .iter()
+        .find(|a| a.var_name == "value")
+        .expect("container stays visible in the dashboard");
+    assert_eq!(
+        container.allocation_type, "container",
+        "metadata must not be labeled as heap"
+    );
+    let heap: Vec<_> = context
+        .allocations
+        .iter()
+        .filter(|a| a.allocation_type != "container")
+        .collect();
+    assert_eq!(
+        heap.len(),
+        context.active_allocations,
+        "only heap rows contribute to the active count"
+    );
+    assert_eq!(
+        heap.iter().map(|a| a.size).sum::<usize>(),
+        payload.capacity(),
+        "dashboard heap rows conserve the JSON live byte total"
     );
 }

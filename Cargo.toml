@@ -115,7 +115,9 @@ codegen-units = 14
 strip = "symbols"
 
 [profile.test]
-opt-level = 0
+# Full export/lifecycle acceptance runs 50 real workloads in one test.
+# Keep assertions and overflow checks while avoiding debug-only rendering overhead.
+opt-level = 1
 debug = true
 debug-assertions = true
 overflow-checks = true
