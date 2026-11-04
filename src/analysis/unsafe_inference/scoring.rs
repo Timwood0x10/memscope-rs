@@ -68,12 +68,13 @@ pub(super) fn size_heuristic(size: usize, score: &mut Score) {
 /// Dimension 2: Vec/String layout detection.
 ///
 /// Detects the (ptr, len, cap) triplet structure.
-/// Key improvement: UTF-8 validation for String detection.
-pub(super) fn vec_string_layout(view: &MemoryView, score: &mut Score) {
+/// Returns whether a structurally valid header was found. Its pointer bytes
+/// must not independently count as string payload evidence.
+pub(super) fn vec_string_layout(view: &MemoryView, score: &mut Score) -> bool {
     let usize_size = std::mem::size_of::<usize>();
     let min_len = usize_size * 3; // ptr + len + cap
     if view.len() < min_len {
-        return;
+        return false;
     }
 
     let ptr_val = view.read_usize(0);
@@ -81,12 +82,12 @@ pub(super) fn vec_string_layout(view: &MemoryView, score: &mut Score) {
     let cap = view.read_usize(usize_size * 2);
 
     let (Some(p), Some(l), Some(c)) = (ptr_val, len, cap) else {
-        return;
+        return false;
     };
 
     // Basic structure validation
     if !is_valid_ptr(p) || c < l || c == 0 || c > 10_000_000 {
-        return;
+        return false;
     }
 
     // Distinguish Vec from String based on capacity vs length
@@ -113,6 +114,7 @@ pub(super) fn vec_string_layout(view: &MemoryView, score: &mut Score) {
     if c.is_power_of_two() {
         score.vec += 15;
     }
+    true
 }
 
 /// Dimension 3: Content analysis.

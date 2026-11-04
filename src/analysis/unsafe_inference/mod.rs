@@ -23,6 +23,7 @@
 
 mod engine;
 mod memory_view;
+pub(crate) use memory_view::scan_buffer;
 mod policy;
 mod scoring;
 

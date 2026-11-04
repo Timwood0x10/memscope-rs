@@ -405,7 +405,27 @@ pub struct OwnedMemoryView {
     data: Vec<u8>,
 }
 
+/// Allocate storage for raw process bytes, which can contain allocator metadata.
+pub(crate) fn scan_buffer(len: usize) -> Vec<u8> {
+    // Nano V2 treats a matching first-word free canary as an unallocated slot.
+    // Copying a stale scan back into its old address can restore that canary in
+    // a newly allocated slot. Keep scan buffers (including copies) outside Nano's
+    // <=256-byte regime; do not alter the captured bytes to hide the marker.
+    // See Apple libmalloc nanov2_pointer_size_inline / slot_freelist_cookie.
+    #[cfg(target_os = "macos")]
+    let capacity = len.max(257);
+    #[cfg(not(target_os = "macos"))]
+    let capacity = len;
+    Vec::with_capacity(capacity)
+}
+
 impl OwnedMemoryView {
+    pub(crate) fn copy_scan(data: &[u8]) -> Self {
+        let mut copy = scan_buffer(data.len());
+        copy.extend_from_slice(data);
+        Self::new(copy)
+    }
+
     /// Create a new `OwnedMemoryView` from a `Vec<u8>`.
     ///
     /// This takes ownership of the vector, so no copying occurs.
@@ -596,6 +616,26 @@ pub fn count_valid_pointers(view: &MemoryView) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Objective: Owned scan storage preserves raw bytes while avoiding Nano slots.
+    /// Invariants: Empty, small and full-page copies retain their exact content.
+    #[test]
+    fn owned_scan_buffers_preserve_all_bytes() {
+        for len in [0, 1, 8, 128, 255, 256, 257, 4096] {
+            let bytes: Vec<_> = (0..len).map(|i| (i % 256) as u8).collect();
+            let copy = OwnedMemoryView::copy_scan(&bytes);
+            assert_eq!(
+                copy.as_slice(),
+                bytes,
+                "copy {len} bytes without modifying metadata"
+            );
+            #[cfg(target_os = "macos")]
+            assert!(
+                copy.data.capacity() > 256,
+                "scan ownership must stay outside Nano size classes"
+            );
+        }
+    }
 
     #[test]
     fn test_memory_view_read_usize() {
