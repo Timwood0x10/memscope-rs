@@ -7,9 +7,9 @@ use super::event_reconstructor::{
 use super::helpers::format_bytes;
 use super::report_builder::{
     aggregate_thread_data, aggregate_thread_data_from_ledger, build_allocation_info,
-    build_async_summary, build_async_tasks, build_circular_reference_report,
-    build_ownership_graph_info, build_passport_details, build_relationships, build_top_n_reports,
-    build_unsafe_reports, calculate_health_info,
+    build_async_summary_from_rebuilt, build_async_tasks_from_rebuilt,
+    build_circular_reference_report, build_ownership_graph_info, build_passport_details,
+    build_relationships, build_top_n_reports, build_unsafe_reports, calculate_health_info,
 };
 use super::system_info::get_system_info;
 use super::telemetry;
@@ -19,41 +19,8 @@ use crate::tracker::Tracker;
 use crate::view::MemoryView;
 use std::sync::Arc;
 
-/// Format the captured time range (first → last allocation timestamp) as
-/// `H:MM:SS` (or `M:SS.mmm` when under a minute) so short-lived workloads
-/// still show a meaningful, non-zero duration. This is the real tracking
-/// window — not process uptime.
-fn compute_system_uptime(allocations: &[crate::capture::types::AllocationInfo]) -> String {
-    if allocations.is_empty() {
-        return "00:00:00".to_string();
-    }
-    let first = allocations
-        .iter()
-        .map(|a| a.timestamp_alloc)
-        .min()
-        .unwrap_or(0);
-    let last = allocations
-        .iter()
-        .map(|a| a.timestamp_alloc)
-        .max()
-        .unwrap_or(0);
-    let dur_ns = last.saturating_sub(first);
-    let total_secs = dur_ns / 1_000_000_000;
-    let h = total_secs / 3600;
-    let m = (total_secs % 3600) / 60;
-    let s = total_secs % 60;
-    if h > 0 {
-        format!("{}:{:02}:{:02}", h, m, s)
-    } else if total_secs >= 60 {
-        format!("{}:{:02}", m, s)
-    } else if total_secs > 0 {
-        format!("{}:{:02}s", m, s)
-    } else {
-        // Sub-second: show milliseconds so short captures aren't "00:00:00".
-        let ms = dur_ns / 1_000_000;
-        format!("0.{}s", ms)
-    }
-}
+mod metrics;
+use metrics::compute_system_uptime;
 
 /// Share of allocations that reuse a previously used address.
 ///
@@ -78,10 +45,31 @@ pub fn build_context_from_tracker_with_async(
     let passports = passport_tracker.snapshot_passports();
 
     let events = tracker.event_store().snapshot();
+    let mut task_graph = crate::task_registry::global_registry().export_graph();
+    let async_metadata = crate::capture::backends::profile_replay::ProfileMetadata::capture(
+        &task_graph,
+        async_tracker.map(Arc::as_ref),
+    );
+    async_metadata.reconcile_graph(&mut task_graph);
     let capture_at_ns = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)?
         .as_nanos()
         .min(u64::MAX as u128) as u64;
+    let async_rebuilt = crate::capture::backends::profile_replay::rebuild_at(
+        &events,
+        &task_graph,
+        &async_metadata,
+        capture_at_ns,
+    );
+    // Registry counters are cumulative capture charges. Graph memory must use
+    // live bindings from this event cut, matching the standalone JSON export.
+    let task_stats = crate::task_registry::TaskIdRegistry::task_stats_from_events(&events);
+    for node in &mut task_graph.nodes {
+        let stats = task_stats.get(&node.id).copied().unwrap_or_default();
+        node.memory_usage = stats.live_bytes;
+        node.allocation_count = usize::try_from(stats.allocation_count)
+            .expect("allocation count cannot exceed the event slice length");
+    }
     let mut ledger = crate::snapshot::BindingLedger::new();
     for event in &events {
         ledger.apply(event);
@@ -131,16 +119,16 @@ pub fn build_context_from_tracker_with_async(
     } else {
         aggregate_thread_data_from_ledger(ledger.thread_stats())
     };
-    let async_tasks = build_async_tasks(async_tracker);
-    let async_summary = build_async_summary(async_tracker, &async_tasks);
+
+    let system_info = get_system_info();
+
+    let async_tasks = build_async_tasks_from_rebuilt(&async_rebuilt);
+    let async_summary = build_async_summary_from_rebuilt(&async_rebuilt, &async_tasks);
     let ownership_graph = build_ownership_graph_info(&all_allocations);
 
     let top_n_reports = build_top_n_reports(&all_allocations);
     let circular_references = build_circular_reference_report(&all_allocations);
 
-    let system_info = get_system_info();
-
-    let task_graph = crate::task_registry::global_registry().export_graph();
     let task_graph_json = serde_json::to_string(&task_graph)?;
 
     let health_info = calculate_health_info(

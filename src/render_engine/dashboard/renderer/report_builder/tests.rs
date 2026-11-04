@@ -147,17 +147,34 @@ fn test_aggregate_thread_data_empty() {
     assert!(threads.is_empty());
 }
 
-/// Objective: Verify that build_async_tasks returns empty for no tracker.
+/// Objective: Verify that build_async_tasks_from_rebuilt returns empty for
+/// no events and no tasks.
 #[test]
 fn test_build_async_tasks_no_tracker() {
-    let tasks = build_async_tasks(None);
+    let rebuilt = crate::capture::backends::rebuild_async_profiles_from_events(
+        &[],
+        &crate::task_registry::TaskGraph {
+            nodes: Vec::new(),
+            edges: Vec::new(),
+        },
+    );
+    let tasks = build_async_tasks_from_rebuilt(&rebuilt);
     assert!(tasks.is_empty());
 }
 
-/// Objective: Verify that build_async_summary returns zeros for no tracker.
+/// Objective: Verify that build_async_summary_from_rebuilt returns zeros
+/// for no events and no tasks.
 #[test]
 fn test_build_async_summary_no_tracker() {
-    let summary = build_async_summary(None, &[]);
+    let rebuilt = crate::capture::backends::rebuild_async_profiles_from_events(
+        &[],
+        &crate::task_registry::TaskGraph {
+            nodes: Vec::new(),
+            edges: Vec::new(),
+        },
+    );
+    let tasks = build_async_tasks_from_rebuilt(&rebuilt);
+    let summary = build_async_summary_from_rebuilt(&rebuilt, &tasks);
     assert_eq!(summary.total_tasks, 0);
     assert_eq!(summary.active_tasks, 0);
     assert_eq!(summary.completed, 0);

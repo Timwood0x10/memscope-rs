@@ -67,7 +67,11 @@ pub fn build_allocation_info(
                 is_leaked: leak_assessment.is_reported_leak(),
                 allocation_state,
                 leak_status: leak_assessment.status,
-                allocation_type: if is_smart_pointer {
+                allocation_type: if crate::analysis::is_virtual_pointer(a.ptr) {
+                    // Keep typed container observations visible without presenting
+                    // their estimated size as another heap allocation.
+                    "container".to_string()
+                } else if is_smart_pointer {
                     smart_pointer_type.clone()
                 } else {
                     "heap".to_string()
@@ -615,73 +619,63 @@ pub fn aggregate_thread_data_from_ledger(
         .collect()
 }
 
-/// Build async tasks
-pub fn build_async_tasks(
-    async_tracker: Option<&std::sync::Arc<crate::capture::backends::async_tracker::AsyncTracker>>,
+/// Build async tasks from rebuilt event-replay profiles.
+///
+/// Instead of reading live `AsyncTracker` profiles (which may be stale due
+/// to missing deallocation/realloc updates), this accepts the rebuilt
+/// profiles from `rebuild_async_profiles_from_events`.
+pub fn build_async_tasks_from_rebuilt(
+    rebuilt: &crate::capture::backends::RebuiltProfiles,
 ) -> Vec<AsyncTaskInfo> {
-    if let Some(tracker) = async_tracker {
-        let profiles = tracker.get_all_profiles();
-        profiles
-            .into_iter()
-            .map(|p| {
-                let is_completed = p.is_completed();
-                let has_potential_leak = p.has_potential_leak();
-                let task_type_str = format!("{:?}", p.task_type);
-                let status = if has_potential_leak {
-                    "LEAKED".to_string()
-                } else if is_completed {
-                    "COMPLETED".to_string()
-                } else {
-                    "RUNNING".to_string()
-                };
-                AsyncTaskInfo {
-                    task_id: p.task_id,
-                    created_at_ms: p.created_at_ms,
-                    completed_at_ms: p.completed_at_ms,
-                    task_name: p.task_name,
-                    task_type: task_type_str,
-                    total_bytes: p.total_bytes,
-                    current_memory: p.current_memory,
-                    peak_memory: p.peak_memory,
-                    total_allocations: p.total_allocations,
-                    duration_ms: p.duration_ns as f64 / 1_000_000.0,
-                    efficiency_score: p.efficiency_score,
-                    is_completed,
-                    has_potential_leak,
-                    status,
-                }
-            })
-            .collect()
-    } else {
-        Vec::new()
-    }
+    rebuilt
+        .profiles
+        .iter()
+        .map(|p| {
+            let is_completed = p.is_completed();
+            let has_potential_leak = p.has_potential_leak();
+            let task_type_str = format!("{:?}", p.task_type);
+            let status = if has_potential_leak {
+                "LEAKED".to_string()
+            } else if is_completed {
+                "COMPLETED".to_string()
+            } else {
+                "RUNNING".to_string()
+            };
+            AsyncTaskInfo {
+                task_id: p.task_id,
+                created_at_ms: p.created_at_ms,
+                completed_at_ms: p.completed_at_ms,
+                task_name: p.task_name.clone(),
+                task_type: task_type_str,
+                total_bytes: p.total_bytes,
+                current_memory: p.current_memory,
+                peak_memory: p.peak_memory,
+                total_allocations: p.total_allocations,
+                duration_ms: p.duration_ns as f64 / 1_000_000.0,
+                efficiency_score: p.efficiency_score,
+                is_completed,
+                has_potential_leak,
+                status,
+            }
+        })
+        .collect()
 }
 
-/// Build async summary
+/// Build async summary from rebuilt event-replay data.
 ///
-/// Aggregates per-task profiles into summary KPIs. The `async_tasks` slice is
-/// used to derive completed/leaked/zombie counts and the success rate, since
-/// the tracker's raw stats do not expose these breakdowns directly.
-pub fn build_async_summary(
-    async_tracker: Option<&std::sync::Arc<crate::capture::backends::async_tracker::AsyncTracker>>,
+/// Uses the global peak memory (sum of all tasks' concurrent usage) and
+/// event-derived totals, not live tracker state.
+pub fn build_async_summary_from_rebuilt(
+    rebuilt: &crate::capture::backends::RebuiltProfiles,
     async_tasks: &[AsyncTaskInfo],
 ) -> AsyncSummary {
-    let (total_tasks, active_tasks, total_allocations, total_memory_bytes, peak_memory_bytes) =
-        if let Some(tracker) = async_tracker {
-            let stats = tracker.get_stats();
-            (
-                stats.total_tasks,
-                stats.active_tasks,
-                stats.total_allocations,
-                stats.total_memory,
-                stats.peak_memory,
-            )
-        } else {
-            (0, 0, 0, 0, 0)
-        };
+    let total_tasks = rebuilt.profiles.len();
+    let active_tasks = rebuilt
+        .profiles
+        .iter()
+        .filter(|p| !p.is_completed())
+        .count();
 
-    // Derive completion/leak/zombie breakdowns from the per-task list so the
-    // template's async KPI cards reflect real task outcomes rather than zeros.
     let completed = async_tasks.iter().filter(|t| t.is_completed).count();
     let leaked = async_tasks.iter().filter(|t| t.has_potential_leak).count();
     let zombie = async_tasks
@@ -697,9 +691,9 @@ pub fn build_async_summary(
     AsyncSummary {
         total_tasks,
         active_tasks,
-        total_allocations,
-        total_memory_bytes,
-        peak_memory_bytes,
+        total_allocations: rebuilt.total_allocations as usize,
+        total_memory_bytes: rebuilt.total_memory as usize,
+        peak_memory_bytes: rebuilt.global_peak_memory as usize,
         completed,
         leaked,
         zombie,
