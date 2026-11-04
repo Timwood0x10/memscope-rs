@@ -1,0 +1,4 @@
+[profile.default]
+slow-timeout = { period = "10s", terminate-after = 3, grace-period = "0s" }
+retries = 0
+test-threads = 4

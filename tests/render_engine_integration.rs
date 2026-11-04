@@ -194,10 +194,18 @@ fn test_high_performance_sampling_tracks_allocations() {
 
     let t = tracker!().with_sampling(SamplingConfig::high_performance());
 
-    // Use more iterations to ensure at least some allocations are sampled
-    // With 1% sample rate, 1000 iterations should yield ~10 samples
-    for i in 0..1000 {
-        track!(t, vec![i as u8; 64]);
+    // Retain distinct allocations and vary the sampling key. An optimized loop
+    // can otherwise reuse one address and one coarse wall-clock timestamp,
+    // turning 1000 calls into repeated trials of the same rejected sample.
+    let payloads: Vec<_> = (0..10_000).map(|i| vec![i as u8; 64]).collect();
+    for (i, payload) in payloads.iter().enumerate() {
+        t.track_as(
+            payload,
+            &format!("sample_{i}"),
+            file!(),
+            line!(),
+            module_path!(),
+        );
     }
 
     let report = t.analyze();

@@ -261,7 +261,7 @@ mod tests {
     /// Objective: Verify `start_with` with a `flush_interval` spawns a flusher
     /// that writes a report within a few tick intervals, and that dropping the
     /// guard joins the flusher thread without hanging.
-    /// Invariants: After 200ms (4x the 50ms interval) the HTML file exists;
+    /// Invariants: Within a bounded wait the HTML file is complete;
     /// `drop(guard)` returns promptly (no deadlock).
     #[test]
     #[serial]
@@ -276,14 +276,17 @@ mod tests {
         let guard =
             start_with(cfg).expect("start_with with flush_interval must succeed and spawn flusher");
 
-        // 200ms gives the 50ms-interval worker ~3-4 ticks of slack. The first
-        // tick triggers trigger_export_now which writes the dashboard.
-        thread::sleep(Duration::from_millis(200));
-
         let html = dir.path().join("dashboard_unified_dashboard.html");
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        while std::time::Instant::now() < deadline {
+            if std::fs::read_to_string(&html).is_ok_and(|s| s.contains("</html>")) {
+                break;
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
         assert!(
-            html.exists(),
-            "periodic flusher must have written the HTML dashboard within 200ms"
+            std::fs::read_to_string(&html).is_ok_and(|s| s.contains("</html>")),
+            "periodic flusher must finish HTML within five seconds"
         );
 
         // Dropping the guard joins the flusher thread. This must not hang — if
