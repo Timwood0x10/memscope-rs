@@ -60,21 +60,22 @@ impl DashboardRenderer {
     ///
     /// The single built-in merged dashboard template lives at
     /// `src/render_engine/dashboard/templates/dashboard_unified.html`.
-    /// External templates (if any) are loaded from `<manifest>/templetes/<dir>/code.html`.
+    /// `None` uses only embedded templates. `Some(path)` additionally loads
+    /// external templates from `<path>/<dir>/code.html`.
     pub fn with_external_templates(
         templetes_dir: Option<PathBuf>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let external_dir = templetes_dir.unwrap_or_else(|| manifest_dir.join("templetes"));
 
         // Build template registry from the single merged built-in template.
         // The templates_dir argument is unused now (kept only for API stability);
         // pass a placeholder that TemplateRegistry will ignore.
         let mut registry = TemplateRegistry::with_built_in_templates(&manifest_dir)?;
 
-        // Always try to load external templates
-        registry.set_external_base(external_dir.clone());
-        registry.load_external_templates(&external_dir)?;
+        if let Some(external_dir) = templetes_dir {
+            registry.set_external_base(external_dir.clone());
+            registry.load_external_templates(&external_dir)?;
+        }
 
         // For backward compatibility, keep a separate handlebars for old/direct template names
         let handlebars = template_registry::builtin_handlebars()?;
