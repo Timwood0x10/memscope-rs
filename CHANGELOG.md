@@ -1,8 +1,37 @@
 # Changelog
 
+## [0.2.6] - 2026-11-05
+
+###  Major Features
+
+- **feat(capture)**: Binding identity end to end — every allocation carries a serial, so releases, reallocations and duplicate observations settle against the actual binding instead of a reused address.
+- **feat(capture)**: Rebuild async task profiles from the event stream (`profile_replay`), so per-task memory uses the same event cut as the JSON exports.
+- **feat(export)**: Task accounting ledger and charge-quality metadata in `memory_analysis.json` and the task graph, including per-task lower bounds, deferred charges and `degraded_releases`.
+- **feat(export)**: One capture cut per export, with live versus cumulative counters labelled explicitly and evidence stated instead of inferred verdicts.
+
+###  Architecture
+
+- **refactor(export)**: Split export into ownership, snapshot and task-graph submodules.
+- **refactor(tracker)**: Move release/reallocation handling to `src/tracker/release.rs`; split the async tracker into `dealloc`, `future` and `queries`.
+- **refactor(analysis)**: Extract the OS process-memory reader into `heap_scanner/reader/process_memory.rs`.
+- **refactor(dashboard)**: Share one `Handlebars` registry across renderers and extract context metrics into their own module.
+- **refactor(utils)**: Split the utility tests out of `utils.rs`.
+
+###  Bug Fixes
+
+- **fix(tracker)**: No `Arc`/`Rc` double counting; dedupe state is keyed by serial, so a degraded release or a moved realloc no longer clears unrelated bindings.
+- **fix(capture)**: Remove allocator re-entrancy deadlocks, cross-thread release loss and the temporary-facade `Drop` lock by using one process-level allocator tracker.
+- **fix(export)**: Suppress allocator self-tracking during export, avoiding the feedback loop that inflated reports.
+- **fix(dashboard)**: Portable page size via `page_size::get()`; load external templates only when a path is specified.
+- **fix(analysis)**: Do not treat raw header bytes as string payload; make the calibration measurement platform-independent.
+
+###  Testing
+
+- Full export/lifecycle acceptance coverage (50 real workloads), allocator re-entrancy subprocess regressions, and CI-stable assertions for shared state and timing under parallel and coverage-instrumented runs.
+
 ## [0.2.5] - 2026-07-27
 
-### ✨ Major Features
+###  Major Features
 
 - **feat**: Unified `start()/start_with()` one-line API — logging + global tracking + auto-export hooks in a single call
   - `MemScopeGuard` — RAII guard that auto-exports on Drop (return from `main`)
@@ -20,7 +49,7 @@
 - **feat(dashboard)**: Allocation trend chart and unsafe source heatmap
 - **feat(dashboard)**: Template helpers (`render_methods.rs`, `helpers.rs`) for modular rendering
 
-### 🏗️ Architecture
+###  Architecture
 
 - **refactor**: New module `src/auto_export.rs` — config types, no dependencies
 - **refactor**: New module `src/lifecycle.rs` — export_once, panic hook, ctrlc handler, atexit, idempotency latch
@@ -32,7 +61,7 @@
 - **refactor**: `GlobalTracker::with_config()` now passes `config.tracker` to `Tracker::with_config()`
 - **refactor**: `TrackerConfig` made `pub`; added `Tracker::with_config()` bridge method
 
-### 📝 Documentation
+###  Documentation
 
 - **docs**: Comprehensive README updates for English and Chinese
   - Quick Start covers 4 patterns: CLI one-liner, long-service on-demand, periodic flush, full customization
@@ -40,7 +69,7 @@
 - **docs**: Added `docs/articles/en/` and `docs/articles/zh/` — 10-article technical deep-dive series covering global alloc hook, TrackKind model, HeapScanner, relation inference, UTI engine, memory passport, ownership graph, render engine
 - **docs**: Added `STRENGTHENING_PLAN.md` — architectural strengthening plan
 
-### ✅ Testing
+###  Testing
 
 - **test**: Added `tests/auto_export_e2e.rs` — 3 end-to-end integration tests
   - `e2e_normal_exit` — normal Drop path
@@ -54,7 +83,7 @@
 - **test**: All 12 examples rewritten to use `start()` API
 - **test**: Added `examples/auto_exit_demo.rs` — three-mode harness for e2e testing
 
-### 🛠 Bug Fixes
+###  Bug Fixes
 
 - **fix**: Stale policy read in `install_ctrlc_handler` — policy now read inside the signal handler closure instead of at installation time
 - **fix(dashboard)**: Missing `</div>` tags restored for mode-variable and mode-timetravel sections
@@ -62,7 +91,7 @@
 - **fix(reconstruction)**: `clone_info_map` applied to all allocations after reconstruction
 - **fix(ci)**: Removed repository-level forced `sccache` and `mold` Cargo configuration
 
-### 🎨 Dashboard Improvements
+###  Dashboard Improvements
 
 - **feat**: Interactive D3 zoom/pan/drag for Task Hierarchy Visualization
 - **feat**: Unsafe Call-Stack View grouped by source location
@@ -73,7 +102,7 @@
 
 ## [0.2.4] - 2026-06-03
 
-### 🛠 Bug Fixes
+###  Bug Fixes
 
 - **fix**: Close mode-variable and mode-timetravel divs broken by Leak Path and Playback Mode removals
   - Added missing `</div>` at indent-8 before mode-passport to close mode-variable
@@ -88,7 +117,7 @@
 - **fix**: Remove repository-level forced `sccache` and `mold` Cargo configuration
   - Fixes CI failures where `cargo clippy` and `cargo llvm-cov` tried to execute unavailable `sccache`
 
-### 🎨 UI/UX Improvements
+###  UI/UX Improvements
 
 - **feat**: Upgrade Task Hierarchy Visualization with interactive D3 zoom/pan/drag
   - Added `d3.zoom()` with scale range 0.1x-5x and double-click reset
@@ -96,7 +125,7 @@
   - Auto-fits tree to viewport on initial render
   - Container height now adapts to available space
 
-### ✨ Features
+###  Features
 
 - **feat**: Add precision labels (EvidenceLevel, RiskConfidence, PointerProvenance, DropExpectation)
   - EvidenceLevel: Observed / Inferred / Heuristic / Unknown
@@ -117,7 +146,7 @@
 
 ## [0.1.10] - 2025-10-15
 
-## 🔧 Code Quality and Engineering Improvements
+##  Code Quality and Engineering Improvements
 
 #### Build System Fixes
 
@@ -140,7 +169,7 @@
   - Replaced all Chinese comments with English equivalents
   - Maintained full functionality while improving code quality
 
-### 🎯 Core Infrastructure Completion
+###  Core Infrastructure Completion
 
 #### Memory Tracking Statistics System
 
@@ -180,7 +209,7 @@
   - Global classifier singleton pattern
   - Seamless integration with estimation system
 
-### 📊 Quality Metrics Achieved
+###  Quality Metrics Achieved
 
 - **Compilation**: 0 errors, 0 warnings
 - **Code Quality**: All clippy checks passing

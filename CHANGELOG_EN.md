@@ -1,5 +1,33 @@
 # Changelog
 
+## \[0.2.6] - 2026-11-05
+
+### 🎯 **Binding-Identity Accounting and Event-Sourced Reporting**
+
+This release makes every allocation identifiable by a serial, so releases, reallocations and task charges settle against the actual binding instead of a reused address. Reports are rebuilt from one event cut, and the JSON exports now state how complete that accounting is.
+
+#### ✨ Accounting and Export
+
+- **feat**: `ClosedBinding { ptr, serial, size }` flows through the cache, events, ledger, JSON and dashboard; degraded releases report the identity actually closed.
+- **feat**: `ChargeOutcome` (Charged / Unattributed / Deferred), non-blocking `try_record_allocation`, per-task lower bounds and deferred charge counters.
+- **feat**: Task profiles rebuilt from the event stream (`profile_replay`), matching the cut used by `memory_analysis.json` and the task graph.
+- **feat**: `degraded_releases`, `charge_quality` and live-versus-cumulative labels in the exported JSON and dashboard summary.
+
+#### 🏗️ Architecture
+
+- **refactor**: Export split into ownership / snapshot / task-graph submodules; tracker releases moved to `tracker/release.rs`; async tracker split into `dealloc`, `future` and `queries`.
+- **refactor**: Shared `Handlebars` registry, extracted context metrics, and a dedicated OS process-memory reader.
+
+#### 🛠 Bug Fixes
+
+- **fix**: No `Arc`/`Rc` double counting, no dedupe loss on degraded releases or moved reallocs, no allocator re-entrancy deadlocks, no cross-thread release loss.
+- **fix**: Allocator self-tracking suppressed during export; portable page size; external templates loaded only on an explicit path.
+- **fix**: Calibration measurement no longer pins a platform-specific acceptance count; parallel shared-state and coverage timing assertions are stable.
+
+#### ✅ Testing
+
+- Full export/lifecycle acceptance suite (50 real workloads), allocator re-entrancy subprocess regressions, and deterministic assertions under parallel and coverage-instrumented runs.
+
 ## \[0.2.5] - 2026-07-27
 
 ### 🎯 **Unified Auto-Export Lifecycle and Simplified Start API**
