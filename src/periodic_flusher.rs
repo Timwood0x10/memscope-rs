@@ -429,8 +429,14 @@ mod tests {
                 panic!("intentional flush panic — worker must survive via catch_unwind");
             }
         });
-        // Sleep enough for the first (panicking) flush and at least one more.
-        std::thread::sleep(Duration::from_millis(100));
+        // Wait for the panicking flush plus at least one more by polling instead
+        // of sleeping a fixed window: with RUST_BACKTRACE=1 the first panic can
+        // spend hundreds of milliseconds capturing its backtrace, which pushed
+        // the second tick past a fixed 100 ms window on Linux CI.
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while counter.load(Ordering::SeqCst) < 2 && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(10));
+        }
         let count = counter.load(Ordering::SeqCst);
         assert!(
             count >= 2,
