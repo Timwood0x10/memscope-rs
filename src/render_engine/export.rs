@@ -5,510 +5,37 @@
 
 use tracing::{debug, warn};
 
-use crate::analysis::is_virtual_pointer;
 use crate::analysis::memory_passport_tracker::MemoryPassportTracker;
-use crate::analysis::node_id::NodeId;
-use crate::analysis::ownership_graph::{EdgeKind, OwnershipGraph, OwnershipOp};
 use crate::capture::platform::memory_info::PlatformMemoryInfo;
 use crate::core::{MemScopeError, MemScopeResult};
 use crate::render_engine::dashboard::{rebuild_allocations_from_events, DashboardRenderer};
-use crate::snapshot::{ActiveAllocation, MemorySnapshot, ThreadMemoryStats};
 use crate::tracker::Tracker;
-use rayon::prelude::*;
 use serde_json::json;
 use std::{
-    collections::HashMap,
     fs::File,
     io::{BufWriter, Write},
     path::Path,
     sync::Arc,
 };
 
-/// Optimization level for JSON export
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum OptimizationLevel {
-    /// Low optimization - maximum compatibility
-    Low,
-    /// Medium optimization - balanced
-    #[default]
-    Medium,
-    /// High optimization - maximum performance
-    High,
-    /// Maximum optimization - aggressive optimization
-    Maximum,
-}
+mod ownership;
+mod snapshot_json;
+mod task_graph;
+pub use ownership::{export_ownership_graph_json, export_ownership_graph_snapshot};
+pub use snapshot_json::{
+    export_snapshot_to_json, export_snapshot_with_containers, ExportError, ExportJsonOptions,
+    OptimizationLevel, SchemaValidator,
+};
+pub use task_graph::{
+    export_task_graph_json, export_task_graph_json_with_accounting, export_task_graph_snapshot,
+};
 
-/// Schema validator for JSON export
-#[derive(Debug, Clone, Default)]
-pub struct SchemaValidator {
-    strict_mode: bool,
-}
-
-impl SchemaValidator {
-    pub fn new() -> Self {
-        Self { strict_mode: false }
-    }
-
-    pub fn with_strict_mode(mut self, strict: bool) -> Self {
-        self.strict_mode = strict;
-        self
-    }
-
-    pub fn validate(&self, data: &serde_json::Value) -> Result<(), String> {
-        if !data.is_object() {
-            return Err("Export data must be a JSON object".to_string());
-        }
-
-        let obj = data.as_object().ok_or("Invalid JSON object")?;
-
-        if self.strict_mode {
-            let required_fields = ["timestamp", "allocations", "stats"];
-            for field in &required_fields {
-                if !obj.contains_key(*field) {
-                    return Err(format!("Missing required field: {}", field));
-                }
-            }
-        }
-
-        Ok(())
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct ExportJsonOptions {
-    pub parallel_processing: bool,
-    pub buffer_size: usize,
-    pub use_compact_format: Option<bool>,
-    pub enable_type_cache: bool,
-    pub batch_size: usize,
-    pub streaming_writer: bool,
-    pub schema_validation: bool,
-    pub adaptive_optimization: bool,
-    pub max_cache_size: usize,
-    pub security_analysis: bool,
-    pub include_low_severity: bool,
-    pub integrity_hashes: bool,
-    pub fast_export_mode: bool,
-    pub auto_fast_export_threshold: Option<usize>,
-    pub thread_count: Option<usize>,
-}
-
-impl Default for ExportJsonOptions {
-    fn default() -> Self {
-        Self {
-            parallel_processing: true,
-            buffer_size: 256 * 1024,
-            use_compact_format: None,
-            enable_type_cache: true,
-            batch_size: 1000,
-            streaming_writer: true,
-            schema_validation: false,
-            adaptive_optimization: true,
-            max_cache_size: 10_000,
-            security_analysis: false,
-            include_low_severity: false,
-            integrity_hashes: false,
-            fast_export_mode: false,
-            auto_fast_export_threshold: Some(10_000),
-            thread_count: None,
-        }
-    }
-}
-
-impl ExportJsonOptions {
-    pub fn fast_export_mode(mut self, enabled: bool) -> Self {
-        self.fast_export_mode = enabled;
-        self
-    }
-
-    pub fn security_analysis(mut self, enabled: bool) -> Self {
-        self.security_analysis = enabled;
-        self
-    }
-
-    pub fn streaming_writer(mut self, enabled: bool) -> Self {
-        self.streaming_writer = enabled;
-        self
-    }
-
-    pub fn schema_validation(mut self, enabled: bool) -> Self {
-        self.schema_validation = enabled;
-        self
-    }
-
-    pub fn integrity_hashes(mut self, enabled: bool) -> Self {
-        self.integrity_hashes = enabled;
-        self
-    }
-
-    pub fn batch_size(mut self, size: usize) -> Self {
-        self.batch_size = size;
-        self
-    }
-
-    pub fn adaptive_optimization(mut self, enabled: bool) -> Self {
-        self.adaptive_optimization = enabled;
-        self
-    }
-
-    pub fn max_cache_size(mut self, size: usize) -> Self {
-        self.max_cache_size = size;
-        self
-    }
-
-    pub fn include_low_severity(mut self, include: bool) -> Self {
-        self.include_low_severity = include;
-        self
-    }
-
-    pub fn thread_count(mut self, count: Option<usize>) -> Self {
-        self.thread_count = count;
-        self
-    }
-}
-
-pub fn export_snapshot_to_json(
-    snapshot: &MemorySnapshot,
-    output_path: &Path,
-    options: &ExportJsonOptions,
-) -> Result<(), Box<dyn std::error::Error>> {
-    // Create parent directory if it doesn't exist
-    if let Some(parent) = output_path.parent() {
-        if !parent.as_os_str().is_empty() {
-            std::fs::create_dir_all(parent)?;
-        }
-    }
-
-    let allocations: Vec<&ActiveAllocation> = snapshot.active_allocations.values().collect();
-    let processed = process_allocations(&allocations, options)?;
-
-    // Use output_path as the base directory for generated files
-    let output_dir = if output_path.extension().is_some() {
-        // If output_path has an extension, treat it as a file and use its parent
-        output_path.parent().unwrap_or(Path::new("."))
-    } else {
-        output_path
-    };
-
-    generate_memory_analysis_json(output_dir, &processed, options)?;
-    generate_lifetime_json(output_dir, &processed, options)?;
-    generate_thread_analysis_json(output_dir, &snapshot.thread_stats, options)?;
-
-    Ok(())
-}
-
-fn process_allocations(
-    allocations: &[&ActiveAllocation],
-    options: &ExportJsonOptions,
-) -> Result<Vec<serde_json::Value>, Box<dyn std::error::Error>> {
-    if options.parallel_processing && allocations.len() > options.batch_size {
-        let chunk_size = (allocations.len() / num_cpus::get()).max(1);
-        Ok(allocations
-            .par_chunks(chunk_size)
-            .flat_map(process_allocation_batch)
-            .collect())
-    } else {
-        Ok(process_allocation_batch(allocations))
-    }
-}
-
-fn process_allocation_batch(allocations: &[&ActiveAllocation]) -> Vec<serde_json::Value> {
-    let current_time = std::time::SystemTime::now()
+/// Nanosecond wall-clock stamp for the immutable event projections.
+fn capture_cut_ns() -> u64 {
+    std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos() as u64)
-        .unwrap_or(0);
-
-    allocations
-        .iter()
-        .map(|alloc| {
-            let type_info = get_or_compute_type_info(
-                alloc.type_name.as_deref().unwrap_or("unknown"),
-                alloc.size,
-            );
-
-            let lifetime_ms = if alloc.allocated_at > 0 {
-                (current_time.saturating_sub(alloc.allocated_at)) / 1_000_000
-            } else {
-                0
-            };
-
-            let address = match alloc.ptr {
-                Some(ptr) => format!("0x{:x}", ptr),
-                None => "N/A".to_string(),
-            };
-
-            let mut entry = json!({
-                "address": address,
-                "size": alloc.size,
-                "type": type_info,
-                "timestamp": alloc.allocated_at,
-                "thread_id": alloc.thread_id,
-                "lifetime_ms": lifetime_ms,
-            });
-
-            if let Some(ref var_name) = alloc.var_name {
-                entry["var_name"] = serde_json::json!(var_name);
-            }
-
-            if let Some(ref type_name) = alloc.type_name {
-                entry["type_name"] = serde_json::json!(type_name);
-            }
-
-            if let Some(ref module_path) = alloc.module_path {
-                // Filter out library paths, only show user project paths
-                if !is_library_module_path(module_path) {
-                    entry["module_path"] = serde_json::json!(module_path);
-                }
-            }
-
-            entry
-        })
-        .collect()
-}
-
-/// Check if a module path belongs to a library (std, core, alloc, or external crates)
-fn is_library_module_path(module_path: &str) -> bool {
-    // Filter out standard library paths
-    if module_path.starts_with("std::")
-        || module_path.starts_with("core::")
-        || module_path.starts_with("alloc::")
-    {
-        return true;
-    }
-
-    // Filter out memscope_rs library paths
-    if module_path.starts_with("memscope_rs::") {
-        return true;
-    }
-
-    // Filter out other common library prefixes
-    let library_prefixes = [
-        "tokio::",
-        "serde::",
-        "async_trait::",
-        "futures::",
-        "log::",
-        "tracing::",
-        "chrono::",
-        "indexmap::",
-        "rustc_hash::",
-        "parking_lot::",
-        "crossbeam::",
-        "rayon::",
-        "dashmap::",
-        "ahash::",
-        "hashbrown::",
-    ];
-
-    for prefix in library_prefixes.iter() {
-        if module_path.starts_with(prefix) {
-            return true;
-        }
-    }
-
-    false
-}
-
-fn get_or_compute_type_info(type_name: &str, size: usize) -> String {
-    // Check for Vec but not VecDeque
-    if (type_name.contains("Vec<") || type_name.contains("vec::Vec<"))
-        && !type_name.contains("VecDeque")
-    {
-        "dynamic_array".to_string()
-    } else if type_name == "str"
-        || type_name == "String"
-        || type_name.contains("&str")
-        || type_name.contains("alloc::string::String")
-    {
-        "string".to_string()
-    } else if type_name.contains("Box") || type_name.contains("Rc") || type_name.contains("Arc") {
-        "smart_pointer".to_string()
-    } else if type_name.contains("[") && type_name.contains("u8") {
-        "byte_array".to_string()
-    } else if size > 1024 * 1024 {
-        "large_buffer".to_string()
-    } else {
-        "custom".to_string()
-    }
-}
-
-fn generate_memory_analysis_json<P: AsRef<Path>>(
-    output_path: P,
-    allocations: &[serde_json::Value],
-    options: &ExportJsonOptions,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let total_size: usize = allocations
-        .iter()
-        .filter_map(|a| a.get("size").and_then(|s| s.as_u64()))
-        .map(|s| s as usize)
-        .sum();
-
-    let type_distribution: HashMap<String, usize> = {
-        let mut dist = HashMap::new();
-        for alloc in allocations {
-            if let Some(t) = alloc.get("type").and_then(|t| t.as_str()) {
-                *dist.entry(t.to_string()).or_insert(0) += 1;
-            }
-        }
-        dist
-    };
-
-    let data = json!({
-        "metadata": {
-            "export_version": "2.0",
-            "export_timestamp": chrono::Utc::now().to_rfc3339(),
-            "specification": "memscope-rs memory analysis",
-            "total_allocations": allocations.len(),
-            "total_size_bytes": total_size
-        },
-        "allocations": allocations,
-        "statistics": {
-            "total_allocations": allocations.len(),
-            "total_size_bytes": total_size,
-            "average_size_bytes": if allocations.is_empty() { 0 } else { total_size / allocations.len() }
-        },
-        "type_distribution": type_distribution
-    });
-
-    let path = output_path.as_ref().join("memory_analysis.json");
-    write_json_optimized(path, &data, options)?;
-    Ok(())
-}
-
-fn generate_lifetime_json<P: AsRef<Path>>(
-    output_path: P,
-    allocations: &[serde_json::Value],
-    options: &ExportJsonOptions,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let ownership_histories: Vec<serde_json::Value> = allocations
-        .iter()
-        .map(|alloc| {
-            json!({
-                "address": alloc.get("address"),
-                "var_name": alloc.get("var_name"),
-                "type_name": alloc.get("type_name"),
-                "size": alloc.get("size"),
-                "timestamp_alloc": alloc.get("timestamp"),
-                "timestamp_dealloc": null,
-                "lifetime_ms": alloc.get("lifetime_ms"),
-                "events": [
-                    {
-                        "event_type": "Created",
-                        "timestamp": alloc.get("timestamp"),
-                        "context": "initial_allocation"
-                    }
-                ]
-            })
-        })
-        .collect();
-
-    let lifetime_data = json!({
-        "metadata": {
-            "export_version": "2.0",
-            "export_timestamp": chrono::Utc::now().to_rfc3339(),
-            "specification": "memscope-rs lifetime tracking",
-            "total_tracked_allocations": ownership_histories.len()
-        },
-        "ownership_histories": ownership_histories
-    });
-
-    let lifetime_path = output_path.as_ref().join("lifetime.json");
-    write_json_optimized(lifetime_path, &lifetime_data, options)?;
-    Ok(())
-}
-
-fn generate_thread_analysis_json<P: AsRef<Path>>(
-    output_path: P,
-    thread_stats: &HashMap<u64, ThreadMemoryStats>,
-    options: &ExportJsonOptions,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let thread_analysis: Vec<serde_json::Value> = thread_stats
-        .values()
-        .map(|stats| {
-            json!({
-                "thread_id": stats.thread_id,
-                "allocation_count": stats.allocation_count,
-                "total_allocated": stats.total_allocated,
-                "current_memory": stats.current_memory,
-                "peak_memory": stats.peak_memory,
-            })
-        })
-        .collect();
-
-    let data = json!({
-        "metadata": {
-            "export_version": "2.0",
-            "export_timestamp": chrono::Utc::now().to_rfc3339(),
-            "specification": "thread analysis",
-            "total_threads": thread_analysis.len()
-        },
-        "thread_analysis": thread_analysis
-    });
-
-    let path = output_path.as_ref().join("thread_analysis.json");
-    write_json_optimized(path, &data, options)?;
-    Ok(())
-}
-
-fn write_json_optimized<P: AsRef<Path>>(
-    path: P,
-    data: &serde_json::Value,
-    options: &ExportJsonOptions,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let path = path.as_ref();
-
-    let estimated_size = estimate_json_size(data);
-    let use_compact = options
-        .use_compact_format
-        .unwrap_or(estimated_size > 1_000_000);
-
-    if options.streaming_writer && estimated_size > 500_000 {
-        let file = File::create(path)?;
-        let mut writer = BufWriter::with_capacity(options.buffer_size, file);
-
-        if use_compact {
-            serde_json::to_writer(&mut writer, data)?;
-        } else {
-            serde_json::to_writer_pretty(&mut writer, data)?;
-        }
-
-        writer.flush()?;
-    } else {
-        let json_string = if use_compact {
-            serde_json::to_string(data)?
-        } else {
-            serde_json::to_string_pretty(data)?
-        };
-        std::fs::write(path, json_string)?;
-    }
-
-    Ok(())
-}
-
-fn estimate_json_size(data: &serde_json::Value) -> usize {
-    match data {
-        serde_json::Value::Object(map) => {
-            map.values().map(estimate_json_size).sum::<usize>() + map.len() * 20
-        }
-        serde_json::Value::Array(arr) => {
-            arr.iter().map(estimate_json_size).sum::<usize>() + arr.len() * 10
-        }
-        serde_json::Value::String(s) => s.len(),
-        serde_json::Value::Number(n) => n.to_string().len(),
-        _ => 10,
-    }
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum ExportError {
-    #[error("IO error: {0}")]
-    Io(#[from] std::io::Error),
-
-    #[error("JSON error: {0}")]
-    Json(#[from] serde_json::Error),
-
-    #[error("Export failed: {0}")]
-    ExportFailed(String),
+        .map(|elapsed| elapsed.as_nanos().min(u128::from(u64::MAX)) as u64)
+        .unwrap_or(0)
 }
 
 pub fn export_all_json<P: AsRef<Path>>(
@@ -517,12 +44,49 @@ pub fn export_all_json<P: AsRef<Path>>(
     passport_tracker: &Arc<MemoryPassportTracker>,
     async_tracker: &Arc<crate::capture::backends::async_tracker::AsyncTracker>,
 ) -> MemScopeResult<()> {
+    // Suppress allocator tracking during the entire export. The export path
+    // performs large amounts of allocation (event replay, JSON serialisation,
+    // HTML rendering) that are not user allocations. Without suppression,
+    // these self-allocations enter the event stream, creating a feedback loop
+    // that can inflate memory usage to many GB and run for minutes.
+    //
+    // `TrackingGuard::acquire` sets a thread-local flag that the custom
+    // allocator checks before recording. The guard restores the flag on drop,
+    // so tracking resumes immediately after the export completes.
+    let _suppression = crate::core::allocator::TrackingGuard::acquire();
+
     let path_ref = path.as_ref();
 
     // Use event_store as unified data source (includes both HeapOwner and Container allocations)
     let events = tracker.event_store().snapshot();
-    let allocations = rebuild_allocations_from_events(&events);
-    let snapshot = MemorySnapshot::from_allocation_infos(allocations.clone());
+    // Auxiliary metadata sources have independent locks. Freeze each once before I/O;
+    // event-derived counters always use `events`, not these independently sampled caches.
+    let passports = passport_tracker.snapshot_passports();
+    let mut task_graph = crate::task_registry::global_registry().export_graph();
+    let async_metadata = crate::capture::backends::profile_replay::ProfileMetadata::capture(
+        &task_graph,
+        Some(async_tracker),
+    );
+    async_metadata.reconcile_graph(&mut task_graph);
+    let captured_at = capture_cut_ns();
+    let async_rebuilt = crate::capture::backends::profile_replay::rebuild_at(
+        &events,
+        &task_graph,
+        &async_metadata,
+        captured_at,
+    );
+    let borrow_history =
+        crate::analysis::borrow_analysis::get_global_borrow_analyzer().get_borrow_history();
+
+    // Replay once and project that single cut: the ledger keeps the transition-based
+    // totals and peaks that the live list can no longer reconstruct, and the projection
+    // keeps every identity (including overlapping generations) so the rows and the
+    // counters describe the same thing.
+    let mut ledger = crate::snapshot::BindingLedger::new();
+    for event in &events {
+        ledger.apply(event);
+    }
+    let snapshot = crate::snapshot::builder::project_snapshot(&ledger, captured_at);
     let options = ExportJsonOptions::default();
 
     std::fs::create_dir_all(path_ref)
@@ -530,28 +94,36 @@ pub fn export_all_json<P: AsRef<Path>>(
 
     debug!("Starting export_snapshot_to_json");
 
-    export_snapshot_to_json(&snapshot, path_ref, &options)
+    // Container (stack-side) metadata from the same event slice; it is exported next to
+    // the heap rows but never counted in the statistics.
+    let containers: Vec<crate::capture::types::AllocationInfo> =
+        rebuild_allocations_from_events(&events)
+            .into_iter()
+            .filter(|allocation| allocation.ptr >= crate::analysis::VIRTUAL_PTR_BASE)
+            .collect();
+
+    export_snapshot_with_containers(&snapshot, &containers, path_ref, &options)
         .map_err(|e| MemScopeError::error("export", "export_all_json", e.to_string()))?;
 
     debug!("Completed export_snapshot_to_json");
 
     debug!("Starting export_memory_passports_json");
 
-    export_memory_passports_json(path_ref, passport_tracker)
+    write_memory_passports_json(path_ref, passport_tracker, &passports)
         .map_err(|e| MemScopeError::error("export", "export_all_json", e.to_string()))?;
 
     debug!("Completed export_memory_passports_json");
 
     debug!("Starting export_leak_detection_json");
 
-    export_leak_detection_json(path_ref, passport_tracker)
+    write_leak_detection_json(path_ref, &passport_tracker.detect_leaks_in(&passports))
         .map_err(|e| MemScopeError::error("export", "export_all_json", e.to_string()))?;
 
     debug!("Completed export_leak_detection_json");
 
     debug!("Starting export_unsafe_ffi_json");
 
-    export_unsafe_ffi_json(path_ref, passport_tracker)
+    write_unsafe_ffi_json(path_ref, passport_tracker, &passports)
         .map_err(|e| MemScopeError::error("export", "export_all_json", e.to_string()))?;
 
     debug!("Completed export_unsafe_ffi_json");
@@ -565,28 +137,37 @@ pub fn export_all_json<P: AsRef<Path>>(
 
     debug!("Starting export_async_analysis_json");
 
-    export_async_analysis_json(path_ref, async_tracker)
+    write_async_analysis_json(path_ref, async_rebuilt)
         .map_err(|e| MemScopeError::error("export", "export_all_json", e.to_string()))?;
 
     debug!("Completed export_async_analysis_json");
 
     debug!("Starting export_ownership_graph_json");
 
+    // Same event slice as the snapshot above, so still one cut. Container rows keep the
+    // virtual ids that `rebuild_allocations_from_events` assigns them; the graph builder
+    // recognises those ids and never dereferences them.
     let typed_allocations: Vec<crate::capture::types::AllocationInfo> =
-        allocations.clone().into_iter().collect();
+        rebuild_allocations_from_events(&events);
 
     debug!(
         allocations = typed_allocations.len(),
         "Converted allocations to typed format"
     );
 
-    export_ownership_graph_json(path_ref, &typed_allocations, tracker.event_store())
-        .map_err(|e| MemScopeError::error("export", "export_all_json", e.to_string()))?;
+    export_ownership_graph_snapshot(
+        path_ref,
+        &typed_allocations,
+        &events,
+        &borrow_history,
+        captured_at,
+    )
+    .map_err(|e| MemScopeError::error("export", "export_all_json", e.to_string()))?;
 
     debug!("Completed export_ownership_graph_json");
 
     // Export task graph JSON
-    export_task_graph_json(path_ref)
+    export_task_graph_snapshot(path_ref, &events, Some(&task_graph))
         .map_err(|e| MemScopeError::error("export", "export_all_json", e.to_string()))?;
 
     debug!("Completed export_task_graph_json");
@@ -596,46 +177,52 @@ pub fn export_all_json<P: AsRef<Path>>(
     Ok(())
 }
 
-/// Export task graph JSON
-///
-/// This function exports the task graph including nodes (tasks) and edges (parent-child relationships).
-pub fn export_task_graph_json<P: AsRef<Path>>(base_path: P) -> MemScopeResult<()> {
-    use crate::task_registry::global_registry;
-
-    let base_path = base_path.as_ref();
-    let registry = global_registry();
-    let graph = registry.export_graph();
-
-    let json_string = serde_json::to_string_pretty(&graph)
-        .map_err(|e| MemScopeError::error("export", "export_task_graph_json", e.to_string()))?;
-
-    let file_path = base_path.join("task_graph.json");
-    std::fs::write(&file_path, json_string)
-        .map_err(|e| MemScopeError::error("export", "export_task_graph_json", e.to_string()))?;
-
-    tracing::info!("✅ Task graph JSON exported to: {:?}", file_path);
-
-    Ok(())
-}
-
 /// Export async task analysis to JSON
+///
+/// This function rebuilds task profiles from the event stream rather than
+/// reading live `AsyncTracker` state. This ensures the export always sees
+/// a consistent, complete snapshot regardless of concurrent tracking
+/// activity (no lock contention, no data loss from `try_lock` failures).
 pub fn export_async_analysis_json<P: AsRef<Path>>(
     path: P,
+    events: &[crate::event_store::MemoryEvent],
+    task_graph: &crate::task_registry::TaskGraph,
     async_tracker: &Arc<crate::capture::backends::async_tracker::AsyncTracker>,
 ) -> MemScopeResult<()> {
+    // Suppress allocator tracking during the entire export. The JSON
+    // serialisation and event replay perform many internal allocations
+    // that are not user allocations. Without suppression, these
+    // self-allocations enter the event stream, creating a feedback loop
+    // that inflates memory usage and corrupts the exported statistics.
+    let _suppression = crate::core::allocator::TrackingGuard::acquire();
+
     let path_ref = path.as_ref();
-    let stats = async_tracker.get_stats();
-    let profiles = async_tracker.get_all_profiles();
-    let snapshot = async_tracker.snapshot();
+
+    // Rebuild profiles from the event stream, merging live tracker metadata
+    // (task names, completion times, creation timestamps) in one pass.
+    let rebuilt =
+        crate::capture::backends::rebuild_with_live_tracker(events, task_graph, async_tracker);
+    write_async_analysis_json(path_ref, rebuilt)
+}
+
+fn write_async_analysis_json(
+    path_ref: &Path,
+    rebuilt: crate::capture::backends::profile_replay::RebuiltProfiles,
+) -> MemScopeResult<()> {
+    let profiles = rebuilt.profiles;
+    let live_allocations = rebuilt.live_allocations;
+
+    let total_tasks = profiles.len() as u64;
+    let active_tasks = profiles.iter().filter(|p| !p.is_completed()).count() as u64;
 
     let async_data = json!({
         "summary": {
-            "total_tasks": stats.total_tasks,
-            "active_tasks": stats.active_tasks,
-            "total_allocations": stats.total_allocations,
-            "total_memory_bytes": stats.total_memory,
-            "active_memory_bytes": stats.active_memory,
-            "peak_memory_bytes": stats.peak_memory,
+            "total_tasks": total_tasks,
+            "active_tasks": active_tasks,
+            "total_allocations": rebuilt.total_allocations,
+            "total_memory_bytes": rebuilt.total_memory,
+            "active_memory_bytes": rebuilt.current_memory,
+            "peak_memory_bytes": rebuilt.global_peak_memory,
         },
         "task_profiles": profiles.iter().map(|p| json!({
             "task_id": p.task_id,
@@ -655,7 +242,7 @@ pub fn export_async_analysis_json<P: AsRef<Path>>(
             "is_completed": p.is_completed(),
             "has_potential_leak": p.has_potential_leak(),
         })).collect::<Vec<_>>(),
-        "allocations": snapshot.allocations.iter().map(|a| json!({
+        "allocations": live_allocations.iter().map(|a| json!({
             "ptr": format!("0x{:x}", a.ptr),
             "size": a.size,
             "timestamp": a.timestamp,
@@ -762,6 +349,12 @@ pub fn export_dashboard_html_with_template<P: AsRef<Path>>(
     template: DashboardTemplate,
     async_tracker: Option<&Arc<crate::capture::backends::async_tracker::AsyncTracker>>,
 ) -> MemScopeResult<()> {
+    // Suppress allocator tracking during HTML rendering for the same reason
+    // as export_all_json: the renderer allocates heavily (template parsing,
+    // context building, HTML generation) and those allocations must not
+    // pollute the event stream.
+    let _suppression = crate::core::allocator::TrackingGuard::acquire();
+
     let path_ref = path.as_ref();
 
     // Create output directory if it doesn't exist
@@ -828,19 +421,32 @@ pub fn export_memory_passports_json<P: AsRef<Path>>(
     base_path: P,
     passport_tracker: &Arc<MemoryPassportTracker>,
 ) -> MemScopeResult<()> {
-    let base_path = base_path.as_ref();
-    let passports = passport_tracker.get_all_passports();
+    write_memory_passports_json(
+        base_path.as_ref(),
+        passport_tracker,
+        &passport_tracker.snapshot_passports(),
+    )
+}
 
+fn write_memory_passports_json(
+    base_path: &Path,
+    passport_tracker: &MemoryPassportTracker,
+    passports: &[crate::analysis::memory_passport_tracker::MemoryPassport],
+) -> MemScopeResult<()> {
     let passport_data: Vec<_> = passports
-        .values()
+        .iter()
         .map(|p| {
             serde_json::json!({
                 "passport_id": p.passport_id,
                 "allocation_ptr": format!("0x{:x}", p.allocation_ptr),
+                "generation": p.generation,
+                "superseded": p.superseded,
                 "size_bytes": p.size_bytes,
                 "created_at": p.created_at,
                 "lifecycle_events": p.lifecycle_events.len(),
-                "status": format!("{:?}", p.status_at_shutdown),
+                "history_truncated": p.history_truncated,
+                "status": format!("{:?}", passport_tracker.assess_status(p)),
+                "status_source": "assessed_at_export",
             })
         })
         .collect();
@@ -869,9 +475,16 @@ pub fn export_leak_detection_json<P: AsRef<Path>>(
     base_path: P,
     passport_tracker: &Arc<MemoryPassportTracker>,
 ) -> MemScopeResult<()> {
-    let base_path = base_path.as_ref();
-    let leak_result = passport_tracker.detect_leaks_at_shutdown();
+    write_leak_detection_json(
+        base_path.as_ref(),
+        &passport_tracker.detect_leaks_at_shutdown(),
+    )
+}
 
+fn write_leak_detection_json(
+    base_path: &Path,
+    leak_result: &crate::analysis::memory_passport_tracker::LeakDetectionResult,
+) -> MemScopeResult<()> {
     let leak_details: Vec<_> = leak_result
         .leak_details
         .iter()
@@ -910,16 +523,25 @@ pub fn export_unsafe_ffi_json<P: AsRef<Path>>(
     base_path: P,
     passport_tracker: &Arc<MemoryPassportTracker>,
 ) -> MemScopeResult<()> {
+    write_unsafe_ffi_json(
+        base_path.as_ref(),
+        passport_tracker,
+        &passport_tracker.snapshot_passports(),
+    )
+}
+
+fn write_unsafe_ffi_json(
+    base_path: &Path,
+    passport_tracker: &MemoryPassportTracker,
+    passports: &[crate::analysis::memory_passport_tracker::MemoryPassport],
+) -> MemScopeResult<()> {
     use crate::analysis::memory_passport_tracker::PassportStatus;
 
-    let base_path = base_path.as_ref();
-    let passports = passport_tracker.get_all_passports();
-
     let ffi_reports: Vec<_> = passports
-        .values()
+        .iter()
         .filter(|p| {
             matches!(
-                p.status_at_shutdown,
+                passport_tracker.assess_status(p),
                 PassportStatus::HandoverToFfi
                     | PassportStatus::InForeignCustody
                     | PassportStatus::FreedByForeign
@@ -929,8 +551,11 @@ pub fn export_unsafe_ffi_json<P: AsRef<Path>>(
             serde_json::json!({
                 "passport_id": p.passport_id,
                 "allocation_ptr": format!("0x{:x}", p.allocation_ptr),
+                "generation": p.generation,
+                "superseded": p.superseded,
                 "size_bytes": p.size_bytes,
-                "status": format!("{:?}", p.status_at_shutdown),
+                "history_truncated": p.history_truncated,
+                "status": format!("{:?}", passport_tracker.assess_status(p)),
                 "created_at": p.created_at,
                 "boundary_events": p.lifecycle_events.iter().map(|e| {
                     serde_json::json!({
@@ -1098,432 +723,9 @@ pub fn export_system_resources_json<P: AsRef<Path>>(base_path: P) -> MemScopeRes
     Ok(())
 }
 
-/// Export ownership graph analysis to JSON
-///
-/// This function exports the ownership graph including:
-/// - Node information (objects with their types and sizes)
-/// - Edge information (clone relationships)
-/// - Detected cycles (Rc/Arc retain cycles)
-/// - Diagnostics (clone storms, cycle warnings)
-pub fn export_ownership_graph_json<P: AsRef<Path>>(
-    base_path: P,
-    allocations: &[crate::capture::types::AllocationInfo],
-    event_store: &crate::event_store::EventStore,
-) -> MemScopeResult<()> {
-    let base_path = base_path.as_ref();
-
-    // Build ownership graph from allocations
-    let graph = build_ownership_graph_from_allocations(allocations, event_store);
-
-    // Get diagnostics
-    let diagnostics = graph.diagnostics(50);
-
-    // Get borrow history from global BorrowAnalyzer for integration
-    let borrow_analyzer = crate::analysis::borrow_analysis::get_global_borrow_analyzer();
-    let borrow_history = borrow_analyzer.get_borrow_history();
-
-    // Convert nodes to JSON
-    let nodes_json: Vec<_> = graph
-        .nodes
-        .iter()
-        .map(|node| {
-            json!({
-                "id": format!("0x{:x}", node.id.0),
-                "type_name": node.type_name,
-                "size": node.size,
-                "stack_ptr": node.stack_ptr.map(|p| format!("0x{:x}", p)),
-            })
-        })
-        .collect();
-
-    // Convert edges to JSON (including borrow edges from BorrowAnalyzer)
-    let mut edges_json: Vec<_> = graph
-        .edges
-        .iter()
-        .map(|edge| {
-            json!({
-                "from": format!("0x{:x}", edge.from.0),
-                "to": format!("0x{:x}", edge.to.0),
-                "kind": match edge.op {
-                    EdgeKind::Owns => "Owns",
-                    EdgeKind::Contains => "Contains",
-                    EdgeKind::Borrows => "Borrows",
-                    EdgeKind::RcClone => "RcClone",
-                    EdgeKind::ArcClone => "ArcClone",
-                    EdgeKind::Move => "Move",
-                    EdgeKind::SharedBorrow => "SharedBorrow",
-                    EdgeKind::MutBorrow => "MutBorrow",
-                },
-            })
-        })
-        .collect();
-
-    // Add borrow edges from BorrowAnalyzer
-    for event in &borrow_history {
-        let edge_kind = match event.borrow_info.borrow_type {
-            crate::analysis::borrow_analysis::BorrowType::Immutable => "SharedBorrow",
-            crate::analysis::borrow_analysis::BorrowType::Mutable => "MutBorrow",
-            crate::analysis::borrow_analysis::BorrowType::Shared => "Borrows",
-            crate::analysis::borrow_analysis::BorrowType::Weak => "Borrows",
-        };
-
-        edges_json.push(json!({
-            "from": format!("0x{:x}", event.borrow_info.ptr),
-            "to": format!("0x{:x}", event.borrow_info.ptr),
-            "kind": edge_kind,
-            "var_name": event.borrow_info.var_name,
-            "thread_id": event.borrow_info.thread_id,
-            "borrow_id": format!("{:?}", event.borrow_info.id),
-        }));
-    }
-
-    // Convert cycles to JSON
-    let cycles_json: Vec<_> = graph
-        .cycles
-        .iter()
-        .map(|cycle| {
-            let nodes: Vec<_> = cycle.iter().map(|id| format!("0x{:x}", id.0)).collect();
-            json!({
-                "nodes": nodes,
-            })
-        })
-        .collect();
-
-    // Convert issues to JSON
-    let issues_json: Vec<_> = diagnostics
-        .issues
-        .iter()
-        .map(|issue| match issue {
-            crate::analysis::ownership_graph::DiagnosticIssue::RcCycle { nodes, cycle_type } => {
-                json!({
-                    "type": "RcCycle",
-                    "cycle_type": format!("{:?}", cycle_type),
-                    "nodes": nodes.iter().map(|id| format!("0x{:x}", id.0)).collect::<Vec<_>>(),
-                    "severity": "error",
-                })
-            }
-            crate::analysis::ownership_graph::DiagnosticIssue::ArcCloneStorm {
-                clone_count,
-                threshold,
-            } => {
-                json!({
-                    "type": "ArcCloneStorm",
-                    "clone_count": clone_count,
-                    "threshold": threshold,
-                    "severity": "warning",
-                })
-            }
-        })
-        .collect();
-
-    // Build root cause info
-    let root_cause_json = graph.find_root_cause().map(|rc| {
-        json!({
-            "cause": match rc.root_cause {
-                crate::analysis::ownership_graph::RootCause::ArcCloneStorm => "ArcCloneStorm",
-                crate::analysis::ownership_graph::RootCause::RcCycle => "RcCycle",
-            },
-            "description": rc.description,
-            "impact": rc.impact,
-        })
-    });
-
-    let json_data = json!({
-        "metadata": {
-            "export_version": "2.0",
-            "specification": "ownership graph analysis",
-            "timestamp": std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs()
-        },
-        "summary": {
-            "total_nodes": graph.nodes.len(),
-            "total_edges": graph.edges.len(),
-            "total_cycles": graph.cycles.len(),
-            "rc_clone_count": diagnostics.rc_clone_count,
-            "arc_clone_count": diagnostics.arc_clone_count,
-            "has_issues": diagnostics.has_issues(),
-        },
-        "nodes": nodes_json,
-        "edges": edges_json,
-        "cycles": cycles_json,
-        "diagnostics": {
-            "issues": issues_json,
-            "root_cause": root_cause_json,
-        },
-    });
-
-    let file_path = base_path.join("ownership_graph.json");
-    let json_string = serde_json::to_string_pretty(&json_data).map_err(|e| {
-        MemScopeError::error("export", "export_ownership_graph_json", e.to_string())
-    })?;
-    std::fs::write(&file_path, json_string).map_err(|e| {
-        MemScopeError::error("export", "export_ownership_graph_json", e.to_string())
-    })?;
-
-    Ok(())
-}
-
-/// Build ownership graph from allocation data
-fn build_ownership_graph_from_allocations(
-    allocations: &[crate::capture::types::AllocationInfo],
-    event_store: &crate::event_store::EventStore,
-) -> OwnershipGraph {
-    debug!(
-        allocations = allocations.len(),
-        "Starting build_ownership_graph"
-    );
-    use crate::analysis::relation_inference::{detect_containers, Relation, RelationGraphBuilder};
-    use crate::event_store::MemoryEventType;
-
-    // Convert allocations to passport format for graph building
-    // IMPORTANT: For allocations with ptr=0, assign virtual unique IDs to avoid collisions
-    debug!("Converting allocations to passports");
-    let passports: Vec<(
-        NodeId,
-        String,
-        usize,
-        Vec<crate::analysis::ownership_graph::OwnershipEvent>,
-    )> = allocations
-        .iter()
-        .enumerate()
-        .map(|(idx, alloc)| {
-            let unique_ptr = if alloc.ptr == 0 {
-                crate::analysis::VIRTUAL_PTR_BASE + idx
-            } else {
-                alloc.ptr
-            };
-            let id = NodeId::from_ptr(unique_ptr);
-            let type_name = alloc
-                .type_name
-                .clone()
-                .unwrap_or_else(|| "unknown".to_string());
-            let size = alloc.size;
-
-            // Generate ownership events from allocation info
-            let events = vec![crate::analysis::ownership_graph::OwnershipEvent::new(
-                alloc.timestamp_alloc,
-                OwnershipOp::Create,
-                id,
-                None,
-            )];
-
-            // Detect smart pointer clones from type name
-            if type_name.contains("Arc<") || type_name.contains("Rc<") {
-                // Check for clone patterns
-                // Note: In real tracking, clone events would be recorded at runtime
-                // Here we infer from type and allocation patterns
-            }
-
-            (id, type_name, size, events)
-        })
-        .collect();
-    debug!(passports = passports.len(), "Created passports");
-
-    debug!("Building initial ownership graph");
-    let mut graph = OwnershipGraph::build(&passports);
-    debug!(
-        nodes = graph.nodes.len(),
-        edges = graph.edges.len(),
-        "Initial graph built"
-    );
-
-    // Build separate lists for HeapOwner and Container allocations
-    // with their original indices preserved for correct edge mapping
-
-    // Step 1: Collect HeapOwner allocations
-    let _heap_owner_original_indices: Vec<usize> = allocations
-        .iter()
-        .enumerate()
-        .filter(|(_, a)| a.timestamp_dealloc.is_none())
-        .map(|(i, _)| i)
-        .collect();
-
-    let heap_owner_allocations: Vec<ActiveAllocation> = allocations
-        .iter()
-        .enumerate()
-        .filter(|(_, a)| a.timestamp_dealloc.is_none())
-        .filter_map(|(_idx, a)| {
-            // Skip Container types (ptr is 0 or virtual pointer)
-            if a.ptr == 0 || is_virtual_pointer(a.ptr) {
-                return None;
-            }
-
-            Some(ActiveAllocation {
-                ptr: Some(a.ptr),
-                kind: crate::core::types::TrackKind::HeapOwner {
-                    ptr: a.ptr,
-                    size: a.size,
-                },
-                size: a.size,
-                allocated_at: a.timestamp_alloc,
-                var_name: a.var_name.clone(),
-                type_name: a.type_name.clone(),
-                thread_id: a.thread_id_u64,
-                call_stack_hash: None,
-                module_path: a.module_path.clone(),
-                stack_ptr: a.stack_ptr,
-            })
-        })
-        .collect();
-
-    // Update stack_ptr for HeapOwner nodes from AllocationInfo
-    for (i, alloc) in heap_owner_allocations.iter().enumerate() {
-        if i < graph.nodes.len() {
-            graph.nodes[i].stack_ptr = alloc.stack_ptr;
-        }
-    }
-
-    // Step 2: Collect Container events from event_store
-    // IMPORTANT: Only include containers that match HeapOwner thread_id
-    let valid_thread_ids: std::collections::HashSet<u64> =
-        heap_owner_allocations.iter().map(|a| a.thread_id).collect();
-
-    let container_events: Vec<_> = event_store
-        .snapshot()
-        .into_iter()
-        .filter(|e| e.event_type == MemoryEventType::Metadata)
-        .filter(|e| valid_thread_ids.contains(&e.thread_id))
-        .filter_map(|e| {
-            let type_name = e.type_name.clone().unwrap_or_default();
-            let var_name = e.var_name.clone().unwrap_or_default();
-            let is_container = type_name.contains("HashMap")
-                || type_name.contains("BTreeMap")
-                || type_name.contains("VecDeque")
-                || type_name.contains("RefCell")
-                || type_name.contains("RwLock");
-            if is_container {
-                return Some((e, type_name, var_name));
-            }
-            None
-        })
-        .collect();
-
-    // Assign virtual pointers to Container allocations to avoid ptr=0 collisions
-    let container_allocations: Vec<ActiveAllocation> = container_events
-        .iter()
-        .enumerate()
-        .map(|(idx, (e, type_name, var_name))| {
-            let virtual_ptr = 0x300000000u64 as usize + idx;
-            ActiveAllocation {
-                ptr: Some(virtual_ptr),
-                kind: crate::core::types::TrackKind::Container,
-                size: e.size.max(1),
-                allocated_at: e.timestamp,
-                var_name: Some(var_name.clone()),
-                type_name: Some(type_name.clone()),
-                thread_id: e.thread_id,
-                call_stack_hash: e.call_stack_hash,
-                module_path: e.module_path.clone(),
-                stack_ptr: None,
-            }
-        })
-        .collect();
-
-    let mut all_for_relation: Vec<ActiveAllocation> = Vec::new();
-    all_for_relation.extend(heap_owner_allocations.clone());
-    all_for_relation.extend(container_allocations.clone());
-
-    // Step 4: Run container detection with appropriate config
-    debug!("Running container detection");
-    let container_config = crate::analysis::relation_inference::ContainerConfig {
-        time_window_ns: 10_000_000, // 10ms (more permissive for test scenarios)
-        size_ratio: 10000,          // Allow very large ratio for containers with small size
-        lookahead: 10,              // Look at more candidates
-    };
-
-    let container_edges = detect_containers(&all_for_relation, Some(container_config));
-    debug!(
-        container_edges = container_edges.len(),
-        "Container detection completed"
-    );
-
-    // Step 5: Run RelationGraphBuilder for HeapOwner edges (Owns, Shares, Clone)
-    debug!("Running RelationGraphBuilder");
-    let relation_graph = RelationGraphBuilder::build(&heap_owner_allocations, None);
-    debug!(
-        edges = relation_graph.edges.len(),
-        "RelationGraphBuilder completed"
-    );
-
-    // Step 6: Add Container nodes to graph
-    // Use virtual pointer range for Container IDs to avoid collisions with HeapOwner IDs
-    const CONTAINER_PTR_BASE: usize = 0x300000000;
-    let heap_owner_count = graph.nodes.len();
-    for (idx, (e, type_name, _var_name)) in container_events.iter().enumerate() {
-        let node_id = NodeId::from_ptr(CONTAINER_PTR_BASE + idx);
-        graph.nodes.push(crate::analysis::ownership_graph::Node {
-            id: node_id,
-            type_name: type_name.clone(),
-            size: e.size,
-            stack_ptr: None,
-        });
-    }
-
-    // Step 7: Add HeapOwner edges (Owns, Shares, Clone)
-    for edge in &relation_graph.edges {
-        let from_id = graph.nodes[edge.from].id;
-        let to_id = graph.nodes[edge.to].id;
-
-        let edge_kind = match edge.relation {
-            Relation::Owns => EdgeKind::Owns,
-            Relation::Contains => EdgeKind::Contains,
-            Relation::Slice => EdgeKind::Borrows,
-            Relation::Clone => EdgeKind::RcClone,
-            Relation::Shares => EdgeKind::ArcClone,
-            Relation::Evolution => EdgeKind::Contains,
-            Relation::ArcClone => EdgeKind::ArcClone,
-            Relation::RcClone => EdgeKind::RcClone,
-            Relation::ImmutableBorrow => EdgeKind::SharedBorrow,
-            Relation::MutableBorrow => EdgeKind::MutBorrow,
-        };
-
-        graph.edges.push(crate::analysis::ownership_graph::Edge {
-            from: from_id,
-            to: to_id,
-            op: edge_kind,
-        });
-    }
-
-    // Step 8: Add Container → HeapOwner edges (Contains)
-    for edge in &container_edges {
-        // edge.from is Container index in all_for_relation
-        // edge.to is HeapOwner index in all_for_relation
-        let from_all_idx = edge.from;
-        let to_all_idx = edge.to;
-
-        // Validate indices
-        if from_all_idx < heap_owner_count || to_all_idx >= heap_owner_count {
-            continue; // Invalid edge indices
-        }
-
-        // Convert from container index to graph node index
-        let container_graph_idx = from_all_idx - heap_owner_count;
-        if container_graph_idx >= container_events.len() {
-            continue; // Invalid container index
-        }
-
-        let from_id = graph.nodes[heap_owner_count + container_graph_idx].id;
-        let to_id = graph.nodes[to_all_idx].id;
-
-        graph.edges.push(crate::analysis::ownership_graph::Edge {
-            from: from_id,
-            to: to_id,
-            op: EdgeKind::Contains,
-        });
-    }
-
-    debug!(
-        nodes = graph.nodes.len(),
-        edges = graph.edges.len(),
-        "Final ownership graph built"
-    );
-    graph
-}
-
 #[cfg(test)]
 mod tests {
+    use super::snapshot_json::{estimate_json_size, get_or_compute_type_info};
     use super::*;
 
     /// Objective: Verify that OptimizationLevel enum variants exist.

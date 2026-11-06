@@ -41,9 +41,9 @@ use crate::capture::system_monitor;
 use crate::core::tracker::MemoryTracker;
 use crate::event_store::{EventStore, MemoryEvent};
 use crate::render_engine::dashboard::renderer::rebuild_allocations_from_events;
-use crate::render_engine::export::{export_snapshot_to_json, ExportJsonOptions};
-use crate::snapshot::MemorySnapshot;
+use crate::render_engine::export::{export_snapshot_with_containers, ExportJsonOptions};
 
+use dashmap::DashMap;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -129,19 +129,61 @@ pub struct AllocationHotspot {
     pub location: Option<String>,
 }
 
+/// State of the bindings this tracker has reported for one address.
+///
+/// Keyed by binding serial, *not* by address: an address can hold several generations and
+/// a release must remove only the identity it closed. Keeping one entry per address made
+/// a degraded release drop the surviving binding's state, so the next observation of that
+/// block published a second allocation.
+type RecordedState = std::collections::HashMap<u64, RecordedBinding>;
+/// Serialised slot holding the state of one address.
+type RecordedSlot = Arc<Mutex<RecordedState>>;
+/// Address -> recorded slot. The map is shared by all clones of a tracker.
+type RecordedBindings = Arc<DashMap<usize, RecordedSlot>>;
+
+/// What this tracker has already reported for an address.
+///
+/// The core cache can be populated by the allocator hook without any event, and a
+/// released address can be reused by a *new* block. Both cases must be told apart from
+/// "this tracker already emitted the event", which is what `serial` (binding identity)
+/// and `typed` (metadata present) express.
+#[derive(Debug, Clone, Copy)]
+struct RecordedBinding {
+    /// Size recorded with the event.
+    size: usize,
+    /// Whether the recorded event carried type information.
+    typed: bool,
+    /// Whether the current task was already charged for this binding. A cache entry only
+    /// means "the core tracker knows the block", never "the allocator charged it".
+    charged: bool,
+}
+
 pub struct Tracker {
     inner: Arc<MemoryTracker>,
     event_store: Arc<EventStore>,
+    /// Addresses for which *this* tracker already emitted an allocation event, with the
+    /// size recorded at that moment.
+    ///
+    /// The core cache can be populated by the allocator hook without any event
+    /// (`Tracker::global` shares the hook's tracker), so cache presence alone must not
+    /// be treated as "already reported".
+    /// One slot per address; the slot also serialises the "first record" decision so
+    /// concurrent observers of the same block cannot each emit an event.
+    recorded_bindings: RecordedBindings,
     config: Arc<Mutex<TrackerConfig>>,
     start_time: Instant,
     system_snapshots: Arc<Mutex<Vec<SystemSnapshot>>>,
 }
+
+pub(crate) mod allocator_events;
+mod release;
 
 impl Clone for Tracker {
     fn clone(&self) -> Self {
         Tracker {
             inner: self.inner.clone(),
             event_store: self.event_store.clone(),
+            recorded_bindings: self.recorded_bindings.clone(),
             config: self.config.clone(),
             start_time: Instant::now(), // Use current time for cloned tracker
             system_snapshots: self.system_snapshots.clone(),
@@ -158,9 +200,11 @@ pub struct TrackerConfig {
 
 impl Tracker {
     pub fn new() -> Self {
+        let _suppression = crate::core::allocator::TrackingGuard::acquire();
         Self {
             inner: Arc::new(MemoryTracker::new()),
             event_store: Arc::new(EventStore::new()),
+            recorded_bindings: Arc::new(DashMap::new()),
             config: Arc::new(Mutex::new(TrackerConfig {
                 sampling: SamplingConfig::default(),
                 auto_export_on_drop: false,
@@ -195,34 +239,34 @@ impl Tracker {
         Self::new()
     }
 
-    pub fn global() -> Self {
-        use crate::core::tracker::get_tracker;
-        static GLOBAL_EVENT_STORE: std::sync::OnceLock<Arc<EventStore>> =
-            std::sync::OnceLock::new();
-        static GLOBAL_CONFIG: std::sync::OnceLock<Arc<Mutex<TrackerConfig>>> =
-            std::sync::OnceLock::new();
-        static GLOBAL_SYSTEM_SNAPSHOTS: std::sync::OnceLock<Arc<Mutex<Vec<SystemSnapshot>>>> =
-            std::sync::OnceLock::new();
-
+    /// Create a facade `Tracker` that shares `inner`, `event_store`, and
+    /// `recorded_bindings` with `self` but has its own independent `config`
+    /// and `start_time`.
+    ///
+    /// This is used by `GlobalTracker::with_config` to connect the facade
+    /// to the allocator's shared capture state, so that real alloc/free
+    /// events from the allocator hook are visible to the facade's consumers.
+    /// The facade gets its own config so that user-facing settings (sampling,
+    /// auto-export) do not modify the allocator callback's behavior.
+    pub(crate) fn shared_clone(&self) -> Self {
         Self {
-            inner: get_tracker(),
-            event_store: GLOBAL_EVENT_STORE
-                .get_or_init(|| Arc::new(EventStore::new()))
-                .clone(),
-            config: GLOBAL_CONFIG
-                .get_or_init(|| {
-                    Arc::new(Mutex::new(TrackerConfig {
-                        sampling: SamplingConfig::default(),
-                        auto_export_on_drop: false,
-                        export_path: None,
-                    }))
-                })
-                .clone(),
+            inner: Arc::clone(&self.inner),
+            event_store: Arc::clone(&self.event_store),
+            recorded_bindings: Arc::clone(&self.recorded_bindings),
+            // New, independent config so facade changes don't leak into the
+            // allocator callback path.
+            config: Arc::new(Mutex::new(TrackerConfig {
+                sampling: SamplingConfig::default(),
+                auto_export_on_drop: false,
+                export_path: None,
+            })),
             start_time: Instant::now(),
-            system_snapshots: GLOBAL_SYSTEM_SNAPSHOTS
-                .get_or_init(|| Arc::new(Mutex::new(Vec::new())))
-                .clone(),
+            system_snapshots: Arc::clone(&self.system_snapshots),
         }
+    }
+
+    pub fn global() -> Self {
+        allocator_events::global_tracker().clone()
     }
 
     pub fn with_system_monitoring(self) -> Self {
@@ -253,6 +297,7 @@ impl Tracker {
         line: u32,
         module_path: &str,
     ) {
+        let _suppression = crate::core::allocator::TrackingGuard::acquire();
         if let Ok(cfg) = self.config.lock() {
             if cfg.sampling.sample_rate < 1.0 {
                 use std::collections::hash_map::DefaultHasher;
@@ -293,6 +338,7 @@ impl Tracker {
         line: u32,
         module_path: &str,
     ) {
+        let _gate = crate::core::allocator::capture_gate::acquire(0);
         let thread_id_u64 = crate::utils::current_thread_id_u64();
 
         let mut event = crate::event_store::MemoryEvent::clone_event(
@@ -320,24 +366,139 @@ impl Tracker {
     ) {
         let type_name = var.get_type_name().to_string();
         let kind = var.track_kind();
+        let metadata_size = match kind {
+            crate::core::types::TrackKind::Container | crate::core::types::TrackKind::Value => {
+                var.get_size_estimate()
+            }
+            _ => 0,
+        };
+        // User-defined Trackable methods may reenter, panic, or terminate the
+        // process. Invoke them before taking the process-wide capture gate so
+        // an exit-export worker can still read the already committed history.
+        let _gate = crate::core::allocator::capture_gate::acquire(0);
 
         let thread_id_u64 = crate::utils::current_thread_id_u64();
 
         match kind {
             crate::core::types::TrackKind::HeapOwner { ptr, size } => {
-                // Only HeapOwner gets tracked in inner tracker
+                // The core cache can already hold this address because the allocator hook
+                // registered the block *without* emitting an event, or because a previous
+                // block at this address was released and the address was reused. Only the
+                // binding identity (serial) plus the presence of type metadata tell those
+                // cases apart from a real duplicate observation.
+                // Serialise the whole "read index -> update cache -> emit event -> write
+                // index" sequence per address. Without this, N threads observing the same
+                // block at once each saw "not recorded yet" and produced N allocation
+                // events for one block (plan A06 follow-up).
+                let slot = self.recorded_slot(ptr);
+                let mut slot_guard = match slot.lock() {
+                    Ok(guard) => guard,
+                    Err(poisoned) => poisoned.into_inner(),
+                };
                 if let Err(e) = self.inner.track_allocation(ptr, size) {
                     tracing::error!("Failed to track allocation at ptr {:x}: {}", ptr, e);
                     return;
                 }
 
+                let serial = self.inner.binding_serial(ptr).unwrap_or(0);
+                let existing = slot_guard.get(&serial).copied();
+                let same_binding = existing.is_some_and(|binding| binding.size == size);
+
+                if same_binding && existing.is_some_and(|binding| binding.typed) {
+                    // Same binding, same size, type already reported: refresh the cache row
+                    // only, never a second event.
+                    if let Err(e) = self.inner.associate_var(
+                        ptr,
+                        name.to_string(),
+                        type_name,
+                        Some(file),
+                        Some(line),
+                    ) {
+                        tracing::error!(
+                            "Failed to associate var '{}' at ptr {:x}: {}",
+                            name,
+                            ptr,
+                            e
+                        );
+                    }
+                    return;
+                }
+
+                if same_binding {
+                    // The allocation is already reported (for example by an allocator
+                    // reallocation event) but without type information: attach the type as an
+                    // annotation so projections can name the block without counting a second
+                    // allocation. Task memory is charged only if nobody did it yet.
+                    let already_charged = existing.is_some_and(|binding| binding.charged);
+                    if !already_charged {
+                        crate::task_registry::global_registry().record_allocation(size);
+                    }
+                    let mut annotation = MemoryEvent::metadata(
+                        name.to_string(),
+                        type_name.clone(),
+                        thread_id_u64,
+                        size,
+                    );
+                    annotation.ptr = ptr;
+                    annotation.binding_serial = Some(serial);
+                    annotation.source_file = Some(file.to_string());
+                    annotation.source_line = Some(line);
+                    annotation.module_path = Some(module_path.to_string());
+                    self.event_store.record(annotation);
+                    slot_guard.insert(
+                        serial,
+                        RecordedBinding {
+                            size,
+                            typed: true,
+                            charged: true,
+                        },
+                    );
+
+                    if let Err(e) = self.inner.associate_var(
+                        ptr,
+                        name.to_string(),
+                        type_name,
+                        Some(file),
+                        Some(line),
+                    ) {
+                        tracing::error!(
+                            "Failed to associate var '{}' at ptr {:x}: {}",
+                            name,
+                            ptr,
+                            e
+                        );
+                    }
+                    return;
+                }
+
+                // Either the first typed observation of a hook-registered block, or a new
+                // binding (fresh address, or a new serial after the address was reused).
+                // Emit one allocation event and book task memory exactly once: the
+                // allocator marks the addresses it charged, so a locally created tracker
+                // observing the same block does not charge it twice. Asking the core cache
+                // whether the address exists cannot answer this — this very call has just
+                // inserted it.
+                let charge_outcome = allocator_events::allocator_charge(ptr).unwrap_or_else(|| {
+                    crate::task_registry::global_registry().try_record_allocation(size)
+                });
+
                 let mut event = MemoryEvent::allocate(ptr, size, thread_id_u64);
+                event.binding_serial = Some(serial);
+                event.charge_outcome = Some(charge_outcome);
                 event.var_name = Some(name.to_string());
                 event.type_name = Some(type_name.clone());
                 event.source_file = Some(file.to_string());
                 event.source_line = Some(line);
                 event.module_path = Some(module_path.to_string());
                 self.event_store.record(event);
+                slot_guard.insert(
+                    serial,
+                    RecordedBinding {
+                        size,
+                        typed: true,
+                        charged: true,
+                    },
+                );
 
                 if let Err(e) = self.inner.associate_var(
                     ptr,
@@ -349,29 +510,36 @@ impl Tracker {
                     tracing::error!("Failed to associate var '{}' at ptr {:x}: {}", name, ptr, e);
                 }
             }
+
             crate::core::types::TrackKind::StackOwner {
                 ptr: stack_ptr,
                 heap_ptr,
                 size,
             } => {
-                // StackOwner records stack pointer metadata for clone detection
-                // Use stack_ptr as key for track_allocation to avoid overwriting Arc clones
-                // This allows inner tracker to count allocations while preserving clone detection
-
-                if let Err(e) = self.inner.track_allocation(stack_ptr, size) {
-                    tracing::error!("Failed to track allocation at ptr {:x}: {}", stack_ptr, e);
-                    return;
-                }
-
-                let mut event = MemoryEvent::allocate(heap_ptr, size, thread_id_u64);
-                event.var_name = Some(name.to_string());
-                event.type_name = Some(type_name.clone());
-                event.source_file = Some(file.to_string());
-                event.source_line = Some(line);
-                event.module_path = Some(module_path.to_string());
-                // Store stack pointer in custom metadata for clone detection
-                event.stack_ptr = Some(stack_ptr);
-                self.event_store.record(event);
+                // A smart pointer owns a heap block that the allocator already reported,
+                // and this observation knows the *pointee* size, not the block size:
+                // `Arc::new([u8; 64])` allocates 80 bytes, not 64. Publishing an
+                // allocation here counted the same memory twice (80 + 64). Record the
+                // metadata against the pointee instead and keep the stack pointer so
+                // clone detection can still relate the two views.
+                // The pointee sits *inside* its allocation (an `Arc` stores the value
+                // after its reference counts), so neither the address nor the pointee
+                // size identifies the block. Look up the containing binding and annotate
+                // that identity; without one the annotation stays a diagnostic.
+                let containing = self.inner.binding_containing(heap_ptr);
+                let mut annotation = MemoryEvent::metadata(
+                    name.to_string(),
+                    type_name.clone(),
+                    thread_id_u64,
+                    containing.map_or(size, |binding| binding.size),
+                );
+                annotation.ptr = containing.map_or(heap_ptr, |binding| binding.ptr);
+                annotation.binding_serial = containing.map(|binding| binding.serial);
+                annotation.stack_ptr = Some(stack_ptr);
+                annotation.source_file = Some(file.to_string());
+                annotation.source_line = Some(line);
+                annotation.module_path = Some(module_path.to_string());
+                self.event_store.record(annotation);
 
                 if let Err(e) = self.inner.associate_var(
                     heap_ptr,
@@ -395,7 +563,7 @@ impl Tracker {
                     name.to_string(),
                     type_name,
                     thread_id_u64,
-                    var.get_size_estimate(),
+                    metadata_size,
                 );
                 event.source_file = Some(file.to_string());
                 event.source_line = Some(line);
@@ -405,20 +573,20 @@ impl Tracker {
         }
     }
 
-    pub fn track_deallocation(&self, ptr: usize) -> crate::TrackingResult<bool> {
-        let size = self.inner.get_allocation_size(ptr).unwrap_or(0);
+    /// Number of duplicate observations of an already tracked address.
+    ///
+    /// These sightings are not counted as allocations or bytes; the value exists so
+    /// reports can show that the capture layer saw the same block twice.
+    pub fn duplicate_observations(&self) -> u64 {
+        self.inner.duplicate_observations()
+    }
 
-        let result = self.inner.track_deallocation(ptr)?;
-
-        // Only record event if deallocation was successful (ptr was tracked)
-        if result {
-            let thread_id_u64 = crate::utils::current_thread_id_u64();
-
-            let event = MemoryEvent::deallocate(ptr, size, thread_id_u64);
-            self.event_store.record(event);
-        }
-
-        Ok(result)
+    /// Releases that could only be matched by address.
+    ///
+    /// Non-zero means a release arrived for an address that still held several live
+    /// bindings, so the closed binding was the oldest one rather than a named identity.
+    pub fn degraded_releases(&self) -> u64 {
+        self.inner.degraded_releases()
     }
 
     pub fn events(&self) -> Vec<MemoryEvent> {
@@ -471,6 +639,7 @@ impl Tracker {
     }
 
     pub fn analyze(&self) -> AnalysisReport {
+        let _suppression = crate::core::allocator::TrackingGuard::acquire();
         let stats = self.stats();
         let events = self.event_store().snapshot();
         let allocations = rebuild_allocations_from_events(&events);
@@ -577,34 +746,71 @@ impl Default for Tracker {
 
 impl Drop for Tracker {
     fn drop(&mut self) {
-        // Auto-record deallocation for all active allocations
+        // Dropping a tracker (or a clone of one that shares the event store) is a
+        // *profiler* event, not an object release. Emitting `Deallocate` for every
+        // still-live allocation here fabricated free events: they silently
+        // converted live objects into "freed" ones and destroyed the accuracy of
+        // every downstream statistic (see plan A01).
+        //
+        // The only thing a drop is still allowed to do is the legacy compatibility
+        // snapshot enabled by `with_auto_export`. That path is read-only with
+        // respect to the event store.
+        self.export_legacy_on_drop();
+    }
+}
+
+impl Tracker {
+    /// Write the legacy auto-export snapshot if `with_auto_export` was enabled.
+    ///
+    /// This is a compatibility entry point, not a session end: it only projects the
+    /// events recorded so far (`memory_analysis.json`, `lifetime.json`,
+    /// `thread_analysis.json`) and never appends release events, so a live object
+    /// stays a live object in the exported files.
+    fn export_legacy_on_drop(&self) {
+        let _suppression = crate::core::allocator::TrackingGuard::acquire();
+        let Some(path) = self.auto_export_path() else {
+            return;
+        };
+
+        // Use the event store as the single data source (covers both HeapOwner and
+        // Container observations).
         let events = self.event_store().snapshot();
-        let allocations = rebuild_allocations_from_events(&events);
 
-        // Record deallocation events for all active allocations
-        let thread_id_u64 = crate::utils::current_thread_id_u64();
-
-        for alloc in &allocations {
-            let event = MemoryEvent::deallocate(alloc.ptr, alloc.size, thread_id_u64);
-            self.event_store().record(event);
+        // The live list cannot reconstruct cumulative totals or the high-water mark, so
+        // the legacy drop export projects the same ledger cut as `export_all_json`
+        // instead of re-aggregating what is still alive (plan A06 follow-up).
+        let mut ledger = crate::snapshot::BindingLedger::new();
+        for event in &events {
+            ledger.apply(event);
         }
-
-        if let Ok(cfg) = self.config.lock() {
-            if cfg.auto_export_on_drop {
-                if let Some(ref path) = cfg.export_path {
-                    // Use event_store as unified data source (includes both HeapOwner and Container allocations)
-                    let events = self.event_store().snapshot();
-                    let allocations = rebuild_allocations_from_events(&events);
-                    let snapshot = MemorySnapshot::from_allocation_infos(allocations);
-                    let options = ExportJsonOptions::default();
-                    if let Err(e) =
-                        export_snapshot_to_json(&snapshot, std::path::Path::new(path), &options)
-                    {
-                        tracing::error!("Failed to auto-export on drop: {}", e);
-                    }
-                }
-            }
+        let cut_ns = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|elapsed| elapsed.as_nanos().min(u128::from(u64::MAX)) as u64)
+            .unwrap_or(0);
+        let snapshot = crate::snapshot::builder::project_snapshot(&ledger, cut_ns);
+        let containers: Vec<crate::capture::types::AllocationInfo> =
+            rebuild_allocations_from_events(&events)
+                .into_iter()
+                .filter(|allocation| allocation.ptr >= crate::analysis::VIRTUAL_PTR_BASE)
+                .collect();
+        let options = ExportJsonOptions::default();
+        if let Err(e) = export_snapshot_with_containers(
+            &snapshot,
+            &containers,
+            std::path::Path::new(&path),
+            &options,
+        ) {
+            tracing::error!("Failed to auto-export on drop: {}", e);
         }
+    }
+
+    /// Read the configured legacy auto-export path, if enabled.
+    fn auto_export_path(&self) -> Option<String> {
+        let cfg = self.config.lock().ok()?;
+        if !cfg.auto_export_on_drop {
+            return None;
+        }
+        cfg.export_path.clone()
     }
 }
 
@@ -681,485 +887,4 @@ macro_rules! track_clone {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_tracker_creation() {
-        let tracker = Tracker::new();
-        let _ = tracker;
-    }
-
-    #[test]
-    fn test_tracker_with_config() {
-        let tracker = Tracker::new()
-            .with_sampling(SamplingConfig::demo())
-            .with_system_monitoring();
-        let _ = tracker;
-    }
-
-    #[test]
-    fn test_track_macro() {
-        let tracker = tracker!();
-        let my_vec = vec![1, 2, 3];
-        track!(tracker, my_vec);
-    }
-
-    #[test]
-    fn test_analyze() {
-        let tracker = tracker!();
-        let data = vec![1, 2, 3];
-        track!(tracker, data);
-        let report = tracker.analyze();
-        assert!(report.total_allocations > 0);
-    }
-
-    #[cfg(target_os = "macos")]
-    #[test]
-    fn test_system_monitoring() {
-        system_monitor::SystemMonitor::global();
-        std::thread::sleep(std::time::Duration::from_millis(350));
-
-        let cpu = system_monitor::cpu_usage();
-        let mem = system_monitor::memory_used();
-        let total = system_monitor::memory_total();
-
-        println!("CPU: {:.2}%", cpu);
-        println!("Memory: {} / {} bytes", mem, total);
-
-        assert!((0.0..=100.0).contains(&cpu));
-        assert!(total > 0, "total memory should be initialized by now");
-    }
-
-    #[test]
-    fn test_current_system_snapshot() {
-        std::thread::sleep(std::time::Duration::from_millis(150));
-
-        let tracker = tracker!();
-        let snapshot = tracker.current_system_snapshot();
-
-        println!(
-            "Snapshot: CPU={:.2}%, Mem={:.2}%",
-            snapshot.cpu_usage_percent, snapshot.memory_usage_percent
-        );
-
-        assert!(snapshot.cpu_usage_percent >= 0.0 && snapshot.cpu_usage_percent <= 100.0);
-    }
-
-    #[test]
-    fn test_sampling_config_default() {
-        let config = SamplingConfig::default();
-        assert_eq!(config.sample_rate, 1.0);
-        assert!(!config.capture_call_stack);
-        assert_eq!(config.max_stack_depth, 10);
-    }
-
-    #[test]
-    fn test_sampling_config_demo() {
-        let config = SamplingConfig::demo();
-        assert_eq!(config.sample_rate, 0.1);
-        assert!(!config.capture_call_stack);
-        assert_eq!(config.max_stack_depth, 5);
-    }
-
-    #[test]
-    fn test_sampling_config_full() {
-        let config = SamplingConfig::full();
-        assert_eq!(config.sample_rate, 1.0);
-        assert!(config.capture_call_stack);
-        assert_eq!(config.max_stack_depth, 20);
-    }
-
-    #[test]
-    fn test_sampling_config_high_performance() {
-        let config = SamplingConfig::high_performance();
-        assert_eq!(config.sample_rate, 0.01);
-        assert!(!config.capture_call_stack);
-        assert_eq!(config.max_stack_depth, 0);
-    }
-
-    #[test]
-    fn test_sampling_config_clone() {
-        let config = SamplingConfig::full();
-        let cloned = config.clone();
-        assert_eq!(cloned.sample_rate, config.sample_rate);
-        assert_eq!(cloned.capture_call_stack, config.capture_call_stack);
-    }
-
-    #[test]
-    fn test_sampling_config_debug() {
-        let config = SamplingConfig::default();
-        let debug_str = format!("{:?}", config);
-        assert!(debug_str.contains("SamplingConfig"));
-        assert!(debug_str.contains("sample_rate"));
-    }
-
-    #[test]
-    fn test_system_snapshot_default() {
-        let snapshot = SystemSnapshot::default();
-        assert_eq!(snapshot.timestamp, 0);
-        assert_eq!(snapshot.cpu_usage_percent, 0.0);
-        assert_eq!(snapshot.memory_usage_bytes, 0);
-        assert_eq!(snapshot.thread_count, 0);
-    }
-
-    #[test]
-    fn test_system_snapshot_clone() {
-        let snapshot = SystemSnapshot {
-            timestamp: 1000,
-            cpu_usage_percent: 50.0,
-            memory_usage_bytes: 1024 * 1024,
-            memory_usage_percent: 25.0,
-            thread_count: 4,
-            disk_read_bps: 1000,
-            disk_write_bps: 500,
-            network_rx_bps: 2000,
-            network_tx_bps: 1000,
-            gpu_usage_percent: 30.0,
-            gpu_memory_used: 512 * 1024 * 1024,
-            gpu_memory_total: 2 * 1024 * 1024 * 1024,
-        };
-
-        let cloned = snapshot.clone();
-        assert_eq!(cloned.timestamp, 1000);
-        assert_eq!(cloned.cpu_usage_percent, 50.0);
-    }
-
-    #[test]
-    fn test_system_snapshot_debug() {
-        let snapshot = SystemSnapshot::default();
-        let debug_str = format!("{:?}", snapshot);
-        assert!(debug_str.contains("SystemSnapshot"));
-    }
-
-    #[test]
-    fn test_analysis_report_creation() {
-        let report = AnalysisReport {
-            total_allocations: 100,
-            total_deallocations: 50,
-            active_allocations: 50,
-            peak_memory_bytes: 1024 * 1024,
-            current_memory_bytes: 512 * 1024,
-            allocation_rate_per_sec: 10.0,
-            deallocation_rate_per_sec: 5.0,
-            hotspots: vec![],
-            system_snapshots: vec![],
-        };
-
-        assert_eq!(report.total_allocations, 100);
-        assert_eq!(report.active_allocations, 50);
-    }
-
-    #[test]
-    fn test_analysis_report_clone() {
-        let report = AnalysisReport {
-            total_allocations: 10,
-            total_deallocations: 5,
-            active_allocations: 5,
-            peak_memory_bytes: 1024,
-            current_memory_bytes: 512,
-            allocation_rate_per_sec: 1.0,
-            deallocation_rate_per_sec: 0.5,
-            hotspots: vec![],
-            system_snapshots: vec![],
-        };
-
-        let cloned = report.clone();
-        assert_eq!(cloned.total_allocations, 10);
-    }
-
-    #[test]
-    fn test_analysis_report_debug() {
-        let report = AnalysisReport {
-            total_allocations: 0,
-            total_deallocations: 0,
-            active_allocations: 0,
-            peak_memory_bytes: 0,
-            current_memory_bytes: 0,
-            allocation_rate_per_sec: 0.0,
-            deallocation_rate_per_sec: 0.0,
-            hotspots: vec![],
-            system_snapshots: vec![],
-        };
-
-        let debug_str = format!("{:?}", report);
-        assert!(debug_str.contains("AnalysisReport"));
-    }
-
-    #[test]
-    fn test_allocation_hotspot_creation() {
-        let hotspot = AllocationHotspot {
-            var_name: "my_vec".to_string(),
-            type_name: "Vec<u8>".to_string(),
-            total_size: 1024,
-            allocation_count: 10,
-            location: Some("main.rs:42".to_string()),
-        };
-
-        assert_eq!(hotspot.var_name, "my_vec");
-        assert_eq!(hotspot.total_size, 1024);
-    }
-
-    #[test]
-    fn test_allocation_hotspot_clone() {
-        let hotspot = AllocationHotspot {
-            var_name: "data".to_string(),
-            type_name: "String".to_string(),
-            total_size: 100,
-            allocation_count: 5,
-            location: None,
-        };
-
-        let cloned = hotspot.clone();
-        assert_eq!(cloned.var_name, "data");
-    }
-
-    #[test]
-    fn test_allocation_hotspot_debug() {
-        let hotspot = AllocationHotspot {
-            var_name: "test".to_string(),
-            type_name: "i32".to_string(),
-            total_size: 4,
-            allocation_count: 1,
-            location: None,
-        };
-
-        let debug_str = format!("{:?}", hotspot);
-        assert!(debug_str.contains("AllocationHotspot"));
-    }
-
-    #[test]
-    fn test_tracker_clone() {
-        let tracker = Tracker::new();
-        let cloned = tracker.clone();
-
-        let report1 = tracker.analyze();
-        let report2 = cloned.analyze();
-
-        // Both should have the same underlying data
-        assert_eq!(report1.total_allocations, report2.total_allocations);
-    }
-
-    #[test]
-    fn test_tracker_with_sampling() {
-        let tracker = Tracker::new().with_sampling(SamplingConfig::high_performance());
-        let data = vec![1, 2, 3];
-        tracker.track_as(&data, "data", "test.rs", 1, "test_module");
-    }
-
-    #[test]
-    fn test_tracker_elapsed() {
-        let tracker = Tracker::new();
-        std::thread::sleep(std::time::Duration::from_millis(10));
-        let elapsed = tracker.elapsed();
-        assert!(elapsed >= std::time::Duration::from_millis(10));
-    }
-
-    #[test]
-    fn test_tracker_with_system_monitoring() {
-        let tracker = Tracker::new().with_system_monitoring();
-        let _ = tracker.current_system_snapshot();
-    }
-
-    #[test]
-    fn test_tracker_track_as_multiple() {
-        let tracker = Tracker::new();
-        let data = vec![1, 2, 3, 4, 5];
-
-        tracker.track_as(&data, "my_vec", "test.rs", 10, "test_module");
-        tracker.track_as(&data, "my_vec", "test.rs", 20, "test_module");
-
-        let report = tracker.analyze();
-        let _ = report.total_allocations;
-    }
-
-    #[test]
-    fn test_sampling_config_custom() {
-        let config = SamplingConfig {
-            sample_rate: 0.5,
-            capture_call_stack: true,
-            max_stack_depth: 15,
-        };
-
-        assert!((config.sample_rate - 0.5).abs() < 0.001);
-        assert!(config.capture_call_stack);
-        assert_eq!(config.max_stack_depth, 15);
-    }
-
-    #[test]
-    fn test_analysis_report_with_hotspots() {
-        let report = AnalysisReport {
-            total_allocations: 100,
-            total_deallocations: 50,
-            active_allocations: 50,
-            peak_memory_bytes: 1024 * 1024,
-            current_memory_bytes: 512 * 1024,
-            allocation_rate_per_sec: 10.0,
-            deallocation_rate_per_sec: 5.0,
-            hotspots: vec![AllocationHotspot {
-                var_name: "test".to_string(),
-                type_name: "Vec<u8>".to_string(),
-                total_size: 1024,
-                allocation_count: 10,
-                location: Some("test.rs:1".to_string()),
-            }],
-            system_snapshots: vec![],
-        };
-
-        assert_eq!(report.hotspots.len(), 1);
-    }
-
-    #[test]
-    fn test_tracker_with_sampling_and_monitoring() {
-        let tracker = Tracker::new()
-            .with_sampling(SamplingConfig::demo())
-            .with_system_monitoring();
-
-        let data = vec![1, 2, 3];
-        tracker.track_as(&data, "data", "test.rs", 1, "test_module");
-
-        let snapshot = tracker.current_system_snapshot();
-        assert!(snapshot.cpu_usage_percent >= 0.0);
-    }
-
-    #[test]
-    fn test_tracker_events() {
-        let tracker = Tracker::new();
-        let data = vec![1, 2, 3];
-        tracker.track_as(&data, "test_data", "test.rs", 1, "test_module");
-
-        let events = tracker.events();
-        assert!(!events.is_empty());
-    }
-
-    #[test]
-    fn test_tracker_event_store() {
-        let tracker = Tracker::new();
-        let _store = tracker.event_store();
-    }
-
-    #[test]
-    fn test_tracker_stats() {
-        let tracker = Tracker::new();
-        let stats = tracker.stats();
-
-        assert_eq!(stats.total_allocations, 0);
-        assert_eq!(stats.active_allocations, 0);
-    }
-
-    #[test]
-    fn test_tracker_stats_with_data() {
-        let tracker = Tracker::new();
-        let data = vec![1u8; 1024];
-        tracker.track_as(&data, "buffer", "test.rs", 1, "test_module");
-
-        let stats = tracker.stats();
-        assert!(
-            stats.total_allocations >= 1,
-            "Should have at least one allocation after tracking data"
-        );
-    }
-
-    #[test]
-    fn test_tracker_system_snapshots() {
-        let tracker = Tracker::new().with_system_monitoring();
-        let snapshots = tracker.system_snapshots();
-        assert!(!snapshots.is_empty());
-    }
-
-    #[test]
-    fn test_tracker_inner() {
-        let tracker = Tracker::new();
-        let _inner = tracker.inner();
-    }
-
-    #[test]
-    fn test_tracker_with_auto_export() {
-        let tracker = Tracker::new().with_auto_export("/tmp/test_export");
-        let data = vec![1, 2, 3];
-        tracker.track_as(&data, "test", "test.rs", 1, "test_module");
-    }
-
-    #[test]
-    fn test_sampling_config_zero_rate() {
-        let config = SamplingConfig {
-            sample_rate: 0.0,
-            capture_call_stack: false,
-            max_stack_depth: 0,
-        };
-
-        let tracker = Tracker::new().with_sampling(config);
-        let data = vec![1, 2, 3];
-        tracker.track_as(&data, "test", "test.rs", 1, "test_module");
-    }
-
-    #[test]
-    fn test_analysis_report_serialization() {
-        let report = AnalysisReport {
-            total_allocations: 100,
-            total_deallocations: 50,
-            active_allocations: 50,
-            peak_memory_bytes: 1024,
-            current_memory_bytes: 512,
-            allocation_rate_per_sec: 10.0,
-            deallocation_rate_per_sec: 5.0,
-            hotspots: vec![],
-            system_snapshots: vec![],
-        };
-
-        let json = serde_json::to_string(&report);
-        assert!(json.is_ok());
-    }
-
-    #[test]
-    fn test_allocation_hotspot_serialization() {
-        let hotspot = AllocationHotspot {
-            var_name: "test".to_string(),
-            type_name: "Vec<u8>".to_string(),
-            total_size: 1024,
-            allocation_count: 10,
-            location: Some("test.rs:1".to_string()),
-        };
-
-        let json = serde_json::to_string(&hotspot);
-        assert!(json.is_ok());
-    }
-
-    #[test]
-    fn test_tracker_multiple_system_snapshots() {
-        let tracker = Tracker::new().with_system_monitoring();
-        std::thread::sleep(std::time::Duration::from_millis(10));
-        tracker.current_system_snapshot();
-
-        let snapshots = tracker.system_snapshots();
-        assert!(
-            !snapshots.is_empty(),
-            "Should have at least one system snapshot"
-        );
-    }
-
-    #[test]
-    fn test_tracker_analyze_with_hotspots() {
-        let tracker = Tracker::new();
-        let data1 = vec![1u8; 100];
-        let data2 = vec![2u8; 200];
-        let data3 = vec![3u8; 300];
-
-        tracker.track_as(&data1, "buffer1", "test.rs", 1, "test_module");
-        tracker.track_as(&data2, "buffer2", "test.rs", 2, "test_module");
-        tracker.track_as(&data3, "buffer3", "test.rs", 3, "test_module");
-
-        let report = tracker.analyze();
-        assert!(
-            report.total_allocations >= 3,
-            "Should have at least 3 allocations after tracking"
-        );
-    }
-
-    #[test]
-    fn test_tracker_default() {
-        let tracker = Tracker::default();
-        let report = tracker.analyze();
-        assert_eq!(report.total_allocations, 0);
-    }
-}
+mod tests;

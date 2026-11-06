@@ -6,6 +6,11 @@
 use serde::{Deserialize, Serialize};
 use std::time::SystemTime;
 
+/// One of several same-named `AllocationInfo` types in this crate: this one is the
+/// the core tracker cache entry (address -> size); no analysis metadata.
+///
+/// Convert at the module boundary instead of passing it across; a global rename is
+/// deliberately avoided (see DATA_ACCURACY_DEVELOPMENT_PLAN §14.2).
 /// Allocation information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AllocationInfo {
@@ -25,6 +30,11 @@ pub struct AllocationInfo {
     pub stack_trace: Option<Vec<String>>,
     /// Module path (from module_path!())
     pub module_path: Option<String>,
+    /// Monotonic identity of this binding inside the tracker.
+    ///
+    /// A new block at a reused address gets a new serial, so consumers can tell
+    /// "same address" from "same allocation" (plan A06/PR-02 groundwork).
+    pub binding_serial: u64,
 }
 
 impl AllocationInfo {
@@ -40,6 +50,7 @@ impl AllocationInfo {
             thread_id: Self::current_thread_id(),
             stack_trace: None,
             module_path: None,
+            binding_serial: 0,
         }
     }
 
@@ -61,10 +72,7 @@ impl AllocationInfo {
     /// Get current thread ID (hashed)
     #[inline]
     pub fn current_thread_id() -> u64 {
-        use std::hash::{Hash, Hasher};
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        std::thread::current().id().hash(&mut hasher);
-        hasher.finish()
+        crate::utils::current_thread_id_u64()
     }
 }
 

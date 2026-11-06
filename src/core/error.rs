@@ -601,10 +601,7 @@ impl fmt::Display for MemScopeError {
                 Ok(())
             }
             Self::Analysis {
-                analyzer,
-                message,
-                error_kind: _,
-                ..
+                analyzer, message, ..
             } => {
                 write!(f, "Analysis error in {analyzer}: {message}")
             }

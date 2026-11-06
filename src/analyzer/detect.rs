@@ -1,9 +1,9 @@
 //! Detection analysis module.
 
-use crate::analyzer::report::{LeakInfo, LeakReport, SafetyReport, UafReport};
+use crate::analyzer::report::{LeakReport, SafetyReport, UafReport};
 use crate::snapshot::ActiveAllocation;
 use crate::view::MemoryView;
-use tracing::{debug, info, warn};
+use tracing::{debug, warn};
 
 /// Detection analysis module.
 ///
@@ -19,42 +19,41 @@ impl DetectionAnalysis {
         Self { view: view.clone() }
     }
 
-    /// Detect memory leaks.
+    /// Allocations that are still live at the cut.
     ///
-    /// A leak is an allocation that was never deallocated.
-    ///
-    /// # Filter Logic
-    ///
-    /// Uses `ptr.is_some()` to filter allocations because:
-    /// - `ptr.is_some()`: Heap allocation with a valid pointer → potential leak
-    /// - `ptr.is_none()`: Container/Value type (metadata, not heap memory) → not a leak
-    ///
-    /// Container/Value types represent stack-allocated container metadata
-    /// (e.g., the Vec struct itself), not heap allocations. Only heap
-    /// allocations can be memory leaks.
-    pub fn leaks(&self) -> LeakReport {
-        let allocations = self.view.allocations();
-        let leaked: Vec<&ActiveAllocation> = allocations
+    /// This is a **fact**, not a leak verdict: an allocation that was not released
+    /// inside the capture window is simply still live there.
+    pub fn unreleased(&self) -> Vec<&ActiveAllocation> {
+        self.view
+            .allocations()
             .into_iter()
             .filter(|a| a.ptr.is_some())
-            .collect();
+            .collect()
+    }
 
-        let leak_count = leaked.len();
-        let total_bytes: usize = leaked.iter().map(|a| a.size).sum();
-
-        if leak_count > 0 {
-            info!(
-                "Leak detection: found {} leaks totaling {} bytes",
-                leak_count, total_bytes
+    /// Detect memory leaks.
+    ///
+    /// A leak is a **conclusion** that needs an assessment rule plus evidence about
+    /// capture completeness (plan §4.5). The view only carries the active set, so no
+    /// allocation can be assessed here and this returns an empty report.
+    ///
+    /// The historical implementation reported *every* live allocation as a leak
+    /// (`filter(|a| a.ptr.is_some())`), which made any normal program look like it was
+    /// leaking everything it held (plan A02). Use [`Self::unreleased`] when the caller
+    /// needs the "still live, no release observed" list.
+    pub fn leaks(&self) -> LeakReport {
+        let unreleased = self.unreleased();
+        if !unreleased.is_empty() {
+            debug!(
+                "Leak assessment not performed: {} allocations are still live at the cut",
+                unreleased.len()
             );
-        } else {
-            debug!("Leak detection: no leaks found");
         }
 
         LeakReport {
-            leak_count,
-            total_leaked_bytes: total_bytes,
-            leaked_allocations: leaked.into_iter().map(LeakInfo::from).collect(),
+            leak_count: 0,
+            total_leaked_bytes: 0,
+            leaked_allocations: Vec::new(),
         }
     }
 
@@ -132,8 +131,11 @@ mod tests {
     use super::*;
     use crate::event_store::MemoryEvent;
 
+    /// Objective: Verify that a still-live allocation is reported as "not released"
+    /// and *not* as a leak (plan A02).
+    /// Invariants: one unreleased allocation of 128 bytes, zero leak verdicts.
     #[test]
-    fn test_leak_detection() {
+    fn test_live_allocation_is_not_a_leak() {
         let events = vec![
             MemoryEvent::allocate(0x1000, 64, 1),
             MemoryEvent::allocate(0x2000, 128, 2),
@@ -141,9 +143,27 @@ mod tests {
         ];
         let view = MemoryView::from_events(events);
         let analysis = DetectionAnalysis::from_view(&view);
+
+        let unreleased = analysis.unreleased();
+        assert_eq!(
+            unreleased.len(),
+            1,
+            "one allocation is still live at the cut"
+        );
+        assert_eq!(
+            unreleased[0].size, 128,
+            "the unreleased allocation keeps its recorded size"
+        );
+
         let leaks = analysis.leaks();
-        assert_eq!(leaks.leak_count, 1);
-        assert_eq!(leaks.total_leaked_bytes, 128);
+        assert_eq!(
+            leaks.leak_count, 0,
+            "being alive at the cut is not evidence of a leak"
+        );
+        assert_eq!(
+            leaks.total_leaked_bytes, 0,
+            "no leaked bytes may be reported without an assessment"
+        );
     }
 
     #[test]

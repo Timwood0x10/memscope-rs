@@ -12,51 +12,32 @@ pub fn get_system_info() -> SystemResources {
     }
     #[cfg(not(target_os = "macos"))]
     {
-        SystemResources {
-            os_name: "Unknown".to_string(),
-            os_version: "Unknown".to_string(),
-            architecture: "unknown".to_string(),
-            cpu_cores: 1,
-            total_physical: "16.00 GB".to_string(),
-            available_physical: "8.00 GB".to_string(),
-            used_physical: "8.00 GB".to_string(),
-            page_size: 4096,
-            cpu_usage_pct: 0.0,
-            total_physical_bytes: 16 * 1024 * 1024 * 1024,
-            used_physical_bytes: 8 * 1024 * 1024 * 1024,
-        }
+        get_portable_system_info()
     }
 }
 
 /// Compute the current process CPU usage percentage (0.0-100.0).
 ///
-/// Uses `getrusage(RUSAGE_SELF)` to obtain user + system CPU time consumed by
-/// the process, then divides by the process wall-clock uptime recorded by
-/// `init_global_tracking()` (via `capture::backends::global_tracking::PROCESS_START`).
-/// The result is clamped to [0, 100] and rounded to 2 decimal places.
+/// Divides the process's user + system CPU time by its wall-clock uptime
+/// recorded by `init_global_tracking()` (via
+/// `capture::backends::global_tracking::PROCESS_START`). The CPU time comes
+/// from `getrusage(RUSAGE_SELF)` on Unix and from `sysinfo` on Windows, whose
+/// `libc` has no `rusage`. The result is clamped to [0, 100] and rounded to
+/// two decimal places.
 ///
 /// No manual initialization is needed — `init_global_tracking()` captures
 /// the start time automatically on first call.
-#[cfg(target_os = "macos")]
 fn process_cpu_usage_pct() -> f64 {
-    use std::mem::MaybeUninit;
-
     // Process wall-clock age from the timer initialized in init_global_tracking().
     let elapsed = match crate::capture::backends::global_tracking::process_start_elapsed_secs() {
         Some(e) if e >= 0.001 => e,
         _ => return 0.0,
     };
 
-    // Process CPU time (user + sys) in seconds via getrusage.
-    let mut ru: MaybeUninit<libc::rusage> = MaybeUninit::uninit();
-    let cpu_secs = if unsafe { libc::getrusage(libc::RUSAGE_SELF, ru.as_mut_ptr()) == 0 } {
-        let ru = unsafe { ru.assume_init() };
-        let user = ru.ru_utime.tv_sec as f64 + ru.ru_utime.tv_usec as f64 / 1_000_000.0;
-        let sys = ru.ru_stime.tv_sec as f64 + ru.ru_stime.tv_usec as f64 / 1_000_000.0;
-        user + sys
-    } else {
+    let cpu_secs = process_cpu_time_secs();
+    if cpu_secs <= 0.0 {
         return 0.0;
-    };
+    }
 
     let pct = (cpu_secs / elapsed) * 100.0;
     // Round to 2 decimal places so the telemetry bar shows a clean value
@@ -64,8 +45,63 @@ fn process_cpu_usage_pct() -> f64 {
     (pct.clamp(0.0, 100.0) * 100.0).round() / 100.0
 }
 
-#[cfg(not(target_os = "macos"))]
-fn process_cpu_usage_pct() -> f64 {
+/// Total CPU time (user + system) consumed by this process, in seconds.
+///
+/// Unix uses `getrusage(RUSAGE_SELF)`. Windows `libc` has no `rusage`, so it
+/// asks `sysinfo` for the process's accumulated CPU time instead. Both paths
+/// read a measured counter, never an estimate.
+#[cfg(unix)]
+fn process_cpu_time_secs() -> f64 {
+    use std::mem::MaybeUninit;
+
+    let mut ru: MaybeUninit<libc::rusage> = MaybeUninit::uninit();
+    if unsafe { libc::getrusage(libc::RUSAGE_SELF, ru.as_mut_ptr()) } != 0 {
+        return 0.0;
+    }
+    let ru = unsafe { ru.assume_init() };
+    let user = ru.ru_utime.tv_sec as f64 + ru.ru_utime.tv_usec as f64 / 1_000_000.0;
+    let sys = ru.ru_stime.tv_sec as f64 + ru.ru_stime.tv_usec as f64 / 1_000_000.0;
+    user + sys
+}
+
+/// Windows has no `getrusage`; `GetProcessTimes` reports kernel + user time in
+/// 100-nanosecond intervals, which converts directly to seconds.
+#[cfg(windows)]
+fn process_cpu_time_secs() -> f64 {
+    use windows_sys::Win32::Foundation::FILETIME;
+    use windows_sys::Win32::System::Threading::{GetCurrentProcess, GetProcessTimes};
+
+    let mut creation = FILETIME {
+        dwLowDateTime: 0,
+        dwHighDateTime: 0,
+    };
+    let mut exit = creation;
+    let mut kernel = creation;
+    let mut user = creation;
+    // SAFETY: the handle is the current process pseudo-handle, and all four
+    // FILETIME pointers are valid, writable, and distinct locals.
+    let ok = unsafe {
+        GetProcessTimes(
+            GetCurrentProcess(),
+            &mut creation,
+            &mut exit,
+            &mut kernel,
+            &mut user,
+        )
+    };
+    if ok == 0 {
+        return 0.0;
+    }
+    let to_secs = |ft: FILETIME| {
+        ((u64::from(ft.dwHighDateTime) << 32) | u64::from(ft.dwLowDateTime)) as f64 / 10_000_000.0
+    };
+    to_secs(kernel) + to_secs(user)
+}
+
+/// Platforms with neither `getrusage` nor Win32 process times report no CPU
+/// sample instead of inventing one.
+#[cfg(not(any(unix, windows)))]
+fn process_cpu_time_secs() -> f64 {
     0.0
 }
 
@@ -124,20 +160,8 @@ fn get_macos_system_info() -> SystemResources {
         );
     }
 
-    let mut page_size: u64 = 4096;
-    unsafe {
-        let mut size = std::mem::size_of::<u64>();
-        if libc::sysctlbyname(
-            c("hw.pagesize"),
-            &mut page_size as *mut u64 as *mut libc::c_void,
-            &mut size,
-            std::ptr::null_mut(),
-            0,
-        ) != 0
-        {
-            page_size = 4096;
-        }
-    }
+    // Same portable source as the other platforms: one query, no per-OS branch.
+    let page_size: u64 = portable_page_size();
 
     let mut total: u64 = 0;
     unsafe {
@@ -200,12 +224,49 @@ fn c(s: &str) -> *const libc::c_char {
     thread_local! {
         static KERN_OSRELEASE: CString = CString::new("kern.osrelease").unwrap();
         static HW_MACHINE: CString = CString::new("hw.machine").unwrap();
-        static HW_PAGESIZE: CString = CString::new("hw.pagesize").unwrap();
     }
     match s {
         "kern.osrelease" => KERN_OSRELEASE.with(|c| c.as_ptr()),
         "hw.machine" => HW_MACHINE.with(|c| c.as_ptr()),
-        "hw.pagesize" => HW_PAGESIZE.with(|c| c.as_ptr()),
         _ => std::ptr::null(),
+    }
+}
+
+/// Page size used by the memory accounting.
+///
+/// One implementation for every platform: `page_size` queries the OS the way each one
+/// expects (sysconf on unix, `GetSystemInfo` on Windows). Keeping it portable avoids a
+/// per-OS branch that can drift or fail to compile on a target the linters do not cover.
+fn portable_page_size() -> u64 {
+    page_size::get() as u64
+}
+
+/// System information on platforms without a dedicated implementation.
+///
+/// Values come from the `sysinfo` crate and from `getrusage`; nothing is hardcoded, so a
+/// dashboard on Linux reports its own machine instead of a placeholder. When a value is
+/// unavailable the field says `Unknown` rather than inventing a number.
+#[cfg(not(target_os = "macos"))]
+fn get_portable_system_info() -> SystemResources {
+    let mut system = sysinfo::System::new();
+    system.refresh_memory();
+    let total_bytes = system.total_memory();
+    let used_bytes = system.used_memory();
+    let available_bytes = system.available_memory();
+
+    SystemResources {
+        os_name: sysinfo::System::name().unwrap_or_else(|| "Unknown".to_string()),
+        os_version: sysinfo::System::os_version().unwrap_or_else(|| "Unknown".to_string()),
+        architecture: sysinfo::System::cpu_arch().unwrap_or_else(|| "unknown".to_string()),
+        cpu_cores: std::thread::available_parallelism()
+            .map(|cores| cores.get() as u32)
+            .unwrap_or(1),
+        total_physical: format_bytes(total_bytes as usize),
+        available_physical: format_bytes(available_bytes as usize),
+        used_physical: format_bytes(used_bytes as usize),
+        page_size: portable_page_size(),
+        cpu_usage_pct: process_cpu_usage_pct(),
+        total_physical_bytes: total_bytes,
+        used_physical_bytes: used_bytes,
     }
 }

@@ -129,6 +129,21 @@ impl RelationGraphBuilder {
             "HeapScanner completed"
         );
 
+        Self::build_with_scans(allocations, config, scan_results)
+    }
+
+    /// Reconstruct relationships from metadata without dereferencing recorded addresses.
+    /// A snapshot owns observations, not the allocations they once described. Live
+    /// bytes may have changed or been freed since capture, even in this process.
+    pub(crate) fn from_observations(allocations: &[ActiveAllocation]) -> RelationGraph {
+        Self::build_with_scans(allocations, GraphBuilderConfig::default(), Vec::new())
+    }
+
+    fn build_with_scans(
+        allocations: &[ActiveAllocation],
+        config: GraphBuilderConfig,
+        scan_results: Vec<ScanResult>,
+    ) -> RelationGraph {
         // Create a mapping from (ptr, size) to scan result
         debug!(step = 2, "Building scan_map");
         let scan_map: std::collections::HashMap<(usize, usize), &ScanResult> = scan_results
@@ -160,8 +175,8 @@ impl RelationGraphBuilder {
                     ptr: alloc.ptr.unwrap_or(0),
                     size: alloc.size,
                     memory: scan
-                        .and_then(|s| s.memory.clone())
-                        .map(OwnedMemoryView::new),
+                        .and_then(|s| s.memory.as_deref())
+                        .map(OwnedMemoryView::copy_scan),
                     type_kind,
                     confidence,
                     call_stack_hash: alloc.call_stack_hash,

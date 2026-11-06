@@ -1,10 +1,38 @@
+## \[0.2.6] - 2026-11-05
+
+###  **基于绑定身份的计费与事件流报告**
+
+本次发布为每次分配引入 serial 身份，释放、重分配与任务计费都按实际绑定结算，而不再依赖可能被复用的地址。报告统一由一次事件切片重建，JSON 导出也会明确说明计费的完整程度。
+
+#### 计费与导出
+
+- **feat**: `ClosedBinding { ptr, serial, size }` 贯穿缓存、事件、账本、JSON 与 dashboard；降级释放事件描述实际关闭的身份。
+- **feat**: `ChargeOutcome`（Charged / Unattributed / Deferred）、非阻塞 `try_record_allocation`、按任务下界与延迟计费计数。
+- **feat**: 通过 `profile_replay` 从事件流重建任务画像，与 `memory_analysis.json` 和任务图使用同一切片。
+- **feat**: 导出 JSON 与 dashboard 摘要新增 `degraded_releases`、`charge_quality` 以及存活/累计口径标注。
+
+####  架构
+
+- **refactor**: `export` 拆分为 ownership / snapshot / task-graph 子模块；释放逻辑下沉到 `tracker/release.rs`；async tracker 拆为 `dealloc`、`future`、`queries`。
+- **refactor**: dashboard 共享 `Handlebars` 注册表、抽出 context metrics；OS 进程内存读取独立为 `process_memory.rs`。
+
+####  Bug 修复
+
+- **fix**: 消除 `Arc`/`Rc` 重复计费、降级释放或搬迁 realloc 导致的去重状态丢失、allocator 重入死锁与跨线程释放丢失。
+- **fix**: 导出期间抑制 allocator 自追踪；页大小改为跨平台实现；仅在显式指定路径时加载外部模板。
+- **fix**: 校准测量不再锁定与平台相关的精确接受数；并行共享状态与 coverage 插桩下的计时断言保持稳定。
+
+#### 测试
+
+- 全量导出/生命周期验收测试（50 个真实负载）、allocator 重入子进程回归，以及并行与覆盖率插桩场景下的确定性断言。
+
 ## \[0.2.5] - 2026-07-27
 
-### 🎯 **统一的自动导出生命周期与简化启动 API**
+###  **统一的自动导出生命周期与简化启动 API**
 
 本次更新完全重构了库的入口体验。现在只需一次 `memscope_rs::start()` 调用即可完成日志、全局追踪和所有自动导出生命周期钩子（Drop guard、panic 钩子、Ctrl-C 处理器、`libc::atexit`）的初始化。原有的 `MemCtx::init()` API 保持完全向后兼容。
 
-#### ✨ 新 API
+#### 新 API
 
 - **feat**: 统一的 `start()/start_with()` — 一次调用初始化，返回 `MemScopeGuard` RAII guard
   - `MemScopeGuard::drop()` 在正常返回、panic、Ctrl-C 或 `std::process::exit` 时触发幂等导出
@@ -19,14 +47,14 @@
 - **feat**: `TrackerConfig` 改为 `pub`；新增 `Tracker::with_config()` 桥接方法
 - **feat**: `GlobalTracker::with_config()` 现在正确使用 `config.tracker` 而非 `Tracker::new()`
 
-#### 🏗️ 新模块
+####  新模块
 
 - **`src/auto_export.rs`** — `SignalPolicy`、`ExportFormatSet`、`AutoExportConfig`、`MemScopeConfig`，含构建器方法和 serde 支持（~250 行 + 测试）
 - **`src/lifecycle.rs`** — `export_once()`、`export_for_reason()`、`trigger_export_now()`、`snapshot_json()`、panic 钩子链、ctrl-C 处理器、`libc::atexit`（~500 行 + 测试）
 - **`src/guard.rs`** — `MemScopeGuard` 含 `Deref<Target=GlobalTracker>`、`Drop`、`start()`、`start_with()`（~200 行 + 测试）
 - **`src/periodic_flusher.rs`** — 后台工作线程，`Mutex<Option<JoinHandle>>` 关闭模式，停止时最终刷新（~250 行 + 测试）
 
-#### 📝 文档
+####  文档
 
 - **README（中英文）**：完全重写快速开始部分，展示 4 种使用模式：
   - CLI 一行启动（短生命周期程序）
@@ -47,7 +75,7 @@
   10. Conclusion
 - **docs/**：新增 `STRENGTHENING_PLAN.md` — 架构增强路线图
 
-#### ✅ 测试
+####  测试
 
 - **端到端测试**（`tests/auto_export_e2e.rs`）：
   - `e2e_normal_exit`：guard Drop 触发导出，文件存在且非空
@@ -65,7 +93,7 @@
   - `unified_analyzer_demo.rs`（从 `init_global_tracking().unwrap()` 迁移到 `start()?`）
 - **新增 e2e 辅助工具**：`examples/auto_exit_demo.rs` — 三种运行模式（`normal`、`panic`、`sleep+SIGINT`）供 e2e 测试框架使用
 
-#### 🛠 Bug 修复
+####  Bug 修复
 
 - **fix(lifecycle)**: `install_ctrlc_handler` 中的策略读取时机问题 — 将策略读取移至信号处理器闭包内部，使第二次 `install()` 调用更新 `AUTO_EXPORT_CFG` 但因 `Once` 跳过处理器重新注册时，下次信号到来时仍能生效
 - **fix(clippy)**: `tests/auto_export_e2e.rs` — `&PathBuf` → `&Path` 以满足 `clippy::ptr_arg`
@@ -85,7 +113,7 @@
 
 ## \[0.2.4] - 2026-06-03
 
-### 🎯 **Dashboard 精度增强与发布稳定性改进**
+###  **Dashboard 精度增强与发布稳定性改进**
 
 本次更新面向新版本发布，重点提升 Dashboard 分析结果的可解释性、前端交互性能，以及发布前测试稳定性。
 
@@ -144,7 +172,7 @@
 
 ## \[0.2.3] - 2026-04-19
 
-### 🌳 **任务跟踪和 Task Graph 可视化**
+###  **任务跟踪和 Task Graph 可视化**
 
 本次更新实现了完整的任务跟踪系统，支持任务层次结构跟踪和内存分配关联，并在 Dashboard 中提供 Task Graph 可视化。
 
@@ -193,7 +221,7 @@
 
 ## \[0.2.2] - 2026-04-17
 
-### 🎯 **Arc 克隆检测增强**
+###  **Arc 克隆检测增强**
 
 本次更新通过栈分配跟踪功能，添加了全面的 Arc/Rc 克隆检测能力。
 
@@ -268,7 +296,7 @@
 
 ## \[0.2.1] - 2026-04-12
 
-### 📊 **Benchmark优化与文档完善**
+###  **Benchmark优化与文档完善**
 
 本次更新主要针对benchmark系统进行优化，并完善了项目文档体系。
 
@@ -346,7 +374,7 @@
 
 ## \[0.2.0] - 2026-04-09
 
-### 🏗️ **重大架构重构：从单体架构到模块化引擎**
+###  **重大架构重构：从单体架构到模块化引擎**
 
 本版本代表了 memscope-rs 的完整架构大修，从单体结构过渡到基于模块化引擎的架构。此次重构显著提高了代码的可维护性、可扩展性和线程安全性，同时减少了约 75% 的代码量。
 
@@ -403,7 +431,7 @@
 
 #### **性能权衡**
 
-- ⚠️ **特定场景的回归**:
+-  **特定场景的回归**:
   - 追踪器创建: +559%（仅启动时影响）
   - 单次追踪（小分配）: +11-16%
   - 多变量追踪: +17-22%
@@ -466,7 +494,7 @@ src/
 - **净减少**: 约 198,624 行（\~75% 代码减少）
 - **当前代码库**: 77,641 行
 - **测试覆盖**: 所有模块的全面覆盖
-- **构建状态**: ✅ 0 错误，0 警告，所有检查通过
+- **构建状态**:  0 错误，0 警告，所有检查通过
 
 #### **迁移指南**
 
@@ -514,14 +542,14 @@ use memscope_rs::capture::backends::CoreTracker;
 
 #### **建议**
 
-**✅ 推荐升级**:
+** 推荐升级**:
 
 - 高并发应用场景
 - 需要更好错误处理的应用
 - 需要长期维护的项目
 - 需要功能扩展的项目
 
-**⚠️ 谨慎评估**:
+** 谨慎评估**:
 
 - 对单次追踪延迟极其敏感的应用
 - 大规模内存分析场景（需要进一步优化）
@@ -545,7 +573,7 @@ use memscope_rs::capture::backends::CoreTracker;
 
 ## \[0.1.10] - 2025-10-15
 
-### 🔥 Phase 1: 关键问题修复完成
+###  Phase 1: 关键问题修复完成
 
 #### 跟踪统计和质量监控系统
 
@@ -571,7 +599,7 @@ use memscope_rs::capture::backends::CoreTracker;
   - 系统内存自适应配置
   - 生产环境友好的默认设置
 
-### 🎯 Phase 2: 准确性改进完成
+###  Phase 2: 准确性改进完成
 
 #### 智能大小估算系统
 
@@ -594,7 +622,7 @@ use memscope_rs::capture::backends::CoreTracker;
   - 全局分类器单例模式
   - 与估算系统无缝集成
 
-### 🔧 代码质量和工程化改进
+###  代码质量和工程化改进
 
 #### 编译质量提升
 
@@ -626,7 +654,7 @@ use memscope_rs::capture::backends::CoreTracker;
 
 ## \[0.1.6] - 2025-10-02
 
-### 🚀 重大功能特性
+###  重大功能特性
 
 #### 无锁多线程跟踪模块
 
@@ -664,7 +692,7 @@ use memscope_rs::capture::backends::CoreTracker;
 - **feat(unified/tracking\_dispatcher)**: 高级策略调度器（762行代码）
 - **feat(unified/strategies)**: 多种跟踪策略（异步、混合、单线程、多线程）
 
-### ✨ 功能增强
+###  功能增强
 
 #### 核心系统改进
 
@@ -694,7 +722,7 @@ use memscope_rs::capture::backends::CoreTracker;
 - **feat(analysis/enhanced\_ffi)**: 增强的FFI函数解析和安全分析
 - **feat(analysis/memory\_passport)**: 内存护照跟踪系统
 
-### 🔧 技术改进
+###  技术改进
 
 #### 性能优化
 
@@ -715,7 +743,7 @@ use memscope_rs::capture::backends::CoreTracker;
 - **examples**: 多个真实世界使用示例和展示
 - **benches**: 广泛的性能验证基准套件
 
-### 🐛 错误修复
+###  错误修复
 
 #### Drop逻辑和智能指针处理
 
@@ -730,7 +758,7 @@ use memscope_rs::capture::backends::CoreTracker;
 - **fix(locks)**: 通过分片锁解决锁竞争问题
 - **fix(atomic)**: 增强原子操作以获得更好性能
 
-### 📊 统计数据
+###  统计数据
 
 - **119个文件修改**，全面改进
 - **146次提交**增量开发
@@ -768,7 +796,7 @@ use memscope_rs::capture::backends::CoreTracker;
 
 本更新日志记录了 memscope-rs 项目中 `test_a` 分支相对于 `master` 分支的变化。test\_a 分支包含代码重组、新的实验性功能和各种改进。
 
-## 🛡️ **最新改进（Drop 逻辑与智能指针处理）**
+##  **最新改进（Drop 逻辑与智能指针处理）**
 
 ### **TrackedVariable Drop 逻辑修复**
 
@@ -780,11 +808,11 @@ use memscope_rs::capture::backends::CoreTracker;
 
 ### **主要优势**
 
-- ✅ **健壮的 Drop 逻辑**：防止重复跟踪，确保准确的内存分析
-- ✅ **更好的性能**：移除 drop 中不必要的自动导出操作
-- ✅ **增强的智能指针支持**：一致处理 Rc、Arc 和 Box 类型
-- ✅ **改进的错误恢复能力**：防 panic 错误处理避免 drop 失败
-- ✅ **线程安全**：原子操作确保并发访问安全
+-  **健壮的 Drop 逻辑**：防止重复跟踪，确保准确的内存分析
+-  **更好的性能**：移除 drop 中不必要的自动导出操作
+-  **增强的智能指针支持**：一致处理 Rc、Arc 和 Box 类型
+-  **改进的错误恢复能力**：防 panic 错误处理避免 drop 失败
+-  **线程安全**：原子操作确保并发访问安全
 
 **统计数据：**
 
@@ -795,7 +823,7 @@ use memscope_rs::capture::backends::CoreTracker;
 
 ***
 
-## 🏗️ **架构与项目结构**
+##  **架构与项目结构**
 
 ### **代码重组**
 
@@ -835,7 +863,7 @@ src/
 
 ***
 
-## 🔧 **核心功能变化**
+##  **核心功能变化**
 
 ### **内存跟踪 (`core/tracker.rs`)**
 
@@ -877,7 +905,7 @@ src/
 
 ***
 
-## 📊 **导出与可视化**
+##  **导出与可视化**
 
 ### **JSON 导出改进**
 
@@ -909,7 +937,7 @@ src/
 
 ***
 
-## 🛠️ **开发工具**
+## ️ **开发工具**
 
 ### **命令行界面**
 
@@ -929,7 +957,7 @@ src/
 
 ***
 
-## 📈 **性能考虑**
+##  **性能考虑**
 
 ### **潜在改进**
 
@@ -945,7 +973,7 @@ src/
 
 ***
 
-## 🚀 **新功能**
+##  **新功能**
 
 ### **实验性功能**
 
@@ -981,7 +1009,7 @@ src/
 
 ## \[未发布版本] - 当前分支重大改进
 
-### 🎯 数据收集策略的革命性改进
+###  数据收集策略的革命性改进
 
 #### 新增 - 分片锁系统
 
@@ -1011,7 +1039,7 @@ src/
 - **O(1)查找**: 常数时间复杂度的快速调用栈检索
 - **增强统计**: 详细的调用栈使用分析
 
-### 🎨 展示策略的全面升级
+###  展示策略的全面升级
 
 #### 新增 - 二进制模板引擎
 
@@ -1063,7 +1091,7 @@ src/
 - **智能压缩**: 根据数据特征选择最优压缩算法
 - **导出速度提升275%**: 从30秒优化到8秒
 
-### 🛡️ 项目稳健性的全方位提升
+###  项目稳健性的全方位提升
 
 #### 新增 - 统一错误处理系统
 
@@ -1087,7 +1115,7 @@ src/
 - **压力测试**: 高负载和边界条件验证
 - **持续集成**: 自动化测试和部署管道
 
-### 📊 性能指标总结
+###  性能指标总结
 
 - **锁竞争率**: 45% → 5% (改进89%)
 - **内存使用**: 100MB → 65MB (减少35%)
@@ -1097,7 +1125,7 @@ src/
 - **可视化图表**: 3种 → 15种 (增加400%)
 - **导出格式**: 仅JSON → JSON/HTML/Binary (多格式支持)
 
-### 🔒 安全与安全性增强
+###  安全与安全性增强
 
 - **FFI安全分析**: 高级unsafe代码安全评估
 - **内存护照系统**: 跨边界内存生命周期追踪
@@ -1105,7 +1133,7 @@ src/
 - **死锁预防**: 智能死锁检测和预防
 - **资源泄漏检测**: 自动检测内存和资源泄漏
 
-### 🚀 技术亮点
+###  技术亮点
 
 - **分片架构**: 从单锁瓶颈到分片并行的架构革命
 - **自适应优化**: 根据运行时特征自动调整策略
@@ -1113,7 +1141,7 @@ src/
 - **智能缓存**: 多层次缓存系统，显著提升访问速度
 - **模块化设计**: 高内聚低耦合的模块化架构
 
-### 🎯 用户体验改进
+###  用户体验改进
 
 - **一键分析**: 简化的API，一行代码完成复杂分析
 - **多语言支持**: 中英文双语文档和界面

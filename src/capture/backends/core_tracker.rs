@@ -10,7 +10,6 @@ use dashmap::DashMap;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::thread;
-use tracing::warn;
 
 const STRATEGY_GLOBAL_SINGLETON: u64 = 0;
 const STRATEGY_THREAD_LOCAL: u64 = 1;
@@ -43,6 +42,17 @@ fn register_current_thread_tracker_local(tracker: &Arc<MemoryTracker>) {
     get_local_registry().insert(thread_id, tracker.clone());
 }
 
+/// Identity of a binding that was closed (or located) by the cache.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClosedBinding {
+    /// Base address the binding was recorded at.
+    pub ptr: usize,
+    /// Identity of the binding (`AllocationInfo::binding_serial`).
+    pub serial: u64,
+    /// Size recorded for the binding.
+    pub size: usize,
+}
+
 /// Core memory tracking functionality.
 ///
 /// The MemoryTracker maintains records of all memory allocations and deallocations,
@@ -53,8 +63,14 @@ fn register_current_thread_tracker_local(tracker: &Arc<MemoryTracker>) {
 /// - **Atomic counters**: Lock-free statistics updates
 /// - **Thread-local**: Zero-contention for per-thread tracking
 pub struct MemoryTracker {
-    /// Active allocations (DashMap for lock-free concurrent access)
-    active_allocations: DashMap<usize, AllocationInfo>,
+    /// Live bindings per address, oldest first (DashMap for lock-free concurrent
+    /// access).
+    ///
+    /// One address can hold more than one live binding: when a second allocation is
+    /// observed at an address whose previous block was never released, both blocks are
+    /// facts. Keeping them apart (instead of overwriting) is what makes
+    /// `(ptr, binding_serial)` a usable identity (plan PR-02).
+    active_allocations: DashMap<usize, Vec<AllocationInfo>>,
 
     /// Atomic statistics (lock-free updates)
     total_allocations: AtomicU64,
@@ -63,6 +79,25 @@ pub struct MemoryTracker {
     total_deallocated: AtomicU64,
     peak_allocations: AtomicUsize,
     peak_memory: AtomicU64,
+    /// Number of live bindings (an address may hold several). Kept as a counter so the
+    /// peak-update path stays O(1); scanning the map per allocation would make the hot
+    /// path quadratic in the number of addresses.
+    live_bindings: AtomicUsize,
+
+    /// Number of sightings of an already tracked address that did not change its
+    /// size (duplicate `track!`, allocator hook + typed observation of the same
+    /// buffer). Used as a diagnostic: it must never reach the byte counters.
+    duplicate_observations: AtomicU64,
+    /// Monotonic identity assigned to every binding this tracker creates.
+    next_binding_serial: AtomicU64,
+    /// Number of allocations that arrived at an address which still had a live
+    /// binding. Reported as a diagnostic: the capture missed a `free` (or saw two
+    /// different blocks at one address), so no release can be attributed reliably.
+    replaced_bindings: AtomicU64,
+    /// Number of releases that could only be matched by address, because the address
+    /// held more than one live binding. Those closes are guesses and are reported so a
+    /// consumer never mistakes them for an exact release (plan PR-02).
+    degraded_releases: AtomicU64,
 
     /// Fast mode flag for testing (reduces overhead)
     fast_mode: AtomicU64,
@@ -81,29 +116,110 @@ impl MemoryTracker {
             total_deallocated: AtomicU64::new(0),
             peak_allocations: AtomicUsize::new(0),
             peak_memory: AtomicU64::new(0),
+            live_bindings: AtomicUsize::new(0),
+            next_binding_serial: AtomicU64::new(1),
+            duplicate_observations: AtomicU64::new(0),
+            replaced_bindings: AtomicU64::new(0),
+            degraded_releases: AtomicU64::new(0),
             fast_mode: AtomicU64::new(fast_mode as u64),
         }
     }
 
-    /// Track a memory allocation.
+    /// Track a memory allocation or a typed observation of one.
+    ///
+    /// # Re-observation vs. address reuse
+    ///
+    /// The same address can be reported more than once: a `track!` on a buffer the
+    /// allocator hook already recorded, two `track!` calls on the same variable, or a
+    /// *different* block that landed on a reused address whose `free` was lost.
+    ///
+    /// * Identical size → duplicate observation: metadata refresh only, no accounting.
+    /// * Different size → **new binding**. An observation cannot prove that the old
+    ///   block is still the same block, so the previous row leaves the live set and the
+    ///   new one gets its own identity. Reusing the row ("in-place realloc") would merge
+    ///   two allocations, and a later release by raw address would then delete the wrong
+    ///   one. Only [`MemoryTracker::track_reallocation`] may claim identity continuity,
+    ///   because only the allocator can observe it.
+    ///
+    /// This keeps `total_allocated - total_deallocated == Σ live sizes` (plan A06) while
+    /// never inventing a generation merge.
     ///
     /// # Arguments
     /// * `ptr` - Memory pointer address
     /// * `size` - Allocation size in bytes
     pub fn track_allocation(&self, ptr: usize, size: usize) -> TrackingResult<()> {
-        let allocation = AllocationInfo::new(ptr, size);
+        self.record_binding(ptr, size, None)
+    }
 
-        // Insert into DashMap (lock-free)
-        self.active_allocations.insert(ptr, allocation);
+    /// Shared bookkeeping for `track_allocation` / `fast_track_allocation`.
+    fn record_binding(
+        &self,
+        ptr: usize,
+        size: usize,
+        var_name: Option<String>,
+    ) -> TrackingResult<()> {
+        let _gate = crate::core::allocator::capture_gate::acquire(ptr);
 
-        // Update atomic statistics (lock-free)
+        let mut entries = self.active_allocations.entry(ptr).or_default();
+
+        if let Some(existing) = entries.last_mut() {
+            if existing.size == size {
+                // Same address, same size: another observation of the same block.
+                if var_name.is_some() {
+                    existing.var_name = var_name;
+                }
+                self.duplicate_observations.fetch_add(1, Ordering::Relaxed);
+                return Ok(());
+            }
+
+            // Same address, different size, no observed release in between: either an
+            // address reuse whose release was lost, or an in-place reallocation. An
+            // observation cannot tell them apart, so both blocks stay live and the
+            // condition is reported. Merging them would destroy the old identity and
+            // make a later release delete the wrong one.
+            self.replaced_bindings.fetch_add(1, Ordering::Relaxed);
+            tracing::debug!(
+                "conflicting allocation: address {:#x} still holds a live binding",
+                ptr
+            );
+        }
+
+        let mut allocation = AllocationInfo::new(ptr, size);
+        allocation.binding_serial = self.next_binding_serial.fetch_add(1, Ordering::Relaxed);
+        if var_name.is_some() {
+            allocation.var_name = var_name;
+        }
+        entries.push(allocation);
+        drop(entries);
+        self.live_bindings.fetch_add(1, Ordering::Relaxed);
+
         self.total_allocations.fetch_add(1, Ordering::Relaxed);
         self.total_allocated
             .fetch_add(size as u64, Ordering::Relaxed);
+        self.update_peak_allocations();
+        self.update_peak_memory();
+        Ok(())
+    }
 
-        // Update peak allocations using CAS loop to avoid TOCTOU race
+    /// Number of live bindings across all addresses.
+    fn live_binding_count(&self) -> usize {
+        self.live_bindings.load(Ordering::Relaxed)
+    }
+
+    /// Number of live bindings currently recorded at `ptr`.
+    pub fn live_binding_count_at(&self, ptr: usize) -> usize {
+        let _gate = crate::core::allocator::capture_gate::acquire(ptr);
+        self.active_allocations
+            .get(&ptr)
+            .map(|entries| entries.len())
+            .unwrap_or(0)
+    }
+
+    /// Refresh the high-water mark for the number of live allocations.
+    fn update_peak_allocations(&self) {
+        // CAS loop avoids the TOCTOU race of read-then-store.
         loop {
-            let current_count = self.active_allocations.len();
+            let current_count = self.live_binding_count();
             let current_peak = self.peak_allocations.load(Ordering::Relaxed);
             if current_count <= current_peak {
                 break;
@@ -121,8 +237,10 @@ impl MemoryTracker {
                 break;
             }
         }
+    }
 
-        // Update peak memory using CAS loop
+    /// Refresh the high-water mark for live bytes.
+    fn update_peak_memory(&self) {
         loop {
             let current_memory = self
                 .total_allocated
@@ -145,37 +263,226 @@ impl MemoryTracker {
                 break;
             }
         }
+    }
 
+    /// Track a memory deallocation by address.
+    ///
+    /// This is the **degraded** path: an address alone cannot name a binding, so when
+    /// the address holds more than one live binding the oldest one is closed and the
+    /// guess is counted in [`Self::degraded_releases`]. Callers that know which block
+    /// they are releasing must use [`Self::track_deallocation_of`] (plan PR-02).
+    ///
+    /// # Returns
+    /// * `Ok(true)` if a binding was found and closed
+    /// * `Ok(false)` if the pointer was not tracked (possible double-free or untracked
+    ///   allocation)
+    pub fn track_deallocation(&self, ptr: usize) -> TrackingResult<bool> {
+        let _gate = crate::core::allocator::capture_gate::acquire(ptr);
+        Ok(self.close_binding(ptr, None).is_some())
+    }
+
+    /// Close a binding and report exactly which one was closed.
+    ///
+    /// The facade needs the identity that was *actually* released: with several live
+    /// bindings at one address the newest one is not the one a degraded release closes,
+    /// so publishing `binding_serial(ptr)` there would describe the wrong block.
+    pub fn close_and_report(
+        &self,
+        ptr: usize,
+        serial: Option<u64>,
+    ) -> TrackingResult<Option<ClosedBinding>> {
+        let _gate = crate::core::allocator::capture_gate::acquire(ptr);
+        Ok(self.close_binding(ptr, serial))
+    }
+
+    /// The live binding recorded at exactly `ptr` (newest binding at that address).
+    ///
+    /// O(1): one map lookup. Use this for deduplication and charging decisions instead of
+    /// the range scan.
+    pub fn binding_at(&self, ptr: usize) -> Option<ClosedBinding> {
+        let _gate = crate::core::allocator::capture_gate::acquire(ptr);
+        self.active_allocations.get(&ptr).and_then(|entries| {
+            entries.last().map(|binding| ClosedBinding {
+                ptr,
+                serial: binding.binding_serial,
+                size: binding.size,
+            })
+        })
+    }
+
+    /// The live binding whose block contains `addr`, if the candidate is unique.
+    ///
+    /// A smart pointer's pointee sits *inside* its allocation (an `Arc` puts the value
+    /// after the two reference counts), so matching by address or size cannot find the
+    /// block. The containing range can.
+    pub fn binding_containing(&self, addr: usize) -> Option<ClosedBinding> {
+        let _gate = crate::core::allocator::capture_gate::acquire(addr);
+        let mut candidates: Vec<ClosedBinding> = Vec::new();
+        for entry in self.active_allocations.iter() {
+            for binding in entry.value() {
+                let start = binding.ptr;
+                let end = start.saturating_add(binding.size);
+                if addr >= start && addr < end {
+                    candidates.push(ClosedBinding {
+                        ptr: start,
+                        serial: binding.binding_serial,
+                        size: binding.size,
+                    });
+                }
+            }
+        }
+
+        // Only a single candidate names an identity. Two nested blocks (an old 64-byte
+        // binding still live under a new 128-byte one) both contain the address, and
+        // picking "the smallest" would systematically annotate the older generation.
+        // Ambiguity is reported instead of guessed.
+        match candidates.len() {
+            1 => candidates.pop(),
+            0 => None,
+            count => {
+                tracing::debug!(
+                    "ambiguous containment at {:#x}: {count} live blocks contain it",
+                    addr
+                );
+                None
+            }
+        }
+    }
+
+    /// Track a memory deallocation of one specific binding.
+    ///
+    /// `serial` is the identity returned by [`Self::binding_serial`]; only that binding
+    /// may be closed, so a release that arrives after the address was reused cannot
+    /// delete the new block.
+    pub fn track_deallocation_of(&self, ptr: usize, serial: u64) -> TrackingResult<bool> {
+        let _gate = crate::core::allocator::capture_gate::acquire(ptr);
+        Ok(self.close_binding(ptr, Some(serial)).is_some())
+    }
+
+    /// Close a binding, returning the closed record when one matched.
+    fn close_binding(&self, ptr: usize, serial: Option<u64>) -> Option<ClosedBinding> {
+        let closed = {
+            let mut entries = self.active_allocations.get_mut(&ptr)?;
+
+            let index = match serial {
+                Some(serial) => entries
+                    .iter()
+                    .position(|binding| binding.binding_serial == serial),
+                None => {
+                    if entries.len() > 1 {
+                        self.degraded_releases.fetch_add(1, Ordering::Relaxed);
+                        tracing::debug!(
+                            "degraded release: address {:#x} holds {} bindings, closing the oldest",
+                            ptr,
+                            entries.len()
+                        );
+                    }
+                    Some(0)
+                }
+            };
+
+            let Some(index) = index else {
+                // The named binding is already gone: a late release of a superseded
+                // generation must not touch the blocks that replaced it.
+                return None;
+            };
+
+            let closed = entries.remove(index);
+            if entries.is_empty() {
+                drop(entries);
+                self.active_allocations.remove(&ptr);
+            }
+            closed
+        };
+
+        self.live_bindings.fetch_sub(1, Ordering::Relaxed);
+        self.total_deallocations.fetch_add(1, Ordering::Relaxed);
+        self.total_deallocated
+            .fetch_add(closed.size as u64, Ordering::Relaxed);
+        Some(ClosedBinding {
+            ptr: closed.ptr,
+            serial: closed.binding_serial,
+            size: closed.size,
+        })
+    }
+
+    /// Track a reallocation of a tracked block.
+    ///
+    /// The block keeps its identity (and its binding serial): the new size replaces the
+    /// old one and the allocation counter does not change, whether the allocator kept the
+    /// address (`old_ptr == new_ptr`) or moved the block. Metadata recorded by `track!` is
+    /// carried over to the new address.
+    ///
+    /// # Arguments
+    /// * `old_ptr` - Address before the reallocation
+    /// * `new_ptr` - Address returned by the allocator
+    /// * `old_size` - Size the caller asked to reallocate. Kept for API symmetry; the
+    ///   cache trusts the size it recorded, and an unobserved block books nothing.
+    /// * `new_size` - Size of the resulting block
+    pub fn track_reallocation(
+        &self,
+        old_ptr: usize,
+        new_ptr: usize,
+        _old_size: usize,
+        new_size: usize,
+    ) -> TrackingResult<()> {
+        let _gate = crate::core::allocator::capture_gate::acquire(old_ptr);
+
+        let previous = {
+            let Some(mut entries) = self.active_allocations.get_mut(&old_ptr) else {
+                return self.open_unmatched_binding(new_ptr, new_size);
+            };
+            // A reallocation applies to the block the caller holds; the newest binding at
+            // the address is the only defensible choice when the capture also holds older
+            // generations.
+            let previous = entries.pop();
+            if entries.is_empty() {
+                drop(entries);
+                self.active_allocations.remove(&old_ptr);
+            }
+            previous
+        };
+
+        let Some(mut allocation) = previous else {
+            return self.open_unmatched_binding(new_ptr, new_size);
+        };
+
+        // A matched reallocation keeps one ledger row: the old size leaves the live
+        // set, the new size enters it, and the allocation count does not change.
+        let previous_size = allocation.size;
+        allocation.ptr = new_ptr;
+        allocation.size = new_size;
+        self.active_allocations
+            .entry(new_ptr)
+            .or_default()
+            .push(allocation);
+
+        self.total_allocated
+            .fetch_add(new_size as u64, Ordering::Relaxed);
+        self.total_deallocated
+            .fetch_add(previous_size as u64, Ordering::Relaxed);
+        self.update_peak_memory();
         Ok(())
     }
 
-    /// Track a memory deallocation.
+    /// Record a block whose previous size was never observed.
     ///
-    /// # Arguments
-    /// * `ptr` - Memory pointer address
-    ///
-    /// # Returns
-    /// * `Ok(true)` if the allocation was found and removed
-    /// * `Ok(false)` if the pointer was not tracked (possible double-free or untracked allocation)
-    pub fn track_deallocation(&self, ptr: usize) -> TrackingResult<bool> {
-        // Remove from DashMap (lock-free)
-        if let Some((_, allocation)) = self.active_allocations.remove(&ptr) {
-            // Update atomic statistics (lock-free)
-            self.total_deallocations.fetch_add(1, Ordering::Relaxed);
-            self.total_deallocated
-                .fetch_add(allocation.size as u64, Ordering::Relaxed);
-            Ok(true)
-        } else {
-            // Pointer not found - could be double-free or untracked allocation
-            // Log warning in debug mode
-            #[cfg(debug_assertions)]
-            warn!(
-                "deallocation called for untracked pointer {:x}. \
-                 This may indicate a double-free or memory not tracked by memscope.",
-                ptr
-            );
-            Ok(false)
-        }
+    /// Only the new block is a fact, so nothing may be booked as released for the old
+    /// one (that would push `allocated - deallocated` below the live set).
+    fn open_unmatched_binding(&self, new_ptr: usize, new_size: usize) -> TrackingResult<()> {
+        let mut new_binding = AllocationInfo::new(new_ptr, new_size);
+        new_binding.binding_serial = self.next_binding_serial.fetch_add(1, Ordering::Relaxed);
+        self.active_allocations
+            .entry(new_ptr)
+            .or_default()
+            .push(new_binding);
+        self.live_bindings.fetch_add(1, Ordering::Relaxed);
+        self.total_allocations.fetch_add(1, Ordering::Relaxed);
+        self.total_allocated
+            .fetch_add(new_size as u64, Ordering::Relaxed);
+        self.update_peak_allocations();
+        self.update_peak_memory();
+        Ok(())
     }
 
     /// Get the size of an active allocation.
@@ -187,7 +494,10 @@ impl MemoryTracker {
     /// * `Some(size)` if the allocation exists
     /// * `None` if the pointer is not tracked
     pub fn get_allocation_size(&self, ptr: usize) -> Option<usize> {
-        self.active_allocations.get(&ptr).map(|a| a.size)
+        let _gate = crate::core::allocator::capture_gate::acquire(ptr);
+        self.active_allocations
+            .get(&ptr)
+            .and_then(|entries| entries.last().map(|binding| binding.size))
     }
 
     /// Associate a variable name and type with an allocation.
@@ -206,11 +516,14 @@ impl MemoryTracker {
         source_file: Option<&str>,
         source_line: Option<u32>,
     ) -> TrackingResult<()> {
-        if let Some(mut allocation) = self.active_allocations.get_mut(&ptr) {
-            allocation.var_name = Some(var_name);
-            allocation.type_name = Some(type_name);
-            if let (Some(file), Some(line)) = (source_file, source_line) {
-                allocation.set_source_location(file, line);
+        let _gate = crate::core::allocator::capture_gate::acquire(ptr);
+        if let Some(mut entries) = self.active_allocations.get_mut(&ptr) {
+            if let Some(allocation) = entries.last_mut() {
+                allocation.var_name = Some(var_name);
+                allocation.type_name = Some(type_name);
+                if let (Some(file), Some(line)) = (source_file, source_line) {
+                    allocation.set_source_location(file, line);
+                }
             }
         }
 
@@ -229,23 +542,50 @@ impl MemoryTracker {
         size: usize,
         var_name: String,
     ) -> TrackingResult<()> {
-        let mut allocation = AllocationInfo::new(ptr, size);
-        allocation.var_name = Some(var_name);
+        self.record_binding(ptr, size, Some(var_name))
+    }
 
-        // Insert into DashMap (lock-free)
-        self.active_allocations.insert(ptr, allocation);
+    /// Identity of the live binding at `ptr`, if any.
+    ///
+    /// Changes whenever a *new* block is recorded at that address, so callers can detect
+    /// address reuse instead of assuming the same allocation (plan A06/PR-02).
+    pub fn binding_serial(&self, ptr: usize) -> Option<u64> {
+        let _gate = crate::core::allocator::capture_gate::acquire(ptr);
+        self.active_allocations
+            .get(&ptr)
+            .and_then(|entries| entries.last().map(|binding| binding.binding_serial))
+    }
 
-        // Update atomic statistics (lock-free)
-        self.total_allocations.fetch_add(1, Ordering::Relaxed);
-        self.total_allocated
-            .fetch_add(size as u64, Ordering::Relaxed);
+    /// Number of duplicate sightings of already tracked addresses.
+    ///
+    /// A non-zero value is expected (hook registration plus typed observation of
+    /// the same buffer); it is reported separately so it can never be mistaken for
+    /// allocated bytes.
+    pub fn duplicate_observations(&self) -> u64 {
+        self.duplicate_observations.load(Ordering::Relaxed)
+    }
 
-        Ok(())
+    /// Number of bindings superseded at the same address without an observed release.
+    ///
+    /// Non-zero means the capture missed a `free`, or two different blocks shared an
+    /// address: the bytes stay conserved, but the two allocations are not the same one.
+    pub fn replaced_bindings(&self) -> u64 {
+        self.replaced_bindings.load(Ordering::Relaxed)
+    }
+
+    /// Number of releases that could only be matched by address.
+    ///
+    /// Non-zero means a release arrived for an address that held several live bindings,
+    /// so the closed binding was a guess. Callers that know the identity should use
+    /// `track_deallocation_of` instead.
+    pub fn degraded_releases(&self) -> u64 {
+        self.degraded_releases.load(Ordering::Relaxed)
     }
 
     /// Get current memory statistics.
     pub fn get_stats(&self) -> TrackingResult<MemoryStats> {
-        let active_count = self.active_allocations.len();
+        let _gate = crate::core::allocator::capture_gate::acquire(0);
+        let active_count = self.live_binding_count();
         let total_allocated = self.total_allocated.load(Ordering::Relaxed);
         let total_deallocated = self.total_deallocated.load(Ordering::Relaxed);
         let active_memory = total_allocated.saturating_sub(total_deallocated);
@@ -270,7 +610,8 @@ impl MemoryTracker {
     /// allocations that were never freed. Returns the count and total size
     /// of allocations that are still active.
     pub fn detect_leaks(&self) -> (usize, u64) {
-        let active_count = self.active_allocations.len();
+        let _gate = crate::core::allocator::capture_gate::acquire(0);
+        let active_count = self.live_binding_count();
         let total_allocated = self.total_allocated.load(Ordering::Relaxed);
         let total_deallocated = self.total_deallocated.load(Ordering::Relaxed);
         let active_memory = total_allocated.saturating_sub(total_deallocated);
@@ -279,25 +620,28 @@ impl MemoryTracker {
 
     /// Get all currently active allocations.
     pub fn get_active_allocations(&self) -> TrackingResult<Vec<AllocationInfo>> {
-        Ok(self
-            .active_allocations
-            .iter()
-            .map(|entry| entry.value().clone())
-            .collect())
+        let _gate = crate::core::allocator::capture_gate::acquire(0);
+        let mut allocations = Vec::new();
+        for entry in self.active_allocations.iter() {
+            allocations.extend(entry.value().iter().cloned());
+        }
+        Ok(allocations)
     }
 
     /// Get memory grouped by type.
     pub fn get_memory_by_type(&self) -> TrackingResult<std::collections::HashMap<String, usize>> {
+        let _gate = crate::core::allocator::capture_gate::acquire(0);
         let mut type_sizes: std::collections::HashMap<String, usize> =
             std::collections::HashMap::new();
 
         for entry in self.active_allocations.iter() {
-            let alloc = entry.value();
-            let type_name = alloc
-                .type_name
-                .clone()
-                .unwrap_or_else(|| "unknown".to_string());
-            *type_sizes.entry(type_name).or_insert(0) += alloc.size;
+            for alloc in entry.value() {
+                let type_name = alloc
+                    .type_name
+                    .clone()
+                    .unwrap_or_else(|| "unknown".to_string());
+                *type_sizes.entry(type_name).or_insert(0) += alloc.size;
+            }
         }
 
         Ok(type_sizes)
@@ -395,7 +739,7 @@ impl Drop for MemoryTracker {
             );
         }
 
-        let active_count = self.active_allocations.len();
+        let active_count = self.live_binding_count();
         if active_count > 0 {
             tracing::warn!(
                 "Dropping MemoryTracker with {} active allocations (potential memory leaks)",
@@ -405,6 +749,7 @@ impl Drop for MemoryTracker {
 
         // Clear active_allocations to release memory
         self.active_allocations.clear();
+        self.live_bindings.store(0, Ordering::Relaxed);
     }
 }
 
@@ -429,6 +774,18 @@ pub fn configure_tracking_strategy(is_concurrent: bool) {
             "global-singleton"
         }
     );
+}
+
+/// The process-wide core tracker, regardless of the configured strategy.
+///
+/// The global allocator callback must use this and never [`get_tracker`]: touching a
+/// thread-local with a destructor from the allocator aborts the process on macOS
+/// ("the global allocator may not use TLS with destructors"), and a thread-local cache
+/// cannot resolve a binding allocated on another thread.
+pub fn get_global_tracker() -> Arc<MemoryTracker> {
+    GLOBAL_TRACKER
+        .get_or_init(|| Arc::new(MemoryTracker::new()))
+        .clone()
 }
 
 /// Get the appropriate memory tracker based on the current strategy.
@@ -477,560 +834,4 @@ pub fn has_active_trackers_local() -> bool {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use std::sync::Arc;
-    use std::thread;
-
-    /// Objective: Verify MemoryTracker creation with default values
-    /// Invariants: New tracker should have zero allocations and fast_mode enabled in test
-    #[test]
-    fn test_memory_tracker_creation() {
-        let tracker = MemoryTracker::new();
-        assert!(
-            tracker.is_fast_mode(),
-            "Fast mode should be enabled in test mode"
-        );
-
-        let stats = tracker.get_stats().expect("Should get stats");
-        assert_eq!(
-            stats.total_allocations, 0,
-            "Initial total allocations should be 0"
-        );
-        assert_eq!(
-            stats.active_allocations, 0,
-            "Initial active allocations should be 0"
-        );
-        assert_eq!(
-            stats.peak_allocations, 0,
-            "Initial peak allocations should be 0"
-        );
-    }
-
-    /// Objective: Verify Default trait implementation
-    /// Invariants: Default should create same as new()
-    #[test]
-    fn test_memory_tracker_default() {
-        let tracker = MemoryTracker::default();
-        let stats = tracker.get_stats().expect("Should get stats");
-        assert_eq!(
-            stats.total_allocations, 0,
-            "Default tracker should have 0 allocations"
-        );
-    }
-
-    /// Objective: Verify track_allocation updates statistics correctly
-    /// Invariants: Should increment total_allocations and active_allocations
-    #[test]
-    fn test_track_allocation() {
-        let tracker = MemoryTracker::new();
-        let result = tracker.track_allocation(0x1000, 1024);
-        assert!(result.is_ok(), "track_allocation should succeed");
-
-        let stats = tracker.get_stats().expect("Should get stats");
-        assert_eq!(stats.total_allocations, 1, "Total allocations should be 1");
-        assert_eq!(
-            stats.active_allocations, 1,
-            "Active allocations should be 1"
-        );
-        assert_eq!(
-            stats.total_allocated, 1024,
-            "Total allocated should be 1024"
-        );
-    }
-
-    /// Objective: Verify track_deallocation removes allocation correctly
-    /// Invariants: Should decrement active_allocations and increment total_deallocations
-    #[test]
-    fn test_track_deallocation() {
-        let tracker = MemoryTracker::new();
-        tracker.track_allocation(0x1000, 1024).unwrap();
-        let result = tracker.track_deallocation(0x1000);
-        assert!(result.is_ok(), "track_deallocation should succeed");
-        assert!(
-            result.unwrap(),
-            "track_deallocation should return true for tracked pointer"
-        );
-
-        let stats = tracker.get_stats().expect("Should get stats");
-        assert_eq!(
-            stats.total_deallocations, 1,
-            "Total deallocations should be 1"
-        );
-        assert_eq!(
-            stats.active_allocations, 0,
-            "Active allocations should be 0"
-        );
-        assert_eq!(
-            stats.total_deallocated, 1024,
-            "Total deallocated should be 1024"
-        );
-    }
-
-    /// Objective: Verify deallocation of untracked pointer returns false
-    /// Invariants: Should return Ok(false) for untracked pointer
-    #[test]
-    fn test_deallocation_untracked_pointer() {
-        let tracker = MemoryTracker::new();
-        let result = tracker.track_deallocation(0xdead);
-        assert!(result.is_ok(), "Should not error on untracked pointer");
-        assert!(
-            !result.unwrap(),
-            "Should return false for untracked pointer"
-        );
-    }
-
-    /// Objective: Verify get_allocation_size returns correct size
-    /// Invariants: Should return Some(size) for tracked pointer
-    #[test]
-    fn test_get_allocation_size() {
-        let tracker = MemoryTracker::new();
-        tracker.track_allocation(0x1000, 2048).unwrap();
-
-        let size = tracker.get_allocation_size(0x1000);
-        assert_eq!(size, Some(2048), "Should return correct allocation size");
-    }
-
-    /// Objective: Verify get_allocation_size returns None for untracked pointer
-    /// Invariants: Should return None for untracked pointer
-    #[test]
-    fn test_get_allocation_size_untracked() {
-        let tracker = MemoryTracker::new();
-
-        let size = tracker.get_allocation_size(0xdead);
-        assert!(size.is_none(), "Should return None for untracked pointer");
-    }
-
-    /// Objective: Verify associate_var updates allocation metadata
-    /// Invariants: Should set var_name and type_name correctly
-    #[test]
-    fn test_associate_var() {
-        let tracker = MemoryTracker::new();
-        tracker.track_allocation(0x1000, 1024).unwrap();
-        tracker
-            .associate_var(
-                0x1000,
-                "test_var".to_string(),
-                "String".to_string(),
-                Some("test.rs"),
-                Some(42),
-            )
-            .unwrap();
-
-        let allocations = tracker.get_active_allocations().unwrap();
-        assert_eq!(
-            allocations[0].var_name,
-            Some("test_var".to_string()),
-            "Variable name should be set"
-        );
-        assert_eq!(
-            allocations[0].type_name,
-            Some("String".to_string()),
-            "Type name should be set"
-        );
-    }
-
-    /// Objective: Verify associate_var for non-existent pointer
-    /// Invariants: Should succeed silently without error
-    #[test]
-    fn test_associate_var_nonexistent() {
-        let tracker = MemoryTracker::new();
-        let result = tracker.associate_var(
-            0xdead,
-            "test_var".to_string(),
-            "String".to_string(),
-            None,
-            None,
-        );
-        assert!(
-            result.is_ok(),
-            "Should succeed silently for non-existent pointer"
-        );
-    }
-
-    /// Objective: Verify fast_track_allocation with variable name
-    /// Invariants: Should track allocation with var_name in one call
-    #[test]
-    fn test_fast_track_allocation() {
-        let tracker = MemoryTracker::new();
-        tracker
-            .fast_track_allocation(0x1000, 1024, "test_var".to_string())
-            .unwrap();
-
-        let allocations = tracker.get_active_allocations().unwrap();
-        assert_eq!(
-            allocations[0].var_name,
-            Some("test_var".to_string()),
-            "Variable name should be set"
-        );
-        assert_eq!(allocations[0].size, 1024, "Size should be correct");
-    }
-
-    /// Objective: Verify peak allocations tracking
-    /// Invariants: Peak should track maximum concurrent allocations
-    #[test]
-    fn test_peak_tracking() {
-        let tracker = MemoryTracker::new();
-
-        tracker.track_allocation(0x1000, 1024).unwrap();
-        tracker.track_allocation(0x2000, 2048).unwrap();
-        tracker.track_allocation(0x3000, 4096).unwrap();
-
-        let stats = tracker.get_stats().unwrap();
-        assert_eq!(stats.peak_allocations, 3, "Peak allocations should be 3");
-        assert_eq!(stats.peak_memory, 7168, "Peak memory should be 7168");
-
-        tracker.track_deallocation(0x1000).unwrap();
-        let stats = tracker.get_stats().unwrap();
-        assert_eq!(
-            stats.peak_allocations, 3,
-            "Peak should remain 3 after deallocation"
-        );
-        assert_eq!(
-            stats.active_allocations, 2,
-            "Active should be 2 after deallocation"
-        );
-    }
-
-    /// Objective: Verify fast mode toggle
-    /// Invariants: Fast mode should be toggleable
-    #[test]
-    fn test_fast_mode() {
-        let tracker = MemoryTracker::new();
-        tracker.set_fast_mode(true);
-        assert!(tracker.is_fast_mode(), "Fast mode should be enabled");
-
-        tracker.set_fast_mode(false);
-        assert!(!tracker.is_fast_mode(), "Fast mode should be disabled");
-
-        tracker.enable_fast_mode();
-        assert!(tracker.is_fast_mode(), "Fast mode should be enabled again");
-    }
-
-    /// Objective: Verify detect_leaks returns correct counts
-    /// Invariants: Should return count and size of active allocations
-    #[test]
-    fn test_detect_leaks() {
-        let tracker = MemoryTracker::new();
-        tracker.track_allocation(0x1000, 1024).unwrap();
-        tracker.track_allocation(0x2000, 2048).unwrap();
-
-        let (count, size) = tracker.detect_leaks();
-        assert_eq!(count, 2, "Should detect 2 leaks");
-        assert_eq!(size, 3072, "Total leak size should be 3072");
-
-        tracker.track_deallocation(0x1000).unwrap();
-        let (count, _) = tracker.detect_leaks();
-        assert_eq!(count, 1, "Should detect 1 leak after deallocation");
-    }
-
-    /// Objective: Verify get_memory_by_type groups allocations
-    /// Invariants: Should group allocations by type name
-    #[test]
-    fn test_get_memory_by_type() {
-        let tracker = MemoryTracker::new();
-        tracker.track_allocation(0x1000, 1024).unwrap();
-        tracker.track_allocation(0x2000, 2048).unwrap();
-
-        tracker
-            .associate_var(0x1000, "v1".to_string(), "String".to_string(), None, None)
-            .unwrap();
-        tracker
-            .associate_var(0x2000, "v2".to_string(), "String".to_string(), None, None)
-            .unwrap();
-
-        let by_type = tracker.get_memory_by_type().unwrap();
-        assert_eq!(
-            by_type.get("String"),
-            Some(&3072),
-            "String type should have 3072 bytes"
-        );
-    }
-
-    /// Objective: Verify get_memory_by_type with unknown types
-    /// Invariants: Unknown types should be grouped as "unknown"
-    #[test]
-    fn test_get_memory_by_type_unknown() {
-        let tracker = MemoryTracker::new();
-        tracker.track_allocation(0x1000, 1024).unwrap();
-
-        let by_type = tracker.get_memory_by_type().unwrap();
-        assert_eq!(
-            by_type.get("unknown"),
-            Some(&1024),
-            "Unknown type should have 1024 bytes"
-        );
-    }
-
-    /// Objective: Verify export_to_json creates valid file
-    /// Invariants: Should create file with valid JSON content
-    #[test]
-    fn test_export_to_json() {
-        let tracker = MemoryTracker::new();
-        tracker.track_allocation(0x1000, 1024).unwrap();
-
-        let temp_dir = tempfile::TempDir::new().expect("Failed to create temp dir");
-        let file_path = temp_dir.path().join("test_export.json");
-        let result = tracker.export_to_json(&file_path);
-        assert!(result.is_ok(), "Export should succeed");
-        assert!(file_path.exists(), "Export file should exist");
-
-        let content = std::fs::read_to_string(&file_path).expect("Should read file");
-        assert!(!content.is_empty(), "JSON content should not be empty");
-        assert!(content.contains("size"), "JSON should contain size field");
-    }
-
-    /// Objective: Verify export_to_memscope creates file
-    /// Invariants: Should create file with valid content
-    #[test]
-    fn test_export_to_memscope() {
-        let tracker = MemoryTracker::new();
-        tracker.track_allocation(0x1000, 1024).unwrap();
-
-        let temp_dir = tempfile::TempDir::new().expect("Failed to create temp dir");
-        let file_path = temp_dir.path().join("test_export.memscope");
-        let result = tracker.export_to_memscope(&file_path);
-        assert!(result.is_ok(), "Export should succeed: {:?}", result);
-
-        assert!(
-            file_path.exists(),
-            "Export file should exist at {:?}",
-            file_path
-        );
-
-        let content = std::fs::read_to_string(&file_path).expect("Should read file");
-        assert!(!content.is_empty(), "Export content should not be empty");
-    }
-
-    /// Objective: Verify ensure_memory_analysis_path creates directory
-    /// Invariants: Should create parent directory if needed
-    #[test]
-    fn test_ensure_memory_analysis_path() {
-        let tracker = MemoryTracker::new();
-        let temp_dir = tempfile::TempDir::new().expect("Failed to create temp dir");
-        let nested_path = temp_dir.path().join("nested").join("dir").join("file.json");
-
-        let result = tracker.ensure_memory_analysis_path(&nested_path);
-        assert!(
-            result.parent().unwrap().exists(),
-            "Parent directory should be created"
-        );
-    }
-
-    /// Objective: Verify global tracker singleton behavior
-    /// Invariants: Should return same instance when using global strategy
-    #[test]
-    fn test_global_tracker_singleton() {
-        let tracker1 = GLOBAL_TRACKER
-            .get_or_init(|| Arc::new(MemoryTracker::new()))
-            .clone();
-        let tracker2 = GLOBAL_TRACKER
-            .get_or_init(|| Arc::new(MemoryTracker::new()))
-            .clone();
-
-        assert!(
-            Arc::ptr_eq(&tracker1, &tracker2),
-            "Should return same instance from GLOBAL_TRACKER"
-        );
-    }
-
-    /// Objective: Verify thread-local tracker behavior
-    /// Invariants: Should register thread-local tracker
-    #[test]
-    fn test_thread_local_tracker() {
-        configure_tracking_strategy(true);
-
-        let tracker1 = get_tracker();
-        let trackers = collect_all_trackers_local();
-
-        assert!(!trackers.is_empty(), "Should have at least one tracker");
-        assert!(
-            trackers.iter().any(|t| Arc::ptr_eq(t, &tracker1)),
-            "Current thread's tracker should be in registry"
-        );
-    }
-
-    /// Objective: Verify registry statistics
-    /// Invariants: Should return correct thread count
-    #[test]
-    fn test_registry_stats() {
-        configure_tracking_strategy(true);
-        get_tracker();
-
-        let stats = get_registry_stats_local();
-        assert!(
-            stats.total_threads_registered >= 1,
-            "Should have at least one thread registered"
-        );
-        assert_eq!(stats.dead_references, 0, "Should have no dead references");
-    }
-
-    /// Objective: Verify has_active_trackers_local
-    /// Invariants: Should return true when trackers exist
-    #[test]
-    fn test_has_active_trackers() {
-        configure_tracking_strategy(true);
-        get_tracker();
-
-        assert!(has_active_trackers_local(), "Should have active trackers");
-    }
-
-    /// Objective: Verify concurrent allocation tracking
-    /// Invariants: Should handle concurrent allocations correctly
-    #[test]
-    fn test_concurrent_allocations() {
-        let tracker = Arc::new(MemoryTracker::new());
-        let mut handles = vec![];
-
-        for i in 0..10 {
-            let tracker_clone = tracker.clone();
-            let handle = thread::spawn(move || {
-                let ptr = 0x1000 + i * 0x100;
-                tracker_clone.track_allocation(ptr, 1024).unwrap();
-            });
-            handles.push(handle);
-        }
-
-        for handle in handles {
-            handle.join().unwrap();
-        }
-
-        let stats = tracker.get_stats().unwrap();
-        assert_eq!(
-            stats.total_allocations, 10,
-            "Should have 10 allocations from 10 threads"
-        );
-    }
-
-    /// Objective: Verify concurrent allocation and deallocation
-    /// Invariants: Should maintain consistency under concurrent operations
-    #[test]
-    fn test_concurrent_alloc_dealloc() {
-        let tracker = Arc::new(MemoryTracker::new());
-        let mut handles = vec![];
-
-        for i in 0..5 {
-            let tracker_clone = tracker.clone();
-            let handle = thread::spawn(move || {
-                let ptr = 0x1000 + i * 0x100;
-                tracker_clone.track_allocation(ptr, 1024).unwrap();
-                tracker_clone.track_deallocation(ptr).unwrap();
-            });
-            handles.push(handle);
-        }
-
-        for handle in handles {
-            handle.join().unwrap();
-        }
-
-        let stats = tracker.get_stats().unwrap();
-        assert_eq!(
-            stats.active_allocations, 0,
-            "All allocations should be deallocated"
-        );
-        assert_eq!(
-            stats.total_allocations, 5,
-            "Should have 5 total allocations"
-        );
-        assert_eq!(
-            stats.total_deallocations, 5,
-            "Should have 5 total deallocations"
-        );
-    }
-
-    /// Objective: Verify zero-size allocation handling
-    /// Invariants: Should handle zero-size allocation without error
-    #[test]
-    fn test_zero_size_allocation() {
-        let tracker = MemoryTracker::new();
-        let result = tracker.track_allocation(0x1000, 0);
-        assert!(result.is_ok(), "Zero-size allocation should succeed");
-
-        let stats = tracker.get_stats().unwrap();
-        assert_eq!(
-            stats.total_allocations, 1,
-            "Should count zero-size allocation"
-        );
-    }
-
-    /// Objective: Verify large allocation handling
-    /// Invariants: Should handle large allocations correctly
-    #[test]
-    fn test_large_allocation() {
-        let tracker = MemoryTracker::new();
-        let large_size = 1024 * 1024 * 1024;
-        let result = tracker.track_allocation(0x1000, large_size);
-        assert!(result.is_ok(), "Large allocation should succeed");
-
-        let stats = tracker.get_stats().unwrap();
-        assert_eq!(
-            stats.total_allocated as usize, large_size,
-            "Should track large allocation size"
-        );
-    }
-
-    /// Objective: Verify multiple allocations at same address
-    /// Invariants: Later allocation should overwrite earlier one
-    #[test]
-    fn test_duplicate_address_allocation() {
-        let tracker = MemoryTracker::new();
-        tracker.track_allocation(0x1000, 1024).unwrap();
-        tracker.track_allocation(0x1000, 2048).unwrap();
-
-        let stats = tracker.get_stats().unwrap();
-        assert_eq!(
-            stats.active_allocations, 1,
-            "Should have 1 active allocation"
-        );
-        assert_eq!(stats.total_allocations, 2, "Should count both allocations");
-
-        let size = tracker.get_allocation_size(0x1000);
-        assert_eq!(size, Some(2048), "Should have later allocation size");
-    }
-
-    /// Objective: Verify Drop implementation logs warnings
-    /// Invariants: Should not panic when dropping with active allocations
-    #[test]
-    fn test_drop_with_active_allocations() {
-        let tracker = MemoryTracker::new();
-        tracker.track_allocation(0x1000, 1024).unwrap();
-
-        drop(tracker);
-    }
-
-    /// Objective: Verify get_active_allocations returns all allocations
-    /// Invariants: Should return all active allocations
-    #[test]
-    fn test_get_active_allocations() {
-        let tracker = MemoryTracker::new();
-        tracker.track_allocation(0x1000, 1024).unwrap();
-        tracker.track_allocation(0x2000, 2048).unwrap();
-        tracker.track_deallocation(0x1000).unwrap();
-
-        let allocations = tracker.get_active_allocations().unwrap();
-        assert_eq!(allocations.len(), 1, "Should have 1 active allocation");
-        assert_eq!(
-            allocations[0].ptr, 0x2000,
-            "Remaining allocation should be at 0x2000"
-        );
-    }
-
-    /// Objective: Verify configure_tracking_strategy logging
-    /// Invariants: Should accept both strategies
-    #[test]
-    fn test_configure_tracking_strategy() {
-        configure_tracking_strategy(false);
-        assert_eq!(
-            TRACKING_STRATEGY.load(Ordering::Relaxed),
-            STRATEGY_GLOBAL_SINGLETON,
-            "Should set global singleton strategy"
-        );
-
-        configure_tracking_strategy(true);
-        assert_eq!(
-            TRACKING_STRATEGY.load(Ordering::Relaxed),
-            STRATEGY_THREAD_LOCAL,
-            "Should set thread-local strategy"
-        );
-    }
-}
+mod tests;

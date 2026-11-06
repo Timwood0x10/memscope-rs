@@ -114,14 +114,15 @@ impl RelationGraph {
     /// Build relation graph from MemoryView.
     ///
     /// Creates a relation graph from the allocations in a MemoryView.
-    /// This is a convenience method for the unified analyzer API.
+    /// Uses only snapshot metadata: historical addresses do not grant permission
+    /// to read current process memory. Live scanning is a separate builder operation.
     pub fn from_view(view: &crate::view::MemoryView) -> Self {
         use crate::snapshot::types::ActiveAllocation;
 
         let allocations: Vec<ActiveAllocation> =
             view.allocations().iter().map(|a| (*a).clone()).collect();
 
-        RelationGraphBuilder::build(&allocations, None)
+        RelationGraphBuilder::from_observations(&allocations)
     }
 
     /// Add a single edge to the graph.

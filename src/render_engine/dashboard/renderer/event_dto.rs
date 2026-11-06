@@ -91,6 +91,18 @@ pub struct EventSummary {
     pub total_allocations: usize,
     /// Number of active allocations
     pub active_allocations: usize,
+    /// Observations of an address that was already tracked with the same size.
+    ///
+    /// A pure diagnostic: these sightings are *not* counted as allocations or bytes
+    /// (plan A06). Non-zero is normal when the allocator hook and a `track!` observe
+    /// the same buffer.
+    #[serde(default)]
+    pub duplicate_observations: usize,
+    /// Releases that could only be matched by address (the address held several live
+    /// bindings). Non-zero means those closes are a policy choice, not identified
+    /// bindings, so counts derived from them are a lower bound of the evidence.
+    #[serde(default)]
+    pub degraded_releases: usize,
 }
 
 impl EventSummary {
@@ -113,7 +125,23 @@ impl EventSummary {
             sampling_strategy: strategy,
             total_allocations,
             active_allocations,
+            duplicate_observations: 0,
+            degraded_releases: 0,
         }
+    }
+
+    /// Attach the degraded-release count reported by the capture layer.
+    #[must_use]
+    pub fn with_degraded_releases(mut self, count: usize) -> Self {
+        self.degraded_releases = count;
+        self
+    }
+
+    /// Attach the duplicate-observation count reported by the capture layer.
+    #[must_use]
+    pub fn with_duplicate_observations(mut self, count: usize) -> Self {
+        self.duplicate_observations = count;
+        self
     }
 }
 
@@ -292,8 +320,11 @@ mod tests {
             clone_count: 0,
             timestamp_alloc: 1000,
             timestamp_dealloc: 0,
-            lifetime_ms: 0.0,
+            lifetime_ms: None,
+            observed_age_ms: None,
             is_leaked: false,
+            allocation_state: crate::snapshot::AllocationState::live(),
+            leak_status: crate::snapshot::LeakStatus::NotAssessed,
             allocation_type: "heap".to_string(),
             is_smart_pointer: false,
             smart_pointer_type: String::new(),

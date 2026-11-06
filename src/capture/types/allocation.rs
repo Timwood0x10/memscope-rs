@@ -65,6 +65,11 @@ pub struct CloneInfo {
     pub _confidence: Option<String>,
 }
 
+/// One of several same-named `AllocationInfo` types in this crate: this one is the
+/// the capture-layer record consumed by analysis and the dashboard.
+///
+/// Convert at the module boundary instead of passing it across; a global rename is
+/// deliberately avoided (see DATA_ACCURACY_DEVELOPMENT_PLAN §14.2).
 /// Information about a memory allocation.
 ///
 /// Comprehensive tracking information for a single memory allocation,
@@ -545,7 +550,7 @@ impl Serialize for AllocationInfo {
         S: serde::Serializer,
     {
         use serde::ser::SerializeStruct;
-        let mut state = serializer.serialize_struct("AllocationInfo", 25)?;
+        let mut state = serializer.serialize_struct("AllocationInfo", 32)?;
         state.serialize_field("ptr", &self.ptr)?;
         state.serialize_field("size", &self.size)?;
         state.serialize_field("var_name", &self.var_name)?;
@@ -553,7 +558,11 @@ impl Serialize for AllocationInfo {
         state.serialize_field("scope_name", &self.scope_name)?;
         state.serialize_field("timestamp_alloc", &self.timestamp_alloc)?;
         state.serialize_field("timestamp_dealloc", &self.timestamp_dealloc)?;
-        state.serialize_field("thread_id", &format!("{:?}", self.thread_id))?;
+        // `thread_id` is a `std::thread::ThreadId` that cannot be rebuilt from the
+        // recorded event stream (see `event_reconstructor`), so the captured
+        // numeric id is what gets serialized and exported.
+        state.serialize_field("thread_id", &self.thread_id_u64.to_string())?;
+        state.serialize_field("thread_id_u64", &self.thread_id_u64)?;
         state.serialize_field("borrow_count", &self.borrow_count)?;
         state.serialize_field("stack_trace", &self.stack_trace)?;
         state.serialize_field("is_leaked", &self.is_leaked)?;
@@ -698,10 +707,11 @@ impl AllocationInfo {
     /// assert_eq!(info.size, 1024);
     /// assert!(info.is_active());
     /// ```
+    /// Build an allocation record.
+    ///
+    /// This is a data constructor: it performs no task-registry accounting, so
+    /// rebuilding records from the event store cannot inflate task statistics.
     pub fn new(ptr: usize, size: usize) -> Self {
-        // Record allocation in task registry
-        crate::task_registry::global_registry().record_allocation(size);
-
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()

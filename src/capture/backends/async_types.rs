@@ -8,20 +8,25 @@ use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use std::thread::ThreadId;
 
 /// Unique identifier for async tasks
 pub type TaskId = u128;
 
 /// Async memory tracking task information.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct TaskInfo {
     /// Task unique identifier
     pub task_id: u64,
     /// Task name
     pub name: String,
-    /// Thread ID where the task runs
-    pub thread_id: ThreadId,
+    /// Numeric thread id where the task was last observed.
+    ///
+    /// `None` when the numeric id is unknown (for example a task started on a
+    /// thread we never observed). `ThreadId` is deliberately not used: it cannot be
+    /// rebuilt from stored data, and reports must not substitute the thread that
+    /// happens to build them.
+    #[serde(default)]
+    pub thread_id: Option<u64>,
     /// Task creation timestamp
     pub created_at: u64,
     /// Active allocations count
@@ -67,7 +72,7 @@ impl ExtendedTaskInfo {
 }
 
 /// Memory allocation information for async tracking.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AsyncAllocation {
     /// Memory pointer
     pub ptr: usize,
@@ -83,6 +88,12 @@ pub struct AsyncAllocation {
     pub type_name: Option<String>,
     /// Optional source location
     pub source_location: Option<SourceLocation>,
+    /// 1-based binding order at this address (1 = first use, >1 = address reuse).
+    ///
+    /// Needed because a release may arrive after the address was reused: only the
+    /// generation it was reported for may be closed.
+    #[serde(default)]
+    pub generation: u64,
 }
 
 /// Source location for tracking where allocations occur
@@ -136,7 +147,7 @@ impl std::fmt::Display for SourceLocation {
 }
 
 /// Async memory tracking statistics.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct AsyncStats {
     /// Total number of tasks tracked
     pub total_tasks: usize,
@@ -157,7 +168,7 @@ pub struct AsyncStats {
 }
 
 /// Async memory snapshot.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct AsyncSnapshot {
     /// Snapshot timestamp
     pub timestamp: u64,
@@ -531,7 +542,7 @@ mod tests {
         let task = TaskInfo {
             task_id: 123,
             name: "test_task".to_string(),
-            thread_id: std::thread::current().id(),
+            thread_id: Some(1),
             created_at: 789,
             active_allocations: 2,
             total_memory: 2048,
@@ -551,6 +562,7 @@ mod tests {
             var_name: Some("test_var".to_string()),
             type_name: Some("Vec<u8>".to_string()),
             source_location: None,
+            generation: 1,
         };
 
         assert_eq!(alloc.ptr, 0x1000);
@@ -696,7 +708,7 @@ mod tests {
             tasks: vec![TaskInfo {
                 task_id: 1,
                 name: "task1".to_string(),
-                thread_id: std::thread::current().id(),
+                thread_id: Some(1),
                 created_at: 100,
                 active_allocations: 5,
                 total_memory: 1024,
@@ -890,7 +902,7 @@ mod tests {
         let task = TaskInfo {
             task_id: 1,
             name: "test".to_string(),
-            thread_id: std::thread::current().id(),
+            thread_id: Some(1),
             created_at: 100,
             active_allocations: 5,
             total_memory: 1024,
@@ -911,6 +923,7 @@ mod tests {
             var_name: Some("test".to_string()),
             type_name: Some("i32".to_string()),
             source_location: None,
+            generation: 1,
         };
 
         let cloned = alloc.clone();
@@ -982,7 +995,7 @@ mod tests {
         let task = TaskInfo {
             task_id: 1,
             name: "debug_test".to_string(),
-            thread_id: std::thread::current().id(),
+            thread_id: Some(1),
             created_at: 0,
             active_allocations: 0,
             total_memory: 0,
@@ -1003,6 +1016,7 @@ mod tests {
             var_name: None,
             type_name: None,
             source_location: None,
+            generation: 1,
         };
 
         let debug_str = format!("{:?}", alloc);

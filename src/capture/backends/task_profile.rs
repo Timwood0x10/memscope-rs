@@ -95,6 +95,13 @@ pub struct TaskMemoryProfile {
     pub efficiency_score: f64,
     /// Average allocation size
     pub average_allocation_size: f64,
+    /// Numeric thread id where the task was created or last observed.
+    ///
+    /// Recorded when the information is genuinely available so reports never have
+    /// to guess: using the thread that *builds the snapshot* would label every task
+    /// with the exporter's thread and silently merge them.
+    #[serde(default)]
+    pub thread_id_u64: Option<u64>,
 }
 
 impl TaskMemoryProfile {
@@ -116,7 +123,13 @@ impl TaskMemoryProfile {
             allocation_rate: 0.0,
             efficiency_score: 1.0,
             average_allocation_size: 0.0,
+            thread_id_u64: None,
         }
+    }
+
+    /// Record the numeric thread id (callers that genuinely know it).
+    pub fn set_thread_id_u64(&mut self, thread_id: Option<u64>) {
+        self.thread_id_u64 = thread_id;
     }
 
     /// Create new task profile with tokio task ID
@@ -141,8 +154,7 @@ impl TaskMemoryProfile {
 
     /// Mark task as completed
     pub fn mark_completed(&mut self) {
-        self.completed_at_ms = Some(Self::now_ms());
-        self.duration_ns = self.lifetime().as_nanos() as u64;
+        self.completed_at_ms.get_or_insert_with(Self::now_ms);
         self.update_metrics();
     }
 
@@ -156,6 +168,22 @@ impl TaskMemoryProfile {
             self.peak_memory = self.current_memory;
         }
 
+        self.update_metrics();
+    }
+
+    /// Record an in-place reallocation of an already counted block.
+    ///
+    /// The old size leaves the live set, the new size enters it, and the block is
+    /// not counted again as a separate allocation.
+    pub fn record_reallocation(&mut self, old_size: u64, new_size: u64) {
+        self.total_bytes += new_size;
+        self.current_memory = self
+            .current_memory
+            .saturating_sub(old_size)
+            .saturating_add(new_size);
+        if self.current_memory > self.peak_memory {
+            self.peak_memory = self.current_memory;
+        }
         self.update_metrics();
     }
 
@@ -195,7 +223,16 @@ impl TaskMemoryProfile {
 
     /// Update derived metrics
     fn update_metrics(&mut self) {
-        let lifetime_secs = self.lifetime().as_secs_f64();
+        self.refresh_at(Self::now_ms().saturating_mul(1_000_000));
+    }
+
+    pub(crate) fn refresh_at(&mut self, captured_at_ns: u64) {
+        let end = self
+            .completed_at_ms
+            .map(|ms| ms.saturating_mul(1_000_000))
+            .unwrap_or(captured_at_ns);
+        self.duration_ns = end.saturating_sub(self.created_at_ms.saturating_mul(1_000_000));
+        let lifetime_secs = self.duration_ns as f64 / 1_000_000_000.0;
 
         self.allocation_rate = if lifetime_secs > 0.0 {
             self.total_bytes as f64 / lifetime_secs

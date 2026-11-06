@@ -6,7 +6,9 @@
 
 use super::event_dto::{DashboardEventDTO, DataIndex, EventSummary};
 use super::event_reconstructor::SamplingMetadata;
+use super::evidence::{EvidenceLevel, RiskConfidence};
 use super::inference::get_inferred_type_name;
+use super::layout_inference::infer_layout_snapshot;
 use super::types::*;
 use crate::analysis::memory_passport_tracker::{PassportEventType, PassportStatus};
 use crate::analysis::top_n::TopNAnalyzer;
@@ -35,6 +37,18 @@ pub fn build_allocation_info(
                 String::new()
             };
 
+            // Life-cycle facts and leak conclusions are separated: the DTO never
+            // turns "no deallocation timestamp" into "leaked". Readily observed
+            // releases map to `Freed`, everything else stays `Live` because the
+            // allocation was still present in the active set at this cut.
+            let allocation_state = match a.timestamp_dealloc {
+                Some(at_ns) => crate::snapshot::AllocationState::freed(at_ns),
+                None => crate::snapshot::AllocationState::live(),
+            };
+            // No leak rule is wired up at this stage, so nothing is assessed.
+            // `is_leaked` stays a compatibility projection of that conclusion.
+            let leak_assessment = crate::snapshot::LeakAssessment::not_assessed();
+
             AllocationInfo {
                 address: format!("0x{:x}", a.ptr),
                 type_name: type_name.clone(),
@@ -49,8 +63,15 @@ pub fn build_allocation_info(
                 timestamp_alloc: a.timestamp_alloc,
                 timestamp_dealloc: a.timestamp_dealloc.unwrap_or(0),
                 lifetime_ms: calculate_lifetime_ms(a.timestamp_alloc, a.timestamp_dealloc),
-                is_leaked: a.timestamp_dealloc.is_none(),
-                allocation_type: if is_smart_pointer {
+                observed_age_ms: None,
+                is_leaked: leak_assessment.is_reported_leak(),
+                allocation_state,
+                leak_status: leak_assessment.status,
+                allocation_type: if crate::analysis::is_virtual_pointer(a.ptr) {
+                    // Keep typed container observations visible without presenting
+                    // their estimated size as another heap allocation.
+                    "container".to_string()
+                } else if is_smart_pointer {
                     smart_pointer_type.clone()
                 } else {
                     "heap".to_string()
@@ -70,16 +91,18 @@ pub fn build_allocation_info(
                 module_path: a.module_path.clone(),
                 generation_id: a.generation_id,
                 provenance: infer_provenance(a),
-                evidence: if a.generation_id > 0 {
+                // Evidence describes how well the *allocation* is known: the record
+                // comes from a recorded event, and the type is only `Observed` when
+                // a typed observation actually carried a type name (A11). The
+                // address-reuse generation proves nothing about the type or layout.
+                evidence: if a.type_name.is_some() {
                     EvidenceLevel::Observed
                 } else {
-                    EvidenceLevel::Inferred
+                    EvidenceLevel::Unknown
                 },
-                confidence: if a.is_leaked {
-                    RiskConfidence::Confirmed
-                } else {
-                    RiskConfidence::Likely
-                },
+                // Risk confidence belongs to a diagnostic conclusion, not to the
+                // allocation itself; without an assessed rule it is unknown.
+                confidence: RiskConfidence::Unknown,
                 layout_snapshot: infer_layout_snapshot(&type_name, a.size, a.generation_id),
             }
         })
@@ -87,218 +110,17 @@ pub fn build_allocation_info(
 }
 
 /// Calculate lifetime in milliseconds from timestamps
-fn calculate_lifetime_ms(timestamp_alloc: u64, timestamp_dealloc: Option<u64>) -> f64 {
-    match timestamp_dealloc {
-        Some(dealloc) => (dealloc - timestamp_alloc) as f64 / 1_000_000.0,
-        None => 0.0,
-    }
-}
-
-/// Infer a TypeLayoutSnapshot from allocation attributes at report-build time.
-fn infer_layout_snapshot(
-    type_name: &str,
-    size: usize,
-    generation_id: usize,
-) -> Option<crate::capture::types::TypeLayoutSnapshot> {
-    let gen = generation_id;
-
-    // Try Vec<T> — pattern like "Vec<i32>" or "std::vec::Vec<u8>"
-    if let Some(inner) = type_name
-        .rsplit("Vec<")
-        .nth(1)
-        .and_then(|_| type_name.split("Vec<").nth(1))
-        .and_then(|s| s.strip_suffix('>'))
-        .map(|s| s.trim())
-    {
-        let elem_size = estimate_type_size(inner);
-        let cap = if elem_size > 0 { size / elem_size } else { 0 };
-        return Some(crate::capture::types::TypeLayoutSnapshot {
-            type_name: format!("Vec<{}>", inner),
-            size_of_t: std::mem::size_of::<*const usize>() * 3,
-            align_of_t: std::mem::align_of::<usize>(),
-            is_sized: true,
-            repr_hint: crate::capture::types::ReprHint::Rust,
-            layout_kind: crate::capture::types::LayoutKind::Container,
-            pointer_width: crate::capture::types::PointerWidth::Unknown,
-            logical_size_bytes: std::mem::size_of::<*const usize>() * 3,
-            allocated_size_bytes: size,
-            used_size_bytes: 0,
-            reserved_size_bytes: size,
-            element_size: Some(elem_size),
-            element_align: Some(elem_size),
-            container_len: Some(0),
-            container_capacity: Some(cap),
-            strong_count: None,
-            weak_count: None,
-            pointee_type: Some(inner.to_string()),
-            generation_id: gen,
-        });
-    }
-
-    // String / std::string::String
-    if type_name == "String" || type_name.contains("std::string::String") {
-        return Some(crate::capture::types::TypeLayoutSnapshot {
-            type_name: "String".to_string(),
-            size_of_t: std::mem::size_of::<*const usize>() * 3,
-            align_of_t: std::mem::align_of::<usize>(),
-            is_sized: true,
-            repr_hint: crate::capture::types::ReprHint::Rust,
-            layout_kind: crate::capture::types::LayoutKind::Container,
-            pointer_width: crate::capture::types::PointerWidth::Unknown,
-            logical_size_bytes: std::mem::size_of::<*const usize>() * 3,
-            allocated_size_bytes: size,
-            used_size_bytes: 0,
-            reserved_size_bytes: size,
-            element_size: Some(1),
-            element_align: Some(1),
-            container_len: Some(0),
-            container_capacity: Some(size),
-            strong_count: None,
-            weak_count: None,
-            pointee_type: Some("u8".to_string()),
-            generation_id: gen,
-        });
-    }
-
-    // Box<T>
-    if let Some(inner) = type_name
-        .rsplit("Box<")
-        .nth(1)
-        .and_then(|_| type_name.split("Box<").nth(1))
-        .and_then(|s| s.strip_suffix('>'))
-        .map(|s| s.trim())
-    {
-        let pointee_size = estimate_type_size(inner);
-        return Some(crate::capture::types::TypeLayoutSnapshot {
-            type_name: format!("Box<{}>", inner),
-            size_of_t: std::mem::size_of::<usize>(),
-            align_of_t: std::mem::align_of::<usize>(),
-            is_sized: true,
-            repr_hint: crate::capture::types::ReprHint::Rust,
-            layout_kind: crate::capture::types::LayoutKind::SmartPointer,
-            pointer_width: crate::capture::types::PointerWidth::Thin,
-            logical_size_bytes: std::mem::size_of::<usize>(),
-            allocated_size_bytes: pointee_size,
-            used_size_bytes: pointee_size,
-            reserved_size_bytes: pointee_size,
-            element_size: Some(pointee_size),
-            element_align: Some(pointee_size),
-            container_len: None,
-            container_capacity: None,
-            strong_count: None,
-            weak_count: None,
-            pointee_type: Some(inner.to_string()),
-            generation_id: gen,
-        });
-    }
-
-    // Arc<T>
-    if let Some(inner) = type_name
-        .rsplit("Arc<")
-        .nth(1)
-        .and_then(|_| type_name.split("Arc<").nth(1))
-        .and_then(|s| s.strip_suffix('>'))
-        .map(|s| s.trim())
-    {
-        let pointee_size = estimate_type_size(inner);
-        return Some(crate::capture::types::TypeLayoutSnapshot {
-            type_name: format!("Arc<{}>", inner),
-            size_of_t: std::mem::size_of::<usize>() * 2,
-            align_of_t: std::mem::align_of::<usize>(),
-            is_sized: true,
-            repr_hint: crate::capture::types::ReprHint::Rust,
-            layout_kind: crate::capture::types::LayoutKind::SmartPointer,
-            pointer_width: crate::capture::types::PointerWidth::Thin,
-            logical_size_bytes: std::mem::size_of::<usize>() * 2,
-            allocated_size_bytes: pointee_size + std::mem::size_of::<usize>() * 2,
-            used_size_bytes: pointee_size,
-            reserved_size_bytes: pointee_size + std::mem::size_of::<usize>() * 2,
-            element_size: Some(pointee_size),
-            element_align: Some(pointee_size),
-            container_len: None,
-            container_capacity: None,
-            strong_count: Some(1),
-            weak_count: Some(0),
-            pointee_type: Some(inner.to_string()),
-            generation_id: gen,
-        });
-    }
-
-    // Rc<T>
-    if let Some(inner) = type_name
-        .rsplit("Rc<")
-        .nth(1)
-        .and_then(|_| type_name.split("Rc<").nth(1))
-        .and_then(|s| s.strip_suffix('>'))
-        .map(|s| s.trim())
-    {
-        let pointee_size = estimate_type_size(inner);
-        return Some(crate::capture::types::TypeLayoutSnapshot {
-            type_name: format!("Rc<{}>", inner),
-            size_of_t: std::mem::size_of::<usize>() * 2,
-            align_of_t: std::mem::align_of::<usize>(),
-            is_sized: true,
-            repr_hint: crate::capture::types::ReprHint::Rust,
-            layout_kind: crate::capture::types::LayoutKind::SmartPointer,
-            pointer_width: crate::capture::types::PointerWidth::Thin,
-            logical_size_bytes: std::mem::size_of::<usize>() * 2,
-            allocated_size_bytes: pointee_size + std::mem::size_of::<usize>() * 2,
-            used_size_bytes: pointee_size,
-            reserved_size_bytes: pointee_size + std::mem::size_of::<usize>() * 2,
-            element_size: Some(pointee_size),
-            element_align: Some(pointee_size),
-            container_len: None,
-            container_capacity: None,
-            strong_count: Some(1),
-            weak_count: Some(0),
-            pointee_type: Some(inner.to_string()),
-            generation_id: gen,
-        });
-    }
-
-    // Fallback: generic snapshot from type name and size
-    let layout_kind = crate::capture::types::infer_layout_kind_from_name(type_name);
-    Some(crate::capture::types::TypeLayoutSnapshot {
-        type_name: type_name.to_string(),
-        size_of_t: size,
-        align_of_t: 0,
-        is_sized: true,
-        repr_hint: crate::capture::types::ReprHint::Unknown,
-        layout_kind,
-        pointer_width: crate::capture::types::PointerWidth::Unknown,
-        logical_size_bytes: size,
-        allocated_size_bytes: size,
-        used_size_bytes: size,
-        reserved_size_bytes: size,
-        element_size: None,
-        element_align: None,
-        container_len: None,
-        container_capacity: None,
-        strong_count: None,
-        weak_count: None,
-        pointee_type: None,
-        generation_id: gen,
-    })
-}
-
-/// Estimate the size of a Rust type from its name string.
-fn estimate_type_size(type_name: &str) -> usize {
-    match type_name.trim() {
-        "u8" | "i8" | "bool" => 1,
-        "u16" | "i16" | "char" => 2,
-        "u32" | "i32" | "f32" => 4,
-        "u64" | "i64" | "f64" | "usize" | "isize" => 8,
-        "u128" | "i128" => 16,
-        "()" => 0,
-        "*mut u8" | "*const u8" | "*mut c_void" | "*const c_void" | "String" => 8,
-        s if s.contains("String") => 24, // String struct on stack
-        s if s.starts_with('&') => 16,   // fat reference (ptr + len)
-        s if s.contains('*') => 8,       // pointer
-        _ => 8,                          // default fallback
-    }
+fn calculate_lifetime_ms(timestamp_alloc: u64, timestamp_dealloc: Option<u64>) -> Option<f64> {
+    timestamp_dealloc?
+        .checked_sub(timestamp_alloc)
+        .map(|ns| ns as f64 / 1_000_000.0)
 }
 
 /// Infer pointer provenance from allocation attributes
+///
+/// Generation 1 is the first binding at an address, so only generation 2 and above
+/// describe a reused address. Leakage is deliberately not part of provenance: it
+/// is a separate conclusion (`LeakAssessment`), not an origin.
 fn infer_provenance(a: &crate::capture::types::AllocationInfo) -> String {
     if a.smart_pointer_info.is_some() {
         return "smart_pointer".to_string();
@@ -306,11 +128,8 @@ fn infer_provenance(a: &crate::capture::types::AllocationInfo) -> String {
     if a.clone_info.as_ref().map(|c| c.is_clone).unwrap_or(false) {
         return "clone".to_string();
     }
-    if a.is_leaked && a.generation_id > 0 {
-        return "reallocated_then_leaked".to_string();
-    }
-    if a.generation_id > 0 {
-        return "reallocation".to_string();
+    if a.generation_id > 1 {
+        return "reused_address".to_string();
     }
     "allocator".to_string()
 }
@@ -403,26 +222,32 @@ pub fn build_relationships(az: &mut Analyzer) -> Vec<RelationshipInfo> {
 
 /// Build unsafe reports from passports
 pub fn build_unsafe_reports(
-    passports: &HashMap<usize, crate::analysis::memory_passport_tracker::MemoryPassport>,
+    passport_tracker: &crate::analysis::memory_passport_tracker::MemoryPassportTracker,
+    passports: &[crate::analysis::memory_passport_tracker::MemoryPassport],
     all_allocations: &[crate::capture::types::AllocationInfo],
 ) -> Vec<UnsafeReport> {
     passports
-        .values()
+        .iter()
         .filter(|p| !p.lifecycle_events.is_empty())
-        .map(|p| build_unsafe_report(p, all_allocations))
+        // The status is a read-only projection of the passport events; reading the stored
+        // `status_at_shutdown` would show `Unknown` because detection no longer writes it.
+        .map(|p| build_unsafe_report(p, passport_tracker.assess_status(p), all_allocations))
         .collect()
 }
 
 /// Build single unsafe report
 fn build_unsafe_report(
     p: &crate::analysis::memory_passport_tracker::MemoryPassport,
+    status: PassportStatus,
     all_allocations: &[crate::capture::types::AllocationInfo],
 ) -> UnsafeReport {
+    // An archived passport must not inherit type/location from the newer block at its address.
+    let all_allocations = if p.superseded { &[] } else { all_allocations };
     let lifecycle_events = build_lifecycle_events(&p.lifecycle_events);
     let cross_boundary_events = build_boundary_events(&lifecycle_events);
 
-    let is_leaked = p.status_at_shutdown == PassportStatus::InForeignCustody
-        || p.status_at_shutdown == PassportStatus::HandoverToFfi;
+    let is_leaked =
+        status == PassportStatus::InForeignCustody || status == PassportStatus::HandoverToFfi;
     let risk_level = if is_leaked {
         "high".to_string()
     } else if !cross_boundary_events.is_empty() {
@@ -453,7 +278,10 @@ fn build_unsafe_report(
         if from_alloc != "-" {
             from_alloc
         } else {
-            infer_type_from_size(p.size_bytes)
+            // No type was ever observed for this block. A size cannot identify a
+            // type, so report "unknown" instead of a fabricated guess with a
+            // made-up percentage.
+            "unknown".to_string()
         }
     };
 
@@ -484,13 +312,15 @@ fn build_unsafe_report(
 
     UnsafeReport {
         passport_id: p.passport_id.clone(),
+        generation: p.generation,
+        superseded: p.superseded,
         allocation_ptr: format!("0x{:x}", p.allocation_ptr),
         var_name,
         type_name,
         size_bytes: p.size_bytes,
         created_at: p.created_at,
         updated_at: p.updated_at,
-        status: format!("{:?}", p.status_at_shutdown),
+        status: format!("{status:?}"),
         lifecycle_events,
         cross_boundary_events,
         is_leaked,
@@ -502,20 +332,23 @@ fn build_unsafe_report(
 
 /// Build passport details
 pub fn build_passport_details(
-    passports: &HashMap<usize, crate::analysis::memory_passport_tracker::MemoryPassport>,
+    passport_tracker: &crate::analysis::memory_passport_tracker::MemoryPassportTracker,
+    passports: &[crate::analysis::memory_passport_tracker::MemoryPassport],
     all_allocations: &[crate::capture::types::AllocationInfo],
 ) -> Vec<PassportDetail> {
     passports
-        .values()
-        .map(|p| build_passport_detail(p, all_allocations))
+        .iter()
+        .map(|p| build_passport_detail(p, passport_tracker.assess_status(p), all_allocations))
         .collect()
 }
 
 /// Build single passport detail
 fn build_passport_detail(
     p: &crate::analysis::memory_passport_tracker::MemoryPassport,
+    status: PassportStatus,
     all_allocations: &[crate::capture::types::AllocationInfo],
 ) -> PassportDetail {
+    let all_allocations = if p.superseded { &[] } else { all_allocations };
     let lifecycle_events = build_lifecycle_events(&p.lifecycle_events);
     let cross_boundary_events = build_boundary_events(&lifecycle_events);
 
@@ -541,12 +374,15 @@ fn build_passport_detail(
         if from_alloc != "-" {
             from_alloc
         } else {
-            infer_type_from_size(p.size_bytes)
+            // No type was ever observed for this block. A size cannot identify a
+            // type, so report "unknown" instead of a fabricated guess with a
+            // made-up percentage.
+            "unknown".to_string()
         }
     };
 
-    let is_leaked = p.status_at_shutdown == PassportStatus::InForeignCustody
-        || p.status_at_shutdown == PassportStatus::HandoverToFfi;
+    let is_leaked =
+        status == PassportStatus::InForeignCustody || status == PassportStatus::HandoverToFfi;
     let risk_level = if is_leaked {
         "high".to_string()
     } else if !cross_boundary_events.is_empty() {
@@ -555,12 +391,13 @@ fn build_passport_detail(
         "low".to_string()
     };
 
-    // An active passport is one that is neither leaked nor freed — it still
-    // holds live memory at shutdown. We approximate "active" by checking the
-    // shutdown status reflects a Rust-held, non-freed state.
-    let is_active = !is_leaked
-        && p.status_at_shutdown != PassportStatus::FreedByRust
-        && p.status_at_shutdown != PassportStatus::FreedByForeign;
+    // An active passport still holds live memory: it is neither leaked nor released,
+    // including the honest `StillLive` state for a block that never crossed the boundary.
+    let is_active = !p.superseded
+        && matches!(
+            status,
+            PassportStatus::StillLive | PassportStatus::ReclaimedByRust
+        );
 
     // Best-effort source location: prefer the originating allocation's stack
     // trace, fall back to the var name + allocation pointer for context.
@@ -574,11 +411,13 @@ fn build_passport_detail(
 
     PassportDetail {
         passport_id: p.passport_id.clone(),
+        generation: p.generation,
+        superseded: p.superseded,
         allocation_ptr: format!("0x{:x}", p.allocation_ptr),
         var_name,
         type_name,
         size_bytes: p.size_bytes,
-        status: format!("{:?}", p.status_at_shutdown),
+        status: format!("{status:?}"),
         created_at: p.created_at,
         updated_at: p.updated_at,
         is_leaked,
@@ -709,10 +548,7 @@ pub fn aggregate_thread_data(allocations: &[AllocationInfo]) -> Vec<ThreadInfo> 
         if alloc.size > entry.peak_memory {
             entry.peak_memory = alloc.size;
         }
-        // Capture the logical CPU core once per thread
-        if entry.cpu_core.is_none() {
-            entry.cpu_core = crate::capture::platform::memory_info::get_current_cpu_impl();
-        }
+        // Export-time CPU queries describe the exporter, not this allocating thread.
     }
 
     thread_map
@@ -744,71 +580,102 @@ pub fn aggregate_thread_data(allocations: &[AllocationInfo]) -> Vec<ThreadInfo> 
         .collect()
 }
 
-/// Build async tasks
-pub fn build_async_tasks(
-    async_tracker: Option<&std::sync::Arc<crate::capture::backends::async_tracker::AsyncTracker>>,
-) -> Vec<AsyncTaskInfo> {
-    if let Some(tracker) = async_tracker {
-        let profiles = tracker.get_all_profiles();
-        profiles
-            .into_iter()
-            .map(|p| {
-                let is_completed = p.is_completed();
-                let has_potential_leak = p.has_potential_leak();
-                let task_type_str = format!("{:?}", p.task_type);
-                let status = if has_potential_leak {
-                    "LEAKED".to_string()
-                } else if is_completed {
-                    "COMPLETED".to_string()
+/// Aggregate thread data from the ledger's transition-based statistics.
+///
+/// Prefer this over [`aggregate_thread_data`] whenever the event stream is available: the
+/// live list cannot report cumulative totals or the high-water mark, so a program that
+/// allocated 64 + 128 and released 128 used to show 64 bytes for both (plan A06
+/// follow-up).
+pub fn aggregate_thread_data_from_ledger(
+    thread_stats: &HashMap<u64, crate::snapshot::types::ThreadMemoryStats>,
+) -> Vec<ThreadInfo> {
+    thread_stats
+        .values()
+        .map(|stats| {
+            let thread_id = super::helpers::format_thread_id(&format!("{:?}", stats.thread_id));
+            ThreadInfo {
+                thread_summary: format!(
+                    "{} allocs, {}",
+                    stats.allocation_count,
+                    super::helpers::format_bytes(stats.current_memory)
+                ),
+                thread_id,
+                allocation_count: stats.allocation_count,
+                current_memory: super::helpers::format_bytes(stats.current_memory),
+                peak_memory: super::helpers::format_bytes(stats.peak_memory),
+                total_allocated: super::helpers::format_bytes(stats.total_allocated),
+                current_memory_bytes: stats.current_memory,
+                peak_memory_bytes: stats.peak_memory,
+                total_allocated_bytes: stats.total_allocated,
+                is_active: stats.allocation_count > 0,
+                status: if stats.allocation_count > 0 {
+                    "ACTIVE".to_string()
                 } else {
-                    "RUNNING".to_string()
-                };
-                AsyncTaskInfo {
-                    task_id: p.task_id,
-                    task_name: p.task_name,
-                    task_type: task_type_str,
-                    total_bytes: p.total_bytes,
-                    current_memory: p.current_memory,
-                    peak_memory: p.peak_memory,
-                    total_allocations: p.total_allocations,
-                    duration_ms: p.duration_ns as f64 / 1_000_000.0,
-                    efficiency_score: p.efficiency_score,
-                    is_completed,
-                    has_potential_leak,
-                    status,
-                }
-            })
-            .collect()
-    } else {
-        Vec::new()
-    }
+                    "IDLE".to_string()
+                },
+                cpu_core: None,
+            }
+        })
+        .collect()
 }
 
-/// Build async summary
+/// Build async tasks from rebuilt event-replay profiles.
 ///
-/// Aggregates per-task profiles into summary KPIs. The `async_tasks` slice is
-/// used to derive completed/leaked/zombie counts and the success rate, since
-/// the tracker's raw stats do not expose these breakdowns directly.
-pub fn build_async_summary(
-    async_tracker: Option<&std::sync::Arc<crate::capture::backends::async_tracker::AsyncTracker>>,
+/// Instead of reading live `AsyncTracker` profiles (which may be stale due
+/// to missing deallocation/realloc updates), this accepts the rebuilt
+/// profiles from `rebuild_async_profiles_from_events`.
+pub fn build_async_tasks_from_rebuilt(
+    rebuilt: &crate::capture::backends::RebuiltProfiles,
+) -> Vec<AsyncTaskInfo> {
+    rebuilt
+        .profiles
+        .iter()
+        .map(|p| {
+            let is_completed = p.is_completed();
+            let has_potential_leak = p.has_potential_leak();
+            let task_type_str = format!("{:?}", p.task_type);
+            let status = if has_potential_leak {
+                "LEAKED".to_string()
+            } else if is_completed {
+                "COMPLETED".to_string()
+            } else {
+                "RUNNING".to_string()
+            };
+            AsyncTaskInfo {
+                task_id: p.task_id,
+                created_at_ms: p.created_at_ms,
+                completed_at_ms: p.completed_at_ms,
+                task_name: p.task_name.clone(),
+                task_type: task_type_str,
+                total_bytes: p.total_bytes,
+                current_memory: p.current_memory,
+                peak_memory: p.peak_memory,
+                total_allocations: p.total_allocations,
+                duration_ms: p.duration_ns as f64 / 1_000_000.0,
+                efficiency_score: p.efficiency_score,
+                is_completed,
+                has_potential_leak,
+                status,
+            }
+        })
+        .collect()
+}
+
+/// Build async summary from rebuilt event-replay data.
+///
+/// Uses the global peak memory (sum of all tasks' concurrent usage) and
+/// event-derived totals, not live tracker state.
+pub fn build_async_summary_from_rebuilt(
+    rebuilt: &crate::capture::backends::RebuiltProfiles,
     async_tasks: &[AsyncTaskInfo],
 ) -> AsyncSummary {
-    let (total_tasks, active_tasks, total_allocations, total_memory_bytes, peak_memory_bytes) =
-        if let Some(tracker) = async_tracker {
-            let stats = tracker.get_stats();
-            (
-                stats.total_tasks,
-                stats.active_tasks,
-                stats.total_allocations,
-                stats.total_memory,
-                stats.peak_memory,
-            )
-        } else {
-            (0, 0, 0, 0, 0)
-        };
+    let total_tasks = rebuilt.profiles.len();
+    let active_tasks = rebuilt
+        .profiles
+        .iter()
+        .filter(|p| !p.is_completed())
+        .count();
 
-    // Derive completion/leak/zombie breakdowns from the per-task list so the
-    // template's async KPI cards reflect real task outcomes rather than zeros.
     let completed = async_tasks.iter().filter(|t| t.is_completed).count();
     let leaked = async_tasks.iter().filter(|t| t.has_potential_leak).count();
     let zombie = async_tasks
@@ -824,9 +691,9 @@ pub fn build_async_summary(
     AsyncSummary {
         total_tasks,
         active_tasks,
-        total_allocations,
-        total_memory_bytes,
-        peak_memory_bytes,
+        total_allocations: rebuilt.total_allocations as usize,
+        total_memory_bytes: rebuilt.total_memory as usize,
+        peak_memory_bytes: rebuilt.global_peak_memory as usize,
         completed,
         leaked,
         zombie,
@@ -1049,178 +916,5 @@ pub fn build_json_data(
     Ok(serde_json::to_string(&data)?)
 }
 
-/// Infer type from size (fallback when no type name is recorded)
-fn infer_type_from_size(size: usize) -> String {
-    match size {
-        8 => "*mut c_void (30%)".to_string(),
-        16 => "&[T] (25%)".to_string(),
-        24 => "Vec<_>/String (15%)".to_string(),
-        32 | 48 | 64 => "CStruct (10%)".to_string(),
-        n if n.is_power_of_two() && n >= 64 => {
-            format!("Vec<_>/[u8] ({}%)", 10 + n.trailing_zeros() as u8)
-        }
-        n if (32..=256).contains(&n) => "[u8] (10%)".to_string(),
-        _ => "unknown".to_string(),
-    }
-}
-
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// Objective: Verify that HealthInfo struct can be created.
-    #[test]
-    fn test_health_info_creation() {
-        let info = HealthInfo {
-            health_score: 85,
-            health_status: "Good".to_string(),
-            safe_ops_count: 100,
-            high_risk_count: 5,
-            clean_passport_count: 50,
-            active_passport_count: 10,
-            leaked_passport_count: 2,
-            ffi_tracked_count: 15,
-            safe_code_percent: 95,
-        };
-        assert_eq!(info.health_score, 85);
-        assert_eq!(info.health_status, "Good");
-        assert_eq!(info.safe_ops_count, 100);
-    }
-
-    /// Objective: Verify that calculate_health_info returns positive for empty data.
-    #[test]
-    fn test_calculate_health_info_empty() {
-        let health = calculate_health_info(&[], &[], 0, 0);
-        assert!(health.health_score > 0);
-        assert!(
-            health.health_status.contains("Excellent") || health.health_status.contains("Good")
-        );
-    }
-
-    /// Objective: Verify that calculate_health_info penalizes leaks.
-    #[test]
-    fn test_calculate_health_info_with_leaks() {
-        let health_no_leaks = calculate_health_info(&[], &[], 0, 100);
-        let health_with_leaks = calculate_health_info(&[], &[], 50, 100);
-        assert!(health_no_leaks.health_score > health_with_leaks.health_score);
-    }
-
-    /// Objective: Verify that calculate_health_info penalizes high risk.
-    #[test]
-    fn test_calculate_health_info_with_unsafe() {
-        let safe_report = UnsafeReport {
-            passport_id: "1".to_string(),
-            allocation_ptr: "0x1000".to_string(),
-            var_name: "var".to_string(),
-            type_name: "i32".to_string(),
-            size_bytes: 4,
-            created_at: 0,
-            updated_at: 0,
-            status: "active".to_string(),
-            lifecycle_events: vec![],
-            cross_boundary_events: vec![],
-            is_leaked: false,
-            risk_level: "low".to_string(),
-            risk_factors: vec![],
-            description: "no risk factors".to_string(),
-        };
-        let high_risk_report = UnsafeReport {
-            passport_id: "2".to_string(),
-            allocation_ptr: "0x2000".to_string(),
-            var_name: "var2".to_string(),
-            type_name: "i32".to_string(),
-            size_bytes: 4,
-            created_at: 0,
-            updated_at: 0,
-            status: "active".to_string(),
-            lifecycle_events: vec![],
-            cross_boundary_events: vec![],
-            is_leaked: false,
-            risk_level: "high".to_string(),
-            risk_factors: vec![],
-            description: "no risk factors".to_string(),
-        };
-        let health_safe = calculate_health_info(&[safe_report], &[], 0, 100);
-        let health_high_risk = calculate_health_info(&[high_risk_report], &[], 0, 100);
-        assert!(health_safe.health_score > health_high_risk.health_score);
-    }
-
-    /// Objective: Verify that calculate_health_info handles leaked passports.
-    #[test]
-    fn test_calculate_health_info_with_passports() {
-        let leaked_passport = PassportDetail {
-            passport_id: "1".to_string(),
-            allocation_ptr: "0x1000".to_string(),
-            var_name: "var".to_string(),
-            type_name: "i32".to_string(),
-            size_bytes: 4,
-            status: "leaked".to_string(),
-            created_at: 0,
-            updated_at: 0,
-            is_leaked: true,
-            ffi_tracked: false,
-            lifecycle_events: vec![],
-            cross_boundary_events: vec![],
-            risk_level: "high".to_string(),
-            risk_confidence: 0.9,
-            is_active: false,
-            source_location: "test.rs:1".to_string(),
-        };
-        let clean_passport = PassportDetail {
-            passport_id: "2".to_string(),
-            allocation_ptr: "0x2000".to_string(),
-            var_name: "var2".to_string(),
-            type_name: "i32".to_string(),
-            size_bytes: 4,
-            status: "active".to_string(),
-            created_at: 0,
-            updated_at: 0,
-            is_leaked: false,
-            ffi_tracked: false,
-            lifecycle_events: vec![],
-            cross_boundary_events: vec![],
-            risk_level: "low".to_string(),
-            risk_confidence: 0.5,
-            is_active: true,
-            source_location: "test.rs:2".to_string(),
-        };
-        let health_clean = calculate_health_info(&[], &[clean_passport], 0, 100);
-        let health_leaked = calculate_health_info(&[], &[leaked_passport], 1, 100);
-        assert!(health_clean.clean_passport_count >= health_leaked.clean_passport_count);
-    }
-
-    /// Objective: Verify that build_top_n_reports handles empty input.
-    #[test]
-    fn test_build_top_n_reports_empty() {
-        let reports = build_top_n_reports(&[]);
-        assert!(reports.top_allocation_sites.is_empty());
-        assert!(reports.top_leaked_allocations.is_empty());
-        assert!(reports.top_temporary_churn.is_empty());
-    }
-
-    /// Objective: Verify that aggregate_thread_data handles empty input.
-    #[test]
-    fn test_aggregate_thread_data_empty() {
-        let threads = aggregate_thread_data(&[]);
-        assert!(threads.is_empty());
-    }
-
-    /// Objective: Verify that build_async_tasks returns empty for no tracker.
-    #[test]
-    fn test_build_async_tasks_no_tracker() {
-        let tasks = build_async_tasks(None);
-        assert!(tasks.is_empty());
-    }
-
-    /// Objective: Verify that build_async_summary returns zeros for no tracker.
-    #[test]
-    fn test_build_async_summary_no_tracker() {
-        let summary = build_async_summary(None, &[]);
-        assert_eq!(summary.total_tasks, 0);
-        assert_eq!(summary.active_tasks, 0);
-        assert_eq!(summary.completed, 0);
-        assert_eq!(summary.leaked, 0);
-        assert_eq!(summary.zombie, 0);
-        assert_eq!(summary.success_rate, 0.0);
-    }
-}
+mod tests;

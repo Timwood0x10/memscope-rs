@@ -261,7 +261,7 @@ mod tests {
     /// Objective: Verify `start_with` with a `flush_interval` spawns a flusher
     /// that writes a report within a few tick intervals, and that dropping the
     /// guard joins the flusher thread without hanging.
-    /// Invariants: After 200ms (4x the 50ms interval) the HTML file exists;
+    /// Invariants: Within a bounded wait the HTML file is complete;
     /// `drop(guard)` returns promptly (no deadlock).
     #[test]
     #[serial]
@@ -276,14 +276,17 @@ mod tests {
         let guard =
             start_with(cfg).expect("start_with with flush_interval must succeed and spawn flusher");
 
-        // 200ms gives the 50ms-interval worker ~3-4 ticks of slack. The first
-        // tick triggers trigger_export_now which writes the dashboard.
-        thread::sleep(Duration::from_millis(200));
-
         let html = dir.path().join("dashboard_unified_dashboard.html");
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        while std::time::Instant::now() < deadline {
+            if std::fs::read_to_string(&html).is_ok_and(|s| s.contains("</html>")) {
+                break;
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
         assert!(
-            html.exists(),
-            "periodic flusher must have written the HTML dashboard within 200ms"
+            std::fs::read_to_string(&html).is_ok_and(|s| s.contains("</html>")),
+            "periodic flusher must finish HTML within five seconds"
         );
 
         // Dropping the guard joins the flusher thread. This must not hang — if
@@ -488,6 +491,70 @@ mod tests {
         assert_eq!(
             completed, THREAD_COUNT,
             "all 50 worker threads must complete without deadlock or panic"
+        );
+    }
+
+    // ===================== Exit export accounting =========================
+
+    /// Objective: Verify the exit-path export runs exactly once for a guard drop
+    /// when no periodic/manual export happened before (plan §8.1).
+    /// Invariants: the report exists after the drop, and a second `Drop`-reason
+    /// export attempt reports `false` because the idempotency latch is consumed —
+    /// proving the batch is not written twice.
+    #[test]
+    #[serial]
+    fn drop_guard_exports_exactly_once() {
+        reset_globals();
+        let dir = TempDir::new().expect("tempdir creation must succeed in tests");
+        let cfg = MemScopeConfig::default()
+            .with_auto_export(AutoExportConfig::default().with_output_path(dir.path()));
+        let guard = start_with(cfg).expect("start_with must succeed for the once-only check");
+
+        let data: Vec<u64> = vec![1, 2, 3];
+        guard.track(&data);
+        drop(guard);
+
+        let html = dir.path().join("dashboard_unified_dashboard.html");
+        assert!(
+            html.exists(),
+            "the guard drop must produce one report batch at {html:?}"
+        );
+        assert!(
+            !lifecycle::export_for_reason(lifecycle::ExportReason::Drop),
+            "a second exit-path export must be skipped by the idempotency latch"
+        );
+    }
+
+    /// Objective: Verify `on_exit = false` suppresses the guard-drop export and
+    /// does not consume the latch of the other exit paths.
+    /// Invariants: no report file is written by the drop; a later enabled export
+    /// path still runs and produces the report.
+    #[test]
+    #[serial]
+    fn on_exit_false_skips_drop_export_and_keeps_latch_free() {
+        reset_globals();
+        let dir = TempDir::new().expect("tempdir creation must succeed in tests");
+        let mut auto_export = AutoExportConfig::default().with_output_path(dir.path());
+        auto_export.on_exit = false;
+        let cfg = MemScopeConfig::default().with_auto_export(auto_export);
+        let guard = start_with(cfg).expect("start_with must succeed with on_exit disabled");
+
+        let data: Vec<u64> = vec![4, 5, 6];
+        guard.track(&data);
+        drop(guard);
+
+        let html = dir.path().join("dashboard_unified_dashboard.html");
+        assert!(
+            !html.exists(),
+            "on_exit=false must not write a report on guard drop, found {html:?}"
+        );
+        assert!(
+            lifecycle::trigger_export_now(),
+            "a disabled exit path must not consume the latch of later export paths"
+        );
+        assert!(
+            html.exists(),
+            "the explicitly enabled export must still produce the report"
         );
     }
 

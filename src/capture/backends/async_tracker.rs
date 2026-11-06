@@ -10,20 +10,14 @@ use std::sync::{Arc, Mutex};
 use std::thread::ThreadId;
 
 use super::async_types::{
-    AsyncAllocation, AsyncError, AsyncMemorySnapshot, AsyncResult, AsyncSnapshot, AsyncStats,
-    TrackedFuture,
+    AsyncAllocation, AsyncError, AsyncResult, AsyncSnapshot, AsyncStats, TrackedFuture,
 };
 use super::task_profile::{TaskMemoryProfile, TaskType};
-
-/// Global task ID counter for unique task identification.
-/// Tokio task IDs are recycled after task completion, so we need
-/// our own counter to ensure unique identification across all tasks.
-static TASK_COUNTER: AtomicU64 = AtomicU64::new(1);
 
 /// Generate a new unique task ID.
 /// This ID is never recycled, ensuring unique identification.
 pub fn generate_unique_task_id() -> u64 {
-    TASK_COUNTER.fetch_add(1, Ordering::Relaxed)
+    crate::task_registry::generate_task_id()
 }
 
 /// Global thread ID counter for unique thread identification.
@@ -52,12 +46,13 @@ impl TrackerContext {
     /// Capture the current tracking context.
     /// Returns thread ID and task ID (if in a task context).
     pub fn capture() -> Self {
+        let _suppression = crate::core::allocator::TrackingGuard::acquire();
         let task_id_from_context = TASK_CONTEXT.try_with(|ctx| *ctx).ok().flatten();
         let tokio_task_id = tokio::task::try_id().and_then(|id| id.to_string().parse().ok());
 
         Self {
             thread_id: current_thread_id(),
-            task_id: task_id_from_context.or(CURRENT_TASK_ID.with(|cell| cell.get())),
+            task_id: task_id_from_context.or_else(AsyncTracker::get_current_task),
             tokio_task_id,
         }
     }
@@ -92,101 +87,70 @@ pub struct ResourceRanking {
 /// Global async tracker instance
 static GLOBAL_TRACKER: Mutex<Option<Arc<AsyncTracker>>> = Mutex::new(None);
 
-thread_local! {
-    static CURRENT_TASK_ID: std::cell::Cell<Option<u64>> = const { std::cell::Cell::new(None) };
-}
+mod task_context;
+pub use task_context::TaskGuard;
 
 tokio::task_local! {
     static TASK_CONTEXT: Option<u64>;
 }
 
-/// RAII guard for automatic task cleanup.
-/// When dropped, it automatically clears the current task ID from thread-local storage.
-pub struct TaskGuard {
-    task_id: u64,
-    cleaned_up: bool,
-}
+mod dealloc;
+mod future;
+mod queries;
+use future::{ContextualFuture, TaskLifecycleGuard};
+pub use queries::get_memory_snapshot;
 
-// SAFETY: TaskGuard can be safely sent between threads because:
-// 1. It only contains primitive types (u64, bool) that are both Send and Sync.
-// 2. It does NOT hold any references, raw pointers, or non-thread-safe data.
-// 3. The thread-local state it manages (CURRENT_TASK_ID) is accessed via thread_local!(),
-//    which provides per-thread isolation - each thread has its own copy of the task ID.
-// 4. When TaskGuard is moved to another thread, it clears the task ID in the CURRENT
-//    thread's thread-local storage (not the original thread's), which is the expected
-//    behavior for task context management in async runtimes.
-// 5. The Drop implementation clears the task ID of whichever thread is currently
-//    executing, which is correct for RAII cleanup in async contexts where tasks
-//    may migrate between threads.
-unsafe impl Send for TaskGuard {}
-
-// SAFETY: TaskGuard can be safely shared between threads because:
-// 1. All fields (task_id, cleaned_up) are primitive types that are safe for concurrent access.
-// 2. TaskGuard does not provide mutable access to its fields through &self.
-// 3. The thread-local manipulation via clear_current_task_internal() operates on the
-//    CURRENT thread's storage, not a shared resource, so concurrent calls from different
-//    threads are inherently isolated.
-// 4. No interior mutability or shared mutable state is exposed.
-unsafe impl Sync for TaskGuard {}
-
-impl TaskGuard {
-    fn new(task_id: u64) -> Self {
-        Self {
-            task_id,
-            cleaned_up: false,
-        }
-    }
-
-    /// Get the task ID this guard is associated with.
-    pub fn task_id(&self) -> u64 {
-        self.task_id
-    }
-
-    /// Manually release the guard (prevents double cleanup).
-    pub fn release(mut self) {
-        self.cleaned_up = true;
-        TaskGuard::clear_current_task_internal();
-    }
-}
-
-impl Drop for TaskGuard {
-    fn drop(&mut self) {
-        if !self.cleaned_up {
-            TaskGuard::clear_current_task_internal();
-        }
-    }
-}
-
-impl TaskGuard {
-    fn clear_current_task_internal() {
-        CURRENT_TASK_ID.with(|cell| cell.set(None));
+/// Numeric id of `thread_id`, when it refers to the calling thread.
+///
+/// `std::thread::ThreadId` cannot be converted to a number, so an id that belongs to
+/// another thread is reported as unknown rather than guessed.
+fn numeric_thread_id(thread_id: ThreadId) -> Option<u64> {
+    if thread_id == std::thread::current().id() {
+        Some(crate::utils::current_thread_id_u64())
+    } else {
+        None
     }
 }
 
 /// Async memory tracker for task-aware memory tracking.
 pub struct AsyncTracker {
-    allocations: Arc<Mutex<HashMap<usize, AsyncAllocation>>>,
+    /// Live records per address, oldest generation first.
+    allocations: Arc<Mutex<HashMap<usize, Vec<AsyncAllocation>>>>,
+    /// Highest generation ever used per address, so a reused address gets the next
+    /// number instead of restarting at 1 (which would make generations meaningless).
+    generations: Arc<Mutex<HashMap<usize, u64>>>,
     stats: Arc<Mutex<AsyncStats>>,
     profiles: Arc<Mutex<HashMap<u64, TaskMemoryProfile>>>,
     initialized: Arc<Mutex<bool>>,
+    event_store: Option<crate::event_store::SharedEventStore>,
 }
 
 impl AsyncTracker {
+    pub(crate) fn lifecycle_profiles(&self) -> Vec<TaskMemoryProfile> {
+        let _guard = crate::core::allocator::TrackingGuard::acquire();
+        self.profiles
+            .lock()
+            .map(|p| p.values().cloned().collect())
+            .unwrap_or_default()
+    }
+
     pub fn new() -> Self {
         Self {
             allocations: Arc::new(Mutex::new(HashMap::new())),
+            generations: Arc::new(Mutex::new(HashMap::new())),
             stats: Arc::new(Mutex::new(AsyncStats::default())),
             profiles: Arc::new(Mutex::new(HashMap::new())),
             initialized: Arc::new(Mutex::new(false)),
+            event_store: None,
         }
     }
 
     pub fn set_current_task(task_id: u64) {
-        CURRENT_TASK_ID.with(|cell| cell.set(Some(task_id)));
+        task_context::set(task_id);
     }
 
     pub fn clear_current_task() {
-        CURRENT_TASK_ID.with(|cell| cell.set(None));
+        task_context::clear();
     }
 
     /// Get the current task ID from the thread-local storage.
@@ -194,14 +158,13 @@ impl AsyncTracker {
     /// Note: This only returns the manually set task ID.
     /// For automatic tokio task detection, use `track_in_tokio_task()`.
     pub fn get_current_task() -> Option<u64> {
-        CURRENT_TASK_ID.with(|cell| cell.get())
+        task_context::current()
     }
 
     /// Enter a task context with automatic cleanup.
-    /// Returns a TaskGuard that will clear the task ID when dropped.
+    /// Dropping the returned guard restores the enclosing live scope.
     pub fn enter_task(task_id: u64) -> TaskGuard {
-        Self::set_current_task(task_id);
-        TaskGuard::new(task_id)
+        task_context::enter(task_id)
     }
 
     /// Execute a closure within a task context with automatic cleanup.
@@ -219,9 +182,25 @@ impl AsyncTracker {
         &self,
         task_id: u64,
         name: String,
-        _thread_id: ThreadId,
+        thread_id: ThreadId,
     ) -> Result<(), AsyncError> {
-        self.track_task_start_internal(task_id, None, name)
+        self.track_task_start_internal(task_id, None, name, thread_id)?;
+        // For the public API, set the current task context. Async paths
+        // (track_in_tokio_task, spawn_tracked) call track_task_start_internal
+        // directly via track_task_start_with_tokio and do NOT want the
+        // context set here — ContextualFuture manages it per-poll.
+        // However, some callers call track_task_start directly (e.g. tests)
+        // and expect the context to be set. To support both, we set the
+        // context here only when NOT already inside a poll guard.
+        //
+        // Since track_in_tokio_task and spawn_tracked both go through
+        // track_task_start_with_tokio or track_task_start, we need a way
+        // to distinguish. The simplest: async paths call
+        // track_task_start_internal directly; external callers use
+        // track_task_start. So set context in track_task_start but NOT
+        // in track_task_start_with_tokio.
+        Self::set_current_task(task_id);
+        Ok(())
     }
 
     pub fn track_task_start_with_tokio(
@@ -229,9 +208,12 @@ impl AsyncTracker {
         task_id: u64,
         tokio_task_id: u64,
         name: String,
-        _thread_id: ThreadId,
+        thread_id: ThreadId,
     ) -> Result<(), AsyncError> {
-        self.track_task_start_internal(task_id, Some(tokio_task_id), name)
+        // Do NOT set the current task context here. This method is called
+        // from async paths (track_in_tokio_task, spawn_tracked) where the
+        // ContextualFuture poll wrapper manages context installation.
+        self.track_task_start_internal(task_id, Some(tokio_task_id), name, thread_id)
     }
 
     fn track_task_start_internal(
@@ -239,6 +221,7 @@ impl AsyncTracker {
         task_id: u64,
         tokio_task_id: Option<u64>,
         name: String,
+        thread_id: ThreadId,
     ) -> Result<(), AsyncError> {
         {
             let mut profiles = self
@@ -250,12 +233,16 @@ impl AsyncTracker {
                 return Err(AsyncError::duplicate_task(task_id));
             }
 
-            let profile = match tokio_task_id {
+            let mut profile = match tokio_task_id {
                 Some(id) => {
                     TaskMemoryProfile::with_tokio_id(task_id, id, name, TaskType::default())
                 }
                 None => TaskMemoryProfile::new(task_id, name, TaskType::default()),
             };
+            // Record the numeric thread id when it is genuinely known: only the
+            // thread performing this call can be mapped to a numeric id. The snapshot
+            // must never substitute the thread that happens to build it.
+            profile.set_thread_id_u64(numeric_thread_id(thread_id));
             profiles.insert(task_id, profile);
         }
 
@@ -266,8 +253,10 @@ impl AsyncTracker {
         stats.total_tasks += 1;
         stats.active_tasks += 1;
 
-        Self::set_current_task(task_id);
-
+        // Do NOT call set_current_task here. Context installation is the
+        // responsibility of the poll-level wrapper (ContextualFuture), not
+        // the metadata registration. Leaving an explicit context here would
+        // persist across await points and pollute other tasks' attribution.
         Ok(())
     }
 
@@ -296,7 +285,8 @@ impl AsyncTracker {
             .map_err(|e| AsyncError::mutex_lock_failed("stats", &e.to_string()))?;
         stats.active_tasks = stats.active_tasks.saturating_sub(1);
 
-        Self::clear_current_task();
+        // Remove ended base frames even when a nested guard is currently on top.
+        task_context::end(task_id);
 
         Ok(())
     }
@@ -322,6 +312,8 @@ impl AsyncTracker {
         let unique_task_id = generate_unique_task_id();
         let tokio_task_id = tokio::task::try_id().and_then(|id| id.to_string().parse().ok());
         let thread_id = std::thread::current().id();
+        // Capture parent at call time, consistent with spawn_tracked.
+        let parent_id = crate::task_registry::TaskIdRegistry::current_task_id();
 
         if let Some(tokio_id) = tokio_task_id {
             if let Err(e) =
@@ -329,15 +321,25 @@ impl AsyncTracker {
             {
                 tracing::warn!("Failed to track task start: {e}");
             }
-        } else if let Err(e) = self.track_task_start(unique_task_id, name.clone(), thread_id) {
+        } else if let Err(e) =
+            self.track_task_start_internal(unique_task_id, None, name.clone(), thread_id)
+        {
             tracing::warn!("Failed to track task start: {e}");
         }
 
-        let output = future.await;
+        crate::task_registry::global_registry().register_explicit_task_with_parent(
+            unique_task_id,
+            &name,
+            parent_id,
+        );
+        let lifecycle = future::BorrowedLifecycleGuard::new(self, unique_task_id);
 
-        if let Err(e) = self.track_task_end(unique_task_id) {
-            tracing::warn!("Failed to track task end: {e}");
-        }
+        // Use the same poll-level wrapper as spawn_tracked for consistent
+        // per-poll context management.
+        let contextual = ContextualFuture::new(future, unique_task_id);
+        let output = contextual.await;
+
+        drop(lifecycle);
 
         (unique_task_id, output)
     }
@@ -351,11 +353,11 @@ impl AsyncTracker {
     ///
     /// A vector of task IDs for zombie tasks.
     pub fn detect_zombie_tasks(&self) -> Vec<u64> {
-        let profiles = self.profiles.lock().unwrap();
-        profiles
+        let _suppression = crate::core::allocator::TrackingGuard::acquire();
+        self.get_all_profiles()
             .iter()
-            .filter(|(_, p)| !p.is_completed())
-            .map(|(&id, _)| id)
+            .filter(|p| !p.is_completed())
+            .map(|p| p.task_id)
             .collect()
     }
 
@@ -363,8 +365,8 @@ impl AsyncTracker {
     ///
     /// Optimized to acquire the lock only once.
     pub fn zombie_task_stats(&self) -> (usize, usize) {
-        let profiles = self.profiles.lock().unwrap();
-        let zombies = profiles.iter().filter(|(_, p)| !p.is_completed()).count();
+        let profiles = self.get_all_profiles();
+        let zombies = profiles.iter().filter(|p| !p.is_completed()).count();
         let total = profiles.len();
         (zombies, total)
     }
@@ -387,6 +389,12 @@ impl AsyncTracker {
     }
 
     /// Track an allocation with source location.
+    ///
+    /// The same address is reported more than once (hook plus `track!`, repeated
+    /// `track!`, reuse). Only the first sighting of an address/size pair opens a
+    /// record; a different size starts a new generation, so a release can always name
+    /// the binding it refers to and `total_memory - total_deallocated == active_memory`
+    /// keeps holding (plan A06 / §7.2).
     pub fn track_allocation_with_location(
         &self,
         ptr: usize,
@@ -396,85 +404,119 @@ impl AsyncTracker {
         type_name: Option<String>,
         source_location: Option<super::async_types::SourceLocation>,
     ) {
-        let allocation = AsyncAllocation {
-            ptr,
-            size,
-            timestamp: Self::now(),
-            task_id,
-            var_name,
-            type_name,
-            source_location,
-        };
+        let mut previous: Option<(u64, u64)> = None;
+        let mut generation = 1u64;
 
         {
-            if let Ok(mut allocations) = self.allocations.lock() {
-                allocations.insert(ptr, allocation);
-            } else {
+            let Ok(mut allocations) = self.allocations.lock() else {
                 tracing::error!("Failed to acquire allocations lock during track_allocation");
+                return;
+            };
+            let entries = allocations.entry(ptr).or_default();
+
+            if let Some(existing) = entries.last_mut() {
+                if existing.size == size {
+                    // Duplicate observation: refresh metadata, keep owner and counters.
+                    existing.var_name = var_name;
+                    existing.type_name = type_name;
+                    if source_location.is_some() {
+                        existing.source_location = source_location;
+                    }
+                    return;
+                }
+                // A different size cannot be proven to be the same block: an
+                // observation never sees the allocator. Close the superseded record and
+                // give the new one its own generation, exactly like the core tracker and
+                // the binding ledger (plan A06 follow-up).
+                previous = Some((existing.task_id, existing.size as u64));
+                entries.pop();
             }
+
+            // Every record that is pushed gets the next generation for this address,
+            // so a late release can still name the binding it refers to.
+            if let Ok(mut generations) = self.generations.lock() {
+                let counter = generations.entry(ptr).or_insert(0);
+                *counter = counter.saturating_add(1);
+                generation = *counter;
+            }
+
+            entries.push(AsyncAllocation {
+                ptr,
+                size,
+                timestamp: Self::now(),
+                task_id,
+                var_name,
+                type_name,
+                source_location,
+                generation,
+            });
         }
 
-        {
+        let size_u64 = size as u64;
+
+        if let Some((previous_task, previous_size)) = previous {
+            // The superseded record leaves its owner's live set (it is a lost block for
+            // that task), and the new record is a fresh allocation for the observer.
+            // Both sides are booked so `total_memory - total_deallocated ==
+            // active_memory` keeps holding (plan A06 follow-up).
             if let Ok(mut profiles) = self.profiles.lock() {
+                if let Some(profile) = profiles.get_mut(&previous_task) {
+                    profile.record_deallocation(previous_size);
+                }
                 if let Some(profile) = profiles.get_mut(&task_id) {
-                    profile.record_allocation(size as u64);
+                    profile.record_allocation(size_u64);
+                    profile.set_thread_id_u64(Some(crate::utils::current_thread_id_u64()));
                 }
             } else {
                 tracing::error!("Failed to acquire profiles lock during track_allocation");
             }
-        }
 
-        {
             if let Ok(mut stats) = self.stats.lock() {
                 stats.total_allocations += 1;
                 stats.total_memory += size;
-                stats.active_memory += size;
+                stats.total_deallocated += previous_size;
+                stats.active_memory = stats
+                    .active_memory
+                    .saturating_sub(previous_size as usize)
+                    .saturating_add(size);
                 if stats.active_memory > stats.peak_memory {
                     stats.peak_memory = stats.active_memory;
                 }
             } else {
                 tracing::error!("Failed to acquire stats lock during track_allocation");
             }
+
+            return;
+        }
+
+        if let Ok(mut profiles) = self.profiles.lock() {
+            if let Some(profile) = profiles.get_mut(&task_id) {
+                profile.record_allocation(size_u64);
+                // The thread that allocates is the best available evidence of where
+                // the task actually ran.
+                profile.set_thread_id_u64(Some(crate::utils::current_thread_id_u64()));
+            }
+        } else {
+            tracing::error!("Failed to acquire profiles lock during track_allocation");
+        }
+
+        if let Ok(mut stats) = self.stats.lock() {
+            stats.total_allocations += 1;
+            stats.total_memory += size;
+            stats.active_memory += size;
+            if stats.active_memory > stats.peak_memory {
+                stats.peak_memory = stats.active_memory;
+            }
+        } else {
+            tracing::error!("Failed to acquire stats lock during track_allocation");
         }
     }
 
-    /// Track a deallocation associated with a task.
-    pub fn track_deallocation(&self, ptr: usize) {
-        let (task_id, size) = {
-            if let Ok(mut allocations) = self.allocations.lock() {
-                allocations
-                    .remove(&ptr)
-                    .map(|alloc| (alloc.task_id, alloc.size))
-                    .unwrap_or((0, 0))
-            } else {
-                tracing::error!("Failed to acquire allocations lock during track_deallocation");
-                (0, 0)
-            }
-        };
-
-        if task_id != 0 {
-            if let Ok(mut profiles) = self.profiles.lock() {
-                if let Some(profile) = profiles.get_mut(&task_id) {
-                    profile.record_deallocation(size as u64);
-                }
-            } else {
-                tracing::error!("Failed to acquire profiles lock during track_deallocation");
-            }
-        }
-
-        if size > 0 {
-            if let Ok(mut stats) = self.stats.lock() {
-                stats.active_memory = stats.active_memory.saturating_sub(size);
-                stats.total_deallocations += 1;
-                stats.total_deallocated += size as u64;
-            } else {
-                tracing::error!("Failed to acquire stats lock during track_deallocation");
-            }
-        }
-    }
-
-    /// Get current statistics.
     pub fn get_stats(&self) -> AsyncStats {
+        let _guard = crate::core::allocator::TrackingGuard::acquire();
+        if let Some((_, rebuilt)) = self.rebuilt() {
+            return queries::stats(&rebuilt);
+        }
         if let Ok(stats) = self.stats.lock() {
             stats.clone()
         } else {
@@ -485,60 +527,53 @@ impl AsyncTracker {
 
     /// Take a snapshot of current state.
     pub fn snapshot(&self) -> AsyncSnapshot {
-        let profiles = if let Ok(p) = self.profiles.lock() {
-            p
-        } else {
-            tracing::error!("Failed to acquire profiles lock in snapshot");
-            return AsyncSnapshot::default();
-        };
-
-        let tasks: Vec<super::async_types::TaskInfo> = profiles
-            .values()
-            .filter(|p| p.completed_at_ms.is_none())
-            .map(|p| super::async_types::TaskInfo {
-                task_id: p.task_id,
-                name: p.task_name.clone(),
-                thread_id: std::thread::current().id(),
-                created_at: p.created_at_ms * 1_000_000,
-                active_allocations: p.total_allocations as usize,
-                total_memory: p.current_memory as usize,
-            })
-            .collect();
-        drop(profiles);
-
-        let allocations = {
-            if let Ok(allocs) = self.allocations.lock() {
-                allocs.values().cloned().collect()
-            } else {
-                tracing::error!("Failed to acquire allocations lock in snapshot");
-                Vec::new()
-            }
-        };
-
-        let stats = self.get_stats();
-
-        AsyncSnapshot {
-            timestamp: Self::now(),
-            tasks,
-            allocations,
-            stats,
+        // Suppress allocator tracking during the query.
+        let _guard = crate::core::allocator::TrackingGuard::acquire();
+        if let Some((captured_at, rebuilt)) = self.rebuilt() {
+            return queries::snapshot(captured_at, rebuilt);
         }
+        queries::local_snapshot(self)
     }
 
-    /// Get task memory profile
+    /// Get task memory profile.
+    ///
+    /// Connected trackers query their event source; standalone instances use local records.
     pub fn get_task_profile(&self, task_id: u64) -> Option<TaskMemoryProfile> {
+        let _guard = crate::core::allocator::TrackingGuard::acquire();
+
+        if let Some((_, rebuilt)) = self.rebuilt() {
+            return rebuilt.profiles.into_iter().find(|p| p.task_id == task_id);
+        }
         if let Ok(profiles) = self.profiles.lock() {
-            profiles.get(&task_id).cloned()
+            profiles.get(&task_id).cloned().map(|mut profile| {
+                profile.refresh_at(Self::now());
+                profile
+            })
         } else {
             tracing::error!("Failed to acquire profiles lock in get_task_profile");
             None
         }
     }
 
-    /// Get all task profiles
+    /// Get all task profiles.
+    ///
+    /// Uses the same event projection as stats and snapshots when connected.
     pub fn get_all_profiles(&self) -> Vec<TaskMemoryProfile> {
+        let _guard = crate::core::allocator::TrackingGuard::acquire();
+
+        if let Some((_, rebuilt)) = self.rebuilt() {
+            return rebuilt.profiles;
+        }
         if let Ok(profiles) = self.profiles.lock() {
-            profiles.values().cloned().collect()
+            let captured_at = Self::now();
+            profiles
+                .values()
+                .cloned()
+                .map(|mut profile| {
+                    profile.refresh_at(captured_at);
+                    profile
+                })
+                .collect()
         } else {
             tracing::error!("Failed to acquire profiles lock in get_all_profiles");
             Vec::new()
@@ -566,6 +601,7 @@ impl AsyncTracker {
 
     /// Generate task efficiency report
     pub fn analyze_task(&self, task_id: u64, task_type: TaskType) -> Option<TaskReport> {
+        let _suppression = crate::core::allocator::TrackingGuard::acquire();
         let profile = self.get_task_profile(task_id)?;
 
         let total_bytes = profile.total_bytes as f64;
@@ -652,6 +688,7 @@ impl AsyncTracker {
 
     /// Get resource rankings for all tasks
     pub fn get_resource_rankings(&self) -> Vec<ResourceRanking> {
+        let _suppression = crate::core::allocator::TrackingGuard::acquire();
         let profiles = self.get_all_profiles();
 
         let mut rankings: Vec<ResourceRanking> = profiles
@@ -701,12 +738,6 @@ impl AsyncTracker {
 impl Default for AsyncTracker {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-impl Drop for AsyncTracker {
-    fn drop(&mut self) {
-        Self::clear_current_task();
     }
 }
 
@@ -775,7 +806,7 @@ pub fn register_global(tracker: Arc<AsyncTracker>) -> AsyncResult<()> {
     Ok(())
 }
 
-/// Get the global async tracker
+/// Get the global async tracker (public for cross-module release notification).
 fn get_global_tracker() -> AsyncResult<Arc<AsyncTracker>> {
     GLOBAL_TRACKER
         .lock()
@@ -789,6 +820,20 @@ fn get_global_tracker() -> AsyncResult<Arc<AsyncTracker>> {
         })
 }
 
+/// Notify the global AsyncTracker that a deallocation occurred.
+///
+/// This function is for explicit API calls (e.g. `track_current_deallocation`).
+/// It must NOT be called from the allocator's dealloc callback — doing so
+/// re-enters AsyncTracker locks and deadlocks with `shutdown()` and
+/// concurrent `track_allocation`. The event-stream replay
+/// (`rebuild_with_live_tracker`) is the authoritative source for exports.
+pub fn notify_deallocation(ptr: usize) {
+    let Ok(tracker) = get_global_tracker() else {
+        return;
+    };
+    tracker.track_deallocation(ptr);
+}
+
 /// Create a tracked future wrapper
 pub fn create_tracked<F>(future: F) -> TrackedFuture<F>
 where
@@ -799,17 +844,9 @@ where
 
 /// Spawn a tracked async task with automatic context management.
 ///
-/// This function wraps a future with memscope tracking context.
-/// The task ID is automatically generated and managed, and the
-/// context is automatically cleaned up when the task completes.
+/// Wraps a future with an automatically managed task ID.
 ///
-/// # Arguments
-///
-/// * `future` - The async block to execute
-///
-/// # Returns
-///
-/// A `tokio::task::JoinHandle` that resolves to the future's output
+/// Captures the parent at spawn time and restores context after every poll.
 ///
 /// # Example
 ///
@@ -827,6 +864,12 @@ where
 {
     let task_id = generate_unique_task_id();
 
+    // Capture the parent task ID at spawn time from the spawning thread's
+    // context. This is critical: if we read it at first poll instead, a
+    // different task might have already set its context on this worker
+    // thread, producing a wrong parent-child edge.
+    let parent_id = crate::task_registry::TaskIdRegistry::current_task_id();
+
     tokio::spawn(async move {
         // Register task start with the global async tracker so profiles
         // are populated for the dashboard renderer.
@@ -834,52 +877,46 @@ where
         let task_name = format!("spawned_task_{}", task_id);
         if let Some(ref tracker) = tracker {
             let thread_id = std::thread::current().id();
-            let _ = tracker.track_task_start(task_id, task_name.clone(), thread_id);
+            // Use track_task_start_with_tokio (which does NOT set TLS context)
+            // when we have a tokio task ID, or track_task_start_internal
+            // directly when we don't. Either way, no TLS context is installed
+            // here — the ContextualFuture poll wrapper handles it per-poll.
+            let tokio_id = tokio::task::try_id().and_then(|id| id.to_string().parse().ok());
+            if let Some(tokio_id) = tokio_id {
+                let _ = tracker.track_task_start_with_tokio(
+                    task_id,
+                    tokio_id,
+                    task_name.clone(),
+                    thread_id,
+                );
+            } else {
+                let _ =
+                    tracker.track_task_start_internal(task_id, None, task_name.clone(), thread_id);
+            }
         }
 
-        // Register with TaskIdRegistry so the Task Relationship Graph
-        // in the dashboard shows this task with parent-child hierarchy.
-        crate::task_registry::global_registry().register_explicit_task(task_id, &task_name);
+        // Register with TaskIdRegistry using the captured parent_id.
+        // We use register_explicit_task_with_parent so the registration
+        // does NOT read or write CURRENT_TASK_ID — the poll-level wrapper
+        // handles context installation per-poll.
+        crate::task_registry::global_registry()
+            .register_explicit_task_with_parent(task_id, &task_name, parent_id);
 
-        // Set thread-local CURRENT_TASK_ID so that GlobalTracker::track_as()
-        // can associate allocations with this task via AsyncTracker::get_current_task().
-        AsyncTracker::set_current_task(task_id);
+        // The lifecycle guard ensures task-end cleanup runs in all cases:
+        // normal completion, cancellation (future dropped), and panic.
+        // When the guard drops, it calls unregister_task and track_task_end
+        // inside the task's poll context so the cleanup is attributed correctly.
+        let mut lifecycle = TaskLifecycleGuard::new(task_id, tracker.clone());
 
-        // Run the user's future inside the tokio task-local context.
-        let result = TASK_CONTEXT.scope(Some(task_id), future).await;
+        // Wrap the future with poll-level context management.
+        let contextual = ContextualFuture::new(future, task_id);
+        let result = contextual.await;
 
-        // Cleanup: clear thread-local task ID and signal task completion.
-        AsyncTracker::clear_current_task();
-        crate::task_registry::global_registry().unregister_task(task_id);
-        if let Some(ref tracker) = tracker {
-            let _ = tracker.track_task_end(task_id);
-        }
-
+        // The guard's Drop will run the cleanup. Set the output so the
+        // guard knows the task completed normally (not cancelled).
+        lifecycle.set_completed();
         result
     })
-}
-
-/// Get current memory usage snapshot
-pub fn get_memory_snapshot() -> AsyncMemorySnapshot {
-    if let Ok(tracker) = get_global_tracker() {
-        let stats = tracker.get_stats();
-
-        AsyncMemorySnapshot {
-            active_task_count: stats.active_tasks,
-            total_allocated_bytes: stats.total_memory as u64,
-            allocation_events: stats.total_allocations as u64,
-            events_dropped: 0,
-            buffer_utilization: 0.0,
-        }
-    } else {
-        AsyncMemorySnapshot {
-            active_task_count: 0,
-            total_allocated_bytes: 0,
-            allocation_events: 0,
-            events_dropped: 0,
-            buffer_utilization: 0.0,
-        }
-    }
 }
 
 /// Check if async memory tracking is currently active
@@ -893,7 +930,17 @@ pub fn track_current_allocation(ptr: usize, size: usize) -> AsyncResult<()> {
     let task_info = super::async_types::get_current_task();
 
     if task_info.has_tracking_id() {
-        tracker.track_allocation(ptr, size, (task_info.primary_id() & 0xFFFFFFFF) as u64);
+        // `TaskId` is a u128: truncating it to 32 bits made long-running task ids
+        // collide. Report the unsupported width instead of losing the mapping.
+        match u64::try_from(task_info.primary_id()) {
+            Ok(task_id) => tracker.track_allocation(ptr, size, task_id),
+            Err(_) => tracing::warn!(
+                target: "memscope::async",
+                task_id = %task_info.primary_id(),
+                ptr = format_args!("{ptr:#x}"),
+                "async task id does not fit into u64; allocation is not attributed"
+            ),
+        }
     }
 
     Ok(())
@@ -907,362 +954,4 @@ pub fn track_current_deallocation(ptr: usize) -> AsyncResult<()> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::capture::backends::async_types::TaskOperation;
-
-    #[test]
-    fn test_async_tracker_creation() {
-        let tracker = AsyncTracker::new();
-        let stats = tracker.get_stats();
-        assert_eq!(stats.total_tasks, 0);
-    }
-
-    #[test]
-    fn test_task_tracking() {
-        let tracker = AsyncTracker::new();
-        let thread_id = std::thread::current().id();
-        tracker
-            .track_task_start(1, "test_task".to_string(), thread_id)
-            .unwrap();
-
-        let stats = tracker.get_stats();
-        assert_eq!(stats.total_tasks, 1);
-        assert_eq!(stats.active_tasks, 1);
-
-        tracker.track_task_end(1).unwrap();
-        let stats = tracker.get_stats();
-        assert_eq!(stats.active_tasks, 0);
-    }
-
-    #[test]
-    fn test_allocation_tracking() {
-        let tracker = AsyncTracker::new();
-        let thread_id = std::thread::current().id();
-        tracker
-            .track_task_start(1, "test_task".to_string(), thread_id)
-            .unwrap();
-        tracker.track_allocation(0x1000, 1024, 1);
-
-        let profile = tracker.get_task_profile(1);
-        assert!(profile.is_some());
-        let profile = profile.unwrap();
-        assert_eq!(profile.total_allocations, 1);
-        assert_eq!(profile.total_bytes, 1024);
-    }
-
-    #[test]
-    fn test_initialization() {
-        reset_global_tracker();
-
-        let result = initialize();
-        assert!(result.is_ok());
-
-        let result2 = initialize();
-        if let Err(e) = result2 {
-            assert!(e.message().contains("Already initialized"));
-        }
-
-        let _ = shutdown();
-    }
-
-    #[test]
-    fn test_shutdown() {
-        reset_global_tracker();
-
-        initialize().unwrap();
-        let result = shutdown();
-        assert!(result.is_ok());
-
-        let result2 = shutdown();
-        if let Err(e) = result2 {
-            assert!(e.message().contains("Not initialized"));
-        }
-    }
-
-    #[test]
-    fn test_memory_snapshot() {
-        reset_global_tracker();
-
-        initialize().unwrap();
-        let snapshot = get_memory_snapshot();
-        assert_eq!(snapshot.active_task_count, 0);
-        let _ = shutdown();
-    }
-
-    #[test]
-    fn test_is_tracking_active() {
-        reset_global_tracker();
-
-        assert!(!is_tracking_active());
-        initialize().unwrap();
-        assert!(is_tracking_active());
-        let _ = shutdown();
-        assert!(!is_tracking_active());
-    }
-
-    #[test]
-    fn test_task_memory_profile() {
-        let tracker = AsyncTracker::new();
-        let thread_id = std::thread::current().id();
-        tracker
-            .track_task_start(1, "test_task".to_string(), thread_id)
-            .unwrap();
-        tracker.track_allocation(0x1000, 1024, 1);
-        tracker.track_allocation(0x2000, 2048, 1);
-        tracker.track_task_end(1).unwrap();
-
-        let profile = tracker.get_task_profile(1);
-        assert!(profile.is_some());
-        let profile = profile.unwrap();
-        assert_eq!(profile.task_id, 1);
-        assert_eq!(profile.total_allocations, 2);
-        assert_eq!(profile.total_bytes, 3072);
-    }
-
-    #[test]
-    fn test_duplicate_task_tracking() {
-        let tracker = AsyncTracker::new();
-        let thread_id = std::thread::current().id();
-
-        // First registration should succeed
-        let result = tracker.track_task_start(1, "test_task".to_string(), thread_id);
-        assert!(result.is_ok());
-
-        // Second registration should fail
-        let result = tracker.track_task_start(1, "duplicate_task".to_string(), thread_id);
-        assert!(result.is_err());
-        let error = result.unwrap_err();
-        assert!(
-            matches!(error, AsyncError::TaskTracking { operation, .. } if matches!(operation, TaskOperation::Duplicate))
-        );
-    }
-
-    #[test]
-    fn test_task_not_found() {
-        let tracker = AsyncTracker::new();
-
-        // Calling track_task_end with non-existent task should fail
-        let result = tracker.track_task_end(999);
-        assert!(result.is_err());
-        let error = result.unwrap_err();
-        assert!(
-            matches!(error, AsyncError::TaskTracking { operation, .. } if matches!(operation, TaskOperation::TaskNotFound))
-        );
-    }
-
-    #[test]
-    fn test_task_guard_cleanup() {
-        assert!(AsyncTracker::get_current_task().is_none());
-
-        {
-            let _guard = AsyncTracker::enter_task(42);
-            assert_eq!(AsyncTracker::get_current_task(), Some(42));
-        }
-
-        assert!(AsyncTracker::get_current_task().is_none());
-    }
-
-    #[test]
-    fn test_with_task_closure() {
-        assert!(AsyncTracker::get_current_task().is_none());
-
-        let result = AsyncTracker::with_task(123, || {
-            assert_eq!(AsyncTracker::get_current_task(), Some(123));
-            "test_result"
-        });
-
-        assert_eq!(result, "test_result");
-        assert!(AsyncTracker::get_current_task().is_none());
-    }
-
-    #[test]
-    fn test_with_task_panic_cleanup() {
-        assert!(AsyncTracker::get_current_task().is_none());
-
-        let result = std::panic::catch_unwind(|| {
-            AsyncTracker::with_task(999, || {
-                assert_eq!(AsyncTracker::get_current_task(), Some(999));
-                panic!("intentional panic");
-            });
-        });
-
-        assert!(result.is_err());
-        assert!(AsyncTracker::get_current_task().is_none());
-    }
-
-    #[test]
-    fn test_generate_unique_task_id() {
-        let id1 = generate_unique_task_id();
-        let id2 = generate_unique_task_id();
-        let id3 = generate_unique_task_id();
-
-        assert!(id1 > 0);
-        assert!(id2 > id1);
-        assert!(id3 > id2);
-    }
-
-    #[test]
-    fn test_track_start_with_tokio() {
-        let tracker = AsyncTracker::new();
-        let thread_id = std::thread::current().id();
-
-        let result =
-            tracker.track_task_start_with_tokio(1, 100, "tokio_task".to_string(), thread_id);
-        assert!(result.is_ok());
-
-        let profile = tracker.get_task_profile(1);
-        assert!(profile.is_some());
-        let profile = profile.unwrap();
-        assert_eq!(profile.task_id, 1);
-        assert_eq!(profile.tokio_task_id, Some(100));
-        assert_eq!(profile.task_name, "tokio_task");
-    }
-
-    #[test]
-    fn test_track_task_internal_without_tokio() {
-        let tracker = AsyncTracker::new();
-        let thread_id = std::thread::current().id();
-
-        let result = tracker.track_task_start(2, "normal_task".to_string(), thread_id);
-        assert!(result.is_ok());
-
-        let profile = tracker.get_task_profile(2);
-        assert!(profile.is_some());
-        let profile = profile.unwrap();
-        assert_eq!(profile.task_id, 2);
-        assert_eq!(profile.tokio_task_id, None);
-    }
-
-    #[test]
-    fn test_detect_zombie_tasks() {
-        let tracker = AsyncTracker::new();
-        let thread_id = std::thread::current().id();
-
-        tracker
-            .track_task_start(1, "task1".to_string(), thread_id)
-            .unwrap();
-        tracker
-            .track_task_start(2, "task2".to_string(), thread_id)
-            .unwrap();
-        tracker
-            .track_task_start(3, "task3".to_string(), thread_id)
-            .unwrap();
-
-        tracker.track_task_end(1).unwrap();
-
-        let zombies = tracker.detect_zombie_tasks();
-        assert_eq!(zombies.len(), 2);
-        assert!(zombies.contains(&2));
-        assert!(zombies.contains(&3));
-    }
-
-    #[test]
-    fn test_zombie_task_stats() {
-        let tracker = AsyncTracker::new();
-        let thread_id = std::thread::current().id();
-
-        tracker
-            .track_task_start(1, "task1".to_string(), thread_id)
-            .unwrap();
-        tracker
-            .track_task_start(2, "task2".to_string(), thread_id)
-            .unwrap();
-
-        tracker.track_task_end(1).unwrap();
-
-        let (zombie_count, total) = tracker.zombie_task_stats();
-        assert_eq!(zombie_count, 1);
-        assert_eq!(total, 2);
-    }
-
-    #[test]
-    fn test_no_zombie_tasks_when_all_complete() {
-        let tracker = AsyncTracker::new();
-        let thread_id = std::thread::current().id();
-
-        tracker
-            .track_task_start(1, "task1".to_string(), thread_id)
-            .unwrap();
-        tracker
-            .track_task_start(2, "task2".to_string(), thread_id)
-            .unwrap();
-
-        tracker.track_task_end(1).unwrap();
-        tracker.track_task_end(2).unwrap();
-
-        let zombies = tracker.detect_zombie_tasks();
-        assert!(zombies.is_empty());
-    }
-
-    #[test]
-    fn test_task_memory_profile_with_tokio_id() {
-        let profile = TaskMemoryProfile::with_tokio_id(1, 999, "test".to_string(), TaskType::Mixed);
-
-        assert_eq!(profile.task_id, 1);
-        assert_eq!(profile.tokio_task_id, Some(999));
-        assert_eq!(profile.task_name, "test");
-        assert_eq!(profile.task_type, TaskType::Mixed);
-        assert!(!profile.is_completed());
-    }
-
-    #[tokio::test]
-    async fn test_track_in_tokio_task_basic() {
-        let tracker = AsyncTracker::new();
-
-        let (task_id, result) = tracker
-            .track_in_tokio_task("async_task".to_string(), async {
-                tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
-                42
-            })
-            .await;
-
-        assert!(task_id > 0);
-        assert_eq!(result, 42);
-
-        let profile = tracker.get_task_profile(task_id);
-        assert!(profile.is_some());
-        let profile = profile.unwrap();
-        assert_eq!(profile.task_name, "async_task");
-        assert!(profile.is_completed());
-    }
-
-    #[tokio::test]
-    async fn test_track_in_tokio_task_basic_functionality() {
-        let tracker = AsyncTracker::new();
-
-        let (task_id, result) = tracker
-            .track_in_tokio_task("test_task".to_string(), async {
-                tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
-                "completed"
-            })
-            .await;
-
-        assert!(task_id > 0);
-        assert_eq!(result, "completed");
-
-        let profile = tracker.get_task_profile(task_id);
-        assert!(profile.is_some());
-        let profile = profile.unwrap();
-        assert_eq!(profile.task_name, "test_task");
-        assert!(profile.is_completed());
-    }
-
-    #[test]
-    fn test_global_tracker_integration() {
-        reset_global_tracker();
-
-        let result = initialize();
-        assert!(result.is_ok());
-
-        let tracker = get_global_tracker();
-        assert!(tracker.is_ok());
-
-        let tracker = tracker.unwrap();
-        let stats = tracker.get_stats();
-        assert_eq!(stats.total_tasks, 0);
-        assert_eq!(stats.active_tasks, 0);
-
-        let _ = shutdown();
-    }
-}
+mod tests;

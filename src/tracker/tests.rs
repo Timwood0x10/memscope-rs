@@ -1,0 +1,868 @@
+//! Unit tests for the unified tracker API.
+//!
+//! Kept in a separate file so `src/tracker.rs` stays focused on the public API
+//! and within the project line budget.
+
+use super::*;
+// The global facade is process-wide: tests that touch it must not interleave.
+use serial_test::serial;
+#[test]
+fn test_tracker_creation() {
+    let tracker = Tracker::new();
+    let _ = tracker;
+}
+
+#[test]
+fn test_tracker_with_config() {
+    let tracker = Tracker::new()
+        .with_sampling(SamplingConfig::demo())
+        .with_system_monitoring();
+    let _ = tracker;
+}
+
+#[test]
+fn test_track_macro() {
+    let tracker = tracker!();
+    let my_vec = vec![1, 2, 3];
+    track!(tracker, my_vec);
+}
+
+#[test]
+fn test_analyze() {
+    let tracker = tracker!();
+    let data = vec![1, 2, 3];
+    track!(tracker, data);
+    let report = tracker.analyze();
+    assert!(report.total_allocations > 0);
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn test_system_monitoring() {
+    system_monitor::SystemMonitor::global();
+    std::thread::sleep(std::time::Duration::from_millis(350));
+
+    let cpu = system_monitor::cpu_usage();
+    let mem = system_monitor::memory_used();
+    let total = system_monitor::memory_total();
+
+    println!("CPU: {:.2}%", cpu);
+    println!("Memory: {} / {} bytes", mem, total);
+
+    assert!((0.0..=100.0).contains(&cpu));
+    assert!(total > 0, "total memory should be initialized by now");
+}
+
+#[test]
+fn test_current_system_snapshot() {
+    std::thread::sleep(std::time::Duration::from_millis(150));
+
+    let tracker = tracker!();
+    let snapshot = tracker.current_system_snapshot();
+
+    println!(
+        "Snapshot: CPU={:.2}%, Mem={:.2}%",
+        snapshot.cpu_usage_percent, snapshot.memory_usage_percent
+    );
+
+    assert!(snapshot.cpu_usage_percent >= 0.0 && snapshot.cpu_usage_percent <= 100.0);
+}
+
+#[test]
+fn test_sampling_config_default() {
+    let config = SamplingConfig::default();
+    assert_eq!(config.sample_rate, 1.0);
+    assert!(!config.capture_call_stack);
+    assert_eq!(config.max_stack_depth, 10);
+}
+
+#[test]
+fn test_sampling_config_demo() {
+    let config = SamplingConfig::demo();
+    assert_eq!(config.sample_rate, 0.1);
+    assert!(!config.capture_call_stack);
+    assert_eq!(config.max_stack_depth, 5);
+}
+
+#[test]
+fn test_sampling_config_full() {
+    let config = SamplingConfig::full();
+    assert_eq!(config.sample_rate, 1.0);
+    assert!(config.capture_call_stack);
+    assert_eq!(config.max_stack_depth, 20);
+}
+
+#[test]
+fn test_sampling_config_high_performance() {
+    let config = SamplingConfig::high_performance();
+    assert_eq!(config.sample_rate, 0.01);
+    assert!(!config.capture_call_stack);
+    assert_eq!(config.max_stack_depth, 0);
+}
+
+#[test]
+fn test_sampling_config_clone() {
+    let config = SamplingConfig::full();
+    let cloned = config.clone();
+    assert_eq!(cloned.sample_rate, config.sample_rate);
+    assert_eq!(cloned.capture_call_stack, config.capture_call_stack);
+}
+
+#[test]
+fn test_sampling_config_debug() {
+    let config = SamplingConfig::default();
+    let debug_str = format!("{:?}", config);
+    assert!(debug_str.contains("SamplingConfig"));
+    assert!(debug_str.contains("sample_rate"));
+}
+
+#[test]
+fn test_system_snapshot_default() {
+    let snapshot = SystemSnapshot::default();
+    assert_eq!(snapshot.timestamp, 0);
+    assert_eq!(snapshot.cpu_usage_percent, 0.0);
+    assert_eq!(snapshot.memory_usage_bytes, 0);
+    assert_eq!(snapshot.thread_count, 0);
+}
+
+#[test]
+fn test_system_snapshot_clone() {
+    let snapshot = SystemSnapshot {
+        timestamp: 1000,
+        cpu_usage_percent: 50.0,
+        memory_usage_bytes: 1024 * 1024,
+        memory_usage_percent: 25.0,
+        thread_count: 4,
+        disk_read_bps: 1000,
+        disk_write_bps: 500,
+        network_rx_bps: 2000,
+        network_tx_bps: 1000,
+        gpu_usage_percent: 30.0,
+        gpu_memory_used: 512 * 1024 * 1024,
+        gpu_memory_total: 2 * 1024 * 1024 * 1024,
+    };
+
+    let cloned = snapshot.clone();
+    assert_eq!(cloned.timestamp, 1000);
+    assert_eq!(cloned.cpu_usage_percent, 50.0);
+}
+
+#[test]
+fn test_system_snapshot_debug() {
+    let snapshot = SystemSnapshot::default();
+    let debug_str = format!("{:?}", snapshot);
+    assert!(debug_str.contains("SystemSnapshot"));
+}
+
+#[test]
+fn test_analysis_report_creation() {
+    let report = AnalysisReport {
+        total_allocations: 100,
+        total_deallocations: 50,
+        active_allocations: 50,
+        peak_memory_bytes: 1024 * 1024,
+        current_memory_bytes: 512 * 1024,
+        allocation_rate_per_sec: 10.0,
+        deallocation_rate_per_sec: 5.0,
+        hotspots: vec![],
+        system_snapshots: vec![],
+    };
+
+    assert_eq!(report.total_allocations, 100);
+    assert_eq!(report.active_allocations, 50);
+}
+
+#[test]
+fn test_analysis_report_clone() {
+    let report = AnalysisReport {
+        total_allocations: 10,
+        total_deallocations: 5,
+        active_allocations: 5,
+        peak_memory_bytes: 1024,
+        current_memory_bytes: 512,
+        allocation_rate_per_sec: 1.0,
+        deallocation_rate_per_sec: 0.5,
+        hotspots: vec![],
+        system_snapshots: vec![],
+    };
+
+    let cloned = report.clone();
+    assert_eq!(cloned.total_allocations, 10);
+}
+
+#[test]
+fn test_analysis_report_debug() {
+    let report = AnalysisReport {
+        total_allocations: 0,
+        total_deallocations: 0,
+        active_allocations: 0,
+        peak_memory_bytes: 0,
+        current_memory_bytes: 0,
+        allocation_rate_per_sec: 0.0,
+        deallocation_rate_per_sec: 0.0,
+        hotspots: vec![],
+        system_snapshots: vec![],
+    };
+
+    let debug_str = format!("{:?}", report);
+    assert!(debug_str.contains("AnalysisReport"));
+}
+
+#[test]
+fn test_allocation_hotspot_creation() {
+    let hotspot = AllocationHotspot {
+        var_name: "my_vec".to_string(),
+        type_name: "Vec<u8>".to_string(),
+        total_size: 1024,
+        allocation_count: 10,
+        location: Some("main.rs:42".to_string()),
+    };
+
+    assert_eq!(hotspot.var_name, "my_vec");
+    assert_eq!(hotspot.total_size, 1024);
+}
+
+#[test]
+fn test_allocation_hotspot_clone() {
+    let hotspot = AllocationHotspot {
+        var_name: "data".to_string(),
+        type_name: "String".to_string(),
+        total_size: 100,
+        allocation_count: 5,
+        location: None,
+    };
+
+    let cloned = hotspot.clone();
+    assert_eq!(cloned.var_name, "data");
+}
+
+#[test]
+fn test_allocation_hotspot_debug() {
+    let hotspot = AllocationHotspot {
+        var_name: "test".to_string(),
+        type_name: "i32".to_string(),
+        total_size: 4,
+        allocation_count: 1,
+        location: None,
+    };
+
+    let debug_str = format!("{:?}", hotspot);
+    assert!(debug_str.contains("AllocationHotspot"));
+}
+
+#[test]
+fn test_tracker_clone() {
+    let tracker = Tracker::new();
+    let cloned = tracker.clone();
+
+    let report1 = tracker.analyze();
+    let report2 = cloned.analyze();
+
+    // Both should have the same underlying data
+    assert_eq!(report1.total_allocations, report2.total_allocations);
+}
+
+#[test]
+fn test_tracker_with_sampling() {
+    let tracker = Tracker::new().with_sampling(SamplingConfig::high_performance());
+    let data = vec![1, 2, 3];
+    tracker.track_as(&data, "data", "test.rs", 1, "test_module");
+}
+
+#[test]
+fn test_tracker_elapsed() {
+    let tracker = Tracker::new();
+    std::thread::sleep(std::time::Duration::from_millis(10));
+    let elapsed = tracker.elapsed();
+    assert!(elapsed >= std::time::Duration::from_millis(10));
+}
+
+#[test]
+fn test_tracker_with_system_monitoring() {
+    let tracker = Tracker::new().with_system_monitoring();
+    let _ = tracker.current_system_snapshot();
+}
+
+#[test]
+fn test_tracker_track_as_multiple() {
+    let tracker = Tracker::new();
+    let data = vec![1, 2, 3, 4, 5];
+
+    tracker.track_as(&data, "my_vec", "test.rs", 10, "test_module");
+    tracker.track_as(&data, "my_vec", "test.rs", 20, "test_module");
+
+    let report = tracker.analyze();
+    let _ = report.total_allocations;
+}
+
+#[test]
+fn test_sampling_config_custom() {
+    let config = SamplingConfig {
+        sample_rate: 0.5,
+        capture_call_stack: true,
+        max_stack_depth: 15,
+    };
+
+    assert!((config.sample_rate - 0.5).abs() < 0.001);
+    assert!(config.capture_call_stack);
+    assert_eq!(config.max_stack_depth, 15);
+}
+
+#[test]
+fn test_analysis_report_with_hotspots() {
+    let report = AnalysisReport {
+        total_allocations: 100,
+        total_deallocations: 50,
+        active_allocations: 50,
+        peak_memory_bytes: 1024 * 1024,
+        current_memory_bytes: 512 * 1024,
+        allocation_rate_per_sec: 10.0,
+        deallocation_rate_per_sec: 5.0,
+        hotspots: vec![AllocationHotspot {
+            var_name: "test".to_string(),
+            type_name: "Vec<u8>".to_string(),
+            total_size: 1024,
+            allocation_count: 10,
+            location: Some("test.rs:1".to_string()),
+        }],
+        system_snapshots: vec![],
+    };
+
+    assert_eq!(report.hotspots.len(), 1);
+}
+
+#[test]
+fn test_tracker_with_sampling_and_monitoring() {
+    let tracker = Tracker::new()
+        .with_sampling(SamplingConfig::demo())
+        .with_system_monitoring();
+
+    let data = vec![1, 2, 3];
+    tracker.track_as(&data, "data", "test.rs", 1, "test_module");
+
+    let snapshot = tracker.current_system_snapshot();
+    assert!(snapshot.cpu_usage_percent >= 0.0);
+}
+
+#[test]
+fn test_tracker_events() {
+    let tracker = Tracker::new();
+    let data = vec![1, 2, 3];
+    tracker.track_as(&data, "test_data", "test.rs", 1, "test_module");
+
+    let events = tracker.events();
+    assert!(!events.is_empty());
+}
+
+#[test]
+fn test_tracker_event_store() {
+    let tracker = Tracker::new();
+    let _store = tracker.event_store();
+}
+
+#[test]
+fn test_tracker_stats() {
+    let tracker = Tracker::new();
+    let stats = tracker.stats();
+
+    assert_eq!(stats.total_allocations, 0);
+    assert_eq!(stats.active_allocations, 0);
+}
+
+#[test]
+fn test_tracker_stats_with_data() {
+    let tracker = Tracker::new();
+    let data = vec![1u8; 1024];
+    tracker.track_as(&data, "buffer", "test.rs", 1, "test_module");
+
+    let stats = tracker.stats();
+    assert!(
+        stats.total_allocations >= 1,
+        "Should have at least one allocation after tracking data"
+    );
+}
+
+#[test]
+fn test_tracker_system_snapshots() {
+    let tracker = Tracker::new().with_system_monitoring();
+    let snapshots = tracker.system_snapshots();
+    assert!(!snapshots.is_empty());
+}
+
+#[test]
+fn test_tracker_inner() {
+    let tracker = Tracker::new();
+    let _inner = tracker.inner();
+}
+
+#[test]
+fn test_tracker_with_auto_export() {
+    let tracker = Tracker::new().with_auto_export("/tmp/test_export");
+    let data = vec![1, 2, 3];
+    tracker.track_as(&data, "test", "test.rs", 1, "test_module");
+}
+
+#[test]
+fn test_sampling_config_zero_rate() {
+    let config = SamplingConfig {
+        sample_rate: 0.0,
+        capture_call_stack: false,
+        max_stack_depth: 0,
+    };
+
+    let tracker = Tracker::new().with_sampling(config);
+    let data = vec![1, 2, 3];
+    tracker.track_as(&data, "test", "test.rs", 1, "test_module");
+}
+
+#[test]
+fn test_analysis_report_serialization() {
+    let report = AnalysisReport {
+        total_allocations: 100,
+        total_deallocations: 50,
+        active_allocations: 50,
+        peak_memory_bytes: 1024,
+        current_memory_bytes: 512,
+        allocation_rate_per_sec: 10.0,
+        deallocation_rate_per_sec: 5.0,
+        hotspots: vec![],
+        system_snapshots: vec![],
+    };
+
+    let json = serde_json::to_string(&report);
+    assert!(json.is_ok());
+}
+
+#[test]
+fn test_allocation_hotspot_serialization() {
+    let hotspot = AllocationHotspot {
+        var_name: "test".to_string(),
+        type_name: "Vec<u8>".to_string(),
+        total_size: 1024,
+        allocation_count: 10,
+        location: Some("test.rs:1".to_string()),
+    };
+
+    let json = serde_json::to_string(&hotspot);
+    assert!(json.is_ok());
+}
+
+#[test]
+fn test_tracker_multiple_system_snapshots() {
+    let tracker = Tracker::new().with_system_monitoring();
+    std::thread::sleep(std::time::Duration::from_millis(10));
+    tracker.current_system_snapshot();
+
+    let snapshots = tracker.system_snapshots();
+    assert!(
+        !snapshots.is_empty(),
+        "Should have at least one system snapshot"
+    );
+}
+
+#[test]
+fn test_tracker_analyze_with_hotspots() {
+    let tracker = Tracker::new();
+    let data1 = vec![1u8; 100];
+    let data2 = vec![2u8; 200];
+    let data3 = vec![3u8; 300];
+
+    tracker.track_as(&data1, "buffer1", "test.rs", 1, "test_module");
+    tracker.track_as(&data2, "buffer2", "test.rs", 2, "test_module");
+    tracker.track_as(&data3, "buffer3", "test.rs", 3, "test_module");
+
+    let report = tracker.analyze();
+    assert!(
+        report.total_allocations >= 3,
+        "Should have at least 3 allocations after tracking"
+    );
+}
+
+#[test]
+fn test_tracker_default() {
+    let tracker = Tracker::default();
+    let report = tracker.analyze();
+    assert_eq!(report.total_allocations, 0);
+}
+
+/// Objective: Verify the dedupe index does not retain one slot per address ever
+/// allocated: releasing a block must reclaim its slot (the profiler must not grow
+/// without bound in a long-running process).
+/// Invariants: after N allocate/release cycles on distinct addresses the index is
+/// empty again, while live addresses keep their slot.
+#[test]
+fn released_addresses_do_not_retain_dedupe_slots() {
+    let tracker = Tracker::new();
+    let base = 0x1000_0000usize;
+
+    for step in 0..256usize {
+        let ptr = base + step * 64;
+        tracker
+            .inner
+            .track_allocation(ptr, 64)
+            .expect("registering the block must succeed");
+        assert!(
+            tracker
+                .track_deallocation(ptr)
+                .expect("releasing the block must succeed"),
+            "the block must have been tracked before it is released"
+        );
+    }
+
+    assert_eq!(
+        tracker.recorded_bindings.len(),
+        0,
+        "released addresses must not keep a dedupe slot"
+    );
+
+    // A slot that still describes a live binding must survive the reclamation sweep.
+    let live = base + 4096;
+    tracker
+        .inner
+        .track_allocation(live, 32)
+        .expect("registering the live block must succeed");
+    let serial = tracker.inner.binding_serial(live).unwrap_or_default();
+    let slot = tracker.recorded_slot(live);
+    slot.lock().expect("slot lock must be acquirable").insert(
+        serial,
+        RecordedBinding {
+            size: 32,
+            typed: true,
+            charged: true,
+        },
+    );
+    drop(slot);
+    tracker.reclaim_slot(live);
+    assert_eq!(
+        tracker.recorded_bindings.len(),
+        1,
+        "a live address must keep its slot"
+    );
+}
+
+/// Objective: Verify the facade releases by identity when the address holds one binding,
+/// and reports the guess when it holds several (plan PR-02).
+/// Invariants: with two live bindings the release is degraded and closes the oldest; the
+/// surviving binding keeps its serial and size.
+#[test]
+fn ambiguous_address_release_is_reported_and_keeps_the_new_block() {
+    let tracker = Tracker::new();
+    let ptr = 0x3000_0000usize;
+
+    tracker
+        .inner
+        .track_allocation(ptr, 64)
+        .expect("first block must register");
+    let first_serial = tracker.inner.binding_serial(ptr).expect("serial");
+    tracker
+        .inner
+        .track_allocation(ptr, 128)
+        .expect("second block must register");
+    let second_serial = tracker.inner.binding_serial(ptr).expect("serial");
+    assert_ne!(first_serial, second_serial, "reuse must change identity");
+    assert_eq!(
+        tracker.inner.live_binding_count_at(ptr),
+        2,
+        "both observed blocks must stay live"
+    );
+
+    assert!(
+        tracker
+            .track_deallocation(ptr)
+            .expect("release must succeed"),
+        "the address holds live bindings"
+    );
+    assert_eq!(
+        tracker.degraded_releases(),
+        1,
+        "an address-only release on an ambiguous address must be reported"
+    );
+    assert_eq!(
+        tracker.inner.binding_serial(ptr),
+        Some(second_serial),
+        "the newest binding must survive the degraded release"
+    );
+    assert_eq!(
+        tracker.inner.get_allocation_size(ptr),
+        Some(128),
+        "the survivor keeps its own size"
+    );
+}
+
+/// Objective: Verify a smart-pointer observation annotates the owned block instead of
+/// publishing a second allocation for it (plan A08/PR-02).
+/// Invariants: observing an `Arc` does not change the live bytes derived from the event
+/// stream, because the allocator already reported the real block.
+#[test]
+#[serial]
+fn smart_pointer_observation_does_not_count_the_block_twice() {
+    let tracker = Tracker::global();
+    let shared = std::sync::Arc::new([1u8; 64]);
+
+    let bytes_before = {
+        let mut ledger = crate::snapshot::BindingLedger::new();
+        for event in tracker.events() {
+            ledger.apply(&event);
+        }
+        ledger.stats().current_bytes
+    };
+
+    tracker.track_as(&shared, "shared", file!(), line!(), module_path!());
+
+    let bytes_after = {
+        let mut ledger = crate::snapshot::BindingLedger::new();
+        for event in tracker.events() {
+            ledger.apply(&event);
+        }
+        ledger.stats().current_bytes
+    };
+
+    assert_eq!(
+        bytes_after, bytes_before,
+        "a smart-pointer observation must not add heap bytes the allocator already reported"
+    );
+}
+
+/// Objective: Verify releasing an address that was never tracked does not leave a
+/// deduplication slot behind (the profiler must not grow on foreign releases).
+/// Invariants: 256 unknown releases leave the index empty.
+#[test]
+fn untracked_release_does_not_create_a_dedupe_slot() {
+    let tracker = Tracker::new();
+
+    for step in 0..256usize {
+        assert!(
+            !tracker
+                .track_deallocation(0x5000_0000 + step * 8)
+                .expect("releasing an unknown address must not error"),
+            "an unknown address cannot be released"
+        );
+    }
+
+    assert_eq!(
+        tracker.recorded_bindings.len(),
+        0,
+        "unknown releases must not allocate deduplication slots"
+    );
+}
+
+/// Objective: Verify a tracked heap block charges the current task exactly once, whether
+/// the allocator hook or the typed observation is the one that sees it first (plan A08).
+/// Invariants: the task records at least the bytes of the block, and never less than one
+/// allocation.
+#[test]
+#[serial]
+fn tracked_block_charges_the_current_task_once() {
+    let registry = crate::task_registry::global_registry();
+    registry.clear();
+
+    let tracker = Tracker::new();
+    let _scope = registry.task_scope("allocator_task");
+    let task_id = crate::task_registry::TaskIdRegistry::current_task_id()
+        .expect("the task scope must install a current task");
+
+    let data = vec![0u8; 64];
+    tracker.track_as(&data, "data", file!(), line!(), module_path!());
+
+    let meta = registry.get_task(task_id).expect("the task must exist");
+    assert!(
+        meta.memory_usage >= 64,
+        "the block must be charged to the task, got {} bytes",
+        meta.memory_usage
+    );
+    assert_eq!(
+        meta.allocation_count, 1,
+        "one block must be charged exactly once"
+    );
+}
+
+/// Objective: Verify a typed observation charges the current task when no allocator did,
+/// even though the observation itself just inserted the block into the core cache.
+/// "The cache knows the block" must not be read as "the allocator already charged it".
+/// Invariants: exactly one allocation is charged, with at least the block's bytes.
+#[test]
+#[serial]
+fn typed_observation_charges_when_no_allocator_did() {
+    let registry = crate::task_registry::global_registry();
+    registry.clear();
+    let tracker = Tracker::global();
+    let data = {
+        // This fixture specifically tests a block the real hook did not observe.
+        let _suppression = crate::core::allocator::TrackingGuard::acquire();
+        vec![0u8; 64]
+    };
+
+    let _scope = registry.task_scope("charge_once");
+    let task_id = crate::task_registry::TaskIdRegistry::current_task_id()
+        .expect("the task scope must install a current task");
+
+    tracker.track_as(&data, "data", file!(), line!(), module_path!());
+
+    let meta = registry.get_task(task_id).expect("the task must exist");
+    assert_eq!(
+        meta.allocation_count, 1,
+        "the block must be charged exactly once, not zero or twice"
+    );
+    assert!(
+        meta.memory_usage >= 64,
+        "the task must carry the block's bytes, got {}",
+        meta.memory_usage
+    );
+}
+
+/// Objective: Verify the dedupe state is kept per binding identity, so closing one
+/// generation does not erase the state of the surviving one.
+/// Invariants: after removing serial A the state of serial B is intact, and the index is
+/// empty only when every binding was removed.
+#[test]
+fn dedupe_state_is_keyed_by_binding_identity() {
+    let tracker = Tracker::new();
+    let ptr = 0x7000_0000usize;
+
+    let slot = tracker.recorded_slot(ptr);
+    {
+        let mut state = slot.lock().expect("slot lock must be acquirable");
+        state.insert(
+            1,
+            RecordedBinding {
+                size: 64,
+                typed: true,
+                charged: true,
+            },
+        );
+        state.insert(
+            2,
+            RecordedBinding {
+                size: 128,
+                typed: true,
+                charged: true,
+            },
+        );
+        state.remove(&1);
+        assert_eq!(
+            state.len(),
+            1,
+            "removing one identity must not remove the other"
+        );
+        assert_eq!(
+            state.get(&2).map(|binding| binding.size),
+            Some(128),
+            "the surviving binding keeps its own size"
+        );
+    }
+
+    drop(slot);
+    tracker.reclaim_slot(ptr);
+    assert_eq!(
+        tracker.recorded_bindings.len(),
+        1,
+        "a non-empty slot must not be reclaimed"
+    );
+}
+
+/// Objective: Verify a migrating reallocation moves only the identity it reallocated, so
+/// the dedupe state of another live binding at the old address survives.
+/// Invariants: the old address keeps the untouched serial and the new address holds the
+/// moved one.
+#[test]
+fn moving_reallocation_keeps_other_identity_state() {
+    let tracker = Tracker::new();
+    let old_ptr = 0x8000_0000usize;
+    let new_ptr = 0x8001_0000usize;
+
+    tracker
+        .inner
+        .track_allocation(old_ptr, 128)
+        .expect("the block must register");
+    let moved_serial = tracker.inner.binding_serial(old_ptr).expect("serial");
+
+    // Another identity that must survive the migration.
+    let survivor = moved_serial + 1000;
+    let old_slot = tracker.recorded_slot(old_ptr);
+    {
+        let mut state = old_slot.lock().expect("slot lock");
+        state.insert(
+            moved_serial,
+            RecordedBinding {
+                size: 128,
+                typed: true,
+                charged: true,
+            },
+        );
+        state.insert(
+            survivor,
+            RecordedBinding {
+                size: 64,
+                typed: true,
+                charged: true,
+            },
+        );
+    }
+    drop(old_slot);
+
+    tracker.track_reallocation(old_ptr, new_ptr, 128, 256);
+
+    let old_state = tracker.recorded_slot(old_ptr);
+    let old_state = old_state.lock().expect("slot lock");
+    assert!(
+        old_state.contains_key(&survivor),
+        "the untouched identity must keep its dedupe state"
+    );
+    assert!(
+        !old_state.contains_key(&moved_serial),
+        "the moved identity must leave the old address"
+    );
+    drop(old_state);
+
+    let new_state = tracker.recorded_slot(new_ptr);
+    let new_state = new_state.lock().expect("slot lock");
+    assert!(
+        new_state.contains_key(&moved_serial),
+        "the moved identity must be recorded at the new address"
+    );
+}
+/// Objective: User-defined observation callbacks never run under the capture gate.
+/// Invariants: Another thread can acquire the gate while each callback is active.
+#[test]
+fn trackable_callbacks_allow_cross_thread_capture() {
+    struct Reentrant;
+    fn verify_unlocked() {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            let _gate = crate::core::allocator::capture_gate::acquire(0);
+            tx.send(()).expect("callback receiver remains alive");
+        });
+        rx.recv_timeout(std::time::Duration::from_secs(1))
+            .expect("Trackable callback must not hold the capture gate");
+        worker.join().expect("capture worker must exit");
+    }
+    impl crate::Trackable for Reentrant {
+        fn track_kind(&self) -> crate::core::types::TrackKind {
+            verify_unlocked();
+            crate::core::types::TrackKind::Value
+        }
+        fn get_type_name(&self) -> &'static str {
+            verify_unlocked();
+            "Reentrant"
+        }
+        fn get_size_estimate(&self) -> usize {
+            verify_unlocked();
+            1
+        }
+        fn get_data_ptr(&self) -> Option<usize> {
+            None
+        }
+        fn get_data_size(&self) -> Option<usize> {
+            None
+        }
+    }
+    let tracker = super::Tracker::new();
+    tracker.track_as(&Reentrant, "callback", file!(), line!(), module_path!());
+    assert!(
+        tracker
+            .events()
+            .iter()
+            .any(|event| event.var_name.as_deref() == Some("callback")),
+        "observation still publishes metadata after callbacks return"
+    );
+}

@@ -29,8 +29,7 @@ impl ViewStats {
     /// Create stats from snapshot.
     pub fn from_snapshot(snapshot: &MemorySnapshot) -> Self {
         let types: HashSet<&str> = snapshot
-            .active_allocations
-            .values()
+            .allocations()
             .filter_map(|a| a.type_name.as_deref())
             .collect();
 

@@ -19,11 +19,12 @@
 use memscope_rs::{AutoExportConfig, MemScopeConfig, MemScopeResult};
 use std::time::Duration;
 
-fn main() -> MemScopeResult<()> {
+pub fn main() -> MemScopeResult<()> {
     // Read the exit-mode argument (default to "normal" so a bare invocation
     // produces a report and exits cleanly).
-    let mode = std::env::args()
-        .nth(1)
+    let mode = std::env::var("MEMSCOPE_E2E_MODE")
+        .ok()
+        .or_else(|| std::env::args().nth(1))
         .unwrap_or_else(|| "normal".to_string());
 
     // Read the output directory from the env var; fall back to the default
@@ -52,6 +53,9 @@ fn main() -> MemScopeResult<()> {
     };
     let data: Vec<u8> = vec![0u8; marker_size];
     memscope_rs::track!(guard, data);
+    if std::env::var_os("MEMSCOPE_E2E_MODE").is_some() {
+        std::fs::write(output_path.join("ready"), b"ready").expect("publish child readiness");
+    }
 
     // Drop the guard explicitly for `normal` so the export runs BEFORE main
     // returns (deterministic ordering for the test's file-existence check).

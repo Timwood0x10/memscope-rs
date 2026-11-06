@@ -1,0 +1,640 @@
+    // Render Heap Lattice grid (10x10 colored cells) — uses var(--primary) for cells.
+    function renderHeapGrid() {
+        const grid = document.getElementById('heapGrid');
+        if (!grid) return;
+        const sizes = (DATA.allocations || []).map(a => a.size || 0).filter(s => s > 0);
+        if (sizes.length === 0) {
+            grid.innerHTML = '<div class="col-span-full text-outline text-xs px-2 py-4">No allocation samples.</div>';
+            return;
+        }
+        const max = Math.max(1, ...sizes);
+        grid.innerHTML = '';
+        for (let i = 0; i < 100; i++) {
+            const cell = document.createElement('div');
+            const sz = sizes[i % sizes.length];
+            const intensity = sz / max;
+            cell.className = 'rounded-sm chart-interactive';
+            cell.style.background = primaryMix(0.1 + intensity * 0.7);
+            bindInteractive(cell, 'HEAP_CELL', [['cell', '#' + i], ['size', sz + 'B'], ['intensity', (intensity * 100).toFixed(0) + '%']], 'HEAP_CELL', 'cell #' + i + ' · size ' + sz + 'B');
+            grid.appendChild(cell);
+        }
+    }
+    registerThemeAware('heapGrid', renderHeapGrid);
+    renderHeapGrid();
+
+    // Render allocation trend line chart — reads DATA.allocations (timestamp_alloc, size).
+    // Bin allocations into time buckets, draw a polyline of total bytes per bucket.
+    function renderAllocTrend() {
+        const canvas = document.getElementById('allocTrendChart');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const allocs = DATA.allocations || [];
+        if (allocs.length < 2) { ctx.clearRect(0, 0, canvas.width, canvas.height); return; }
+        const rect = canvas.parentElement.getBoundingClientRect();
+        canvas.width = rect.width || 600;
+        canvas.height = 128;
+        const W = canvas.width, H = canvas.height;
+        ctx.clearRect(0, 0, W, H);
+
+        // Bin by timestamp into 60 buckets
+        const bins = 60;
+        const bucket = new Array(bins).fill(0);
+        const minT = allocs[0].timestamp_alloc;
+        const maxT = allocs[allocs.length - 1].timestamp_alloc;
+        const span = Math.max(maxT - minT, 1);
+        for (const a of allocs) {
+            const idx = Math.min(Math.floor((a.timestamp_alloc - minT) / span * bins), bins - 1);
+            bucket[idx] += a.size;
+        }
+        const maxV = Math.max(1, ...bucket);
+
+        // Draw axes
+        ctx.strokeStyle = '#494551'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(0, H - 20); ctx.lineTo(W, H - 20); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, H - 20); ctx.stroke();
+
+        // Draw smooth curve (catmull-rom via quadratic beziers)
+        const barW = (W - 10) / bins;
+        ctx.strokeStyle = '#cfbcff'; ctx.lineWidth = 1.5; ctx.lineJoin = 'round';
+        const pts = [];
+        for (let i = 0; i < bins; i++) {
+            const x = 5 + i * barW + barW / 2;
+            const y = H - 20 - (bucket[i] / maxV) * (H - 30);
+            pts.push({ x, y });
+        }
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let i = 0; i < pts.length - 1; i++) {
+            const mx = (pts[i].x + pts[i + 1].x) / 2;
+            const my = (pts[i].y + pts[i + 1].y) / 2;
+            ctx.quadraticCurveTo(pts[i].x, pts[i].y, mx, my);
+        }
+        const last = pts[pts.length - 1];
+        ctx.lineTo(last.x, last.y);
+        ctx.stroke();
+
+        // Fill gradient under line
+        const grad = ctx.createLinearGradient(0, 0, 0, H - 20);
+        grad.addColorStop(0, 'rgba(207,188,255,0.15)');
+        grad.addColorStop(1, 'rgba(207,188,255,0.01)');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.moveTo(5 + barW / 2, H - 20);
+        for (let i = 0; i < bins; i++) {
+            const x = 5 + i * barW + barW / 2;
+            const y = H - 20 - (bucket[i] / maxV) * (H - 30);
+            ctx.lineTo(x, y);
+        }
+        ctx.lineTo(5 + (bins - 1) * barW + barW / 2, H - 20);
+        ctx.closePath();
+        ctx.fill();
+
+        // Labels
+        ctx.fillStyle = '#948e9c'; ctx.font = '9px JetBrains Mono';
+        ctx.fillText('0', 4, H - 6);
+        const maxLabel = maxV >= 1_000_000 ? (maxV / 1_000_000).toFixed(1) + 'MB' : maxV >= 1_000 ? (maxV / 1_000).toFixed(1) + 'KB' : maxV + 'B';
+        ctx.fillText(maxLabel, 4, 10);
+        ctx.fillText(span + 'ns', W - 60, H - 6);
+    }
+    // Re-render on resize via a simple interval (theme-aware re-render triggers on mode switch)
+    window.addEventListener('resize', () => { setTimeout(renderAllocTrend, 200); });
+    renderAllocTrend();
+
+    // Render thread load heatmap — each cell is a thread, colored by
+    // allocation_count (primary) and annotated with current_memory.
+    function renderLoadHeatmap() {
+        const grid = document.getElementById('loadHeatmap');
+        if (!grid) return;
+        const threads = DATA.threads || [];
+        if (threads.length === 0) {
+            grid.innerHTML = '<div class="col-span-full text-outline text-xs py-4">No thread data.</div>';
+            return;
+        }
+        const maxAlloc = Math.max(...threads.map(t => t.allocation_count || 0), 1);
+        const maxMem = Math.max(...threads.map(t => t.current_memory_bytes || 0), 1);
+        grid.innerHTML = '';
+        threads.forEach((t, i) => {
+            const cell = document.createElement('div');
+            const ratio = (t.allocation_count || 0) / maxAlloc;
+            const intensity = 0.15 + ratio * 0.75;
+            cell.className = 'aspect-square rounded border border-outline-variant/50 flex flex-col items-center justify-center text-[8px] font-data-mono chart-interactive p-1';
+            cell.style.background = primaryMix(intensity);
+            cell.innerHTML = '<span class="text-white font-bold">' + (t.thread_id || '').replace('Thread-', 'T') + '</span><span class="text-on-surface-variant mt-1">' + (t.allocation_count || 0) + '</span>';
+            cell.title = t.thread_id + ' · ' + t.allocation_count + ' allocs · ' + (t.current_memory || '0 B');
+            bindInteractive(cell, 'THREAD_' + i, [['id', t.thread_id], ['allocs', t.allocation_count], ['mem', t.current_memory]], 'THREAD_LOAD', t.thread_id + ' · ' + t.allocation_count + ' allocs');
+            grid.appendChild(cell);
+        });
+    }
+    // Register and run — use existing theme-aware dispatch via id
+    const loadEl = document.getElementById('loadHeatmap');
+    if (loadEl) renderLoadHeatmap();
+
+    // Render unsafe source heatmap — aggregates unsafe_reports + allocations
+    // by source_file, shows each file as a colored cell with op count.
+    function renderUnsafeHeatmap() {
+        const grid = document.getElementById('unsafeHeatmap');
+        if (!grid) return;
+        // Collect source files from both unsafe reports and leaked allocations
+        const fileCount = {};
+        (DATA.unsafe_reports || []).forEach(r => {
+            const f = r.source_file || 'unknown';
+            fileCount[f] = (fileCount[f] || 0) + 1;
+        });
+        (DATA.allocations || []).forEach(a => {
+            if (a.is_leaked) {
+                const f = a.source_file || 'unknown';
+                fileCount[f] = (fileCount[f] || 0) + 1;
+            }
+        });
+        const entries = Object.entries(fileCount);
+        if (entries.length === 0) {
+            grid.innerHTML = '<div class="col-span-full text-outline text-xs py-4">No unsafe or leaked sources.</div>';
+            return;
+        }
+        const maxCnt = Math.max(1, ...entries.map(e => e[1]));
+        grid.innerHTML = '';
+        entries.sort((a, b) => b[1] - a[1]);
+        entries.forEach(([file, count]) => {
+            const cell = document.createElement('div');
+            const ratio = count / maxCnt;
+            const intensity = 0.15 + ratio * 0.75;
+            cell.className = 'rounded border border-outline-variant/50 p-2 font-data-mono text-[10px] chart-interactive overflow-hidden';
+            cell.style.background = `rgba(239,68,68,${intensity})`;
+            const short = file.split('/').pop() || file;
+            cell.innerHTML = '<div class="truncate text-white font-bold">' + short + '</div><div class="text-on-surface-variant">' + count + ' ops</div>';
+            cell.title = file + ' · ' + count + ' operations';
+            bindInteractive(cell, 'UNSAFE_SRC_' + entries.indexOf([file, count]), [['file', file], ['count', count]], 'UNSAFE_SOURCE', file + ' · ' + count + ' ops');
+            grid.appendChild(cell);
+        });
+    }
+    const unsafeEl = document.getElementById('unsafeHeatmap');
+    if (unsafeEl) renderUnsafeHeatmap();
+
+    // Render waker efficiency heatgrid (10x6) — uses var(--primary).
+    function renderWakerHeatgrid() {
+        const grid = document.getElementById('wakerHeatgrid');
+        if (!grid) return;
+        const bins = DATA.waker_efficiency_grid || [];
+        if (bins.length === 0) {
+            grid.innerHTML = '<div class="col-span-full text-outline text-xs px-2 py-4">Unknown — wake/poll events are not instrumented.</div>';
+            return;
+        }
+        const max = Math.max(1, ...bins);
+        grid.innerHTML = '';
+        bins.forEach((v, i) => {
+            const cell = document.createElement('div');
+            cell.className = 'rounded-sm chart-interactive';
+            const intensity = v / max;
+            cell.style.background = primaryMix(0.1 + intensity * 0.8);
+            bindInteractive(cell, 'WAKER_BIN_' + i, [['bin', '#' + i], ['efficiency', v.toFixed(3)], ['intensity', (intensity * 100).toFixed(0) + '%']], 'WAKER', 'bin #' + i + ' · efficiency ' + v.toFixed(3));
+            grid.appendChild(cell);
+        });
+    }
+    registerThemeAware('wakerHeatgrid', renderWakerHeatgrid);
+    renderWakerHeatgrid();
+
+    // ============================================================
+    // Completed task duration curve — data-driven SVG built from
+    // DATA.task_duration_samples. Re-renders
+    // on theme switch so the stroke/gradient pick up the new --primary.
+    // Each sample point is an interactive hover/click target.
+    // ============================================================
+    function renderPollLatencyCurve() {
+        const svg = document.getElementById('pollLatencySvg');
+        if (!svg) return;
+        const samples = DATA.task_duration_samples || [];
+        const completedTasks = (DATA.async_tasks || []).filter(t => t.completed_at_ms != null && t.completed_at_ms >= t.created_at_ms);
+        const W = 200, H = 80, pad = 4;
+        const mean = DATA.task_duration_mean_ms ?? 0;
+        // Empty-state: no samples → show honest "no data" message.
+        if (samples.length === 0) {
+            svg.innerHTML = '<text x="100" y="42" text-anchor="middle" fill="var(--on-surface-variant)" font-family="JetBrains Mono" font-size="7">NO COMPLETED TASK DURATIONS</text>';
+            return;
+        }
+        const maxV = Math.max(...samples, mean, 0.001);
+        const xStep = (W - pad * 2) / Math.max(1, samples.length - 1);
+        // Build the curve path: map each sample to (x, y) where y is inverted
+        // (higher latency → lower on the chart).
+        const pts = samples.map((v, i) => {
+            const x = pad + i * xStep;
+            const y = H - pad - (v / maxV) * (H - pad * 2);
+            return [x, y, v, i];
+        });
+        // Smooth line via simple polyline (no curve interpolation to keep
+        // individual sample points hoverable).
+        const linePath = pts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+        const areaPath = linePath + ' L' + (W - pad) + ' ' + (H - pad) + ' L' + pad + ' ' + (H - pad) + ' Z';
+        // Mean line.
+        const meanY = H - pad - (mean / maxV) * (H - pad * 2);
+        const primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--ke-accent').trim() || '#F59E0B';
+        let html = '';
+        // Gradient defs.
+        html += '<defs><linearGradient id="pollGrad" x1="0" y1="0" x2="0" y2="1">';
+        html += '<stop offset="0%" stop-color="' + primaryColor + '" stop-opacity="0.35"/>';
+        html += '<stop offset="100%" stop-color="' + primaryColor + '" stop-opacity="0.02"/>';
+        html += '</linearGradient></defs>';
+        // Area fill.
+        html += '<path d="' + areaPath + '" fill="url(#pollGrad)" stroke="none"/>';
+        // Mean dashed line.
+        html += '<line x1="' + pad + '" y1="' + meanY.toFixed(1) + '" x2="' + (W - pad) + '" y2="' + meanY.toFixed(1) + '" stroke="var(--on-surface-variant)" stroke-width="0.4" stroke-dasharray="2 2" opacity="0.6"/>';
+        // Curve line.
+        html += '<path d="' + linePath + '" fill="none" stroke="' + primaryColor + '" stroke-width="1.2" stroke-linejoin="round"/>';
+        // Interactive sample points — hover shows the task's duration, click drills.
+        pts.forEach(p => {
+            html += '<circle class="poll-pt" cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="1.8" fill="' + primaryColor + '" stroke="var(--on-background)" stroke-width="0.5" style="cursor:pointer"/>';
+        });
+        svg.innerHTML = html;
+        // Attach hover/click to each sample point.
+        svg.querySelectorAll('.poll-pt').forEach((c, idx) => {
+            const p = pts[idx];
+            const task = completedTasks[p[3]];
+            const taskName = task ? task.task_name : ('sample #' + p[3]);
+            c.setAttribute('title', taskName + ' · ' + p[2].toFixed(2) + 'ms');
+            c.classList.add('chart-interactive');
+            c.addEventListener('mousemove', function(ev) {
+                showChartTooltip(ev, 'COMPLETED_TASK_DURATION', [
+                    ['task', taskName],
+                    ['duration', p[2].toFixed(2) + 'ms'],
+                    ['mean', mean.toFixed(2) + 'ms']
+                ]);
+            });
+            c.addEventListener('mouseleave', hideChartTooltip);
+            c.addEventListener('click', function() {
+                drillKpi('duration_sample', 'COMPLETED_TASK_DURATION', taskName + ' · ' + p[2].toFixed(2) + 'ms (mean ' + mean.toFixed(2) + 'ms)');
+            });
+        });
+        // Also make the curve line itself clickable for a summary drill.
+        const lineEl = svg.querySelectorAll('path')[1];
+        if (lineEl) {
+            lineEl.style.cursor = 'pointer';
+            lineEl.classList.add('chart-interactive');
+            lineEl.addEventListener('mousemove', function(ev) {
+                showChartTooltip(ev, 'COMPLETED_TASK_DURATION', [['samples', samples.length], ['mean', mean.toFixed(2) + 'ms'], ['max', maxV.toFixed(2) + 'ms']]);
+            });
+            lineEl.addEventListener('mouseleave', hideChartTooltip);
+            lineEl.addEventListener('click', function() {
+                drillKpi('duration_curve', 'COMPLETED_TASK_DURATION', samples.length + ' samples · mean ' + mean.toFixed(2) + 'ms · max ' + maxV.toFixed(2) + 'ms');
+            });
+        }
+    }
+    registerThemeAware('pollLatency', renderPollLatencyCurve);
+    renderPollLatencyCurve();
+
+    // Completed lifetimes, censored ages, and intervals have separate populations.
+    function renderNeighborHistogram() {
+        const lifetimes = DATA.allocation_lifetimes || {};
+        [['neighborHistogram', lifetimes.released, 'RELEASED_BINDING_LIFETIME'],
+         ['liveAgeHistogram', lifetimes.live, 'LIVE_BINDING_AGE'],
+         ['allocationIntervalBars', DATA.allocation_interval_histogram, 'ALLOCATION_INTERVAL']].forEach(([id, values, label]) => {
+            const hist = document.getElementById(id);
+            if (!hist) return;
+            const bins = values || [];
+            if (!bins.some(b => b.count > 0)) {
+                hist.innerHTML = '<div class="text-outline text-xs">No recorded samples.</div>';
+                return;
+            }
+            const max = Math.max(1, ...bins.map(b => b.count));
+            hist.innerHTML = '';
+            bins.forEach((b, i) => {
+                const bar = document.createElement('div');
+                bar.className = 'flex-1 chart-interactive';
+                bar.style.background = primaryMix(0.6);
+                bar.style.height = (b.count / max * 100) + '%';
+                bindInteractive(bar, label, [['bin', '#' + i], ['count', b.count], ['range', b.range_label]], label, b.count + ' observations · ' + b.range_label);
+                hist.appendChild(bar);
+            });
+        });
+    }
+    registerThemeAware('neighborHistogram', renderNeighborHistogram);
+    renderNeighborHistogram();
+
+    // Render thread event log
+    (function renderThreadEventLog() {
+        const log = document.getElementById('threadEventLog');
+        if (!log) return;
+        const events = DATA.thread_event_log || [];
+        if (events.length === 0) { log.innerHTML = '<div class="text-outline">No thread events recorded.</div>'; return; }
+        events.slice(0, 50).forEach((e, idx) => {
+            const row = document.createElement('div');
+            row.className = 'chart-interactive';
+            row.style.cursor = 'pointer';
+            row.innerHTML = `<span class="text-outline">${e.time || ''}</span> <span class="text-accent-amber">${e.level || ''}</span> <span class="text-on-surface">${e.message || ''}</span>`;
+            const stacks = (e.stack_traces || []).slice(0, 4);
+            bindInteractive(row, 'THREAD_EVENT_' + idx, [
+                ['time', e.time || '—'],
+                ['level', e.level || '—'],
+                ['message', e.message || '—'],
+                ['stack_traces', stacks.join('  ||  ') || '—']
+            ], 'THREAD_EVENT', (e.level || 'EVENT') + ' @ ' + (e.time || '?') + ' · ' + (e.message || ''));
+            log.appendChild(row);
+        });
+    })();
+
+    // Render trace log window
+    (function renderTraceLog() {
+        const log = document.getElementById('traceLogWindow');
+        if (!log) return;
+        const traces = DATA.trace_logs || [];
+        if (traces.length === 0) { log.innerHTML = '<div class="text-outline">No traces.</div>'; return; }
+        traces.slice(0, 30).forEach((t, idx) => {
+            const row = document.createElement('div');
+            row.className = 'text-on-surface-variant chart-interactive';
+            row.style.cursor = 'pointer';
+            row.textContent = `${t.timestamp || ''} ${t.message || ''}`;
+            bindInteractive(row, 'TRACE_' + idx, [
+                ['timestamp', t.timestamp || '—'],
+                ['level', t.level || '—'],
+                ['message', t.message || '—']
+            ], 'TRACE_LOG', (t.level || 'TRACE') + ' @ ' + (t.timestamp || '?') + ' · ' + (t.message || ''));
+            log.appendChild(row);
+        });
+    })();
+
+    // Render task timeline rows
+    (function renderTaskTimeline() {
+        const rows = document.getElementById('taskTimelineRows');
+        if (!rows) return;
+        const tasks = DATA.async_tasks || [];
+        if (tasks.length === 0) { rows.innerHTML = '<div class="text-outline text-xs">No async tasks.</div>'; return; }
+        const start = Math.min(...tasks.map(t => t.created_at_ms));
+        const cut = DATA.allocation_lifetimes.capture_at_ns / 1e6;
+        const end = Math.max(cut, ...tasks.map(t => t.completed_at_ms ?? t.created_at_ms));
+        const span = Math.max(1, end - start);
+        tasks.slice(0, 10).forEach((t, idx) => {
+            const complete = t.completed_at_ms != null && t.completed_at_ms >= t.created_at_ms;
+            const duration = complete ? (t.completed_at_ms - t.created_at_ms) + 'ms' : 'Unknown (not completed)';
+            const left = Math.max(0, (t.created_at_ms - start) / span * 100);
+            const width = Math.max(0, ((complete ? t.completed_at_ms : cut) - t.created_at_ms) / span * 100);
+            const row = document.createElement('div');
+            row.className = 'flex items-center gap-3 font-data-mono text-xs chart-interactive';
+            row.style.cursor = 'pointer';
+            row.innerHTML = `<span class="text-accent-amber w-16">${t.task_id}</span><span class="text-on-surface w-32 truncate">${t.task_name || ''}</span><div class="relative flex-1 h-2 bg-surface-container-highest rounded-full overflow-hidden"><div class="absolute h-full bg-primary" style="left:${left}%;width:${width}%;opacity:${complete ? 1 : 0.4}"></div></div><span class="text-secondary text-right">${duration}</span>`;
+            bindInteractive(row, 'TASK_TIMELINE_' + idx, [
+                ['task_id', t.task_id != null ? t.task_id : '?'],
+                ['name', t.task_name || '—'],
+                ['type', t.task_type || '—'],
+                ['completed duration', duration],
+                ['created_at_ms', t.created_at_ms],
+                ['completed_at_ms', t.completed_at_ms ?? 'Unknown'],
+                ['allocations', t.total_allocations != null ? t.total_allocations : '?'],
+                ['current_mem', (t.current_memory != null ? t.current_memory : '?') + 'B'],
+                ['peak_mem', (t.peak_memory != null ? t.peak_memory : '?') + 'B'],
+                ['status', t.status || '—'],
+                ['leak', t.has_potential_leak ? 'YES ⚠' : 'no']
+            ], 'TASK_DURATION', (t.task_name || '?') + ' · ' + duration + ' · ' + (t.status || '?'));
+            rows.appendChild(row);
+        });
+    })();
+
+    // Render passport cards fallback if Handlebars each missing
+    (function renderPassportCards() {
+        const cards = document.getElementById('passportCards');
+        if (!cards) return;
+        // If cards already have children from server-side rendering, leave them
+        if (cards.children.length > 0 && cards.children[0].tagName !== 'SCRIPT') return;
+        const passports = DATA.passport_details || [];
+        passports.slice(0, 12).forEach(p => {
+            const card = document.createElement('div');
+            card.className = 'bg-surface-container-low border border-outline-variant rounded-lg p-4';
+            card.innerHTML = `<div class="flex justify-between items-start mb-2"><span class="font-data-mono text-xs text-accent-amber">${p.passport_id || ''}</span><span class="font-label-caps text-[9px] text-success">${p.status || 'CLEAN'}</span></div><p class="font-data-mono text-sm text-on-surface">${p.type_name || ''}</p><p class="text-[10px] text-on-surface-variant mt-1">SIZE: ${p.size_bytes || 0} bytes</p>`;
+            cards.appendChild(card);
+        });
+    })();
+
+    // === Type Intelligence donut chart (Chart.js) — click to drill into type ===
+    // Theme-aware: re-renders on theme switch so palette matches active theme.
+    function renderTypeChart() {
+        const canvas = document.getElementById('typeChart');
+        if (!canvas || typeof Chart === 'undefined') return;
+        const allocs = DATA.allocations || [];
+        const typeMap = {};
+        allocs.forEach(a => {
+            const t = a.type_name || 'unknown';
+            typeMap[t] = (typeMap[t] || 0) + 1;
+        });
+        const labels = Object.keys(typeMap).slice(0, 8);
+        const values = labels.map(l => typeMap[l]);
+        if (labels.length === 0) {
+            canvas.parentElement.innerHTML = '<div class="text-outline text-xs px-2 py-4">No type samples.</div>';
+            return;
+        }
+        // Theme-aware palette: primary + secondary + tertiary + accent variants.
+        const palette = [themeVar('--primary'), themeVar('--secondary'), themeVar('--tertiary'), themeVar('--accent-amber'), '#10B981', '#ef4444', '#8b5cf6', '#06b6d4'];
+        // Destroy existing chart instance if re-rendering
+        const existing = Chart.getChart(canvas);
+        if (existing) existing.destroy();
+        new Chart(canvas, {
+            type: 'doughnut',
+            data: { labels: labels, datasets: [{ data: values, backgroundColor: palette, borderColor: '#141218', borderWidth: 2 }] },
+            options: {
+                responsive: true, maintainAspectRatio: false, cutout: '62%',
+                plugins: {
+                    legend: { position: 'right', labels: { color: '#cbc4d2', font: { family: 'JetBrains Mono', size: 10 }, boxWidth: 10, padding: 6 } },
+                    tooltip: { callbacks: { label: ctx => ctx.label + ': ' + ctx.parsed + ' allocs' } }
+                },
+                onClick: function(event, elements) {
+                    if (elements.length > 0) {
+                        const idx = elements[0].index;
+                        const label = labels[idx];
+                        const count = values[idx];
+                        const totalAllocs = DATA.allocations || [];
+                        const typeAllocs = totalAllocs.filter(a => (a.type_name || 'unknown') === label);
+                        const totalBytes = typeAllocs.reduce((s, a) => s + (a.size || 0), 0);
+                        drillKpi('type_chart', 'TYPE_DETAIL', label + ' — ' + count + ' allocs, ' + totalBytes + 'B total');
+                    }
+                },
+                onHover: function(event, elements) {
+                    if (elements.length > 0) {
+                        const idx = elements[0].index;
+                        event.native.target.style.cursor = 'pointer';
+                        showChartTooltip(event.native, 'TYPE_DETAIL', [['type', labels[idx]], ['allocs', values[idx]]]);
+                    } else {
+                        hideChartTooltip();
+                    }
+                }
+            }
+        });
+    }
+    registerThemeAware('typeChart', renderTypeChart);
+    renderTypeChart();
+
+    // === Time Travel timeline chart (Chart.js line) — click to inspect allocation ===
+    function renderTimelineChart() {
+        const canvas = document.getElementById('timelineChart');
+        if (!canvas || typeof Chart === 'undefined') return;
+        const allocs = DATA.allocations || [];
+        if (allocs.length === 0) {
+            canvas.parentElement.innerHTML = '<div class="text-outline text-xs px-2 py-4">No timeline samples.</div>';
+            return;
+        }
+        const sorted = allocs.slice().sort((a, b) => (a.timestamp_alloc || 0) - (b.timestamp_alloc || 0));
+        const labels = sorted.map((_, i) => 'T' + i);
+        const sizes = sorted.map(a => a.size || 0);
+        const cumulative = [];
+        let running = 0;
+        sizes.forEach(s => { running += s; cumulative.push(running); });
+        const primaryHex = themeVar('--primary');
+        const secondaryHex = themeVar('--secondary');
+        const existing = Chart.getChart(canvas);
+        if (existing) existing.destroy();
+        new Chart(canvas, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    { label: 'Alloc Size (bytes)', data: sizes, borderColor: primaryHex, backgroundColor: primaryMix(0.08), borderWidth: 1.5, pointRadius: 0, tension: 0.3, yAxisID: 'y' },
+                    { label: 'Cumulative (bytes)', data: cumulative, borderColor: secondaryHex, backgroundColor: 'rgba(207,188,255,0.06)', borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: true, yAxisID: 'y1' }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false, animation: false,
+                plugins: { legend: { labels: { color: '#cbc4d2', font: { family: 'JetBrains Mono', size: 10 } } } },
+                scales: {
+                    x: { ticks: { color: '#948e9c', font: { family: 'JetBrains Mono', size: 9 }, maxTicksLimit: 12 }, grid: { color: 'rgba(148,142,156,0.08)' } },
+                    y: { position: 'left', ticks: { color: primaryHex, font: { family: 'JetBrains Mono', size: 9 } }, grid: { color: 'rgba(148,142,156,0.08)' } },
+                    y1: { position: 'right', ticks: { color: secondaryHex, font: { family: 'JetBrains Mono', size: 9 } }, grid: { drawOnChartArea: false } }
+                },
+                onClick: function(event, elements) {
+                    if (elements.length > 0) {
+                        const idx = elements[0].index;
+                        const a = sorted[idx];
+                        if (a) {
+                            drillKpi('timeline', 'ALLOC_INSPECT', '#' + idx + ' ' + (a.type_name || '?') + ' ' + (a.size || 0) + 'B @ ' + (a.address || '?'));
+                        }
+                    }
+                },
+                onHover: function(event, elements) {
+                    if (elements.length > 0) {
+                        const idx = elements[0].index;
+                        const a = sorted[idx];
+                        event.native.target.style.cursor = 'pointer';
+                        showChartTooltip(event.native, 'ALLOC_INSPECT', [['#', idx], ['type', a.type_name || '?'], ['size', (a.size || 0) + 'B'], ['addr', a.address || '?'], ['leaked', a.is_leaked ? 'yes' : 'no']]);
+                    } else {
+                        hideChartTooltip();
+                    }
+                }
+            }
+        });
+    }
+    registerThemeAware('timelineChart', renderTimelineChart);
+    renderTimelineChart();
+
+    // === Memory Flamegraph (SVG) — grouped by source_file ===
+    (function renderFlamegraph() {
+        const svg = document.getElementById('flameSvg');
+        const wrap = document.getElementById('flameNodeCount');
+        if (!svg) return;
+        const allocs = DATA.allocations || [];
+        const fileMap = {};
+        allocs.forEach(a => {
+            const f = a.source_file || 'unknown';
+            if (!fileMap[f]) fileMap[f] = { count: 0, size: 0 };
+            fileMap[f].count++;
+            fileMap[f].size += (a.size || 0);
+        });
+        const entries = Object.entries(fileMap).sort((a, b) => b[1].size - a[1].size).slice(0, 12);
+        if (entries.length === 0) {
+            svg.innerHTML = '<text x="10" y="100" fill="#948e9c" font-family="JetBrains Mono" font-size="11">No flame samples.</text>';
+            return;
+        }
+        if (wrap) wrap.textContent = entries.length + ' frames';
+        const maxLen = Math.max(...entries.map(e => e[1].size));
+        const barH = 14;
+        const gap = 2;
+        const W = 800;
+        let html = '';
+        entries.forEach((entry, i) => {
+            const file = entry[0];
+            const info = entry[1];
+            const w = Math.max(2, (info.size / maxLen) * (W - 180));
+            const y = i * (barH + gap) + 4;
+            const label = file.split('/').pop() || file;
+            const shortLabel = label.length > 22 ? label.slice(0, 22) + '…' : label;
+            html += `<rect x="0" y="${y}" width="${W}" height="${barH}" fill="#211f24" rx="2"/>`;
+            const fillAlpha = (0.3 + (info.size/maxLen)*0.6).toFixed(2);
+            html += `<rect x="0" y="${y}" width="${w}" height="${barH}" style="fill: color-mix(in srgb, var(--primary) ${(0.3 + (info.size/maxLen)*0.6)*100}% , transparent)" rx="2" class="flame-bar chart-interactive" data-file="${label}" data-count="${info.count}" data-size="${info.size}"/>`;
+            html += `<text x="6" y="${y + 10}" fill="#e6e0e9" font-family="JetBrains Mono" font-size="9">${shortLabel}</text>`;
+            html += `<text x="${W - 6}" y="${y + 10}" style="fill: var(--accent-amber)" font-family="JetBrains Mono" font-size="9" text-anchor="end">${info.size}B</text>`;
+        });
+        svg.innerHTML = html;
+        svg.querySelectorAll('.flame-bar').forEach(bar => {
+            const file = bar.getAttribute('data-file');
+            const cnt = bar.getAttribute('data-count');
+            const sz = bar.getAttribute('data-size');
+            bar.addEventListener('mousemove', function(ev) {
+                showChartTooltip(ev, 'FLAME_NODE', [['file', file], ['allocs', cnt], ['bytes', sz + 'B']]);
+            });
+            bar.addEventListener('mouseleave', hideChartTooltip);
+            bar.addEventListener('click', function() {
+                drillKpi('flame', 'FLAME_NODE', file + ' — ' + cnt + ' allocs, ' + sz + 'B');
+            });
+        });
+    })();
+
+    // === FFI Call Mapping Topology (SVG) ===
+    (function renderFfiTopo() {
+        const svg = document.getElementById('ffiTopoSvg');
+        if (!svg) return;
+        const topo = DATA.ffi_call_topology || {};
+        const nodes = topo.nodes || [];
+        const edges = topo.edges || [];
+        if (nodes.length === 0) {
+            svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="#948e9c" font-family="JetBrains Mono" font-size="11">No FFI topology nodes.</text>';
+            return;
+        }
+        const W = svg.clientWidth || 600;
+        const H = 400;
+        const cx = W / 2;
+        const cy = H / 2;
+        const radius = Math.min(W, H) * 0.35;
+        const positions = nodes.map((node, i) => {
+            const angle = (i / nodes.length) * Math.PI * 2 - Math.PI / 2;
+            return { x: cx + Math.cos(angle) * radius, y: cy + Math.sin(angle) * radius, node: node };
+        });
+        let html = '';
+        // Draw edges
+        edges.forEach(edge => {
+            const src = positions[edge.source] || positions[0];
+            const tgt = positions[edge.target] || positions[1];
+            if (!src || !tgt) return;
+            const edgeStroke = edge.is_active ? 'var(--accent-amber)' : '#494551';
+            html += `<line x1="${src.x}" y1="${src.y}" x2="${tgt.x}" y2="${tgt.y}" style="stroke: ${edgeStroke}" stroke-width="1.5" stroke-dasharray="${edge.is_active ? '0' : '4 3'}" opacity="0.6" class="ffi-edge" data-label="${edge.label || ''}" data-active="${edge.is_active ? 1 : 0}" style="cursor:pointer"/>`;
+            // Arrow label at midpoint
+            const mx = (src.x + tgt.x) / 2;
+            const my = (src.y + tgt.y) / 2;
+            if (edge.label) {
+                html += `<text x="${mx}" y="${my - 4}" fill="#948e9c" font-family="JetBrains Mono" font-size="7" text-anchor="middle">${edge.label.slice(0, 18)}</text>`;
+            }
+        });
+        // Draw nodes
+        positions.forEach((pos, i) => {
+            const node = pos.node;
+            // active → theme accent; hot → semantic red; default → theme primary.
+            const fillVar = node.status === 'active' ? 'var(--accent-amber)' : node.status === 'hot' ? '#ef4444' : 'var(--primary)';
+            html += `<circle cx="${pos.x}" cy="${pos.y}" r="6" style="fill: ${fillVar}" opacity="0.85" class="ffi-node chart-interactive" data-name="${node.name}" data-type="${node.node_type}" data-status="${node.status || '?'}"/>`;
+            const label = (node.name || '').slice(0, 16);
+            html += `<text x="${pos.x}" y="${pos.y + 18}" fill="#cbc4d2" font-family="JetBrains Mono" font-size="8" text-anchor="middle">${label}</text>`;
+        });
+        svg.innerHTML = html;
+        svg.querySelectorAll('.ffi-node').forEach(n => {
+            const nm = n.getAttribute('data-name');
+            const tp = n.getAttribute('data-type');
+            const st = n.getAttribute('data-status');
+            n.addEventListener('mousemove', function(ev) {
+                showChartTooltip(ev, 'FFI_NODE', [['name', nm], ['type', tp], ['status', st]]);
+            });
+            n.addEventListener('mouseleave', hideChartTooltip);
+            n.addEventListener('click', function() {
+                drillKpi('ffi_node', 'FFI_NODE', nm + ' [' + tp + '] — ' + st);
+            });
+        });
+        svg.querySelectorAll('.ffi-edge').forEach(e => {
+            const lbl = e.getAttribute('data-label');
+            const act = e.getAttribute('data-active') === '1';
+            e.addEventListener('mousemove', function(ev) {
+                showChartTooltip(ev, 'FFI_EDGE', [['label', lbl || '—'], ['active', act ? 'yes' : 'no']]);
+            });
+            e.addEventListener('mouseleave', hideChartTooltip);
+        });
+    })();
+

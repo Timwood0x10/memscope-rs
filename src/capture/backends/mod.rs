@@ -19,6 +19,7 @@ pub mod async_tracker;
 pub mod async_types;
 
 // Task profile modules (task-level memory profiling)
+pub mod profile_replay;
 pub mod task_profile;
 
 // Efficiency scoring modules
@@ -64,6 +65,10 @@ pub use async_types::{
 };
 
 // Re-export task profile types
+pub use profile_replay::{
+    finalize_metrics, rebuild_async_profiles_from_events, rebuild_with_live_tracker,
+    RebuiltProfiles,
+};
 pub use task_profile::{AggregatedTaskStats, TaskMemoryProfile, TaskProfileManager, TaskType};
 
 // Re-export efficiency scoring types
@@ -217,6 +222,10 @@ impl CaptureBackend for CoreBackend {
             ptr: to_ptr,
             size,
             old_size: None,
+            new_ptr: None,
+            binding_serial: None,
+            degraded_release: false,
+            charge_outcome: None,
             thread_id,
             var_name: None,
             type_name: None,
@@ -273,6 +282,10 @@ impl CaptureBackend for LockfreeBackend {
             ptr: to_ptr,
             size,
             old_size: None,
+            new_ptr: None,
+            binding_serial: None,
+            degraded_release: false,
+            charge_outcome: None,
             thread_id,
             var_name: None,
             type_name: None,
@@ -353,6 +366,10 @@ impl CaptureBackend for AsyncBackend {
             ptr: to_ptr,
             size,
             old_size: None,
+            new_ptr: None,
+            binding_serial: None,
+            degraded_release: false,
+            charge_outcome: None,
             thread_id,
             var_name: None,
             type_name: None,

@@ -167,7 +167,7 @@ impl UafDetector {
                         severity,
                         IssueCategory::Safety,
                         format!(
-                            "Use-after-free detected: {} active borrows after deallocation at 0x{:x}",
+                            "Heuristic use-after-free: {} active borrows after deallocation at 0x{:x} (heuristic, no memory-access evidence)",
                             alloc.borrow_count, alloc.ptr
                         ),
                     )

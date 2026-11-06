@@ -21,7 +21,7 @@ pub enum MemoryEventType {
     Borrow,
     /// Memory return event
     Return,
-    /// Metadata event for Container/Value types (no heap allocation)
+    /// Container/Value metadata (`ptr == 0`) or an annotation of a heap binding.
     Metadata,
     /// Clone event
     Clone,
@@ -42,6 +42,11 @@ impl fmt::Display for MemoryEventType {
     }
 }
 
+/// Serde helper: omit `false` flags from the JSON projection.
+fn is_false(value: &bool) -> bool {
+    !*value
+}
+
 /// Unified memory event type
 ///
 /// This structure captures all essential information about memory operations
@@ -58,6 +63,26 @@ pub struct MemoryEvent {
     pub size: usize,
     /// Previous allocation size (for Reallocate events)
     pub old_size: Option<usize>,
+    /// New address (for Reallocate events that moved the block).
+    ///
+    /// `None` means the block stayed at `ptr`; `Some(new_ptr)` means it migrated,
+    /// so the old address binding must be closed and a new one opened.
+    pub new_ptr: Option<usize>,
+    /// Capture-local binding identity, preserved across reallocation. Older event
+    /// streams omit it and use address/size matching during replay.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub binding_serial: Option<u64>,
+    /// Set when a release could only be matched by address (the address held several
+    /// live bindings), so the closed binding was chosen by policy rather than identified.
+    ///
+    /// Carried by the event instead of only a counter: replay and every export can then
+    /// say that this release is a lower bound of the evidence, not an exact fact.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub degraded_release: bool,
+    /// Registry charge result captured before publishing an allocation. Missing on legacy
+    /// streams and non-allocation events; replay must not replace it with live registry state.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub charge_outcome: Option<crate::task_registry::ChargeOutcome>,
     /// Thread identifier
     pub thread_id: u64,
     /// Optional variable name
@@ -85,17 +110,22 @@ pub struct MemoryEvent {
 }
 
 impl MemoryEvent {
-    /// Create a new allocation event
+    /// Create a new allocation event.
+    ///
+    /// Constructing an event has no accounting side effect: task memory is
+    /// recorded once at the capture site (see `Tracker::track_inner`), otherwise
+    /// building an event — or replaying a recorded one — would double count.
     pub fn allocate(ptr: usize, size: usize, thread_id: u64) -> Self {
-        // Record allocation in task registry
-        crate::task_registry::global_registry().record_allocation(size);
-
         Self {
             timestamp: Self::now(),
             event_type: MemoryEventType::Allocate,
             ptr,
             size,
             old_size: None,
+            new_ptr: None,
+            binding_serial: None,
+            degraded_release: false,
+            charge_outcome: None,
             thread_id,
             var_name: None,
             type_name: None,
@@ -111,6 +141,23 @@ impl MemoryEvent {
         }
     }
 
+    /// Create a *migrating* reallocation event.
+    ///
+    /// `reallocate()` describes a block that stayed at `ptr`; this variant records
+    /// that the allocator returned a different address, so reconstruction can close
+    /// the old binding and open one at `new_ptr`.
+    pub fn reallocate_moved(
+        ptr: usize,
+        new_ptr: usize,
+        old_size: usize,
+        new_size: usize,
+        thread_id: u64,
+    ) -> Self {
+        let mut event = Self::reallocate(ptr, old_size, new_size, thread_id);
+        event.new_ptr = Some(new_ptr);
+        event
+    }
+
     /// Create a new deallocation event
     pub fn deallocate(ptr: usize, size: usize, thread_id: u64) -> Self {
         Self {
@@ -119,6 +166,10 @@ impl MemoryEvent {
             ptr,
             size,
             old_size: None,
+            new_ptr: None,
+            binding_serial: None,
+            degraded_release: false,
+            charge_outcome: None,
             thread_id,
             var_name: None,
             type_name: None,
@@ -142,6 +193,10 @@ impl MemoryEvent {
             ptr,
             size: new_size,
             old_size: Some(old_size),
+            new_ptr: None,
+            binding_serial: None,
+            degraded_release: false,
+            charge_outcome: None,
             thread_id,
             var_name: None,
             type_name: None,
@@ -165,6 +220,10 @@ impl MemoryEvent {
             ptr: 0, // No heap pointer
             size,
             old_size: None,
+            new_ptr: None,
+            binding_serial: None,
+            degraded_release: false,
+            charge_outcome: None,
             thread_id,
             var_name: Some(var_name),
             type_name: Some(type_name),
@@ -195,6 +254,10 @@ impl MemoryEvent {
             ptr: target_ptr,
             size,
             old_size: None,
+            new_ptr: None,
+            binding_serial: None,
+            degraded_release: false,
+            charge_outcome: None,
             thread_id,
             var_name,
             type_name,
@@ -218,6 +281,10 @@ impl MemoryEvent {
             ptr,
             size,
             old_size: None,
+            new_ptr: None,
+            binding_serial: None,
+            degraded_release: false,
+            charge_outcome: None,
             thread_id,
             var_name: None,
             type_name: Some(if is_mutable {

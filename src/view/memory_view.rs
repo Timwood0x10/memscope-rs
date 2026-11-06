@@ -42,7 +42,7 @@ impl MemoryView {
 
     /// Get all active allocations (from snapshot).
     pub fn allocations(&self) -> Vec<&ActiveAllocation> {
-        self.snapshot.active_allocations.values().collect()
+        self.snapshot.allocations().collect()
     }
 
     /// Get allocation by pointer.
@@ -72,12 +72,12 @@ impl MemoryView {
 
     /// Get allocation count.
     pub fn len(&self) -> usize {
-        self.snapshot.active_allocations.len()
+        self.snapshot.active_count()
     }
 
     /// Check if empty.
     pub fn is_empty(&self) -> bool {
-        self.snapshot.active_allocations.is_empty()
+        self.snapshot.active_count() == 0
     }
 
     /// Get total memory usage.

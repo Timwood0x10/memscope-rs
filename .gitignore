@@ -46,6 +46,7 @@ Thumbs.db
 
 # Shell scripts (generated)
 *.sh
+!/.github/scripts/verify-toolchain.sh
 
 # Text files (generated)
 *.txt
@@ -84,6 +85,8 @@ temp_*
 # Documentation build
 /target/doc/
 
+/target-miri/
+
 aim/
 
 # Subproject targets
@@ -114,3 +117,8 @@ local_*
 
 # Trae IDE rules (keep this file)
 !.trae/
+
+# Generated reports and coverage output (never commit these)
+memscope-report/
+aim/coverage/
+MemoryAnalysis/

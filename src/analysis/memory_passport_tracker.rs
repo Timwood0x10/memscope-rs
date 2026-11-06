@@ -34,6 +34,24 @@ pub struct MemoryPassport {
     pub updated_at: u64,
     /// Additional metadata
     pub metadata: HashMap<String, String>,
+    /// 1-based binding order at `allocation_ptr` (1 = first use of the address).
+    ///
+    /// Two passports for one address are two different blocks; the generation is what
+    /// keeps their evidence apart (plan A15 / §7.3).
+    #[serde(default = "default_generation")]
+    pub generation: u64,
+    /// Set when a newer passport took over the same address while this one was still
+    /// live: the record is archived instead of being silently dropped.
+    #[serde(default)]
+    pub superseded: bool,
+    /// Whether the lifecycle event list was truncated to respect the per-passport cap.
+    #[serde(default)]
+    pub history_truncated: bool,
+}
+
+/// Serde default for [`MemoryPassport::generation`].
+fn default_generation() -> u64 {
+    1
 }
 
 /// Status of memory passport at program shutdown
@@ -49,6 +67,11 @@ pub enum PassportStatus {
     ReclaimedByRust,
     /// Memory still in foreign custody (confirmed leak)
     InForeignCustody,
+    /// Memory allocated in Rust and not released inside the capture window.
+    ///
+    /// This is the honest resting state for a block that never crossed the FFI boundary
+    /// and was never observed released: it is *not* "freed by Rust" (plan A15).
+    StillLive,
     /// Status unknown or corrupted
     Unknown,
 }
@@ -93,8 +116,13 @@ pub enum PassportEventType {
 
 /// Memory passport tracker for comprehensive FFI boundary tracking
 pub struct MemoryPassportTracker {
-    /// Active memory passports
+    /// Active memory passports (the newest one per address).
     passports: Arc<Mutex<HashMap<usize, MemoryPassport>>>,
+    /// Passports that were replaced by a newer block at the same address. Kept so their
+    /// evidence ("handed to foreign code and never returned") is not lost.
+    superseded: Arc<Mutex<Vec<MemoryPassport>>>,
+    /// Next passport generation per address.
+    generations: Arc<Mutex<HashMap<usize, u64>>>,
     /// Passport creation sequence
     sequence_counter: Arc<Mutex<u32>>,
     /// Event sequence counter (use AtomicU32 for lock-free operation)
@@ -209,6 +237,8 @@ impl MemoryPassportTracker {
 
         Self {
             passports: Arc::new(Mutex::new(HashMap::new())),
+            superseded: Arc::new(Mutex::new(Vec::new())),
+            generations: Arc::new(Mutex::new(HashMap::new())),
             sequence_counter: Arc::new(Mutex::new(0)),
             event_sequence: Arc::new(AtomicU32::new(0)),
             config,
@@ -267,21 +297,62 @@ impl MemoryPassportTracker {
             type_name: type_name.unwrap_or_else(|| "-".to_string()),
             var_name: var_name.unwrap_or_else(|| "-".to_string()),
             status_at_shutdown: PassportStatus::Unknown,
+            generation: 1,
+            superseded: false,
+            history_truncated: false,
             lifecycle_events: vec![initial_event],
             created_at: current_time,
             updated_at: current_time,
             metadata: HashMap::new(),
         };
 
-        // Store passport
+        // Store passport. A block that reused the address of a still-live passport must
+        // not silently erase it: the old record is archived (and counted) so its evidence
+        // survives, and the new record carries the next generation for that address.
+        let mut passport = passport;
         if let Ok(mut passports) = self.passports.lock() {
-            // Check passport limit
-            if passports.len() >= self.config.max_passports {
-                return Err(TrackingError::ResourceExhausted(
-                    "Maximum passport limit reached".to_string(),
-                ));
+            // The archive is part of the budget: address reuse must not let the tracker grow
+            // without bound. Reclaim the oldest archived record first, and only fail when
+            // even that cannot make room.
+            let archived = self.superseded.lock().map(|a| a.len()).unwrap_or(0);
+            if passports.len() + archived >= self.config.max_passports {
+                let mut reclaimed = false;
+                if let Ok(mut superseded) = self.superseded.lock() {
+                    if !superseded.is_empty() {
+                        superseded.remove(0);
+                        reclaimed = true;
+                        tracing::debug!(
+                            "passport budget reached: dropped the oldest archived record"
+                        );
+                    }
+                }
+                if !reclaimed && passports.len() >= self.config.max_passports {
+                    return Err(TrackingError::ResourceExhausted(
+                        "Maximum passport limit reached".to_string(),
+                    ));
+                }
             }
-            passports.insert(allocation_ptr, passport);
+            // Assign the generation inside the same critical section as publication;
+            // concurrent creators must not publish an older generation after a newer one.
+            let mut generations = self.generations.lock().unwrap_or_else(|e| e.into_inner());
+            let counter = generations.entry(allocation_ptr).or_insert(0);
+            *counter = counter.saturating_add(1);
+            passport.generation = *counter;
+            drop(generations);
+            if let Some(previous) = passports.insert(allocation_ptr, passport) {
+                let mut archived = previous;
+                archived.superseded = true;
+                tracing::debug!(
+                    "passport address reuse: 0x{:x} generation {} replaced while live \
+                     (passport {})",
+                    allocation_ptr,
+                    archived.generation,
+                    archived.passport_id
+                );
+                if let Ok(mut superseded) = self.superseded.lock() {
+                    superseded.push(archived);
+                }
+            }
         } else {
             return Err(TrackingError::LockContention(
                 "Failed to lock passports".to_string(),
@@ -411,7 +482,14 @@ impl MemoryPassportTracker {
             if let Some(passport) = passports.get_mut(&allocation_ptr) {
                 // Limit events per passport
                 if passport.lifecycle_events.len() >= self.config.max_events_per_passport {
-                    passport.lifecycle_events.drain(0..1); // Remove oldest event
+                    // Drop the oldest event, then flag the chain as incomplete so reports
+                    // never present a truncated history as a complete one (plan §7.3 6).
+                    passport.lifecycle_events.drain(0..1);
+                    passport.history_truncated = true;
+                    passport.metadata.insert(
+                        "history_truncated".to_string(),
+                        "oldest events dropped to respect max_events_per_passport".to_string(),
+                    );
                 }
 
                 passport.lifecycle_events.push(event);
@@ -444,6 +522,11 @@ impl MemoryPassportTracker {
 
     /// Detect InForeignCustody status and memory leaks at program shutdown
     pub fn detect_leaks_at_shutdown(&self) -> LeakDetectionResult {
+        self.detect_leaks_in(&self.snapshot_passports())
+    }
+
+    /// Assess a frozen set so counters and details use the same capture cut.
+    pub(crate) fn detect_leaks_in(&self, records: &[MemoryPassport]) -> LeakDetectionResult {
         if !self.config.enable_leak_detection {
             return LeakDetectionResult {
                 leaked_passports: Vec::new(),
@@ -463,52 +546,40 @@ impl MemoryPassportTracker {
             .unwrap_or_default()
             .as_secs();
 
-        if let Ok(mut passports) = self.passports.lock() {
-            for (ptr, passport) in passports.iter_mut() {
-                // Determine final status based on lifecycle events
-                let final_status = self.determine_final_status(&passport.lifecycle_events);
-                passport.status_at_shutdown = final_status.clone();
+        for passport in records {
+            let ptr = passport.allocation_ptr;
+            // Read-only projection: detection must not rewrite the stored passports or the
+            // counters, otherwise exporting twice produces different numbers and a live
+            // object acquires a "shutdown" verdict mid-run (plan §7.3 item 4).
+            let status = self.assess_status(passport);
 
-                // Check for leaks (InForeignCustody status)
-                if final_status == PassportStatus::InForeignCustody {
-                    leaked_passports.push(passport.passport_id.clone());
+            if status == PassportStatus::InForeignCustody {
+                leaked_passports.push(passport.passport_id.clone());
 
-                    // Create leak detail
-                    let last_event = passport.lifecycle_events.last();
-                    let last_context = last_event
-                        .map(|e| e.context.clone())
-                        .unwrap_or_else(|| "unknown".to_string());
-                    let time_since_last = last_event
-                        .map(|e| current_time.saturating_sub(e.timestamp))
-                        .unwrap_or(0);
+                let last_event = passport.lifecycle_events.last();
+                let last_context = last_event
+                    .map(|e| e.context.clone())
+                    .unwrap_or_else(|| "unknown".to_string());
+                let time_since_last = last_event
+                    .map(|e| current_time.saturating_sub(e.timestamp))
+                    .unwrap_or(0);
+                let lifecycle_summary = self.create_lifecycle_summary(&passport.lifecycle_events);
 
-                    let lifecycle_summary =
-                        self.create_lifecycle_summary(&passport.lifecycle_events);
+                leak_details.push(LeakDetail {
+                    passport_id: passport.passport_id.clone(),
+                    memory_address: ptr,
+                    size_bytes: passport.size_bytes,
+                    last_context,
+                    time_since_last_event: time_since_last,
+                    lifecycle_summary,
+                });
 
-                    leak_details.push(LeakDetail {
-                        passport_id: passport.passport_id.clone(),
-                        memory_address: *ptr,
-                        size_bytes: passport.size_bytes,
-                        last_context,
-                        time_since_last_event: time_since_last,
-                        lifecycle_summary,
-                    });
-
-                    tracing::warn!("🚨 MEMORY LEAK DETECTED: Passport {} (0x{:x}, {} bytes) in foreign custody", 
-                        passport.passport_id, ptr, passport.size_bytes);
-                }
-            }
-
-            // Update statistics
-            if let Ok(mut stats) = self.stats.lock() {
-                stats.leaks_detected = leaked_passports.len();
-
-                // Update status counts
-                stats.passports_by_status.clear();
-                for passport in passports.values() {
-                    let status_key = format!("{:?}", passport.status_at_shutdown);
-                    *stats.passports_by_status.entry(status_key).or_insert(0) += 1;
-                }
+                tracing::warn!(
+                    "MEMORY LEAK DETECTED: Passport {} (0x{:x}, {} bytes) in foreign custody",
+                    passport.passport_id,
+                    ptr,
+                    passport.size_bytes
+                );
             }
         }
 
@@ -517,7 +588,7 @@ impl MemoryPassportTracker {
         tracing::debug!(
             "Leak detection complete: {} leaks detected out of {} passports",
             total_leaks,
-            self.get_passport_count()
+            records.len()
         );
 
         LeakDetectionResult {
@@ -533,7 +604,7 @@ impl MemoryPassportTracker {
         self.passports.lock().ok()?.get(&allocation_ptr).cloned()
     }
 
-    /// Get all passports
+    /// Get all current passports.
     pub fn get_all_passports(&self) -> HashMap<usize, MemoryPassport> {
         self.passports
             .lock()
@@ -547,28 +618,77 @@ impl MemoryPassportTracker {
             .clone()
     }
 
-    /// Get passports by status
+    /// Freeze current and archived generations together in deterministic order.
+    ///
+    /// Creation moves records while holding the current-table lock. Holding that same
+    /// lock through the archive read prevents a reused address appearing twice or being
+    /// omitted between two independent reads.
+    pub fn snapshot_passports(&self) -> Vec<MemoryPassport> {
+        let current = self.passports.lock().unwrap_or_else(|e| e.into_inner());
+        let archived = self.superseded.lock().unwrap_or_else(|e| e.into_inner());
+        let mut records: Vec<_> = current.values().chain(archived.iter()).cloned().collect();
+        drop(archived);
+        drop(current);
+        records.sort_by(|a, b| {
+            (a.allocation_ptr, a.generation, &a.passport_id).cmp(&(
+                b.allocation_ptr,
+                b.generation,
+                &b.passport_id,
+            ))
+        });
+        records
+    }
+
+    /// Passports archived because a newer block reused their address while they were live.
+    ///
+    /// Keeping them preserves the evidence of the older block (for example "handed to
+    /// foreign code and never returned"), which the previous `insert` overwrite lost.
+    #[must_use]
+    pub fn get_archived_passports(&self) -> Vec<MemoryPassport> {
+        self.superseded
+            .lock()
+            .map(|passports| passports.clone())
+            .unwrap_or_default()
+    }
+
+    /// Get retained passports (including archived generations) whose projection matches.
     pub fn get_passports_by_status(&self, status: PassportStatus) -> Vec<MemoryPassport> {
-        if let Ok(passports) = self.passports.lock() {
-            passports
-                .values()
-                .filter(|p| p.status_at_shutdown == status)
-                .cloned()
-                .collect()
-        } else {
-            Vec::new()
-        }
+        self.snapshot_passports()
+            .into_iter()
+            .filter(|passport| self.assess_status(passport) == status)
+            .collect()
     }
 
     /// Get tracker statistics
     pub fn get_stats(&self) -> PassportTrackerStats {
-        self.stats
+        let mut stats = self
+            .stats
             .lock()
             .unwrap_or_else(|e| {
                 tracing::warn!("Mutex poisoned in get_stats, recovering data: {}", e);
                 e.into_inner()
             })
-            .clone()
+            .clone();
+
+        // Leak and per-status counters are projections of the current state: detection no
+        // longer caches them, so a reader must not see "1 leak in the JSON, 0 in the stats"
+        // (plan A15-2 follow-up).
+        let passports = self.snapshot_passports();
+        stats.leaks_detected = passports
+            .iter()
+            .filter(|passport| {
+                self.config.enable_leak_detection
+                    && self.assess_status(passport) == PassportStatus::InForeignCustody
+            })
+            .count();
+        stats.active_passports = passports.iter().filter(|p| !p.superseded).count();
+        stats.passports_by_status.clear();
+        for passport in &passports {
+            let key = format!("{:?}", self.assess_status(passport));
+            *stats.passports_by_status.entry(key).or_insert(0) += 1;
+        }
+
+        stats
     }
 
     /// Validate passport integrity
@@ -735,8 +855,27 @@ impl MemoryPassportTracker {
         } else if has_handover {
             PassportStatus::HandoverToFfi
         } else {
-            PassportStatus::FreedByRust
+            // Allocated in Rust, no handover and no release observation: the block is
+            // still live as far as the passport can tell. Reporting `FreedByRust` here
+            // turned every untouched allocation into a released one and hid live objects
+            // from the leak/active checks.
+            PassportStatus::StillLive
         }
+    }
+
+    /// Status of a passport at the current cut, derived from its lifecycle events.
+    ///
+    /// Read-only: callers get a projection and the stored passport is left untouched, so
+    /// two exports of one batch observe identical state (plan §7.3 item 4).
+    #[must_use]
+    pub fn assess_status(&self, passport: &MemoryPassport) -> PassportStatus {
+        if passport.history_truncated {
+            // The event chain was truncated: whatever is left may have lost the handover or
+            // the release, so a confident verdict would be unfounded (plan §7.3 item 6).
+            // V2 replaces this with a retained status summary.
+            return PassportStatus::Unknown;
+        }
+        self.determine_final_status(&passport.lifecycle_events)
     }
 
     fn create_lifecycle_summary(&self, events: &[PassportEvent]) -> String {
@@ -811,120 +950,4 @@ pub fn initialize_global_passport_tracker(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_passport_creation() {
-        let tracker = MemoryPassportTracker::new(PassportTrackerConfig::default());
-        let ptr = 0x1000;
-        let size = 1024;
-
-        let passport_id = tracker
-            .create_passport(ptr, size, "test_context".to_string(), None, None)
-            .expect("Failed to create passport");
-        assert!(!passport_id.is_empty());
-
-        let passport = tracker.get_passport(ptr).expect("Failed to get passport");
-        assert_eq!(passport.allocation_ptr, ptr);
-        assert_eq!(passport.size_bytes, size);
-        assert_eq!(passport.lifecycle_events.len(), 1);
-        assert_eq!(
-            passport.lifecycle_events[0].event_type,
-            PassportEventType::AllocatedInRust
-        );
-    }
-
-    #[test]
-    fn test_handover_to_ffi() {
-        let tracker = MemoryPassportTracker::new(PassportTrackerConfig::default());
-        let ptr = 0x2000;
-
-        tracker
-            .create_passport(ptr, 512, "rust_context".to_string(), None, None)
-            .expect("Failed to create passport");
-        tracker
-            .record_handover_to_ffi(ptr, "ffi_context".to_string(), "malloc".to_string())
-            .expect("Failed to record handover");
-
-        let passport = tracker.get_passport(ptr).expect("Failed to get passport");
-        assert_eq!(passport.lifecycle_events.len(), 2);
-        assert_eq!(
-            passport.lifecycle_events[1].event_type,
-            PassportEventType::HandoverToFfi
-        );
-    }
-
-    #[test]
-    fn test_leak_detection() {
-        let tracker = MemoryPassportTracker::new(PassportTrackerConfig::default());
-        let ptr = 0x3000;
-
-        // Create passport and hand over to FFI without reclaim
-        tracker
-            .create_passport(ptr, 256, "rust_context".to_string(), None, None)
-            .expect("Failed to create passport");
-        tracker
-            .record_handover_to_ffi(ptr, "ffi_context".to_string(), "malloc".to_string())
-            .expect("Failed to record handover");
-
-        // Detect leaks at shutdown
-        let leak_result = tracker.detect_leaks_at_shutdown();
-
-        assert_eq!(leak_result.total_leaks, 1);
-        assert_eq!(leak_result.leaked_passports.len(), 1);
-        assert_eq!(leak_result.leak_details.len(), 1);
-        assert_eq!(leak_result.leak_details[0].memory_address, ptr);
-
-        // Verify passport status
-        let passport = tracker.get_passport(ptr).expect("Test operation failed");
-        assert_eq!(
-            passport.status_at_shutdown,
-            PassportStatus::InForeignCustody
-        );
-    }
-
-    #[test]
-    fn test_reclaim_prevents_leak() {
-        let tracker = MemoryPassportTracker::new(PassportTrackerConfig::default());
-        let ptr = 0x4000;
-
-        // Create passport, hand over to FFI, then reclaim
-        tracker
-            .create_passport(ptr, 128, "rust_context".to_string(), None, None)
-            .expect("Failed to create passport");
-        tracker
-            .record_handover_to_ffi(ptr, "ffi_context".to_string(), "malloc".to_string())
-            .expect("Failed to record handover");
-        tracker
-            .record_reclaimed_by_rust(ptr, "rust_context".to_string(), "cleanup".to_string())
-            .expect("Failed to record reclaim");
-
-        // Detect leaks at shutdown
-        let leak_result = tracker.detect_leaks_at_shutdown();
-
-        assert_eq!(leak_result.total_leaks, 0);
-
-        // Verify passport status
-        let passport = tracker.get_passport(ptr).expect("Test operation failed");
-        assert_eq!(passport.status_at_shutdown, PassportStatus::ReclaimedByRust);
-    }
-
-    #[test]
-    fn test_passport_validation() {
-        let tracker = MemoryPassportTracker::new(PassportTrackerConfig::default());
-        let ptr = 0x5000;
-
-        tracker
-            .create_passport(ptr, 64, "test_context".to_string(), None, None)
-            .expect("Failed to create passport");
-        tracker
-            .record_handover_to_ffi(ptr, "ffi_context".to_string(), "test_func".to_string())
-            .expect("Failed to record handover");
-
-        let is_valid = tracker
-            .validate_passport(ptr)
-            .expect("Failed to validate passport");
-        assert!(is_valid);
-    }
-}
+mod tests;

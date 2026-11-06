@@ -113,13 +113,26 @@ fn main() -> MemScopeResult<()> {
                 format!("ffi_call_{}", i),
             );
 
+            // Write payload while the pointer is still valid.
             unsafe {
                 std::ptr::write_bytes(ffi_ptr as *mut u8, (0x40 + i) as u8, size);
+            }
+
+            // Record the foreign free BEFORE calling free() so the passport
+            // captures the release event. After free() the pointer is dangling
+            // and must not be dereferenced.
+            guard.record_free(
+                ffi_ptr as usize,
+                "foreign_function".to_string(),
+                format!("free_{}", i),
+            );
+
+            unsafe {
                 free(ffi_ptr);
             }
 
             println!(
-                "   Passport {}: FFI {} bytes (leaked intentionally)",
+                "   Passport {}: FFI {} bytes (allocated and freed via FFI)",
                 passport_id, size
             );
         }
@@ -181,6 +194,7 @@ fn main() -> MemScopeResult<()> {
     println!("  - Shared relationships (Arc<T>)");
     println!("  - Clone relationships (vec.clone())");
     println!("  - Slice relationships (&[T])");
+    println!("  - FFI allocations tracked with full lifecycle (alloc -> handover -> free)");
 
     Ok(())
 }

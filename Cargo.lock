@@ -1800,7 +1800,7 @@ dependencies = [
 
 [[package]]
 name = "memscope-rs"
-version = "0.2.5"
+version = "0.2.6"
 dependencies = [
  "actix-rt",
  "actix-web",
@@ -1820,6 +1820,7 @@ dependencies = [
  "memscope-derive",
  "num_cpus",
  "object 0.32.2",
+ "page_size",
  "parking_lot",
  "proptest",
  "rand 0.10.1",
@@ -1837,6 +1838,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "wait-timeout",
  "windows-sys 0.61.2",
 ]
 

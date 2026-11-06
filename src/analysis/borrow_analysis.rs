@@ -89,7 +89,7 @@ impl BorrowAnalyzer {
 
         // Find and remove from active borrows
         if let Ok(mut active) = self.active_borrows.lock() {
-            for (_, borrows) in active.iter_mut() {
+            for borrows in active.values_mut() {
                 if let Some(pos) = borrows.iter().position(|b| b.id == borrow_id) {
                     let mut borrow_info = borrows.remove(pos);
                     borrow_info.end_time = Some(end_time);

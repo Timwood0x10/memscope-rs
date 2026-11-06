@@ -145,6 +145,11 @@ pub enum ViolationSeverity {
     Critical,
 }
 
+/// One of several same-named `AllocationInfo` types in this crate: this one is the
+/// the unsafe/FFI tracking record with custody information.
+///
+/// Convert at the module boundary instead of passing it across; a global rename is
+/// deliberately avoided (see DATA_ACCURACY_DEVELOPMENT_PLAN §14.2).
 /// Allocation information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AllocationInfo {

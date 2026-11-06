@@ -217,10 +217,24 @@ mod tests {
 
     use parking_lot::Mutex as PlMutex;
 
-    /// Objective: Verify the worker fires flush at least 3 times over 200ms
-    /// with a 50ms interval. The bound is a lower bound — scheduling jitter
-    /// may add ticks but must not remove them.
-    /// Invariants: counter >= 3 after sleeping ~4 intervals.
+    /// Wait until `predicate` holds, polling every 10 ms, or return false at the
+    /// deadline. A fixed `sleep` races the scheduler on loaded CI runners;
+    /// polling asserts the behaviour instead of the machine's speed.
+    fn wait_until(timeout: Duration, predicate: impl Fn() -> bool) -> bool {
+        let deadline = Instant::now() + timeout;
+        while !predicate() {
+            if Instant::now() >= deadline {
+                return false;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        true
+    }
+
+    /// Objective: Verify the worker keeps firing flush calls while it runs.
+    /// The bound is a lower bound: scheduling jitter may add ticks but must not
+    /// remove them.
+    /// Invariants: counter >= 3 within the poll deadline.
     #[test]
     fn positive_periodic_flush_fires_multiple_times() {
         let counter = Arc::new(AtomicUsize::new(0));
@@ -228,14 +242,11 @@ mod tests {
         let flusher = PeriodicFlusher::new(Duration::from_millis(50), move || {
             c.fetch_add(1, Ordering::SeqCst);
         });
-        // Sleep ~4 intervals. Even with jitter, at least 3 ticks should fire.
-        std::thread::sleep(Duration::from_millis(200));
-        let count = counter.load(Ordering::SeqCst);
         assert!(
-            count >= 3,
-            "expected at least 3 flushes over 200ms with 50ms interval, got {} \
-             (scheduling jitter may add ticks but not remove them below 3)",
-            count
+            wait_until(Duration::from_secs(5), || counter.load(Ordering::SeqCst)
+                >= 3),
+            "expected at least 3 periodic flushes with a 50ms interval, got {}",
+            counter.load(Ordering::SeqCst)
         );
         flusher.stop();
     }
@@ -250,13 +261,14 @@ mod tests {
         let flusher = PeriodicFlusher::new(Duration::from_millis(50), move || {
             c.fetch_add(1, Ordering::SeqCst);
         });
-        std::thread::sleep(Duration::from_millis(150));
-        let pre_stop = counter.load(Ordering::SeqCst);
         assert!(
-            pre_stop >= 1,
+            wait_until(Duration::from_secs(5), || {
+                counter.load(Ordering::SeqCst) >= 1
+            }),
             "expected at least one periodic flush before stop, got {}",
-            pre_stop
+            counter.load(Ordering::SeqCst)
         );
+        let pre_stop = counter.load(Ordering::SeqCst);
         flusher.stop();
         let post_stop = counter.load(Ordering::SeqCst);
         assert!(
@@ -306,8 +318,10 @@ mod tests {
                 *sn.lock() = name;
             }
         });
-        // Sleep enough for at least one flush to fire and capture the name.
-        std::thread::sleep(Duration::from_millis(150));
+        assert!(
+            wait_until(Duration::from_secs(5), || seen_name.lock().is_some()),
+            "worker must capture its thread name within the deadline"
+        );
         flusher.stop();
         let name = seen_name.lock().take();
         assert_eq!(
@@ -393,14 +407,15 @@ mod tests {
         let flusher = PeriodicFlusher::new(Duration::from_millis(20), move || {
             c.fetch_add(1, Ordering::SeqCst);
         });
-        // Let at least one periodic flush fire, then drop without calling stop().
-        std::thread::sleep(Duration::from_millis(80));
-        let pre_drop = counter.load(Ordering::SeqCst);
+        // Wait for the first periodic flush, then drop without calling stop().
         assert!(
-            pre_drop >= 1,
+            wait_until(Duration::from_secs(5), || {
+                counter.load(Ordering::SeqCst) >= 1
+            }),
             "expected at least one periodic flush before drop, got {}",
-            pre_drop
+            counter.load(Ordering::SeqCst)
         );
+        let pre_drop = counter.load(Ordering::SeqCst);
         drop(flusher);
         // If drop() didn't join the worker, the final flush might not have
         // fired yet (race). The assert below verifies it did.
@@ -429,8 +444,14 @@ mod tests {
                 panic!("intentional flush panic — worker must survive via catch_unwind");
             }
         });
-        // Sleep enough for the first (panicking) flush and at least one more.
-        std::thread::sleep(Duration::from_millis(100));
+        // Wait for the panicking flush plus at least one more by polling instead
+        // of sleeping a fixed window: with RUST_BACKTRACE=1 the first panic can
+        // spend hundreds of milliseconds capturing its backtrace, which pushed
+        // the second tick past a fixed 100 ms window on Linux CI.
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while counter.load(Ordering::SeqCst) < 2 && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(10));
+        }
         let count = counter.load(Ordering::SeqCst);
         assert!(
             count >= 2,
@@ -465,14 +486,16 @@ mod tests {
         let flusher = Arc::new(PeriodicFlusher::new(Duration::from_millis(10), move || {
             c.fetch_add(1, Ordering::SeqCst);
         }));
-        // Sleep 50ms so a few periodic flushes fire before the storm.
-        std::thread::sleep(Duration::from_millis(50));
-        let pre_stop = counter.load(Ordering::SeqCst);
+        // Wait for at least one periodic flush so the storm starts from a known
+        // state, without depending on runner speed.
         assert!(
-            pre_stop >= 1,
+            wait_until(Duration::from_secs(5), || {
+                counter.load(Ordering::SeqCst) >= 1
+            }),
             "expected at least one periodic flush before the stop storm, got {}",
-            pre_stop
+            counter.load(Ordering::SeqCst)
         );
+        let pre_stop = counter.load(Ordering::SeqCst);
 
         // Spawn 50 threads all calling stop() concurrently.
         let mut handles = Vec::with_capacity(50);
