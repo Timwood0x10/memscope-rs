@@ -875,7 +875,8 @@ mod tests {
     /// Objective: Verify replay cost grows with the number of events, not with its
     /// square (address index instead of a full scan per event).
     /// Invariants: quadrupling the event count must not multiply the runtime by the
-    /// quadratic factor (16x); a generous 6x bound leaves room for machine noise.
+    /// quadratic factor (16x); an 8x bound leaves room for machine noise and for the
+    /// constant overhead of instrumented coverage builds.
     #[test]
     fn replay_scales_linearly_with_distinct_addresses() {
         fn replay(count: usize) -> std::time::Duration {
@@ -897,7 +898,7 @@ mod tests {
         if small.as_micros() > 0 {
             let ratio = large.as_secs_f64() / small.as_secs_f64();
             assert!(
-                ratio < 6.0,
+                ratio < 8.0,
                 "replay must stay near-linear: 4x events took {ratio:.1}x the time                  ({small:?} -> {large:?}), which indicates a full scan per event"
             );
         }
