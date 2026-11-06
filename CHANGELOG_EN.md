@@ -2,39 +2,39 @@
 
 ## \[0.2.6] - 2026-11-05
 
-### 🎯 **Binding-Identity Accounting and Event-Sourced Reporting**
+###  **Binding-Identity Accounting and Event-Sourced Reporting**
 
 This release makes every allocation identifiable by a serial, so releases, reallocations and task charges settle against the actual binding instead of a reused address. Reports are rebuilt from one event cut, and the JSON exports now state how complete that accounting is.
 
-#### ✨ Accounting and Export
+####  Accounting and Export
 
 - **feat**: `ClosedBinding { ptr, serial, size }` flows through the cache, events, ledger, JSON and dashboard; degraded releases report the identity actually closed.
 - **feat**: `ChargeOutcome` (Charged / Unattributed / Deferred), non-blocking `try_record_allocation`, per-task lower bounds and deferred charge counters.
 - **feat**: Task profiles rebuilt from the event stream (`profile_replay`), matching the cut used by `memory_analysis.json` and the task graph.
 - **feat**: `degraded_releases`, `charge_quality` and live-versus-cumulative labels in the exported JSON and dashboard summary.
 
-#### 🏗️ Architecture
+####  Architecture
 
 - **refactor**: Export split into ownership / snapshot / task-graph submodules; tracker releases moved to `tracker/release.rs`; async tracker split into `dealloc`, `future` and `queries`.
 - **refactor**: Shared `Handlebars` registry, extracted context metrics, and a dedicated OS process-memory reader.
 
-#### 🛠 Bug Fixes
+####  Bug Fixes
 
 - **fix**: No `Arc`/`Rc` double counting, no dedupe loss on degraded releases or moved reallocs, no allocator re-entrancy deadlocks, no cross-thread release loss.
 - **fix**: Allocator self-tracking suppressed during export; portable page size; external templates loaded only on an explicit path.
 - **fix**: Calibration measurement no longer pins a platform-specific acceptance count; parallel shared-state and coverage timing assertions are stable.
 
-#### ✅ Testing
+####  Testing
 
 - Full export/lifecycle acceptance suite (50 real workloads), allocator re-entrancy subprocess regressions, and deterministic assertions under parallel and coverage-instrumented runs.
 
 ## \[0.2.5] - 2026-07-27
 
-### 🎯 **Unified Auto-Export Lifecycle and Simplified Start API**
+###  **Unified Auto-Export Lifecycle and Simplified Start API**
 
 This release introduces a completely redesigned entry-point experience. A single `memscope_rs::start()` call now initializes logging, global tracking, and all auto-export lifecycle hooks (Drop guard, panic hook, Ctrl-C handler, `libc::atexit`). The old `MemCtx::init()` API remains fully backward-compatible.
 
-#### ✨ New API
+####  New API
 
 - **feat**: Unified `start()/start_with()` — one-call initialization with `MemScopeGuard` RAII guard
   - `MemScopeGuard::drop()` triggers idempotent export on normal return, panic, Ctrl-C, or `std::process::exit`
@@ -49,14 +49,14 @@ This release introduces a completely redesigned entry-point experience. A single
 - **feat**: `TrackerConfig` made `pub`; added `Tracker::with_config()` bridge method
 - **feat**: `GlobalTracker::with_config()` now correctly uses `config.tracker` instead of `Tracker::new()`
 
-#### 🏗️ New Modules
+####  New Modules
 
 - **`src/auto_export.rs`** — `SignalPolicy`, `ExportFormatSet`, `AutoExportConfig`, `MemScopeConfig` with builder methods and serde support (~250 LOC + tests)
 - **`src/lifecycle.rs`** — `export_once()`, `export_for_reason()`, `trigger_export_now()`, `snapshot_json()`, panic-hook chaining, ctrlc handler, `libc::atexit` (~500 LOC + tests)
 - **`src/guard.rs`** — `MemScopeGuard` with `Deref<Target=GlobalTracker>`, `Drop`, `start()`, `start_with()` (~200 LOC + tests)
 - **`src/periodic_flusher.rs`** — Background worker thread, `Mutex<Option<JoinHandle>>` shutdown pattern, final flush on stop (~250 LOC + tests)
 
-#### 📝 Documentation
+####  Documentation
 
 - **README (EN & ZH)**: Completely rewritten Quick Start section with 4 usage patterns:
   - CLI one-liner for short-lived programs
@@ -77,7 +77,7 @@ This release introduces a completely redesigned entry-point experience. A single
   10. Conclusion
 - **docs/**: Added `STRENGTHENING_PLAN.md` — architectural roadmap for future improvements
 
-#### ✅ Testing
+####  Testing
 
 - **e2e tests** (`tests/auto_export_e2e.rs`):
   - `e2e_normal_exit`: guards Drop triggers export, files exist, non-empty
@@ -95,7 +95,7 @@ This release introduces a completely redesigned entry-point experience. A single
   - `unified_analyzer_demo.rs` (converted from `init_global_tracking().unwrap()` to `start()?`)
 - **New e2e helper**: `examples/auto_exit_demo.rs` runs in three modes (`normal`, `panic`, `sleep+SIGINT`) for the e2e test harness
 
-#### 🛠 Bug Fixes
+####  Bug Fixes
 
 - **fix(lifecycle)**: Stale policy in `install_ctrlc_handler` — moved policy read inside the signal handler closure so a second `install()` call that updates `AUTO_EXPORT_CFG` but skips handler re-registration (via `Once`) takes effect from the next signal onward
 - **fix(clippy)**: `tests/auto_export_e2e.rs` — `&PathBuf` → `&Path` to satisfy `clippy::ptr_arg`
@@ -115,7 +115,7 @@ This release introduces a completely redesigned entry-point experience. A single
 
 ## \[0.2.4] - 2026-06-03
 
-### 🎯 **Dashboard Precision and Release Stabilization**
+###  **Dashboard Precision and Release Stabilization**
 
 This release focuses on making the Dashboard analysis output more precise, faster to navigate, and safer to interpret before publishing the next crate version.
 
@@ -174,7 +174,7 @@ This release focuses on making the Dashboard analysis output more precise, faste
 
 ## \[0.2.3] - 2026-04-19
 
-### 🌳 **Task Tracking and Task Graph Visualization**
+###  **Task Tracking and Task Graph Visualization**
 
 This update implements a complete task tracking system with task hierarchy tracking and memory allocation association, providing Task Graph visualization in the Dashboard.
 
@@ -223,7 +223,7 @@ This update implements a complete task tracking system with task hierarchy track
 
 ## \[0.2.2] - 2026-04-17
 
-### 🎯 **Arc Clone Detection Enhancement**
+###  **Arc Clone Detection Enhancement**
 
 This update adds comprehensive Arc/Rc clone detection capability through stack allocation tracking.
 
@@ -298,7 +298,7 @@ This update adds comprehensive Arc/Rc clone detection capability through stack a
 
 ## \[0.2.1] - 2026-04-12
 
-### 📊 **Benchmark Optimization and Documentation Enhancement**
+###  **Benchmark Optimization and Documentation Enhancement**
 
 This update focuses on optimizing the benchmark system and completing the project documentation.
 
@@ -376,7 +376,7 @@ This update focuses on optimizing the benchmark system and completing the projec
 
 ## \[0.2.0] - 2026-04-09
 
-### 🏗️ **Major Architecture Refactoring: From Monolithic to Modular Engines**
+###  **Major Architecture Refactoring: From Monolithic to Modular Engines**
 
 This release represents a complete architectural overhaul of memscope-rs, transitioning from a monolithic structure to a modular engine-based architecture. This refactoring significantly improves code maintainability, extensibility, and thread safety while reducing code size by approximately 75%.
 
@@ -433,7 +433,7 @@ This release represents a complete architectural overhaul of memscope-rs, transi
 
 #### **Performance Trade-offs**
 
-- ⚠️ **Regressions** in specific scenarios:
+-  **Regressions** in specific scenarios:
   - Tracker creation: +559% (startup-only impact)
   - Single tracking (small allocations): +11-16%
   - Multi-variable tracking: +17-22%
@@ -496,7 +496,7 @@ src/
 - **Net reduction**: \~198,624 lines (\~75% code reduction)
 - **Current codebase**: 77,641 lines
 - **Test coverage**: Comprehensive across all modules
-- **Build status**: ✅ 0 errors, 0 warnings, all checks passing
+- **Build status**:  0 errors, 0 warnings, all checks passing
 
 #### **Migration Guide**
 
@@ -544,14 +544,14 @@ See [PR Summary](PR_SUMMARY_EN.md) for detailed migration guide.
 
 #### **Recommendations**
 
-**✅ Recommended for Upgrade:**
+** Recommended for Upgrade:**
 
 - High-concurrency application scenarios
 - Applications requiring better error handling
 - Projects requiring long-term maintenance
 - Projects needing feature extensions
 
-**⚠️ Evaluate Carefully:**
+** Evaluate Carefully:**
 
 - Applications extremely sensitive to single-tracking latency
 - Large-scale memory analysis scenarios (needs further optimization)
@@ -577,7 +577,7 @@ See [PR Summary](PR_SUMMARY_EN.md) for detailed migration guide.
 
 This changelog documents the changes between the `test_a` branch and `master` branch of memscope-rs. The test\_a branch includes code reorganization, new experimental features, and various improvements.
 
-## 🛡️ **Latest Improvements (Drop Logic & Smart Pointer Handling)**
+##  **Latest Improvements (Drop Logic & Smart Pointer Handling)**
 
 ### **TrackedVariable Drop Logic Fixes**
 
@@ -589,11 +589,11 @@ This changelog documents the changes between the `test_a` branch and `master` br
 
 ### **Key Benefits**
 
-- ✅ **Robust Drop Logic**: Prevents duplicate tracking and ensures accurate memory analysis
-- ✅ **Better Performance**: Removed unnecessary auto-export operations from drop
-- ✅ **Enhanced Smart Pointer Support**: Consistent handling of Rc, Arc, and Box types
-- ✅ **Improved Error Resilience**: Panic-safe error handling prevents drop failures
-- ✅ **Thread Safety**: Atomic operations for safe concurrent access
+-  **Robust Drop Logic**: Prevents duplicate tracking and ensures accurate memory analysis
+-  **Better Performance**: Removed unnecessary auto-export operations from drop
+-  **Enhanced Smart Pointer Support**: Consistent handling of Rc, Arc, and Box types
+-  **Improved Error Resilience**: Panic-safe error handling prevents drop failures
+-  **Thread Safety**: Atomic operations for safe concurrent access
 
 **Statistics:**
 
@@ -604,7 +604,7 @@ This changelog documents the changes between the `test_a` branch and `master` br
 
 ***
 
-## 🏗️ **Architecture & Project Structure**
+##  **Architecture & Project Structure**
 
 ### **Code Reorganization**
 
@@ -644,7 +644,7 @@ src/
 
 ***
 
-## 🔧 **Core Functionality Changes**
+##  **Core Functionality Changes**
 
 ### **Memory Tracking (`core/tracker.rs`)**
 
@@ -686,7 +686,7 @@ src/
 
 ***
 
-## 📊 **Export & Visualization**
+##  **Export & Visualization**
 
 ### **JSON Export Improvements**
 
@@ -718,7 +718,7 @@ src/
 
 ***
 
-## 🛠️ **Development Tools**
+## ️ **Development Tools**
 
 ### **Command Line Interface**
 
@@ -738,7 +738,7 @@ src/
 
 ***
 
-## 📈 **Performance Considerations**
+##  **Performance Considerations**
 
 ### **Potential Improvements**
 
@@ -754,7 +754,7 @@ src/
 
 ***
 
-## 🚀 **New Features**
+##  **New Features**
 
 ### **Experimental Features**
 
@@ -876,7 +876,7 @@ src/
 - **feat(unified/tracking\_dispatcher)**: Advanced strategy dispatcher (762 lines)
 - **feat(unified/strategies)**: Multiple tracking strategies (async, hybrid, single-thread, multi-thread)
 
-### ✨ Enhanced Features
+###  Enhanced Features
 
 #### Core System Improvements
 
@@ -905,7 +905,7 @@ src/
 - **feat(examples/performance\_test\_visualization)**: Performance testing visualization
 - **feat(examples/verified\_selective\_demo)**: Verified selective tracking demo
 
-### 🔧 Technical Improvements
+###  Technical Improvements
 
 #### Performance Optimizations
 
@@ -927,7 +927,7 @@ src/
 - **test(concurrency)**: High-concurrency stress testing
 - **test(unified)**: Unified backend system testing
 
-### 📚 Documentation
+###  Documentation
 
 #### Comprehensive Documentation Overhaul
 
@@ -948,7 +948,7 @@ src/
 - **docs(performance)**: Performance optimization guides
 - **docs(architecture)**: System architecture documentation
 
-### 🛠️ Development Experience
+### ️ Development Experience
 
 #### Build System Enhancements
 
@@ -962,13 +962,13 @@ src/
 - **feat(warnings)**: Zero compiler warnings achievement
 - **test(coverage)**: Enhanced test coverage across all modules
 
-### 🔄 Breaking Changes
+###  Breaking Changes
 
 - **BREAKING**: Modular architecture requires explicit module imports
 - **BREAKING**: API changes in tracking initialization patterns
 - **BREAKING**: Export format changes for enhanced data structures
 
-### 📊 Performance Metrics
+###  Performance Metrics
 
 - **Concurrency**: Support for 100+ threads with zero lock contention
 - **Memory Overhead**: < 1MB per thread for async tracking
@@ -976,7 +976,7 @@ src/
 - **Code Growth**: +48,516 lines of new functionality
 - **Test Coverage**: Comprehensive testing across all new modules
 
-### 🎯 Migration Guide
+###  Migration Guide
 
 #### For Existing Users
 
@@ -1000,7 +1000,7 @@ use memscope_rs::async_memory;
 
 ## \[0.1.10] - 2025-10-15
 
-## 🔧 Code Quality and Engineering Improvements
+##  Code Quality and Engineering Improvements
 
 #### Build System Fixes
 
@@ -1023,7 +1023,7 @@ use memscope_rs::async_memory;
   - Replaced all Chinese comments with English equivalents
   - Maintained full functionality while improving code quality
 
-### 🎯 Core Infrastructure Completion
+###  Core Infrastructure Completion
 
 #### Memory Tracking Statistics System
 
@@ -1063,7 +1063,7 @@ use memscope_rs::async_memory;
   - Global classifier singleton pattern
   - Seamless integration with estimation system
 
-### 📊 Quality Metrics Achieved
+###  Quality Metrics Achieved
 
 - **Compilation**: 0 errors, 0 warnings
 - **Code Quality**: All clippy checks passing
