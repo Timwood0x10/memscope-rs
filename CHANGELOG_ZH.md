@@ -1,3 +1,31 @@
+## \[0.2.6] - 2026-11-05
+
+### 🎯 **基于绑定身份的计费与事件流报告**
+
+本次发布为每次分配引入 serial 身份，释放、重分配与任务计费都按实际绑定结算，而不再依赖可能被复用的地址。报告统一由一次事件切片重建，JSON 导出也会明确说明计费的完整程度。
+
+#### ✨ 计费与导出
+
+- **feat**: `ClosedBinding { ptr, serial, size }` 贯穿缓存、事件、账本、JSON 与 dashboard；降级释放事件描述实际关闭的身份。
+- **feat**: `ChargeOutcome`（Charged / Unattributed / Deferred）、非阻塞 `try_record_allocation`、按任务下界与延迟计费计数。
+- **feat**: 通过 `profile_replay` 从事件流重建任务画像，与 `memory_analysis.json` 和任务图使用同一切片。
+- **feat**: 导出 JSON 与 dashboard 摘要新增 `degraded_releases`、`charge_quality` 以及存活/累计口径标注。
+
+#### 🏗️ 架构
+
+- **refactor**: `export` 拆分为 ownership / snapshot / task-graph 子模块；释放逻辑下沉到 `tracker/release.rs`；async tracker 拆为 `dealloc`、`future`、`queries`。
+- **refactor**: dashboard 共享 `Handlebars` 注册表、抽出 context metrics；OS 进程内存读取独立为 `process_memory.rs`。
+
+#### 🛠 Bug 修复
+
+- **fix**: 消除 `Arc`/`Rc` 重复计费、降级释放或搬迁 realloc 导致的去重状态丢失、allocator 重入死锁与跨线程释放丢失。
+- **fix**: 导出期间抑制 allocator 自追踪；页大小改为跨平台实现；仅在显式指定路径时加载外部模板。
+- **fix**: 校准测量不再锁定与平台相关的精确接受数；并行共享状态与 coverage 插桩下的计时断言保持稳定。
+
+#### ✅ 测试
+
+- 全量导出/生命周期验收测试（50 个真实负载）、allocator 重入子进程回归，以及并行与覆盖率插桩场景下的确定性断言。
+
 ## \[0.2.5] - 2026-07-27
 
 ### 🎯 **统一的自动导出生命周期与简化启动 API**
