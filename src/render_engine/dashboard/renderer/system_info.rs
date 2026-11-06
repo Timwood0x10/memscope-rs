@@ -18,37 +18,91 @@ pub fn get_system_info() -> SystemResources {
 
 /// Compute the current process CPU usage percentage (0.0-100.0).
 ///
-/// Uses `getrusage(RUSAGE_SELF)` to obtain user + system CPU time consumed by
-/// the process, then divides by the process wall-clock uptime recorded by
-/// `init_global_tracking()` (via `capture::backends::global_tracking::PROCESS_START`).
-/// The result is clamped to [0, 100] and rounded to 2 decimal places.
+/// Divides the process's user + system CPU time by its wall-clock uptime
+/// recorded by `init_global_tracking()` (via
+/// `capture::backends::global_tracking::PROCESS_START`). The CPU time comes
+/// from `getrusage(RUSAGE_SELF)` on Unix and from `sysinfo` on Windows, whose
+/// `libc` has no `rusage`. The result is clamped to [0, 100] and rounded to
+/// two decimal places.
 ///
 /// No manual initialization is needed — `init_global_tracking()` captures
 /// the start time automatically on first call.
 fn process_cpu_usage_pct() -> f64 {
-    use std::mem::MaybeUninit;
-
     // Process wall-clock age from the timer initialized in init_global_tracking().
     let elapsed = match crate::capture::backends::global_tracking::process_start_elapsed_secs() {
         Some(e) if e >= 0.001 => e,
         _ => return 0.0,
     };
 
-    // Process CPU time (user + sys) in seconds via getrusage.
-    let mut ru: MaybeUninit<libc::rusage> = MaybeUninit::uninit();
-    let cpu_secs = if unsafe { libc::getrusage(libc::RUSAGE_SELF, ru.as_mut_ptr()) == 0 } {
-        let ru = unsafe { ru.assume_init() };
-        let user = ru.ru_utime.tv_sec as f64 + ru.ru_utime.tv_usec as f64 / 1_000_000.0;
-        let sys = ru.ru_stime.tv_sec as f64 + ru.ru_stime.tv_usec as f64 / 1_000_000.0;
-        user + sys
-    } else {
+    let cpu_secs = process_cpu_time_secs();
+    if cpu_secs <= 0.0 {
         return 0.0;
-    };
+    }
 
     let pct = (cpu_secs / elapsed) * 100.0;
     // Round to 2 decimal places so the telemetry bar shows a clean value
     // like "0.05%" instead of "0.000023050096979228655%".
     (pct.clamp(0.0, 100.0) * 100.0).round() / 100.0
+}
+
+/// Total CPU time (user + system) consumed by this process, in seconds.
+///
+/// Unix uses `getrusage(RUSAGE_SELF)`. Windows `libc` has no `rusage`, so it
+/// asks `sysinfo` for the process's accumulated CPU time instead. Both paths
+/// read a measured counter, never an estimate.
+#[cfg(unix)]
+fn process_cpu_time_secs() -> f64 {
+    use std::mem::MaybeUninit;
+
+    let mut ru: MaybeUninit<libc::rusage> = MaybeUninit::uninit();
+    if unsafe { libc::getrusage(libc::RUSAGE_SELF, ru.as_mut_ptr()) } != 0 {
+        return 0.0;
+    }
+    let ru = unsafe { ru.assume_init() };
+    let user = ru.ru_utime.tv_sec as f64 + ru.ru_utime.tv_usec as f64 / 1_000_000.0;
+    let sys = ru.ru_stime.tv_sec as f64 + ru.ru_stime.tv_usec as f64 / 1_000_000.0;
+    user + sys
+}
+
+/// Windows has no `getrusage`; `GetProcessTimes` reports kernel + user time in
+/// 100-nanosecond intervals, which converts directly to seconds.
+#[cfg(windows)]
+fn process_cpu_time_secs() -> f64 {
+    use windows_sys::Win32::Foundation::FILETIME;
+    use windows_sys::Win32::System::Threading::{GetCurrentProcess, GetProcessTimes};
+
+    let mut creation = FILETIME {
+        dwLowDateTime: 0,
+        dwHighDateTime: 0,
+    };
+    let mut exit = creation;
+    let mut kernel = creation;
+    let mut user = creation;
+    // SAFETY: the handle is the current process pseudo-handle, and all four
+    // FILETIME pointers are valid, writable, and distinct locals.
+    let ok = unsafe {
+        GetProcessTimes(
+            GetCurrentProcess(),
+            &mut creation,
+            &mut exit,
+            &mut kernel,
+            &mut user,
+        )
+    };
+    if ok == 0 {
+        return 0.0;
+    }
+    let to_secs = |ft: FILETIME| {
+        ((u64::from(ft.dwHighDateTime) << 32) | u64::from(ft.dwLowDateTime)) as f64 / 10_000_000.0
+    };
+    to_secs(kernel) + to_secs(user)
+}
+
+/// Platforms with neither `getrusage` nor Win32 process times report no CPU
+/// sample instead of inventing one.
+#[cfg(not(any(unix, windows)))]
+fn process_cpu_time_secs() -> f64 {
+    0.0
 }
 
 #[cfg(target_os = "macos")]
